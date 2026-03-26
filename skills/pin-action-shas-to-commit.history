@@ -1,0 +1,44 @@
+# pin-action-shas-to-commit --- History
+
+## v2.0.0 (2026-03-25)
+
+**Changed by:** ProjectScylla issue #1534 -- full repo-wide SHA pinning with regression tests
+**Verification:** verified-local
+
+### What changed
+- Expanded scope from composite actions only to ALL workflow + composite action files
+- Added regression test pattern (pytest parametrized over .github/ YAML files)
+- Added batch SHA resolution script for multiple actions
+- Added 6 new verified SHAs (actions/checkout, cache, upload-artifact, codecov, trivy-action)
+- Added "Verified On" entry for ProjectScylla
+- Updated verification commands to cover bare semver tags (e.g. @0.35.0) not just v-tags
+
+### Why
+v1.0.0 focused only on composite action files that were missed in an initial pinning pass.
+Issue #1534 required a full repo-wide pinning of all 16 external references across 7 files,
+including workflow files. The regression test pattern prevents future regressions when new
+actions are added.
+
+### Previous version (v1.0.0) snapshot
+
+```yaml
+---
+name: pin-action-shas-to-commit
+description: 'Pin GitHub Actions version tags to full commit SHAs for supply chain
+  security. Use when: composite action files use mutable tags like @v8 or @v0.9.4
+  instead of full 40-char commit SHAs.'
+category: ci-cd
+date: 2026-03-07
+version: 1.0.0
+user-invocable: false
+---
+```
+
+Covered: composite actions only (.github/actions/), 2 verified SHAs (prefix-dev/setup-pixi, actions/github-script).
+Did not include: workflow files, regression tests, batch resolution, bare semver tag detection.
+
+---
+
+## v1.0.0 (2026-03-07)
+
+**Initial version.**
