@@ -1,5 +1,55 @@
 # History: wave-based-bulk-issue-triage
 
+## v1.2.0 — 2026-04-12
+
+**Amendment**: Add verify-before-fix pass, Haiku classifier accuracy data, worktree grep exclusion pattern, wave timing for Python/pixi repos, and drop-criteria for feature requests and multi-exception handlers.
+
+### Changes from v1.1.0
+- Bumped version to 1.2.0, updated date to 2026-04-12, verification bumped to verified-ci
+- Updated description to mention verify-before-fix pass
+- Updated Overview table to reflect 64-issue ProjectScylla session (12 PRs, 11 merged CI-green)
+- Added history link to Overview table
+- **When to Use (Don't use when)**: Added two new exclusion signals:
+  - "no existing code to modify" = feature request, not LOW
+  - Multi-type exception handling with different semantics = not safe for generic `@retry`
+- **Phase 1 (Triage)**: Added critical note about mandatory verify-before-fix pass after Haiku classification
+- **New Phase 1b**: Verify-Before-Fix Pass section with:
+  - Correct grep command excluding `.git`, `.worktrees`, `.claude` dirs
+  - Wrong grep pattern warning (plain grep picks up stale worktree content)
+  - ALREADY-DONE signal list: zero grep matches, nats-server pin, stale --cov in worktrees only
+  - Haiku accuracy data: ~95% correct, ~5% ALREADY-DONE miss rate (3/64)
+- **Failed Attempts**: Added 3 new rows:
+  - Security feature with zero grep matches wrongly classified as LOW
+  - Generic `@retry` failure for multi-exception handler
+  - Grepping without worktree exclusion giving false ALREADY-DONE signals
+- **Results**: Added 2026-04-12 session results table (64 issues, 4 waves, 12 PRs, timing)
+- **Wave Sizing**: Updated Expected Duration column for Python/pixi repos (~3-4 min)
+- **Verified On**: Added 2026-04-12 ProjectScylla entry
+
+### Verification
+- verified-ci: 11/12 PRs merged CI-green on ProjectScylla (2026-04-12)
+
+### Previous version (v1.1.0) snapshot
+
+<details>
+<summary>v1.1.0 frontmatter</summary>
+
+```yaml
+name: wave-based-bulk-issue-triage
+description: "Fix 5+ independent GitHub issues in parallel waves using Task isolation:worktree. No manual worktree setup — Claude Code auto-manages isolation. Also covers bulk gh issue create via myrmidon swarm (plain Agent calls, no worktrees needed)."
+category: architecture
+date: 2026-04-06
+version: 1.1.0
+user-invocable: false
+verification: verified-local
+history: wave-based-bulk-issue-triage.history
+```
+</details>
+
+Key state at v1.1.0: myrmidon swarm pattern for bulk `gh issue create` added; body-file quoting gotcha documented; verified on HomericIntelligence/Odysseus (#99-109). No verify-before-fix pass, no Haiku accuracy data, no worktree exclusion grep pattern.
+
+---
+
 ## v1.1.0 — 2026-04-06
 
 **Amendment**: Add myrmidon swarm pattern for bulk `gh issue create` operations.

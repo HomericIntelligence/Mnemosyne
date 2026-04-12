@@ -2,22 +2,24 @@
 name: wave-based-bulk-issue-triage
 description: "Fix 5+ independent GitHub issues in parallel waves using Task isolation:worktree.\
   \ No manual worktree setup \u2014 Claude Code auto-manages isolation. Also covers\
-  \ bulk gh issue create via myrmidon swarm (plain Agent calls, no worktrees needed)."
+  \ bulk gh issue create via myrmidon swarm (plain Agent calls, no worktrees needed).\
+  \ Includes verify-before-fix pass to catch ALREADY-DONE issues Haiku misses."
 category: architecture
-date: 2026-04-06
-version: 1.1.0
+date: 2026-04-12
+version: 1.2.0
 user-invocable: false
-verification: verified-local
+verification: verified-ci
 history: wave-based-bulk-issue-triage.history
 ---
 # Skill: Wave-Based Bulk Issue Triage
 
 | Attribute | Value |
 |-----------|-------|
-| **Date** | 2026-02-22 |
-| **Objective** | Fix 8 GitHub issues (2 waves × 4 PRs) — simple fixes + test additions |
-| **Outcome** | ✅ Success — 8 PRs created in parallel, auto-merge enabled |
-| **Key Innovation** | `Task(isolation="worktree")` — zero manual worktree management |
+| **Date** | 2026-04-12 |
+| **Objective** | Fix 64 GitHub issues (4 waves, 12 PRs) — full myrmidon swarm pass on ProjectScylla |
+| **Outcome** | 12 PRs created, 11 merged CI-green; verify-before-fix pass caught 3 false negatives |
+| **Key Innovation** | `Task(isolation="worktree")` + mandatory verify-before-fix pass after Haiku classification |
+| **History** | [changelog](./wave-based-bulk-issue-triage.history) |
 
 ## When to Use
 
@@ -33,6 +35,8 @@ Use this skill when:
 - Issues depend on each other (use sequential PRs)
 - Any issue touches 20+ files (exclude from wave, file separately)
 - Issues share modified files (risk of merge conflicts)
+- An issue claims a new feature with zero grep matches in the codebase — that is a feature request (MEDIUM/HIGH), not a trivial fix
+- An issue involves complex multi-type exception handling where each exception type requires different semantics — cannot be safely converted to a generic `@retry` decorator without redesigning the exception flow
 
 ## Verified Workflow
 
@@ -58,6 +62,34 @@ Excluded — Too complex for bulk:
 ```
 
 **Key decision:** Run Wave A first (faster, unblocks Wave B if needed), then Wave B.
+
+**Critical: Run a verify-before-fix pass AFTER Haiku classification, BEFORE launching fix agents.** Haiku has a ~5% ALREADY-DONE miss rate. A separate grep pass in the main tree catches these before wasted implementation work.
+
+### Phase 1b: Verify-Before-Fix Pass (REQUIRED after Haiku classification)
+
+After Haiku classifies issues, run a manual verify-before-fix pass before launching any fix agents:
+
+```bash
+# For ALREADY-DONE candidates — grep ONLY in the main tree (not worktrees)
+grep -rn "pattern" /path/to/repo/ \
+  --include="*.py" --include="*.toml" --include="*.yml" \
+  --exclude-dir=".git" \
+  --exclude-dir=".worktrees" \
+  --exclude-dir=".claude"
+
+# For issues claiming "add X" — verify X doesn't already exist
+# For issues claiming "remove Y" — verify Y still exists
+# For issues claiming "pin version Z" — verify current version in config files
+```
+
+**Key signals that drop an issue from LOW to ALREADY-DONE:**
+- "no existing code to modify" — zero grep matches for the claimed new feature → feature request, not trivial fix → move to MEDIUM/HIGH
+- nats-server pin done via direct curl to pinned version (not in pixi.toml) — grep the full install path
+- Stale `--cov` refs only appear in `.worktrees/` or `.claude/worktrees/` — not in the main tree
+
+**Critical: always grep in the MAIN tree only.** Worktrees contain stale content from prior branches. Always use `--exclude-dir=".worktrees"` and `--exclude-dir=".claude"`.
+
+**Haiku classification accuracy** (64-issue session): ~95% correct, ~5% ALREADY-DONE miss rate (3 false negatives out of 64). Always run this pass — don't trust Haiku classification as ground truth.
 
 ### Phase 2: Launch Parallel Agents (One Wave at a Time)
 
@@ -149,6 +181,9 @@ You are fixing GitHub issue #NNN in the ProjectScylla repository.
 |---------|----------------|---------------|----------------|
 | N/A | Direct approach worked for code-fix waves | N/A | Solution was straightforward |
 | Body quoting (2026-04-06) | Single-quoted `--body '...'` strings with apostrophes/single quotes embedded | Shell interprets `'` inside `'...'` as end of string, breaking the command | Use `--body-file /tmp/issue-body.md` for any body containing single quotes or apostrophes |
+| Security feature flagged as LOW (2026-04-12) | Issue requesting `clear_failure` injection_id validation classified as LOW/trivial | Zero grep matches for the named function — no existing code to modify. This was a new feature, not a fix | "No existing code to modify" = feature request → MEDIUM/HIGH. Verify-before-fix pass catches this. |
+| Generic `@retry` decorator for multi-exception handler (2026-04-12) | Tried to replace inline retry loop in `model_validation.py` with `@retry` decorator | The loop had TimeoutExpired, FileNotFoundError, and Exception branches each requiring different semantics — impossible to flatten into one decorator | "Different action per exception type" = not safe to narrow to generic retry. Keep as-is or file as refactor, not LOW fix. |
+| Grepping without excluding worktrees (2026-04-12) | Plain `grep -rn pattern /repo/` to detect ALREADY-DONE status | Worktrees contain stale branch content — gave false "still present" signal for #1655 (nats-server pin) and #1671 (stale --cov refs) | Always pass `--exclude-dir=.worktrees --exclude-dir=.claude --exclude-dir=.git` when grepping for ALREADY-DONE verification |
 ## Results & Parameters
 
 ### Myrmidon Swarm Pattern for Bulk Issue Filing (2026-04-06)
@@ -214,12 +249,27 @@ gh issue create \
 
 **Total**: 8 PRs, 23 new tests, ~2 minutes wall clock per wave
 
+### Session Results (2026-04-12) — ProjectScylla 64-Issue Pass
+
+| Metric | Value |
+|--------|-------|
+| Issues classified by Haiku | 64 |
+| Waves | 4 |
+| PRs created | 12 |
+| PRs merged CI-green (at skill creation time) | 11 |
+| ALREADY-DONE caught by verify-before-fix | 3 (including 2 Haiku false negatives: #1655, #1671) |
+| Haiku ALREADY-DONE miss rate | 4.7% (3/64) |
+| Wall-clock time per wave (Sonnet + pre-commit + unit tests) | ~3-4 min |
+| Total 4-wave wall clock | ~16 min |
+| CI unit test duration | ~4-5 min |
+| CI integration test duration | ~2 min |
+
 ### Wave Sizing Guidelines
 
-| Wave Size | Agents | Expected Duration |
-|-----------|--------|-------------------|
+| Wave Size | Agents | Expected Duration (Python/pixi repo) |
+|-----------|--------|--------------------------------------|
 | 2-3 issues | 2-3 parallel | ~1-2 min |
-| 4-5 issues | 4-5 parallel | ~2-5 min |
+| 4-5 issues | 4-5 parallel | ~3-4 min |
 | 6+ issues | Split into sub-waves | Varies |
 
 ### Issue Complexity Thresholds
@@ -246,5 +296,6 @@ Add a comment in the plan when excluding:
 
 | Project | Context | Details |
 |---------|---------|---------|
-| ProjectScylla | Wave 6+7, PRs #1051-#1059 | [notes.md](references/notes.md) |
+| ProjectScylla | Wave 6+7, PRs #1051-#1059 (2026-02-22) | 8 PRs, 23 new tests, ~2 min/wave |
 | HomericIntelligence/Odysseus | Bulk issue filing, issues #99-#109 (2026-04-06) | 11 issues, 3 waves (5+5+1 Haiku agents), ~30s total |
+| ProjectScylla | 64-issue myrmidon swarm, 4 waves, 12 PRs (2026-04-12) | Haiku classification + verify-before-fix pass, 11/12 PRs merged CI-green |
