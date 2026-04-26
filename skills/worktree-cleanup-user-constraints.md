@@ -6,14 +6,16 @@ description: "Use when cleaning up worktrees under user-specified constraints: (
   of dirty worktrees (artifact noise vs real work), generating a section-annotated cleanup script,
   handling files left orphaned in merged-branch working trees, the staged-file two-step
   (reset HEAD then checkout --) required when worktrees contain staged-only new files (status A),
-  all-clean direct execution, cherry=1 rebase-merge artifact handling, and the remove-worktree-keep-branch
-  pattern for closed-not-merged PRs."
+  all-clean direct execution, cherry=1 rebase-merge artifact handling, the remove-worktree-keep-branch
+  pattern for closed-not-merged PRs, bulk removal of 30+ locked agent worktrees from myrmidon
+  swarm sessions, pixi.lock and CHANGELOG.md dirty-artifact handling, and issue worktree
+  non-lock pattern (.worktrees/issue-N never need git worktree unlock)."
 category: tooling
-date: 2026-04-21
-version: "1.3.0"
+date: 2026-04-25
+version: "1.4.0"
 user-invocable: false
-verification: verified-ci
-tags: [worktree, cleanup, script, branches, artifacts, safety, merged-branch, circuit-breaker, staged-files, rebase-merge, closed-pr]
+verification: verified-local
+tags: [worktree, cleanup, script, branches, artifacts, safety, merged-branch, circuit-breaker, staged-files, rebase-merge, closed-pr, locked-worktrees, myrmidon-swarm, pixi-lock, issue-worktrees]
 ---
 
 # Worktree Cleanup Under User Constraints
@@ -22,11 +24,12 @@ tags: [worktree, cleanup, script, branches, artifacts, safety, merged-branch, ci
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-04-12 |
+| **Date** | 2026-04-25 |
 | **Objective** | Remove 36 stale worktrees from ProjectScylla while preserving all branches and not executing any destructive ops directly |
 | **Outcome** | Produced a reviewable 7-section shell script; identified real uncommitted work (circuit breaker) in a merged-branch worktree; classified 6 dirty worktrees |
 | **Verification** | verified-local — script produced and validated; not yet executed by user |
 | **Scale** | 36 worktrees → target: 1 (main only) |
+| **Latest session** | 2026-04-25: 33 worktrees (31 locked `agent-*` + 2 issue), all squash-merged/ancestor-of-main, 5 dirty (4× pixi.lock + 1× CHANGELOG.md) — all stale artifacts, direct execution, all 33 removed cleanly |
 
 ## When to Use
 
@@ -35,6 +38,9 @@ tags: [worktree, cleanup, script, branches, artifacts, safety, merged-branch, ci
 - Worktrees from merged branches have uncommitted files that might be real work
 - 20+ worktrees need cleanup and some have dirty working trees
 - Agent-generated worktrees (`.claude/worktrees/agent-*`) accumulated from parallel runs
+- **30+ locked agent worktrees from a completed myrmidon swarm session need bulk removal** — unlock+remove loop is reliable; `git worktree unlock <path>` then `git worktree remove <path>` (no `--force`)
+- **Dirty files are `pixi.lock` or `CHANGELOG.md` in locked agent worktrees** — confirm they are stale lock-rebase artifacts via `git -C <wt> diff <file> | head -10` before using `git -C <wt> checkout -- <file>` to discard
+- **Issue worktrees (`.worktrees/issue-N`) have untracked `.claude-prompt-N.md` files** — these are NOT locked and do NOT need `git worktree unlock`; `rm -f` the prompt artifacts then `git worktree remove` directly
 
 **All-clean worktrees allow direct execution (no script required):**
 
@@ -77,7 +83,25 @@ git cherry origin/main <branch> | grep "^+" | wc -l   # 0 = superseded
 
 # 4. Generate script, hand to user — do not execute (unless all worktrees are clean)
 # 5. User runs: bash -x /tmp/cleanup.sh 2>&1 | tee /tmp/cleanup.log
+
+# For locked agent worktrees with stale pixi.lock:
+git -C <wt> diff pixi.lock | head -10  # confirm it's a rebase artifact (adds/removes conda pkgs already in branch tip)
+git -C <wt> checkout -- pixi.lock      # discard stale diff
+git worktree unlock <wt>
+git worktree remove <wt>
+
+# For locked agent worktrees with stale CHANGELOG.md (deletion-only, lines exist on origin/main):
+git -C <wt> diff CHANGELOG.md | head -10  # confirm deletion-only artifact
+git -C <wt> checkout -- CHANGELOG.md       # discard
+git worktree unlock <wt>
+git worktree remove <wt>
+
+# For issue worktrees (.worktrees/issue-N) — NOT locked:
+rm -f <wt>/.claude-prompt-*.md          # remove prompt artifacts
+git worktree remove <wt>                 # no unlock needed
 ```
+
+**Note:** Issue worktrees (`.worktrees/issue-N`) are NOT locked even when agent worktrees ARE locked — do not call `git worktree unlock` on them.
 
 ### Phase 0 — Read-Only Inventory
 
@@ -302,6 +326,7 @@ bash -n /tmp/<repo>-worktree-cleanup.sh && echo "Syntax OK"
 | `git worktree remove --force` | Planned to use `--force` for stubborn cases | Safety Net blocks `--force` | Clean stray files individually first, then `git worktree remove` without `--force` |
 | `git checkout -- .` alone on staged-addition worktree | Ran `checkout -- .` then `git worktree remove` | `fatal: '<path>' contains modified or untracked files` — staged new files (status `A`) survived `checkout --` unchanged | Must run `reset HEAD -- .` first to unstage, then `checkout -- .`, then `clean -fd` |
 | Assuming cherry=1 means unreleased work | Three branches showed cherry=1 despite MERGED PRs | Rebase-merge rewrites commit hashes, so cherry count is 1 even though work is in main | Always check PR state first; cherry count is only meaningful when combined with PR=NONE or PR=CLOSED |
+| Listed same worktree in both clean and dirty arrays in cleanup script | `agent-aed0f8ff7e409d275` appeared in SECTION 1 (clean-locked) AND SECTION 2 (dirty-pixi) | Script calls `git worktree unlock` + `git worktree remove` twice; second call fails with "not a git worktree" | When classifying worktrees into sections, use exclusive membership — if a worktree is in the dirty category, it must not also appear in the clean array |
 
 ## Results & Parameters
 
@@ -324,6 +349,7 @@ def is_artifact(path: str) -> bool:
 |-----------|-------|----------|-------------|------|
 | 14 | 4 dirty (`.coverage` only) | Sequential script | 7 sections, ~80 lines | ~2 min |
 | 17 | 0 dirty (all clean) | Direct execution | No script needed | ~1 min |
+| 33 | 5 dirty (4× pixi.lock, 1× CHANGELOG.md) | Direct execution (all stale artifacts, user approved) | No script; unlock+remove loop | ~10 min |
 | 36 | 6 dirty | Sequential script | 7 sections, ~120 lines | ~5 min |
 | 20-35 | Mixed | Same pattern | Adjust WORKTREES array | varies |
 
@@ -339,3 +365,4 @@ def is_artifact(path: str) -> bool:
 | ProjectMnemosyne | 14 agent worktrees (`.claude/worktrees/agent-*`), all PRs #1221–1255 merged, 4 with `.coverage` only | Script at `/tmp/mnemosyne-worktree-cleanup.sh`; syntax-checked (bash -n); user kept branches, generate-only mode |
 | ProjectScylla | 11 stale myrmidon swarm worktrees, staged-addition failures caught on cleanup, all 11 removed cleanly | 2026-04-13; `reset HEAD -- .` + `checkout -- .` + `clean -fd` sequence verified effective |
 | ProjectOdyssey | 17 worktrees (1 main + 16 feature), all clean (0 dirty), 15 agent-* in `.claude/worktrees/`, cherry=1 on MERGED PRs = rebase artifacts | 2026-04-21; direct execution (no script); 1 CLOSED PR branch kept; all 17 worktrees removed, 0 `--force` needed |
+| Myrmidons (HomericIntelligence) | 33 worktrees: 31 locked `agent-*` in `.claude/worktrees/` + 2 issue worktrees in `.worktrees/`, 5 dirty (4× pixi.lock + 1× CHANGELOG.md) | 2026-04-25; direct execution (user approved, all verified squash-merged/ancestor-of-main); pixi.lock and CHANGELOG.md confirmed stale via diff; all 33 removed cleanly, 0 `--force`, issue worktrees never needed unlock |
