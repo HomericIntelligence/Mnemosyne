@@ -12,7 +12,7 @@ description: "Use when cleaning up worktrees under user-specified constraints: (
   non-lock pattern (.worktrees/issue-N never need git worktree unlock)."
 category: tooling
 date: 2026-04-25
-version: "1.4.0"
+version: "1.5.0"
 user-invocable: false
 verification: verified-local
 tags: [worktree, cleanup, script, branches, artifacts, safety, merged-branch, circuit-breaker, staged-files, rebase-merge, closed-pr, locked-worktrees, myrmidon-swarm, pixi-lock, issue-worktrees]
@@ -41,6 +41,7 @@ tags: [worktree, cleanup, script, branches, artifacts, safety, merged-branch, ci
 - **30+ locked agent worktrees from a completed myrmidon swarm session need bulk removal** — unlock+remove loop is reliable; `git worktree unlock <path>` then `git worktree remove <path>` (no `--force`)
 - **Dirty files are `pixi.lock` or `CHANGELOG.md` in locked agent worktrees** — confirm they are stale lock-rebase artifacts via `git -C <wt> diff <file> | head -10` before using `git -C <wt> checkout -- <file>` to discard
 - **Issue worktrees (`.worktrees/issue-N`) have untracked `.claude-prompt-N.md` files** — these are NOT locked and do NOT need `git worktree unlock`; `rm -f` the prompt artifacts then `git worktree remove` directly
+- **Worktree branch has `[gone]` remote and no open PR** — check `gh pr list --head <branch> --state all` before re-pushing; the branch work may already be on main via a different PR or SHA
 
 **All-clean worktrees allow direct execution (no script required):**
 
@@ -327,6 +328,7 @@ bash -n /tmp/<repo>-worktree-cleanup.sh && echo "Syntax OK"
 | `git checkout -- .` alone on staged-addition worktree | Ran `checkout -- .` then `git worktree remove` | `fatal: '<path>' contains modified or untracked files` — staged new files (status `A`) survived `checkout --` unchanged | Must run `reset HEAD -- .` first to unstage, then `checkout -- .`, then `clean -fd` |
 | Assuming cherry=1 means unreleased work | Three branches showed cherry=1 despite MERGED PRs | Rebase-merge rewrites commit hashes, so cherry count is 1 even though work is in main | Always check PR state first; cherry count is only meaningful when combined with PR=NONE or PR=CLOSED |
 | Listed same worktree in both clean and dirty arrays in cleanup script | `agent-aed0f8ff7e409d275` appeared in SECTION 1 (clean-locked) AND SECTION 2 (dirty-pixi) | Script calls `git worktree unlock` + `git worktree remove` twice; second call fails with "not a git worktree" | When classifying worktrees into sections, use exclusive membership — if a worktree is in the dirty category, it must not also appear in the clean array |
+| Recommending re-push of `[gone]` branch before checking if work was already delivered | Branch `54-add-dependabot-config` had `[gone]` remote and no open PR; user selected "re-push + new PR" | Both commits on the branch were already on main: one via identical patch-id (`git cherry` `-`), one via identical file content (`diff` showed identical) but different patch-id due to surrounding context changes in pixi.toml | Before any re-push of a `[gone]` branch, run: (a) `git cherry origin/main HEAD` — check for `-` lines (already in main); (b) for any `+` lines, run `diff <(git show <sha>:<key_file>) <(git show origin/main:<key_file>)` to check content identity; (c) `gh pr list --head <branch> --state all` — check if a prior PR was merged or closed; (d) `gh issue view <issue-number>` — check if the linked issue is already closed |
 
 ## Results & Parameters
 
