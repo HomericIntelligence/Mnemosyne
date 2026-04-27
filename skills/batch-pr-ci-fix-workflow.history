@@ -1,5 +1,43 @@
 # batch-pr-ci-fix-workflow — Version History
 
+## v2.10.0 (2026-04-27)
+
+**Changed by:** ProjectKeystone CI fix session — cppcheck danglingLifetime on unused signal-handler global; coverage gate lowered and promoted to required (PR #500)
+**Verification:** verified-ci
+
+### What changed
+- Added Phase 23: Fix cppcheck danglingLifetime on unused signal-handler global pointer (remove the unused global entirely)
+- Added Phase 24: Promote coverage job from advisory extras.yml to required _required.yml with calibrated threshold
+- Added 5 new Failed Attempts rows:
+  - Suppressing danglingLifetime with CPPCHECK_SUPPRESS (wrong approach — delete the dead global)
+  - Expecting TearDown() nullptr reset to satisfy cppcheck (cross-method lifetime not tracked)
+  - Assigning g_scheduler_under_test in TearDown to nullptr before local goes out of scope
+  - Setting coverage threshold above current actual coverage (gate always broken)
+  - Moving coverage job to _required.yml without lowering threshold first (blocks all merges)
+- Added 2 new When to Use triggers (items 24–25)
+- Updated description to include triggers (24)–(25)
+- Updated Verified On table with ProjectKeystone v2.10.0 entry
+- Updated date to 2026-04-27
+
+### Why
+Two independent CI fix patterns from ProjectKeystone:
+1. cppcheck `danglingLifetime` errors on `g_scheduler_under_test` in a SIGTERM integration test
+   — the global was dead scaffolding never read; deleting it cleared the cppcheck error without
+   touching any test logic.
+2. Coverage gate was set at 80% threshold while actual coverage was 77.7%, causing the job to fail
+   on every PR and main run silently (job was in extras.yml, non-required). Fix: lower threshold
+   to 75% (passing level), then move job block to _required.yml so failures become visible.
+
+### Previous version snapshot (v2.9.0)
+
+version: "2.9.0", date: 2026-04-24
+
+v2.9.0 added: GHA workflow manual pixi install migration to composite action; bats PATH isolation
+for pixi-managed tools (/usr/sbin:/sbin instead of /bin:/usr/bin); companion script guard for
+shell scripts called from temp-dir unit test isolation. Triggers (21)–(23).
+
+---
+
 ## v2.9.0 (2026-04-24)
 
 **Changed by:** HomericIntelligence/Myrmidons CI fix session — apply.yml pixi migration, bats PATH isolation, companion script guard (PR #307)

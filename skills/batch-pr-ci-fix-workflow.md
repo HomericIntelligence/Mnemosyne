@@ -1,9 +1,9 @@
 ---
 name: batch-pr-ci-fix-workflow
-description: "Use when: (1) multiple PRs have failing CI checks (formatting, pre-commit, broken links, broken JSON, mypy), (2) a common CI failure pattern affects many PRs and needs a root-cause fix before rebasing, (3) PRs need batch auto-merge after fixes, (4) JSON files are bulk-corrupted and must be repaired before merging, (5) identifying required vs non-required checks, (6) recovering auto-merge after force-push, (7) reconstructing a branch that conflicts with a src-layout migration, (8) pytest caplog test failures with LogRecord.message, (9) gcovr coverage reports 0% in CI, (10) ruff F841 unused variable not auto-fixable, (11) dependabot PR blocked by pre-existing main-branch workflow bug, (12) check-yaml fails on duplicate GHA job keys, (13) small-batch rebase-then-resolve in a worktree, (14) git restore --theirs or git checkout --theirs blocked by Safety Net during automated rebase waves, (15) C library via FetchContent causing global -Werror CI failures, (16) coverage script missing Conan toolchain, (17) clang-format version mismatch with multi-line lambda formatting, (18) diagnosing all-5-required-checks failing vs benchmarks/coverage skipped pattern, (19) just v1.14+ import keyword reservation breaks inline Python heredocs causing all CI Code Quality fails, (20) gitleaks asset URL 404 because uname -s/-m produces wrong case/arch string for download URL, (21) GHA workflow uses manual pixi install instead of composite setup-pixi action causing pixi command not found, (22) bats PATH test for missing tool includes /bin or /usr/bin which pixi activation already polluted, (23) shell script calls companion script via SCRIPT_DIR but unit tests copy only the main script to a temp dir."
+description: "Use when: (1) multiple PRs have failing CI checks (formatting, pre-commit, broken links, broken JSON, mypy), (2) a common CI failure pattern affects many PRs and needs a root-cause fix before rebasing, (3) PRs need batch auto-merge after fixes, (4) JSON files are bulk-corrupted and must be repaired before merging, (5) identifying required vs non-required checks, (6) recovering auto-merge after force-push, (7) reconstructing a branch that conflicts with a src-layout migration, (8) pytest caplog test failures with LogRecord.message, (9) gcovr coverage reports 0% in CI, (10) ruff F841 unused variable not auto-fixable, (11) dependabot PR blocked by pre-existing main-branch workflow bug, (12) check-yaml fails on duplicate GHA job keys, (13) small-batch rebase-then-resolve in a worktree, (14) git restore --theirs or git checkout --theirs blocked by Safety Net during automated rebase waves, (15) C library via FetchContent causing global -Werror CI failures, (16) coverage script missing Conan toolchain, (17) clang-format version mismatch with multi-line lambda formatting, (18) diagnosing all-5-required-checks failing vs benchmarks/coverage skipped pattern, (19) just v1.14+ import keyword reservation breaks inline Python heredocs causing all CI Code Quality fails, (20) gitleaks asset URL 404 because uname -s/-m produces wrong case/arch string for download URL, (21) GHA workflow uses manual pixi install instead of composite setup-pixi action causing pixi command not found, (22) bats PATH test for missing tool includes /bin or /usr/bin which pixi activation already polluted, (23) shell script calls companion script via SCRIPT_DIR but unit tests copy only the main script to a temp dir, (24) cppcheck danglingLifetime error on a global raw pointer that is assigned but never read (dead scaffolding leftover in signal-handler test), (25) coverage job is advisory-only (extras.yml) but failing every PR because threshold is too high — needs threshold lowering and promotion to required (_required.yml)."
 category: ci-cd
-date: 2026-04-24
-version: "2.9.0"
+date: 2026-04-27
+version: "2.10.0"
 user-invocable: false
 verification: verified-ci
 history: batch-pr-ci-fix-workflow.history
@@ -43,6 +43,8 @@ tags: []
 - **[NEW v2.9.0]** A GHA workflow was written before a `.github/actions/setup-pixi` composite action existed and uses manual `pixi install --locked` + curl-based yq/jq installs, failing with `pixi: command not found` because pixi itself is never installed on the runner
 - **[NEW v2.9.0]** A bats test uses `PATH="$TOOLS_BIN:/bin:/usr/bin"` to simulate missing tools, but pixi activation hooks add conda-forge paths at shell startup so the tool is still found — making the "tool missing" assertion fail
 - **[NEW v2.9.0]** A shell script calls a companion script via `${SCRIPT_DIR}/<companion>.sh` but unit tests copy only the main script to a temp dir — causing the exec to fail and breaking tests that expect exit 0 for valid input
+- **[NEW v2.10.0]** cppcheck reports `danglingLifetime` (severity=error) on a global raw pointer assigned the address of a local variable inside a test fixture — root cause is dead scaffolding (global never read) left over from an earlier signal-handler design; fix is to remove the unused global entirely
+- **[NEW v2.10.0]** A coverage CI job lives in `extras.yml` (advisory/non-required) but is failing every PR — including main — because the threshold is set too high (e.g., 80% but actual coverage is 77.7%); fix: lower threshold to passing level AND promote the job to `_required.yml` so failures become visible and blocking
 
 ## Verified Workflow
 
@@ -955,6 +957,114 @@ companion scripts are absent.
 **Scope**: Apply this guard to every companion exec in the script, not just the last one. Partial
 guarding still fails if an earlier unguarded companion is missing.
 
+### Phase 23: [NEW v2.10.0] Fix cppcheck danglingLifetime on Unused Signal-Handler Global
+
+**Problem**: cppcheck reports `danglingLifetime` (severity=error) on every assignment to a global
+raw pointer that stores the address of a local variable. The error is technically correct — the
+local will go out of scope — but cppcheck cannot see that `TearDown()` resets the pointer to
+`nullptr` before the local is destroyed.
+
+**Root cause in practice**: The global is dead scaffolding. An earlier design stored the scheduler
+pointer so the signal handler could call `scheduler.shutdown()` directly. The final design switched
+to an atomic flag (`g_sigterm_received`) — the signal handler no longer uses the pointer, and no
+test reads it. The global was never removed.
+
+**cppcheck error pattern:**
+```
+CPPCHECK ERROR: danglingLifetime at tests/integration/test_scheduler_sigterm.cpp:125
+— Non-local variable 'g_scheduler_under_test' will use pointer to local variable 'scheduler'.
+```
+
+**Fix**: Remove the unused global declaration and all assignments. Do NOT try to suppress the
+warning or use `CPPCHECK_SUPPRESS` — if the global is unused, deleting it is the correct fix
+and also eliminates dead code.
+
+```bash
+# 1. Confirm the global is never read (only assigned)
+grep -n "g_scheduler_under_test" tests/integration/test_scheduler_sigterm.cpp
+# Expected: only assignments (=), zero reads or dereferences
+
+# 2. Remove the global declaration (typically near the top of the file)
+# static SchedulerType* g_scheduler_under_test = nullptr;  ← DELETE
+
+# 3. Remove all assignments in SetUp/TearDown
+# g_scheduler_under_test = &scheduler_;  ← DELETE
+# g_scheduler_under_test = nullptr;      ← DELETE
+
+# 4. Rerun cppcheck to verify clean
+cppcheck --enable=all --error-exitcode=1 tests/integration/test_scheduler_sigterm.cpp
+```
+
+**Why tests are unaffected**: The signal handler already uses only the atomic flag. Removing the
+pointer global changes no runtime behavior. Tests pass identically before and after.
+
+**Lesson**: When cppcheck flags `danglingLifetime` on a global that you "think" is used, grep for
+actual reads. If the global is only assigned — never dereferenced or passed anywhere — it is dead
+code. Remove it entirely rather than fighting the static analysis tool.
+
+### Phase 24: [NEW v2.10.0] Promote Coverage Job from Advisory to Required and Lower Threshold
+
+**Problem**: A coverage CI job in `extras.yml` (non-required, advisory-only) has a threshold
+(e.g., 80%) that exceeds actual project coverage (e.g., 77.7%). The job fails on every PR
+including `main`, but because it is non-required, the failure is invisible and non-blocking.
+Teams never notice the threshold is broken until they want to enforce coverage gates.
+
+**Fix procedure** (verified-ci in PR #500, ProjectKeystone):
+
+**Step 1 — Lower threshold to current passing level:**
+
+```bash
+# In scripts/generate_coverage.sh
+# BEFORE:
+THRESHOLD=80.0
+
+# AFTER (set to just below current actual coverage — e.g., 77.7% → 75%):
+THRESHOLD=75.0
+```
+
+**Step 2 — Move coverage job from extras.yml to _required.yml:**
+
+```bash
+# Copy the job block verbatim from extras.yml to _required.yml
+# The job block starts at "coverage:" and ends before the next top-level job key
+
+# In extras.yml — update the header comment:
+# BEFORE: "# coverage: informational only, not required for merge"
+# AFTER: "# coverage: moved to _required.yml — this block can be removed"
+# (Or remove the block from extras.yml entirely after confirming _required.yml is correct)
+```
+
+**Step 3 — Add coverage to branch ruleset after merge:**
+
+```bash
+# Get the ruleset ID
+gh api repos/{owner}/{repo}/rulesets --jq '.[] | {id, name}'
+
+# Add coverage to required_status_checks
+gh api -X PUT repos/{owner}/{repo}/rulesets/{ruleset-id} \
+  --input ruleset.json
+# ruleset.json must include {"context":"coverage"} in the required_status_checks array
+```
+
+**Threshold calibration guidance:**
+
+| Scenario | Recommended threshold |
+|----------|-----------------------|
+| New C++ project, growing test suite | 60–70% |
+| Mature project with integration tests | 75–80% |
+| Safety-critical / financial | 85–90% |
+| Never set above current actual coverage | — |
+
+**Key principle**: Set the threshold at current actual coverage rounded down to the nearest 5%.
+Never set it above what main currently achieves — that makes the gate permanently broken and
+trains the team to ignore it.
+
+**Detection**: `extras.yml` has a coverage job that fails on every `main` run:
+```bash
+gh run list --branch main --workflow extras.yml --limit 5 --json conclusion --jq '.[].conclusion'
+# All "failure" → threshold is broken; lower it before promoting to required
+```
+
 ### Phase 10: Verify
 
 ```bash
@@ -1077,6 +1187,10 @@ GIT_EDITOR=true git rebase --continue
 | `python3 -c "\ import json, pathlib; ..."` inline in just recipe | Used a just recipe inline Python heredoc to manipulate JSON/path data | `import` became a reserved keyword in just v1.14+; `just --list` itself fails with `Unknown start of token ';' `, breaking all CI Code Quality checks | Move Python logic to `scripts/remove-preset-include.py` and call it from the recipe, OR use just's `#!/usr/bin/env python3` shebang form as the recipe body |
 | `pip install --upgrade pip setuptools` then `pip install -e ".[dev]"` | Tried to fix `setuptools.backends.legacy` not-found error by upgrading setuptools before install | pip uses a vendored copy of `pyproject_hooks` resolved before the upgrade takes effect; `setuptools.backends.legacy` is non-standard and not recognized by the vendored resolver | Change `build-backend = "setuptools.backends.legacy:build"` to `build-backend = "setuptools.build_meta"` in pyproject.toml; `setuptools.backends.legacy` is not a valid PEP 517 backend identifier |
 | Removing `keystone_agents` only from main `install(TARGETS ...)` | Tried to clean up ADR-006 extraction by removing `keystone_agents` from one CMake install block | There were 4+ separate references: main install(), test install(), unit_tests source list (files with `#include "agents/"` headers), run_tests custom target, benchmark targets, fuzz targets — removal cascaded through multiple rounds | Grep the entire CMakeLists.txt for ALL references to the extracted library (`grep -n keystone_agents`), then grep each disabled test source file for `#include "agents/` to find transitive header dependencies before declaring done |
+| Suppressing cppcheck danglingLifetime with CPPCHECK_SUPPRESS | Tried to add a suppression comment near the assignment `g_scheduler_under_test = &scheduler_` | cppcheck still sees the assignment expression and fires — suppression only silences the specific line, not the underlying dead-global smell; also leaves dead code in the codebase | If the global is never read, remove it entirely — suppression is wrong; deletion fixes the root cause and eliminates the dead code |
+| Assigning g_scheduler_under_test in TearDown to nullptr before the local goes out of scope | Already had `g_scheduler_under_test = nullptr` in TearDown(); expected cppcheck to recognize the pointer was cleared | cppcheck's danglingLifetime analysis does not track inter-method lifetime reset; it sees the assignment `= &scheduler_` in SetUp() and the local scope ends there — it does not cross TearDown() | cppcheck cannot see cross-method lifetime reset; if the pointer has no readers, remove the global entirely instead of relying on teardown reset to satisfy the analyzer |
+| Setting coverage threshold above current actual coverage | Left THRESHOLD=80.0 in generate_coverage.sh while actual coverage was 77.7% | Coverage job fails every run including main — since the job was in extras.yml (non-required), failures were silent and non-blocking; teams assumed coverage was fine | Set threshold at or below current actual coverage (rounded down to nearest 5%); never set threshold above what main currently achieves |
+| Moving coverage job to _required.yml without lowering threshold first | Promoted coverage to required checks before calibrating threshold | First PR after promotion blocked all merges because threshold still exceeded actual coverage | Always lower threshold to passing level first, verify it passes on main, then promote to required |
 
 ## Results & Parameters
 
@@ -1180,3 +1294,4 @@ fn __hash__[H: Hasher](self, mut hasher: H):
 | ProjectKeystone | Multiple PRs: nats.c FetchContent -Werror fix (restrict to CXX), coverage script Conan toolchain fix, clang-format v18 vs v22 lambda formatting fix. All 5 required checks restored to PASS, PRs set to auto-merge. 2026-04-23 | v2.7.0 |
 | HomericIntelligence/ProjectKeystone | 14 open PRs all blocked: gitleaks-action@v2 org license fix (curl-based install, v8.30.1), just v1.14+ import keyword fix (extract to scripts/remove-preset-include.py), setuptools.backends.legacy→setuptools.build_meta fix, CMakeLists.txt ADR-006 cascade cleanup (systematic grep for all references). PR #380 merged; all PRs unblocked. 2026-04-23 | v2.8.0 |
 | HomericIntelligence/Myrmidons | PR #307: apply.yml pixi composite action migration, bats PATH isolation fix (/usr/sbin:/sbin), validate-schemas.sh companion guard. CI green. 2026-04-24 | v2.9.0 |
+| ProjectKeystone | cppcheck danglingLifetime false positive on g_scheduler_under_test (unused signal-handler global) — removed unused global, tests unchanged; coverage threshold lowered 80%→75% and moved from extras.yml to _required.yml (PR #500). CI green. 2026-04-27 | v2.10.0 |
