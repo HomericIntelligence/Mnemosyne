@@ -6,8 +6,8 @@ description: "Pattern for implementing 20-35 GitHub issues in parallel waves usi
   \ speedup via myrmidon swarm Agent(isolation:'worktree') calls, (4) CI must be green\
   \ on main before launching waves."
 category: tooling
-date: 2026-04-26
-version: 2.5.0
+date: 2026-05-07
+version: 2.6.0
 user-invocable: false
 verification: verified-local
 history: parallel-issue-wave-execution.history
@@ -26,8 +26,8 @@ tags:
 
 | Field | Value |
 | ------- | ------- |
-| Date | 2026-04-26 |
-| Version | 2.5.0 |
+| Date | 2026-05-07 |
+| Version | 2.6.0 |
 | Objective | Implement 20-35 issues per repo in parallel waves using myrmidon swarm agents, with pre-verification and CI-first strategy |
 | Outcome | SUCCESS — verified across 4 repos and 237 issues: 35 PRs (ProjectScylla), 14 PRs (ProjectMnemosyne), ~34 PRs + 12 closures (ProjectKeystone 180-issue swarm), 17 PRs (ProjectTelemachy per-file mega-agents) |
 
@@ -516,6 +516,8 @@ print(f'{len(pending)} PRs with pending/in-progress checks')
 | Retried agent after BLOCKED report | Agent correctly reported BLOCKED (e.g. coverage threshold below target, cannot implement without breaking changes); orchestrator re-ran with a different prompt | The BLOCKED signal is accurate — the issue requires human architectural review. Re-runs produce the same BLOCKED result or introduce incorrect changes to force past the blocker | When an agent reports BLOCKED with a clear reason, treat it as a signal for human review, not a failure to retry. Label the issue `needs:human-review` and move on. |
 | Strict per-wave for high-contention repos | Applied "≤5 agents, 1 file per wave" to a repo where executor.py had 11 open issues | Required 12+ waves; the contended file serialized everything anyway — no real parallelism | Switch to per-file mega-agent when a file has 6+ issues |
 | Runner queue saturation | Opened 28 PRs across 10 waves in ~20 min, each triggering 3 workflows (CI, Security Scanning, Dependency Audit) = ~84+ workflow runs queued simultaneously on a free-tier GitHub org | GitHub free-tier runner pool exhausted; no runs started for 25+ min. Attempted `gh run cancel` (accepted but runs stayed queued) and `gh run rerun` (failed: "This workflow is already running"); manual `gh workflow run` dispatch also immediately queued | Cap total concurrent PRs to ≤8 per wave window; add 2-min inter-wave delay to let runners drain before opening the next batch |
+| Relied on `gh pr merge --auto --rebase` to merge wave PRs once CI passes | Enabled auto-merge on all 5 wave PRs (HomericIntelligence/ProjectScylla 2026-05-07: #1927, #1928, #1929, #1930, #1931). After CI went CLEAN/MERGEABLE on every PR, auto-merge did not fire for ~12+ min. | GitHub's auto-merge worker is best-effort, not real-time. Org-level queue saturation or repository-level branch-protection evaluation can delay it indefinitely. Repository also disallowed rebase-merge, so `--auto --rebase` was silently downgraded by GH but still didn't fire. | Auto-merge is fire-and-forget at best. After CI is CLEAN, run `gh pr merge <N> --squash` (or `--rebase` if allowed) MANUALLY to merge immediately. Use auto-merge only as a fallback for PRs you don't need to land on a known timeline. |
+| Used `Closes #1888` in the PR body (and commit message) and squash-merged the PR | PR #1931 squash-merged into HomericIntelligence/ProjectScylla main with `Closes #1888` in the commit body and PR body. Issue #1888 stayed OPEN. | Squash-merge produces a synthetic commit; GitHub's keyword auto-close only reliably fires from the PR description on certain merge methods, and on squash merges the keyword in the synthesized commit body sometimes does not register. Branch-protection workflows that block immediate merge can also strip the closing-keyword grace window. | After a squash-merge with `Closes #N` in the body, always verify with `gh issue view <N> --json state`. If still OPEN, close manually with `gh issue close <N> --comment 'Resolved by #<PR>'`. Treat issue closure as a separate step, not a side-effect of merging. |
 
 ## Results & Parameters
 
@@ -650,6 +652,22 @@ gh pr list --state open --json number,title,mergeStateStatus,statusCheckRollup
 # UNKNOWN  → CI still running, wait
 ```
 
+### Post-Merge Verification
+
+```bash
+# After every wave completes — verify both PRs merged AND linked issues closed
+gh pr list --state open --author "@me" --json number,title  # should be empty
+for issue in <list of issues that should be closed>; do
+  state=$(gh issue view $issue --json state --jq .state)
+  if [ "$state" != "CLOSED" ]; then
+    gh issue close $issue --comment "Resolved by #<PR>"
+  fi
+done
+```
+
+Note: GitHub's "Closes #N" keyword auto-close is unreliable on squash merges
+(see Failed Attempts row B). Always verify and close manually if needed.
+
 ### Cherry-pick Rebase for Stale PR
 
 ```bash
@@ -679,3 +697,4 @@ gh pr close <old-pr> --comment "Superseded by #<new-pr>"
 | ProjectScylla | Wave 2b/2c continuation, 6 PRs (#1799-#1804), conflict resolution for PR #1803 | 2026-04-13 |
 | ProjectKeystone | 180-issue C++20/NATS swarm: 7 EASY waves (67 issues) + 9 MEDIUM waves (78 issues) + 25 HARD deferred; confirmed MEDIUM cap at 3 for C++ | 2026-04-25 |
 | ProjectTelemachy | 57 issues, per-file mega-agents collapsed 12 waves → 2; 17 PRs merged | 2026-04-25 |
+| ProjectScylla | 5-PR opus wave (3 decomp + 2 observability follow-ups), 2026-05-07; surfaced auto-merge stall + squash-close failure modes | PRs #1927-#1931, all merged within ~30 min after manual `gh pr merge --squash` after CI went CLEAN; issue #1888 had to be closed manually despite `Closes #1888` keyword |
