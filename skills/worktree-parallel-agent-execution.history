@@ -1,0 +1,44 @@
+# worktree-parallel-agent-execution — History
+
+## v1.1.0 (2026-05-07)
+
+**Changed by:** ProjectScylla #1887 split into PRs #1932 and #1933 (JSON-logging/tracing/metrics remediation)
+**Verification:** verified-ci
+
+### What changed
+
+- Added new section "Splitting a Single Issue into Parallel Sub-Tasks" (Phase 0) covering the
+  one-issue → N-sub-tasks pattern with explicit hot-file ownership, append-only docs rules,
+  and merge-method detection
+- Added 4 new Failed Attempts rows: pixi env-name assumption, default `--rebase` merge flag,
+  shared docs end-of-file collision invalidating "still TODO" lists, missed pre-commit on
+  conflict-resolved files
+- Added merge-method detection step (`gh repo view --json ...MergeAllowed`) to Quick Reference
+- Added `pre-commit run --files <changed>` after rebase conflict resolution as mandatory step
+- Bumped version to 1.1.0 (minor: new pattern + new failures, no breaking changes)
+- Upgraded `verification` from `unverified` to `verified-ci` based on the merged PRs
+
+### Why
+
+Original skill (v1.0.0) covered N independent issues in parallel waves. The salient distinction
+captured here — splitting ONE multi-part issue into N truly independent sub-tasks — has different
+coordination characteristics: shared docs files, shared config files (`pyproject.toml`,
+`cli/main.py`), and the need to detect "still TODO" lists that one sub-task's work obsoletes for
+the other. Foundation issue #1887 in ProjectScylla produced a clean test case: PR #1932 squash-merged
+green; PR #1933 hit a markdownlint conflict on `docs/dev/tracing.md` from end-of-file appends,
+resolved with one rebase + one fix-up commit.
+
+### Previous version (v1.0.0) snapshot
+
+See `worktree-parallel-agent-execution.md` at git ref `bcbcd30b` (pre-amendment).
+The v1.0.0 file was 361 lines; the consolidated tooling skill from 2026-03-28 covering
+parallel-issue-resolution-with-worktrees, parallel-rebase-agent-worktree-isolation,
+parallel-worktree-workflow, tooling-parallel-worktree-bulk-issue-execution, and
+tooling-parallel-worktree-issue-batch.
+
+---
+
+## v1.0.0 (2026-03-28)
+
+**Initial version.** Consolidated from 5 prior skills covering parallel agent/worktree execution
+on independent issues, mass rebase, and bulk issue triage.
