@@ -1,5 +1,60 @@
 # pixi-lock-rebase-regenerate — History
 
+## v1.6.0 (2026-05-07)
+
+**Changed by:** ProjectHermes 31-PR rebase swarm session — discovered main itself can be the broken party
+**Verification:** verified-ci
+
+### What changed
+
+- Added 3 new "Use when" trigger conditions covering main-itself-is-broken detection
+- Added new "Detection: Is It Main or Is It the Branch?" section with 4-step diagnostic + hotfix flow
+- Added 2 Failed Attempts rows documenting wasted per-branch fixup work
+- Added Quick Diagnostic single-command snippet
+- Updated Verified On table with ProjectHermes #593 → #599 case
+
+### Why
+
+The previous version (v1.5.0) covered branch-side staleness (rebase conflicts, Dependabot
+fast-fails, post-version-bump). It didn't cover the case where **main itself** ships a
+stale pixi.lock — a PR with `[project.dependencies]` changes that didn't regenerate the
+lock during merge. The local-package `sha256:` in pixi.lock changes whenever pyproject.toml
+contributes to the package's source-tree hash; if that SHA doesn't match, `pixi install
+--locked` fails everywhere — main and every PR rebased onto it.
+
+Our session wasted ~10 minutes spawning a per-branch fixup wave (4 parallel agents,
+12 PRs touched) before noticing every branch's CI was still red. The fix was a 1-line
+hotfix PR on main; afterward every branch needed ANOTHER rebase to inherit the fix.
+The new "Detection: Is It Main or Is It the Branch?" section short-circuits this
+investigation.
+
+### Previous version (v1.5.0) snapshot
+
+```yaml
+name: pixi-lock-rebase-regenerate
+description: "Correctly resolve pixi.lock staleness after git rebase or when main advances. Use when: (1) CI fails with 'lock-file not up-to-date with the workspace', (2) multiple PRs all fail identical CI jobs after a version bump on main, (3) git rebase causes pixi.lock conflicts, (4) Dependabot PRs fail CI fast (6-12 seconds) because Dependabot only bumps pyproject.toml not pixi.lock, (5) a second rebase of the same branch produces a pixi.lock commit conflict — skip the stale commit and re-run pixi install, (6) a second commit in the rebase chain patches code that was migrated to an external package — accept HEAD's version and use git rebase --skip, (7) pixi.toml pins a dependency version but pixi.lock still references old version (CI shows 'Environment is not consistent with the lockfile'), (8) creating a fix branch — always base off origin/main not local main which may be stale commits behind."
+category: ci-cd
+date: 2026-04-24
+version: "1.5.0"
+user-invocable: true
+verification: verified-local
+history: pixi-lock-rebase-regenerate.history
+tags: [dependabot, pixi, rebase, pixi-lock, ci-cd]
+absorbed:
+  - ci-cd-dependabot-pixi-lock-drift-fix.md
+```
+
+Key state at v1.5.0: 8 "When to Use" triggers covering branch-side staleness scenarios
+(rebase conflicts, Dependabot fast-fails, multi-commit rebase migrations, version-pin
+drift, fix-branch base requirement). Phases 0–4 plus 3b/3c/3d/3e covered diagnosis,
+single-branch fix, multi-branch parallel fix, Dependabot sequential fix, double-rebase
+skip, multi-commit rebase --skip, and version-pin drift. No coverage for main itself
+shipping a stale lock; no diagnostic step to test main before per-branch fixups.
+
+See git log for full v1.5.0 file content.
+
+---
+
 ## v1.4.0 — 2026-04-24
 
 **Amendment**: Added dependency version-pin lock drift pattern and origin/main base requirement for fix branches.

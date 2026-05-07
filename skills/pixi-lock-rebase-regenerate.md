@@ -1,9 +1,9 @@
 ---
 name: pixi-lock-rebase-regenerate
-description: "Correctly resolve pixi.lock staleness after git rebase or when main advances. Use when: (1) CI fails with 'lock-file not up-to-date with the workspace', (2) multiple PRs all fail identical CI jobs after a version bump on main, (3) git rebase causes pixi.lock conflicts, (4) Dependabot PRs fail CI fast (6-12 seconds) because Dependabot only bumps pyproject.toml not pixi.lock, (5) a second rebase of the same branch produces a pixi.lock commit conflict — skip the stale commit and re-run pixi install, (6) a second commit in the rebase chain patches code that was migrated to an external package — accept HEAD's version and use git rebase --skip, (7) pixi.toml pins a dependency version but pixi.lock still references old version (CI shows 'Environment is not consistent with the lockfile'), (8) creating a fix branch — always base off origin/main not local main which may be stale commits behind."
+description: "Correctly resolve pixi.lock staleness after git rebase or when main advances. Use when: (1) CI fails with 'lock-file not up-to-date with the workspace', (2) multiple PRs all fail identical CI jobs after a version bump on main, (3) git rebase causes pixi.lock conflicts, (4) Dependabot PRs fail CI fast (6-12 seconds) because Dependabot only bumps pyproject.toml not pixi.lock, (5) a second rebase of the same branch produces a pixi.lock commit conflict — skip the stale commit and re-run pixi install, (6) a second commit in the rebase chain patches code that was migrated to an external package — accept HEAD's version and use git rebase --skip, (7) pixi.toml pins a dependency version but pixi.lock still references old version (CI shows 'Environment is not consistent with the lockfile'), (8) creating a fix branch — always base off origin/main not local main which may be stale commits behind, (9) MULTIPLE PR branches all fail CI with 'lock-file not up-to-date' simultaneously after a recent merge to main — main itself is likely broken; verify with `git checkout main && pixi install --locked` before per-branch fixups, (10) a recently-merged PR that touched `pyproject.toml`'s `[project.dependencies]` (or any field that contributes to the local-package SHA hash) without regenerating `pixi.lock` — fix on main with a 1-line hotfix PR; then re-rebase all open PRs to inherit the fixed lock, (11) per-branch `pixi install` regeneration produces only a single-line diff (the local-package `sha256:`) and CI keeps failing — confirms the bug is upstream on main, not on the branch."
 category: ci-cd
-date: 2026-04-24
-version: "1.5.0"
+date: 2026-05-07
+version: "1.6.0"
 user-invocable: true
 verification: verified-local
 history: pixi-lock-rebase-regenerate.history
@@ -36,6 +36,9 @@ absorbed:
 
 - **pixi.toml pins a dependency version** (e.g., `shellcheck = "0.10.0.*"`) but `pixi.lock` still references the old version — CI shows `"Environment is not consistent with the lockfile"`. Fix: run `pixi install` locally to regenerate the lock.
 - **Creating a fix branch for lock drift**: always base off `origin/main` (not local `main` which may be stale): `git checkout origin/main -b fix/my-branch` — local `main` may be dozens of commits behind, causing push conflicts.
+- **3+ PR branches simultaneously fail CI with "lock-file not up-to-date"** after a known recent merge — main itself may be broken; test main directly before delegating per-branch fixups.
+- **The 1-line diff after `pixi install` is on the local package's `sha256:` field** — the bug is upstream on main; a per-branch regeneration cannot help because every rebase pulls in main's stale lock.
+- **Symptom: a "fix-up" wave on multiple branches doesn't help** — each branch's CI keeps failing the same way after per-branch regeneration; this confirms main itself ships an inconsistent `pyproject.toml`/`pixi.lock` pair.
 
 **Do NOT use `--ours` or `--theirs`** to resolve a `pixi.lock` conflict — either side will be stale
 relative to the rebased branch's actual `pixi.toml`.
@@ -73,6 +76,64 @@ for branch in "${BRANCHES[@]}"; do
 done
 wait
 ```
+
+### Detection: Is It Main or Is It the Branch?
+
+When `lock-file not up-to-date` shows up on multiple PR CIs at once:
+
+```bash
+# Step 1: check main itself
+git fetch origin main
+git checkout main
+git pull --ff-only
+
+pixi install --locked
+# If this FAILS → main is broken; STOP per-branch fixups, fix main first
+# If this PASSES → it's branch-specific; continue with per-branch fix
+```
+
+```bash
+# Step 2: confirm root-cause PR if main is broken
+git log --oneline -10  # find recent PRs touching pyproject.toml
+git log --oneline -10 -- pyproject.toml
+# Look for a PR that added/changed [project.dependencies] without touching pixi.lock
+```
+
+```bash
+# Step 3: hotfix
+git checkout -b fix/regenerate-pixi-lock
+pixi install                       # regenerates pixi.lock to match pyproject.toml
+git add pixi.lock
+git commit -m "fix: regenerate pixi.lock after #<root-cause-PR> (<reason>)"
+git push -u origin fix/regenerate-pixi-lock
+gh pr create --title "fix: regenerate pixi.lock after #<root-cause-PR>" --body "..."
+gh pr merge <PR> --auto --squash
+```
+
+```bash
+# Step 4: cascade re-rebase
+# After hotfix lands on main, every already-rebased PR needs another rebase to inherit
+# main's fixed lock. Conflict on pixi.lock during re-rebase: take main's version:
+git rebase origin/main
+# On pixi.lock conflict:
+#   git checkout --theirs -- pixi.lock
+#   git add pixi.lock
+#   git rebase --continue
+```
+
+#### Quick Diagnostic — Single Command
+
+```bash
+# Run on main; if non-empty, main is broken
+pixi install --locked 2>&1 | grep -q "not up-to-date" && echo "MAIN IS BROKEN — fix lock on main first"
+```
+
+**Why the local-package `sha256:` goes stale**: pixi.lock embeds a hash of the local
+package's source-tree contributing files (including `pyproject.toml`). When a PR
+modifies `[project.dependencies]` (or any other field that contributes to the hash)
+without running `pixi install` to regenerate the lock, the merge gate may pass (pre-merge
+CI used the old lock), but post-merge `pixi install --locked` on main fails everywhere.
+Detection: a single-line diff in pixi.lock on the `sha256:` field after `pixi install`.
 
 ### Phase 0: Triage — Confirm It Is Lock Staleness
 
@@ -328,6 +389,8 @@ done
 | `git checkout fix/shellcheck-warnings-187-211 -- pixi.lock` | Tried to copy pixi.lock from another branch to avoid regenerating | Blocked by Safety Net ("overwrites working tree"); same block as `git checkout HEAD -- file` | Use `git show <branch>:<file> > <file>` instead — e.g., `git show fix/shellcheck-warnings-187-211:pixi.lock > pixi.lock` |
 | Creating fix branch off stale local `main` | Ran `git checkout -b fix/pixi-lock-drift main` when local main was 33 commits behind origin/main | Push rejected as non-fast-forward; had to delete branch and recreate | Always use `git checkout origin/main -b fix/<name>` — bypasses local branch staleness entirely |
 | Committing only `pixi.toml` without regenerating `pixi.lock` | Updated shellcheck version pin in pixi.toml but forgot to run `pixi install` before committing | CI immediately fails with "Environment is not consistent with the lockfile" — the lockfile SHA doesn't match the new constraint | Always run `pixi install` and commit the updated `pixi.lock` alongside any `pixi.toml` change |
+| Per-branch pixi install regeneration on dozens of PRs | Spawned 4 parallel agents, each ran `pixi install` + `git commit --amend --no-edit` + force-push on 3 PR branches | Each branch's regenerated pixi.lock matched its own pyproject.toml fine, but every CI run still failed with "lock-file not up-to-date" because the rebase pulled in main's stale lock as the base. Branches were "clean" relative to themselves; main was broken. | Before fanning out per-branch fixups, run `pixi install --locked` on a fresh checkout of main itself; if main fails, hotfix main first, then re-rebase all branches |
+| Trusted "already-clean" reports from per-branch agents | 4 agents each reported some branches "fixed" and others "already-clean (pixi install produced no change)" | The "already-clean" reports were correct — the BRANCH'S pyproject.toml/pixi.lock pair was self-consistent. The bug was that main itself shipped an inconsistent pair from a recently-merged PR. CI ran with main as the base, hit the broken lock, failed | Test the symptom on main directly before delegating per-branch repair work; "already-clean" can mean "branch is fine, but main isn't" |
 
 ## Results & Parameters
 
@@ -432,3 +495,4 @@ repo uses `--squash`, not `--rebase`.
 | ProjectOdyssey | Dependabot PR updating Python package constraints in pyproject.toml; CI failed with lock-file not up-to-date; pixi install succeeded; CI pending after force-push, 2026-05-01 | v1.5.0 |
 | ProjectScylla | Three sequential Dependabot PRs (pandas, vl-convert-python, matplotlib); pixi.lock conflict during rebase when main had advanced; resolved with rm+add+continue pattern; squash auto-merge used, 2026-05-02 | v1.5.0 |
 | ProjectScylla | PR #1861 pandas bump; prior regeneration commit existed but stale (main advanced 4 commits); local/origin branches diverged; fetch + rebase + pixi install + amend + force-push; rebase auto-merge (ProjectScylla policy), 2026-05-03 | v1.5.0 |
+| ProjectHermes | 2026-05-07: PR #593 added [project.dependencies] without regenerating pixi.lock; main's local-package SHA went stale; 17 open PR branches all failed CI simultaneously; hotfix PR #599 (1-line lock SHA fix) unblocked the entire queue | verified-ci |
