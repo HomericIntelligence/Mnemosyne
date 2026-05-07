@@ -1,5 +1,33 @@
 # already-done-issue-detection — History
 
+## v2.0.0 (2026-05-07)
+
+**Changed by:** ProjectScylla issue #1887 multi-agent dispatch session
+**Verification:** verified-ci
+
+### What changed
+
+- Added new dedicated section "Stale-Plan Scope Drift (sibling pattern — preflight before multi-agent dispatch)" with its own Quick Reference, Detailed Steps, comparison table vs. full-ALREADY-DONE pattern, and ProjectScylla case study (issue #1887, PRs #1921/#1922/#1928/#1931)
+- Expanded `description` frontmatter to include trigger (5): "BEFORE dispatching multi-agent implementation on any open issue — check if recent merged PRs have invalidated the plan"
+- Added 3 new "When to Use" triggers covering pre-dispatch preflight, plan-referenced-file verification, and title-vs-most-recent-comment staleness
+- Added 4 new Failed Attempts entries: trust issue title, trust audit findings, trust plan-agent file-existence, skip `gh pr list` preflight
+- Added ProjectScylla 2026-05-07 row to "Verified On" table
+- Added 4 new tags: `stale-plan`, `preflight`, `scope-drift`, `multi-agent-dispatch`
+- Updated Overview to describe both patterns (A: full ALREADY-DONE; B: stale-plan scope drift)
+- Bumped version to 2.0.0 (major) — adds a substantively new pattern variant alongside the original; expands the skill's discovery surface to a second failure mode
+
+### Why
+
+Major bump (not minor) because this introduces a sibling pattern with its own trigger window, detection signals, and remediation action. The original skill covered "is this issue done — close it"; this adds "is the plan stale — re-scope it before agents run". Both share the search surface (gh pr list, git log preflight, "is this work already done") so they belong together, but the new pattern has different timing (minutes-before-dispatch vs. weeks-after-filing), different state (open+partial vs. closeable), and different action (re-prompt user vs. close issue).
+
+ProjectScylla session: user asked to dispatch opus sub-agents on the last 2 open issues. Plan agents produced a 9-section greenfield design. First preflight (`gh pr list --search "1887 in:title" --state all`) revealed 4 PRs merged in the prior 24h that obsoleted ~70% of the plan. Without preflight, sub-agents would have re-implemented `JsonFormatter`, recreated `src/scylla/observability/tracing.py` (while `src/scylla/utils/tracing.py` already existed), added duplicate pyproject extras, and burned tens of thousands of tokens on revert-on-merge changes. After preflight + AskUserQuestion redirect, corrected scope shipped as PRs #1932 and #1933, both merged green.
+
+### Previous version (v1.3.0) snapshot
+
+[see git history of skills/already-done-issue-detection.md at commit bcbcd30b on origin/main; v1.2.0 full snapshot also preserved further down in this file]
+
+---
+
 ## v1.3.0 (2026-04-25)
 
 **Changed by:** ProjectTelemachy myrmidon-swarm pass (2026-04-25)

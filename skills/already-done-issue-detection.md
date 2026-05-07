@@ -1,13 +1,13 @@
 ---
 name: already-done-issue-detection
-description: "Detect GitHub issues that are already fixed before starting implementation. Use when: (1) starting a batch triage of 10+ open issues, (2) assigned an issue in a repo with active prior automation, (3) audit issues filed weeks/months ago, (4) issue title contains 'missing', 'add', 'fix' for a file or config value."
+description: "Detect GitHub issues that are already fixed (or partially fixed) before starting implementation. Use when: (1) starting a batch triage of 10+ open issues, (2) assigned an issue in a repo with active prior automation, (3) audit issues filed weeks/months ago, (4) issue title contains 'missing', 'add', 'fix' for a file or config value, (5) BEFORE dispatching multi-agent implementation on any open issue — check if recent merged PRs have invalidated the plan (stale-plan / scope-drift detection)."
 category: tooling
-date: 2026-04-25
-version: 1.3.0
+date: 2026-05-07
+version: 2.0.0
 user-invocable: false
 verification: verified-ci
 history: already-done-issue-detection.history
-tags: [triage, already-done, issue-classification, batch, audit]
+tags: [triage, already-done, issue-classification, batch, audit, stale-plan, preflight, scope-drift, multi-agent-dispatch]
 ---
 
 # Already-Done Issue Detection
@@ -16,9 +16,9 @@ tags: [triage, already-done, issue-classification, batch, audit]
 
 | Field | Value |
 | ------- | ------- |
-| **Date** | 2026-04-25 |
-| **Objective** | Detect GitHub issues that are already fixed before spending time implementing them |
-| **Outcome** | Verified: 11/23 open issues (48%) were ALREADY-DONE in ProjectArgus; 6/57 (10.5%) in ProjectTelemachy — closed with evidence, no code written |
+| **Date** | 2026-05-07 |
+| **Objective** | Detect GitHub issues that are already fixed (fully or partially) before spending time implementing them — covers two related patterns: (A) full ALREADY-DONE issues in batch triage, and (B) stale-plan scope-drift where a multi-agent dispatch is about to re-implement work that merged during planning |
+| **Outcome** | Verified: 11/23 open issues (48%) were ALREADY-DONE in ProjectArgus; 6/57 (10.5%) in ProjectTelemachy. ProjectScylla (issue #1887): preflight caught 4 merged PRs (#1921, #1922, #1928, #1931) that obsoleted ~70% of an approved plan — corrected scope shipped as PRs #1932 and #1933 (both merged green). |
 | **Verification** | verified-ci |
 | **History** | [changelog](./already-done-issue-detection.history) |
 
@@ -32,6 +32,9 @@ tags: [triage, already-done, issue-classification, batch, audit]
 - Issue title is a "parent framing" of other open issues (e.g., "No tests for X or Y") — likely a duplicate tracker covering multiple sub-issues; close as meta
 - Issue title references a branch trigger (e.g., "Fix CI targeting master") — always verify actual default branch before implementing
 - Issue is a meta/grade tracker (`[Audit] Overall Grade: D+`) — never directly implementable, always close as meta
+- **About to dispatch multi-agent implementation** on any open issue — even if the plan was approved 30 seconds ago, run a stale-plan preflight first (see "Stale-Plan Scope Drift" section below). Commits land during planning.
+- **Plan agents reference files that may have just been created** (e.g., `src/<pkg>/observability/tracing.py`, `JsonFormatter`, scaffolds) — verify those files don't already exist on `origin/main` before re-creating them.
+- **Issue title is older than the most recent comment thread** — the title is a snapshot from the day filed; the most recent maintainer comment is the current scope of remaining work.
 
 ## Verified Workflow
 
@@ -109,6 +112,97 @@ git diff --name-only origin/main...<branch>
 
 10. **For partial fixes** (e.g., CONTRIBUTING.md exists but CHANGELOG.md does not): leave the issue open with a comment explaining which part is done and which remains.
 
+## Stale-Plan Scope Drift (sibling pattern — preflight before multi-agent dispatch)
+
+This section covers a **distinct but related failure mode** from full-issue ALREADY-DONE detection above.
+
+- **ALREADY-DONE issue** (sections above) = the issue should be **closed** — nothing remains.
+- **Stale-plan scope drift** (this section) = the issue is **still open and partially valid**, but a recent merged PR has invalidated 50%+ of the planned implementation. The plan must be **re-scoped** before any agent runs.
+
+### Trigger
+
+Run this preflight whenever you are about to launch implementation agents (sub-agents, myrmidon-swarm, parallel Task agents, worktree-based auto-impl) for an open issue. Even if the plan was just approved.
+
+### Quick Reference
+
+```bash
+# Run BEFORE launching any implementation agents on an issue:
+
+ISSUE=<number>
+
+# 1. Recent merged PRs that mention this issue (closes/fixes/refs)
+gh pr list --search "$ISSUE in:title" --state merged --limit 20
+gh pr list --search "$ISSUE in:body"  --state merged --limit 20
+
+# 2. Most recent comment on the issue — often contains "partial progress, leaving open for X/Y/Z"
+gh issue view "$ISSUE" --comments | tail -100
+
+# 3. Files that prior PRs created/modified (so plan exploration is current)
+for pr in $(gh pr list --search "$ISSUE in:title OR $ISSUE in:body" --state merged --json number --jq '.[].number'); do
+  echo "=== PR #$pr ==="
+  gh pr view "$pr" --json files --jq '.files[].path'
+done
+
+# 4. Git log on relevant paths
+git log --oneline -30 -- <key-paths-from-step-3>
+
+# 5. Final freshness check immediately before dispatch — commits land during planning
+git fetch origin
+git log origin/main..HEAD  # any new commits since plan was assembled?
+
+# 6. THEN if scope has shifted, re-prompt the user with the corrected remaining scope
+#    (use AskUserQuestion or equivalent before re-planning)
+
+# 7. Only after this preflight passes, create worktrees + dispatch agents
+```
+
+### Detailed Steps
+
+1. **Run gh pr list FIRST, before any other preflight** — this single command catches the majority of scope drift. Search both `in:title` and `in:body` because closing PRs may reference the issue in either place.
+
+2. **Read the most recent issue comments** — maintainers often post "partial progress, leaving open for X, Y, Z" comments that redefine remaining scope. The issue **title** does not get updated; only the comment thread reflects current state.
+
+3. **Cross-check plan-referenced files against current `origin/main`** — for each file the plan says to create, verify it does not already exist:
+
+   ```bash
+   # If plan says: "Create src/scylla/observability/tracing.py"
+   find src -name 'tracing.py'
+   git log --oneline -5 -- 'src/**/tracing.py'
+   ```
+
+4. **Re-fetch immediately before dispatch** — the gap between plan approval and agent launch is non-zero. A 10-minute plan can be invalidated by one merge during those 10 minutes.
+
+5. **If scope has drifted, re-prompt the user** with the corrected remaining scope rather than executing the stale plan. Use `AskUserQuestion` or equivalent. Do not silently rewrite the plan — the user approved the original scope and may want to redirect.
+
+6. **Update the plan in-flight** rather than executing the stale version. Cancel any pre-dispatched worktrees that are based on the stale plan.
+
+### Why this is different from the batch ALREADY-DONE checks above
+
+| Aspect | Full ALREADY-DONE (batch triage) | Stale-Plan Scope Drift (this section) |
+|--------|----------------------------------|---------------------------------------|
+| **State of issue** | Should be closed | Still open, partially valid |
+| **Trigger window** | Triaging old issues (weeks/months) | Just before agent dispatch (minutes) |
+| **Detection signal** | `ls`/`grep` for file/value existence | `gh pr list --search "<N> in:title"` for recent merges |
+| **Action** | `gh issue close` with evidence | Re-prompt user, re-scope plan, then dispatch |
+| **Cost of missing** | Wasted hour reading & implementing | Tens of thousands of tokens + revert-on-merge conflicts |
+
+### ProjectScylla Session (2026-05-06, issue #1887)
+
+**Setup**: User asked to dispatch opus sub-agents to implement the last 2 open issues. Plan agents produced a 9-section design covering JSON logging, OpenTelemetry tracing, and Prometheus metrics emitter.
+
+**Preflight catch**: First `gh pr list --search "1887 in:title" --state all` revealed FOUR merged PRs in the prior 24h:
+
+| PR | What it landed | What the plan said to write |
+|----|----------------|-----------------------------|
+| #1921 | JSON logging foundation (`JsonFormatter`) | "Write JsonFormatter class" |
+| #1922 | MetricEmitter scaffold + Prometheus textfile backend | "Build MetricEmitter with Prometheus backend" |
+| #1928 | OpenTelemetry tracing scaffold (`init_tracing` + no-op tracer) | "Create src/scylla/observability/tracing.py with init_tracing" |
+| #1931 | Wire MetricEmitter into runtime | "Wire MetricEmitter into experiment runtime" |
+
+**Result**: Plan was ~70% obsolete. The issue's most recent triage comment defined the actual remaining scope: (1) log-record-to-span correlation, (2) deeper span instrumentation, (3) production OTLP collector docs. User confirmed corrected scope via AskUserQuestion. Corrected work shipped as PRs #1932 and #1933 (both merged green).
+
+**Counterfactual cost of skipping preflight**: Two opus sub-agents would have re-implemented `JsonFormatter`, recreated `src/scylla/observability/tracing.py` (when `src/scylla/utils/tracing.py` already existed), added duplicate `[otel]` and `[prometheus]` extras to pyproject.toml, and burned tens of thousands of tokens on changes that would revert-on-merge.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -118,6 +212,10 @@ git diff --name-only origin/main...<branch>
 | Using `git rev-list --count origin/main..<branch>` to confirm branches were ALREADY-DONE | Branches showed 1-5 "unique" commits by SHA count, so an Explore sub-agent classified them as needing PRs | The branches were created before main moved forward. Their content was cherry-picked onto main with different SHAs (different parent commits). SHA comparison shows divergence even when content is identical. | Use content-level checks (grep/ls on current main files, or `git diff origin/main...<branch>` three-dot diff + manual inspection) rather than SHA counts to confirm ALREADY-DONE status. Even three-dot diffs can mislead — the definitive check is: does the file/feature currently exist on main? |
 | Not checking defaultBranchRef before implementing branch-trigger fixes | Saw "Fix CI branch trigger targeting master" and started implementing ci.yml changes | Repo default branch was already `main` and ci.yml already targeted `main` — issue was stale from before the repo was migrated | Always run `gh repo view --json defaultBranchRef --jq .defaultBranchRef.name` BEFORE touching any branch-trigger issue |
 | Ignoring .issue_implementer/ cache directory | Did not check for cached issue.json files from prior automation passes | Re-read and re-analyzed issues that had already been processed by a previous myrmidon-swarm pass | Check `ls .issue_implementer/ 2>/dev/null` first — prior passes cache triage decisions in issue.json files |
+| Trusting the issue title as the work definition | Plan dispatch on issue #1887 used the title `[MINOR] §10-Observability: No structured JSON logging or distributed tracing` as the scope of work | Title hadn't been updated when scaffolds merged in PRs #1921/#1922/#1928/#1931 — title-based scope is a snapshot of the day filed | Always read the most recent comments on the issue (`gh issue view <N> --comments \| tail -100`); titles age poorly and never reflect partial-progress merges |
+| Trusting audit findings as the work definition | Sized the plan off F19/F20 from the strict audit doc embedded in a parent issue | Audit findings represent state at audit time; four PRs landed between audit and dispatch | Use audit findings as initial framing only, then verify against current commits with `gh pr list --search "<N> in:title"` and `git log origin/main` |
+| Trusting plan-agent file-existence assumptions | Plan agents proposed creating `src/scylla/observability/tracing.py` based on their exploration of the codebase | Exploration was correct AT EXPLORATION TIME; commits landed during the planning window | Between plan approval and agent dispatch, do a final `git fetch && git log origin/main..HEAD` and `find` for each file the plan plans to create |
+| Skipping `gh pr list` preflight before launching agents | Relied on the in-plan ALREADY-DONE grep (which runs once agents start) instead of running `gh pr list --search "<N> in:title" --state merged --limit 20` BEFORE any compute is spent | The grep would have caught duplicates but only after worktrees were created and agents began work — wasting tokens on revert-on-merge changes | Make `gh pr list --search "<issue> in:title" --state merged --limit 20` line 1 of every multi-agent dispatch script — runs in seconds, catches scope drift before any agent compute |
 
 ## Results & Parameters
 
@@ -187,6 +285,7 @@ git diff --name-only origin/main...<branch>
 | --------- | ------ | --------- | ------------------- |
 | ProjectArgus | 2026-04-23 | myrmidon-swarm triage of 23 open issues | 11/23 (48%) |
 | ProjectTelemachy | 2026-04-25 | myrmidon-swarm triage of 57 open issues | 6/57 (10.5%) |
+| ProjectScylla | 2026-05-07 | Stale-plan preflight on issue #1887 caught 4 merged PRs (#1921, #1922, #1928, #1931) before opus sub-agent dispatch | ~70% of plan obsolete; corrected scope shipped as #1932 + #1933 (green) |
 
 ## Prior Sessions
 
