@@ -257,7 +257,7 @@ pre-commit run markdownlint --all-files
 | Ruff clean script | Added `fix_md_tables.py` without running ruff | I001 import order violation caused pre-commit to fail on the new script | Always run `ruff check --fix` on any new Python file before committing |
 | Manual table edits | Attempted to fix a sample of tables by hand | 1,189 files × multiple tables each = impractical; introduced inconsistencies | Automate bulk fixes with a script that handles edge cases (frontmatter, code blocks) |
 | `markdownlint-cli2 --fix "**/*.md"` for MD060 | Ran auto-fixer expecting it to fix MD060 violations after v0.40.0 upgrade | Silent no-op — produced 0 file modifications despite ~1079 violations across 165 files. MD060 is not implemented in the markdownlint-cli2 auto-fixer. | When `--fix` produces no changes but violations remain, the rule lacks an auto-fix implementation. Write a custom Python script instead. |
-| Single-pass separator normalization | Ran only Pass 1 (normalize separator rows) expecting all MD060 violations to be fixed | ~1079 violations remained — header and data cells with wide padding (`|  wide content  |`) still violated MD060 compact style after separator rows were normalized | Two passes required: Pass 1 normalizes separators, Pass 2 strips wide cell padding |
+| Single-pass separator normalization | Ran only Pass 1 (normalize separator rows) expecting all MD060 violations to be fixed | ~1079 violations remained — header and data cells with wide padding (e.g. `\|  wide content  \|`) still violated MD060 compact style after separator rows were normalized | Two passes required: Pass 1 normalizes separators, Pass 2 strips wide cell padding |
 
 ## Results & Parameters
 

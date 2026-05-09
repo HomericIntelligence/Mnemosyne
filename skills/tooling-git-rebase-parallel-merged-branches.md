@@ -147,7 +147,7 @@ If you see only the first signal (drops, no conflicts), the rebase is fine — l
 | Branches processed | 30+ in a single ProjectHephaestus session |
 | Typical commit collapse | "13 ahead" → "1 ahead" once duplicates were dropped |
 | Conflict resolution rule | always `git show :2:file > file` (take upstream) |
-| Loop termination check | `git status | grep -q "rebase in progress"` |
+| Loop termination check | `git status \| grep -q "rebase in progress"` |
 | Editor handling | `GIT_EDITOR=true git rebase --continue` |
 | Verification command | `git log --oneline branch ^origin/main \| wc -l` |
 | Verification level | verified-local (no CI signal — purely local git state) |

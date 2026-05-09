@@ -281,8 +281,6 @@ gh api repos/HomericIntelligence/<repo>/branches/main --jq '.protection.required
 ```
 
 A non-required check failing does NOT prevent pinning to that commit.
-<<<<<<< HEAD
-=======
 
 ### Phase 0 (Supplemental): Automation Loop Across All Repos
 
@@ -455,7 +453,6 @@ docker run --rm -v $(pwd):/code ghcr.io/...:ci \
   find /code/src /code/include /code/tests -name "*.cpp" -o -name "*.h" | \
   xargs clang-format-18 -i
 ```
->>>>>>> 5783bcc7 (chore(skills): consolidate clusters B+G — absorb stale-agent-refs + multi-repo skills (sub-wave 1 remainder))
 
 ### Phase 6: Verification
 

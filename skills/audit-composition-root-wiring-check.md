@@ -58,7 +58,7 @@ If the first command returns zero non-test hits, the package is structurally dea
    | --- | --- | --- |
    | Subscriber / event consumer | `Start(ctx)` is called, ideally as a goroutine | `pkg.New`, `Start(` |
    | Metrics type (counter/histogram/gauge) | `Inc*` / `Observe*` / `Set*` called from real call sites, not just defined | `Inc`, `Observe`, `Set`, `Add` |
-   | Background worker / poller | Constructed AND `go x.Start(ctx)` (or equivalent) | `pkg.New`, `go ` + start method |
+   | Background worker / poller | Constructed AND `go x.Start(ctx)` (or equivalent) | `pkg.New`, `go` + start method |
    | Health-check registration | Registered with the health registry | `Register(`, `RegisterCheck(` |
    | Validator | Called from `Load()` / config-parse path | validator function name |
    | Middleware / interceptor | Added to the router/server chain | `Use(`, `WithMiddleware(`, chain registration |

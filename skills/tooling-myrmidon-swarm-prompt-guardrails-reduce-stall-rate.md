@@ -112,7 +112,7 @@ and open a single PR.
 
 ## PR protocol
 
-```
+```text
 git push -u origin <N>-<slug>
 gh pr create --title "..." --body "...Refs #<N>."
 gh pr merge --auto --squash    # repo only allows squash, not rebase

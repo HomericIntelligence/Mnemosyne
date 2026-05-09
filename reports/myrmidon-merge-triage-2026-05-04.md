@@ -374,4 +374,3 @@ The first pass had 81.8% fingerprint coverage (838/1024 rows). Recomputing again
 | **Total** | **21** | **5** | — |
 
 Second pass merges reduce corpus by **5 additional files** (987 → 982).
-

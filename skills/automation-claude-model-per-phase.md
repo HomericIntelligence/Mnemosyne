@@ -232,4 +232,4 @@ The widening of rate-limit detection (which initially had a bug where `or`-chain
 
 | Project | Context | Details |
 |---------|---------|---------|
-| ProjectHephaestus | Multi-phase issue/PR automation pipeline (`hephaestus.automation`) on branch `feat/hephaestus-tidy`. Verified locally: 1990 tests pass, ruff and mypy clean. CI run pending — work is on a feature branch not yet pushed. |
+| ProjectHephaestus | Multi-phase issue/PR automation pipeline (`hephaestus.automation`) on branch `feat/hephaestus-tidy`. Verified locally: 1990 tests pass, ruff and mypy clean. CI run pending — work is on a feature branch not yet pushed. | |

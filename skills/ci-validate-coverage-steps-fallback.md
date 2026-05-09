@@ -131,8 +131,8 @@ pixi run pre-commit run validate-test-coverage --all-files
 
 - **YAML multi-line `run:` values**: After `yaml.safe_load()`, a `run:` block with backslash
   continuations (`\` at end of line) comes through as literal `"\\\n"` (two chars: backslash
-  + newline). Must collapse with `.replace("\\\n", " ")`.
-- **Residual `\\ "` artifacts**: After collapsing, individual lines may still contain `\\ `
+  and newline). Must collapse with `.replace("\\\n", " ")`.
+- **Residual `\\"` artifacts**: After collapsing, individual lines may still contain `\\`
   prefixes from YAML folding. Strip with `.replace("\\ ", " ")`.
 - **Group key format**: Use `f"{step_name}::{path}"` to allow multiple steps covering the same
   path (e.g., different test patterns in the same directory).
