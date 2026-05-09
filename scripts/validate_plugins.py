@@ -11,8 +11,10 @@ Checks:
 - Quick Reference demotion check (should be ### not ##)
 """
 
+import argparse
 import re
 import sys
+import textwrap
 from pathlib import Path
 from typing import Dict, List, Tuple
 
@@ -216,8 +218,36 @@ def validate_plugin(filename: str) -> List[str]:
     return errors
 
 
+def build_parser() -> argparse.ArgumentParser:
+    """Build and return the argument parser."""
+    parser = argparse.ArgumentParser(
+        prog="validate_plugins.py",
+        description="Validate flat-format skill files (skills/*.md).",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=textwrap.dedent(
+            """\
+            examples:
+              # Validate all skill files in skills/
+              python3 scripts/validate_plugins.py
+
+              # Run from any directory (skills/ resolved relative to cwd)
+              cd /path/to/ProjectMnemosyne && python3 scripts/validate_plugins.py
+
+              # Pipe through grep to show only failing files
+              python3 scripts/validate_plugins.py 2>&1 | grep '^✗'
+
+              # Use in CI — exits 1 if any errors are found
+              python3 scripts/validate_plugins.py || exit 1
+            """
+        ),
+    )
+    return parser
+
+
 def main():
     """Main validation entry point."""
+    build_parser().parse_args()
+
     plugins = find_plugins()
 
     if not plugins:
