@@ -17,7 +17,7 @@ tags: [bash, pipefail, set-euo, grep, while-read, process-substitution, no-match
 |-------|-------|
 | **Date** | 2026-05-09 |
 | **Objective** | Process lines matching a pattern in each file under strict bash mode without aborting when files have no matches |
-| **Outcome** | Success — replaced `grep pattern file | while read` with process substitution + `grep -q` guard |
+| **Outcome** | Success — replaced `grep pattern file \| while read` with process substitution + `grep -q` guard |
 | **Verification** | verified-ci |
 
 ## When to Use
@@ -89,7 +89,7 @@ done || true
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 |---------|----------------|---------------|----------------|
 | `grep "pattern" file \| while read line; do` | Direct pipe from grep to while-read | When grep exits 1 (no matches), pipefail propagates non-zero exit, set -e aborts script | Never pipe grep directly into while-read under set -euo pipefail without a guard |
-| `|| true` on the whole pipeline | Appended `|| true` after `done` | Works but silently swallows all errors inside the loop body, masking real failures | Use Option A (process substitution) instead; reserve `|| true` only for truly ignorable errors |
+| `\|\| true` on the whole pipeline | Appended `\|\| true` after `done` | Works but silently swallows all errors inside the loop body, masking real failures | Use Option A (process substitution) instead; reserve `\|\| true` only for truly ignorable errors |
 | Logic inversion: else branch sets `rc=1` for non-matching files | Checked for string presence and set failure when absent | The abort-on-grep-miss masked the real logic flow; every non-matching file appeared as a failure | The pipefail trap can invert the apparent logic: what looks like a missing-string check actually never runs the false branch — it exits the script instead |
 
 ## Results & Parameters

@@ -74,7 +74,7 @@ echo "$value"   # prints: false
 |---------|----------------|---------------|----------------|
 | `.converged // empty` | Used jq alternative operator to skip null | `false` is falsy in jq — `//` triggers on `false` too, returning empty string | Never use `//` with boolean fields; use `if . == null` instead |
 | `.converged // "false"` | Tried to default to string "false" | Same root cause — `//` replaces `false` with the alternative, so output is always `"false"` even when `.converged` is `true` | The alternative operator is wrong for booleans; use `tostring` with a null guard |
-| `.converged | tostring` | Direct tostring without null check | Works for booleans but crashes if field is missing (null input to tostring in strict mode) | Add `// null` guard before `tostring` or use `if . == null then "" else tostring end` |
+| `.converged \| tostring` | Direct tostring without null check | Works for booleans but crashes if field is missing (null input to tostring in strict mode) | Add `// null` guard before `tostring` or use `if . == null then "" else tostring end` |
 
 ## Results & Parameters
 
