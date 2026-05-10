@@ -1,5 +1,34 @@
 # worktree-parallel-agent-execution — History
 
+## v1.2.0 (2026-05-09)
+
+**Changed by:** ProjectOdyssey Phase G EASY-tier consolidation (PR #5363, 8-agent swarm contamination)
+**Verification:** verified-ci
+
+### What changed
+
+- Added new Phase 0a "Worktree-Isolation Branch-Namespace Contamination — When Parallel
+  Dispatch BREAKS" documenting that `Task isolation=worktree` does NOT isolate the parent
+  repo's git index/HEAD when N agents target N distinct branches
+- Added decision matrix for when to serialize vs dispatch parallel
+- Added cherry-pick consolidation recovery workflow (the PR #5363 fix)
+- Added per-agent-brief branch-namespace check (`rev-parse --abbrev-ref HEAD` before commit)
+- Added 2 Failed Attempts rows: 8-EASY-tier-branch swarm contamination (#5363); parallel
+  Mnemosyne `/learn` amendments contamination
+- Added Verified On row for ProjectOdyssey #5363
+- Bumped to 1.2.0 (minor — new section, new failures, no breaking changes)
+- Description trigger list extended from 5 to 8 conditions
+
+### Why
+
+`Task isolation=worktree` was assumed to provide complete isolation, but PR #5363 demonstrated
+that path-level isolation does NOT prevent index/HEAD contention across N agents on N distinct
+branches sharing a parent `.git/`. The fix is to either serialize EASY-tier batches OR
+consolidate via cherry-pick into a single branch and close the individual worker PRs. Same
+pattern recurs in Mnemosyne `/learn` parallel invocations on the shared agent-brain clone.
+
+---
+
 ## v1.1.0 (2026-05-07)
 
 **Changed by:** ProjectScylla #1887 split into PRs #1932 and #1933 (JSON-logging/tracing/metrics remediation)
