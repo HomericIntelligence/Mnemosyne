@@ -1,9 +1,9 @@
 ---
 name: worktree-parallel-agent-execution
-description: "Use when: (1) resolving 3+ independent GitHub issues simultaneously with sub-agents, (2) mass-rebasing many PR branches in parallel without collision, (3) triaging issues by complexity then executing LOW items in a single parallel wave, (4) avoiding merge conflicts when multiple agents work on the same repo, (5) splitting ONE multi-part GitHub issue into N independent parallel sub-tasks with hot-file ownership coordination."
+description: "Use when: (1) resolving 3+ independent GitHub issues simultaneously with sub-agents, (2) mass-rebasing many PR branches in parallel without collision, (3) triaging issues by complexity then executing LOW items in a single parallel wave, (4) avoiding merge conflicts when multiple agents work on the same repo, (5) splitting ONE multi-part GitHub issue into N independent parallel sub-tasks with hot-file ownership coordination, (6) `Task isolation=worktree` agents reporting they see stat-cache differences from sibling agents (`please run git restore CLAUDE.md`), (7) parallel haiku/sonnet swarm dispatch on EASY-tier batches where agents commit to the parent repo's checked-out branch instead of their own worktree branch, (8) writing Mnemosyne `/learn` skill amendments in parallel (serialize instead — branch contamination is possible)."
 category: tooling
-date: 2026-05-07
-version: "1.1.0"
+date: 2026-05-09
+version: "1.2.0"
 user-invocable: false
 verification: verified-ci
 history: worktree-parallel-agent-execution.history
@@ -74,6 +74,88 @@ by_s={}
 [by_s.setdefault(p['mergeStateStatus'],[]).append(p['number']) for p in prs]
 [print(f'{s}: {len(n)}') for s,n in sorted(by_s.items())]
 "
+```
+
+### Phase 0a (v1.2.0): Worktree-Isolation Branch-Namespace Contamination — When Parallel Dispatch BREAKS
+
+**Foundation:** ProjectOdyssey Phase G EASY-tier swarm (PR #5363, 2026-05-09). Eight parallel
+haiku/sonnet agents were dispatched with `Task(isolation="worktree")` against eight distinct
+issue branches. Multiple agents committed to whichever branch the parent repo's working tree
+had checked out, **not** to their own assigned worktree branch. Symptom from sibling agents:
+
+```text
+agent-B reports: "please run `git restore CLAUDE.md` — I see stat-cache differences from
+                  sibling agents in the parent repo"
+```
+
+**Root cause:** `Task isolation=worktree` does NOT fully isolate the git index/HEAD when:
+
+1. Multiple agents share the same parent repository (shared `.git/index` and `.git/HEAD`)
+2. Each agent operates on a DISTINCT branch off `main`
+3. The parent repo's checked-out branch acts as a "sticky" target — `git commit` from inside a
+   sub-worktree can race with the parent's HEAD pointer and land on the wrong branch
+4. `git status` in agent-B sees stat-cache deltas left by agent-A's index update
+
+**Why per-sub-task worktree path isolation is necessary but NOT sufficient:**
+
+- Path isolation prevents working-tree file collision (Phase 0 v1.1.0 covers this)
+- It does NOT prevent index/HEAD/refs contention when N agents push to N distinct branches
+- The contamination window is small (milliseconds) but reproducibly causes wrong-branch commits
+
+**Decision matrix — when to dispatch parallel vs serialize:**
+
+| Scenario | Parallel? | Why |
+|----------|-----------|-----|
+| EASY-tier 8+ issues, distinct branches | **NO — serialize** | Branch-namespace contention high; consolidate-via-cherry-pick is safer |
+| MEDIUM/HARD issues, 1 agent at a time | YES (1 at a time) | Wait for completion before launching next |
+| Mass rebase (N agents × M PRs each, agent owns branches) | YES | Each agent's branches are owned end-to-end inside its worktree |
+| Single multi-part issue, hot-file ownership | YES (2 agents max) | Phase 0 v1.1.0 pattern still holds |
+| Mnemosyne `/learn` parallel skill amendments | **NO — serialize** | Recurring contamination on shared `~/.agent-brain/ProjectMnemosyne` clone |
+
+**Recovery workflow when contamination has already occurred (PR #5363 pattern):**
+
+```bash
+# 1. Each worker agent had pushed its branch; the parent repo also had local mess.
+# 2. Create a single consolidation branch off main:
+git checkout main && git pull
+git checkout -b <epic>-consolidated
+
+# 3. Cherry-pick the GOOD commit from each worker's pushed branch:
+for branch in worker-1 worker-2 worker-3 ... worker-8; do
+  git fetch origin "$branch"
+  git cherry-pick "origin/$branch"
+  # resolve any conflict, run pre-commit, continue
+done
+
+# 4. Open ONE consolidated PR
+gh pr create --title "feat(epic): EASY-tier batch consolidation" \
+  --body "Closes #A
+Closes #B
+Closes #C
+..."
+
+# 5. Close the individual worker PRs as "consolidated into #<N>"
+for pr in <worker-prs>; do
+  gh pr close "$pr" --comment "Consolidated into #<consolidated-pr>"
+done
+```
+
+**Per-agent-brief mitigation (when parallel IS used):**
+
+Add this hard-stop instruction to every parallel-dispatched agent brief:
+
+```text
+CRITICAL — branch-namespace check before EVERY commit:
+
+  CURRENT_BRANCH=$(git -C <my-worktree-path> rev-parse --abbrev-ref HEAD)
+  if [ "$CURRENT_BRANCH" != "<my-assigned-branch>" ]; then
+    echo "ABORT: parent-repo branch contamination detected; current=$CURRENT_BRANCH expected=<my-assigned-branch>"
+    exit 1
+  fi
+  git -C <my-worktree-path> commit ...
+
+Do NOT trust `cd <worktree>` — always pass `git -C <absolute-worktree-path>` to every git
+command and verify the branch name before commit/push.
 ```
 
 ### Phase 0: Splitting a Single Issue with Shared Docs/Config Files (v1.1.0)
@@ -424,6 +506,8 @@ pixi run mypy <package>/
 | `gh pr merge --auto --rebase` (default from CLAUDE.md) | Standard merge command | Repo had rebase merging disabled — `--rebase` rejected | Detect with `gh repo view --json squashMergeAllowed,rebaseMergeAllowed` ONCE, pass to all briefs |
 | Both agents append to same docs file end-of-file | Each appended new H2 section at EOF — different lines, "no conflict" | Agent A's PR removed a "still out of scope" bullet that B's work was making in-scope; B's rebase produced stale-bullet conflict | "Append-only to shared docs" is necessary but NOT sufficient — also forbid editing "still TODO"/"out of scope" lists; the other agent may obsolete those lines |
 | Trusting local pre-commit pass after manual rebase conflict resolution | Resolved markdownlint conflict, force-pushed without rerunning hooks | Manual edit during conflict resolution introduced missing-blank-line; CI markdownlint failed | Always run `pre-commit run --files <changed>` AFTER manually resolving rebase conflicts, BEFORE force-push |
+| Parallel `Task isolation=worktree` on 8 EASY-tier branches (ProjectOdyssey #5363) | Dispatched 8 haiku/sonnet agents simultaneously, each assigned a distinct issue branch | Multiple agents committed to whichever branch the parent repo's working tree had checked out; sibling agents reported `please run git restore CLAUDE.md` from stat-cache deltas | `Task isolation=worktree` is path-isolated but NOT branch/index-isolated when N agents target N distinct branches sharing parent `.git/`. For EASY-tier batches, serialize OR consolidate via cherry-pick into ONE branch (see Phase 0a) |
+| Parallel Mnemosyne `/learn` skill amendments | Launched 5 parallel sub-agents to amend 5 different skills on shared `~/.agent-brain/ProjectMnemosyne` clone | Same branch-namespace contamination pattern as ProjectOdyssey #5363; agents wrote to wrong skill files / wrong branches | Serialize `/learn` invocations OR ensure each agent uses a TRULY independent clone (not just a worktree off the shared clone) |
 
 ## Results & Parameters
 
@@ -480,3 +564,4 @@ This ensures agents cannot push directly to main.
 | ProjectHephaestus | 34 issues triaged, 19 resolved in parallel batch | tooling-parallel-worktree-issue-batch 2026-03-24 |
 | ProjectOdyssey | 70 PRs rebased (v1.0) and 13 PRs (v1.1) | parallel-rebase-agent-worktree-isolation 2026-03-15/27 |
 | ProjectScylla | Issue #1887 (JSON-logging/tracing/metrics) split into PRs #1932 (squash-merged green, 22 checks) and #1933 (~24 checks after markdownlint fix) | 2026-05-07 — verified-ci foundation for v1.1.0 split-issue pattern |
+| ProjectOdyssey | Phase G EASY-tier 8-issue swarm contamination (PR #5363, 67/68 substantive checks green); recovery via cherry-pick consolidation; close individual worker PRs | 2026-05-09 — verified-ci foundation for v1.2.0 Phase 0a branch-namespace contamination warning |
