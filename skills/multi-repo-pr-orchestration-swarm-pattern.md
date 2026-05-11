@@ -1,9 +1,9 @@
 ---
 name: multi-repo-pr-orchestration-swarm-pattern
-description: "Orchestrate PR management across all HomericIntelligence repos using myrmidon swarm. Use when: (1) multiple repos have open PRs that need merging, conflict resolution, or CI fixes, (2) Odysseus submodule pins need updating after cross-repo PR merges, (3) coordinating parallel waves of agents across 5+ repos with sequential-within-repo merge ordering, (4) a PR branch has a duplicate commit that's already on main and needs rebase, (5) mergeStateStatus is BLOCKED but statusCheckRollup is empty — CI may not have started yet, (6) running hephaestus-plan-issues and hephaestus-implement-issues across 10+ repos in a cron-style automation loop, (7) multiple repos have failing PRs that need CI diagnosis and fixing via parallel sub-agents, (8) CI failures share common root causes across repos (org policy, missing images, deprecated syntax, formatting)."
+description: "Orchestrate PR management across all HomericIntelligence repos using myrmidon swarm. Use when: (1) multiple repos have open PRs that need merging, conflict resolution, or CI fixes, (2) Odysseus submodule pins need updating after cross-repo PR merges, (3) coordinating parallel waves of agents across 5+ repos with sequential-within-repo merge ordering, (4) a PR branch has a duplicate commit that's already on main and needs rebase, (5) mergeStateStatus is BLOCKED but statusCheckRollup is empty — CI may not have started yet, (6) running hephaestus-plan-issues and hephaestus-implement-issues across 10+ repos in a cron-style automation loop, (7) multiple repos have failing PRs that need CI diagnosis and fixing via parallel sub-agents, (8) CI failures share common root causes across repos (org policy, missing images, deprecated syntax, formatting), (9) you've already done the planning yourself and want to bypass the orchestrator's Phase-1 re-plan — dispatch direct `Agent` calls with a shared brief instead of invoking `/hephaestus:myrmidon-swarm`, (10) the same procedure applies to N repos with only minor per-repo deltas, and inline-quoting the instructions would burn parent context, (11) post-dispatch, one agent surfaces a gap (e.g. regex doesn't catch all control-flow boundaries) that should propagate to a follow-up PR on the meta-repo rather than reissuing prompts."
 category: ci-cd
 date: 2026-05-10
-version: "2.1.0"
+version: "2.2.0"
 user-invocable: false
 verification: verified-ci
 tags: [multi-repo, PR, merge, submodule, myrmidon-swarm, cross-repo, orchestration, odysseus, duplicate-commit, pin-audit, automation-loop, pixi, pythonpath, gh-cli, rate-limit, ci-triage, org-policy, container-image]
@@ -482,6 +482,22 @@ git submodule foreach --quiet '
 git status
 ```
 
+## Direct Agent fan-out as an alternative to /hephaestus:myrmidon-swarm
+
+**When to skip the orchestrator skill.** The formal `/hephaestus:myrmidon-swarm` runs Phase 1 (Mnemosyne consult, decompose, plan) on every invocation. When the calling session has already done that work (via `/advise` + Plan agents + explicit task decomposition), invoking the orchestrator re-runs Phase 1 and wastes Opus tokens. In that case, dispatch `Agent` calls directly from the parent session.
+
+**Shared brief pattern.** Instead of inlining the classification framework, lint-guard YAML, refactor templates, and workflow steps in every Agent prompt:
+
+1. **Parent session writes a brief once** to `~/.tmp/<topic>-brief.md` (typically 5–10 KB structured markdown).
+2. **Each Agent prompt is short** — points at the brief, names the assigned repo + occurrence count + per-repo deltas (special handling, related skills to read), specifies output format.
+3. **Token economics:** parent context savings of ~30K tokens (for a 14-agent dispatch with 3 KB inline vs. 400 byte pointer-prompts).
+
+**Agent feedback as brief refinement.** When multiple agents report the same gap (e.g., "the regex missed `||true;`"), treat it as a signal to **refactor the shared brief AND the source-of-truth PR**, not to reissue prompts. The 2026-05-10 silent-failures sweep encountered exactly this: ProjectArgus#500 surfaced a regex gap → propagated via Odysseus#281 widening PR → future submodule rebases pick up the widened guard automatically.
+
+### Related skills
+
+- [tooling-direct-agent-fanout-with-shared-brief](tooling-direct-agent-fanout-with-shared-brief.md) — Sibling skill documenting the shared-brief + pointer-prompt fan-out pattern in depth (independent of the multi-repo PR orchestration context).
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -508,6 +524,7 @@ git status
 | Add pull-requests: write to workflow YAML | Added permission to "Update Marketplace" workflow | GitHub org policy overrides YAML permissions — `default_workflow_permissions: read` takes precedence | Org-level default_workflow_permissions takes precedence over workflow YAML; switch to direct-commit pattern instead |
 | Reference custom CI container before it's built | Used ghcr.io image in workflows on PR branches | Image only gets built on merge to main, not during PR runs | Don't reference custom CI images in workflows until the image build pipeline is proven to work; check `docker manifest inspect <image>` first |
 | Mnemosyne `Update Marketplace` workflow direct-commit pattern shipped, declared a fix | Workflow now uses `git commit && git push origin main` from `github-actions[bot]` instead of the PR-creation step. Lands cleanly in workflow file but UNTESTED until next `skills/**` or `plugins/**` push triggers it. Branch protection ruleset 15556493 may still reject the direct push because the bot is not in the bypass-actors list | The web-UI bypass-actors list (Settings > Rules > Rulesets > 15556493 > Bypass list) is the authoritative source; YAML `permissions:` and direct-commit pattern do NOT bypass branch-protection rulesets. Cannot be configured via API (HTTP 403) | Whenever you ship the direct-commit pattern as a fix for the org-Actions-PR-creation policy, ALSO open a follow-up to add `github-actions[bot]` to the relevant ruleset's bypass actors via the web UI. Flag to user; do not assume the workflow file change alone is sufficient |
+| Invoked `/hephaestus:myrmidon-swarm` for the 2026-05-10 silent-failures sweep after parent session had already consulted Mnemosyne, classified work into Bucket A–E, and surveyed per-repo occurrence counts | The orchestrator runs Phase 1 (consult Mnemosyne, decompose, plan) before dispatching. The parent had already done all of it. | Wastes Opus tokens re-running Phase 1 when planning is already complete | When planning is complete, dispatch with `Agent` tool directly. Write shared instructions to `~/.tmp/<topic>-brief.md` and use 5-line pointer prompts per agent. Reserve the orchestrator for under-specified work. |
 
 ## Results & Parameters
 
@@ -563,6 +580,12 @@ Phase 6: Verify         [Opus orchestrator]
 | 5 repos, 2-4 PRs each | 5 Haiku + 2 Sonnet | ~30-45 min |
 | 10+ repos, mixed PRs | 6 Haiku + 4 Sonnet + pin agent | ~1-2 hours |
 | 8 repos, 87 PRs mixed | 6 Haiku + 8 Sonnet | ~8 hours wall-clock (including CI wait times) |
+
+### Session Outcome
+
+| Date | Sweep | Outcome | Notes |
+| ---- | ----- | ------- | ----- |
+| 2026-05-10 | Silent-failures removal across all 15 repos | 16 PRs opened (Odysseus #280 + #281 + 14 submodule PRs), 6 merged within the session, all on `--squash` auto-merge | ~198 refactors total; lint guard ported to every repo; agent feedback (ProjectArgus#500) drove a follow-up regex widening PR (Odysseus#281); the longest single agent was ProjectOdyssey research with 45 refactors |
 
 ### Key Commands
 
