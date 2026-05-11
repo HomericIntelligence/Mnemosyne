@@ -178,7 +178,7 @@ fix depends on the bucket.
 | D — Pipeline-tail suppression | `cmd \| grep \| head \|\| true` | Capture once: `_out=$(cmd) \|\| _out=''; printf '%s\n' "$_out" \| grep ... \| head -1 \|\| printf ''` |
 | D-count — `grep -c \|\| true` | empty-input count fallback | `awk '/pattern/{n++} END{print n+0}'` (always exits 0) |
 | E — `continue-on-error: true` | workflow step opt-out | Capture rc explicitly. **Note (v2.0.0):** the prior recommendation `if ! cmd; then echo "::warning::..."; fi` is now forbidden — see Bucket F. Prefer making the tool fail-fast and allowlisting unfixable findings with a tracking issue. |
-| F — Advisory `::warning::` annotation wrapping a tool's exit | `if ! pip-audit; then echo "::warning::..."; fi` or `tool || echo "::warning::..."` or `tool --exit-code 0` / `--exit-zero` | bare `tool` (default exit-on-findings) OR `tool --strict`; for legitimately unfixable findings, allowlist the specific finding with an inline-comment tracking issue + planned review date. NEVER use `\|\| true`, `continue-on-error: true`, or `::warning::` to wrap the tool's exit. |
+| F — Advisory `::warning::` annotation wrapping a tool's exit | `if ! pip-audit; then echo "::warning::..."; fi`, `tool` + warning fallback, or `tool --exit-code 0` / `--exit-zero` | bare `tool` (default exit-on-findings) OR `tool --strict`; for legitimately unfixable findings, allowlist the specific finding with an inline-comment tracking issue + planned review date. NEVER use double-pipe true, `continue-on-error: true`, or `::warning::` to wrap the tool's exit. |
 
 #### Bucket F — worked example
 
