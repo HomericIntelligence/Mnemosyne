@@ -3,6 +3,56 @@
 # Each entry records what changed and why; full snapshots for major versions only.
 ---
 
+## v2.2.0 (2026-05-10)
+
+**Changed by:** Silent-failures ecosystem sweep — HomericIntelligence/Odysseus#280, #281 + 14 submodule PRs
+**Verification:** verified-ci
+
+### What changed
+- Extended `Use when:` triggers with three new conditions related to skipping orchestrator Phase-1 when parent session has already planned
+- Added section "Direct Agent fan-out as an alternative to /hephaestus:myrmidon-swarm" documenting:
+  - When to skip the orchestrator skill
+  - Shared brief pattern (write to ~/.tmp/<topic>-brief.md, dispatch pointer-prompts)
+  - Agent feedback as brief refinement (Argus → Odysseus#281 example)
+- Added one row to Failed Attempts table about orchestrator-vs-direct-Agent decision
+- Added 2026-05-10 silent-failures sweep to the Session Outcome table
+- Added cross-reference to new sibling skill `tooling-direct-agent-fanout-with-shared-brief`
+
+### Why
+The 2026-05-10 silent-failures sweep dispatched 14 parallel agents across all HomericIntelligence submodules. The calling session had already consulted Mnemosyne via `/advise`, planned via a Plan agent, surveyed per-repo state, and classified work into Bucket A–E — so invoking `/hephaestus:myrmidon-swarm` would have re-run all of that. Direct `Agent` dispatch with a shared brief file (~10 KB) saved ~30K tokens of parent context vs. inline-quoting instructions in 14 prompts. Two prior swarm sessions also flagged "orchestrator re-plans even when planning is complete" as friction; this amendment documents the workaround as a first-class pattern.
+
+### Previous version (v2.1.0) snapshot
+
+```markdown
+---
+name: multi-repo-pr-orchestration-swarm-pattern
+description: "Orchestrate PR management across all HomericIntelligence repos using myrmidon swarm. Use when: (1) multiple repos have open PRs that need merging, conflict resolution, or CI fixes, (2) Odysseus submodule pins need updating after cross-repo PR merges, (3) coordinating parallel waves of agents across 5+ repos with sequential-within-repo merge ordering, (4) a PR branch has a duplicate commit that's already on main and needs rebase, (5) mergeStateStatus is BLOCKED but statusCheckRollup is empty — CI may not have started yet, (6) running hephaestus-plan-issues and hephaestus-implement-issues across 10+ repos in a cron-style automation loop, (7) multiple repos have failing PRs that need CI diagnosis and fixing via parallel sub-agents, (8) CI failures share common root causes across repos (org policy, missing images, deprecated syntax, formatting)."
+category: ci-cd
+date: 2026-05-10
+version: "2.1.0"
+user-invocable: false
+verification: verified-ci
+tags: [multi-repo, PR, merge, submodule, myrmidon-swarm, cross-repo, orchestration, odysseus, duplicate-commit, pin-audit, automation-loop, pixi, pythonpath, gh-cli, rate-limit, ci-triage, org-policy, container-image]
+history: multi-repo-pr-orchestration-swarm-pattern.history
+---
+
+# Multi-Repo PR Orchestration with Myrmidon Swarm
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2026-04-19 |
+| **Objective** | Use myrmidon swarm to scan all HomericIntelligence repos, merge open PRs, resolve conflicts, fix CI failures, and update Odysseus submodule pins -- all in parallel waves |
+| **Outcome** | Successful -- 87 PRs across 8 repos merged, submodule pins updated, Odysseus rebased on main. Absorbed multi-repo-automation-loop-shell-script + multi-repo-pr-triage on 2026-05-03. |
+| **Verification** | verified-ci |
+| **Absorbed** | multi-repo-automation-loop-shell-script (v1.0.0), multi-repo-pr-triage (v1.0.0) on 2026-05-03 |
+
+(See git history at the v2.1.0 tip for the full body — all Phase 1–6 sections, Phase 0/4b supplementals, Failed Attempts table, Results & Parameters, Verified On, and References were carried forward as-is into v2.2.0. v2.2.0 only appended: (a) three new `Use when:` triggers in the description, (b) a new "Direct Agent fan-out as an alternative to /hephaestus:myrmidon-swarm" section after Phase 6 Verification, (c) one new Failed Attempts row for orchestrator-vs-direct-Agent decision, (d) a new Session Outcome table under Results & Parameters with the 2026-05-10 silent-failures sweep row, (e) a Related skills cross-reference to `tooling-direct-agent-fanout-with-shared-brief`.)
+```
+
+---
+
 ## v2.1.0 — 2026-05-10
 
 **Changed by**: Multi-repo CI sweep + easy-issue dispatch session 2026-05-10 (12 repos / 18 PRs / 17 merged auto-squash)
