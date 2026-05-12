@@ -5,10 +5,11 @@ description: "Use when: (1) markdownlint CI fails with 20,000+ errors across hun
   config is added or upgraded, (3) markdownlint-cli2 is upgraded to v0.40.0+ and adds MD060 with
   ~1000 violations that --fix silently ignores (requires two-pass Python script + style: compact),
   (4) you need to bulk-normalize markdown table formatting to compact style across an entire
-  repository"
+  repository, (5) a single doc file fails MD060 with style 'aligned' because trailing pipes do not
+  line up vertically — separator dash count must equal max content width per column"
 category: ci-cd
-date: 2026-05-03
-version: "1.1.0"
+date: 2026-05-11
+version: "1.2.0"
 user-invocable: false
 verification: verified-ci
 history: markdown-linting-bulk-table-format-fix.history
@@ -46,6 +47,10 @@ Apply this pattern when:
 4. **MD024 "duplicate heading" errors** in changelogs or version files where repeated headings (Added/Fixed/Changed) are legitimate under different version headers
 5. **MD003 setext heading style errors** caused by orphaned YAML-like `---...---` blocks embedded in markdown content (not real frontmatter)
 6. **MD056 column count mismatch** in tables containing literal pipe characters in cell content
+7. **Single-file MD060 with style `aligned`** — markdownlint reports "Table pipe does not align
+   with header for style 'aligned'" on specific rows. Root cause: in aligned style every column's
+   separator dashes and every row's cell content must produce identical visual width so trailing
+   pipes line up vertically. A single mismatched dash count (e.g. 62 vs 63) triggers the error.
 
 **Do NOT use** when:
 
@@ -75,6 +80,17 @@ python3 scripts/fix_md_tables.py --all   # Pass 1: normalize separator rows
 # Pass 2 (if needed): strip wide padding from header/data cells
 # 3. Verify
 pre-commit run markdownlint --all-files
+
+# Scenario C: Single-file MD060 with style 'aligned' — trailing pipes don't line up
+# Rule of thumb: for each column, dash count in separator >= max content length across all
+# rows, with exactly 1 space padding each side. Every row's cell in that column must be
+# space-padded to the same width.
+# 1. For each column j, compute W_j = max(len(content)) across header + data rows.
+# 2. Separator row column j = '-' * W_j   (e.g. 62 dashes if widest cell is 62 chars).
+# 3. Every header/data row column j = content + ' ' * (W_j - len(content)).
+# 4. Verify locally (matches CI exactly — same tool, same version):
+pixi run npx markdownlint-cli2 docs/dev/your-file.md
+# Expected: Summary: 0 error(s)
 ```
 
 ### Detailed Steps
@@ -248,6 +264,51 @@ pre-commit run markdownlint --all-files
 # Expected: Passed (0 violations)
 ```
 
+#### Scenario C — Single-file MD060 with `style: aligned` (manual fix)
+
+This is the case where the repo's `.markdownlint.yaml` enforces `MD060: { style: aligned }`
+(the default for many projects) and a single doc file fails CI on a small number of rows:
+
+```text
+docs/dev/foo.md:105 MD060/table-column-style Table pipe does not align with header for style 'aligned'
+docs/dev/foo.md:106 MD060/table-column-style Table pipe does not align with header for style 'aligned'
+```
+
+**Root cause**: in `style: aligned`, the trailing `|` of every row must occupy the **same
+column position** as the trailing `|` of the header separator. Any mismatch in cell width
+across rows breaks alignment. A common failure mode: data rows have cells wider than the
+header separator's dash count, so the closing pipes shift right and no longer line up.
+
+##### Step C1 — Measure per-column widths
+
+For each column `j` in the failing table, compute:
+
+```text
+W_j = max(len(content_ij)) for all rows i (header + data)
+```
+
+`len(content_ij)` is the character count of cell content **without** the surrounding spaces
+or pipes (i.e. what sits between `| ` and ` |`).
+
+##### Step C2 — Rewrite the table with consistent widths
+
+- **Header row**:    `| ` + content padded to `W_j` with trailing spaces + ` |` per column.
+- **Separator row**: `| ` + `'-' * W_j`                                + ` |` per column.
+- **Data rows**:     `| ` + content padded to `W_j` with trailing spaces + ` |` per column.
+
+Single space padding on each side; every column's separator dash count must equal `W_j`
+(not `W_j - 2`, not "approximately" `W_j` — exactly `W_j`).
+
+##### Step C3 — Verify locally (CI-equivalent)
+
+```bash
+pixi run npx markdownlint-cli2 docs/dev/your-file.md
+# Expected: Summary: 0 error(s)
+```
+
+This invocation matches CI's `markdownlint` Required Check exactly (same `markdownlint-cli2`
+binary and version pinned in pixi). A local pass is definitive — CI will pass.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -258,6 +319,9 @@ pre-commit run markdownlint --all-files
 | Manual table edits | Attempted to fix a sample of tables by hand | 1,189 files × multiple tables each = impractical; introduced inconsistencies | Automate bulk fixes with a script that handles edge cases (frontmatter, code blocks) |
 | `markdownlint-cli2 --fix "**/*.md"` for MD060 | Ran auto-fixer expecting it to fix MD060 violations after v0.40.0 upgrade | Silent no-op — produced 0 file modifications despite ~1079 violations across 165 files. MD060 is not implemented in the markdownlint-cli2 auto-fixer. | When `--fix` produces no changes but violations remain, the rule lacks an auto-fix implementation. Write a custom Python script instead. |
 | Single-pass separator normalization | Ran only Pass 1 (normalize separator rows) expecting all MD060 violations to be fixed | ~1079 violations remained — header and data cells with wide padding (e.g. `\|  wide content  \|`) still violated MD060 compact style after separator rows were normalized | Two passes required: Pass 1 normalizes separators, Pass 2 strips wide cell padding |
+| Widened only the columns mentioned in the error (Scenario C) | Error reported lines 105–106; widened col1 and col3 separator dashes to match those rows; left col2 alone | col2's separator was 62 dashes but col2's data row content was 63 chars — single-column dash mismatch still failed MD060 | Every column's separator must match its widest cell across **all** rows; do not trust the line numbers in the error to identify which columns need widening |
+| Eyeballed alignment instead of measuring (Scenario C) | Counted dashes visually and added "a few more" to look right | Off-by-one dash count (62 vs 63) still produced MD060 failure; visual estimation isn't reliable for monospace alignment | Use `len()` programmatically (or a column ruler) to compute `W_j = max(len(content))` per column; exact match required |
+| Re-ran CI hoping for flake (Scenario C) | Pushed unchanged commit and waited for markdownlint Required Check to flake green | markdownlint is deterministic — same input always fails. No flake, no retry will help. | Reproduce the failure locally with `pixi run npx markdownlint-cli2 <file>` before pushing a fix; the local tool matches CI exactly |
 
 ## Results & Parameters
 
@@ -321,6 +385,7 @@ python3 scripts/fix_md_tables.py skills/some-skill.md
 | --------- | --------- | --------- |
 | ProjectMnemosyne | 2026-05-01 — mass fix of missing .markdownlint.yaml | CI markdownlint job passes with 0 errors after fix |
 | ProjectOdyssey | 2026-05-03 — PR #5347/#5348, markdownlint-cli2 v0.40.0 upgrade added MD060 | Two-pass Python script + `style: compact`; CI markdownlint job passed with 0 violations |
+| ProjectOdyssey | 2026-05-11 — PR #5381, single-file MD060 aligned-style fix on `docs/dev/mojo-jit-crash-capture-core.md` | 3 MD060 errors on lines 105–106 caused by 62 vs 63 dash mismatch in one column. Fixed by recomputing per-column max width and padding separator + every row to that width. Local `pixi run npx markdownlint-cli2 docs/dev/mojo-jit-crash-capture-core.md` → `Summary: 0 error(s)`. Pushed as commit 8de12aa6d. |
 
 ## References
 
