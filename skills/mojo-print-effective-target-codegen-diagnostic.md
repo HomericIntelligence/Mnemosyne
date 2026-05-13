@@ -30,7 +30,7 @@ tags:
 | **Objective** | Document `mojo build --print-effective-target <some.mojo>` as the first diagnostic to run when investigating "Mojo emitted wrong instructions on this host" reports. The flag prints the driver-resolved `--target-cpu` + `--target-features` list **without compiling** the program, so it's safe to run on hosts where actually executing the binary would SIGILL. |
 | **Outcome** | Verified output captured on two distinct Intel hosts (Lunar Lake Core Ultra 7 258V and Skylake i5-6600K) — both correctly resolve to non-AVX-512 feature sets. A GHA Azure-runner capture is pending PR #5401 merge; if that runner resolves to `znver4`/`sapphirerapids` with `+avx512f` while `/proc/cpuinfo` lists no `avx512f`, the discrepancy is the root cause of modular/modular#6413. |
 | **Verification** | verified-local (hermes Lunar Lake + epimetheus Skylake) |
-| **Companion skills** | `mojo-jit-emits-avx512-on-non-avx512-cpu` (modular/modular#6413, the specific bug class this diagnostic reveals), `cross-cpu-survey-gha-only-crash` (multi-host survey methodology) |
+| **Companion skills** | `multi-layer-cpu-feature-detection-mismatch-probe` (language-agnostic 4-layer probe methodology — this skill is its Mojo-specific layer 4), `mojo-jit-emits-avx512-on-non-avx512-cpu` (modular/modular#6413, the specific bug class this diagnostic reveals), `cross-cpu-survey-gha-only-crash` (multi-host survey methodology) |
 
 ## When to Use
 
@@ -209,6 +209,8 @@ out of CPUID. The runtime then SIGILLs on `vmovdqu64`/`vpternlogd`/`vcmpltss →
 ### Upstream references
 
 - Issue: [modular/modular#6413](https://github.com/modular/modular/issues/6413)
+- Companion methodology: `multi-layer-cpu-feature-detection-mismatch-probe`
+  (language-agnostic 4-layer probe; this skill is its Mojo-specific layer 4)
 - Companion skill: `mojo-jit-emits-avx512-on-non-avx512-cpu` (the bug class this
   diagnostic reveals)
 - Companion methodology: `cross-cpu-survey-gha-only-crash` (multi-host survey
