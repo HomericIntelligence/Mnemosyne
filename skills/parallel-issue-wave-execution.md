@@ -7,7 +7,7 @@ description: "Pattern for implementing 20-35 GitHub issues in parallel waves usi
   \ on main before launching waves."
 category: tooling
 date: 2026-05-12
-version: 2.8.0
+version: 2.9.0
 user-invocable: false
 verification: verified-local
 history: parallel-issue-wave-execution.history
@@ -306,6 +306,60 @@ GIT_EDITOR=true git rebase --continue   # NOTE: --no-edit does NOT exist for git
 git push --force-with-lease origin <branch>
 gh pr merge <PR-number> --auto --rebase  # MUST re-enable — force-push clears it silently
 ```
+
+### Cross-Wave Hot-File Coordination (added in v2.9.0)
+
+In-wave hot-file serialization (one agent per hot file per wave) is necessary but **not
+sufficient** when the same shared config file is touched by issues spread across multiple
+sequential waves. The second-to-merge PR in such a sequence will go DIRTY after the first
+merges, requiring a rebase.
+
+**Concrete case (Argus EASY wave, 2026-05-13)**: PRs #509 (NATS redaction), #511 (URL-creds
+redaction), and #513 (syslog redaction) were each in a different wave but all touched
+`configs/promtail.yml`. The first two merged cleanly; #511 then went DIRTY because the
+redaction stages added by #509 and #513 conflicted with #511's stage. Resolution: rebase
+#511 onto `origin/main` and force-push (then re-enable auto-merge per the existing
+"Auto-merge Cleared on Force-Push" rule).
+
+**Detection rule for the L0 commander**: before dispatching wave N, run a hot-file overlap
+check against in-flight PRs from waves N-1, N-2, ...:
+
+```bash
+# 1. Collect every file touched by every in-flight wave PR
+gh pr list --state open --author "@me" --json number,files \
+  | python3 -c "
+import json, sys
+prs = json.load(sys.stdin)
+from collections import Counter
+files = Counter()
+for pr in prs:
+    for f in pr.get('files', []):
+        files[f['path']] += 1
+for path, count in files.most_common(15):
+    if count >= 2:
+        print(f'{count} in-flight PRs touch {path}')
+"
+```
+
+**Mitigation options when ≥2 in-flight PRs touch the same hot file:**
+
+1. **Queue the second wave's hot-file issue** behind the first wave: hold the issue out of
+   the dispatch list until the first wave's PR merges; then dispatch in a later wave with
+   `git rebase origin/main` as the first agent step (this is already mandatory per the
+   existing rebase rule, so the rebase will surface the conflict and the agent can resolve
+   it inline).
+2. **Bundle into a single mega-agent** if 3+ in-flight PRs all want to add a redaction stage
+   or pipeline step to the same config file — apply the per-file mega-agent threshold (6+
+   issues → mega-agent) but bias toward bundling at 3+ for shared config files because
+   merge conflicts on stage ordering are unavoidable.
+3. **Document the cross-wave dependency in the wave plan** so reviewers understand why
+   issue X is in wave N+1 even though it has no in-wave file overlap with wave N+1.
+
+**Why classifier `hot_files` doesn't catch this**: classifier `hot_files` lists files
+mentioned in the issue body, but doesn't dedupe across issues. The L0 commander must do
+this contention analysis on its own — see the File Contention Analysis Script in Results
+& Parameters, and run it against the **union of in-flight PRs + the candidate next-wave
+issue set**, not just the candidate set in isolation.
 
 ### Per-File Mega-Agent Pattern (for 6+ issues per file)
 
@@ -623,6 +677,7 @@ print(f'{len(pending)} PRs with pending/in-progress checks')
 | Wave-agent classifier hot-file lists treated as load-bearing (2026-05-12) | Wave agents were dispatched with classifier-provided `hot_files` lists (e.g., `.pre-commit-config.yaml;.dockerignore`) and instructed to serialize on them. Multiple issues had unrelated hot-file lists that turned out to be advisory noise. | Phase-0 classifier hot-file extraction is a coarse regex/heuristic; it lists files mentioned anywhere in the issue body. Wave agents that respected stale hot-file lists wasted serialization slots. | Treat classifier `hot_files` as advisory only. Wave-orchestrator must do its own contention analysis against the actual files an issue will touch (see File Contention Analysis Script in Results & Parameters). Verified across 50 wave issues in 2026-05-12. |
 | Squash-only repos rejecting `--auto --rebase` (2026-05-12 ecosystem-wide easy-sweep) | Agent prompts defaulted to `gh pr merge --auto --rebase` across the 5 sweep repos. All 5 repos had rebase merge DISABLED at the repo level (org-wide squash-only policy). | The `--auto --rebase` request gets silently downgraded by gh / GitHub; auto-merge may not fire if the requested method is unavailable. Per-repo capability checks were missing from agent prompts. | All HomericIntelligence repos are now squash-only. Hardcode `gh pr merge --auto --squash` in wave-agent prompts unless `gh repo view --json rebaseMergeAllowed --jq .rebaseMergeAllowed` returns true for the target repo. Verified clean across 51 merges with `--auto --squash`. |
 | Classifier mis-bucketed META epic as ALREADY_DONE (Hermes #316, 2026-05-12) | Phase-1 manual-sweep `gh issue close` ran on classifier ALREADY_DONE list without reading issue bodies. Closed Hermes #316 which was actually a META tracker epic referencing multiple sub-issues. | Phase-0 classifier confused a META tracker with an ALREADY_DONE issue based on title keywords. Manual sweep trusted the classifier output. | Never trust classifier ALREADY_DONE output to close issues blindly. Always read the issue title + body (`gh issue view N`) before `gh issue close`. If title contains `[Audit]`, `[Meta]`, `[Tracker]`, or references multiple sub-issue numbers, reclassify as META. (Hermes #316 had to be reopened.) |
+| Three EASY agents in different waves all touched configs/promtail.yml; second-to-merge went DIRTY (Argus EASY wave, 2026-05-13) | Argus PRs #509 (NATS redaction), #511 (URL-creds redaction), #513 (syslog redaction) were each in a different wave but all added a redaction stage to `configs/promtail.yml`. First two merged cleanly; #511 then went DIRTY because the stages added by #509 and #513 conflicted with #511's stage. | In-wave hot-file serialization (one agent per hot file per wave) handles intra-wave contention but does not address cross-wave contention. When agents in separate sequential waves all touch the same shared config file, the second-to-merge PR is guaranteed to conflict because the file has changed between the agent's worktree creation and the PR merge attempt. Classifier `hot_files` lists files per issue, not across the wave plan. | L0 commander must run a cross-wave hot-file overlap check before dispatching wave N: compute the union of files touched by in-flight PRs from waves N-1, N-2, ... and the candidate next-wave issue set. If ≥2 in-flight PRs touch the same file, queue the next-wave issue behind the in-flight wave OR bundle into a single mega-agent at 3+ contention. See new section "Cross-Wave Hot-File Coordination" in Verified Workflow. Resolution for #511: rebase onto `origin/main`, force-push, re-enable auto-merge. |
 
 ## Results & Parameters
 

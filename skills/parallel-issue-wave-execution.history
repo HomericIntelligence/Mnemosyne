@@ -1,5 +1,23 @@
 # parallel-issue-wave-execution — History
 
+## v2.9.0 (2026-05-13)
+
+**Changed by:** Argus EASY wave shared-config rebase cascade (PRs #509, #511, #513 touching `configs/promtail.yml`, 2026-05-13)
+**Verification:** verified-local
+
+### What changed
+
+- Added new Verified Workflow subsection: **Cross-Wave Hot-File Coordination**. Documents the failure mode where multiple parallel wave agents in *different* waves all target the same shared config file, causing the second-to-merge PR to go DIRTY. Includes the cross-wave overlap detection script (union of in-flight PR files + candidate next-wave issues) and 3 mitigation options (queue, bundle into mega-agent at 3+ contention, document the cross-wave dependency).
+- Added 1 new Failed Attempts row documenting the Argus 2026-05-13 incident: PRs #509 (NATS redaction), #511 (URL-creds redaction), #513 (syslog redaction) all added a redaction stage to `configs/promtail.yml` in different waves; #511 went DIRTY after #509 and #513 merged. Resolution recipe (rebase + force-push + re-enable auto-merge) is cross-referenced from the existing "Auto-merge Cleared on Force-Push" rule.
+
+### Why
+
+Existing in-wave hot-file serialization (one agent per hot file per wave) handles intra-wave contention but is insufficient when agents in separate sequential waves all touch the same shared config file. The classifier-supplied `hot_files` list per issue does not dedupe across the wave plan; the L0 commander must do the contention check itself against the union of in-flight PR files and the candidate next-wave issue set.
+
+### Previous version (v2.8.0) snapshot
+
+See PR #1699 (merged 2026-05-13 06:03 UTC) for the v2.8.0 content; v2.9.0 adds only the new "Cross-Wave Hot-File Coordination" subsection and the new Failed Attempts row — no existing content modified.
+
 ## v2.8.0 (2026-05-12)
 
 **Changed by:** 2026-05-12 → 2026-05-13 ecosystem-wide easy-sweep session (5 repos: ProjectArgus, ProjectAgamemnon, Myrmidons, ProjectHermes, ProjectCharybdis; 65 wave agents, 51 PRs merged, 78 issues retired)
