@@ -14,7 +14,7 @@ description: 'Classify, deduplicate, and batch-implement GitHub issues in a larg
   inheritance, CMakeLists.txt single-agent anchor, asyncio_mode auto decorator check).'
 category: tooling
 date: 2026-05-12
-version: "1.11.0"
+version: "1.12.0"
 user-invocable: false
 verification: verified-local
 history: batch-low-difficulty-issue-impl.history
@@ -398,8 +398,41 @@ After a retrigger, seeing `pending` instead of `queued` confirms runners have re
 | PRECOMMIT_STALL on cold worktree (Argus #182, 2026-05-12) | Wave agent ran `git commit` on a freshly-created isolated worktree; pre-commit hook env install hung indefinitely (no progress output). Agent stalled >5 min before kill. | Cold worktrees do not share pixi env cache with the main repo. First-run pre-commit hook env install can take 5+ min with no progress output — looks identical to a hang. | Add explicit PRECOMMIT_STALL abort condition to every wave-agent prompt: "If `git commit` or `pre-commit run` hangs >60s on hook env install, ABORT and use `SKIP=audit-doc-policy-violations,gitleaks,yamllint git commit` or `git commit --no-verify`; report PRECOMMIT_STALL." Verified by Argus #182 retry: completed in <5 min. |
 | Coverage threshold reality-mismatch (Agamemnon #127, 2026-05-12) | Agamemnon orchestration coverage was failing CI at the configured `--cov-fail-under=80` while observed coverage was only 25.76% for that module — the project had aspirational thresholds disconnected from reality, blocking all PRs. | Coverage thresholds were set to aspirational targets, not measured baselines. New PRs could not land until either coverage was added (multi-week effort) or thresholds were realigned. | Pattern verified in Agamemnon #127: lower the threshold to match reality + rounding-down-to-nearest-5% (25.76% → 25), and add a comment in pyproject.toml citing the modules driving the bump-back plan. This unblocks PRs while preserving a forcing function. See parallel-issue-wave-execution v2.8.0 for the pattern. |
 | Classifier hot-file list treated as load-bearing (2026-05-12) | Wave agents were instructed to serialize on classifier-provided `hot_files` lists (e.g., `.pre-commit-config.yaml;.dockerignore`). Most lists were unrelated to the issue's actual scope. | Phase-0 classifier `hot_files` is a coarse regex over the issue body; it lists files mentioned anywhere, not files the implementation will actually touch. | Treat classifier `hot_files` as advisory only. The wave-orchestrator must do its own contention analysis against the actual files an issue will touch (see parallel-issue-wave-execution / File Contention Analysis Script). |
+| BW02 single-file fix instead of class-wide sweep (Myrmidons wave-2 PR #719, 2026-05-13) | Classifier-flagged issue named ONE bats file (`tests/unit/test_snapshot_dir_resolution.bats`) missing `bats_require_minimum_version 1.5.0`. Agent for PR #719 added the directive to only that file. Subsequent wave PRs continued to fail Unit Tests with `BW02: Using flags on run requires at least BATS_VERSION=1.5.0` from OTHER bats files (`tests/unit/test_fleet.bats` lines 97 + 292) until a separate sweep PR added the directive to every bats file using `run` with flags. | The classifier cites a single file's line number from the failing CI log, but the underlying root cause was a class violation (any bats file using `run --flag` without the version directive). bats CI escalates BW02 from a warning to a hard error in modern releases — so any file that had been silently passing the warning now blocks the merge gate. Per-file patching only fixed the one file the log happened to cite. | When a classifier-flagged issue cites "one file" but the failure is a class violation (missing directive, missing import, missing copyright header, deprecated API call), sweep ALL files at once instead of patching the single cited file. Diagnostic before dispatching: `grep -rL "<required-directive>" <dir-pattern>` to count the full violation set. If >1 file violates, batch into ONE sweep agent (Sonnet, not Haiku) — the same rule as ci.yml and CMakeLists.txt grouping. Cross-reference: `feedback_dispatch_brief_scope` memory hint. |
 
 ## Results & Parameters
+
+### CI Warning Escalation Sweep Pattern (added in v1.12.0)
+
+When a CI tool that previously emitted warnings starts escalating them to hard errors
+(e.g., bats `BW02`, ruff rule promotions, clang-tidy severity bumps, hadolint default-severity
+changes), the failure surface fans out: every file that was silently passing a warning now
+blocks the merge gate. The Phase-0 classifier typically cites the first file in the failure
+log — but the underlying root cause is a class violation across N files.
+
+**Signal**: a CI log message of the form `<TOOL_CODE>: <pattern> requires <directive>` cites
+one file/line, but `grep -rL "<required-directive>" <dir>` (or equivalent inverse-grep) shows
+≥2 files lack the directive.
+
+**Resolution**:
+
+```bash
+# 1. Identify the full violation set (example: bats BW02 — missing version directive)
+grep -rL "bats_require_minimum_version" tests/unit tests/integration
+
+# 2. Batch ALL violating files into ONE sweep PR. Do NOT dispatch one-agent-per-file —
+#    the classifier list will keep growing as later CI runs surface more files.
+
+# 3. Use Sonnet (not Haiku) for the sweep agent due to the multi-file scope.
+
+# 4. The sweep agent's prompt MUST include: "Add <directive> to every file in <set>;
+#    do NOT stop after the cited file."
+```
+
+**Verified Myrmidons 2026-05-13**: Wave-2 PR #719 patched only one bats file; subsequent wave
+PRs blocked on `tests/unit/test_fleet.bats` until a sweep PR fixed all bats files at once.
+Cross-reference the `feedback_dispatch_brief_scope` memory hint: this is the CI-warning-
+escalation specialization of the "fix all instances of the RC class" rule.
 
 ### Runner-Image Baseline CVE Pattern (added in v1.11.0)
 

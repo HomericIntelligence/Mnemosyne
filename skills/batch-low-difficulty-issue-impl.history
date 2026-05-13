@@ -1,5 +1,23 @@
 # History: batch-low-difficulty-issue-impl
 
+## v1.12.0 (2026-05-13)
+
+**Changed by:** Myrmidons wave-2 PR #719 BW02 single-file fix incident (2026-05-13)
+**Verification:** verified-local
+
+### What changed
+
+- Added new Results & Parameters subsection: **CI Warning Escalation Sweep Pattern**. Documents the failure mode where a CI tool escalates a previously-emitted warning to a hard error, causing every silently-passing file to start blocking the merge gate. Includes diagnostic command (`grep -rL "<directive>" <dir>`) and the rule to batch into ONE sweep PR (Sonnet, not Haiku).
+- Added 1 new Failed Attempts row: **BW02 single-file fix instead of class-wide sweep** (Myrmidons wave-2 PR #719). Classifier-flagged issue named ONE bats file missing `bats_require_minimum_version 1.5.0`; PR #719 patched only that file; subsequent wave PRs blocked on OTHER bats files (`tests/unit/test_fleet.bats` lines 97 + 292) until a separate sweep PR fixed all bats files at once.
+
+### Why
+
+The 2026-05-12 ecosystem-wide easy-sweep session surfaced a single-file fix that should have been a class-wide sweep. The classifier cited the file/line from the first failing CI log entry, but the underlying root cause (missing `bats_require_minimum_version` directive across many bats files using `run --flag`) was a class violation. This is the CI-warning-escalation specialization of the `feedback_dispatch_brief_scope` memory hint ("Fix all instances of the same RC class, not just the line cited in the error"). The new section makes the sweep-vs-singleton decision explicit and adds the `grep -rL` diagnostic.
+
+### Previous version (v1.11.0) snapshot
+
+See PR #1699 (merged 2026-05-13 06:03 UTC) for the v1.11.0 content; the diff between v1.11.0 and v1.12.0 is contained to the new Failed Attempts row and the new "CI Warning Escalation Sweep Pattern" subsection.
+
 ## v1.11.0 (2026-05-12)
 
 **Changed by:** 2026-05-12 → 2026-05-13 ecosystem-wide easy-sweep session (5 repos: ProjectArgus, ProjectAgamemnon, Myrmidons, ProjectHermes, ProjectCharybdis; 717 issues classified, 51 PRs merged, 78 issues retired)
