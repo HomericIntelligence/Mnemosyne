@@ -120,41 +120,16 @@ def parse_frontmatter(content: str) -> tuple[dict, str]:
     """
     Parse YAML frontmatter from markdown content.
 
-    Returns (frontmatter_dict, body_text).
-    If no frontmatter is found, returns ({}, content).
+    Returns (frontmatter_dict, body_text). Delegates to the canonical
+    :mod:`skill_utils` implementation (which uses ``yaml.safe_load``) so that
+    we no longer maintain a third hand-rolled parser (#1473).
     """
-    if not content.startswith("---"):
-        return {}, content
+    # Import lazily so that callers without skill_utils on sys.path (e.g.
+    # ad-hoc invocations of this script with a stripped-down environment)
+    # still get a helpful ImportError instead of a circular-import failure.
+    from skill_utils import parse_frontmatter as _shared_parse_frontmatter
 
-    # Find closing ---
-    rest = content[3:]
-    end_idx = rest.find("\n---")
-    if end_idx == -1:
-        return {}, content
-
-    fm_text = rest[:end_idx].strip()
-    body = rest[end_idx + 4 :].lstrip("\n")
-
-    frontmatter: dict[str, object] = {}
-    for line in fm_text.splitlines():
-        line = line.rstrip()
-        if not line or line.startswith("#"):
-            continue
-        if ":" in line:
-            key, _, val = line.partition(":")
-            key = key.strip()
-            val = val.strip()
-            # Handle quoted strings
-            if val.startswith('"') and val.endswith('"'):
-                val = val[1:-1]
-            elif val.startswith("'") and val.endswith("'"):
-                val = val[1:-1]
-            # Handle empty values
-            if val == "":
-                frontmatter[key] = None
-                continue
-            frontmatter[key] = val
-
+    frontmatter, body, _errors = _shared_parse_frontmatter(content)
     return frontmatter, body
 
 
