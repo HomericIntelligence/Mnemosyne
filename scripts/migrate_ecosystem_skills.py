@@ -609,7 +609,29 @@ def migrate_skill(
         "migrated" - skill was successfully written
         "failed"   - an error occurred
     """
-    target_path = SKILLS_DIR / f"{skill_name}.md"
+    # Defensive: skill_name may originate from external frontmatter; reject any
+    # value that would break out of SKILLS_DIR via path traversal or absolute
+    # paths (#1484). We require a simple filename component (no os.sep, no
+    # parent refs, no leading dot/slash).
+    if (
+        not skill_name
+        or "/" in skill_name
+        or "\\" in skill_name
+        or skill_name.startswith(".")
+        or skill_name in ("..", ".")
+    ):
+        print(f"  ERROR refusing unsafe skill_name: {skill_name!r}", file=sys.stderr)
+        return "failed"
+    target_path = (SKILLS_DIR / f"{skill_name}.md").resolve()
+    skills_root = SKILLS_DIR.resolve()
+    try:
+        target_path.relative_to(skills_root)
+    except ValueError:
+        print(
+            f"  ERROR refusing target path outside {skills_root}: {target_path}",
+            file=sys.stderr,
+        )
+        return "failed"
 
     if target_path.exists() and not force:
         return "skipped"
