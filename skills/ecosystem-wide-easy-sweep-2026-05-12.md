@@ -1,11 +1,11 @@
 ---
 name: ecosystem-wide-easy-sweep-2026-05-12
-description: "Retrospective and reusable flowchart for a 5-repo, 3-wave ecosystem-wide easy-sweep using parallel classifier agents + multi-wave myrmidon swarm. Use when: (1) executing a sweep across 3+ HomericIntelligence repos simultaneously, (2) classifying 500+ open issues with parallel Phase-0 classifier agents, (3) coordinating 50+ wave agents across multiple repos with per-repo capability quirks, (4) needing the verified phase ordering (classify → close-batch → 3 waves → CVE-fix-unblock → rebase-cascade → CI triage → knowledge capture)."
+description: "Retrospective and reusable flowchart for ecosystem-wide easy-sweeps using parallel classifier agents + multi-wave/bundle myrmidon swarm. v2.0.0 adds the bundle-PR-per-repo variant (one PR per repo with one commit per issue, cap 10) validated 2026-05-16 across 11 repos. Use when: (1) executing a sweep across 3+ HomericIntelligence repos simultaneously, (2) classifying 500+ open issues with parallel Phase-A classifier agents, (3) choosing between PR-per-issue (v1.0.0) and bundle-PR-per-repo (v2.0.0) variants, (4) needing the verified phase ordering (classify → close-batch → waves/bundles → CVE-fix-unblock → rebase-cascade → CI triage → knowledge capture)."
 category: tooling
-date: 2026-05-12
-version: "1.0.0"
+date: 2026-05-16
+version: "2.0.0"
 user-invocable: false
-verification: verified-local
+verification: verified-ci
 history: ecosystem-wide-easy-sweep-2026-05-12.history
 tags:
   - ecosystem-wide
@@ -13,6 +13,7 @@ tags:
   - easy-sweep
   - classifier-swarm
   - wave-execution
+  - bundle-per-repo
   - 2-pass-classification
   - cve-unblock
   - rebase-cascade
@@ -40,6 +41,46 @@ tags:
 - Dispatching 50+ wave agents in coordinated multi-wave structure with sequential-within-repo merge ordering
 - Anticipating cross-repo blockers (runner-image CVE, shared CHANGELOG policy, common pre-commit hooks)
 - Building a session retrospective that captures BOTH per-repo deltas AND ecosystem-wide systemic failure modes
+
+## Variant: Bundle-PR-per-Repo
+
+**Added in v2.0.0** (validated 2026-05-16 across 11 HomericIntelligence repos).
+
+The v1.0.0 workflow opens **one PR per issue** (wave-agent fan-out: ~20 agents per wave, ~50 PRs per sweep). The v2.0.0 bundle variant instead opens **one PR per repo**, with **one commit per issue** on a single branch — drastically reducing reviewer queue depth while keeping per-issue bisectability.
+
+### When to choose Bundle-PR-per-Repo over PR-per-Issue
+
+- **Reviewer bandwidth constrained** — one PR per repo means one review queue per repo, not 5–15 separate queues.
+- **Issues are independent and trivially bisectable** — one commit per issue allows `git revert <sha>` if CI flags one without losing the rest of the bundle.
+- **Cap is small** — keep ≤10 issues per bundle so the cumulative diff stays reviewable in one sitting.
+- **Heavy CI per PR** — bundles batch fan-out matrix costs (one CI run for N issues instead of N runs).
+
+### When v1.0.0 PR-per-Issue stays better
+
+- **Per-issue release notes / changelog discipline** — each PR generates its own changelog entry.
+- **Issues will be cherry-picked to release branches independently** — separate PRs make cherry-pick trivial.
+- **Issues touch overlapping files** — intra-repo serialization gets complex when commits in the same bundle race on the same file; PR-per-issue lets the merge queue serialize naturally.
+
+### Bundle constraints (verified 2026-05-16)
+
+1. **Cap = 10 issues per bundle PR.** Above this the diff exceeds typical reviewer attention and bisection benefits diminish.
+2. **One commit per issue, signed (`-S`)** — keeps `git revert <sha>` clean for post-merge regressions.
+3. **Per-issue stale-check pre-action** — every issue still gets the 2-pass classification stale-check inside the bundle agent BEFORE its commit is staged (see [[already-done-issue-detection]] v2.1.0).
+4. **PR body MUST use `Closes #N. Closes #M.` (one keyword per issue, period-separated, at TOP of body).** Markdown tables, bullet lists, and comma-lists do NOT trigger GitHub auto-close. See [[github-pr-auto-close-requires-closes-n-per-issue]].
+5. **Pre-warm gpg-agent** before bundle commits — `commit.gpgsign=true` global config does not reliably inherit into sub-agent shells if gpg-agent is cold. See [[git-gpg-sign-email-mismatch-silent-unsigned-blocks-merge]] v2.0.0.
+6. **Audit signatures via REST**, never GraphQL within ~10 min of push. `gh pr view --json commits` (GraphQL) lags; `gh api repos/<owner>/<repo>/commits/<sha>` (REST) is authoritative.
+
+### Bundle-variant phase reshape
+
+Phase A (classifier swarm) is unchanged from v1.0.0. Phase B reshapes:
+
+| Phase | v1.0.0 (wave) | v2.0.0 (bundle) |
+|-------|---------------|-----------------|
+| B agent count | 50–65 (one per issue) | 1 per repo (≤11 total for full ecosystem) |
+| Branches | one per issue | one per repo |
+| Commits per branch | 1 | 1 per issue (cap 10) |
+| PRs opened | 50–65 | 1 per repo (11 max) |
+| Merge ordering | wave-serialized within repo | single PR per repo — no intra-repo serialization |
 
 ## Verified Workflow
 
@@ -142,6 +183,10 @@ prompts as repo-specific overrides:
 | Close Phase-0 classifier ALREADY_DONE output blindly (Hermes #316) | Phase-1 manual sweep ran `gh issue close N` on every classifier-flagged ALREADY_DONE without reading bodies | Hermes #316 was bucketed as ALREADY_DONE but was actually a META tracker epic referencing multiple sub-issues. Issue had to be reopened | Always run `gh issue view N` before closing. If body contains issue-number references suggesting parent-framing, reclassify as META. See `already-done-issue-detection` v2.1.0 Failed Attempts |
 | Treat classifier `hot_files` lists as load-bearing for wave serialization | Wave agents serialized wave slots based on classifier-provided `hot_files` lists (e.g., `.pre-commit-config.yaml;.dockerignore`) | Phase-0 classifier `hot_files` is a coarse regex over issue body — lists files mentioned anywhere, not files the implementation will actually touch. Wave agents wasted serialization slots on unrelated files | Treat classifier `hot_files` as advisory only. The wave-orchestrator must do its own contention analysis. See `parallel-issue-wave-execution` v2.8.0 File Contention Analysis Script |
 | Cold-worktree pre-commit hook install indistinguishable from a hang | Wave-agent stdout went silent during `git commit`; orchestrator could not tell whether the agent was making progress or hung | pre-commit "Installing environment for ..." emits no progress; on cold worktrees the install can take 5+ min legitimately, then complete; orchestrator timeout heuristics misfire | Embed PRECOMMIT_STALL guardrail in every prompt; tell the agent to ABORT and report `PRECOMMIT_STALL` if it sees the stall signal. See `tooling-myrmidon-swarm-prompt-guardrails-reduce-stall-rate` v1.1.0 § Guardrail #8 |
+| **(v2.0.0)** Closes #N inside markdown table in bundle PR body | Bundle PR body used `\| #N \| sha \| desc \|` table to list bundled issues | GitHub does NOT recognize closing keywords inside markdown tables — 0 issues auto-closed; 32 issues had to be manually closed with citation comments post-merge | Use explicit `Closes #N. Closes #M.` footer (one keyword per issue, period-separated) at the TOP of the PR body. See `github-pr-auto-close-requires-closes-n-per-issue` skill (filed PR #1719) |
+| **(v2.0.0)** Comma-list `closes #A, #B, #C` in PR body | Bundle PR body included `closes #97, #152, #237, #246` as a single bullet | Only #97 auto-closed on merge — GitHub only honors the FIRST issue in a comma-list after a closing keyword; #152/#237/#246 stayed open | One closing keyword per issue is required: `Closes #97. Closes #152. Closes #237. Closes #246.` |
+| **(v2.0.0)** Trust GraphQL `signature.state` post-push as authoritative | Audited 31 commits as UNSIGNED via `gh pr view --json commits` shortly after push | GraphQL signature index lags behind REST by minutes; REST `/commits/<sha>` showed all VALID — the GraphQL "UNSIGNED" was a stale read | Audit signatures via REST `gh api repos/<owner>/<repo>/commits/<sha>`, never GraphQL within ~10 min of push. See `git-gpg-sign-email-mismatch-silent-unsigned-blocks-merge` v2.0.0 |
+| **(v2.0.0)** Bundle agent commits without explicit `-S` | Relied on global `commit.gpgsign=true` to inherit into sub-agent shell | Inheritance works BUT gpg-agent often cold in sub-agent subshell — sign step silently fails and commit lands unsigned, then auto-merge blocks on required-signature branch protection | Pre-warm gpg-agent before bundle commits: `export GPG_TTY=$(tty 2>/dev/null || echo /dev/null); echo test \| gpg --batch --yes --passphrase-fd 0 --pinentry-mode loopback -as -o /dev/null`. Always pass `-S` explicitly. |
 
 ### Failure Modes Surfaced (cross-references)
 
@@ -164,24 +209,25 @@ This section preserves the original cross-reference index by topic:
 
 ### Aggregate Statistics
 
-| Metric | Value |
-| ------ | ----- |
-| Repos in sweep | 5 |
-| Phase-0 classifier agents | 5 (one per repo) |
-| Total open issues classified | 717 |
-| Wave agents (Phase 2) | 65 across 3 waves |
-| Phase-1 manual closures | 19 (10 Argus DUPLICATE + 1 Argus ALREADY_DONE + 1 Agamemnon ALREADY_DONE + 7 Hermes CHANGELOG-policy ALREADY_DONE) |
-| Phase-1 mis-closures requiring reopen | 1 (Hermes #316 META) |
-| Wave-agent inline ALREADY_DONE catches (Pass 2) | 8 of 50 (16%) — caught by stale-check pre-action |
-| Total PRs merged | 51 |
-| Total issues retired | 78 (51 via PR + 19 Phase-1 + 8 wave-inline closes) |
-| CVE-fix unblock PR | Myrmidons #724 (pip-audit allowlist for urllib3 CVE-2026-44431) |
-| Tracking issues opened | Myrmidons #723 (runner-image upgrade tracker) |
-| Coverage-threshold realignment PRs | Agamemnon #127 (80 → 25 for orchestration) |
-| Broken-main events | 0 |
-| Pass-1 classifier ALREADY_DONE % | 1.2–8% per repo (UNDER baseline) |
-| Pass-2 additional ALREADY_DONE % | 16% (8/50 wave issues) |
-| Realistic combined ALREADY_DONE % | 10–25% |
+| Metric | v1.0.0 (2026-05-12 PR-per-issue) | v2.0.0 (2026-05-16 bundle-per-repo) |
+| ------ | -------------------------------- | ----------------------------------- |
+| Repos in sweep | 5 | 11 in-scope (Myrmidons excluded; Scylla/Odyssey research out) |
+| Phase-A classifier agents | 5 (one per repo) | 4 (rebatched: Agamemnon solo; Argus+Hermes; Charybdis+Telemachy+Proteus+Nestor; Odysseus+AchaeanFleet+Keystone+Mnemosyne) |
+| Total open issues classified | 717 | 717 |
+| Phase-B agents | 65 wave agents across 3 waves | 4 swarm agents covering 11 repos (1 bundle agent per repo) |
+| Issues bundled per PR (cap) | 1 | 10 |
+| Total PRs opened | 51 | 11 bundle PRs |
+| PRs merged by session end | 51 | 7 of 11 (4 still open, review-blocked, all CI green) |
+| Phase-1 manual closures | 19 | (folded into bundle agents via stale-check) |
+| Wave/bundle inline ALREADY_DONE catches | 8 of 50 (16%) | comparable rate via per-issue stale-check |
+| Total issues retired | 78 (51 PR + 19 Phase-1 + 8 wave-inline) | ~50 (7 bundles × ~7 issues each merged) |
+| Issues requiring manual close post-merge | 0 | 32 (4 bundle PRs used markdown-table Closes syntax — not auto-closed) |
+| CVE-fix unblock PR | Myrmidons #724 (urllib3 CVE-2026-44431) | (Myrmidons out of scope this run) |
+| Coverage-threshold realignment PRs | Agamemnon #127 (80 → 25) | n/a |
+| Broken-main events | 0 | 0 |
+| Pass-1 classifier ALREADY_DONE % | 1.2–8% per repo | similar |
+| Pass-2 additional ALREADY_DONE % | 16% | similar |
+| Realistic combined ALREADY_DONE % | 10–25% | 10–25% |
 
 ### When NOT to Use This Pattern
 
@@ -202,4 +248,5 @@ This section preserves the original cross-reference index by topic:
 
 | Project | Date | Context |
 | --------- | ------ | --------- |
-| HomericIntelligence/ProjectArgus + ProjectAgamemnon + Myrmidons + ProjectHermes + ProjectCharybdis | 2026-05-12 → 2026-05-13 | 5-repo ecosystem-wide easy-sweep; 717 issues classified, 51 PRs merged, 78 issues retired in <24h; 0 broken-main events; 65 wave agents; surfaced 10 systemic failure modes documented across 4 sibling skills |
+| HomericIntelligence/ProjectArgus + ProjectAgamemnon + Myrmidons + ProjectHermes + ProjectCharybdis | 2026-05-12 → 2026-05-13 | **v1.0.0 PR-per-issue variant** — 5-repo ecosystem-wide easy-sweep; 717 issues classified, 51 PRs merged, 78 issues retired in <24h; 0 broken-main events; 65 wave agents; surfaced 10 systemic failure modes documented across 4 sibling skills |
+| HomericIntelligence/ProjectAgamemnon (#382) + ProjectArgus (#520) + ProjectHermes (#640) + ProjectMnemosyne (#1717) + ProjectNestor (#78) + ProjectTelemachy (#241) + ProjectProteus (#139) + ProjectCharybdis (#249) + ProjectKeystone (#555) + AchaeanFleet (#659) + Odysseus (#283) | 2026-05-16 | **v2.0.0 bundle-PR-per-repo variant** — 11 in-scope repos, 717 issues classified by 4 rebatched Phase-A classifiers, 11 bundle PRs opened by 4 Phase-B swarm agents (cap 10 issues/bundle); 7 of 11 bundles merged at session end, 4 still open with required-checks-green BLOCKED on review only; ~50 issues closed; surfaced 4 new failure modes (markdown-table Closes, comma-list Closes, GraphQL signature lag, cold gpg-agent in sub-agent) — 32 issues required manual close post-merge due to PR-body Closes-syntax violations |
