@@ -140,7 +140,7 @@ jobs:
           if [ -f pixi.lock ]; then
             pixi install --locked
           else
-            echo "::warning::pixi.toml present but pixi.lock missing — running unlocked"
+            echo "::notice::pixi.toml present but pixi.lock missing — running unlocked (tracked in #1464)"
             pixi install
           fi
 
