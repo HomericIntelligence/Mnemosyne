@@ -20,6 +20,29 @@ from typing import Any, Dict, List, Optional
 
 import yaml
 
+try:
+    import tomllib  # Python 3.11+
+except ModuleNotFoundError:  # pragma: no cover - Python 3.10 fallback
+    import tomli as tomllib  # type: ignore[no-redef]
+
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+def _load_project_version() -> str:
+    """Read the marketplace version from pyproject.toml.
+
+    Falls back to "0.0.0" if pyproject.toml is missing or unreadable so
+    the generator never hard-fails on environments without the file.
+    """
+    pyproject = REPO_ROOT / "pyproject.toml"
+    try:
+        with open(pyproject, "rb") as f:
+            data = tomllib.load(f)
+        return str(data.get("project", {}).get("version", "0.0.0"))
+    except (OSError, KeyError, ValueError):
+        return "0.0.0"
+
 
 def load_skill_metadata(skill_file: Path) -> Optional[Dict[str, Any]]:
     """Load metadata from a flat skill file's YAML frontmatter."""
@@ -94,12 +117,13 @@ def generate_marketplace() -> Dict[str, Any]:
     # Compute category statistics
     category_counts = dict(sorted(Counter(entry["category"] for entry in plugin_entries).items()))
 
-    # Official marketplace format
+    # Official marketplace format. Version is sourced from pyproject.toml
+    # so the marketplace tracks the project's semver instead of a literal.
     marketplace = {
         "name": "ProjectMnemosyne",
         "owner": {"name": "HomericIntelligence", "url": "https://github.com/HomericIntelligence"},
         "description": "Skills marketplace for the HomericIntelligence agentic ecosystem",
-        "version": "1.0.0",
+        "version": _load_project_version(),
         "total_plugins": len(plugin_entries),
         "categories": category_counts,
         "last_updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
