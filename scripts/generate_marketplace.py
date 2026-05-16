@@ -16,30 +16,49 @@ import sys
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
-import yaml
+try:
+    import tomllib  # Python 3.11+
+except ModuleNotFoundError:  # pragma: no cover - Python 3.10 fallback
+    import tomli as tomllib  # type: ignore[no-redef]
+
+# Use the canonical skill_utils helpers instead of duplicating logic here.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from skill_utils import find_skill_files, parse_frontmatter  # noqa: E402
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+def _load_project_version() -> str:
+    """Read the marketplace version from pyproject.toml.
+
+    Falls back to "0.0.0" if pyproject.toml is missing or unreadable so
+    the generator never hard-fails on environments without the file.
+    """
+    pyproject = REPO_ROOT / "pyproject.toml"
+    try:
+        with open(pyproject, "rb") as f:
+            data = tomllib.load(f)
+        return str(data.get("project", {}).get("version", "0.0.0"))
+    except (OSError, KeyError, ValueError):
+        return "0.0.0"
 
 
 def load_skill_metadata(skill_file: Path) -> Optional[Dict[str, Any]]:
-    """Load metadata from a flat skill file's YAML frontmatter."""
+    """Load metadata from a flat skill file's YAML frontmatter.
+
+    Thin wrapper around skill_utils.parse_frontmatter to keep call-sites
+    in this module unchanged while reusing the canonical implementation.
+    """
     try:
         with open(skill_file, "r") as f:
             content = f.read()
     except IOError:
         return None
 
-    # Extract YAML frontmatter
-    if not content.startswith("---"):
-        return None
-
-    parts = content.split("---", 2)
-    if len(parts) < 3:
-        return None
-
-    try:
-        frontmatter = yaml.safe_load(parts[1]) or {}
-    except yaml.YAMLError:
+    frontmatter, _body, errors = parse_frontmatter(content)
+    if errors:
         return None
 
     # Add path relative to repo root
@@ -47,20 +66,9 @@ def load_skill_metadata(skill_file: Path) -> Optional[Dict[str, Any]]:
     return frontmatter
 
 
-def find_skills() -> List[Path]:
-    """Find all flat skill files (skills/*.md, exclude *.notes.md)."""
-    skills_dir = Path("skills")
-
-    if not skills_dir.exists():
-        return []
-
-    files = sorted([f for f in skills_dir.glob("*.md") if not f.name.endswith(".notes.md") and f.is_file()])
-    return files
-
-
 def generate_marketplace() -> Dict[str, Any]:
     """Generate marketplace index from flat skill files."""
-    skills = find_skills()
+    skills = find_skill_files()
     plugin_entries = []
     seen_names: set = set()
 
@@ -94,12 +102,13 @@ def generate_marketplace() -> Dict[str, Any]:
     # Compute category statistics
     category_counts = dict(sorted(Counter(entry["category"] for entry in plugin_entries).items()))
 
-    # Official marketplace format
+    # Official marketplace format. Version is sourced from pyproject.toml
+    # so the marketplace tracks the project's semver instead of a literal.
     marketplace = {
         "name": "ProjectMnemosyne",
         "owner": {"name": "HomericIntelligence", "url": "https://github.com/HomericIntelligence"},
         "description": "Skills marketplace for the HomericIntelligence agentic ecosystem",
-        "version": "1.0.0",
+        "version": _load_project_version(),
         "total_plugins": len(plugin_entries),
         "categories": category_counts,
         "last_updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),

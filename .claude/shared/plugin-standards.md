@@ -2,31 +2,38 @@
 
 Standards for creating and validating skills in the ProjectMnemosyne marketplace.
 
+> **Format:** ProjectMnemosyne uses the **flat-file skill format** introduced in v2.0.0.
+> Each skill is a single markdown file at `skills/<name>.md`. There is no
+> nested `<name>/SKILL.md`, no per-skill `plugin.json`, and no `.claude-plugin/`
+> directory inside each skill. The only documented exception is
+> `plugins/tooling/mnemosyne/` (command infrastructure), which is *not* a skill.
+> See `CLAUDE.md` for repo structure and `templates/skill-template.md` for a
+> ready-to-copy template.
+
 ## Required Structure
 
 ```text
-skills/<category>/<name>/
-├── .claude-plugin/
-│   └── plugin.json           # Metadata (REQUIRED)
-├── skills/<name>/
-│   └── SKILL.md              # Main knowledge (REQUIRED)
-└── references/
-    └── notes.md              # Additional context (optional)
+skills/
+└── <name>.md                  # Single flat skill file (REQUIRED)
 ```
 
-## plugin.json Requirements
+Optional sibling files alongside `<name>.md`:
+
+- `<name>.notes.md` / `<name>.notes-<topic>.md` — session notes (excluded from marketplace)
+- `<name>.history*` — historical revisions (excluded from marketplace)
+
+## SKILL Metadata (YAML Frontmatter in `<name>.md`)
 
 | Field | Required | Description |
 | ------- | ---------- | ------------- |
-| `name` | Yes | Lowercase kebab-case identifier |
-| `version` | Yes | Semantic version (e.g., "1.0.0") |
+| `name` | Yes | Lowercase kebab-case identifier (matches the filename stem) |
 | `description` | Yes | Trigger conditions (20+ chars) |
-| `author.name` | Yes | Author name |
-| `date` | Yes | Creation date (YYYY-MM-DD) |
-| `category` | Yes | One of 8 approved categories |
-| `tags` | Yes | Array of searchable keywords |
-| `skills` | Yes | Path to skills directory |
-| `source_project` | No | Source project name |
+| `version` | Yes | Semantic version (e.g., "1.0.0") |
+| `date` | Yes | Last-updated date (YYYY-MM-DD) |
+| `category` | Yes | One of the approved categories below |
+| `tags` | Yes | YAML list of searchable keywords |
+| `verification` | Yes | One of `verified-ci`, `verified-local`, `verified-precommit`, `unverified` |
+| `source` | No | Originating project (e.g., `ProjectOdyssey`) |
 
 ## SKILL.md Requirements
 
@@ -35,10 +42,14 @@ skills/<category>/<name>/
 ```yaml
 ---
 name: skill-name
-description: "Trigger conditions"
+description: "Trigger conditions (≥20 chars)"
 category: category-name
-source: source-project
+version: "1.0.0"
 date: YYYY-MM-DD
+verification: verified-local
+tags:
+  - keyword-1
+  - keyword-2
 ---
 ```
 
@@ -67,12 +78,13 @@ date: YYYY-MM-DD
 
 ## Validation Rules
 
-1. **plugin.json must exist** in `.claude-plugin/` directory
-2. **SKILL.md must exist** in `skills/<name>/` directory
-3. **Failed Attempts section required** - validation fails without it
-4. **Description must be specific** - 20+ characters with trigger conditions
-5. **Category must be valid** - one of 8 approved categories
-6. **Date format** - YYYY-MM-DD
+1. **`skills/<name>.md` must exist** — the flat file *is* the skill
+2. **Frontmatter must be valid YAML** delimited by `---` lines
+3. **Failed Attempts section required** — validation fails without it
+4. **Description must be specific** — 20+ characters with trigger conditions
+5. **Category must be valid** — one of the approved categories above
+6. **Date format** — YYYY-MM-DD
+7. **`verification` must be one of** `verified-ci` / `verified-local` / `verified-precommit` / `unverified`
 
 ## Quality Guidelines
 

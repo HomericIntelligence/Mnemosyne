@@ -14,6 +14,7 @@ Options:
 """
 
 import argparse
+import datetime
 import os
 import re
 import sys
@@ -27,7 +28,8 @@ from typing import Optional
 REPO_ROOT = Path(__file__).parent.parent
 SKILLS_DIR = REPO_ROOT / "skills"
 
-TODAY = "2026-03-25"
+# Use today's date so re-runs stamp current dates on migrated skills.
+TODAY = datetime.date.today().isoformat()
 
 # Source definitions: name -> base_path
 # Override via environment variables:
