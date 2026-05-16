@@ -182,9 +182,16 @@ class TestFrontmatterToYaml:
         result = _format_yaml_value("key", None)
         assert result == "key:"
 
-    def test_list_value_serialized_as_empty_list(self):
-        result = _format_yaml_value("tags", ["a", "b"])
+    def test_empty_list_value_serialized_as_empty_flow_sequence(self):
+        result = _format_yaml_value("tags", [])
         assert result == "tags: []"
+
+    def test_nonempty_list_value_serialized_as_flow_sequence(self):
+        # Regression for #1462: list values must not be silently discarded.
+        # Per migrate_ecosystem_skills._format_yaml_value, populated lists are
+        # emitted as flow-style YAML sequences so the contents round-trip.
+        result = _format_yaml_value("tags", ["a", "b"])
+        assert result == "tags: [a, b]"
 
     def test_value_with_colon_is_quoted(self):
         result = _format_yaml_value("description", "Use when: something")
