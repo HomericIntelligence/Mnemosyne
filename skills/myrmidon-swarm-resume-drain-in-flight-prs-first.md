@@ -42,7 +42,7 @@ before Phase B/C/D (new waves) begin.**
 - Only 1-2 open PRs from prior session AND main is verifiably green
   (a small queue is not a "stalled swarm")
 
-## Quick Reference — Verified Workflow
+## Verified Workflow
 
 ```bash
 # Phase A.0 — pre-flight: check main is green
