@@ -2,8 +2,8 @@
 name: tooling-gh-pr-auto-merge-rebase-squash-fallback
 description: "EVERY HomericIntelligence repo (verified org-wide as of 2026-05-11) rejects `gh pr merge --auto --rebase` with the GraphQL error 'rebase merging is not allowed on this repository (enablePullRequestAutoMerge)'. Default to `--auto --squash` for any HomericIntelligence repo. Use when: (1) opening PRs on any HomericIntelligence repo and arming auto-merge, (2) writing skills/agents/hooks that call `gh pr merge --auto`, (3) you observe a repo's UI lets you manually rebase-merge but auto-merge with rebase fails, (4) you want a single command pattern that works across all HomericIntelligence repos without per-repo branching, (5) updating stale skills (e.g. multi-repo-pr-orchestration-swarm-pattern v2.2.0) that still scope rebase rejection to specific repos like Myrmidons."
 category: tooling
-date: 2026-05-11
-version: "2.0.0"
+date: 2026-05-17
+version: "2.1.0"
 user-invocable: false
 verification: verified-ci
 history: tooling-gh-pr-auto-merge-rebase-squash-fallback.history
@@ -38,6 +38,7 @@ tags:
 - You are writing a skill, hook, or agent that calls `gh pr merge --auto` across multiple HomericIntelligence repos
 - A repo's web UI lets you manually rebase-merge a PR, yet `gh pr merge --auto --rebase` is still rejected — `enablePullRequestAutoMerge` is a separate setting from the merge methods exposed to the UI
 - You are auditing a skill that asserts rebase auto-merge "works on most repos except X" (e.g. `multi-repo-pr-orchestration-swarm-pattern` v2.2.0 currently lists Myrmidons / AchaeanFleet) — that scoping is stale; this skill supersedes it
+- A project's `CLAUDE.md` prescribes `gh pr merge --auto --rebase` as the standard workflow (e.g. HomericIntelligence/ProjectOdyssey as of 2026-05-17) — project-level docs are out of sync with org-level branch protection; trust this skill over the project doc and use `--squash`
 - You want the fallback to be precise — only fall through on the *specific* method-not-allowed error, not on auth/network errors that should bubble up
 
 ## Verified Workflow
@@ -196,3 +197,4 @@ This works interactively but is too coarse for HomericIntelligence automation:
 | HomericIntelligence/ProjectScylla | 2026-05-11 — easy-issue sweep PR | `--auto --rebase` rejected, `--auto --squash` accepted |
 | HomericIntelligence/ProjectTelemachy | 2026-05-11 — easy-issue sweep PR | `--auto --rebase` rejected, `--auto --squash` accepted |
 | **2026-05-11 ecosystem-wide easy-issue sweep summary** | 11 PRs across 11 repos in a single session | Unanimous — every `--rebase` attempt rejected, every `--squash` attempt accepted. Org-wide org policy as of this date. |
+| HomericIntelligence/ProjectOdyssey | 2026-05-17 — PR #5411 | Re-confirms org-wide policy still in effect 6 days after the v2.0.0 sweep. CLAUDE.md prescribed `--auto --rebase`; first attempt returned "Merge method rebase merging is not allowed", `--auto --squash` armed cleanly and the PR auto-merged after CI. Reinforces the v2.0.0 guidance: skip the rebase round-trip for HomericIntelligence repos even when the project's own CLAUDE.md says rebase. |

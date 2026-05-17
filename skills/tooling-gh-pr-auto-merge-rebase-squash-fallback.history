@@ -1,5 +1,16 @@
 # tooling-gh-pr-auto-merge-rebase-squash-fallback — History
 
+## v2.1.0 (2026-05-17)
+
+**Changed by:** Live encounter on HomericIntelligence/ProjectOdyssey PR #5411
+**Verification:** verified-ci
+
+### What changed
+
+- Added a new "Verified On" datapoint: ProjectOdyssey PR #5411 (2026-05-17) re-confirms the org-wide rebase-auto-merge rejection 6 days after the v2.0.0 ecosystem sweep. CLAUDE.md in ProjectOdyssey still prescribes `--auto --rebase`; the rebase attempt failed with the standard GraphQL error and `--auto --squash` armed cleanly.
+- Added a new "When to Use" bullet: project-level `CLAUDE.md` files may still prescribe `--auto --rebase` and contradict org-level branch protection — trust this skill over project docs for any HomericIntelligence repo.
+- No change to the core recommendation (default to `--squash` for HomericIntelligence repos). Bump is minor — same guidance, broader evidence base.
+
 ## v2.0.0 (2026-05-11)
 
 **Changed by:** 2026-05-11 HomericIntelligence ecosystem-wide easy-issue sweep (11 PRs across 11 repos)
