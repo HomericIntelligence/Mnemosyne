@@ -1,9 +1,9 @@
 ---
 name: worktree-parallel-agent-execution
-description: "Use when: (1) resolving 3+ independent GitHub issues simultaneously with sub-agents, (2) mass-rebasing many PR branches in parallel without collision, (3) triaging issues by complexity then executing LOW items in a single parallel wave, (4) avoiding merge conflicts when multiple agents work on the same repo, (5) splitting ONE multi-part GitHub issue into N independent parallel sub-tasks with hot-file ownership coordination, (6) `Task isolation=worktree` agents reporting they see stat-cache differences from sibling agents (`please run git restore CLAUDE.md`), (7) parallel haiku/sonnet swarm dispatch on EASY-tier batches where agents commit to the parent repo's checked-out branch instead of their own worktree branch, (8) writing Mnemosyne `/learn` skill amendments in parallel (serialize instead — branch contamination is possible)."
+description: "Use when: (1) resolving 3+ independent GitHub issues simultaneously with sub-agents, (2) mass-rebasing many PR branches in parallel without collision, (3) triaging issues by complexity then executing LOW items in a single parallel wave, (4) avoiding merge conflicts when multiple agents work on the same repo, (5) splitting ONE multi-part GitHub issue into N independent parallel sub-tasks with hot-file ownership coordination, (6) `Task isolation=worktree` agents reporting they see stat-cache differences from sibling agents (`please run git restore CLAUDE.md`), (7) parallel haiku/sonnet swarm dispatch on EASY-tier batches where agents commit to the parent repo's checked-out branch instead of their own worktree branch, (8) writing Mnemosyne `/learn` skill amendments in parallel (serialize instead — branch contamination is possible), (9) parallel worktree agents pushing to overlapping remote branch refs even with correct `isolation: \"worktree\"` — different agents racing on similar branch names produce a single union branch under one PR rather than N separate PRs."
 category: tooling
-date: 2026-05-09
-version: "1.2.0"
+date: 2026-05-16
+version: "1.3.0"
 user-invocable: false
 verification: verified-ci
 history: worktree-parallel-agent-execution.history
@@ -157,6 +157,59 @@ CRITICAL — branch-namespace check before EVERY commit:
 Do NOT trust `cd <worktree>` — always pass `git -C <absolute-worktree-path>` to every git
 command and verify the branch name before commit/push.
 ```
+
+### Branch collision hardening (v1.3.0)
+
+**Failure mode (ProjectAgamemnon swarm 2026-05-16):** Four parallel Haiku bundle agents
+(Bundles 4, 5, 6, 7) each used `isolation: "worktree"` correctly, so their LOCAL working
+trees were separate. But all four followed the same branch-naming template
+(`bundle/simple-sweep-N-2026-05-16`) without an issue-number uniqueness guarantee. The result:
+26 commits from 4 distinct local branches collapsed onto a single remote branch
+(`bundle/simple-sweep-7-2026-05-16`) under one PR (#386), with the PR body listing only
+Bundle 7's 10 issues. Recovery required rewriting the PR body to `Closes #N. Closes #M. …`
+for all 26 actually-delivered issues and deleting an orphan branch.
+
+**Root cause:** Worktrees share the same remote. `git push -u origin <branch>` from agent A
+may land on the same remote ref as agent B if their branch names are identical or if one agent's
+push races and overwrites another's. `Task isolation=worktree` guarantees no LOCAL state
+contamination, but it does NOT guarantee REMOTE branch uniqueness.
+
+**Fix — two-step hardening (verified 2026-05-16 via PRs #387-#390):**
+
+**Step 1 — Issue-number-suffixed branch names.** Every parallel agent must embed the primary
+issue number (and optionally a date) in its branch name to guarantee uniqueness across the wave:
+
+```
+# Pattern: <theme>-<issue-number(s)>-<date>
+medium/clang-tidy-version-info-177-2026-05-16
+medium/cmake-cleanup-182-189-2026-05-16
+medium/tsan-preset-185-2026-05-16
+medium/version-consistency-script-331-2026-05-16
+```
+
+**Step 2 — Mandatory `git ls-remote` collision check inside every agent prompt, BEFORE push:**
+
+```bash
+git ls-remote --exit-code --heads origin <branch> && { echo "FATAL: branch exists on remote"; exit 1; }
+git push -u origin <branch>
+```
+
+**Hard rule for every parallel-agent prompt:**
+
+```text
+CRITICAL — remote branch collision check before push:
+
+  git ls-remote --exit-code --heads origin <my-branch-name> \
+    && { echo "FATAL: branch <my-branch-name> already exists on remote — STOP"; exit 1; }
+  git push -u origin <my-branch-name>
+
+If the collision check fails, STOP and report — do NOT retry with a different name.
+The orchestrator must diagnose why the branch already exists before proceeding.
+```
+
+**Success verification:** After applying v1.3.0 hardening, four parallel Sonnet MEDIUM-Wave-1
+agents (issues #177, #182+189, #185, #331) produced four distinct PRs (#387, #388, #389, #390)
+with zero branch collisions or PR merges.
 
 ### Phase 0: Splitting a Single Issue with Shared Docs/Config Files (v1.1.0)
 
@@ -508,6 +561,7 @@ pixi run mypy <package>/
 | Trusting local pre-commit pass after manual rebase conflict resolution | Resolved markdownlint conflict, force-pushed without rerunning hooks | Manual edit during conflict resolution introduced missing-blank-line; CI markdownlint failed | Always run `pre-commit run --files <changed>` AFTER manually resolving rebase conflicts, BEFORE force-push |
 | Parallel `Task isolation=worktree` on 8 EASY-tier branches (ProjectOdyssey #5363) | Dispatched 8 haiku/sonnet agents simultaneously, each assigned a distinct issue branch | Multiple agents committed to whichever branch the parent repo's working tree had checked out; sibling agents reported `please run git restore CLAUDE.md` from stat-cache deltas | `Task isolation=worktree` is path-isolated but NOT branch/index-isolated when N agents target N distinct branches sharing parent `.git/`. For EASY-tier batches, serialize OR consolidate via cherry-pick into ONE branch (see Phase 0a) |
 | Parallel Mnemosyne `/learn` skill amendments | Launched 5 parallel sub-agents to amend 5 different skills on shared `~/.agent-brain/ProjectMnemosyne` clone | Same branch-namespace contamination pattern as ProjectOdyssey #5363; agents wrote to wrong skill files / wrong branches | Serialize `/learn` invocations OR ensure each agent uses a TRULY independent clone (not just a worktree off the shared clone) |
+| Parallel Haiku bundle agents (4-7) with `isolation: "worktree"`, no branch-name uniqueness guarantee | Four agents used `isolation: "worktree"` correctly; each pushed its own local worktree branch named `bundle/simple-sweep-N-2026-05-16` | 26 commits from 4 distinct branches collapsed onto a single remote branch `bundle/simple-sweep-7-2026-05-16` under one PR (#386); PR body listed only one bundle's issues, leaving 16 silently fixed-but-unclosed | Worktree isolation guarantees no LOCAL state contamination but does NOT guarantee REMOTE branch uniqueness. Always use issue-number-suffixed names + `git ls-remote --exit-code --heads origin <branch>` collision check before push. |
 
 ## Results & Parameters
 
@@ -565,3 +619,4 @@ This ensures agents cannot push directly to main.
 | ProjectOdyssey | 70 PRs rebased (v1.0) and 13 PRs (v1.1) | parallel-rebase-agent-worktree-isolation 2026-03-15/27 |
 | ProjectScylla | Issue #1887 (JSON-logging/tracing/metrics) split into PRs #1932 (squash-merged green, 22 checks) and #1933 (~24 checks after markdownlint fix) | 2026-05-07 — verified-ci foundation for v1.1.0 split-issue pattern |
 | ProjectOdyssey | Phase G EASY-tier 8-issue swarm contamination (PR #5363, 67/68 substantive checks green); recovery via cherry-pick consolidation; close individual worker PRs | 2026-05-09 — verified-ci foundation for v1.2.0 Phase 0a branch-namespace contamination warning |
+| ProjectAgamemnon | 2026-05-16 swarm session (PRs #386 collision recovery + #387-#390 success after fix) | — |
