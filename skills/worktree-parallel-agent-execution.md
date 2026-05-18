@@ -297,8 +297,8 @@ push). This section covers the LOCAL same-workdir variant: same machine, same ch
 agents, NO remote race needed.
 
 **Failure foundation:** ProjectAgamemnon F-phase remediation, 2026-05-18. Three parallel Sonnet
-`general-purpose` impl agents were dispatched to implement disjoint features (F-1 PR #407, F-2 PR
-#409, F-3 PR #410). Because their FILES were disjoint, the dispatch prompt instructed all three:
+`general-purpose` impl agents were dispatched to implement disjoint features (F-1 PR \#407, F-2 PR
+\#409, F-3 PR \#410). Because their FILES were disjoint, the dispatch prompt instructed all three:
 "work directly in the main workdir, no worktree, no isolation." Two of three agents reported
 HEAD-flipping contamination mid-execution; one agent self-rescued by moving to its own
 `/tmp/agamemnon-<phase>` worktree mid-flight.
@@ -308,7 +308,7 @@ HEAD-flipping contamination mid-execution; one agent self-rescued by moving to i
 > "The main worktree's HEAD was being concurrently flipped by other agents during the entire
 > session (jumping between refactor/orchestration-single-source, fix/dead-code-wiring,
 > fix/api-contract-drift). I worked around this with frequent stash/checkout/cherry-pick cycles."
-
+>
 > "Had to repeatedly stash, switch back, and replay commits. At one point another agent's commit
 > leaked onto this branch and was then reset off, which also wiped 3 of my commits — I recovered
 > them via `git reflog` and replayed onto the correct tip."

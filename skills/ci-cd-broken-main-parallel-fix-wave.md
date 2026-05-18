@@ -686,12 +686,12 @@ this fast triage when N>=2 unrelated PRs go red on the same job at the same time
    `fix/markdownlint-table-pipe-escape`) with auto-merge armed. Rebase the N downstream PRs once
    the fix-main PR merges.
 
-**Session example (ProjectMnemosyne, 2026-05-18)**: 5 unrelated open PRs (#1751, #1752, #1753,
-#1754, #1724) all failed only on `markdownlint`. All pointed to
+**Session example (ProjectMnemosyne, 2026-05-18)**: 5 unrelated open PRs (\#1751, \#1752, \#1753,
+\#1754, \#1724) all failed only on `markdownlint`. All pointed to
 `skills/ci-cd-gated-debug-instrumentation-workflow-dispatch.md:107` (MD056, unescaped pipe in
-table cell). `git log --oneline -5 -- <file>` showed the file landed via PR #1741 (commit
+table cell). `git log --oneline -5 -- <file>` showed the file landed via PR \#1741 (commit
 342c0e1d); none of the 5 open PRs touched it. Fix: `fix/markdownlint-table-pipe-escape` (PR
-#1755) escaped the offending pipes; downstream PRs cleared after rebase.
+\#1755) escaped the offending pipes; downstream PRs cleared after rebase.
 
 ---
 
