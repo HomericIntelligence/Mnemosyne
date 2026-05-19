@@ -1,0 +1,233 @@
+# git-workflow-rebase-worktree-signing — History
+
+## v1.0.0 (2026-05-18) — Merge of 11 skills
+
+**Changed by:** Skill-merge swarm (Phase C Wave 2, M7 / #1774)
+**Verification:** verified-local
+
+### What changed
+
+Consolidated 11 git-workflow skills into a single canonical reference covering:
+- Rebase conflict resolution and pre-commit hook exclusions
+- Batch rebase with worktree isolation (one worktree per branch)
+- Stale agent worktree branch cleanup and classification
+- Worktree lifecycle: create, switch, sync, migrate, and cleanup
+- Branch-state recovery (commits on local main, stale PRs)
+- Cherry-pick decision procedure for rejected PRs
+- Stash-pop conflict resolution under Safety Net constraints
+- Submodule worktree permission retry pattern
+- Worktree agent plan-mode avoidance
+- Integration tests for worktree transformation scripts
+- Preservation-biased audit methodology for cleanup
+
+---
+
+## Superseded from fix-stale-prs-and-branches
+
+```yaml
+name: fix-stale-prs-and-branches
+description: 'Rebase open PRs with no CI / failing CI, delete stale remote branches,
+  commit orphaned local work as a new PR. Use when: open PRs show no checks, CI fails
+  due to merge conflicts, stale remote branches need cleanup.'
+category: tooling
+date: 2026-03-06
+version: 1.0.0
+user-invocable: false
+```
+
+Skill: Fix Stale PRs and Branches — rebase PRs with no CI or failing CI, delete stale
+remote branches, commit orphaned local work as a new PR. Outcome: 3 PRs rebased, 2
+stale branches deleted, orphaned local work committed as PR #1450.
+
+---
+
+## Superseded from git-cherry-pick-dependent-commit-becomes-noop-when-prerequisite-dropped
+
+```yaml
+name: git-cherry-pick-dependent-commit-becomes-noop-when-prerequisite-dropped
+category: tooling
+date: 2026-05-15
+version: "1.0.0"
+verification: verified-local
+tags: [git, cherry-pick, rejected-pr, salvage, dependent-commits, dead-code, yagni, conflict-resolution]
+```
+
+Decision procedure: when salvaging commits from a rejected PR via cherry-pick, inspect
+the actual diff (`git show <commit> -- <file>`), not the subject line. If every added
+line references the dropped feature, the commit is feature-scoped and should also be
+dropped. Verified on ProjectOdyssey PR #5382 → #5407 (2026-05-15).
+
+---
+
+## Superseded from git-commits-on-local-main-recovery
+
+```yaml
+name: git-commits-on-local-main-recovery
+category: tooling
+date: 2026-04-25
+version: "1.0.0"
+verification: verified-local
+```
+
+Recovery when commits accidentally land on local main: `git checkout -b feat/<desc>`
+creates a new branch pointer at current HEAD, including all commits. Local main stays
+diverged but is harmless. Verified: 6 automation pipeline commits rescued into
+feat/automation-6-phase-pipeline; PR #302 opened in ProjectHephaestus.
+
+---
+
+## Superseded from git-rebase-stacked-prs-worktree-isolation
+
+```yaml
+name: git-rebase-stacked-prs-worktree-isolation
+category: tooling
+date: 2026-05-17
+version: "1.1.0"
+verification: verified-ci
+history: git-rebase-stacked-prs-worktree-isolation.history
+tags: [git, rebase, worktree, pr-stack, parallelism, conflict-resolution]
+```
+
+Use git worktrees to rebase a stack of sibling PRs in parallel without cross-iteration
+corruption. Always pass `origin/<branch> --detach`; never the bare local branch name.
+Verify rebase with merge-base check AND content-check before force-pushing. Verified:
+14 sibling branches rebased across 5 parallel agents in ~3 min (vs ~30 min sequential)
+on ProjectCharybdis. v1.1.0 added stale local branch pitfall from Myrmidons 2026-05-17.
+
+v1.1.0 history entry:
+- Added stale local branch pitfall: `git worktree add /tmp/wt cleanup/c3-remove-reconciler`
+  silently picked up a stale local tip; fix-up commit on origin was erased by force-push.
+- Added Quick Reference callout: always `git fetch origin --prune` first, then `origin/<branch> --detach`.
+- Added post-rebase content check: `git diff --name-status origin/<base>..HEAD`.
+
+---
+
+## Superseded from git-stash-pop-conflict-semantic-merge
+
+```yaml
+name: git-stash-pop-conflict-semantic-merge
+category: tooling
+date: 2026-04-25
+version: "1.0.0"
+verification: verified-local
+```
+
+Resolve merge conflicts from `git stash pop` when Safety Net blocks both discard
+(`git checkout --`) and delete (`git stash drop`). Evaluate each conflict hunk
+independently — do not apply global "accept ours/theirs". Verified on ProjectHephaestus
+`skills/learn/SKILL.md` stash conflict.
+
+---
+
+## Superseded from git-worktree-cleanup-preservation-audit
+
+```yaml
+name: git-worktree-cleanup-preservation-audit
+category: tooling
+date: 2026-04-25
+version: "1.0.0"
+verification: verified-local
+tags: [git, worktree, cleanup, stash, branch, preservation, audit, squash-merge, cherry, patch-id]
+```
+
+Systematic 3-method audit: PR state → patch-ID (git cherry) → message match + tree diff.
+`git cherry` always shows `+` for squash-merged branches — not conclusive. Uncommitted
+worktree drift is not real WIP. Safety Net blocks stash drop and --force operations;
+hand to user. Verified: ProjectHermes cleanup session 2026-04-25.
+
+---
+
+## Superseded from rebase-conflict-resolution-and-hook-exclusions
+
+```yaml
+name: rebase-conflict-resolution-and-hook-exclusions
+category: tooling
+date: 2026-03-19
+version: "1.0.0"
+```
+
+Fix multiple blocked PRs sharing a root cause on main: create a root-cause fix PR first,
+then rebase feature branches. Pre-commit hook scanners with `pass_filenames: false` must
+have exclusions inside the Python script (not in hook `exclude:` config). Python regex
+conflict resolution for blocked `git checkout --theirs`. Verified: ProjectScylla.
+
+---
+
+## Superseded from rebasing-stale-agent-worktree-branches
+
+```yaml
+name: rebasing-stale-agent-worktree-branches
+category: tooling
+date: 2026-05-03
+version: "1.2.0"
+verification: verified-local
+history: rebasing-stale-agent-worktree-branches.history
+tags: [git, rebase, worktree, agent, stale, cleanup, -X-ours, residual-diff, sub-agent, squash-merge, cherry, pre-flight, orphan, conflict-markers, union-merge, history-file]
+```
+
+Classify branches before rebasing (pre-flight gate). "ahead 1, behind N" is the
+squash-merge artifact, not evidence of unmerged work. Use `git rebase -X ours` for
+uniform reword conflicts; hash-compare residual diffs to cluster duplicates. Cherry=1
+no-PR branches: check file existence on main before deleting. Orphaned conflict markers
+in committed files: both halves may contain real content. v1.2.0 (2026-05-03): added
+file-existence decision tree, orphaned marker scan, per-branch worktree for manual
+resolution. Verified: ProjectMnemosyne sessions 2026-04-25 and 2026-05-03.
+
+---
+
+## Superseded from submodule-worktree-permission-retry-pattern
+
+```yaml
+name: submodule-worktree-permission-retry-pattern
+category: tooling
+date: 2026-05-07
+version: "1.0.0"
+verification: verified-local
+tags: [myrmidon, swarm, worktree, submodule, permission, retry, git, force-with-lease, agent-dispatch]
+```
+
+Sub-agents dispatched into a git submodule worktree hit transient "permission denied"
+on the first git call due to lazy git-dir path-allowlist cache resolution. Fix: embed
+retry-5x + 3s sleep guidance verbatim in the dispatch prompt. Orchestrator stale-lease
+recovery: `git ls-remote` to read live remote tip, pass to `--force-with-lease=<branch>:<sha>`.
+Verified: Odysseus → Myrmidons session 2026-05-07; 3 sub-agents recovered (PRs #505,
+#595, #649).
+
+---
+
+## Superseded from worktree-agent-plan-mode-avoidance
+
+```yaml
+name: worktree-agent-plan-mode-avoidance
+category: tooling
+date: 2026-04-12
+version: "1.0.0"
+verification: verified-local
+tags: [worktree, agent, plan-mode, execution, myrmidon, haiku]
+```
+
+Prevent worktree-isolated agents from stopping to plan: use Haiku model for mechanical
+tasks, imperative-only numbered `Run:` prompt (no section headers). Detection: output
+has plan summary but no PR URL. SendMessage is not available for worktree agents after
+return — must relaunch. Verified: 26 PRs created in ProjectOdyssey without manual
+intervention (Wave D/E, 2026-04-12).
+
+---
+
+## Superseded from worktree-migration-testing-patterns
+
+```yaml
+name: worktree-migration-testing-patterns
+category: tooling
+date: 2026-03-28
+version: "1.0.0"
+verification: unverified
+tags: [worktree, migration, clone-to-worktree, integration-tests, idempotency, auto-merge]
+```
+
+Two related patterns: (1) migrate clone-based workflows (rm -rf teardown) to git worktree
+lifecycle; (2) write integration tests against real committed SKILL.md files. Worktree
+pattern: `git worktree add /tmp/... -b <branch> origin/main` → work → `git worktree remove`
++ `git worktree prune`. Integration test: 6-test checklist (fixture exists, before-condition,
+modified=True, condition removed, round-trip, idempotent). Verified: ProjectMnemosyne PR
+#991, integration tests for fix_remaining_warnings.py.
