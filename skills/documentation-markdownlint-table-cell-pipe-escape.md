@@ -13,7 +13,7 @@ description: "Use when: (1) markdownlint reports MD056/table-column-count
   fix + bulk admin-merge recovery"
 category: documentation
 date: 2026-05-18
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-ci
 history: documentation-markdownlint-table-cell-pipe-escape.history
@@ -150,6 +150,32 @@ Run both tracks **in parallel** once Step 3 confirms uniform failure mode:
 
 Total wall time observed: **~2 minutes** for 17 PRs once the diagnosis was made.
 
+### Prevention: pre-flight markdownlint in merge-agent prompts
+
+**Root cause of recurrence:** The queue-block re-occurs on every fresh wave of merge PRs because:
+
+1. Canonical `.md` files freshly introduce MD056 (`|` inside code-spans in table cells) and MD018 (`#N` at line-start parsed as a malformed ATX heading) errors specific to the just-merged content.
+2. Pre-existing `main` errors get re-checked on every PR's merge-base snapshot.
+
+In the 2026-05-18 17-cluster consolidation, Wave 1 hit BOTH simultaneously: 5 pre-existing `main` errors blocked all 9 PRs, AND the M1 canonical newly introduced 7 MD056 errors — requiring two fix-agent sub-PRs in parallel. Wave 2 (7 PRs \#1801–\#1807 + 4 Mojo sub-PRs \#1808–\#1811) hit CI 100% clean after the pre-flight discipline was added to agent prompts.
+
+**Fix: bake markdownlint into the merge-agent prompt as a pre-push gate.**
+
+Run this before every `git commit` / `git push` inside a merge agent:
+
+```bash
+npx --yes markdownlint-cli2 "skills/<canonical-name>.md" "skills/<canonical-name>.history" 2>&1 | tail -5
+# MUST be "Summary: 0 error(s)" before commit/push
+```
+
+**Escape rules to bake into agent prompts:**
+
+- Inside backtick code-spans inside table cells: replace `|` with `\|` (prevents MD056)
+- Line-starting PR references like `#1234` at the start of a paragraph: escape as `\#1234` (prevents MD018)
+- Avoid blank lines inside blockquotes (prevents MD028)
+
+Apply these rules to BOTH the `.md` file AND any `.history` file — absorbed-content snapshots in `.history` frequently inherit unescaped pipes from the original skill files' Failed Attempts tables.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -160,6 +186,8 @@ Total wall time observed: **~2 minutes** for 17 PRs once the diagnosis was made.
 | Tried `--fix` on markdownlint-cli2 | Ran `markdownlint-cli2 --fix '**/*.md'` hoping autofix would handle MD056 | MD056 has no autofix implementation — `--fix` reports 0 modifications and the error persists | Manual escape required; do not waste time on autofix for MD056 |
 | Parallel admin-merge of 17 stuck PRs | Ran `gh pr merge --admin` against all 17 PRs concurrently to drain the queue fast | Only 4 succeeded; 13 hit "base branch was modified" race conditions and rejected — GitHub serializes merges to the same base ref and parallel requests collide | Admin-merge stuck queues **sequentially**, one PR at a time; see `tooling-gh-pr-merge-admin-parallel-base-branch-race` |
 | Bulk admin-merge without per-PR check audit | Trusted the "all red on markdownlint" surface signal and started admin-merging without verifying each PR's full status rollup | Risk (avoided here, but real): admin-merge bypasses required checks — a PR with hidden real failures (tests, security) would land broken code on main | Always run the Step 3 per-PR `statusCheckRollup` loop and confirm uniform failure mode before bulk admin-merge |
+| Trusted absorbed-content snapshots in .history to be markdownlint-safe | Assumed that snapshotting existing skill files into a canonical's `.history` file was safe — no pre-flight lint run on the snapshot | Wrong — original skill files frequently contain unescaped pipes in code spans inside their Failed Attempts tables. Snapshotting them into a canonical's `.history` inherits those errors. The `.history` file IS linted by CI | Pre-flight markdownlint on BOTH the `.md` AND the `.history` file before pushing; escape `\|` in any inline code inside table cells in `.history` snapshots |
+| Assumed Wave 1's queue-block fix would last | Fixed the shared markdownlint errors that blocked Wave 1 and assumed the next wave of merge PRs would be clean automatically | Wrong — each new wave of merge PRs re-introduces both classes of error (MD056 from newly merged canonicals, MD018 from `\#N` PR references at line-start). Wave 1 needed 2 fix-PR sub-agents; Wave 2 was clean only because the pre-flight discipline was added to agent prompts | Bake the markdownlint gate (`npx --yes markdownlint-cli2 "skills/<name>.md" "skills/<name>.history"`) into the merge-agent prompt template so prevention is per-agent, not per-wave |
 
 ## Results & Parameters
 
@@ -211,3 +239,4 @@ Without the backslashes, same row → `MD056 Expected: 4; Actual: 6`.
 | ------- | ------- | ------- |
 | ProjectMnemosyne | PR #1755 — `fix/markdownlint-table-pipe-escape` unblocks 5 other PRs (#1751, #1752, #1753, #1754, #1724) | File: `skills/ci-cd-gated-debug-instrumentation-workflow-dispatch.md` line 107 |
 | ProjectMnemosyne | PR #1756 — same root cause re-surfaced across 17 PRs (#1724, #1751–#1767); two-track recovery executed in ~2 minutes | Diagnostic: `gh run view --log-failed \| grep MD056`; recovery: fix-PR admin-merge + sequential admin-merge of 16 stuck PRs |
+| HomericIntelligence/ProjectMnemosyne | 2026-05-18 skill-corpus consolidation (\#1813); Wave 2 hit CI 100% clean after pre-flight discipline added; Wave 1 needed 2 fix-PR sub-agents | self |

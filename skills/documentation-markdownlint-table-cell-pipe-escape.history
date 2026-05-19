@@ -1,5 +1,27 @@
 # Amendment History — documentation-markdownlint-table-cell-pipe-escape
 
+## v1.2.0 — 2026-05-18
+
+**Type:** Minor amendment (additive — core fix advice and recovery pattern unchanged).
+
+**Trigger:** 2026-05-18 17-cluster skill-corpus consolidation session validated the queue-block recovery AT SCALE (9 stuck PRs unblocked by 1 main fix PR + per-PR fixes) and surfaced a key refinement: the queue-block recurs on EVERY fresh wave of merge PRs, not just once. Wave 1 hit both error classes simultaneously (5 pre-existing `main` errors + 7 new MD056 errors introduced by M1's canonical), requiring two fix-agent sub-PRs in parallel. Wave 2 (PRs \#1801–\#1807, \#1808–\#1811) hit CI 100% clean after pre-flight discipline was added to agent prompts.
+
+**Additions:**
+
+1. **Prevention subsection** (`### Prevention: pre-flight markdownlint in merge-agent prompts`) — bake `npx --yes markdownlint-cli2` as a pre-push gate into every merge-agent prompt, targeting BOTH the `.md` AND `.history` files. Documents escape rules: `\|` for MD056, `\#N` for MD018, no blank lines in blockquotes for MD028.
+2. **Failed Attempts table — 2 new rows:**
+   - Trusted absorbed-content snapshots in `.history` to be markdownlint-safe → inherited unescaped pipes from original skill files' Failed Attempts tables.
+   - Assumed Wave 1's queue-block fix would last → each new wave re-introduces both error classes; prevention must be per-agent, not per-wave.
+3. **Verified On** — added HomericIntelligence/ProjectMnemosyne 2026-05-18 consolidation row (\#1813); Wave 2 clean after discipline; Wave 1 needed 2 fix-PR sub-agents.
+
+**Frontmatter changes:**
+
+- `version: "1.1.0"` → `"1.2.0"`
+
+**Unchanged:** Quick Reference escape pattern, Step 1–6 workflow, reproducer, tooling versions, "When NOT to use this skill" semantics. The amendment is purely additive on the prevention side.
+
+---
+
 ## v1.1.0 — 2026-05-18
 
 **Type:** Minor amendment (additive — core fix advice unchanged).
