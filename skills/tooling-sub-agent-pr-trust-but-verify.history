@@ -1,5 +1,30 @@
 # tooling-sub-agent-pr-trust-but-verify — History
 
+## v1.3.0 (2026-05-18)
+
+**Changed by:** ProjectMnemosyne skill-corpus consolidation session — Mojo sub-PR 4/4 (M3 series) silent-success pattern surfaced; re-dispatch created duplicate PR #1812
+**Verification:** verified-local
+
+### What changed
+
+- Added new "When to Use" trigger (#6): sub-agent goes silent without returning final message — query branch before re-dispatching
+- Added new `### Pre-dispatch check: verify the agent didn't already succeed silently` sub-section under Verified Workflow with decision table
+- Extended Quick Reference with `gh pr list --head <branch>` as STEP 0 before any re-dispatch
+- Added new Failed Attempts row: silent Sonnet sub-agent (Mojo sub-PR 4/4) re-dispatched without branch check → created duplicate PR #1812 (closed as dup of #1811)
+- Added new Verified On row: HomericIntelligence/ProjectMnemosyne 2026-05-18 (#1813 consolidation; #1812 duplicate catch)
+- Extended description with trigger (6) for silent-success pattern
+- Bumped to v1.3.0
+
+### Why
+
+v1.2.0 covered four failure shapes: GitHub-state mismatch, commit-content corruption, artifact confabulation, and hallucinated tool restriction. All four assume the agent produces some output (prose or artifact). This session surfaced a fifth: **silent-success** — the agent completes its entire workflow but never returns a final-message text. The orchestrator interprets silence as failure and re-dispatches. The fix is to query GitHub by the deterministic branch name before any re-dispatch. This generalizes trust-but-verify from "verify what the agent claims" to "verify what the agent should have done, whether or not it claims it."
+
+### Previous version (v1.2.0) snapshot
+
+See v1.2.0 entry below; the v1.2.0 body retained all prior snapshots, so all prior versions remain reconstructible from this file.
+
+---
+
 ## v1.2.0 (2026-05-18)
 
 **Changed by:** ProjectMnemosyne skill-clustering Myrmidon swarm session — caught three sub-agent confabulations in a single dispatch round

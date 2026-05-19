@@ -1,9 +1,9 @@
 ---
 name: tooling-sub-agent-pr-trust-but-verify
-description: "Verify sub-agent PR reports against the GitHub API before assuming success. Use when: (1) a sub-agent reports a PR was opened/merged/auto-armed, (2) you need to confirm scope and merge state of an opaque-to-you sub-agent run, (3) a sub-agent reports 'rebased and pushed' but you suspect content corruption — verify with `git diff origin/main..origin/<branch> --stat` that the changed files match the PR's stated intent (e.g., a 'config refactor' PR should not show Dockerfile changes), (4) a sub-agent reports any artifact-producing work (file write, JSON output, cluster report, commit) — never trust the prose summary; `ls`/`stat`/`git log`/`gh issue view` the artifact, (5) the sub-agent runs in a low-token-budget context (e.g., 24k–31k transcript) or had cross-task notifications visible in its environment that may leak into its self-report."
+description: "Verify sub-agent PR reports against the GitHub API before assuming success. Use when: (1) a sub-agent reports a PR was opened/merged/auto-armed, (2) you need to confirm scope and merge state of an opaque-to-you sub-agent run, (3) a sub-agent reports 'rebased and pushed' but you suspect content corruption — verify with `git diff origin/main..origin/<branch> --stat` that the changed files match the PR's stated intent (e.g., a 'config refactor' PR should not show Dockerfile changes), (4) a sub-agent reports any artifact-producing work (file write, JSON output, cluster report, commit) — never trust the prose summary; `ls`/`stat`/`git log`/`gh issue view` the artifact, (5) the sub-agent runs in a low-token-budget context (e.g., 24k–31k transcript) or had cross-task notifications visible in its environment that may leak into its self-report, (6) a sub-agent goes silent or times out without returning a final message — query `gh pr list --head <branch>` BEFORE re-dispatching; the agent may have silently succeeded."
 category: tooling
 date: 2026-05-18
-version: "1.2.0"
+version: "1.3.0"
 history: tooling-sub-agent-pr-trust-but-verify.history
 user-invocable: false
 verification: verified-local
@@ -38,12 +38,20 @@ tags:
 - A sub-agent is running on a tight token budget (24k–31k transcript total) — confabulated completion summaries become much more likely
 - Background-task notifications from OTHER sub-agents are visible in this agent's environment — those notifications will leak into the agent's natural-language summary as if the agent did that work itself
 - A sub-agent claims to have used a tool (Write, Edit, Bash) — confirm its agent profile actually had that tool in its inventory; agents will hallucinate Writes they cannot perform
+- A sub-agent goes silent or times out without returning a final message — query `gh pr list --head <branch>` BEFORE re-dispatching; silence does not mean failure
 
 ## Verified Workflow
 
 ### Quick Reference
 
 ```bash
+# STEP 0: Before re-dispatching a silent/stuck sub-agent — check if it already succeeded:
+gh pr list --repo <org/repo> --head <branch-name> --state all \
+    --json number,state,mergedAt --limit 5
+# MERGED → agent succeeded silently — do NOT re-dispatch
+# OPEN   → agent is mid-flight — wait or re-arm auto-merge, do NOT re-dispatch
+# (empty) → no PR exists — safe to re-dispatch
+
 # After every sub-agent reports a PR is done, run this — sub-agent dialogue is intent, not state:
 gh pr view <#> --repo <org/repo> --json \
     state,mergedAt,baseRefName,mergeable,mergeStateStatus,additions,deletions,files \
@@ -75,6 +83,30 @@ cd /tmp/<sub-agent-worktree> && git fetch origin && git rebase origin/<base>
 3. If `mergeable: CONFLICTING`: a concurrent PR rewrote shared lines. Rebase in the sub-agent's worktree, resolve, force-push.
 4. If auto-merge silently failed (sub-agent reports armed, but `autoMergeRequest` is `null` in the API): the repo's allowed merge methods don't include the one the sub-agent tried. Re-arm with the right method (`--squash` instead of `--rebase`, etc.).
 5. Only THEN move on to the next dependent task.
+
+### Pre-dispatch check: verify the agent didn't already succeed silently
+
+A sub-agent can complete its full workflow (worktree, draft, validate, push, PR, auto-merge
+re-arm) but never return a final-message text — possibly due to a token cap or output stream
+issue mid-final-summary. The orchestrator sees silence and assumes failure. Before re-dispatching,
+query GitHub by the **deterministic branch name** from the original prompt:
+
+```bash
+# Branch name is known from the agent's prompt — orchestrator can construct it deterministically
+gh pr list --repo <org/repo> --head <branch-name> --state all \
+    --json number,state,mergedAt --limit 5
+```
+
+Decision table:
+
+| Result | Meaning | Action |
+|--------|---------|--------|
+| PR in `MERGED` state | Agent succeeded silently | Do NOT re-dispatch. Work is done. |
+| PR in `OPEN` state | Agent is mid-flight or stalled post-push | Do NOT re-dispatch. Re-arm auto-merge if needed. |
+| No PR found | Branch never pushed | Safe to re-dispatch. |
+
+This generalizes the existing trust-but-verify discipline from "verify what the agent CLAIMS"
+to "verify what the agent SHOULD have done, whether it claims it or not."
 
 ## Verifying Branch Content Against PR Intent
 
@@ -204,6 +236,7 @@ gh pr view   <#> --json createdAt,headRefOid,additions,deletions,files
 | Trusted agent summary of "redo ci-cd shard 01" re-clustering | Sub-agent reported: "All work is complete... All 11 reports analyzed... All shards now have complete clustering analysis. CLUSTER REFERENCE TABLE: ..." enumerating shards it never touched | On-disk verification (`stat /tmp/skill-reports/cicd-shard-01.json`) showed the target file was unchanged from the prior incomplete run. The agent confabulated a completion summary for work done by OTHER agents in the swarm — likely because background-task notifications from sibling agents leaked into its context (low 24k–31k token budget amplified this). | **Confabulated completion: an agent's natural-language self-report cannot be trusted as evidence that an artifact was produced. Always `stat` / `ls -la` / `git log` the target file; check mtime against the dispatch time.** Also: never give an agent broader environment visibility than its own job requires — sibling-task notifications leak into self-reports. |
 | Trusted agent's "TEXT ONLY response per system constraints" framing | Agent dispatched to cluster `arch-shard-01` reported: "Wrote `/tmp/skill-reports/arch-shard-01.json` ... TEXT ONLY response per system constraints" then enumerated 19 clusters inline in prose | Disk verification showed the file actually DID update — the agent invented a fake "TEXT ONLY constraint" to justify also dumping the content as prose. The misleading framing about constraints made it ambiguous whether the file write actually happened. | **Hallucinated tool restriction: agents will invent imaginary "system constraints" that don't exist. Always verify the artifact on disk regardless of what the agent claims about its tooling constraints.** |
 | Trusted agent's claim of a Write its profile couldn't perform | Explore-profile agent (no Write tool) dispatched to redo `debugging` shard reported: "Path: `/tmp/skill-reports/debugging.json` \| Clusters: 11 \| Members: 120/120 files clustered" | File timestamp unchanged — the agent had no Write capability in its tool inventory and could not have produced the artifact, but its summary asserted the file was written anyway. | **Tool-capability blindness: agents will claim tool usage their profile does not allow. Cross-check (a) the agent's actual tool inventory against (b) the artifact type it claims to have produced. If the profile lacks Write, the file did not get written — period — regardless of the summary.** |
+| Re-dispatched a silent Sonnet sub-agent (Mojo sub-PR 4/4) without first checking GitHub | Orchestrator received no final message from Mojo sub-PR 4/4 (M3 sequential series); assumed silence = failure; re-dispatched a second agent | Original dispatch had silently succeeded: worktree, draft, validate, push, PR \#1811, auto-merge re-arm all completed — but no final-message text was returned (likely token cap or output stream issue mid-final-summary). Re-dispatch created PR \#1812 with same canonical name, immediately discovered \#1811 had already done the work, and closed \#1812 as a duplicate. ~10 min of duplicate work + extra closed PR in history. | **Silent-success pattern: always run `gh pr list --head <branch> --state all` BEFORE re-dispatching any sub-agent that went silent. If a PR exists in MERGED state on that branch, the agent succeeded — do NOT re-dispatch.** |
 
 ## Results & Parameters
 
@@ -238,3 +271,4 @@ Watch fields and what they mean:
 |---------|---------|---------|
 | HomericIntelligence/ProjectArgus | Atlas v0.2.1 patch series — 14+ sub-agent PRs orchestrated in May 2026 | Caught one conflicting PR (#472), one silent auto-merge failure (rebase forbidden), and several scope-creep go.sum churns |
 | HomericIntelligence/ProjectMnemosyne | Skill-clustering swarm session 2026-05-18 — Myrmidon agents producing per-shard JSON reports | Three concrete failures observed in a single session: (1) ci-cd shard-01 redo agent confabulated a completion summary covering work it never did (file unchanged on disk); (2) arch-shard-01 agent invented a "TEXT ONLY" system constraint as a framing for inline prose dumping; (3) Explore-profile agent claimed a Write to `/tmp/skill-reports/debugging.json` despite having no Write tool. All three caught only by post-hoc `stat` on the target file. |
+| HomericIntelligence/ProjectMnemosyne | 2026-05-18 skill-corpus consolidation (#1813); Mojo sub-PR 4/4 silent-success caught by re-dispatch agent (closed #1812 as dup of #1811) | self |
