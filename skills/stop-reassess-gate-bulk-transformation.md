@@ -1,12 +1,13 @@
 ---
 name: stop-reassess-gate-bulk-transformation
-description: "Insert an explicit stop-and-reassess gate between a 'bulk transformation' phase and an 'implementation' phase so survivor tasks can be re-graded against the new post-transformation state. Use when: (1) a plan has Phase A (prep) + Phase B (bulk-close/bulk-delete) + Phase C (cleanup PRs) followed by Phase D (implement survivor issues), (2) the bulk transformation will make some survivor tasks moot (e.g., docs about feature X become irrelevant when feature X is deleted), (3) you are about to dispatch a swarm of implementation agents on a survivor queue that was graded against the OLD repo state, (4) a survivor issue was originally graded KEEP-EASY but its subject was deleted by the cleanup phase, (5) the plan author wants to insert a re-grade checkpoint after structural changes land but before implementation begins, (6) implementation work is expensive enough (agent dispatches, CI runs, reviewer time) that re-grading a moot issue out of the queue is cheaper than implementing it."
+description: "Insert an explicit stop-and-reassess gate between a 'bulk transformation' phase and an 'implementation' phase so survivor tasks can be re-graded against the new post-transformation state. Use when: (1) a plan has Phase A (prep) + Phase B (bulk-close/bulk-delete) + Phase C (cleanup PRs) followed by Phase D (implement survivor issues), (2) the bulk transformation will make some survivor tasks moot (e.g., docs about feature X become irrelevant when feature X is deleted), (3) you are about to dispatch a swarm of implementation agents on a survivor queue that was graded against the OLD repo state, (4) a survivor issue was originally graded KEEP-EASY but its subject was deleted by the cleanup phase, (5) the plan author wants to insert a re-grade checkpoint after structural changes land but before implementation begins, (6) implementation work is expensive enough (agent dispatches, CI runs, reviewer time) that re-grading a moot issue out of the queue is cheaper than implementing it, (7) a multi-wave merge/delete operation (e.g., skill-corpus consolidation) just completed Wave N and Wave M (M>N) manifests may reference files deleted by Wave N."
 category: tooling
-date: 2026-05-17
-version: "1.0.0"
+date: 2026-05-18
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
-tags: [planning, stop-gate, re-grade, survivor-queue, phase-boundary, bulk-transformation, implementation-phase, swarm-dispatch]
+history: stop-reassess-gate-bulk-transformation.history
+tags: [planning, stop-gate, re-grade, survivor-queue, phase-boundary, bulk-transformation, implementation-phase, swarm-dispatch, multi-wave, skill-merge, post-deletion]
 ---
 
 # Stop-and-Reassess Gate Between Bulk Transformation and Implementation Phases
@@ -15,10 +16,11 @@ tags: [planning, stop-gate, re-grade, survivor-queue, phase-boundary, bulk-trans
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-05-17 |
+| **Date** | 2026-05-18 |
 | **Objective** | Avoid implementing now-irrelevant survivor tasks after a bulk transformation (mass closure / mass deletion / charter cleanup) reshapes the repo. |
-| **Outcome** | Successful: in a Myrmidons cleanup session, the user explicitly requested a STOP POINT before dispatching Phase D implementation agents. Several KEEP-EASY survivor issues (e.g., TLS env-var documentation) became moot once the cleanup PRs landed (TLS env vars left with the reconciler). Re-grading after the cleanup avoided wasted swarm dispatches. |
-| **Verification** | verified-local — applied successfully in the Myrmidons 2026-05-17 session |
+| **Outcome** | Successful: applied twice — Myrmidons 2026-05-17 charter-cleanup (several TLS env-var doc issues became MOOT-NOW) and skill-corpus consolidation 2026-05-18 (1,100 → 690 skills across 17 merge clusters; post-deletion re-grade confirmed M3 lost 4 members at 4%, all other downstream clusters intact). |
+| **Verification** | verified-local — applied successfully in two independent sessions |
+| **History** | [changelog](./stop-reassess-gate-bulk-transformation.history) |
 
 ## When to Use
 
@@ -27,6 +29,7 @@ tags: [planning, stop-gate, re-grade, survivor-queue, phase-boundary, bulk-trans
 - The bulk transformation will plausibly invalidate some survivor tasks (e.g., issues about feature X are moot when feature X is deleted; docs tasks are moot when their subject file is removed; lint expansions are moot when the offending code is gone).
 - You are about to dispatch parallel swarm agents on the survivor queue. Each dispatch costs agent time + CI cycles + reviewer attention — moot issues are pure waste.
 - Implementation has not yet started, so there is still time to re-grade.
+- A multi-wave delete/merge operation just completed Wave N; downstream Wave M (M>N) manifests still reference files deleted by Wave N — a post-deletion re-grade is needed before dispatching Wave M agents.
 
 ## Verified Workflow
 
@@ -92,6 +95,46 @@ Phase D (implement survivors) — only the still-relevant tasks
    - Mass dependency upgrade → reimplement callers (some callers replaced)
    - Mass rename → update docs (some doc files now empty / merged)
    - Mass deprecation → port consumers (some consumers also being deprecated)
+   - Multi-wave skill-corpus merge → downstream wave manifests (some absorbed_skills deleted by earlier wave)
+
+### Skill-merge variant: post-deletion re-grade
+
+When running a multi-wave skill-corpus consolidation (e.g., 1,100 → 690 skills across 17
+merge clusters split into Wave 1 / Wave 2 / Wave 3), files deleted by Wave N may still
+appear in the `absorbed_skills` lists of Wave M (M>N) manifests. Run this gate between
+every wave pair before dispatching the next wave's agents.
+
+**Recipe — drop now-deleted absorbed_skills before dispatching Wave M:**
+
+```python
+import json
+from pathlib import Path
+
+# After Wave N lands, re-fetch main and drop moot entries.
+existing = {p.stem for p in skills_dir.glob("*.md") if not p.name.endswith(".notes.md")}
+for cid in DOWNSTREAM_CLUSTERS:
+    data = json.loads(manifest_path(cid).read_text())
+    orig = list(data["absorbed_skills"])
+    kept = [s for s in orig if s in existing]
+    data["absorbed_skills"] = kept
+    pct_lost = round(100 * (len(orig) - len(kept)) / len(orig))
+    if pct_lost > 25:
+        print(f"WARNING: {cid} lost {pct_lost}% — flag as MOOT-NOW candidate")
+    manifest_path(cid).write_text(json.dumps(data, indent=2))
+```
+
+**Threshold heuristic:**
+
+- `pct_lost < 25%` — trim the manifest and proceed; the cluster is still viable.
+- `pct_lost >= 25%` — flag the cluster as MOOT-NOW candidate; human review before dispatch.
+
+**Observed data (skill-corpus consolidation, 2026-05-18):**
+
+- Wave 1: 9 clusters merged, ~410 skills absorbed.
+- Post-Wave-1 gate: M3 (Mojo) lost 4 members (4%) — below threshold; all other 7
+  Wave 2/3 clusters lost 0 members.
+- Interpretation: Gate 1 overlap-resolution prevents most cross-wave invalidation. But
+  the gate is still cheap enough that skipping it is bad cost-benefit.
 
 ## Failed Attempts
 
@@ -101,6 +144,8 @@ Phase D (implement survivors) — only the still-relevant tasks
 | Trusting the original grading | Assumed the upfront classification (KEEP-EASY / KEEP-MEDIUM / KEEP-HARD) was stable across phases | Classification is only valid against the repo state it was performed on. Bulk transformations invalidate the grading basis. A KEEP-EASY task whose subject was just deleted is now MOOT-NOW, regardless of its original grade. | Treat survivor-queue grading as state-dependent. Re-grade after every structural transformation. |
 | Catching moot tasks at implementation time | Considered letting the implementation agents discover mootness themselves (e.g., agent opens the file, sees it doesn't exist, reports back) | Wastes the full agent dispatch + CI cycle + reviewer attention. Detection at the gate is O(seconds-per-issue); detection at implementation is O(minutes-per-issue) + tool quota + reviewer time. | Front-load the re-grade. Cheap human/orchestrator inspection beats expensive agent dispatch. |
 | Omitting the cleanup-PR link in close comments | Tried closing MOOT-NOW issues with a terse "out of scope now" | Issue authors push back without a clear chain of reasoning. They need to see the exact PR that obsoleted their task. | Always link the closing comment to the specific cleanup PR. The PR is the evidence. |
+| Trusted overlap-free manifests at Gate 1 to also be deletion-free at Gate 2 | Assumed that because Gate 1 overlap-resolution prevents Wave-N-vs-Wave-N collisions, no Wave-M manifest could reference a file deleted by Wave N | Wrong — overlap resolution prevents two Wave-N clusters from claiming the same file, NOT Wave-N-deletions affecting Wave-M absorbed\_skills lists. Wave N deletes files; Wave M manifests were authored before Wave N landed, so they still list those files. | Always re-fetch main and grep for missing files between waves. Overlap-free != deletion-free. |
+| Skipped Gate 2 because Wave 1 looked tight | Wave 1 had low cross-cluster overlap, so the inter-wave gate seemed redundant | Even a 4-member loss (M3 Mojo cluster, 4%) is worth catching at gate-time. Cost of the gate: seconds. Cost of dispatching on phantom files: agent abort + manifest repair mid-wave. | Run the post-deletion re-grade unconditionally. The 25%-threshold logic handles escalation; the gate itself is never skippable. |
 
 ## Results & Parameters
 
@@ -139,8 +184,17 @@ not here.
 > insert the gate. The cost of the gate is minutes; the cost of skipping it
 > is wasted swarm dispatches.
 
+**Multi-wave merge: post-deletion re-grade data (skill-corpus consolidation, 2026-05-18):**
+
+| Wave | Clusters | Skills absorbed | Post-gate trimmed | Max pct\_lost | MOOT-NOW flags |
+|------|----------|-----------------|-------------------|---------------|----------------|
+| 1 | 9 | ~410 | — | — | — |
+| 2 (gate after Wave 1) | 7 | ~200 (est.) | M3: 4 members trimmed | 4% | 0 |
+| 3 (gate after Wave 2) | 1 | ~80 (est.) | 0 members trimmed | 0% | 0 |
+
 ## Verified On
 
 | Project | Context | Details |
 |---------|---------|---------|
 | HomericIntelligence/Myrmidons | 2026-05-17 charter-cleanup session — user explicitly requested a STOP POINT before Phase D after observing that some survivor issues would be mooted by the cleanup PRs | Gate inserted between cleanup PRs (#730-#733) and survivor implementation; several TLS env-var documentation issues identified as MOOT-NOW |
+| HomericIntelligence/ProjectMnemosyne | 2026-05-18 skill-corpus consolidation (1,100 → 690 skills, 17 merge clusters, 3 waves) | Post-deletion re-grade between Wave 1 and Wave 2/3; M3 trimmed 4 members (4%); all other downstream clusters intact; no MOOT-NOW flags raised |
