@@ -1,0 +1,2083 @@
+# homeric-crosshost-deployment-and-mesh-topology — History
+
+This file preserves the full content of every skill absorbed into the canonical
+`homeric-crosshost-deployment-and-mesh-topology` skill (epic #M26, cluster P2-arch-C2).
+
+---
+
+## Superseded from architecture-crosshost-nats-compose-deployment
+
+---
+name: architecture-crosshost-nats-compose-deployment
+description: "Deploy HomericIntelligence ecosystem across two Tailscale hosts using Docker Compose overlays and direct NATS connections. Use when: (1) splitting the E2E stack across multiple machines, (2) configuring NATS leafnode or direct connections over Tailscale, (3) debugging cross-host service communication, (4) setting up NATS-to-Loki log forwarding bridges."
+category: architecture
+date: 2026-04-06
+version: "1.1.0"
+user-invocable: false
+verification: verified-local
+tags:
+  - cross-host
+  - deployment
+  - compose
+  - tailscale
+  - nats
+  - leafnode
+  - podman
+  - e2e
+  - homeric-intelligence
+  - loki
+  - native-binary
+  - pythonpath
+---
+
+# Cross-Host NATS Compose Deployment
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2026-04-06 |
+| **Objective** | Deploy HomericIntelligence ecosystem across two Tailscale hosts for E2E agent evaluation |
+| **Outcome** | Two-host deployment with worker host running full compose stack and control host running native Nestor + odysseus-console. Direct NATS over Tailscale, no leaf node needed. Full 6-phase cross-host validation PASS confirmed 2026-04-06. |
+| **Verification** | verified-local |
+
+## When to Use
+
+- Splitting the HomericIntelligence E2E compose stack across multiple physical machines
+- Configuring NATS connections (direct or leafnode) over Tailscale mesh networking
+- Debugging cross-host service communication issues (DNS, ports, connectivity)
+- Setting up NATS-to-Loki log forwarding for distributed observability
+- Understanding when NATS leaf nodes add value vs. when direct connections suffice
+- Running NATS as a native binary when rootlessport is absent (slirp4netns port remapping issue)
+- Diagnosing `No module named 'hermes'` when starting Hermes with uvicorn
+
+## Verified Workflow
+
+### Quick Reference
+
+```bash
+# Worker host (epimetheus 100.92.173.32) — start the compose stack
+CONTROL_HOST_IP=100.73.61.56 just crosshost-up $CONTROL_HOST_IP
+
+# Control host (100.73.61.56) — start Nestor native binary
+NATS_URL=nats://100.92.173.32:4222 ./build/ProjectNestor/ProjectNestor_server
+
+# Control host — apply agent manifests via Agamemnon
+AGAMEMNON_URL=http://100.92.173.32:8080 ./scripts/apply.sh
+
+# Control host — run E2E validation (8-phase)
+WORKER_HOST_IP=100.92.173.32 just crosshost-test $WORKER_HOST_IP
+
+# Control host — start event viewer
+just odysseus-console nats://100.92.173.32:4222
+```
+
+### Native Binary Startup Pattern (when rootlessport absent)
+
+When `rootlessport` is not available on the worker host, podman's slirp4netns network stack remaps container ports to ephemeral ports invisible to external hosts. In this case, run all services as native binaries:
+
+```bash
+# Worker host: start all services as native binaries (when rootlessport absent)
+
+# NATS — must use native binary when rootlessport missing
+~/.local/bin/nats-server -js -p 4222 -m 8222 > /tmp/nats-crosshost.log &
+sleep 2 && curl http://localhost:4222/varz | python3 -c "import sys,json; d=json.load(sys.stdin); print('NATS OK:', d['server_id'][:12])"
+
+# Agamemnon
+NATS_URL=nats://localhost:4222 ./control/ProjectAgamemnon/build/debug/ProjectAgamemnon_server > /tmp/agamemnon-crosshost.log &
+
+# Hermes — PYTHONPATH=src required
+cd infrastructure/ProjectHermes
+PYTHONPATH=src pixi run python -m uvicorn hermes.main:app --host 0.0.0.0 --port 8085 > /tmp/hermes-crosshost.log &
+cd -
+
+# hello-myrmidon Python worker
+python3 provisioning/Myrmidons/hello-world/main.py > /tmp/myrmidon-crosshost.log &
+```
+
+**Important:** If NATS port changes mid-session (e.g., switching from container to native binary), restart both Agamemnon and Hermes — they do not automatically reconnect to the new NATS address.
+
+### Deployment Topology
+
+```
+Worker Host (epimetheus 100.92.173.32):
+  NATS (:4222/:8222)
+  ├── Agamemnon (:8080) — REST API, NATS pub/sub
+  ├── Hermes (:8085) — Webhook→NATS bridge
+  ├── hello-myrmidon — NATS pull consumer
+  └── argus-exporter (:9100) — Scrapes all services + remote Nestor
+  Prometheus (:9090) ← scrapes argus-exporter
+  Grafana (:3001) ← dashboards
+  Loki (:3100) ← log aggregation
+
+        ┌─── Tailscale mesh ───┐
+
+Control Host (100.73.61.56):
+  Nestor (:8081) — native binary, connects to worker NATS
+  odysseus-console — NATS event viewer
+```
+
+### Compose Overlay Pattern for Cross-Host Splits
+
+The key pattern is using `docker-compose.crosshost.yml` as an overlay on the base `docker-compose.e2e.yml`. Services that run on other hosts are disabled via `profiles: ["disabled"]`, and dependent services are reconfigured to scrape remote endpoints.
+
+```yaml
+# docker-compose.crosshost.yml (overlay)
+services:
+  # Disable services that run on the control host
+  nestor:
+    profiles: ["disabled"]
+
+  # Reconfigure argus-exporter to scrape remote Nestor
+  argus-exporter:
+    environment:
+      - NESTOR_URL=http://${CONTROL_HOST_IP}:8081
+```
+
+Usage:
+```bash
+podman compose -f docker-compose.e2e.yml -f docker-compose.crosshost.yml up -d
+```
+
+### NATS Connection Strategy: Direct vs. Leaf Node
+
+**Direct NATS connection over Tailscale** is the correct choice for simple topologies (2 hosts, 1 remote client). Leaf nodes are an optimization for when multiple local services need NATS access on the remote host.
+
+| Topology | Recommended | Reason |
+| ---------- | ------------- | -------- |
+| 2 hosts, 1 remote client | Direct connection | Zero additional complexity, Tailscale handles routing |
+| 2+ hosts, multiple remote clients | Leaf node | Reduces WAN connections, local pub/sub for co-located services |
+| Hub-and-spoke (many remotes) | Leaf nodes per spoke | Each spoke gets local NATS, leaf auto-reconnects |
+
+### NATS Leafnode Port Configuration (Critical)
+
+**NATS leaf.conf must connect to port 7422 (leafnode listen port), NOT port 4222 (client port).**
+
+This was a blocking bug (issues #5, #16). The server must explicitly declare the leafnode listener:
+
+```hcl
+# server.conf — worker host
+leafnodes {
+  port = 7422
+}
+```
+
+```hcl
+# leaf.conf — remote host (if using leaf nodes)
+leafnodes {
+  remotes [
+    {
+      url: "nats-leaf://100.92.173.32:7422"
+    }
+  ]
+}
+```
+
+**Common mistake:** Connecting leaf.conf to port 4222 produces a cryptic handshake error. Always use the dedicated leafnode port.
+
+### Podman DNS Workaround
+
+Podman rootless networking does not resolve container hostnames reliably. The `start-stack.sh` pattern discovers container IPs via `podman inspect` and restarts NATS-dependent services with direct IPs:
+
+```bash
+# Discover container IP
+NATS_IP=$(podman inspect --format '{{.NetworkSettings.Networks.homeric-mesh.IPAddress}}' nats)
+
+# Restart services with direct IP
+podman compose -f docker-compose.e2e.yml -f docker-compose.crosshost.yml \
+  run -d -e NATS_URL=nats://${NATS_IP}:4222 agamemnon
+```
+
+### NATS-to-Loki Bridge Pattern
+
+Loki does not natively subscribe to NATS. A small Python bridge (~100 lines) using `nats-py` pull subscribers and Loki's `/loki/api/v1/push` HTTP API bridges the gap with batching:
+
+```python
+# Simplified bridge pattern
+async def bridge():
+    nc = await nats.connect(NATS_URL)
+    js = nc.jetstream()
+    sub = await js.pull_subscribe("hi.logs.>", "loki-bridge")
+    while True:
+        msgs = await sub.fetch(batch=100, timeout=5)
+        entries = [format_loki_entry(m) for m in msgs]
+        requests.post(f"{LOKI_URL}/loki/api/v1/push", json={"streams": entries})
+        for m in msgs:
+            await m.ack()
+```
+
+### Submodule Pin Staleness Detection
+
+Always verify submodule pins match the expected branch head, especially after migrations:
+
+```bash
+# Check if submodule pin matches remote HEAD
+cd provisioning/Myrmidons
+git fetch origin
+LOCAL=$(git rev-parse HEAD)
+REMOTE=$(git rev-parse origin/main)
+if [ "$LOCAL" != "$REMOTE" ]; then
+  echo "WARNING: Myrmidons submodule is stale ($LOCAL vs $REMOTE)"
+fi
+```
+
+The Myrmidons submodule was pinned to an old commit still targeting `ai-maestro` while the standalone checkout had been migrated to Agamemnon. This caused `aim_*` function calls to fail silently.
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| Direct leaf.conf to port 4222 | Connected leaf node to NATS client port | Leaf nodes require dedicated leafnode listener port (7422) | Always use the leafnode-specific port (7422), not the client port (4222) |
+| Submodule scripts as-is | Tried to use provisioning/Myrmidons scripts | Submodule pinned to old commit with `aim_*` functions targeting ai-maestro | Verify submodule pins match standalone checkouts after migrations |
+| Keystone as transport daemon | Planned to use Keystone to bridge BlazingMQ to NATS | Keystone is a C++ library with MessageBus abstraction, not a deployable service. No BlazingMQ binary exists. | Components connect to NATS directly; Keystone transport abstraction is aspirational |
+| NATS via podman container with slirp4netns | `podman run -d --network=host` for NATS | slirp4netns (rootless network stack when rootlessport absent) remaps port 4222 to an ephemeral port (e.g., 14222) invisible to external clients; cross-host `curl http://<worker-ip>:4222/varz` gets "Connection refused" | Start NATS as a native binary (`~/.local/bin/nats-server -js -p 4222 -m 8222`) when rootlessport is absent |
+| Hermes started without PYTHONPATH | `pixi run python -m uvicorn hermes.main:app` | `src/` directory is not on PYTHONPATH by default; fails with `No module named 'hermes'` | Always prefix with `PYTHONPATH=src`: `PYTHONPATH=src pixi run python -m uvicorn hermes.main:app --host 0.0.0.0 --port 8085` |
+| No restart after NATS port change | Left Agamemnon and Hermes running when switching NATS from container to native binary | Running processes lose their NATS connection and do not automatically reconnect to the new address | Restart both services after NATS is stable on the correct port |
+
+## Results & Parameters
+
+```yaml
+# Deployment topology
+worker_host:
+  name: epimetheus
+  tailscale_ip: 100.92.173.32
+  services:
+    - nats:4222/:8222
+    - agamemnon:8080
+    - hermes:8085
+    - hello-myrmidon
+    - prometheus:9090
+    - grafana:3001
+    - loki:3100
+    - argus-exporter:9100
+
+control_host:
+  tailscale_ip: 100.73.61.56
+  services:
+    - nestor:8081 (native binary)
+    - odysseus-console (NATS subscriber)
+
+# Files created
+files:
+  - docker-compose.crosshost.yml       # Compose overlay for cross-host splits
+  - e2e/start-crosshost.sh             # Launcher with podman DNS workarounds
+  - e2e/run-crosshost-e2e.sh           # 8-phase cross-host validation
+  - e2e/prometheus.crosshost.yml       # Remote Nestor scrape config
+  - tools/odysseus-console.py          # NATS event viewer
+  - infrastructure/ProjectArgus/nats-loki-bridge/  # NATS-to-Loki bridge
+  - .env.example                       # Env var documentation
+
+# Key environment variables
+env_vars:
+  CONTROL_HOST_IP: "Tailscale IP of the control host"
+  WORKER_HOST_IP: "Tailscale IP of the worker host"
+  NATS_URL: "nats://<worker_ip>:4222"
+  AGAMEMNON_URL: "http://<worker_ip>:8080"
+  NESTOR_URL: "http://<control_ip>:8081"
+```
+
+## Related Skills
+
+| Skill | Relationship |
+| ------- | ------------- |
+| `e2e-homeric-compose-cpp-pipeline` | Base single-host E2E pipeline; this skill extends it to multi-host |
+| `tailscale-agamemnon-setup` | Tailscale installation and Agamemnon cross-host connectivity |
+| `natsc-fetchcontent-cpp20-integration` | NATS C client integration for C++20 services |
+
+## Verified On
+
+| Project | Date | Details |
+| --------- | ------ | --------- |
+| Odysseus | 2026-04-03 | Cross-host E2E deployment — 2-host topology: worker (epimetheus) + control host over Tailscale mesh |
+| Odysseus | 2026-04-06 | Full cross-host validation PASS after firewalld fix; all 6 checks: NATS reachable, Agamemnon health, Hermes webhook, task lifecycle, observability metrics |
+
+### Prior history of architecture-crosshost-nats-compose-deployment
+
+# architecture-crosshost-nats-compose-deployment -- History
+
+## v1.1.0 (2026-04-06)
+
+**Changed by:** Full cross-host validation PASS — slirp4netns port remapping fix, Hermes PYTHONPATH fix
+**Verification:** verified-local
+
+### What changed
+- Bumped version to 1.1.0, updated date to 2026-04-06
+- Updated Overview Outcome to note full 6-phase cross-host validation PASS confirmed 2026-04-06
+- Added two new "When to Use" entries: rootlessport-absent NATS native binary scenario; Hermes `No module named 'hermes'` diagnosis
+- Added new "Native Binary Startup Pattern" subsection in Verified Workflow with complete startup sequence and NATS reconnection warning
+- Added three new Failed Attempts rows:
+  1. NATS via podman container with slirp4netns — rootlessport absent causes ephemeral port remapping
+  2. Hermes started without PYTHONPATH — `No module named 'hermes'`; fix: `PYTHONPATH=src pixi run ...`
+  3. No restart after NATS port change — Agamemnon/Hermes lose connection, do not auto-reconnect
+- Updated Verified On table: added 2026-04-06 entry with 6-check full validation result; added Date column
+- Added tags: native-binary, pythonpath
+
+### Why
+Cross-host validation 2026-04-06 uncovered three blockers not present in the initial 2026-04-03 session. (1) On a host where rootlessport is absent, podman's slirp4netns remaps NATS port 4222 to an ephemeral port (e.g. 14222), making `curl http://<worker-ip>:4222/varz` return "Connection refused" from external hosts even though the container appeared to start cleanly. Fix: run nats-server as a native binary. (2) Starting Hermes via `pixi run python -m uvicorn hermes.main:app` fails with `No module named 'hermes'` because the `src/` layout is not automatically added to PYTHONPATH. Fix: prefix with `PYTHONPATH=src`. (3) After switching NATS from container to native binary the running Agamemnon and Hermes processes do not reconnect — both must be restarted once NATS is stable on port 4222.
+
+### References
+- Odysseus cross-host E2E session 2026-04-06
+
+---
+
+## Superseded from crosshost-per-component-launcher-pattern
+
+---
+name: crosshost-per-component-launcher-pattern
+description: "Per-component install and launch commands for cross-host HomericIntelligence deployment. Use when: (1) deploying individual services on separate Tailscale hosts, (2) adding justfile recipes that launch C++ binaries or delegate to submodule justfiles, (3) connecting services via NATS_URL across a mesh, (4) deciding between compose-based vs native binary deployment."
+category: architecture
+date: 2026-04-04
+version: "1.0.0"
+user-invocable: false
+verification: verified-local
+tags:
+  - cross-host
+  - deployment
+  - launcher
+  - justfile
+  - nats
+  - tailscale
+  - per-component
+  - podman
+  - homeric-intelligence
+---
+
+# Cross-Host Per-Component Launcher Pattern
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2026-04-04 |
+| **Objective** | Create per-component install and launch commands so each HomericIntelligence service can run independently on any Tailscale host, connected via NATS_URL |
+| **Outcome** | 9 new justfile recipes (2 install + 7 launchers) enabling flexible multi-machine deployment where any component runs on any host |
+| **Verification** | verified-local |
+
+## When to Use
+
+- Deploying individual HomericIntelligence services on separate Tailscale hosts (not using compose)
+- Adding justfile recipes that launch C++ binaries from BUILD_ROOT or delegate to submodule justfiles
+- Connecting distributed services via NATS_URL as the universal connector parameter
+- Deciding between compose-based deployment (see `architecture-crosshost-nats-compose-deployment`) and native binary launchers
+- Setting up a new host to participate in the HomericIntelligence mesh with minimal ceremony
+
+## Verified Workflow
+
+### Quick Reference
+
+```bash
+# --- Worker host setup ---
+just install-worker                   # podman + tools + submodule init
+
+# --- Control host setup ---
+just install-control                  # C++ build chain + build agamemnon/nestor
+
+# --- Start NATS (on any host, typically the worker) ---
+just start-nats
+# Outputs: NATS running at nats://<ip>:4222
+
+# --- Start individual components (on any host, point at NATS) ---
+just start-agamemnon NATS_URL=nats://worker-ip:4222
+just start-nestor    NATS_URL=nats://worker-ip:4222
+just start-hermes    NATS_URL=nats://worker-ip:4222
+just start-myrmidon  NATS_URL=nats://worker-ip:4222 AGAMEMNON_URL=http://worker-ip:8080
+just start-argus                      # delegates to ProjectArgus docker-compose
+just start-console   NATS_URL=nats://worker-ip:4222
+```
+
+### Two-Role Install Pattern
+
+Install recipes are split by host role to avoid pulling unnecessary dependencies:
+
+```just
+# Worker: podman + tools (no C++ compiler needed)
+install-worker:
+    bash e2e/doctor.sh --role worker --install
+    git submodule update --init --recursive
+
+# Control: full C++ build chain + compile binaries
+install-control:
+    bash e2e/doctor.sh --role control --install
+    git submodule update --init --recursive
+    just _build-agamemnon _build-nestor
+```
+
+### NATS as Standalone Podman Container
+
+NATS runs as a standalone podman container (not inside compose) for maximum deployment flexibility. The `--replace` flag makes the command idempotent:
+
+```just
+start-nats:
+    podman run -d --replace --name hi-nats \
+      -p 4222:4222 -p 8222:8222 \
+      nats:alpine -js -m 8222
+```
+
+Key details:
+- Uses `nats:alpine` (not `nats:latest`) for healthcheck compatibility
+- `-js` enables JetStream (required for pull consumers)
+- `-m 8222` enables HTTP monitoring endpoint
+- Port 4222 = client connections, port 8222 = monitoring API
+
+### C++ Binary Launchers
+
+C++ services launch directly from BUILD_ROOT, receiving NATS_URL as an environment variable:
+
+```just
+start-agamemnon NATS_URL="nats://localhost:4222":
+    NATS_URL={{ NATS_URL }} "{{BUILD_ROOT}}/ProjectAgamemnon/ProjectAgamemnon_server"
+
+start-nestor NATS_URL="nats://localhost:4222":
+    NATS_URL={{ NATS_URL }} "{{BUILD_ROOT}}/ProjectNestor/ProjectNestor_server"
+```
+
+Binaries are compiled by `just build` (or `just install-control`), which runs CMake with Ninja and places artifacts under `build/<ProjectName>/`.
+
+### Delegation to Submodule Justfiles
+
+Components with their own build/run infrastructure delegate to the submodule's justfile, passing NATS_URL through the environment:
+
+```just
+# Hermes has its own Python/FastAPI setup
+start-hermes NATS_URL="nats://localhost:4222":
+    cd infrastructure/ProjectHermes && NATS_URL={{ NATS_URL }} just start
+
+# Argus has its own docker-compose stack (Prometheus + Loki + Grafana)
+start-argus:
+    cd infrastructure/ProjectArgus && just start
+```
+
+### Python Fallback for Non-Compiled Components
+
+hello-myrmidon does not have a C++ build target in `just build`. The Python `worker.py` serves as the runtime:
+
+```just
+start-myrmidon NATS_URL="nats://localhost:4222" AGAMEMNON_URL="http://localhost:8080":
+    NATS_URL={{ NATS_URL }} AGAMEMNON_URL={{ AGAMEMNON_URL }} \
+      python3 provisioning/Myrmidons/hello-world/worker.py
+```
+
+### Example: 3-Host Deployment
+
+```
+Host A (NATS hub):
+  just start-nats
+
+Host B (control plane):
+  just install-control
+  just start-agamemnon NATS_URL=nats://hostA:4222
+  just start-nestor    NATS_URL=nats://hostA:4222
+
+Host C (worker):
+  just install-worker
+  just start-hermes    NATS_URL=nats://hostA:4222
+  just start-myrmidon  NATS_URL=nats://hostA:4222 AGAMEMNON_URL=http://hostB:8080
+  just start-argus
+  just start-console   NATS_URL=nats://hostA:4222
+```
+
+All hosts must be on the same Tailscale mesh. Replace hostnames with Tailscale IPs if DNS is not configured.
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| hello-myrmidon C++ binary | Tried to include hello-myrmidon in `just build` targets | hello-myrmidon has no CMakeLists.txt; only Agamemnon, Nestor, Charybdis, Keystone, and Odyssey are compiled by `just build` | Use the Python worker.py fallback instead of adding a build step for simple myrmidon agents |
+| Monolithic e2e-all launcher | Considered a single `just e2e-all` that starts everything | User explicitly wanted per-component granularity for multi-machine flexibility; a monolithic command defeats the purpose | Individual launchers compose better than monolithic scripts for distributed deployment |
+| nats:latest image | Initially used `nats:latest` for the standalone container | `nats:latest` lacks shell utilities needed for container healthchecks | Always use `nats:alpine` which includes the necessary healthcheck tooling |
+
+## Results & Parameters
+
+### Justfile Recipes Added
+
+```yaml
+recipes:
+  install-worker:
+    purpose: "Install prerequisites for worker host"
+    delegates_to: "e2e/doctor.sh --role worker --install"
+    also_runs: "git submodule update --init --recursive"
+
+  install-control:
+    purpose: "Install prerequisites + build C++ binaries for control host"
+    delegates_to: "e2e/doctor.sh --role control --install"
+    also_runs: "submodule init + _build-agamemnon + _build-nestor"
+
+  start-nats:
+    purpose: "NATS JetStream server (standalone podman container)"
+    image: "nats:alpine"
+    ports: "4222 (client), 8222 (monitoring)"
+    flags: "-js -m 8222"
+
+  start-agamemnon:
+    purpose: "ProjectAgamemnon C++ binary"
+    binary: "build/ProjectAgamemnon/ProjectAgamemnon_server"
+    params: "NATS_URL (default: nats://localhost:4222)"
+
+  start-nestor:
+    purpose: "ProjectNestor C++ binary"
+    binary: "build/ProjectNestor/ProjectNestor_server"
+    params: "NATS_URL (default: nats://localhost:4222)"
+
+  start-hermes:
+    purpose: "ProjectHermes webhook-to-NATS bridge"
+    delegates_to: "infrastructure/ProjectHermes justfile"
+    params: "NATS_URL (default: nats://localhost:4222)"
+
+  start-myrmidon:
+    purpose: "hello-myrmidon Python worker"
+    runtime: "python3 provisioning/Myrmidons/hello-world/worker.py"
+    params: "NATS_URL, AGAMEMNON_URL"
+
+  start-argus:
+    purpose: "Prometheus + Loki + Grafana observability stack"
+    delegates_to: "infrastructure/ProjectArgus justfile"
+
+  start-console:
+    purpose: "Real-time NATS event viewer"
+    runtime: "python3 tools/odysseus-console.py"
+    params: "NATS_URL (default: nats://localhost:4222)"
+```
+
+### Design Decisions
+
+| Decision | Rationale |
+| ---------- | ----------- |
+| NATS_URL as universal connector | Every component takes one parameter to join the mesh; no service discovery needed |
+| Default NATS_URL=localhost | Allows single-machine development without any flags |
+| `--replace` on podman run | Makes start-nats idempotent; re-running replaces the container |
+| Two install roles | Worker hosts need only podman; control hosts need cmake/ninja/gcc for C++ compilation |
+| Python fallback for myrmidons | Avoids requiring a C++ build for simple agent workers |
+
+### Compose vs. Per-Component: When to Use Which
+
+| Approach | Best For | Skill Reference |
+| ---------- | ---------- | ----------------- |
+| Compose overlay (`docker-compose.crosshost.yml`) | Single-command deployment, CI/CD, reproducible environments | `architecture-crosshost-nats-compose-deployment` |
+| Per-component launchers (`just start-*`) | Multi-machine flexibility, development, debugging individual services | This skill |
+| Both together | Worker host uses compose, control host uses native binaries | Combine both skills |
+
+## Related Skills
+
+| Skill | Relationship |
+| ------- | ------------- |
+| `architecture-crosshost-nats-compose-deployment` | Compose overlay approach to cross-host deployment; complementary to this per-component approach |
+| `e2e-crosshost-doctor-prerequisite-checker` | The doctor.sh tool used by install-worker and install-control recipes |
+| `e2e-homeric-compose-cpp-pipeline` | Base single-host E2E pipeline that this skill extends to multi-host per-component |
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| Odysseus | Per-component launcher recipes | Commit 82742b7 on feat/crosshost-e2e-pipeline branch; dry-run tested, recipes parse correctly, binary paths confirmed |
+
+---
+
+## Superseded from atlas-mesh-bringup-first-run
+
+---
+name: atlas-mesh-bringup-first-run
+description: "Patterns for bringing up the HomericIntelligence mesh natively or via containers across single or multiple Tailnet hosts from a cold state. Use when: (1) bringing up Agamemnon/Nestor/Hermes natively or via podman on any new host, (2) launching myrmidon workers across Tailnet hosts, (3) running the Atlas epic, (4) troubleshooting Agamemnon task completion API, (5) cold-starting the full 6-host Tailnet mesh."
+category: architecture
+date: 2026-05-03
+version: "2.0.0"
+user-invocable: false
+verification: verified-local
+history: atlas-mesh-bringup-first-run.history
+tags:
+  - atlas
+  - mesh
+  - bringup
+  - nats
+  - agamemnon
+  - nestor
+  - hermes
+  - myrmidon
+  - tailscale
+  - multi-host
+  - review-wave
+  - binary-paths
+  - podman
+  - cold-start
+  - pixi
+---
+
+# Atlas Mesh Bringup: First Run Patterns
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2026-05-03 |
+| **Objective** | Bring up HomericIntelligence mesh natively or via containers across up to 6 Tailnet hosts from cold state; correct binary names, build flags, Hermes src-layout, and Agamemnon API shape |
+| **Outcome** | Full 6-host mesh reachable at peak; Agamemnon API shape confirmed (team-scoped task path); echo-type task completion requires external PATCH |
+| **Verification** | verified-local — executed end-to-end across 6 Tailnet hosts 2026-05-03 |
+| **History** | [changelog](./atlas-mesh-bringup-first-run.history) |
+
+## When to Use
+
+- Bringing up Agamemnon, Nestor, or Hermes natively (binary/uvicorn) on any Tailnet host
+- Building services via podman on hosts where Odysseus is not present
+- Launching myrmidon Python workers on multiple Tailnet hosts (fan-out pattern)
+- Running the Atlas epic implementation (issue #152) without the myrmidon-multi pipeline
+- Troubleshooting Agamemnon review wave task completion API calls
+- Cold-starting the full Tailnet mesh (all 6 hosts at once)
+- Checking which Tailnet hosts are online/reachable before dispatch
+
+## Verified Workflow
+
+### Quick Reference — Native Mesh Bringup (single host with pixi)
+
+```bash
+# 1. Start NATS (binary NOT in PATH by default — use full path)
+~/.local/bin/nats-server -js &
+# Monitor at http://localhost:8222/varz (NOT port 4222)
+
+# 2. Start Agamemnon — binary is ProjectAgamemnon_server (NOT agamemnon)
+# Must build inside pixi to get correct compiler environment
+pixi run bash -c "
+  cd control/ProjectAgamemnon
+  cmake -B build/debug -DCMAKE_BUILD_TYPE=Debug \
+    -DProjectAgamemnon_ENABLE_CLANG_TIDY=OFF
+  cmake --build build/debug
+  ./build/debug/ProjectAgamemnon_server &
+"
+
+# 3. Start Nestor — binary is ProjectNestor_server (NOT nestor)
+pixi run bash -c "
+  cd control/ProjectNestor
+  cmake -B build/debug -DCMAKE_BUILD_TYPE=Debug
+  cmake --build build/debug
+  ./build/debug/ProjectNestor_server &
+"
+
+# 4. Start Hermes — src layout; must set PYTHONPATH=src
+cd infrastructure/ProjectHermes
+pixi run bash -c "PYTHONPATH=src uvicorn hermes.server:app --host 0.0.0.0 --port 8085" &
+
+# 5. Verify all services respond
+curl -s http://localhost:8080/health            # Agamemnon: {"service":"ProjectAgamemnon","status":"ok"}
+curl -s http://localhost:8081/v1/health         # Nestor
+curl -s http://localhost:8085/health            # Hermes
+curl -s http://localhost:8222/varz | python3 -c \
+  "import sys,json; d=json.load(sys.stdin); print('connections:', d['connections'])"
+```
+
+### Critical Binary Name Facts
+
+```
+CORRECT:  control/ProjectAgamemnon/build/debug/ProjectAgamemnon_server
+WRONG:    control/ProjectAgamemnon/build/debug/agamemnon
+WRONG:    control/ProjectAgamemnon/build/agamemnon
+
+CORRECT:  control/ProjectNestor/build/debug/ProjectNestor_server
+WRONG:    control/ProjectNestor/build/debug/nestor
+WRONG:    control/ProjectNestor/build/nestor
+
+CORRECT:  PYTHONPATH=src uvicorn hermes.server:app
+WRONG:    uvicorn hermes.server:app  (no PYTHONPATH -- module not found)
+WRONG:    uvicorn hermes.main:app    (module does not exist)
+```
+
+### NATS Binary Path and Ports
+
+```bash
+# NATS binary is NOT in PATH on most hosts
+~/.local/bin/nats-server -js &     # Correct -- use full path
+
+# NATS monitoring is on port 8222 (not 4222)
+# 4222 is the client port for pub/sub
+curl http://localhost:8222/varz     # server stats including connection count
+curl http://localhost:8222/connz    # active connections
+curl http://localhost:8222/jsz      # JetStream stats
+```
+
+### Multi-Host Cold-Start Strategy (6 Tailnet Hosts)
+
+Before starting services, determine the correct method for each host:
+
+| Host | Odysseus Present | Strategy | Special Notes |
+| ------ | ---------------- | -------- | ------------- |
+| titan, aeolus | No | Clone fresh via `gh repo clone`, build podman containers | Agamemnon container build ~5-10 min (Conan C++ deps) |
+| artemis | Yes, pixi available | Native build inside `pixi run bash -c "..."` | Must use `-DProjectAgamemnon_ENABLE_CLANG_TIDY=OFF`; Hermes needs `PYTHONPATH=src` |
+| athena | No | Clone fresh, build via podman | Standard podman flow |
+| hephaestus | No | Clone fresh, build natively | Nestor needs manual `-lz` link flag for OpenSSL zlib dep |
+| apollo | No | Python 3.7 -- too old for Hermes (>=3.10) | Use docker with `--network=host` for all services |
+| hermes, cleopatra | N/A | Tailscale-offline (not SSH-reachable) | Skip gracefully |
+
+#### Podman Container Build (for hosts without Odysseus)
+
+```bash
+# Clone Odysseus first
+gh repo clone HomericIntelligence/Odysseus ~/Odysseus
+cd ~/Odysseus
+git submodule update --init --recursive
+
+# Build and start services as containers
+podman build -t agamemnon control/ProjectAgamemnon/
+podman build -t nestor control/ProjectNestor/
+podman build -t hermes infrastructure/ProjectHermes/
+
+podman run -d --name agamemnon --network=host agamemnon
+podman run -d --name nestor --network=host nestor
+podman run -d -e HERMES_PORT=8085 --name hermes --network=host hermes
+```
+
+**Hermes Dockerfile**: requires `prometheus_client` in pip install and `HERMES_PORT` defaulting to `8085` (not `8080` -- conflicts with Agamemnon). Fixed in PR #415.
+
+#### Native Build on artemis (pixi available, clang-tidy sysroot issue)
+
+```bash
+# Must run cmake INSIDE pixi to get correct conda toolchain
+pixi run bash -c "
+  cd control/ProjectAgamemnon
+  cmake -B build/debug -DCMAKE_BUILD_TYPE=Debug \
+    -DProjectAgamemnon_ENABLE_CLANG_TIDY=OFF
+  cmake --build build/debug -j$(nproc)
+"
+# Then start binary (exact name):
+./control/ProjectAgamemnon/build/debug/ProjectAgamemnon_server
+```
+
+#### Native Build on hephaestus (OpenSSL zlib dep)
+
+```bash
+# Nestor requires explicit -lz for OpenSSL zlib dependency
+pixi run bash -c "
+  cd control/ProjectNestor
+  cmake -B build/debug -DCMAKE_BUILD_TYPE=Debug \
+    -DCMAKE_EXE_LINKER_FLAGS='-lz'
+  cmake --build build/debug -j$(nproc)
+"
+```
+
+### Agamemnon API Shape (Confirmed)
+
+```bash
+# Health check
+curl -s http://localhost:8080/health
+# Returns: {"service":"ProjectAgamemnon","status":"ok"}
+
+# Create team (nested under "team" key)
+TEAM_ID=$(curl -s -X POST http://localhost:8080/v1/teams \
+  -H "Content-Type: application/json" \
+  -d '{"name":"my-team","description":"..."}' \
+  | jq -r '.team.id')   # <-- .team.id, NOT .id
+
+# Create task (team-scoped path -- NOT /v1/tasks)
+curl -s -X POST "http://localhost:8080/v1/teams/$TEAM_ID/tasks" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"my-task","type":"echo","params":{}}'
+
+# Transition task to completed (echo tasks need external PATCH)
+curl -s -X PATCH "http://localhost:8080/v1/teams/$TEAM_ID/tasks/<task_id>" \
+  -H "Content-Type: application/json" \
+  -d '{"status":"completed"}'
+```
+
+**Critical**: `echo`-type tasks have no autonomous executor -- they require an external PATCH to
+transition to `completed`. The old `POST .../complete` endpoint returns 404.
+
+### After NATS Restart: Restart Agamemnon and Nestor
+
+Agamemnon and Nestor do NOT auto-reconnect to NATS reliably after a restart. Always kill and
+restart them:
+
+```bash
+pkill -f ProjectAgamemnon_server || kill $(pgrep -f ProjectAgamemnon_server)
+pkill -f ProjectNestor_server    || kill $(pgrep -f ProjectNestor_server)
+# pkill may return exit code 144 in some environments -- use kill <pid> if needed
+```
+
+### Multi-Host Myrmidon Fan-Out
+
+Launch hello-myrmidon Python workers on remote Tailnet hosts. Always use `main.py` (Python), not
+`main.cpp` (C++).
+
+```bash
+# On each reachable remote host:
+NATS_URL=nats://<controller-tailscale-ip>:4222 \
+  nohup python3 provisioning/Myrmidons/hello-world/main.py \
+  > /tmp/hello-myrmidon.log 2>&1 &
+```
+
+### Atlas Implementation: Use Direct Worktree (Not myrmidon-multi)
+
+The `claude-myrmidon-multi.py` pipeline is NOT suitable for Atlas scaffold work. For Atlas epic
+implementation:
+
+1. Create a worktree directly from `main` (not from a feature branch)
+2. Implement the scaffold with one agent in the worktree
+3. Ensure `go.mod` uses `go 1.23.0` (not 1.22) -- templ v0.3.1001 requires Go 1.23
+4. toolchain directive is `go1.24.2`
+
+**Branch base rule**: Always fork from `main`. If the wrong base was used, cherry-pick the commit:
+
+```bash
+git checkout -b feat/issue-152-atlas-bootstrap-clean main
+git cherry-pick <atlas-commit-sha>
+git push --force-with-lease origin feat/issue-152-atlas-bootstrap-clean
+```
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| `agamemnon` as binary name | Called `./build/debug/agamemnon` | Binary is `ProjectAgamemnon_server` -- exact CMake target name | Always use `ProjectAgamemnon_server`; check `ls build/debug/` to confirm |
+| `nestor` as binary name | Called `./build/debug/nestor` | Binary is `ProjectNestor_server` -- exact CMake target name | Always use `ProjectNestor_server` |
+| `uvicorn hermes.server:app` without PYTHONPATH | Started Hermes without `PYTHONPATH=src` | Repo uses src layout -- Python cannot find `hermes` module | Always set `PYTHONPATH=src` before uvicorn in src-layout repos |
+| `uvicorn hermes.main:app` | Used `hermes.main:app` as entry point | Module is `hermes.server:app`; `hermes.main` does not exist | Always use `hermes.server:app` |
+| cmake without pixi on artemis | Ran cmake directly without `pixi run bash -c` | pixi conda toolchain not activated; wrong sysroot used | Must run cmake inside `pixi run bash -c "..."` to get correct conda-managed compiler |
+| cmake without `-DProjectAgamemnon_ENABLE_CLANG_TIDY=OFF` | Default cmake build on artemis | clang-tidy sysroot mismatch in pixi conda toolchain causes build failure | Always pass `-DProjectAgamemnon_ENABLE_CLANG_TIDY=OFF` on hosts with conda sysroot |
+| `nats-server` without full path | Called bare `nats-server` on remote hosts | `~/.local/bin` not in PATH on most remote hosts | Always use `~/.local/bin/nats-server` with full path |
+| NATS monitoring on port 4222 | Tried `curl localhost:4222/varz` | Port 4222 is the client port; monitoring HTTP is on 8222 | NATS monitoring: port 8222. Client pub/sub: port 4222 |
+| `POST /v1/tasks` Agamemnon endpoint | Used flat `/v1/tasks` path | Returns 404 -- endpoint is team-scoped only | Correct endpoint: `POST /v1/teams/<teamId>/tasks` |
+| `POST .../complete` task completion | Used `POST /v1/teams/<id>/tasks/<id>/complete` | Returns 404 -- endpoint does not exist | Use `PATCH /v1/teams/<id>/tasks/<id>` with `{"status":"completed"}` |
+| `jq -r '.id'` on team create response | Extracted `.id` directly from team creation response | Team ID nested: `{"team": {"id": "..."}}` -- must use `.team.id` | Always use `.team.id`, not `.id` |
+| `HERMES_PORT=8080` (default) | Used default port for Hermes container | Conflicts with Agamemnon on 8080 | Set `HERMES_PORT=8085` explicitly; Agamemnon owns 8080 |
+| Hermes Dockerfile without `prometheus_client` | Built Hermes container without prometheus_client | Hermes imports it at startup; container crashes immediately | Fixed in PR #415: add `prometheus_client` to pip install in Dockerfile |
+| docker uvicorn directly on apollo | Tried uvicorn directly on Python 3.7 host | Python 3.7 too old for Hermes (requires >=3.10) | Use `docker run --network=host` on hosts with Python <3.10 |
+| Assuming Odysseus present on all hosts | Skipped `gh repo clone` step | Only 3/6 hosts had Odysseus; 3 needed fresh clone | Pre-check: `ls ~/Odysseus` -- clone if missing |
+| Nestor without `-lz` on hephaestus | Standard cmake build for Nestor on hephaestus | OpenSSL zlib dep not automatically linked | Pass `-DCMAKE_EXE_LINKER_FLAGS='-lz'` explicitly on hephaestus |
+| myrmidon-multi for Atlas scaffold | Tried `claude-myrmidon-multi.py` for Atlas file creation | Formula-driven pipeline; Atlas scaffold needs exact file content | Use direct worktree with single agent for precision scaffold work |
+| Forking Atlas branch from feature branch | Created feat branch from `feat/issue-22-ci-hardening` | Picked up 12 extra CI commits; PR not rebased to main | Always fork from `main`; check base before `git worktree add` |
+| `pkill -f "nats-server"` | Used pkill to stop NATS | Returns exit code 144 in some environments | Use `kill $(pgrep nats-server)` with explicit PID |
+
+## Results & Parameters
+
+### Host Reachability Matrix (2026-05-03 Cold-Start Session)
+
+| Host | Tailscale Online | SSH | Odysseus Present | Method | Result |
+| ------ | ---------------- | --- | ----------------- | ------ | ------ |
+| titan | yes | yes | No | gh clone + podman | RUNNING |
+| aeolus | yes | yes | No | gh clone + podman | RUNNING |
+| artemis | yes | yes | Yes (pixi available) | native pixi build | RUNNING |
+| athena | yes | yes | No | gh clone + podman | RUNNING |
+| hephaestus | yes | yes | No | gh clone + native build (-lz) | RUNNING |
+| apollo | yes | yes | No | docker (Python 3.7 host) | RUNNING |
+| hermes | no | no | -- | Tailscale-offline | SKIPPED |
+| cleopatra | no | no | -- | Tailscale-offline | SKIPPED |
+
+### NATS Connection Count at 6-Service Peak
+
+```
+Agamemnon         -> 1 connection
+Nestor            -> 1 connection
+Hermes            -> 1 connection
+titan myrmidon    -> 1 connection
+aeolus myrmidon   -> 1 connection
+artemis myrmidon  -> 1 connection
+Total: 6 connections
+```
+
+Verify: `curl -s http://localhost:8222/varz | jq .connections`
+
+### Agamemnon Health Response
+
+```json
+{"service": "ProjectAgamemnon", "status": "ok"}
+```
+
+### go.mod Requirements for Atlas (templ v0.3.1001)
+
+```
+go 1.23.0          # templ v0.3.1001 requires Go >= 1.23; "go 1.22" is rejected
+toolchain go1.24.2 # matches the toolchain installed on the build host
+```
+
+### Session Metrics (2026-05-03 Cold-Start)
+
+| Metric | Value |
+| -------- | ------- |
+| Hosts attempted | 8 |
+| Hosts online (Tailscale) | 6 |
+| Hosts successfully started | 6 |
+| Hosts skipped (Tailscale-offline) | 2 (hermes, cleopatra) |
+| Agamemnon container build time | ~5-10 min (Conan C++ deps) |
+| Hermes PR #415 | Fixed prometheus_client + HERMES_PORT=8085 |
+
+### Session Metrics (2026-04-27 First Run on epimetheus)
+
+| Metric | Value |
+| -------- | ------- |
+| NATS connections at peak | 6 |
+| Myrmidon workers launched | 3 (epimetheus local, apollo, hermes) |
+| Hosts SSH-failed | 4 (titan, athena, cleopatra, artemis -- sshd disabled at time) |
+| Review dimensions run | 6/6 |
+| Review dimensions approved | 6/6 |
+| Task completion via Agamemnon | 1/6 (5/6 returned 404 -- now fixed via PATCH) |
+| Atlas PR | #173 on HomericIntelligence/Odysseus |
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| HomericIntelligence/Odysseus | Atlas epic implementation session 2026-04-27 | Native mesh bringup on epimetheus; 3-host myrmidon fan-out; PR #173 |
+| HomericIntelligence/Odysseus | Full 6-host Tailnet cold-start session 2026-05-03 | 6 hosts started (4 podman, 1 native pixi, 1 docker); Agamemnon API shape confirmed; Hermes PR #415 |
+
+### Prior history of atlas-mesh-bringup-first-run
+
+# atlas-mesh-bringup-first-run -- History
+
+## v2.0.0 (2026-05-03)
+
+**Changed by:** Full 6-host Tailnet cold-start session (2026-05-03)
+**Verification:** verified-local -- executed end-to-end across 6 Tailnet hosts
+
+### What changed
+- Rewrote description and overview to cover multi-host cold-start (not just epimetheus single-host)
+- Corrected binary names throughout: `ProjectAgamemnon_server` (NOT `agamemnon`), `ProjectNestor_server` (NOT `nestor`)
+- Added NATS binary path fact: `~/.local/bin/nats-server` (not in PATH by default)
+- Added Hermes src-layout requirement: must set `PYTHONPATH=src` before uvicorn
+- Added `-DProjectAgamemnon_ENABLE_CLANG_TIDY=OFF` requirement for pixi conda toolchain builds (artemis)
+- Added multi-host cold-start strategy table covering all 8 known Tailnet hosts with correct per-host method
+- Added podman container build instructions for hosts without Odysseus
+- Added native build flags for hephaestus (`-lz` for OpenSSL zlib dep) and artemis (pixi+clang-tidy off)
+- Added docker path for apollo (Python 3.7 host -- too old for Hermes)
+- Added confirmed Agamemnon API shape: health at `/health`, `{"service":"ProjectAgamemnon","status":"ok"}`, tasks at `POST /v1/teams/<id>/tasks`, completion via `PATCH .../tasks/<id>` (NOT POST .../complete)
+- Added echo-type task clarification: requires external PATCH to complete (no autonomous executor)
+- Added `.team.id` extraction note for team creation response
+- Added Hermes Dockerfile bugs (PR #415): missing `prometheus_client`, wrong default `HERMES_PORT` (8080 vs 8085)
+- Added 12 new Failed Attempts rows (binary names, PYTHONPATH, cmake/pixi, HERMES_PORT, prometheus_client, Python 3.7, fresh clone, -lz)
+- Added 2026-05-03 session metrics and host reachability matrix
+- Updated Verified On table with 2026-05-03 cold-start session
+
+### Why
+The v1.0.0 skill documented the first bringup on a single host (epimetheus) with Odysseus already
+present. The 2026-05-03 multi-host cold-start revealed that:
+1. Binary names are `ProjectAgamemnon_server` and `ProjectNestor_server` (not `agamemnon`/`nestor`)
+2. NATS binary is not in PATH by default on remote hosts
+3. Hermes requires `PYTHONPATH=src` (src-layout repo) and must use `hermes.server:app`
+4. Three of 6 target hosts had no Odysseus clone -- fresh clone required before any service start
+5. Agamemnon `POST .../complete` returns 404; the correct completion path is `PATCH .../tasks/<id>`
+6. Two Hermes Dockerfile bugs (prometheus_client missing, HERMES_PORT default=8080) caused container failures
+
+### Previous version (v1.0.0) snapshot
+
+---
+name: atlas-mesh-bringup-first-run
+description: "Patterns for the first native (non-compose) bringup of the HomericIntelligence mesh on epimetheus, including correct binary paths, Hermes module name, multi-host myrmidon fan-out results per host, and Agamemnon task completion API findings. Use when: (1) bringing up Agamemnon/Nestor/Hermes natively on a new host, (2) launching hello-myrmidon workers on Tailnet hosts, (3) running the Atlas epic implementation session, (4) troubleshooting Agamemnon review wave task completion."
+category: architecture
+date: 2026-04-27
+version: "1.0.0"
+user-invocable: false
+verification: verified-local
+
+Documented: Native bringup on epimetheus. Binary paths at `build/debug/agamemnon` and `build/debug/nestor`.
+Hermes: `uvicorn hermes.server:app --port 8085`. NATS monitoring port 8222.
+3-host myrmidon fan-out (epimetheus, apollo, hermes). 4 hosts SSH-failed (sshd disabled).
+Agamemnon task completion: POST .../complete returned 404 in 5/6 cases (root cause unresolved at time of v1.0.0).
+Atlas PR #173. go.mod requires `go 1.23.0` for templ v0.3.1001.
+
+---
+
+## v1.0.0 (2026-04-27)
+
+**Initial version.**
+
+---
+
+## Superseded from e2e-hermes-hub-remote-myrmidon
+
+---
+name: e2e-hermes-hub-remote-myrmidon
+description: "Hub+remote-worker topology for HomericIntelligence E2E: hermes runs full stack (NATS JetStream, Agamemnon, Nestor, Hermes bridge, observability), epimetheus runs only the hello-myrmidon Python worker over Tailscale. Use when: (1) validating cross-host myrmidon dispatch end-to-end, (2) setting up a hub+single-remote-worker topology distinct from the symmetric crosshost split, (3) troubleshooting remote myrmidon NATS connectivity, (4) excluding a compose service via overlay profiles."
+category: architecture
+date: 2026-04-20
+version: "1.1.0"
+user-invocable: false
+verification: verified-local
+tags:
+  - e2e
+  - cross-host
+  - hermes-hub
+  - myrmidon
+  - tailscale
+  - nats
+  - compose-overlay
+  - podman
+  - homeric-intelligence
+  - remote-worker
+---
+
+# E2E Hermes-Hub Remote Myrmidon Topology
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2026-04-20 |
+| **Objective** | Validate cross-host myrmidon dispatch with hermes as the hub (full stack) and epimetheus as a single remote Python worker |
+| **Outcome** | Scripts written and reviewed; not yet executed end-to-end (SSH to hermes refused from local machine during planning) |
+| **Verification** | unverified — scripts are ready to run but have not been tested yet |
+
+> **Update 2026-04-27:** Validated end-to-end in the Atlas first-run session. apollo (100.68.51.128) and hermes (100.73.61.56) both accepted SSH and had nats-py installed. 3-host fan-out (epimetheus + apollo + hermes) reached 6 NATS connections. Hermes module name confirmed: `hermes.server:app` (NOT `hermes.main:app`).
+
+## When to Use
+
+- Running the HomericIntelligence E2E stack with hermes as the hub (all services) and a separate remote worker host
+- Validating that a Python myrmidon worker can subscribe to NATS on a remote hub over Tailscale
+- Using compose overlays to disable a service on the hub side (so the remote worker is the sole subscriber)
+- Debugging NATS cross-host connection count after a remote myrmidon starts
+- Distinguishing the hub+remote-worker topology from the symmetric crosshost split (`architecture-crosshost-nats-compose-deployment`)
+
+## Verified Workflow
+
+### Quick Reference
+
+```bash
+# Start hub stack on hermes + launch remote myrmidon on epimetheus
+just hermes-hub-up
+
+# Run 8-phase E2E validator
+just hermes-hub-test
+
+# Tear down
+just hermes-hub-down
+
+# View hub logs
+just hermes-hub-logs SERVICE=agamemnon
+```
+
+### Detailed Steps
+
+1. **Hermes hub setup** — SSH to hermes (100.73.61.56):
+   ```bash
+   just doctor --role worker --install
+   # Add tailscale0 to firewalld trusted zone so remote myrmidon can reach NATS
+   sudo firewall-cmd --zone=trusted --add-interface=tailscale0 --permanent
+   sudo firewall-cmd --reload
+   # Resolve symlinks (rootless podman requirement)
+   # Run compose with overlay that disables hello-myrmidon
+   podman compose -f docker-compose.e2e.yml -f e2e/docker-compose.hermes-hub.yml up -d --build
+   # Apply podman DNS workaround: inspect NATS container IP, restart NATS-dependent containers with direct IPs
+   ```
+
+2. **Compose overlay** — `e2e/docker-compose.hermes-hub.yml` disables hello-myrmidon on the hub:
+   ```yaml
+   services:
+     hello-myrmidon:
+       profiles:
+         - disabled
+   ```
+   The `profiles: ["disabled"]` pattern is the correct way to exclude a service via overlay without removing it.
+
+3. **Epimetheus remote worker setup** — SSH to epimetheus (100.92.173.32):
+   ```bash
+   # Clone Odysseus if absent (only provisioning/Myrmidons submodule needed)
+   git clone https://github.com/HomericIntelligence/Odysseus.git
+   git submodule update --init provisioning/Myrmidons
+   # Launch myrmidon pointing at hermes NATS
+   # Always use main.py (Python) — main.cpp also exists but should be ignored
+   NATS_URL=nats://100.73.61.56:4222 nohup python3 provisioning/Myrmidons/hello-world/main.py \
+     > /tmp/hello-myrmidon.log 2>&1 &
+   ```
+
+4. **Verify cross-host NATS connection**:
+   ```bash
+   # Should show connections >= 2 (Agamemnon + remote myrmidon)
+   curl -s http://hermes:8222/varz | python3 -c "import sys,json; d=json.load(sys.stdin); assert d['connections'] >= 2, d['connections']"
+   ```
+
+5. **Run 8-phase E2E validator** (`e2e/run-hermes-hub-e2e.sh`):
+   - Phase 1: Hub health (all services responding)
+   - Phase 2: NATS JetStream stream exists
+   - Phase 3: Remote myrmidon NATS connection confirmed
+   - Phase 4: Dispatch task via Agamemnon REST
+   - Phase 5: Task routes to remote myrmidon (subject `hi.myrmidon.hello.>`)
+   - Phase 6: Completion event published back on `hi.tasks.{team_id}.{task_id}.completed`
+   - Phase 7: Agamemnon marks task complete
+   - Phase 8: Observability stack captures the full trace
+
+### Remote Myrmidon Dependencies
+
+The hello-myrmidon Python worker requires **only**:
+- `NATS_URL` environment variable pointing to hermes
+- `nats-py >= 2.14.0` installed on the remote host
+- No `AGAMEMNON_URL` needed — the worker only subscribes to NATS and publishes back via core NATS
+
+epimetheus already had `nats-py 2.14.0` installed. Only the `provisioning/Myrmidons` submodule is needed — not the full recursive submodule tree.
+
+### NATS Subject Flow
+
+```
+Agamemnon (hermes:8080)
+  → publishes task to JetStream: hi.myrmidon.hello.<team_id>.<task_id>
+  → remote myrmidon on epimetheus subscribes via push consumer: hi.myrmidon.hello.>
+  → myrmidon completes task
+  → publishes back via core NATS: hi.tasks.<team_id>.<task_id>.completed
+  → Agamemnon receives completion, marks task done
+```
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| Attempt 1 | SSH to hermes from local machine during planning session | SSH refused (connection refused from local; Tailscale not active on dev machine) | Scripts are complete and correct but must be run from a Tailscale-connected machine or directly on hermes |
+| Attempt 2 | Considered using AGAMEMNON_URL in the remote myrmidon launch command | Unnecessary — the Python worker communicates only via NATS subjects, not Agamemnon REST | Always check the myrmidon source first; NATS_URL is the sole required config |
+| Attempt 3 | Considered full recursive `git submodule update --init --recursive` on epimetheus | Would pull all submodules including C++ build deps, heavy and slow | Use sparse init: `git submodule update --init provisioning/Myrmidons` |
+| `uvicorn hermes.main:app` | Used `hermes.main:app` as the Hermes entry point (2026-04-27) | Module is `hermes.server:app`; `hermes.main` does not exist | Always use `hermes.server:app` for Hermes uvicorn launch |
+| Launching main.cpp instead of main.py | Agent got confused by C++ file in hello-world/ (2026-04-27) | Both main.py (Python) and main.cpp (C++) coexist; C++ requires build step | Always specify "use main.py (Python), not main.cpp" explicitly in agent prompts |
+
+## Results & Parameters
+
+### Host Assignments
+
+| Host | IP | Role | Services |
+| ------ | ---- | ------ | ---------- |
+| hermes | 100.73.61.56 | Hub | NATS JetStream, Agamemnon (C++), Nestor (C++), Hermes bridge (Python), Prometheus, Loki, Grafana, argus-exporter |
+| epimetheus | 100.92.173.32 | Remote worker | hello-myrmidon Python worker only |
+
+### Topology Comparison
+
+| Dimension | Old crosshost (`docker-compose.crosshost.yml`) | New hub+worker (`docker-compose.hermes-hub.yml`) |
+| ----------- | ----------------------------------------------- | -------------------------------------------------- |
+| epimetheus | Worker host (NATS, Agamemnon, most services) | Single remote worker (myrmidon only) |
+| hermes | Control host (Nestor native binary) | Hub host (ALL services in compose) |
+| NATS location | epimetheus | hermes |
+| Nestor | Native binary on hermes | In compose on hermes |
+| Primary use | Full distributed deployment | Validate worker dispatch specifically |
+
+### Key Files
+
+- `e2e/docker-compose.hermes-hub.yml` — compose overlay: disables hello-myrmidon via `profiles: ["disabled"]`
+- `e2e/start-hermes-hub.sh` — SSH-driven launcher (hermes hub setup + epimetheus remote worker)
+- `e2e/run-hermes-hub-e2e.sh` — 8-phase E2E validator
+- `justfile` recipes: `hermes-hub-up`, `hermes-hub-test`, `hermes-hub-down`, `hermes-hub-logs`
+
+### NATS Connection Validation Command
+
+```bash
+# From hermes or any Tailscale-connected host:
+curl -s http://100.73.61.56:8222/varz | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+conns = d.get('connections', 0)
+print(f'NATS connections: {conns}')
+assert conns >= 2, f'Expected >= 2 connections (Agamemnon + remote myrmidon), got {conns}'
+print('OK: cross-host myrmidon connection confirmed')
+"
+```
+
+### Related Skills
+
+- `architecture-crosshost-nats-compose-deployment` — symmetric split: epimetheus=worker, hermes=Nestor native
+- `crosshost-per-component-launcher-pattern` — per-component justfile launchers, any service on any host
+- `e2e-crosshost-doctor-prerequisite-checker` — `just doctor` role-based prerequisite checker including firewalld/tailscale0 check
+- `e2e-homeric-compose-cpp-pipeline` — base single-host compose E2E pipeline (v1.5.0)
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| Odysseus | 2026-04-20 session implementing hermes-hub topology | Scripts written, reviewed, not yet executed end-to-end |
+| Odysseus | 2026-04-27 Atlas first-run session on epimetheus | End-to-end validated: epimetheus + apollo + hermes myrmidon workers, 6 NATS connections at peak |
+
+---
+
+## Superseded from e2e-homeric-compose-cpp-pipeline
+
+---
+name: e2e-homeric-compose-cpp-pipeline
+description: "Wire HomericIntelligence C++20 services into a podman/docker compose E2E stack with NATS JetStream, Prometheus, Grafana. Use when: (1) setting up the full E2E pipeline, (2) adding new C++20 services to the compose stack, (3) debugging multi-container C++ service orchestration, (4) troubleshooting podman vs docker runtime differences, (5) running on hosts without rootlessport or external internet access, (6) debugging Hermes webhook event type mapping (only task.updated/completed/failed/agent.* supported), (7) writing healthchecks compatible with podman-compose 1.5.0 and Docker Compose v2+v5 (use YAML string form — no array; Docker Compose v5 splits array elements on spaces)."
+category: architecture
+date: 2026-04-21
+version: "1.6.0"
+history: e2e-homeric-compose-cpp-pipeline.history
+user-invocable: false
+verification: verified-local
+tags:
+  - e2e
+  - compose
+  - podman
+  - docker
+  - cpp20
+  - nats
+  - prometheus
+  - grafana
+  - homeric-intelligence
+  - dual-runtime
+  - wsl2
+  - host-network
+  - grafana-analytics
+---
+
+# HomericIntelligence E2E Compose Pipeline (C++20 + NATS)
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2026-04-21 |
+| **Objective** | Wire all HomericIntelligence services into a dual-runtime (podman + docker) compose E2E stack for testing |
+| **Outcome** | 10-container stack running on both podman compose and docker compose: NATS, Agamemnon (C++), Nestor (C++), Hermes (Python), hello-myrmidon (C++), Prometheus, Loki, Promtail, Grafana, argus-exporter. All 7 E2E phases passing on both runtimes. Host-network workaround documented for rootlessport-absent hosts. |
+| **Verification** | verified-local |
+
+## When to Use
+
+- Setting up the HomericIntelligence E2E pipeline from scratch
+- Adding a new C++20 service to the compose stack
+- Debugging service-to-service communication in the HomericIntelligence mesh
+- Understanding the architecture: what connects to what, on which ports
+- Troubleshooting podman vs docker runtime differences
+- Fixing WSL2-specific DNS or container networking issues
+- Running on hosts without rootlessport (use host-network workaround below)
+- Diagnosing Grafana startup hangs on low-IO or air-gapped hosts
+
+## Verified Workflow
+
+### Quick Reference
+
+```bash
+# WSL2 podman: kill stale aardvark-dns before fresh start
+kill $(cat /run/user/$(id -u)/containers/networks/aardvark-dns/aardvark.pid 2>/dev/null) 2>/dev/null || true
+
+# Start the stack — works with both runtimes (from Odysseus root)
+podman compose -f docker-compose.e2e.yml up -d --build
+# OR
+docker compose -f docker-compose.e2e.yml up -d --build
+
+# Run E2E test
+just e2e-test
+
+# Tear down
+just e2e-down
+
+# Check service health
+curl localhost:8080/v1/health  # Agamemnon (C++)
+curl localhost:8081/v1/health  # Nestor (C++)
+curl localhost:8085/health     # Hermes (Python)
+curl localhost:8222/healthz    # NATS
+```
+
+### Service Topology (10 containers)
+
+```
+NATS (nats:alpine, :4222/:8222)  ← NOT nats:latest (distroless, no shell)
+  ├── Agamemnon (C++20, :8080) — REST API, NATS pub/sub
+  ├── Nestor (C++20, :8081) — Research stats, NATS pub
+  ├── Hermes (Python/FastAPI, :8085) — Webhook→NATS bridge
+  ├── hello-myrmidon (C++20) — NATS pull consumer
+  └── argus-exporter (Python, :9100) — Scrapes Agamemnon + Nestor → Prometheus
+          Uses AGAMEMNON_URL/NESTOR_URL (NOT MAESTRO_URL — ai-maestro removed per ADR-006)
+
+Prometheus (:19090) ← scrapes argus-exporter
+Loki (:13100) ← log aggregation
+Promtail ← scrapes container logs → ships to Loki
+Grafana (:13001) ← dashboards from Prometheus + Loki
+```
+
+### Host-Network Workaround (rootlessport absent)
+
+When `rootlessport` is not installed on the host, bridge-networked containers start but never bind ports on the host — `start-stack.sh` will hang at `podman wait --condition=healthy`. Use `--network=host` for all containers instead:
+
+```bash
+# Kill stale aardvark-dns first (always safe to run)
+kill $(cat /run/user/$(id -u)/containers/networks/aardvark-dns/aardvark.pid 2>/dev/null) 2>/dev/null || true
+
+# Start all services with host networking
+podman run -d --name odysseus-nats-1 --network=host nats:alpine -js -m 8222
+podman run -d --name odysseus-agamemnon-1 --network=host \
+  -e NATS_URL=nats://localhost:4222 \
+  localhost/odysseus-agamemnon:latest
+# ... repeat for all services
+
+# Grafana: MUST disable analytics to prevent startup hang on air-gapped/slow hosts
+# (Grafana blocks at usagestats.collector HTTP call to grafana.net after ~16m of SQLite migrations)
+podman run -d --name odysseus-grafana-1 --network=host \
+  -e GF_ANALYTICS_REPORTING_ENABLED=false \
+  -e GF_ANALYTICS_CHECK_FOR_UPDATES=false \
+  -e GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES=false \
+  -e GF_AUTH_ANONYMOUS_ENABLED=true \
+  grafana/grafana:latest
+```
+
+**Important:** When using `--network=host`, provisioned datasources in Grafana must reference `localhost` rather than service names:
+- `http://prometheus:9090` → `http://localhost:9090`
+- `http://loki:3100` → `http://localhost:3100`
+
+Add these env vars to the grafana service in `docker-compose.e2e.yml` for compose-based deployments on any host:
+```yaml
+environment:
+  - GF_ANALYTICS_REPORTING_ENABLED=false
+  - GF_ANALYTICS_CHECK_FOR_UPDATES=false
+  - GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES=false
+```
+
+### Detailed Steps
+
+1. C++20 services use multi-stage Dockerfiles: `ubuntu:24.04` builder → slim runtime
+2. NATS uses `nats:alpine` (NOT `nats:latest` which is distroless) with `-js -m 8222` flags (JetStream + monitoring)
+3. All services on `homeric-mesh` bridge network
+4. Symlinked submodules need absolute paths in compose build contexts
+5. argus-exporter needs a standalone Dockerfile (inline `dockerfile_inline` not supported by podman compose)
+6. Port remapping needed if host ports are already bound (observability → 19090, 13001, 13100, 19100)
+7. On WSL2 rootless podman: kill aardvark-dns PID before starting a fresh stack to avoid stale DNS mappings
+8. Docker builds require `make` in apt-get install (gtest CMake recipe uses Unix Makefiles) and `conan profile detect --force` before `conan install`
+9. argus-exporter uses `AGAMEMNON_URL`/`NESTOR_URL` with `/v1/agents`, `/v1/tasks`, `/v1/health` endpoints and `hi_*` metric prefix (ai-maestro removed per ADR-006)
+10. Both `podman compose` and `docker compose` work with the same `docker-compose.e2e.yml` — no compose-file changes needed between runtimes
+
+### C++20 Dockerfile Pattern
+
+```dockerfile
+FROM ubuntu:24.04 AS builder
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    cmake ninja-build g++ git ca-certificates libssl-dev make python3-pip \
+    && pip3 install --break-system-packages conan \
+    && rm -rf /var/lib/apt/lists/*
+# make is required — gtest's CMake recipe uses Unix Makefiles generator
+# conan profile detect is required in fresh containers (no default profile exists)
+RUN conan profile detect --force
+WORKDIR /src
+COPY CMakeLists.txt cmake/ include/ src/ test/ conanfile.py ./
+RUN conan install . --output-folder=build --build=missing
+RUN cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+    -DProjectFoo_BUILD_TESTING=OFF \
+    -DProjectFoo_ENABLE_CLANG_TIDY=OFF \
+    -DProjectFoo_ENABLE_CPPCHECK=OFF \
+    && cmake --build build --target ProjectFoo_server
+
+FROM ubuntu:24.04
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libssl3 wget && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /src/build/ProjectFoo_server /usr/local/bin/
+EXPOSE 8080
+ENV NATS_URL=nats://localhost:4222
+CMD ["ProjectFoo_server"]
+```
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| Symlink build contexts | `context: ./infrastructure/ProjectHermes/` (symlink) | Podman compose can't follow symlinks for build contexts | Use absolute paths: `context: /home/user/ProjectHermes/` |
+| `dockerfile_inline` in compose | Inline Dockerfile for argus-exporter | Podman's external compose provider doesn't support `dockerfile_inline` | Create a standalone Dockerfile and reference via `dockerfile:` key |
+| CMD-SHELL healthcheck on NATS (v1.0) | `test: ["CMD-SHELL", "wget ..."]` on `nats:latest` | NATS official `nats:latest` is scratch — no shell, no wget, no curl | Remove healthchecks for scratch images; use simple `depends_on` |
+| nats:latest healthcheck (v1.3) | Used wget in CMD-SHELL healthcheck with `nats:latest` | `nats:latest` is distroless, no wget/shell available | Use `nats:alpine` for compose healthchecks — includes shell and wget |
+| `depends_on: condition: service_healthy` | Wait for healthy NATS before starting services | Combined with NATS healthcheck failure, blocks all dependent containers | Use simple `depends_on` (start-order only) for scratch images |
+| Same host ports as existing services | Ports 9090, 3100, 3001, 9100 | Zombie `rootlessport` processes from crashed containers hold ports | Remap to non-conflicting ports (19090, 13100, 13001, 19100) |
+| Python stubs for Agamemnon/Nestor | FastAPI Python services as temporary implementation | Violates architecture constraint: all services must be C++/Mojo | Implement in C++20 with cpp-httplib + nlohmann-json + nats.c |
+| Promtail docker_sd without socket | Promtail config uses `docker_sd_configs` but no socket mounted | "Cannot connect to the Docker daemon at unix:///var/run/podman/podman.sock" | Mount podman socket: `- /run/user/1000/podman/podman.sock:/var/run/podman/podman.sock:ro` |
+| Using `podman compose up` alone | Expected DNS to work after compose up | Podman rootless DNS gateway mismatch — services can't resolve each other | Use `start-stack.sh` launcher: compose up → discover IPs → restart services with direct IPs |
+| Hardcoded `/home/user/` paths in compose | Absolute paths for symlink build contexts | Breaks for any other developer or CI | Use `${PROJECT_ROOT}` env vars + `.env` file generated by `start-stack.sh` via `readlink -f` |
+| Running containers as root | No `USER` directive in Dockerfiles | Security review flagged this as P1 | Add `RUN useradd -r -s /usr/sbin/nologin <service>` + `USER <service>` before CMD |
+| Mixed `docker compose` / `podman compose` | Some justfile recipes used `docker compose` | Inconsistent — podman is the standard per ADR-001 | Use `podman compose` everywhere, remove all `docker compose` references |
+| Hardcoded UID in podman socket path | `/run/user/1000/podman/podman.sock` | Breaks for non-1000 UIDs | Use `${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/podman/podman.sock` via `.env` variable |
+| Lambda `[&store]` capture in cpp-httplib | Reference to function parameter in route handler | cpp-httplib copies lambdas — reference dangles after `register_routes()` returns | Use `Store* sp = &store; [sp]` pointer capture pattern |
+| podman compose up after down (WSL2) | Ran `podman compose down && up` on WSL2 | aardvark-dns retained stale container-to-IP DNS records across runs | Kill aardvark-dns PID before fresh start: `kill $(cat /run/user/$(id -u)/containers/networks/aardvark-dns/aardvark.pid)` |
+| Docker build without make | Built C++ Dockerfile in Docker | gtest CMake recipe needs `make` (Unix Makefiles generator) | Add `make` to `apt-get install` in Dockerfiles |
+| Docker build without conan profile | Ran `conan install` in fresh Docker container | No Conan default profile exists in fresh containers | Run `conan profile detect --force` before `conan install` |
+| argus-exporter with MAESTRO_URL | Started exporter pointing to ai-maestro on port 23000 | ai-maestro removed per ADR-006 — service doesn't exist | Migrate to `AGAMEMNON_URL`/`NESTOR_URL` with `/v1/agents`, `/v1/tasks`, `/v1/health` and `hi_*` prefix |
+| Port mapping mismatch in start-stack.sh | start-stack.sh mapped argus-exporter to `-p 19100:9100` | Test script expected `:9100` matching compose file definition | Ensure start-stack.sh port mappings match compose file: `-p 9100:9100` |
+| `start-stack.sh` hang at `podman wait --condition=healthy` (v1.4) | Called `podman wait --condition=healthy odysseus_nats_1` in start-stack.sh | rootlessport absent → NATS starts but never binds bridge-network ports → healthy condition never reached, wait blocks forever | Kill wait PID from a separate SSH session; switch all containers to `--network=host` |
+| Grafana startup hang at `usagestats.collector` (v1.4) | Started Grafana without analytics env vars on epimetheus | After ~16m SQLite schema migrations, Grafana makes an external HTTP call to grafana.net; hosts without internet access or with slow links block indefinitely | Add `GF_ANALYTICS_REPORTING_ENABLED=false`, `GF_ANALYTICS_CHECK_FOR_UPDATES=false`, `GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES=false` to grafana service in `docker-compose.e2e.yml` |
+| `run-hello-world.sh` Phase 3 event type `task.created` (v1.4) | Phase 3 sends `event: task.created` to Hermes webhook | Hermes `_TASK_EVENTS` only maps `task.updated`, `task.completed`, `task.failed`, `agent.*` — `task.created` is silently dropped, no NATS message published | Change Phase 3 test event to `task.updated` |
+| IPC test runner T4 port override (v1.4) | `run-ipc-tests.sh --topology t4` used without patching process.sh | `process.sh` sourced unconditionally overwrites T4 ports with T1 non-standard ports (`AGAMEMNON_PORT=18080`, `NATS_MONITOR_PORT=18222`) — tests time out or target wrong ports | Topology-aware port selection: T4 must override to standard ports (8080, 8222) after sourcing `process.sh` |
+| Grafana datasource hostnames in host-network mode (v1.4) | Provisioned datasources used service names (`http://prometheus:9090`, `http://loki:3100`) | With `--network=host`, service-name DNS does not resolve (no compose-managed bridge network) | Change datasource URLs to `http://localhost:9090` and `http://localhost:3100` for host-network deployments |
+| `task.created` event to Hermes (v1.5) | Sent `task.created` webhook event to Hermes for Phase 3 test validation | Hermes `_TASK_EVENTS` only maps `task.updated`, `task.completed`, `task.failed`, `agent.*` — `task.created` is silently dropped with zero error and zero NATS message published | Always use `task.updated` for test webhook validation calls |
+| `worker.py` in `start-myrmidon` recipe (v1.5) | Referenced `provisioning/Myrmidons/hello-world/worker.py` in justfile `start-myrmidon` recipe | File does not exist — the Python NATS JetStream subscriber worker is `main.py` | Use `main.py`; it subscribes to `hi.myrmidon.hello.>` via JetStream push consumer and publishes completion to `hi.tasks.{team_id}.{task_id}.completed` via core NATS |
+| CMD-SHELL array in healthcheck (podman-compose 1.5.0) (v1.5) | Used `["CMD-SHELL", "wget ..."]` in `docker-compose.yml` healthcheck definitions | podman-compose 1.5.0 rejects the CMD-SHELL array format (Docker Compose accepts it) with a parse error | Use `["CMD", "sh", "-c", "wget ..."]` for dual-runtime compatibility |
+| `["CMD","sh","-c","full cmd"]` healthcheck on Docker Compose v5 (v1.6) | Used JSON array form `["CMD", "sh", "-c", "wget -qO- http://localhost:8080/v1/health 2>/dev/null \|\| exit 1"]` for all service healthchecks | Docker Compose v5.x splits the 4th array element on spaces into separate exec args — `sh -c wget` runs wget binary alone (prints help, exit 1); does not pass the full string to `-c` | Switch all healthcheck `test:` values to YAML string form (no array); string form is treated as CMD-SHELL and passed verbatim to `sh -c`. Works on both v2 and v5. |
+| `["CMD-SHELL","full cmd"]` array form on Docker Compose v5 (v1.6) | Tried CMD-SHELL array form as alternative to CMD array | Docker Compose v5 also splits CMD-SHELL array elements on spaces — confirmed via `podman inspect .Config.Healthcheck` showing tokenized args | Use plain string `test: "cmd"` (no array at all); Docker Compose treats it as CMD-SHELL without splitting |
+| `wget -qO-` in nats:alpine healthcheck (v1.6) | Used combined short flag `-qO-` (stdout redirect) with BusyBox wget in nats:alpine | BusyBox wget does not support combined `-qO-`; prints usage text and exits 1 | Use `-q -O /dev/stdout` (space-separated, explicit path) for BusyBox wget |
+| Prometheus scraping argus-exporter by hostname (v1.6) | `prometheus.yml` static config used `argus-exporter:9100` as scrape target | `start-stack.sh` restarts argus-exporter via `podman run --replace` (not compose), giving it a dynamic IP not registered in compose-managed DNS; Prometheus gets "no such host" | Generate `prometheus.runtime.yml` with resolved argus-exporter IP before compose up; after exporter starts, update runtime config with actual IP and reload Prometheus via `/-/reload` (requires `--web.enable-lifecycle` flag on Prometheus) |
+| `podman cp` to overwrite read-only bind-mounted Prometheus config (v1.6) | Tried `podman cp prometheus.runtime.yml odysseus-prometheus-1:/etc/prometheus/prometheus.yml` | Volume is mounted `:ro` — copy fails with "device or resource busy"; also the bind source file on the host is authoritative anyway | Write the resolved-IP config to the host bind-mount source file (`prometheus.runtime.yml`), then trigger `/-/reload`; Prometheus re-reads from the host path |
+| `just e2e-test` calling `start-stack.sh` while stack already up (v1.6) | Added `bash e2e/start-stack.sh` as first step of `e2e-test` recipe for DNS workaround; `start-stack.sh` ran `compose up -d` which tried to recreate containers already started by `podman run --replace` in a prior `e2e-up` | Docker Compose sees name conflicts on containers it no longer tracks (they were replaced by `podman run --replace`); `compose up` fails with "container name already in use" | Add idempotency guard at top of both `start-stack.sh` and Phase 1 of `run-hello-world.sh`: `if curl -sf http://localhost:8080/v1/health; then exit 0; fi` — skip bring-up if Agamemnon already healthy |
+
+## Results & Parameters
+
+```yaml
+# E2E test results (28/28 passing, both runtimes)
+# Verified: podman compose AND docker compose pass all 7 E2E phases
+dual_runtime: true
+runtimes_verified:
+  - podman compose (rootless, WSL2)
+  - docker compose (Docker Desktop / Docker CE)
+passing:
+  - All 4 service health checks (Agamemnon, Nestor, Hermes, NATS)
+  - Webhook → Hermes → NATS accepted
+  - Agent CRUD (create, by-name lookup, docker agent, start, list)
+  - Team + Task + PUT update + Workflows endpoints
+  - Myrmidon pull → process → publish completion → task marked completed
+  - Nestor research POST + stats
+  - 5 Prometheus hi_* metrics (agamemnon_health, nestor_health, agents, tasks, tasks_by_status)
+  - NATS JetStream (3 connections, 480+ messages)
+  - Grafana + Loki API responding
+  - Chaos inject + list + remove (3 checks)
+
+# NATS image selection (v1.3.0)
+nats_image: "nats:alpine"  # NOT nats:latest (distroless, no shell/wget/curl)
+nats_healthcheck: |
+  # Works with nats:alpine (has shell + wget)
+  healthcheck:
+    test: ["CMD-SHELL", "wget -qO- http://localhost:8222/healthz || exit 1"]
+    interval: 5s
+    timeout: 3s
+    retries: 5
+
+# WSL2 podman aardvark-dns fix (v1.3.0)
+aardvark_dns_fix: |
+  # Kill stale aardvark-dns before starting a fresh stack on WSL2
+  # aardvark-dns accumulates stale container-to-IP mappings across down/up cycles
+  kill $(cat /run/user/$(id -u)/containers/networks/aardvark-dns/aardvark.pid 2>/dev/null) 2>/dev/null || true
+
+# Docker build requirements (v1.3.0)
+docker_build_prereqs: |
+  # In Dockerfile builder stage:
+  # 1. Install make (gtest CMake recipe uses Unix Makefiles generator)
+  RUN apt-get install -y make
+  # 2. Create Conan default profile (doesn't exist in fresh containers)
+  RUN conan profile detect --force
+  # 3. Then run conan install
+  RUN conan install . --output-folder=build --build=missing
+
+# argus-exporter migration (v1.3.0 — ai-maestro removed per ADR-006)
+argus_exporter: |
+  # OLD (broken): MAESTRO_URL=http://ai-maestro:23000, /api/agents
+  # NEW: AGAMEMNON_URL=http://agamemnon:8080, NESTOR_URL=http://nestor:8081
+  # Endpoints: /v1/agents, /v1/tasks, /v1/health
+  # Metric prefix: hi_* (e.g., hi_agamemnon_health, hi_nestor_health)
+
+# Portability pattern (v1.2.0)
+env_generation: |
+  # In start-stack.sh / run-hello-world.sh — resolve symlinks for podman
+  PROJECT_ROOT="$ODYSSEUS_ROOT"
+  HERMES_DIR="$(readlink -f "$ODYSSEUS_ROOT/infrastructure/ProjectHermes")"
+  ARGUS_DIR="$(readlink -f "$ODYSSEUS_ROOT/infrastructure/ProjectArgus")"
+  MYRMIDONS_DIR="$(readlink -f "$ODYSSEUS_ROOT/provisioning/Myrmidons")"
+  PODMAN_SOCK="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/podman/podman.sock"
+  cat > "$ODYSSEUS_ROOT/.env" <<EOF
+  PROJECT_ROOT=$PROJECT_ROOT
+  HERMES_DIR=$HERMES_DIR
+  ...
+  EOF
+
+# Non-root Dockerfile pattern
+dockerfile_nonroot: |
+  FROM ubuntu:24.04
+  RUN useradd -r -s /usr/sbin/nologin myservice
+  COPY --from=builder /src/build/myservice /usr/local/bin/
+  USER myservice
+  CMD ["myservice"]
+
+# Container build times
+agamemnon_build: ~90s (94 cmake targets)
+nestor_build: ~70s (48 cmake targets)
+myrmidon_build: ~60s (89 cmake targets)
+hermes_build: ~15s (pip install)
+
+# Host-network workaround (v1.4.0 — rootlessport absent)
+host_network_workaround: |
+  # SYMPTOM: start-stack.sh hangs at `podman wait --condition=healthy`
+  # ROOT CAUSE: rootlessport absent → bridge networking never binds host ports
+  # FIX: use --network=host for ALL containers
+  kill $(cat /run/user/$(id -u)/containers/networks/aardvark-dns/aardvark.pid 2>/dev/null) 2>/dev/null || true
+  podman run -d --name odysseus-nats-1 --network=host nats:alpine -js -m 8222
+  # Add GF_ANALYTICS_* env vars to prevent Grafana blocking at usagestats.collector
+
+# Grafana analytics env vars (v1.4.0)
+grafana_analytics_fix: |
+  # Add to grafana service in docker-compose.e2e.yml to prevent startup hang on air-gapped hosts
+  # Grafana blocks ~indefinitely after SQLite migrations when grafana.net call times out
+  environment:
+    - GF_ANALYTICS_REPORTING_ENABLED=false
+    - GF_ANALYTICS_CHECK_FOR_UPDATES=false
+    - GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES=false
+
+# Hermes event type mapping (v1.4.0, confirmed v1.5.0)
+hermes_event_types: |
+  # _TASK_EVENTS supported by Hermes webhook→NATS bridge (strict allowlist):
+  #   task.updated, task.completed, task.failed, agent.*
+  # NOT supported (silently dropped — no error, no NATS message): task.created
+  # run-hello-world.sh Phase 3 must use event: task.updated
+  # Valid event types: task.updated | task.completed | task.failed | agent.*
+
+# hello-world myrmidon worker entrypoint (v1.5.0)
+hello_world_myrmidon_worker: |
+  # File: provisioning/Myrmidons/hello-world/main.py  (NOT worker.py — does not exist)
+  # Subscribes to: hi.myrmidon.hello.>  (JetStream push consumer)
+  # Publishes completion to: hi.tasks.{team_id}.{task_id}.completed  (core NATS)
+  # justfile start-myrmidon recipe must reference main.py
+
+# CMD array format for dual-runtime healthchecks (v1.5.0)
+healthcheck_cmd_array: |
+  # podman-compose 1.5.0 REJECTS CMD-SHELL array format; Docker Compose accepts it.
+  # For dual-runtime compatibility, always use CMD+sh+-c form:
+  #
+  # WRONG (Docker only):
+  #   test: ["CMD-SHELL", "wget -qO- http://localhost:8222/healthz || exit 1"]
+  #
+  # CORRECT (dual-runtime):
+  #   test: ["CMD", "sh", "-c", "wget -qO- http://localhost:8222/healthz || exit 1"]
+  healthcheck:
+    test: ["CMD", "sh", "-c", "wget -qO- http://localhost:PORT/healthz || exit 1"]
+    interval: 5s
+    timeout: 3s
+    retries: 5
+
+# IPC topology port selection (v1.4.0)
+ipc_topology_ports: |
+  # process.sh sets T1 non-standard ports (AGAMEMNON_PORT=18080, NATS_MONITOR_PORT=18222)
+  # T4 topology requires standard ports — override AFTER sourcing process.sh:
+  source process.sh
+  if [ "$TOPOLOGY" = "t4" ]; then
+    AGAMEMNON_PORT=8080
+    NATS_MONITOR_PORT=8222
+  fi
+
+# Healthcheck string form — Docker Compose v2 + v5 compatible (v1.6.0)
+healthcheck_string_form: |
+  # Use YAML string (no array) — Docker Compose treats it as CMD-SHELL, passes verbatim to sh -c
+  # Works on Docker Compose v2.x AND v5.x (v5 array splitting regression workaround)
+  #
+  # BROKEN on Docker Compose v5 (splits on spaces):
+  #   test: ["CMD", "sh", "-c", "wget -qO- http://localhost:8080/v1/health || exit 1"]
+  #   test: ["CMD-SHELL", "wget -qO- http://localhost:8080/v1/health || exit 1"]
+  #
+  # CORRECT (both versions):
+  healthcheck:
+    test: "wget -qO- http://localhost:8080/v1/health 2>/dev/null || exit 1"
+    interval: 5s
+    timeout: 3s
+    retries: 10
+    start_period: 10s
+
+# BusyBox wget for nats:alpine (v1.6.0)
+busybox_wget_healthcheck: |
+  # BusyBox wget (nats:alpine) rejects combined -qO- flag
+  # Use -q -O /dev/stdout (space-separated, explicit path)
+  healthcheck:
+    test: "wget -q -O /dev/stdout http://localhost:8222/healthz 2>/dev/null | grep -q ok"
+    interval: 5s
+    timeout: 3s
+    retries: 10
+    start_period: 5s
+
+# Prometheus IP patch for podman run --replace services (v1.6.0)
+prometheus_ip_patch: |
+  # start-stack.sh generates prometheus.runtime.yml before compose up,
+  # then after argus-exporter starts via podman run --replace, resolves its IP
+  # and hot-reloads Prometheus (requires --web.enable-lifecycle in compose)
+  #
+  # In docker-compose.e2e.yml:
+  #   prometheus:
+  #     command: ["--config.file=/etc/prometheus/prometheus.yml", "--web.enable-lifecycle"]
+  #     volumes:
+  #       - ${PROJECT_ROOT}/e2e/prometheus.runtime.yml:/etc/prometheus/prometheus.yml:ro
+  #
+  # In start-stack.sh (after podman run argus-exporter):
+  cp "$ODYSSEUS_ROOT/e2e/prometheus.yml" "$ODYSSEUS_ROOT/e2e/prometheus.runtime.yml"
+  # ... (compose up) ...
+  ARGUS_IP=$(get_ip odysseus-argus-exporter-1)
+  sed "s/argus-exporter:9100/${ARGUS_IP}:9100/g" \
+    "$ODYSSEUS_ROOT/e2e/prometheus.yml" > "$ODYSSEUS_ROOT/e2e/prometheus.runtime.yml"
+  curl -sf -X POST http://localhost:9090/-/reload
+
+# Idempotency guard (v1.6.0)
+idempotency_guard: |
+  # Add to top of start-stack.sh and Phase 1 of run-hello-world.sh to prevent
+  # double bring-up when e2e-test calls start-stack.sh while stack is already up
+  if curl -sf http://localhost:8080/v1/health >/dev/null 2>&1; then
+    echo "Stack already running — skipping bring-up."
+    exit 0
+  fi
+
+# teardown orphan cleanup (v1.6.0)
+teardown_orphan_cleanup: |
+  # compose down does not track containers started by podman run --replace
+  # teardown.sh must explicitly remove them:
+  podman ps -a --filter name=odysseus --format '{{.Names}}' 2>/dev/null \
+    | xargs -r podman rm -f 2>/dev/null || true
+  podman network rm odysseus_homeric-mesh 2>/dev/null || true
+```
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| Odysseus | Full E2E pipeline on feat/cpp-skeleton branch | 9-container stack with C++20 Agamemnon, Nestor, hello-myrmidon |
+| Odysseus | Dual-runtime E2E on fix/governance-compliance-files branch | 10-container stack passing all 7 phases on both podman compose and docker compose. WSL2 aardvark-dns workaround verified. |
+| Odysseus | Host-network validation on epimetheus (SSH) | Validated host-network workaround on rootlessport-absent host. Grafana analytics hang, Hermes task.created drop, IPC T4 port override, and datasource hostname issues all confirmed and resolved. |
+| Odysseus | 2026-04-21 | Full 8-phase E2E pass on Docker Compose v5.0.2 (snap) + podman 4.9.3, WSL2. PR #117. Healthcheck string form, BusyBox wget, Prometheus IP patch, and idempotency guards all verified. |
+
+### Prior history of e2e-homeric-compose-cpp-pipeline
+
+# e2e-homeric-compose-cpp-pipeline — History
+
+## v1.6.0 (2026-04-21)
+
+**Changed by:** Docker Compose v5 healthcheck array-splitting regression, BusyBox wget flag fix, Prometheus IP patch for podman run --replace services, idempotency guards, teardown orphan cleanup. Full E2E pass on Docker Compose v5.0.2 + podman 4.9.3, WSL2. PR #117.
+**Verification:** verified-local (Odysseus PR #117, Docker Compose v5.0.2 + podman 4.9.3, WSL2)
+
+### What changed
+- Added Failed Attempt: `["CMD","sh","-c","full cmd"]` JSON array healthcheck splits 4th element on spaces in Docker Compose v5 — wget runs without `-c` argument
+- Added Failed Attempt: `["CMD-SHELL","full cmd"]` array form also splits on spaces in Docker Compose v5 — confirmed via `podman inspect`
+- Added Failed Attempt: `wget -qO-` combined flag rejected by BusyBox wget in nats:alpine — use `-q -O /dev/stdout` instead
+- Added Failed Attempt: Prometheus scraping argus-exporter by hostname fails when argus-exporter is started via `podman run --replace` (not compose-managed DNS)
+- Added Failed Attempt: `podman cp` to overwrite read-only bind-mounted Prometheus config fails with "device or resource busy"
+- Added Failed Attempt: `just e2e-test` calling `start-stack.sh` while stack already up causes compose name conflicts from `podman run --replace` containers
+- Added `healthcheck_string_form` Results block: YAML string (no array) works on both Docker Compose v2 and v5
+- Added `busybox_wget_healthcheck` Results block: BusyBox-compatible wget flags for nats:alpine
+- Added `prometheus_ip_patch` Results block: resolve argus-exporter IP and hot-reload Prometheus after podman run --replace
+- Added `idempotency_guard` Results block: curl health-check guard at top of start-stack.sh and run-hello-world.sh Phase 1
+- Added `teardown_orphan_cleanup` Results block: explicit podman rm for containers started outside compose
+- Updated description frontmatter to note YAML string healthcheck requirement for Docker Compose v5
+- Bumped version 1.5.0 → 1.6.0, updated date to 2026-04-21
+- Added Odysseus PR #117 Docker Compose v5.0.2 / podman 4.9.3 / WSL2 row to Verified On table
+
+### Why
+Docker Compose v5 (snap package, v5.0.2) introduced a regression where healthcheck `test:` arrays are tokenized on spaces before passing to the container runtime — the 4th element of `["CMD","sh","-c","wget ..."]` is split, so `sh -c wget` receives no command string. The fix is to use plain YAML string form (`test: "cmd"`), which both v2 and v5 treat as CMD-SHELL without splitting. Additional failures surfaced around BusyBox wget flag differences in nats:alpine and Prometheus DNS resolution for containers managed outside compose.
+
+### Previous version (v1.5.0) snapshot
+
+```
+---
+name: e2e-homeric-compose-cpp-pipeline
+description: "Wire HomericIntelligence C++20 services into a podman/docker compose E2E stack with NATS JetStream, Prometheus, Grafana. Use when: (1) setting up the full E2E pipeline, (2) adding new C++20 services to the compose stack, (3) debugging multi-container C++ service orchestration, (4) troubleshooting podman vs docker runtime differences, (5) running on hosts without rootlessport or external internet access, (6) debugging Hermes webhook event type mapping (only task.updated/completed/failed/agent.* supported), (7) writing healthchecks compatible with both podman-compose 1.5.0 and Docker Compose (use CMD+sh+-c not CMD-SHELL array)."
+category: architecture
+date: 2026-04-06
+version: "1.5.0"
+history: e2e-homeric-compose-cpp-pipeline.history
+user-invocable: false
+verification: verified-local
+tags:
+  - e2e
+  - compose
+  - podman
+  - docker
+  - cpp20
+  - nats
+  - prometheus
+  - grafana
+  - homeric-intelligence
+  - dual-runtime
+  - wsl2
+  - host-network
+  - grafana-analytics
+---
+
+[... full v1.5.0 content — see git history for complete snapshot ...]
+```
+
+---
+
+## v1.5.0 (2026-04-06)
+
+**Changed by:** Three new failure modes from 2026-04-06 Odysseus E2E walkthrough
+**Verification:** verified-local (fixes committed to Odysseus main 2026-04-06)
+
+### What changed
+- Added Failed Attempt: `task.created` event silently dropped by Hermes (only `task.updated`, `task.completed`, `task.failed`, `agent.*` supported)
+- Added Failed Attempt: `worker.py` nonexistent in hello-world myrmidon (correct file: `main.py`, subscribes to `hi.myrmidon.hello.>` via JetStream push consumer)
+- Added Failed Attempt: CMD-SHELL array format rejected by podman-compose 1.5.0 (use `["CMD", "sh", "-c", "..."]` for dual-runtime compatibility)
+- Updated `hermes_event_types` Results block with explicit valid event type list and zero-error silent-drop callout
+- Added `hello_world_myrmidon_worker` Results block documenting `main.py` entrypoint and NATS subjects
+- Added `healthcheck_cmd_array` Results block with dual-runtime compatible healthcheck template
+- Updated description frontmatter to add items (6) and (7) covering Hermes event mapping and CMD array format
+
+### Why
+The 2026-04-06 full E2E walkthrough on epimetheus uncovered three new failure modes not present in prior sessions. The Hermes webhook event type bug caused Phase 3 of run-hello-world.sh to silently succeed (webhook accepted) but publish nothing to NATS. The worker.py issue caused start-myrmidon to fail with "No such file or directory". The CMD-SHELL format caused podman-compose 1.5.0 to reject all healthcheck definitions.
+
+### Previous version (v1.4.0) snapshot
+
+```
+---
+name: e2e-homeric-compose-cpp-pipeline
+description: "Wire HomericIntelligence C++20 services into a podman/docker compose E2E stack with NATS JetStream, Prometheus, Grafana. Use when: (1) setting up the full E2E pipeline, (2) adding new C++20 services to the compose stack, (3) debugging multi-container C++ service orchestration, (4) troubleshooting podman vs docker runtime differences, (5) running on hosts without rootlessport or external internet access."
+category: architecture
+date: 2026-04-06
+version: "1.4.0"
+history: e2e-homeric-compose-cpp-pipeline.history
+user-invocable: false
+verification: verified-local
+tags:
+  - e2e
+  - compose
+  - podman
+  - docker
+  - cpp20
+  - nats
+  - prometheus
+  - grafana
+  - homeric-intelligence
+  - dual-runtime
+  - wsl2
+  - host-network
+  - grafana-analytics
+---
+
+# HomericIntelligence E2E Compose Pipeline (C++20 + NATS)
+
+## Overview
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-04-06 |
+| **Objective** | Wire all HomericIntelligence services into a dual-runtime (podman + docker) compose E2E stack for testing |
+| **Outcome** | 10-container stack running on both podman compose and docker compose: NATS, Agamemnon (C++), Nestor (C++), Hermes (Python), hello-myrmidon (C++), Prometheus, Loki, Promtail, Grafana, argus-exporter. All 7 E2E phases passing on both runtimes. Host-network workaround documented for rootlessport-absent hosts. |
+| **Verification** | verified-local |
+
+## When to Use
+
+- Setting up the HomericIntelligence E2E pipeline from scratch
+- Adding a new C++20 service to the compose stack
+- Debugging service-to-service communication in the HomericIntelligence mesh
+- Understanding the architecture: what connects to what, on which ports
+- Troubleshooting podman vs docker runtime differences
+- Fixing WSL2-specific DNS or container networking issues
+- Running on hosts without rootlessport (use host-network workaround below)
+- Diagnosing Grafana startup hangs on low-IO or air-gapped hosts
+
+[... full v1.4.0 content — see git history for complete snapshot ...]
+```
+
+---
+
+## v1.4.0 (2026-04-06)
+
+**Changed by:** Host-network workaround, Grafana analytics hang fix, Hermes event type mapping, IPC T4 port override, datasource hostname fix for host-network mode
+**Verification:** verified-local (epimetheus SSH session)
+
+### What changed
+- Added host-network workaround section: when rootlessport is absent, bridge networking never binds host ports; `start-stack.sh` hangs at `podman wait --condition=healthy`; fix is `--network=host` for all containers
+- Added Grafana analytics env vars (`GF_ANALYTICS_REPORTING_ENABLED=false`, `GF_ANALYTICS_CHECK_FOR_UPDATES=false`, `GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES=false`) to prevent startup hang after ~16m SQLite migrations on air-gapped or slow-network hosts
+- Documented `run-hello-world.sh` Phase 3 failure: `task.created` event silently dropped by Hermes; fix is to use `task.updated` instead
+- Documented IPC test runner T4 port override bug: `process.sh` sourced unconditionally overwrites T4 ports with T1 non-standard ports; topology-aware override required after sourcing
+- Documented Grafana datasource hostname fix for host-network deployments: service names (`prometheus`, `loki`) must become `localhost`
+- Added 5 new Failed Attempts to the table
+- Added `host_network_workaround`, `grafana_analytics_fix`, `hermes_event_types`, `ipc_topology_ports` snippets to Results
+- Updated description, date, version, and tags in frontmatter
+- Added epimetheus validation to Verified On table
+
+### Why
+Live validation on epimetheus (rootlessport-absent host, no external internet access) uncovered five
+new failure modes not encountered in the original WSL2/Docker Desktop validation: bridge networking
+silently failing without rootlessport, Grafana blocking on analytics HTTP calls to grafana.net after
+lengthy SQLite migrations, an event type mismatch in the Hermes webhook bridge, a port variable
+clobber in the IPC test runner, and service-name DNS failures in host-network mode.
+
+---
+
+## v1.3.0 (2026-04-03)
+
+**Changed by:** Dual-runtime verification, distroless NATS fix, aardvark-dns workaround, Docker build fixes, argus-exporter migration
+**Verification:** verified-local
+
+### What changed
+- Changed NATS image from `nats:latest` (distroless) to `nats:alpine` for compose healthcheck compatibility
+- Added aardvark-dns stale state workaround for WSL2 rootless podman (kill PID before fresh start)
+- Added Docker build requirements: `make` package + `conan profile detect --force` in Dockerfiles
+- Migrated argus-exporter from removed ai-maestro (`MAESTRO_URL`/`:23000`) to `AGAMEMNON_URL`/`NESTOR_URL` with `/v1/agents`, `/v1/tasks`, `/v1/health` endpoints and `hi_*` metric prefix
+- Fixed port mapping mismatch: start-stack.sh mapped argus-exporter to `-p 19100:9100` instead of `-p 9100:9100`
+- Verified dual-runtime compatibility: both podman compose and docker compose pass all 7 E2E phases with same docker-compose.e2e.yml
+- Added 5 new Failed Attempts (nats:latest healthcheck, aardvark-dns stale state, Docker build without make, Docker build without profile, argus-exporter MAESTRO_URL)
+- Updated description to include docker compose as verified runtime
+- Added docker tag to metadata
+
+### Why
+Expanding the pipeline to support both podman and docker runtimes uncovered multiple issues:
+distroless nats:latest breaks shell healthchecks, WSL2 podman aardvark-dns accumulates stale
+DNS mappings across down/up cycles, Docker cached builds lack make and Conan default profiles,
+and argus-exporter still referenced the removed ai-maestro service. All resolved and verified
+across both runtimes.
+
+---
+
+## v1.2.0 (2026-03-30)
+
+**Changed by:** PR review fixes — portability, security, consistency
+**Verification:** verified-local
+
+### What changed
+- Added PROJECT_ROOT env var pattern: `.env` file generated by `start-stack.sh` via `readlink -f`
+- Added non-root Dockerfile pattern (`useradd -r` + `USER` directive)
+- Added 5 new Failed Attempts (hardcoded paths, root containers, mixed docker/podman, UID, lambda UB)
+- Updated Results from 14/18 to 28/28 passing
+- Added env_generation and dockerfile_nonroot copy-paste patterns
+- Removed all `docker compose` references — podman only per ADR-001
+
+### Why
+Code review identified P1/P2 issues: hardcoded `/home/mvillmow/` paths broke portability,
+containers ran as root, justfile mixed docker/podman. The `.env` generation pattern with
+`readlink -f` resolves symlinks at runtime so compose vars work across developer machines.
+
+---
+
+## v1.1.0 (2026-03-30)
+
+**Changed by:** E2E pipeline iteration — DNS workaround, Promtail, GitHub push
+**Verification:** verified-local
+
+### What changed
+- Added Promtail container for log shipping (10th container)
+- Documented podman socket mount requirement for Promtail docker_sd_configs
+- Added start-stack.sh launcher pattern as recommended startup method
+- Added 2 new Failed Attempts (Promtail socket, compose-only DNS)
+- Updated topology from 9 to 10 containers
+
+### Why
+v1.0.0 described `podman compose up -d` as the startup method, but DNS failures
+meant services couldn't connect to NATS. The start-stack.sh launcher automates
+the IP discovery workaround. Also, Promtail needs the podman socket mounted to
+discover container logs via docker_sd_configs.
+
+---
+
+## v1.0.0 (2026-03-30)
+
+**Initial version.**
+
+---
+
+## Superseded from nats-publish-retry-backoff
+
+---
+name: nats-publish-retry-backoff
+description: "Exponential backoff with jitter for NATS JetStream publish retries in Python. Use when: (1) building a NATS publisher that must survive transient broker outages, (2) implementing retry logic that distinguishes retryable from non-retryable NATS errors, (3) configuring publish retry parameters via Pydantic Settings, (4) designing envelope schema versioning for NATS messages."
+category: architecture
+date: 2026-04-24
+version: "1.0.0"
+user-invocable: false
+tags:
+  - nats
+  - nats-py
+  - jetstream
+  - retry
+  - backoff
+  - jitter
+  - asyncio
+  - python
+  - publisher
+  - resilience
+  - schema-versioning
+---
+
+# NATS Publish Retry Backoff with Jitter
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2026-04-24 |
+| **Objective** | Implement exponential backoff with jitter for NATS JetStream publish retries, distinguishing retryable from non-retryable errors, with schema-versioned envelopes and Pydantic Settings integration |
+| **Outcome** | Verified in CI — full retry loop with jitter, configurable via env vars, 5 retryable error types captured |
+| **Verification** | verified-ci (HomericIntelligence/ProjectHermes) |
+| **Project** | ProjectHermes (NATS JetStream webhook bridge) |
+
+## When to Use
+
+- Building an async Python NATS JetStream publisher that must survive transient broker outages
+- Distinguishing retryable NATS errors (timeout, no responders, drain timeout, reconnecting, stale) from non-retryable errors (auth errors, bad subjects, general exceptions)
+- Configuring publish retry parameters (`publish_retries`, `publish_retry_base_delay`) via Pydantic Settings / env vars
+- Versioning NATS message envelopes with `schema_version` for forward-compatible consumers
+- Implementing degraded-mode behavior where the `/webhook` endpoint returns 503 when the NATS publisher is unavailable (e.g., post-disconnect)
+
+## Verified Workflow
+
+### Quick Reference
+
+```python
+import asyncio
+import json
+import random
+import time
+
+import nats
+
+# ---- 1. Retryable error types ----
+_RETRYABLE_PUBLISH_ERRORS = (
+    nats.errors.TimeoutError,
+    nats.errors.NoRespondersError,
+    nats.errors.DrainTimeoutError,
+    nats.errors.ConnectionReconnectingError,
+    nats.errors.StaleConnectionError,
+)
+
+# ---- 2. Retry loop with exponential backoff + jitter ----
+async def publish_with_retry(js, subject, message, retries=3, base_delay=0.1, timeout=5.0):
+    last_exc = None
+    for attempt in range(retries):
+        try:
+            t0 = time.perf_counter()
+            await js.publish(subject, message, timeout=timeout)
+            latency = time.perf_counter() - t0
+            return latency
+        except _RETRYABLE_PUBLISH_ERRORS as exc:
+            last_exc = exc
+            if attempt < retries - 1:
+                delay = min(base_delay * (2 ** attempt), 2.0) * random.uniform(0.5, 1.5)
+                await asyncio.sleep(delay)
+    raise last_exc  # propagate after exhausting retries
+    # Non-retryable errors (e.g. nats.errors.AuthorizationError, Exception) are
+    # NOT caught here — they propagate immediately out of js.publish()
+
+# ---- 3. Versioned envelope ----
+payload = json.dumps({
+    "schema_version": 1,
+    "event": event_type,
+    "data": data,
+    "timestamp": timestamp.isoformat(),
+    "request_id": request_id,
+}).encode()
+await js.publish(subject, payload, timeout=publish_timeout)
+```
+
+### Detailed Steps
+
+#### Step 1: Define Retryable Error Types
+
+Five NATS error types are safe to retry; everything else propagates immediately:
+
+```python
+_RETRYABLE_PUBLISH_ERRORS = (
+    nats.errors.TimeoutError,           # broker did not ACK within timeout
+    nats.errors.NoRespondersError,      # no JetStream consumers/server listening
+    nats.errors.DrainTimeoutError,      # drain in progress, retry after backoff
+    nats.errors.ConnectionReconnectingError,  # TOCTOU race: connection lost between
+    nats.errors.StaleConnectionError,         # is_connected check and publish call
+)
+```
+
+`ConnectionReconnectingError` and `StaleConnectionError` handle the TOCTOU race: a caller checked `publisher.is_connected == True` but the connection dropped before the actual `publish()` call. These are always transient.
+
+Non-retryable errors (`nats.errors.AuthorizationError`, `nats.errors.BadSubjectError`, generic `Exception`) are not in the tuple so they propagate immediately without burning retry budget.
+
+#### Step 2: Exponential Backoff with Jitter Formula
+
+```python
+delay = min(base_delay * (2 ** attempt), 2.0) * random.uniform(0.5, 1.5)
+await asyncio.sleep(delay)
+```
+
+- `base_delay * 2^attempt`: doubles each attempt (0.1s, 0.2s, 0.4s with default base)
+- `min(..., 2.0)`: hard cap at 2 seconds prevents runaway waits
+- `* random.uniform(0.5, 1.5)`: ±50% jitter prevents thundering herd when many publishers retry simultaneously
+
+Only sleep between attempts, not after the last attempt. Pattern:
+
+```python
+for attempt in range(retries):
+    try:
+        await js.publish(subject, message, timeout=timeout)
+        return  # success
+    except _RETRYABLE_PUBLISH_ERRORS as exc:
+        last_exc = exc
+        if attempt < retries - 1:   # don't sleep after final attempt
+            delay = min(base_delay * (2 ** attempt), 2.0) * random.uniform(0.5, 1.5)
+            logger.warning("Retrying in %.3fs (attempt %d/%d): %s", delay, attempt+1, retries, exc)
+            await asyncio.sleep(delay)
+raise last_exc
+```
+
+#### Step 3: Publisher Configuration via Pydantic Settings
+
+```python
+from pydantic import Field
+from pydantic_settings import BaseSettings
+
+class Settings(BaseSettings):
+    publish_retries: int = Field(default=3, ge=1)
+    publish_retry_base_delay: float = Field(default=0.1, gt=0)
+    nats_publish_timeout: float = Field(default=5.0, gt=0)
+    # ge=1 ensures at least 1 attempt; gt=0 ensures positive delay
+```
+
+Pass through to the publish method for override capability in tests:
+
+```python
+async def publish(self, payload, publish_timeout=5.0, *, publish_retries=None, publish_retry_base_delay=None):
+    settings = get_settings()
+    retries = publish_retries if publish_retries is not None else settings.publish_retries
+    base_delay = publish_retry_base_delay if publish_retry_base_delay is not None else settings.publish_retry_base_delay
+```
+
+#### Step 4: NATS Envelope Schema Versioning
+
+Include `schema_version: 1` in every published message to enable consumers to handle format migrations:
+
+```python
+message = json.dumps({
+    "schema_version": 1,       # increment when envelope structure changes
+    "event": payload.event,
+    "data": payload.data,
+    "timestamp": payload.timestamp.isoformat(),
+    "request_id": request_id,  # end-to-end correlation ID from HTTP header
+}).encode()
+```
+
+Consumers check `schema_version` before parsing. When bumping to version 2, consumers can handle both versions during a rolling deploy.
+
+#### Step 5: Degraded-Mode Behavior at the HTTP Layer
+
+When the publisher loses its NATS connection post-startup (via reconnect callbacks setting `_connected = False`), the `/webhook` endpoint must return 503 rather than raising a 500 error:
+
+```python
+@app.post("/webhook")
+async def webhook(request: Request) -> JSONResponse:
+    publisher: Publisher = app.state.publisher
+    if not publisher.is_connected:
+        raise HTTPException(
+            status_code=503,
+            detail="NATS publisher not connected",
+        )
+    # ... proceed with publish
+```
+
+**Note on startup failure**: ProjectHermes aborts startup (raises the connection exception) if all NATS connection retries at startup are exhausted — it does NOT enter a degraded mode that continues serving HTTP. The 503 degraded behavior applies only to mid-operation disconnects.
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| Sleeping after final attempt | `if attempt < retries` instead of `if attempt < retries - 1` | Adds unnecessary sleep latency after all retries are exhausted before raising | Guard the sleep with `if attempt < retries - 1` to avoid sleeping after the last failure |
+| Catching bare `Exception` in retry loop | Wrapping entire `except` in `Exception` catch | Hides non-retryable bugs (auth errors, bad subjects, logic errors) as transient failures — burns retry budget and delays surfacing real errors | Only catch the explicit `_RETRYABLE_PUBLISH_ERRORS` tuple; let non-retryable errors propagate immediately |
+| Fixed delay without jitter | `delay = base_delay * 2**attempt` (no jitter) | When many publishers fail simultaneously (e.g., broker restart), they all retry at the same times — thundering herd overwhelms broker | Multiply by `random.uniform(0.5, 1.5)` to spread retries across a window |
+| Uncapped exponential delay | No `min(..., 2.0)` cap | With base=0.1 and retries=10, delay grows to 51.2s on the 10th attempt — unacceptable latency for webhook processing | Always cap max delay (2.0s works well for interactive webhook pipelines) |
+| Degraded-mode lifespan | Continue serving HTTP when NATS is unavailable at startup | Adds complexity; most callers expect NATS to be up before webhooks are accepted | Abort startup on NATS failure; only return 503 for mid-operation disconnects via `publisher.is_connected` check |
+
+## Results & Parameters
+
+### Configuration
+
+| Parameter | Env Var | Default | Constraint | Notes |
+| ----------- | --------- | --------- | ------------ | ------- |
+| `publish_retries` | `PUBLISH_RETRIES` | 3 | `ge=1` | Total attempts including first try |
+| `publish_retry_base_delay` | `PUBLISH_RETRY_BASE_DELAY` | 0.1s | `gt=0` | Doubles each attempt |
+| `nats_publish_timeout` | `NATS_PUBLISH_TIMEOUT` | 5.0s | `gt=0` | Per-attempt JetStream ACK timeout |
+| Max delay cap | — | 2.0s | hardcoded | `min(base * 2^attempt, 2.0)` |
+| Jitter range | — | 0.5–1.5x | hardcoded | `random.uniform(0.5, 1.5)` |
+
+### Retry Budget
+
+With defaults (`retries=3`, `base_delay=0.1s`, `publish_timeout=5.0s`):
+
+| Attempt | Sleep Before (mean) | Timeout Budget |
+| --------- | --------------------- | ---------------- |
+| 1 | 0s | 5.0s |
+| 2 | 0.1s | 5.0s |
+| 3 | 0.2s | 5.0s |
+| Total worst case | ~15.3s + jitter | — |
+
+### Retryable Error Coverage
+
+| Error Type | Cause | Safe to Retry? |
+| ----------- | ------- | ---------------- |
+| `nats.errors.TimeoutError` | Broker did not ACK within `publish_timeout` | Yes |
+| `nats.errors.NoRespondersError` | No active JetStream stream or consumer | Yes |
+| `nats.errors.DrainTimeoutError` | Client in drain mode | Yes |
+| `nats.errors.ConnectionReconnectingError` | TOCTOU race — connection dropped between check and publish | Yes |
+| `nats.errors.StaleConnectionError` | TOCTOU race — stale connection handle | Yes |
+| `nats.errors.AuthorizationError` | Invalid credentials | No — propagates immediately |
+| `nats.errors.BadSubjectError` | Malformed NATS subject | No — propagates immediately |
+| `Exception` (generic) | Logic errors, bugs | No — propagates immediately |
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| ProjectHermes | `src/hermes/publisher.py` `Publisher.publish()` | Full retry loop verified in CI; 5 retryable error types, jitter, schema_version, Settings integration |
+
+## References
+
+- [nats-py GitHub](https://github.com/nats-io/nats.py) — Official Python NATS client
+- [nats-py-connection-resilience-patterns](nats-py-connection-resilience-patterns.md) — Connection-level retry patterns (vs. publish-level)
+- [retry-transient-errors](retry-transient-errors.md) — General subprocess retry pattern with exponential backoff
