@@ -1,0 +1,1371 @@
+## Superseded from confusion-matrix-dtype-guard
+
+---
+name: confusion-matrix-dtype-guard
+description: 'Add dtype validation guards to Mojo metric structs that use bitcast
+  to read tensor data, preventing silent corruption when callers pass float tensors.
+  Use when: a metric update() silently accepts float32 labels, a bitcast fallback
+  branch accepts any non-primary dtype, or adding input validation to Mojo structs
+  consuming typed tensors.'
+category: debugging
+date: 2026-03-15
+version: 1.0.0
+user-invocable: false
+---
+# Skill: Confusion Matrix Dtype Guard
+
+## Overview
+
+| Attribute | Value |
+| ----------- | ------- |
+| **Date** | 2026-03-15 |
+| **Category** | debugging |
+| **Objective** | Guard Mojo metric `update()` methods against float dtype tensors passed as integer labels |
+| **Outcome** | Added fast-fail dtype validation; 6 regression tests; PR merged to main |
+| **Context** | Issue #3686 — ConfusionMatrix.update() silently accepts float32 labels |
+
+## When to Use
+
+Use this skill when:
+
+- A Mojo metric's `update()` accepts an `ExTensor` for labels and uses `bitcast` to read values
+- The `else` branch of a dtype check (`if dtype == DType.int32 ... else bitcast[Int64]`) silently
+  accepts floats, reinterpreting their bits as large integers
+- Callers can accidentally pass `DType.float32` tensors (common when reusing data pipeline outputs)
+- The symptom is either silent garbage class indices or an out-of-range error with no dtype context
+- You need to add validation without changing the happy-path behavior for `int32`/`int64` inputs
+
+## Verified Workflow
+
+### Quick Reference
+
+```mojo
+# Guard pattern for Mojo metric update()
+if labels._dtype != DType.int32 and labels._dtype != DType.int64:
+    raise Error(
+        "ConfusionMatrix.update() requires int32 or int64 labels, got "
+        + str(labels._dtype)
+    )
+```
+
+### Step 1: Identify the vulnerable pattern
+
+Look for code that reads an `ExTensor` via `bitcast` with an `else` fallback that implicitly
+accepts all other dtypes:
+
+```mojo
+# VULNERABLE: float32 falls into the else branch
+if labels._dtype == DType.int32:
+    true_label = Int(labels._data.bitcast[Int32]()[i])
+else:
+    true_label = Int(labels._data.bitcast[Int64]()[i])  # float32 bits → huge int
+```
+
+### Step 2: Add the dtype guard after structural validation
+
+Place the guard *after* batch-size and shape checks, *before* the per-element loop:
+
+```mojo
+if pred_classes._numel != labels._numel:
+    raise Error("ConfusionMatrix.update: batch sizes must match")
+
+# Validate label dtype — float bits bitcast to int64 produces garbage indices
+if labels._dtype != DType.int32 and labels._dtype != DType.int64:
+    raise Error(
+        "ConfusionMatrix.update() requires int32 or int64 labels, got "
+        + str(labels._dtype)
+    )
+```
+
+### Step 3: Handle the 1D vs 2D prediction split
+
+For metrics that accept either 1D class indices or 2D logits, only validate 1D inputs —
+the 2D path goes through `argmax()` which always returns `int32`:
+
+```mojo
+# Validate predictions dtype for 1D inputs (2D logits go through argmax → int32)
+if len(pred_shape) == 1:
+    if pred_classes._dtype != DType.int32 and pred_classes._dtype != DType.int64:
+        raise Error(
+            "ConfusionMatrix.update() requires int32 or int64 predictions, got "
+            + str(pred_classes._dtype)
+        )
+```
+
+### Step 4: Update the docstring Raises section
+
+```mojo
+"""...
+Raises:
+    Error: If shapes are incompatible, labels out of range,
+           or labels/predictions dtype is not int32 or int64.
+"""
+```
+
+### Step 5: Write regression tests
+
+Test the three rejection cases and three acceptance cases:
+
+| Test | Checks |
+| ------ | -------- |
+| `test_float32_labels_raises` | `DType.float32` labels → raises with "int32 or int64" in message |
+| `test_float64_labels_raises` | `DType.float64` labels → raises |
+| `test_float32_predictions_1d_raises` | 1D `DType.float32` predictions → raises |
+| `test_int32_labels_accepted` | `DType.int32` labels → no error (regression guard) |
+| `test_int64_labels_accepted` | `DType.int64` labels → no error (regression guard) |
+| `test_float32_logits_2d_accepted` | 2D `DType.float32` logits → no error (argmax path exempt) |
+
+Test pattern for error message assertion:
+
+```mojo
+var raised = False
+try:
+    cm.update(preds, labels)
+except e:
+    raised = True
+    var msg = str(e)
+    assert_true(
+        "int32 or int64" in msg,
+        "Error message should mention 'int32 or int64', got: " + msg,
+    )
+assert_true(raised, "Expected Error for float32 labels was not raised")
+```
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| Guard after loop | Placing the check inside the per-element loop | Redundant work; raises on first iteration instead of fast-failing before any loop | Always validate inputs before iterating — guards belong before the loop |
+| Validate 2D predictions | Adding dtype check for `pred_classes` after the 2D argmax path | `argmax()` always returns `int32`, so the guard would never trigger and adds dead code | Only validate 1D inputs; document the 2D exemption explicitly |
+| Generic "invalid dtype" message | Using `raise Error("invalid dtype")` without mentioning accepted types | Forces callers to read source to fix; poor UX | Error messages should include accepted values: "requires int32 or int64, got X" |
+
+## Results & Parameters
+
+**Files changed:**
+
+- `shared/training/metrics/confusion_matrix.mojo` — dtype guard in `update()`, updated docstring
+- `tests/training/test_confusion_matrix_dtype_guard.mojo` — 6 regression tests (new file)
+
+**Guard placement:** after batch-size check, before per-element loop
+
+**Error message format:**
+
+```text
+ConfusionMatrix.update() requires int32 or int64 labels, got float32
+```
+
+**Test file naming convention:** `test_<component>_<feature>.mojo` in
+`tests/training/` alongside existing split test files
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| ProjectOdyssey | Issue #3686, PR #4769 | [notes.md](../references/notes.md) |
+
+## Superseded from debugging-slice-view-bad-free-destructor
+
+---
+name: debugging-slice-view-bad-free-destructor
+description: "Diagnose and fix bad-free crashes from tensor view destructors that call free() on offset pointers. Use when: (1) ASAN reports 'attempting free on address which was not malloc()-ed', (2) the freed address is INSIDE a larger allocation, (3) a slice/view method offsets _data without guarding __del__, (4) CI crashes appear flaky with libKGENCompilerRTShared.so abort after many test functions."
+category: debugging
+date: 2026-03-24
+version: "1.0.0"
+user-invocable: false
+tags:
+  - asan
+  - bad-free
+  - view
+  - slice
+  - destructor
+  - mojo
+  - tensor
+  - heap-corruption
+  - ci-flakiness
+---
+
+# Slice View Bad-Free Destructor Bug
+
+Diagnose and fix crashes caused by tensor view destructors calling `free()` on offset
+pointers that were never returned by `malloc()`.
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2026-03-24 |
+| **Objective** | Find root cause of "flaky" test_training_loop.mojo CI crashes |
+| **Outcome** | Success -- found 1-line bug in AnyTensor.__del__: missing _is_view check before pooled_free |
+| **Repository** | ProjectOdyssey |
+| **PR** | #5097 |
+| **ADR** | ADR-013 |
+
+## When to Use
+
+- ASAN reports `attempting free on address which was not malloc()-ed`
+- The freed address is N bytes INSIDE a larger allocation (e.g., "512 bytes inside of 1024-byte region")
+- A `slice()`, `view()`, or similar method creates tensors with offset `_data` pointers
+- The destructor calls `free(self._data)` without checking if it's a view
+- CI tests crash "flakily" with `libKGENCompilerRTShared.so` abort after many sequential test functions
+- Smaller test files pass but large monolithic files crash (heap corruption accumulates across functions)
+- The crash happens even when running the crashing test ALONE (with ASAN)
+
+## Verified Workflow
+
+### Quick Reference
+
+```bash
+# Step 1: Build with ASAN to catch bad-free immediately
+pixi run mojo build --sanitize address -g -I "$(pwd)" -I . \
+    -o /tmp/repro <test_file.mojo>
+/tmp/repro
+
+# Step 2: Look for "attempting free on address which was not malloc()-ed"
+# Key: Check if address is INSIDE a larger allocation
+# "0x519000001680 is located 512 bytes inside of 1024-byte region"
+# This means _data was offset, not independently allocated
+
+# Step 3: Check the __del__ destructor
+# Does it call free/pooled_free unconditionally?
+# Does it check _is_view / is_view() first?
+
+# Step 4: Check the slice/view method
+# Does it offset _data? (e.g., result._data = self._data + offset)
+# Does it set an _is_view flag?
+# Does __del__ respect that flag?
+```
+
+### Detailed Steps
+
+#### Step 1: Reproduce with ASAN
+
+ASAN catches bad-free immediately on the FIRST occurrence. Without ASAN, `free()` on
+an invalid pointer silently corrupts heap metadata, and the crash only manifests after
+enough corruption accumulates (~15-17 function calls).
+
+```bash
+pixi run mojo build --sanitize address -g -I "$(pwd)" -I . \
+    -o /tmp/test_asan tests/shared/training/test_training_loop.mojo
+/tmp/test_asan
+```
+
+#### Step 2: Read the ASAN output
+
+Key fields in the ASAN report:
+
+```text
+ERROR: AddressSanitizer: attempting free on address which was not malloc()-ed: 0x519000001680
+                                                                               ^^^^^^^^^^^^
+                                                                               This is the offset ptr
+
+0x519000001680 is located 512 bytes inside of 1024-byte region [0x519000001480,0x519000001880)
+                          ^^^^^^^^                               ^^^^^^^^^^^^
+                          Offset into parent                     Parent's base (from malloc)
+
+freed by thread T0 here:
+    #4 shared::base::memory_pool::pooled_free    ← The free call
+    #5 shared::tensor::any_tensor::AnyTensor::__del__  ← Destructor
+    #6 test_training_loop::test_dataloader_4d_batch_slicing()  ← Test function
+
+allocated by thread T0 here:
+    #4 shared::tensor::any_tensor::AnyTensor::__init__  ← Original allocation
+    #5 shared::tensor::any_tensor::ones()  ← Creator function
+```
+
+The "512 bytes inside of 1024-byte region" proves `_data` was offset into the parent's
+allocation by `slice()`, not independently allocated.
+
+#### Step 3: Find the bug
+
+Check the slice method and destructor:
+
+```mojo
+# slice() creates offset pointer (any_tensor.mojo:754):
+result._data = self._data + offset_bytes  # Offset INTO parent allocation
+result._is_view = True                    # Flag is set...
+
+# __del__ ignores the flag (any_tensor.mojo:491):
+if self._refcount[] == 0:
+    pooled_free(self._data, self._allocated_size)  # BOOM: frees offset ptr
+    self._refcount.free()
+```
+
+#### Step 4: Apply the fix
+
+```mojo
+# Fixed __del__:
+if self._refcount[] == 0:
+    if not self._is_view:  # Views share parent's allocation
+        pooled_free(self._data, self._allocated_size)
+    self._refcount.free()  # Refcount is always independently allocated
+```
+
+#### Step 5: Verify
+
+```bash
+# Reproducer should now pass (only LeakSanitizer reports, no bad-free):
+pixi run mojo build --sanitize address -g -I "$(pwd)" -I . -o /tmp/repro <file>
+/tmp/repro
+# Expected: no "bad-free" errors
+
+# Full monolithic test should pass all 19 tests:
+pixi run mojo build --sanitize address -g -I "$(pwd)" -I . \
+    -o /tmp/training tests/shared/training/test_training_loop.mojo
+/tmp/training
+# Expected: "All training loop tests passed!" with no ASAN errors
+```
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| Classified as JIT compilation overflow | Assumed crash was before any test output (JIT can't compile) | Re-reading CI logs showed 17 tests PASSED before crash -- runtime error, not JIT | Always read the actual CI log output, don't trust initial classification |
+| Assumed same root cause as Day 53 bitcast UAF | Same libKGENCompilerRTShared.so+0x3cb78b offset as the bitcast UAF | ASAN reported "bad-free" not "heap-use-after-free" -- different bug entirely | Same crash signature does NOT mean same root cause -- ASAN distinguishes them |
+| Assumed allocation churn from prior tests was required | Blog's bitcast UAF needed ~15 prior functions for churn | Running the crash test ALONE with ASAN still triggered the bad-free | Always test the failing function in isolation first -- eliminates churn hypothesis |
+| Explored agent claimed bitcast WRITE in training_loop.mojo:75 was the trigger | Agent reported line 75 as the UAF site | Line 75 is a bitcast READ (blog experiment 23 proved only writes trigger) | Verify agent findings by reading the actual code yourself |
+| Investigated non-atomic refcount as possible crash cause | Explored thread safety of refcount++ and refcount-- | Mojo is single-threaded; refcount operations are safe | Don't investigate threading bugs in single-threaded runtimes |
+
+## Results & Parameters
+
+### 3-Line Minimum Reproducer
+
+```mojo
+from shared.tensor.any_tensor import AnyTensor, ones
+
+fn main() raises:
+    var data = ones([8, 2, 4, 4], DType.float32)  # 1024 bytes
+    var batch = data.slice(4, 8)  # _data = data._data + 512 bytes
+    # batch.__del__ → pooled_free(offset_ptr) → ASAN: bad-free
+```
+
+### ASAN Build Commands
+
+```bash
+# Build with ASAN
+pixi run mojo build --sanitize address -g -I "$(pwd)" -I . -o /tmp/repro <file.mojo>
+
+# Run (ASAN catches bad-free immediately)
+/tmp/repro
+```
+
+### The 1-Line Fix
+
+```mojo
+# In AnyTensor.__del__, before pooled_free:
+if not self._is_view:
+    pooled_free(self._data, self._allocated_size)
+```
+
+### Why It Appeared Flaky Without ASAN
+
+| Condition | Behavior |
+| ----------- | ---------- |
+| With ASAN | Crashes immediately on first bad-free (100% reproducible) |
+| Without ASAN, 1 test | Usually passes (heap corruption too minor to trigger abort) |
+| Without ASAN, 15+ tests | Crashes ~50-80% of the time (corruption accumulates) |
+| Without ASAN, different CI runner | Different heap layout = different crash threshold |
+| Smaller test files | Usually pass (fewer tests = less corruption per file) |
+
+### Three Bugs, One Crash Signature
+
+All three produce identical `libKGENCompilerRTShared.so+0x3cb78b` crash output:
+
+| Bug | Root Cause | ASAN Report | Our Code? |
+| ----- | ----------- | ------------- | ----------- |
+| Day 53 bitcast UAF | ASAP destruction frees tensor before bitcast write | heap-use-after-free | No (Mojo compiler bug) |
+| Mojo "heap corruption" | Same bitcast UAF with more churn | heap-use-after-free | No (same Mojo bug) |
+| This bug (slice view) | __del__ frees offset _data pointer from slice() | bad-free (attempting free on non-malloc'd address) | **Yes (our bug)** |
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| ProjectOdyssey | PR #5097, ADR-013 | Fix + ADR + Day 61 blog post |
+
+## Superseded from extensor-bfloat16-fix
+
+---
+name: extensor-bfloat16-fix
+description: 'Fix pattern for adding bfloat16 dtype support to Mojo ExTensor float
+  I/O methods. Use when: _set_float64/_get_float64 silently write/read zeros for bfloat16
+  tensors, or a new dtype is missing from _get_dtype_size_static.'
+category: debugging
+date: 2026-03-07
+version: 1.0.0
+user-invocable: false
+---
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| Issue | `ExTensor._set_float64`/`_get_float64` silently write/read zeros for `DType.bfloat16` |
+| Root Cause | Missing `bfloat16` branch in float I/O methods + wrong byte size (4 instead of 2) |
+| Fix | Add two-step cast branches `bf16 ↔ Float32 ↔ Float64` and correct size to 2 |
+| Files | `shared/core/extensor.mojo`, `tests/shared/testing/test_special_values.mojo` |
+
+## When to Use
+
+- `ExTensor` operations on bfloat16 tensors silently produce zeros
+- Adding a new float dtype to ExTensor that is missing from `_get_dtype_size_static`
+- Re-enabling skipped bfloat16 tests after dtype I/O support is implemented
+- Debugging "values read back as 0.0" from tensors with a non-standard dtype
+
+## Verified Workflow
+
+### Step 1: Find all three missing locations
+
+```bash
+grep -n "float16\|float32\|float64" shared/core/extensor.mojo | grep -v bfloat16 | grep "_get_dtype_size_static\|_get_float64\|_set_float64"
+```
+
+Three sites need updating:
+1. `_get_dtype_size_static` — missing size entry (bfloat16 = 2 bytes)
+2. `_get_float64` — missing read branch
+3. `_set_float64` — missing write branch
+
+### Step 2: Fix `_get_dtype_size_static`
+
+```mojo
+# Before (falls through to 4-byte default — WRONG for bfloat16):
+if dtype == DType.float16:
+    return 2
+elif dtype == DType.float32:
+    return 4
+
+# After:
+if dtype == DType.float16:
+    return 2
+elif dtype == DType.bfloat16:
+    return 2
+elif dtype == DType.float32:
+    return 4
+```
+
+### Step 3: Fix `_get_float64`
+
+```mojo
+# Add BEFORE the float32 branch:
+elif self._dtype == DType.bfloat16:
+    var ptr = (self._data + offset).bitcast[BFloat16]()
+    return Float64(Float32(ptr[]))
+```
+
+Two-step cast `BFloat16 → Float32 → Float64` is required. Direct `BFloat16 → Float64`
+produces incorrect values in Mojo 0.26.1.
+
+### Step 4: Fix `_set_float64`
+
+```mojo
+# Add BEFORE the float32 branch:
+elif self._dtype == DType.bfloat16:
+    var ptr = (self._data + offset).bitcast[BFloat16]()
+    ptr[] = BFloat16(Float32(value))
+```
+
+Two-step cast `Float64 → Float32 → BFloat16` matches the read path.
+
+### Step 5: Re-enable test
+
+```mojo
+# Uncomment 3 lines, remove `pass` placeholder:
+var tensor = create_special_value_tensor([2, 2], DType.bfloat16, 1.0)
+assert_dtype(tensor, DType.bfloat16, "Should be bfloat16")
+verify_special_value_invariants(tensor, 1.0)
+```
+
+Also update the surrounding print message and comment if they say "skipped".
+
+### Step 6: Run pre-commit to verify
+
+```bash
+pixi run pre-commit run --all-files
+```
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| Direct bf16↔f64 cast | `ptr[].cast[DType.float64]()` directly from BFloat16 | Produces incorrect values in Mojo 0.26.1 | Always use Float32 as intermediary for bf16 conversions |
+| Skipping `_get_dtype_size_static` fix | Only adding I/O branches without fixing size | 4-byte default causes reads/writes at wrong offsets | All three sites must be fixed together |
+
+## Results & Parameters
+
+**Key invariant**: bfloat16 shares float32's exponent range. All bf16 ↔ float conversions must go through `Float32` as an intermediary in Mojo 0.26.1.
+
+**Two-step cast pattern (copy-paste)**:
+```mojo
+# Read bfloat16
+var ptr = (self._data + offset).bitcast[BFloat16]()
+return Float64(Float32(ptr[]))
+
+# Write bfloat16
+var ptr = (self._data + offset).bitcast[BFloat16]()
+ptr[] = BFloat16(Float32(value))
+```
+
+**Checklist for adding a new float dtype to ExTensor**:
+1. `_get_dtype_size_static` — add size case
+2. `_get_float64` — add read branch
+3. `_set_float64` — add write branch
+4. Check `__setitem__` float condition list (currently `float16 or float32 or float64`)
+5. Re-enable any skipped tests
+
+## Superseded from fix-non-contiguous-tensor-stride-access
+
+---
+name: fix-non-contiguous-tensor-stride-access
+description: 'Fix tensor operations that silently produce wrong values for non-contiguous
+  views by replacing flat index offset with stride-based multi-dimensional indexing.
+  Use when: element access uses i*dtype_size instead of strides, as_contiguous or
+  copy functions assume stride-1 layout. Also covers the concatenate() axis-0
+  non-contiguous else-branch flat-index bug and result_elem_offset tracking.'
+category: debugging
+date: 2026-03-07
+version: 1.1.0
+user-invocable: false
+absorbed:
+  - fix-concatenate-noncontiguous-stride-bug
+---
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Issue** | Tensor element access using flat offset `i * dtype_size` instead of stride-based indexing |
+| **Symptom** | Silent wrong values for transposed/sliced (non-contiguous) tensors |
+| **Root Cause** | `_get_float64(i)` assumes contiguous stride-1 layout |
+| **Fix Pattern** | Decompose flat index to per-dimension coords, multiply by actual `_strides` |
+| **Codebase** | ProjectOdyssey — `shared/core/shape.mojo`, `shared/core/extensor.mojo` |
+
+## When to Use
+
+- A tensor copy, flatten, or conversion function produces wrong values for transposed tensors
+- An element access helper uses `index * dtype_size` as the byte offset (flat layout assumption)
+- `is_contiguous()` is `False` but the function still reads as if stride-1
+- Test: create `arange(0..12).reshape(3,4)`, transpose, call function — check if values match expected transpose
+
+## Verified Workflow
+
+### 1. Identify the Bug Pattern
+
+Search for element access using flat offset:
+
+```mojo
+fn _get_float64(self, index: Int) -> Float64:
+    var offset = index * dtype_size  # BUG: flat offset, ignores strides
+```
+
+Any function calling `_get_float64(i)` on a potentially non-contiguous tensor inherits this bug.
+
+### 2. Confirm Non-Contiguous Path Exists
+
+Check if the function has a contiguous / non-contiguous branch:
+
+```mojo
+if is_contiguous(tensor):
+    # memcpy - correct
+else:
+    for i in range(numel):
+        var val = tensor._get_float64(i)  # BUG HERE
+        result._set_float64(i, val)
+```
+
+### 3. Apply the Fix — Stride-Based Decomposition
+
+Replace flat access with stride-based multi-dimensional indexing.
+The reference implementation lives in `ExTensor.slice()` (extensor.mojo:988-1002):
+
+```mojo
+else:
+    # Non-contiguous - use stride-based indexing to read source elements
+    var shape = tensor.shape()
+    var ndim = len(shape)
+    var result = ExTensor(shape, tensor.dtype())
+    var numel = tensor.numel()
+    var dtype_size = tensor._get_dtype_size()
+    var src_ptr = tensor._data
+    var dst_ptr = result._data
+
+    for i in range(numel):
+        # Convert flat output index i to multi-dimensional coords (C-order),
+        # then compute source byte offset using the tensor's actual strides.
+        var src_elem_offset = 0
+        var remaining = i
+        for d in range(ndim - 1, -1, -1):
+            var coord = remaining % shape[d]
+            remaining //= shape[d]
+            src_elem_offset += coord * tensor._strides[d]
+
+        var src_byte_offset = src_elem_offset * dtype_size
+        var dst_byte_offset = i * dtype_size
+        for b in range(dtype_size):
+            dst_ptr[dst_byte_offset + b] = src_ptr[src_byte_offset + b]
+```
+
+Key points:
+- Iterate dimensions from **innermost to outermost** (`ndim-1` down to `0`) for C-order decomposition
+- `remaining //= shape[d]` propagates quotient to next outer dimension
+- `coord * tensor._strides[d]` uses actual strides (not shape-derived strides)
+- Copy raw bytes to avoid dtype conversion overhead
+
+### 4. Write a Regression Test
+
+The existing test only checked `is_contiguous()` and strides, not element values.
+Add a value-correctness test:
+
+```mojo
+fn test_as_contiguous_values_correct() raises:
+    """Regression: as_contiguous() must use stride-based access for non-contiguous views."""
+    var shape = List[Int]()
+    shape.append(3)
+    shape.append(4)
+    var a = arange(0.0, 12.0, 1.0, DType.float32)
+    var b = a.reshape(shape)
+    var t = transpose_view(b)  # shape (4, 3), strides [1, 4] — non-contiguous
+
+    var c = as_contiguous(t)
+
+    # Row 0 of transpose = col 0 of original: 0, 4, 8
+    assert_almost_equal(c._get_float64(0), 0.0, 1e-6, "c[0,0]")
+    assert_almost_equal(c._get_float64(1), 4.0, 1e-6, "c[0,1]")
+    assert_almost_equal(c._get_float64(2), 8.0, 1e-6, "c[0,2]")
+    # Row 1: 1, 5, 9  — Row 2: 2, 6, 10  — Row 3: 3, 7, 11
+    assert_almost_equal(c._get_float64(3), 1.0, 1e-6, "c[1,0]")
+    assert_almost_equal(c._get_float64(11), 11.0, 1e-6, "c[3,2]")
+```
+
+### 5. Scan for Other Occurrences
+
+The same bug may exist in other shape functions that call `_get_float64(i)` on source tensors:
+
+```bash
+grep -n "_get_float64(i)\|_get_float64(src_idx)\|_get_float64(adjusted_idx)" \
+  shared/core/shape.mojo
+```
+
+Functions to audit: `tile()`, `repeat()`, `broadcast_to()`, `permute()`, `concatenate()` (non-contiguous path), `reshape()`.
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| Use `_get_float64(i)` directly | Called existing helper with flat index | Computes `offset = i * dtype_size` — correct only for stride-1 (contiguous) tensors; for transpose with strides [1,4] reads wrong positions | `_get_float64` is NOT stride-aware; never call it on non-contiguous source tensors |
+| Check strides after `as_contiguous()` | Verified `_strides` and `is_contiguous()` return value | Strides are correctly set on the output (result is contiguous), but input was read with flat offsets | Contiguity of output does not validate correctness of input reads |
+| Running mojo test locally | `pixi run mojo test tests/...` | GLIBC version mismatch (`GLIBC_2.32/2.33/2.34` not found) — tests only run in Docker/CI | Always verify logic via mental walkthrough and CI; local mojo execution unavailable on this host |
+
+## Results & Parameters
+
+### Fix Location
+
+- **File**: `shared/core/shape.mojo`
+- **Function**: `as_contiguous()`, lines 90-119 (non-contiguous else branch)
+- **Reference implementation**: `ExTensor.slice()` in `shared/core/extensor.mojo:988-1002`
+
+### Mental Verification
+
+For a (3,4) arange tensor transposed to (4,3) with strides `[1, 4]`:
+
+- Flat output index `i=1` → should be `t[0,1]` = original `b[1,0]` = 4
+- `d=1`: `coord = 1 % 3 = 1`, `remaining = 0`, `src_elem_offset += 1 * 4 = 4`
+- `d=0`: `coord = 0 % 4 = 0`, `remaining = 0`, `src_elem_offset += 0`
+- Reads byte at `4 * dtype_size` → value 4 ✓
+
+### PR Reference
+
+- Issue: #3391 (ProjectOdyssey)
+- PR: #4079 — all pre-commit hooks passed (mojo format, test count validation, trailing whitespace)
+
+## Concatenate-Specific Non-Contiguous Fix
+
+Absorbed from `fix-concatenate-noncontiguous-stride-bug` (2026-03-15, issue #4083, PR #4865).
+This is a follow-on to the `as_contiguous()` fix above — the same flat-index bug in the
+`concatenate()` axis-0 non-contiguous else-branch.
+
+**Scope warning**: The general-axis branch (non-zero `actual_axis`) in `concatenate()` also uses
+raw memcpy with flat offsets — a separate unaddressed bug. Issue #4083 was scoped to axis-0 only.
+
+### Bug Location
+
+In `shared/core/shape.mojo`, `concatenate()`, axis-0 branch:
+
+```mojo
+if actual_axis == 0:
+    var offset_bytes = 0
+    for tensor_idx in range(num_tensors):
+        var t = tensors[tensor_idx]
+        var t_numel = t.numel()
+        var t_bytes = t_numel * dtype_size
+
+        if is_contiguous(t):
+            memcpy(...)      # correct
+        else:
+            for i in range(t_numel):
+                var val = t._get_float64(i)      # BUG: flat offset, ignores strides
+                result._set_float64(offset_bytes // dtype_size + i, val)
+
+        offset_bytes += t_bytes
+```
+
+### Fix — Stride-Aware Byte Copy with `result_elem_offset` Tracking
+
+Replace the buggy else-branch. Key addition over `as_contiguous()`: track `result_elem_offset`
+to accumulate the base element index in the result for each tensor:
+
+```mojo
+else:
+    var t_shape = t.shape()
+    var t_ndim = len(t_shape)
+    var result_elem_offset = offset_bytes // dtype_size
+    for i in range(t_numel):
+        var remaining = i
+        var src_elem_offset = 0
+        for d in range(t_ndim - 1, -1, -1):
+            var coord = remaining % t_shape[d]
+            remaining //= t_shape[d]
+            src_elem_offset += coord * t._strides[d]
+        var src_byte_offset = src_elem_offset * dtype_size
+        var dst_byte_offset = (result_elem_offset + i) * dtype_size
+        var src_ptr = t._data.bitcast[UInt8]()
+        var dst_ptr = result._data.bitcast[UInt8]()
+        for b in range(dtype_size):
+            dst_ptr[dst_byte_offset + b] = src_ptr[src_byte_offset + b]
+```
+
+### Regression Test — Direct `_strides` Mutation
+
+Use direct `_strides` mutation (not `transpose_view()`) to isolate the concatenate path:
+
+```mojo
+fn test_concat_noncontiguous_axis0() raises:
+    """Regression: concatenating a non-contiguous tensor along axis=0."""
+    var shape = List[Int]()
+    shape.append(2)
+    shape.append(3)
+    var t = zeros(shape, DType.float32)
+
+    # Fill flat memory with FP-exact values (no rounding noise)
+    t._set_float64(0, 0.0)
+    t._set_float64(1, 0.5)
+    t._set_float64(2, 1.0)
+    t._set_float64(3, -0.5)
+    t._set_float64(4, -1.0)
+    t._set_float64(5, 1.5)
+
+    # Override strides to column-major [1, 2]: non-contiguous
+    t._strides[0] = 1
+    t._strides[1] = 2
+
+    var pad = zeros(shape, DType.float32)
+    var tensors: List[ExTensor] = []
+    tensors.append(t)
+    tensors.append(pad)
+
+    var result = concatenate(tensors, axis=0)
+    # With strides [1, 2] and shape (2, 3), C-order flat traversal:
+    #   i=0: coords (0,0) → mem[0]=0.0  i=1: coords (0,1) → mem[2]=1.0
+    #   i=2: coords (0,2) → mem[4]=-1.0 i=3: coords (1,0) → mem[1]=0.5
+    assert_value_at(result, 0,  0.0, 1e-6, "result[0]")
+    assert_value_at(result, 1,  1.0, 1e-6, "result[1]")
+    assert_value_at(result, 2, -1.0, 1e-6, "result[2]")
+    assert_value_at(result, 3,  0.5, 1e-6, "result[3]")
+```
+
+**Why `_strides` mutation vs `transpose_view()`**: isolates the test to the concatenate path
+without depending on `transpose_view()` availability or correctness.
+
+### Audit Command for Other Flat-Index Occurrences
+
+```bash
+grep -n "_get_float64(i)\|_get_float64(j)\|_get_float64(idx)" shared/core/shape.mojo
+```
+
+Functions to audit after fixing concatenate: `tile()`, `repeat()`, `broadcast_to()`, `permute()`, `stack()`.
+
+### Concatenate-Specific Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| Assumed `as_contiguous()` had the same bug | Read issue expecting both functions to be buggy | `as_contiguous()` was already fixed (issue #3391, PR #4079) | Always read source before assuming — check what was already fixed |
+| Assumed general-axis branch was in scope | Issue said "non-contiguous else branch" (plural) | Issue explicitly scoped to axis-0 path; general-axis is a separate bug | Match scope precisely to the issue description |
+| Running tests locally | `pixi run mojo test ...` | GLIBC version mismatch — mojo test runtime unavailable on this host | Use `just test-group` or CI; local mojo execution unavailable |
+
+### Concatenate PR Reference
+
+- Issue: #4083 (ProjectOdyssey)
+- PR: #4865 — follow-up to issue #3391 / PR #4079
+- Test file: `tests/shared/core/test_concatenate_noncontiguous.mojo` (3 test functions)
+- Run: `just test-group "tests/shared/core" "test_concatenate_noncontiguous.mojo"`
+
+## Superseded from multidim-slice-step-validation
+
+---
+name: multidim-slice-step-validation
+description: 'Fix silent incorrect results when a variadic-slice __getitem__ ignores
+  the step field. Use when: multi-dim tensor slicing silently returns wrong data for
+  step != 1, or you need a fail-fast guard for unimplemented strided access.'
+category: debugging
+date: 2026-03-15
+version: 1.0.0
+user-invocable: false
+---
+## Overview
+
+| Attribute | Value |
+| ----------- | ------- |
+| Language | Mojo |
+| Component | `ExTensor.__getitem__(*slices: Slice)` |
+| Issue | Silent wrong results when `step != 1` in multi-dim slice |
+| Fix Strategy | Fail fast — raise `Error` for any `step != 1` |
+| Scope | `shared/core/extensor.mojo` |
+
+## When to Use
+
+- A variadic-arg `__getitem__(*slices)` overload computes `start`/`end` from each slice but never reads `step`, so `tensor[::2, :]` silently returns every element.
+- You need to choose between "raise on unsupported step" (option 1, minimal) vs "implement strided multi-dim copy" (option 2, complex).
+- You want to add targeted tests proving that step != 1 is now rejected and step == 1 (explicit or default) still works.
+
+## Verified Workflow
+
+### Quick Reference
+
+```mojo
+# Old (buggy): step silently ignored
+var start = s.start.or_else(0)
+var end   = s.end.or_else(size)
+# step never read — wrong results for tensor[::2, :]
+
+# Fixed (fail fast): validate step before any other logic
+for dim in range(num_dims):
+    var step = slices[dim].step.or_else(1)
+    if step != 1:
+        raise Error(
+            "Multi-dimensional slicing does not support step != 1 "
+            + "(got step=" + String(step)
+            + " on dimension " + String(dim)
+            + "). Use 1D slicing for strided access."
+        )
+```
+
+### Step 1 — Locate the overload
+
+Search for the variadic-slice `__getitem__` signature:
+
+```bash
+grep -n "__getitem__(self, \*slices" shared/core/extensor.mojo
+```
+
+Confirm that the loop over dimensions reads `start`/`end` but not `step`.
+
+### Step 2 — Insert step-validation loop
+
+Add the validation **before** the existing loop that computes `starts` and `result_shape`.
+Order matters: reject bad inputs early, before allocating the result tensor.
+
+```mojo
+# Reject non-unit steps: multi-dim strided slicing is not implemented.
+# Silently ignoring step would produce wrong results (issue #4463).
+for dim in range(num_dims):
+    var step = slices[dim].step.or_else(1)
+    if step != 1:
+        raise Error(
+            "Multi-dimensional slicing does not support step != 1 "
+            + "(got step="
+            + String(step)
+            + " on dimension "
+            + String(dim)
+            + "). Use 1D slicing for strided access."
+        )
+```
+
+### Step 3 — Update the docstring
+
+Add a `Raises` entry for the new error condition:
+
+```mojo
+Raises:
+    Error: If number of slices doesn't match tensor dimensions,
+           or if any slice has step != 1 (not implemented).
+```
+
+### Step 4 — Write targeted tests
+
+Create a new test file with ≤10 `fn test_` functions:
+
+```mojo
+fn test_multidim_step2_first_dim_raises() raises:
+    var raised = False
+    try:
+        var _ = t2d[::2, :]
+    except:
+        raised = True
+    assert_true(raised, "Expected Error for step=2 on first dim")
+
+fn test_multidim_step1_does_not_raise() raises:
+    # Explicit step=1 must succeed
+    var sliced = t2d[::1, ::1]
+    assert_equal(sliced.shape()[0], 5)
+
+fn test_multidim_no_step_does_not_raise() raises:
+    # Omitted step defaults to 1 — must succeed
+    var sliced = t2d[1:4, 1:3]
+    assert_equal(sliced.shape()[0], 3)
+```
+
+Cover: step=2 first dim, step=2 second dim, step=-1, step=3 in 3D, step=1 explicit, no step.
+
+### Step 5 — Run tests
+
+```bash
+just test-group "tests/shared/core" "test_extensor_multidim_step.mojo"
+just test-group "tests/shared/core" "test_extensor_slicing_2d.mojo"
+```
+
+Both must pass before committing.
+
+### Step 6 — Commit and PR
+
+```bash
+git add shared/core/extensor.mojo tests/shared/core/test_extensor_multidim_step.mojo
+git commit -m "fix(extensor): raise Error when multi-dim slice step != 1
+
+Closes #4463"
+git push -u origin <branch>
+gh pr create --title "fix(extensor): raise Error when multi-dim slice step != 1" \
+  --body "Closes #4463" --label "implementation"
+```
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| Implement full strided copy | Option 2: build a strided multi-dim copy loop analogous to the 1D `__getitem__(Slice)` path | Much more complex; increases surface area with no immediate test coverage; out of scope for a bug-fix issue | When the issue explicitly offers option 1 (fail fast) and option 2 (implement), prefer option 1 unless the caller needs strided access today |
+| Add step check inside existing loop | Put step validation inside the `for dim in range(num_dims)` loop that also computes `starts` | Still correct but slightly harder to read because it mixes validation with computation | Separate validation from computation: a dedicated pre-loop over dimensions is clearer and follows fail-fast idiom |
+
+## Results & Parameters
+
+**File changed**: `shared/core/extensor.mojo`
+**Lines inserted**: ~14 (validation loop + comment)
+**Test file**: `tests/shared/core/test_extensor_multidim_step.mojo`
+**Test functions**: 6
+**File limit**: ≤10 `fn test_` per file (respected)
+
+**Key `or_else` pattern** — Mojo `Optional[Int]` step default:
+
+```mojo
+var step = slices[dim].step.or_else(1)  # default 1 if not set
+```
+
+**Test harness command**:
+
+```bash
+just test-group "tests/shared/core" "test_extensor_multidim_step.mojo"
+```
+
+## Superseded from nan-hash-canonicalization
+
+---
+name: nan-hash-canonicalization
+description: 'Canonicalize NaN bit patterns in __hash__ for IEEE 754 float tensors
+  to ensure hash stability. Use when: different NaN representations (sign bit, payload,
+  signaling vs quiet) produce different hashes for semantically identical NaN content.'
+category: debugging
+date: 2026-03-07
+version: 1.0.0
+user-invocable: false
+---
+# Skill: NaN Canonicalization in __hash__ for Float Tensors
+
+## Overview
+
+| Attribute | Value |
+| ----------- | ------- |
+| **Date** | 2026-03-07 |
+| **Session Context** | Issue #3382 - ExTensor __hash__ NaN stability (follow-up to #3164) |
+| **Objective** | Ensure NaN-containing tensors hash identically regardless of NaN bit pattern |
+| **Outcome** | Success - all NaN variants (sNaN, qNaN, -NaN, different payloads) hash to same value |
+| **Files Modified** | `<project>/shared/core/extensor.mojo`, `<project>/tests/shared/core/test_hash.mojo` |
+
+## When to Use
+
+Use this skill when:
+
+1. A struct's `__hash__` uses IEEE 754 bitcast (e.g. after applying `mojo-hash-bitcast-floats`)
+   but NaN-containing values still produce non-deterministic hashes
+2. Tensors/structs containing `NaN` are used as dict/set keys and hash differently across runs
+3. Two tensors that should be "logically equal" (both contain NaN) have different hashes
+4. Following up on a bitcast-based hash fix: bitcast preserves all NaN bits, including
+   sign and payload, which then differ between NaN representations
+
+### Trigger Conditions
+
+- Hash test failures like: "NaN and -NaN hash differently" or "signaling NaN != quiet NaN hash"
+- Dict membership checks fail for NaN-containing tensor keys that should be identical
+- Issue description mentions IEEE 754 NaN, signaling vs quiet NaN, NaN payloads, or `-NaN`
+- Struct stores float16, float32, float64, or bfloat16 data and implements `__hash__`
+
+## Problem Context
+
+### Why Bitcast Alone Is Not Enough
+
+After fixing float hash precision with bitcast (see `mojo-hash-bitcast-floats`):
+
+```mojo
+var int_bits = UnsafePointer[Float64](to=val).bitcast[UInt64]()[]
+hasher.update(int_bits)
+```
+
+This correctly distinguishes `1.0` from `2.0` and handles large/small values. However,
+IEEE 754 defines many valid NaN bit patterns:
+
+| NaN Type | Float32 Example | Float64 Example |
+| ---------- | ---------------- | ---------------- |
+| Quiet NaN (positive) | `0x7FC00000` | `0x7FF8000000000000` |
+| Quiet NaN (negative) | `0xFFC00000` | `0xFFF8000000000000` |
+| Signaling NaN | `0x7F800001` | `0x7FF0000000000001` |
+| NaN with payload | `0x7FC00002` | `0x7FF8000000000002` |
+
+All of these are `NaN` (not-a-number), but their bit patterns differ. Raw bitcast
+hashes them differently, violating the principle: equal hash for equal values.
+
+### The Fix
+
+After bitcasting to `UInt64`, detect NaN and replace with a single canonical bit pattern
+before calling `hasher.update()`. No stored data is modified.
+
+**NaN detection for Float64**: `(bits & 0x7FFFFFFFFFFFFFFF) > 0x7FF0000000000000`
+
+- `0x7FF0000000000000` = positive infinity (exponent all-ones, mantissa zero)
+- Any value exceeding this (after sign-strip) has a non-zero mantissa → NaN
+- Catches all NaN variants: positive, negative, quiet, signaling, any payload
+
+## Verified Workflow
+
+### Step 1: Locate the existing bitcast-based __hash__
+
+```bash
+grep -n "__hash__\|hasher.update\|bitcast" <project>/shared/core/extensor.mojo
+```
+
+### Step 2: Add NaN canonicalization after the bitcast
+
+**Before (incomplete — NaN unstable)**:
+
+```mojo
+fn __hash__[H: Hasher](self, mut hasher: H):
+    # ... shape and dtype hashing omitted ...
+    for i in range(self._numel):
+        var val = self._get_float64(i)
+        var int_bits = UnsafePointer[Float64](to=val).bitcast[UInt64]()[]
+        hasher.update(int_bits)  # ❌ NaN bit patterns not canonicalized
+```
+
+**After (correct — NaN stable)**:
+
+```mojo
+fn __hash__[H: Hasher](self, mut hasher: H):
+    """Compute hash based on shape, dtype, and data.
+
+    NaN values are canonicalized to a single quiet NaN bit pattern before
+    hashing, ensuring that different NaN representations (signaling NaN,
+    negative NaN, different NaN payloads) all produce the same hash.
+    """
+    # Canonical quiet NaN for Float64 (IEEE 754: exp all-ones, MSB mantissa set,
+    # zero payload, positive sign)
+    alias CANONICAL_NAN_F64: UInt64 = 0x7FF8000000000000
+    alias F64_INF_BITS: UInt64 = 0x7FF0000000000000
+    alias F64_ABS_MASK: UInt64 = 0x7FFFFFFFFFFFFFFF
+
+    # ... shape and dtype hashing ...
+
+    for i in range(self._numel):
+        var val = self._get_float64(i)
+        var int_bits = UnsafePointer[Float64](to=val).bitcast[UInt64]()[]
+        # Canonicalize any NaN to a single stable bit pattern
+        if (int_bits & F64_ABS_MASK) > F64_INF_BITS:
+            int_bits = CANONICAL_NAN_F64
+        hasher.update(int_bits)
+```
+
+### Step 3: Why this works for all float widths
+
+If `_get_float64()` converts float16/float32/bfloat16 to Float64 before bitcast,
+the NaN canonicalization happens in Float64 space and catches all NaN variants
+regardless of the original dtype:
+
+- `float32 NaN → Float64 NaN` (via `.cast[DType.float64]()`) → detected and canonicalized
+- `float16 NaN → Float64 NaN` (via `.cast[DType.float64]()`) → detected and canonicalized
+- `bfloat16 NaN → Float64 NaN` (via `Float64(Float32(ptr[]))`) → detected and canonicalized
+
+No per-dtype NaN canonicalization is needed when using a `_get_float64()` helper.
+
+### Step 4: Test all NaN variants
+
+```mojo
+fn make_f32_nan_tensor(bits: UInt32) raises -> ExTensor:
+    """Inject specific NaN bit pattern into a float32 scalar tensor."""
+    var shape = List[Int]()
+    var t = ExTensor(shape, DType.float32)
+    t._data.bitcast[UInt32]()[] = bits
+    return t^
+
+fn make_f64_nan_tensor(bits: UInt64) raises -> ExTensor:
+    """Inject specific NaN bit pattern into a float64 scalar tensor."""
+    var shape = List[Int]()
+    var t = ExTensor(shape, DType.float64)
+    t._data.bitcast[UInt64]()[] = bits
+    return t^
+
+# Test: +qNaN vs -qNaN (f32)
+fn test_hash_f32_quiet_nan_equals_negative_nan() raises:
+    var pos_nan = make_f32_nan_tensor(UInt32(0x7FC00000))  # +qNaN
+    var neg_nan = make_f32_nan_tensor(UInt32(0xFFC00000))  # -qNaN
+    assert_equal_int(Int(hash(pos_nan)), Int(hash(neg_nan)),
+        "Positive and negative quiet NaN (f32) must hash equal")
+
+# Test: different payloads (f32)
+fn test_hash_f32_nan_payload_irrelevant() raises:
+    var nan_a = make_f32_nan_tensor(UInt32(0x7FC00001))
+    var nan_b = make_f32_nan_tensor(UInt32(0x7FC00002))
+    assert_equal_int(Int(hash(nan_a)), Int(hash(nan_b)),
+        "NaN payloads must not affect hash (f32)")
+
+# Test: signaling NaN vs quiet NaN (f32)
+fn test_hash_f32_signaling_nan_equals_quiet_nan() raises:
+    var quiet    = make_f32_nan_tensor(UInt32(0x7FC00000))  # qNaN
+    var signaling = make_f32_nan_tensor(UInt32(0x7F800001)) # sNaN
+    assert_equal_int(Int(hash(quiet)), Int(hash(signaling)),
+        "Signaling and quiet NaN (f32) must hash equal")
+```
+
+### Step 5: Canonical NaN bit patterns reference
+
+| Type | Canonical Quiet NaN Bits | Infinity Bits | NaN Condition |
+| ------ | -------------------------- | --------------- | --------------- |
+| Float16 | `0x7E00` | `0x7C00` | `(bits & 0x7FFF) > 0x7C00` |
+| Float32 | `0x7FC00000` | `0x7F800000` | `(bits & 0x7FFFFFFF) > 0x7F800000` |
+| Float64 | `0x7FF8000000000000` | `0x7FF0000000000000` | `(bits & 0x7FFFFFFFFFFFFFFF) > 0x7FF0000000000000` |
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| Per-dtype NaN canonicalization | Add separate float16/float32/float64 branches in `__hash__`, canonicalize in each native width | More complex, and the `_get_float64()` helper already unifies all dtypes in float64 space | If there's a `_get_float64()` helper, canonicalize once in float64 space — no per-dtype branches needed |
+| `math.isnan()` for detection | Import `isnan` from `math` and call `isnan(val)` | Works but requires an import; the bitwise test `(bits & mask) > inf_bits` is self-contained and avoids the import | Bitwise NaN detection is simpler and requires no additional imports |
+| Canonicalize in stored data | Modify `_data` bytes to replace NaN with canonical form when calling `nan_tensor()` | Violates the principle that hash should not mutate stored data; also breaks roundtrip fidelity | NaN canonicalization is a hash-side concern only — never mutate tensor data |
+
+## Results & Parameters
+
+### Canonical NaN Bit Patterns (IEEE 754)
+
+```mojo
+# Float64 canonical quiet NaN (positive sign, zero payload)
+alias CANONICAL_NAN_F64: UInt64 = 0x7FF8000000000000
+
+# Float64 NaN detection (strip sign bit, compare to infinity)
+alias F64_INF_BITS:  UInt64 = 0x7FF0000000000000
+alias F64_ABS_MASK:  UInt64 = 0x7FFFFFFFFFFFFFFF
+# NaN if: (bits & F64_ABS_MASK) > F64_INF_BITS
+```
+
+### Test Matrix
+
+| Test | What It Verifies |
+| ------ | ----------------- |
+| `+qNaN == -qNaN hash` | Sign bit doesn't affect hash |
+| `NaN payload 1 == NaN payload 2 hash` | Mantissa payload doesn't affect hash |
+| `sNaN == qNaN hash` | Quiet/signaling distinction doesn't affect hash |
+| `mixed NaN+normal deterministic` | NaN values in a multi-element tensor hash consistently |
+| `different NaN patterns, same logical tensor` | End-to-end stability |
+| `shape sensitivity` | Shape still contributes to hash |
+| `dtype sensitivity` | Dtype still contributes to hash |
+| `integer types unaffected` | No regression for non-float dtypes |
+
+### Outcome
+
+- All NaN variants (positive/negative, quiet/signaling, any payload) hash identically
+- Normal float values continue to hash by exact bit representation (no regression)
+- Integer and bool tensors unaffected (bitcast path still used, no NaN possible)
+- Implementation is 4 lines added to the existing hash loop — minimal change
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| ProjectOdyssey | Issue #3382, PR #4058 | Follow-up to #3164 bitcast fix |
+
+## Superseded from fix-randn-seed-bug
+
+---
+name: fix-randn-seed-bug
+description: Fix unused seed parameter in random number generation functions causing
+  non-reproducible tests
+category: debugging
+date: '2026-03-19'
+version: 1.0.0
+tags:
+- random
+- seed
+- reproducibility
+- testing
+- mojo
+- prng
+created: 2025-12-30
+---
+# Fix Unused Seed Parameter in randn()
+
+## Overview
+
+| Item | Details |
+| ------ | --------- |
+| Date | N/A |
+| Objective | Fix test failures caused by randn() ignoring its seed parameter |
+| Outcome | Operational |
+
+| Field | Value |
+| ------- | ------- |
+| Date | 2025-12-30 |
+| Objective | Fix test failures caused by randn() ignoring its seed parameter |
+| Outcome | Tests now reproducible - same seed produces identical random tensors |
+
+## When to Use
+
+Use this skill when:
+
+- Tests using `randn(shape, dtype, seed=42)` produce different values each run
+- `assert_almost_equal` fails comparing outputs that should be identical
+- Error shows two very different values (e.g., `0.19... !≈ 0.10...`)
+- Function declares `seed` parameter but calls `random_float64()` without seeding
+- Reproducibility tests fail despite using fixed seeds
+
+## Verified Workflow
+
+### 1. Identify the Symptom
+
+Test failure pattern:
+
+```text
+Unhandled exception caught during execution: 0.19019678235054016 !≈ 0.10000000149011612 (diff: 0.09019678086042404)
+```
+
+This indicates two calls with the same seed produced different values.
+
+### 2. Trace the Root Cause
+
+```bash
+# Find where seed parameter is used
+grep -n "seed" shared/core/extensor.mojo | head -20
+```
+
+Look for pattern where seed is declared but never used:
+
+```mojo
+# BUG: seed parameter declared but not used
+fn randn(shape: List[Int], dtype: DType, seed: Int = 0) raises -> ExTensor:
+    # ...
+    var u1 = random_float64()  # NOT seeded!
+    var u2 = random_float64()
+```
+
+### 3. Check How Other Functions Seed
+
+```bash
+# Find seeding patterns in codebase
+grep -rn "random_seed\|seed as" shared/
+```
+
+Expected pattern from working code:
+
+```mojo
+from random import random_float64, seed as random_seed
+
+fn some_function(seed_val: Int = -1):
+    if seed_val >= 0:
+        random_seed(seed_val)
+    var val = random_float64()  # Now seeded
+```
+
+### 4. Apply the Fix
+
+Add the import and seeding call:
+
+```mojo
+# Before (broken)
+from random import random_float64
+
+fn randn(shape: List[Int], dtype: DType, seed: Int = 0) raises -> ExTensor:
+    var tensor = ExTensor(shape, dtype)
+    # ... uses random_float64() without seeding
+
+# After (fixed)
+from random import random_float64, seed as random_seed
+
+fn randn(shape: List[Int], dtype: DType, seed: Int = 0) raises -> ExTensor:
+    # Set random seed if provided (0 uses system randomness)
+    if seed > 0:
+        random_seed(seed)
+
+    var tensor = ExTensor(shape, dtype)
+    # ... now random_float64() is seeded
+```
+
+### 5. Verify the Fix
+
+```bash
+# Build to check for compile errors
+pixi run mojo build shared/core/__init__.mojo -I .
+
+# Run the failing test
+pixi run mojo test tests/shared/training/test_training_loop.mojo -I .
+```
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| N/A | Direct approach worked | N/A | Solution was straightforward |
+## Results & Parameters
+
+### Files Modified
+
+| File | Line | Change |
+| ------ | ------ | -------- |
+| `shared/core/extensor.mojo` | 38 | Added `seed as random_seed` to import |
+| `shared/core/extensor.mojo` | 3298-3300 | Added seed call before tensor creation |
+
+### The Fix (Copy-Paste Ready)
+
+```mojo
+# Add to imports
+from random import random_float64, seed as random_seed
+
+# Add before using random_float64()
+# Set random seed if provided (0 uses system randomness)
+if seed > 0:
+    random_seed(seed)
+```
+
+### Seed Convention
+
+| Seed Value | Behavior |
+| ------------ | ---------- |
+| `seed = 0` | Use system randomness (non-reproducible) |
+| `seed > 0` | Set PRNG seed for reproducibility |
+| `seed = -1` | Alternative convention: random (used elsewhere) |
+
+### Commands Reference
+
+```bash
+# Find seed parameter declarations
+grep -rn "seed: Int" shared/
+
+# Find actual seeding calls
+grep -rn "random_seed(" shared/
+
+# Find random_float64 usage without seeding
+grep -B5 "random_float64()" shared/ | grep -v "random_seed"
+```
+
+## Related
+
+- PR #2980 in ProjectOdyssey - Training loop tests that exposed this bug
+- Issue #2728 - Enable Training Loop Tests (original feature work)
+- `shared/core/initializers.mojo` - Example of correct seeding pattern
