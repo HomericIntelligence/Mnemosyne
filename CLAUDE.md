@@ -213,9 +213,10 @@ development dependencies are declared there, together with task definitions and 
 - Install everything: `pixi install`
 - Run tasks: `pixi run validate`, `pixi run test`, `pixi run check`
 
-There is no `requirements.txt`. CI workflows contain `if [ -f requirements.txt ]` guards for
-legacy compatibility, but the file is intentionally absent — `pixi` is the only supported
-dependency manager.
+`requirements.txt` and `requirements-dev.txt` exist as **non-canonical mirrors** for pip-based
+CI jobs and `pip-audit`. Do not hand-edit them as the source of truth — update `pixi.toml`
+and keep the pip files in sync. `requirements-dev.txt` includes `requirements.txt` via
+`-r requirements.txt`, so both files must be present.
 
 ## References
 
