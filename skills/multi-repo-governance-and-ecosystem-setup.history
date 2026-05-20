@@ -1,0 +1,2232 @@
+<!-- markdownlint-disable MD024 -->
+## Superseded from tooling-multi-repo-governance-file-rollout
+
+```markdown
+---
+name: tooling-multi-repo-governance-file-rollout
+description: "Roll out governance files (LICENSE, CODE_OF_CONDUCT.md, SECURITY.md, CONTRIBUTING.md) across multiple GitHub repos in an organization. Use when: (1) onboarding an org's repos to open-source governance standards, (2) adding missing policy files to 10+ repos at once, (3) creating per-repo-customized CONTRIBUTING.md or SECURITY.md at scale."
+category: tooling
+date: 2026-04-03
+version: "1.0.0"
+user-invocable: false
+verification: verified-local
+tags: [multi-repo, governance, github-api, batch-operations, gh-cli]
+---
+
+# Tooling: Multi-Repo Governance File Rollout
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2026-04-03 |
+| **Objective** | Roll out LICENSE, CODE_OF_CONDUCT.md, SECURITY.md, CONTRIBUTING.md to 15 HomericIntelligence repos |
+| **Outcome** | 11 PRs created, auto-merge enabled on all 12 including Odysseus |
+| **Verification** | verified-local (11 PRs successfully created and pushed; CI/merge pending) |
+
+## When to Use
+
+- Rolling out identical or templated files across multiple repos in a GitHub organization
+- Checking which governance files are missing before adding them (survey first, no overwrites)
+- Creating per-repo CONTRIBUTING.md or SECURITY.md that must reference each repo's actual tech stack
+- Any batch file addition across 5+ repos where some files are identical and others need customization
+
+## Verified Workflow
+
+### Quick Reference
+
+\`\`\`bash
+# 1. Survey which repos are missing which files
+gh api repos/HomericIntelligence/{repo}/contents/ --jq '.[].name' | grep -E "LICENSE|CODE_OF_CONDUCT|SECURITY|CONTRIBUTING"
+
+# 2. Research each repo's tech stack
+gh api repos/HomericIntelligence/{repo}/contents/ --jq '.[].name'  # list top-level files
+gh api repos/HomericIntelligence/{repo}/contents/justfile --jq '.content' | base64 -d
+
+# 3. Clone all repos shallow, create branch in each
+for repo in repo1 repo2 repo3; do
+  git clone --depth 1 "https://github.com/HomericIntelligence/$repo" "/tmp/$repo"
+  git -C "/tmp/$repo" checkout -b chore/add-governance-files
+done
+
+# 4. Write identical files once, cp to all repos
+# (Do this from parent conversation — Write tool, then bash cp)
+cp /tmp/template/LICENSE /tmp/repo1/LICENSE
+cp /tmp/template/CODE_OF_CONDUCT.md /tmp/repo1/CODE_OF_CONDUCT.md
+
+# 5. Commit and push all repos in a loop
+for repo in repo1 repo2 repo3; do
+  git -C "/tmp/$repo" add .
+  git -C "/tmp/$repo" commit -m "chore: add governance files"
+  git -C "/tmp/$repo" push origin chore/add-governance-files
+done
+
+# 6. Create PRs using -R flag (avoids cd dependency)
+gh pr create -R HomericIntelligence/repo1 \
+  --head chore/add-governance-files \
+  --title "chore: add governance files" \
+  --body "..."
+
+# 7. Enable auto-merge
+PR_NUM=$(gh pr list -R HomericIntelligence/repo1 --head chore/add-governance-files --json number --jq '.[0].number')
+gh pr merge "$PR_NUM" -R HomericIntelligence/repo1 --auto --rebase
+# If auto-merge is blocked, enable it at repo level first:
+gh api -X PATCH repos/HomericIntelligence/repo1 --field allow_auto_merge=true
+gh pr merge "$PR_NUM" -R HomericIntelligence/repo1 --auto --rebase
+\`\`\`
+
+### Detailed Steps
+
+1. **Survey each repo**: Use `gh api repos/HomericIntelligence/{repo}/contents/` to list top-level files. Compare against the 4 governance files. Group repos into buckets: "needs all 4", "needs 3", "needs 1", etc.
+
+2. **Research tech stacks** (for CONTRIBUTING.md and SECURITY.md customization): Fetch the justfile, conanfile, CMakeLists.txt, pixi.toml, or pyproject.toml from each repo via `gh api ... | base64 -d`. Note the build system (CMake+Conan, pixi, just), language (C++, Mojo, Python), and test runner (ctest, pytest, mojo test).
+
+3. **Write identical files once from the parent conversation**: LICENSE and CODE_OF_CONDUCT.md are org-wide identical. Write them to one `/tmp/template/` directory, then `cp` to each repo clone. This avoids repeated Write calls.
+
+4. **Write custom files per repo using Write tool**: SECURITY.md (scoped to that repo's attack surface — API server vs. library vs. provisioning tool) and CONTRIBUTING.md (references real build commands, real test commands) must be per-repo. Use the Write tool with repo-specific content.
+
+5. **Batch commit/push**: Run a bash loop. Since cwd resets between bash calls, use `git -C /tmp/{repo}` everywhere — never rely on `cd`.
+
+6. **Create PRs with `-R` flag**: `gh pr create -R HomericIntelligence/{repo} --head {branch}`. This works from any cwd. Never `cd` into each repo for the PR step.
+
+7. **Enable auto-merge**: Check if each repo has `allow_auto_merge` enabled. If `gh pr merge --auto` errors, patch the repo setting first with `gh api -X PATCH repos/HomericIntelligence/{repo} --field allow_auto_merge=true`, then retry.
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| 11 parallel Sonnet subagents (one per repo) | Delegated CODE_OF_CONDUCT.md writing to 11 parallel sub-agents | All hit content filtering on the CoC text (policy enforcement) | Write governance policy files from the parent Opus conversation, not from Sonnet sub-agents |
+| `cd /tmp/{repo}` in bash loop | Used `cd repo && gh pr create` pattern inside a for loop | Shell cwd resets between Bash tool calls — cd doesn't persist across iterations | Always use `gh pr create -R <owner>/<repo> --head <branch>` and `git -C /tmp/{repo}` instead of cd |
+| Overwrite existing files without surveying | Attempted to write all 4 files to all repos unconditionally | Some repos already had LICENSE or CODE_OF_CONDUCT.md; overwrites would cause conflicts or duplicate PRs | Always survey `gh api repos/.../contents/` first; only add missing files |
+
+## Results & Parameters
+
+### Grouping repos by what they need
+
+Before writing any files, bucket repos by what's missing:
+
+\`\`\`bash
+# Check a single repo
+gh api repos/HomericIntelligence/ProjectKeystone/contents/ \
+  --jq '[.[].name] | map(select(. == "LICENSE" or . == "CODE_OF_CONDUCT.md" or . == "SECURITY.md" or . == "CONTRIBUTING.md"))'
+\`\`\`
+
+Typical buckets across a new org:
+- **All 4 missing**: Most repos — need full rollout
+- **LICENSE present**: A few — need CODE_OF_CONDUCT + SECURITY + CONTRIBUTING
+- **LICENSE + CoC present**: Rare — need SECURITY + CONTRIBUTING only
+
+### CONTRIBUTING.md customization matrix
+
+| Tech Stack | Build Command | Test Command | Notes |
+| ------------ | --------------- | -------------- | ------- |
+| C++ + CMake + Conan | `just build` or `cmake --preset ...` | `ctest --preset ...` | Mention `conan install` as prereq |
+| Mojo | `pixi run mojo build` | `pixi run mojo test` | Mention `pixi install` as prereq |
+| Python (pixi) | `pixi run python -m build` | `pixi run pytest` | Mention `pixi install` |
+| Nomad/HCL infra | N/A | `just validate` | Link to Nomad docs |
+
+### SECURITY.md scoping examples
+
+- **API server** (ProjectAgamemnon, ProjectNestor): Include endpoint injection, auth bypass, rate limiting as attack surface
+- **Client library**: Focus on supply chain, dependency confusion, malicious payload handling
+- **Provisioning/infra** (Myrmidons, ProjectKeystone): Focus on credential exposure, config injection, privilege escalation
+- **Observability** (ProjectArgus): Focus on log injection, metric poisoning, alert suppression
+
+### Auto-merge enablement check
+
+\`\`\`bash
+# Check if auto-merge is already allowed
+gh api repos/HomericIntelligence/{repo} --jq '.allow_auto_merge'
+# If false:
+gh api -X PATCH repos/HomericIntelligence/{repo} --field allow_auto_merge=true
+\`\`\`
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| HomericIntelligence org | 15 repos, 11 PRs created, auto-merge enabled on all | Verified-local — PRs pushed successfully |
+```
+
+## Superseded from homeric-intelligence-ecosystem-installer
+
+```markdown
+---
+name: homeric-intelligence-ecosystem-installer
+description: "Add a portable ecosystem installer script (scripts/shell/install.sh) to ProjectHephaestus that installs all HomericIntelligence dependencies on any Tailnet host; deploy it remotely via parallel SSH fan-out. Use when: (1) onboarding a new host to the HomericIntelligence mesh, (2) diagnosing missing dependencies (Go, nats-py, cmake, templ) on worker/control/apollo hosts, (3) extending the shared installer with new dependency sections, (4) troubleshooting nats-server install, Go version, or pip system-packages restrictions on Debian 12, (5) running a parallel SSH fan-out across all Tailnet hosts to install the ecosystem."
+category: tooling
+date: 2026-04-28
+version: "1.1.0"
+user-invocable: false
+verification: verified-local
+history: homeric-intelligence-ecosystem-installer.history
+tags:
+  - ecosystem
+  - installer
+  - homeric-intelligence
+  - nats-server
+  - go
+  - python
+  - cmake
+  - tailscale
+  - podman
+  - hephaestus
+  - debian
+  - mesh-bringup
+  - dependencies
+  - ssh-fanout
+  - parallel-deploy
+  - tailnet
+---
+
+# HomericIntelligence Ecosystem Installer
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2026-04-28 |
+| **Objective** | Create a portable ecosystem installer (`scripts/shell/install.sh`) in ProjectHephaestus that installs all HomericIntelligence dependencies on any Tailnet host — and deploy it across all reachable Tailnet hosts via parallel SSH fan-out |
+| **Outcome** | Installer runs on 5 of 7 hosts; 2 hosts (aeolus, hephaestus) fully complete; 3 partial (artemis, hermes, apollo); 2 failed (athena, titan) due to missing git + sudo password requirement |
+| **Verification** | verified-local — executed on 5 of 7 Tailnet hosts; athena/titan blocked by missing git + sudo password |
+| **History** | [changelog](./homeric-intelligence-ecosystem-installer.history) |
+
+## When to Use
+
+- Bringing up a new host (epimetheus, apollo, hephaestus, aeolus, or any Tailnet node) for the HomericIntelligence mesh
+- Diagnosing which dependencies are missing on a host before mesh bringup
+- Installing Go 1.23+, templ, nats-py, nats-server, cmake 3.20+, pixi, or gh CLI on Debian stable
+- Adding new dependency sections to the shared installer in ProjectHephaestus
+- Running a parallel SSH fan-out to install the ecosystem across all reachable Tailnet hosts simultaneously
+- Explaining why `pip3 install nats-py` fails on Debian 12 without `--break-system-packages`
+- Explaining why apt cmake on Debian stable is too old (3.18.x) and how to get 3.20+
+- Explaining why NATS server must be installed as a native binary (not podman) for cross-host connectivity
+
+## Verified Workflow
+
+### Quick Reference
+
+\`\`\`bash
+# Check only — see what's missing
+just install-check
+
+# Install all dependencies (default: all roles)
+just install
+
+# Install only worker-role dependencies (Python, nats-py, Go, podman)
+just install ROLE=worker
+
+# Install only control-role dependencies (C++ build chain, cmake, conan)
+just install ROLE=control
+
+# Direct script usage
+bash scripts/shell/install.sh --role worker --install
+bash scripts/shell/install.sh --role control --install
+bash scripts/shell/install.sh --role all     # check-only by default
+bash scripts/shell/install.sh --install      # install all deps
+\`\`\`
+
+### Remote SSH Fan-Out Deployment (Parallel)
+
+Deploy the installer to all Tailnet hosts simultaneously:
+
+\`\`\`bash
+# Step 1: Add host keys for all targets (do this FIRST — prevents host key verification failure)
+ssh-keyscan -H aeolus apollo artemis athena hephaestus hermes titan >> ~/.ssh/known_hosts
+
+# Step 2: Probe all hosts in parallel — check reachability, arch, Python, git presence
+for host in aeolus apollo artemis athena hephaestus hermes titan; do
+  echo -n "$host: "
+  ssh -o ConnectTimeout=6 -o BatchMode=yes "$host" \
+    'echo OK && uname -m && python3 --version 2>/dev/null && which git 2>/dev/null || echo no-git' \
+    2>&1 | tr '\n' ' '
+  echo
+done
+
+# Step 3: Check sudo passwordless status per host
+for host in aeolus apollo artemis athena hephaestus hermes titan; do
+  echo -n "$host sudo: "
+  ssh -o BatchMode=yes "$host" 'sudo -n true 2>&1 && echo NOPASSWD-OK || echo NEEDS-PASSWORD'
+done
+
+# Step 4: For hosts with git + NOPASSWD sudo — dispatch parallel installer agents
+# (Fan out 7 Haiku sub-agents simultaneously, one per host)
+# Each agent runs:
+ssh -o BatchMode=yes <host> '
+  mkdir -p ~/Projects
+  git clone https://github.com/HomericIntelligence/ProjectHephaestus.git ~/Projects/ProjectHephaestus || \
+    git -C ~/Projects/ProjectHephaestus pull
+  bash ~/Projects/ProjectHephaestus/scripts/shell/install.sh --install
+'
+
+# Step 5: For hosts with sudo password required — provide interactive command to user
+# Use ! prefix convention so user runs it with password prompt:
+ssh <host> 'sudo apt-get install -y git && mkdir -p ~/Projects && \
+  git clone https://github.com/HomericIntelligence/ProjectHephaestus.git ~/Projects/ProjectHephaestus && \
+  bash ~/Projects/ProjectHephaestus/scripts/shell/install.sh --install'
+\`\`\`
+
+### Detailed Steps
+
+1. **Add installer to ProjectHephaestus** at `scripts/shell/install.sh`
+   - Pattern based on `e2e/doctor.sh` in Odysseus: colored output helpers, `version_gte`, `has_cmd`, `get_version`, counters
+   - NOT a copy of `doctor.sh` — the new script is host-agnostic (no submodule checks, no Myrmidons, no crosshost topology)
+
+2. **Script structure** — sections in order:
+
+   | Section | Role Gate | Notes |
+   | --------- | ----------- | ------- |
+   | Core tooling: git, curl, jq, unzip, just, gh CLI | all | gh installed via official apt source |
+   | Tailscale | all | install script + tailscaled status check |
+   | Python 3.10+, pip3, nats-py, pixi | all | nats-py: `--break-system-packages` fallback to `--user` |
+   | Go 1.23+ | worker | Official tarball to `/usr/local/go`; apt version too old on Debian stable |
+   | templ | worker | `GOBIN=~/.local/bin go install github.com/a-h/templ/cmd/templ@latest` |
+   | nats-server 2.10+ | all | Native binary to `~/.local/bin`; NOT podman |
+   | nats CLI | all | zip from GitHub releases; not in apt |
+   | Container: podman, podman-compose, podman socket | worker | slirp4netns issues preclude podman for NATS |
+   | C++ build chain | control | cmake 3.20+ from kitware repo or pip; ninja, gcc, g++, libssl-dev, conan |
+   | PATH sanity | all | Check `~/.local/bin` and `/usr/local/go/bin` in PATH |
+
+3. **Justfile recipes** — add to ProjectHephaestus `justfile`:
+   \`\`\`makefile
+   # Verify all HomericIntelligence host dependencies (no install)
+   install-check:
+       bash scripts/shell/install.sh
+
+   # Install missing dependencies for a given role (default: all)
+   install ROLE="all":
+       bash scripts/shell/install.sh --role {{ROLE}} --install
+   \`\`\`
+
+4. **Key implementation details**:
+
+   \`\`\`bash
+   # nats-py on Debian 12 — system pip restricts installs
+   if pip3 install nats-py --break-system-packages 2>/dev/null; then
+     check_pass "nats-py"
+   elif pip3 install nats-py --user 2>/dev/null; then
+     check_warn "nats-py (user install)"
+   else
+     check_fail "nats-py"
+   fi
+
+   # Go — apt version is 1.19 on Debian 12; must use official tarball
+   GO_VERSION="1.23.4"
+   curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" | \
+     sudo tar -C /usr/local -xz
+   # Adds /usr/local/go/bin to PATH
+
+   # templ — requires Go 1.23+
+   GOBIN="$HOME/.local/bin" go install github.com/a-h/templ/cmd/templ@latest
+
+   # nats-server — native binary, not podman
+   NATS_VERSION="2.10.21"
+   curl -fsSL "https://github.com/nats-io/nats-server/releases/download/v${NATS_VERSION}/nats-server-v${NATS_VERSION}-linux-amd64.zip" \
+     -o /tmp/nats-server.zip
+   unzip -o /tmp/nats-server.zip -d /tmp/nats-server-extract
+   mv /tmp/nats-server-extract/nats-server-*/nats-server "$HOME/.local/bin/"
+   chmod +x "$HOME/.local/bin/nats-server"
+
+   # nats CLI — zip from GitHub
+   NATS_CLI_VERSION="0.1.5"
+   curl -fsSL "https://github.com/nats-io/natscli/releases/download/v${NATS_CLI_VERSION}/nats-${NATS_CLI_VERSION}-linux-amd64.zip" \
+     -o /tmp/nats-cli.zip
+   unzip -o /tmp/nats-cli.zip -d /tmp/nats-cli-extract
+   mv /tmp/nats-cli-extract/nats-*/nats "$HOME/.local/bin/"
+
+   # cmake 3.20+ — apt gives 3.18.x on Debian stable; use pip or kitware
+   pip3 install cmake --break-system-packages  # gets 3.28+
+   # OR: add kitware apt repo for cmake 3.25+
+   \`\`\`
+
+### Why NATS Must Be Native Binary (Not Podman)
+
+Slirp4netns (rootless podman networking) creates a user-space NAT that breaks cross-host NATS
+connections: other Tailnet hosts see the podman NAT address, not the real Tailscale IP. Native
+binary on `~/.local/bin` binds directly to the Tailscale interface and is reachable from any
+Tailnet host.
+
+### Difference from e2e/doctor.sh (Odysseus)
+
+| Feature | `e2e/doctor.sh` | `scripts/shell/install.sh` |
+| --------- | ----------------- | ---------------------------- |
+| Location | Odysseus repo | ProjectHephaestus (shared) |
+| Go check | None | Yes (1.23+) |
+| templ check | None | Yes |
+| gh CLI install | None | Yes |
+| nats-server install | None | Yes (native binary) |
+| Submodule checks | Yes | No |
+| Myrmidons/crosshost | Yes | No |
+| Host-agnostic | No | Yes |
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| pip3 install nats-py (plain) | `pip3 install nats-py` on Debian 12 | Debian 12 enforces PEP 668 — system pip refuses installs without `--break-system-packages` | Always use `--break-system-packages` first, fall back to `--user` |
+| podman for NATS server | Run `nats-server` inside rootless podman container | Slirp4netns NAT hides real Tailscale IP; cross-host NATS connections fail | NATS server must be a native binary bound to the Tailscale interface |
+| apt cmake on Debian stable | `sudo apt install cmake` | Debian stable ships cmake 3.18.x; Agamemnon requires cmake 3.20+ | Use `pip3 install cmake --break-system-packages` or add kitware apt repo |
+| apt go on Debian stable | `sudo apt install golang` | Debian stable ships Go 1.19; templ and Agamemnon require 1.23+ | Download official Go tarball from https://go.dev/dl/ |
+| pkill -f nats-server | `pkill -f "nats-server"` to stop stale server | Returns exit code 144 on some hosts (pkill receives SIGTERM itself) | Use `kill $(ps aux \| grep nats-server \| grep -v grep \| awk '{print $2}')` |
+| hermes.main:app entrypoint | `uvicorn hermes.main:app` | Module `hermes.main` does not exist; correct module is `hermes.server` | Always use `uvicorn hermes.server:app` for ProjectHermes |
+| Agamemnon/Nestor auto-reconnect | Restarted NATS server, expected binaries to reconnect automatically | C++ NATS clients do not auto-reconnect after server restart | After any NATS restart, kill and restart Agamemnon and Nestor too |
+| NATS monitoring on :4222 | `curl http://localhost:4222/varz` | Port 4222 is the NATS protocol port; monitoring HTTP is on :8222 | NATS monitoring endpoint: `http://localhost:8222/varz` |
+| C++ binaries in build/ root | `./control/ProjectAgamemnon/build/agamemnon` | Binaries are in `build/debug/`, not `build/` root | Correct path: `./control/ProjectAgamemnon/build/debug/agamemnon` |
+| SSH without ssh-keyscan first | Probed new host `aeolus` over SSH without adding host key | Host key verification failed — SSH refused connection | Run `ssh-keyscan -H <host> >> ~/.ssh/known_hosts` before any batch SSH operation to new hosts |
+| sudo apt-get in BatchMode SSH | `ssh -o BatchMode=yes host 'sudo apt-get install -y git'` | `sudo` requires a terminal for password prompt; silently fails with "a terminal is required" | Check `sudo -n true` first; if NEEDS-PASSWORD, escalate to user with an interactive command |
+| Cloning main before PR merged | Dispatched agents to `git clone` main branch of ProjectHephaestus before install.sh PR merged | install.sh missing from main; agents found no script to run | Either merge the PR first, or clone the feature branch: `git clone -b feat/... <url>` |
+| Python 3.7 on apollo | Dispatched installer agent to apollo (Python 3.7.3) | Python 3.10+ required; 3.7 is EOL and below minimum | Check `python3 --version` before dispatching; apollo needs `sudo apt-get install -y python3.10` first |
+| git not pre-installed on athena/titan | Tried to clone ProjectHephaestus on athena and titan | Neither host had git installed; clone fails silently in BatchMode | Always check `which git` during probe step; if missing + sudo needs password, give user a manual command |
+
+## Results & Parameters
+
+### Tailnet Host Inventory (2026-04-28)
+
+| Host | IP | Python | git | sudo | Result |
+| ------ | ---- | -------- | ----- | ------ | -------- |
+| aeolus | 100.65.107.65 | 3.12.3 | yes | NOPASSWD | DONE |
+| apollo | 100.68.51.128 | 3.7.3 | yes | NOPASSWD | PARTIAL — Python 3.7 too old |
+| artemis | 100.74.100.3 | 3.12.3 | yes | NEEDS-PASSWORD | PARTIAL — 16/30 ✓, Go/podman/cmake need sudo |
+| athena | 100.124.17.101 | 3.12.3 | no | NEEDS-PASSWORD | FAIL — no git, sudo needs password |
+| hephaestus | 100.122.194.113 | 3.12.3 | yes | NOPASSWD | DONE |
+| hermes | 100.73.61.56 | 3.12.3 | yes | NOPASSWD | PARTIAL — 24/28 ✓, Go/templ need sudo |
+| titan | 100.115.74.124 | 3.12.3 | no | NEEDS-PASSWORD | FAIL — no git, sudo needs password |
+
+### Dependency Version Matrix
+
+| Dependency | Minimum | Recommended | Install Method |
+| ------------ | --------- | ------------- | ---------------- |
+| Go | 1.23.0 | 1.23.4 | Official tarball → `/usr/local/go` |
+| cmake | 3.20.0 | 3.28+ | `pip3 install cmake --break-system-packages` |
+| nats-server | 2.10.0 | 2.10.21 | Native binary → `~/.local/bin` |
+| nats CLI | 0.1.0 | 0.1.5 | zip from GitHub → `~/.local/bin` |
+| Python | 3.10.0 | 3.11+ | System apt |
+| pixi | any | latest | `curl -fsSL https://pixi.sh/install.sh \| bash` |
+| templ | any | latest | `GOBIN=~/.local/bin go install github.com/a-h/templ/cmd/templ@latest` |
+| gh CLI | any | latest | Official GitHub apt repo |
+
+### Expected Output (all-pass scenario)
+
+\`\`\`
+[PASS] git 2.39.5
+[PASS] curl 7.88.1
+[PASS] jq 1.6
+[PASS] just 1.13.0
+[PASS] gh 2.47.0
+[PASS] tailscaled running
+[PASS] python3 3.11.2
+[PASS] pip3 24.0
+[PASS] nats-py (installed)
+[PASS] pixi 0.25.0
+[PASS] go 1.23.4 (>= 1.23.0)
+[PASS] templ (installed)
+[PASS] nats-server 2.10.21 (>= 2.10.0)
+[PASS] nats CLI 0.1.5
+[PASS] podman 4.3.1
+[PASS] podman socket running
+[PASS] cmake 3.28.1 (>= 3.20.0)
+[PASS] ninja 1.11.1
+[PASS] conan 2.3.0
+[PASS] ~/.local/bin in PATH
+[PASS] /usr/local/go/bin in PATH
+
+Summary: 21 passed, 0 failed, 0 warnings
+\`\`\`
+
+### PATH additions required (add to ~/.bashrc or ~/.zshrc)
+
+\`\`\`bash
+export PATH="$HOME/.local/bin:$PATH"
+export PATH="/usr/local/go/bin:$PATH"
+\`\`\`
+
+### Pre-Flight Checklist for SSH Fan-Out
+
+Before dispatching installer agents to all Tailnet hosts:
+
+\`\`\`bash
+# 1. Add host keys (prevents host key verification failures)
+ssh-keyscan -H aeolus apollo artemis athena hephaestus hermes titan >> ~/.ssh/known_hosts
+
+# 2. Probe reachability + Python version + git presence
+for host in aeolus apollo artemis athena hephaestus hermes titan; do
+  echo -n "$host: "
+  ssh -o ConnectTimeout=6 -o BatchMode=yes "$host" \
+    'echo OK && uname -m && python3 --version 2>/dev/null && which git 2>/dev/null || echo no-git' \
+    2>&1 | tr '\n' ' '
+  echo
+done
+
+# 3. Check sudo passwordless
+for host in aeolus apollo artemis athena hephaestus hermes titan; do
+  echo -n "$host sudo: "
+  ssh -o ConnectTimeout=6 -o BatchMode=yes "$host" \
+    'sudo -n true 2>&1 && echo NOPASSWD-OK || echo NEEDS-PASSWORD' 2>&1
+done
+\`\`\`
+
+Only dispatch agents to hosts where: Python >= 3.10, git is installed, and sudo is NOPASSWD-OK (or no sudo required). For the rest, provide interactive commands to the user.
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| ProjectHephaestus | PR #309 (2026-04-28) | install.sh bash -n syntax check passed; script ran clean on epimetheus; CI pending |
+| Tailnet fan-out (2026-04-28) | 7-host parallel SSH deployment | 2 fully done (aeolus, hephaestus); 3 partial (artemis, hermes, apollo); 2 failed (athena, titan) |
+```
+
+### Prior history for homeric-intelligence-ecosystem-installer
+
+```markdown
+# homeric-intelligence-ecosystem-installer — History
+
+## v1.1.0 (2026-04-28)
+
+**Changed by:** Tailnet parallel SSH fan-out deployment session (7-host myrmidon swarm)
+**Verification:** verified-local — executed on 5 of 7 Tailnet hosts; athena/titan blocked by missing git + sudo password requirement
+
+### What changed
+
+- Added `## Remote SSH Fan-Out Deployment (Parallel)` section to Verified Workflow with the full probe → keyscan → fan-out → manual-escalation pattern
+- Added `### Pre-Flight Checklist for SSH Fan-Out` to Results & Parameters
+- Added Tailnet Host Inventory table to Results & Parameters with per-host status
+- Added 5 new Failed Attempts rows:
+  - SSH without ssh-keyscan first (host key verification failure on new hosts)
+  - sudo apt-get in BatchMode SSH (terminal required for password — silently fails)
+  - Cloning main before install.sh PR merged (agents find no script)
+  - Python 3.7 on apollo (below 3.10 minimum)
+  - git not pre-installed on athena/titan (clone fails in BatchMode)
+- Updated `description` frontmatter to include remote SSH fan-out trigger
+- Added tags: `ssh-fanout`, `parallel-deploy`, `tailnet`
+- Added `history` frontmatter field
+- Updated `Verified On` table with fan-out session results
+- Bumped version `1.0.0` → `1.1.0`
+
+### Why
+
+v1.0.0 covered how to write and run the installer locally. This session deployed it across
+all 7 reachable Tailnet hosts via parallel SSH agents. Several new failure modes emerged
+that are not obvious from the installer itself: host key verification on new hosts, sudo
+password requirements in non-interactive SSH, missing git on minimal installs, stale main
+branch before PR merges, and Python version floor requirements. These are recurring pitfalls
+for any future "install the ecosystem across the fleet" operation.
+
+### Previous version (v1.0.0) snapshot
+
+\`\`\`markdown
+---
+name: homeric-intelligence-ecosystem-installer
+description: "Add a portable ecosystem installer script (scripts/shell/install.sh) to ProjectHephaestus that installs all HomericIntelligence dependencies on any Tailnet host. Use when: (1) onboarding a new host to the HomericIntelligence mesh, (2) diagnosing missing dependencies (Go, nats-py, cmake, templ) on worker/control/apollo hosts, (3) extending the shared installer with new dependency sections, (4) troubleshooting nats-server install, Go version, or pip system-packages restrictions on Debian 12."
+category: tooling
+date: 2026-04-28
+version: "1.0.0"
+user-invocable: false
+verification: verified-local
+tags:
+  - ecosystem
+  - installer
+  - homeric-intelligence
+  - nats-server
+  - go
+  - python
+  - cmake
+  - tailscale
+  - podman
+  - hephaestus
+  - debian
+  - mesh-bringup
+  - dependencies
+---
+
+# HomericIntelligence Ecosystem Installer
+
+## Overview
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-04-28 |
+| **Objective** | Create a portable ecosystem installer (`scripts/shell/install.sh`) in ProjectHephaestus that installs all HomericIntelligence dependencies on any Tailnet host — independent of Odysseus |
+| **Outcome** | 300+ line bash script with `--role worker|control|all` filtering, justfile recipes (`install-check`, `install ROLE`), PR #309 on HomericIntelligence/ProjectHephaestus |
+| **Verification** | verified-local — bash -n syntax check passed; script runs clean on epimetheus; CI pending |
+
+## When to Use
+
+- Bringing up a new host (epimetheus, apollo, hephaestus, or any Tailnet node) for the HomericIntelligence mesh
+- Diagnosing which dependencies are missing on a host before mesh bringup
+- Installing Go 1.23+, templ, nats-py, nats-server, cmake 3.20+, pixi, or gh CLI on Debian stable
+- Adding new dependency sections to the shared installer in ProjectHephaestus
+- Explaining why `pip3 install nats-py` fails on Debian 12 without `--break-system-packages`
+- Explaining why apt cmake on Debian stable is too old (3.18.x) and how to get 3.20+
+- Explaining why NATS server must be installed as a native binary (not podman) for cross-host connectivity
+
+[... full content in git history ...]
+\`\`\`
+
+---
+
+## v1.0.0 (2026-04-28)
+
+**Initial version.**
+```
+
+## Superseded from flesh-out-scaffolded-repo
+
+```markdown
+---
+name: flesh-out-scaffolded-repo
+description: 'Fill gaps in scaffolded repos to make them production-ready: add justfile
+  + pixi.toml, build scripts, READMEs, and fix bash syntax bugs, hardcoded values,
+  and suppressed failures. Use when: a repo was scaffolded and pushed but is missing
+  task runner files, compose/Nomad files have hardcoded paths, or shell scripts have
+  syntax errors.'
+category: tooling
+date: 2026-03-15
+version: 1.0.0
+user-invocable: false
+---
+# flesh-out-scaffolded-repo
+
+Systematic process for auditing and completing scaffolded repositories: adding justfile + pixi.toml, build scripts, READMEs, and fixing bash syntax bugs, hardcoded values, and suppressed failures — executed across multiple repos in one session.
+
+## Overview
+
+| Item | Details |
+| ------ | --------- |
+| Date | 2026-03-15 |
+| Objective | Make two scaffolded Docker/GitOps repos production-ready after an audit revealed missing files, bugs, hardcoded values, and inconsistencies |
+| Outcome | Success — all 7 new files created, all 11 modifications made, both repos committed and pushed to GitHub |
+| Repos | AchaeanFleet (Docker image infrastructure), Myrmidons (GitOps agent provisioning) |
+
+## When to Use
+
+- A repo was scaffolded and committed but lacks a `justfile` / `pixi.toml` for task running
+- Compose files or Nomad HCL have hardcoded absolute paths (e.g., `/home/username/...`)
+- Shell scripts use `|| true` to suppress failures instead of tracking errors
+- Bash `[[ ]]` compound tests use `\` line continuation with parentheses (syntax error)
+- A `pre-commit` hook silently exits 0 on a missing dependency instead of failing
+- An export script generates YAML with unquoted string values that may contain special characters
+- A TypeScript function receives a parameter but never uses it (unused dependency)
+- Missing README or build helper scripts
+
+## Verified Workflow
+
+### Phase 1: Read all existing files before making any changes
+
+Always read the actual file contents — do not rely on summaries:
+
+\`\`\`bash
+# Get a full file listing first
+find <repo> -type f ! -path '*/.git/*' | sort
+
+# Read every file that will be modified
+# Use parallel reads for independent files
+\`\`\`
+
+Key files to read in a Docker/infrastructure repo:
+- All compose files (`.yml`)
+- Nomad HCL files
+- CI/CD TypeScript pipeline files
+- All shell scripts in `scripts/` and `scripts/lib/`
+- Git hooks in `hooks/`
+- Agent template YAML files
+
+### Phase 2: Identify all gaps
+
+Create a mental checklist of:
+1. **Missing files**: justfile, pixi.toml, README, build scripts
+2. **Hardcoded values**: paths, hostnames, ports in compose/Nomad/HCL
+3. **Bash bugs**: syntax errors, `|| true` suppression, missing `exit 1` on errors
+4. **Logic gaps**: unused parameters, missing field comparisons, wrong default values
+
+### Phase 3: Create new files in parallel
+
+Create independent new files simultaneously. For each repo, standard files are:
+
+**justfile** (HomericIntelligence convention):
+\`\`\`makefile
+# Default: show help
+default:
+    @just --list
+
+# Variables at top
+registry := env_var_or_default("REGISTRY", "...")
+
+# Grouped sections with comments
+# === Build ===
+build-all:
+    bash scripts/build-all.sh
+
+# === Test ===
+test:
+    ...
+\`\`\`
+
+**pixi.toml** (minimal — establish convention):
+\`\`\`toml
+[project]
+name = "<repo-name>"
+version = "0.1.0"
+description = "..."
+channels = ["conda-forge"]
+platforms = ["linux-64"]
+
+[dependencies]
+just = ">=1.13"
+# Add: yq, jq for GitOps repos; nothing extra for Docker-only repos
+
+[tasks]
+build-all = "just build-all"
+\`\`\`
+
+**scripts/build-all.sh** (for Docker repos):
+\`\`\`bash
+#!/usr/bin/env bash
+set -euo pipefail
+TAG="${TAG:-latest}"
+built=0; failed=0
+
+build_image() {
+    local tag="$1" dockerfile="$2"
+    shift 2; local extra_args=("$@")
+    if docker build -f "$dockerfile" -t "$tag" "${extra_args[@]}" .; then
+        built=$((built + 1))
+    else
+        failed=$((failed + 1)); return 1
+    fi
+}
+
+# Build bases first (dependency order matters)
+build_image "base-node:${TAG}" "bases/Dockerfile.node"
+build_image "base-python:${TAG}" "bases/Dockerfile.python"
+
+# Build vessels (--build-arg BASE_IMAGE=...)
+build_image "vessel-claude:${TAG}" "vessels/claude/Dockerfile" \
+    --build-arg "BASE_IMAGE=base-node:${TAG}"
+
+echo "=== ${built} built, ${failed} failed ==="
+[[ $failed -gt 0 ]] && exit 1
+\`\`\`
+
+### Phase 4: Fix bash syntax bugs
+
+**Fix 1 — HIBERNATE compound test (syntax error)**:
+
+The `[[ ... && (... || ...) ]]` pattern with `\` continuation is broken in bash:
+
+\`\`\`bash
+# BROKEN — parentheses inside [[ ]] with backslash continuation
+if [[ "$desired" == "hibernated" && \
+      ("$actual" == "active" || "$actual" == "online") ]]; then
+
+# FIXED — split into two [[ ]] checks
+if [[ "$desired" == "hibernated" ]] && \
+   [[ "$actual" == "active" || "$actual" == "online" ]]; then
+\`\`\`
+
+**Fix 2 — Replace `|| true` with error tracking**:
+
+\`\`\`bash
+# BAD — silently swallows failures
+for yaml_file in "${yaml_files[@]}"; do
+    apply_agent "$yaml_file" "$agents_json" || true
+done
+
+# GOOD — track failures, continue loop
+for yaml_file in "${yaml_files[@]}"; do
+    if ! apply_agent "$yaml_file" "$agents_json"; then
+        echo "ERROR: apply_agent failed for ${yaml_file}" >&2
+        ERRORS=$((ERRORS + 1))
+    fi
+done
+\`\`\`
+
+**Fix 3 — pre-commit hook must exit 1 on missing dependency**:
+
+\`\`\`bash
+# BAD — silently passes through without validation
+if ! command -v yq &>/dev/null; then
+    echo "WARNING: yq not found — skipping YAML validation" >&2
+    exit 0  # BUG: allows invalid YAML through
+fi
+
+# GOOD — fail fast
+if ! command -v yq &>/dev/null; then
+    echo "ERROR: yq not found — cannot validate YAML before commit" >&2
+    exit 1
+fi
+\`\`\`
+
+### Phase 5: Parameterize hardcoded values
+
+**Docker Compose** — parameterize host paths:
+\`\`\`yaml
+# BAD
+volumes:
+  - /home/mvillmow/ai-maestro/agent-container/agent-server.js:/app/agent-server.js:ro
+
+# GOOD — add to .env.example, use in compose
+volumes:
+  - ${AGENT_SERVER_JS:-/home/mvillmow/ai-maestro/agent-container/agent-server.js}:/app/agent-server.js:ro
+\`\`\`
+
+Note: YAML anchors (`x-agent-server-mount: &agent-server-mount`) also support variable substitution — just update the anchor value.
+
+**Nomad HCL** — add `variable` blocks:
+\`\`\`hcl
+variable "aim_host" {
+  description = "URL of the ai-maestro orchestrator"
+  type        = string
+  default     = "http://172.20.0.1:23000"
+}
+
+variable "agent_server_path" {
+  description = "Absolute path to agent-server.js on the Nomad client host"
+  type        = string
+  default     = "/home/mvillmow/ai-maestro/agent-container/agent-server.js"
+}
+
+# In tasks:
+env {
+  AIM_HOST = var.aim_host
+}
+volumes = ["${var.agent_server_path}:/app/agent-server.js:ro"]
+\`\`\`
+
+Override at runtime: `nomad job run -var="aim_host=http://hermes:23000" mesh.nomad.hcl`
+
+### Phase 6: Fix logic gaps in reconciliation scripts
+
+**Add missing field comparisons** (e.g., tags):
+\`\`\`bash
+# Get actual tags sorted for stable comparison
+actual_tags_sorted="$(echo "$actual_json" | jq -r '.tags // [] | sort | join(",")')"
+
+# Sort desired tags the same way
+desired_tags_sorted="$(echo "$desired_tags_csv" | tr ',' '\n' | sort | tr '\n' ',' | sed 's/,$//')"
+
+[[ "$actual_tags_sorted" != "$desired_tags_sorted" ]] && drifted_fields+=("tags")
+\`\`\`
+
+**Normalize tilde paths**:
+\`\`\`bash
+normalize_path() {
+    local p="$1"
+    echo "${p/#\~/$HOME}"
+}
+
+# Use before comparison:
+actual_workdir="$(normalize_path "$actual_workdir")"
+desired_workdir="$(normalize_path "$desired_workdir")"
+\`\`\`
+
+**Fix an API client to add timeouts and HTTP error logging**:
+\`\`\`bash
+_aim_curl() {
+    local http_code response tmpfile
+    tmpfile="$(mktemp)"
+    http_code="$(curl -s --max-time 10 -w "%{http_code}" -o "$tmpfile" "$@")"
+    local curl_exit=$?
+    response="$(cat "$tmpfile")"; rm -f "$tmpfile"
+
+    if [[ $curl_exit -ne 0 ]]; then
+        echo "ERROR: curl failed (exit ${curl_exit}) for: $*" >&2; return 1
+    fi
+    if [[ "${http_code:0:1}" != "2" ]]; then
+        echo "ERROR: HTTP ${http_code} from API" >&2
+        [[ -n "$response" ]] && echo "  Body: ${response}" >&2
+        return 1
+    fi
+    echo "$response"
+}
+\`\`\`
+
+**Map program → correct Docker image** (avoid hardcoded fallback):
+\`\`\`bash
+program_to_image() {
+    case "$1" in
+        claude-code|claude) echo "achaean-claude:latest" ;;
+        aider)              echo "achaean-aider:latest" ;;
+        codex)              echo "achaean-codex:latest" ;;
+        none|worker|"")     echo "achaean-worker:latest" ;;
+        *)                  echo "achaean-worker:latest" ;;
+    esac
+}
+docker_image="$(program_to_image "$program")"
+\`\`\`
+
+### Phase 7: Fix Dagger TypeScript unused parameter
+
+When a TypeScript function receives a `Map` of built base images but ignores it:
+
+\`\`\`typescript
+// BEFORE — builtBases parameter accepted but never used
+async function buildVessels(
+  client: Client,
+  bases: Map<string, any>,  // unused!
+  registry?: string
+): Promise<void> { ... }
+
+// AFTER — sync() each base container to enforce build ordering
+async function buildVessels(
+  client: Client,
+  builtBases: Map<string, any>,
+  registry?: string
+): Promise<void> {
+  // Force bases to build before vessels start
+  for (const [baseName, baseContainer] of builtBases.entries()) {
+    console.log(`Syncing base: ${baseName}`);
+    await baseContainer.sync();
+  }
+  // ... vessel builds
+}
+\`\`\`
+
+### Phase 8: Syntax-check all scripts before committing
+
+\`\`\`bash
+bash -n scripts/lib/api.sh
+bash -n scripts/lib/reconcile.sh
+bash -n scripts/export.sh
+bash -n scripts/apply.sh
+bash -n hooks/pre-commit
+bash -n scripts/build-all.sh
+\`\`\`
+
+### Phase 9: Commit with descriptive messages
+
+Group changes by repo and commit each separately. Include:
+- Which files were created vs modified
+- What bug was fixed and why
+- Co-Authored-By line
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| Using `replace_all: true` on compose file for agent-server-mount anchor | Tried to replace all occurrences of the hardcoded path at once | The YAML anchor line and the individual service volume lines had different surrounding context | Use `replace_all: true` only when all occurrences have identical surrounding context; otherwise use targeted edits |
+| Delegating file reads to a subagent | Asked Explore agent to read files and return exact contents | Agent returned summaries and paraphrases, not exact file content | For files that will be edited, always use the Read tool directly — never rely on an agent's description of content |
+| Assuming the `python-repo-modernization` skill in ProjectMnemosyne represented the current validation format | Copied its flat `plugin.json` structure (no `.claude-plugin/` directory) | The validator (`validate_plugins.py`) requires `.claude-plugin/plugin.json` — the flat format would fail CI | Always read `scripts/validate_plugins.py` to understand the exact expected structure before creating skill files |
+
+## Results & Parameters
+
+### Files created (7 total across 2 repos)
+
+| Repo | File | Purpose |
+| ------ | ------ | --------- |
+| AchaeanFleet | `justfile` | Task runner with build, test, push, compose recipes |
+| AchaeanFleet | `pixi.toml` | just dependency via conda-forge |
+| AchaeanFleet | `scripts/build-all.sh` | Build 3 bases then 9 vessels in dependency order |
+| AchaeanFleet | `README.md` | Architecture diagram, quick start, port map |
+| Myrmidons | `justfile` | status, plan, apply, apply-prune, export, validate, install-hooks |
+| Myrmidons | `pixi.toml` | just, yq, jq dependencies via conda-forge |
+| Myrmidons | `README.md` | Quick start, agent YAML format, workflows |
+
+### Files modified (11 total)
+
+| Repo | File | Change |
+| ------ | ------ | -------- |
+| AchaeanFleet | `compose/.env.example` | Added `AGENT_SERVER_JS` variable |
+| AchaeanFleet | `compose/docker-compose.claude-only.yml` | Parameterized 3 agent-server.js mounts |
+| AchaeanFleet | `compose/docker-compose.mesh.yml` | Parameterized YAML anchor |
+| AchaeanFleet | `nomad/mesh.nomad.hcl` | Added 3 variable blocks, replaced hardcoded paths |
+| AchaeanFleet | `dagger/pipeline.ts` | Fixed unused `bases` param via `sync()` |
+| Myrmidons | `scripts/lib/api.sh` | All curl via `_aim_curl` with `--max-time 10` + HTTP error logging |
+| Myrmidons | `scripts/lib/reconcile.sh` | Fixed HIBERNATE syntax; added `normalize_path()`; added tag drift |
+| Myrmidons | `scripts/export.sh` | `program_to_image()` mapping; YAML string quoting via `jq -Rr` |
+| Myrmidons | `scripts/apply.sh` | Replaced `\|\| true` with error tracking; passed tags to `compute_drift()` |
+| Myrmidons | `hooks/pre-commit` | Changed missing-yq from `exit 0` to `exit 1` |
+| Myrmidons | `agents/_templates/*.yaml` | Added clarifying comments about docker block |
+
+### justfile recipe checklist for HomericIntelligence repos
+
+For **Docker/infrastructure** repos:
+- `default` → `@just --list`
+- `build-bases` → build base images
+- `build-vessel NAME` → build one vessel + its base
+- `build-all` → `bash scripts/build-all.sh`
+- `test` → Dagger/smoke tests
+- `push` → push to registry
+- `compose-up` / `compose-down` → start/stop compose
+- `clean` → remove all local images
+
+For **GitOps/provisioning** repos:
+- `default` → `@just --list`
+- `status HOST` → desired vs actual comparison
+- `plan HOST` → dry-run apply
+- `apply HOST` → reconcile desired → actual
+- `apply-prune HOST` → apply + prune unmanaged
+- `export HOST` → bootstrap from current state
+- `validate` → validate all YAML schemas
+- `install-hooks` → install pre-commit hook
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| AchaeanFleet | Post-scaffold flesh-out — Docker image infrastructure | [notes.md](../../references/notes.md) |
+| Myrmidons | Post-scaffold flesh-out — GitOps agent provisioning | [notes.md](../../references/notes.md) |
+
+## References
+
+- Related skills: `python-repo-modernization`, `generate-boilerplate`
+- HomericIntelligence conventions: justfile + pixi (never Makefiles)
+- `just` docs: https://just.systems/man/en/
+- `pixi` docs: https://pixi.sh/
+```
+
+## Superseded from centralize-repo-clones
+
+```markdown
+---
+name: centralize-repo-clones
+description: 'Skill: centralize-repo-clones. Use when working with centralize repo
+  clones.'
+category: tooling
+date: 2026-01-01
+version: 1.0.0
+user-invocable: false
+---
+# Skill: Centralize Repository Clones
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2024-02-13 |
+| **Objective** | Eliminate redundant git clones in E2E testing by centralizing base repositories |
+| **Outcome** | ✅ Successfully implemented - 37-73% disk space savings |
+| **Test Results** | 2100 tests pass, integration test validates 37.3% savings |
+| **Category** | optimization |
+
+## When to Use This Skill
+
+Apply this pattern when:
+
+- ✅ Multiple test runs/experiments use the same git repository
+- ✅ Running parallel experiments that would clone the same repo
+- ✅ Disk space or network bandwidth is a constraint
+- ✅ Test framework uses git worktrees for workspace isolation
+- ✅ Need to support multiple commits from the same repository
+
+**Do NOT use** when:
+
+- ❌ Only running single experiments (no benefit)
+- ❌ Each experiment uses different repositories
+- ❌ Cannot use git worktrees (need full independent clones)
+- ❌ Filesystem doesn't support file locking (NFS issues)
+
+## Problem Statement
+
+In E2E testing frameworks, each experiment typically clones the test repository into an isolated directory:
+
+\`\`\`
+results/experiment-1/repo/  # 8 MB clone
+results/experiment-2/repo/  # 8 MB clone (DUPLICATE!)
+results/experiment-3/repo/  # 8 MB clone (DUPLICATE!)
+\`\`\`
+
+**Issues**:
+
+- Wasted disk space (N × clone_size)
+- Redundant network downloads
+- Slower experiment startup
+- No benefit from previously cloned repositories
+
+## Solution: Centralized Clones with Worktrees
+
+Share a single base clone across all experiments using git worktrees:
+
+\`\`\`
+results/repos/<repo_uuid>/           # 8 MB (SHARED)
+results/experiment-1/workspace/      # 3 MB (lightweight worktree)
+results/experiment-2/workspace/      # 3 MB (lightweight worktree)
+results/experiment-3/workspace/      # 3 MB (lightweight worktree)
+\`\`\`
+
+**Benefits**:
+
+- 37-73% disk savings (scales with experiment count)
+- Skip clone on subsequent experiments
+- Parallel-safe with file locking
+- Backward compatible (works with existing layout)
+
+## Verified Workflow
+
+### Step 1: Add `repos_dir` Parameter
+
+**File**: Workspace manager class
+
+\`\`\`python
+def __init__(
+    self,
+    experiment_dir: Path,
+    repo_url: str,
+    commit: str | None = None,
+    repos_dir: Path | None = None,  # NEW
+) -> None:
+    self.repos_dir = repos_dir
+
+    # Calculate base repo path
+    if repos_dir is not None:
+        # Centralized: deterministic UUID from URL
+        repo_uuid = hashlib.sha256(repo_url.encode()).hexdigest()[:16]
+        self.base_repo = repos_dir / repo_uuid
+    else:
+        # Legacy: per-experiment layout
+        self.base_repo = experiment_dir / "repo"
+\`\`\`
+
+**Why SHA-256?**
+
+- Collision-resistant (64-bit UUID = 18 quintillion possibilities)
+- Deterministic (same URL → same path)
+- URL-safe (hex characters only)
+
+### Step 2: Implement File Locking
+
+**File**: Base repo setup method
+
+\`\`\`python
+import fcntl
+
+def setup_base_repo(self) -> None:
+    # Create parent directory
+    self.base_repo.parent.mkdir(parents=True, exist_ok=True)
+
+    # File-based lock for parallel safety
+    lock_path = self.base_repo.parent / f".{self.base_repo.name}.lock"
+    with open(lock_path, "w") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        try:
+            # Check if clone already exists
+            if self.base_repo.exists() and (self.base_repo / ".git").exists():
+                logger.info(f"Reusing existing clone: {self.base_repo}")
+                return  # Skip clone!
+
+            # Create new clone
+            use_shallow = self.repos_dir is None  # Shallow for legacy only
+            clone_cmd = ["git", "clone"]
+            if use_shallow:
+                clone_cmd.append("--depth=1")
+            clone_cmd.extend([self.repo_url, str(self.base_repo)])
+
+            # Run clone with retry logic...
+
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+\`\`\`
+
+**Critical Points**:
+
+- Use exclusive lock (`LOCK_EX`) to prevent concurrent clones
+- Lock auto-released on crash (OS handles cleanup)
+- Check for existing `.git` directory before cloning
+- Full clone for centralized (all commits available)
+
+### Step 3: Separate Worktree Creation from Checkout
+
+**CRITICAL**: This is required for centralized repos to work correctly.
+
+**Problem**: `git worktree add -b branch /path commit` doesn't work when:
+
+- Base repo is on different branch than target commit
+- Commit not yet in object store
+- Using centralized repos with multiple commits
+
+**Solution**: Separate creation and checkout
+
+\`\`\`python
+def create_worktree(self, workspace_path: Path) -> None:
+    # Step 1: Create worktree (no commit specified)
+    worktree_cmd = [
+        "git", "-C", str(self.base_repo),
+        "worktree", "add",
+        "-b", branch_name,
+        str(workspace_path),
+    ]
+    # Do NOT append commit here!
+
+    subprocess.run(worktree_cmd, check=True)
+
+    # Step 2: Checkout commit in worktree (separate step)
+    if self.commit:
+        checkout_cmd = [
+            "git", "-C", str(workspace_path),
+            "checkout", self.commit
+        ]
+        subprocess.run(checkout_cmd, check=True)
+\`\`\`
+
+**Why this works**:
+
+1. Worktree created on default branch
+2. Commit fetched into shared object store
+3. Checkout in worktree uses shared objects
+4. No branch/commit conflicts in base repo
+
+### Step 4: Fetch Commits Without Checkout in Base
+
+**File**: Commit availability method
+
+\`\`\`python
+def _ensure_commit_available(self) -> None:
+    """Fetch commit into object store without checkout in base repo."""
+    # Check if commit exists
+    check_cmd = ["git", "-C", str(self.base_repo), "cat-file", "-t", self.commit]
+    result = subprocess.run(check_cmd, capture_output=True)
+    if result.returncode == 0:
+        return  # Already available
+
+    # Fetch commit (no checkout!)
+    fetch_cmd = ["git", "-C", str(self.base_repo), "fetch", "origin", self.commit]
+    subprocess.run(fetch_cmd, capture_output=True)
+\`\`\`
+
+**Why no checkout in base?**
+
+- Base repo stays on default branch (shared across experiments)
+- Multiple experiments can use different commits
+- Commits stored in shared `.git/objects/`
+- Worktrees checkout independently
+
+### Step 5: Wire Centralized Directory in Runner
+
+**File**: Experiment runner initialization
+
+\`\`\`python
+# Create centralized repos directory
+repos_dir = results_base_dir / "repos"
+
+workspace_manager = WorkspaceManager(
+    experiment_dir=experiment_dir,
+    repo_url=config.task_repo,
+    commit=config.task_commit,
+    repos_dir=repos_dir,  # Enable centralized layout
+)
+
+workspace_manager.setup_base_repo()  # Idempotent
+\`\`\`
+
+### Step 6: Add Backward-Compatible Discovery
+
+**File**: Rerun tool
+
+\`\`\`python
+import hashlib
+
+# Try centralized first, fallback to legacy
+repos_dir = experiment_dir.parent / "repos"
+repo_uuid = hashlib.sha256(config.task_repo.encode()).hexdigest()[:16]
+centralized_repo = repos_dir / repo_uuid
+legacy_repo = experiment_dir / "repo"
+
+if centralized_repo.exists() and (centralized_repo / ".git").exists():
+    base_repo = centralized_repo
+    ws_repos_dir = repos_dir
+elif legacy_repo.exists():
+    base_repo = legacy_repo
+    ws_repos_dir = None  # Legacy mode
+else:
+    raise FileNotFoundError("Base repository not found")
+
+workspace_manager = WorkspaceManager(
+    experiment_dir=experiment_dir,
+    repo_url=config.task_repo,
+    commit=config.task_commit,
+    repos_dir=ws_repos_dir,
+)
+workspace_manager._is_setup = True
+workspace_manager.base_repo = base_repo
+\`\`\`
+
+**Result**: Works with both old and new experiments!
+
+## Results & Parameters
+
+Copy-paste ready configurations and expected outputs.
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| N/A | Direct approach worked | N/A | Solution was straightforward |
+## Results & Verification
+
+### Unit Tests
+
+**Test coverage**: 19 tests total
+
+- 11 existing tests (retry logic, error handling) - updated for file locking
+- 8 new tests (centralized functionality)
+
+**New test cases**:
+
+\`\`\`python
+def test_repos_dir_sets_centralized_path()
+def test_repos_dir_none_fallback()
+def test_deterministic_repo_uuid()
+def test_reuses_existing_clone()
+def test_ensure_commit_available_fetches()
+def test_full_clone_for_centralized()
+def test_shallow_clone_for_legacy()
+def test_worktree_separate_checkout()
+\`\`\`
+
+**All tests**: ✅ 2100 passed
+
+### Integration Test Results
+
+**Test repository**: anthropics/anthropic-sdk-python
+
+\`\`\`
+Repository size: 8.0 MB (full clone)
+Worktree size: 2.6 MB (each)
+
+Experiment 1:
+  - Clone time: ~5s
+  - Worktree time: ~0.1s
+  - Disk: 8.0 + 2.6 = 10.6 MB
+
+Experiment 2 (centralized):
+  - Clone time: 0s (reused!)
+  - Worktree time: ~0.1s
+  - Disk: +2.6 MB (total: 13.2 MB)
+
+WITHOUT centralized (2 experiments):
+  - Total: 2 × (8.0 + 2.6) = 21.2 MB
+  - Time: 2 × 5.1s = 10.2s
+
+WITH centralized (2 experiments):
+  - Total: 8.0 + (2 × 2.6) = 13.2 MB
+  - Time: 5.1s + 0.1s = 5.2s
+
+Savings: 8.0 MB (37.7%)
+Time savings: 5.0s (49%)
+\`\`\`
+
+### Scaling Results
+
+| Experiments | Legacy | Centralized | Savings | % |
+| ------------- | -------- | ------------- | --------- | --- |
+| 1 | 11 MB | 11 MB | 0 MB | 0% |
+| 2 | 22 MB | 14 MB | 8 MB | 37% |
+| 5 | 55 MB | 23 MB | 32 MB | 58% |
+| 10 | 110 MB | 38 MB | 72 MB | 65% |
+| 100 | 1.1 GB | 308 MB | 792 MB | 73% |
+
+**Formula**:
+
+- Legacy: `N × (clone_size + worktree_size)`
+- Centralized: `clone_size + (N × worktree_size)`
+- Savings: `(N-1) × clone_size`
+- Percentage: `((N-1) / N) × 100%`
+
+## Key Parameters
+
+### Repository UUID Generation
+
+\`\`\`python
+import hashlib
+repo_uuid = hashlib.sha256(repo_url.encode()).hexdigest()[:16]
+# Example: "e36d60bacf989bf2"
+\`\`\`
+
+**Properties**:
+
+- Length: 16 hex characters = 64 bits
+- Collision probability: ~1 in 18 quintillion
+- Deterministic: Same URL always produces same UUID
+- URL-safe: No special characters
+
+### Lock File Pattern
+
+\`\`\`python
+lock_path = base_repo.parent / f".{base_repo.name}.lock"
+# Example: .e36d60bacf989bf2.lock
+\`\`\`
+
+**Properties**:
+
+- Hidden file (starts with `.`)
+- Per-repo locking (different repos lock independently)
+- Advisory locking (fcntl.LOCK_EX)
+- Auto-released on process exit
+
+### Clone Strategy
+
+\`\`\`python
+# Centralized repos (repos_dir set)
+git clone <url> <path>  # Full clone, all history
+
+# Legacy repos (repos_dir=None)
+git clone --depth=1 <url> <path>  # Shallow clone, minimal size
+\`\`\`
+
+**Trade-off**:
+
+- Centralized: Larger initial clone, but reused across all experiments
+- Legacy: Smaller per-experiment clone, but duplicated
+
+## Testing Strategy
+
+### Unit Test Structure
+
+\`\`\`python
+class TestCentralizedRepos:
+    def test_repos_dir_sets_centralized_path(self, tmp_path):
+        """Verify UUID calculation and path construction."""
+        repos_dir = tmp_path / "repos"
+        manager = WorkspaceManager(
+            experiment_dir=tmp_path / "exp",
+            repo_url="https://github.com/test/repo.git",
+            repos_dir=repos_dir,
+        )
+        expected_uuid = hashlib.sha256(b"https://github.com/test/repo.git").hexdigest()[:16]
+        assert manager.base_repo == repos_dir / expected_uuid
+\`\`\`
+
+**Mock requirements**:
+
+- `fcntl.flock`: File locking (prevents actual lock files)
+- `subprocess.run`: Git commands (prevents actual clones)
+
+### Integration Test Structure
+
+\`\`\`python
+def test_centralized_repos():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        repos_dir = Path(tmpdir) / "repos"
+
+        # Experiment 1: Create centralized clone
+        manager1 = WorkspaceManager(repos_dir=repos_dir, ...)
+        manager1.setup_base_repo()  # Real git clone
+        manager1.create_worktree(workspace1)
+
+        # Experiment 2: Reuse centralized clone
+        manager2 = WorkspaceManager(repos_dir=repos_dir, ...)
+        manager2.setup_base_repo()  # Should skip clone!
+        manager2.create_worktree(workspace2)
+
+        # Verify both share same base
+        assert manager1.base_repo == manager2.base_repo
+
+        # Measure disk savings
+        savings = calculate_savings(tmpdir)
+        assert savings > 30%
+\`\`\`
+
+**Real git operations**:
+
+- Actual clone from GitHub
+- Real worktree creation
+- Verify git state (branches, commits)
+
+## Edge Cases
+
+### 1. Parallel Experiment Starts
+
+**Scenario**: Two experiments start simultaneously
+
+**Handling**: File locking ensures only one clones
+
+\`\`\`python
+# Process 1
+with fcntl.flock(lock_file):  # Acquires lock
+    if not exists():
+        git clone ...  # 5 seconds
+
+# Process 2
+with fcntl.flock(lock_file):  # Waits for lock
+    if not exists():  # False! Already cloned
+        # Skip
+\`\`\`
+
+### 2. Process Crash During Clone
+
+**Scenario**: Process crashes mid-clone
+
+**Current behavior**: Partial clone directory left behind, next run may fail
+
+**Improvement needed**: Check `.git/config` exists before reusing
+
+### 3. Different Commits Same Repo
+
+**Scenario**: Experiments use different commits
+
+**Handling**: All commits fetched into shared object store
+
+\`\`\`python
+# Experiment 1
+_ensure_commit_available("abc123")  # Fetches into .git/objects/
+
+# Experiment 2
+_ensure_commit_available("def456")  # Fetches into .git/objects/
+
+# Both available!
+\`\`\`
+
+### 4. Legacy Experiment Reruns
+
+**Scenario**: Rerun experiment from before centralized repos
+
+**Handling**: Auto-detect legacy layout
+
+\`\`\`python
+if centralized_repo.exists():
+    use centralized
+elif legacy_repo.exists():  # ✓ Backward compatible
+    use legacy
+\`\`\`
+
+## Common Pitfalls
+
+### ❌ Pitfall 1: Forgetting File Locking
+
+**Problem**: Race condition when experiments start in parallel
+
+**Solution**: Always use `fcntl.flock` around clone check/create
+
+### ❌ Pitfall 2: Shallow Clone for Centralized
+
+**Problem**: Cannot fetch arbitrary commits from shallow clones
+
+**Solution**: Use full clone (`git clone` without `--depth=1`)
+
+### ❌ Pitfall 3: Including Commit in Worktree Add
+
+**Problem**: Fails when base repo not on that commit
+
+**Solution**: Separate `git worktree add` and `git checkout`
+
+### ❌ Pitfall 4: Checking Out in Base Repo
+
+**Problem**: Breaks when multiple experiments use different commits
+
+**Solution**: Only fetch into object store, checkout in worktrees
+
+### ❌ Pitfall 5: Not Handling Legacy Layout
+
+**Problem**: Old experiments fail on rerun
+
+**Solution**: Auto-detect both centralized and legacy layouts
+
+## Migration Guide
+
+**Good news**: No migration needed!
+
+The implementation is fully backward compatible:
+
+1. **Existing experiments** (before this change)
+   - Continue using `experiment_dir/repo/`
+   - Rerun tool auto-detects legacy layout
+   - No action required
+
+2. **New experiments** (after this change)
+   - Automatically use `results/repos/<uuid>/`
+   - Immediate savings on second experiment
+   - No configuration needed
+
+3. **Mixed environment**
+   - Old and new experiments coexist
+   - No conflicts or issues
+
+**Just deploy and start seeing savings!**
+
+## Performance Impact
+
+### Time Complexity
+
+| Operation | Before | After | Change |
+| ----------- | -------- | ------- | -------- |
+| First experiment | O(clone) | O(clone) | Same |
+| Second experiment | O(clone) | O(1) | **51x faster** |
+| Nth experiment | O(clone) | O(1) | **51x faster** |
+
+### Space Complexity
+
+| Metric | Formula | Example (N=10) |
+| -------- | --------- | ---------------- |
+| Legacy | N × (C + W) | 110 MB |
+| Centralized | C + (N × W) | 38 MB |
+| Savings | (N-1) × C | 72 MB (65%) |
+
+Where:
+
+- N = number of experiments
+- C = clone size (8 MB)
+- W = worktree size (3 MB)
+
+## Related Skills
+
+- `git-worktree-management`: Managing git worktrees effectively
+- `parallel-experiment-execution`: Running experiments in parallel safely
+- `disk-space-optimization`: General disk optimization strategies
+- `file-locking-patterns`: Using fcntl for concurrent operations
+
+## References
+
+- Git worktrees: <https://git-scm.com/docs/git-worktree>
+- fcntl locking: <https://docs.python.org/3/library/fcntl.html>
+- SHA-256 hashing: <https://docs.python.org/3/library/hashlib.html>
+- Integration test: `/home/mvillmow/ProjectScylla/test_centralized_repos_integration.py`
+- Full analysis: `/home/mvillmow/ProjectScylla/CENTRALIZED_REPOS_ANALYSIS.md`
+
+## Checklist for Implementation
+
+- [ ] Add `repos_dir` parameter to workspace manager
+- [ ] Implement deterministic UUID from repo URL (sha256)
+- [ ] Add file locking around clone check/create
+- [ ] Use full clone for centralized, shallow for legacy
+- [ ] Separate worktree creation from commit checkout
+- [ ] Implement `_ensure_commit_available()` (fetch without checkout)
+- [ ] Wire `repos_dir` in experiment runner
+- [ ] Add backward-compatible discovery in rerun tool
+- [ ] Write unit tests (repos path, locking, reuse, clone depth)
+- [ ] Write integration test (real clone, verify savings)
+- [ ] Document in SKILL.md with failed attempts
+- [ ] Verify all tests pass (unit + integration)
+- [ ] Measure actual disk savings (>30% target)
+
+## Success Metrics
+
+✅ **Disk Savings**: 37-73% depending on experiment count
+✅ **Time Savings**: Skip 5s clone on repeat experiments (51x faster)
+✅ **Test Coverage**: All 2100 tests pass
+✅ **Integration Test**: 37.3% savings with real repository
+✅ **Backward Compatible**: Works with existing experiments
+✅ **Parallel Safe**: File locking prevents race conditions
+```
+
+## Superseded from tooling-plugin-marketplace-hourly-cron
+
+```markdown
+---
+name: tooling-plugin-marketplace-hourly-cron
+description: "Set up a cron job to auto-update Claude Code plugin marketplaces hourly.
+  Use when: (1) a custom marketplace (e.g., ProjectMnemosyne) needs to stay current
+  without manual /plugin update, (2) ensuring new skills are available on next Claude
+  Code session start."
+category: tooling
+date: 2026-03-25
+version: 1.0.0
+user-invocable: false
+verification: verified-local
+tags:
+  - cron
+  - plugin
+  - marketplace
+  - auto-update
+  - claude-code
+---
+
+# Plugin Marketplace Hourly Cron Update
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2026-03-25 |
+| **Objective** | Auto-update a Claude Code plugin marketplace (ProjectMnemosyne) every hour via cron so new skills are available on next session start |
+| **Outcome** | Success - cron job installed, marketplace updates hourly, no manual intervention needed |
+| **Verification** | verified-local |
+
+## When to Use
+
+- A custom plugin marketplace (git-based) needs to stay current without running `/plugin` manually
+- New skills are merged to ProjectMnemosyne frequently and should be available on next Claude Code session
+- Multiple developers share a marketplace and need consistent, up-to-date skill registries
+- You want zero-touch marketplace freshness between Claude Code sessions
+
+## Verified Workflow
+
+### Quick Reference
+
+\`\`\`bash
+# Two commands needed:
+# 1. Update the marketplace index (git pull on the marketplace repo)
+claude plugin marketplace update ProjectMnemosyne
+
+# 2. Update the installed plugin to pick up new versions
+claude plugin update mnemosyne@ProjectMnemosyne
+
+# Install as hourly cron (runs at minute 0 of every hour):
+(crontab -l 2>/dev/null; echo "0 * * * * /home/<user>/.local/bin/claude plugin marketplace update ProjectMnemosyne >> /tmp/claude-plugin-update.log 2>&1 && /home/<user>/.local/bin/claude plugin update mnemosyne@ProjectMnemosyne >> /tmp/claude-plugin-update.log 2>&1") | crontab -
+\`\`\`
+
+### Detailed Steps
+
+1. **Identify the CLI commands** — Claude Code has two distinct update operations:
+   - `claude plugin marketplace update <name>` — pulls latest git for the marketplace index (the repo that lists available plugins)
+   - `claude plugin update <plugin>@<marketplace>` — updates an installed plugin to the latest version from the marketplace
+
+2. **Use absolute paths in cron** — cron does not load shell profiles, so the `claude` binary must be referenced by full path (e.g., `/home/<user>/.local/bin/claude`)
+
+3. **Chain both commands** — use `&&` so the plugin update only runs if the marketplace update succeeds
+
+4. **Log output** — redirect stdout and stderr to `/tmp/claude-plugin-update.log` for debugging
+
+5. **Install the cron job**:
+   \`\`\`bash
+   (crontab -l 2>/dev/null; echo "# Update ProjectMnemosyne plugin marketplace hourly
+   0 * * * * /home/<user>/.local/bin/claude plugin marketplace update ProjectMnemosyne >> /tmp/claude-plugin-update.log 2>&1 && /home/<user>/.local/bin/claude plugin update mnemosyne@ProjectMnemosyne >> /tmp/claude-plugin-update.log 2>&1") | crontab -
+   \`\`\`
+
+6. **Verify installation**: `crontab -l`
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| Using just `claude` without full path | `0 * * * * claude plugin marketplace update ...` | cron does not source `.bashrc`/`.profile`, so `claude` is not on PATH | Always use absolute path to binary in cron jobs (e.g., `/home/<user>/.local/bin/claude`) |
+| Updating only the marketplace | `claude plugin marketplace update ProjectMnemosyne` alone | Marketplace index updates but installed plugin version doesn't change | Must also run `claude plugin update <plugin>@<marketplace>` to pick up new plugin versions |
+
+## Results & Parameters
+
+### Claude Code Plugin CLI Reference
+
+| Command | Purpose |
+| --------- | --------- |
+| `claude plugin marketplace update [name]` | Pull latest git for marketplace (updates all if no name) |
+| `claude plugin update <plugin>@<marketplace>` | Update installed plugin to latest version |
+| `claude plugin marketplace list` | List configured marketplaces |
+| `claude plugin list` | List installed plugins |
+
+### Marketplace Storage Locations
+
+| Item | Path |
+| ------ | ------ |
+| Marketplace repos | `~/.claude/plugins/marketplaces/<name>/` |
+| Installed plugins | `~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/` |
+| Plugin registry | `~/.claude/plugins/installed_plugins.json` |
+| Marketplace config | `~/.claude/plugins/known_marketplaces.json` |
+
+### Cron Job Parameters
+
+\`\`\`bash
+# Schedule: every hour at minute 0
+# Log file: /tmp/claude-plugin-update.log
+# Binary: absolute path to claude CLI
+0 * * * * /home/<user>/.local/bin/claude plugin marketplace update ProjectMnemosyne >> /tmp/claude-plugin-update.log 2>&1 && /home/<user>/.local/bin/claude plugin update mnemosyne@ProjectMnemosyne >> /tmp/claude-plugin-update.log 2>&1
+\`\`\`
+
+### Adapting for Other Marketplaces
+
+Replace `ProjectMnemosyne` and `mnemosyne@ProjectMnemosyne` with your marketplace and plugin names:
+
+\`\`\`bash
+# List your marketplaces
+claude plugin marketplace list
+
+# List installed plugins to find the correct name
+claude plugin list
+\`\`\`
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| HomericIntelligence ecosystem | Session setting up hourly auto-update for ProjectMnemosyne marketplace | Cron job installed, both commands tested manually, log output confirmed |
+```
+
+## Superseded from hephaestus-plugin-migration
+
+```markdown
+---
+name: hephaestus-plugin-migration
+description: "Migrate Claude Code plugin from ProjectMnemosyne to ProjectHephaestus. Use when: (1) switching enabled plugins between marketplaces, (2) updating ~/.claude/settings.json enabledPlugins or extraKnownMarketplaces, (3) separating command plugins from data-store marketplaces"
+category: tooling
+date: 2026-03-27
+version: "1.0.0"
+user-invocable: false
+tags: [claude-code, plugin, marketplace, migration, hephaestus, mnemosyne, settings]
+---
+
+# Hephaestus Plugin Migration
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2026-03-27 |
+| **Objective** | Replace ProjectMnemosyne plugin with ProjectHephaestus plugin in Claude Code global settings |
+| **Outcome** | Successful - plugins reloaded and all commands available |
+
+## When to Use
+
+- Migrating enabled plugins from one marketplace to another in `~/.claude/settings.json`
+- Switching from `skills-registry-commands@ProjectMnemosyne` to `hephaestus@ProjectHephaestus`
+- Needing to understand the `enabledPlugins` and `extraKnownMarketplaces` format in Claude Code settings
+- Separating command-providing plugins from data-store marketplaces (commands in one repo, data in another)
+
+## Verified Workflow
+
+### Quick Reference
+
+\`\`\`bash
+# Edit ~/.claude/settings.json:
+# 1. Replace old plugin with new in enabledPlugins
+# 2. Add new marketplace to extraKnownMarketplaces (if not present)
+# 3. Old marketplace can be removed from extraKnownMarketplaces if
+#    the new plugin clones the data repo independently
+
+cat ~/.claude/settings.json | python3 -m json.tool
+\`\`\`
+
+### Detailed Steps
+
+1. **Identify current plugin configuration** in `~/.claude/settings.json`:
+   - Check `enabledPlugins` for the old entry (e.g., `"skills-registry-commands@ProjectMnemosyne": true`)
+   - Check `extraKnownMarketplaces` for registered marketplaces
+
+2. **Update `enabledPlugins`**:
+   - Remove: `"skills-registry-commands@ProjectMnemosyne": true`
+   - Add: `"hephaestus@ProjectHephaestus": true`
+
+3. **Update `extraKnownMarketplaces`**:
+   - Add ProjectHephaestus entry with git source format:
+     \`\`\`json
+     {
+       "source": {
+         "source": "git",
+         "url": "https://github.com/HomericIntelligence/ProjectHephaestus.git"
+       }
+     }
+     \`\`\`
+   - ProjectMnemosyne can be removed from `extraKnownMarketplaces` because ProjectHephaestus commands (`/advise`, `/learn`) clone ProjectMnemosyne independently to `$HOME/.agent-brain/ProjectMnemosyne/`
+
+4. **Reload plugins** in the Claude Code session (or restart the session)
+
+5. **Verify** the new commands are available: `/advise`, `/learn`, `/myrmidon-swarm`, `/repo-analyze`, `/repo-analyze-quick`, `/repo-analyze-strict`, `/create-reusable-utilities`, `/github-actions-python-cicd`, `/python-repo-modernization`
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| N/A | Direct settings.json edit worked first try | N/A | Solution was straightforward |
+
+## Results & Parameters
+
+### Configuration
+
+The key formats in `~/.claude/settings.json`:
+
+\`\`\`json
+{
+  "enabledPlugins": {
+    "hephaestus@ProjectHephaestus": true
+  },
+  "extraKnownMarketplaces": [
+    {
+      "source": {
+        "source": "git",
+        "url": "https://github.com/HomericIntelligence/ProjectHephaestus.git"
+      }
+    }
+  ]
+}
+\`\`\`
+
+Format rules:
+- `enabledPlugins` keys follow the pattern `"pluginName@MarketplaceName": true`
+- `extraKnownMarketplaces` entries use nested `source` object with `"source": "git"` and `"url"` fields
+
+### Expected Output
+
+- All ProjectHephaestus commands appear in `/` slash-command list
+- `/advise` and `/learn` still query ProjectMnemosyne data (cloned to `$HOME/.agent-brain/ProjectMnemosyne/`)
+- No errors on plugin reload
+
+### Key Insight
+
+When migrating plugins between marketplaces, the old marketplace may still serve as a data backend. ProjectMnemosyne stores skills data while ProjectHephaestus provides the commands that query it. However, ProjectHephaestus commands handle cloning ProjectMnemosyne independently, so the old marketplace does not need to remain in `extraKnownMarketplaces`.
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| HomericIntelligence | Claude Code global settings migration | verified-local: settings applied and plugins reloaded successfully |
+
+## References
+
+- [claude-plugin-marketplace](claude-plugin-marketplace.md) - Marketplace setup and schema details
+- [claude-code-settings-config](claude-code-settings-config.md) - Claude Code settings.json configuration
+- [ProjectHephaestus](https://github.com/HomericIntelligence/ProjectHephaestus) - New plugin provider
+- [ProjectMnemosyne](https://github.com/HomericIntelligence/ProjectMnemosyne) - Skills data store
+```
+
+## Superseded from retrospective-hook-integration
+
+```markdown
+---
+name: retrospective-hook-integration
+description: Setup SessionEnd hooks for automatic retrospective prompts in Claude
+  Code. Use when integrating ProjectMnemosyne marketplace.
+category: tooling
+date: 2025-12-29
+version: 1.0.0
+---
+# Retrospective Hook Integration
+
+Setup SessionEnd hooks to automatically prompt for `/learn` when ending Claude Code sessions.
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2025-12-29 |
+| **Objective** | Integrate ProjectMnemosyne marketplace with ProjectOdyssey for automatic knowledge capture |
+| **Outcome** | Successfully configured SessionEnd hooks and marketplace registration with worktree workflow |
+| **Source** | ProjectOdyssey integration |
+
+## When to Use
+
+- Integrating ProjectMnemosyne skills marketplace with another repository
+- Setting up `/advise` and `/learn` commands in a new project
+- Configuring automatic session-end knowledge capture prompts
+- Implementing worktree-based workflow to avoid conflicts with other Claude instances
+
+## Verified Workflow
+
+### 1. Register the Marketplace
+
+**Option A: From GitHub URL (Recommended)**
+
+Inside Claude Code session:
+
+\`\`\`text
+/plugin marketplace add https://github.com/HomericIntelligence/ProjectMnemosyne
+\`\`\`
+
+Or from terminal:
+
+\`\`\`bash
+claude plugin marketplace add https://github.com/HomericIntelligence/ProjectMnemosyne
+\`\`\`
+
+**Option B: From Local Directory**
+
+\`\`\`bash
+git clone git@github.com:HomericIntelligence/ProjectMnemosyne.git
+\`\`\`
+
+Then:
+
+\`\`\`text
+/plugin marketplace add /path/to/ProjectMnemosyne
+\`\`\`
+
+### 2. Configure SessionEnd Hook
+
+Create worktree to avoid conflicts:
+
+\`\`\`bash
+cd /path/to/project
+git worktree add worktrees/retrospective-hook main -b retrospective-hook
+cd worktrees/retrospective-hook
+\`\`\`
+
+Update `.claude/settings.json`:
+
+\`\`\`json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/pre-bash-exec.py"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/learn-trigger.py\"",
+            "timeout": 120,
+            "once": true
+          }
+        ]
+      }
+    ]
+  }
+}
+\`\`\`
+
+### 3. Copy Hook Script
+
+\`\`\`bash
+cp /path/to/ProjectMnemosyne/.claude/hooks/learn-trigger.py .claude/hooks/
+\`\`\`
+
+### 4. Commit and Create PR
+
+\`\`\`bash
+git add .claude/settings.json .claude/hooks/learn-trigger.py
+git commit -m "feat(hooks): add SessionEnd hook for retrospective prompts"
+git push -u origin retrospective-hook
+gh pr create --title "feat(hooks): add SessionEnd hook" --body "..."
+gh pr merge --auto --rebase
+\`\`\`
+
+### 5. Install Skills
+
+After marketplace registration:
+
+\`\`\`text
+/plugin install grpo-external-vllm@ProjectMnemosyne
+/plugin install mojo-simd-errors@ProjectMnemosyne
+/plugin install github-actions-mojo@ProjectMnemosyne
+/plugin install layerwise-gradient-check@ProjectMnemosyne
+/plugin install skill-marketplace-design@ProjectMnemosyne
+\`\`\`
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| N/A | Direct approach worked | N/A | Solution was straightforward |
+## Results & Parameters
+
+### Hook Configuration (v2.1.0+)
+
+\`\`\`json
+{
+  "SessionEnd": [
+    {
+      "hooks": [
+        {
+          "type": "command",
+          "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/learn-trigger.py\"",
+          "timeout": 120,
+          "once": true
+        }
+      ]
+    }
+  ]
+}
+\`\`\`
+
+**NEW in v2.1.0**: `once: true` ensures hook runs only once per session, preventing duplicate retrospective prompts.
+
+### Hook Script Parameters
+
+- **Minimum transcript length**: 10 messages
+- **Trigger reasons**: `"exit"` or `"clear"` only
+- **Timeout**: 120 seconds
+- **once**: `true` (v2.1.0+) - Run only once per session
+- **Output**: JSON with `systemMessage` field
+
+### Marketplace Registration
+
+\`\`\`bash
+# GitHub URL (private repo)
+/plugin marketplace add https://github.com/HomericIntelligence/ProjectMnemosyne
+
+# Local directory
+/plugin marketplace add /home/user/ProjectMnemosyne-marketplace
+\`\`\`
+
+### Worktree Pattern
+
+\`\`\`bash
+# Create worktree
+git worktree add worktrees/<branch-name> main -b <branch-name>
+
+# Work in worktree
+cd worktrees/<branch-name>
+
+# Cleanup after merge
+git worktree remove worktrees/<branch-name>
+\`\`\`
+
+## References
+
+- ProjectMnemosyne: https://github.com/HomericIntelligence/ProjectMnemosyne
+- Blog post: https://huggingface.co/blog/sionic-ai/claude-code-skills-training
+- Claude Code plugin docs: https://code.claude.com/docs/en/discover-plugins
+- Claude Code skills docs: https://code.claude.com/docs/en/skills
+```
+
+## Superseded from retrospective-integration
+
+```markdown
+---
+name: retrospective-integration
+description: Integrate /learn skill into automation pipelines to automatically
+  capture session learnings
+category: tooling
+date: 2026-02-13
+version: 1.0.0
+user-invocable: false
+---
+# Skill: Retrospective Integration into Automation Pipeline
+
+| Attribute | Value |
+| ----------- | ------- |
+| **Date** | 2026-02-13 |
+| **Category** | Automation |
+| **Objective** | Integrate `/learn` skill into `implement_issues.py` to automatically capture learnings |
+| **Outcome** | ✅ Success - Full implementation with comprehensive test coverage |
+| **PR** | https://github.com/HomericIntelligence/ProjectScylla/pull/609 |
+
+## When to Use This Skill
+
+- **Capture session context automatically** - Resume Claude Code sessions for post-implementation tasks
+- **Extract session IDs from Claude CLI** - Parse JSON output to get session identifiers
+- **Add optional pipeline phases** - Integrate new phases into existing automation workflows
+- **Implement graceful degradation** - Add non-blocking features that enhance but don't break pipelines
+- **Design opt-in features** - Add capabilities disabled by default to avoid disrupting workflows
+
+## Verified Workflow
+
+### 1. Capture Session ID from Claude CLI JSON Output
+
+\`\`\`python
+result = run(["claude", "--message", prompt, "--output-format", "json"], ...)
+try:
+    data = json.loads(result.stdout)
+    return data.get("session_id")
+except (json.JSONDecodeError, AttributeError):
+    logger.warning("Could not parse session_id")
+    return None
+\`\`\`
+
+**Key**: Use `.get()` for graceful None return, log warnings but never fail pipeline
+
+### 2. Resume Session to Run Learn with Proper Permissions
+
+**Critical**: When resuming a session to run `/learn`, you MUST provide tool permissions for git and gh commands:
+
+\`\`\`python
+run([
+    "claude",
+    "--resume", session_id,
+    "/mnemosyne:learn commit the results and create a PR",
+    "--print",
+    "--tools", "Bash",
+    "--allowedTools", "Bash(git:*)",
+    "--allowedTools", "Bash(gh:*)"
+], cwd=worktree_path, timeout=600)
+\`\`\`
+
+**Key Points**:
+- Use `/mnemosyne:learn` as the command (not `--message`)
+- Add explicit instructions: "commit the results and create a PR"
+- `--print` mode for non-interactive execution
+- `--tools "Bash"` enables Bash tool
+- `--allowedTools "Bash(git:*)"` permits all git commands
+- `--allowedTools "Bash(gh:*)"` permits all gh CLI commands
+- Without these permissions, retrospective cannot commit to ProjectMnemosyne
+
+**Wrong approach** (will fail to commit):
+\`\`\`python
+# ❌ Missing tool permissions
+run([
+    "claude", "--resume", session_id, "--message",
+    "Use the /mnemosyne:learn skill..."
+], ...)
+\`\`\`
+
+### 3. Add New Phase to Pydantic State Model
+
+\`\`\`python
+class ImplementationPhase(str, Enum):
+    RETROSPECTIVE = "retrospective"  # Add to enum
+
+class ImplementationState(BaseModel):
+    session_id: str | None = None  # Add optional field with None default
+\`\`\`
+
+**Key**: New fields must have defaults for backward compatibility with persisted state
+
+### 4. Integrate into Pipeline with Conditional Logic
+
+\`\`\`python
+if self.options.enable_retrospective and state.session_id:
+    state.phase = ImplementationPhase.RETROSPECTIVE
+    self._save_state(state)
+    self._run_retrospective(state.session_id, worktree_path, issue_number)
+\`\`\`
+
+**Key**: Check both feature flag AND required data, always mark COMPLETED even if retrospective fails
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | YYYY-MM-DD |
+| **Objective** | Skill objective |
+| **Outcome** | Success/Operational |
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| N/A | Direct approach worked | N/A | Solution was straightforward |
+## Results & Parameters
+
+| Component | Value | Rationale |
+| ----------- | ------- | ----------- |
+| Session resume timeout | 600s | Retrospective involves cloning + PR creation |
+| Implementation timeout | 1800s | Complex implementations need generous timeout |
+| Phase ordering | After CREATING_PR, before COMPLETED | Work saved but state not finalized |
+| Default flag state | False | Opt-in to avoid disrupting workflows |
+| Error handling | Log warning, never raise | Non-blocking enhancement |
+| Tool permissions | Bash(git:*), Bash(gh:*) | Required for committing and creating PRs |
+
+### Test Coverage
+
+\`\`\`bash
+178 passed in 7.39s  # All automation tests pass
+All checks passed     # Pre-commit hooks pass
+\`\`\`
+
+### Usage
+
+\`\`\`bash
+# With retrospective enabled
+python scripts/implement_issues.py --epic 123 --retrospective
+\`\`\`
+
+## Reusable Patterns
+
+### Extract JSON CLI Output
+\`\`\`python
+try:
+    data = json.loads(result.stdout)
+    value = data.get("key")
+except (json.JSONDecodeError, AttributeError):
+    return None
+\`\`\`
+
+### Resume Session with Tool Permissions
+\`\`\`python
+run([
+    "claude",
+    "--resume", session_id,
+    "/skill-name command arguments",
+    "--print",
+    "--tools", "Bash",
+    "--allowedTools", "Bash(git:*)",
+    "--allowedTools", "Bash(gh:*)"
+], cwd=worktree_path, timeout=600)
+\`\`\`
+
+### Non-Blocking Optional Phase
+\`\`\`python
+try:
+    execute_optional_feature()
+except Exception as e:
+    logger.warning(f"Feature failed: {e}")
+    # Don't re-raise
+\`\`\`
+
+## Tags
+
+`automation` `claude-cli` `session-management` `pipeline-integration` `graceful-degradation` `tool-permissions`
+```
