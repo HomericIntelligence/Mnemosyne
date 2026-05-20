@@ -1,0 +1,2690 @@
+# History: runtime-resource-optimization-mojo-python
+
+## Superseded from analyze-simd-usage
+
+---
+name: analyze-simd-usage
+description: Analyze SIMD usage opportunities in Mojo code. Use to find performance
+  optimization opportunities.
+category: optimization
+date: '2026-03-19'
+version: 1.0.0
+mcp_fallback: none
+---
+# Analyze SIMD Usage Opportunities
+
+## Overview
+
+| Item | Details |
+| ------ | --------- |
+| Date | N/A |
+| Objective | Identify where SIMD (Single Instruction Multiple Data) can improve performance. - Performance-critical tensor operations |
+| Outcome | Operational |
+
+Identify where SIMD (Single Instruction Multiple Data) can improve performance.
+
+## When to Use
+
+- Performance-critical tensor operations
+- Element-wise operations on large arrays
+- Vectorization of loops processing multiple elements
+- Optimizing matrix/vector operations
+- Finding performance bottlenecks in ML code
+
+## Verified Workflow
+
+### Quick Reference
+
+```bash
+# Find loops processing arrays/tensors
+grep -n "for.*in.*range\|@unroll\|@vectorize" *.mojo
+
+# Find element-wise operations
+grep -n "\.load\|\.store\|\.broadcast" *.mojo
+
+# Check for SIMD parameters
+grep -n "simd_width\|nelems\|\[.*:\]" *.mojo
+
+# Identify candidates
+grep -n "for i in range.*:" -A 10 *.mojo | grep -E "array\[i\]|tensor\[i\]"
+```
+
+## SIMD Optimization Opportunities
+
+**Vectorizable Patterns**:
+
+- ✅ Element-wise addition: `a[i] + b[i]` for all i
+- ✅ Scalar multiplication: `a[i] * scalar` for all i
+- ✅ Unary operations: `sin(a[i])`, `exp(a[i])` for all i
+- ✅ Reduction operations: sum, max, min over array
+- ❌ Dependent iterations: `a[i] = a[i-1] + value` (sequential)
+- ❌ Conditional branches: `if a[i] > threshold:` (hard to vectorize)
+- ❌ Function calls: unpredictable latency (avoid in tight loops)
+
+**SIMD Width Selection**:
+
+- `@parameter fn[simd_width: Int]` - Generic SIMD width
+- `simd_width=4` - Typically good for float32
+- `simd_width=8` - Optimal for many operations
+- `simd_width=16+` - For int32 or specialized ops
+- Match hardware capabilities (AVX2=4-8, AVX512=8-16)
+
+**Vectorization Patterns**:
+
+- ✅ `@vectorize` decorator for simple loops
+- ✅ `@unroll` for small loops (2-4 iterations)
+- ✅ Manual SIMD with `.load[]` and `.store[]`
+- ✅ Tensor operations with SIMD dimensions
+
+## Analysis Workflow
+
+1. **Profile code**: Identify bottlenecks using time/memory metrics
+2. **Find loops**: Locate loops processing large amounts of data
+3. **Check vectorizability**: Verify no loop-carried dependencies
+4. **Estimate speedup**: SIMD could provide 4-16x improvement
+5. **Implement SIMD**: Use @vectorize, @unroll, or manual SIMD
+6. **Measure performance**: Verify improvement with benchmarks
+7. **Document changes**: Note what was optimized and why
+
+## Output Format
+
+Report SIMD analysis with:
+
+1. **Hotspots** - Functions/loops using most CPU time
+2. **Vectorization Potential** - Operations that could use SIMD
+3. **Estimated Speedup** - Expected performance improvement
+4. **Implementation Priority** - High/medium/low impact
+5. **Technical Approach** - How to implement SIMD
+6. **Risks** - Potential issues with vectorization
+7. **Recommendations** - Which optimizations to pursue first
+
+## Optimization Examples
+
+**Example 1: Element-wise Addition**
+
+```mojo
+# Before: scalar loop
+fn add_scalar(a: Tensor, b: Tensor) -> Tensor:
+    var result = Tensor(a.shape)
+    for i in range(a.num_elements()):
+        result._data[i] = a._data[i] + b._data[i]
+    return result
+
+# After: vectorized
+@vectorize
+fn add_simd[simd_width: Int](i: Int):
+    result._data.store[simd_width](i,
+        a._data.load[simd_width](i) + b._data.load[simd_width](i))
+
+def add_vectorized(a: Tensor, b: Tensor) -> Tensor:
+    var result = Tensor(a.shape)
+    # 4x-8x speedup typical
+    return result
+```
+
+**Example 2: Reduction (Sum)**
+
+```mojo
+# Before: scalar loop
+fn sum_scalar(tensor: Tensor) -> Float32:
+    var total: Float32 = 0
+    for i in range(tensor.num_elements()):
+        total += tensor._data[i]
+    return total
+
+# After: SIMD reduction
+fn sum_simd[simd_width: Int](tensor: Tensor) -> Float32:
+    # Process simd_width elements at a time
+    # Then reduce results - can be much faster
+    return total
+```
+
+## Error Handling
+
+| Problem | Solution |
+| --------- | ---------- |
+| Vectorization causes wrong results | Check for loop-carried dependencies |
+| Segment fault with SIMD | Verify alignment and bounds |
+| Minimal speedup | May not be vectorizable, profile to confirm |
+| Complex logic | Break into simpler vectorizable operations |
+| Type mismatches | Ensure SIMD width compatible with element type |
+
+## SIMD Decision Tree
+
+- Does loop process large arrays? → YES → Check vectorizability
+- Loop-carried dependencies? → YES → Can't vectorize, optimize differently
+- Simple operations on many elements? → YES → Use @vectorize or @unroll
+- Critical path (hot loop)? → YES → Worth optimizing
+- Implement → Measure → Iterate
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| N/A | Direct approach worked | N/A | Solution was straightforward |
+## Results & Parameters
+
+N/A — this skill describes a workflow pattern.
+
+## References
+
+- See mojo-simd-optimize for implementation guidance
+- See CLAUDE.md for SIMD code patterns
+- See performance section in module documentation
+
+### Notes: analyze-simd-usage
+
+# Notes
+
+Migrated from plugins/uncategorized/skills/analyze-simd-usage/ on 2026-01-02.
+
+## Superseded from check-memory-safety
+
+---
+name: check-memory-safety
+description: Check Mojo code for memory safety issues (ownership violations, use-after-free,
+  etc.). Use to catch memory bugs.
+category: optimization
+date: '2026-03-19'
+version: 1.0.0
+mcp_fallback: none
+---
+# Check Memory Safety
+
+## Overview
+
+| Item | Details |
+| ------ | --------- |
+| Date | N/A |
+| Objective | Validate Mojo code for memory safety violations and ownership issues. - Code review focused on memory safety |
+| Outcome | Operational |
+
+Validate Mojo code for memory safety violations and ownership issues.
+
+## When to Use
+
+- Code review focused on memory safety
+- Testing for use-after-free issues
+- Verifying ownership transfer correctness
+- Catching double-free or segmentation fault sources
+- Validating SIMD memory access patterns
+
+## Verified Workflow
+
+### Quick Reference
+
+```bash
+# Find potential use-after-free patterns
+grep -n "var .* = .*\^" *.mojo | head -20
+
+# Check for uninitialized access
+grep -n "List\[.*\]()" *.mojo | grep -A 2 "\..*\["
+
+# Verify ownership transfer
+grep -n "owned\|var.*=" *.mojo | sort
+
+# Check pointer operations
+grep -n "DTypePointer\|alloc\|free\|__del__" *.mojo
+
+# Find scope issues
+grep -n "{" *.mojo | wc -l  # Check nesting depth
+```
+
+## Memory Safety Patterns
+
+**Safe Ownership Transfer**:
+
+- ✅ `fn take(var data: List[Int])` - Caller loses access
+- ✅ `return self.data^` - Transfer from struct field
+- ✅ `var copy = data^` - Move to new variable
+- ❌ `fn take(data: List[Int])` - Ambiguous, use var
+- ❌ `return self.data` - Missing transfer operator
+
+**Safe Initialization**:
+
+- ✅ `var shape = List[Int]()` then `shape.append(dim)`
+- ✅ `var data = DTypePointer[DType.float32].alloc(size)`
+- ✅ Check `size > 0` before allocation
+- ❌ `var list = List[Int]()` then `list[0] = value` (uninitialized)
+- ❌ `alloc(0)` or `alloc(negative)` (invalid size)
+
+**Safe Pointer Usage**:
+
+- ✅ Allocate before use: `alloc(size)`
+- ✅ Store size separately for bounds checking
+- ✅ Verify pointer validity before dereference
+- ❌ Use after free (manually deleted pointer)
+- ❌ Out-of-bounds access
+- ❌ Null pointer dereference
+
+**Safe Scope Management**:
+
+- ✅ Owned values dropped at scope end
+- ✅ RAII pattern with proper cleanup
+- ✅ Lifetime boundaries clear
+- ❌ Variable used after scope exit
+- ❌ Reference to stack variable returned
+- ❌ Missing ownership transfer between scopes
+
+## Safety Validation Workflow
+
+1. **Identify pointers**: Find all pointer operations
+2. **Check allocation**: Verify all pointers allocated before use
+3. **Trace ownership**: Follow ownership transfers
+4. **Verify lifetimes**: Check value scopes
+5. **Find violations**: Identify safety issues
+6. **Suggest fixes**: Provide safety corrections
+7. **Verify fixes**: Compile to confirm safety
+
+## Output Format
+
+Report memory safety issues with:
+
+1. **Issue Type** - Use-after-free, double-free, uninitialized, bounds, etc.
+2. **Location** - File and line number
+3. **Code Snippet** - The problematic code
+4. **Root Cause** - Why it's unsafe
+5. **Risk Level** - Segfault, undefined behavior, or warning
+6. **Fix** - How to correct it safely
+
+## Common Safety Issues & Fixes
+
+**Uninitialized List Access**:
+
+- Problem: `var list = List[Int](); list[0] = 5`
+- Risk: Out-of-bounds write, segmentation fault
+- Fix: Use `list.append(5)` instead
+
+**Use After Move**:
+
+- Problem: `var a = list^; print(list)` (list moved, now invalid)
+- Risk: Use-after-free
+- Fix: Don't use list after transfer, or create copy
+
+**Missing Bounds Check**:
+
+- Problem: Access `tensor._data[index]` without size check
+- Risk: Out-of-bounds access, segfault
+- Fix: Add `assert index < size` or check in loop
+
+**Pointer Without Size**:
+
+- Problem: `var ptr = alloc(size)` but size not tracked
+- Risk: Invalid access, use-after-free
+- Fix: Store size, verify before access
+
+**Double-Free**:
+
+- Problem: Manual `free()` called twice on same pointer
+- Risk: Heap corruption, segfault
+- Fix: Use RAII, don't call free manually
+
+## Error Handling
+
+| Problem | Solution |
+| --------- | ---------- |
+| Compiler not available | Build with `mojo build` to get errors |
+| Complex ownership | Trace step-by-step through ownership chain |
+| Generic code | Check all type instantiations |
+| External code | Verify contract assumptions |
+| False positives | Verify with test execution |
+
+## Safety Checklist
+
+Before committing Mojo code:
+
+- [ ] All pointers have size tracked
+- [ ] All List/Dict allocations use append/insert
+- [ ] All ownership transfers use `^`
+- [ ] No variables used after move
+- [ ] All pointer access has bounds check
+- [ ] Scope lifetimes match usage
+- [ ] Compiler produces no errors or warnings
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| N/A | Direct approach worked | N/A | Solution was straightforward |
+## Results & Parameters
+
+N/A — this skill describes a workflow pattern.
+
+## References
+
+- See CLAUDE.md for ownership patterns
+- See validate-mojo-patterns for pattern checking
+- See mojo-lint-syntax for syntax issues
+
+### Notes: check-memory-safety
+
+# Notes
+
+Migrated from plugins/uncategorized/skills/check-memory-safety/ on 2026-01-02.
+
+## Superseded from optimization-mojo-simd-nan-inf-vectorization
+
+---
+name: optimization-mojo-simd-nan-inf-vectorization
+description: "SIMD-vectorize NaN/Inf detection and gradient clipping functions in Mojo for hot-path performance. Use when: (1) optimizing element-wise tensor scanning functions, (2) implementing SIMD early-exit patterns in Mojo, (3) using vectorize[] with lane reduction for counting, (4) replacing scalar _get_float64/_set_float64 loops with SIMD, (5) implementing vectorized L2 norm accumulation with Float64 accumulator, (6) SIMD in-place tensor scaling or clamping."
+category: optimization
+date: 2025-03-25
+version: "1.1.0"
+user-invocable: false
+tags: [mojo, simd, vectorization, numerical-safety, performance, nan-detection, gradient-clipping, training, norm-computation]
+absorbed: [optimization-simd-gradient-clipping-vectorization]
+---
+
+# SIMD Vectorization of NaN/Inf Detection in Mojo
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2025-03-25 |
+| **Objective** | Replace scalar element-by-element loops in hot-path NaN/Inf detection functions with SIMD-vectorized implementations for ~4-16x throughput improvement |
+| **Outcome** | Successful — all 4 functions vectorized, 9 new SIMD edge-case tests pass, zero regressions |
+
+## When to Use
+
+- Optimizing element-wise tensor scanning functions (has_nan, has_inf, count_nan, count_inf)
+- Implementing SIMD early-exit patterns in Mojo (boolean detection with `reduce_or()`)
+- Using `vectorize[]` with lane reduction for parallel counting (`cast[DType.uint8]().reduce_add()`)
+- Working with `isnan()`/`isinf()` on SIMD vectors in Mojo 0.26.1+
+- Handling scalar tail elements when tensor size is not divisible by SIMD width
+
+## Verified Workflow
+
+### Quick Reference
+
+```mojo
+from sys import simd_width_of
+from algorithm import vectorize
+from math import isnan, isinf
+
+# Pattern 1: Manual SIMD loop with early exit (for boolean detection)
+fn _has_nan_core[dtype: DType](tensor: Tensor[dtype]) -> Bool:
+    var size = tensor.numel()
+    var ptr = tensor._data
+    comptime simd_w = simd_width_of[dtype]()
+
+    var i = 0
+    while i + simd_w <= size:
+        var vec = ptr.load[width=simd_w](i)
+        if isnan(vec).reduce_or():
+            return True
+        i += simd_w
+
+    # Scalar tail
+    while i < size:
+        if isnan(ptr[i]):
+            return True
+        i += 1
+    return False
+
+# Pattern 2: vectorize[] with lane reduction (for counting)
+fn _count_nan_core[dtype: DType](tensor: Tensor[dtype]) -> Int:
+    var size = tensor.numel()
+    var count = 0
+    var ptr = tensor._data
+    comptime simd_w = simd_width_of[dtype]()
+
+    @parameter
+    fn _count[width: Int](idx: Int) unified {mut}:
+        var vec = ptr.load[width=width](idx)
+        count += Int(isnan(vec).cast[DType.uint8]().reduce_add())
+
+    vectorize[simd_w](size, _count)
+    return count
+```
+
+### Detailed Steps
+
+1. **Choose the right pattern based on function semantics**:
+   - Boolean detection (has_nan/has_inf): Use **manual SIMD loop** — `vectorize[]` closures cannot `return` from the outer function, so early exit requires a manual `while` loop
+   - Counting (count_nan/count_inf): Use **`vectorize[]`** — no early exit needed, and `vectorize[]` handles tail elements automatically
+
+2. **Add required imports**: `from sys import simd_width_of`, `from algorithm import vectorize`
+
+3. **Get SIMD width at compile time**: `comptime simd_w = simd_width_of[dtype]()` — this gives 8 for float32, 4 for float64 on AVX-256 (16 for float32 on AVX-512)
+
+4. **SIMD load and check**: `ptr.load[width=simd_w](i)` loads a SIMD vector; `isnan(vec)` returns `SIMD[DType.bool, width]`
+
+5. **Reduce SIMD results**:
+   - For boolean: `isnan(vec).reduce_or()` — True if any lane is NaN
+   - For counting: `isnan(vec).cast[DType.uint8]().reduce_add()` — sum of True lanes (True=1, False=0)
+
+6. **Handle scalar tail** (manual loop only): After the SIMD loop, process remaining `size % simd_w` elements with a scalar loop
+
+7. **Integer type guard**: Use `@parameter if` to return False/0 for integer dtypes at compile time (integers cannot have NaN/Inf)
+
+## Gradient Clipping SIMD Patterns
+
+This section covers SIMD vectorization of gradient clipping hot paths — replacing
+scalar `_get_float64`/`_set_float64` element-by-element loops for 4-8x throughput improvement.
+
+**6 SIMD helper functions** serve **4 gradient clipping functions**:
+
+| Helper | Operation | Used By |
+| -------- | ----------- | --------- |
+| `_norm_sq_simd_f32/f64` | Squared L2 norm (sum of squares) | `compute_gradient_norm_list`, `clip_gradients_per_param` |
+| `_scale_simd_f32/f64` | In-place multiply by scalar | `clip_gradients_by_global_norm`, `clip_gradients_per_param` |
+| `_clamp_simd_f32/f64` | In-place min/max clamping | `clip_gradients_by_value_list` |
+
+### Quick Reference
+
+```mojo
+from algorithm import vectorize
+from sys.info import simd_width_of
+
+# Pattern: SIMD L2 norm accumulation (Float64 accumulator for numerical stability)
+@always_inline
+fn _norm_sq_simd_f32(tensor: AnyTensor) -> Float64:
+    comptime simd_width = simd_width_of[DType.float32]()
+    var size = tensor._numel
+    var ptr = tensor._data.bitcast[Float32]()   # AnyTensor bitcast pattern
+    var acc = Float64(0.0)
+
+    @parameter
+    fn vectorized_norm[width: Int](idx: Int) unified {mut}:
+        var vec = ptr.load[width=width](idx)
+        var sq = vec * vec
+        acc += sq.reduce_add().cast[DType.float64]()  # widen to Float64
+
+    vectorize[simd_width](size, vectorized_norm)
+    return acc
+
+# Pattern: SIMD in-place scaling
+@always_inline
+fn _scale_simd_f32(tensor: AnyTensor, scale: Float32):
+    comptime simd_width = simd_width_of[DType.float32]()
+    var size = tensor._numel
+    var ptr = tensor._data.bitcast[Float32]()
+
+    @parameter
+    fn vectorized_scale[width: Int](idx: Int) unified {mut}:
+        var vec = ptr.load[width=width](idx)
+        var scale_vec = SIMD[DType.float32, width](scale)
+        ptr.store[width=width](idx, vec * scale_vec)
+
+    vectorize[simd_width](size, vectorized_scale)
+
+# Pattern: SIMD in-place clamping (min/max value clipping)
+@always_inline
+fn _clamp_simd_f32(tensor: AnyTensor, min_val: Float32, max_val: Float32):
+    comptime simd_width = simd_width_of[DType.float32]()
+    var size = tensor._numel
+    var ptr = tensor._data.bitcast[Float32]()
+
+    @parameter
+    fn vectorized_clamp[width: Int](idx: Int) unified {mut}:
+        var vec = ptr.load[width=width](idx)
+        var min_vec = SIMD[DType.float32, width](min_val)
+        var max_vec = SIMD[DType.float32, width](max_val)
+        ptr.store[width=width](idx, max(min_vec, min(max_vec, vec)))
+
+    vectorize[simd_width](size, vectorized_clamp)
+```
+
+### AnyTensor Data Access Pattern
+
+`AnyTensor._data` is `UnsafePointer[UInt8]`. Bitcast once outside the loop:
+
+```mojo
+var ptr = tensor._data.bitcast[Float32]()
+```
+
+This eliminates the per-element dtype dispatch, offset calculation, and Float64 conversion
+that `_get_float64(j)` / `_set_float64(j, val)` perform on every call.
+
+### Dtype Dispatch in Public Functions
+
+```mojo
+# Public function dispatches to SIMD helpers based on _dtype field
+if grad._dtype == DType.float32:
+    return _norm_sq_simd_f32(grad)
+elif grad._dtype == DType.float64:
+    return _norm_sq_simd_f64(grad)
+else:
+    # Scalar fallback for exotic dtypes
+    ...
+```
+
+### Detailed Steps
+
+1. **Add imports**: `from algorithm import vectorize` and `from sys.info import simd_width_of`
+2. **Create dtype-specific SIMD helpers** (private, `@always_inline`): Write separate `_f32` and `_f64` variants to avoid runtime dtype branching inside the inner loop.
+3. **Bitcast the data pointer once**: `tensor._data.bitcast[Float32]()` outside the loop.
+4. **Use `vectorize[simd_width](size, closure)`**: Handles tail elements automatically — no manual remainder loop needed.
+5. **Inside closure, use `unified {mut}`**: Allows closure to capture and mutate outer-scope accumulator variables.
+6. **For norm accumulation, keep Float64 accumulator**: Use `.reduce_add().cast[DType.float64]()` to prevent catastrophic cancellation on large tensors.
+7. **Dispatch on `_dtype` in the public function**: With scalar fallback for exotic dtypes.
+8. **Test with non-SIMD-aligned sizes**: Sizes 1, 7, 13, 33 (not multiples of SIMD width 8 or 16).
+
+### Gradient Clipping Performance Characteristics
+
+| Metric | Scalar (Before) | SIMD (After) | Improvement |
+| -------- | ----------------- | -------------- | ------------- |
+| Iterations per 10M float32 (norm) | ~10,000,000 | ~1,250,000 (width=8) | ~8x fewer iterations |
+| Iterations per 10M float32 (scale) | ~10,000,000 | ~1,250,000 | ~8x fewer iterations |
+| Memory accesses per training step | 20M+ scalar reads/writes | 2.5M SIMD loads/stores | ~8x reduction |
+
+### Critical Pattern: `_get_float64` vs SIMD Bitcast
+
+The scalar accessor `_get_float64(j)` does per-element: function call + offset calculation + dtype branch + Float64 conversion. For Float32 tensors this is 3 unnecessary operations per element.
+
+SIMD `bitcast[Float32]()` + `load[width]` eliminates all three: one bitcast outside the loop, typed loads inside, native Float32 arithmetic with explicit Float64 widening only where needed (accumulator).
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| `vectorize[]` for `has_nan` | Used `vectorize[]` closure with a `found` flag | Cannot `return True` from inside `vectorize[]` closure to exit the outer function — the closure is a separate function | Use manual SIMD loop (`while` + `ptr.load`) when early exit is needed |
+| `List[Int](2, 8)` constructor | Tried to construct List with positional args | Mojo 0.26.1 `List[Int]` has no multi-arg constructor; must use `append()` or list literals `[2, 8]` | Always use `var s = List[Int](); s.append(n)` pattern or `[n]` list literal syntax |
+| Lowercase docstring start | Used `"""has_nan returns...` | Mojo `--Werror` rejects docstrings not starting with capital letter or non-alpha | Always capitalize the first word of docstrings |
+| `mojo format` on `comptime` | Ran `mojo format` on files using `comptime` keyword | Formatter crashes with `'_python_symbols' object has no attribute 'comptime_assert_stmt'` | Known Mojo formatter limitation — `comptime` keyword not yet supported by formatter; the `mojo-format-compat.sh` wrapper handles this gracefully |
+| Direct approach (gradient clipping) | SIMD helpers + vectorize pattern for gradient clipping | Succeeded on first attempt | Following established codebase patterns (activation_simd.mojo, matmul.mojo) eliminates trial-and-error — read reference code first |
+| Consider vectorizing `compute_gradient_statistics` | Considered SIMD for the statistics function (norm + min/max/mean + NaN/Inf detection) | Decided against — mixed concerns (NaN/Inf checking requires per-element branches) and it's a monitoring function called infrequently | Not every function benefits from SIMD; prioritize hot-path functions called every training step |
+
+## Results & Parameters
+
+### Performance Characteristics
+
+| Metric | Scalar (Before) | SIMD (After) | Improvement |
+| -------- | ----------------- | -------------- | ------------- |
+| Iterations per 1M float32 | ~1,000,000 | ~125,000 (width=8) | ~8x fewer iterations |
+| Early exit (NaN at idx 0) | 1 iteration | 1 SIMD load | Same |
+| Worst case (no NaN) | N iterations | N/simd_w + tail | ~8-16x faster |
+
+### Key SIMD Operations Reference
+
+```mojo
+# Load SIMD vector from pointer
+var vec = ptr.load[width=simd_w](offset)
+
+# Check for NaN/Inf (returns SIMD[DType.bool, width])
+var nan_mask = isnan(vec)
+var inf_mask = isinf(vec)
+
+# Boolean reduction (any lane True?)
+if nan_mask.reduce_or(): ...
+
+# Count True lanes
+var count = Int(nan_mask.cast[DType.uint8]().reduce_add())
+
+# Get compile-time SIMD width for dtype
+comptime simd_w = simd_width_of[dtype]()
+# float32 → 8 (AVX-256), float64 → 4 (AVX-256)
+```
+
+### Test Edge Cases to Cover
+
+- Tensor smaller than SIMD width (pure scalar tail path)
+- NaN/Inf at first element (early exit on first SIMD chunk)
+- NaN/Inf at last element in tail region
+- NaN/Inf at exact SIMD boundary
+- Large tensors (1024+ elements)
+- Multiple dtypes (float32, float64)
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| ProjectOdyssey | Issue #4910 — SIMD-vectorize numerical safety hot path | [PR #5119](https://github.com/HomericIntelligence/ProjectOdyssey/pull/5119) |
+| ProjectOdyssey | Issue #4911 — SIMD-vectorize gradient clipping | [PR #5120](https://github.com/HomericIntelligence/ProjectOdyssey/pull/5120) — 4 functions vectorized via 6 SIMD helpers, 13 tests pass |
+
+## Superseded from validate-mojo-patterns
+
+---
+name: validate-mojo-patterns
+description: Validate Mojo code patterns (out self, mut, List, etc.) against best
+  practices. Use to ensure code follows project standards.
+category: optimization
+date: '2026-03-19'
+version: 1.0.0
+mcp_fallback: none
+---
+# Validate Mojo Patterns
+
+## Overview
+
+| Item | Details |
+| ------ | --------- |
+| Date | N/A |
+| Objective | Check Mojo code for correct usage of language patterns and conventions. - Code review to catch pattern violations |
+| Outcome | Operational |
+
+Check Mojo code for correct usage of language patterns and conventions.
+
+## When to Use
+
+- Code review to catch pattern violations
+- Pre-commit validation of Mojo standards
+- Verifying constructor signatures are correct
+- Checking memory safety patterns
+- Validating trait conformances
+
+## Verified Workflow
+
+### Quick Reference
+
+```bash
+# Find incorrect constructor patterns
+grep -n "fn __init__.*mut self\|fn __init__.*var self" *.mojo
+
+# Find non-copyable returns without transfer
+grep -n "-> List\|-> Dict\|-> String" *.mojo | grep -v "^"
+
+# Check for deprecated patterns
+grep -n "inout\|@value\|DynamicVector" *.mojo
+
+# Verify trait conformances
+grep -n "struct.*:" *.mojo | grep -v "Copyable\|Movable"
+
+# Check method signatures
+grep -n "fn.*self" *.mojo | grep -v "read\|mut\|var"
+
+# Build package (validates all library files together)
+mojo package shared
+```
+
+## Pattern Validation Rules
+
+**Constructor Patterns**:
+
+- ✅ `fn __init__(out self, ...)` - Correct for constructors
+- ✅ `fn __moveinit__(out self, deinit existing: Self)` - Move constructor
+- ✅ `fn __copyinit__(out self, existing: Self)` - Copy constructor
+- ❌ `fn __init__(mut self, ...)` - WRONG for constructors
+- ❌ `fn __init__(var self, ...)` - WRONG for constructors
+
+**Method Patterns**:
+
+- ✅ `fn method(self) -> Value` - Read-only (implicit read)
+- ✅ `fn modify(mut self)` - Mutable operations
+- ✅ `fn get_data(self) -> List[Int]` - Return copyable
+- ❌ `fn modify(self)` - Misleading (looks immutable)
+- ❌ `fn method(read self)` - Unnecessary (implicit)
+
+**Ownership Patterns**:
+
+- ✅ `fn take(var data: List[Int])` - Takes ownership
+- ✅ `return self.list^` - Transfer operator for non-copyable
+- ✅ `fn use(data: ExTensor)` - Borrowed reference
+- ❌ `return self.list` - Missing transfer for List
+- ❌ `fn take(data: List[Int])` - Ambiguous (appears borrowed)
+
+**Trait Conformances**:
+
+- ✅ `struct Data(Copyable, Movable)` - Value type traits
+- ✅ `struct Model(Copyable, Movable, Stringable)` - With extras
+- ❌ `struct Data(Copyable)` - Missing Movable
+- ❌ `struct Data(ImplicitlyCopyable)` - Only for simple types
+
+## Validation Workflow
+
+1. **Extract patterns**: Find all fn signatures and struct definitions
+2. **Categorize**: Group by pattern type (constructors, methods, ownership)
+3. **Validate**: Check each against rules
+4. **Identify violations**: Mark incorrect patterns
+5. **Suggest fixes**: Provide correction for each violation
+6. **Summarize**: Report all pattern issues
+7. **Verify**: Use `mojo package` to validate packages, not `mojo build` on individual library files
+
+## v0.26.1 Validation Patterns
+
+**Relative imports are valid in library files, invalid in executables**:
+
+- Library files (in `shared/`): Can use `from ..module import X` - part of package structure
+- Executable files (in `examples/`): Must use `from shared.module import X` with `-I .` flag
+
+**Use `mojo package` to validate packages**:
+
+- Build entire package: `mojo package shared`
+- DO NOT validate individual library files: `mojo build shared/core/__init__.mojo` will fail with expected errors
+
+## Output Format
+
+Report validation results with:
+
+1. **Total Checks** - Number of patterns validated
+2. **Violations Found** - Count of pattern violations
+3. **Issues by Type** - Grouped by pattern type
+4. **Details** - File, line, pattern, violation, fix
+5. **Severity** - Will break compilation or warning
+6. **Summary** - Pass/fail overall validation
+
+## Common Violations & Fixes
+
+**Issue**: Constructor uses `mut self`
+
+- Location: `fn __init__(mut self, ...)`
+- Fix: Change to `fn __init__(out self, ...)`
+- Impact: Critical - won't compile
+
+**Issue**: Missing transfer operator
+
+- Location: `return self.data` (where data is List/Dict)
+- Fix: Change to `return self.data^`
+- Impact: Critical - won't compile
+
+**Issue**: Missing trait conformance
+
+- Location: `struct Type(Copyable)` (missing Movable)
+- Fix: Add `struct Type(Copyable, Movable)`
+- Impact: High - can cause use-after-move
+
+**Issue**: ImplicitlyCopyable on non-trivial type
+
+- Location: `struct Layer(ImplicitlyCopyable)` with List fields
+- Fix: Remove ImplicitlyCopyable, use default traits
+- Impact: Critical - won't compile
+
+## Error Handling
+
+| Problem | Solution |
+| --------- | ---------- |
+| Can't parse Mojo | Check for syntax errors first (use mojo-lint-syntax) |
+| False positives | Verify context manually, may need refinement |
+| Mixed patterns | Process each pattern type separately |
+| Large codebase | Use grep filters to focus on specific patterns |
+| Version issues | Verify code is v0.26.1+ compatible |
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| N/A | Direct approach worked | N/A | Solution was straightforward |
+## Results & Parameters
+
+N/A — this skill describes a workflow pattern.
+
+## References
+
+- See CLAUDE.md for complete pattern guidelines
+- See mojo-lint-syntax for syntax validation
+- See check-memory-safety for memory safety issues
+
+### Notes: validate-mojo-patterns
+
+# Notes
+
+Migrated from plugins/uncategorized/skills/validate-mojo-patterns/ on 2026-01-02.
+
+## Superseded from e2e-claude-cli-pipeline-oom-fixes
+
+---
+name: e2e-claude-cli-pipeline-oom-fixes
+description: "Fix OOM crashes in multi-stage Claude CLI pipelines orchestrated via NATS JetStream. Use when: (1) claude-myrmidon or similar NATS pipeline OOM-kills a WSL2/Linux host, (2) spawning multiple `claude -p` processes exhausts memory, (3) NATS JetStream messages grow unbounded across pipeline stages, (4) adding dry-run validation mode to a Claude CLI pipeline."
+category: optimization
+date: 2026-04-05
+version: "1.0.0"
+user-invocable: false
+tags:
+  - oom
+  - nats
+  - jetstream
+  - claude-cli
+  - myrmidon
+  - pipeline
+  - memory
+  - dry-run
+  - wsl2
+  - docker-compose
+---
+
+# E2E Claude CLI Pipeline OOM Fixes
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2026-04-05 |
+| **Objective** | Fix OOM crash in claude-myrmidon NATS pipeline and add dry-run validation mode |
+| **Outcome** | Pipeline stabilized with session reuse, payload pruning, NATS retention, and DRY_RUN mode. Dry-run completes in ~2s at flat 26.9 MB. |
+
+## When to Use
+
+- `claude-myrmidon.py` (or similar multi-stage NATS pipeline) OOM-kills a 16GB WSL2 system
+- Each `claude -p` invocation consumes ~500MB-1GB RAM and the pipeline spawns many sessions per task
+- NATS JetStream messages accumulate indefinitely, growing payload size across stages
+- You need a dry-run mode to validate pipeline mechanics without invoking Claude CLI
+- `subprocess.run()` calls to Claude CLI block on stdin (see also: `batch-subprocess-signal-hang` skill)
+
+## Verified Workflow
+
+### Quick Reference
+
+```python
+# 1. Session reuse: first invocation creates session, subsequent ones resume it
+import uuid
+session_id = str(uuid.uuid4())
+
+# Iteration 0: create session
+cmd_first = ["claude", "-p", prompt, "--session-id", session_id, "--output-format", "json"]
+result = subprocess.run(cmd_first, capture_output=True, text=True, stdin=subprocess.DEVNULL)
+
+# Iterations 1+: resume existing session (massive memory savings)
+cmd_resume = ["claude", "-p", prompt, "--resume", session_id, "--output-format", "json"]
+result = subprocess.run(cmd_resume, capture_output=True, text=True, stdin=subprocess.DEVNULL)
+
+# 2. Always pass stdin=subprocess.DEVNULL to prevent blocking
+subprocess.run(cmd, capture_output=True, text=True, stdin=subprocess.DEVNULL)
+
+# 3. Payload pruning between stages
+def prune_task_data(task_data: dict, next_stage: str) -> dict:
+    """Strip accumulated stage outputs, carry only core keys + what next stage needs."""
+    core_keys = {"task_id", "repo", "issue", "branch"}
+    stage_input_key = f"{next_stage}_input"
+    pruned = {k: v for k, v in task_data.items() if k in core_keys}
+    if stage_input_key in task_data:
+        pruned[stage_input_key] = task_data[stage_input_key]
+    return pruned
+
+# 4. NATS stream retention policies
+stream_config = {
+    "name": "MYRMIDON",
+    "subjects": ["myrmidon.>"],
+    "max_age": 3600_000_000_000,  # 1 hour in nanoseconds
+    "max_bytes": 50 * 1024 * 1024,  # 50 MB
+    "retention": "limits",
+}
+
+# 5. Memory logging at each stage
+import resource
+def log_memory(stage: str):
+    usage = resource.getrusage(resource.RUSAGE_SELF)
+    rss_mb = usage.ru_maxrss / 1024  # Linux reports in KB
+    print(f"[{stage}] RSS: {rss_mb:.1f} MB")
+
+# 6. DRY_RUN mode
+import os
+DRY_RUN = os.environ.get("DRY_RUN", "0") == "1"
+if DRY_RUN:
+    result = '{"mock": true, "stage": "plan", "output": "dry-run mock response"}'
+else:
+    result = subprocess.run(cmd, capture_output=True, text=True, stdin=subprocess.DEVNULL)
+```
+
+### Step 1: Enable Session Reuse
+
+Each `claude -p` process consumes ~500MB-1GB RAM. The pipeline spawns up to 16 sessions per task (1 plan + 5x test + 5x implement + 5x review + 1 ship). Session reuse via `--session-id` (first call) and `--resume` (subsequent calls) avoids spawning entirely new processes for each loop iteration.
+
+### Step 2: Prevent Stdin Blocking
+
+Always pass `stdin=subprocess.DEVNULL` on all `subprocess.run()` calls to Claude CLI. Without this, `capture_output=True` alone causes the subprocess to block waiting for stdin. This is a known pattern documented in the `batch-subprocess-signal-hang` skill.
+
+### Step 3: Prune Payloads Between Stages
+
+When passing task data through NATS between pipeline stages, do NOT use `{**task_data, "feedback": result}` dict unpacking. This carries ALL previous stage outputs, causing payload size to grow exponentially across iterations. Instead, use a `prune_task_data()` function that strips accumulated outputs and only carries core keys plus what the next stage actually needs.
+
+### Step 4: Configure NATS Stream Retention
+
+Set `max_age` (e.g., 3600s / 1 hour) and `max_bytes` (e.g., 50MB) on the JetStream stream. Without retention policies, messages accumulate indefinitely and compound the memory issue.
+
+### Step 5: Fix NATS Connection Parameters
+
+Set `max_reconnect_attempts` to a finite number (e.g., 3-5) instead of `-1`. The value `-1` in nats-py means unlimited retries during initial `connect()`, which hangs forever instead of failing fast when NATS is unreachable.
+
+### Step 6: Add DRY_RUN Mode
+
+Implement `DRY_RUN=1` environment variable that substitutes mock responses for all Claude CLI invocations. This validates the full pipeline mechanics (NATS publish/subscribe, stage transitions, payload handling) without consuming any memory for Claude processes. Use `resource.getrusage()` to confirm flat memory profile (~26.9 MB) in dry-run.
+
+### Step 7: Set Container Memory Limits
+
+In `docker-compose.yml`, set `mem_limit` per service (128-256M for lightweight services). This prevents any single container from consuming unbounded host memory.
+
+```yaml
+services:
+  myrmidon-worker:
+    mem_limit: 256m
+  nats:
+    mem_limit: 128m
+```
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| `--no-input` flag on Claude CLI | Passed `--no-input` to prevent interactive prompts | Flag does not exist on Claude CLI; caused all stages to produce empty output | Check `claude --help` for valid flags; use `stdin=subprocess.DEVNULL` instead |
+| `capture_output=True` without `stdin=subprocess.DEVNULL` | Captured stdout/stderr but did not redirect stdin | Subprocess blocks waiting for stdin input indefinitely | Always pair `capture_output=True` with `stdin=subprocess.DEVNULL` for non-interactive CLI tools |
+| `{**task_data, "feedback": result}` dict unpacking | Merged all previous stage data when publishing to next NATS subject | Carries ALL previous stage outputs; payload grows exponentially across 5 stages x 5 iterations | Always prune payloads between stages; only carry core keys + what the next stage needs |
+| No NATS retention policies | Used default JetStream stream config without max_age or max_bytes | Messages accumulate indefinitely in JetStream, compounding memory pressure | Always set retention policies: max_age + max_bytes on every JetStream stream |
+| `max_reconnect_attempts=-1` in nats-py | Set unlimited reconnect attempts for resilience | `-1` means unlimited retries during initial `connect()`, hangs forever when NATS is down | Use finite retry count (3-5) for initial connect; unlimited retries are only safe for established connections |
+
+## Results & Parameters
+
+### Resource Profile
+
+```yaml
+# Per-process memory footprint
+claude_cli_per_process: "500MB - 1GB"
+pipeline_stages_per_task: 16  # 1 plan + 5 test + 5 implement + 5 review + 1 ship
+system_ram: 16GB  # WSL2
+
+# With session reuse: only 1 process per stage type (not per iteration)
+effective_processes: 5  # plan, test, implement, review, ship
+
+# NATS stream retention
+stream_max_age: 3600s  # 1 hour
+stream_max_bytes: 50MB
+
+# Container memory limits (docker-compose)
+myrmidon_worker_mem: 256M
+nats_mem: 128M
+
+# Dry-run validation
+dry_run_duration: ~2 seconds
+dry_run_memory: 26.9 MB (flat)
+```
+
+### Key Files
+
+| File | Role |
+| ------ | ------ |
+| `e2e/claude-myrmidon.py` | Multi-stage NATS pipeline orchestrator |
+| `e2e/docker-compose.yml` | Container definitions with memory limits |
+
+### Diagnostic Commands
+
+```bash
+# Check RSS of running claude processes
+ps aux | grep '[c]laude' | awk '{print $6/1024 " MB", $0}'
+
+# Monitor NATS stream state
+nats stream info MYRMIDON
+
+# Run pipeline in dry-run mode
+DRY_RUN=1 python3 e2e/claude-myrmidon.py
+
+# Check system memory pressure
+free -h && cat /proc/meminfo | grep -E 'MemAvail|SwapFree'
+
+# Check OOM kills in dmesg (note: WSL2 VM may be killed silently by Windows host)
+dmesg | grep -i oom
+```
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| Odysseus | E2E NATS pipeline OOM on 2026-04-04 | Dry-run validated end-to-end locally; memory confirmed flat at 26.9 MB |
+
+## References
+
+- [batch-subprocess-signal-hang](batch-subprocess-signal-hang.md) -- stdin blocking and signal isolation patterns
+- [e2e-resource-exhaustion](e2e-resource-exhaustion.md) -- related OOM from parallel Scylla experiment workspaces
+- [architecture-crosshost-nats-compose-deployment](architecture-crosshost-nats-compose-deployment.md) -- NATS deployment patterns
+
+## Superseded from e2e-resource-exhaustion
+
+---
+name: e2e-resource-exhaustion
+description: "Diagnose and fix machine crashes from memory/disk exhaustion during parallel E2E experiment runs. Use when: experiment runner hangs, WSL2 VM crashes, or disk fills with uncleaned workspaces."
+category: optimization
+date: 2026-03-22
+version: "1.0.0"
+user-invocable: false
+---
+
+# E2E Resource Exhaustion: Diagnosis and Fix
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Problem** | Machine crashes during parallel E2E experiment runs due to memory/disk exhaustion |
+| **Root Cause** | Unbounded workspace accumulation + unbounded concurrent `claude` CLI processes |
+| **Environment** | WSL2 (16GB RAM), 7 concurrent Mojo tests, 120 subtests x 3-5 runs each |
+| **Impact** | 2,737 uncleaned workspaces totaling 187GB; 7+ concurrent 500MB processes |
+| **Fix** | Eager workspace cleanup, semaphore-based concurrency limits, resource monitoring |
+
+## When to Use
+
+- Machine hangs or crashes during `manage_experiment.py run --threads N`
+- WSL2 VM gets killed silently (no OOM traces in `dmesg`)
+- `du -sh` on results directory shows >100GB of workspace directories
+- Run log ends with only heartbeat messages (process hung)
+- `checkpoint.json` shows `tier_state=complete` but `subtest_states` are `runs_in_progress` (not `aggregated`)
+
+## Verified Workflow
+
+### Quick Reference
+
+```bash
+# Check workspace accumulation
+find ~/fullruns/<run>/ -name "workspace" -type d -maxdepth 5 | wc -l
+
+# Check disk usage per test
+for d in ~/fullruns/<run>/2026-*; do du -sh "$d"; done
+
+# Check memory
+free -h
+
+# Check run state breakdown per test
+python3 -c "
+import json
+cp = json.load(open('<test>/checkpoint.json'))
+rs = cp.get('run_states', {})
+counts = {}
+for tier in rs:
+    for sub in rs[tier]:
+        for run, state in rs[tier][sub].items():
+            counts[state] = counts.get(state, 0) + 1
+print(counts)
+"
+```
+
+### Step 1: Diagnose the Resource Consumers
+
+Three things consume resources during E2E runs:
+
+1. **Git worktree workspaces** (~1.2GB each for Mojo repos): Created in `stage_create_worktree`, only cleaned for passing runs in `stage_cleanup_worktree`. Failed runs keep workspaces forever.
+
+2. **`claude` CLI subprocesses** (~200-500MB each): Spawned by `stage_execute_agent` (via `replay.sh`) and `stage_execute_judge` (via `_call_claude_judge`). With `--threads 15`, up to 7 concurrent processes.
+
+3. **Build pipeline processes** (`mojo build`, `bazel`, `pixi`): Run under `_pipeline_lock` (serialized), but each can use 1-2GB.
+
+### Step 2: Check checkpoint.json State
+
+```python
+# Understand run pipeline stages
+# replay_generated -> agent_complete -> diff_captured -> judge_pipeline_run
+# -> judge_prompt_built -> judged -> worktree_cleaned
+```
+
+Runs stuck at `diff_captured` = agent work done, workspace still exists, judging not started.
+Runs at `worktree_cleaned` = fully complete, workspace removed.
+
+### Step 3: Apply Resource Guards
+
+**Fix 1 - Eager workspace cleanup**: Remove the `run_passed` guard in `stage_cleanup_worktree`. Clean up ALL workspaces after judging. Add `--keep-failed-workspaces` flag for debugging.
+
+**Fix 2 - Workspace semaphore**: `threading.Semaphore` in `stage_create_worktree` / `stage_cleanup_worktree` to limit concurrent live workspaces (default: `cpu_count * 2`).
+
+**Fix 3 - Agent semaphore**: `threading.Semaphore` around `stage_execute_agent` and `stage_execute_judge` to limit concurrent `claude` CLI processes (default: `min(threads, cpu_count)`).
+
+**Fix 4 - Judge optimization**: Remove `--allowedTools Read,Glob,Grep` from judge CLI command. All context is already in the prompt (workspace state, git diff, pipeline results). This eliminates workspace dependency and reduces memory overhead.
+
+**Fix 5 - Resource monitoring**: Log RAM/disk at startup, warn if low. Periodic checks in heartbeat thread.
+
+### Step 4: Update run_tests.sh
+
+```bash
+pixi run python scripts/manage_experiment.py run \
+  --threads 15 --until agent_complete \
+  --max-concurrent-agents 6 "${COMMON_ARGS[@]}"
+```
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| Running with `--threads 15` unguarded | Let all 7 tests run with unbounded concurrency | 7 concurrent `claude` processes + 2700+ workspaces exhausted 16GB RAM and 1TB disk | Always limit concurrent subprocesses to `min(threads, cpu_count)` |
+| Checking `dmesg` for OOM killer | Expected Linux OOM traces | WSL2 VM gets killed by Windows host silently - no kernel logs survive | On WSL2, memory exhaustion kills the VM, not individual processes |
+| Relying on `_pipeline_lock` alone | Lock serializes build pipeline (`mojo build`) | Lock only covers build pipeline, not `claude` CLI processes which are the main RAM consumers | Need separate semaphores for different resource types |
+| Keeping failed workspaces for debugging | `stage_cleanup_worktree` only cleaned passing runs | Failed runs (majority) accumulated 187GB of 1.2GB workspaces | Workspace diff is captured at `DIFF_CAPTURED` stage - workspace is no longer needed after judging |
+
+## Results & Parameters
+
+### Resource Limits (recommended for 16GB machine)
+
+```yaml
+# run_tests.sh settings
+threads: 15                    # batch thread pool size
+max_concurrent_agents: 6       # claude CLI process limit
+max_concurrent_workspaces: null # auto: cpu_count * 2
+
+# Per-test resource footprint (Mojo repos)
+workspace_size: ~1.2GB         # per git worktree checkout
+claude_cli_memory: ~200-500MB  # per process
+mojo_build_memory: ~1-2GB      # serialized under _pipeline_lock
+```
+
+### Key Files
+
+| File | Role |
+| ------ | ------ |
+| `scylla/e2e/stages.py` | `_workspace_semaphore`, `_agent_semaphore`, `configure_resource_limits()` |
+| `scylla/e2e/stage_finalization.py` | `stage_cleanup_worktree()` (eager cleanup), `stage_execute_judge()` (agent semaphore) |
+| `scylla/e2e/health.py` | `log_resource_preflight()`, `_log_resource_usage()` |
+| `scylla/e2e/llm_judge.py` | `_call_claude_judge()` (no tools, no workspace) |
+| `config/judge/system_prompt.md` | "Do NOT run any tests" instruction |
+| `scylla/e2e/models.py` | `keep_failed_workspaces`, `max_concurrent_workspaces`, `max_concurrent_agents` |
+| `scripts/manage_experiment.py` | CLI flags for resource limits |
+
+### Diagnostic Commands
+
+```bash
+# Count live workspaces
+find ~/fullruns/<run>/ -name "workspace" -type d -maxdepth 5 | wc -l
+
+# Total disk usage
+du -sh ~/fullruns/<run>/
+
+# Check if repo is modular monorepo (uses bazel, very memory-hungry)
+test -f <repo>/bazelw && echo "modular monorepo" || echo "standalone"
+
+# Check run completion status
+python3 -c "
+import json
+for tier in ['T0','T1','T2','T3','T4','T5','T6']:
+    cp = json.load(open('<test>/checkpoint.json'))
+    rs = cp['run_states'].get(tier, {})
+    counts = {}
+    for sub in rs:
+        for run, state in rs[sub].items():
+            counts[state] = counts.get(state, 0) + 1
+    print(f'{tier}: {counts}')
+"
+```
+
+### Notes: e2e-resource-exhaustion
+
+# Session Notes: E2E Resource Exhaustion Fix
+
+## Date: 2026-03-22
+
+## Context
+- haiku-2 experiment run at ~/fullruns/haiku-2/
+- 7 tests (test-001 through test-007), 6 Mojo + 1 Python
+- run_tests.sh with --threads 15, 3 phases (agent, diff, judge)
+- Machine: WSL2, 16GB RAM, 1TB disk (77% used)
+
+## Raw Findings
+
+### Workspace Analysis
+- 2,737 workspace directories across 7 tests
+- Total: 187GB
+- test-001 (Python/Hello-World): 92MB, 577 workspaces
+- test-002 (Mojo/modular): 57GB, 360 workspaces
+- test-003..007 (Mojo/ProjectOdyssey): 18-44GB each, 360 workspaces each
+- ProjectOdyssey repo: 1.4GB, each worktree checkout: ~1.2GB
+
+### Run State Analysis
+- test-001: 600 runs, 23 judged (worktree_cleaned), 571 at diff_captured
+- test-002: 360 runs, 65 judged, 294 at diff_captured
+- test-003,004,006: 360 runs each, 0 judged, all at diff_captured
+- test-005: 360 runs, mixed states (some still at agent_complete/replay_generated)
+- test-007: 360 runs, mostly at replay_generated (earliest stage)
+
+### Crash Pattern
+- run.log ends with heartbeat messages only (process hung)
+- No OOM traces in dmesg (WSL2 VM killed by Windows host)
+- All model validation attempts timed out (haiku, sonnet, opus)
+- Experiment was in Phase 3 (judging) when crash occurred
+
+### Architecture
+- Batch: ThreadPoolExecutor(max_workers=threads) in manage_experiment.py
+- Per-experiment: tiers sequential, subtests sequential (run_tier_subtests_parallel is actually sequential)
+- Agent: subprocess.Popen (claude CLI via replay.sh)
+- Judge: subprocess.run (claude CLI with --allowedTools Read,Glob,Grep)
+- Build pipeline: under _pipeline_lock (threading.Lock, serializes mojo build)
+- Workspace: git worktree add (1.2GB per Mojo checkout)
+
+### Key Code Paths
+- stages.py:stage_create_worktree -> workspace_setup.py:_setup_workspace -> git worktree add
+- stages.py:stage_execute_agent -> Popen(["bash", replay_script])
+- stage_finalization.py:stage_execute_judge ->_call_judge_with_retry -> llm_judge.py:_call_claude_judge -> subprocess.run(["claude", ...])
+- stage_finalization.py:stage_cleanup_worktree -> workspace_manager.cleanup_worktree (only for passing runs!)
+- stages.py:stage_run_judge_pipeline -> build_pipeline.py:_run_build_pipeline (under _pipeline_lock)
+
+## Superseded from module-level-schema-cache
+
+---
+name: module-level-schema-cache
+description: 'TRIGGER CONDITIONS: A _validate_schema() helper reads a JSON schema
+  file from disk on every call, and it is invoked N times for N config files (e.g.
+  in load_all_tiers() or load_all_models()). Use when adding a module-level dict cache
+  to eliminate redundant file I/O for repeated schema validation calls.'
+category: optimization
+date: 2026-03-07
+version: 1.0.0
+user-invocable: false
+---
+# module-level-schema-cache
+
+How to add a module-level schema cache to a `_validate_schema()` helper so JSON schema files are
+read from disk exactly once per process lifetime, regardless of how many config files are validated.
+
+## Overview
+
+| Item | Details |
+| ------ | --------- |
+| Date | 2026-03-07 |
+| Objective | Eliminate N redundant file reads in `load_all_tiers()` / `load_all_models()` by caching JSON schemas at module level |
+| Outcome | Success — PR HomericIntelligence/ProjectScylla#1461 merged |
+| Issue | HomericIntelligence/ProjectScylla#1437 |
+
+## When to Use
+
+- A `_validate_schema()` helper opens and `json.load()`s a schema file on every call
+- `load_all_*()` functions call the helper once per config file, causing N reads for N files
+- The schema files are static and do not change between calls in the same process
+- Follow-up to wiring schema validation (see `wire-schema-validation` skill)
+
+## Verified Workflow
+
+### 1. Add the module-level cache dict after `_SCHEMAS_DIR`
+
+```python
+_SCHEMAS_DIR = Path(__file__).parent.parent.parent / "schemas"
+_SCHEMA_CACHE: dict[str, dict[str, Any]] = {}
+```
+
+Place it immediately after the path constant. The type annotation `dict[str, dict[str, Any]]`
+satisfies mypy — bare `dict` triggers `[type-arg]` errors.
+
+### 2. Update `_validate_schema()` with cache-miss/hit logic
+
+```python
+def _validate_schema(data: dict[str, Any], schema_name: str, path: Path) -> None:
+    """Validate data against a JSON schema, with module-level caching.
+
+    Reads the schema file from disk on first call for a given schema_name;
+    subsequent calls reuse the cached schema dict.
+    """
+    schema_file = f"{schema_name}.schema.json"
+    if schema_file not in _SCHEMA_CACHE:
+        schema_path = _SCHEMAS_DIR / schema_file
+        with open(schema_path) as f:
+            _SCHEMA_CACHE[schema_file] = json.load(f)
+    try:
+        jsonschema.validate(data, _SCHEMA_CACHE[schema_file])
+    except jsonschema.ValidationError as e:
+        raise ConfigurationError(
+            f"Invalid {schema_name} configuration in {path}: {e.message}"
+        ) from e
+```
+
+Key points:
+- Cache key is `f"{schema_name}.schema.json"` (the filename), not the bare `schema_name`
+- Each unique schema name gets its own entry; multiple schemas coexist independently
+- The `open()` call is inside the `if` guard — only executes on cache miss
+
+### 3. Write tests with cache isolation
+
+Clear `_SCHEMA_CACHE` in `setup_method` to prevent test ordering dependencies:
+
+```python
+class TestValidateSchema:
+    def setup_method(self) -> None:
+        from scylla.config import loader as loader_module
+        loader_module._SCHEMA_CACHE.clear()
+
+    def test_cache_hit_avoids_second_file_read(self) -> None:
+        from scylla.config.loader import _validate_schema
+        read_count = 0
+        original_open = open
+
+        def counting_open(path: object, *args: object, **kwargs: object) -> object:
+            nonlocal read_count
+            if "tier.schema.json" in str(path):
+                read_count += 1
+            return original_open(path, *args, **kwargs)  # type: ignore[call-overload]
+
+        with patch("builtins.open", side_effect=counting_open):
+            _validate_schema(valid_tier, "tier", Path("t0.yaml"))
+            _validate_schema(valid_tier, "tier", Path("t1.yaml"))
+
+        assert read_count == 1  # only one disk read for two calls
+
+    def test_cache_populated_after_first_call(self) -> None:
+        from scylla.config import loader as loader_module
+        from scylla.config.loader import _validate_schema
+        assert "tier.schema.json" not in loader_module._SCHEMA_CACHE
+        _validate_schema(valid_tier, "tier", Path("t0.yaml"))
+        assert "tier.schema.json" in loader_module._SCHEMA_CACHE
+```
+
+### 4. Use valid test data matching the schema's `additionalProperties: false`
+
+Read the actual schema file before writing test fixtures — schemas with
+`additionalProperties: false` reject any field not in `properties`. For the tier schema:
+
+```python
+# CORRECT — only fields in tier.schema.json properties
+valid_tier = {"tier": "t0", "name": "Prompts"}
+
+# WRONG — "subtests" and "description" are not in the schema
+valid_tier = {"tier": "t0", "name": "Prompts", "description": "desc", "subtests": []}
+```
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| N/A | Direct approach worked | N/A | Solution was straightforward |
+## Results & Parameters
+
+- Cache dict type: `dict[str, dict[str, Any]]` (keyed by filename, value is the parsed schema)
+- Cache key format: `f"{schema_name}.schema.json"` (full filename stem)
+- Test class setup: `loader_module._SCHEMA_CACHE.clear()` in `setup_method`
+- Tests added: 6 (cache miss, cache hit, populated state, failure raises, success no-raise, independent keys)
+- Pre-commit: ruff auto-removes unused imports (e.g. `MagicMock` from `unittest.mock`) on first run — expect one hook failure, re-run passes
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| ProjectScylla | PR #1461, issue #1437 (follow-up to #1380 / PR #1424) | `scylla/config/loader.py` |
+
+### Notes: module-level-schema-cache
+
+# module-level-schema-cache — Raw Notes
+
+## Session Context
+
+- **Date**: 2026-03-07
+- **Project**: ProjectScylla
+- **Issue**: HomericIntelligence/ProjectScylla#1437 (follow-up to #1380)
+- **PR**: HomericIntelligence/ProjectScylla#1461
+- **Branch**: `1437-auto-impl`
+
+## File Changed
+
+`scylla/config/loader.py` — two additions:
+1. `_SCHEMA_CACHE: dict[str, dict[str, Any]] = {}` after `_SCHEMAS_DIR`
+2. Cache-miss/hit guard inside `_validate_schema()`
+
+## Test File Changed
+
+`tests/unit/config/test_config_loader.py` — added `TestValidateSchema` class (6 tests).
+
+## Pre-commit Failures Encountered
+
+1. **ruff-check-python** (first run): Auto-removed unused `MagicMock` import from `unittest.mock`
+   — import was added speculatively but never used. Re-run passed.
+2. **mypy-check-python** (first run): `dict` without type params on `invalid_data: dict = ...`
+   — fixed to `dict[str, str]`.
+
+## Tier Schema Fields (additionalProperties: false)
+
+Allowed top-level keys in `schemas/tier.schema.json`:
+- `tier` (required, pattern `^t[0-6]$`)
+- `name` (required)
+- `description`
+- `system_prompt`
+- `skills`
+- `tools`
+- `uses_tools`
+- `uses_delegation`
+- `uses_hierarchy`
+
+Fields NOT in schema (common mistake): `subtests`, `agent_configs`, `subtest_count`
+
+## Minimal Valid Test Fixtures
+
+```python
+# tier
+{"tier": "t0", "name": "Prompts"}
+
+# model
+{"model_id": "claude-3-5-haiku-20241022"}
+
+# defaults — requires evaluation block
+{"evaluation": {"runs_per_eval": 3, "timeout": 60}}
+```
+
+## Superseded from parallel-io-bound-execution-with-threadpoolexecutor
+
+---
+name: parallel-i-o-bound-execution-with-threadpoolexecutor
+description: Pattern for implementing ThreadPoolExecutor-based parallelization of I/O-bound tasks in Python CLI tools
+category: optimization
+date: 2026-01-30
+version: 1.0.0
+user-invocable: false
+---
+# Parallel I/O-Bound Execution with ThreadPoolExecutor
+
+## Overview
+
+| Item | Details |
+| ------ | --------- |
+| Date | 2026-01-30 |
+| Objective | Convert sequential I/O-bound loop to parallel execution using ThreadPoolExecutor |
+| Outcome | Operational |
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2026-01-30 |
+| **Objective** | Convert sequential I/O-bound loop to parallel execution using ThreadPoolExecutor |
+| **Context** | Parallelizing judge slot reruns in `rerun_judges.py` (subprocess-based LLM judge execution) |
+| **Outcome** | ✅ Successfully implemented thread-based parallelization with `--parallel N` CLI flag |
+| **Performance Gain** | N×speedup for I/O-bound subprocess operations (6× with `--parallel 6`) |
+
+## When to Use This Skill
+
+Implement parallel execution using `ThreadPoolExecutor` when:
+
+1. **I/O-Bound Operations**: Tasks that spawn subprocesses, wait on network/disk, or are blocked on external resources
+2. **Independent Work Units**: Each task operates on isolated data (no shared state except stats counters)
+3. **Existing Sequential Loop**: Converting `for item in items:` to parallel execution
+4. **User-Controllable Parallelism**: CLI tools where users want to control concurrency level
+
+**Do NOT use for**:
+- CPU-bound operations (use `ProcessPoolExecutor` instead)
+- Operations with complex shared state or ordering dependencies
+- Tasks that cannot handle concurrent execution
+
+## Architecture Decision: ThreadPoolExecutor vs ProcessPoolExecutor
+
+**Use ThreadPoolExecutor when:**
+- ✅ I/O-bound: Subprocesses, network calls, file operations (GIL released during blocking)
+- ✅ No serialization issues: All objects can be shared directly between threads
+- ✅ Simple shared state: Counters/sets protected by `threading.Lock`
+- ✅ Precedent exists: Codebase already uses threads for similar tasks
+
+**Example from session**: `run_llm_judge()` spawns `claude` CLI subprocess — threads release GIL while blocked on subprocess I/O.
+
+## Verified Workflow
+
+### Step 1: Add CLI Argument
+
+**File**: Script entry point (e.g., `scripts/rerun_judges.py`)
+
+```python
+parser.add_argument(
+    "--parallel",
+    type=int,
+    default=1,
+    metavar="N",
+    help="Number of tasks to run in parallel (default: 1, sequential)",
+)
+```
+
+Pass through to core function:
+```python
+result = core_function(..., parallel=args.parallel)
+```
+
+### Step 2: Add Imports
+
+**File**: Core module (e.g., `scylla/e2e/rerun_judges.py`)
+
+```python
+import time
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
+```
+
+### Step 3: Create Safe Wrapper Pattern
+
+**Critical**: Use a safe wrapper that catches exceptions to prevent pool poisoning.
+
+```python
+@dataclass
+class _TaskResult:
+    """Result from a parallel task execution."""
+    task: TaskData  # Your task data structure
+    success: bool
+    error: str | None = None
+
+
+def _run_task_safe(task: TaskData, *args, **kwargs) -> _TaskResult:
+    """Safe wrapper that never raises — prevents one failure from poisoning the pool."""
+    try:
+        success = _run_task(task, *args, **kwargs)
+        return _TaskResult(task=task, success=success)
+    except Exception as e:
+        logger.error(
+            f"Unexpected exception in worker for {task.id}: "
+            f"{type(e).__name__}: {e}"
+        )
+        return _TaskResult(task=task, success=False, error=str(e))
+```
+
+**Why this matters**: Without the safe wrapper, an unhandled exception in one worker can crash the entire pool.
+
+### Step 4: Add `parallel` Parameter to Core Function
+
+```python
+def core_function(
+    ...,
+    parallel: int = 1,
+) -> Stats:
+    """Core processing function.
+
+    Args:
+        ...
+        parallel: Number of tasks to run in parallel (default: 1, sequential)
+
+    Returns:
+        Stats with summary of what was done
+    """
+```
+
+Update docstring to document the new parameter.
+
+### Step 5: Implement Branching Logic
+
+Replace the sequential loop with branching logic that chooses between sequential and parallel paths:
+
+```python
+if tasks:
+    logger.info(f"Processing {len(tasks)} tasks (parallel={parallel})...")
+    results_tracking: set[ResultKey] = set()
+
+    if parallel <= 1 or len(tasks) <= 1:
+        # === FAST PATH: Sequential (no pool overhead) ===
+        for task in tasks:
+            if _run_task(task, *args, **kwargs):
+                stats.success += 1
+                results_tracking.add(task.key)
+            else:
+                stats.failed += 1
+    else:
+        # === PARALLEL PATH: ThreadPoolExecutor ===
+        lock = threading.Lock()
+        total = len(tasks)
+        completed_count = 0
+        start_time = time.time()
+
+        with ThreadPoolExecutor(max_workers=parallel) as pool:
+            futures = {
+                pool.submit(_run_task_safe, task, *args, **kwargs): task
+                for task in tasks
+            }
+
+            for future in as_completed(futures):
+                result = future.result()  # Never raises (safe wrapper)
+                completed_count += 1
+
+                with lock:
+                    if result.success:
+                        stats.success += 1
+                        results_tracking.add(result.task.key)
+                    else:
+                        stats.failed += 1
+
+                # Progress logging
+                elapsed = time.time() - start_time
+                remaining = total - completed_count
+                status_str = "OK" if result.success else "FAIL"
+                logger.info(
+                    f"[{completed_count}/{total}] "
+                    f"{result.task.id} -> {status_str} "
+                    f"({remaining} remaining, {elapsed:.0f}s elapsed)"
+                )
+
+    logger.info(f"Processed {stats.success} tasks successfully")
+    logger.info(f"Failed to process {stats.failed} tasks")
+
+    # Post-processing AFTER all tasks complete
+    # (guaranteed by ThreadPoolExecutor.__exit__())
+    for key in sorted(results_tracking):
+        post_process(key)
+```
+
+### Thread Safety Guarantees
+
+1. **Shared State Protection**: `threading.Lock` protects stats counters and result sets
+2. **Worker Isolation**: Each task writes to unique output directory/file
+3. **Immutable Reads**: Tasks only read immutable configuration data
+4. **Post-processing Order**: Happens AFTER `ThreadPoolExecutor.__exit__()` waits for all futures
+
+### Key Implementation Details
+
+| Pattern | Purpose |
+| --------- | --------- |
+| `parallel <= 1` check | Skip pool overhead for sequential execution |
+| `len(tasks) <= 1` check | No benefit from pool with single task |
+| `with lock:` blocks | Protect shared stats/sets (minimize critical section) |
+| `as_completed(futures)` | Process results as they finish (better progress reporting) |
+| Progress logging | Show throughput: `[completed/total]`, elapsed time, remaining |
+| `with ThreadPoolExecutor(...)` | Guarantees all workers finish before exiting context |
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| N/A | Direct approach worked | N/A | Solution was straightforward |
+## Results & Parameters
+
+### Implementation Files
+
+```bash
+# CLI interface
+scripts/rerun_judges.py:171-177   # --parallel argument
+scripts/rerun_judges.py:247       # Pass parallel parameter
+
+# Core implementation
+scylla/e2e/rerun_judges.py:20-22      # Imports
+scylla/e2e/rerun_judges.py:394-418    # Safe wrapper
+scylla/e2e/rerun_judges.py:517        # Function parameter
+scylla/e2e/rerun_judges.py:669-730    # Branching logic
+```
+
+### Verification Commands
+
+```bash
+# Sequential (default, backward compatible)
+python scripts/rerun_judges.py /path/to/experiment/ --status missing --parallel 1
+
+# Parallel execution (6 workers)
+python scripts/rerun_judges.py /path/to/experiment/ --status missing --parallel 6
+
+# Dry run still works
+python scripts/rerun_judges.py /path/to/experiment/ --status missing --dry-run
+```
+
+### Performance Characteristics
+
+| Workers | Expected Speedup | Use Case |
+| --------- | ------------------ | ---------- |
+| 1 | 1× (sequential) | Default, debugging, low concurrency |
+| 3-6 | 3-6× | Typical LLM API calls (rate limits) |
+| 10+ | 10×+ | High-throughput I/O (file processing) |
+
+**Rate Limit Strategy**: Individual worker failure model. If rate limit hits, that task returns `False` and can be rerun later. No cross-thread coordinator (YAGNI for recovery tools).
+
+## Code Checklist
+
+When implementing this pattern:
+
+- [ ] Add `--parallel N` CLI argument with `default=1`
+- [ ] Import `time`, `threading`, `ThreadPoolExecutor`, `as_completed`
+- [ ] Create result dataclass with `task`, `success`, `error` fields
+- [ ] Create safe wrapper function that catches all exceptions
+- [ ] Add `parallel: int = 1` parameter to core function
+- [ ] Implement branching: `if parallel <= 1 or len(tasks) <= 1:` for sequential
+- [ ] Use `threading.Lock()` for shared state protection
+- [ ] Use `with ThreadPoolExecutor(max_workers=parallel):` context manager
+- [ ] Submit tasks with `pool.submit(_safe_wrapper, task, ...)`
+- [ ] Iterate with `for future in as_completed(futures):`
+- [ ] Update stats inside `with lock:` blocks
+- [ ] Add progress logging: `[completed/total] ... (remaining, elapsed)`
+- [ ] Verify post-processing happens AFTER pool context exit
+- [ ] Test with `--parallel 1` (sequential), `--parallel 6` (parallel), `--dry-run`
+
+## Related Patterns
+
+- `runner.py:328` - Tier-level parallelization with ThreadPoolExecutor
+- `subtest_executor.py:2043-2131` - Safe wrapper pattern for exception handling
+- ProcessPoolExecutor - Use for CPU-bound tasks instead of I/O-bound
+
+## Tags
+
+`#parallelization` `#ThreadPoolExecutor` `#I/O-bound` `#CLI` `#performance` `#optimization`
+
+### Notes: parallel-io-bound-execution-with-threadpoolexecutor
+
+# Session Notes: Parallel I/O-Bound Execution Implementation
+
+## Session Context
+
+**Date**: 2026-01-30
+**Task**: Implement multi-threaded `rerun_judges.py` according to pre-planned architecture
+**Files Modified**:
+- `scripts/rerun_judges.py` - CLI interface
+- `scylla/e2e/rerun_judges.py` - Core implementation
+
+## Original Plan Summary
+
+The user provided a complete implementation plan with the following specifications:
+
+### Architecture Decision
+
+**Use ThreadPoolExecutor** (not ProcessPoolExecutor) because:
+- I/O-bound: `run_llm_judge()` spawns `claude` CLI subprocess (GIL released)
+- No serialization issues: All objects shared directly
+- Simpler shared state: `threading.Lock` protects stats/sets
+- Precedent: `runner.py:328` already uses ThreadPoolExecutor
+
+### Implementation Steps
+
+1. Add `--parallel N` CLI argument (default: 1)
+2. Add imports: `time`, `threading`, `ThreadPoolExecutor`, `as_completed`
+3. Create `_JudgeSlotResult` dataclass and safe wrapper
+4. Add `parallel` parameter to `rerun_judges_experiment()`
+5. Replace sequential loop with branching logic
+
+## Implementation Details
+
+### Changes to scripts/rerun_judges.py
+
+#### Added CLI Argument (lines 171-177)
+```python
+parser.add_argument(
+    "--parallel",
+    type=int,
+    default=1,
+    metavar="N",
+    help="Number of judge slots to run in parallel (default: 1, sequential)",
+)
+```
+
+#### Pass Through Parameter (line 247)
+```python
+stats = rerun_judges_experiment(
+    ...,
+    parallel=args.parallel,
+)
+```
+
+### Changes to scylla/e2e/rerun_judges.py
+
+#### Added Imports (lines 20-22)
+```python
+import time
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
+```
+
+#### Safe Wrapper Pattern (lines 394-418)
+```python
+@dataclass
+class _JudgeSlotResult:
+    """Result from a parallel judge slot execution."""
+    slot: JudgeSlotToRerun
+    success: bool
+    error: str | None = None
+
+
+def _rerun_single_judge_slot_safe(
+    slot: JudgeSlotToRerun,
+    experiment_dir: Path,
+    config: ExperimentConfig,
+) -> _JudgeSlotResult:
+    """Safe wrapper that never raises — prevents one failure from poisoning the pool."""
+    try:
+        success = _rerun_single_judge_slot(slot, experiment_dir, config)
+        return _JudgeSlotResult(slot=slot, success=success)
+    except Exception as e:
+        logger.error(
+            f"Unexpected exception in judge worker for "
+            f"{slot.tier_id}/{slot.subtest_id}/run_{slot.run_number:02d} "
+            f"judge_{slot.judge_number:02d}: {type(e).__name__}: {e}"
+        )
+        return _JudgeSlotResult(slot=slot, success=False, error=str(e))
+```
+
+**Pattern Source**: `_run_subtest_in_process_safe()` in `subtest_executor.py:2043-2131`
+
+#### Function Signature Update (line 517)
+```python
+def rerun_judges_experiment(
+    ...,
+    parallel: int = 1,
+) -> RerunJudgeStats:
+```
+
+#### Branching Logic (lines 669-730)
+
+Replaced sequential loop:
+```python
+for slot in needs_judge_rerun:
+    if _rerun_single_judge_slot(slot, experiment_dir, config):
+        stats.slots_rerun_success += 1
+        runs_with_reruns.add(slot.run_dir)
+    else:
+        stats.slots_rerun_failed += 1
+```
+
+With branching implementation:
+```python
+if parallel <= 1 or len(needs_judge_rerun) <= 1:
+    # === FAST PATH: Sequential (no pool overhead) ===
+    for slot in needs_judge_rerun:
+        if _rerun_single_judge_slot(slot, experiment_dir, config):
+            stats.slots_rerun_success += 1
+            runs_with_reruns.add(slot.run_dir)
+        else:
+            stats.slots_rerun_failed += 1
+else:
+    # === PARALLEL PATH: ThreadPoolExecutor ===
+    lock = threading.Lock()
+    total = len(needs_judge_rerun)
+    completed_count = 0
+    start_time = time.time()
+
+    with ThreadPoolExecutor(max_workers=parallel) as pool:
+        futures = {
+            pool.submit(
+                _rerun_single_judge_slot_safe, slot, experiment_dir, config
+            ): slot
+            for slot in needs_judge_rerun
+        }
+
+        for future in as_completed(futures):
+            result = future.result()  # Never raises (safe wrapper)
+            completed_count += 1
+
+            with lock:
+                if result.success:
+                    stats.slots_rerun_success += 1
+                    runs_with_reruns.add(result.slot.run_dir)
+                else:
+                    stats.slots_rerun_failed += 1
+
+            # Progress logging
+            elapsed = time.time() - start_time
+            remaining = total - completed_count
+            slot = result.slot
+            status_str = "OK" if result.success else "FAIL"
+            logger.info(
+                f"[{completed_count}/{total}] "
+                f"{slot.tier_id}/{slot.subtest_id}/"
+                f"run_{slot.run_number:02d} "
+                f"judge_{slot.judge_number:02d} -> {status_str} "
+                f"({remaining} remaining, {elapsed:.0f}s elapsed)"
+            )
+```
+
+## Thread Safety Analysis
+
+### Protected Resources
+- `stats.slots_rerun_success` (counter) - protected by `lock`
+- `stats.slots_rerun_failed` (counter) - protected by `lock`
+- `runs_with_reruns` (set) - protected by `lock`
+
+### Unprotected Resources (Thread-Safe)
+- Each `slot` writes to unique `judge_{NN}/` subdirectory
+- Reads from immutable files (`config`, `experiment_dir`)
+- Consensus regeneration happens AFTER pool context exit
+
+### Lock Critical Sections
+Minimized to only stat updates:
+```python
+with lock:
+    if result.success:
+        stats.slots_rerun_success += 1
+        runs_with_reruns.add(result.slot.run_dir)
+    else:
+        stats.slots_rerun_failed += 1
+```
+
+Progress logging happens OUTSIDE lock (no shared state).
+
+## Rate Limit Strategy
+
+**Individual Worker Failure Model**:
+- If rate limit hits, that slot returns `False`
+- Slot can be rerun later with another invocation
+- No cross-thread coordinator (YAGNI — this is a recovery tool)
+
+**Alternative Considered**: Global rate limiter with backoff
+**Decision**: Not needed for recovery tool, adds complexity
+
+## Verification Strategy
+
+### Syntax Check
+```bash
+python3 -m py_compile scripts/rerun_judges.py
+python3 -m py_compile scylla/e2e/rerun_judges.py
+```
+Result: ✅ Both files compile successfully
+
+### Help Output Check
+```bash
+python3 scripts/rerun_judges.py --help | grep -A 2 "parallel"
+```
+Result: ✅ `--parallel N` argument present in help
+
+### Planned Integration Tests
+```bash
+# Dry run — verify classification still works
+pixi run python scripts/rerun_judges.py \
+  ~/fullruns/test001-nothinking-haiku/2026-01-23T17-01-08-test-001/ \
+  --status missing --dry-run
+
+# Sequential (default, behavior unchanged)
+pixi run python scripts/rerun_judges.py \
+  ~/fullruns/test001-nothinking-haiku/2026-01-23T17-01-08-test-001/ \
+  --status missing --parallel 1
+
+# Parallel execution
+pixi run python scripts/rerun_judges.py \
+  ~/fullruns/test001-nothinking-haiku/2026-01-23T17-01-08-test-001/ \
+  --status missing --parallel 6
+```
+
+## Design Patterns Used
+
+### 1. Safe Wrapper Pattern
+**Purpose**: Prevent unhandled exceptions from poisoning thread pool
+**Source**: `subtest_executor.py:2043-2131`
+**Implementation**: `_rerun_single_judge_slot_safe()` catches all exceptions
+
+### 2. Branching Execution Pattern
+**Purpose**: Avoid pool overhead for sequential execution
+**Implementation**: `if parallel <= 1 or len(tasks) <= 1:` fast path
+
+### 3. Result Dataclass Pattern
+**Purpose**: Type-safe result passing from workers
+**Implementation**: `_JudgeSlotResult` with `slot`, `success`, `error`
+
+### 4. Lock Minimization Pattern
+**Purpose**: Reduce contention in parallel code
+**Implementation**: Only protect stat updates, log outside lock
+
+### 5. Progress Reporting Pattern
+**Purpose**: User feedback during long-running parallel operations
+**Implementation**: `[completed/total]` with elapsed time and remaining count
+
+## Key Learnings
+
+### What Worked Well
+1. **Following precedent**: Using existing patterns from `runner.py` and `subtest_executor.py`
+2. **Clear plan**: Having detailed architecture decision upfront
+3. **Safe wrapper**: Prevents one failure from crashing entire pool
+4. **Sequential fast path**: Avoids pool overhead when `parallel=1`
+
+### ThreadPoolExecutor vs ProcessPoolExecutor
+**When to use ThreadPoolExecutor**:
+- ✅ I/O-bound: subprocess, network, disk
+- ✅ Shared state simple: counters, sets with lock
+- ✅ No serialization needed: objects shared directly
+
+**When to use ProcessPoolExecutor**:
+- ❌ CPU-bound: heavy computation, no I/O wait
+- ❌ Need true parallelism: bypass GIL
+- ❌ Isolated state: each worker independent
+
+### Backward Compatibility
+- Default `--parallel 1` maintains sequential behavior
+- Existing scripts/automation continue to work
+- Users opt-in to parallelism explicitly
+
+## Performance Expectations
+
+| Scenario | Workers | Expected Speedup |
+| ---------- | --------- | ------------------ |
+| Single slot | any | 1× (no parallelism benefit) |
+| 10 slots | 1 | 1× (sequential baseline) |
+| 10 slots | 3 | ~3× (I/O-bound ideal) |
+| 10 slots | 6 | ~6× (I/O-bound ideal) |
+| 10 slots | 12 | ~6-8× (diminishing returns, rate limits) |
+
+**Bottlenecks**:
+- LLM API rate limits (429 responses)
+- Disk I/O contention (consensus regeneration)
+- Logging contention (minor)
+
+## Future Enhancements (YAGNI)
+
+Not implemented (kept simple):
+- [ ] Global rate limiter with exponential backoff
+- [ ] Retry logic for transient failures
+- [ ] Worker pool warmup/cooldown
+- [ ] Dynamic worker adjustment based on success rate
+- [ ] Prometheus metrics for parallel execution
+- [ ] Progress bar instead of log messages
+
+These can be added later if needed, following YAGNI principle.
+
+## Related Code References
+
+- `runner.py:328` - Tier-level ThreadPoolExecutor parallelism
+- `subtest_executor.py:2043-2131` - Safe wrapper exception handling pattern
+- `rerun_judges.py:319-389` - Original `_rerun_single_judge_slot()` (now wrapped)
+
+## Testing Checklist
+
+Pre-merge verification:
+- [x] Syntax check passes (`py_compile`)
+- [x] Help text includes `--parallel` argument
+- [ ] Dry run produces same classification as before
+- [ ] Sequential execution (`--parallel 1`) produces same results
+- [ ] Parallel execution (`--parallel 6`) completes without errors
+- [ ] Progress logging shows `[N/total]` format
+- [ ] Consensus regeneration happens after all workers complete
+- [ ] Failed slots are tracked correctly
+- [ ] Lock contention is minimal (test with high parallelism)
+
+## Commit Message
+
+```
+feat(e2e): Add parallel execution to rerun_judges.py
+
+Implement ThreadPoolExecutor-based parallelization for judge slot reruns
+with --parallel N CLI flag (default: 1, sequential).
+
+Key features:
+- ThreadPoolExecutor for I/O-bound subprocess operations
+- Safe wrapper prevents pool poisoning from exceptions
+- Thread-safe stats updates with threading.Lock
+- Progress logging: [completed/total] with elapsed time
+- Backward compatible (default --parallel 1)
+- Fast path skips pool overhead when parallel <= 1
+
+Architecture: Uses threads (not processes) because run_llm_judge()
+spawns subprocesses (GIL released during I/O wait).
+
+Files changed:
+- scripts/rerun_judges.py: Add --parallel CLI arg
+- scylla/e2e/rerun_judges.py: Implement branching logic
+```
+
+## Superseded from checkpoint-result-validation
+
+---
+name: checkpoint-result-validation
+description: Validate checkpoint results before resuming expensive operations to prevent
+  wasted API calls
+category: optimization
+date: 2026-01-04
+version: 1.0.0
+tags:
+- checkpoint
+- resume
+- validation
+- cost-optimization
+- idempotency
+---
+# Checkpoint Result Validation
+
+## Overview
+
+| Attribute | Value |
+| ----------- | ------- |
+| **Date** | 2026-01-04 |
+| **Objective** | Prevent re-running expensive operations (API calls) when valid results already exist |
+| **Outcome** | ✅ Added validation checks before agent/judge launches, saving costs on resume |
+| **Project** | ProjectScylla |
+| **PR** | [#138](https://github.com/HomericIntelligence/ProjectScylla/pull/138) |
+
+## When to Use
+
+Use this pattern when:
+- Implementing checkpoint/resume systems
+- Operations are expensive (API calls, long computations)
+- Partial failures require rerunning from checkpoint
+- Need idempotent resume behavior
+- Want to skip already-completed work on restart
+
+## Problem
+
+**Naive Checkpoint Resume**:
+```python
+# Bad: Checks if checkpoint exists, but reruns anyway
+if checkpoint.exists():
+    logger.info("Resuming...")
+    result = expensive_api_call()  # ❌ Wastes money if already done!
+```
+
+**Issues**:
+1. Detects branch/directory exists but doesn't validate results
+2. Re-runs expensive operations even if they completed successfully
+3. Wastes API tokens and money
+4. Slower resume times
+
+**Evidence** (from ProjectScylla results2.log):
+```
+Branch T0_00 exists, attempting recovery for resume...
+[AGENT] - Running agent with model[...]  # ❌ Already ran!
+```
+
+## Verified Workflow
+
+### 1. Create Validation Functions
+
+```python
+def _has_valid_agent_result(run_dir: Path) -> bool:
+    """Check if valid agent result exists.
+
+    Returns:
+        True if valid result exists with all required fields
+    """
+    import json
+
+    result_file = get_agent_result_file(run_dir)
+    if not result_file.exists():
+        return False
+
+    try:
+        data = json.loads(result_file.read_text())
+        # Validate required fields exist
+        required_fields = ["exit_code", "token_stats", "cost_usd"]
+        return all(field in data for field in required_fields)
+    except (json.JSONDecodeError, KeyError, OSError):
+        return False
+```
+
+### 2. Check BEFORE Launching
+
+```python
+# Before: Only checked file existence
+if agent_result_file.exists():
+    result = _load_agent_result(agent_dir)
+else:
+    result = expensive_agent_call()  # Runs even if partial file exists!
+
+# After: Validate before deciding
+if _has_valid_agent_result(run_dir):
+    logger.info("[SKIP] Agent already completed")
+    result = _load_agent_result(agent_dir)
+else:
+    result = expensive_agent_call()  # Only runs if needed
+```
+
+### 3. Clear Skip Logging
+
+```python
+# Use [SKIP] prefix for visibility
+if _has_valid_result(run_dir):
+    logger.info(f"[SKIP] Already completed: {result_file}")
+    return load_result()
+```
+
+### 4. Test Resume Scenarios
+
+```python
+def test_resume_skips_completed():
+    """Verify completed work is not re-run."""
+    # Setup: Save valid result
+    save_result(run_dir, valid_result)
+
+    # Resume
+    result = execute_with_resume(run_dir)
+
+    # Should load, not re-run
+    assert mock_api.call_count == 0
+    assert result == valid_result
+```
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| N/A | Direct approach worked | N/A | Solution was straightforward |
+## Results & Parameters
+
+### Validation Pattern
+
+```python
+def _has_valid_result(result_dir: Path) -> bool:
+    """Template for result validation.
+
+    Pattern:
+    1. Check file exists
+    2. Try to load/parse
+    3. Validate required fields
+    4. Catch all exceptions
+    """
+    result_file = result_dir / "result.json"
+
+    if not result_file.exists():
+        return False
+
+    try:
+        data = json.loads(result_file.read_text())
+
+        # Check required fields
+        required = ["field1", "field2", "field3"]
+        if not all(k in data for k in required):
+            return False
+
+        # Optional: Validate field types/values
+        if not isinstance(data["field1"], int):
+            return False
+
+        return True
+
+    except (json.JSONDecodeError, KeyError, OSError, ValueError):
+        # Any error = invalid
+        return False
+```
+
+### Integration with Expensive Operations
+
+```python
+def execute_with_resume(run_dir: Path):
+    """Pattern for idempotent execution with validation."""
+
+    # 1. Validate BEFORE expensive operation
+    if _has_valid_result(run_dir):
+        logger.info("[SKIP] Using cached result")
+        return load_result(run_dir)
+
+    # 2. Run expensive operation only if needed
+    result = expensive_api_call()
+
+    # 3. Save for future resume
+    save_result(run_dir, result)
+
+    return result
+```
+
+### Cost Savings
+
+**Before** (from ProjectScylla logs):
+- T0_00: Agent re-ran (cost: $0.15)
+- T0_01: Agent re-ran (cost: $0.15)
+- **Total waste: $0.30 per resume**
+
+**After**:
+- T0_00: Skipped ✅
+- T0_01: Skipped ✅
+- **Savings: 100% on resume**
+
+## Key Learnings
+
+1. **Validate Early**: Check before expensive operations, not after
+2. **Required Fields**: Define minimum fields for validity
+3. **Fail Safely**: Any exception = invalid, re-run
+4. **Clear Logging**: `[SKIP]` prefix shows what's being skipped
+5. **Test Idempotency**: Verify resume doesn't change results
+
+## Example Use Cases
+
+1. **ML Training**: Skip completed epochs on resume
+2. **API Batch Processing**: Skip already-processed items
+3. **ETL Pipelines**: Skip extracted/transformed data
+4. **Experiment Runs**: Skip completed trials in ablation studies
+
+## Related Skills
+
+- `architecture/idempotent-operations` - Designing resumable operations
+- `optimization/lazy-loading` - Defer expensive operations
+- `testing/checkpoint-testing` - Testing resume scenarios
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| ProjectScylla | PR #138 - Skip completed agent/judge runs | [notes.md](../../references/notes.md) |
+
+### Notes: checkpoint-result-validation
+
+# Checkpoint Result Validation - Implementation Notes
+
+## Context
+
+ProjectScylla E2E experiments were re-running expensive agent/judge calls on resume even when results already existed:
+
+```
+# results2.log:14-16
+Branch T0_00 exists, attempting recovery for resume...
+[AGENT] - Running agent with model[...]  # Should have been skipped!
+```
+
+This wasted API tokens ($0.15 per agent run) and time.
+
+## Root Cause
+
+Code only checked if result file EXISTS, not if it's VALID:
+
+```python
+# Before (subtest_executor.py:571):
+if agent_result_file.exists():
+    result = _load_agent_result(agent_dir)
+else:
+    result = run_agent()  # Runs even if partial/corrupt file exists
+```
+
+## Solution
+
+Added validation functions:
+
+```python
+def _has_valid_agent_result(run_dir: Path) -> bool:
+    result_file = get_agent_result_file(run_dir)
+    if not result_file.exists():
+        return False
+
+    try:
+        data = json.loads(result_file.read_text())
+        required_fields = ["exit_code", "token_stats", "cost_usd"]
+        return all(field in data for field in required_fields)
+    except (json.JSONDecodeError, KeyError, OSError):
+        return False
+```
+
+Updated execution logic:
+
+```python
+# After:
+if _has_valid_agent_result(run_dir):
+    logger.info("[SKIP] Agent already completed")
+    result = _load_agent_result(agent_dir)
+else:
+    result = run_agent()  # Only if needed
+```
+
+## Files Changed
+
+- `src/scylla/e2e/subtest_executor.py`:
+  - Added `_has_valid_agent_result()` function (23 lines)
+  - Added `_has_valid_judge_result()` function (23 lines)
+  - Updated agent execution check (line 611)
+  - Updated judge execution check (line 688)
+
+## Benefits
+
+1. **Cost Savings**: No duplicate API calls on resume
+2. **Faster Resume**: Only runs incomplete work
+3. **Integrity**: Validates required fields present
+4. **Clear Logs**: `[SKIP]` shows what's being skipped
+
+## Testing
+
+Manually tested resume scenarios:
+- Resume after crash during agent → Skips completed agents ✅
+- Resume with corrupt result file → Re-runs agent ✅
+- Resume with missing field → Re-runs agent ✅
+
+## PR Details
+
+- **Branch**: `132-skip-completed-runs`
+- **Files Changed**: 1 modified
+- **Lines**: +60, -11
+- **Dependencies**: PR #137 (paths module)
+- **Status**: Awaiting merge
+
+## Superseded from e2e-artifact-deduplication
+
+---
+name: e2e-artifact-deduplication
+description: Consolidate duplicate artifacts in E2E evaluation output by sharing prompts,
+  commands, and configuration files across judges and runs
+category: optimization
+date: 2026-01-11
+version: 1.0.0
+title: E2E Artifact Deduplication
+outcome: success
+---
+# Skill: E2E Artifact Deduplication
+
+## Overview
+
+| Item | Details |
+| ------ | --------- |
+| Date | 2026-01-11 |
+| Objective | Consolidate duplicate artifacts in E2E evaluation output |
+| Outcome | Operational |
+
+| Attribute | Value |
+| ----------- | ------- |
+| **Date** | 2026-01-11 |
+| **Objective** | Consolidate duplicate artifacts in E2E evaluation output |
+| **Outcome** | ✅ Success - 4 optimizations implemented, ~12KB saved per run with multiple judges |
+| **Context** | ProjectScylla E2E evaluation framework |
+
+## When to Use This Skill
+
+Use this skill when you observe:
+
+1. **Duplicate files across judge runs** - Same content repeated in judge_01/, judge_02/, etc.
+2. **Large evaluation directories** - Result directories growing unnecessarily due to duplication
+3. **Inlined content in scripts** - Long prompts embedded directly in replay scripts
+4. **Per-judge artifacts for shared data** - Commands/scripts that don't vary between judges
+5. **Symlinks to mutable sources** - Experiment reproducibility concerns with changing source files
+
+## Problem Summary
+
+E2E evaluation frameworks often generate redundant artifacts:
+
+| Issue | Impact | Frequency |
+| ------- | -------- | ----------- |
+| Judge prompts duplicated per judge | ~7KB × N judges per run | Every run with multiple judges |
+| Pipeline commands per judge directory | ~5 files × N judges | Every run |
+| Prompts inlined in replay scripts | ~1KB bloat per script | Every agent/judge run |
+| Task prompts symlinked to source | Reproducibility risk | Every experiment |
+
+## Verified Workflow
+
+### Change 1: Move Pipeline Commands to Run Level
+
+**Problem**: `run_all.sh` and related scripts duplicated in each judge subdirectory
+
+**Solution**: Move to run-level `commands/` directory
+
+**Files**: `src/scylla/e2e/llm_judge.py`, `src/scylla/e2e/subtest_executor.py`
+
+```python
+# In llm_judge.py - Change function signature
+def _save_pipeline_commands(run_dir: Path, workspace: Path, language: str = "mojo") -> None:
+    """Save all build/lint/test commands as reproducible bash scripts.
+
+    Creates individual scripts for each tool in run_dir/commands/ directory,
+    plus a run_all.sh script that executes all tools in sequence.
+    Called once per run (not per judge) since results are identical.
+    """
+    commands_dir = run_dir / "commands"  # Changed from judge_dir / "commands"
+    commands_dir.mkdir(parents=True, exist_ok=True)
+    # ... rest of implementation
+```
+
+```python
+# In subtest_executor.py - Call after judge runs complete
+judgment, judges = self._run_judge(
+    workspace=workspace,
+    task_prompt=task_prompt,
+    stdout=result.stdout,
+    judge_dir=judge_dir,
+    language=self.config.language,
+    rubric_path=rubric_path,
+)
+
+# Save pipeline commands once per run (not per judge)
+from scylla.e2e.llm_judge import _save_pipeline_commands
+_save_pipeline_commands(run_dir, workspace, language=self.config.language)
+```
+
+**Result**: Single `run_XX/commands/` directory instead of `run_XX/judge/judge_01/commands/`, etc.
+
+### Change 2: Extract Agent Prompts to Separate Files
+
+**Problem**: Agent replay scripts inline full prompt text (~1KB+)
+
+**Solution**: Extract to `prompt.md`, reference in script
+
+**File**: `src/scylla/e2e/command_logger.py`
+
+```python
+def save_replay_script(self) -> Path:
+    """Generate an executable bash script to replay all commands.
+
+    For Claude Code commands with prompts, extracts the prompt to a
+    separate prompt.md file and references it in the replay script.
+    """
+    script_path = self.log_dir / "replay.sh"
+    prompt_path = self.log_dir / "prompt.md"
+
+    # ... setup code ...
+
+    for i, log in enumerate(self.commands):
+        # Check if this is a claude command with a prompt argument
+        if len(log.command) > 0 and "claude" in log.command[0].lower():
+            if len(log.command) > 1:
+                prompt = log.command[-1]
+                # Only extract if it looks like a multi-line prompt
+                if len(prompt) > 100 or "\n" in prompt:
+                    prompt_path.write_text(prompt)
+                    # Build command referencing prompt.md instead of inlining
+                    cmd_without_prompt = log.command[:-1]
+                    cmd_str = " ".join(shlex.quote(arg) for arg in cmd_without_prompt)
+                    lines.append(f"{cmd_str} prompt.md")
+                    lines.append("")
+                    continue
+
+        # Default: quote each argument properly
+        cmd_str = " ".join(shlex.quote(arg) for arg in log.command)
+        lines.append(cmd_str)
+```
+
+**Result**: Agent directory has separate `prompt.md`, replay script uses `claude <opts> prompt.md`
+
+### Change 3: Consolidate Judge Prompts Per Run
+
+**Problem**: Same judge prompt written to each judge subdirectory
+
+**Solution**: Write once to `run_XX/judge_prompt.md`, share across judges
+
+**File**: `src/scylla/e2e/llm_judge.py`
+
+```python
+def _save_judge_logs(
+    judge_dir: Path,
+    prompt: str,
+    response: str,
+    result: JudgeResult,
+    model: str,
+    workspace: Path | None = None,
+    raw_stdout: str = "",
+    raw_stderr: str = "",
+    language: str = "mojo",
+) -> None:
+    judge_dir.mkdir(parents=True, exist_ok=True)
+
+    # Save the prompt to run level (shared by all judges) - write once
+    # judge_dir is e.g. run_01/judge/judge_01/, so go up 2 levels to get run_dir
+    run_dir = judge_dir.parent.parent
+    judge_prompt_path = run_dir / "judge_prompt.md"
+    if not judge_prompt_path.exists():
+        judge_prompt_path.write_text(prompt)
+
+    # ... rest of implementation ...
+
+    # Update replay script to reference shared prompt
+    replay_content = f"""#!/usr/bin/env bash
+# Replay judge evaluation
+
+set -euo pipefail
+
+JUDGE_DIR="$(cd "$(dirname "${{BASH_SOURCE[0]}}")" && pwd)"
+
+# Re-run Claude CLI with the same prompt and model (shared judge_prompt.md at run level)
+claude \\
+  --model {model} \\
+  --prompt "$JUDGE_DIR/../../judge_prompt.md" \\
+  > "$JUDGE_DIR/response.txt"
+
+echo "Judge response saved to $JUDGE_DIR/response.txt"
+"""
+```
+
+**Result**: Single `run_XX/judge_prompt.md` file, judges reference `../../judge_prompt.md`
+
+### Change 4: Use Immutable Task Prompt Copies
+
+**Problem**: Task prompts symlinked to source tree (can change after experiment)
+
+**Solution**: Copy to experiment directory for immutability
+
+**Files**: `src/scylla/e2e/runner.py`, `src/scylla/e2e/subtest_executor.py`
+
+```python
+# In runner.py - Copy instead of symlink
+def _copy_grading_materials(self, experiment_dir: Path) -> None:
+    # Copy task prompt (immutable snapshot for reproducibility)
+    prompt_path = experiment_dir / "prompt.md"
+    if self.config.task_prompt_file.exists():
+        import shutil
+        shutil.copy(self.config.task_prompt_file, prompt_path)
+        logger.debug(f"Copied task prompt to {prompt_path}")
+```
+
+```python
+# In subtest_executor.py - Symlink to experiment copy when possible
+resource_suffix = self.tier_manager.build_resource_suffix(subtest)
+prompt_file = run_dir / "task_prompt.md"
+
+if resource_suffix:
+    # Resource suffix modifies the prompt - must write full content
+    task_prompt = f"{task_prompt}\n\n{resource_suffix}"
+    prompt_file.write_text(task_prompt)
+else:
+    # No modification - symlink to experiment-level copy for deduplication
+    experiment_prompt = self.experiment_dir / "prompt.md"
+    if experiment_prompt.exists():
+        prompt_file.symlink_to(experiment_prompt.resolve())
+    else:
+        # Fallback: write full content if experiment copy doesn't exist
+        prompt_file.write_text(task_prompt)
+```
+
+**Result**: Experiment-level copy ensures reproducibility, run-level symlinks when possible
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| N/A | Direct approach worked | N/A | Solution was straightforward |
+## Results & Parameters
+
+### Final Directory Structure
+
+```
+experiment_dir/
+├── prompt.md                    # COPY of original (immutable)
+└── T0/00/run_01/
+    ├── judge_prompt.md          # Written ONCE (7KB, shared)
+    ├── task_prompt.md           # Symlink or full copy
+    ├── commands/                # At run level
+    │   ├── run_all.sh
+    │   ├── python_check.sh
+    │   ├── python_format.sh
+    │   ├── python_test.sh
+    │   └── precommit.sh
+    ├── agent/
+    │   ├── replay.sh            # "claude <opts> prompt.md"
+    │   └── prompt.md            # Extracted (1.1KB)
+    └── judge/
+        ├── judge_01/
+        │   ├── replay.sh        # References ../../judge_prompt.md
+        │   ├── response.txt
+        │   └── judgment.json
+        └── judge_02/
+            └── replay.sh        # References ../../judge_prompt.md
+```
+
+### Space Savings
+
+| Optimization | Before | After | Savings per Run |
+| ------------- | -------- | ------- | ----------------- |
+| Judge prompts | 7KB × N judges | 7KB × 1 | ~7KB × (N-1) judges |
+| Pipeline commands | 5 files × N judges | 5 files × 1 | ~5 files × (N-1) |
+| Agent prompts | Inlined (~1KB) | Extracted | Better readability |
+| Task prompts | Multiple copies | Shared via symlink | Varies by tier |
+
+**Example with 3 judges**: ~14KB + 10 files saved per run
+
+### Verification Command
+
+```bash
+pixi run python scripts/run_e2e_experiment.py \
+  --tiers-dir tests/fixtures/tests/test-001 \
+  --tiers T0 --max-subtests 1 --runs 1 \
+  --add-judge sonnet-4-5 --add-judge haiku-4-5 \
+  -v
+```
+
+### Expected Outcomes
+
+1. ✅ Single `run_XX/commands/` directory (not per judge)
+2. ✅ Single `run_XX/judge_prompt.md` file (not per judge)
+3. ✅ Agent `replay.sh` references `prompt.md` file
+4. ✅ Experiment `prompt.md` is a copy (not symlink)
+5. ✅ All replay scripts work correctly
+6. ✅ All judges complete successfully
+
+### Test Results
+
+- **Exit code**: 0 (success)
+- **Score**: 0.900 (excellent quality)
+- **Judges**: Opus, Sonnet, Haiku all working
+- **Duration**: ~12 minutes for multi-judge run
+
+## Key Insights
+
+1. **Understand directory nesting depth**: When using `parent` navigation, trace the full path to ensure you're at the right level
+2. **Extract large strings from scripts**: Improves readability and makes diffs cleaner
+3. **Share read-only artifacts**: If content is identical across runs/judges, write once and reference
+4. **Copy for immutability**: Symlinks to source trees can change; copies ensure reproducibility
+5. **Test with multiple judges**: Essential to verify prompt sharing and deduplication work correctly
+
+## Related Files
+
+- `src/scylla/e2e/llm_judge.py` - Judge prompt consolidation, pipeline commands
+- `src/scylla/e2e/command_logger.py` - Agent prompt extraction
+- `src/scylla/e2e/runner.py` - Experiment-level prompt copying
+- `src/scylla/e2e/subtest_executor.py` - Run-level task prompt handling, pipeline command orchestration
+
+## References
+
+- PR: #176 on HomericIntelligence/ProjectScylla
+- Branch: `refactor/judge-prompt-consolidation`
+- Commit: `24e1642` - refactor(e2e): Consolidate duplicate artifacts in evaluation output
