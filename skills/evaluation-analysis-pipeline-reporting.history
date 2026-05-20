@@ -1,0 +1,3101 @@
+# evaluation-analysis-pipeline-reporting — Superseded Skill History
+
+This file contains verbatim snapshots of the 10 skills absorbed into
+`evaluation-analysis-pipeline-reporting` as part of epic #1827 (cluster M22).
+
+---
+
+## Superseded from add-comparison-table
+
+---
+name: add-comparison-table
+description: 'TRIGGER CONDITIONS: Adding a new pairwise statistical comparison table
+  to scylla/analysis/tables/comparison.py. Use when a new metric (e.g. CFP, R_Prog,
+  impl_rate) needs tier-by-tier Kruskal-Wallis + Mann-Whitney U + Holm-Bonferroni
+  comparison in both Markdown and LaTeX formats.'
+category: evaluation
+date: 2026-03-02
+version: 1.0.0
+user-invocable: false
+---
+# add-comparison-table
+
+How to add a new pairwise comparison table to `scylla/analysis/tables/comparison.py`, reusing the existing `_generate_pairwise_comparison()` helper, with a column-existence guard, dual-format output, and 4 focused unit tests.
+
+## Overview
+
+| Item | Details |
+| ------ | --------- |
+| Date | 2026-03-02 |
+| Objective | Add `table_cfp_comparison()` for CFP and R_Prog across tiers (research.md §6.3) |
+| Outcome | Success — 4 new tests, 39 tables tests total, 3589 total passing, all pre-commit hooks pass |
+| Issue | HomericIntelligence/ProjectScylla#1187 |
+| PR | HomericIntelligence/ProjectScylla#1298 |
+
+## When to Use
+
+- Adding a new metric comparison table using the Kruskal-Wallis → pairwise Mann-Whitney U → Holm-Bonferroni pipeline
+- The metric column already exists in `runs_df` (from `build_runs_df()`)
+- The table should produce both Markdown and LaTeX output
+- The new table function should mirror `table02_tier_comparison` or `table02b_impl_rate_comparison`
+
+## Architecture: tables/comparison.py structure
+
+```
+_generate_pairwise_comparison()    ← private helper, reused by all comparison tables
+    |
+    ├── table02_tier_comparison()          metric_column="passed"
+    ├── table02b_impl_rate_comparison()    metric_column="impl_rate"
+    └── table_cfp_comparison()             metric_column="cfp" + "r_prog"
+```
+
+The helper runs the full statistical pipeline and returns `(markdown, latex)`. New comparison tables are thin wrappers that supply `metric_column`, `metric_name`, `table_title`, and `table_label`.
+
+## Verified Workflow
+
+### Step 1: Confirm the metric column is already in runs_df
+
+Check `scylla/analysis/dataframes.py` `build_runs_df()` to verify the column exists. If not, add it there first (see `add-analysis-metric` skill).
+
+### Step 2: Add the table function to comparison.py
+
+Insert after the last existing comparison function (before `__all__`):
+
+```python
+def table_<metric>_comparison(runs_df: pd.DataFrame) -> tuple[str, str]:
+    """Compare <Metric> across tiers.
+
+    Uses the same Kruskal-Wallis → pairwise Mann-Whitney U → Holm-Bonferroni
+    pipeline as table02_tier_comparison.
+
+    Args:
+        runs_df: Runs DataFrame (requires '<metric>' column).
+
+    Returns:
+        Tuple of (markdown_table, latex_table).
+
+    """
+    if "<metric>" not in runs_df.columns:
+        return (
+            "*(CFP data not yet collected)*",
+            "% CFP data not yet collected",
+        )
+
+    return _generate_pairwise_comparison(
+        runs_df,
+        metric_column="<metric>",
+        metric_name="<MetricDisplayName>",
+        table_title="<Table Title>",
+        table_label="<latex_label>",
+    )
+```
+
+**For two related metrics** (e.g. CFP + R_Prog together), call `_generate_pairwise_comparison` twice and concatenate:
+
+```python
+cfp_md, cfp_latex = _generate_pairwise_comparison(runs_df, metric_column="cfp", ...)
+r_md, r_latex = _generate_pairwise_comparison(runs_df, metric_column="r_prog", ...)
+return (cfp_md + "\n\n" + r_md, cfp_latex + "\n\n" + r_latex)
+```
+
+### Step 3: Add to __all__ in comparison.py
+
+```python
+__all__ = [
+    "table02_tier_comparison",
+    "table02b_impl_rate_comparison",
+    "table04_criteria_performance",
+    "table06_model_comparison",
+    "table_<metric>_comparison",   # ← add here
+]
+```
+
+### Step 4: Export from tables/__init__.py
+
+In `scylla/analysis/tables/__init__.py`:
+
+```python
+from scylla.analysis.tables.comparison import (
+    table02_tier_comparison,
+    table02b_impl_rate_comparison,
+    table04_criteria_performance,
+    table06_model_comparison,
+    table_<metric>_comparison,     # ← add import
+)
+```
+
+And add to `__all__`:
+
+```python
+"table_<metric>_comparison",       # ← add to __all__
+```
+
+### Step 5: Write 4 unit tests in test_tables.py
+
+```python
+def test_table_<metric>_comparison_format(sample_runs_df):
+    """Smoke test: returns (str, str), non-empty, metric name in markdown."""
+    from scylla.analysis.tables import table_<metric>_comparison
+    markdown, latex = table_<metric>_comparison(sample_runs_df)
+    assert isinstance(markdown, str) and isinstance(latex, str)
+    assert len(markdown) > 0 and len(latex) > 0
+    assert "<MetricDisplayName>" in markdown
+    assert "tabular" in latex or "table" in latex.lower()
+
+
+def test_table_<metric>_comparison_missing_column():
+    """Returns placeholder when metric column absent — no exception raised."""
+    import pandas as pd
+    from scylla.analysis.tables import table_<metric>_comparison
+    df = pd.DataFrame({"agent_model": ["M"] * 3, "tier": ["T0"] * 3, "score": [0.5] * 3})
+    markdown, latex = table_<metric>_comparison(df)
+    assert isinstance(markdown, str) and len(markdown) > 0
+    assert isinstance(latex, str) and len(latex) > 0
+
+
+def test_table_<metric>_comparison_all_nan(sample_runs_df):
+    """Completes without error when all values are NaN."""
+    from scylla.analysis.tables import table_<metric>_comparison
+    df = sample_runs_df.copy()
+    df["<metric>"] = float("nan")
+    markdown, latex = table_<metric>_comparison(df)
+    assert isinstance(markdown, str) and isinstance(latex, str)
+
+
+def test_table_<metric>_comparison_statistical_workflow(sample_runs_df):
+    """Kruskal-Wallis, Mann-Whitney, Holm-Bonferroni documented in output."""
+    from scylla.analysis.tables import table_<metric>_comparison
+    markdown, latex = table_<metric>_comparison(sample_runs_df)
+    assert "Kruskal-Wallis" in markdown
+    assert "Mann-Whitney" in markdown
+    assert "Holm-Bonferroni" in markdown
+```
+
+Also update `test_table_function_signatures()` to include the new function name in `table_functions`.
+
+### Step 6: Verify
+
+```bash
+# Targeted (fast feedback)
+pixi run python -m pytest tests/unit/analysis/test_tables.py -v -k "<metric>"
+
+# Full tables suite
+pixi run python -m pytest tests/unit/analysis/test_tables.py -v
+
+# Pre-commit
+pre-commit run --all-files
+```
+
+Expected: all hooks pass; ruff may auto-fix minor style issues on first run — run a second time to confirm.
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| N/A | Direct approach worked | N/A | Solution was straightforward |
+## Results & Parameters
+
+### NaN handling
+
+The `_generate_pairwise_comparison()` helper already calls `.dropna()` on each tier group. No additional NaN logic is needed in the wrapper — all-NaN groups simply produce zero valid groups and the statistical tests are skipped gracefully.
+
+### Column guard pattern
+
+```python
+if "cfp" not in runs_df.columns:
+    return (
+        "*(CFP data not yet collected)*",
+        "% CFP data not yet collected",
+    )
+```
+
+Use the markdown placeholder `*(data not yet collected)*` and a LaTeX comment `% data not yet collected` — these parse cleanly downstream without breaking table rendering.
+
+### conftest.py mock_power_simulations fixture
+
+The `autouse=True` fixture in `tests/unit/analysis/conftest.py` mocks `mann_whitney_power` (→ `0.8`) and `kruskal_wallis_power` (→ `0.75`) in **both** `scylla.analysis.stats` and `scylla.analysis.tables.comparison`. New comparison table functions automatically benefit from this mock since they call through `_generate_pairwise_comparison` which uses the already-patched symbols.
+
+### test count delta
+
+4 new tests added to `test_tables.py`; total tables tests: 35 → 39.
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| ProjectScylla | Issue #1187, PR #1298 | Branch: `1187-auto-impl` |
+
+## References
+
+- Prerequisite skill: `add-analysis-metric` (HomericIntelligence/ProjectMnemosyne)
+- Production file: `scylla/analysis/tables/comparison.py`
+- Test file: `tests/unit/analysis/test_tables.py`
+- Fixture file: `tests/unit/analysis/conftest.py`
+
+---
+
+## Superseded from skill-vega-lite-analysis-pipeline
+
+---
+name: skill-vega-lite-analysis-pipeline
+description: Build comprehensive analysis pipelines with text-based Vega-Lite figures and statistical tables for research papers
+category: evaluation
+date: 2026-01-30
+version: 1.0.0
+user-invocable: false
+---
+# Skill: Vega-Lite Analysis Pipeline
+
+## Overview
+
+| Item | Details |
+| ------ | --------- |
+| Date | 2026-01-30 |
+| Objective | Build a complete analysis pipeline for experiment results with text-based figures and statistical tables |
+| Outcome | Operational |
+
+| Attribute | Value |
+| ----------- | ------- |
+| **Date** | 2026-01-30 |
+| **Project** | ProjectScylla |
+| **Objective** | Build a complete analysis pipeline for experiment results with text-based figures and statistical tables |
+| **Outcome** | ✅ Success - 15 figures + 7 tables, all outputs text-based and version-controllable |
+| **PR** | #213 (merged) |
+| **LOC Added** | 6,229 lines |
+
+---
+
+## When to Use This Skill
+
+Use this approach when you need to:
+
+1. **Generate publication-quality figures** for research papers
+   - Figures must be version-controllable (text, not binary)
+   - Need both interactive viewing and paper rendering (PNG/PDF/SVG)
+   - Want consistent styling across all visualizations
+
+2. **Create statistical analysis pipelines** for experiment data
+   - Multiple data formats (runs, judges, criteria, subtests)
+   - Complex hierarchical data structures (experiments → tiers → subtests → runs)
+   - Need comprehensive statistical tests (bootstrap CI, Mann-Whitney U, etc.)
+
+3. **Avoid gitignore conflicts with generated outputs**
+   - Figures and tables are generated at runtime, not committed
+   - Raw data stays portable (CSV format)
+   - Specs are text (JSON), not images
+
+4. **Support multiple output consumers**
+   - Paper authors (need LaTeX tables, PDF figures)
+   - Data analysts (need CSV exports)
+   - Web viewers (need interactive Vega-Lite specs)
+   - Automation (need consistent APIs)
+
+---
+
+## Verified Workflow
+
+### 1. Architecture: Text-Based Outputs Strategy
+
+**Key Decision**: Use **Vega-Lite JSON specifications** as the primary figure format.
+
+**Rationale**:
+- ✅ Text-based (JSON) → version-controllable
+- ✅ Portable → works in Vega Editor, Python, R, web browsers
+- ✅ Self-contained → data can be inlined or separate CSV
+- ✅ Multi-format rendering → PNG/PDF/SVG via `vl-convert`
+- ✅ Interactive → tooltips, zoom, pan in web viewers
+
+**Implementation**:
+```python
+# Use altair (Python Vega-Lite API) to build specs programmatically
+import altair as alt
+
+chart = alt.Chart(data).mark_bar().encode(
+    x='tier:O',
+    y='pass_rate:Q',
+    color='model:N'
+)
+
+# Save as JSON spec
+chart.save("figure.vl.json")
+
+# Also save data separately
+data.to_csv("figure.csv")
+
+# Optional: render to PNG/PDF
+chart.save("figure.png", scale_factor=2.0)  # 300 DPI
+chart.save("figure.pdf")
+```
+
+**Result**: All 15 figures saved as `.vl.json` + `.csv`, with optional PNG/PDF rendering.
+
+---
+
+### 2. Data Loading: Handle Corrupted/Incomplete Runs Gracefully
+
+**Challenge**: Real experiment data has failures (missing files, corrupted JSON, incomplete judges).
+
+**Solution**: Try-except with informative warnings, skip bad runs, continue processing.
+
+```python
+def load_run(run_dir: Path, experiment: str, tier: str, subtest: str) -> RunData:
+    try:
+        # Load run_result.json
+        with (run_dir / "run_result.json").open() as f:
+            result = json.load(f)
+
+        # Load per-judge evaluations
+        judges = []
+        judge_dir = run_dir / "judge"
+        if judge_dir.exists():
+            for judge_num in [1, 2, 3]:
+                judge_path = judge_dir / f"judge_0{judge_num}" / "judgment.json"
+                if judge_path.exists():
+                    judges.append(load_judgment(judge_path, judge_num))
+
+        return RunData(...)
+    except Exception as e:
+        print(f"Warning: Failed to load {run_dir}: {e}")
+        # Return None or raise to skip this run
+```
+
+**Result**: 97.4% load success rate (2,238 of 2,298 runs loaded), graceful degradation.
+
+---
+
+### 3. DataFrame Architecture: Four Core DataFrames
+
+**Pattern**: Build hierarchical views of the same data for different analysis levels.
+
+```python
+# 1. Runs DataFrame (one row per run)
+runs_df = build_runs_df(experiments)  # 2,238 rows
+# Columns: experiment, agent_model, tier, subtest, run_number, score, passed, cost, tokens, etc.
+
+# 2. Judges DataFrame (one row per judge evaluation)
+judges_df = build_judges_df(experiments)  # 6,216 rows (3 judges × 2,238 runs)
+# Columns: (all run columns) + judge_model, judge_number, judge_score, judge_passed, etc.
+
+# 3. Criteria DataFrame (one row per criterion score)
+criteria_df = build_criteria_df(experiments)  # 30,929 rows (5 criteria × 6,216 judges)
+# Columns: (all judge columns) + criterion, criterion_score, criterion_achieved, etc.
+
+# 4. Subtests DataFrame (pre-aggregated)
+subtests_df = build_subtests_df(runs_df)  # 226 rows
+# Columns: experiment, tier, subtest, pass_rate, mean_score, consistency, cop, etc.
+```
+
+**Why This Works**:
+- ✅ Different levels of granularity for different analyses
+- ✅ Easy filtering: `runs_df[runs_df['tier'] == 'T0']`
+- ✅ Aggregation helpers reuse the same base data
+- ✅ CSV export gives analysts full flexibility
+
+---
+
+### 4. Statistical Functions: Non-Parametric by Default
+
+**Observation**: Scores are bounded [0, 1] and often bimodal → parametric tests inappropriate.
+
+**Solution**: Use non-parametric tests throughout.
+
+```python
+# Bootstrap 95% CI (no distribution assumptions)
+mean, ci_low, ci_high = bootstrap_ci(data, n_resamples=10000)
+
+# Mann-Whitney U (non-parametric significance test)
+u_stat, pvalue = mann_whitney_u(group1, group2)
+
+# Cliff's delta (non-parametric effect size)
+delta = cliffs_delta(group1, group2)
+# Interpretation: |δ| < 0.147 negligible, < 0.33 small, < 0.474 medium, ≥0.474 large
+
+# Krippendorff's alpha (inter-rater reliability, ordinal scale)
+alpha = krippendorff_alpha(ratings_matrix, level="ordinal")
+```
+
+**Result**: Robust statistics appropriate for bounded, potentially non-normal data.
+
+---
+
+### 5. Table Generation: Markdown + LaTeX Dual Output
+
+**Pattern**: Generate both formats from the same data, single source of truth.
+
+```python
+def table01_tier_summary(runs_df: pd.DataFrame) -> tuple[str, str]:
+    # Compute statistics
+    stats = compute_tier_stats(runs_df)
+
+    # Generate Markdown
+    md_lines = ["# Table 1: Tier Summary", ""]
+    md_lines.append("| Model | Tier | Pass Rate | ... |")
+    md_lines.append("|-------|------|-----------|-----|")
+    for _, row in stats.iterrows():
+        md_lines.append(f"| {row['Model']} | {row['Tier']} | {row['Pass Rate']:.3f} | ... |")
+    markdown = "\n".join(md_lines)
+
+    # Generate LaTeX
+    latex_lines = [
+        r"\begin{table}[htbp]",
+        r"\centering",
+        r"\caption{Tier Summary Statistics}",
+        r"\begin{tabular}{llrrr}",
+        r"\toprule",
+        r"Model & Tier & Pass Rate & ... \\",
+        r"\midrule",
+    ]
+    for _, row in stats.iterrows():
+        latex_lines.append(f"{row['Model']} & {row['Tier']} & {row['Pass Rate']:.3f} & ... \\\\")
+    latex_lines.extend([r"\bottomrule", r"\end{tabular}", r"\end{table}"])
+    latex = "\n".join(latex_lines)
+
+    return markdown, latex
+```
+
+**Result**: 7 tables × 2 formats = 14 files, all generated from same data.
+
+---
+
+### 6. Master Orchestrator Script Pattern
+
+**Structure**: Separate scripts for each step, master script calls them all.
+
+```
+scripts/
+├── export_data.py          # Step 1: Export CSVs
+├── generate_figures.py     # Step 2: Generate 15 figures
+├── generate_tables.py      # Step 3: Generate 7 tables
+└── generate_all_results.py # Master: Runs 1→2→3 in sequence
+```
+
+**Master script pattern**:
+```python
+def run_script(script_name: str, args: list[str], description: str) -> bool:
+    cmd = ["pixi", "run", "-e", "analysis", "python", script_name, *args]
+    result = subprocess.run(cmd, check=True)
+    return result.returncode == 0
+
+# Run in sequence
+success = True
+if not args.skip_data:
+    success = run_script("scripts/export_data.py", [...], "Step 1/3: Export data")
+if not args.skip_figures and success:
+    success = run_script("scripts/generate_figures.py", [...], "Step 2/3: Figures")
+if not args.skip_tables and success:
+    success = run_script("scripts/generate_tables.py", [...], "Step 3/3: Tables")
+```
+
+**Benefits**:
+- ✅ Can run individual steps for debugging
+- ✅ Can skip steps (e.g., `--skip-data` if CSVs already exported)
+- ✅ Fail-fast: stops on first error
+- ✅ Clear progress reporting
+
+---
+
+### 7. Gitignore Strategy: Exclude All Generated Outputs
+
+**Pattern**: Generated files (CSV, JSON, images, tables) go in `.gitignore`.
+
+```gitignore
+# Analysis pipeline outputs (generated at runtime)
+docs/data/*.csv
+docs/data/*.json
+docs/figures/*.vl.json
+docs/figures/*.csv
+docs/figures/*.png
+docs/figures/*.pdf
+docs/figures/*.svg
+docs/tables/*.md
+docs/tables/*.tex
+```
+
+**Rationale**:
+- ✅ Generated files are runtime artifacts, not source code
+- ✅ Avoids git bloat (2,238 rows of CSV would be huge)
+- ✅ Forces reproducibility (can't commit stale outputs)
+- ✅ Users generate fresh outputs from latest data
+
+**Important**: Remove any previously committed generated files:
+```bash
+git rm --cached -r docs/data/ docs/figures/ docs/tables/
+```
+
+---
+
+### 8. Color Palette: Consistent Across All Figures
+
+**Pattern**: Define color palette once, reuse everywhere.
+
+```python
+# figures/__init__.py
+COLORS = {
+    "models": {
+        "Sonnet 4.5": "#4C78A8",  # Blue
+        "Haiku 4.5": "#E45756",   # Red
+    },
+    "tiers": {
+        "T0": "#66c2a5", "T1": "#fc8d62", "T2": "#8da0cb",
+        "T3": "#e78ac3", "T4": "#a6d854", "T5": "#ffd92f", "T6": "#e5c494"
+    },
+    "grades": {
+        "S": "#FFD700", "A": "#2ecc71", "B": "#3498db",
+        "C": "#f39c12", "D": "#e67e22", "F": "#e74c3c"
+    },
+}
+
+# Usage in figures
+alt.Color("model:N", scale=alt.Scale(
+    domain=list(COLORS["models"].keys()),
+    range=list(COLORS["models"].values())
+))
+```
+
+**Result**: All 15 figures use the same colors for the same entities → visual consistency.
+
+---
+
+### 9. Publication Theme: Serif Fonts, Clean Axes
+
+**Pattern**: Register a custom Altair theme once, applies to all charts.
+
+```python
+def apply_publication_theme() -> None:
+    theme = {
+        "config": {
+            "font": "serif",
+            "axis": {
+                "labelFontSize": 11,
+                "titleFontSize": 13,
+                "gridColor": "#e0e0e0",
+            },
+            "legend": {
+                "labelFontSize": 11,
+                "titleFontSize": 12,
+            },
+            "title": {
+                "fontSize": 14,
+                "anchor": "start",
+            },
+            "view": {"stroke": None},
+        }
+    }
+    alt.themes.register("publication", lambda: theme)
+    alt.themes.enable("publication")
+
+# Call once in spec_builder.py
+apply_publication_theme()
+```
+
+**Result**: All figures have serif fonts (academic papers), clean axes, no border.
+
+---
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| N/A | Direct approach worked | N/A | Solution was straightforward |
+## Results & Parameters
+
+### Final Output Counts
+
+| Category | Count | Formats |
+| ---------- | ------- | --------- |
+| **Data Files** | 5 | CSV, JSON |
+| **Figures** | 15 | `.vl.json` + `.csv` per figure |
+| **Tables** | 7 | `.md` + `.tex` per table |
+| **Scripts** | 4 | Python executable |
+| **Modules** | 13 | Python source |
+
+### Data Statistics
+
+From 2,238 loaded runs:
+
+| Metric | Overall | Sonnet 4.5 | Haiku 4.5 |
+| -------- | --------- | ------------ | ----------- |
+| Pass Rate | 83.9% | 94.2% | 73.4% |
+| Mean Score | 0.786 | 0.908 | 0.662 |
+| Mean Cost/Run | $0.060 | $0.077 | $0.043 |
+| Load Success | 97.4% | — | — |
+
+### Dependencies (pyproject.toml)
+
+```toml
+[project.optional-dependencies]
+analysis = [
+    "matplotlib>=3.8",
+    "numpy>=1.24",
+    "pandas>=2.0",
+    "seaborn>=0.13",
+    "scipy>=1.11",
+    "altair>=5.0",
+    "vl-convert-python>=1.0",
+]
+```
+
+### Pixi Environment
+
+```toml
+[feature.analysis.pypi-dependencies]
+matplotlib = ">=3.8"
+numpy = ">=1.24"
+pandas = ">=2.0"
+seaborn = ">=0.13"
+scipy = ">=1.11"
+altair = ">=5.0"
+vl-convert-python = ">=1.0"
+
+[environments]
+analysis = { features = ["dev", "analysis"], solve-group = "default" }
+```
+
+### Usage Commands
+
+```bash
+# Install environment
+pixi install
+
+# Generate everything
+pixi run python scripts/generate_all_results.py
+
+# Generate with PNG/PDF rendering
+pixi run python scripts/generate_all_results.py --no-render=false
+
+# Generate specific components
+pixi run python scripts/export_data.py       # Data only
+pixi run python scripts/generate_figures.py  # Figures only
+pixi run python scripts/generate_tables.py   # Tables only
+
+# View outputs
+# - Data: docs/data/*.csv (Excel, Python, R)
+# - Figures: docs/figures/*.vl.json (Vega Editor: https://vega.github.io/editor/)
+# - Tables: docs/tables/*.{md,tex}
+```
+
+---
+
+## Key Takeaways
+
+### Architecture Decisions
+
+1. **Text-Based Outputs First**: Use Vega-Lite JSON as primary format, render to images optionally
+2. **Four DataFrame Hierarchy**: runs → judges → criteria, plus pre-aggregated subtests
+3. **Non-Parametric Statistics**: Bootstrap CI, Mann-Whitney U, Cliff's delta for bounded data
+4. **Dual Table Formats**: Generate Markdown + LaTeX from same data
+5. **Modular Scripts**: Separate scripts per step, master orchestrator
+
+### Code Quality
+
+1. **Graceful Degradation**: Try-except on data loading, 97.4% success rate
+2. **Consistent Styling**: Single color palette, publication theme applied once
+3. **Version Control**: Exclude generated files, commit only source code
+4. **Linting**: Imperative docstrings, lowercase variables, 100-char lines
+
+### Performance
+
+1. **Load Time**: ~30s to load 2,238 runs with 13,560 JSON files
+2. **Figure Generation**: ~60s for all 15 figures (Vega-Lite is fast)
+3. **Table Generation**: ~10s for all 7 tables
+4. **Total Pipeline**: ~2 minutes for complete analysis
+
+---
+
+## Future Improvements
+
+1. **Parallel Figure Generation**: Use multiprocessing to generate figures in parallel
+2. **Incremental Updates**: Only regenerate changed figures/tables
+3. **Interactive Dashboard**: Streamlit/Plotly Dash web interface
+4. **Automated Narrative**: Generate text snippets for paper sections
+5. **Cross-Experiment Comparison**: Load multiple experiment sets, compare
+
+---
+
+## Related Skills
+
+- `experiment-recovery-tools`: Handles failed runs and judge retries
+- `parallel-io-executor`: Optimizes parallel I/O operations
+- `statistical-analysis`: Comprehensive statistical test library (if exists)
+
+---
+
+## Questions This Skill Answers
+
+1. How do I create version-controllable figures for papers? → Use Vega-Lite JSON
+2. How do I handle corrupted experiment data? → Try-except with graceful degradation
+3. How do I generate both Markdown and LaTeX tables? → Single function, dual output
+4. How do I avoid git bloat from generated files? → Gitignore + separate data/specs
+5. How do I ensure visual consistency across figures? → Single color palette + theme
+6. How do I support multiple output consumers? → CSV data + Vega-Lite specs + LaTeX tables
+7. How do I structure complex analysis pipelines? → Modular scripts + master orchestrator
+8. What statistical tests for bounded [0,1] data? → Non-parametric (Mann-Whitney U, bootstrap CI)
+
+---
+
+**Created**: 2026-01-30
+**Project**: ProjectScylla
+**PR**: #213 (merged)
+**Success Rate**: 100% (all outputs generated, linting passed, PR merged)
+
+---
+
+## Superseded from multi-experiment-figure-pipeline
+
+---
+name: multi-experiment-figure-pipeline
+description: 'Patterns for adding conditional figure generation to multi-experiment
+  analysis pipelines. Use when: adding new Altair figures with data-dependent guards,
+  creating task-level analysis, or scaling figure pipelines to large experiment counts.'
+category: evaluation
+date: 2026-03-17
+version: 1.0.0
+user-invocable: false
+---
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Problem** | Adding new figures to an existing Altair pipeline for a multi-experiment dataset (47 tests, ~1196 runs) while gracefully handling degenerate cases (single model, single judge, N=1 runs/subtest) |
+| **Solution** | Guard-set pattern for conditional generation + task-analysis module with 5 new figures + Kendall's tau for rank stability |
+| **Key Insight** | Data-dependent guards (detecting model/judge count at generation time) are more robust than hardcoded exclusion lists |
+| **Scope** | ProjectScylla analysis infrastructure: `scylla/analysis/figures/`, `scripts/generate_figures.py`, `scylla/analysis/stats.py` |
+
+## When to Use
+
+- Adding new Altair/Vega-Lite figures to an existing figure registry with `save_figure()` pattern
+- Implementing conditional figure generation based on dataset characteristics (single-model, single-judge, N=1)
+- Creating task-level (per-experiment) analysis figures for datasets with many experiments
+- Adding new statistical functions to the stats module
+- Scaling a figure pipeline from 5-test to 47-test datasets
+
+## Verified Workflow
+
+### Quick Reference
+
+```python
+# 1. Guard-set pattern in generate_figures.py
+single_judge_figures = {"fig02_judge_variance", "fig14_judge_agreement", "fig17_judge_variance_overall"}
+n_judges = int(judges_df["judge_model"].nunique())
+
+for fig_name in figures_to_generate:
+    if fig_name in single_judge_figures and n_judges < 2:
+        print(f"\n{fig_name}: SKIPPED (requires >=2 judges, found {n_judges})")
+        success_count += 1  # Not a failure, just inapplicable
+        continue
+
+# 2. Figure function pattern (early-return guards)
+def fig35_task_difficulty_distribution(runs_df, output_dir, render=True):
+    if "experiment" not in runs_df.columns or "passed" not in runs_df.columns:
+        return
+    exp_pass_rates = runs_df.groupby("experiment")["passed"].mean().reset_index()
+    if len(exp_pass_rates) < 2:
+        return  # Need multiple experiments
+    chart = alt.Chart(exp_pass_rates).mark_bar().encode(...)
+    save_figure(chart, "fig35_task_difficulty_distribution", output_dir, render)
+    exp_pass_rates.to_csv(output_dir / "fig35_task_difficulty_distribution.csv", index=False)
+
+# 3. Register in FIGURES dict
+FIGURES = {
+    ...
+    "fig35_task_difficulty_distribution": ("tier", fig35_task_difficulty_distribution),
+}
+```
+
+### Step-by-Step: Adding a New Figure
+
+1. **Create the figure function** in the appropriate module under `scylla/analysis/figures/`:
+   - Use `derive_tier_order(runs_df)` for consistent tier sorting
+   - Use `get_color_scale("tiers", tier_order)` for color consistency
+   - Call `save_figure(chart, name, output_dir, render)` to write `.vl.json` + optional render
+   - Export CSV alongside the figure for reproducibility
+   - Add early-return guards for missing columns or insufficient data
+
+2. **Register the figure** in `scripts/generate_figures.py`:
+   - Add import at top
+   - Add entry to `FIGURES` dict: `"fig_name": ("category", func)`
+   - Category determines which DataFrame is passed: `"tier"/"cost"/"variance"` → `runs_df`, `"judge"` → `judges_df`, `"criteria"` → `criteria_df`
+
+3. **Add guard sets** if the figure has preconditions:
+   - `multi_model_figures`: requires `runs_df["agent_model"].nunique() >= 2`
+   - `single_judge_figures`: requires `judges_df["judge_model"].nunique() >= 2`
+   - Guard check happens in the generation loop, counts as success (not failure)
+
+4. **Write smoke tests** in `tests/unit/analysis/test_figures.py`:
+   - Minimum 3 tests per figure: happy path, edge case (insufficient data → no output), registry check
+   - Use `render=False` to skip PNG generation in tests
+   - Assert both `.vl.json` and `.csv` files exist
+
+5. **Add stats functions** to `scylla/analysis/stats.py`:
+   - Add to `__all__` list (alphabetical order)
+   - Guard for n < 2 samples
+   - Return tuple of (statistic, p-value)
+
+### Auto-Detection Pattern (Full-Ablation)
+
+```python
+# Detect full-ablation experiments by subtest count
+subtests_per_exp_tier = runs_df.groupby(["experiment", "tier"])["subtest"].nunique().reset_index()
+max_subtests = subtests_per_exp_tier.groupby("experiment")["subtest"].max()
+full_ablation_experiments = list(max_subtests[max_subtests > 3].index)
+```
+
+### Figures Created in This Session
+
+| Figure | Type | Purpose |
+| -------- | ------ | --------- |
+| fig35 | Histogram | Task difficulty distribution (per-experiment pass rates) |
+| fig36 | Heatmap | Tier rank stability (rank 1=best per experiment, sorted by difficulty) |
+| fig37 | Scatter | Task complexity vs tier differentiation (mean pass rate vs std) |
+| fig38 | Grouped bar | Full-ablation vs standard sampling comparison |
+| fig39 | Scatter | Cost scaling with difficulty (cost vs pass rate, colored by tier) |
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| Kendall's tau test with p < 0.01 | Used strict threshold in unit test for perfect correlation | With n=5 samples, `scipy.stats.kendalltau` returns p=0.017 even for perfect correlation (exact test, not asymptotic) | Use p < 0.05 for small-sample rank correlation tests; Kendall's tau p-values are larger than Spearman's for small N |
+
+## Results & Parameters
+
+### Configuration
+
+```yaml
+# Figure generation
+render: false  # For tests (skip PNG)
+render: true   # For production (300 DPI via scale_factor=3.0)
+
+# Guard thresholds
+min_models_for_multi_model: 2
+min_judges_for_multi_judge: 2
+min_experiments_for_histogram: 2
+min_subtests_for_full_ablation: 4  # >3 triggers full-ablation detection
+
+# Stats
+kendall_tau_min_samples: 2
+```
+
+### Test Results
+
+```
+Tests added: 14 (12 figure tests + 2 stats tests)
+Total analysis tests: 1380 passed, 1 skipped
+Pre-commit: all hooks pass
+Figures registered: 43 total (38 existing + 5 new)
+```
+
+### Key Files Modified
+
+| File | Change |
+| ------ | -------- |
+| `scylla/analysis/figures/task_analysis.py` | NEW — fig35, fig36, fig37, fig38 |
+| `scylla/analysis/figures/cost_analysis.py` | Added fig39_cost_scaling_with_difficulty |
+| `scylla/analysis/stats.py` | Added kendall_tau() |
+| `scripts/generate_figures.py` | Single-judge guards, registered fig35-39 |
+| `tests/unit/analysis/test_figures.py` | 12 new smoke tests |
+| `tests/unit/analysis/test_stats.py` | 2 new kendall_tau tests |
+
+---
+
+## Superseded from publication-pipeline-enhancement
+
+---
+name: publication-pipeline-enhancement
+description: Publication Pipeline Enhancement
+category: evaluation
+date: 2026-01-31
+version: 1.0.0
+user-invocable: false
+---
+# Publication Pipeline Enhancement
+
+## Overview
+
+| Attribute | Value |
+| ----------- | ------- |
+| **Date** | 2026-01-31 |
+| **Objective** | Enhance analysis pipeline to produce rigorous, publication-quality figures, tables, and statistical outputs suitable for academic papers |
+| **Outcome** | ✅ Successfully implemented all 6 work packages (WP1-WP6) across 6 PRs with comprehensive test coverage |
+| **Category** | Evaluation |
+| **Complexity** | High - Multi-phase enhancement requiring statistical rigor, visualization design, and data pipeline architecture |
+
+## When to Use This Skill
+
+Use this skill when you need to:
+
+- **Enhance existing analysis pipelines** for publication-quality output
+- **Add rigorous statistical testing** to evaluation frameworks
+- **Generate publication-ready visualizations** (figures, tables, LaTeX integration)
+- **Remove hardcoded assumptions** and make pipelines data-driven
+- **Implement comprehensive statistical workflows** (normality testing, omnibus tests, pairwise comparisons, effect sizes)
+- **Export rich statistical results** for reproducible research
+
+**Trigger patterns:**
+- "Make the analysis pipeline publication-ready"
+- "Add rigorous statistical testing to the evaluation framework"
+- "Generate LaTeX-compatible figures and tables"
+- "Remove hardcoded values from the analysis code"
+- "Export comprehensive statistical results"
+
+## Verified Workflow
+
+### Phase 1: Statistical Foundation (WP1)
+
+**Goal:** Add core statistical functions and update workflows to use proper statistical methodology.
+
+**Steps:**
+1. Add statistical functions to `stats.py` following thin-wrapper pattern over scipy/statsmodels:
+   - `shapiro_wilk(data)` - Normality testing
+   - `kruskal_wallis(*groups)` - Omnibus test
+   - `mann_whitney_u(group1, group2)` - Pairwise comparison
+   - `holm_bonferroni_correction(p_values)` - Step-down correction (less conservative)
+   - `benjamini_hochberg_correction(p_values)` - FDR control
+   - `cliffs_delta_ci(g1, g2, confidence=0.95)` - Effect size with bootstrap CI
+   - `ols_regression(x, y)` - Linear regression with diagnostics
+
+2. Add logging warnings for insufficient sample sizes (N<3 for normality, N<2 for effect sizes)
+
+3. Update table workflows to use proper omnibus-first approach:
+   - Run Kruskal-Wallis omnibus test first
+   - Only proceed to pairwise comparisons if omnibus p < 0.05
+   - Use Holm-Bonferroni instead of plain Bonferroni (less conservative)
+   - Report omnibus result in table footer
+
+4. Add statsmodels dependency to `pixi.toml` analysis environment
+
+5. Write comprehensive tests (32+ tests covering edge cases, small samples, invalid inputs)
+
+**Key insight:** Bootstrap confidence intervals using BCa (bias-corrected accelerated) method provide better coverage on small samples than normal approximation.
+
+### Phase 2: New Tables (WP2)
+
+**Goal:** Add descriptive, configuration, and normality test tables.
+
+**Steps:**
+1. Create `table08_summary_statistics`:
+   - Descriptive stats per model (N, mean, median, Q1/Q3, std, min/max, skewness, kurtosis)
+   - Covers all key metrics (score, cost, duration, tokens)
+
+2. Create `table09_experiment_config`:
+   - Derive all config from data (not hardcoded)
+   - Show experiment, agent models, tiers, subtests/tier, runs/subtest, total runs, judge models
+
+3. Create `table10_normality_tests`:
+   - Shapiro-Wilk results per (model, tier, metric)
+   - Justifies non-parametric test choices
+   - Shows W statistic, p-value, Normal? (α=0.05)
+
+4. Register all tables in `generate_tables.py`
+
+5. Add smoke tests to verify generation without errors
+
+**Key insight:** Deriving configuration from data instead of hardcoding makes the pipeline robust to schema changes.
+
+### Phase 3: New Figures (WP3)
+
+**Goal:** Add effect size, correlation, regression, and diagnostic visualizations.
+
+**Steps:**
+1. Create `figures/effect_size.py`:
+   - `fig19_effect_size_forest()` - Horizontal dot plot with error bars
+   - Shows Cliff's delta + 95% CI for each tier transition
+   - Vertical dashed line at δ=0
+   - Color indicates significance (CI excludes zero)
+
+2. Create `figures/correlation.py`:
+   - `fig20_metric_correlation_heatmap()` - Spearman correlation matrix
+   - Annotated with coefficients
+   - Faceted by model
+   - `fig21_cost_quality_regression()` - Scatter + OLS line with R²
+
+3. Create `figures/diagnostics.py`:
+   - `fig23_qq_plots()` - Q-Q plots per (model, tier) with scipy.stats.probplot
+   - `fig24_score_histograms()` - Histograms with KDE overlay
+
+4. Modify `figures/cost_analysis.py`:
+   - `fig22_cumulative_cost()` - Line chart of cumulative cost over runs
+
+5. Fix Altair faceting errors by passing `data=` parameter to `alt.layer()` before faceting
+
+6. Register all figures in `generate_figures.py`
+
+7. Add smoke tests for each figure
+
+**Key lesson learned:** When layering charts in Altair, faceting requires data at the top level. Use `alt.layer(..., data=df).facet()` not `alt.layer(...).facet()`.
+
+### Phase 4: Remove Hardcoded Values (WP4)
+
+**Goal:** Make pipeline data-driven and eliminate hardcoded assumptions.
+
+**Steps:**
+1. Centralize color palettes in `figures/__init__.py`:
+   - Add `register_colors(category, mapping)` for runtime registration
+   - Add `get_color_scale(category, keys)` for consistent retrieval
+   - Move all hardcoded colors (phases, token_types) to central COLORS dict
+
+2. Update all figure modules to use `get_color_scale()` instead of direct COLORS access:
+   - `criteria_analysis.py` - criteria colors
+   - `token_analysis.py` - token type colors
+   - `subtest_detail.py` - phase colors
+
+3. Parameterize hardcoded thresholds:
+   - Add `pass_threshold=0.60` parameter to `fig04_pass_rate_by_tier()`
+
+4. Add missing model pricing to `config/pricing.py`:
+   - `claude-haiku-4-5-20241223: {"input": 1.00, "output": 5.00}` (per 1M tokens)
+
+5. Use `derive_tier_order(df)` everywhere instead of hardcoded TIER_ORDER constant
+
+**Key insight:** Runtime color registration allows figure generation to adapt to new models/categories without code changes.
+
+### Phase 5: Enhanced Data Export (WP5)
+
+**Goal:** Export comprehensive statistics and statistical test results.
+
+**Steps:**
+1. Enhance `by_model` statistics in `summary.json`:
+   ```python
+   {
+       "median_score": float(scores.median()),
+       "std_score": float(scores.std()),
+       "q1_score": float(scores.quantile(0.25)),
+       "q3_score": float(scores.quantile(0.75)),
+       "min_score": float(scores.min()),
+       "max_score": float(scores.max()),
+       "total_tokens": int(model_df["total_tokens"].sum()),
+       "mean_duration": float(durations.mean()),
+       "n_subtests": int(model_df["subtest"].nunique()),
+       "tiers": sorted(model_df["tier"].unique().tolist()),
+   }
+   ```
+
+2. Add `by_tier` section with aggregate stats across all models per tier
+
+3. Create `compute_statistical_results()` function that exports `statistical_results.json`:
+   - Normality tests (Shapiro-Wilk per model/tier/metric)
+   - Omnibus tests (Kruskal-Wallis per model)
+   - Pairwise comparisons (Mann-Whitney U for consecutive tiers)
+   - Effect sizes (Cliff's delta with CIs for tier transitions)
+   - Correlations (Spearman between score, cost, tokens, duration)
+
+4. Use `json_nan_handler()` to convert NaN/inf to None for JSON serialization
+
+5. Add tests for export functionality (import script from `scripts/` into test path)
+
+**Key insight:** Exporting statistical_results.json enables reproducibility - readers can verify all statistical claims.
+
+### Phase 6: LaTeX Figure Support (WP6)
+
+**Goal:** Generate LaTeX inclusion snippets for seamless paper integration.
+
+**Steps:**
+1. Extend `save_figure()` in `spec_builder.py`:
+   - Add `latex_caption` optional parameter
+   - Add `_generate_latex_snippet()` helper function
+   - Only generate snippet when "pdf" in formats
+
+2. LaTeX snippet structure:
+   ```latex
+   \begin{figure}[htbp]
+   \centering
+   \includegraphics[width=\textwidth]{name.pdf}
+   \caption{Extracted from chart title or custom}
+   \label{fig:name}
+   \end{figure}
+   ```
+
+3. Extract caption from Altair chart:
+   - Check `chart.title` (string or dict with "text" key)
+   - Fall back to name-based generation if no title
+
+4. Update orchestrator `generate_all_results.py`:
+   - Document new LaTeX snippet outputs in summary
+   - Show usage example: `\input{docs/figures/*_include.tex}`
+
+5. Add tests:
+   - `test_latex_snippet_generation()` - verifies structure
+   - `test_latex_snippet_with_custom_caption()` - verifies customization
+
+**Key insight:** Auto-generating LaTeX snippets reduces manual work and prevents path/label inconsistencies.
+
+## Implementation Strategy
+
+### Work Package Order
+
+```
+WP1 (Stats Foundation)     <- Start first, everything depends on this
+    |
+    v
+WP4 (Hardcoded cleanup)   <- Independent, can parallel with WP2/WP3
+WP2 (New Tables)          <- Depends on WP1 for normality tests
+WP3 (New Figures)         <- Depends on WP1 for effect size CIs
+    |
+    v
+WP5 (Enhanced Export)     <- Depends on WP1 for statistical results
+    |
+    v
+WP6 (LaTeX Support)       <- Depends on WP3 for figure generation
+```
+
+### PR Strategy
+
+Create separate PRs for each work package:
+- Keeps changes focused and reviewable
+- Allows parallel CI runs
+- Enables incremental merging
+- Each PR is self-contained and testable
+
+**PR Template:**
+```
+Title: feat(analysis): <WP description> (WP<N>)
+
+Body:
+## Summary
+<1-2 sentence overview>
+
+## Changes
+### 1. <Feature 1>
+- Bullet points
+
+### 2. <Feature 2>
+- Bullet points
+
+## Testing
+- List test coverage
+
+## Part of Enhancement Plan
+Completes Work Package <N> from analysis pipeline enhancement plan.
+
+Next WP: <Next WP description>
+```
+
+### Testing Strategy
+
+**Test pyramid:**
+1. Unit tests for individual functions (stats functions, table logic, color helpers)
+2. Smoke tests for figure/table generation (verify no errors)
+3. Integration tests for data export (verify structure and JSON validity)
+
+**Coverage targets:**
+- Stats functions: 100% (critical for correctness)
+- Tables: Smoke tests (generation without errors)
+- Figures: Smoke tests + structure validation
+- Export: Structure validation + JSON serialization
+
+## Failed Attempts & Lessons Learned
+| Attempt | Issue | Resolution |
+| --------- | ------- | ------------ |
+| See detailed notes below | Various approaches tried | Refer to documentation in this section |
+
+### ❌ Failed: Direct figure module patching in tests
+
+**What we tried:**
+Initially tried using `@patch("scylla.analysis.figures.variance.save_figure")` in individual figure tests.
+
+**Why it failed:**
+- Import path inconsistencies led to patches not applying
+- Had to repeat patch decorator for every test
+- Fixture-based mocking is cleaner and auto-applies
+
+**Solution:**
+Created `mock_save_figure` fixture in `conftest.py`:
+```python
+@pytest.fixture(scope="function")
+def mock_save_figure():
+    with patch("scylla.analysis.figures.spec_builder.save_figure") as mock:
+        yield mock
+```
+
+### ❌ Failed: Altair layering without data parameter
+
+**What we tried:**
+```python
+chart = alt.layer(zero_line, error_bars, points).facet(row="model:N")
+```
+
+**Error:**
+```
+ValueError: Facet charts require data to be specified at the top level
+```
+
+**Why it failed:**
+Altair's faceting requires data at the layer level, not inherited from mark specs.
+
+**Solution:**
+```python
+chart = alt.layer(zero_line, error_bars, points, data=effect_df).facet(row="model:N")
+```
+
+**Lesson:** When layering charts before faceting, always pass `data=` explicitly to the layer.
+
+### ❌ Failed: Importing scripts as modules in tests
+
+**What we tried:**
+```python
+from scripts.export_data import compute_statistical_results
+```
+
+**Error:**
+```
+ModuleNotFoundError: No module named 'scripts'
+```
+
+**Why it failed:**
+`scripts/` is not a Python package (no `__init__.py`), so it's not importable.
+
+**Solution:**
+Add scripts directory to sys.path in test:
+```python
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "scripts"))
+from export_data import compute_statistical_results
+```
+
+### ❌ Failed: Testing LaTeX generation with mocked save_figure
+
+**What we tried:**
+Used `mock_save_figure` fixture in `test_latex_snippet_generation()`.
+
+**Why it failed:**
+Mock intercepts `save_figure()` call, so LaTeX snippet generation never executes.
+
+**Solution:**
+Create test chart directly and call `save_figure()` without mocking:
+```python
+def test_latex_snippet_generation(sample_runs_df, tmp_path, clear_patches):
+    chart = alt.Chart(sample_runs_df).mark_bar()...
+    save_figure(chart, "test_latex_fig", tmp_path, render=True, formats=["pdf"])
+    # Now verify snippet exists
+```
+
+### ⚠️ Watch Out: Ruff auto-formatting during commits
+
+**Issue:**
+Pre-commit hook modifies files after staging, requiring re-staging and re-committing.
+
+**Pattern:**
+```bash
+git add -u
+git commit -m "message"
+# ERROR: ruff modified files
+git add -u  # Re-stage ruff changes
+git commit -m "message"  # Re-commit
+```
+
+**Tip:** Just let ruff fix and re-commit. Don't fight the formatter.
+
+### ⚠️ Watch Out: Small sample size warnings
+
+**Issue:**
+Statistical functions can fail or produce meaningless results with N<3.
+
+**Solution:**
+Add explicit guards and logging:
+```python
+if len(data) < 3:
+    logger.warning(f"Sample size too small for normality test (N={len(data)})")
+    return None, None
+```
+
+## Results & Parameters
+
+### Files Modified (16)
+```
+scylla/analysis/stats.py                        # WP1
+scylla/analysis/tables.py                       # WP1, WP2
+scylla/analysis/figures/__init__.py             # WP4
+scylla/analysis/figures/criteria_analysis.py    # WP4
+scylla/analysis/figures/tier_performance.py     # WP4
+scylla/analysis/figures/token_analysis.py       # WP4
+scylla/analysis/figures/subtest_detail.py       # WP4
+scylla/analysis/figures/cost_analysis.py        # WP3
+scylla/analysis/figures/spec_builder.py         # WP6
+scylla/config/pricing.py                        # WP4
+scripts/generate_figures.py                         # WP3
+scripts/generate_tables.py                          # WP2
+scripts/export_data.py                              # WP5
+scripts/generate_all_results.py                     # WP6
+pixi.toml                                           # WP1
+tests/unit/analysis/test_stats.py                   # WP1
+```
+
+### Files Created (5)
+```
+scylla/analysis/figures/effect_size.py          # WP3
+scylla/analysis/figures/correlation.py          # WP3
+scylla/analysis/figures/diagnostics.py          # WP3
+tests/unit/analysis/test_export_data.py             # WP5
+tests/unit/analysis/test_figures.py (enhanced)      # WP3, WP6
+```
+
+### Pull Requests (6)
+```
+PR #273: WP1 - Statistical Foundation
+PR #274: WP2 - New Tables (3 tables)
+PR #275: WP3 - New Figures (6 figures)
+PR #276: WP4 - Remove Hardcoded Values
+PR #277: WP5 - Enhanced Data Export
+PR #278: WP6 - LaTeX Figure Support
+```
+
+### Test Coverage Added
+```
+tests/unit/analysis/test_stats.py:        32 tests (normality, omnibus, pairwise, corrections, effect sizes, regression)
+tests/unit/analysis/test_tables.py:       +3 tests (table08, table09, table10)
+tests/unit/analysis/test_figures.py:      +6 tests (fig19-24) + 2 LaTeX tests
+tests/unit/analysis/test_export_data.py:  2 tests (statistical_results, enhanced_summary)
+```
+
+### Key Dependencies Added
+```toml
+# pixi.toml [feature.analysis.dependencies]
+statsmodels = ">=0.14"  # For OLS regression and advanced diagnostics
+```
+
+### Statistical Parameters Used
+```python
+# Bootstrap confidence intervals
+BOOTSTRAP_ITERATIONS = 10000
+CONFIDENCE_LEVEL = 0.95
+METHOD = "BCa"  # Bias-corrected accelerated
+
+# Statistical significance threshold
+ALPHA = 0.05
+
+# Multiple comparison correction
+CORRECTION = "holm"  # Less conservative than Bonferroni
+
+# Normality test
+NORMALITY_TEST = "shapiro_wilk"  # For N < 50, more powerful than K-S
+
+# Non-parametric tests
+OMNIBUS_TEST = "kruskal_wallis"  # For 3+ groups
+PAIRWISE_TEST = "mann_whitney_u"  # For 2 groups
+
+# Effect size
+EFFECT_SIZE = "cliffs_delta"  # Non-parametric, robust to outliers
+```
+
+### Output Formats
+```
+Data Exports:
+- docs/data/*.csv (runs, judges, criteria, subtests)
+- docs/data/summary.json (enhanced with quartiles, tokens, duration)
+- docs/data/statistical_results.json (all statistical test results)
+
+Figures:
+- docs/figures/*.png (300 DPI, scale_factor=2.0)
+- docs/figures/*.pdf (vector, for LaTeX)
+- docs/figures/*.vl.json (Vega-Lite specs, for editing)
+- docs/figures/*.csv (underlying data)
+- docs/figures/*_include.tex (LaTeX inclusion snippets)
+
+Tables:
+- docs/tables/*.md (Markdown for GitHub/docs)
+- docs/tables/*.tex (LaTeX for paper)
+```
+
+## Verification Commands
+
+### Run Full Pipeline
+```bash
+# Generate all outputs
+pixi run python scripts/generate_all_results.py \
+  --data-dir ~/fullruns \
+  --output-dir docs \
+  --exclude test001-dryrun
+
+# Run all analysis tests
+pixi run pytest tests/unit/analysis/ -v
+
+# Verify test coverage
+pixi run pytest tests/unit/analysis/ --cov=scylla/analysis --cov-report=html
+```
+
+### Check Outputs
+```bash
+# Verify all expected files exist
+ls docs/data/*.csv docs/data/*.json
+ls docs/figures/*.{png,pdf,vl.json,csv}
+ls docs/figures/*_include.tex
+ls docs/tables/*.{md,tex}
+
+# Validate JSON exports
+python -m json.tool docs/data/summary.json > /dev/null
+python -m json.tool docs/data/statistical_results.json > /dev/null
+
+# Check LaTeX snippet syntax
+grep -E '\\(begin|end)\{figure\}' docs/figures/*_include.tex
+```
+
+### Spot-Check Statistical Results
+```bash
+# View normality test results
+cat docs/tables/tab10_normality_tests.md
+
+# View tier comparison with omnibus tests
+cat docs/tables/tab02_tier_comparison.md
+
+# Inspect statistical_results.json structure
+jq '.normality_tests | .[0]' docs/data/statistical_results.json
+jq '.effect_sizes | .[0]' docs/data/statistical_results.json
+```
+
+## Related Skills
+
+- `statistical-testing-patterns` - Best practices for hypothesis testing
+- `altair-visualization-guide` - Altair/Vega-Lite patterns
+- `pytest-fixture-patterns` - Test fixture design
+- `data-driven-configuration` - Eliminating hardcoded values
+
+## References
+
+- Research methodology: `docs/research.md`
+- Metrics definitions: `CLAUDE.md` (metrics table)
+- Statistical methods: `scylla/analysis/stats.py`
+- Test fixtures: `tests/unit/analysis/conftest.py`
+
+## Success Criteria
+
+✅ **Pipeline produces publication-quality output:**
+- Figures are 300 DPI PNG + vector PDF
+- Tables are formatted for both Markdown and LaTeX
+- Statistical tests follow accepted methodology
+- All values derived from data, not hardcoded
+
+✅ **Statistical rigor:**
+- Omnibus tests before pairwise comparisons
+- Multiple comparison corrections applied
+- Effect sizes reported with confidence intervals
+- Normality assumptions tested and documented
+
+✅ **Reproducibility:**
+- All statistical test results exported to JSON
+- Random seeds controlled (where applicable)
+- Configuration derived from data
+- Complete test coverage
+
+✅ **Extensibility:**
+- New figures/tables follow established patterns
+- Color palettes register dynamically
+- Statistical functions are thin wrappers (easy to update)
+- Clear separation between data loading, analysis, and export
+
+## Future Enhancements
+
+**Potential improvements:**
+1. Add power analysis for sample size recommendations
+2. Implement Bayesian alternatives to frequentist tests
+3. Add more diagnostic plots (residuals, influence plots)
+4. Support for multi-level statistical models
+5. Interactive visualizations (Altair → Vega-Embed)
+6. Automated PDF report generation with LaTeX
+7. CI/CD integration for automated figure generation on data updates
+
+---
+
+## Superseded from skill-analysis-pipeline-code-review
+
+---
+name: skill-analysis-pipeline-code-review
+description: 'Skill: Analysis Pipeline Code Review'
+category: evaluation
+date: 2026-01-31
+version: 1.0.0
+user-invocable: false
+---
+# Skill: Analysis Pipeline Code Review
+
+## Overview
+
+| Item | Details |
+| ------ | --------- |
+| Date | 2026-01-31 |
+| Objective | Comprehensive code review of ~4,140-line analysis pipeline with statistical validation, DRY refactoring, test suite creation, and phased PR delivery |
+| Outcome | Operational |
+
+| Property | Value |
+| ---------- | ------- |
+| **Date** | 2026-01-31 |
+| **Objective** | Comprehensive code review of ~4,140-line analysis pipeline with statistical validation, DRY refactoring, test suite creation, and phased PR delivery |
+| **Outcome** | ✅ Success - 15 PRs merged, 26 issues closed, 6 P0 bugs fixed, 45 tests passing |
+| **Category** | evaluation |
+| **Key Innovation** | Systematic multi-priority review (P0-P3) with parallel PR execution and statistical methodology validation |
+| **Duration** | ~11 hours (2026-01-31 03:18 to 13:59) |
+
+## When to Use This Skill
+
+Use this approach when reviewing large analysis/evaluation pipelines that:
+
+1. **Generate research outputs** (papers, reports, visualizations)
+   - Need to validate statistical correctness before publication
+   - Outputs are used for decision-making or benchmarking
+   - Errors could invalidate published findings
+
+2. **Have significant technical debt**
+   - Code duplication across many files (DRY violations)
+   - Missing tests for critical statistical functions
+   - Hard-coded values and magic numbers
+   - Dead code and unused functions
+
+3. **Require multi-tier fixes**
+   - Critical bugs (wrong numbers, crashes) need immediate fixes
+   - Performance issues at moderate priority
+   - Code quality improvements can be deferred
+
+4. **Are too large for single PR**
+   - 4,000+ lines across 15+ files
+   - Multiple independent improvements
+   - Need to maintain git history clarity
+
+### Trigger Patterns
+
+- User asks to "review the analysis pipeline" or "audit the stats code"
+- Pipeline generates research outputs (papers, benchmarks, reports)
+- Pipeline was built quickly and needs quality improvements
+- Statistical methodology needs validation before publication
+- Code has significant duplication or technical debt
+
+## Verified Workflow
+
+### 1. Priority-Based Issue Classification
+
+Create a structured priority system with clear severity levels:
+
+**P0 - Critical (Wrong Numbers / Crashes)**:
+- Statistical functions with incorrect implementations
+- Inverted algorithms (e.g., Pareto frontier returning anti-optimal points)
+- Crashes on edge cases
+- **Impact**: Published results are incorrect
+
+**P1 - High (Should Fix Before Publication)**:
+- Missing statistical corrections (e.g., Bonferroni for multiple comparisons)
+- Performance issues (O(n²) loops vs vectorized operations)
+- Inconsistent methodology (mixing bootstrap and normal-approx CIs)
+- Fragile code (hardcoded assumptions, no error handling)
+- **Impact**: Methodology is questionable or code breaks easily
+
+**P2 - Medium (Maintainability)**:
+- DRY violations (constants duplicated 10+ times)
+- Dead code and unused functions
+- Missing tests
+- Unclear public API
+- **Impact**: Hard to maintain and extend
+
+**P3 - Low (Nice-to-Have)**:
+- Misleading metadata (doesn't affect behavior)
+- Documentation staleness
+- Edge case handling for rare scenarios
+- **Impact**: Minor quality improvements
+
+**Verification Method**: For each issue, document:
+- File path and line number
+- Before/after code snippets
+- Why it's wrong (with counterexamples for algorithm bugs)
+- Impact on outputs (which tables/figures affected)
+
+### 2. Phased PR Strategy
+
+Group fixes into independent PRs that can be reviewed and merged separately:
+
+**Phase 1: Critical Fixes (P0)**
+- Fix statistical correctness bugs FIRST
+- Add regression tests for each bug (with counterexamples)
+- Examples: Krippendorff's alpha, Pareto frontier, crash guards
+- **Rationale**: These invalidate published results if unfixed
+
+**Phase 2: Methodology Improvements (P1 statistical)**
+- Add missing corrections (Bonferroni, bootstrap CI)
+- Vectorize performance bottlenecks
+- Remove dead code
+- **Rationale**: Affects statistical validity and performance
+
+**Phase 3: Robustness (P1 infrastructure)**
+- Dynamic handling instead of hardcoded assumptions
+- Error isolation (one failure doesn't kill all outputs)
+- Import-time vs explicit initialization
+- **Rationale**: Makes pipeline more resilient
+
+**Phase 4: DRY Refactoring (P2)**
+- Extract constants to single source of truth
+- Create helper functions for repeated calculations
+- Centralize color scales and styling
+- **Rationale**: Reduces maintenance burden
+
+**Phase 5: Test Suite (P1)**
+- Create fixtures with known values (~70-row sample DataFrames)
+- Test statistical functions against reference implementations
+- Add smoke tests for figure/table generation
+- **Rationale**: Prevents regressions
+
+**Phase 6: Cleanup (P2-P3)**
+- Update documentation
+- Remove empty directories
+- Fix metadata inconsistencies
+- **Rationale**: Polish and housekeeping
+
+**Phase 7: Architecture (Deferred)**
+- Large refactors (DualFormatTable class, plugin systems)
+- Nice-to-have but risky
+- **Rationale**: Post-publication improvements
+
+**Key Principle**: Each PR should be independently reviewable and mergeable. Don't create dependencies between PRs unless necessary.
+
+### 3. Statistical Validation Pattern
+
+For any pipeline generating research outputs, validate statistical functions systematically:
+
+**Step 1: Identify all statistical functions**
+```bash
+# Find all functions in stats.py
+grep "^def " scylla/analysis/stats.py
+```
+
+**Step 2: For each function, check:**
+1. **Correctness**: Does it implement the formula correctly?
+   - Compare to authoritative source (scipy, published papers)
+   - Test with known reference values
+   - Check edge cases (empty data, identical values, negative values)
+
+2. **Implementation level**: Does it match the intended measurement level?
+   - Example: Krippendorff's alpha has nominal/ordinal/interval/ratio levels
+   - Verify the level parameter is actually used
+   - Test that ordinal != nominal != interval
+
+3. **Formula matching**: Does it match the paper's citation?
+   - Example: Krippendorff's alpha uses `1 - (D_o / D_e)`, not `(P_o - P_e)/(1 - P_e)` (Scott's pi)
+   - Document the correct formula in comments
+
+**Step 3: Create regression tests with known values**
+```python
+def test_cliffs_delta_reference():
+    """Verify Cliff's delta matches published reference.
+
+    Reference: Romano et al. (2006), Example 3
+    Group A: [10, 20, 30]
+    Group B: [5, 15, 25]
+    Expected delta: 0.556
+    """
+    group_a = np.array([10, 20, 30])
+    group_b = np.array([5, 15, 25])
+    delta = cliffs_delta(group_a, group_b)
+    assert abs(delta - 0.556) < 0.001
+```
+
+**Step 4: Validate against authoritative packages**
+```python
+def test_krippendorff_alpha_matches_package():
+    """Verify our wrapper matches krippendorff package directly."""
+    ratings = np.array([[1, 2, 3], [1, 2, 4], [1, 3, 3]])
+    expected = krippendorff.alpha(ratings, level_of_measurement="ordinal")
+    actual = krippendorff_alpha(ratings, level="ordinal")
+    assert abs(expected - actual) < 1e-6
+```
+
+**Failed Attempt**: Don't implement complex statistical functions from scratch. Use authoritative packages (scipy, krippendorff) and wrap them. Custom implementations are error-prone and hard to validate.
+
+### 4. DRY Violation Detection
+
+Systematically find duplicated code across the pipeline:
+
+**Step 1: Find duplicated constants**
+```bash
+# Find tier_order duplications
+rg "tier_order\s*=\s*\[.*T0.*T6.*\]" -A 1
+```
+
+**Step 2: Find duplicated formulas**
+```bash
+# Find consistency formula duplications
+rg "1\s*-\s*\(.*std.*mean\)" -A 1 -B 1
+```
+
+**Step 3: Count occurrences and prioritize**
+- 17 duplications = high priority (tier_order)
+- 5-6 duplications = medium priority (formulas)
+- 2-3 duplications = low priority (acceptable)
+
+**Step 4: Extract to single source of truth**
+```python
+# Before: 17 duplications across files
+tier_order = ["T0", "T1", "T2", "T3", "T4", "T5", "T6"]
+
+# After: Define once in figures/__init__.py
+TIER_ORDER = ["T0", "T1", "T2", "T3", "T4", "T5", "T6"]
+
+# Import everywhere
+from scylla.analysis.figures import TIER_ORDER
+```
+
+**Step 5: Add helper functions for formulas**
+```python
+# Before: Duplicated 5 times
+consistency = 1 - (std_score / mean_score) if mean_score > 0 else 0.0
+
+# After: Helper in stats.py
+def compute_consistency(mean: float, std: float) -> float:
+    """Compute consistency: 1 - coefficient of variation, clamped to [0, 1]."""
+    if mean == 0:
+        return 0.0
+    consistency = 1 - (std / mean)
+    return max(0.0, min(1.0, consistency))  # Clamp to [0, 1]
+```
+
+**Verification**: After refactoring, regenerate all outputs and assert byte-identical results.
+
+### 5. Test Fixture Strategy for Analysis Pipelines
+
+Create minimal but representative test data:
+
+**Fixture Design Principles**:
+1. **Small but diverse**: ~60-70 rows covering all tiers, models, subtests
+2. **Known values**: Use simple numbers (0.0, 0.5, 1.0) for easy verification
+3. **Edge cases**: Include empty groups, tied values, all-pass and all-fail scenarios
+4. **Hierarchical**: Match production hierarchy (experiments → tiers → subtests → runs)
+
+**Example Fixture Structure** (conftest.py):
+```python
+@pytest.fixture
+def sample_runs_df() -> pd.DataFrame:
+    """Sample runs DataFrame for testing.
+
+    Structure: 2 models × 3 tiers × 2 subtests × 5 runs = 60 rows
+    """
+    rows = []
+    for model in ["Sonnet 4.5", "Haiku 4.5"]:
+        for tier in ["T0", "T1", "T2"]:
+            for subtest in ["001", "002"]:
+                for run in range(1, 6):
+                    rows.append({
+                        "agent_model": model,
+                        "tier": tier,
+                        "subtest": subtest,
+                        "run_number": run,
+                        "score": 0.0 if run == 1 else 0.5 if run <= 3 else 1.0,
+                        "passed": run > 3,
+                        "cost_usd": 0.1 * run,
+                        # ... other columns
+                    })
+    return pd.DataFrame(rows)
+```
+
+**Test Categories**:
+1. **Unit tests for stats functions**: Test with numpy arrays and known values
+2. **Integration tests for DataFrames**: Test with fixtures, verify structure
+3. **Smoke tests for figures/tables**: Ensure no crashes, basic format checks
+4. **Regression tests for bugs**: Counterexamples from P0/P1 issues
+
+**Failed Attempt**: Don't try to test with production data (~2,238 rows). Tests are slow, hard to debug, and brittle. Use small fixtures with known values.
+
+### 6. Parallel PR Execution
+
+When issues are independent, create PRs in parallel to maximize throughput:
+
+**Workflow**:
+```bash
+# Create multiple branches simultaneously
+git checkout -b 215-fix-krippendorff-alpha
+# ... make changes, commit, push ...
+git checkout main
+
+git checkout -b 216-fix-pareto-frontier
+# ... make changes, commit, push ...
+git checkout main
+
+git checkout -b 217-fix-fig11-crash
+# ... make changes, commit, push ...
+git checkout main
+
+# Create all PRs and enable auto-merge
+gh pr create --issue 215 --title "fix(analysis): Fix Krippendorff alpha"
+gh pr merge --auto --rebase
+
+gh pr create --issue 216 --title "fix(analysis): Fix Pareto frontier"
+gh pr merge --auto --rebase
+
+gh pr create --issue 217 --title "fix(analysis): Fix fig11 crash"
+gh pr merge --auto --rebase
+```
+
+**Merge Order**: Use auto-merge + CI to handle merge ordering automatically. CI ensures each PR passes tests before merging.
+
+**Rationale**: This approach completed 15 PRs in ~11 hours. Sequential PRs would have taken 2-3 days.
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| N/A | Direct approach worked | N/A | Solution was straightforward |
+## Results & Parameters
+
+### Final Metrics
+
+| Metric | Value |
+| -------- | ------- |
+| Total PRs created | 15 |
+| Total PRs merged | 15 (100%) |
+| Total issues filed | 26 (20 task + 6 META) |
+| Total issues closed | 26 (100%) |
+| Lines of code changed | ~900 LOC source, +841 LOC tests |
+| P0 bugs fixed | 3 (Krippendorff's alpha, Pareto, crash) |
+| P1 bugs fixed | 10 |
+| P2 improvements | 5 (DRY, dead code) |
+| P3 improvements | 8 |
+| Test files created | 7 |
+| Tests passing | 45 (2 skipped) |
+| Duration | ~11 hours |
+
+### PR Breakdown by Priority
+
+**P0 PRs (3)**: #241, #242, #243
+**P1 PRs (7)**: #244, #245, #246, #247, #248, #249, #250, #251, #254
+**P2 PRs (3)**: #252, #253
+**P3 PRs (1)**: #255
+
+### Configuration
+
+**Tools**:
+- Git workflow: Feature branches with auto-merge
+- CI: Pre-commit hooks (ruff, ruff-format)
+- Testing: pytest with fixtures
+- Statistical packages: scipy, krippendorff, pandas, numpy
+
+**Commands**:
+```bash
+# Issue creation
+gh issue create --title "..." --body "..." --label "analysis"
+
+# PR workflow
+git checkout -b <issue>-<description>
+git add -A && git commit -m "fix(analysis): ..."
+git push -u origin <branch>
+gh pr create --issue <number> --body "Closes #<number>"
+gh pr merge --auto --rebase
+
+# Testing
+pixi run pytest tests/unit/analysis/ -v
+
+# Verification
+pixi run python scripts/generate_all_results.py
+pre-commit run --all-files
+```
+
+### Key Files Modified
+
+- `/home/mvillmow/ProjectScylla/scylla/analysis/stats.py` - Statistical functions
+- `/home/mvillmow/ProjectScylla/scylla/analysis/dataframes.py` - DataFrame builders
+- `/home/mvillmow/ProjectScylla/scylla/analysis/tables.py` - Table generators
+- `/home/mvillmow/ProjectScylla/scylla/analysis/loader.py` - Data loading
+- `/home/mvillmow/ProjectScylla/scylla/analysis/figures/*.py` - 9 figure modules
+- `/home/mvillmow/ProjectScylla/tests/unit/analysis/*.py` - 7 test files (new)
+
+### Documentation
+
+- `/home/mvillmow/ProjectScylla/docs/dev/analysis-pipeline-implementation-summary.md` - Full implementation summary (383 lines)
+- `/home/mvillmow/ProjectScylla/.claude/plans/swirling-swinging-lantern.md` - Original review plan
+
+### Deferred Work
+
+**PR 7 (Architecture Improvements)** - Deferred to post-publication:
+- DualFormatTable helper class (~300 lines reduction)
+- Shared data loading (eliminate 3x redundant I/O)
+- Plugin-based figure registration
+
+## Related Skills
+
+- `vega-lite-analysis-pipeline` - Original pipeline implementation (PR #213)
+- `experiment-recovery-tools` - Selective re-execution of failed runs
+
+---
+
+## Superseded from token-stats-aggregation
+
+---
+name: token-stats-aggregation
+description: Pattern for tracking detailed token statistics with cache tokens across
+  hierarchical E2E report levels
+category: evaluation
+date: 2026-01-03
+version: 1.0.0
+---
+# Token Stats Aggregation
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| Date | 2026-01-03 |
+| Objective | Track detailed token statistics (input, output, cache_read, cache_creation) with hierarchical aggregation across E2E report levels |
+| Outcome | Success - implemented TokenStats dataclass with aggregation, enhanced reports at all levels |
+| Source PR | ProjectScylla #125 |
+
+## When to Use
+
+Invoke this skill when:
+
+- Adding token tracking to an evaluation framework
+- Need to aggregate metrics across hierarchical levels (run -> subtest -> tier -> experiment)
+- Bridging adapter layer (Pydantic) and domain layer (dataclass) data models
+- Adding new fields while maintaining backwards compatibility
+- Creating comparison tables in hierarchical reports
+
+## Verified Workflow
+
+### Step 1: Create Aggregatable Dataclass
+
+Create a dataclass with `__add__` method for summing across multiple instances:
+
+```python
+@dataclass
+class TokenStats:
+    """Detailed token usage statistics."""
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cache_creation_tokens: int = 0
+    cache_read_tokens: int = 0
+
+    @property
+    def total_input(self) -> int:
+        """Total input tokens including cache reads."""
+        return self.input_tokens + self.cache_read_tokens
+
+    @property
+    def total_tokens(self) -> int:
+        """Total all tokens processed."""
+        return self.total_input + self.output_tokens + self.cache_creation_tokens
+
+    def __add__(self, other: TokenStats) -> TokenStats:
+        """Enable summing TokenStats."""
+        return TokenStats(
+            input_tokens=self.input_tokens + other.input_tokens,
+            output_tokens=self.output_tokens + other.output_tokens,
+            cache_creation_tokens=self.cache_creation_tokens + other.cache_creation_tokens,
+            cache_read_tokens=self.cache_read_tokens + other.cache_read_tokens,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "input_tokens": self.input_tokens,
+            "output_tokens": self.output_tokens,
+            "cache_creation_tokens": self.cache_creation_tokens,
+            "cache_read_tokens": self.cache_read_tokens,
+        }
+```
+
+### Step 2: Create Bridge Class for Layer Boundaries
+
+When adapter layer uses Pydantic and domain layer uses dataclass:
+
+```python
+class AdapterTokenStats(BaseModel):
+    """Pydantic model for adapter layer."""
+    input_tokens: int = Field(default=0)
+    output_tokens: int = Field(default=0)
+    cache_creation_tokens: int = Field(default=0)
+    cache_read_tokens: int = Field(default=0)
+
+    def to_token_stats(self) -> TokenStats:
+        """Convert to domain layer dataclass."""
+        return TokenStats(
+            input_tokens=self.input_tokens,
+            output_tokens=self.output_tokens,
+            cache_creation_tokens=self.cache_creation_tokens,
+            cache_read_tokens=self.cache_read_tokens,
+        )
+```
+
+### Step 3: Add Legacy Properties for Backwards Compatibility
+
+When replacing individual fields with a composite object:
+
+```python
+@dataclass
+class RunResult:
+    token_stats: TokenStats  # New field
+
+    # Legacy properties for backwards compatibility
+    @property
+    def tokens_input(self) -> int:
+        """Total input tokens (legacy)."""
+        return self.token_stats.total_input
+
+    @property
+    def tokens_output(self) -> int:
+        """Output tokens (legacy)."""
+        return self.token_stats.output_tokens
+```
+
+### Step 4: Aggregate Using functools.reduce
+
+At each hierarchy level, aggregate from children:
+
+```python
+from functools import reduce
+
+# In subtest aggregation (from runs)
+token_stats = reduce(
+    lambda a, b: a + b,
+    [r.token_stats for r in runs],
+    TokenStats(),  # Identity element
+)
+
+# In tier aggregation (from subtests)
+token_stats = reduce(
+    lambda a, b: a + b,
+    [s.token_stats for s in subtest_results.values()],
+    TokenStats(),
+)
+```
+
+### Step 5: Update Tests Systematically
+
+Pattern for updating tests when API changes:
+
+```python
+# Old (broken)
+result = AdapterResult(
+    tokens_input=100,
+    tokens_output=50,
+)
+
+# New (fixed)
+result = AdapterResult(
+    token_stats=AdapterTokenStats(
+        input_tokens=100,
+        output_tokens=50,
+    ),
+)
+# Legacy properties still work
+assert result.tokens_input == 100
+```
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| N/A | Direct approach worked | N/A | Solution was straightforward |
+## Results & Parameters
+
+### Token Statistics Available from Claude Code JSON
+
+```json
+{
+  "usage": {
+    "input_tokens": 15,
+    "output_tokens": 422,
+    "cache_creation_input_tokens": 27655,
+    "cache_read_input_tokens": 82278
+  }
+}
+```
+
+### Report Enhancement Pattern
+
+At each report level, add:
+1. **Overview table** with token columns: `| In | Out | Cache R | Cache W |`
+2. **Per-criteria comparison table** showing scores from each child unit
+3. **Token statistics summary table** with totals
+
+### Files Modified (Reference)
+
+| File | Changes |
+| ------ | --------- |
+| `models.py` | Add TokenStats dataclass, update RunResult/SubTestResult/TierResult/ExperimentResult |
+| `adapters/base.py` | Add AdapterTokenStats, update AdapterResult |
+| `adapters/*.py` | Use token_stats in all adapters |
+| `subtest_executor.py` | Aggregate token stats from runs |
+| `runner.py` | Aggregate token stats from subtests and tiers |
+| `run_report.py` | Enhanced reports with token tables and per-criteria comparisons |
+
+## Key Learnings
+
+1. **Always provide backwards compatibility** when changing data models - use properties
+2. **Check all similar test files** when fixing one - patterns repeat
+3. **Use `__add__` for aggregatable dataclasses** - enables clean reduce patterns
+4. **Bridge layer boundaries explicitly** - Pydantic adapters need conversion methods to domain dataclasses
+5. **Run full test suite after changes** - related tests often fail together
+
+---
+
+## Superseded from adding-json-links-to-markdown-reports
+
+---
+name: adding-json-links-to-markdown-reports
+description: Add JSON result links to markdown reports for structured data access
+category: evaluation
+date: 2026-01-08
+version: 1.0.0
+user-invocable: false
+---
+# Adding JSON Links to Markdown Reports
+
+## Overview
+
+| Item | Details |
+| ------ | --------- |
+| Date | 2026-01-08 |
+| Objective | Add links to JSON result files in markdown reports for easy access to structured data |
+| Outcome | Operational |
+
+| Attribute | Value |
+| ----------- | ------- |
+| **Date** | 2026-01-08 |
+| **Objective** | Add links to JSON result files in markdown reports for easy access to structured data |
+| **Outcome** | ✅ Successfully added JSON links to run reports for both judge and agent results |
+| **Files Modified** | `scylla/e2e/run_report.py` |
+| **Tests Status** | ✅ All 28 tests passing |
+
+## When to Use This Skill
+
+Use this skill when you need to:
+
+- **Add structured data links** to markdown reports in an evaluation framework
+- **Enhance report navigation** by linking to raw JSON results alongside human-readable outputs
+- **Maintain backward compatibility** while adding new links to existing report sections
+- **Work with hierarchical report structures** (run → subtest → tier → experiment)
+
+### Trigger Conditions
+
+- User requests JSON data access from markdown reports
+- Need to expose structured evaluation results (scores, tokens, costs) in machine-readable format
+- Reports need both human-readable (markdown/text) and machine-readable (JSON) views
+- Working with LLM evaluation frameworks that generate both detailed and simplified results
+
+## Verified Workflow
+
+### 1. Understand the Report Structure
+
+First, identify the report generation code and understand the directory structure:
+
+```bash
+# Find report generation code
+grep -r "generate.*report|save.*report" scylla/e2e/
+
+# Understand the path structure
+cat scylla/e2e/paths.py  # Shows agent/ and judge/ directory constants
+```
+
+**Key Discovery**: Reports use a consistent structure:
+- `agent/result.json` - Simplified agent execution result
+- `agent/output.txt` - Full agent output
+- `judge/result.json` - Simplified judge result (score, passed, grade, reasoning)
+- `judge/judgment.json` - Full detailed judgment
+
+### 2. Locate the Markdown Generation Function
+
+Find where markdown report sections are generated:
+
+```python
+# In scylla/e2e/run_report.py
+def generate_run_report(
+    tier_id: str,
+    subtest_id: str,
+    run_number: int,
+    # ... other parameters
+) -> str:
+    """Generate markdown report content for a single run."""
+```
+
+**Key Sections**:
+- Line ~150-165: Judge Evaluation section
+- Line ~240-252: Agent Output section
+
+### 3. Add JSON Links Using Bullet Lists
+
+Modify the sections to use bullet lists for multiple links:
+
+```python
+# Before (single link):
+lines.extend([
+    "## Judge Evaluation",
+    "",
+    "[View full judgment](./judge/judgment.json)",
+    "",
+])
+
+# After (bullet list with JSON link):
+lines.extend([
+    "## Judge Evaluation",
+    "",
+    "- [View full judgment](./judge/judgment.json)",
+    "- [View judge result JSON](./judge/result.json)",
+    "",
+])
+```
+
+**Pattern**: Use relative paths with `./` prefix for consistency
+
+### 4. Verify Changes with Test Generation
+
+Create a verification script using the existing report generator:
+
+```python
+from pathlib import Path
+from scylla.e2e.run_report import generate_run_report
+
+report = generate_run_report(
+    tier_id='T0',
+    subtest_id='test-01',
+    run_number=1,
+    score=0.85,
+    grade='B',
+    passed=True,
+    reasoning='Good implementation',
+    cost_usd=0.15,
+    duration_seconds=45.2,
+    tokens_input=1000,
+    tokens_output=500,
+    exit_code=0,
+    task_prompt='Test task',
+    workspace_path=Path('/tmp/test'),
+)
+
+# Verify new links exist
+assert '- [View judge result JSON](./judge/result.json)' in report
+assert '- [View agent result JSON](./agent/result.json)' in report
+```
+
+### 5. Run Existing Tests
+
+Ensure no regressions:
+
+```bash
+pixi run pytest tests/unit/reporting/test_markdown.py -v
+```
+
+**Expected**: All tests should pass (28/28) since we're only adding, not changing existing content.
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| N/A | Direct approach worked | N/A | Solution was straightforward |
+## Results & Parameters
+
+### Changes Made
+
+**File**: `scylla/e2e/run_report.py`
+
+**Judge Section (lines 160-164)**:
+```python
+lines.extend([
+    "---",
+    "",
+    "## Judge Evaluation",
+    "",
+    "- [View full judgment](./judge/judgment.json)",
+    "- [View judge result JSON](./judge/result.json)",
+    "",
+])
+```
+
+**Agent Section (lines 245-252)**:
+```python
+lines.extend([
+    "---",
+    "",
+    "## Agent Output",
+    "",
+    "- [View agent output](./agent/output.txt)",
+    "- [View agent result JSON](./agent/result.json)",
+    "",
+])
+```
+
+### Output Format
+
+Generated markdown now includes:
+
+```markdown
+## Judge Evaluation
+
+- [View full judgment](./judge/judgment.json)
+- [View judge result JSON](./judge/result.json)
+
+---
+
+## Agent Output
+
+- [View agent output](./agent/output.txt)
+- [View agent result JSON](./agent/result.json)
+```
+
+### Test Results
+
+```
+============================= test session starts ==============================
+tests/unit/reporting/test_markdown.py::TestTierMetrics::test_create PASSED
+[... 26 more tests ...]
+============================== 28 passed in 0.09s ==============================
+```
+
+## Key Takeaways
+
+1. **Relative paths are key**: Use `./` prefix for relative links within report directories
+2. **Bullet lists for multiple links**: More readable than inline links when showing multiple related files
+3. **Backward compatibility**: Adding new links doesn't break existing tests or functionality
+4. **Consistent structure**: Both judge and agent sections follow the same pattern (text + JSON)
+5. **Fast verification**: Generate sample reports programmatically to verify changes
+
+## Related Files
+
+- `scylla/e2e/paths.py` - Path constants and helpers for agent/judge directories
+- `scylla/e2e/subtest_executor.py` - Where agent and judge results are saved
+- `scylla/e2e/llm_judge.py` - Creates `judgment.json` files
+- `tests/unit/reporting/test_markdown.py` - Report generation tests
+
+## Next Steps
+
+If you need to extend this pattern:
+
+1. **Add more result files**: Follow the same bullet list pattern
+2. **Add to higher-level reports**: Apply to subtest/tier/experiment reports
+3. **Add preview sections**: Consider inline JSON snippets in markdown
+4. **Add validation**: Check that linked files actually exist before generating links
+
+---
+
+## Superseded from e2e-agent-judge-timing
+
+---
+name: e2e-agent-judge-timing
+description: Add separate agent and judge timing fields to E2E test results for tiebreaker
+  ranking
+category: evaluation
+date: 2026-01-04
+version: 1.0.0
+tags:
+- e2e
+- timing
+- metrics
+- tiebreaker
+- agent
+- judge
+- evaluation
+---
+# E2E Agent/Judge Timing Separation
+
+## Overview
+
+| Attribute | Value |
+| ----------- | ------- |
+| **Date** | 2026-01-04 |
+| **Objective** | Add separate timing fields for agent and judge execution to enable tiebreaker ranking |
+| **Outcome** | ✅ Success - Timing breakdown implemented with report visualization |
+| **Project** | ProjectScylla |
+| **PR** | [#143](https://github.com/HomericIntelligence/ProjectScylla/pull/143) |
+
+## When to Use
+
+Use this pattern when:
+- Implementing tiebreaker metrics for ranking equivalent evaluation results
+- Need to track performance of multi-stage pipelines (agent + judge)
+- Want to analyze where time is spent in evaluation workflows
+- Building E2E test frameworks with separate execution and evaluation phases
+- Need timing data for cost/performance optimization decisions
+
+## Problem
+
+**Original State**: Only total `duration_seconds` tracked for entire run
+- Cannot determine if agent or judge is the bottleneck
+- No timing-based tiebreaker when multiple results have identical scores
+- Cached/reused results have unclear timing semantics
+
+**User Request**: "I want the time it takes to run agents/judges added to the reports/logs so that it is possible to rank equivalently produced results by time taken as a tiebreaker"
+
+## Verified Workflow
+
+### 1. Add Timing Fields to Data Model
+
+**File**: `src/scylla/e2e/models.py`
+
+```python
+@dataclass
+class RunResult:
+    """Result from a single run of a sub-test."""
+
+    # Existing fields...
+    cost_usd: float
+    duration_seconds: float              # Total (agent + judge)
+    agent_duration_seconds: float        # NEW: Agent execution time
+    judge_duration_seconds: float        # NEW: Judge evaluation time
+    judge_score: float
+    # ... other fields
+```
+
+**Key Points**:
+- `duration_seconds` = total time (agent + judge)
+- Separate fields enable timing-based tiebreaking
+- Both fields required (not optional) for consistency
+
+### 2. Update Serialization
+
+**File**: `src/scylla/e2e/models.py:RunResult.to_dict()`
+
+```python
+def to_dict(self) -> dict[str, Any]:
+    return {
+        "duration_seconds": self.duration_seconds,
+        "agent_duration_seconds": self.agent_duration_seconds,
+        "judge_duration_seconds": self.judge_duration_seconds,
+        # ... other fields
+    }
+```
+
+### 3. Track Timing During Execution
+
+**File**: `src/scylla/e2e/subtest_executor.py`
+
+```python
+# Agent execution
+agent_start = datetime.now(UTC)
+result = self.adapter.run(config=adapter_config, ...)
+duration = (datetime.now(UTC) - agent_start).total_seconds()
+
+# Judge evaluation
+if not agent_ran and _has_valid_judge_result(run_dir):
+    # Reused judge result
+    judgment = _load_judge_result(judge_dir)
+    judge_duration = 0.0  # Duration not tracked for reused results
+else:
+    # Fresh judge run
+    judge_start = datetime.now(UTC)
+    judgment = self._run_judge(...)
+    judge_duration = (datetime.now(UTC) - judge_start).total_seconds()
+
+# Create RunResult with both durations
+run_result = RunResult(
+    duration_seconds=duration + judge_duration,  # Total
+    agent_duration_seconds=duration,
+    judge_duration_seconds=judge_duration,
+    # ... other fields
+)
+```
+
+**Critical Decision**: Set `judge_duration = 0.0` when reusing cached results
+- Consistent with `agent_duration = 0.0` for cached agent results
+- Prevents misleading timing data in reports
+
+### 4. Update Checkpoint Resume
+
+**File**: `src/scylla/e2e/subtest_executor.py`
+
+```python
+# Load from saved run_result.json
+with open(run_result_file) as f:
+    report_data = json.load(f)
+
+run_result = RunResult(
+    duration_seconds=report_data["duration_seconds"],
+    agent_duration_seconds=report_data["agent_duration_seconds"],
+    judge_duration_seconds=report_data["judge_duration_seconds"],
+    # ... other fields
+)
+```
+
+### 5. Update Report Generation
+
+**File**: `src/scylla/e2e/run_report.py`
+
+```python
+def generate_run_report(
+    # ... existing params
+    duration_seconds: float,
+    agent_duration_seconds: float | None = None,
+    judge_duration_seconds: float | None = None,
+) -> str:
+    lines = [
+        "| Duration (Total) | {duration_seconds:.2f}s |",
+    ]
+
+    # Add breakdown if available
+    if agent_duration_seconds is not None and judge_duration_seconds is not None:
+        lines.extend([
+            "| - Agent | {agent_duration_seconds:.2f}s |",
+            "| - Judge | {judge_duration_seconds:.2f}s |",
+        ])
+```
+
+**Report Output**:
+```markdown
+| Metric | Value |
+|--------|-------|
+| Duration (Total) | 23.45s |
+| - Agent          | 18.20s |
+| - Judge          | 5.25s  |
+```
+
+### 6. Update Tests
+
+**File**: `tests/unit/e2e/test_models.py`
+
+```python
+def test_to_dict(self) -> None:
+    result = RunResult(
+        duration_seconds=15.5,
+        agent_duration_seconds=12.0,
+        judge_duration_seconds=3.5,
+        # ... other fields
+    )
+
+    d = result.to_dict()
+    assert d["duration_seconds"] == 15.5
+    assert d["agent_duration_seconds"] == 12.0
+    assert d["judge_duration_seconds"] == 3.5
+```
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| N/A | Direct approach worked | N/A | Solution was straightforward |
+## Results & Parameters
+
+### Data Model Changes
+
+**RunResult fields** (all required):
+```python
+duration_seconds: float              # Total time (agent + judge)
+agent_duration_seconds: float        # Agent execution time
+judge_duration_seconds: float        # Judge evaluation time
+```
+
+### Timing Semantics
+
+| Scenario | agent_duration | judge_duration | duration_seconds |
+| ---------- | ---------------- | ---------------- | ------------------ |
+| Fresh run | Actual time | Actual time | Sum of both |
+| Cached agent | 0.0 | 0.0 or actual | Sum |
+| Cached judge | Actual | 0.0 | Sum |
+| Both cached | 0.0 | 0.0 | 0.0 |
+
+### Files Modified
+
+| File | Lines Changed | Purpose |
+| ------ | --------------- | --------- |
+| `src/scylla/e2e/models.py` | +4 | Add timing fields to RunResult |
+| `src/scylla/e2e/subtest_executor.py` | +8 | Track and pass timing data |
+| `src/scylla/e2e/run_report.py` | +15 | Display timing breakdown in reports |
+| `tests/unit/e2e/test_models.py` | +6 | Verify timing serialization |
+
+### Test Results
+
+```bash
+✅ All 97 E2E unit tests passing
+```
+
+## Key Learnings
+
+1. **User-Driven Design**: When user explicitly states no backward compatibility needed, implement clean solution without migration complexity
+2. **Consistent Semantics**: Set timing to 0.0 for cached results across both agent and judge for consistency
+3. **Breakdown Visibility**: Showing timing breakdown in reports (Total + Agent + Judge) helps identify bottlenecks
+4. **Required vs Optional**: Making new fields required prevents null-handling complexity in analysis code
+
+## Use Cases
+
+1. **Tiebreaker Ranking**: When multiple results have identical scores, use `duration_seconds` to prefer faster executions
+2. **Performance Analysis**: Compare `agent_duration_seconds` across tiers to identify which configurations are fastest
+3. **Bottleneck Identification**: High `judge_duration_seconds` indicates judging is slow, may need caching or optimization
+4. **Cost Optimization**: Correlate timing with cost to find cost-per-second metrics
+
+## Related Skills
+
+- `execution-stage-logging` - Stage-by-stage logging with timing (more granular)
+- `e2e-checkpoint-resume` - Checkpoint system that stores timing data
+- `e2e-resume-refactor` - Directory structure for agent/judge separation
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| ProjectScylla | PR #143 - Separate agent/judge timing for tiebreaker ranking | [notes.md](../../references/notes.md) |
+
+---
+
+## Superseded from e2e-directory-flattening
+
+---
+name: e2e-directory-flattening
+description: "E2E Directory Flattening"
+category: evaluation
+date: 2026-03-19
+version: "1.0.0"
+user-invocable: false
+---
+# E2E Directory Flattening
+
+| Field | Value |
+| ------- | ------- |
+| Date | 2026-01-02 |
+| Objective | Flatten E2E results directory structure, share workspaces, generate hierarchical reports |
+| Outcome | Successfully flattened structure with JSON+markdown reports at every level |
+| Project | ProjectScylla |
+
+## When to Use
+
+Use this skill when:
+- E2E results directories have excessive nesting (e.g., `tiers/T0/` instead of `T0/`)
+- Runs are duplicating workspace setup (git clone per run instead of shared)
+- You need hierarchical reports with relative links at every level
+- Grading materials are duplicated across runs instead of stored once at root
+- You want to add CLI options to limit subtests for testing
+
+## Verified Workflow
+
+### Phase 1: Directory Structure Changes
+
+**Before:**
+```
+results/<experiment>/
+├── tiers/
+│   └── T0/
+│       └── 00/
+│           └── run_01/
+│               ├── workspace/     # Duplicated per run
+│               └── logs/
+│                   ├── stdout.log
+│                   └── stderr.log
+```
+
+**After:**
+```
+results/<experiment>/
+├── prompt.md              # Grading materials at root (uniform)
+├── criteria.md
+├── rubric.yaml
+├── judge_prompt.md
+├── report.json            # Hierarchical reports
+├── report.md
+└── T0/                    # Flat tier directories
+    ├── report.json
+    ├── report.md
+    └── 00/
+        ├── workspace/     # Shared across runs
+        ├── report.json
+        ├── report.md
+        └── run_01/
+            ├── output.txt
+            ├── stdout.log  # Directly in run_dir
+            ├── stderr.log
+            └── report.json
+```
+
+### Phase 2: Key Code Changes
+
+1. **Flatten tier paths** (`runner.py`):
+   ```python
+   # Before
+   tier_dir = self.experiment_dir / "tiers" / tier_id.value
+   # After
+   tier_dir = self.experiment_dir / tier_id.value
+   ```
+
+2. **Share workspace at subtest level** (`subtest_executor.py`):
+   ```python
+   def run_subtest(...):
+       # Create workspace once at subtest level
+       workspace = results_dir / "workspace"
+       self._setup_workspace(workspace, command_logger)
+
+       for run_num in range(...):
+           # Pass shared workspace to each run
+           run_result = self._execute_single_run(..., workspace=workspace)
+   ```
+
+3. **Remove logs/ subdirectory** (`adapters/base.py`):
+   ```python
+   def write_logs(self, output_dir, stdout, stderr, agent_log=None):
+       # Write directly to output_dir, not output_dir/logs/
+       output_dir.mkdir(parents=True, exist_ok=True)
+       (output_dir / "stdout.log").write_text(stdout)
+       (output_dir / "stderr.log").write_text(stderr)
+   ```
+
+4. **Copy grading materials to root** (`runner.py`):
+   ```python
+   def _copy_grading_materials(self, experiment_dir):
+       shutil.copy2(self.config.task_prompt_file, experiment_dir / "prompt.md")
+       # Copy criteria.md, rubric.yaml if they exist
+       # Create judge_prompt.md template with file path references
+   ```
+
+### Phase 3: Hierarchical Reports
+
+Generate JSON + markdown reports at every level with relative links:
+
+```python
+# run_report.py - Add functions:
+def save_run_report_json(run_dir, run_number, score, grade, passed, cost, duration)
+def save_subtest_report(subtest_dir, subtest_id, result: SubTestResult)
+def save_tier_report(tier_dir, tier_id, result: TierResult)
+def save_experiment_report(experiment_dir, result: ExperimentResult)
+```
+
+Each report includes `children` array with relative paths to child reports.
+
+### Phase 4: CLI Option for Testing
+
+Add `--max-subtests` to limit subtests per tier:
+
+```python
+# models.py
+max_subtests: int | None = None  # Max sub-tests per tier (None = all)
+
+# runner.py
+if self.config.max_subtests is not None:
+    tier_config.subtests = tier_config.subtests[:self.config.max_subtests]
+```
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | YYYY-MM-DD |
+| **Objective** | Skill objective |
+| **Outcome** | Success/Operational |
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| N/A | Direct approach worked | N/A | Solution was straightforward |
+## Results & Parameters
+
+### CLI Usage
+
+```bash
+# Quick validation (1 tier, 1 run, 2 subtests max)
+pixi run python scripts/run_e2e_experiment.py \
+    --tiers-dir tests/fixtures/tests/test-001 \
+    --tiers T0 --runs 1 --max-subtests 2
+
+# Full run with defaults from test.yaml
+pixi run python scripts/run_e2e_experiment.py \
+    --tiers-dir tests/fixtures/tests/test-001 \
+    --tiers T0 T1 T2
+```
+
+### Files Modified
+
+| File | Change |
+| ------ | -------- |
+| `runner.py` | Flatten tier paths, copy grading materials, limit subtests |
+| `subtest_executor.py` | Workspace at subtest level, run_dir directly |
+| `adapters/base.py` | Remove logs/ subdirectory |
+| `models.py` | Add `max_subtests` field |
+| `run_report.py` | Add hierarchical report functions |
+| `llm_judge.py` | Add `build_judge_prompt_with_paths()` |
+
+### Test Verification
+
+```bash
+pixi run pytest tests/unit/e2e/ -v  # All 27 tests pass
+```
+
+---
+
+## Superseded from skill-e2e-evaluation-report-fixes
+
+---
+name: skill-e2e-evaluation-report-fixes
+description: Fix critical E2E evaluation report issues including timing persistence, workspace detection, judge validation, and broken links
+category: evaluation
+date: 2026-01-10
+version: 1.0.0
+user-invocable: false
+---
+# Skill: E2E Evaluation Report Fixes
+
+## Overview
+
+| Item | Details |
+| ------ | --------- |
+| Date | 2026-01-10 |
+| Objective | Fix critical issues in E2E evaluation reports and add judge model validation |
+| Outcome | Operational |
+
+| Attribute | Value |
+| ----------- | ------- |
+| **Date** | 2026-01-10 |
+| **Objective** | Fix critical issues in E2E evaluation reports and add judge model validation |
+| **Outcome** | ✅ Success - All P0/P1 issues resolved |
+| **Context** | ProjectScylla E2E evaluation framework |
+
+## When to Use This Skill
+
+Use this skill when encountering these symptoms in E2E evaluation reports:
+
+1. **UnboundLocalError crashes** during experiment execution
+2. **Workspace files not showing** in reports (empty "Workspace State" section)
+3. **Judge models failing** with invalid model IDs
+4. **Broken links** in reports pointing to non-existent files
+5. **Missing timing data** or timing files being overwritten
+6. **Inconsistent judge scoring** across runs with identical outcomes
+
+## Problem Summary
+
+### Issues Fixed
+
+| Priority | Issue | Impact |
+| ---------- | ------- | -------- |
+| P0 | `UnboundLocalError: cannot access local variable 'json'` | Experiment crashes immediately |
+| P0 | Workspace detection broken - only shows README | Reports incomplete, missing actual deliverables |
+| P0 | Invalid judge model IDs cause fallback scores | Incorrect evaluation results |
+| P1 | Judge timing overwritten (parent dir instead of per-judge) | Loss of per-judge performance data |
+| P1 | Broken result.json links in reports | User confusion, broken navigation |
+
+## Verified Workflow
+
+### Fix 1: UnboundLocalError in Timing Persistence
+
+**Problem**: `import json` inside conditional block, but `json.dump()` called outside it
+
+**Solution**: Move import to method level
+
+```python
+# In scylla/e2e/subtest_executor.py
+def _execute_single_run(self, ...):
+    import json  # ← Move to top of method
+
+    # Track execution timing
+    subtest_id = f"{tier_id.value}_{subtest.id}"
+    ...
+```
+
+**Why it works**: Python scoping - imports inside `if` blocks are only available within that block.
+
+### Fix 2: Workspace File Detection
+
+**Problem**: Using only `git diff HEAD~1` or `git ls-files` missed uncommitted files
+
+**Solution**: Combine two approaches with status indicators
+
+```python
+def _get_workspace_files(workspace_path: Path) -> list[tuple[str, str]]:
+    files_with_status = []
+
+    # 1. Get committed files via git diff
+    result = subprocess.run(
+        ["git", "diff", "--name-only", "HEAD~1", "HEAD"],
+        cwd=workspace_path, ...
+    )
+    if result.returncode == 0:
+        for line in result.stdout.strip().split("\n"):
+            if file_path and not _is_test_config_file(file_path):
+                files_with_status.append((file_path, "committed"))
+
+    # 2. Get untracked/modified files via git status
+    result = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=workspace_path, ...
+    )
+    if result.returncode == 0:
+        for line in result.stdout.strip().split("\n"):
+            file_path = line[3:].strip()  # Skip status code
+            if file_path and not _is_test_config_file(file_path):
+                # Skip if already added as committed
+                if not any(f[0] == file_path for f in files_with_status):
+                    files_with_status.append((file_path, "uncommitted"))
+
+    return sorted(files_with_status, key=lambda x: x[0])
+```
+
+**Display in report**:
+```python
+for file_path, status in workspace_files:
+    status_indicator = "✓" if status == "committed" else "⚠"
+    lines.append(f"- [{file_path}](./workspace/{file_path}) {status_indicator} {status}")
+```
+
+### Fix 3: Judge Model Validation
+
+**Problem**: Invalid model IDs (opus-4-0, sonnet-4-0) caused judge failures
+
+**Solution**: Validate models before experiment + add shortcuts
+
+```python
+# In scripts/run_e2e_experiment.py
+
+def validate_model(model_id: str) -> bool:
+    """Test model availability with small prompt."""
+    try:
+        result = subprocess.run(
+            ["claude", "--model", model_id, "--output-format", "json", "Say 'OK'"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        return result.returncode == 0
+    except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
+        return False
+
+# Add model shortcuts
+shortcuts = {
+    # Claude 4.5 models
+    "opus-4-5": "claude-opus-4-5-20251101",
+    "sonnet-4-5": "claude-sonnet-4-5-20250929",
+    "haiku-4-5": "claude-haiku-4-5",  # Correct ID
+    # Claude 4.0 models
+    "opus-4-0": "claude-opus-4-20250514",
+    "sonnet-4-0": "claude-sonnet-4-20250514",
+    "haiku-4-0": "claude-haiku-4-0-20250514",
+}
+
+# Validate before adding to config
+for model in args.add_judge:
+    resolved_model = resolve_judge_model(model)
+    logger.info(f"Validating judge model: {resolved_model}")
+    if not validate_model(resolved_model):
+        logger.warning(f"⚠️  Judge model '{resolved_model}' not available. Skipping.")
+        continue
+    config_dict["judge_models"].append(resolved_model)
+```
+
+### Fix 4: Per-Judge Timing Files
+
+**Problem**: Single `judge/timing.json` overwritten by each judge
+
+**Solution**: Write timing to each judge's subdirectory
+
+```python
+# In scylla/e2e/llm_judge.py
+def run_llm_judge(..., judge_run_number: int = 1):
+    import json
+    import time
+    from datetime import UTC, datetime
+
+    judge_start = time.time()
+
+    # Create judge_{N}/ subdirectory
+    actual_judge_dir = judge_dir / f"judge_{judge_run_number:02d}"
+    actual_judge_dir.mkdir(parents=True, exist_ok=True)
+
+    # ... run judge ...
+
+    # Write per-judge timing
+    if actual_judge_dir:
+        judge_duration = time.time() - judge_start
+        timing_file = actual_judge_dir / "timing.json"
+        with open(timing_file, "w") as f:
+            json.dump({
+                "judge_duration_seconds": judge_duration,
+                "measured_at": datetime.now(UTC).isoformat(),
+            }, f, indent=2)
+```
+
+**Result**: `judge/judge_01/timing.json`, `judge/judge_02/timing.json`, etc.
+
+### Fix 5: Remove Broken result.json Links
+
+**Problem**: Reports linked to `./judge/judge_01/result.json` but file doesn't exist
+
+**Solution**: Remove result.json links, keep only judgment.json
+
+```python
+# In scylla/e2e/run_report.py
+# OLD:
+f"- [View judgment](./judge/judge_{judge.judge_number:02d}/judgment.json)",
+f"- [View result JSON](./judge/judge_{judge.judge_number:02d}/result.json)",
+
+# NEW:
+f"- [View judgment](./judge/judge_{judge.judge_number:02d}/judgment.json)",
+# (removed result.json link)
+```
+
+### Fix 6: Tiered Deduction Guidelines
+
+**Problem**: Inconsistent scoring for identical flaws (e.g., __pycache__)
+
+**Solution**: Add calibrated deduction tiers to judge system prompt
+
+```markdown
+### Subjective Scoring: Deduction Guidelines
+
+#### Tier: Tiny (0.0 - 0.1 points)
+Issues outside agent's direct control:
+- `__pycache__` directory (Python runtime artifact)
+- `.pyc` files generated by interpreter
+Example: "Agent left __pycache__/" → -0.05 to -0.1
+
+#### Tier: Small (0.1 - 0.2 points)
+Minor oversights that don't affect functionality:
+- Missing trailing newline
+- Verbose but correct solution
+Example: "Code works but uses 8 lines where 3 would suffice" → -0.15
+
+[... Medium, Large, XLarge, Catastrophic tiers ...]
+
+**Important**: Environmental artifacts should be treated as Tiny issues at most.
+```
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| N/A | Direct approach worked | N/A | Solution was straightforward |
+## Results & Parameters
+
+### Model ID Mappings (Copy-Paste Ready)
+
+```python
+shortcuts = {
+    # Claude 4.5 models
+    "opus-4-5": "claude-opus-4-5-20251101",
+    "sonnet-4-5": "claude-sonnet-4-5-20250929",
+    "haiku-4-5": "claude-haiku-4-5",
+    # Claude 4.0 models
+    "opus-4-0": "claude-opus-4-20250514",
+    "sonnet-4-0": "claude-sonnet-4-20250514",
+    "haiku-4-0": "claude-haiku-4-0-20250514",
+}
+```
+
+### Validation Timeout
+
+```python
+timeout=10  # seconds for model validation test
+```
+
+### Test Command
+
+```bash
+pixi run python scripts/run_e2e_experiment.py \
+  --tiers-dir tests/fixtures/tests/test-001 \
+  --tiers T0 --max-subtests 1 \
+  --add-judge sonnet-4-5 --add-judge haiku-4-5 \
+  --runs 3 --parallel 7 -v
+```
+
+### Expected Outcomes
+
+| Metric | Before | After |
+| -------- | -------- | ------- |
+| Crashes | UnboundLocalError immediately | ✅ No crashes |
+| Workspace detection | Only README shown | ✅ Shows hello.py + status |
+| Invalid judges | 3/5 fallback scores (0.7) | ✅ All valid or skipped |
+| Timing files | Overwritten parent file | ✅ Per-judge files |
+| Broken links | result.json 404s | ✅ No broken links |
+| Score variance | 0.90, 0.89, 0.85 (inconsistent) | ✅ Target < 0.03 |
+
+## Key Insights
+
+1. **Python scoping matters**: Imports inside conditional blocks don't leak to outer scope
+2. **Git has two file states**: Committed (tracked) and uncommitted (untracked/modified)
+3. **Model validation prevents silent failures**: Test before experiment, not during
+4. **Per-resource timing prevents overwrites**: Use subdirectories for parallel resources
+5. **Tiered guidelines reduce variance**: Anchored deductions improve judge consistency
+
+## Related Files
+
+- `scylla/e2e/subtest_executor.py` - Main executor with timing persistence
+- `scylla/e2e/run_report.py` - Report generation with workspace detection
+- `scylla/e2e/llm_judge.py` - Judge runner with per-judge timing
+- `scripts/run_e2e_experiment.py` - Experiment orchestrator with validation
+- `config/judge/system_prompt.md` - Judge guidelines with tiered deductions
+
+## References
+
+- PR: #172 on HomericIntelligence/ProjectScylla
+- Commit: `476af08` - fix(evaluation): Fix report issues and add judge model validation
+- Haiku 4.5 announcement: https://www.anthropic.com/news/claude-haiku-4-5
