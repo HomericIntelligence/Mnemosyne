@@ -1,9 +1,9 @@
 ---
 name: lockfile-and-release-pipeline-management
-description: "Recover drifted lockfiles, resync dependency lockfiles after manifest edits, fix silent release recipe failures, enforce version single-source-of-truth, and configure Renovate for multi-ecosystem repos. Use when: (1) CI rejects a generated lockfile (pixi.lock, Cargo.lock, package-lock.json) and the source manifest is unchanged vs main, (2) editing package.json without regenerating package-lock.json causes npm ci EUSAGE failures, (3) `just release X.Y.Z` exits non-zero with 'nothing to commit' because pyprojects already have the target version, (4) project version is declared in multiple files that can drift and you need a single-source-of-truth strategy with pre-commit guards, (5) adding automated dependency updates (Renovate) to a C++20 repo with Conan, FetchContent, pixi, GHA, and Dockerfiles."
+description: "Recover drifted lockfiles, resync dependency lockfiles after manifest edits, fix silent release recipe failures, enforce version single-source-of-truth, and configure Renovate for multi-ecosystem repos. Use when: (1) CI rejects a generated lockfile (pixi.lock, Cargo.lock, package-lock.json) and the source manifest is unchanged vs main, (2) editing package.json without regenerating package-lock.json causes npm ci EUSAGE failures, (3) `just release X.Y.Z` exits non-zero with 'nothing to commit' because pyprojects already have the target version, (4) project version is declared in multiple files that can drift and you need a single-source-of-truth strategy with pre-commit guards, (5) adding automated dependency updates (Renovate) to a C++20 repo with Conan, FetchContent, pixi, GHA, and Dockerfiles, (6) `pixi install` fails with `No candidates were found for <pkg> ==<version>` because a pinned nightly/dev-build artifact was garbage-collected from the channel."
 category: ci-cd
 date: 2026-05-19
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 history: lockfile-and-release-pipeline-management.history
 tags:
@@ -25,6 +25,11 @@ tags:
   - conan
   - fetchcontent
   - tool-version-skew
+  - nightly-build
+  - artifact-gc
+  - unsolvable-pin
+  - mojo
+  - pixi-install
 ---
 
 # Lockfile and Release Pipeline Management
@@ -34,9 +39,9 @@ tags:
 | Field | Value |
 |-------|-------|
 | **Date** | 2026-05-19 |
-| **Objective** | Canonical skill covering the full gap between "dependency declared" and "lockfile/version consistent in CI": verbatim lockfile restoration from main, npm lockfile resync, release recipe no-op diagnosis, version single-source-of-truth enforcement, and Renovate setup for heterogeneous C++ repos |
-| **Outcome** | Merged from 5 verified skills; patterns confirmed across ProjectAgamemnon, ProjectProteus, ProjectScylla |
-| **Verification** | verified-ci (lockfile restore, npm resync); verified-local (release recipe, versioning); unverified (Renovate — app install in progress) |
+| **Objective** | Canonical skill covering the full gap between "dependency declared" and "lockfile/version consistent in CI": verbatim lockfile restoration from main, npm lockfile resync, release recipe no-op diagnosis, version single-source-of-truth enforcement, Renovate setup for heterogeneous C++ repos, and recovery from a pinned nightly/dev-build artifact garbage-collected from its channel |
+| **Outcome** | Merged from 5 verified skills; patterns confirmed across ProjectAgamemnon, ProjectProteus, ProjectScylla; v1.1.0 adds the GC'd-nightly failure mode (predictive-coding research project) |
+| **Verification** | verified-ci (lockfile restore, npm resync); verified-local (release recipe, versioning, GC'd-nightly recovery); unverified (Renovate — app install in progress) |
 
 ## When to Use
 
@@ -47,6 +52,7 @@ tags:
 - Project declares `__version__` or version strings in multiple files (`pyproject.toml`, `pixi.toml`, `__init__.py`, CLI) that can drift
 - CHANGELOG references phantom future versions that don't exist yet as tags
 - Adding Renovate bot to a C++20 repo using Conan, CMake FetchContent, pixi, GitHub Actions, and Dockerfiles
+- A pinned nightly or dev-build dependency (`==X.Y.Zb2.devYYYYMMDD`-style) can no longer be resolved because the artifact was GC'd from the package channel; you need to repin and lock
 
 ## Verified Workflow
 
@@ -106,6 +112,21 @@ python3 scripts/check_package_version_consistency.py --verbose
 # ── E. Renovate setup for C++20 repo ─────────────────────────────────────────
 # Create renovate.json in repo root (see Results & Parameters)
 # Install Renovate GitHub App at https://github.com/apps/renovate
+
+# ── F. Pinned nightly artifact garbage-collected ─────────────────────────────
+# Diagnosis: pixi install fails with
+#   × failed to solve the conda requirements of 'default' 'linux-64'
+#   ╰─▶ Cannot solve the request because of:
+#       No candidates were found for <pkg> ==<exact-version>.
+# Confirm the artifact is GC'd (pinned version absent from search results):
+pixi search <pkg> -c <channel>          # e.g. -c https://conda.modular.com/max
+# NOTE: pixi (<= 0.39.x) has NO `pixi lock` subcommand — the lock is a side
+# effect of `pixi install`. `pixi lock` errors: unrecognized subcommand 'lock'.
+# Recovery: repin manifest to the newest still-available build, then lock:
+#   edit pixi.toml  →  <pkg> = "==<newest-available-build>"
+pixi install                            # generates pixi.lock against the new pin
+git add pixi.toml pixi.lock
+git commit -S -m "fix(deps): repin <pkg> to <build> after nightly GC; commit pixi.lock"
 ```
 
 ### Detailed Steps
@@ -212,6 +233,68 @@ If you edit any package.json:
 3. For meta-repos with submodules, use `ignorePaths` in the root config; each submodule gets its own `renovate.json`.
 4. CMake FetchContent `GIT_TAG` has no native Renovate manager — use the custom `regex` manager.
 
+#### F — Pinned Nightly Artifact Garbage-Collected
+
+This is a **distinct, higher-severity failure** from lockfile drift (section A). In
+section A the dependency is still solvable — only the *generated* lockfile is out of
+sync. Here the **pinned dependency itself is unsolvable** because its artifact no
+longer exists on the package channel. Nightly / dev / dated-snapshot builds are
+**garbage-collected** from channels on a rolling window (often weeks). A pin to a
+version like `==1.0.0b2.dev2026050805` will eventually become unsolvable.
+
+1. **Recognize the diagnosis signature.** `pixi install` fails with:
+
+   ```text
+   × failed to solve the conda requirements of 'default' 'linux-64'
+   ╰─▶ Cannot solve the request because of: No candidates were found for mojo
+       ==1.0.0b2.dev2026050805.
+   ```
+
+   `No candidates were found for <pkg> ==<exact-version>` means the **artifact is
+   unavailable**, NOT that the manifest drifted. This is distinct from the
+   lockfile-drift failures in section A (where CI rejects a *generated* file but the
+   dependency is still solvable).
+
+2. **Confirm the artifact is GC'd** — search the channel for what remains:
+
+   ```bash
+   pixi search mojo -c https://conda.modular.com/max
+   ```
+
+   If the pinned version is **absent from the search results**, the artifact is gone.
+   The channel typically retains only the release build and a few older stable
+   versions; dated nightlies are not retained.
+
+3. **Note: `pixi` (≤ 0.39.x) has no standalone `pixi lock` subcommand.** The lockfile
+   is generated only as a side effect of `pixi install`. Verified: `pixi 0.39.5`
+   responds to `pixi lock` with `unrecognized subcommand 'lock'`.
+
+4. **Recover by repinning to the newest still-available build.** Pick the newest
+   version from the `pixi search` output (prefer a release build over another
+   nightly), edit the manifest, regenerate the lock, and **commit `pixi.lock`
+   immediately** — while the artifact still exists:
+
+   ```bash
+   # edit pixi.toml: mojo = "==1.0.0b1"   (newest still-available build)
+   pixi install
+   git add pixi.toml pixi.lock
+   git commit -S -m "fix(deps): repin mojo to 1.0.0b1 after nightly GC; commit pixi.lock"
+   ```
+
+5. **If a transitive/upstream dependency also pins the GC'd version**, the repin is a
+   **deliberate divergence** from upstream — bumping to match upstream is not an
+   option because upstream is equally broken. Document the divergence in the project's
+   dependency notes / failure-cascade matrix, and flag downstream code for
+   re-verification against the new toolchain version.
+
+**Prevention (the load-bearing lesson):** Generate and commit the lockfile the moment
+a dependency is pinned — especially for nightly/dev builds. The lockfile is the only
+durable record of the resolved artifact. Once the nightly is GC'd, a committed
+`pixi.lock` may still let `pixi install --locked` succeed (the lock references the
+artifact by content hash + URL); with no lockfile, the pin is unrecoverable. The
+window to lock is "while the artifact still exists" — "lock it later" is not a plan.
+Prefer pinning a release build over a dated nightly when reproducibility matters.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -230,6 +313,7 @@ If you edit any package.json:
 | Regex-based TOML parsing in consistency script | Used `re.match(r'^version\s*=\s*"([^"]+)"')` | Fragile: breaks on inline comments, multi-line strings, non-standard formatting | Use `tomllib` (stdlib since Python 3.11) for reliable TOML parsing |
 | Dependabot for Conan \| pixi \| FetchContent | Considered GitHub Dependabot as Renovate alternative | Dependabot has no native Conan, pixi, or FetchContent support | Renovate is the correct choice for C++ ecosystems |
 | Single Renovate config at meta-repo root covering all submodules | One `renovate.json` at Odysseus root | Submodules are separate git repos — Renovate needs a config per repo to open PRs | Use `ignorePaths` in the meta-repo config; put individual configs in each submodule |
+| Pinned a Mojo nightly (`==1.0.0b2.dev2026050805`) and deferred generating the lockfile | Left `pixi.lock` ungenerated for weeks after pinning the nightly toolchain build | The nightly was garbage-collected from `conda.modular.com/max`; `pixi install` then failed with `No candidates were found`. With no committed lockfile, the pin was unrecoverable — had to repin to a different build | Nightly/dev-build artifacts are GC'd from channels. Generate and commit the lockfile the moment the dependency is pinned, while the artifact still exists. Prefer pinning a release build over a dated nightly when reproducibility matters |
 
 ## Results & Parameters
 
@@ -356,6 +440,21 @@ to prevent scanning submodule directories — each submodule owns its own `renov
 | Dockerfile (`FROM`) | `dockerfile` | Yes |
 | Python (`pyproject.toml`) | `pep621` | Yes |
 
+### F. Pinned Nightly Artifact GC — Verified Facts
+
+| Fact | Detail |
+|------|--------|
+| No `pixi lock` subcommand | `pixi` (≤ 0.39.x) has no standalone `pixi lock` — verified: `pixi 0.39.5` → `pixi lock` errors with `unrecognized subcommand 'lock'`. The lockfile is generated only as a side effect of `pixi install` |
+| GC diagnosis signature | `pixi install` failing with `No candidates were found for <pkg> ==<exact-version>` means the *artifact* is unavailable, NOT that the manifest drifted (distinct from section A lockfile drift) |
+| Confirmation command | `pixi search <pkg> -c <channel>` — if the pinned version is absent from the search results, the artifact has been GC'd from the channel |
+| Recovery | Repin the manifest to the newest still-available build from `pixi search`, run `pixi install` to regenerate `pixi.lock`, commit the lockfile immediately |
+
+**Prevention rule:** generate and commit the lockfile the moment a dependency is
+pinned — especially for nightly/dev builds. The lockfile is the only durable record
+of the resolved artifact; once the nightly is GC'd, "lock it later" is no longer
+possible. Prefer pinning a release build over a dated nightly when reproducibility
+matters.
+
 ## Verified On
 
 | Project | Context | Details |
@@ -367,3 +466,4 @@ to prevent scanning submodule directories — each submodule owns its own `renov
 | ProjectScylla | Issue #1527 (PR #1557) — versioning remediation; 35 tests passing, all pre-commit hooks green | `importlib.metadata` + `tomllib` consistency checker |
 | ProjectScylla | Issue #1535 (PR #1562) — reconcile CHANGELOG aspirational versions; 4808 total tests passing | Phantom version refs replaced with `[Unreleased]` convention |
 | Odysseus / ProjectAgamemnon / ProjectNestor / ProjectCharybdis | Renovate multi-ecosystem C++20 config — Conan + FetchContent regex + pixi + GHA + Dockerfile | Unverified: app installation in progress |
+| predictive-coding research project | Mojo nightly `1.0.0b2.dev2026050805` GC'd from `conda.modular.com/max`; repinned to `1.0.0b1` and locked, 2026-05-19 | First `pixi install` failed with `No candidates were found`; no `pixi.lock` had ever been committed. Upstream dep (pinned git SHA) also pinned the GC'd nightly — repin was a documented deliberate divergence |

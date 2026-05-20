@@ -1,5 +1,78 @@
 # lockfile-and-release-pipeline-management — History
 
+## v1.1.0 (2026-05-19)
+
+**Changed by:** 2026-05-19 session — a pinned Mojo nightly was GC'd from the conda channel
+**Verification:** verified-local
+
+### What changed
+
+- Added Verified Workflow section **F — Pinned Nightly Artifact Garbage-Collected**
+  (diagnosis signature, `pixi search` confirmation, repin-and-lock recovery, the
+  transitive/upstream-divergence case) plus a section-F Quick Reference block
+- Added 1 Failed Attempts row: pinned a Mojo nightly (`==1.0.0b2.dev2026050805`)
+  and deferred generating the lockfile until the artifact was GC'd
+- Added a prevention note (lock the dependency immediately, prefer release builds
+  over nightlies) in section F and in Results & Parameters
+- Added Results & Parameters subsection **F. Pinned Nightly Artifact GC — Verified
+  Facts**: `pixi` (≤ 0.39.x) has no `pixi lock` subcommand (lock is a side effect of
+  `pixi install`); the GC diagnosis signature; `pixi search <pkg> -c <channel>` as
+  the confirmation command
+- Added a "When to Use" bullet and a `description` "Use when" clause (6) for the
+  GC'd-nightly failure mode
+- Added a "Verified On" row (predictive-coding research project, 2026-05-19)
+- New tags: `nightly-build`, `artifact-gc`, `unsolvable-pin`, `mojo`, `pixi-install`
+
+### Why
+
+The v1.0.0 skill covered lockfile *drift* (a generated lockfile out of sync with an
+unchanged manifest) and lockfile *regeneration*, but not the distinct, higher-severity
+failure where the pinned dependency itself is **unsolvable** because its artifact was
+garbage-collected from the channel. In a 2026-05-19 session a predictive-coding
+research project pinned its Mojo toolchain to a dated nightly
+(`mojo = "==1.0.0b2.dev2026050805"`); weeks later the first `pixi install` failed with
+`No candidates were found for mojo ==1.0.0b2.dev2026050805` — the nightly had been
+GC'd from `conda.modular.com/max`. With no `pixi.lock` ever committed, the pin was
+unrecoverable; the project's upstream dependency (consumed at a pinned git SHA) had
+pinned the same GC'd nightly, so matching upstream was not an option. Resolution was
+to repin to the newest still-available build (`1.0.0b1`), regenerate `pixi.lock`, and
+commit it — a documented deliberate divergence from the upstream pin. The transferable
+lesson — lock immediately while the artifact still exists, and prefer release builds
+over dated nightlies — belongs in this skill.
+
+### Previous version (v1.0.0) snapshot
+
+```yaml
+---
+name: lockfile-and-release-pipeline-management
+description: "Recover drifted lockfiles, resync dependency lockfiles after manifest edits, fix silent release recipe failures, enforce version single-source-of-truth, and configure Renovate for multi-ecosystem repos. Use when: (1) CI rejects a generated lockfile (pixi.lock, Cargo.lock, package-lock.json) and the source manifest is unchanged vs main, (2) editing package.json without regenerating package-lock.json causes npm ci EUSAGE failures, (3) `just release X.Y.Z` exits non-zero with 'nothing to commit' because pyprojects already have the target version, (4) project version is declared in multiple files that can drift and you need a single-source-of-truth strategy with pre-commit guards, (5) adding automated dependency updates (Renovate) to a C++20 repo with Conan, FetchContent, pixi, GHA, and Dockerfiles."
+category: ci-cd
+date: 2026-05-19
+version: "1.0.0"
+user-invocable: false
+history: lockfile-and-release-pipeline-management.history
+tags:
+  - lockfile
+  - pixi-lock
+  - cargo-lock
+  - package-lock
+  - drift-recovery
+  - npm-ci
+  - eusage
+  - release
+  - just
+  - bump-version
+  - git-tag
+  - versioning
+  - importlib-metadata
+  - pre-commit
+  - renovate
+  - conan
+  - fetchcontent
+  - tool-version-skew
+---
+```
+
 ## Superseded from restore-generated-file-from-main-verbatim
 
 ---
