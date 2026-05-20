@@ -1,0 +1,1971 @@
+# python-module-decomposition-and-refactor-patterns — History
+
+## Superseded from cluster-extraction-to-modules
+
+---
+name: cluster-extraction-to-modules
+description: Decompose a large Python class file (>1000 lines) by extracting cohesive
+  method clusters into dedicated sub-modules with thin delegation wrappers. Use when
+  a class file exceeds 1000 lines and contains 3+ independent method clusters.
+category: architecture
+date: 2026-03-05
+version: 1.0.0
+user-invocable: false
+tier: 2
+---
+# Cluster Extraction to Modules: Decomposing Large Class Files
+
+## Overview
+
+| Aspect | Details |
+| -------- | --------- |
+| **Date** | 2026-03-05 |
+| **Objective** | Reduce `implementer.py` from 1,221 to <1,000 lines by extracting method clusters into sub-modules |
+| **Outcome** | ✅ Success — 1,221 → 837 lines, 3 new modules, 37 new tests, 336 automation tests pass |
+| **Root Cause** | `IssueImplementer` class mixed 4 distinct concerns: retrospective lifecycle, follow-up issue creation, git/PR operations, and core orchestration |
+| **Solution** | Extract clusters into `retrospective.py`, `follow_up.py`, `pr_manager.py`; keep thin delegation wrappers in parent class |
+
+## Problem Statement
+
+When a class file grows past 1000 lines, it typically contains several independent method clusters:
+- Methods that share the same external dependency (e.g., all talk to the GitHub API)
+- Methods that share state only via parameters (not `self`)
+- Methods that could be unit-tested in isolation if they weren't bound to the class
+
+The challenge: extracting these methods while preserving:
+1. The existing public interface (callers use `instance.method()`)
+2. Existing tests that patch `module.implementer.run` style paths
+3. Type safety across module boundaries
+
+## When to Use This Skill
+
+Use this pattern when:
+- A class file exceeds 1,000 lines
+- You can identify 3+ clusters where methods share resources within the cluster but not across clusters
+- The clusters use different external APIs (one cluster = GitHub API, another = git CLI, another = Claude CLI)
+- Existing tests mock at the module level (not method level), making patch paths critical
+- You want to reduce file size without changing the class interface at all
+
+## Verified Workflow
+
+### Phase 1: Measure and Map (Read, Don't Write)
+
+```bash
+wc -l <target_file>.py  # confirm > 1000
+```
+
+Read the file and group methods into clusters:
+
+| Cluster | Methods | Shared resource | Lines |
+| --------- | --------- | ----------------- | ------- |
+| Retrospective | `_run_retrospective`, `_retrospective_needs_rerun` | Claude CLI | ~80 |
+| Follow-up | `_run_follow_up_issues`, `_parse_follow_up_items` | Claude CLI + GitHub API | ~150 |
+| PR/Git | `_commit_changes`, `_ensure_pr_created`, `_create_pr` | git CLI + GitHub API | ~190 |
+
+**Stop criterion**: Extract until `wc -l` < 1000. Apply YAGNI — stop extracting once the target is met.
+
+### Phase 2: Identify Import Changes Needed
+
+For each cluster, note which imports move from the parent to the new module:
+
+```bash
+# Check which symbols each cluster uses
+grep -n "gh_issue_create\|gh_issue_comment\|get_follow_up_prompt" implementer.py
+```
+
+After extraction, clean up unused imports in the parent file — ruff will catch them.
+
+### Phase 3: Extract Each Cluster (Largest Savings First)
+
+Create the new module **first**, self-contained, with no imports from the parent class:
+
+```python
+# scylla/automation/follow_up.py
+from .github_api import gh_issue_comment, gh_issue_create
+from .git_utils import run
+from .prompts import get_follow_up_prompt
+
+def parse_follow_up_items(text: str) -> list[dict[str, Any]]:
+    ...
+
+def run_follow_up_issues(
+    session_id: str,
+    worktree_path: Path,
+    issue_number: int,
+    state_dir: Path,
+    status_tracker: StatusTracker | None = None,
+    slot_id: int | None = None,
+) -> None:
+    ...
+```
+
+**Key**: Replace `self.state_dir`, `self.status_tracker` etc. with explicit parameters. This makes the extracted functions independently testable.
+
+### Phase 4: Replace Method Bodies with Delegation Wrappers
+
+In the parent class, keep the method signature but delegate to the extracted function:
+
+```python
+# implementer.py — thin wrapper preserves the public interface
+def _run_follow_up_issues(
+    self,
+    session_id: str,
+    worktree_path: Path,
+    issue_number: int,
+    slot_id: int | None = None,
+) -> None:
+    """Resume Claude session to identify and file follow-up issues."""
+    run_follow_up_issues(
+        session_id,
+        worktree_path,
+        issue_number,
+        self.state_dir,
+        self.status_tracker,
+        slot_id,
+    )
+```
+
+Add the import at the top of the parent file:
+```python
+from .follow_up import parse_follow_up_items, run_follow_up_issues
+```
+
+### Phase 5: Clean Up Parent Imports
+
+After each extraction, check for newly unused imports:
+
+```bash
+# Symbols that moved out of implementer.py:
+grep -n "gh_issue_create\|gh_issue_comment\|get_follow_up_prompt\|re\." implementer.py
+```
+
+Remove them — ruff's `F401` will catch any misses during pre-commit.
+
+### Phase 6: Fix Existing Tests (Critical)
+
+Existing tests that patch at the module level will break because the code moved:
+
+```python
+# BEFORE: patched in implementer, where the code lived
+patch("scylla.automation.implementer.run")
+patch("scylla.automation.implementer.gh_issue_create")
+
+# AFTER: patch in the module where the code now lives
+patch("scylla.automation.follow_up.run")
+patch("scylla.automation.follow_up.gh_issue_create")
+```
+
+**How to find all affected tests**: Run the test suite and look for `AssertionError: Expected 'run' to have been called once. Called 0 times.` — this is the signature of a wrong patch path.
+
+### Phase 7: Write New Unit Tests
+
+Write tests for the extracted functions, not the delegation wrappers:
+
+```python
+# tests/unit/automation/test_follow_up.py
+from scylla.automation.follow_up import parse_follow_up_items, run_follow_up_issues
+
+class TestParseFollowUpItems:
+    def test_parses_json_in_code_block(self) -> None:
+        text = '```json\n[{"title": "T1", "body": "B1"}]\n```'
+        items = parse_follow_up_items(text)
+        assert items[0]["title"] == "T1"
+
+class TestRunFollowUpIssues:
+    def test_creates_issues_and_posts_summary(self, tmp_path: Path) -> None:
+        with (
+            patch("scylla.automation.follow_up.run", return_value=mock_result),
+            patch("scylla.automation.follow_up.gh_issue_create", side_effect=[101, 102]),
+            patch("scylla.automation.follow_up.gh_issue_comment") as mock_comment,
+        ):
+            run_follow_up_issues("sess", worktree_path, 42, tmp_path)
+        mock_comment.assert_called_once()
+```
+
+### Phase 8: Run Pre-commit (Twice Expected)
+
+```bash
+SKIP=audit-doc-policy pre-commit run --files \
+  <package>/implementer.py \
+  <package>/follow_up.py \
+  <package>/retrospective.py \
+  <package>/pr_manager.py \
+  tests/unit/<package>/test_follow_up.py \
+  tests/unit/<package>/test_pr_manager.py \
+  tests/unit/<package>/test_retrospective.py
+```
+
+First run: ruff auto-fixes imports. Second run: all hooks pass.
+
+**Common mypy issues**:
+- `"object" has no attribute "update_slot"` — use the concrete type (`StatusTracker | None`) instead of `object | None`
+- `Missing type parameters for generic type "dict"` — use `dict[str, Any]` not bare `dict`
+
+### Phase 9: Verify
+
+```bash
+wc -l <package>/implementer.py           # must be < 1000
+pixi run python -c "from <package>.implementer import IssueImplementer; print('OK')"
+pixi run python -c "from <package>.follow_up import parse_follow_up_items; print('OK')"
+pixi run python -m pytest tests/unit/<package>/ -q  # all tests pass
+```
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| **`object` type for status_tracker** | Used `status_tracker: object \| None` to avoid importing `StatusTracker` | mypy error: `"object" has no attribute "update_slot"` — `object` is too broad | Import the concrete type; the module already imports from the same package so there's no circular import risk |
+| **Bare `dict` in test helper** | Wrote `def _make_output(items: list[dict]) -> str` | mypy `type-arg` error: generic type needs params | Use `list[dict[str, Any]]` consistently |
+| **Forgetting to update existing test patch paths** | Left `patch("scylla.automation.implementer.run")` for methods that moved to `follow_up.py` | Test passes Python import but mock is never triggered — `AssertionError: Called 0 times` | Always grep for module-level patches in existing tests when extracting code to a new module |
+| **Extracting all clusters before checking line count** | Planned to extract all 3 clusters unconditionally | Premature — checking after each extraction shows whether target is met; avoids over-engineering | Apply YAGNI: check `wc -l` after each cluster extraction; stop when < 1000 |
+| **Using `object` type for collaborator param** | Typed workspace_manager as `object` to avoid circular imports | mypy: `"object" has no attribute "create_worktree"` — `object` is too permissive | Use `TYPE_CHECKING` guard: `if TYPE_CHECKING: from .workspace_manager import WorkspaceManager`; then use `WorkspaceManager` as the type annotation |
+| **Inlining delegation shells that tests mock** | Removed `_write_pid_file` and `_cleanup_pid_file` methods to reduce line count | Existing tests used `patch.object(runner, "_write_pid_file")` — removing the method broke 9 tests with `AttributeError: does not have the attribute '_write_pid_file'` | Retain thin delegation wrappers when existing tests mock them by name; the 6-line cost is worth the compatibility |
+| **Patching wrong logger after extraction** | Left `patch("scylla.e2e.runner.logger")` in test for warnings now logged by the extracted class | Test failed: mock showed 0 warning calls because warning was emitted from `scylla.e2e.checkpoint_finalizer.logger` | After each extraction, grep existing tests for `patch("…old_module.logger")` and update to the new module's logger |
+
+## Key Decisions
+
+| Decision | Rationale |
+| ---------- | ----------- |
+| **Keep thin delegation wrappers** | Preserves the existing public interface — callers and tests that use `instance._run_retrospective()` continue to work unchanged |
+| **Extract to module-level functions, not classes** | Methods only used `self.state_dir` and `self.status_tracker` — passing these as parameters is simpler than creating a new class |
+| **Explicit parameters over `self`** | `run_retrospective(session_id, worktree_path, issue_number, state_dir, slot_id)` is independently unit-testable; no need to construct a full `IssueImplementer` |
+| **Largest savings first** | Extract the cluster that saves the most lines first; stop when the target line count is met |
+| **Don't re-export extracted symbols** | Only the delegation wrappers exist in the parent — no need for `from .follow_up import run_follow_up_issues as run_follow_up_issues` public re-exports since the symbols were always private |
+
+## Implementation Checklist
+
+- [ ] `wc -l` confirms file exceeds target (e.g., 1000 lines)
+- [ ] Identify 2+ method clusters with clear ownership boundaries
+- [ ] For each cluster (largest savings first):
+  - [ ] Create new module with no imports from parent
+  - [ ] Convert `self.X` references to explicit parameters
+  - [ ] Add import in parent and replace method body with delegation wrapper
+  - [ ] Run smoke test: `python -c "from <package>.<module> import <fn>; print('OK')"`
+  - [ ] Check `wc -l` — stop if target reached (YAGNI)
+- [ ] Remove unused imports from parent (ruff catches misses)
+- [ ] Update existing test patch paths for moved code
+- [ ] Write new unit tests for extracted functions (patch at new module location)
+- [ ] Run pre-commit twice; fix mypy type annotation issues
+- [ ] Run full test suite; verify coverage threshold passes
+
+## Results & Parameters
+
+**Files created** (3 new modules):
+- `<package>/retrospective.py` — `run_retrospective()`, `retrospective_needs_rerun()`
+- `<package>/follow_up.py` — `run_follow_up_issues()`, `parse_follow_up_items()`
+- `<package>/pr_manager.py` — `ensure_pr_created()`, `create_pr()`, `commit_changes()`
+
+**Files modified**:
+- `<package>/implementer.py` — 1,221 → 837 lines (−384); thin delegation wrappers only
+- `tests/unit/<package>/test_implementer.py` — 10 patch paths updated to new module locations
+
+**New tests**: 37 unit tests across 3 new test files, all passing
+
+**Pre-commit**: All hooks pass after 2 runs (ruff auto-fixes on first)
+
+## Variant: Class-Based Extraction with Factory Methods
+
+When the extracted cluster needs access to multiple `self` attributes that form a natural object
+(e.g., `self.config` + `self.results_base_dir`), extract into a **collaborator class** instead
+of module-level functions.
+
+```python
+# New collaborator class
+class ExperimentSetupManager:
+    def __init__(self, config: ExperimentConfig, results_base_dir: Path) -> None:
+        self.config = config
+        self.results_base_dir = results_base_dir
+
+    def create_experiment_dir(self) -> Path: ...
+    def copy_grading_materials(self, experiment_dir: Path) -> None: ...
+    def save_config(self, experiment_dir: Path) -> None: ...
+    def capture_baseline(self, experiment_dir: Path, workspace_manager: WorkspaceManager) -> None: ...
+    def write_pid_file(self, experiment_dir: Path) -> None: ...
+    def cleanup_pid_file(self, experiment_dir: Path) -> None: ...
+
+# Factory method in parent class
+def _setup_manager(self) -> ExperimentSetupManager:
+    """Create an ExperimentSetupManager bound to current state."""
+    return ExperimentSetupManager(self.config, self.results_base_dir)
+
+# Delegation in parent (retains method for backward compat with test mocks)
+def _write_pid_file(self) -> None:
+    """Write PID file for status monitoring."""
+    if self.experiment_dir:
+        self._setup_manager().write_pid_file(self.experiment_dir)
+```
+
+**When to choose class-based over function-based**:
+- The cluster needs 2+ `self` attributes that always travel together
+- The extracted methods form a coherent lifecycle (init → use → cleanup)
+- Existing tests mock the parent's delegation methods by name (keep them for compat)
+
+**Critical: `TYPE_CHECKING` for collaborator type hints** — if the collaborator accepts a type
+from a module that would create a circular import, use `TYPE_CHECKING`:
+
+```python
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from scylla.e2e.workspace_manager import WorkspaceManager
+
+def capture_baseline(self, experiment_dir: Path, workspace_manager: WorkspaceManager) -> None:
+    ...
+```
+
+Using `object` as the type causes `"object" has no attribute 'create_worktree'` mypy errors.
+
+**Delegation method retention** — if existing tests patch `patch.object(runner, "_write_pid_file")`,
+keep the delegation shell. Removing it to inline the call breaks those tests.
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| ProjectScylla | PR #1444 — decompose `scylla/automation/implementer.py` 1221→837 lines | [notes.md](../references/notes.md) |
+| ProjectScylla | PR #1468 — decompose `scylla/e2e/runner.py` 1230→999 lines (class-based variant) | [runner-notes.md](../references/runner-notes.md) |
+
+---
+
+## Superseded from collaborator-extraction-tdd
+
+---
+name: collaborator-extraction-tdd
+description: 'TRIGGER CONDITIONS: Extracting method groups from an oversized class
+  (>800 lines) into dedicated collaborator classes using TDD. Use when: (1) a class
+  has grown beyond its target line count and contains identifiable method groups with
+  shared state, (2) extracting without behavior change (pure structural refactoring),
+  (3) avoiding circular imports between the host class and extracted collaborators.'
+category: architecture
+date: 2026-02-28
+version: 1.0.0
+user-invocable: false
+---
+# collaborator-extraction-tdd
+
+TDD-first pattern for extracting method groups from a large class into dedicated collaborator classes, with explicit dependency injection and zero behavior change.
+
+## Overview
+
+| Item | Details |
+| ------ | --------- |
+| Date | 2026-02-28 |
+| Objective | Reduce `runner.py` from 1527 lines to <1000 lines by extracting three method groups into collaborator classes |
+| Outcome | Success — 1105 lines (-422 lines, -28%). All 3326 tests pass. All pre-commit hooks pass. |
+
+## When to Use
+
+- A class exceeds its target line count (e.g. 800-line guideline) and has identifiable method groups
+- The method groups share only a subset of the class's state (not the full `self`)
+- You want zero behavior change — pure structural extraction
+- You need to avoid circular imports between the extracted class and its host
+- The host class uses closures or callbacks that can be injection-injected instead
+
+## Verified Workflow
+
+### 1. Measure and Identify Method Groups
+
+```bash
+# Measure current size
+wc -l scylla/e2e/runner.py
+
+# Find largest methods
+python3 -c "
+import ast
+with open('scylla/e2e/runner.py') as f:
+    src = f.read()
+tree = ast.parse(src)
+funcs = []
+for node in ast.walk(tree):
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        end = node.end_lineno or node.lineno
+        funcs.append((end - node.lineno + 1, node.lineno, node.name))
+for size, lineno, name in sorted(funcs, reverse=True)[:15]:
+    print(f'{size:4d} lines  line {lineno:4d}  {name}')
+"
+```
+
+Identify groups where:
+- Methods share a focused subset of the host class's state
+- The group has a clear single responsibility
+- Methods call each other but not the rest of the host class
+
+### 2. Design the Collaborator Interface (Dependency Injection)
+
+Each collaborator receives **only what it needs** as explicit constructor args — never the full host class reference. Map host `self.X` → explicit arg `X`:
+
+```python
+class TierActionBuilder:
+    def __init__(
+        self,
+        tier_id: TierID,
+        config: ExperimentConfig,       # was self.config
+        tier_manager: TierManager,      # was self.tier_manager
+        save_tier_result_fn: Callable,  # was self._save_tier_result (injected callback)
+        ...
+    ) -> None: ...
+```
+
+**Key rule**: For callbacks that would cause circular coupling (host method passed to collaborator), inject them as `Callable` parameters rather than passing a host reference.
+
+### 3. Write Failing Tests First (Red Phase)
+
+```bash
+# Create test file and run - expect ImportError (module doesn't exist yet)
+pixi run python -m pytest tests/unit/e2e/test_tier_action_builder.py -x
+```
+
+**Critical test patterns:**
+
+```python
+# Always create real Pydantic models — MagicMock won't pass validation
+def _make_subtest_result(subtest_id: str = "00", **kwargs) -> SubTestResult:
+    return SubTestResult(
+        subtest_id=subtest_id,
+        tier_id=TierID.T0,
+        runs=[],
+        pass_rate=0.5,
+        mean_cost=0.01,
+        total_cost=0.02,
+        token_stats=TokenStats(),
+        **kwargs,
+    )
+
+# ExperimentConfig requires ALL fields: experiment_id, task_repo, task_commit,
+# task_prompt_file, language — omitting any causes pydantic ValidationError
+config = ExperimentConfig(
+    experiment_id="test-exp",
+    task_repo="https://github.com/test/repo",
+    task_commit="abc123",
+    task_prompt_file=Path("/tmp/prompt.md"),
+    language="python",
+)
+```
+
+### 4. Create the Collaborator Module (Green Phase)
+
+Move closures and methods verbatim. Replace `self.X` with constructor-injected equivalents.
+
+**Circular import avoidance** — if the collaborator needs a function from the host module, use a lazy local import inside the method body:
+
+```python
+# In parallel_tier_runner.py — avoids circular import with runner.py
+def execute_tier_groups(self, ...) -> dict:
+    from scylla.e2e.runner import is_shutdown_requested  # lazy import
+    for group in tier_groups:
+        if is_shutdown_requested():
+            break
+        ...
+```
+
+### 5. Wire Back with Thin Delegation
+
+Replace extracted method bodies in the host class with 1-line delegation:
+
+```python
+def _build_tier_actions(self, tier_id, baseline, scheduler, tier_ctx):
+    return TierActionBuilder(
+        tier_id=tier_id,
+        config=self.config,
+        tier_manager=self.tier_manager,
+        save_tier_result_fn=self._save_tier_result,
+        ...
+    ).build()
+```
+
+### 6. Update Affected Tests
+
+When methods move, update:
+- **Patch targets**: `scylla.e2e.runner.run_tier_subtests_parallel` → `scylla.e2e.tier_action_builder.run_tier_subtests_parallel`
+- **Direct method calls**: `runner._select_best_baseline_from_group()` → `ParallelTierRunner(...).select_best_baseline_from_group()`
+- **Test class rewrites**: If a test class tests a method that moved, rewrite it to instantiate the collaborator directly
+
+### 7. Fix Mypy Issues in Tests
+
+Common mypy errors after extraction:
+
+| Error | Fix |
+| ------- | ----- |
+| `Item "None" of "X \| None" has no attribute "Y"` | Add `assert obj is not None` before accessing attributes |
+| `Unexpected keyword argument "cost_of_pass"` for `TierResult` | `cost_of_pass` is a `@property`, not a field — remove from constructor |
+| `Argument "run_tier_fn" has incompatible type "Callable"` | Broaden type hint: `Callable[..., TierResult] \| MagicMock \| None` |
+| `F841 Local variable assigned to but never used` | Remove the unused variable entirely |
+
+### 8. Verify
+
+```bash
+# Import smoke test
+pixi run python -c "from scylla.e2e.runner import E2ERunner; print('OK')"
+pixi run python -c "from scylla.e2e.tier_action_builder import TierActionBuilder; print('OK')"
+
+# Full test suite
+pixi run python -m pytest tests/ -x -q --tb=short
+
+# Pre-commit (mypy, ruff, black)
+pre-commit run --all-files
+
+# Final line count
+wc -l scylla/e2e/runner.py
+```
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| N/A | Direct approach worked | N/A | Solution was straightforward |
+## Results & Parameters
+
+```text
+# Extraction results for runner.py → 3 collaborators
+runner.py baseline:  1527 lines
+After PR-A (TierActionBuilder):   -~175 lines (includes 34-line stub + docstring)
+After PR-B (ParallelTierRunner):  -~170 lines (includes 24-line stub)
+After PR-C (ExperimentResultWriter): -~77 lines (includes delegation stubs)
+Final runner.py: 1105 lines (-422 lines, -28%)
+
+# Test impact
+New test files: 3
+New tests added: 69 (27 + 19 + 23)
+Total tests: 3326 (was 3257)
+Coverage: 79.27% (threshold: 75%)
+```
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| ProjectScylla | Issue #1146, PR #1230 | [notes.md](collaborator-extraction-tdd.notes.md) |
+
+## References
+
+- Related skills: `extract-method-refactoring`, `dry-refactoring-workflow`, `state-machine-wiring`
+- Issue: HomericIntelligence/ProjectScylla#1146
+- PR: HomericIntelligence/ProjectScylla#1230
+
+---
+
+## Superseded from module-decomposition-pattern
+
+---
+name: module-decomposition-pattern
+description: 'Decompose large Python modules (1000+ lines) into focused sub-modules
+  while preserving backward compatibility, updating all import sites or re-exporting
+  from the original, and fixing mock patch targets in tests. Use when a single file
+  has 4+ logical clusters of functions with distinct responsibilities.
+
+  '
+category: architecture
+date: 2026-03-10
+version: 2.0.0
+user-invocable: false
+---
+# Skill: Module Decomposition Pattern
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| Date | 2026-03-10 |
+| Project | ProjectScylla |
+| Objective | Decompose `scylla/e2e/llm_judge.py` (1,488 lines, 35 functions) into 4 focused modules + slimmed orchestrator |
+| Outcome | Success - 142-line orchestrator + 4 modules, all 4,788 tests pass, all pre-commit hooks pass |
+| Issue | HomericIntelligence/ProjectScylla#1446 |
+
+## When to Use
+
+Use this skill when:
+- A Python module exceeds ~500 lines with 4+ logical clusters of functions
+- Functions within the module have distinct responsibilities (e.g., pipeline execution vs. log saving)
+- Other modules use lazy imports (`from X import Y` inside function bodies) to access private functions
+- The module has a large corresponding test file with many `patch()` targets
+- You want to improve navigability without changing any behavior
+
+## Key Decisions
+
+### 1. Update import sites vs. re-export from original module
+
+**Choose "update import sites"** (Option 2) when:
+- There are a manageable number of import sites (< 20)
+- Imports are lazy (inside function bodies), making updates safe
+- You want to avoid the re-export anti-pattern
+
+**Choose "re-export from original"** (Option 1) when:
+- The module is a public API with many external consumers
+- You cannot enumerate all import sites (e.g., third-party packages)
+- `mypy` uses `implicit_reexport=false` (requires explicit `import X as X` syntax — see below)
+
+#### The `import X as X` re-export pattern (required for mypy)
+
+When `mypy` runs with `implicit_reexport=false`, a bare `from module import X` does NOT
+re-export `X` — external consumers get `Module has no attribute 'X'` errors.
+
+Use the explicit re-export syntax:
+
+```python
+# In the original file (e.g., stages.py)
+from scylla.e2e.stage_finalization import (
+    stage_cleanup_worktree as stage_cleanup_worktree,  # re-exported
+    stage_finalize_run as stage_finalize_run,           # re-exported
+    stage_write_report as stage_write_report,           # re-exported
+)
+```
+
+This satisfies mypy AND keeps all existing consumer imports working.
+
+### 2. Handle circular imports with TYPE_CHECKING
+
+When decomposing, circular imports often arise (e.g., Module A defines a model, Module B returns it, Module A calls Module B). Solve with:
+
+```python
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from original_module import MyModel
+
+def my_function() -> MyModel:  # String annotation via __future__
+    from original_module import MyModel  # Runtime import
+    return MyModel(...)
+```
+
+### 3. Keep public API exports in the original module
+
+Models and orchestrator functions that are part of the public API (`__init__.py` exports) stay in the original module. Only move private implementation functions.
+
+### 4. Identify cohesive function groups first
+
+Before writing any code, map all top-level functions to logical groups. Good decomposition boundaries:
+
+| Pattern | Signal |
+| --------- | -------- |
+| Functions share a common prefix (e.g., `_build_*`, `_finalize_*`) | Extract to one module |
+| Functions share a common type they operate on (`ProgressStep`, `ChangeResult`) | Extract together |
+| Functions only called from one stage of a pipeline | Extract to that stage's module |
+| Functions are pure helpers (no side effects) vs. I/O-heavy functions | Split on this boundary |
+
+### 5. New module naming conventions
+
+| Content | Module name pattern |
+| --------- | --------------------- |
+| Private helpers for `foo.py` | `foo_sections.py` or `foo_helpers.py` |
+| Stage-specific logic extracted from `stages.py` | `stage_<topic>.py` |
+| Hierarchical save functions | `foo_hierarchy.py` |
+| Process metrics helpers | `stage_process_metrics.py` |
+
+## Verified Workflow
+
+### Step 1 - Map all import sites
+
+Before writing any code, find every file that imports from the target module:
+
+```bash
+grep -rn "from package.module import" --include="*.py"
+grep -rn 'patch("package.module.' --include="*.py"
+```
+
+Categorize each import into the target cluster (pipeline, context, execution, artifacts, etc.).
+
+### Step 2 - Identify clusters and cross-dependencies
+
+Group functions by responsibility. Check for cross-cluster calls:
+
+```bash
+grep -n "^def \|^class " module.py
+```
+
+Order extraction: start with modules that have no cross-cluster dependencies (leaf modules first).
+
+### Step 3 - Create new modules one at a time
+
+For each new module:
+1. Write the file with moved functions and their imports
+2. Update source import sites (`from new_module import func`)
+3. Update test import sites (both `from` imports AND `patch()` targets)
+4. Run tests: `pytest tests/unit/relevant/ -x -q`
+
+### Step 4 - Update mock patch targets (CRITICAL)
+
+`patch("old.module.func")` must change to `patch("new.module.func")`. Search for ALL occurrences:
+
+```bash
+grep -rn 'patch("package.old_module.' tests/
+```
+
+**Common mistake**: Only updating `test_old_module.py` but missing patch targets in `test_other.py` files that also mock functions from the decomposed module.
+
+### Step 5 - Fix mypy type errors
+
+Moving functions that return types defined in the original module often causes `no-any-return` errors. Fix with `TYPE_CHECKING` imports and proper return type annotations instead of `-> Any`.
+
+### Step 6 - Final verification
+
+```bash
+pre-commit run --all-files
+pytest tests/ -x -q
+wc -l original_module.py new_module_*.py
+```
+
+---
+
+### Re-export Approach (Alternative Workflow)
+
+Use this when preserving all existing import paths (Option 1 from Key Decision #1).
+
+#### Step 1 — Measure and map
+
+```bash
+wc -l scylla/e2e/stages.py scylla/e2e/run_report.py
+grep -n "^def \|^class " scylla/e2e/stages.py
+```
+
+List all functions. Group them logically. Estimate line ranges.
+
+#### Step 2 — Create the new module(s) first
+
+Write the new module as a standalone file with:
+- Its own module docstring explaining what it contains
+- All required imports (NOT inherited from the original module)
+- Verbatim copies of the extracted functions
+
+**Critical**: The new module is self-contained. It cannot import from the original module
+(circular import risk). If it needs a type defined in the original, use `TYPE_CHECKING`.
+
+```python
+# stage_process_metrics.py
+"""Process metrics helpers extracted from stages.py."""
+
+from __future__ import annotations
+import json
+import subprocess
+from pathlib import Path
+from scylla.metrics.process import ChangeResult, ProgressStep  # direct imports
+
+def _get_diff_stat(workspace: Path) -> dict[str, tuple[int, int]]:
+    ...
+```
+
+#### Step 3 — Update the original file with re-exports
+
+In the original file:
+1. Add re-export imports at the top (after existing imports)
+2. Delete the function bodies (use editor's exact text match)
+3. Remove unused imports that the deleted functions relied on
+
+```python
+# stages.py — add re-exports
+from scylla.e2e.stage_process_metrics import (
+    _get_diff_stat as _get_diff_stat,
+    _build_change_results as _build_change_results,
+    ...
+)
+
+# stages.py — remove these (now unused by remaining code)
+# import subprocess  ← still used by stage_generate_replay, keep it
+# import dataclasses ← only used by extracted stage_finalize_run, remove it
+```
+
+**Tip**: After deleting function bodies, run `grep -n "ProcessMetrics\|dataclasses\." stages.py`
+to verify which removed imports are still referenced.
+
+**Danger**: Forgetting to remove now-unused top-level imports will cause ruff `F401` (unused import) errors.
+
+#### Step 4 — Verify imports before running tests
+
+```bash
+pixi run python -c "from scylla.e2e.stages import stage_finalize_run, RunContext; print('OK')"
+pixi run python -c "from scylla.e2e.run_report import save_subtest_report; print('OK')"
+```
+
+#### Step 5 — Run tests
+
+```bash
+pixi run python -m pytest tests/unit/ -x -q
+```
+
+#### Step 6 — Run pre-commit (expect auto-fixes on first run)
+
+```bash
+SKIP=audit-doc-policy pre-commit run --files <all modified/new files>
+# Ruff will auto-fix import order and unused imports — run again to confirm clean
+SKIP=audit-doc-policy pre-commit run --files <all modified/new files>
+```
+
+**Expect 2 rounds**: ruff reformats on round 1, passes on round 2. Normal behavior.
+
+#### Step 7 — Verify final line counts
+
+```bash
+wc -l scylla/e2e/stages.py scylla/e2e/run_report.py
+# Both must be < 1,000
+```
+
+## Results & Parameters
+
+### Files created/modified (Issue #1446 — update import sites approach)
+
+| File | Lines | Role |
+| ------ | ------- | ------ |
+| `llm_judge.py` (was 1,488) | 142 | Orchestrator: JudgeResult model + run_llm_judge() |
+| `build_pipeline.py` (new) | 548 | BuildPipelineResult + 13 pipeline functions |
+| `judge_context.py` (new) | 334 | 7 workspace context/assembly functions |
+| `judge_execution.py` (new) | 259 | 3 judge execution/parsing functions |
+| `judge_artifacts.py` (new) | 295 | 10 log/script saving functions |
+
+### Import sites updated (Issue #1446)
+
+| File | Import changed |
+| ------ | --------------- |
+| `stages.py` | 5 lazy imports |
+| `stage_finalization.py` | 2 lazy imports |
+| `rerun_judges.py` | 1 lazy import |
+| `experiment_setup_manager.py` | 1 lazy import |
+| `regenerate.py` | 1 lazy import |
+| `judge_runner.py` | 1 TYPE_CHECKING import |
+| `subtest_executor.py` | 2 imports |
+| `__init__.py` | 0 (JudgeResult/run_llm_judge stayed) |
+
+### Test files updated (Issue #1446)
+
+| File | Changes |
+| ------ | --------- |
+| `test_llm_judge.py` | Import block rewritten (4 source modules), 12 patch targets updated |
+| `test_stages.py` | 10 patch targets updated |
+| `test_stage_finalization.py` | 2 patch targets updated |
+| `test_experiment_setup_manager.py` | 4 patch targets updated |
+| `test_baseline_regression.py` | 1 import updated |
+| `test_subtest_executor.py` | 1 import updated |
+
+### Files created in Issue #1359 / PR #1392 — re-export approach
+
+| New File | Lines | Extracted Content |
+| ---------- | ------- | ------------------- |
+| `scylla/e2e/stage_process_metrics.py` | 309 | `_get_diff_stat`, `_parse_diff_numstat_output`, `_load_process_metrics_from_run_result`, `_build_change_results`, `_build_progress_steps`, `_finalize_change_results`, `_finalize_progress_steps` |
+| `scylla/e2e/stage_finalization.py` | 438 | `stage_execute_judge`, `stage_finalize_run`, `stage_write_report`, `stage_cleanup_worktree` |
+| `scylla/e2e/run_report_sections.py` | 600 | All `_generate_*` and `_format_*` private helpers + `_get_workspace_files` |
+| `scylla/e2e/run_report_hierarchy.py` | 599 | `save_run_report_json`, `save_subtest_report`, `save_tier_report`, `save_experiment_report`, `generate_tier_summary_table`, `generate_experiment_summary_table` |
+
+### Before / After (Issue #1359 / PR #1392)
+
+| File | Before | After | Reduction |
+| ------ | -------- | ------- | ----------- |
+| `stages.py` | 1,534 | 855 | −44% |
+| `run_report.py` | 1,385 | 289 | −79% |
+
+### Ruff rules triggered
+
+| Rule | Context | Fix |
+| ------ | --------- | ----- |
+| `F401` | Unused imports left after body deletion when using re-export approach | Remove the import |
+| `I001` | Import order changed by adding new re-exports | Ruff auto-fixes |
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| N/A | Direct approach worked | N/A | Solution was straightforward |
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| ProjectScylla | Issue #1446 - llm_judge.py decomposition (update import sites) | [notes.md](../references/notes.md) |
+| ProjectScylla | Issue #1359, PR #1392 - stages.py/run_report.py decomposition (re-export) | [notes.md](../references/notes.md) |
+
+---
+
+## Superseded from single-responsibility-extraction
+
+---
+name: single-responsibility-extraction
+description: Extracting a complex multi-concern method into a dedicated collaborator
+  class using TDD. Use when a method violates SRP, triggers complexity suppressions
+  (C901), or mixes 3+ distinct concerns.
+category: architecture
+date: 2026-02-27
+version: 1.0.0
+mcp_fallback: none
+tier: 2
+---
+# Single-Responsibility Extraction: Decomposing Complex Methods into Collaborator Classes
+
+## Overview
+
+| Aspect | Details |
+| -------- | --------- |
+| **Date** | 2026-02-27 |
+| **Objective** | Extract a 170-line multi-concern method (`_initialize_or_resume_experiment`) into a dedicated `ResumeManager` class with 4 focused methods |
+| **Outcome** | ✅ Success — runner.py reduced 1638→1509 lines, 26 new tests, all 3211 existing tests pass, 78.46% coverage |
+| **Root Cause** | `_initialize_or_resume_experiment()` mixed 4 distinct concerns: CLI arg restoration, failed-state reset, tier merging, and incomplete-run detection |
+| **Solution** | `ResumeManager` collaborator class with `restore_cli_args()`, `reset_failed_states()`, `merge_cli_tiers_and_reset_incomplete()`, `check_tiers_need_execution()` |
+
+## Problem Statement
+
+When a method grows to combine multiple concerns:
+1. It triggers linting complexity suppressions (`# noqa: C901`)
+2. Unit testing becomes hard — you must set up all concerns to test any one
+3. The parent class accumulates private helpers that belong elsewhere
+4. Changes to one concern risk breaking unrelated ones
+
+In this case, `_initialize_or_resume_experiment()` combined:
+1. **CLI arg restoration** — reapply CLI `--until` flags over checkpoint-loaded config
+2. **Failed-state reset** — reset `failed`/`interrupted` experiment/tier/subtest states
+3. **Tier merging** — add new CLI-specified tiers not in the saved checkpoint
+4. **Incomplete detection** — detect which tiers need re-execution and reset their states
+
+## When to Use This Skill
+
+Use this pattern when:
+- A method has `# noqa: C901` (McCabe complexity) suppression
+- A method is >100 lines and handles 3+ distinct logical steps
+- Helper methods on the parent class are only called from one method
+- The method is hard to unit test without setting up unrelated concerns
+- You want to reduce a large file's line count without breaking the API
+
+## Verified Workflow
+
+### Phase 1: Identify Concerns (Read, Don't Write)
+
+Read the target method carefully and label each logical block with a concern:
+
+```python
+# CONCERN 1: CLI arg restoration
+non_none = {k: v for k, v in cli_ephemeral.items() if v is not None}
+self.config = self.config.model_copy(update=non_none)
+
+# CONCERN 2: Failed-state reset
+if self.checkpoint.experiment_state in ("failed", "interrupted"):
+    self.checkpoint.experiment_state = "tiers_running"
+    ...
+
+# CONCERN 3 & 4: Tier merging + incomplete detection
+new_tiers = [t for t in cli_tiers if t.value not in existing_tier_ids]
+...
+needs_execution = self._check_tiers_need_execution(cli_tiers)
+```
+
+Also identify **private helpers** that belong to the extracted class:
+- `_check_tiers_need_execution()` — only called from step 4
+- `_subtest_has_incomplete_runs()` — only called from step 4
+
+### Phase 2: Write Tests First (TDD)
+
+Write tests **before** creating the class. This forces the API design:
+
+```python
+# tests/unit/e2e/test_resume_manager.py
+from scylla.e2e.resume_manager import ResumeManager
+
+def test_restore_cli_args_non_none_overrides():
+    rm = ResumeManager(checkpoint, config, tier_manager)
+    config, _ = rm.restore_cli_args({"max_subtests": 5})
+    assert config.max_subtests == 5
+
+def test_restore_cli_args_none_keeps_saved():
+    config_with_saved = config.model_copy(update={"max_subtests": 3})
+    rm = ResumeManager(checkpoint, config_with_saved, tier_manager)
+    config, _ = rm.restore_cli_args({"max_subtests": None})
+    assert config.max_subtests == 3  # None CLI doesn't override
+```
+
+**Key design choice**: Methods return `(config, checkpoint)` tuples rather than mutating self. This makes tests trivial — no need to inspect internal state.
+
+### Phase 3: Implement the Collaborator Class
+
+```python
+# scylla/e2e/resume_manager.py
+
+class ResumeManager:
+    """Manages experiment resume logic.
+
+    Receives checkpoint, config, and tier_manager as collaborators.
+    Methods return updated (config, checkpoint) tuples.
+    """
+
+    def __init__(self, checkpoint, config, tier_manager):
+        self.checkpoint = checkpoint
+        self.config = config
+        self.tier_manager = tier_manager
+
+    def restore_cli_args(self, cli_ephemeral):
+        non_none = {k: v for k, v in cli_ephemeral.items() if v is not None}
+        if non_none:
+            self.config = self.config.model_copy(update=non_none)
+        return self.config, self.checkpoint
+
+    def reset_failed_states(self):
+        if self.checkpoint.experiment_state not in ("failed", "interrupted"):
+            return self.config, self.checkpoint
+        # ... reset logic ...
+        return self.config, self.checkpoint
+
+    def merge_cli_tiers_and_reset_incomplete(self, cli_tiers, checkpoint_path):
+        # ... merge + detect + save ...
+        return self.config, self.checkpoint
+```
+
+### Phase 4: Wire into Parent Class
+
+Replace the method body with a thin shell that delegates to `ResumeManager`:
+
+```python
+def _initialize_or_resume_experiment(self) -> Path:
+    checkpoint_path = self._find_existing_checkpoint()
+
+    if checkpoint_path and not self._fresh:
+        _cli_tiers = list(self.config.tiers_to_run)
+        _cli_ephemeral = {
+            "until_run_state": self.config.until_run_state,
+            "max_subtests": self.config.max_subtests,
+            # ...
+        }
+
+        try:
+            self._load_checkpoint_and_config(checkpoint_path)
+            # ... zombie check ...
+
+            if self.checkpoint:
+                rm = ResumeManager(self.checkpoint, self.config, self.tier_manager)
+                self.config, self.checkpoint = rm.restore_cli_args(_cli_ephemeral)
+                self.config, self.checkpoint = rm.reset_failed_states()
+                self.config, self.checkpoint = rm.merge_cli_tiers_and_reset_incomplete(
+                    _cli_tiers, checkpoint_path
+                )
+        except Exception as e:
+            logger.warning(f"Failed to resume: {e}")
+            # ...
+    ...
+```
+
+**Remove** the extracted private helpers (`_check_tiers_need_execution`, `_subtest_has_incomplete_runs`) from the parent class.
+
+### Phase 5: Fix Pre-commit Issues
+
+Common issues after extraction:
+
+| Issue | Fix |
+| ------- | ----- |
+| `E501` line too long | Split long logger strings into continuation strings |
+| `type-arg` missing dict type params | Use `dict[str, Any]` not `dict` in type annotations |
+| Ruff auto-fixes (applied automatically) | Re-run hooks until clean pass |
+
+```python
+# E501 fix: split long logger message
+logger.info(
+    "Resetting experiment from '%s' to 'tiers_running' "
+    "— CLI-requested tiers need execution",
+    self.checkpoint.experiment_state,
+)
+
+# type-arg fix: annotate dict with type params
+cli_ephemeral: dict[str, None] = {"max_subtests": None}
+```
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| **Mutating self instead of returning** | Initial design considered modifying `self.config` and `self.checkpoint` directly, returning `None` | Hard to test — must inspect object internals; creates hidden coupling | Return `(config, checkpoint)` tuples instead for clean, testable API |
+| **Expecting C901 suppressions** | Assumed runner.py had `# noqa: C901` flags to remove | `grep` found none — the method never had explicit suppressions | Always verify the actual state; the issue description may describe the desired end state, not the current one |
+| **Re-creating `_save_config`** | Considered delegating to runner's `_save_config` via callback | Over-engineering — `ResumeManager._save_config` can write the JSON directly | Keep collaborator self-contained; don't inject callbacks for simple file writes |
+
+## Key Decisions
+
+| Decision | Rationale |
+| ---------- | ----------- |
+| **Return tuples, not void** | Makes unit tests trivial — assert on returned values |
+| **Collaborator receives checkpoint+config at init** | Avoids passing them to every method; mirrors runner's own pattern |
+| **`_save_config` on ResumeManager** | Keeps the class self-contained; runner's `_save_config` is equivalent |
+| **Lazy imports inside methods** | `from scylla.e2e.state_machine import is_terminal_state` inside methods avoids circular imports |
+| **Don't import `compute_config_hash` in tests** | Mock `_save_config` instead; avoids needing a real config hash |
+
+## Implementation Checklist
+
+When extracting a method into a collaborator class:
+
+- [ ] Read the method and label each concern block
+- [ ] Identify private helpers that are only called from this method
+- [ ] Write failing tests before creating the class (TDD)
+- [ ] Design the API around return values (not mutation) for testability
+- [ ] Create the collaborator in a new file (`<concern>_manager.py`)
+- [ ] Move private helpers to the collaborator
+- [ ] Replace the method body with a thin delegation shell
+- [ ] Remove extracted helpers from the parent class
+- [ ] Add import to parent class
+- [ ] Run pre-commit hooks and fix line-length / type-annotation issues
+- [ ] Run full test suite (not just new tests — coverage threshold must pass)
+
+## Results & Parameters
+
+**Files modified**:
+1. `scylla/e2e/runner.py` — 1638→1509 lines (−129); thin delegation shell
+2. `scylla/e2e/resume_manager.py` — new file, 175 lines, 98.53% coverage
+3. `tests/unit/e2e/test_resume_manager.py` — new file, 26 tests across 5 test classes
+
+**Test results**:
+- 26 new unit tests, all passing
+- 3211 total tests passing (0 regressions)
+- 78.46% overall coverage (threshold: 75%)
+
+**Pre-commit**: All hooks pass (ruff format, ruff check, mypy, security, structure)
+
+**PR**: https://github.com/HomericIntelligence/ProjectScylla/pull/1145
+
+## References
+
+- Issue: [#1110 Decompose runner.py _initialize_or_resume_experiment() into ResumeManager](https://github.com/HomericIntelligence/ProjectScylla/issues/1110)
+- Related skill: `architecture/e2e-resume-refactor` — earlier checkpoint schema refactor
+- SOLID principles: Single Responsibility Principle
+- Ruff complexity rule: [C901](https://docs.astral.sh/ruff/rules/complex-structure/)
+
+---
+
+## Superseded from python-circular-import-symbol-extraction
+
+---
+name: python-circular-import-symbol-extraction
+description: "Fix Python circular import errors caused by partially-initialized modules. Use when: (1) Python raises ImportError or partially-initialized module error on startup, (2) module A imports module B which imports back into A while A is still loading, (3) __init__.py eagerly re-exports heavyweight CLI modules that import back into the same package, (4) making imports lazy inside functions does not fix the error. Fix: remove eager re-exports from __init__.py, extract the shared symbol to a true leaf module, redirect all importers to the leaf. After moving symbols, all mock patches must target the new module where the name is looked up at call time."
+category: architecture
+date: 2026-04-29
+version: "1.1.0"
+user-invocable: false
+verification: verified-local
+history: python-circular-import-symbol-extraction.history
+tags:
+  - python
+  - circular-imports
+  - symbol-extraction
+  - mock-patch
+  - testing
+  - eager-init-exports
+---
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2026-04-29 |
+| **Objective** | Break Python circular import chains that produce `ImportError: cannot import name 'X' from partially initialized module` on startup |
+| **Outcome** | Two verified fixes: (1) ProjectScylla PR #1850 — extract shutdown symbols to leaf module; (2) ProjectHephaestus PR #308 — remove eager CLI re-exports from `__init__.py` + extract `_gh_call` to leaf module |
+| **Verification** | verified-local (PR #308: pre-commit passed, unit tests passed; CI pending) / verified-ci (PR #1850) |
+| **History** | [changelog](./python-circular-import-symbol-extraction.history) |
+
+## When to Use
+
+- Python raises `ImportError: cannot import name 'X' from partially initialized module 'A'` on startup
+- `A → B → A` import cycle where A is only partially initialized when B tries to import from it
+- `package/__init__.py` eagerly re-exports CLI entry-point modules (via `from pkg.cli_mod import main`) and those CLI modules import back into the same package
+- Making imports lazy (moving `from X import Y` inside function bodies) does **not** fix the error — root cause is that Y is referenced during module init
+- Multiple modules need a shared symbol and the symbol currently lives in a "heavy" module that creates the cycle
+- After moving a symbol, test mock patches stop intercepting calls (patches targeting the old location no longer work)
+
+## Verified Workflow
+
+### Quick Reference
+
+```text
+Step 0: Check __init__.py for eager CLI re-exports (new trigger in v1.1.0)
+  - Look for lines like: from pkg.fleet_sync import main as fleet_sync
+  - CLI entry-point modules often import back into the package = instant cycle
+  - Fix: delete those lines and remove names from __all__
+
+Circular import diagnosis:
+  1. Read the full ImportError traceback — map the import chain A → B → C → A
+  2. Identify the shared symbol: which name is being imported across the cycle boundary?
+  3. Ask: is this symbol lightweight (no heavy deps of its own)?
+     YES → extract to new leaf module
+     NO  → consider lazy import OR restructure dependencies
+
+Fix pattern (symbol extraction):
+  __init__.py   removes eager re-export of CLI modules
+  cli_mod.py    imports from leaf (not from the package being initialized)
+  leaf.py       has NO imports that touch the package being initialized
+  orig.py       re-exports from leaf for backward compat (explicit `as X` form for mypy)
+
+Mock patch rule:
+  Patch the module where the name is LOOKED UP at call time — not where it was originally defined.
+  After moving symbol X from module A to leaf module C:
+    WRONG: patch("pkg.A.X", ...)    <- A no longer has X at call time
+    RIGHT: patch("pkg.C.X", ...)    <- callers resolve X from C
+```
+
+### Step 0: Check `__init__.py` for eager CLI re-exports
+
+Before tracing the full chain, check whether the cycle is *triggered by* `__init__.py` loading
+a heavyweight CLI module:
+
+```python
+# hephaestus/github/__init__.py  <-- PROBLEMATIC pattern
+from hephaestus.github.fleet_sync import main as fleet_sync  # CLI module!
+from hephaestus.github.tidy import main as tidy              # CLI module!
+__all__ = [..., "fleet_sync", "tidy"]
+```
+
+CLI modules typically import everything they need, including utilities that live in the same
+package. When `hephaestus.github` is first loaded (e.g., by `from hephaestus.automation.github_api import _gh_call`),
+it triggers loading of `fleet_sync`, which tries `from hephaestus.automation.github_api import _gh_call`
+— but `hephaestus.github` is not yet done initializing at that moment.
+
+**Fix**: delete the eager re-export lines and remove the names from `__all__`. Callers that need the CLI
+modules can import them directly (`from hephaestus.github.fleet_sync import main`).
+
+```python
+# hephaestus/github/__init__.py  <-- FIXED
+# (removed fleet_sync and tidy re-exports)
+__all__ = [...]  # CLI entry points removed
+```
+
+### Step 1: Map the full circular import chain
+
+Read the full traceback carefully. Python's partial-initialization error identifies the
+module that is being imported while still being initialized:
+
+```
+ImportError: cannot import name '_gh_call' from partially initialized
+module 'hephaestus.github' (most likely due to a circular import)
+```
+
+Trace the chain from the error:
+```
+# ProjectHephaestus PR #308 example:
+hephaestus.github.__init__
+  -> fleet_sync (eagerly imported by __init__)
+  -> from hephaestus.automation.github_api import _gh_call
+  -> github_api imports from hephaestus.github (cycle!)
+
+# ProjectScylla PR #1850 example:
+runner.py
+  -> tier_action_builder (imports runner for shutdown symbols)
+  -> subtest_executor.__getattr__ triggers import of parallel_executor
+  -> parallel_executor imports rate_limit
+  -> rate_limit imports runner (cycle!)
+```
+
+### Step 2: Identify the lightweight shared symbols
+
+List all symbols being imported across the cycle boundary. Ask for each:
+- Does it have its own heavy dependencies that would re-create the cycle?
+- Is it a pure value, function, or small exception class?
+
+In the ProjectHephaestus case, the shared symbol was:
+- `_gh_call` — subprocess helper function; only deps are `rate_limit.py` + `run_subprocess`
+
+In the ProjectScylla case, the shared symbols were:
+- `ShutdownInterruptedError` — simple Exception subclass, zero deps
+- `is_shutdown_requested` — function reading a threading.Event, no heavy imports
+- `request_shutdown` — function setting a threading.Event, no heavy imports
+
+All were safe to extract.
+
+### Step 3: Create the new lightweight leaf module
+
+Create a new module at the same package level with only the extracted symbols and
+their minimal dependencies. The leaf module must import ONLY stdlib + lower-level helpers —
+never from the package being initialized:
+
+```python
+# hephaestus/github/gh_subprocess.py — leaf module
+"""gh subprocess helper extracted to break circular imports.
+
+This module intentionally has minimal dependencies so it can be imported by
+any module in the hephaestus.github package without creating cycles.
+"""
+from hephaestus.github.rate_limit import detect_claude_usage_limit, detect_rate_limit, wait_until
+from hephaestus.utils.helpers import run_subprocess
+
+
+def _gh_call(args, check=True, retry_on_rate_limit=True, max_retries=3):
+    ...
+```
+
+```python
+# src/scylla/e2e/shutdown.py — leaf module
+"""Shutdown coordination primitives (extracted to break circular imports)."""
+import threading
+
+_shutdown_event = threading.Event()
+
+class ShutdownInterruptedError(Exception): ...
+def is_shutdown_requested() -> bool: ...
+def request_shutdown() -> None: ...
+```
+
+**Key principle**: The new module must have NO imports that would re-create the cycle.
+Verify this by checking every `import` in the new file against the existing chain.
+
+### Step 4: Update all importers to use the new leaf module
+
+Redirect every module that was importing the symbols from the original location:
+
+```python
+# fleet_sync.py: BEFORE
+from hephaestus.automation.github_api import _gh_call
+
+# fleet_sync.py: AFTER
+from hephaestus.github.gh_subprocess import _gh_call
+```
+
+```python
+# BEFORE (in rate_limit.py, parallel_executor.py, etc.):
+from scylla.e2e.runner import ShutdownInterruptedError, is_shutdown_requested
+
+# AFTER:
+from scylla.e2e.shutdown import ShutdownInterruptedError, is_shutdown_requested
+```
+
+Search comprehensively — do not miss any importer:
+
+```bash
+grep -rn "from <pkg>.<original_module> import <symbol>" src/ tests/ --include="*.py"
+```
+
+### Step 5: Add backward-compat re-exports to the original module
+
+The original module should re-export the moved symbols so any code that imports them
+from there still works. Use the explicit `as X` form — required by mypy for re-exports:
+
+```python
+# automation/github_api.py — explicit re-export (mypy requires `as X` form)
+from hephaestus.github.gh_subprocess import _gh_call as _gh_call
+```
+
+```python
+# In runner.py — backward compat re-export block:
+from scylla.e2e.shutdown import (  # noqa: F401  (re-export)
+    ShutdownInterruptedError,
+    is_shutdown_requested,
+    request_shutdown,
+)
+```
+
+The `# noqa: F401` suppresses the "imported but unused" linter warning. The explicit
+`as _gh_call` form (rather than just `import _gh_call`) signals to mypy that this is
+an intentional public re-export — without it mypy raises `error: Module does not explicitly export attribute`.
+
+### Step 6: Update all mock patches in tests
+
+**Critical**: After moving a symbol, any `unittest.mock.patch` or `pytest.monkeypatch`
+that targets the **old** location will no longer intercept calls. The patch must target
+the module where the name is **resolved at call time**.
+
+Rule: patch the module that **imports and uses** the symbol, not where it was defined.
+
+```python
+# BEFORE (broken after move):
+@patch("scylla.e2e.runner.is_shutdown_requested", return_value=True)
+
+# AFTER (correct):
+@patch("scylla.e2e.shutdown.is_shutdown_requested", return_value=True)
+```
+
+Find all affected patches:
+```bash
+grep -rn "patch.*<original_module>.*<symbol_name>" tests/ --include="*.py"
+```
+
+### Step 7: Verify the fix
+
+```bash
+# Import the package from scratch (no cached modules)
+python -c "from hephaestus.automation.planner import main; print('OK')"
+python -c "from scylla.e2e import runner; print('OK')"
+
+# Run the full test suite
+pytest tests/ -v
+
+# Check no imports still reference the old location for the moved symbols
+grep -rn "from <pkg>.<original_module> import <symbol>" src/ --include="*.py"
+# Should return zero results (only the re-export line itself)
+```
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| Lazy imports inside function bodies | Moved `from scylla.e2e.runner import is_shutdown_requested` inside function bodies in rate_limit.py and parallel_executor.py | Did not fix the error — the symbol was referenced during module-level code (class body, module-level constant) in one of the intermediate modules, so deferring the import statement didn't defer the actual resolution | Lazy function-body imports only help if the symbol is used at call time. If any intermediate module in the chain references the symbol during its own initialization, lazy imports don't break the cycle |
+| Patching old module location after symbol move | 4 tests continued to use `patch("scylla.e2e.runner.is_shutdown_requested", ...)` after moving the symbol to `shutdown.py` | The patches registered the mock on `runner.is_shutdown_requested` but callers looked up `shutdown.is_shutdown_requested` — the mock was never invoked | Python mock patches intercept name lookups. After moving a symbol, update ALL patches to target the module where callers actually resolve the name |
+| Delete only `__init__.py` re-exports without moving `_gh_call` | Removed `fleet_sync`/`tidy` from `hephaestus/github/__init__.py` but left `from hephaestus.automation.github_api import _gh_call` in `fleet_sync.py` | The `github → automation` import edge in `fleet_sync.py` remained intact; any future code path touching both packages can re-trigger the same cycle | Must eliminate the layering violation at the source (move the shared symbol to a leaf module), not just remove the eager load from `__init__.py` |
+| Lazy import inside the offending function in fleet_sync.py | Moved `from hephaestus.automation.github_api import _gh_call` inside the function body | Mechanically avoids the startup cycle but leaves a hidden trap — no CI check enforces it; future refactors can promote it back to module level | Use a structural fix (move the symbol to a leaf module) rather than a runtime workaround; structural fixes are enforced by the import graph itself |
+
+## Results & Parameters
+
+### New leaf modules created
+
+```
+hephaestus/github/gh_subprocess.py  -- _gh_call only, imports rate_limit + run_subprocess
+src/scylla/e2e/shutdown.py          -- 3 symbols, ~40 lines, zero heavy deps
+```
+
+### Files updated (ProjectHephaestus PR #308)
+
+| File | Change |
+| ------ | -------- |
+| `hephaestus/github/__init__.py` | Removed eager re-exports of `fleet_sync` and `tidy`; removed from `__all__` |
+| `hephaestus/github/gh_subprocess.py` | New leaf module containing `_gh_call` |
+| `hephaestus/github/fleet_sync.py` | Updated import to `gh_subprocess` (from `automation.github_api`) |
+| `hephaestus/automation/github_api.py` | Added explicit re-export: `from hephaestus.github.gh_subprocess import _gh_call as _gh_call` |
+
+### Files updated (ProjectScylla PR #1850)
+
+| File | Change |
+| ------ | -------- |
+| `src/scylla/e2e/runner.py` | Added re-export block for backward compat |
+| `src/scylla/e2e/rate_limit.py` | Updated import to `shutdown.py` |
+| `src/scylla/e2e/parallel_executor.py` | Updated import to `shutdown.py` |
+| `src/scylla/e2e/tier_action_builder.py` | Updated import to `shutdown.py` |
+| `tests/unit/e2e/test_runner.py` | Updated 4 mock patches to target `shutdown` module |
+
+### Dependency graph after fix (ProjectHephaestus)
+
+```
+gh_subprocess.py   (rate_limit + run_subprocess only — no automation deps)
+    ^
+fleet_sync.py      (imports from gh_subprocess, not automation.github_api)
+    ^
+github/__init__.py (no longer eagerly loads fleet_sync or tidy)
+    ^
+automation/github_api.py  (re-exports _gh_call from gh_subprocess for compat)
+```
+
+### Mock patch target rule (canonical)
+
+```python
+# Rule: patch where the name is LOOKED UP, not where it was DEFINED.
+
+# Symbol defined in:   shutdown.py
+# Symbol imported by:  parallel_executor.py  ->  from scylla.e2e.shutdown import is_shutdown_requested
+# Correct patch target: "scylla.e2e.shutdown.is_shutdown_requested"
+```
+
+### Explicit re-export form required by mypy
+
+```python
+# WRONG (mypy error: Module does not explicitly export attribute '_gh_call'):
+from hephaestus.github.gh_subprocess import _gh_call
+
+# RIGHT (mypy accepts explicit re-export):
+from hephaestus.github.gh_subprocess import _gh_call as _gh_call
+```
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| ProjectScylla | PR #1850 — circular import fix on `scylla.e2e` package | Fixed startup `ImportError`; 4 mock patches updated; CI passed |
+| ProjectHephaestus | PR #308 — eager `__init__.py` re-exports triggering circular import | Removed CLI re-exports from `github/__init__.py`; extracted `_gh_call` to `gh_subprocess.py`; pre-commit passed, unit tests passed locally |
+
+---
+
+## Superseded from immutable-method-refactor
+
+---
+name: immutable-method-refactor
+description: "Refactoring a class method to follow an immutable (purely functional)\
+  \ pattern by removing in-place self.attribute mutation and returning a new value\
+  \ instead. Use when a class has mixed patterns \u2014 some methods mutate self and\
+  \ some return new values \u2014 and consistency is needed."
+category: architecture
+date: 2026-03-02
+version: 1.0.0
+mcp_fallback: none
+tier: 1
+---
+# Immutable Method Refactor: Making handle_zombie Purely Functional
+
+## Overview
+
+| Aspect | Details |
+| -------- | --------- |
+| **Date** | 2026-03-02 |
+| **Objective** | Remove `self.checkpoint` mutation from `handle_zombie()` to match the immutable pattern of sibling methods |
+| **Outcome** | ✅ Success — 2-line change, all 30 tests pass, new immutability assertion added |
+| **Root Cause** | `handle_zombie()` assigned `self.checkpoint = reset_zombie_checkpoint(...)` while `restore_cli_args` and `reset_failed_states` used `model_copy()` and returned new objects |
+| **Solution** | Assign to local variable, return via early-return; add test assertion `rm.checkpoint is original_checkpoint` |
+
+## Problem Statement
+
+`ResumeManager.handle_zombie()` had a dual-write pattern:
+
+```python
+# BEFORE: mutates self AND returns the value
+self.checkpoint = reset_zombie_checkpoint(self.checkpoint, checkpoint_path)
+return self.config, self.checkpoint
+```
+
+The caller did:
+
+```python
+self.config, self.checkpoint = rm.handle_zombie(...)
+```
+
+This worked in practice, but violated the immutable contract of the class. If a future caller
+only checked `rm.checkpoint` instead of unpacking the return value, it would see the mutated
+value — creating a hidden coupling between method call and internal state.
+
+Sibling methods `restore_cli_args` and `reset_failed_states` used `self.config.model_copy(update=...)`
+and returned `(self.config, self.checkpoint)` without mutating self. `handle_zombie` was the
+one inconsistent method.
+
+## When to Use This Skill
+
+Apply this pattern when:
+- A class has methods that **mostly return updated (config, checkpoint) tuples** but one mutates `self`
+- You want to enforce a **purely functional / immutable API** so callers must use the return value
+- You need a **test-enforced contract** that `self.attribute` is never mutated by a method
+- The mutation was **incidental** (assigned before returning), not load-bearing state
+
+## Verified Workflow
+
+### Step 1: Identify the Inconsistency
+
+Look for methods that both mutate `self.X` and return a value containing `self.X`:
+
+```python
+# Red flag: assign-then-return pattern
+self.checkpoint = some_function(self.checkpoint, ...)
+return self.config, self.checkpoint  # returns the mutated self.checkpoint
+```
+
+Compare with sibling methods to confirm the intended pattern is purely functional (return-only).
+
+### Step 2: Refactor to Local Variable + Early Return
+
+```python
+# BEFORE
+if is_zombie(self.checkpoint, experiment_dir, heartbeat_timeout_seconds):
+    logger.warning("Zombie experiment detected — resetting to 'interrupted'")
+    self.checkpoint = reset_zombie_checkpoint(self.checkpoint, checkpoint_path)
+
+return self.config, self.checkpoint
+
+# AFTER
+if is_zombie(self.checkpoint, experiment_dir, heartbeat_timeout_seconds):
+    logger.warning("Zombie experiment detected — resetting to 'interrupted'")
+    reset_checkpoint = reset_zombie_checkpoint(self.checkpoint, checkpoint_path)
+    return self.config, reset_checkpoint
+
+return self.config, self.checkpoint
+```
+
+Key points:
+- Use a **descriptively named local variable** (`reset_checkpoint`)
+- Use **early return** in the mutating branch so `self.checkpoint` is never touched
+- The non-zombie path already returned `self.checkpoint` unchanged — no change needed there
+
+### Step 3: Add Immutability Assertion to the Test
+
+```python
+def test_zombie_detected_resets_checkpoint(...):
+    rm = _make_manager(base_checkpoint, base_config, mock_tier_manager)
+    original_checkpoint = rm.checkpoint  # capture reference BEFORE call
+
+    with patch("...is_zombie", return_value=True), \
+         patch("...reset_zombie_checkpoint", return_value=reset_checkpoint):
+        config, checkpoint = rm.handle_zombie(checkpoint_path, experiment_dir)
+
+    assert checkpoint.status == "interrupted"
+    assert config is base_config
+    # NEW: enforce the immutable contract — self.checkpoint must NOT change
+    assert rm.checkpoint is original_checkpoint
+```
+
+This test will **fail** if anyone re-introduces the mutation, making the contract explicit.
+
+### Step 4: Verify Tests Pass
+
+```bash
+pixi run pytest tests/unit/e2e/test_resume_manager.py --override-ini="addopts=" -v --strict-markers
+```
+
+Expected: all tests pass including the new assertion.
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| N/A | Direct approach worked | N/A | Solution was straightforward |
+## Results & Parameters
+
+**Files changed**: 2
+- `scylla/e2e/resume_manager.py`: 3 lines changed (removed mutation, added local var, early return)
+- `tests/unit/e2e/test_resume_manager.py`: 3 lines added (capture original, add assertion)
+
+**Test count**: 30 unit tests, all passing
+
+**PR**: HomericIntelligence/ProjectScylla#1311
+
+## Key Insight
+
+The dual-write pattern (`self.X = f(...); return self.X`) is a subtle inconsistency that works
+in isolation but creates risk when the class is used in multi-caller contexts. The fix is:
+
+1. **Never assign to `self.attribute`** in a method that is supposed to be purely functional
+2. **Use early return** in branches that produce a new value
+3. **Assert `rm.attr is original_attr`** in tests to lock the contract in permanently
+
+---
+
+## Superseded from refactor-for-extensibility
+
+---
+name: refactor-for-extensibility
+description: Systematic workflow for preparing codebases for extensibility through extraction, parameterization, and protocol-based abstraction
+category: architecture
+date: 2026-02-05
+version: 1.0.0
+user-invocable: false
+---
+# Refactor for Extensibility
+
+## Overview
+
+| Attribute | Value |
+| ----------- | ------- |
+| **Date** | 2026-02-05 |
+| **Objective** | Prepare codebase for dynamic benchmark generator by extracting reusable logic, eliminating coupling, and formalizing interfaces |
+| **Outcome** | ✅ Successfully completed 6/9 PRs: extracted discovery library, removed 1,051 lines of dead/duplicate code, created pluggable SubtestProvider, formalized TestFixture schema |
+| **Net Impact** | -415 lines while adding significant extensibility capabilities |
+
+## When to Use This Skill
+
+Use this workflow when you need to:
+- Prepare a codebase for a new feature that requires pluggable behavior
+- Extract hardcoded logic that blocks extensibility
+- Remove tight coupling between components
+- Formalize implicit contracts into explicit schemas/protocols
+- Add new capabilities without breaking existing code
+
+**Trigger phrases:**
+- "Prepare the codebase for [new feature]"
+- "Make [component] pluggable/extensible"
+- "Extract [hardcoded logic] into reusable library"
+- "We need to support [alternative implementation]"
+
+## Verified Workflow
+
+### Phase 1: Discovery and Planning
+
+1. **Identify coupling points** - Where is behavior hardcoded?
+   - Filesystem paths (`self._get_shared_dir()`)
+   - Discovery logic (`_discover_subtests()`)
+   - Magic values (prefix lengths, defaults)
+   - One-time migration scripts
+
+2. **Design the end state** - What does extensibility look like?
+   - Protocol interfaces for pluggable behavior
+   - Parameterized constructors for overridable paths
+   - Reusable library modules
+   - Formal dataclass schemas
+
+3. **Plan PR sequence** - Break into small, focused PRs:
+   ```
+   PR1: Extract library (create new)
+   PR2: Delete old code (remove references)
+   PR3: Consolidate duplication
+   PR4: Document relationships
+   PR5: Extract protocol interface
+   PR6: Formalize schemas
+   ```
+
+### Phase 2: Extract Before Delete
+
+**CRITICAL: Never delete until extraction is complete and merged.**
+
+```python
+# Step 1: Create library with reusable logic
+# scylla/discovery/agents.py
+def discover_agents(source_dir: Path) -> dict[int, list[Path]]:
+    """Parameterized version - no hardcoded paths."""
+    ...
+
+# Step 2: Wait for PR merge
+
+# Step 3: Delete old script
+# scripts/organize_agents.py → DELETE
+```
+
+**Why this order:**
+- Extraction is reversible (just delete new files)
+- Deletion is destructive (Git history recovery is inconvenient)
+- Separate PRs are easier to review
+
+### Phase 3: Protocol-Based Abstraction
+
+Use Protocol for pluggable behavior without breaking existing code:
+
+```python
+# Define protocol
+class SubtestProvider(Protocol):
+    def discover_subtests(
+        self, tier_id: TierID, skip_agent_teams: bool = False
+    ) -> list[SubTestConfig]: ...
+
+# Create default implementation
+class FileSystemSubtestProvider:
+    def __init__(self, shared_dir: Path) -> None:
+        self.shared_dir = shared_dir
+
+    def discover_subtests(self, tier_id, skip_agent_teams=False):
+        # Extract existing logic here
+        ...
+
+# Make client accept protocol
+class TierManager:
+    def __init__(
+        self,
+        tiers_dir: Path,
+        subtest_provider: SubtestProvider | None = None,  # NEW
+    ):
+        if subtest_provider is None:
+            subtest_provider = FileSystemSubtestProvider(shared_dir)
+        self.subtest_provider = subtest_provider
+```
+
+**Benefits:**
+- 100% backward compatible (defaults to old behavior)
+- Enables future `DynamicSubtestProvider` without changing TierManager
+- Type-safe with mypy/pyright
+
+### Phase 4: Parameterize Hardcoded Paths
+
+Replace path computation with optional parameters:
+
+```python
+# Before (hardcoded)
+class TierManager:
+    def __init__(self, tiers_dir: Path):
+        self.tiers_dir = tiers_dir
+        config_dir = Path(__file__).parent.parent.parent / "config"
+        self._shared_dir = self._get_shared_dir()  # Computed from tiers_dir
+
+# After (parameterized)
+class TierManager:
+    def __init__(
+        self,
+        tiers_dir: Path,
+        shared_dir: Path | None = None,      # NEW
+        config_dir: Path | None = None,      # NEW
+    ):
+        if config_dir is None:
+            config_dir = Path(__file__).parent.parent.parent / "config"
+        if shared_dir is None:
+            shared_dir = self._get_shared_dir()
+
+        self._shared_dir = shared_dir  # Store for reuse
+```
+
+**Pattern:**
+1. Add optional parameter with `None` default
+2. Compute default value only if not provided
+3. Store computed/provided value for reuse
+4. Replace all `_get_x()` calls with stored value
+
+### Phase 5: Formalize Implicit Schemas
+
+Convert dict-based configs to dataclasses with I/O methods:
+
+```python
+@dataclass
+class TestFixture:
+    """Formalized schema - the contract generators must satisfy."""
+    id: str
+    name: str
+    language: str
+    source_repo: str
+    source_hash: str
+    task_prompt: str
+    criteria: str
+    rubric: dict[str, Any]
+    tiers: list[str]
+    timeout_seconds: int = 3600
+
+    @classmethod
+    def from_directory(cls, path: Path) -> TestFixture:
+        """Load from standard layout."""
+        ...
+
+    def to_directory(self, path: Path) -> None:
+        """Write to standard layout."""
+        ...
+```
+
+**Why dataclass over dict:**
+- Type checking catches errors early
+- Auto-generated `__init__`, `__repr__`
+- Clear schema documentation
+- Round-trip I/O methods
+
+### Phase 6: Extract Magic Values
+
+```python
+# Before (scattered magic values)
+if not file_name[:2].isdigit():  # What is 2?
+    continue
+extends_previous = tier_id != TierID.T0 or int(subtest_id) >= 2  # What is 2?
+system_prompt_mode = config_data.get("system_prompt_mode", "custom")  # Why "custom"?
+
+# After (named constants)
+SUBTEST_ID_PREFIX_LENGTH = 2  # "NN" prefix in filenames
+DEFAULT_SYSTEM_PROMPT_MODE = "custom"
+T0_FIRST_EXTENDING_SUBTEST = 2  # T0 00-01 don't extend, 02+ do
+
+if not file_name[:SUBTEST_ID_PREFIX_LENGTH].isdigit():
+    continue
+extends_previous = tier_id != TierID.T0 or int(subtest_id) >= T0_FIRST_EXTENDING_SUBTEST
+```
+
+## Failed Attempts & Lessons Learned
+| Attempt | Issue | Resolution |
+| --------- | ------- | ------------ |
+| See detailed notes below | Various approaches tried | Refer to documentation in this section |
+
+### ❌ Failed: Trying to refactor everything in one PR
+
+**What happened:** Initially considered a single large PR with all changes.
+
+**Why it failed:**
+- Too many changes to review at once
+- Hard to isolate if something breaks
+- Difficult to roll back specific changes
+- Reviewers overwhelmed by scope
+
+**Solution:** Split into 9 focused PRs following dependency order.
+
+### ❌ Failed: Deleting scripts before creating library
+
+**What happened:** Considered deleting old scripts first, then extracting logic.
+
+**Why it failed:**
+- Would break existing workflows during transition
+- No way to verify extraction matches original behavior
+- Higher risk of data loss
+
+**Solution:** Extract → Verify → Delete pattern. Keep old code until new code is proven.
+
+### ❌ Failed: Linter reverting SubtestProvider changes
+
+**What happened:** After committing SubtestProvider extraction, linter reverted `tier_manager.py` to old code.
+
+**Why it failed:**
+- Didn't notice linter ran between commit and next work
+- Lost track of which branch had which changes
+
+**Solution:**
+- Always `git status` before starting new work
+- Verify imports work immediately after refactoring
+- Check for linter changes in git diff before committing
+
+### ❌ Avoided: Breaking backward compatibility
+
+**Almost tried:** Removing optional parameters and requiring all callers to pass values.
+
+**Why that would fail:**
+- Breaks all existing callers
+- Forces changes across entire codebase
+- Hard to test incrementally
+
+**Solution:** Make all new parameters optional with smart defaults. Old code works unchanged.
+
+## Results & Parameters
+
+### Completed PRs
+
+| PR | Phase | Files Changed | Lines Changed | Status |
+| ---- | ------- | --------------- | --------------- | -------- |
+| #356 | 1.1 | +4 new | +439 | ✅ Merged |
+| #357 | 1.2 | -6 deleted | -945 | ✅ Merged |
+| #358 | 1.3 | +1, ~2 | +37/-153 | ✅ Merged |
+| #359 | 1.4 | ~6 | +130 | ✅ Merged |
+| #360 | 2.1-2.2 | +1, ~1 | +197/-115 | ✅ Merged |
+| #361 | 2.3-2.4 | ~2 | +189/-12 | ✅ Merged |
+
+**Total Impact:**
+- Created: 5 new files
+- Deleted: 6 old scripts
+- Modified: 11 files
+- Net: -415 lines (removed 1,051, added 636)
+
+### Key Files Created
+
+```
+scylla/discovery/__init__.py         # Public API exports
+scylla/discovery/agents.py           # Agent discovery (78 lines → library)
+scylla/discovery/skills.py           # Skill discovery (161 lines → library)
+scylla/discovery/blocks.py           # Block extraction (81 lines → library)
+scylla/e2e/subtest_provider.py       # Protocol + FileSystemSubtestProvider
+scripts/docker_common.sh             # Shared Docker functions
+```
+
+### Key Patterns Used
+
+**1. Extract-Parameterize-Protocol Pattern:**
+```
+Old: Hardcoded logic in _private_method()
+  ↓
+New: Reusable function(source_dir: Path)
+  ↓
+Protocol: class Provider(Protocol): def discover(...): ...
+  ↓
+Client: accepts Provider, defaults to FileSystemProvider
+```
+
+**2. Optional Parameter with Smart Default:**
+```python
+def __init__(
+    self,
+    required: Path,
+    optional: Path | None = None,  # None = use default
+):
+    if optional is None:
+        optional = self._compute_default()
+    self._value = optional
+```
+
+**3. Backward-Compatible Schema Evolution:**
+```python
+@classmethod
+def from_directory(cls, path: Path) -> Schema:
+    try:
+        # Try new structured loading
+        return cls._load_structured(path)
+    except (FileNotFoundError, ValueError):
+        # Fallback to old dict-based parsing
+        return cls._load_legacy(path)
+```
+
+## Commands Used
+
+```bash
+# Standard PR workflow
+git checkout -b prN-feature-name
+git add <files>
+git commit -m "type(scope): description
+
+Details...
+
+Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
+git push -u origin prN-feature-name
+gh pr create --title "..." --body "..." --label "type"
+gh pr merge --auto --rebase
+
+# Verification between changes
+python -c "from scylla.discovery import *; print('Success')"
+git status  # Check for linter changes
+git diff    # Review before commit
+```
+
+## References
+
+- Plan file: See conversation transcript for full 5-phase, 9-PR plan
+- CLAUDE.md: Never push directly to main - all changes via PR
+- Related skills: `gh-create-pr-linked`, `phase-implement`
+
+## Future Enhancements
+
+**Remaining PRs (7-9):**
+- PR7: Rename `executor.TierConfig` → `GlobalTierConfig` (name collision fix)
+- PR8: Add `BenchmarkSpec`, `RubricSpec`, `ResourceSpec` schemas
+- PR9: Verification tests for discovery library and providers
+
+**Next steps for dynamic generator:**
+- Implement `DynamicSubtestProvider(BenchmarkSpec)`
+- Create LLM-based benchmark generation pipeline
+- Add validation tests for generated benchmarks
