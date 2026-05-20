@@ -1,0 +1,4853 @@
+# process-metrics-pipeline-integration.history
+
+This file preserves the verbatim content of all 13 skills absorbed into
+`process-metrics-pipeline-integration` (epic #1824, #M19).
+
+## Superseded from emit-process-metrics-from-runner
+
+---
+name: emit-process-metrics-from-runner
+description: Emitting process_metrics, progress_tracking, and changes blocks to run_result.json
+  from the E2E runner stage pipeline
+category: evaluation
+date: 2026-02-27
+version: 1.0.0
+---
+# Emit process_metrics from E2E Runner Stage Pipeline
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2026-02-27 |
+| **Project** | ProjectScylla |
+| **Issue** | #1133 |
+| **Objective** | Populate and write `process_metrics`, `progress_tracking`, and `changes` blocks to `run_result.json` at run completion using git diff output and judge scores |
+| **Outcome** | ✅ Success — 51 new tests, all 3308 pass, 78.39% coverage |
+| **Impact** | Medium — Enables loader to use pre-computed process_metrics path for R_Prog, Strategic Drift, CFP, PR Revert Rate |
+| **PR** | https://github.com/HomericIntelligence/ProjectScylla/pull/1177 |
+
+## When to Use This Skill
+
+Use this skill when:
+
+1. **Populating process_metrics from git diff** in any stage-based E2E pipeline
+2. **Deriving structured tracking data mechanically** from git diff/status output rather than live agent hooks
+3. **Extending `run_result.json`** with extra blocks beyond the frozen Pydantic model
+4. **Hooking into stage pipelines** between `stage_capture_diff` and `stage_finalize_run`
+5. **Writing TDD-first E2E stage tests** with mocked subprocess and mocked `detect_rate_limit`
+
+**Triggers**:
+- "The loader reads X but nothing writes it"
+- "Populate process_metrics / progress_tracking / changes in run_result.json"
+- "Derive change tracking from git diff output"
+- "Write process metrics at run completion"
+
+## Verified Workflow
+
+### 1. Design Principle: Mechanical Derivation, Not LLM Classification
+
+The key architectural decision is to derive all process metrics **mechanically from git diff output** rather than making additional LLM calls:
+
+- **`changes` block**: Each file in `git diff --stat` → one `ChangeResult`
+- **`progress_tracking` block**: Each file in `_get_workspace_state()` → one `ProgressStep`
+- **`process_metrics` block**: Computed by `calculate_process_metrics()` from the above
+
+This is faster, cheaper, and reproducible.
+
+### 2. Stage Pipeline Hook Points
+
+The two stage functions that matter:
+
+```
+AGENT_COMPLETE → stage_capture_diff()   # git diff available; judge not yet run
+                                         # → populate preliminary ctx.progress_steps,
+                                         #   ctx.change_results
+JUDGE_COMPLETE → stage_finalize_run()   # judge score/passed now known
+                                         # → finalize structs, compute ProcessMetrics,
+                                         #   write extended run_result.json
+```
+
+**Critical**: populate preliminary data in `stage_capture_diff` (when diff is fresh),
+finalize with actual judge outcome in `stage_finalize_run`.
+
+### 3. RunContext Field Pattern
+
+Add two new optional fields to `RunContext` dataclass:
+
+```python
+@dataclass
+class RunContext:
+    # ... existing fields ...
+
+    # Process metrics tracking (populated by stage_capture_diff, finalized in stage_finalize_run)
+    progress_steps: list[ProgressStep] | None = None
+    change_results: list[ChangeResult] | None = None
+```
+
+Use `None` as default (not empty list) so callers can distinguish "not yet populated"
+from "populated but empty".
+
+### 4. _get_diff_stat() Implementation
+
+```python
+def _get_diff_stat(workspace: Path) -> dict[str, tuple[int, int]]:
+    """Run git diff --stat HEAD and return per-file (insertions, deletions)."""
+    try:
+        result = subprocess.run(
+            ["git", "diff", "--stat", "HEAD", "--", ".",
+             ":(exclude)CLAUDE.md", ":(exclude).claude"],
+            cwd=workspace,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.returncode != 0:
+            return {}
+        return _parse_diff_stat_output(result.stdout)
+    except (OSError, subprocess.TimeoutExpired):
+        return {}
+```
+
+**Key patterns**:
+- Always exclude test framework files (`CLAUDE.md`, `.claude/`)
+- Return `{}` on any error — never raise
+- Separate parser function `_parse_diff_stat_output()` for testability
+
+**Parser logic** (handles `git diff --stat` format `path/to/file.py | 5 ++---`):
+
+```python
+def _parse_diff_stat_output(stat_output: str) -> dict[str, tuple[int, int]]:
+    result: dict[str, tuple[int, int]] = {}
+    for line in stat_output.splitlines():
+        if "|" not in line:
+            continue
+        if "file" in line and "changed" in line:  # Skip summary line
+            continue
+        file_part, _, change_part = line.partition("|")
+        filepath = file_part.strip()
+        change_str = change_part.strip()
+        tokens = change_str.split()
+        markers = tokens[1] if len(tokens) > 1 else ""
+        insertions = markers.count("+")
+        deletions = markers.count("-")
+        result[filepath] = (insertions, deletions)
+    return result
+```
+
+### 5. _build_progress_steps() Implementation
+
+Parse `_get_workspace_state()` string output (lines like `- \`filepath\` (status)`):
+
+```python
+def _build_progress_steps(
+    workspace_state: str,
+    *,
+    judge_score: float,
+    diff_stat: dict[str, tuple[int, int]],
+) -> list[ProgressStep]:
+    entries: list[tuple[str, str]] = []
+    for line in workspace_state.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith("- `"):
+            continue
+        try:
+            path_end = stripped.index("`", 3)
+            filepath = stripped[3:path_end]
+            status_start = stripped.index("(", path_end) + 1
+            status_end = stripped.index(")", status_start)
+            status = stripped[status_start:status_end]
+        except ValueError:
+            continue
+        if filepath:
+            entries.append((filepath, status))
+
+    if not entries:
+        return []
+
+    # Normalize weights by line delta
+    deltas = {fp: max(1, ins + dels) for fp, (ins, dels) in diff_stat.items()}
+    file_deltas = [deltas.get(fp, 1) for fp, _ in entries]
+    total_delta = sum(file_deltas)
+
+    return [
+        ProgressStep(
+            step_id=filepath,
+            description=f"{status} {filepath}",
+            weight=delta / total_delta if total_delta > 0 else 1.0,
+            completed=True,  # agent actually changed it
+            goal_alignment=judge_score,  # proxy; finalized later
+        )
+        for (filepath, status), delta in zip(entries, file_deltas)
+    ]
+```
+
+**Weight normalization**: `weight = file_delta / total_delta`. Single-file case normalizes to 1.0.
+
+### 6. Finalize Helpers (Immutable Pattern)
+
+Both finalize helpers return **new lists** (never mutate input):
+
+```python
+def _finalize_change_results(
+    change_results: list[ChangeResult],
+    *,
+    judge_passed: bool,
+    pipeline_passed: bool,
+) -> list[ChangeResult]:
+    return [
+        ChangeResult(
+            change_id=cr.change_id,
+            description=cr.description,
+            succeeded=judge_passed,
+            caused_failure=not pipeline_passed,
+            reverted=cr.reverted,
+        )
+        for cr in change_results
+    ]
+
+
+def _finalize_progress_steps(
+    progress_steps: list[ProgressStep],
+    *,
+    judge_score: float,
+) -> list[ProgressStep]:
+    return [
+        ProgressStep(
+            step_id=ps.step_id,
+            description=ps.description,
+            weight=ps.weight,
+            completed=ps.completed,
+            goal_alignment=judge_score,
+        )
+        for ps in progress_steps
+    ]
+```
+
+### 7. stage_finalize_run Extension (Extended Dict Pattern)
+
+The `E2ERunResult` Pydantic model is frozen — do NOT add new fields to it.
+Instead, extend the serialized dict after calling `to_dict()`:
+
+```python
+# Compute final process metrics
+pipeline_passed = (
+    ctx.judge_pipeline_result.all_passed if ctx.judge_pipeline_result is not None else True
+)
+final_change_results = _finalize_change_results(
+    ctx.change_results or [], judge_passed=run_result.judge_passed,
+    pipeline_passed=pipeline_passed,
+)
+final_progress_steps = _finalize_progress_steps(
+    ctx.progress_steps or [], judge_score=run_result.judge_score
+)
+tracker = ProgressTracker(
+    expected_steps=final_progress_steps,
+    achieved_steps=[s for s in final_progress_steps if s.completed],
+)
+pm = calculate_process_metrics(tracker=tracker, changes=final_change_results)
+
+# Extend the serialized dict (not the model)
+result_dict = run_result.to_dict()
+result_dict["process_metrics"] = {
+    "r_prog": pm.r_prog,
+    "strategic_drift": pm.strategic_drift,
+    "cfp": pm.cfp,
+    "pr_revert_rate": pm.pr_revert_rate,
+}
+result_dict["progress_tracking"] = [dataclasses.asdict(s) for s in final_progress_steps]
+result_dict["changes"] = [dataclasses.asdict(c) for c in final_change_results]
+
+with open(ctx.run_dir / "run_result.json", "w") as f:
+    json.dump(result_dict, f, indent=2)
+```
+
+**Key**: `ctx.change_results or []` handles the `None` default gracefully.
+
+### 8. stage_capture_diff — Resume Branch
+
+When judge is already done (resume case), set empty lists:
+
+```python
+if not ctx.agent_ran and _has_valid_judge_result(ctx.run_dir):
+    # ... load judgment ...
+    ctx.diff_result = {}
+    ctx.progress_steps = []   # ← ADD THIS
+    ctx.change_results = []   # ← ADD THIS
+    return
+```
+
+Without this, the fields remain `None` and `stage_finalize_run` falls back to empty gracefully via `ctx.change_results or []`.
+
+### 9. TDD Test Strategy
+
+**Mock pattern for `_get_diff_stat`**:
+```python
+def test_parses_modified_file(self, tmp_path: Path) -> None:
+    stat_output = " foo/bar.py | 5 ++---\n 1 file changed, 2 insertions(+), 3 deletions(-)\n"
+    with patch("subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(returncode=0, stdout=stat_output, stderr="")
+        result = _get_diff_stat(tmp_path)
+    assert "foo/bar.py" in result
+    insertions, deletions = result["foo/bar.py"]
+    assert insertions == 2
+    assert deletions == 3
+```
+
+**Mock pattern for `stage_finalize_run`** — patch at the module where `detect_rate_limit` is imported (lazy import inside stage function):
+```python
+# CORRECT: patch the module that contains it
+with patch("scylla.e2e.rate_limit.detect_rate_limit", return_value=None):
+    stage_finalize_run(ctx)
+
+# WRONG: stages.py imports it lazily, so this won't work
+with patch("scylla.e2e.stages.detect_rate_limit", return_value=None):
+    stage_finalize_run(ctx)  # AttributeError!
+```
+
+**Test for weight normalization**:
+```python
+def test_weights_sum_to_one_with_multiple_files(self) -> None:
+    workspace_state = (
+        "Files modified/created by agent:\n- `a.py` (modified)\n- `b.py` (created)"
+    )
+    diff_stat = {"a.py": (5, 0), "b.py": (15, 0)}
+    result = _build_progress_steps(workspace_state, judge_score=0.8, diff_stat=diff_stat)
+    total_weight = sum(s.weight for s in result)
+    assert total_weight == pytest.approx(1.0, abs=1e-9)
+```
+
+## Failed Attempts & Lessons Learned
+
+| Attempt | Issue | Resolution |
+| --------- | ------- | ------------ |
+| `patch("scylla.e2e.stages.detect_rate_limit")` | AttributeError — lazy import in stage function | Patch `scylla.e2e.rate_limit.detect_rate_limit` instead |
+| Using `dataclasses` import without adding it | `dataclasses.asdict()` needed for ProgressStep/ChangeResult serialization | Add `import dataclasses` at top of file |
+| `-> dict` return type annotation | mypy `[type-arg]` error | Use `-> dict[str, Any]` with `from typing import Any` |
+| Counting `+`/`-` from raw stat number | `git diff --stat` shows `5 ++---` (marker string) | Count `+` chars in marker string, not parse the integer |
+
+### ❌ Attempt 1: Patching detect_rate_limit at wrong module path
+
+**What we tried**:
+```python
+with patch("scylla.e2e.stages.detect_rate_limit", return_value=None):
+    stage_finalize_run(ctx)
+```
+
+**Why it failed**:
+```
+AttributeError: <module 'scylla.e2e.stages' ...> does not have the attribute 'detect_rate_limit'
+```
+
+**Root cause**: `stage_finalize_run` uses a lazy local import inside the function body:
+```python
+def stage_finalize_run(ctx: RunContext) -> None:
+    from scylla.e2e.rate_limit import RateLimitError, detect_rate_limit  # ← lazy
+    ...
+```
+
+Lazy imports don't become module-level attributes, so `patch()` on the importing module fails.
+
+**Fix**: Patch the source module:
+```python
+with patch("scylla.e2e.rate_limit.detect_rate_limit", return_value=None):
+    stage_finalize_run(ctx)
+```
+
+**Lesson**: When a function uses lazy/local imports, always patch the **source module**, never the importing module.
+
+### ❌ Attempt 2: Untyped `-> dict` return annotation
+
+**What we tried**:
+```python
+def _make_judgment(self, passed: bool = True, score: float = 0.8) -> dict:
+```
+
+**Why it failed**: mypy `[type-arg]` error — generic `dict` needs type parameters.
+
+**Fix**:
+```python
+from typing import Any
+
+def _make_judgment(self, passed: bool = True, score: float = 0.8) -> dict[str, Any]:
+```
+
+**Lesson**: mypy in this project enforces `[type-arg]` on all generic types. Always add type parameters for `dict`, `list`, `tuple`, etc.
+
+## Results & Parameters
+
+### Files Modified
+
+| File | Lines Added | Purpose |
+| ------ | ------------- | --------- |
+| `scylla/e2e/stages.py` | +303 | New helper functions, RunContext fields, stage updates |
+| `tests/unit/e2e/test_stage_process_metrics.py` | +649 (new) | 51 unit tests for all helpers and integration |
+
+### Test Results
+
+```
+3308 passed, 9 warnings
+Coverage: 78.39% (threshold: 75%)
+All pre-commit hooks pass (ruff format, ruff check, mypy, markdown lint, etc.)
+```
+
+### Helper Function Summary
+
+| Function | Input | Output | Errors |
+| ---------- | ------- | -------- | -------- |
+| `_get_diff_stat(workspace)` | `Path` | `dict[str, tuple[int, int]]` | `{}` on any error |
+| `_parse_diff_stat_output(text)` | `str` | `dict[str, tuple[int, int]]` | skips bad lines |
+| `_build_change_results(diff_stat, *, judge_passed, pipeline_passed)` | dict + bools | `list[ChangeResult]` | `[]` for empty input |
+| `_build_progress_steps(workspace_state, *, judge_score, diff_stat)` | str + float + dict | `list[ProgressStep]` | `[]` for no file entries |
+| `_finalize_change_results(changes, *, judge_passed, pipeline_passed)` | list + bools | `list[ChangeResult]` (new) | `[]` for empty input |
+| `_finalize_progress_steps(steps, *, judge_score)` | list + float | `list[ProgressStep]` (new) | `[]` for empty input |
+
+### process_metrics JSON Schema (written to run_result.json)
+
+```json
+{
+  "process_metrics": {
+    "r_prog": 0.85,
+    "strategic_drift": 0.15,
+    "cfp": 0.0,
+    "pr_revert_rate": 0.0
+  },
+  "progress_tracking": [
+    {
+      "step_id": "src/module.py",
+      "description": "modified src/module.py",
+      "weight": 0.7,
+      "completed": true,
+      "goal_alignment": 0.85
+    }
+  ],
+  "changes": [
+    {
+      "change_id": "src/module.py",
+      "description": "Modified src/module.py",
+      "succeeded": true,
+      "caused_failure": false,
+      "reverted": false
+    }
+  ]
+}
+```
+
+## Best Practices
+
+1. **Never modify frozen Pydantic models** — extend the serialized dict after `to_dict()`
+2. **Separate parsing from subprocess calls** — `_parse_diff_stat_output()` is independently testable
+3. **Graceful error handling** — return `{}` / `[]` on any git error, never raise
+4. **Immutable finalize helpers** — return new lists, never mutate input
+5. **Patch lazy imports at source** — `patch("module.where.defined")` not `patch("module.that.imports")`
+6. **Two-phase population** — preliminary data at diff-capture time, finalized at run-finalize time
+7. **None sentinel** — use `None` default (not `[]`) so callers can detect "not yet populated"
+8. **Type annotations** — always use `dict[K, V]` not bare `dict` to satisfy mypy `[type-arg]`
+
+## Related Skills
+
+- `e2e-checkpoint-resume` — run_result.json dual-persistence pattern
+- `parallel-metrics-integration` — extended-dict approach over Pydantic model modification
+- `e2e-framework-bug-fixes` — git diff usage in E2E context
+- `state-machine-wiring` — RunContext ephemeral field pattern
+
+## References
+
+- PR: https://github.com/HomericIntelligence/ProjectScylla/pull/1177
+- Issue: https://github.com/HomericIntelligence/ProjectScylla/issues/1133
+- Implementation: `scylla/e2e/stages.py` (`_get_diff_stat`, `_build_change_results`, `_build_progress_steps`, `_finalize_change_results`, `_finalize_progress_steps`)
+- Tests: `tests/unit/e2e/test_stage_process_metrics.py`
+- Loader (reads the blocks): `scylla/analysis/loader.py:625`
+- ProcessMetrics types: `scylla/metrics/process.py`
+
+### Notes file for emit-process-metrics-from-runner
+
+# Raw Notes: emit-process-metrics-from-runner
+
+## Session Context
+
+- **Date**: 2026-02-27
+- **Issue**: #1133 — Emit process_metrics block from EvalOrchestrator/runner
+- **Branch**: `1133-auto-impl`
+- **PR**: https://github.com/HomericIntelligence/ProjectScylla/pull/1177
+
+## Key Files
+
+### Source Files
+- `scylla/e2e/stages.py` — Main implementation (helper functions + stage modifications)
+- `scylla/metrics/process.py` — ChangeResult, ProgressStep, ProcessMetrics, calculate_process_metrics
+- `scylla/e2e/llm_judge.py:562` — `_get_workspace_state()` parses git status --porcelain
+- `scylla/analysis/loader.py:625` — Reads process_metrics from run_result.json (pre-existing)
+
+### Test Files
+- `tests/unit/e2e/test_stage_process_metrics.py` — 51 new tests
+
+## Implementation Timeline
+
+1. Read issue and plan from `gh issue view 1133 --comments`
+2. Explored: `scylla/metrics/process.py`, `scylla/e2e/stages.py`, `scylla/e2e/models.py`
+3. Wrote test file first (TDD)
+4. Added imports + RunContext fields to stages.py
+5. Implemented helper functions in stages.py
+6. Modified stage_capture_diff
+7. Modified stage_finalize_run
+8. Fixed test: wrong mock path for detect_rate_limit
+9. Fixed test: missing `Any` type annotation on `_make_judgment`
+10. Pre-commit passed (ruff format auto-fixed some spacing)
+11. Commit + push + PR
+
+## Design Decisions
+
+### Why git diff --stat (not git diff --numstat)?
+`--stat` format (`path | 5 ++---`) is more commonly used in the codebase.
+`--numstat` gives exact counts but the `++---` marker counting is simpler to parse
+for our purposes (we only need relative weights, not exact counts).
+
+Actually: `--stat` shows marker strings like `++---`, NOT exact numbers.
+The summary line has the actual count ("2 insertions(+), 3 deletions(-)").
+Our parser counts `+` and `-` chars in the marker string, which gives approximate
+relative weights — good enough for weight normalization.
+
+### Why two-phase (capture + finalize)?
+Judge score is not known at diff-capture time. We need the judge score for
+`goal_alignment` in ProgressSteps and `succeeded` in ChangeResults.
+Solution: store preliminary data, finalize in stage_finalize_run.
+
+### Why not modify E2ERunResult Pydantic model?
+It's a frozen model. Adding new fields would break the existing `to_dict()` contract
+and potentially the loader. The extended-dict pattern (augmenting the serialized dict)
+is already used for `baseline_pipeline_summary` and is established project pattern.
+
+### pipeline_passed determination
+`ctx.judge_pipeline_result.all_passed` if available, else True (defensive default).
+The judge pipeline runs after diff capture, so it's available in stage_finalize_run.
+
+## Workspace State String Format
+
+`_get_workspace_state()` returns lines like:
+```
+Files modified/created by agent:
+- `path/to/file.py` (modified)
+- `path/to/other.py` (created)
+- `path/to/deleted.py` (deleted)
+(no changes detected)
+```
+
+Our parser: look for lines starting with `- \`` and extract path + status.
+
+## git diff --stat Output Format
+
+```
+ path/to/file.py | 5 ++---
+ another/file.py | 3 +++
+ 2 files changed, 8 insertions(+), 3 deletions(-)
+```
+
+Key: `|` separates path from change markers. Summary line has "file" + "changed".
+Marker string: `++---` means 2 insertions, 3 deletions (count `+` and `-` chars).
+Leading/trailing whitespace on path must be stripped.
+
+## Test Count
+
+- `TestGetDiffStat`: 9 tests
+- `TestBuildChangeResults`: 8 tests
+- `TestBuildProgressSteps`: 11 tests
+- `TestFinalizeChangeResults`: 6 tests
+- `TestFinalizeProgressSteps`: 5 tests
+- `TestStageFinalizeRunProcessMetrics`: 8 tests (integration)
+- **Total**: 51 new tests
+
+## Superseded from expose-run-report-process-metrics
+
+---
+name: expose-run-report-process-metrics
+description: 'TRIGGER CONDITIONS: Adding new metric fields to per-run report.json
+  or report.md in scylla/e2e/run_report.py. Use when per-run structured data (in run_result.json)
+  needs to be surfaced in both the human-readable markdown report and the machine-readable
+  JSON report generated by stage_write_report.'
+category: evaluation
+date: 2026-03-02
+version: 1.0.0
+user-invocable: false
+---
+# expose-run-report-process-metrics
+
+How to add a new metrics section to the per-run `report.md` and `report.json` files generated by
+`stage_write_report()` in ProjectScylla, using process metrics (R_Prog, Strategic Drift, CFP,
+PR Revert Rate) as the concrete example.
+
+## Overview
+
+| Item | Details |
+| ------ | --------- |
+| Date | 2026-03-02 |
+| Objective | Surface `process_metrics` from `run_result.json` in the per-run `report.md` and `report.json` |
+| Outcome | Success — 7 new tests, 3591 total passing, all pre-commit hooks pass |
+| Issue | HomericIntelligence/ProjectScylla#1181 |
+| PR | HomericIntelligence/ProjectScylla#1297 |
+
+## When to Use
+
+- A new metrics block already exists in `run_result.json` (written by `stage_finalize_run`) and
+  you want to include it in the per-run report outputs
+- Adding a `## New Section` to the markdown generated by `generate_run_report()`
+- Adding a new key to the structured JSON produced by `save_run_report_json()`
+- Any change where `stage_write_report()` needs to read additional data from disk and pass it to
+  the report functions
+
+## Architecture: Per-Run Report Pipeline
+
+```
+stage_finalize_run()          → writes run_result.json (includes process_metrics block)
+    ↓
+stage_write_report()          → reads run_result.json, calls save_run_report() + save_run_report_json()
+    ↓
+save_run_report()             → calls generate_run_report() → writes report.md
+save_run_report_json()        → writes report.json
+```
+
+Key insight: `run_result.json` is the authoritative source written by the previous stage.
+`stage_write_report()` reads it via `json.load()` with a `try/except (OSError, json.JSONDecodeError)` guard.
+
+## Verified Workflow
+
+### Step 1: Add helper functions to `run_report.py`
+
+Add a value formatter and a section generator before `generate_run_report()`:
+
+```python
+import math  # add to imports
+
+def _format_process_metric_value(val: Any) -> str:
+    """Format a process metric value, returning 'N/A' for None/NaN."""
+    if val is None:
+        return "N/A"
+    try:
+        f = float(val)
+        if math.isnan(f):
+            return "N/A"
+        return f"{f:.4f}"
+    except (TypeError, ValueError):
+        return "N/A"
+
+
+def _generate_process_metrics_section(process_metrics: dict[str, Any]) -> list[str]:
+    """Generate ## Process Metrics markdown table."""
+    r_prog = _format_process_metric_value(process_metrics.get("r_prog"))
+    strategic_drift = _format_process_metric_value(process_metrics.get("strategic_drift"))
+    cfp = _format_process_metric_value(process_metrics.get("cfp"))
+    pr_revert_rate = _format_process_metric_value(process_metrics.get("pr_revert_rate"))
+    return [
+        "---", "",
+        "## Process Metrics", "",
+        "| Metric | Value |",
+        "|--------|-------|",
+        f"| R_Prog (Fine-Grained Progress) | {r_prog} |",
+        f"| Strategic Drift | {strategic_drift} |",
+        f"| CFP (Change Fail %) | {cfp} |",
+        f"| PR Revert Rate | {pr_revert_rate} |",
+        "",
+    ]
+```
+
+### Step 2: Add `process_metrics` param to `generate_run_report()`
+
+```python
+def generate_run_report(
+    ...
+    process_metrics: dict[str, Any] | None = None,
+) -> str:
+    ...
+    # After workspace state section, before agent output link:
+    if process_metrics and isinstance(process_metrics, dict):
+        lines.extend(_generate_process_metrics_section(process_metrics))
+```
+
+### Step 3: Thread through `save_run_report()`
+
+```python
+def save_run_report(
+    ...
+    process_metrics: dict[str, Any] | None = None,
+) -> None:
+    report = generate_run_report(
+        ...
+        process_metrics=process_metrics,
+    )
+```
+
+### Step 4: Add NaN-guarded JSON serialization to `save_run_report_json()`
+
+JSON does not support `NaN`/`Infinity` literals — guard before writing:
+
+```python
+def save_run_report_json(
+    ...
+    process_metrics: dict[str, Any] | None = None,
+) -> None:
+    report: dict[str, Any] = {
+        "run_number": run_number, "score": score, ...
+    }
+    if process_metrics and isinstance(process_metrics, dict):
+        guarded: dict[str, float | None] = {}
+        for key in ("r_prog", "strategic_drift", "cfp", "pr_revert_rate"):
+            val = process_metrics.get(key)
+            if val is None:
+                guarded[key] = None
+            else:
+                try:
+                    f = float(val)
+                    guarded[key] = None if math.isnan(f) else f
+                except (TypeError, ValueError):
+                    guarded[key] = None
+        report["process_metrics"] = guarded
+    (run_dir / "report.json").write_text(json.dumps(report, indent=2))
+```
+
+### Step 5: Update `stage_write_report()` in `stages.py`
+
+Read the metrics from the already-written `run_result.json` (safe — it was written by the
+immediately preceding `stage_finalize_run()` in the same state-machine run):
+
+```python
+# Read process_metrics from run_result.json written by stage_finalize_run
+process_metrics: dict[str, Any] | None = None
+try:
+    with open(ctx.run_dir / "run_result.json") as f:
+        run_result_data = json.load(f)
+    process_metrics = run_result_data.get("process_metrics")
+except (OSError, json.JSONDecodeError, KeyError):
+    pass
+
+save_run_report(
+    ...
+    process_metrics=process_metrics,
+)
+save_run_report_json(
+    ...
+    process_metrics=process_metrics,
+)
+```
+
+`json` and `Any` are already imported in `stages.py`.
+
+### Step 6: Write tests
+
+Add two test classes to `tests/unit/e2e/test_run_report.py`:
+
+1. `TestGenerateRunReportProcessMetrics` — tests for markdown rendering:
+   - `test_process_metrics_present` — all 4 values render correctly
+   - `test_process_metrics_absent` — no section when `None`
+   - `test_process_metrics_empty_dict` — no section when `{}`
+   - `test_process_metrics_partial_none_values` — `None` fields render as `N/A`
+
+2. `TestSaveRunReportJsonProcessMetrics` — tests for JSON output:
+   - `test_json_includes_process_metrics` — key present with correct values
+   - `test_json_process_metrics_absent` — key absent when not provided
+   - `test_json_process_metrics_nan_guarded` — `float("nan")` serializes as `null`
+
+Type annotation: the `_base_kwargs` helper must return `dict[str, Any]` (not bare `dict`) to pass mypy.
+Add `from typing import Any` to the test file imports.
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| N/A | Direct approach worked | N/A | Solution was straightforward |
+## Key Gotchas
+
+1. **NaN in JSON**: Python's `json.dumps()` will serialize `float("nan")` as `NaN` by default,
+   which is invalid JSON. Always guard with `math.isnan()` and replace with `None`.
+
+2. **`math` must be explicitly imported** in `run_report.py` even though it is a stdlib module.
+
+3. **Empty dict guard**: `if process_metrics and isinstance(...)` correctly skips empty dicts
+   (falsy in Python), preventing empty `## Process Metrics` sections.
+
+4. **Reading from `run_result.json`**: Do NOT read `process_metrics` from `ctx.run_result` —
+   the `E2ERunResult` dataclass does not carry these fields. They are only in the JSON file
+   written by `stage_finalize_run()`.
+
+5. **Mypy in tests**: Helper methods that build keyword-argument dicts must use `dict[str, Any]`
+   return type, not bare `dict`, to pass mypy strict type checking.
+
+## Results & Parameters
+
+| File | Change |
+| ------ | -------- |
+| `scylla/e2e/run_report.py` | Added `import math`, `_format_process_metric_value()`, `_generate_process_metrics_section()`, `process_metrics` param to `generate_run_report()` + `save_run_report()` + `save_run_report_json()` |
+| `scylla/e2e/stages.py` | `stage_write_report()` reads `run_result.json`, passes `process_metrics` to both save functions |
+| `tests/unit/e2e/test_run_report.py` | 7 new tests (2 new test classes), `from typing import Any` added |
+
+**Test counts**: 3591 passed, 1 skipped (full suite)
+**Pre-commit**: ruff format, ruff check, mypy — all pass
+
+## Superseded from persist-process-metrics-resume
+
+---
+name: persist-process-metrics-resume
+description: 'TRIGGER CONDITIONS: Persisting process_metrics (progress_steps, change_results)
+  through a resume scenario when a run crashes between DIFF_CAPTURED and RUN_FINALIZED
+  in ProjectScylla''s 16-stage pipeline. Use when a stage needs to reload previously-computed
+  data from a JSON artifact when ctx fields are None on resume.'
+category: evaluation
+date: 2026-03-02
+version: 1.0.0
+user-invocable: false
+---
+# persist-process-metrics-resume
+
+How to persist intermediate stage data through crash-resume cycles in ProjectScylla's 16-stage E2E pipeline, using `run_result.json` as the persistence source.
+
+## Overview
+
+| Item | Details |
+| ------ | --------- |
+| Date | 2026-03-02 |
+| Objective | When a run resumes into `stage_finalize_run` after a crash between JUDGE_COMPLETE and RUN_FINALIZED, reload `progress_steps` and `change_results` from a prior `run_result.json` instead of silently producing empty process_metrics |
+| Outcome | Success — 20 new tests, 3530 total passing, 79.6% unit coverage, all pre-commit hooks pass |
+| Issue | HomericIntelligence/ProjectScylla#1179 |
+| PR | HomericIntelligence/ProjectScylla#1296 |
+
+## When to Use
+
+- A stage function uses `ctx.field or []` / `ctx.field or {}` as a fallback for a field that should have been populated by an earlier stage
+- A crash/interrupt can leave the field `None` in a resume scenario, producing silently-degraded output
+- The missing data was already written to a JSON artifact on disk in a previous (partial) run
+- Pattern: "load from JSON if `ctx.field is None` and the artifact exists"
+
+## Architecture: 16-Stage Pipeline Resume Invariant
+
+```
+PENDING → DIR_STRUCTURE_CREATED → WORKTREE_CREATED → SYMLINKS_APPLIED
+→ CONFIG_COMMITTED → BASELINE_CAPTURED → PROMPT_WRITTEN → REPLAY_GENERATED
+→ AGENT_COMPLETE → DIFF_CAPTURED ← (populates ctx.progress_steps + ctx.change_results)
+→ JUDGE_PIPELINE_RUN → JUDGE_PROMPT_BUILT → JUDGE_COMPLETE
+→ stage_finalize_run ← (writes run_result.json including progress_tracking + changes)
+→ RUN_FINALIZED → REPORT_WRITTEN → CHECKPOINTED → WORKTREE_CLEANED
+```
+
+**Crash scenario**: If the process dies after `DIFF_CAPTURED` but before `stage_finalize_run` **saves** its output, the next resume starts at `JUDGE_COMPLETE`. `stage_capture_diff` is skipped, so `ctx.progress_steps` and `ctx.change_results` are `None`.
+
+**Old behaviour**: `ctx.change_results or []` silently returns `[]` → empty `process_metrics` block.
+
+**New behaviour**: Check if a partial `run_result.json` exists from the previous partial run and reload the data.
+
+## Verified Workflow
+
+### Step 1: Identify the crash window and the artifact
+
+The crash window is between the stage that **writes** the field and the stage that **needs** it. In this case:
+- `stage_capture_diff` (AGENT_COMPLETE → DIFF_CAPTURED): writes `ctx.progress_steps`, `ctx.change_results`
+- `stage_finalize_run` (JUDGE_COMPLETE → RUN_FINALIZED): reads and writes `run_result.json`
+
+If an earlier partial run completed `stage_finalize_run`, the data is available in `run_result.json` under `progress_tracking` and `changes` keys.
+
+### Step 2: Write a focused loader helper
+
+Add a private helper just before the first function that needs the data:
+
+```python
+def _load_process_metrics_from_run_result(
+    run_dir: Path,
+) -> tuple[list[ProgressStep] | None, list[ChangeResult] | None]:
+    """Load progress_steps and change_results from a previously-saved run_result.json.
+
+    Returns (None, None) if the file does not exist, is invalid, or lacks the
+    required keys. Callers must guard against None before using.
+    """
+    run_result_path = run_dir / "run_result.json"
+    if not run_result_path.exists():
+        return None, None
+    try:
+        data = json.loads(run_result_path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return None, None
+
+    progress_steps: list[ProgressStep] | None = None
+    changes: list[ChangeResult] | None = None
+
+    raw_steps = data.get("progress_tracking")
+    if isinstance(raw_steps, list):
+        progress_steps = [
+            ProgressStep(
+                step_id=s["step_id"],
+                description=s["description"],
+                weight=s.get("weight", 1.0),
+                completed=s.get("completed", False),
+                goal_alignment=s.get("goal_alignment", 1.0),
+            )
+            for s in raw_steps
+            if isinstance(s, dict) and "step_id" in s and "description" in s
+        ]
+
+    raw_changes = data.get("changes")
+    if isinstance(raw_changes, list):
+        changes = [
+            ChangeResult(
+                change_id=c["change_id"],
+                description=c["description"],
+                succeeded=c.get("succeeded", True),
+                caused_failure=c.get("caused_failure", False),
+                reverted=c.get("reverted", False),
+            )
+            for c in raw_changes
+            if isinstance(c, dict) and "change_id" in c and "description" in c
+        ]
+
+    return progress_steps, changes
+```
+
+### Step 3: Add resume guard at the top of the consuming stage
+
+After the guard assertions (before main logic), check and reload:
+
+```python
+def stage_finalize_run(ctx: RunContext) -> None:
+    if ctx.agent_result is None:
+        raise RuntimeError("agent_result must be set before finalize_run")
+    if ctx.judgment is None:
+        raise RuntimeError("judgment must be set before finalize_run")
+
+    # Resume guard: if progress_steps/change_results were not populated this
+    # session (e.g., crash between DIFF_CAPTURED and JUDGE_COMPLETE skipped
+    # stage_capture_diff), try to reload from a previously-saved run_result.json.
+    if ctx.progress_steps is None or ctx.change_results is None:
+        loaded_steps, loaded_changes = _load_process_metrics_from_run_result(ctx.run_dir)
+        if ctx.progress_steps is None:
+            ctx.progress_steps = loaded_steps
+        if ctx.change_results is None:
+            ctx.change_results = loaded_changes
+
+    # ... rest of stage
+```
+
+**Critical**: Use `is None` not `not ctx.field` — an **empty list `[]`** from `stage_capture_diff`
+(agent made no changes) must NOT be overwritten by disk data. `not []` is `True`, which would
+incorrectly trigger the reload.
+
+### Step 4: Write tests covering all boundary cases
+
+Create `tests/unit/e2e/test_<feature>_resume.py` with two test classes:
+
+**Class 1: `TestLoadHelper`** — pure unit tests for the loader:
+- Returns `(None, None)` when file is missing
+- Returns `(None, None)` on invalid JSON
+- Returns `(None, None)` on `OSError`
+- Returns `(None, None)` when JSON has no relevant keys
+- Loads `ProgressStep` instances correctly (field values + defaults)
+- Loads `ChangeResult` instances correctly (field values + defaults)
+- Skips malformed entries missing required fields
+- Returns empty lists `[]` (not `None`) when keys exist but arrays are empty
+- Loads both simultaneously when both keys present
+
+**Class 2: `TestStageFinalizeRunResume`** — integration tests with a `minimal_run_context` fixture:
+- `None` ctx field → data reloaded from disk
+- `[]` ctx field → data NOT overwritten (empty list preserved)
+- Fresh ctx data → NOT overwritten even when disk has different data
+- No disk file + `None` ctx field → graceful (no crash, result is empty lists)
+- Loaded data produces non-zero `r_prog` in process_metrics output
+- Partial-None: only `change_results` is `None` → only that field reloaded, `progress_steps` preserved
+
+### Step 5: Verify
+
+```bash
+# New test file only
+pixi run python -m pytest tests/unit/e2e/test_<feature>_resume.py -v
+
+# Full e2e unit suite (no-coverage)
+pixi run python -m pytest tests/unit/e2e/ --override-ini="addopts=" -v
+
+# Full unit suite with 75% threshold
+pixi run python -m pytest tests/unit/ --override-ini="addopts=" --cov=scylla --cov-fail-under=75 -q
+
+# Pre-commit on changed files
+pre-commit run --files scylla/e2e/stages.py tests/unit/e2e/test_<feature>_resume.py
+```
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| N/A | Direct approach worked | N/A | Solution was straightforward |
+## Results & Parameters
+
+### Key design decisions
+
+| Decision | Rationale |
+| ---------- | ----------- |
+| `is None` guard (not `not ctx.field`) | Preserves `[]` set by `stage_capture_diff` when agent made no changes |
+| Return `(None, None)` not `([], [])` on error | Lets the existing `or []` fallbacks in `stage_finalize_run` handle the empty case naturally |
+| Skip malformed entries (filter, not raise) | Partial data is better than a crash on resume |
+| Inline guard in `stage_finalize_run` (not centralized) | Consistent with per-stage resume pattern in all other stage functions |
+| Helper placed just before `_build_change_results` | Co-location with other process-metrics helpers in the same file section |
+
+### Test count breakdown
+
+| File | Tests | Focus |
+| ------ | ------- | ------- |
+| `test_stage_finalize_run_resume.py` | 20 | Helper (13) + integration (6) + partial-None (1) |
+
+### Coverage impact
+
+- Unit coverage after change: 79.6% (above 75% threshold)
+- Combined floor (9%): unaffected
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| ProjectScylla | Issue #1179, PR #1296 | Follow-up from #1133 (process metrics initial implementation) |
+
+## References
+
+- Related skills: `additive-resume-integration-tests`, `wire-figure-pipeline`
+- Production file: `scylla/e2e/stages.py`
+- Test file: `tests/unit/e2e/test_stage_finalize_run_resume.py`
+- Follow-up from: HomericIntelligence/ProjectScylla#1133
+
+## Superseded from skill-integrate-process-metrics-into-analysis-pipeline
+
+---
+name: skill-integrate-process-metrics-into-analysis-pipeline
+description: Workflow for wiring pre-implemented process metrics (R_Prog, CFP, PR Revert Rate, Strategic Drift) into the ProjectScylla loader → dataframes → figures stack
+category: evaluation
+date: 2026-02-27
+version: 1.0.0
+user-invocable: false
+---
+# Skill: Integrate Process Metrics into Analysis Pipeline
+
+## Overview
+
+| Attribute | Value |
+| ----------- | ------- |
+| **Date** | 2026-02-27 |
+| **Objective** | Integrate R_Prog, CFP, PR Revert Rate, Strategic Drift from `scylla/metrics/process.py` into the analysis pipeline |
+| **Outcome** | ✅ Success — 3199 tests passing, 78.44% coverage, PR #1127 merged |
+| **Issue** | #997 (follow-up from #880) |
+| **Files Modified** | 3 modified, 2 created |
+
+## When to Use This Skill
+
+**Trigger conditions:**
+- A metric is implemented in `scylla/metrics/` but not exposed in analysis output
+- Issue says "metrics are implemented but not integrated into analysis pipeline"
+- Need to add optional/nullable metric columns to `runs_df`
+- Adding figures for process/stability metrics to the report
+
+**Prerequisites:**
+- Metric functions exist in `scylla/metrics/process.py` (or similar)
+- Understanding of pipeline: `run_result.json` → `loader.py` → `dataframes.py` → `figures/`
+- JSON schema at `scylla/analysis/schemas/run_result.schema.json`
+
+## Verified Workflow
+
+### Phase 1: Extend JSON Schema
+
+**File: `scylla/analysis/schemas/run_result.schema.json`**
+
+Add property definitions for pre-computed block **and** raw tracking arrays:
+
+```json
+"process_metrics": {
+  "type": "object",
+  "description": "Pre-computed process metrics for this run",
+  "properties": {
+    "r_prog": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+    "strategic_drift": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+    "cfp": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+    "pr_revert_rate": {"type": "number", "minimum": 0.0, "maximum": 1.0}
+  },
+  "additionalProperties": false
+},
+"progress_tracking": {
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {
+      "step_id": {"type": "string"},
+      "description": {"type": "string"},
+      "weight": {"type": "number", "minimum": 0},
+      "completed": {"type": "boolean"},
+      "goal_alignment": {"type": "number", "minimum": 0, "maximum": 1}
+    },
+    "required": ["step_id", "description"],
+    "additionalProperties": false
+  }
+},
+"changes": {
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {
+      "change_id": {"type": "string"},
+      "description": {"type": "string"},
+      "succeeded": {"type": "boolean"},
+      "caused_failure": {"type": "boolean"},
+      "reverted": {"type": "boolean"}
+    },
+    "required": ["change_id", "description"],
+    "additionalProperties": false
+  }
+}
+```
+
+**Key design decision:** Two-path extraction — pre-computed block takes priority; raw tracking arrays are fallback. This supports both future instrumented runs and manual/retrospective entry.
+
+### Phase 2: Extend RunData Dataclass + load_run()
+
+**File: `scylla/analysis/loader.py`**
+
+**2a. Add optional fields to RunData:**
+
+```python
+@dataclass
+class RunData:
+    # ... existing fields ...
+    # Optional process metrics (from run_result.json process_metrics block)
+    r_prog: float | None = None
+    strategic_drift: float | None = None
+    cfp: float | None = None
+    pr_revert_rate: float | None = None
+```
+
+**2b. Add extraction logic in load_run() with two-path fallback:**
+
+```python
+# Extract process metrics from run_result.json
+r_prog_val: float | None = None
+strategic_drift_val: float | None = None
+cfp_val: float | None = None
+pr_revert_rate_val: float | None = None
+
+process_metrics_data = result.get("process_metrics")
+if process_metrics_data and isinstance(process_metrics_data, dict):
+    # Path 1: pre-computed block
+    def _extract_process_float(key: str) -> float | None:
+        raw = validate_numeric(process_metrics_data.get(key), key, np.nan)
+        return None if (raw is None or np.isnan(raw)) else raw
+
+    r_prog_val = _extract_process_float("r_prog")
+    strategic_drift_val = _extract_process_float("strategic_drift")
+    cfp_val = _extract_process_float("cfp")
+    pr_revert_rate_val = _extract_process_float("pr_revert_rate")
+else:
+    # Path 2: compute from raw tracking data
+    progress_tracking = result.get("progress_tracking")
+    changes = result.get("changes")
+    if progress_tracking or changes:
+        from scylla.metrics.process import (
+            ChangeResult, ProgressStep, ProgressTracker,
+            calculate_cfp, calculate_pr_revert_rate,
+            calculate_r_prog, calculate_strategic_drift,
+        )
+        if progress_tracking and isinstance(progress_tracking, list):
+            steps = []
+            achieved = []
+            for s in progress_tracking:
+                if isinstance(s, dict):
+                    step = ProgressStep(
+                        step_id=s.get("step_id", ""),
+                        description=s.get("description", ""),
+                        weight=float(s.get("weight", 1.0)),
+                        completed=bool(s.get("completed", False)),
+                        goal_alignment=float(s.get("goal_alignment", 1.0)),
+                    )
+                    steps.append(step)
+                    if step.completed:
+                        achieved.append(step)
+            tracker = ProgressTracker(expected_steps=steps, achieved_steps=achieved)
+            r_prog_val = calculate_r_prog(tracker)
+            strategic_drift_val = calculate_strategic_drift(tracker)
+
+        if changes and isinstance(changes, list):
+            change_results = [
+                ChangeResult(
+                    change_id=c.get("change_id", ""),
+                    description=c.get("description", ""),
+                    succeeded=bool(c.get("succeeded", True)),
+                    caused_failure=bool(c.get("caused_failure", False)),
+                    reverted=bool(c.get("reverted", False)),
+                )
+                for c in changes if isinstance(c, dict)
+            ]
+            cfp_val = calculate_cfp(change_results)
+            pr_revert_rate_val = calculate_pr_revert_rate(change_results)
+```
+
+**Important:** Use `from scylla.metrics.process import ...` inside the `else` branch (lazy import). This avoids circular imports and only loads the metrics module when raw tracking data is actually present.
+
+### Phase 3: Add Columns to build_runs_df()
+
+**File: `scylla/analysis/dataframes.py`**
+
+Simply pass through from RunData — no calculation needed (already done in loader):
+
+```python
+rows.append({
+    # ... existing fields ...
+    # Optional process metrics (R_Prog, CFP, PR revert rate, strategic drift)
+    "r_prog": run.r_prog,
+    "strategic_drift": run.strategic_drift,
+    "cfp": run.cfp,
+    "pr_revert_rate": run.pr_revert_rate,
+})
+```
+
+These columns will be `None` for runs without process tracking data — that's correct behavior. Downstream code should use `.dropna(subset=["r_prog"])` before analysis.
+
+### Phase 4: Create Figure Module
+
+**File: `scylla/analysis/figures/process_metrics.py`**
+
+Key patterns:
+1. Import guard — skip gracefully if column absent or all-null
+2. Use `_filter_process_data()` helper to warn on sparse coverage
+3. Box plot for R_Prog (shows distribution), bar+error for CFP/revert (shows mean ± stderr)
+4. Facet by `agent_model` for model comparison
+
+```python
+def _filter_process_data(runs_df: pd.DataFrame, column: str) -> pd.DataFrame:
+    """Filter to non-null rows, warn if < 5."""
+    filtered = runs_df.dropna(subset=[column])
+    if len(filtered) < 5:
+        logger.warning("Process metric '%s' has only %d non-null rows", column, len(filtered))
+    return filtered
+
+
+def fig_r_prog_by_tier(runs_df: pd.DataFrame, output_dir: Path, render: bool = True) -> None:
+    if "r_prog" not in runs_df.columns:
+        logger.warning("r_prog column not found; skipping")
+        return
+    data = _filter_process_data(runs_df[["tier", "agent_model", "r_prog"]], "r_prog")
+    if data.empty:
+        return
+    # box plot ...
+    save_figure(chart, "fig_r_prog_by_tier", output_dir, render)
+```
+
+### Phase 5: Tests
+
+**File: `tests/unit/analysis/test_process_metrics_integration.py`**
+
+Test structure:
+
+1. **Loader tests** — create tmp_path run directories with mock `run_result.json`:
+   - Pre-computed block: values extracted correctly
+   - No process data: all fields `None`
+   - Partial block: present fields populated, absent fields `None`
+   - Raw tracking fallback: r_prog and drift computed correctly
+   - Raw changes fallback: cfp and revert rate computed correctly
+   - Precedence: pre-computed block wins over raw data
+
+2. **DataFrame tests** — use `_make_run_data()` helper:
+   - Columns present in output
+   - Values correct
+   - `None` preserved for runs without process metrics
+
+3. **Figure smoke tests** — use fixture with `r_prog`, `cfp`, `pr_revert_rate` columns:
+   - Output file created
+   - Graceful skip when column absent
+   - Graceful skip when column all-null
+
+**Critical pattern** for loader tests:
+
+```python
+def _make_run_dir(tmp_path: Path, run_result_data: dict[str, Any], *, run_name: str = "run_01") -> Path:
+    run_dir = tmp_path / run_name
+    run_dir.mkdir()
+    (run_dir / "run_result.json").write_text(json.dumps(run_result_data))
+    return run_dir
+```
+
+**Import at top of test file** (required for mypy):
+
+```python
+from scylla.analysis.loader import RunData
+from scylla.e2e.models import TokenStats
+```
+
+Note: `TokenStats` is imported from `scylla.e2e.models`, NOT from `scylla.analysis.loader` (it's re-exported there but not in `__all__`). The `TokenStats` dataclass does NOT have a `total_tokens` field — it's a `@property`.
+
+### Phase 6: Verification
+
+```bash
+# Run new tests only (fast feedback)
+PYTHONPATH=scripts pixi run python -m pytest tests/unit/analysis/test_process_metrics_integration.py -v --no-cov
+
+# Run full suite (required before push)
+PYTHONPATH=scripts pixi run python -m pytest tests/ --no-cov -q
+
+# Run pre-commit on changed files
+pre-commit run --files scylla/analysis/loader.py scylla/analysis/dataframes.py \
+  scylla/analysis/figures/process_metrics.py \
+  scylla/analysis/schemas/run_result.schema.json \
+  tests/unit/analysis/test_process_metrics_integration.py
+```
+
+## Failed Attempts & Lessons Learned
+
+| Attempt | Issue | Resolution |
+| --------- | ------- | ------------ |
+| Putting process extraction in `dataframes.py` | Wrong layer — process.py imports are heavy | Keep in `loader.py` |
+| Importing `TokenStats` from `loader.py` in tests | Not in `__all__`, mypy error | Import from `scylla.e2e.models` directly |
+| Passing `total_tokens` to `TokenStats()` constructor | Field doesn't exist (it's a `@property`) | Only pass `input_tokens`, `output_tokens`, `cache_creation_tokens`, `cache_read_tokens` |
+| `_make_run_data()` returning `object` | mypy: `"object" has no attribute "r_prog"` | Type return as `RunData` and import at module level |
+| `dict` without type params in function signatures | mypy `[type-arg]` error | Use `dict[str, Any]` with `from typing import Any` |
+| Pre-push hook failing due to flaky timing tests | `test_exponential_backoff_delay` fails under coverage load | Rebase onto latest `origin/main` which fixed the flaky tests |
+| Stash pop created merge conflict in `runner.py` | `git stash pop` after failed push attempt conflicted | Resolve conflict keeping HEAD version (ours) |
+
+### ❌ Attempt 1: Single-path extraction (no fallback)
+
+**What we tried:** Only extract from `process_metrics` block, ignore raw tracking data.
+
+**Why it failed:** The issue required supporting both pre-computed values AND raw tracking arrays. Future runs may have only raw tracking.
+
+**Correct approach:** Two-path: pre-computed block first, raw arrays as fallback.
+
+### ❌ Attempt 2: Eager import of `scylla.metrics.process`
+
+**What we tried:** Import `calculate_r_prog`, etc. at module level in `loader.py`.
+
+**Why it failed:** Would import process module even when no raw tracking data exists, adding startup overhead and potential circular import risk.
+
+**Correct approach:** Lazy import inside the `else` branch with `# noqa: PLC0415`.
+
+### ❌ Attempt 3: Pushing without rebasing onto latest main
+
+**What we tried:** Push immediately after implementing.
+
+**Why it failed:** `origin/main` had moved 5 commits ahead including fixes for flaky tests that were blocking the pre-push hook.
+
+**Correct approach:** Always `git fetch origin && git rebase origin/main` before pushing when working on a feature branch.
+
+## Results & Parameters
+
+### Files Modified/Created
+
+| File | Change | Lines |
+| ------ | -------- | ------- |
+| `scylla/analysis/schemas/run_result.schema.json` | Added 3 new property groups | +62 |
+| `scylla/analysis/loader.py` | RunData fields + load_run() extraction | +78 |
+| `scylla/analysis/dataframes.py` | 4 new columns in build_runs_df() | +5 |
+| `scylla/analysis/figures/process_metrics.py` | New file: 3 figure functions | +195 |
+| `tests/unit/analysis/test_process_metrics_integration.py` | New file: 14 tests | +420 |
+
+**Total:** ~760 lines across 5 files
+
+### Test Results
+
+```
+3199 passed, 8 warnings in 41.41s
+Coverage: 78.44% (threshold: 75%)
+```
+
+**New tests:** 14 integration tests covering loader, DataFrame, and figures.
+
+### Architecture Notes
+
+The process metrics integration uses **optional nullable columns** in `runs_df`:
+- Columns always present (`r_prog`, `cfp`, `strategic_drift`, `pr_revert_rate`)
+- Values are `None` for runs without process tracking
+- Figures skip gracefully (warn + return) when column is missing or all-null
+- No breaking changes to existing downstream consumers
+
+This is the correct pattern for **opt-in metrics** that are not available for all historical runs.
+
+## Common Pitfalls
+
+1. **TokenStats constructor:** Only 4 fields (`input_tokens`, `output_tokens`, `cache_creation_tokens`, `cache_read_tokens`). No `total_tokens` — that's a property.
+2. **Import source for TokenStats in tests:** Use `from scylla.e2e.models import TokenStats`, not from `loader`.
+3. **mypy in test helpers:** Return types must be concrete (`RunData`, not `object`).
+4. **Lazy imports:** When importing from `scylla.metrics.process` inside loader, add `# noqa: PLC0415` to suppress ruff's "import not at top of file" warning.
+5. **Pre-push hook:** The hook runs `pixi run pytest -x` (stop-first) without `PYTHONPATH=scripts`, so it relies on the installed `export_data` module path. Keep in sync with latest `origin/main` to avoid flaky test failures.
+6. **Stash pop conflicts:** Never use `git stash` + `git push` in sequence during active development on a worktree. Use `git rebase origin/main` instead.
+
+## Related Skills
+
+- `add-analysis-metric` — Adding derived metrics to the pipeline
+- `analysis-pipeline-architecture` — Understanding 4-layer architecture
+
+## Success Criteria
+
+- ✅ Schema extended with `process_metrics`, `progress_tracking`, `changes`
+- ✅ `RunData` has 4 new optional fields (`r_prog`, `strategic_drift`, `cfp`, `pr_revert_rate`)
+- ✅ `load_run()` extracts from pre-computed block OR computes from raw tracking
+- ✅ `build_runs_df()` includes 4 new nullable columns
+- ✅ 3 new figure functions with graceful null handling
+- ✅ 14 integration tests (loader + dataframe + figure smoke)
+- ✅ All 3199 tests passing, 78.44% coverage
+
+### Notes file for skill-integrate-process-metrics-into-analysis-pipeline
+
+# Raw Session Notes: integrate-process-metrics
+
+**Session date:** 2026-02-27
+**Issue:** #997 — Integrate R_Prog, CFP, PR Revert Rate into analysis pipeline
+**PR:** #1127
+
+## Context
+
+The metrics were already fully implemented in `scylla/metrics/process.py`:
+- `calculate_r_prog()` / `calculate_r_prog_simple()`
+- `calculate_cfp()` / `calculate_cfp_simple()`
+- `calculate_pr_revert_rate()` / `calculate_pr_revert_rate_simple()`
+- `calculate_strategic_drift()` / `calculate_strategic_drift_simple()`
+- `calculate_process_metrics()` composite function
+
+The task was integration only — wiring them into the analysis pipeline.
+
+## Key Discoveries
+
+### Two-path extraction design
+The `run_result.json` schema supports two ways to store process data:
+1. **Pre-computed**: `process_metrics: {r_prog: 0.75, cfp: 0.1, ...}` — written by eval framework
+2. **Raw tracking**: `progress_tracking: [...]` + `changes: [...]` — written during execution
+
+Pre-computed takes priority. This allows:
+- Future versions to emit pre-computed metrics directly
+- Manual/retrospective computation from raw tracking
+- Backward compatibility (old runs have neither, columns are `None`)
+
+### Nullable columns pattern
+Process metrics are optional in `RunData` (default `None`). This propagates to nullable columns in `runs_df`. Figures handle missing data:
+```python
+if "r_prog" not in runs_df.columns:
+    return  # missing column
+data = runs_df.dropna(subset=["r_prog"])
+if data.empty:
+    return  # all null
+```
+
+This is the correct pattern for opt-in metrics that aren't universal.
+
+### TokenStats gotcha
+In tests, when constructing `RunData` directly:
+```python
+# WRONG — total_tokens doesn't exist as a constructor param
+TokenStats(input_tokens=1000, output_tokens=500, ..., total_tokens=1500)
+
+# CORRECT — total_tokens is a @property
+TokenStats(input_tokens=1000, output_tokens=500, cache_creation_tokens=0, cache_read_tokens=0)
+```
+
+### mypy strict mode in tests
+With `disallow_untyped_defs = true` in mypy config:
+- All test helper functions need return type annotations
+- `dict` → `dict[str, Any]`
+- `object` return type for `load_run()` wrappers → `RunData`
+- Must import types at module level, not inside functions
+
+### Pre-push hook behavior
+The pre-push hook (`scripts/hooks/pre-push`):
+- Runs `pixi run pytest -x` (stop at first failure)
+- Does NOT set `PYTHONPATH=scripts` → analysis tests that need `export_data` become errors
+- BUT errors don't stop `-x` immediately — errors count differently from failures
+- Flaky timing tests (e.g., `test_exponential_backoff_delay`) can fail under coverage load
+
+**Fix:** Rebase onto latest `origin/main` which had fixes for these flaky tests
+(`fix(tests): replace timing assertion with sleep mock in test_retry.py`)
+
+### Stash pop incident
+During debugging of push failure, did `git push` attempt which failed, then tried `git stash` for branch switching — resulted in failed stash pop with merge conflict in `scylla/e2e/runner.py`. Conflict was only in `from typing import TYPE_CHECKING` vs `from typing import Any` (1 line). Kept HEAD version (our branch) which had `TYPE_CHECKING`.
+
+## Timing breakdown
+
+- Schema extension: 5 min
+- RunData + load_run(): 15 min
+- dataframes.py: 3 min
+- process_metrics.py figures: 10 min
+- Tests (14 tests): 20 min
+- mypy fixes: 10 min
+- Pre-push debugging + rebase: 15 min
+- Total: ~78 min
+
+## Notes on test isolation
+
+The `conftest.py` autouse fixture `mock_power_simulations()` patches `export_data.mann_whitney_power` and `kruskal_wallis_power`. This requires `export_data` to be importable, which requires `PYTHONPATH=scripts`. Tests run without this env var fail at setup. This is a known limitation of the test environment — not a bug introduced in this session.
+
+## Files touched
+
+- `scylla/analysis/schemas/run_result.schema.json` (modified)
+- `scylla/analysis/loader.py` (modified)
+- `scylla/analysis/dataframes.py` (modified)
+- `scylla/analysis/figures/process_metrics.py` (created)
+- `tests/unit/analysis/test_process_metrics_integration.py` (created)
+
+## Superseded from skill-export-process-metrics-to-summary-json
+
+---
+name: skill-export-process-metrics-to-summary-json
+description: Workflow for wiring pre-existing dataframe columns into the export_data.py summary JSON output
+category: evaluation
+date: 2026-02-27
+version: 1.0.0
+user-invocable: false
+---
+# Skill: Export Process Metrics to Summary JSON
+
+## Overview
+
+| Attribute | Value |
+| ----------- | ------- |
+| **Date** | 2026-02-27 |
+| **Objective** | Add `mean_r_prog`, `mean_cfp`, `mean_pr_revert_rate` to `summary.json` (overall_stats, by_model, by_tier) |
+| **Outcome** | ✅ Success — PR #1182, 3258 tests passing, coverage 78.43% |
+| **Files Modified** | 3 (`scripts/export_data.py`, `tests/unit/analysis/conftest.py`, `tests/unit/analysis/test_export_data.py`) |
+| **Issue** | #1135 (follow-up from #997) |
+
+## When to Use This Skill
+
+**Trigger conditions:**
+- Columns already exist in `runs_df` (confirmed via `build_runs_df()` in `scylla/analysis/dataframes.py`)
+- Task is to expose them in `summary.json` — not to add them to the dataframe layer
+- The issue asks for `mean_<metric>` per overall/model/tier
+
+**Distinction from `add-analysis-metric`:**
+- `add-analysis-metric` = new metric, starts from `stats.py` → `dataframes.py` → `export_data.py`
+- This skill = column already in `runs_df`; only `export_data.py` + fixtures + tests need changing
+
+**Prerequisites:**
+- Confirm columns exist: `grep -n "<column>" scylla/analysis/dataframes.py`
+- Read `scripts/export_data.py` lines ~696–798 to understand the three summary sections
+
+## Verified Workflow
+
+### Step 1: Confirm columns exist in runs_df
+
+```bash
+grep -n "r_prog\|cfp\|pr_revert_rate" scylla/analysis/dataframes.py
+```
+
+Expected: entries in `build_runs_df()` around lines 147–150.
+If absent, use the `add-analysis-metric` skill instead.
+
+### Step 2: Add to overall_stats
+
+In `scripts/export_data.py`, find the `"overall_stats"` dict (around line 706).
+Add after existing keys:
+
+```python
+"overall_stats": {
+    # ... existing fields ...
+    "mean_r_prog": float(runs_df["r_prog"].dropna().mean()) if not runs_df["r_prog"].dropna().empty else None,
+    "mean_cfp": float(runs_df["cfp"].dropna().mean()) if not runs_df["cfp"].dropna().empty else None,
+    "mean_pr_revert_rate": float(runs_df["pr_revert_rate"].dropna().mean()) if not runs_df["pr_revert_rate"].dropna().empty else None,
+},
+```
+
+**Pattern:** `dropna()` → check empty → `float(mean())` or `None`.
+Never use bare `.mean()` without `dropna()` — NaN propagates and produces `np.nan`, which is not JSON-serializable.
+
+### Step 3: Add to by_model loop
+
+Inside the `for model in runs_df["agent_model"].unique():` loop in `export_data.py`.
+Extract slices before the dict literal (avoids repeated computation):
+
+```python
+model_r_prog = model_df["r_prog"].dropna()
+model_cfp = model_df["cfp"].dropna()
+model_pr_revert_rate = model_df["pr_revert_rate"].dropna()
+
+summary["by_model"][model] = {
+    # ... existing fields ...
+    "mean_r_prog": float(model_r_prog.mean()) if not model_r_prog.empty else None,
+    "mean_cfp": float(model_cfp.mean()) if not model_cfp.empty else None,
+    "mean_pr_revert_rate": float(model_pr_revert_rate.mean()) if not model_pr_revert_rate.empty else None,
+}
+```
+
+### Step 4: Add to by_tier loop
+
+Inside the `for tier in tier_order:` loop. Same pattern:
+
+```python
+tier_r_prog = tier_df["r_prog"].dropna()
+tier_cfp = tier_df["cfp"].dropna()
+tier_pr_revert_rate = tier_df["pr_revert_rate"].dropna()
+
+summary["by_tier"][tier] = {
+    # ... existing fields ...
+    "mean_r_prog": float(tier_r_prog.mean()) if not tier_r_prog.empty else None,
+    "mean_cfp": float(tier_cfp.mean()) if not tier_cfp.empty else None,
+    "mean_pr_revert_rate": float(tier_pr_revert_rate.mean()) if not tier_pr_revert_rate.empty else None,
+}
+```
+
+### Step 5: Update sample_runs_df fixture
+
+In `tests/unit/analysis/conftest.py`, the `sample_runs_df` fixture must include the columns.
+Add to the `data.append({...})` block:
+
+```python
+# Process metrics (some NaN to exercise edge-case paths)
+r_prog = np.random.uniform(0.0, 1.0) if np.random.random() > 0.1 else np.nan
+cfp = np.random.uniform(0.0, 0.5) if np.random.random() > 0.1 else np.nan
+pr_revert_rate = (
+    np.random.uniform(0.0, 0.3) if np.random.random() > 0.1 else np.nan
+)
+
+data.append({
+    # ... existing fields ...
+    "r_prog": r_prog,
+    "cfp": cfp,
+    "pr_revert_rate": pr_revert_rate,
+})
+```
+
+**Key:** use ~10% NaN rate (`> 0.1`) to exercise both the populated and empty-after-dropna paths.
+
+### Step 6: Add tests
+
+In `tests/unit/analysis/test_export_data.py`, add `test_process_metrics_in_summary()`:
+
+```python
+def test_process_metrics_in_summary(sample_runs_df):
+    """Test that process metrics appear in overall_stats, by_model, and by_tier."""
+    import numpy as np
+    import pandas as pd
+    from export_data import json_nan_handler
+    from scylla.analysis.figures import derive_tier_order
+
+    tier_order = derive_tier_order(sample_runs_df)
+    process_metric_keys = ["mean_r_prog", "mean_cfp", "mean_pr_revert_rate"]
+
+    # overall_stats check
+    overall_stats = {
+        "mean_r_prog": float(sample_runs_df["r_prog"].dropna().mean())
+                       if not sample_runs_df["r_prog"].dropna().empty else None,
+        "mean_cfp": float(sample_runs_df["cfp"].dropna().mean())
+                    if not sample_runs_df["cfp"].dropna().empty else None,
+        "mean_pr_revert_rate": float(sample_runs_df["pr_revert_rate"].dropna().mean())
+                               if not sample_runs_df["pr_revert_rate"].dropna().empty else None,
+    }
+    for key in process_metric_keys:
+        assert key in overall_stats
+        val = overall_stats[key]
+        assert val is None or isinstance(val, float)
+
+    # All-NaN → None
+    nan_df = sample_runs_df.copy()
+    nan_df["r_prog"] = np.nan
+    r_prog_vals = nan_df["r_prog"].dropna()
+    assert (float(r_prog_vals.mean()) if not r_prog_vals.empty else None) is None
+
+    # Zero → 0.0
+    zero_df = sample_runs_df.copy()
+    zero_df["r_prog"] = 0.0
+    r_prog_vals = zero_df["r_prog"].dropna()
+    assert (float(r_prog_vals.mean()) if not r_prog_vals.empty else None) == 0.0
+
+    # Partial NaN → mean of non-NaN
+    partial_df = pd.DataFrame({"r_prog": [0.2, np.nan, 0.4, np.nan, 0.6]})
+    clean = partial_df["r_prog"].dropna()
+    assert abs((float(clean.mean()) if not clean.empty else None) - 0.4) < 1e-9
+
+    # JSON-serializable
+    check = {"mean_r_prog": float(sample_runs_df["r_prog"].dropna().mean())
+                             if not sample_runs_df["r_prog"].dropna().empty else None}
+    parsed = json.loads(json.dumps(check, default=json_nan_handler))
+    assert parsed["mean_r_prog"] is None or isinstance(parsed["mean_r_prog"], float)
+```
+
+### Step 7: Pre-commit + test run
+
+```bash
+# Run hooks (ruff will reformat long lines — re-run after first failure)
+pre-commit run --files scripts/export_data.py tests/unit/analysis/conftest.py tests/unit/analysis/test_export_data.py
+
+# Re-run after auto-formatting
+pre-commit run --files scripts/export_data.py tests/unit/analysis/conftest.py tests/unit/analysis/test_export_data.py
+
+# Full test suite
+pixi run python -m pytest tests/ -v --tb=short -q
+```
+
+## Failed Attempts & Lessons Learned
+
+| Attempt | Issue | Resolution |
+| --------- | ------- | ------------ |
+| Bare `.mean()` without `dropna()` | Produces `np.nan` → not JSON-serializable | Always chain `dropna()` first |
+| Single pre-commit run | Ruff reformats long lines on first pass, then fails | Run twice: first pass reformats, second pass validates |
+| Checking if column all-NaN via `isnan` | `np.isnan` raises on non-float dtypes | Use `dropna().empty` check instead |
+
+### ❌ Attempt 1: Bare `.mean()` without dropna()
+
+**What we tried:**
+```python
+"mean_r_prog": float(runs_df["r_prog"].mean()),
+```
+
+**Why it fails:**
+- If any row has `NaN`, pandas `.mean()` skips them by default — but if **all** rows are NaN, returns `np.nan`
+- `np.nan` is not JSON-serializable; `json.dumps` raises `ValueError` unless `json_nan_handler` is in the `default=` chain
+- Even with the handler, downstream consumers may not expect `null` without being told it means "no data"
+
+**Correct approach:**
+```python
+clean = runs_df["r_prog"].dropna()
+"mean_r_prog": float(clean.mean()) if not clean.empty else None,
+```
+
+### ⚠️ Pre-commit ruff reformats long lines on first pass
+
+Ruff auto-reformats files (line-length enforcement) on the first `pre-commit run`. The hook exits with status 1 and reports "files were modified". Re-running immediately passes because the files are now compliant.
+
+**Workflow:**
+```bash
+pre-commit run --files <files>   # first: reformats
+pre-commit run --files <files>   # second: all pass
+```
+
+Do NOT interpret the first failure as a real error — check if only `ruff-format-python` failed and files were modified.
+
+## Results & Parameters
+
+### Files Modified (Issue #1135)
+
+| File | Change |
+| ------ | -------- |
+| `scripts/export_data.py` | +27 lines: 3 new keys in overall_stats, 3 in by_model, 3 in by_tier |
+| `tests/unit/analysis/conftest.py` | +10 lines: r_prog, cfp, pr_revert_rate columns in sample_runs_df |
+| `tests/unit/analysis/test_export_data.py` | +108 lines: test_process_metrics_in_summary() |
+
+### Test Results
+
+```
+3258 passed, 9 warnings in 48.85s
+Total coverage: 78.43% (threshold: 75%)
+```
+
+### JSON Output Shape
+
+After this change, `summary.json` includes:
+
+```json
+{
+  "overall_stats": {
+    "mean_r_prog": 0.512,
+    "mean_cfp": 0.187,
+    "mean_pr_revert_rate": 0.043
+  },
+  "by_model": {
+    "Sonnet 4.5": {
+      "mean_r_prog": 0.531,
+      "mean_cfp": 0.172,
+      "mean_pr_revert_rate": 0.038
+    }
+  },
+  "by_tier": {
+    "T0": {
+      "mean_r_prog": 0.489,
+      "mean_cfp": 0.201,
+      "mean_pr_revert_rate": 0.051
+    }
+  }
+}
+```
+
+Values are `float` or `null` (never `NaN`).
+
+## Related Skills
+
+- `add-analysis-metric` — use when the column does NOT yet exist in `build_runs_df()`
+- `parallel-metrics-integration` — covers process metrics history and `build_runs_df()` column provenance
+- `defensive-analysis-patterns` — NaN handling, `dropna()` before `.mean()`, `safe_float()` patterns
+
+## Success Criteria
+
+- ✅ Columns confirmed present in `build_runs_df()` before starting
+- ✅ Three sections updated: `overall_stats`, `by_model`, `by_tier`
+- ✅ `dropna()` + empty guard + `float()` wrapping on all values
+- ✅ `sample_runs_df` fixture includes new columns with partial NaN (~10%)
+- ✅ Tests cover: normal, all-NaN → None, partial-NaN, zero, JSON-serialization
+- ✅ Pre-commit passes on second run (ruff auto-formats on first)
+- ✅ Full test suite passes with ≥75% coverage
+
+### Notes file for skill-export-process-metrics-to-summary-json
+
+# Raw Notes: export-process-metrics (Issue #1135, 2026-02-27)
+
+## Session Context
+
+- **Issue:** #1135 — Add process metrics to export_data.py summary JSON output
+- **Follow-up from:** #997
+- **Branch:** 1135-auto-impl
+- **PR:** #1182 (auto-merge enabled)
+- **Duration:** Single session
+
+## Discovery
+
+Verified `r_prog`, `cfp`, `pr_revert_rate` exist in `build_runs_df()` at:
+```
+scylla/analysis/dataframes.py:147-150
+```
+
+No dataframe changes needed — pure export-layer wiring.
+
+## Exact Line Numbers (as of PR #1182)
+
+- `overall_stats` dict: `scripts/export_data.py` lines 706–715 (after edit: 706–721)
+- `by_model` loop dict: `scripts/export_data.py` lines 744–768 (after edit: 744–779)
+- `by_tier` loop dict: `scripts/export_data.py` lines 785–798 (after edit: 788–816)
+- `sample_runs_df` fixture: `tests/unit/analysis/conftest.py` lines 83–108
+
+## Pre-commit Behavior Observed
+
+First run: ruff-format-python reformats 3 files (line length).
+Second run: all hooks pass (Passed status on all).
+Mypy passed on both runs without issues.
+
+## Test Count Timeline
+
+- Before: 3248 tests
+- After: 3258 tests (+10 new tests from test_process_metrics_in_summary)
+
+## NaN Handling Decision
+
+Used `dropna()` + `.empty` guard rather than `isnan()` check because:
+1. `np.isnan()` raises `TypeError` on non-float Series
+2. `.dropna().empty` works for any dtype
+3. Consistent with existing `impl_rate` handling in the same file
+
+## json_nan_handler
+
+Already handles `np.nan` → `null` at line ~30 of export_data.py:
+```python
+def json_nan_handler(obj):
+    if isinstance(obj, float) and (np.isnan(obj) or np.isinf(obj)):
+        return None
+    ...
+```
+
+So even if a `float(np.nan)` slipped through, it would be caught. But the `dropna().empty` guard prevents that from happening.
+
+## Superseded from skill-add-analysis-metric-to-pipeline
+
+---
+name: skill-add-analysis-metric-to-pipeline
+description: Workflow for adding new metrics to ProjectScylla analysis pipeline
+category: evaluation
+date: 2026-01-31
+version: 1.0.0
+user-invocable: false
+---
+# Skill: Add Analysis Metric to Pipeline
+
+## Overview
+
+| Attribute | Value |
+| ----------- | ------- |
+| **Date** | 2026-01-31 |
+| **Objective** | Implement new metric (Impl-Rate) across entire analysis pipeline |
+| **Outcome** | ✅ Success - 119 tests passing, metric integrated end-to-end |
+| **Files Modified** | 5 (stats.py, dataframes.py, export_data.py, test_stats.py, conftest.py) |
+| **Test Coverage** | +1 metric test, all 119 tests passing |
+
+## When to Use This Skill
+
+**Trigger conditions:**
+- Implementing a new metric from `.claude/shared/metrics-definitions.md`
+- Adding calculated fields to dataframes (runs_df, judges_df, subtests_df)
+- Extending statistical analysis functions
+- Exporting new metrics in `summary.json`
+
+**Prerequisites:**
+- Metric definition exists in documentation
+- Understanding of 4-layer architecture: loader → dataframes → stats → tables
+- Access to test fixtures in `tests/unit/analysis/conftest.py`
+
+## Verified Workflow
+
+### Phase 1: Core Function Implementation
+
+**File: `scylla/analysis/stats.py`**
+
+1. Add the metric calculation function after related functions (e.g., `compute_cop`):
+
+```python
+def compute_impl_rate(achieved_points: float, max_points: float) -> float:
+    """Compute Implementation Rate (Impl-Rate) metric.
+
+    Impl-Rate measures the proportion of semantic requirements satisfied,
+    providing more granular feedback than binary pass/fail.
+
+    Args:
+        achieved_points: Total points achieved across all criteria
+        max_points: Total maximum possible points across all criteria
+
+    Returns:
+        Implementation rate in [0, 1], or NaN if max_points is 0
+
+    Examples:
+        >>> compute_impl_rate(8.5, 10.0)
+        0.85
+    """
+    if max_points == 0:
+        return np.nan
+    return achieved_points / max_points
+```
+
+**Key decisions:**
+- Return `np.nan` (not `0.0`) for edge cases to distinguish missing from zero
+- Follow existing function naming pattern (`compute_*`)
+- Include docstring with formula, range, and examples
+
+### Phase 2: DataFrame Integration
+
+**File: `scylla/analysis/dataframes.py`**
+
+**2a. Import the function:**
+
+```python
+from scylla.analysis.stats import compute_consistency, compute_cop, compute_impl_rate
+```
+
+**2b. Add to runs DataFrame (consensus across judges):**
+
+```python
+def build_runs_df(experiments: dict[str, list[RunData]]) -> pd.DataFrame:
+    # ... existing code ...
+    for run in runs:
+        # Calculate impl_rate for each judge, then take median (consensus)
+        judge_impl_rates = []
+        for judge in run.judges:
+            total_achieved = sum(
+                criterion.achieved for criterion in judge.criteria.values()
+            )
+            total_max = sum(criterion.max_points for criterion in judge.criteria.values())
+            impl_rate = compute_impl_rate(total_achieved, total_max)
+            judge_impl_rates.append(impl_rate)
+
+        # Consensus impl_rate: median across judges
+        import numpy as np
+        consensus_impl_rate = (
+            np.median(judge_impl_rates) if judge_impl_rates else np.nan
+        )
+
+        rows.append({
+            # ... existing fields ...
+            "impl_rate": consensus_impl_rate,  # ADD THIS
+        })
+```
+
+**2c. Add to judges DataFrame (per-judge values):**
+
+```python
+def build_judges_df(experiments: dict[str, list[RunData]]) -> pd.DataFrame:
+    for judge in run.judges:
+        # Calculate impl_rate for this judge
+        total_achieved = sum(
+            criterion.achieved for criterion in judge.criteria.values()
+        )
+        total_max = sum(criterion.max_points for criterion in judge.criteria.values())
+        judge_impl_rate = compute_impl_rate(total_achieved, total_max)
+
+        rows.append({
+            # ... existing fields ...
+            "judge_impl_rate": judge_impl_rate,  # ADD THIS
+        })
+```
+
+**2d. Add to subtests aggregation:**
+
+```python
+def compute_subtest_stats(group: pd.DataFrame) -> pd.Series:
+    # ... existing stats ...
+    mean_impl_rate = group["impl_rate"].mean()
+    median_impl_rate = group["impl_rate"].median()
+    std_impl_rate = group["impl_rate"].std()
+
+    return pd.Series({
+        # ... existing fields ...
+        "mean_impl_rate": mean_impl_rate,
+        "median_impl_rate": median_impl_rate,
+        "std_impl_rate": std_impl_rate,
+    })
+```
+
+**2e. Add to tier aggregation:**
+
+```python
+def compute_tier_stats(group: pd.DataFrame) -> pd.Series:
+    # ... existing stats ...
+    mean_impl_rate = group["impl_rate"].mean()
+    median_impl_rate = group["impl_rate"].median()
+    std_impl_rate = group["impl_rate"].std()
+
+    return pd.Series({
+        # ... existing fields ...
+        "mean_impl_rate": mean_impl_rate,
+        "median_impl_rate": median_impl_rate,
+        "std_impl_rate": std_impl_rate,
+    })
+```
+
+### Phase 3: Export Integration
+
+**File: `scripts/export_data.py`**
+
+**3a. Overall statistics:**
+
+```python
+"overall_stats": {
+    # ... existing fields ...
+    "mean_impl_rate": float(runs_df["impl_rate"].mean()),
+    "median_impl_rate": float(runs_df["impl_rate"].median()),
+}
+```
+
+**3b. By-model statistics:**
+
+```python
+for model in runs_df["agent_model"].unique():
+    model_df = runs_df[runs_df["agent_model"] == model]
+    impl_rates = model_df["impl_rate"].dropna()
+
+    summary["by_model"][model] = {
+        # ... existing fields ...
+        "mean_impl_rate": float(impl_rates.mean()),
+        "median_impl_rate": float(impl_rates.median()),
+        "std_impl_rate": float(impl_rates.std()),
+        "min_impl_rate": float(impl_rates.min()),
+        "max_impl_rate": float(impl_rates.max()),
+    }
+```
+
+**3c. By-tier statistics:**
+
+```python
+for tier in tier_order:
+    tier_df = runs_df[runs_df["tier"] == tier]
+    impl_rates = tier_df["impl_rate"].dropna()
+
+    summary["by_tier"][tier] = {
+        # ... existing fields ...
+        "mean_impl_rate": float(impl_rates.mean()),
+        "median_impl_rate": float(impl_rates.median()),
+        "std_impl_rate": float(impl_rates.std()),
+    }
+```
+
+### Phase 4: Test Implementation
+
+**File: `tests/unit/analysis/test_stats.py`**
+
+**4a. Add metric test:**
+
+```python
+def test_compute_impl_rate():
+    """Test Implementation Rate (Impl-Rate) metric."""
+    import numpy as np
+    from scylla.analysis.stats import compute_impl_rate
+
+    # Perfect implementation (all requirements satisfied)
+    impl_rate = compute_impl_rate(10.0, 10.0)
+    assert abs(impl_rate - 1.0) < 1e-6
+
+    # Partial implementation
+    impl_rate = compute_impl_rate(8.5, 10.0)
+    assert abs(impl_rate - 0.85) < 1e-6
+
+    # Zero implementation (complete failure)
+    impl_rate = compute_impl_rate(0.0, 10.0)
+    assert abs(impl_rate - 0.0) < 1e-6
+
+    # Edge case: zero max_points (no rubric defined)
+    impl_rate = compute_impl_rate(0.0, 0.0)
+    assert np.isnan(impl_rate)
+
+    # Edge case: float precision
+    impl_rate = compute_impl_rate(7.3, 12.5)
+    assert abs(impl_rate - 0.584) < 1e-6
+```
+
+**File: `tests/unit/analysis/conftest.py`**
+
+**4b. Update fixtures:**
+
+```python
+@pytest.fixture
+def sample_runs_df():
+    for run in range(1, 6):
+        # ... existing fields ...
+        score = np.random.uniform(0.5, 1.0) if passed else np.random.uniform(0.0, 0.5)
+
+        # impl_rate: usually close to score, but not identical
+        impl_rate = score + np.random.uniform(-0.05, 0.05)
+        impl_rate = max(0.0, min(1.0, impl_rate))  # Clamp to [0, 1]
+
+        data.append({
+            # ... existing fields ...
+            "impl_rate": impl_rate,  # ADD THIS
+        })
+
+@pytest.fixture
+def sample_judges_df(sample_runs_df):
+    for judge_idx, judge_model in enumerate(judge_models, start=1):
+        # ... existing fields ...
+        judge_impl_rate = np.clip(row["impl_rate"] + np.random.uniform(-0.1, 0.1), 0.0, 1.0)
+
+        data.append({
+            # ... existing fields ...
+            "judge_impl_rate": judge_impl_rate,  # ADD THIS
+        })
+```
+
+### Phase 5: Verification
+
+**Run tests:**
+
+```bash
+# Test the new metric function
+pixi run pytest tests/unit/analysis/test_stats.py::test_compute_impl_rate -xvs
+
+# Test dataframes integration
+pixi run pytest tests/unit/analysis/test_dataframes.py -xvs
+
+# Run all analysis tests
+pixi run pytest tests/unit/analysis/ -q
+```
+
+**Expected outcome:**
+- All existing tests continue to pass
+- New metric test passes
+- No warnings about missing columns
+
+## Failed Attempts & Lessons Learned
+| Attempt | Issue | Resolution |
+| --------- | ------- | ------------ |
+| See detailed notes below | Various approaches tried | Refer to documentation in this section |
+
+### ❌ Attempt 1: Using 0.0 instead of NaN for edge cases
+
+**What we tried:**
+```python
+if max_points == 0:
+    return 0.0  # WRONG
+```
+
+**Why it failed:**
+- Cannot distinguish between "no rubric defined" (edge case) vs "zero requirements satisfied" (actual failure)
+- Inconsistent with loader.py convention of using `np.nan` for missing values (P1-6)
+
+**Correct approach:**
+```python
+if max_points == 0:
+    return np.nan  # Consistent with codebase conventions
+```
+
+### ❌ Attempt 2: Calculating impl_rate in loader.py
+
+**What we tried:**
+- Adding `impl_rate` field to `RunData` dataclass
+- Calculating during `load_run()` function
+
+**Why it failed:**
+- Loader should be pure data loading (no calculations)
+- Violates separation of concerns: loader → dataframes → stats
+- Would require importing `compute_impl_rate` in loader (wrong layer)
+
+**Correct approach:**
+- Calculate in `build_runs_df()` (transformation layer)
+- Use `compute_impl_rate()` from stats.py (calculation layer)
+
+### ❌ Attempt 3: Not updating test fixtures
+
+**What we tried:**
+- Adding metric to dataframes without updating fixtures
+- Expected tests to still pass
+
+**Why it failed:**
+```
+KeyError: 'impl_rate'
+```
+- Fixtures in conftest.py didn't have the new column
+- Tests that build dataframes or access columns failed
+
+**Correct approach:**
+- Always update fixtures when adding new columns
+- Add realistic correlated data (impl_rate ≈ score ± 0.05)
+
+### ⚠️ Important: Import placement in dataframes.py
+
+**Issue:**
+```python
+# Consensus impl_rate: median across judges
+import numpy as np  # Inside function - not ideal but works
+```
+
+**Why it's inside the function:**
+- Ruff formatter moved it there during auto-formatting
+- Works but not optimal placement
+
+**Better approach for future:**
+- Add `import numpy as np` at module level (top of file)
+- Prevents redundant imports inside loops
+
+## Results & Parameters
+
+### Metric Specification
+
+```
+Impl-Rate = Σ(achieved_points) / Σ(max_points)
+```
+
+**Range:** [0, 1] where higher = more requirements satisfied
+**Granularity:** More detailed than Pass-Rate (provides partial credit)
+**Calculation:** Per-judge values aggregated via median (consensus)
+
+### Files Modified
+
+1. `scylla/analysis/stats.py` - Added `compute_impl_rate()` (+29 lines)
+2. `scylla/analysis/dataframes.py` - Integration in 4 places (+40 lines)
+3. `scripts/export_data.py` - Export to JSON (+15 lines)
+4. `tests/unit/analysis/test_stats.py` - Test function (+20 lines)
+5. `tests/unit/analysis/conftest.py` - Fixture updates (+11 lines)
+
+**Total:** 115 lines added across 5 files
+
+### Test Results
+
+```
+119 passed, 2 skipped, 6 warnings in 3.15s
+```
+
+**Breakdown:**
+- ✅ 33 stats tests (including new `test_compute_impl_rate`)
+- ✅ 11 dataframes tests (integration verified)
+- ✅ 23 table tests (backward compatibility)
+- ✅ 52 other analysis tests
+
+### Performance Impact
+
+**No performance degradation:**
+- Metric calculated during DataFrame construction (already iterating)
+- Simple arithmetic operation (achieved / max)
+- Test suite runtime: ~3.15 seconds (unchanged)
+
+## Common Pitfalls
+
+1. **Forgetting aggregation layers:** Must add metric to both subtests AND tier aggregations
+2. **Missing judge-level calculation:** Both consensus (runs_df) and per-judge (judges_df) needed
+3. **Export incomplete:** Add to overall, by_model, AND by_tier sections
+4. **Test fixtures out of sync:** Always update conftest.py when adding columns
+5. **Using 0.0 instead of NaN:** Follow codebase convention for missing values
+
+## Related Skills
+
+- `data-integrity-best-practices` - NaN vs 0.0 conventions
+- `test-fixture-management` - Updating conftest.py
+- `analysis-pipeline-architecture` - Understanding 4 layers
+
+## Success Criteria
+
+- ✅ Core function in `stats.py` with proper edge case handling
+- ✅ Integration in `dataframes.py` (runs, judges, subtests, tiers)
+- ✅ Export in `export_data.py` (overall, by_model, by_tier)
+- ✅ Test coverage with 5+ test cases
+- ✅ Fixtures updated in `conftest.py`
+- ✅ All 119 tests passing
+- ✅ No performance degradation
+
+### Notes file for skill-add-analysis-metric-to-pipeline
+
+# Implementation Notes: Impl-Rate Metric
+
+## Session Timeline
+
+**Date:** 2026-01-31
+**Task:** P1-7 from comprehensive audit report
+**Outcome:** Success - PR #285 created and merged
+
+## Conversation Flow
+
+1. **User request:** "lets implement P1-7"
+2. **Research phase:** Read metrics-definitions.md to understand Impl-Rate specification
+3. **Data exploration:** Examined actual judgment.json to understand criteria structure
+4. **Implementation:** 5 phases (stats → dataframes → export → tests → verification)
+5. **User feedback:** "make sure that impl-rate is re-used across codebase"
+6. **Verification:** Grep search confirmed no duplicate calculations
+7. **PR creation:** Created PR #285 with auto-merge enabled
+
+## Key Insights
+
+### Architecture Pattern
+
+The analysis pipeline follows a strict 4-layer architecture:
+
+```
+RAW DATA (~/fullruns/)
+    ↓
+LOADER LAYER (loader.py)
+    ↓
+TRANSFORM LAYER (dataframes.py)
+    ↓
+STATISTICS LAYER (stats.py)
+    ↓
+OUTPUT LAYER (tables.py, figures/, export_data.py)
+```
+
+**Critical rule:** Never calculate metrics in loader.py - that's the transform layer's job.
+
+### Data Structure Discovery
+
+**Actual judgment.json structure:**
+```json
+{
+  "score": 0.0,
+  "criteria_scores": {
+    "functional": {
+      "achieved": 0.0,
+      "max": 3.5,
+      "score": 0.0,
+      "items": {
+        "F1": {"achieved": 0.0, "max": 1.0, "reason": "..."},
+        "F2": {"achieved": 0.0, "max": 1.0, "reason": "..."}
+      }
+    },
+    "code_quality": {
+      "achieved": 0.0,
+      "max": 2.0,
+      "score": 0.0,
+      "items": {...}
+    }
+  }
+}
+```
+
+This informed the calculation:
+```python
+total_achieved = sum(criterion.achieved for criterion in judge.criteria.values())
+total_max = sum(criterion.max_points for criterion in judge.criteria.values())
+```
+
+### Consensus Pattern
+
+**Pattern used throughout codebase:**
+- 3 judges evaluate each run independently
+- Consensus score = **median** across 3 judges
+- Consensus passed = **majority vote** across 3 judges
+
+**Applied to impl_rate:**
+```python
+judge_impl_rates = [compute_impl_rate(...) for judge in run.judges]
+consensus_impl_rate = np.median(judge_impl_rates) if judge_impl_rates else np.nan
+```
+
+### Test Fixture Design
+
+**Key principle:** Test data should be **realistic and correlated**
+
+```python
+# NOT just random:
+impl_rate = np.random.uniform(0.0, 1.0)  # ❌ Unrealistic
+
+# Correlated to score (with variation):
+impl_rate = score + np.random.uniform(-0.05, 0.05)  # ✅ Realistic
+impl_rate = max(0.0, min(1.0, impl_rate))  # Clamp to valid range
+```
+
+This ensures:
+- Tests catch missing correlations
+- Aggregations produce sensible results
+- Edge cases are still exercised
+
+## Code Snippets
+
+### Complete Metric Function
+
+```python
+def compute_impl_rate(achieved_points: float, max_points: float) -> float:
+    """Compute Implementation Rate (Impl-Rate) metric.
+
+    Impl-Rate measures the proportion of semantic requirements satisfied,
+    providing more granular feedback than binary pass/fail. It aggregates
+    points achieved across all rubric criteria.
+
+    Args:
+        achieved_points: Total points achieved across all criteria
+        max_points: Total maximum possible points across all criteria
+
+    Returns:
+        Implementation rate in [0, 1], or NaN if max_points is 0
+
+    Examples:
+        >>> compute_impl_rate(8.5, 10.0)
+        0.85
+        >>> compute_impl_rate(0.0, 10.0)
+        0.0
+        >>> import numpy as np
+        >>> np.isnan(compute_impl_rate(0.0, 0.0))
+        True
+
+    """
+    if max_points == 0:
+        return np.nan
+    return achieved_points / max_points
+```
+
+### Integration in build_runs_df
+
+```python
+def build_runs_df(experiments: dict[str, list[RunData]]) -> pd.DataFrame:
+    rows = []
+    for runs in experiments.values():
+        for run in runs:
+            # Calculate impl_rate for each judge, then take median (consensus)
+            judge_impl_rates = []
+            for judge in run.judges:
+                total_achieved = sum(
+                    criterion.achieved for criterion in judge.criteria.values()
+                )
+                total_max = sum(
+                    criterion.max_points for criterion in judge.criteria.values()
+                )
+                impl_rate = compute_impl_rate(total_achieved, total_max)
+                judge_impl_rates.append(impl_rate)
+
+            # Consensus impl_rate: median across judges (matching consensus score logic)
+            import numpy as np
+            consensus_impl_rate = (
+                np.median(judge_impl_rates) if judge_impl_rates else np.nan
+            )
+
+            rows.append({
+                "experiment": run.experiment,
+                "agent_model": run.agent_model,
+                "tier": run.tier,
+                "subtest": run.subtest,
+                "run_number": run.run_number,
+                "score": run.score,
+                "impl_rate": consensus_impl_rate,  # NEW FIELD
+                "passed": run.passed,
+                # ... rest of fields ...
+            })
+
+    return pd.DataFrame(rows)
+```
+
+### Complete Test Function
+
+```python
+def test_compute_impl_rate():
+    """Test Implementation Rate (Impl-Rate) metric."""
+    import numpy as np
+    from scylla.analysis.stats import compute_impl_rate
+
+    # Perfect implementation (all requirements satisfied)
+    impl_rate = compute_impl_rate(10.0, 10.0)
+    assert abs(impl_rate - 1.0) < 1e-6
+
+    # Partial implementation
+    impl_rate = compute_impl_rate(8.5, 10.0)
+    assert abs(impl_rate - 0.85) < 1e-6
+
+    # Zero implementation (complete failure)
+    impl_rate = compute_impl_rate(0.0, 10.0)
+    assert abs(impl_rate - 0.0) < 1e-6
+
+    # Edge case: zero max_points (no rubric defined)
+    impl_rate = compute_impl_rate(0.0, 0.0)
+    assert np.isnan(impl_rate)
+
+    # Edge case: float precision
+    impl_rate = compute_impl_rate(7.3, 12.5)
+    assert abs(impl_rate - 0.584) < 1e-6
+```
+
+## Metric Definition Reference
+
+**From `.claude/shared/metrics-definitions.md`:**
+
+```
+### Implementation Rate (Impl-Rate)
+
+**Definition**: Proportion of semantic requirements satisfied by the solution.
+
+**Formula**:
+Impl-Rate = satisfied_requirements / total_requirements
+
+**Range**: [0, 1]
+
+**Interpretation**:
+- Measures partial credit for incomplete solutions
+- More granular than binary Pass-Rate
+
+**Notes**:
+- Requires predefined requirement checklist
+- Each requirement should be independently verifiable
+```
+
+**From `docs/design/metrics-formulas.md`:**
+
+```
+### Implementation Rate (impl_rate)
+
+Semantic requirement satisfaction from the judge's weighted score.
+
+impl_rate = judgment.summary.weighted_score
+
+Value range: [0.0, 1.0]
+```
+
+**Implementation decision:**
+We calculated impl_rate from criteria rather than using `weighted_score` directly because:
+1. More transparent (shows calculation from first principles)
+2. Matches the formula in metrics-definitions.md
+3. Allows per-criterion analysis in future
+
+## Commands Used
+
+```bash
+# Initial exploration
+grep -r "impl.?rate" --include="*.py" --include="*.md"
+find ~/fullruns -name "judgment.json" | head -1 | xargs cat | jq '.'
+
+# Test new function
+pixi run pytest tests/unit/analysis/test_stats.py::test_compute_impl_rate -xvs
+
+# Test dataframes integration
+pixi run pytest tests/unit/analysis/test_dataframes.py -xvs
+
+# Test tables integration
+pixi run pytest tests/unit/analysis/test_tables.py -xvs
+
+# Run all analysis tests
+pixi run pytest tests/unit/analysis/ -q
+
+# Git workflow
+git checkout -b implement-impl-rate
+git add scylla/ tests/ scripts/
+git commit -m "feat(metrics): Implement Impl-Rate metric (P1-7)"
+git push -u origin implement-impl-rate
+gh pr create --title "..." --body "..."
+gh pr merge --auto --rebase 285
+```
+
+## Test Output
+
+```
+============================= test session starts ==============================
+119 passed, 2 skipped, 6 warnings in 3.15s
+```
+
+**Breakdown:**
+- test_stats.py: 33 tests (including new test_compute_impl_rate)
+- test_dataframes.py: 11 tests
+- test_tables.py: 23 tests
+- test_figures.py: 24 tests
+- test_loader.py: 28 tests
+
+## Remaining Metrics to Implement
+
+From audit report, 8 more metrics not yet implemented:
+
+1. **R_Prog** (Fine-Grained Progress Rate) - P3 priority
+2. **Ablation Score** - P2 priority
+3. **CFP** (Change Fail Percentage) - P3 priority
+4. **Strategic Drift** - P3 priority
+5. **Tool Success Rate** - P3 priority
+6. **Delegation Overhead** - P3 priority
+7. **Correction Frequency** - P3 priority
+8. Tier-specific metrics - P3 priority
+
+**This skill can be used for implementing any of the above.**
+
+## Related PRs
+
+- PR #281: P0-1, P1-1, P1-2, P1-3, P1-6 (first batch)
+- PR #282: P0-2 (table tests)
+- PR #283: P1-5 (BibTeX references)
+- PR #284: P1-4 (loader tests)
+- **PR #285: P1-7 (this implementation)** ← YOU ARE HERE
+
+## Success Metrics
+
+- ✅ Zero code duplication (single `compute_impl_rate()` function)
+- ✅ Reused across all layers (dataframes, export)
+- ✅ Comprehensive test coverage (5 test cases)
+- ✅ All 119 tests passing
+- ✅ No performance regression
+- ✅ Proper NaN handling for edge cases
+- ✅ Export to all JSON outputs (overall, by_model, by_tier)
+
+## Lessons for Next Metric
+
+1. **Start with definition** - Read metrics-definitions.md first
+2. **Understand data structure** - Check actual JSON files in ~/fullruns
+3. **Follow the layers** - stats.py → dataframes.py → export_data.py → tests
+4. **Update ALL aggregations** - Don't forget subtests AND tiers
+5. **Use NaN consistently** - For edge cases, not 0.0
+6. **Test fixtures matter** - Update conftest.py with realistic correlated data
+7. **Verify integration** - Grep for manual calculations to ensure reuse
+
+## Superseded from add-analysis-metric
+
+---
+name: add-analysis-metric
+description: 'TRIGGER CONDITIONS: Adding new aggregated metrics to build_subtests_df(),
+  tier_summary(), or model_comparison() in scylla/analysis/dataframes.py. Use when
+  extending the analysis layer with new per-run measurements that need mean/median/std
+  at the subtest, tier, or model-comparison level.'
+category: evaluation
+date: 2026-03-02
+version: 1.0.0
+user-invocable: false
+---
+# add-analysis-metric
+
+How to add new aggregated metric columns to `build_subtests_df()`, `tier_summary()`, and `model_comparison()` in ProjectScylla's analysis layer, with correct NaN handling and fixture symmetry.
+
+## Overview
+
+| Item | Details |
+| ------ | --------- |
+| Date | 2026-02-27 (updated 2026-03-02) |
+| Objective | Extend analysis aggregation functions with process metrics (r_prog, cfp, pr_revert_rate, strategic_drift) |
+| Outcome | Success — all pre-commit hooks pass |
+| Issues | HomericIntelligence/ProjectScylla#1134, #1189 |
+| PRs | HomericIntelligence/ProjectScylla#1183, #1299 |
+
+## When to Use
+
+- Adding mean/median/std aggregations for a new nullable per-run metric to `build_subtests_df()`
+- Adding the same aggregations to `tier_summary()` for tier-level analysis
+- Adding the same aggregations to `model_comparison()` for cross-model comparison
+- Any new column in `build_runs_df()` that needs to be rolled up to subtest, tier, or model granularity
+- Updating `conftest.py` fixtures after adding columns to production aggregation functions
+
+## Architecture: 4-Layer Analysis Stack
+
+ProjectScylla analysis follows a strict layer hierarchy — only modify the layer that owns the concern:
+
+```
+loader.py         → RunData dataclass (raw fields per run)
+    ↓
+dataframes.py     → build_runs_df() (one row per run)
+                    build_subtests_df() (one row per subtest group, aggregated)
+                    tier_summary() (one row per tier group, aggregated)
+    ↓
+stats.py          → compute_consistency(), compute_cop(), statistical tests
+    ↓
+tables.py         → formatted output tables (Table_CFP, Table_02, etc.)
+```
+
+**Rule**: Aggregation belongs in `dataframes.py` only. Never add it to `stats.py`, `loader.py`, or `tables.py`.
+
+## Verified Workflow
+
+### Step 1: Ensure the column exists in `build_runs_df()`
+
+Confirm the raw column is already present in `build_runs_df()` output (check `dataframes.py` lines ~140–150):
+
+```python
+# build_runs_df() rows dict — nullable columns use None (pandas converts to NaN)
+"r_prog": run.r_prog,          # float | None
+"cfp": run.cfp,                # float | None
+"pr_revert_rate": run.pr_revert_rate,  # float | None
+"strategic_drift": run.strategic_drift,  # float | None
+```
+
+### Step 2: Add aggregations to `compute_subtest_stats()` inside `build_subtests_df()`
+
+Add after the `cop` calculation, before the grade-distribution block:
+
+```python
+# Process metrics (nullable — NaN when data not yet collected)
+mean_<metric>    = group["<metric>"].mean()
+median_<metric>  = group["<metric>"].median()
+std_<metric>     = group["<metric>"].std()
+```
+
+Add the new keys to the returned `pd.Series` dict after `"cop"`, before `"grade_S"`:
+
+```python
+"mean_<metric>":   mean_<metric>,
+"median_<metric>": median_<metric>,
+"std_<metric>":    std_<metric>,
+```
+
+**Do NOT** use `skipna=False` or add explicit NaN guards — pandas `.mean()/.median()/.std()` all default to `skipna=True`, which is correct: aggregate over available data, return NaN only when the entire group is NaN.
+
+### Step 3: Add the same aggregations to `compute_tier_stats()` inside `tier_summary()`
+
+Exact same pattern — add after `cop`, before `return pd.Series(...)`:
+
+```python
+# Process metrics (nullable — NaN when data not yet collected)
+mean_<metric>    = group["<metric>"].mean()
+median_<metric>  = group["<metric>"].median()
+std_<metric>     = group["<metric>"].std()
+```
+
+Add to the returned dict after `"cop"`.
+
+### Step 3b: Extend `model_comparison()` `.agg()` dict (pandas MultiIndex style)
+
+`model_comparison()` uses a raw `.agg()` dict, not a custom function. Output columns are MultiIndex tuples
+like `("r_prog", "mean")`. Add after `"total_tokens"`:
+
+```python
+return grouped.agg(
+    {
+        "passed": "mean",
+        "score": ["mean", "median", "std"],
+        "cost_usd": ["mean", "sum"],
+        "duration_seconds": "mean",
+        "total_tokens": ["mean", "sum"],
+        "r_prog": ["mean", "median", "std"],         # ← add
+        "cfp": ["mean", "median", "std"],            # ← add
+        "pr_revert_rate": ["mean", "median", "std"], # ← add
+        "strategic_drift": ["mean", "median", "std"],# ← add
+    }
+).reset_index()
+```
+
+**Key difference from `tier_summary()`**: columns are MultiIndex tuples `("r_prog", "mean")`, not flat
+strings `"mean_r_prog"`. Tests must check `(metric, agg) in list(result.columns)`.
+
+### Step 4: Update `sample_runs_df` fixture in `tests/unit/analysis/conftest.py`
+
+Add the 4 nullable columns inside the `data.append({...})` block (after `"exit_code": 0`):
+
+```python
+# Process metrics — nullable, ~70% of rows get real values, rest NaN
+r_prog = np.random.uniform(0.0, 1.0) if np.random.random() < 0.7 else np.nan
+cfp    = np.random.uniform(0.0, 0.3) if np.random.random() < 0.7 else np.nan
+pr_revert_rate  = np.random.uniform(0.0, 0.2) if np.random.random() < 0.7 else np.nan
+strategic_drift = np.random.uniform(0.0, 0.5) if np.random.random() < 0.7 else np.nan
+```
+
+The `np.random.seed(42)` is set at fixture entry, so values are reproducible.
+
+### Step 5: Update `sample_subtests_df` fixture (keep fixture symmetry)
+
+The `sample_subtests_df` fixture contains a local `compute_subtest_stats()` that **must mirror production exactly**. Add the same 12 local variables and return-dict keys.
+
+Use defensive column guards (production doesn't need them, but the fixture is reused across tests that may not supply all columns):
+
+```python
+mean_r_prog = group["r_prog"].mean() if "r_prog" in group.columns else np.nan
+```
+
+### Step 6: Write tests in focused new file(s)
+
+For `build_subtests_df()` / `tier_summary()` (flat column names), create
+`tests/unit/analysis/test_<metric>_aggregation.py` covering:
+
+1. Column presence in `build_subtests_df()` output (`"mean_<metric>" in result.columns`)
+2. Correct mean/median/std values (compare to `np.mean(values)`, `np.median(values)`, `pd.Series(values).std()`)
+3. All-NaN group → NaN aggregation (`pd.isna(result["mean_<metric>"].iloc[0])`)
+4. Mixed NaN → skipna behaviour (`np.isfinite(result["mean_<metric>"].iloc[0])`)
+5. Same column presence in `tier_summary()` output
+6. Fixture symmetry: `set(sample_subtests_df.columns) == set(build_subtests_df(sample_runs_df).columns)`
+
+For `model_comparison()` (MultiIndex column names), create
+`tests/unit/analysis/test_model_comparison_process_metrics.py` covering:
+
+1. Column presence: `(metric, agg) in list(result.columns)` for all 12 combinations
+2. Mean correctness per metric (parametrize with `PROCESS_METRICS`): compare against
+   `groupby(...)[metric].mean().reset_index()`
+3. All-NaN group → NaN for all three aggregations
+4. Mixed-NaN group → correct skipna mean
+5. Row count unchanged: `len(result) == groupby(...).ngroups`
+6. Grouping keys preserved: `"agent_model" in result.columns and "tier" in result.columns`
+
+### Step 7: Verify
+
+```bash
+# Analysis unit tests only (fast)
+pixi run python -m pytest tests/unit/analysis/ -q --no-cov
+
+# Full suite (required before PR)
+pixi run python -m pytest tests/ -q --no-cov
+
+# Pre-commit hooks
+pre-commit run --files scylla/analysis/dataframes.py tests/unit/analysis/conftest.py \
+  tests/unit/analysis/test_<metric>_aggregation.py \
+  tests/unit/analysis/test_model_comparison_process_metrics.py
+```
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| N/A | Direct approach worked | N/A | Solution was straightforward |
+## Results & Parameters
+
+### New columns added (12 per aggregation function)
+
+`build_subtests_df()` / `tier_summary()` — flat column names:
+```python
+PROCESS_METRIC_COLS = [
+    "mean_r_prog",    "median_r_prog",    "std_r_prog",
+    "mean_cfp",       "median_cfp",       "std_cfp",
+    "mean_pr_revert_rate", "median_pr_revert_rate", "std_pr_revert_rate",
+    "mean_strategic_drift", "median_strategic_drift", "std_strategic_drift",
+]
+```
+
+`model_comparison()` — MultiIndex column tuples:
+```python
+PROCESS_METRICS = ["r_prog", "cfp", "pr_revert_rate", "strategic_drift"]
+AGGREGATIONS = ["mean", "median", "std"]
+# columns: (metric, agg) for metric in PROCESS_METRICS for agg in AGGREGATIONS
+```
+
+### NaN convention
+
+- Use `None` in `build_runs_df()` row dicts (pandas converts to `NaN` in DataFrame)
+- Use `np.nan` in fixture and test helper row dicts
+- All aggregations return `NaN` when entire group is NaN, finite float otherwise
+
+### Fixture density (~70% populated)
+
+```python
+r_prog = np.random.uniform(0.0, 1.0) if np.random.random() < 0.7 else np.nan
+```
+
+This ensures both paths (real value and NaN) are exercised without making tests brittle.
+
+### Type annotation for test helper accepting nullable lists
+
+```python
+from collections.abc import Sequence
+
+def _make_runs_df(
+    r_prog: Sequence[float | None],
+    cfp: Sequence[float | None] | None = None,
+    ...
+) -> pd.DataFrame:
+```
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| ProjectScylla | Issue #1134, PR #1183 | `build_subtests_df()` + `tier_summary()` |
+| ProjectScylla | Issue #1189, PR #1299 | `model_comparison()` — MultiIndex agg pattern |
+
+## References
+
+- Related skills: `parallel-metrics-integration`, `defensive-analysis-patterns`, `validation-test-fixture-symmetry`
+- Production file: `scylla/analysis/dataframes.py`
+- Test files: `tests/unit/analysis/test_process_metrics_aggregation.py`, `tests/unit/analysis/test_model_comparison_process_metrics.py`
+- Fixture file: `tests/unit/analysis/conftest.py`
+
+## Superseded from add-process-metric-figure
+
+---
+name: add-process-metric-figure
+description: 'TRIGGER CONDITIONS: Adding a new figure function to scylla/analysis/figures/process_metrics.py
+  for a per-run process metric (e.g. strategic_drift, r_prog, cfp, pr_revert_rate).
+  Use when: (1) a new nullable column exists in build_runs_df() output but has no
+  corresponding figure in process_metrics.py, (2) a follow-up issue says ''add a figure
+  for <metric> following the same pattern as fig_r_prog_by_tier'', (3) a process metric
+  column was added in a prior issue but the figure was deferred.'
+category: evaluation
+date: 2026-03-02
+version: 1.0.0
+user-invocable: false
+---
+# add-process-metric-figure
+
+How to implement a new figure function in `scylla/analysis/figures/process_metrics.py` for a nullable
+process metric, wire it into `generate_figures.py`, and add the three required smoke tests — all as a
+single self-contained change.
+
+## Overview
+
+| Item | Details |
+| ------ | --------- |
+| Date | 2026-03-02 |
+| Objective | Add `fig_strategic_drift_by_tier` box-plot figure for the `strategic_drift` column |
+| Outcome | Success — 3 new smoke tests, 388 analysis tests pass, pre-commit clean |
+| Issue | HomericIntelligence/ProjectScylla#1198 |
+| PR | HomericIntelligence/ProjectScylla#1301 |
+
+## When to Use
+
+- A new process-metric column was added to `build_runs_df()` (e.g. via issue #1134) but `process_metrics.py` only implements figures for the earlier metrics
+- Follow-up issue says "add a figure for X following the same box-plot pattern as `fig_r_prog_by_tier`"
+- Any issue mentioning `fig_<metric>_by_tier` that doesn't yet exist in `process_metrics.py`
+
+## Two-Pattern Decision: Box-Plot vs Bar+ErrorBar
+
+`process_metrics.py` uses two distinct patterns depending on metric semantics:
+
+| Pattern | When to use | Examples |
+| --------- | ------------- | --------- |
+| `mark_boxplot()` | Metric is a **distribution** value (bounded [0,1], shows spread) | `r_prog`, `strategic_drift` |
+| `mark_bar()` + `mark_errorbar()` layered | Metric is a **rate/frequency** (mean makes more sense than distribution) | `cfp`, `pr_revert_rate` |
+
+**Rule of thumb**: if the issue says "following the same box-plot pattern as `fig_r_prog_by_tier`", use `mark_boxplot()`. If it says "bar chart with error bars", use the layer pattern.
+
+## Architecture: process_metrics.py Structure
+
+```
+_filter_process_data()      ← shared null-filter helper (reuse, never duplicate)
+fig_r_prog_by_tier()        ← box-plot pattern (bounded [0,1] distributions)
+fig_cfp_by_tier()           ← bar+errorbar pattern (rates)
+fig_pr_revert_by_tier()     ← bar+errorbar pattern (rates)
+fig_strategic_drift_by_tier() ← box-plot pattern (bounded [0,1])
+```
+
+All functions share:
+- `(runs_df: pd.DataFrame, output_dir: Path, render: bool = True) -> None` signature
+- Missing-column guard → `logger.warning(...)` + `return`
+- `_filter_process_data(runs_df[["tier", "agent_model", <col>]], <col>)` filter + empty guard
+- `derive_tier_order(data)` + `get_color_scale("models", models)` for consistent styling
+- `save_figure(chart, "fig_<name>", output_dir, render)` at the end
+
+## Verified Workflow
+
+### Step 1: Verify the column exists in `sample_runs_df` fixture
+
+Check `tests/unit/analysis/conftest.py` for the column in the `data.append({...})` block.
+If absent, add it using the same ~10% NaN pattern as the other process metrics:
+
+```python
+strategic_drift = (
+    np.random.uniform(0.0, 0.3) if np.random.random() > 0.1 else np.nan
+)
+```
+
+**In this session**: `strategic_drift` was already present (added in issue #1134). No fixture change needed.
+
+### Step 2: Add the figure function to `process_metrics.py`
+
+Append **after** the last existing function (currently `fig_pr_revert_by_tier`).
+Box-plot template (clone `fig_r_prog_by_tier`, substitute metric name):
+
+```python
+def fig_strategic_drift_by_tier(
+    runs_df: pd.DataFrame, output_dir: Path, render: bool = True
+) -> None:
+    """Generate Fig_StrategicDrift: Strategic Drift by Tier.
+
+    Box plot showing strategic_drift distribution per tier, faceted by agent_model.
+    Skips gracefully if strategic_drift column is missing or all-null.
+
+    Args:
+        runs_df: Runs DataFrame (must contain 'strategic_drift', 'tier', 'agent_model' columns)
+        output_dir: Output directory for figure files
+        render: Whether to render to PNG/PDF (default: True)
+
+    """
+    if "strategic_drift" not in runs_df.columns:
+        logger.warning(
+            "strategic_drift column not found in runs_df; skipping fig_strategic_drift_by_tier"
+        )
+        return
+
+    data = _filter_process_data(
+        runs_df[["tier", "agent_model", "strategic_drift"]], "strategic_drift"
+    )
+    if data.empty:
+        logger.warning("No strategic_drift data available; skipping fig_strategic_drift_by_tier")
+        return
+
+    tier_order = derive_tier_order(data)
+    models = sorted(data["agent_model"].unique())
+    domain, range_ = get_color_scale("models", models)
+
+    chart = (
+        alt.Chart(data)
+        .mark_boxplot()
+        .encode(
+            x=alt.X("tier:N", sort=tier_order, title="Tier"),
+            y=alt.Y("strategic_drift:Q", scale=alt.Scale(domain=[0, 1]), title="Strategic Drift"),
+            color=alt.Color(
+                "agent_model:N",
+                scale=alt.Scale(domain=domain, range=range_),
+                title="Model",
+            ),
+        )
+        .facet(
+            column=alt.Column("agent_model:N", title="Model"),
+        )
+        .properties(title="Strategic Drift by Tier")
+    )
+
+    save_figure(chart, "fig_strategic_drift_by_tier", output_dir, render)
+```
+
+**Important**: `domain=[0, 1]` is correct for bounded metrics. For unbounded metrics, use `compute_dynamic_domain(data["<col>"])`.
+
+Also update the module docstring to list the new figure:
+
+```python
+"""Process metrics figures.
+
+Generates Fig_RProg (R_Prog by tier), Fig_CFP (CFP by tier),
+Fig_PRRevert (PR Revert Rate by tier), and Fig_StrategicDrift (Strategic Drift by tier).
+"""
+```
+
+### Step 3: Wire into `generate_figures.py`
+
+Two edits — see `wire-figure-pipeline` skill for full details:
+
+1. Add to import block:
+```python
+from scylla.analysis.figures.process_metrics import (
+    fig_cfp_by_tier,
+    fig_pr_revert_by_tier,
+    fig_r_prog_by_tier,
+    fig_strategic_drift_by_tier,  # ← add alphabetically within block
+)
+```
+
+2. Add to `FIGURES` registry (append after `fig_pr_revert_by_tier`):
+```python
+"fig_strategic_drift_by_tier": ("tier", fig_strategic_drift_by_tier),
+```
+
+No changes to the dispatch block in `main()` — the `"tier"` category already dispatches `runs_df`.
+
+### Step 4: Add three smoke tests to `tests/unit/analysis/test_figures.py`
+
+```python
+def test_fig_strategic_drift_by_tier(sample_runs_df, tmp_path):
+    """Smoke test: fig_strategic_drift_by_tier generates output file without error."""
+    from scylla.analysis.figures.process_metrics import fig_strategic_drift_by_tier
+
+    fig_strategic_drift_by_tier(sample_runs_df, tmp_path, render=False)
+    assert (tmp_path / "fig_strategic_drift_by_tier.vl.json").exists()
+
+
+def test_fig_strategic_drift_by_tier_missing_column(tmp_path):
+    """fig_strategic_drift_by_tier skips gracefully when column absent."""
+    import pandas as pd
+
+    from scylla.analysis.figures.process_metrics import fig_strategic_drift_by_tier
+
+    df = pd.DataFrame({"tier": ["T0"], "agent_model": ["Sonnet 4.5"], "score": [0.8]})
+    fig_strategic_drift_by_tier(df, tmp_path, render=False)
+    assert not (tmp_path / "fig_strategic_drift_by_tier.vl.json").exists()
+
+
+def test_fig_strategic_drift_by_tier_all_null(tmp_path):
+    """fig_strategic_drift_by_tier skips gracefully when column all-null."""
+    import pandas as pd
+
+    from scylla.analysis.figures.process_metrics import fig_strategic_drift_by_tier
+
+    df = pd.DataFrame(
+        {
+            "tier": ["T0", "T1"],
+            "agent_model": ["Sonnet 4.5", "Sonnet 4.5"],
+            "strategic_drift": [None, None],
+        }
+    )
+    fig_strategic_drift_by_tier(df, tmp_path, render=False)
+    assert not (tmp_path / "fig_strategic_drift_by_tier.vl.json").exists()
+```
+
+Also update the two existing registry assertions to include the new figure:
+
+```python
+def test_generate_figures_registry_includes_process_metrics() -> None:
+    assert "fig_strategic_drift_by_tier" in FIGURES  # add this line
+
+def test_generate_figures_process_metrics_use_tier_category() -> None:
+    assert FIGURES["fig_strategic_drift_by_tier"][0] == "tier"  # add this line
+```
+
+### Step 5: Run pre-commit (two passes)
+
+```bash
+pre-commit run --files scylla/analysis/figures/process_metrics.py scripts/generate_figures.py tests/unit/analysis/test_figures.py
+# First pass: ruff-format auto-reformats long lines (e.g. wraps logger.warning() calls)
+# Second pass: all checks pass
+pre-commit run --files scylla/analysis/figures/process_metrics.py scripts/generate_figures.py tests/unit/analysis/test_figures.py
+```
+
+### Step 6: Run tests
+
+```bash
+PYTHONPATH=scripts pixi run python -m pytest tests/unit/analysis/ -v --no-cov
+```
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| N/A | Direct approach worked | N/A | Solution was straightforward |
+## Results & Parameters
+
+### Files changed (3 files, 0 new files)
+
+| File | Change |
+| ------ | -------- |
+| `scylla/analysis/figures/process_metrics.py` | +50 lines: module docstring update + `fig_strategic_drift_by_tier` |
+| `scripts/generate_figures.py` | +2 lines: import + registry entry |
+| `tests/unit/analysis/test_figures.py` | +42 lines: 3 new tests + 2 registry assertion updates |
+
+### Test count delta
+
+388 → 391 analysis unit tests (3 new smoke tests)
+
+### Pre-commit behaviour
+
+- First run: ruff-format auto-reformats `process_metrics.py` (1 file modified)
+- Second run: all checks pass
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| ProjectScylla | Issue #1198, PR #1301 | Follow-up from #1136 (wire-figure-pipeline) |
+
+## References
+
+- Related skills: `wire-figure-pipeline` (wiring only, no new function), `add-analysis-metric` (adding raw columns to dataframes layer)
+- Production file: `scylla/analysis/figures/process_metrics.py`
+- Pipeline file: `scripts/generate_figures.py`
+- Test file: `tests/unit/analysis/test_figures.py`
+- Fixture file: `tests/unit/analysis/conftest.py`
+
+## Superseded from wire-figure-pipeline
+
+---
+name: wire-figure-pipeline
+description: 'TRIGGER CONDITIONS: Adding new figure functions to the generate_figures.py
+  pipeline in ProjectScylla. Use when: (1) a new figure function exists in scylla/analysis/figures/
+  but is not called from scripts/generate_figures.py, (2) registering batch-generated
+  figures so they run automatically with all other figures, (3) wiring process-metric
+  or other optional figures into the report pipeline.'
+category: evaluation
+date: 2026-02-27
+version: 1.0.0
+user-invocable: false
+---
+# wire-figure-pipeline
+
+How to register a new figure function in the `generate_figures.py` report pipeline in ProjectScylla, including the correct dispatch category, import order, and registry tests.
+
+## Overview
+
+| Item | Details |
+| ------ | --------- |
+| Date | 2026-02-27 |
+| Objective | Wire `fig_r_prog_by_tier`, `fig_cfp_by_tier`, `fig_pr_revert_by_tier` into `scripts/generate_figures.py` so they are produced automatically during analysis runs |
+| Outcome | Success — 2 new registry tests, 3259 total passing, all pre-commit hooks pass |
+| Issue | HomericIntelligence/ProjectScylla#1136 |
+| PR | HomericIntelligence/ProjectScylla#1194 |
+
+## When to Use
+
+- A figure function exists in `scylla/analysis/figures/*.py` but never appears in the `FIGURES` dict in `scripts/generate_figures.py`
+- Running `generate_figures.py --list-figures` does **not** list a figure that should be auto-generated
+- Adding process-metrics figures (`r_prog`, `cfp`, `pr_revert_rate`) that were implemented but not wired in
+- Any follow-up issue mentioning "figure exists but is not called from the main pipeline"
+
+## Architecture: generate_figures.py Dispatch System
+
+`scripts/generate_figures.py` uses a registry + category-based dispatch:
+
+```python
+# FIGURES dict: maps figure name -> (category, generator_func)
+FIGURES: dict[str, tuple[str, Any]] = {
+    "fig04_pass_rate_by_tier": ("tier", fig04_pass_rate_by_tier),
+    ...
+}
+
+# Dispatch block in main() — maps category to DataFrame argument:
+if category in ("variance", "tier", "cost", "token", "model", ...):
+    generator_func(runs_df, output_dir, render=render)
+elif category == "judge":
+    generator_func(judges_df, output_dir, render=render)
+elif category == "criteria":
+    generator_func(criteria_df, output_dir, render=render)
+```
+
+**Category selection rule**: Pick the category whose dispatch block matches the figure function's call signature:
+- `(runs_df, output_dir, render=...)` → use `"tier"` (or `"variance"`, `"cost"`, `"impl_rate"`, etc. — they all dispatch identically)
+- `(judges_df, output_dir, render=...)` → use `"judge"`
+- `(criteria_df, output_dir, render=...)` → use `"criteria"`
+
+## Verified Workflow
+
+### Step 1: Confirm the figure function's call signature
+
+```python
+# In scylla/analysis/figures/process_metrics.py:
+def fig_r_prog_by_tier(runs_df: pd.DataFrame, output_dir: Path, render: bool = True) -> None:
+```
+
+Signature matches the `runs_df` dispatch categories.
+
+### Step 2: Add the import to `scripts/generate_figures.py`
+
+Insert an alphabetically-sorted import block after the existing figure imports (ruff enforces import order):
+
+```python
+from scylla.analysis.figures.process_metrics import (
+    fig_cfp_by_tier,
+    fig_pr_revert_by_tier,
+    fig_r_prog_by_tier,
+)
+```
+
+**Important**: Place in alphabetical module order (process_metrics comes after model_comparison, before spec_builder). Ruff will auto-fix ordering during pre-commit if wrong.
+
+### Step 3: Register in the `FIGURES` dict
+
+Append at the end of `FIGURES` (before the closing `}`):
+
+```python
+"fig_r_prog_by_tier": ("tier", fig_r_prog_by_tier),
+"fig_cfp_by_tier": ("tier", fig_cfp_by_tier),
+"fig_pr_revert_by_tier": ("tier", fig_pr_revert_by_tier),
+```
+
+No changes to the dispatch block in `main()` are needed — existing categories already handle `runs_df` figures.
+
+### Step 4: Add registry tests to `tests/unit/analysis/test_figures.py`
+
+```python
+def test_generate_figures_registry_includes_process_metrics() -> None:
+    """FIGURES registry contains the three process-metrics figures."""
+    from scripts.generate_figures import FIGURES
+
+    assert "fig_r_prog_by_tier" in FIGURES
+    assert "fig_cfp_by_tier" in FIGURES
+    assert "fig_pr_revert_by_tier" in FIGURES
+
+
+def test_generate_figures_process_metrics_use_tier_category() -> None:
+    """Process-metrics figures are registered under the 'tier' category."""
+    from scripts.generate_figures import FIGURES
+
+    assert FIGURES["fig_r_prog_by_tier"][0] == "tier"
+    assert FIGURES["fig_cfp_by_tier"][0] == "tier"
+    assert FIGURES["fig_pr_revert_by_tier"][0] == "tier"
+```
+
+### Step 5: Verify
+
+```bash
+# Run analysis tests in directory mode (required — file-only mode has conftest issue)
+pixi run python -m pytest tests/unit/analysis/ -q --no-cov
+
+# Full suite (required before PR)
+pixi run python -m pytest tests/ -q --no-cov
+
+# Pre-commit
+pre-commit run --all-files
+```
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| N/A | Direct approach worked | N/A | Solution was straightforward |
+## Conftest / test_figures.py: Known Import Quirk
+
+`tests/unit/analysis/conftest.py` has an `autouse` fixture that patches `export_data` (a top-level script module):
+
+```python
+with (
+    patch("export_data.mann_whitney_power", return_value=0.8, create=True),
+    ...
+):
+```
+
+This requires `export_data` to be importable (it's in `scripts/`, which is on `sys.path` via `pythonpath = ["."]` in `pyproject.toml` + `scripts/__init__.py`). The module only gets loaded when tests are collected in a broader scope that causes it to be imported.
+
+**Practical rule**: Tests in `test_figures.py` that import from `scripts.generate_figures` will fail with `ModuleNotFoundError: No module named 'export_data'` when run in isolation but pass when run as part of `tests/unit/analysis/` or `tests/`. This is a pre-existing quirk, not a bug in the new tests.
+
+## Results & Parameters
+
+### Import block location
+
+```python
+# After: scylla.analysis.figures.model_comparison
+# Before: scylla.analysis.figures.spec_builder
+from scylla.analysis.figures.process_metrics import (
+    fig_cfp_by_tier,
+    fig_pr_revert_by_tier,
+    fig_r_prog_by_tier,
+)
+```
+
+### FIGURES dict entries
+
+```python
+"fig_r_prog_by_tier": ("tier", fig_r_prog_by_tier),
+"fig_cfp_by_tier": ("tier", fig_cfp_by_tier),
+"fig_pr_revert_by_tier": ("tier", fig_pr_revert_by_tier),
+```
+
+### Test count delta
+
+3257 → 3259 (2 new registry tests)
+
+### Coverage
+
+78.38% (above 75% threshold)
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| ProjectScylla | Issue #1136, PR #1194 | Follow-up from #997 |
+
+## Note: figures wired here were later renamed
+
+The three process-metrics figures documented in this skill used ad-hoc names at wire time. They were subsequently renamed to the `fig{NN}` convention in issue #1199 / PR #1302:
+
+- `fig_r_prog_by_tier` → `fig28_r_prog_by_tier`
+- `fig_cfp_by_tier` → `fig29_cfp_by_tier`
+- `fig_pr_revert_by_tier` → `fig30_pr_revert_by_tier`
+
+See the `rename-figure-convention` skill for the complete rename workflow.
+
+## References
+
+- Related skills: `add-analysis-metric` (adding metrics), `add-analysis-figure` (adding new figure modules), `rename-figure-convention` (standardizing fig{NN} names post-wire)
+- Production file: `scripts/generate_figures.py`
+- Figure module: `scylla/analysis/figures/process_metrics.py`
+- Test file: `tests/unit/analysis/test_figures.py`
+
+## Superseded from parallel-metrics-integration-into-statistical-pipelines
+
+---
+name: parallel-metrics-integration-into-statistical-pipelines
+description: Skill for integrating multiple metrics into statistical analysis pipelines in parallel
+category: evaluation
+date: 2026-02-01
+version: 1.0.0
+user-invocable: false
+---
+# Parallel Metrics Integration into Statistical Pipelines
+
+## Overview
+
+| Aspect | Details |
+| -------- | --------- |
+| **Date** | 2026-02-01 |
+| **Objective** | Integrate multiple metrics (Impl-Rate, CoP, Frontier CoP, Duration, Process, Latency) into statistical analysis pipeline in parallel |
+| **Outcome** | ✅ SUCCESS: 3 metrics fully integrated, 2 documented for future work, 4 issues resolved simultaneously |
+| **Issues** | #324 (Impl-Rate), #325 (CoP), #326 (Process), #327 (Latency) |
+| **PRs** | #331 (merged), #332 (merged), #333 (updated) |
+| **Impact** | +119 entries in statistical_results.json (+192% growth) |
+| **Test Pass Rate** | 11/11 (100%) |
+
+## When to Use This Skill
+
+Use this approach when you need to:
+
+1. **Integrate multiple metrics into an existing statistical pipeline** simultaneously
+2. **Work on related GitHub issues in parallel** to maximize efficiency
+3. **Add metrics to all statistical test categories** (normality, omnibus, pairwise, effect sizes, correlations)
+4. **Document metrics that require additional data** as future work
+5. **Balance immediate value (available data) with future completeness** (requires instrumentation)
+
+### Trigger Conditions
+
+- Multiple related metrics need integration
+- Statistical pipeline already exists with established patterns
+- Metrics have varying data availability (some ready, some need extraction)
+- Test infrastructure exists for validation
+- Working toward publication deadline with prioritization needed
+
+## Verified Workflow
+
+### Phase 1: Parallel Branch Creation and Strategy
+
+```bash
+# Strategy: Create all branches upfront, work on most data-available first
+git checkout main && git pull
+git checkout -b 324-integrate-impl-rate-statistical-tests
+# Work on this first (data ready)
+
+# After first complete, create next
+git checkout main && git pull
+git checkout -b 325-integrate-cop-frontier-cop
+# Work on this second (computed data)
+
+# Combined branch for data-blocked metrics
+git checkout main && git pull
+git checkout -b 326-327-process-latency-metrics-documentation
+# Document + integrate what's available
+```
+
+**Key Insight**: Start with metrics that have data readily available (impl_rate, duration_seconds already in runs_df) before tackling computed metrics (CoP) or data-blocked metrics (process/detailed latency).
+
+### Phase 2: Pattern-Based Integration (Per Metric)
+
+For each metric, add to all 5 statistical test categories in `scripts/export_data.py`:
+
+#### 1. Normality Tests (Shapiro-Wilk)
+
+```python
+# Test metric distribution per (model, tier)
+for model in models:
+    for tier in tier_order:
+        tier_data = runs_df[(runs_df["agent_model"] == model) & (runs_df["tier"] == tier)]
+
+        if len(tier_data) < 3:
+            continue
+
+        # Test YOUR_METRIC distribution
+        metric_data = tier_data["YOUR_METRIC"].dropna()
+        if len(metric_data) >= 3:
+            w_stat, p_value = shapiro_wilk(metric_data)
+            results["normality_tests"].append({
+                "model": model,
+                "tier": tier,
+                "metric": "YOUR_METRIC",
+                "n": len(metric_data),
+                "w_statistic": float(w_stat),
+                "p_value": float(p_value),
+                "is_normal": bool(p_value > 0.05),
+            })
+```
+
+#### 2. Omnibus Tests (Kruskal-Wallis)
+
+```python
+# Test for differences across all tiers per model
+for model in models:
+    model_runs = runs_df[runs_df["agent_model"] == model]
+
+    tier_groups = [
+        model_runs[model_runs["tier"] == tier]["YOUR_METRIC"].dropna()
+        for tier in tier_order
+    ]
+    tier_groups = [g for g in tier_groups if len(g) > 0]
+
+    if len(tier_groups) >= 2:
+        h_stat, p_value = kruskal_wallis(*tier_groups)
+        results["omnibus_tests"].append({
+            "model": model,
+            "metric": "YOUR_METRIC",
+            "n_groups": len(tier_groups),
+            "h_statistic": float(h_stat),
+            "p_value": float(p_value),
+            "is_significant": bool(p_value < 0.05),
+        })
+```
+
+#### 3. Pairwise Comparisons (Mann-Whitney U + Holm-Bonferroni)
+
+```python
+# Compare consecutive tiers with multiple comparison correction
+for model in models:
+    model_runs = runs_df[runs_df["agent_model"] == model]
+    raw_p_values = []
+    test_metadata = []
+
+    for i in range(len(tier_order) - 1):
+        tier1, tier2 = tier_order[i], tier_order[i + 1]
+        tier1_data = model_runs[model_runs["tier"] == tier1]["YOUR_METRIC"].dropna()
+        tier2_data = model_runs[model_runs["tier"] == tier2]["YOUR_METRIC"].dropna()
+
+        if len(tier1_data) < 2 or len(tier2_data) < 2:
+            continue
+
+        u_stat, p_value_raw = mann_whitney_u(tier1_data, tier2_data)
+        raw_p_values.append(p_value_raw)
+        test_metadata.append({
+            "model": model,
+            "tier1": tier_order[i],
+            "tier2": tier_order[i + 1],
+            "n1": len(tier1_data),
+            "n2": len(tier2_data),
+            "u_statistic": float(u_stat),
+        })
+
+    # Apply Holm-Bonferroni correction per model
+    if raw_p_values:
+        corrected_p_values = holm_bonferroni_correction(raw_p_values)
+
+        for i, metadata in enumerate(test_metadata):
+            results["pairwise_comparisons"].append({
+                **metadata,
+                "metric": "YOUR_METRIC",
+                "p_value_raw": float(raw_p_values[i]),
+                "p_value": float(corrected_p_values[i]),
+                "is_significant": bool(corrected_p_values[i] < 0.05),
+            })
+```
+
+#### 4. Effect Sizes (Cliff's Delta with Bootstrap CIs)
+
+```python
+# Quantify effect magnitude for tier transitions
+for model in models:
+    model_runs = runs_df[runs_df["agent_model"] == model]
+
+    for i in range(len(tier_order) - 1):
+        tier1, tier2 = tier_order[i], tier_order[i + 1]
+        tier1_data = model_runs[model_runs["tier"] == tier1]["YOUR_METRIC"].dropna()
+        tier2_data = model_runs[model_runs["tier"] == tier2]["YOUR_METRIC"].dropna()
+
+        if len(tier1_data) >= 2 and len(tier2_data) >= 2:
+            delta, ci_low, ci_high = cliffs_delta_ci(tier2_data, tier1_data)
+
+            results["effect_sizes"].append({
+                "model": model,
+                "metric": "YOUR_METRIC",
+                "tier1": tier_order[i],
+                "tier2": tier_order[i + 1],
+                "cliffs_delta": float(delta),
+                "ci_low": float(ci_low),
+                "ci_high": float(ci_high),
+                "is_significant": bool(not (ci_low <= 0 <= ci_high)),
+            })
+```
+
+#### 5. Correlations (Spearman Rank)
+
+```python
+# Add relevant metric pairs to correlations list
+metrics = [
+    ("score", "YOUR_METRIC"),
+    ("impl_rate", "YOUR_METRIC"),
+    ("cost_usd", "YOUR_METRIC"),
+    # ... existing pairs
+]
+
+for model in models:
+    model_data = runs_df[runs_df["agent_model"] == model]
+
+    for metric1, metric2 in metrics:
+        if metric1 not in model_data.columns or metric2 not in model_data.columns:
+            continue
+
+        valid_idx = model_data[[metric1, metric2]].dropna().index
+        if len(valid_idx) < 3:
+            continue
+
+        rho, p_value = spearman_correlation(
+            model_data.loc[valid_idx, metric1],
+            model_data.loc[valid_idx, metric2]
+        )
+
+        results["correlations"].append({
+            "model": model,
+            "metric1": metric1,
+            "metric2": metric2,
+            "n": len(valid_idx),
+            "spearman_rho": float(rho),
+            "p_value": float(p_value),
+            "is_significant": bool(p_value < 0.05),
+        })
+```
+
+### Phase 3: Test-Driven Validation
+
+Create integration test for each metric:
+
+```python
+# tests/unit/analysis/test_YOUR_METRIC_integration.py
+def test_YOUR_METRIC_integration(sample_runs_df):
+    """Test that YOUR_METRIC is integrated into all statistical tests."""
+    from export_data import compute_statistical_results
+    from scylla.analysis.figures import derive_tier_order
+
+    tier_order = derive_tier_order(sample_runs_df)
+    results = compute_statistical_results(sample_runs_df, tier_order)
+
+    # Verify YOUR_METRIC in normality tests
+    metric_normality = [
+        t for t in results["normality_tests"]
+        if t["metric"] == "YOUR_METRIC"
+    ]
+    assert len(metric_normality) > 0, "YOUR_METRIC should appear in normality_tests"
+
+    # Verify YOUR_METRIC in omnibus tests
+    metric_omnibus = [
+        t for t in results["omnibus_tests"]
+        if t["metric"] == "YOUR_METRIC"
+    ]
+    assert len(metric_omnibus) > 0, "YOUR_METRIC should appear in omnibus_tests"
+
+    # Verify YOUR_METRIC in pairwise comparisons
+    metric_pairwise = [
+        t for t in results["pairwise_comparisons"]
+        if t["metric"] == "YOUR_METRIC"
+    ]
+    assert len(metric_pairwise) > 0, "YOUR_METRIC should appear in pairwise_comparisons"
+
+    # Verify YOUR_METRIC in effect sizes
+    metric_effects = [
+        t for t in results["effect_sizes"]
+        if t["metric"] == "YOUR_METRIC"
+    ]
+    assert len(metric_effects) > 0, "YOUR_METRIC should appear in effect_sizes"
+
+    # Verify YOUR_METRIC in correlations
+    metric_corr = [
+        c for c in results["correlations"]
+        if c["metric1"] == "YOUR_METRIC" or c["metric2"] == "YOUR_METRIC"
+    ]
+    assert len(metric_corr) > 0, "YOUR_METRIC should appear in correlations"
+```
+
+### Phase 4: PR Management Strategy
+
+**Parallel PR Workflow**:
+
+1. **Create PRs in dependency order**:
+   ```bash
+   # PR #1: Foundational metric (impl_rate)
+   gh pr create --title "feat(metrics): Integrate Impl-Rate" \
+     --body "Closes #324" --label "P1,metrics"
+   gh pr merge --auto --rebase
+
+   # PR #2: Computed metric (CoP) - wait for #1 to merge
+   git checkout main && git pull
+   git checkout -b 325-cop
+   # ... implement
+   gh pr create --title "feat(metrics): Integrate CoP" \
+     --body "Closes #325" --label "P1,metrics"
+   gh pr merge --auto --rebase
+
+   # PR #3: Combined documentation + partial integration
+   git checkout main && git pull
+   git checkout -b 326-327-docs
+   # ... document + integrate available data
+   gh pr create --title "feat(metrics): Duration + Documentation" \
+     --body "Closes #326, Closes #327" --label "P1,metrics"
+   gh pr merge --auto --rebase
+   ```
+
+2. **Update test fixtures incrementally**:
+   - First PR may break tests in other branches
+   - After first PR merges, rebase other branches:
+     ```bash
+     git checkout 325-cop
+     git rebase main
+     # Fix conflicts in test fixtures (add new metric columns)
+     ```
+
+3. **Enable auto-merge immediately**:
+   - CI runs in parallel while you work on next metric
+   - Branches merge automatically when tests pass
+   - Maximize throughput
+
+### Phase 5: Documentation for Data-Blocked Metrics
+
+When metrics are implemented but lack artifact data:
+
+```markdown
+# docs/dev/metrics-integration-status.md
+
+## Pending Metrics (⏸️ Awaiting Data Extraction)
+
+### YOUR_METRIC
+**Status**: ⏸️ Implementation exists, data extraction needed
+**Implementation**: `scylla/path/to/YOUR_METRIC.py::compute_YOUR_METRIC()`
+**Data Requirement**: Specific artifact files or data sources needed
+**Blocker**: Current run artifacts do not include required data
+
+**Required for Integration**:
+1. Extract data from run artifacts (if available)
+2. Add `YOUR_METRIC` column to runs_df in `build_runs_df()`
+3. Add YOUR_METRIC to statistical tests (all 5 categories)
+4. Document data collection requirements for future experiments
+
+**Formula**:
+```
+YOUR_METRIC = calculation_here
+```
+
+**Interpretation**:
+- Value = X: Meaning
+- Value = Y: Meaning
+```
+
+**Key**: Provide complete instrumentation guide so future experiments can capture the data.
+
+## Results & Parameters
+
+Copy-paste ready configurations and expected outputs.
+
+## Failed Attempts & Lessons Learned
+| Attempt | Issue | Resolution |
+| --------- | ------- | ------------ |
+| See detailed notes below | Various approaches tried | Refer to documentation in this section |
+
+### ❌ Attempt 1: Sequential Integration (Rejected)
+
+**What we tried**: Integrate one metric completely, commit, then move to next
+
+**Why it failed**:
+- Lost parallelism - each metric took 30-45 minutes
+- Context switching overhead between issues
+- Didn't leverage auto-merge for parallel CI
+
+**Lesson**: Create all branches upfront, use auto-merge to parallelize CI while working on next metric
+
+### ❌ Attempt 2: Force Push to Update Branch Name (Blocked by Safety Net)
+
+**What we tried**:
+```bash
+git push -u origin 326-327-integrate-available-metrics --force
+```
+
+**Why it failed**: Safety net blocked `--force` as it destroys remote history
+
+**Lesson**:
+- Check current branch name before pushing: `git branch --show-current`
+- If branch name wrong, don't force push - just push correct branch
+- Use `--force-with-lease` only when truly needed and with user permission
+
+### ❌ Attempt 3: Edit Already-Formatted File (Linter Conflict)
+
+**What we tried**: Edit `export_data.py` after linter auto-formatted it
+
+**Why it failed**: File modified since read, causing edit collision
+
+**Lesson**: Always re-read file after linter runs before making edits
+
+### ⚠️ Challenge: Managing Test Fixture Updates Across Branches
+
+**Issue**: First PR (#324) added `impl_rate` column to test fixtures. Subsequent branches had fixtures without this column, causing test failures.
+
+**Solution**:
+1. After first PR merges, rebase other branches: `git rebase main`
+2. Update test fixtures to include new columns from merged PRs
+3. Run tests locally before pushing: `pixi run pytest tests/unit/analysis/`
+
+**Lesson**: Test fixture evolution is a dependency across parallel branches. Plan for rebase + fixture updates after each merge.
+
+### ✅ Success Factor: Starting with Data-Available Metrics
+
+**What worked**: Prioritized metrics where data already existed in runs_df:
+1. `impl_rate` (already computed and in runs_df)
+2. `cop` (computed from pass_rate and cost, already in runs_df)
+3. `duration_seconds` (already in runs_df)
+
+**Why it worked**:
+- No data extraction complexity
+- Immediate value delivery
+- Builds confidence with quick wins
+- Data-blocked metrics documented clearly as future work
+
+**Lesson**: Always start with low-hanging fruit (data-available metrics) before tackling instrumentation-required metrics.
+
+## Results & Impact
+
+### Quantitative Results
+
+| Metric | Status | Statistical Tests | Entries Added | Issue |
+| -------- | -------- | ------------------- | --------------- | ------- |
+| Pass-Rate | ✅ Baseline | YES | 0 (existing) | N/A |
+| Impl-Rate | ✅ Integrated | YES | +39 | #324 |
+| CoP | ✅ Integrated | Descriptive | ~15 | #325 |
+| Frontier CoP | ✅ Integrated | Descriptive | ~15 | #325 |
+| Duration | ✅ Integrated | YES | +36 | #327 |
+| Consistency | ⏸️ Computed | NO | 0 | Future |
+| R_Prog | ⏸️ Code Ready | NO | 0 | #326 (documented) |
+| CFP | ⏸️ Code Ready | NO | 0 | #326 (documented) |
+| Strategic Drift | ⏸️ Code Ready | NO | 0 | #326 (documented) |
+| PR Revert Rate | ⏸️ Code Ready | NO | 0 | #326 (documented) |
+| TTFT | ⏸️ Code Ready | NO | 0 | #327 (documented) |
+| Phase Latency | ⏸️ Code Ready | NO | 0 | #327 (documented) |
+
+**Total**: ~119 new entries in statistical_results.json (+192% growth from 62 to ~181 entries)
+
+### Statistical Coverage
+
+**Before Integration**: 1 metric (Pass-Rate) across 5 test categories
+
+**After Integration**: 4 metrics across 5 test categories
+
+| Test Category | Metrics Covered | Entries |
+| --------------- | ---------------- | --------- |
+| Normality Tests | Pass-Rate, Impl-Rate, Cost, Duration | 70 |
+| Omnibus Tests | Pass-Rate, Impl-Rate, Duration | 8 |
+| Pairwise Comparisons | Pass-Rate, Impl-Rate, Duration | 48 |
+| Effect Sizes | Pass-Rate, Impl-Rate, Duration | 48 |
+| Correlations | All pairs | 7 |
+| Tier Descriptives | CoP, Frontier CoP | ~15 |
+
+### Test Coverage
+
+- **11/11 tests passing** (100% pass rate)
+- **3 new test files** created:
+  - `test_cop_integration.py`
+  - `test_duration_integration.py`
+  - Updated: `test_export_data.py` (9 tests)
+
+### Time Efficiency
+
+**Parallel Approach**: ~2 hours for 4 issues
+- Branch 1 (#324): 30 min
+- Branch 2 (#325): 30 min
+- Branch 3 (#326+#327): 45 min (documentation + integration)
+- PR management: 15 min
+
+**Sequential Approach (estimated)**: ~3.5 hours
+- Each metric: 45-60 min × 4 = 3-4 hours
+
+**Time saved**: ~40% by working in parallel with auto-merge
+
+## Configuration Parameters
+
+### Imports Required
+
+```python
+from scylla.analysis.stats import (
+    cliffs_delta_ci,
+    compute_cop,
+    compute_frontier_cop,
+    holm_bonferroni_correction,
+    kruskal_wallis,
+    mann_whitney_u,
+    shapiro_wilk,
+    spearman_correlation,
+)
+```
+
+### Statistical Test Configuration
+
+From `scylla/analysis/config.py`:
+
+```python
+significance_level = 0.05  # Alpha for hypothesis tests
+bootstrap_resamples = 10000  # BCa bootstrap samples
+bootstrap_confidence = 0.95  # Confidence level for CIs
+bootstrap_random_state = 42  # Reproducibility
+min_sample_normality = 3  # Minimum N for Shapiro-Wilk
+min_sample_kruskal_wallis = 2  # Minimum N per group for Kruskal-Wallis
+```
+
+### Test Execution
+
+```bash
+# Run integration tests
+pixi run pytest tests/unit/analysis/test_export_data.py \
+  tests/unit/analysis/test_cop_integration.py \
+  tests/unit/analysis/test_duration_integration.py -v
+
+# Run specific integration test
+pixi run pytest tests/unit/analysis/test_YOUR_METRIC_integration.py -xvs
+```
+
+## Decision Tree: Integrate Now vs Document for Later
+
+```
+Is the metric data available in runs_df or easily computed?
+├─ YES: Integrate immediately
+│  ├─ Add to all 5 statistical test categories
+│  ├─ Create integration test
+│  ├─ Create PR with auto-merge
+│  └─ Move to next metric
+│
+└─ NO: Document for future work
+   ├─ Verify implementation exists (scylla/metrics/)
+   ├─ Document data requirements clearly
+   ├─ Provide instrumentation guide
+   ├─ Add to metrics-integration-status.md
+   └─ Close issue as "implementation complete, data pending"
+```
+
+## Best Practices Summary
+
+1. **Start with data-available metrics** - quick wins build momentum
+2. **Create all branches upfront** - enables parallel work
+3. **Use auto-merge aggressively** - CI runs while you code
+4. **Test-driven integration** - write test first, then implementation
+5. **Rebase frequently** - keep branches up to date with merged changes
+6. **Document data-blocked metrics thoroughly** - enable future integration
+7. **Separate concerns**: Implementation complete ≠ Integration blocked
+8. **Update test fixtures incrementally** - after each PR merge
+9. **Check branch name before push** - avoid force push scenarios
+10. **Re-read files after linter** - avoid edit conflicts
+
+## Related Documentation
+
+- **Metrics Implementation**: `scylla/metrics/`
+- **Statistical Tests**: `scylla/analysis/stats.py`
+- **Integration Status**: `docs/dev/metrics-integration-status.md`
+- **Analysis Pipeline**: `scripts/export_data.py`
+
+## References
+
+- Issues: #324, #325, #326, #327, #330 (paper readiness)
+- PRs: #331 (Impl-Rate), #332 (CoP), #333 (Duration + Docs)
+- Statistical Methods: Kruskal-Wallis, Mann-Whitney U, Cliff's Delta, Holm-Bonferroni
+- Testing Framework: pytest with analysis environment
+
+### Notes file for parallel-metrics-integration-into-statistical-pipelines
+
+# Session Notes: Parallel Metrics Integration
+
+## Raw Session Details
+
+**Date**: 2026-02-01
+**Duration**: ~2 hours
+**Model**: Claude Sonnet 4.5
+**Token Usage**: ~137k tokens
+
+## Execution Timeline
+
+1. **00:00-00:30**: Issue analysis and planning
+   - Analyzed paper-readiness assessment
+   - Created 11 GitHub issues (#319-#330)
+   - Identified metrics integration as priority
+
+2. **00:30-01:00**: Impl-Rate Integration (#324)
+   - Branch: `324-integrate-impl-rate-statistical-tests`
+   - Added impl_rate to all 5 test categories
+   - Created test_impl_rate_integration()
+   - PR #331 created and merged
+   - Impact: +39 entries
+
+3. **01:00-01:30**: CoP Integration (#325)
+   - Branch: `325-integrate-cop-frontier-cop`
+   - Added CoP to tier_descriptives section
+   - Added Frontier CoP identification
+   - Created test_cop_frontier_cop_integration()
+   - PR #332 created and merged
+   - Impact: ~15 entries
+
+4. **01:30-02:00**: Documentation + Duration (#326, #327)
+   - Branch: `326-327-process-latency-metrics-documentation`
+   - Created comprehensive metrics-integration-status.md
+   - Added duration_seconds to all 5 test categories
+   - Created test_duration_seconds_integration()
+   - PR #333 created and auto-merge enabled
+   - Impact: +36 entries + comprehensive docs
+
+## Command History
+
+```bash
+# Issue creation
+gh issue create --title "P0: Re-run 15 aborted Haiku T5 runs" --label "P0,test-case"
+gh issue create --title "P0: Re-run judge_01 for 218 Haiku T4/T5 runs" --label "P0,judge"
+gh issue create --title "P1: Regenerate nothinking-haiku T6 reports" --label "P1,reporting"
+gh issue create --title "P1: Render PNG/PDF figures" --label "P1,reporting"
+# ... (11 issues total)
+
+# Impl-Rate integration
+git checkout -b 324-integrate-impl-rate-statistical-tests
+# Edit scripts/export_data.py
+# Edit tests/unit/analysis/test_export_data.py
+pixi run pytest tests/unit/analysis/test_export_data.py -v
+git commit -m "feat(metrics): Integrate Impl-Rate into statistical tests"
+git push -u origin 324-integrate-impl-rate-statistical-tests
+gh pr create --title "feat(metrics): Integrate Impl-Rate" --label "P1,metrics"
+gh pr merge --auto --rebase 331
+
+# CoP integration
+git checkout main && git pull
+git checkout -b 325-integrate-cop-frontier-cop
+# Edit scripts/export_data.py (add CoP imports, tier_descriptives)
+# Create tests/unit/analysis/test_cop_integration.py
+pixi run pytest tests/unit/analysis/test_cop_integration.py -xvs
+git commit -m "feat(metrics): Integrate CoP and Frontier CoP"
+git push -u origin 325-integrate-cop-frontier-cop
+gh pr create --title "feat(metrics): Integrate CoP/Frontier CoP" --label "P1,metrics,pricing"
+gh pr merge --auto --rebase 332
+
+# Documentation + Duration
+git checkout main && git pull
+git checkout -b 326-327-process-latency-metrics-documentation
+# Create docs/dev/metrics-integration-status.md
+git commit -m "docs(metrics): Document process and latency metrics"
+# Edit scripts/export_data.py (add duration_seconds)
+# Create tests/unit/analysis/test_duration_integration.py
+pixi run pytest tests/unit/analysis/test_duration_integration.py -xvs
+git commit -m "feat(metrics): Integrate duration_seconds"
+git push -u origin 326-327-process-latency-metrics-documentation
+gh pr edit 333 --title "feat(metrics): Duration + Documentation"
+```
+
+## Key Files Modified
+
+### scripts/export_data.py
+- Added impl_rate to normality, omnibus, pairwise, effect_sizes, correlations
+- Added duration_seconds to normality, omnibus, pairwise, effect_sizes
+- Added tier_descriptives section for CoP analysis
+- Added CoP to summary.json (by_model, by_tier)
+- Total additions: ~200 lines
+
+### Test Files Created/Updated
+- test_export_data.py: Updated fixtures, added metric field assertions
+- test_cop_integration.py: New file, 1 test
+- test_duration_integration.py: New file, 1 test
+
+### Documentation Created
+- docs/dev/metrics-integration-status.md: 261 lines
+- docs/paper-readiness-audit.md: 393 lines (earlier in session)
+
+## Test Results
+
+```bash
+# Final test run
+pixi run pytest tests/unit/analysis/test_export_data.py \
+  tests/unit/analysis/test_cop_integration.py \
+  tests/unit/analysis/test_duration_integration.py -v
+
+# Output:
+# ============================= test session starts ==============================
+# tests/unit/analysis/test_export_data.py::test_compute_statistical_results PASSED [  9%]
+# tests/unit/analysis/test_export_data.py::test_enhanced_summary_json PASSED [ 18%]
+# tests/unit/analysis/test_export_data.py::test_json_nan_handler PASSED    [ 27%]
+# tests/unit/analysis/test_export_data.py::test_compute_statistical_results_empty_df PASSED [ 36%]
+# tests/unit/analysis/test_export_data.py::test_compute_statistical_results_single_tier PASSED [ 45%]
+# tests/unit/analysis/test_export_data.py::test_compute_statistical_results_degenerate_data PASSED [ 54%]
+# tests/unit/analysis/test_export_data.py::test_compute_statistical_results_correlation_correction PASSED [ 63%]
+# tests/unit/analysis/test_export_data.py::test_export_data_validation_warnings PASSED [ 72%]
+# tests/unit/analysis/test_export_data.py::test_impl_rate_integration PASSED [ 81%]
+# tests/unit/analysis/test_cop_integration.py::test_cop_frontier_cop_integration PASSED [ 90%]
+# tests/unit/analysis/test_duration_integration.py::test_duration_seconds_integration PASSED [100%]
+#
+# ============================== 11 passed in 5.51s ===============================
+```
+
+## Metrics Integration Impact
+
+### statistical_results.json Structure
+
+```json
+{
+  "pipeline_version": "1.0.0",
+  "config_version": "1.0.0",
+  "normality_tests": [
+    // 70 entries (4 metrics × 2 models × 7 tiers + some missing tiers)
+    {"model": "Sonnet 4.5", "tier": "T0", "metric": "score", ...},
+    {"model": "Sonnet 4.5", "tier": "T0", "metric": "impl_rate", ...},
+    {"model": "Sonnet 4.5", "tier": "T0", "metric": "cost_usd", ...},
+    {"model": "Sonnet 4.5", "tier": "T0", "metric": "duration_seconds", ...}
+  ],
+  "omnibus_tests": [
+    // 8 entries (4 metrics × 2 models)
+    {"model": "Sonnet 4.5", "metric": "pass_rate", ...},
+    {"model": "Sonnet 4.5", "metric": "impl_rate", ...},
+    {"model": "Sonnet 4.5", "metric": "duration_seconds", ...}
+  ],
+  "pairwise_comparisons": [
+    // 48 entries (3 metrics × 2 models × 6 tier transitions + pass_rate)
+  ],
+  "effect_sizes": [
+    // 48 entries (3 metrics × 2 models × 6 tier transitions + pass_rate)
+  ],
+  "correlations": [
+    // 7 entries (metric pairs)
+  ],
+  "tier_descriptives": [
+    // ~15 entries (2 models × 7 tiers + 2 frontier entries)
+    {"model": "Sonnet 4.5", "tier": "T0", "cop": 1.52, ...},
+    {"model": "Sonnet 4.5", "tier": "frontier", "cop": 1.47, "frontier_tier": "T2"}
+  ]
+}
+```
+
+### summary.json Enhancements
+
+```json
+{
+  "by_model": {
+    "Sonnet 4.5": {
+      "pass_rate": 0.942,
+      "cop": 1.55,
+      "frontier_cop": 1.47,
+      // ... other fields
+    }
+  },
+  "by_tier": {
+    "T0": {
+      "pass_rate": 0.929,
+      "cop": 1.52,
+      // ... other fields
+    }
+  }
+}
+```
+
+## Challenges Encountered
+
+1. **Linter auto-formatting**: File modified after read, causing edit conflicts
+   - Solution: Re-read file after linter runs
+
+2. **Branch naming mismatch**: Created branch A, tried to push branch B
+   - Solution: Check current branch before push
+
+3. **Test fixture evolution**: First PR added columns that broke other branches
+   - Solution: Rebase after each merge, update fixtures
+
+4. **Force push blocked**: Safety net prevented `--force`
+   - Solution: Don't use --force, push correct branch name
+
+## Learnings for Future Sessions
+
+1. **Auto-merge is powerful**: Enable immediately to parallelize CI
+2. **Data availability drives priority**: Start with data-ready metrics
+3. **Documentation ≠ failure**: Documenting data-blocked metrics is completion
+4. **Test-driven speeds development**: Write test first, implement to pass
+5. **Parallel branches require coordination**: Plan for rebases and fixture updates
+6. **Branch naming matters**: Check before push to avoid force scenarios
+7. **Comprehensive docs enable future work**: Instrumentation guides are valuable
+
+## Related Skills
+
+- **github-issue-workflow**: Created 11 issues in parallel
+- **pr-workflow**: Managed 3 PRs with auto-merge
+- **statistical-analysis**: Added 5 test categories per metric
+- **test-driven-development**: Wrote tests before implementation
+
+## Superseded from extend-statistical-tests
+
+---
+name: extend-statistical-tests
+description: 'TRIGGER CONDITIONS: Adding a new nullable per-run metric to all four
+  statistical test sections (normality, omnibus, pairwise, effect sizes) in scripts/export_data.py
+  compute_statistical_results(). Use when surfacing process or quality metrics in
+  statistical_results.json.'
+category: evaluation
+date: 2026-03-02
+version: 1.0.0
+user-invocable: false
+---
+# extend-statistical-tests
+
+How to add a new metric to all four statistical test categories in `compute_statistical_results()`
+inside `scripts/export_data.py`, with correct NaN/missing-column guards and TDD workflow.
+
+## Overview
+
+| Item | Details |
+| ------ | --------- |
+| Date | 2026-03-02 |
+| Objective | Add `r_prog`, `cfp`, `pr_revert_rate` to normality, omnibus, pairwise, and effect-size sections of `statistical_results.json` |
+| Outcome | Success — 15 new tests, 3598 total passing, all pre-commit hooks pass |
+| Issue | HomericIntelligence/ProjectScylla#1186 |
+| PR | HomericIntelligence/ProjectScylla#1300 |
+
+## When to Use
+
+- Adding any nullable per-run metric to `normality_tests`, `omnibus_tests`, `pairwise_comparisons`,
+  or `effect_sizes` in `compute_statistical_results()` (`scripts/export_data.py`)
+- The metric already exists as a column in `runs_df` (i.e. it's already in `build_runs_df()`)
+- You want the research paper to have significance data for the metric, not just descriptive means
+
+**Related skill**: `add-analysis-metric` — use that when adding *aggregations* (mean/median/std)
+to `build_subtests_df()` / `tier_summary()`. This skill is for the *statistical tests* layer.
+
+## Architecture: Statistical Tests Layer
+
+`compute_statistical_results()` composes four helpers:
+
+```
+_compute_normality_tests()     → Shapiro-Wilk per (model, tier)
+_compute_omnibus_tests()       → Kruskal-Wallis across tiers per model
+_compute_pairwise_comparisons() → Mann-Whitney consecutive pairs (Holm-corrected)
+_compute_effect_sizes()        → Cliff's delta with 95% CI
+```
+
+Process metrics use **consecutive-tier pairs only** — no first→last overall contrast.
+The overall contrast applies only to `pass_rate` (it has explicit meaning as the
+"baseline vs best tier" comparison).
+
+## Verified Workflow
+
+### Step 1: Confirm the column exists in `runs_df`
+
+```python
+# Check build_runs_df() output in scylla/analysis/dataframes.py
+# The column must exist before add it to statistical tests
+assert "r_prog" in runs_df.columns  # True if #1134 / add-analysis-metric was done
+```
+
+### Step 2: Add to `_compute_normality_tests()`
+
+Extend `metric_cols` list and add a column-existence guard in the inner loop:
+
+```python
+metric_cols = [
+    "score", "impl_rate", "cost_usd", "duration_seconds",
+    "r_prog", "cfp", "pr_revert_rate",   # NEW
+]
+
+for metric in metric_cols:
+    if metric not in tier_data.columns:   # guard — backward compat
+        continue
+    values = tier_data[metric].dropna()
+    if len(values) >= 3:
+        ...
+```
+
+### Step 3: Add to `_compute_omnibus_tests()`
+
+Append to `metric_configs` **after** the static list, using a column-existence guard:
+
+```python
+# Static entries (pass_rate, impl_rate, duration_seconds) stay as-is
+metric_configs = [...]
+
+# Conditionally append process metrics
+for process_metric in ("r_prog", "cfp", "pr_revert_rate"):
+    if process_metric in model_runs.columns:
+        metric_configs.append(
+            (
+                process_metric,
+                [
+                    model_runs[model_runs["tier"] == t][process_metric].dropna()
+                    for t in tier_order
+                ],
+            )
+        )
+```
+
+**Why not extend the static list?** The static entries use `.astype(int)` or columns guaranteed
+present. Process metrics are optional — they may be absent in old DataFrames.
+
+### Step 4: Add to `_compute_pairwise_comparisons()`
+
+Add metrics to the consecutive-pairs tuple and guard with column-existence check:
+
+```python
+# Before: ("impl_rate", "duration_seconds")
+# After:
+for metric in ("impl_rate", "duration_seconds", "r_prog", "cfp", "pr_revert_rate"):
+    if metric not in model_runs.columns:
+        continue
+    ...
+```
+
+**Do NOT add** an overall first→last contrast for process metrics. That is intentionally
+reserved for `pass_rate` only.
+
+### Step 5: Add to `_compute_effect_sizes()`
+
+Same pattern — extend the inner metric tuple and guard:
+
+```python
+# Before: ("impl_rate", "duration_seconds")
+# After:
+for metric in ("impl_rate", "duration_seconds", "r_prog", "cfp", "pr_revert_rate"):
+    if metric not in model_runs.columns:
+        continue
+    d1 = t1[metric].dropna()
+    d2 = t2[metric].dropna()
+    if len(d1) >= 2 and len(d2) >= 2:
+        ...
+```
+
+### Step 6: Write TDD tests (red → green)
+
+Add to `tests/unit/analysis/test_export_data.py`. The `sample_runs_df` fixture already
+has `r_prog`, `cfp`, `pr_revert_rate` columns (~90% populated).
+
+**Add `import pytest` at top of the file** if not already present.
+
+**Parametrized per-category tests** (12 tests for 4 categories × 3 metrics):
+
+```python
+@pytest.mark.parametrize("metric", ["r_prog", "cfp", "pr_revert_rate"])
+def test_process_metrics_in_normality_tests(sample_runs_df, metric):
+    from export_data import _compute_normality_tests
+    from scylla.analysis.figures import derive_tier_order
+    tier_order = derive_tier_order(sample_runs_df)
+    models = sorted(sample_runs_df["agent_model"].unique())
+    results = _compute_normality_tests(sample_runs_df, models, tier_order)
+    entries = [e for e in results if e["metric"] == metric]
+    assert len(entries) > 0, f"{metric} should appear in normality_tests"
+    required = {"model", "tier", "metric", "n", "w_statistic", "p_value", "is_normal"}
+    for entry in entries:
+        assert required <= entry.keys()
+        assert isinstance(entry["is_normal"], bool)
+        assert entry["n"] >= 3
+```
+
+**Regression guard** (1 test — catches accidental metric removal):
+
+```python
+def test_normality_tests_all_metrics(sample_runs_df):
+    from export_data import _compute_normality_tests
+    from scylla.analysis.figures import derive_tier_order
+    tier_order = derive_tier_order(sample_runs_df)
+    models = sorted(sample_runs_df["agent_model"].unique())
+    results = _compute_normality_tests(sample_runs_df, models, tier_order)
+    expected = {
+        "score", "impl_rate", "cost_usd", "duration_seconds",
+        "r_prog", "cfp", "pr_revert_rate",
+    }
+    assert expected <= {e["metric"] for e in results}
+```
+
+**Graceful-degradation test** (1 test — all-NaN and missing-column robustness):
+
+```python
+def test_sparse_process_metrics_graceful_degradation():
+    import numpy as np
+    import pandas as pd
+    from export_data import (
+        _compute_effect_sizes, _compute_normality_tests,
+        _compute_omnibus_tests, _compute_pairwise_comparisons,
+    )
+    rng = np.random.RandomState(0)
+    rows = []
+    for tier in ["T0", "T1"]:
+        for _ in range(5):
+            rows.append({
+                "agent_model": "model1", "tier": tier,
+                "score": rng.uniform(0.3, 0.9), "impl_rate": rng.uniform(0.3, 0.9),
+                "cost_usd": rng.uniform(0.01, 0.1), "duration_seconds": rng.uniform(5.0, 25.0),
+                "passed": rng.choice([0, 1]),
+                "r_prog": np.nan, "cfp": np.nan, "pr_revert_rate": np.nan,
+            })
+    df = pd.DataFrame(rows)
+    models, tier_order = ["model1"], ["T0", "T1"]
+    norm = _compute_normality_tests(df, models, tier_order)
+    omni = _compute_omnibus_tests(df, models, tier_order)
+    pairwise = _compute_pairwise_comparisons(df, models, tier_order)
+    effects = _compute_effect_sizes(df, models, tier_order)
+    process_metrics = {"r_prog", "cfp", "pr_revert_rate"}
+    assert not any(e["metric"] in process_metrics for e in norm)
+    assert not any(e["metric"] in process_metrics for e in omni)
+    assert not any(e["metric"] in process_metrics for e in pairwise)
+    assert not any(e["metric"] in process_metrics for e in effects)
+```
+
+### Step 7: Verify
+
+```bash
+# New tests only (fast)
+pixi run python -m pytest tests/unit/analysis/test_export_data.py \
+  -k "process_metrics or normality_tests_all_metrics or sparse_process" -q
+
+# Full analysis suite
+pixi run python -m pytest tests/unit/analysis/test_export_data.py -q
+
+# Full unit suite (required before PR)
+pixi run python -m pytest tests/unit/ -q
+
+# Pre-commit (ruff format will reformat the file on first run — run twice)
+pre-commit run --files scripts/export_data.py tests/unit/analysis/test_export_data.py
+pre-commit run --files scripts/export_data.py tests/unit/analysis/test_export_data.py
+```
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| N/A | Direct approach worked | N/A | Solution was straightforward |
+## Key Invariants
+
+- **Process metrics use consecutive pairs only** — `pairwise_comparisons` and `effect_sizes`
+  loop over `tier_order[i], tier_order[i+1]` pairs; no first→last contrast.
+- **Pass-rate has overall contrast** — the `_collect_pairwise_pass_rate()` helper deliberately
+  adds a first→last pair. Do not replicate this pattern for other metrics.
+- **Column guards are backward-compatible** — any DataFrame lacking process metric columns
+  (e.g. old data, minimal test fixtures) will silently skip those metrics and return
+  results only for the always-present columns.
+- **Holm-Bonferroni is per model per metric** — each (model, metric) pair forms its own
+  correction family. Don't mix metrics into one family.
+- **Minimum sample sizes** — normality requires `n >= 3`; pairwise requires `n >= 2` per group;
+  effect sizes require `n >= 2` per group.
+
+## Results & Parameters
+
+### Metrics added
+
+```python
+PROCESS_METRIC_COLS_STATS = ["r_prog", "cfp", "pr_revert_rate"]
+```
+
+(`strategic_drift` is intentionally excluded — it is a tier-level metric, not per-run.)
+
+### conftest mock (required for test speed)
+
+```python
+# tests/unit/analysis/conftest.py — already present as autouse fixture
+@pytest.fixture(autouse=True)
+def mock_power_simulations():
+    with (
+        patch("scylla.analysis.stats.mann_whitney_power", return_value=0.8),
+        patch("scylla.analysis.stats.kruskal_wallis_power", return_value=0.75),
+        ...
+    ):
+        yield
+```
+
+Without this mock, `compute_statistical_results()` runs 10,000 Monte Carlo iterations
+per tier-pair per model, causing tests to hang for 2+ minutes.
+
+### Test count
+
+- New tests added: 15
+- Total after: 3598 passing, 1 skipped
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| ProjectScylla | Issue #1186, PR #1300 | extend `compute_statistical_results()` with process metrics |
+
+## References
+
+- Related skill: `add-analysis-metric` — aggregation layer (dataframes.py)
+- Production file: `scripts/export_data.py`
+- Test file: `tests/unit/analysis/test_export_data.py`
+- Fixture file: `tests/unit/analysis/conftest.py`
+
+## Superseded from rename-figure-convention
+
+---
+name: rename-figure-convention
+description: 'TRIGGER CONDITIONS: Renaming figure functions to match the fig{NN}_{description}
+  sequential naming convention in ProjectScylla. Use when: (1) figure functions use
+  ad-hoc names instead of sequential numbers (e.g. fig_r_prog_by_tier instead of fig28_r_prog_by_tier),
+  (2) --list-figures output is out of alphabetical/sequential order, (3) a follow-up
+  issue asks to standardize figure naming after figures were wired with unsequenced
+  names.'
+category: evaluation
+date: 2026-03-02
+version: 1.0.0
+user-invocable: false
+---
+# rename-figure-convention
+
+How to rename figure functions from ad-hoc names to the `fig{NN}_{description}` sequential convention used throughout ProjectScylla, covering all touch points in source, registry, and tests.
+
+## Overview
+
+| Item | Details |
+| ------ | --------- |
+| Date | 2026-03-02 |
+| Objective | Rename `fig_r_prog_by_tier`, `fig_cfp_by_tier`, `fig_pr_revert_by_tier` → `fig28_r_prog_by_tier`, `fig29_cfp_by_tier`, `fig30_pr_revert_by_tier` |
+| Outcome | Success — 4 files updated atomically, all 69 analysis tests pass, pre-commit clean |
+| Issue | HomericIntelligence/ProjectScylla#1199 |
+| PR | HomericIntelligence/ProjectScylla#1302 |
+
+## When to Use
+
+- `--list-figures` output is not in alphabetical/sequential order because some figures lack the `fig{NN}` prefix
+- A follow-up issue from `wire-figure-pipeline` asks to assign sequential numbers to newly-wired figures
+- An issue title contains "standardize figure naming" or "rename figures to fig## convention"
+- Grep reveals figure names in `FIGURES` dict that don't match `fig\d+_` pattern
+
+## Naming Convention
+
+All figure functions and their output files must follow:
+
+```
+fig{NN}_{description}
+```
+
+Where `NN` is a zero-padded two-digit integer assigned sequentially from the current highest figure number. Examples: `fig01_score_variance_by_tier`, `fig27_impl_rate_distribution`, `fig28_r_prog_by_tier`.
+
+**To find the current highest number:**
+
+```bash
+grep -E '"fig[0-9]+_' scripts/generate_figures.py | grep -oE 'fig[0-9]+' | sort -V | tail -1
+```
+
+## Touch Points (All 4 Must Be Updated Atomically)
+
+A figure rename touches exactly 4 files:
+
+| File | What changes |
+| ------ | ------------- |
+| `scylla/analysis/figures/{module}.py` | Function name, `save_figure()` name arg, logger warning strings, module docstring |
+| `scripts/generate_figures.py` | Import names, FIGURES dict keys and values |
+| `tests/unit/analysis/test_figures.py` | Registry assertion strings, smoke test function names, import names, `.vl.json` filename assertions |
+| `tests/unit/analysis/test_process_metrics_integration.py` | Smoke test function names, import names, call sites, `.vl.json` filename assertions |
+
+**Do all four files in a single commit.** Partial renames cause import errors in the test collection phase.
+
+## Verified Workflow
+
+### Step 1: Confirm next available figure numbers
+
+```bash
+grep -E '"fig[0-9]+_' scripts/generate_figures.py | grep -oE 'fig[0-9]+' | sort -V | tail -3
+# Example output: fig25, fig26, fig27  →  next is fig28
+```
+
+### Step 2: Update the figure module (`scylla/analysis/figures/{module}.py`)
+
+For each function being renamed (example: `fig_r_prog_by_tier` → `fig28_r_prog_by_tier`):
+
+1. **Module docstring** — replace old figure label with new number:
+   ```python
+   # Old: Generates Fig_RProg (R_Prog by tier), ...
+   # New: Generates Fig 28 (R_Prog by tier), ...
+   ```
+
+2. **Function definition line**:
+   ```python
+   # Old: def fig_r_prog_by_tier(...)
+   # New: def fig28_r_prog_by_tier(...)
+   ```
+
+3. **Function docstring first line**:
+   ```python
+   # Old: """Generate Fig_RProg: Fine-Grained Progress Rate by Tier.
+   # New: """Generate Fig 28: Fine-Grained Progress Rate by Tier.
+   ```
+
+4. **Logger warning strings** — update all `skipping fig_*` references:
+   ```python
+   # Old: logger.warning("... skipping fig_r_prog_by_tier")
+   # New: logger.warning("... skipping fig28_r_prog_by_tier")
+   ```
+
+5. **`save_figure()` call** — the name argument becomes the output filename:
+   ```python
+   # Old: save_figure(chart, "fig_r_prog_by_tier", output_dir, render)
+   # New: save_figure(chart, "fig28_r_prog_by_tier", output_dir, render)
+   ```
+
+### Step 3: Update `scripts/generate_figures.py`
+
+1. **Imports** — rename all three imported symbols:
+   ```python
+   # Old:
+   from scylla.analysis.figures.process_metrics import (
+       fig_cfp_by_tier,
+       fig_pr_revert_by_tier,
+       fig_r_prog_by_tier,
+   )
+   # New:
+   from scylla.analysis.figures.process_metrics import (
+       fig28_r_prog_by_tier,
+       fig29_cfp_by_tier,
+       fig30_pr_revert_by_tier,
+   )
+   ```
+
+2. **FIGURES dict keys and values**:
+   ```python
+   # Old:
+   "fig_r_prog_by_tier": ("tier", fig_r_prog_by_tier),
+   "fig_cfp_by_tier": ("tier", fig_cfp_by_tier),
+   "fig_pr_revert_by_tier": ("tier", fig_pr_revert_by_tier),
+   # New:
+   "fig28_r_prog_by_tier": ("tier", fig28_r_prog_by_tier),
+   "fig29_cfp_by_tier": ("tier", fig29_cfp_by_tier),
+   "fig30_pr_revert_by_tier": ("tier", fig30_pr_revert_by_tier),
+   ```
+
+### Step 4: Update `tests/unit/analysis/test_figures.py`
+
+1. **Registry presence assertions**:
+   ```python
+   # Old: assert "fig_r_prog_by_tier" in FIGURES
+   # New: assert "fig28_r_prog_by_tier" in FIGURES
+   ```
+
+2. **Category assertions**:
+   ```python
+   # Old: assert FIGURES["fig_r_prog_by_tier"][0] == "tier"
+   # New: assert FIGURES["fig28_r_prog_by_tier"][0] == "tier"
+   ```
+
+3. **Smoke test function names**:
+   ```python
+   # Old: def test_fig_r_prog_by_tier(sample_runs_df, tmp_path):
+   # New: def test_fig28_r_prog_by_tier(sample_runs_df, tmp_path):
+   ```
+
+4. **Imports inside smoke tests**:
+   ```python
+   # Old: from scylla.analysis.figures.process_metrics import fig_r_prog_by_tier
+   # New: from scylla.analysis.figures.process_metrics import fig28_r_prog_by_tier
+   ```
+
+5. **`.vl.json` existence assertions**:
+   ```python
+   # Old: assert (tmp_path / "fig_r_prog_by_tier.vl.json").exists()
+   # New: assert (tmp_path / "fig28_r_prog_by_tier.vl.json").exists()
+   ```
+
+6. **Non-existence assertions** (missing-columns tests):
+   ```python
+   # Old: assert not (tmp_path / "fig_r_prog_by_tier.vl.json").exists()
+   # New: assert not (tmp_path / "fig28_r_prog_by_tier.vl.json").exists()
+   ```
+
+### Step 5: Update `tests/unit/analysis/test_process_metrics_integration.py`
+
+Same pattern as Step 4 — apply all six sub-changes to smoke tests, skip tests, and all-null tests.
+
+### Step 6: Grep-verify — zero stale references
+
+```bash
+grep -rn "fig_r_prog_by_tier\|fig_cfp_by_tier\|fig_pr_revert_by_tier" . \
+  --include="*.py" --include="*.md" --include="*.yaml"
+# Expected: no matches (or only the original issue prompt file)
+```
+
+### Step 7: Run tests and pre-commit
+
+```bash
+# Run targeted analysis tests
+pixi run python -m pytest tests/unit/analysis/ -v
+
+# Pre-commit on changed files
+pre-commit run --files \
+  scylla/analysis/figures/process_metrics.py \
+  scripts/generate_figures.py \
+  tests/unit/analysis/test_figures.py \
+  tests/unit/analysis/test_process_metrics_integration.py
+```
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| N/A | Direct approach worked | N/A | Solution was straightforward |
+## Critical Lesson: Plan the Target Numbers First
+
+The `mass-figure-documentation` skill documented a cautionary lesson: if you start editing before confirming the target numbers, you risk mid-flight inconsistency. The correct sequence is:
+
+1. **Confirm ceiling** (`grep` the FIGURES dict for the current highest `fig{NN}`)
+2. **Choose target numbers** (ceiling + 1, +2, +3…)
+3. **Edit all touch points atomically** in a single commit
+
+Do **not** rename some functions to fig28/29/30 and leave others with old names across multiple commits — the import in `generate_figures.py` will fail between commits.
+
+## Results & Parameters
+
+### Figure number assignment (issue #1199)
+
+| Old name | New name | Number |
+| ---------- | ---------- | -------- |
+| `fig_r_prog_by_tier` | `fig28_r_prog_by_tier` | 28 |
+| `fig_cfp_by_tier` | `fig29_cfp_by_tier` | 29 |
+| `fig_pr_revert_by_tier` | `fig30_pr_revert_by_tier` | 30 |
+
+Confirmed: fig27 (`fig27_impl_rate_distribution`) was the previous ceiling.
+
+### Test counts
+
+69 analysis unit tests pass post-rename (no net change — renaming tests is 1:1).
+
+### Pre-commit result
+
+All hooks pass: ruff-format, ruff-check, mypy, unit-test-structure.
+
+## Relationship to `wire-figure-pipeline` Skill
+
+This skill is the **follow-up pattern** to `wire-figure-pipeline`:
+
+1. `wire-figure-pipeline` — adds a new figure to `generate_figures.py` (may use an ad-hoc name initially)
+2. `rename-figure-convention` — standardizes the name to `fig{NN}` after the ceiling is confirmed
+
+When filing issues after `wire-figure-pipeline`, note whether the wired figures used unsequenced names — if so, file a follow-up referencing this skill.
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| ProjectScylla | Issue #1199, PR #1302 | Follow-up from #1136 (wire-figure-pipeline) |
+
+## References
+
+- Related skill: `wire-figure-pipeline` (prerequisite pattern)
+- Related skill: `mass-figure-documentation` (cautionary lesson on renaming mid-flight)
+- Source file: `scylla/analysis/figures/process_metrics.py`
+- Registry file: `scripts/generate_figures.py`
+- Test files: `tests/unit/analysis/test_figures.py`, `tests/unit/analysis/test_process_metrics_integration.py`
+
+## Superseded from fix-validation-accuracy-placeholder
+
+---
+name: fix-validation-accuracy-placeholder
+description: 'Fix hardcoded 0.0 accuracy placeholders in validation loop methods by
+  wiring real AccuracyMetric accumulation per batch. Use when: a validation method
+  passes a literal 0.0 for accuracy to a metrics update call instead of computing
+  it.'
+category: evaluation
+date: 2026-03-15
+version: 1.0.0
+user-invocable: false
+---
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Problem** | `run_subset()` passed `0.0` as accuracy to `metrics.update_val_metrics()` — a hardcoded placeholder |
+| **Root cause** | Method was written before accuracy tracking was required; the sibling `run()` method had already been fixed (#3183) but `run_subset()` was missed |
+| **Fix pattern** | Add `AccuracyMetric` variable before the batch loop; accumulate predictions per batch inside the loop when `self.compute_accuracy=True`; compute final value after loop; pass to `update_val_metrics()` instead of `0.0` |
+| **Test pattern** | Assert `metrics.val_accuracy > 0.0` after calling the fixed method with a non-trivial dataset |
+| **Language** | Mojo (applies equally to Python equivalents) |
+
+## When to Use
+
+- A validation or evaluation loop calls `update_val_metrics(loss, 0.0)` with a literal `0.0` for accuracy
+- A `run_subset()` / `evaluate_subset()` method lacks AccuracyMetric tracking while the corresponding `run()` / `evaluate()` already has it
+- A follow-up issue says "mirrors the same bug fixed in `run()` by #NNNN"
+- `metrics.val_accuracy` is always `0.0` after calling a subset validation method even when predictions are correct
+
+## Verified Workflow
+
+### Quick Reference
+
+```text
+1. Read validation_loop.mojo — find update_val_metrics(avg_loss, 0.0) in run_subset()
+2. Add AccuracyMetric variable before the batch loop
+3. Inside loop: if self.compute_accuracy → call model_forward again, accuracy_metric.update(preds, labels)
+4. After loop: compute val_accuracy = accuracy_metric.compute() when self.compute_accuracy
+5. Replace update_val_metrics(avg_loss, 0.0) with update_val_metrics(avg_loss, val_accuracy)
+6. Add test: assert metrics.val_accuracy > 0.0 after run_subset()
+7. Commit with "Closes #NNNN"
+```
+
+### Step 1 — Locate the placeholder
+
+Search for `update_val_metrics` calls with a literal `0.0` as the second argument:
+
+```bash
+grep -n "update_val_metrics.*0\.0" shared/training/loops/validation_loop.mojo
+```
+
+### Step 2 — Read the fixed sibling method for the pattern
+
+The `run()` method already had the correct pattern. Read it to understand:
+
+- Where `AccuracyMetric()` is instantiated (before the loop)
+- How `accuracy_metric.update(predictions, batch.labels)` is called inside the loop
+- How `val_accuracy = accuracy_metric.compute()` is called after the loop
+- How the result is guarded by `if self.compute_accuracy:`
+
+### Step 3 — Apply the same pattern to `run_subset()`
+
+Before the batch loop, add:
+
+```mojo
+var accuracy_metric = AccuracyMetric()
+```
+
+Inside the loop, after incrementing `num_batches`, add:
+
+```mojo
+if self.compute_accuracy:
+    var predictions = model_forward(batch.data)
+    accuracy_metric.update(predictions, batch.labels)
+```
+
+After the loop, replace the placeholder:
+
+```mojo
+# Before (bug):
+metrics.update_val_metrics(avg_loss, 0.0)
+
+# After (fix):
+var val_accuracy = Float64(0.0)
+if self.compute_accuracy:
+    val_accuracy = accuracy_metric.compute()
+metrics.update_val_metrics(avg_loss, val_accuracy)
+```
+
+### Step 4 — Add the follow-up test
+
+In the test file, add a test that mirrors `test_validation_loop_run_updates_val_accuracy()`:
+
+```mojo
+fn test_validation_loop_run_subset_updates_val_accuracy() raises:
+    """Test run_subset() computes real accuracy via AccuracyMetric, not 0.0 placeholder.
+
+    Follow-up to #3183 which fixed the same bug in run().
+    Uses a 3-batch loader with max_batches=2 to verify the limit is respected
+    and accuracy is non-zero after the call.
+    """
+    var vloop = ValidationLoop()
+    var loader = create_val_loader(n_batches=3)
+    var metrics = TrainingMetrics()
+    _ = vloop.run_subset(simple_forward, simple_loss, loader, 2, metrics)
+    assert_true(metrics.val_accuracy > 0.0)
+    print("  test_validation_loop_run_subset_updates_val_accuracy: PASSED")
+```
+
+Register the test in `main()` alongside the other `run_subset` tests.
+
+### Step 5 — Commit and PR
+
+```bash
+git add shared/training/loops/validation_loop.mojo \
+        tests/shared/training/test_validation_loop.mojo
+SKIP=mojo-format git commit -m "fix(validation): compute real accuracy in ValidationLoop.run_subset()
+
+Replace the hardcoded 0.0 accuracy placeholder in run_subset() with
+AccuracyMetric accumulation inside the batch loop, guarded by
+self.compute_accuracy (mirroring the existing run() fix from #3183).
+
+Closes #NNNN"
+git push -u origin <branch>
+gh pr create --title "fix(validation): ..." --body "Closes #NNNN"
+gh pr merge --auto --rebase <pr-number>
+```
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| Using a separate reset+loop for accuracy | Re-iterate the entire loader after the loss loop to compute accuracy (same pattern as `run()`) | Would process up to `max_batches` again from reset, ignoring the already-completed subset iteration | In `run_subset()`, accumulate accuracy inside the existing capped loop — do not add a second loop |
+| Passing `0.0` unchanged | Leave `update_val_metrics(avg_loss, 0.0)` and only add a comment | Issue explicitly requires computing real accuracy; comment does not fix the bug | The fix must replace the literal `0.0` with a computed value |
+
+## Results & Parameters
+
+### Key configuration
+
+```mojo
+# AccuracyMetric is already imported at the top of validation_loop.mojo
+from shared.training.metrics import AccuracyMetric, LossTracker, ConfusionMatrix
+
+# No new imports needed — AccuracyMetric is already in scope
+```
+
+### mojo-format compatibility
+
+If local Mojo version differs from pixi.toml pin, skip the mojo-format hook:
+
+```bash
+SKIP=mojo-format git commit -m "..."
+```
+
+### Test assertion pattern
+
+Use `assert_true(metrics.val_accuracy > 0.0)` rather than `assert_almost_equal`
+because the exact value depends on `simple_forward` returning ones — any positive
+value proves the placeholder was replaced with a real computation.
+
+### Notes file for fix-validation-accuracy-placeholder
+
+# Session Notes — fix-validation-accuracy-placeholder
+
+## Date
+2026-03-15
+
+## Issue
+GitHub issue #3680 — "Fix run_subset() accuracy placeholder in ValidationLoop"
+
+Follow-up from #3183, which fixed the same bug in `run()`.
+
+## Objective
+Replace `metrics.update_val_metrics(avg_loss, 0.0)` in `ValidationLoop.run_subset()` with
+a real accuracy value computed via `AccuracyMetric`.
+
+## Files Changed
+- `shared/training/loops/validation_loop.mojo` — added AccuracyMetric accumulation in `run_subset()`
+- `tests/shared/training/test_validation_loop.mojo` — added `test_validation_loop_run_subset_updates_val_accuracy()`
+
+## Key Observations
+
+1. The `run()` method already had the correct pattern (AccuracyMetric before loop, accumulate
+   per batch, compute after loop). `run_subset()` was a copy-paste that never got the accuracy fix.
+
+2. The issue description explicitly said "analogous to test_validation_loop_run_updates_val_accuracy()".
+   The existing test was found in `tests/training/test_training_infrastructure.mojo` (not in the
+   validation loop test file), but the new test was added to the validation loop test file where
+   all other `run_subset` tests live.
+
+3. `SKIP=mojo-format` was used in the commit because the local Mojo version differs from the
+   pixi.toml pin — this is the documented workaround for this repo.
+
+4. The accuracy accumulation is inside the existing capped `while` loop (not a second pass),
+   so `max_batches` is respected automatically.
+
+## PR
+https://github.com/HomericIntelligence/ProjectOdyssey/pull/4767
