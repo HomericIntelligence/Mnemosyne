@@ -1,0 +1,103 @@
+# debugging-silent-pipeline-stage-via-argparse-required-grep — History
+
+## v1.1.0 (2026-05-25)
+
+**Changed by:** ProjectHephaestus epic #550 (run_automation_loop.sh silent-abort follow-up). Symptom from v1.0.0 (PR #543) resurfaced; root cause was a DIFFERENT bug — `set -e` abort in backgrounded subshell.
+
+**Verification:** verified-local
+
+### What changed
+
+- Added "Verified Workflow — Cause B: `set -e` abort in backgrounded subshell" as a new section after the existing v1.0.0 Verified Workflow (which is now implicitly Cause A).
+- Added 2 new Failed Attempts rows: "assume prior fix is the only cause" and "trust set -e inside backgrounded function".
+- Extended description and "When to Use" to mention the second cause.
+- Added new tags: set-e, errexit, backgrounded, subshell, process-repo, second-cause.
+
+### Why
+
+v1.0.0 shipped on 2026-05-24 documenting the argparse-required-flag missing-pass cause (PR #543). On 2026-05-25 the symptom returned: the same orchestrator (`scripts/run_automation_loop.sh`) appeared to "skip through repos because plans already exist" — phases 2-6 silent, only phase 1 visible. Initial hypothesis was the v1.0.0 cause had regressed. The v1.0.0 grep methodology cleared (all phase CLIs received their required flags correctly; no `|| echo` swallow at the phase call site was suppressing argparse exit 2). The second cause was: `process_repo` ran under inherited `set -euo pipefail` and an unguarded infrastructure command (most likely `git fetch origin --quiet` or `mapfile` under `set -m`) aborted the function silently between phase 1 (planner exit 0) and phase 2 (review-plans). Fix: `set +e` + `trap 'set -e' RETURN` inside the function, plus per-phase START/done banners for observability.
+
+The lesson — when a silent-stage symptom resurfaces, do NOT assume the prior fix is sufficient — is the principal v1.1.0 amendment. The cross-reference to [[audit-driven-remediation-workflow]] is also added (that skill is being amended in parallel to capture the downstream-consumer-drift pattern from the same session).
+
+### Previous version (v1.0.0) snapshot
+
+```markdown
+---
+name: debugging-silent-pipeline-stage-via-argparse-required-grep
+description: "Diagnose silent stages in fan-out orchestrators (shell driving N Python CLIs, Makefile driving N tools, CI workflow driving N jobs) via a 3-command source-grep that compares argparse `required=True` flags against the flags the orchestrator actually passes. Use when: (1) a multi-stage pipeline reports success but a downstream stage produced no visible output, (2) only the first phase of run_automation_loop.sh / similar orchestrator runs, (3) orchestrator logs show generic `Warning: ... exited non-zero` with no underlying error detail, (4) you are tempted to re-run with `tee` + banner greps to reproduce a silent-stage bug, (5) the orchestrator uses `|| echo`, `|| true`, `set +e`, or `continue-on-error: true` to swallow exit codes."
+category: debugging
+date: 2026-05-24
+version: "1.0.0"
+user-invocable: false
+verification: verified-local
+tags:
+  - argparse
+  - orchestrator
+  - silent-failure
+  - source-grep
+  - debugging-methodology
+  - fan-out
+  - exit-code-swallowing
+  - shell
+  - python
+  - cli-contract
+---
+
+# Debugging Silent Pipeline Stages via argparse `required=True` Grep
+
+## Overview
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-05-24 |
+| **Objective** | Localize silent-stage bugs in fan-out orchestrators in under 60 seconds via source review, instead of re-running the orchestrator with `tee` + banner instrumentation |
+| **Outcome** | SUCCESS — methodology applied in ProjectHephaestus session identified root cause (orchestrator invoking 4 phase CLIs without `--issues`, all 4 required it) in ~60 seconds; fix shipped as PR #543 |
+| **Verification** | verified-local — methodology applied in one real session; fix mergeable with auto-merge enabled at time of writing, full CI confirmation pending |
+
+## When to Use
+
+- A multi-stage orchestrator (shell, Makefile, CI workflow) reports success or only generic warnings, but a stage produced no visible output
+- Only the first phase of a multi-phase pipeline appears to run (e.g., "planning ran but PR review didn't")
+- Orchestrator stdout shows lines like `Warning: repo job exited non-zero` with no underlying cause
+- You are about to set up `tee` + grep banners + a long dry-run to reproduce — STOP and try this first
+- Orchestrator contains exit-code suppressors: `|| echo`, `|| true`, `set +e`, `continue-on-error: true`, `ignore_errors: yes`
+- The failing CLI is argparse-based (Python), click-based, typer-based, or any framework that exits before any of the CLI's own logging fires
+
+## Verified Workflow
+
+### Quick Reference
+
+```bash
+# 1. List the orchestrator's outbound CLI calls and their flags
+grep -nE '\$(PYTHON|.*_BIN)\b.*\.(py)?' scripts/run_automation_loop.sh | head -20
+
+# 2. For each invoked CLI, check argparse required flags
+for cli in hephaestus/automation/{plan_reviewer,pr_reviewer,address_review,ci_driver}.py; do
+  echo "=== $cli ==="
+  grep -n -B1 -A3 'required=True' "$cli" | head
+done
+
+# 3. Find the orchestrator's swallow points (these mask the real exit code)
+grep -nE '\|\| echo|\|\| true|set \+e|continue-on-error' scripts/run_automation_loop.sh
+```
+
+Any flag the orchestrator does NOT pass that the CLI marks `required=True` = root cause. The CLI exited at argparse-time (exit 2) before producing any output the orchestrator could log.
+
+### Detailed Steps
+
+(See current v1.1.0 file, Cause A section, for the unchanged detailed-steps content.)
+
+## Failed Attempts
+
+(4 rows — see current v1.1.0 file; v1.0.0 contained the first four rows only.)
+
+## Results & Parameters
+
+(See current v1.1.0 file Cause A decision-rule branch.)
+```
+
+---
+
+## v1.0.0 (2026-05-24)
+
+**Initial version.** Documented the argparse `required=True` missing-pass cause discovered while diagnosing PR #543 (ProjectHephaestus).
