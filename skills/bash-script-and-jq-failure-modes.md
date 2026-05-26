@@ -1,9 +1,10 @@
 ---
 name: bash-script-and-jq-failure-modes
-description: "Diagnose and fix silent failures in bash scripting and jq under strict error-checking modes. Use when: (1) a bash script with set -euo pipefail exits unexpectedly mid-loop or mid-function, (2) grep finds no matches and kills the script via pipefail, (3) bash arrays crash with 'unbound variable' despite being declared, (4) exit 127 appears and all binaries are installed, (5) jq // operator silently drops boolean false values, (6) jq fails with syntax errors on array concatenation with conditionals, (7) Claude Code Bash cwd drifts from Read/Edit absolute paths in multi-worktree sessions."
+description: "Diagnose and fix silent failures in bash scripting and jq under strict error-checking modes. Use when: (1) a bash script with set -euo pipefail exits unexpectedly mid-loop or mid-function, (2) grep finds no matches and kills the script via pipefail, (3) bash arrays crash with 'unbound variable' despite being declared, (4) exit 127 appears and all binaries are installed, (5) jq // operator silently drops boolean false values, (6) jq fails with syntax errors on array concatenation with conditionals, (7) Claude Code Bash cwd drifts from Read/Edit absolute paths in multi-worktree sessions, (8) a bash function with set -m + set +e silently aborts mid-execution after a single-command (...) subshell finishes with no error log and no continuation past the subshell."
 category: debugging
-date: 2026-05-19
-version: "1.0.0"
+date: 2026-05-26
+version: "1.1.0"
+verification: verified-local
 user-invocable: false
 history: bash-script-and-jq-failure-modes.history
 tags:
@@ -21,6 +22,12 @@ tags:
   - worktree
   - tool-divergence
   - json
+  - set-m
+  - job-control
+  - subshell
+  - exec-optimization
+  - silent-abort
+  - orchestrator-rewrite
 ---
 
 # Bash Script and jq Failure Modes Under Strict Error-Checking
@@ -43,6 +50,7 @@ tags:
 - A jq expression using `//` returns empty when the JSON field holds `false`
 - jq fails with `syntax error, unexpected '+', expecting '}'` on array concatenation with conditionals
 - `Read` shows content that `grep` in Bash cannot find — or a commit lands on the wrong branch — in a multi-worktree session
+- A bash function with `set -m` + `set +e` silently aborts mid-execution after a single-command `(...)` subshell finishes, with no error log and no continuation past the subshell — bash trace shows execution jumping to the parent loop. The defang-with-`set +e` pattern is NOT sufficient against this trigger.
 
 Do NOT use when:
 
@@ -259,6 +267,45 @@ cd /correct/worktree && git cherry-pick <stray-sha>
 cd /wrong/worktree && git reset --hard HEAD~1
 ```
 
+### Failure Mode 7: `set -m` + Single-Command `(...)` Subshell Exec-Optimization Silent Abort
+
+When a bash function combines `set -m` (job control, putting the function's subshell in its own process group) with a single-command `(...)` subshell whose last/only command is an external binary, bash applies exec-optimization: the subshell process `exec`-replaces itself into the external command. When that command exits, the subshell PID dies with its rc — but the parent function's continuation context can be lost. Subsequent commands in the function body (including `rc=$?`, `phase_done` logging, `wait`, and follow-up phases) never execute. Bash `-x` trace shows execution jumping directly to the outer parent loop.
+
+The classic "defang errexit" pattern (`set +e` + `trap 'set -e' RETURN`) does NOT help here, because nothing after the subshell runs to be defanged. Adding more `set +e` is the wrong direction.
+
+**Diagnostic recipe: silent abort after single-command subshell**
+
+```bash
+# Add this near the top of the suspect function:
+set -E
+trap 'echo "[DIAG] ERR at line $LINENO rc=$? cmd=$BASH_COMMAND" >&2' ERR
+trap 'echo "[DIAG] EXIT rc=$? last_line=$LINENO" >&2' EXIT
+# Re-run with: bash -x script.sh ... 2> trace.log
+# If START banner appears but no DONE/ERR fires after the subshell,
+# the bash subshell exec-replaced into the external command and never returned.
+```
+
+Concrete symptom signature (from ProjectHephaestus `scripts/run_automation_loop.sh`):
+- `phase 1/6 plan START` logged on every invocation (75/75).
+- Planner Python process logs "Planning complete" (rc=0).
+- No `phase_done`, no `Warning:`, no `phase 2` banner ever logged.
+- Outer `wait()` always reports non-zero.
+- `bash -x` trace shows the next command after the planner subshell is the OUTER loop's echo — process_repo's trace simply does not resume.
+
+**Fixes (in order of preference):**
+
+1. **Restructure to avoid the single-command subshell.** Extract the work into a real function or pipe through another stage so the subshell does not have a single trailing external command:
+   ```bash
+   # Instead of:
+   ( cd "$dir" || exit 1; "$PLAN_BIN" --foo "$bar" )
+   # Use:
+   run_plan() { cd "$1" || return 1; "$PLAN_BIN" --foo "$2"; echo done; }
+   run_plan "$dir" "$bar"
+   ```
+   The trailing `echo done` (or any builtin) blocks exec-optimization.
+
+2. **Rewrite the orchestrator in Python.** When 3+ interacting safety mechanisms (`set -euo pipefail` + `set -m` + `set +e` defang + ERR/EXIT traps + RETURN traps + single-command subshells) accumulate, the rewrite-to-Python option becomes lower-risk than another patch. The Python equivalent uses `subprocess.run` inside a plain `for phase in ALL_PHASES` loop — phase isolation is then **structural**, not behavioral, and no shell-option landmine can silently skip iterations. See ProjectHephaestus `hephaestus/automation/loop_runner.py` for the verified replacement pattern.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -279,6 +326,7 @@ cd /wrong/worktree && git reset --hard HEAD~1
 | Python heredoc rewrite | Switched to `python3 <<EOF` rewrite when Edit refused | Python interpreter inherits Bash cwd; opened relative path resolving into wrong worktree | Heredoc/subprocess tools inherit Bash cwd — same root cause, different surface |
 | Grep with relative path | Used `grep PATTERN .github/workflows/file.yml` to confirm change | Relative path resolved against stale cwd; returned no match | Always use absolute paths in Bash when cross-checking Edit results |
 | Blame the Edit tool | Suspected Edit was silently no-oping or operating on a cached buffer | Edit had worked correctly — divergence was in the verifier, not the editor | When two tools disagree, suspect cwd before suspecting tool bugs |
+| `set -m` + single-command `(...)` subshell exec-optimization | Defang errexit inside the function via `set +e` + `trap 'set -e' RETURN`; expected `rc=$?` to capture exit and `phase_done` to fire | bash trace shows no commands execute after the subshell completes — control returns directly to the outer parent loop. `set -m` puts the subshell in its own process group, and bash optimises single-command subshells via exec-replace, so the subshell PID dies with the command's rc and the parent's continuation context is lost. `set +e` does not help because nothing runs after the subshell to be defanged. | Diagnose with `bash -x` + ERR/EXIT traps inside the function: if `phase_start` banners appear but `phase_done` banners NEVER appear (even with stderr captured), the function body is not running past the subshell. Don't add more `set +e` — restructure to avoid the single-command subshell (e.g., extract into a real function), or replace the bash orchestrator entirely. |
 
 ## Results & Parameters
 
@@ -365,3 +413,4 @@ git rev-parse --show-toplevel
 | HomericIntelligence/Myrmidons | CI debug session — test-api-retry.sh exit 127 after `_agamemnon_curl_retry` renamed | Exit-127 function recovery |
 | ai-maestro (23blocks-OS) | Issue #272 — install-agent-cli.sh jq syntax error on older jq | jq array concatenation compatibility |
 | HomericIntelligence/ProjectOdyssey | Multi-worktree session — stray commit cf710fb4 on ci-pipe-handler-cores-gate branch | Bash cwd drift from Edit/Read absolute paths |
+| HomericIntelligence/ProjectHephaestus | Session 2026-05-26 — `scripts/run_automation_loop.sh` `process_repo` silently aborting after planner subshell (phases 2-6 skipped 75/75 invocations); replaced with `hephaestus/automation/loop_runner.py` | `set -m` + single-command subshell exec-optimization silent abort |
