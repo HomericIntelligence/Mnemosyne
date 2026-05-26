@@ -1,3 +1,25 @@
+## Version History
+
+### v1.1.0 (2026-05-26)
+- Added Failure Mode 7: `set -m` (job control) + single-command `(...)` subshell exec-optimization causing silent abort with no error trace.
+- Added "Diagnostic recipe: silent abort after single-command subshell" subsection with ERR/EXIT/RETURN trap recipe.
+- Added Failed Attempts row for `set -m` + single-command subshell trigger; documented why `set +e` defang + `trap 'set -e' RETURN` does NOT help.
+- Added escape-hatch paragraph: rewrite bash orchestrator to Python (`subprocess.run` + plain `for` loop) when 3+ interacting safety mechanisms accumulate.
+- Added new "When to Use" trigger for `set -m` + single-command subshell silent abort.
+- Verified on: ProjectHephaestus session 2026-05-26 — `scripts/run_automation_loop.sh` `process_repo` silently aborting after planner subshell; replaced with `loop_runner.py` Python module.
+
+### v1.0.0 (2026-05-19) — Snapshot
+
+Original consolidated skill merging 6 prior skills (bash-exit-127-function-recovery, bash-set-e-pipefail-grep-no-matches-trap, bash-unbound-array-pipefail-crash, jq-alternative-operator-falsy-boolean-trap, jq-compatibility-fix, debugging-bash-cwd-edit-tool-divergence). Six failure modes documented:
+1. Exit 127 — orphaned shell function
+2. grep no-match killing script under set -euo pipefail
+3. Unbound array under set -u
+4. jq `//` operator dropping boolean false
+5. jq array concatenation syntax error (older jq)
+6. Bash cwd drifting from Edit/Read absolute paths
+
+---
+
 ## Superseded from bash-exit-127-function-recovery
 
 ---
