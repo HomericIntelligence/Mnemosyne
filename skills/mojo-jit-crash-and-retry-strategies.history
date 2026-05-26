@@ -1,5 +1,51 @@
 # mojo-jit-crash-and-retry-strategies — History
 
+## v2.0.0 (2026-05-26) — Marked OBSOLETE post modular/modular#6413 fix
+
+**Changed by:** ProjectOdyssey JIT-flakiness demolition (PRs #5458 / #5459 / #5460)
+**Verification:** verified-ci (47+ green required-check runs on ProjectOdyssey PR
+#5455 with Mojo `1.0.0b2.dev2026052506`, full heavy Comprehensive Mojo Tests matrix
+passes cleanly with zero `libKGENCompilerRTShared.so` frames anywhere)
+
+### What changed
+
+The skill is now **historical reference only**. The dominant pre-fix JIT crash class
+— Mojo's compiler driver emitting AVX-512 encodings on GHA runners where the
+hypervisor masks AVX-512 CPUID leaves, causing `SIGILL` (signal 4) via the
+in-process libKGEN signal handler — was fixed upstream in
+[modular/modular#6413](https://github.com/modular/modular/issues/6413) on 2026-05-22
+by @dgurchenkov. The fix correctly gates AVX-512 emission on `xgetbv` (the canonical
+OS-enabled-feature check per Intel SDM Vol. 1 §13.3) instead of trusting raw CPUID.
+
+### Anti-recommendations added (DO NOT use in new code)
+
+- Retry wrappers around `pixi run mojo` (any subcommand)
+- `continue-on-error: true` on Mojo CI matrix entries
+- `MOJO_TEST_UNDER_GDB` / coredump-capture composite actions
+- "Transient vs deterministic" classification — all Mojo crashes are now bugs
+- Crash 4 4-hypothesis disproof (was specific to the resolved non-deterministic crash)
+- `MOJO_TARGET_CPU` `--target-features -avx512*` strips outside the narrow
+  sanitizer-only exception (the driver fix does not yet propagate through ASAN/TSAN
+  codegen — see ProjectOdyssey justfile `MOJO_TARGET_CPU` block comment)
+
+### What survives as still-useful methodology
+
+- **Runtime Crash Bisection — Minimal Reproducer**: the binary-reduce flow for
+  isolating a crashing test to a standalone upstream-fileable repro
+- **Closed-Source Boundary**: documents that `libKGEN*.so`, `libAsyncRT*.so`,
+  `libMSupport.so` are NOT in public `modular/modular` — escalation context
+- **libKGEN Stripped-Binary Crash Forensics**: `nm --dynsym` + `objdump` flow for
+  decoding stripped-binary stack offsets (generalizes to any closed-source library)
+- **4-hypothesis disproof meta-pattern**: write down falsifiable hypotheses,
+  dispatch parallel disproofs, escalate if all fail — reusable for any
+  non-deterministic bug
+
+### Body
+
+Body preserved verbatim from v1.0.0. The opening blockquote marks it as historical.
+
+---
+
 ## v1.0.0 (2026-05-18) — Merge of 13 skills (M3 sub-PR 1/4)
 
 **Changed by:** Skill-merge swarm (Phase D, M3 jit-crash-retry sub-cluster / #1772)

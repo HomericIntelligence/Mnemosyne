@@ -1,16 +1,53 @@
 ---
 name: mojo-jit-crash-and-retry-strategies
-description: "Canonical patterns for Mojo JIT crash recovery and retry wrappers: virtual-address collisions, sequential job wrapping, GDB crash capture, libKGEN JIT crash forensics, transient-vs-deterministic classification, CI retry budgets. Use when: (1) diagnosing a Mojo JIT crash in CI, (2) writing a retry wrapper for flaky Mojo invocations, (3) capturing a libKGEN crash via gdb in a container, (4) auditing CI workflows for missing retry protection, (5) bisecting a Mojo runtime crash to a minimal reproducer, (6) diagnosing wrong ISA emission (AVX-512 on non-AVX-512 CPUs), (7) investigating Mojo serialization or dtype crash in CI."
+description: "HISTORICAL REFERENCE — most patterns OBSOLETE as of Mojo 1.0.0b2.dev2026052506 (modular/modular#6413 fixed upstream). Do NOT use the retry-wrapper, continue-on-error matrix, gdb-coredump-capture, or 4-hypothesis disproof patterns in NEW code. Use when: (1) reading historical PR/issue context that references these patterns, (2) needing the runtime-crash-bisection minimal-reproducer methodology (still useful for future Mojo bugs), (3) understanding the closed-source boundary for libKGEN/libAsyncRT/libMSupport debugging, (4) needing the AVX-512 wrong-ISA forensics for analogous CPU-feature bugs. NOT a guide for treating Mojo crashes as flakes — that posture was wrong and is now removed."
 category: ci-cd
-date: 2026-05-18
-version: "1.0.0"
+date: 2026-05-26
+version: "2.0.0"
 user-invocable: false
-verification: verified-local
+verification: verified-ci
 history: mojo-jit-crash-and-retry-strategies.history
-tags: [merged, mojo, jit, crash, retry, libkgen, forensics, avx512, bisection, ci]
+tags: [obsolete, historical, mojo, jit, crash, libkgen, forensics, avx512, bisection, ci]
 ---
 
 # Mojo JIT Crash and Retry Strategies
+
+> **⚠️ OBSOLETE as of 2026-05-26.** The dominant pre-fix JIT crash class
+> (AVX-512 mis-emission on masked-AVX-512 CPUs, `libKGENCompilerRTShared.so`
+> SIGILLs) was fixed upstream in [modular/modular#6413](https://github.com/modular/modular/issues/6413)
+> on 2026-05-22 and validated on Mojo `1.0.0b2.dev2026052506+`. ProjectOdyssey
+> demolished all retry/coredump/gdb-wrapper infrastructure in PRs #5458, #5459,
+> #5460 (2026-05-26).
+>
+> **DO NOT use in new code:**
+> - Retry wrappers around `pixi run mojo` (any subcommand)
+> - `continue-on-error: true` on Mojo CI matrix entries
+> - `MOJO_TEST_UNDER_GDB` / coredump-capture composite actions
+> - "Transient vs deterministic" classification — all Mojo crashes are now bugs,
+>   not flakes
+> - 4-hypothesis disproof checklist (was specific to the now-resolved
+>   `libKGENCompilerRTShared.so+0x6ef7b` non-deterministic crash)
+> - AVX-512-feature-stripping `--target-features -avx512*` outside the narrow
+>   sanitizer-only exception (the upstream driver fix doesn't yet propagate
+>   through ASAN/TSAN codegen — see ProjectOdyssey justfile `MOJO_TARGET_CPU`)
+>
+> **STILL USEFUL** (extract these patterns for analogous future bugs):
+> - "Runtime Crash Bisection — Minimal Reproducer" section: the methodology
+>   for reducing a crashing test to a standalone upstream-fileable reproducer
+>   remains the canonical approach for ANY future Mojo runtime bug
+> - "Closed-Source Boundary" section: documents that `libKGENCompilerRTShared.so`,
+>   `libAsyncRTMojoBindings.so`, `libMSupport.so` are NOT in the public
+>   `modular/modular` repo — only `mojo/stdlib/` is. Useful escalation context.
+> - "libKGEN Stripped-Binary Crash Forensics" section: the `nm --dynsym` +
+>   `objdump` flow for decoding stripped-binary stack offsets generalizes to
+>   any closed-source library crash
+> - "Crash 4 — 4-Hypothesis Disproof Checklist" structure: the meta-pattern
+>   (write down 4 falsifiable hypotheses, dispatch parallel investigations
+>   to disprove, escalate if all disproved) is reusable for any non-deterministic
+>   bug
+>
+> The body below is preserved verbatim as historical reference. Treat it as
+> archaeology, not as current guidance.
 
 ## Overview
 
