@@ -7,10 +7,12 @@ description: "Use when: (1) writing numerical gradient checks for conv2d, depthw
   \ float32 backward tests, (4) extending backward coverage to inference mode, 4D\
   \ inputs, multi-channel configs, or all three gradient fields (grad_input, grad_weights,\
   \ grad_bias), (5) implementing analytically tractable exact-value tests for conv2d\
-  \ backward with all-ones configs"
+  \ backward with all-ones configs, (6) adding end-to-end convergence tests as a\
+  \ complementary class to per-op finite-difference checks for validating the full\
+  \ forward→backward→optimizer→writeback loop"
 category: testing
-date: 2026-05-19
-version: "1.0.0"
+date: 2026-05-26
+version: "1.1.0"
 user-invocable: false
 history: gradient-checking-and-backward-pass-testing.history
 tags:
@@ -32,10 +34,10 @@ tags:
 
 | Field | Value |
 | ------- | ------- |
-| Date | 2026-05-19 |
-| Objective | Numerically correct backward pass tests for all ML layer types in Mojo |
-| Outcome | Consolidated patterns from 10 skills covering conv2d, depthwise conv2d, batch norm, layer norm, and pooling |
-| Verification | unverified |
+| Date | 2026-05-26 |
+| Objective | Numerically correct backward pass tests for all ML layer types in Mojo, plus end-to-end convergence tests that validate the full training loop |
+| Outcome | Consolidated patterns from 10 skills covering conv2d, depthwise conv2d, batch norm, layer norm, and pooling; v1.1 adds convergence-test class |
+| Verification | verified-ci |
 
 ## When to Use
 
@@ -400,10 +402,65 @@ SKIP=mojo-format git commit -m "test(<layer>): add gradient checking tests"
 # CI runs mojo format in Docker with correct GLIBC
 ```
 
+## End-to-end Convergence Tests (complementary to FD checks)
+
+Finite-difference (FD) per-op gradient checks validate *gradient values* on isolated layers, but
+they do NOT validate *training dynamics*. A substrate with correct per-op gradients can still
+fail to train if the data pipeline corrupts inputs, the optimizer skips parameters silently,
+or writeback is broken. **Add at least one end-to-end convergence test per autograd substrate.**
+
+### The gap FD checks cannot catch
+
+Surfaced in ProjectOdyssey PR #5466: the existing `test_variable_layers.mojo` validated
+`loss.backward()` populated gradient registry entries and matched analytical values for 3×3 conv
+and 2×3 linear ops. All tests PASSED while `train_autograd.mojo` trained EMNIST to 2.76% accuracy
+(= chance for 47 classes; ln(47)=3.85 loss flatline). Root cause was a 1-byte-per-element batch
+copy upstream of the substrate — not catchable by per-op FD tests because they bypass the data
+pipeline.
+
+### Three-tier convergence test pattern
+
+Each tier runs N training steps on persistent parameters and asserts loss decreased by at least X%.
+Each tier catches a different failure mode:
+
+| Tier | Architecture | Steps | Pass criterion | Catches |
+|------|--------------|-------|----------------|---------|
+| 1 | Tiny MLP (linear → CE) | 20 | loss drops ≥90% | Substrate basics: tape recording, backward dispatch, optimizer step, writeback |
+| 2 | Small conv stack (conv → relu → flatten → linear → CE) | 30 | loss drops ≥70% | Multi-layer gradient propagation; cancellation through chained ops |
+| 3 | Full production shape (e.g. LeNet: conv→relu→maxpool×2, flatten, 3×FC) | 50 | loss drops ≥30% | Exact op stack used in production, at realistic shape |
+
+### Critical implementation details
+
+- **Asymmetric weight init is mandatory** for multi-layer tiers (e.g. `t[i] = base + i*slope`).
+  Uniform fill creates dead-symmetry pathology: every layer output is identical, softmax is uniform,
+  and gradients to earlier layers are algebraically zero (only fp32 cancellation noise survives).
+  Tier 1 (single layer) does not manifest this, but tiers 2+ do.
+- **Asymmetric inputs**, not constant fill. Conv kernels need spatial signal to differentiate
+  pixels; constant inputs produce false-negative "convergence failure" that is actually input
+  deficiency.
+- **Loss-decrease threshold must be relative** (`(first - last) / first ≥ target`) so the test
+  is scale-invariant.
+- **Also assert ≥1 trainable parameter changed** by some `min_abs_delta` to catch silent
+  optimizer no-ops (e.g. `has_gradient()` returning False and SGD skipping the param).
+- **Persist parameter state across steps** by reassigning from `parameters[i].data` after each
+  `optimizer.step()`.
+
+### When a convergence test fails AND a magnitude test shows weird-small gradients
+
+Before blaming the substrate: (a) rerun with asymmetric init, (b) compare gradients directly with
+a manual chain. L2 difference between manual and autograd grads should be exactly 0.0 if the
+substrate is correct. Symmetric init + a real upstream data bug produce identical symptoms
+(chance-loss plateau + tiny gradients), so direct manual-vs-autograd comparison is the only way
+to disambiguate.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 | --- | --- | --- | --- |
+| Trusting FD gradient checks as sufficient validation | Existing `test_variable_layers.mojo` checked gradients against analytical values on isolated 3×3 ops; all tests passed | Per-op FD validates *gradient values*, not *training dynamics*. A correct-gradient substrate can still produce a training loop that never converges if the data pipeline corrupts inputs upstream | Pair every per-op gradient test with at least one end-to-end convergence test that runs ≥20 SGD steps on persistent params and asserts loss decreased by a relative threshold |
+| Writing the first draft of the convergence tests with uniform weight init | All weights filled with constant 0.05 to keep the test self-contained | Uniform init = mathematical pathology: every layer output is identical, softmax is uniform, gradient back through the layer is algebraically zero (only fp32 cancellation noise survives) | Convergence tests MUST use asymmetric init (e.g., `t[i] = base + i*slope`). Tier 1 (single layer) doesn't manifest the pathology, but tiers 2+ (multi-layer) do |
+| Using constant-fill inputs in the convergence tests | Input `t[i] = 0.3` for all pixels | Conv kernels have no spatial signal to differentiate; even when grads flow, the kernel can't learn a meaningful pattern. False-negative "convergence failure" that's actually input deficiency | Convergence-test inputs should vary across the spatial dimensions. Use `_make_asymmetric` not `_make_tensor(fill=const)` for both weights and inputs |
+| Test 2 plateau at ln(2)=0.694 initially diagnosed as conv backward bug | Saw loss flatline at chance loss for 2 classes, plus a buggy magnitude test showing 1e-8 conv grads | Misdiagnosis: this combination of symptoms (chance-loss plateau + tiny conv grads) is exactly what symmetric init produces, AND it's what a real substrate bug would produce. Required direct manual-vs-autograd gradient comparison to disambiguate | When a convergence test fails AND a magnitude test shows weird-small gradients, before blaming the substrate: (a) rerun with asymmetric init, (b) compare gradients directly with a manual chain |
 | `grad_output = ones_like(output)` for normalization | Uniform upstream gradient for batch norm \| layer norm backward | `sum(x_norm) = 0` by construction; analytical grad is exactly zero; numerical picks up float32 noise ≈ 0.009 | Never use uniform grad_output for any zero-mean normalization layer |
 | Increase atol to hide mismatch | Raised tolerance from 1e-5 to 1e-2 for the failing normalization test | Masks the real issue without validating backward correctness | Fix the test setup, not the threshold |
 | Modify backward formula | Changed grad_input formula to produce non-zero output for uniform grad | The formula IS correct; zero result for uniform grad is mathematically right | Don't change correct code to pass a badly designed test |
@@ -478,6 +535,60 @@ Writing or migrating a gradient checking test?
     └─ Always: non-uniform inputs (Float32(i) * 0.1)
 ```
 
+### Convergence Test Helpers
+
+```mojo
+# Asymmetric tensor init — eliminates the dead-symmetry pathology
+def _make_asymmetric(shape: List[Int], base: Float64, slope: Float64) raises -> AnyTensor:
+    var t = zeros(shape, DType.float32)
+    var n = 1
+    for d in shape: n *= d
+    for i in range(n):
+        t._set_float64(i, base + Float64(i) * slope)
+    return t^
+
+# Loss-decrease assertion (relative, scale-invariant)
+def _assert_loss_decreased(name: String, losses: List[Float32], min_relative_drop: Float64) raises:
+    var first = Float64(losses[0])
+    var last = Float64(losses[len(losses) - 1])
+    var drop = (first - last) / first
+    if drop < min_relative_drop:
+        raise Error(name + ": loss drop " + String(drop) + " < required " + String(min_relative_drop))
+
+# Parameter-changed sanity check — catches silent optimizer no-ops
+def _assert_parameter_changed(name: String, before: Float64, after: Float64, min_abs_delta: Float64) raises:
+    var delta = before - after if before > after else after - before
+    if delta < min_abs_delta:
+        raise Error(name + ": parameter unchanged (delta=" + String(delta) + ")")
+```
+
+### Convergence Test Template
+
+```mojo
+def test_my_convergence() raises:
+    var optimizer = SGD(learning_rate=0.01)
+    var w = _make_asymmetric([out, in], 0.05, 0.003)  # NOT _make_tensor(fill=const)
+    var b = _make_tensor([out], 0.0)
+    var losses = List[Float32]()
+    var w_before_0 = w._get_float64(0)
+    for step in range(N):
+        var tape = GradientTape()
+        tape.enable()
+        var x = Variable(_make_asymmetric([batch, in], 0.1, 0.01), False, tape)  # asymmetric input too
+        var v_w = Variable(w, True, tape)
+        var v_b = Variable(b, True, tape)
+        # ... forward → loss → backward ...
+        losses.append(loss_val)
+        var params: List[Variable] = []
+        params.append(v_w^); params.append(v_b^)
+        optimizer.step(params, tape)
+        w = params[0].data  # persist for next step
+        b = params[1].data
+        optimizer.zero_grad(tape)
+    _assert_loss_decreased("name", losses, 0.30)
+    _assert_parameter_changed("w[0]", w_before_0, w._get_float64(0), 0.0001)
+```
+
 ### CI Workflow Update
 
 ```yaml
@@ -501,3 +612,4 @@ Insert new test files alphabetically in the `pattern` field.
 | ProjectOdyssey | LayerNorm param gradients (PR #4806, issue #3810) | grad\_gamma and grad\_beta |
 | ProjectOdyssey | Pool backward tester (PR #4782, issue #3720) | Three-tier pattern |
 | ProjectOdyssey | Conv2d analytical value tests (PRs #4797, #4799, issue #3235) | Batch+padding formulas |
+| ProjectOdyssey | PR #5466 — added `tests/projectodyssey/autograd/test_autograd_convergence.mojo` | All 3 convergence tiers pass after upstream data-copy fix; previously RED due to combined test-init + data-copy bugs. Caught a class of training-pipeline failures that per-op FD tests missed for months. Tier 1 loss 1.39→0.022 (20 steps); Tier 2 loss 1.41→0.099 (30 steps); Tier 3 loss 7.16e7→2.23 (50 steps) |
