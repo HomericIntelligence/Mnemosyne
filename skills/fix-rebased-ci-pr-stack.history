@@ -1,0 +1,55 @@
+# fix-rebased-ci-pr-stack — History
+
+## v1.1.0 (2026-05-28)
+
+**Changed by:** PR #633 (ProjectHephaestus) rebase session — stale test patching replaced function
+**Verification:** verified-local
+
+### What changed
+- Added trigger 7: `AttributeError: module does not have attribute 'old_function_name'` for stale @patch tests
+- Added new row to failure patterns table: `@patch("module.resilient_call")` after PR replaces `resilient_call` with circuit breaker
+- Added Step 7: Fix stale tests that patch a replaced function (with before/after code example)
+- Added new Failed Attempts row documenting the stale test pattern
+- Added `verification: verified-local` and `history` frontmatter fields
+- Updated `date` and `version`
+
+### Why
+When a PR replaces a module-level function with a new implementation (e.g., `resilient_call` → circuit breaker `_GH_BREAKER.call`), tests that `@patch("module.resilient_call")` fail with `AttributeError` at collection time. This pattern recurred and needed documenting.
+
+### Previous version (v1.0.0) snapshot
+
+```markdown
+---
+name: fix-rebased-ci-pr-stack
+description: 'Fix CI failures in a stacked PR series after rebase onto main. Use when:
+  multiple PRs diverged from main have CI failures from missing files, expired digests,
+  paid-license actions, or unit tests that test the old structure.'
+category: ci-cd
+date: 2026-03-15
+version: 1.0.0
+user-invocable: false
+---
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Problem** | Multiple PRs in a series all fail CI after the stack diverged from main |
+| **Trigger** | Predecessor PR merged to main; downstream branches now missing files, have stale digests, or have test/action mismatches |
+| **Context** | 7-PR CI containerization effort; 3 merged, 4 remaining with failures |
+| **Outcome** | All 4 branches rebased, code fixes committed, CI queued to verify |
+
+## When to Use
+
+1. A series of PRs was created sequentially; earlier ones merged but later ones are behind main
+2. CI fails with "file not found" for a file that was added by a predecessor PR
+3. A GitHub Action fails with a license error (e.g. `gitleaks/gitleaks-action@v2` requires paid org license)
+4. A pinned container image SHA256 digest is stale (docker.io returns "not found")
+5. Unit tests assert on the old structure that was changed in the same PR (e.g. number of Dockerfile stages)
+6. A rebase introduces a merge conflict between a composite action (newly added to main) and the old inline setup steps
+```
+
+---
+
+## v1.0.0 (2026-03-15)
+
+**Initial version.**

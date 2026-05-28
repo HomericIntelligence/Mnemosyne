@@ -1,21 +1,24 @@
 ---
 name: fix-rebased-ci-pr-stack
-description: 'Fix CI failures in a stacked PR series after rebase onto main. Use when:
-  multiple PRs diverged from main have CI failures from missing files, expired digests,
-  paid-license actions, or unit tests that test the old structure.'
+description: "Fix CI failures in a stacked PR series after rebase onto main. Use when: (1) multiple PRs diverged from main have CI failures from missing files, expired digests, paid-license actions, or unit tests that test the old structure, (2) a unit test patches or mocks a function by name that was renamed/replaced in the same PR (AttributeError: module does not have attribute 'old_name'), (3) a test was written for the old API that the PR itself replaces and now calls the nonexistent old function."
 category: ci-cd
-date: 2026-03-15
-version: 1.0.0
+date: 2026-05-28
+version: 1.1.0
 user-invocable: false
+verification: verified-local
+history: fix-rebased-ci-pr-stack.history
 ---
 ## Overview
 
 | Field | Value |
 | ------- | ------- |
+| **Date** | 2026-05-28 |
 | **Problem** | Multiple PRs in a series all fail CI after the stack diverged from main |
 | **Trigger** | Predecessor PR merged to main; downstream branches now missing files, have stale digests, or have test/action mismatches |
 | **Context** | 7-PR CI containerization effort; 3 merged, 4 remaining with failures |
 | **Outcome** | All 4 branches rebased, code fixes committed, CI queued to verify |
+| **Verification** | verified-local |
+| **History** | [changelog](./fix-rebased-ci-pr-stack.history) |
 
 ## When to Use
 
@@ -25,6 +28,7 @@ user-invocable: false
 4. A pinned container image SHA256 digest is stale (docker.io returns "not found")
 5. Unit tests assert on the old structure that was changed in the same PR (e.g. number of Dockerfile stages)
 6. A rebase introduces a merge conflict between a composite action (newly added to main) and the old inline setup steps
+7. `AttributeError: module does not have attribute 'old_function_name'` in a unit test that patches a function which the PR itself replaced/renamed
 
 ## Verified Workflow
 
@@ -70,6 +74,7 @@ gh run view <run-id> --log-failed 2>/dev/null | grep -E "(error|Error|FAIL|asser
 | `Expected exactly 2 FROM lines ... found 3` | Unit test asserts old Dockerfile structure | Update test for new stage count |
 | `BaseRunMetrics usage count: 1` + `result.py:42` | Grep matches docstring using `(deprecated)` not `# deprecated` | Add `grep -v "(deprecated)"` |
 | Merge conflict between `setup-pixi` inline steps and composite action | Predecessor PR added composite action to main | Keep composite action (HEAD version) |
+| `AttributeError: module 'hephaestus.automation.github_api' does not have attribute 'resilient_call'` | PR replaced `resilient_call` with a circuit breaker but a test still patches the old name | Replace stale `@patch("...resilient_call")` test with one that patches the new function (`_gh_call_impl`) |
 
 ### Step 2: Rebase all branches onto main (parallel)
 
@@ -203,7 +208,41 @@ assert len(from_indices) == 3  # "Expected exactly 3 FROM lines (builder, node-s
 nodejs_idx = _first_line_containing(lines, "COPY --from=node-source")
 ```
 
-### Step 7: Handle merge ordering dependencies
+### Step 7: Fix stale tests that patch a replaced function
+
+When a PR refactors function A → B (rename, API replacement, inlining), any test that
+patches the old name with `@patch("module.A")` will fail immediately with
+`AttributeError: module 'module' does not have attribute 'A'`.
+
+```bash
+# Identify: grep for @patch decorators referencing the old function name
+grep -rn "@patch.*old_function_name" tests/
+# Also check for: from module import old_function_name  (will be ImportError)
+
+# Fix: update @patch target to the new function and update assertions
+# BEFORE:
+@patch("hephaestus.automation.github_api.resilient_call")
+def test_resilient_call_invoked_with_correct_parameters(self, mock_resilient):
+    mock_resilient.return_value = mock_result
+    result = _gh_call(["issue", "view", "123"], max_retries=6)
+    call_kwargs = mock_resilient.call_args[1]
+    assert call_kwargs["circuit_breaker_name"] == "gh_cli"  # old API
+
+# AFTER:
+@patch("hephaestus.automation.github_api._gh_call_impl")
+def test_circuit_breaker_wraps_gh_call_impl(self, mock_impl):
+    mock_impl.return_value = mock_result
+    result = _gh_call(["issue", "view", "123"], max_retries=6)
+    call_args, call_kwargs = mock_impl.call_args
+    assert call_args[0] == ["issue", "view", "123"]  # new API
+    assert call_kwargs["max_retries"] == 6
+```
+
+**Key insight**: When a PR introduces a new implementation layer (e.g., circuit breaker
+wrapping a renamed inner function), update the test to patch the NEW inner function rather
+than the deleted outer helper.
+
+### Step 8: Handle merge ordering dependencies
 
 For PRs with hard ordering constraints (PR A must merge before PR B can pass CI):
 
@@ -230,6 +269,7 @@ git switch B-branch && git rebase origin/main && git push --force-with-lease
 | Using `grep -v "# deprecated"` alone | The deprecation guard excluded `# deprecated` comments but not docstring `(deprecated)` markers | Docstrings use `(deprecated)` notation, not `# deprecated` bash comment style | Both patterns must be excluded; read the exact matching line from CI logs |
 | Assuming docker manifest inspect gives single digest | Used `d.get('manifests', [{}])[0].get('digest')` without filtering by platform | Multi-arch manifests list all platforms; index[0] may not be linux/amd64 | Filter by `os==linux && architecture==amd64` explicitly |
 | Using sed for multi-line conflict resolution | Conflict block in test.yml contained `${{ hashFiles('pixi.lock') }}` which breaks shell variable expansion | Shell interpolation corrupts `${{ }}` expressions in GitHub Actions YAML | Use Python `str.replace()` for conflict resolution in YAML files with GHA expressions |
+| Expecting the stale test to pass after rebase | A test patching `resilient_call` (the old API) was expected to continue working after the PR replaced it with a circuit breaker | The attribute `resilient_call` was deleted; `@patch` on a nonexistent attribute raises AttributeError at test-collection time, not at test-run time | When a PR replaces a module-level name, grep for `@patch("module.old_name")` and `from module import old_name` in all tests; update them alongside the implementation |
 
 ## Results & Parameters
 
