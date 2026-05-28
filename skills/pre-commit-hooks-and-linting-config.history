@@ -1,5 +1,21 @@
 # pre-commit-hooks-and-linting-config -- History
 
+## v1.6.0 (2026-06-07) -- Add ruff B904 raise-from and C901 complexity fix patterns
+
+**Changed by:** PR #2012 (skill/pre-commit-ruff-mypy-fixes) rebased onto main v1.5.0
+**Verification:** verified-local (pre-commit + pytest pass; CI pending)
+
+### What changed
+
+- Added 2 new "When to Use" triggers: B904 (`raise ... from err` in `except` clause) and C901 (`main` is too complex)
+- Added 2 new Failed Attempts rows: bare `raise` inside `except ImportError`, and over-complex `main()` at C901 complexity 17
+
+### Why
+
+PR #643 (coverage floor + e2e backstop) failed pre-commit after rebasing onto new main that added Bandit SAST. Two of the remaining lint issues — B904 bare raise-in-except and an over-complex `main()` (C901) — were not yet captured in the canonical skill. B904 has no auto-fix and requires chaining the cause with `raise ... from err`; C901 requires extracting helpers so each has complexity ≤10. These findings are layered on top of main's v1.5.0 (which already had the I001/RUF059, untracked-mypy, pixi-shadowing, and bandit findings).
+
+---
+
 ## v1.4.0 (2026-05-28) -- Add ruff I001/RUF059 inline-import-in-test-function finding
 
 **Changed by:** ProjectHephaestus PR #653 rebase session (console-scripts exit-code discipline)

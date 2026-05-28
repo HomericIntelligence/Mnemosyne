@@ -3,7 +3,7 @@ name: pre-commit-hooks-and-linting-config
 description: "Canonical guide to pre-commit hook configuration, single-source-of-truth versioning, CI/local parity, and integration of ruff/mypy/clang-format/yamllint/actionlint/golangci-lint/bandit/hadolint/shellcheck/markdownlint. Use when: (1) writing or amending .pre-commit-config.yaml, (2) diagnosing why a hook passes locally but fails in CI (version drift), (3) deciding fix-vs-suppress for lint findings, (4) adding a new linter to an existing pre-commit pipeline, (5) reconciling ruff/mypy/markdownlint config across multiple repos, (6) a pre-commit hook using a pixi console script false-fails locally even though CI passes — system-installed package in ~/.local/bin shadows the local dev version, (7) ruff I001/RUF059 fires on inline imports or unused tuple unpacking inside test functions after adding new tests, (8) mypy pre-commit hook fails because an UNTRACKED test file references methods not yet committed — the hook checks ALL .py files on disk including untracked ones."
 category: tooling
 date: 2026-05-28
-version: "1.5.0"
+version: "1.6.0"
 user-invocable: false
 verification: verified-ci
 history: pre-commit-hooks-and-linting-config.history
@@ -43,6 +43,8 @@ tags: [merged, pre-commit, linting, ruff, mypy, clang-format, yamllint, actionli
 - A stray agent-prompt artifact file (e.g. `.claude-prompt-NNN.md`) is committed to the repo root and fails markdownlint MD033 due to inline HTML tags (`<NONCE>`, `<LABEL>`) — remove and add `.gitignore` pattern
 - ruff pre-commit fires `I001` (import block unsorted) or `RUF059` (unpacked variable never used) on newly added test functions that contain inline imports or unused tuple returns
 - mypy pre-commit hook fails on an **untracked** test file that references methods not yet in the staged commit — you are doing a multi-commit workflow where commit 2 adds the methods referenced in a test file that is already on disk
+- Ruff B904: "Within an `except` clause, raise exceptions with `raise ... from err`" — bare `raise X(...)` inside `except ImportError`
+- Ruff C901: "`main` is too complex (N > 10)" — inline `main()` function with many branches
 
 ## Verified Workflow
 
@@ -391,6 +393,8 @@ Verified by ProjectHephaestus PR #657.
 | Skip `dev-install` and rely on `pixi install --environment default` | Assumed `pixi install` would install the host package along with its deps | `pixi install` installs declared deps only; once the self-reference is removed from `pyproject.toml` (to stop lockfile churn) it does not install the host package | After removing self-reference, an explicit `pip install -e . --no-deps` (via `pixi run dev-install`) is mandatory in CI before any hook that imports the package or calls a console script |
 | System-installed hephaestus shadows pixi default env version locally | `pixi run --environment default hephaestus-check-dep-sync` ran the binary from `~/.local/bin` (an older/newer system install) instead of the pixi env | When `hephaestus-check-dep-sync` resolves to `~/.local/bin` (user-level pip install), pixi `--environment default` doesn't shadow `$PATH`; the system binary has a different version of `dep_sync.py` with stricter checks that reject `[project.optional-dependencies]` — CI passes green because CI runs `pixi run dev-install` first, installing the local package into the pixi default env and making its console scripts take precedence | Always run `pixi run dev-install` in a fresh worktree before running pre-commit locally. The `~/.local/bin` system install is stale and will diverge from the in-tree version over time. After `dev-install` the local package's console scripts are installed into the pixi env and take priority over `~/.local/bin`. |
 | Inline imports inside test functions (ruff I001/RUF059) | Left `import sys` / `from module import func` inside test function bodies in newly-added test functions | ruff flags `I001` (import block unsorted/unformatted) for function-level imports and `RUF059` (unpacked variable never used) for tuple unpacking like `modified, fixes = obj.method()` where neither value is used | Move ALL imports to module top level; for unused tuple returns call the method directly: `obj.method()` rather than `_x, _y = obj.method()`. Pre-commit I001 fires even on test-function imports that are "logically local" — ruff treats them as mis-sorted module-level code. |
+| Ignore B904 `raise ... from` in `except ImportError` | Left bare `raise RuntimeError(...)` inside `except ImportError:` block | Ruff B904 fires: "Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None`" | Always use `raise RuntimeError("...") from err` to chain the cause; use `from None` only when deliberately suppressing the chain |
+| Leave `main()` at C901 complexity 17 | Added multiple `if/elif` branches inline in a single large `main()` function | Ruff `ruff-check-complexity` hook fires: "C901 `main` is too complex (17 > 10)" | Extract sub-operations into private helpers (e.g., `_check_module_floors()`, `_emit_json_report()`); each helper must have complexity ≤10 |
 
 ## Results & Parameters
 
