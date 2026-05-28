@@ -1,5 +1,30 @@
 # batch-pr-rebase-workflow — Version History
 
+## v2.16.0 (2026-05-28)
+
+**Changed by:** ProjectHephaestus PR #650 rebase session (Wave-0 subsumed SAST PR)
+**Verification:** verified-ci
+
+### What changed
+
+- Added trigger (54) to description: `warning: skipped previously applied commit` message
+  from git rebase indicates Wave-0 hotfix cherry-pick fully subsumed the PR; close it
+- Added corresponding "When to Use" bullet distinguishing "skipped" (CLOSE) vs "dropping" (also CLOSE)
+- Extended Quick Reference silent-drop check block with the close command and both message variants
+
+### Why
+
+PR #650 (feat: ci: add SAST/bandit) in ProjectHephaestus was fully subsumed by Wave-0
+hotfix #657 which cherry-picked the exact same bandit commit to main to fix broken trunk CI.
+After `git rebase origin/main`, git printed "warning: skipped previously applied commit"
+(not the previously-documented "dropping" message) and both `git log origin/main..HEAD` and
+`git diff origin/main...HEAD` were empty. The existing item 47 documented the "dropping"
+variant but didn't document the "skipped previously applied commit" variant, nor did it give
+the actionable close command. The Quick Reference section said "close PR as already landed"
+without the actual `gh pr close` command.
+
+---
+
 ## v2.15.0 (2026-05-07)
 
 **Changed by:** ProjectHermes 31-PR rebase swarm session (issue cluster from #422-#597)
