@@ -1,12 +1,35 @@
+# verify-audit-findings-before-acting -- History
+
+## v1.1.0 (2026-05-27)
+
+**Changed by:** ProjectHephaestus `/repo-analyze-strict-full` session (15 Sonnet section agents, full file coverage, B+ ~86% GO)
+**Verification:** verified-local (second corroborating session; ~3 of ~16 findings false/stale, ≈20%)
+
+### What changed
+- Added a new false-positive CLASS to Detailed Steps: "missing control that actually exists, in a DIFFERENT file than the agent looked." The Security agent (S8) reported "no secrets-scanning in CI" but Gitleaks was present and REQUIRED at `.github/workflows/_required.yml:478-497`; the agent only read `.github/workflows/security.yml`.
+- Added two new When-to-Use triggers: (1) when two swarm section agents disagree on the same checkable fact; (2) when any "missing X / no Y control" claim appears.
+- Added a Failed Attempts row: filing/fixing at the audit's cited file:line without re-verifying → wrong line or already-fixed (line-number drift even in TRUE findings).
+- Added a Results note: grep the WHOLE `.github/` (or whole repo), not just the file named after the control; recorded ≈20% false-positive rate consistent across two sessions.
+- Added a second ProjectHephaestus row to "Verified On" for the 2026-05-27 strict-full audit.
+- Bumped version 1.0.0 → 1.1.0, date → 2026-05-27, added `history:` frontmatter and Overview History row.
+
+### Why
+A second strict-full audit corroborated the skill's core thesis (verify before acting) and surfaced two sharper failure classes the v1.0.0 version did not name:
+1. **Controls live in aggregator/required workflows, not the obviously-named file.** S8 concluded Gitleaks was absent because it read `security.yml` (pip-audit only). Gitleaks was a SHA-pinned REQUIRED check in `_required.yml`. Grepping the whole `.github/` immediately refutes such "missing control" claims. (A real gap remained — no SAST/CodeQL — so verification distinguishes the true gap from the false one.)
+2. **Inter-agent disagreement is itself a verification trigger.** S6 (CI/CD) said secrets-scan present at `_required.yml:478`; S8 (Security) said absent. When sections contradict each other on a checkable fact, grep-verify it before filing.
+3. **Line-number drift in TRUE findings.** The issue-filing swarm re-verified every file:line and found cited refs stale even when findings were real: `.claude/workflows/development.md` "rebase merge" was line 19 not 18; `runtime.py:93` already had `timeout=10` (excluded; :77/:244 were genuinely unbounded); README had 2 version-pin lines not 3. Even accepted findings need their exact file:line re-verified at fix/file time.
+
+Positive reinforcement: the audit's MAJOR findings that WERE verified held up (stale CLAUDE.md version section at :411-413 vs pyproject hatch-vcs; pr-policy confirmed absent from the live ruleset via `gh api .../rulesets`; broken `just watch` reproduced live via `pixi run --environment dev` → "unknown environment 'dev'"). Verification is "cheaply confirm each," not "distrust everything."
+
+### Previous version (v1.0.0) snapshot
 ---
 name: verify-audit-findings-before-acting
 description: "Strict-mode repo audits routinely hallucinate critical findings (references to nonexistent files, claims of missing CI checks that already exist). Verify each finding against current filesystem state BEFORE filing issues or fixing. Use when: (1) consuming output from /repo-analyze-strict or any swarm-audit, (2) about to bulk-file remediation issues, (3) deciding which audit majors are real."
 category: documentation
-date: 2026-05-27
-version: "1.1.0"
+date: 2026-05-26
+version: "1.0.0"
 user-invocable: false
 verification: verified-local
-history: verify-audit-findings-before-acting.history
 tags: [audit, code-review, fact-checking, remediation]
 ---
 
@@ -16,11 +39,10 @@ tags: [audit, code-review, fact-checking, remediation]
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-05-27 |
+| **Date** | 2026-05-26 |
 | **Objective** | Catch hallucinated audit findings before they become wasted remediation work |
 | **Outcome** | Saved 3 false-positive PRs in one session by verifying each finding against `ls` / `grep` |
-| **Verification** | verified-local (≈20% false/stale across two strict-full sessions: 3 of 11, then ~3 of ~16) |
-| **History** | [changelog](./verify-audit-findings-before-acting.history) |
+| **Verification** | verified-local (caught 3 of 11 major findings as stale/false in a single audit run) |
 
 ## When to Use
 
@@ -28,8 +50,6 @@ tags: [audit, code-review, fact-checking, remediation]
 - About to bulk-file `gh issue create` for every flagged finding
 - Reviewing a "missing X" finding before adding X to the codebase
 - A new auditor (model or human) makes a sweeping "you don't have Y" claim about your repo
-- **Any "missing control / no Y in CI" claim** — controls often live in an aggregator/required workflow, not the file named after them. Grep the WHOLE `.github/` before believing absence.
-- **Two swarm section agents disagree on the same checkable fact** — the disagreement itself is the verification trigger; grep the fact before filing either way.
 
 ## Verified Workflow
 
@@ -57,8 +77,6 @@ Each is a structurally plausible failure. None of them was true in the verified 
 1. **Hallucinated cross-reference** — the agent saw `.claude/` in `.gitignore` and inferred a `.claude/hooks/learn-trigger.py` reference must exist in `.claude/settings.local.json`. Neither file existed.
 2. **Stale knowledge** — the agent's audit window covered files in batches; gitleaks v8.30.0 IS installed in `.github/workflows/_required.yml` but the security-section agent didn't search that file.
 3. **Documentation reading error** — pixi.toml comments warned about `dev-install` being required, but the agent inferred this meant the `bootstrap` justfile recipe was broken. The recipe was incomplete but pixi's editable build did make the package importable for most CLIs; the audit's "imports fail" claim was wrong.
-4. **Control exists in a DIFFERENT file than the agent read** *(new class, 2026-05-27)* — the Security agent (S8) reported "no secrets-scanning in CI" after reading only `.github/workflows/security.yml` (which runs pip-audit only). Gitleaks IS present and is a REQUIRED check at `.github/workflows/_required.yml:478-497` with a SHA-pinned binary download. When an audit says "missing X", grep the WHOLE `.github/` (or whole repo) — controls live in aggregator/required workflows, not the file named after the control. (A real gap did remain — no SAST/CodeQL — so verification separates the true gap from the false one.)
-5. **Line-number drift even in TRUE findings** *(new class, 2026-05-27)* — the issue-filing swarm re-verified every cited file:line and found refs stale even when the finding was real: `.claude/workflows/development.md` "rebase merge" was line 19 not 18; `runtime.py:93` already had `timeout=10` (excluded, though :77/:244 were genuinely unbounded); README had 2 version-pin lines not the 3 claimed. A finding can be real while its cited location is stale — re-verify exact file:line at fix/file time.
 
 **Verification protocol (per finding, 30s budget):**
 
@@ -79,20 +97,10 @@ Each is a structurally plausible failure. None of them was true in the verified 
 | File all audit findings as issues, then triage in PRs | Trust the audit; backlog will sort itself | 3 of 11 majors were stale → 3 PRs would have produced backwards "fixes" (e.g. adding gitleaks when it's already there) | Triage during audit-consume, not after issue filing |
 | Re-run the audit to "verify itself" | Hope a second pass catches the hallucinations | Identical output. Strict-mode prompt + same model = same hallucinations | Audits can't fact-check themselves; you must check against the filesystem |
 | Believe "CRITICAL" severity tags | Defer to the audit's own ranking | The "CRITICAL: missing hook" was hallucinated. Severity tag doesn't correlate with finding accuracy | Severity is a model's prediction, not a filesystem fact |
-| Trust "missing control" from the obviously-named file | S8 read only `security.yml`, declared "no secrets-scanning in CI" | Gitleaks was a REQUIRED check in `_required.yml:478-497`, a file the agent never grepped | For any "missing X" claim, grep the WHOLE `.github/`/repo — controls live in aggregator/required workflows |
-| File/fix at the audit's cited file:line without re-checking | Open the issue/PR at the exact line the audit reported | Line refs were stale even in TRUE findings (line 18 vs 19; `runtime.py:93` already had `timeout=10`; 3 vs 2 README pins) → wrong line or already-fixed | Re-verify exact file:line at fix/file time; a finding can be real while its location is stale |
 
 ## Results & Parameters
 
-**Stale-finding rate observed:** 3/11 majors in the 2026-05-26 ProjectHephaestus audit (27%), then ~3 of ~16 findings false/stale in the 2026-05-27 strict-full audit (≈20%). Consistent ≈20% false-positive rate across two sessions. Likely range across audits: 10–30%.
-
-**Grep-the-whole-`.github/` tip:** Before believing any "no Y in CI" / "missing control" finding, grep the entire `.github/` tree, not just the file named after the control. Controls are commonly wired into an aggregator or `_required.yml` workflow rather than the obviously-named file (e.g. Gitleaks lived in `_required.yml:478-497`, not `security.yml`):
-
-```bash
-grep -rniE "gitleaks|trufflehog|secrets-scan|codeql|semgrep|bandit|pip-audit" .github/
-```
-
-**Verification is "cheaply confirm," not "distrust everything":** in the 2026-05-27 session the audit's verified MAJOR findings held up — stale CLAUDE.md version section at `:411-413` vs pyproject hatch-vcs; `pr-policy` confirmed absent from the live ruleset via `gh api .../rulesets`; broken `just watch` reproduced live (`pixi run --environment dev` → "unknown environment 'dev'"). The discipline pays for itself by spending 30s/finding instead of a wasted remediation PR.
+**Stale-finding rate observed:** 3/11 majors in a single ProjectHephaestus audit (27%). Higher than expected. Likely range across audits: 10–30%.
 
 **Time cost:**
 - Without verification: ~10 minutes to file 11 issues + ~30 minutes per false-positive PR to discover the fix is a no-op = ~100 minutes wasted on 3 false positives.
@@ -132,4 +140,3 @@ done
 | Project | Context | Details |
 |---------|---------|---------|
 | ProjectHephaestus | 2026-05-26 strict-mode full-coverage audit (B+ 84%) | 3 of 11 majors were stale: hallucinated `.claude/hooks/learn-trigger.py` reference (S11 critical), claim of "no gitleaks in CI" (S8 major) when gitleaks v8.30.0 was already wired, partially-wrong claim that `bootstrap` recipe was broken (S13 major). Caught all 3 in under 5 minutes of `ls`/`grep` verification before filing issues. |
-| ProjectHephaestus | 2026-05-27 `/repo-analyze-strict-full` (15 Sonnet agents, full coverage, B+ ~86% GO) | ~3 of ~16 findings false/stale (≈20%). New classes: S8 "no secrets-scanning in CI" was false — Gitleaks REQUIRED at `_required.yml:478-497` (S6 said present, S8 said absent → inter-agent disagreement was the trigger). Line drift in TRUE findings: development.md line 19 not 18; `runtime.py:93` already had `timeout=10`; README 2 pins not 3. Verified MAJORs held: stale CLAUDE.md `:411-413`, pr-policy absent from live ruleset, broken `just watch` reproduced live. |
