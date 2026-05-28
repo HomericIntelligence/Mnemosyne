@@ -1,5 +1,22 @@
 # pre-commit-hooks-and-linting-config -- History
 
+## v1.3.0 (2026-05-28) -- Add ruff B904/C901/E501/F841 and mypy unused-ignore fix patterns
+
+**Changed by:** ProjectHephaestus PR #643 (623-auto-impl rebase + pre-commit CI fix)
+**Verification:** verified-local (pre-commit + pytest pass; CI pending)
+
+### What changed
+
+- Added 8 new "When to Use" triggers: B904 raise-from, C901 complexity, E501 long string, F841 unused var, mypy unused-ignore, bandit-SAST-rebase-first pattern
+- Updated description to include new trigger conditions (6) and (7)
+- Added 8 new Failed Attempts rows covering each ruff/mypy issue pattern and the bandit-rebase pattern
+
+### Why
+
+PR #643 (coverage floor + e2e backstop) failed pre-commit after rebasing onto new main that added Bandit SAST. After rebase, five lint issues remained: B904 bare raise-in-except, C901 over-complex `main()`, E501 long message string, F841 unused variable, mypy [unused-ignore] on tomli import. Each required a specific mechanical fix. The bandit failure itself resolved by inheriting main's bandit config via rebase — that pattern is worth documenting to avoid unnecessary per-PR bandit investigation.
+
+---
+
 ## v1.2.0 (2026-05-28) -- Add bandit severity-level tuning and stray-file MD033 fix
 
 **Changed by:** ProjectHephaestus PR #657 (fix broken main CI)

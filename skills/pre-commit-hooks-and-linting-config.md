@@ -1,9 +1,9 @@
 ---
 name: pre-commit-hooks-and-linting-config
-description: "Canonical guide to pre-commit hook configuration, single-source-of-truth versioning, CI/local parity, and integration of ruff/mypy/clang-format/yamllint/actionlint/golangci-lint/bandit/hadolint/shellcheck/markdownlint. Use when: (1) writing or amending .pre-commit-config.yaml, (2) diagnosing why a hook passes locally but fails in CI (version drift), (3) deciding fix-vs-suppress for lint findings, (4) adding a new linter to an existing pre-commit pipeline, (5) reconciling ruff/mypy/markdownlint config across multiple repos."
+description: "Canonical guide to pre-commit hook configuration, single-source-of-truth versioning, CI/local parity, and integration of ruff/mypy/clang-format/yamllint/actionlint/golangci-lint/bandit/hadolint/shellcheck/markdownlint. Use when: (1) writing or amending .pre-commit-config.yaml, (2) diagnosing why a hook passes locally but fails in CI (version drift), (3) deciding fix-vs-suppress for lint findings, (4) adding a new linter to an existing pre-commit pipeline, (5) reconciling ruff/mypy/markdownlint config across multiple repos, (6) fixing ruff B904/C901/E501/F841 or mypy [unused-ignore] errors after a rebase, (7) Bandit SAST failing on a PR branch — rebase onto main that added bandit config first."
 category: tooling
 date: 2026-05-28
-version: "1.2.0"
+version: "1.3.0"
 user-invocable: false
 verification: verified-ci
 history: pre-commit-hooks-and-linting-config.history
@@ -40,6 +40,12 @@ tags: [merged, pre-commit, linting, ruff, mypy, clang-format, yamllint, actionli
 - Designing CI workflow that invokes pre-commit when the repo declares multiple pixi environments (e.g. `default` vs `lint`)
 - Bandit SAST hook reports 100+ LOW findings (B404/B603/B607) masking real MEDIUM+ findings — tune `--severity-level medium`
 - A stray agent-prompt artifact file (e.g. `.claude-prompt-NNN.md`) is committed to the repo root and fails markdownlint MD033 due to inline HTML tags (`<NONCE>`, `<LABEL>`) — remove and add `.gitignore` pattern
+- Ruff B904: "Within an `except` clause, raise exceptions with `raise ... from err`" — bare `raise X(...)` inside `except ImportError`
+- Ruff C901: "`main` is too complex (N > 10)" — inline `main()` function with many branches
+- Ruff E501: line too long in a test's error message string
+- Ruff F841: unused local variable assigned but never read
+- mypy `[unused-ignore]`: `# type: ignore` comment is no longer needed (stub package now installed)
+- Bandit SAST failing on PR before rebase — first rebase onto the main that added the bandit config; most findings inherit the tuning and resolve automatically
 
 ## Verified Workflow
 
@@ -356,6 +362,13 @@ Verified by ProjectHephaestus PR #657.
 | `entry: pixi run <task>` without `--environment` | Wrote hook entry as `pixi run hephaestus-check-dep-sync` assuming pixi.toml task default env applies | Hook inherited whichever env pre-commit was launched from (e.g. `lint`); console script not installed there -> `command not found` | `pixi run` resolves the environment from current shell state, not from `pixi.toml`. Always write `pixi run --environment default <task>` for hooks that need a package entry point |
 | `pip install -e . --no-deps --no-build-isolation` in CI | Tried to skip build isolation to speed up the editable install | pip subprocess could not locate `hatchling` because `--no-build-isolation` requires the build backend be pre-installed in the same env | Drop `--no-build-isolation`; let pip do standard build isolation — pixi's env already has hatchling available to the pip child |
 | Skip `dev-install` and rely on `pixi install --environment default` | Assumed `pixi install` would install the host package along with its deps | `pixi install` installs declared deps only; once the self-reference is removed from `pyproject.toml` (to stop lockfile churn) it does not install the host package | After removing self-reference, an explicit `pip install -e . --no-deps` (via `pixi run dev-install`) is mandatory in CI before any hook that imports the package or calls a console script |
+| Ignore B904 `raise ... from` in `except ImportError` | Left bare `raise RuntimeError(...)` inside `except ImportError:` block | Ruff B904 fires: "Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None`" | Always use `raise RuntimeError("...") from err` to chain the cause; use `from None` only when deliberately suppressing the chain |
+| Leave `main()` at C901 complexity 17 | Added multiple `if/elif` branches inline in a single large `main()` function | Ruff `ruff-check-complexity` hook fires: "C901 `main` is too complex (17 > 10)" | Extract sub-operations into private helpers (e.g., `_check_module_floors()`, `_emit_json_report()`); each helper must have complexity ≤10 |
+| Long error message in single string literal | Wrote `msg += "See tests/unit/a.py and tests/integration/b.py\n"` (121 chars) | Ruff E501: "Line too long (121 > 100)" | Use implicit string concatenation across two lines: `msg += ("See tests/unit/a.py" " and tests/integration/b.py\n")` |
+| Keep `# type: ignore` on tomli version-gated import | Left `import tomli as tomllib  # type: ignore` | mypy `[unused-ignore]` fires when running against Python 3.10 where tomli has proper stubs installed | Check whether the stub package is present; remove `# type: ignore` if mypy can resolve the import cleanly |
+| Remove `# type: ignore` on tomli import without checking stubs | Reflexively removed the comment | Causes mypy `[import-untyped]` on Python 3.10 environments where tomli stubs are not installed | Conditionally apply: run `pixi run mypy <file>` to confirm the comment is truly unnecessary before removing |
+| Leave unused local variable `schema_path` | Assigned `schema_path = tmp_path / "nonexistent.json"` then used `Path("nonexistent.json")` directly in next line | Ruff F841: "Local variable `schema_path` is assigned to but never used" | Delete the assignment entirely; the next line already constructs the path inline |
+| Bandit CI failure after rebase onto new main with SAST hook | PR had SAST failing before rebase; rebasing onto main that already added the bandit config inherits the configuration | Any repo-level `bandit.ini` or `.bandit` and `--severity-level` tuning are inherited after rebase; no per-PR bandit fix needed | Before fixing bandit locally, rebase onto the main that added the SAST config — most findings resolve automatically |
 
 ## Results & Parameters
 
