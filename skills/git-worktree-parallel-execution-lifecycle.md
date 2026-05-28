@@ -10,10 +10,15 @@ description: "Use when: (1) creating isolated git worktrees for parallel agent e
   main workdir, (8) handling locked worktrees from dead agent PIDs, (9) staged-file two-step
   cleanup (status A lines), (10) cherry=1 rebase-merge artifact classification, (11) inline
   worktree cleanup inside a per-branch rebase loop, (12) fixing stale origin/HEAD or missing
-  origin/main for worktree creation, (13) branch-name collision check before remote push."
+  origin/main for worktree creation, (13) branch-name collision check before remote push, (14)
+  a single-PR fix agent finds the shared main repo checked out to its target branch and starts
+  editing there, but a sibling agent stashes + switches the branch out mid-session, silently
+  discarding the unstaged edits — recover by locating the WIP stash and re-applying into a fresh
+  /tmp worktree."
 category: tooling
-date: 2026-05-19
-version: "1.0.0"
+date: 2026-05-28
+version: "1.1.0"
+verification: verified-ci
 user-invocable: false
 history: git-worktree-parallel-execution-lifecycle.history
 tags: [worktree, git, parallel-agents, wave-execution, cleanup, branch-collision, contamination,
@@ -499,6 +504,8 @@ gh api --method DELETE "repos/$REPO/git/refs/heads/<branch-name>"
 | Post-removal dirty-check via `cd "$WORK_DIR"; git diff-index` | After inline removal, `cd` failed silently; `git diff-index` ran on wrong directory | CWD-based git after possibly-removed directory yields wrong-tree results | Guard with `[ -d "$WORK_DIR" ]` first AND use `git -C "$WORK_DIR" status --porcelain` |
 | End-of-script stale worktree sweep AFTER inline loop cleanup | Sweep re-queried `gh` and re-checked dirtiness on already-classified branches | Pure duplication; doubled `gh` API calls; second silent-failure surface | Replace sweep with `git worktree prune` + printed summary of `CLEANED_WORKTREES` |
 | `gh pr merge --auto --rebase` (default) | Standard merge command | Repo had rebase merging disabled | Detect with `gh repo view --json squashMergeAllowed,rebaseMergeAllowed` once, pass to all briefs |
+| Single-PR fix agent edits in the shared main workdir because its target branch happened to be checked out there | Made review-comment + lint fixes directly in `/home/.../ProjectHephaestus` (not a worktree) while sibling swarm agents ran | A sibling agent ran `git stash` + `git checkout <other-branch>` on the shared repo mid-session; my unstaged edits vanished and `git -C <repo> status` showed a totally different branch (`623-auto-impl`) and different dirty files | NEVER edit in the shared main workdir during a swarm. Even a single-PR agent must `git worktree add /tmp/wt-<pr>-<branch> <branch>` first and work only there. The shared `.git/HEAD` and index belong to everyone |
+| Assume lost unstaged edits are gone after the branch was switched out | Panicked the fixes were lost when the shared repo flipped to another branch | The sibling agent's `git stash` (run before its checkout) captured MY edits as `stash@{0}: WIP on 613-auto-impl` | Before redoing work, run `git stash list` and look for `WIP on <your-branch>`; `git stash apply stash@{N}` into your own fresh worktree to recover verbatim |
 | Both agents append to same docs file end-of-file | Each appended a new H2 section at EOF | Agent A removed a "still out of scope" bullet that B's work made in-scope; rebase produced stale-bullet conflict | "Append-only" necessary but insufficient — also forbid editing "still TODO"/"out of scope" lists |
 | Trusting local pre-commit pass after manual rebase conflict resolution | Resolved markdownlint conflict, force-pushed without rerunning hooks | Manual edit during conflict resolution introduced missing blank line; CI markdownlint failed | Always run `pre-commit run --files <changed>` AFTER manually resolving rebase conflicts |
 | `pixi run -e dev` in split-issue agent brief | Used `dev` env name from instinct | Repo had envs `default`/`lint`/`docs`, no `dev` — agent commands failed | Brief should say "use `pixi run` (default env)" OR grep `pixi.toml` for env names first |

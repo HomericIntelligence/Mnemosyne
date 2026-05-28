@@ -1,7 +1,32 @@
 <!-- markdownlint-disable MD024 -->
-# git-worktree-parallel-execution-lifecycle — Superseded Snapshots
+# git-worktree-parallel-execution-lifecycle — History
 
-This file preserves verbatim content from skills absorbed into the canonical
+## v1.1.0 (2026-05-28)
+
+**Changed by:** ProjectHephaestus PR #635 rebase + review-fix session (Myrmidon swarm worker).
+**Verification:** verified-ci
+
+### What changed
+
+- Added description trigger (14): single-PR fix agent editing in the shared main workdir while a
+  sibling agent stashes + switches the branch out mid-session, discarding unstaged edits.
+- Added 2 Failed Attempts rows: (a) editing in the shared main workdir during a swarm leads to the
+  branch being swapped out from under you; (b) recovering the lost edits from the sibling agent's
+  `git stash` (`WIP on <your-branch>`).
+- Added the `verification: verified-ci` frontmatter field (was missing).
+
+### Why
+
+A single-PR fix agent assumed it was safe to edit in the shared repo because its target branch
+(`613-auto-impl`) was already checked out there. A sibling swarm agent ran `git stash` + `git
+checkout 623-auto-impl` on the same repo, silently dropping the unstaged edits. The fix was to
+locate the WIP stash, create an isolated `/tmp` worktree, `git stash apply` into it, and finish
+the work there. Confirms the existing rule (trigger 7/11): even a SINGLE agent must use its own
+worktree in a shared-repo swarm.
+
+---
+
+This file also preserves verbatim content from skills absorbed into the canonical
 `git-worktree-parallel-execution-lifecycle` skill (M59 merge, 2026-05-19).
 
 ## Superseded from worktree-parallel-agent-execution
