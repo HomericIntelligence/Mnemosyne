@@ -3,7 +3,7 @@ name: pre-commit-hooks-and-linting-config
 description: "Canonical guide to pre-commit hook configuration, single-source-of-truth versioning, CI/local parity, and integration of ruff/mypy/clang-format/yamllint/actionlint/golangci-lint/bandit/hadolint/shellcheck/markdownlint. Use when: (1) writing or amending .pre-commit-config.yaml, (2) diagnosing why a hook passes locally but fails in CI (version drift), (3) deciding fix-vs-suppress for lint findings, (4) adding a new linter to an existing pre-commit pipeline, (5) reconciling ruff/mypy/markdownlint config across multiple repos."
 category: tooling
 date: 2026-05-28
-version: "1.2.0"
+version: "1.3.0"
 user-invocable: false
 verification: verified-ci
 history: pre-commit-hooks-and-linting-config.history
@@ -40,6 +40,8 @@ tags: [merged, pre-commit, linting, ruff, mypy, clang-format, yamllint, actionli
 - Designing CI workflow that invokes pre-commit when the repo declares multiple pixi environments (e.g. `default` vs `lint`)
 - Bandit SAST hook reports 100+ LOW findings (B404/B603/B607) masking real MEDIUM+ findings — tune `--severity-level medium`
 - A stray agent-prompt artifact file (e.g. `.claude-prompt-NNN.md`) is committed to the repo root and fails markdownlint MD033 due to inline HTML tags (`<NONCE>`, `<LABEL>`) — remove and add `.gitignore` pattern
+- A pre-commit hook (e.g. `check-dep-sync`) passes in CI but FAILS locally with a spurious policy violation — globally-installed older/newer package version is running instead of the source version
+- A ruff RUF059 "Unpacked variable `<name>` is never used" error appears in a tuple-unpack pattern — prefix unused variable with `_`
 
 ## Verified Workflow
 
@@ -356,6 +358,8 @@ Verified by ProjectHephaestus PR #657.
 | `entry: pixi run <task>` without `--environment` | Wrote hook entry as `pixi run hephaestus-check-dep-sync` assuming pixi.toml task default env applies | Hook inherited whichever env pre-commit was launched from (e.g. `lint`); console script not installed there -> `command not found` | `pixi run` resolves the environment from current shell state, not from `pixi.toml`. Always write `pixi run --environment default <task>` for hooks that need a package entry point |
 | `pip install -e . --no-deps --no-build-isolation` in CI | Tried to skip build isolation to speed up the editable install | pip subprocess could not locate `hatchling` because `--no-build-isolation` requires the build backend be pre-installed in the same env | Drop `--no-build-isolation`; let pip do standard build isolation — pixi's env already has hatchling available to the pip child |
 | Skip `dev-install` and rely on `pixi install --environment default` | Assumed `pixi install` would install the host package along with its deps | `pixi install` installs declared deps only; once the self-reference is removed from `pyproject.toml` (to stop lockfile churn) it does not install the host package | After removing self-reference, an explicit `pip install -e . --no-deps` (via `pixi run dev-install`) is mandatory in CI before any hook that imports the package or calls a console script |
+| Treating local `check-dep-sync` failure as a real CI blocker | Hook failed locally: "pyproject.toml contains `[project.optional-dependencies]` — remove it" | Globally-installed hephaestus (in `~/.local/`) was a newer version than the pixi env source; it added a policy check the source branch hadn't shipped yet. CI installs from source and passed the hook. | When a pre-commit hook passes in remote CI but fails locally, confirm which binary is on `PATH`: `which hephaestus-check-dep-sync`. If it resolves to `~/.local/bin/` instead of the pixi env, the global install is diverged from source. Diagnose with `pixi run --environment default which <binary>` — if it still resolves to `~/.local`, the pixi env doesn't install the package. The local failure is a false positive; it won't appear in CI. |
+| Leaving `review` as unpacked variable name in tuple-unpack | `plan, review, iterations, verdict = loop.run(...)` where `review` was never referenced after assignment | ruff RUF059 flags any unpacked variable that is never used. CI lint step failed even though the variable name was semantically clear. | Prefix intentionally-ignored unpacked variables with `_`: `plan, _review, iterations, verdict = loop.run(...)`. The `_` prefix is the Python convention for "this variable is present for structural completeness but its value is discarded." |
 
 ## Results & Parameters
 

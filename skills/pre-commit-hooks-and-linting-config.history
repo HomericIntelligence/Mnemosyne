@@ -1,5 +1,27 @@
 # pre-commit-hooks-and-linting-config -- History
 
+## v1.3.0 (2026-05-28) -- Add RUF059 unused-unpack fix and global-install CI/local parity trap
+
+**Changed by:** ProjectHephaestus PR #639 (refactor PlannerHost Protocol, fix stale CI)
+**Verification:** verified-ci
+
+### What changed
+
+- Added 2 new "When to Use" triggers: global-install CI/local mismatch for custom hooks; RUF059 unused unpacked variable fix pattern.
+- Added 2 new Failed Attempts rows: treating local `check-dep-sync` failure as real CI blocker (false positive from global install); leaving unpacked `review` variable without `_` prefix causing RUF059.
+
+### Why
+
+PR #639 had stale lint+pre-commit CI failures caused by a single RUF059 violation in a test
+(unpacked variable `review` that was never used). The fix (prefix with `_review`) was
+straightforward but the root cause wasn't documented. Additionally, local pre-commit showed
+a spurious `check-dep-sync` failure (globally-installed hephaestus was newer than the branch
+source and had an `[project.optional-dependencies]` policy check the branch hadn't shipped yet).
+CI passed this check because it installed from source. The pattern of local-fails/CI-passes
+due to global install drift is worth capturing as a false-positive trap.
+
+---
+
 ## v1.2.0 (2026-05-28) -- Add bandit severity-level tuning and stray-file MD033 fix
 
 **Changed by:** ProjectHephaestus PR #657 (fix broken main CI)
