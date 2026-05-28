@@ -1,9 +1,9 @@
 ---
 name: pre-commit-hooks-and-linting-config
-description: "Canonical guide to pre-commit hook configuration, single-source-of-truth versioning, CI/local parity, and integration of ruff/mypy/clang-format/yamllint/actionlint/golangci-lint/bandit/hadolint/shellcheck/markdownlint. Use when: (1) writing or amending .pre-commit-config.yaml, (2) diagnosing why a hook passes locally but fails in CI (version drift), (3) deciding fix-vs-suppress for lint findings, (4) adding a new linter to an existing pre-commit pipeline, (5) reconciling ruff/mypy/markdownlint config across multiple repos, (6) a pre-commit hook using a pixi console script false-fails locally even though CI passes — system-installed package in ~/.local/bin shadows the local dev version."
+description: "Canonical guide to pre-commit hook configuration, single-source-of-truth versioning, CI/local parity, and integration of ruff/mypy/clang-format/yamllint/actionlint/golangci-lint/bandit/hadolint/shellcheck/markdownlint. Use when: (1) writing or amending .pre-commit-config.yaml, (2) diagnosing why a hook passes locally but fails in CI (version drift), (3) deciding fix-vs-suppress for lint findings, (4) adding a new linter to an existing pre-commit pipeline, (5) reconciling ruff/mypy/markdownlint config across multiple repos, (6) a pre-commit hook using a pixi console script false-fails locally even though CI passes — system-installed package in ~/.local/bin shadows the local dev version, (7) ruff I001/RUF059 fires on inline imports or unused tuple unpacking inside test functions after adding new tests."
 category: tooling
 date: 2026-05-28
-version: "1.3.0"
+version: "1.4.0"
 user-invocable: false
 verification: verified-ci
 history: pre-commit-hooks-and-linting-config.history
@@ -41,6 +41,7 @@ tags: [merged, pre-commit, linting, ruff, mypy, clang-format, yamllint, actionli
 - Designing CI workflow that invokes pre-commit when the repo declares multiple pixi environments (e.g. `default` vs `lint`)
 - Bandit SAST hook reports 100+ LOW findings (B404/B603/B607) masking real MEDIUM+ findings — tune `--severity-level medium`
 - A stray agent-prompt artifact file (e.g. `.claude-prompt-NNN.md`) is committed to the repo root and fails markdownlint MD033 due to inline HTML tags (`<NONCE>`, `<LABEL>`) — remove and add `.gitignore` pattern
+- ruff pre-commit fires `I001` (import block unsorted) or `RUF059` (unpacked variable never used) on newly added test functions that contain inline imports or unused tuple returns
 
 ## Verified Workflow
 
@@ -358,6 +359,7 @@ Verified by ProjectHephaestus PR #657.
 | `pip install -e . --no-deps --no-build-isolation` in CI | Tried to skip build isolation to speed up the editable install | pip subprocess could not locate `hatchling` because `--no-build-isolation` requires the build backend be pre-installed in the same env | Drop `--no-build-isolation`; let pip do standard build isolation — pixi's env already has hatchling available to the pip child |
 | Skip `dev-install` and rely on `pixi install --environment default` | Assumed `pixi install` would install the host package along with its deps | `pixi install` installs declared deps only; once the self-reference is removed from `pyproject.toml` (to stop lockfile churn) it does not install the host package | After removing self-reference, an explicit `pip install -e . --no-deps` (via `pixi run dev-install`) is mandatory in CI before any hook that imports the package or calls a console script |
 | System-installed hephaestus shadows pixi default env version locally | `pixi run --environment default hephaestus-check-dep-sync` ran the binary from `~/.local/bin` (an older/newer system install) instead of the pixi env | When `hephaestus-check-dep-sync` resolves to `~/.local/bin` (user-level pip install), pixi `--environment default` doesn't shadow `$PATH`; the system binary has a different version of `dep_sync.py` with stricter checks that reject `[project.optional-dependencies]` — CI passes green because CI runs `pixi run dev-install` first, installing the local package into the pixi default env and making its console scripts take precedence | Always run `pixi run dev-install` in a fresh worktree before running pre-commit locally. The `~/.local/bin` system install is stale and will diverge from the in-tree version over time. After `dev-install` the local package's console scripts are installed into the pixi env and take priority over `~/.local/bin`. |
+| Inline imports inside test functions (ruff I001/RUF059) | Left `import sys` / `from module import func` inside test function bodies in newly-added test functions | ruff flags `I001` (import block unsorted/unformatted) for function-level imports and `RUF059` (unpacked variable never used) for tuple unpacking like `modified, fixes = obj.method()` where neither value is used | Move ALL imports to module top level; for unused tuple returns call the method directly: `obj.method()` rather than `_x, _y = obj.method()`. Pre-commit I001 fires even on test-function imports that are "logically local" — ruff treats them as mis-sorted module-level code. |
 
 ## Results & Parameters
 

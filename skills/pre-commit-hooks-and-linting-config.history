@@ -1,5 +1,23 @@
 # pre-commit-hooks-and-linting-config -- History
 
+## v1.4.0 (2026-05-28) -- Add ruff I001/RUF059 inline-import-in-test-function finding
+
+**Changed by:** ProjectHephaestus PR #653 rebase session (console-scripts exit-code discipline)
+**Verification:** verified-ci
+
+### What changed
+
+- Updated description field to add trigger (7): ruff I001/RUF059 fires on inline imports or unused tuple unpacking inside test functions.
+- Added new "When to Use" bullet for ruff I001/RUF059 in test functions.
+- Added 1 new Failed Attempts row: "Inline imports inside test functions (ruff I001/RUF059)" — describes how function-level imports in test bodies and unused tuple returns trigger ruff even in test files, and the correct fix (move imports to module top; call method without unpacking when returns are unused).
+- Bumped version 1.3.0 → 1.4.0.
+
+### Why
+
+During PR #653 rebase onto green main, `ruff check tests/` flagged I001 on test functions that had `import sys` / `from module import func` inline (inside function body) and RUF059 on `modified, fixes = fixer.fix_file(md_file)` where neither `modified` nor `fixes` was used. Fix: move all imports to module top; replace unused tuple returns with direct method calls `obj.method()`.
+
+---
+
 ## v1.3.0 (2026-05-28) -- Document system-installed package shadowing pixi env locally
 
 **Changed by:** ProjectHephaestus PR #652 rebase session (dependency PR onto green main)
