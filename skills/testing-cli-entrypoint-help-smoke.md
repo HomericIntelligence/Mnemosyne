@@ -2,10 +2,11 @@
 name: testing-cli-entrypoint-help-smoke
 description: "Smoke-test Python CLI entry points with --help subprocess calls and import verification. Use when: (1) a package declares [project.scripts] entry points, (2) entry points need regression protection, (3) an issue asks for CLI importability tests."
 category: testing
-date: 2026-03-25
-version: "1.0.0"
+date: 2026-05-27
+version: "1.1.0"
 user-invocable: false
-verification: verified-local
+verification: verified-ci
+history: testing-cli-entrypoint-help-smoke.history
 tags:
   - python
   - cli
@@ -20,10 +21,11 @@ tags:
 
 | Field | Value |
 | ------- | ------- |
-| **Date** | 2026-03-25 |
+| **Date** | 2026-05-27 |
 | **Objective** | Verify all `[project.scripts]` entry points are importable and respond to `--help` without crashing |
 | **Outcome** | Success — 8 tests (4 import + 4 subprocess) all pass in 0.39s |
-| **Verification** | verified-local |
+| **Verification** | verified-ci (v1.1.0 editable-install finding); v1.0.0 test pattern was verified-local |
+| **History** | [changelog](./testing-cli-entrypoint-help-smoke.history) |
 
 ## When to Use
 
@@ -35,6 +37,26 @@ tags:
 Do NOT use when:
 - Entry points require real credentials or network access just for `--help` (check first)
 - The package doesn't use argparse/click (custom CLI parsing may not support `--help`)
+
+### Install prerequisite for subprocess smoke tests (v1.1.0)
+
+A subprocess-based smoke test (`subprocess.run([sys.executable, ..., "--help"])`)
+requires the package to be **actually installed** (editable or regular) into the
+subprocess's site-packages. A freshly-spawned `python` subprocess does **NOT** inherit
+pytest's `[tool.pytest.ini_options] pythonpath` injection, nor `conftest.py` `sys.path`
+tricks — those only help **in-process** tests. Consequences to plan for:
+
+1. If you write a subprocess CLI smoke test, ensure **every** CI workflow that runs it
+   first installs the package (editable is fine). Do not rely on `pythonpath`/`conftest`
+   sys.path manipulation — it does not cross the subprocess boundary.
+2. Diagnostic tell: if `test_script_is_importable` (in-process) **passes** while
+   `test_script_help_exits_zero` (subprocess) **fails** with `ModuleNotFoundError`, the
+   package isn't installed in that env — it's a missing-install / workflow-parity problem,
+   **not** a code bug. Do NOT "fix" it by weakening or deleting the subprocess test.
+3. When a package is deliberately kept out of the dependency manager's lockfile (e.g.
+   hatch-vcs editable installs causing pixi.lock churn), the editable-install step becomes
+   an explicit, easy-to-forget prerequisite that must be replicated across **all**
+   test-running workflows. Audit every workflow that runs the smoke tests.
 
 ## Verified Workflow
 
@@ -148,6 +170,7 @@ pixi run ruff format --check tests/integration/test_cli_entry_points.py
 | --------- | ---------------- | --------------- | ---------------- |
 | Using installed script names | Tried `subprocess.run(["hephaestus-changelog", "--help"])` | Requires package to be pip-installed with entry points registered; fails in pixi/dev environments | Use `sys.executable -m module.path` — tests the same `main()` code path via `__main__` block without needing pip install |
 | N/A — direct approach worked | Import + subprocess two-pronged strategy succeeded on first try | N/A | For argparse-based CLIs, `--help` is always safe — argparse calls `sys.exit(0)` before any business logic |
+| Relying on pytest `pythonpath` for the subprocess test | ProjectHephaestus release workflow ran `pixi run pytest tests/unit` with no editable-install step; the `hephaestus` package is intentionally excluded from the pixi lockfile (installed via separate `pixi run dev-install` = `pip install -e . --no-deps` to avoid hatch-vcs churn) | 15 failures, all `test_script_help_exits_zero[*]`, each `ModuleNotFoundError: No module named 'hephaestus'`. The in-process import test passed (pytest's `pythonpath` applied), but the spawned `python --help` subprocess did not inherit it. The PR test workflow passed because it ran `pip install -e ".[dev]"` first — a workflow-parity bug | Subprocess smoke tests need the package installed in the env they spawn into; `pythonpath`/`conftest` sys.path tricks only help in-process. Add the editable-install step to EVERY CI workflow that runs the test; don't weaken the test to make it pass |
 
 ## Results & Parameters
 
@@ -167,8 +190,23 @@ pixi run ruff format --check tests/integration/test_cli_entry_points.py
 3. `main()` uses argparse (or click) with `--help` support
 4. No module-level side effects that would crash on import
 
+**CI workflow parity (v1.1.0)**: Every workflow that runs the subprocess smoke test must
+install the package first. The fix that resolved the ProjectHephaestus release-workflow
+failures (PR #612) added an editable-install step before pytest:
+
+```yaml
+- name: Editable install (scripts/ smoke tests spawn subprocesses that import hephaestus)
+  run: pixi run dev-install   # = pip install -e . --no-deps
+- name: Run tests
+  run: pixi run pytest tests/unit
+```
+
+After merging, the release run's test + type-check + build-and-publish jobs all went
+green in CI — hence `verified-ci` for this finding.
+
 ## Verified On
 
 | Project | Context | Details |
 | --------- | --------- | --------- |
-| ProjectHephaestus | Issue #52, PR #95 | 4 CLI entry points: changelog, merge-prs, system-info, download-dataset |
+| ProjectHephaestus | Issue #52, PR #95 | 4 CLI entry points: changelog, merge-prs, system-info, download-dataset (v1.0.0, verified-local) |
+| ProjectHephaestus | PR #612 | Editable-install / workflow-parity fix: release.yml ran pytest without `pixi run dev-install`, causing 15 `ModuleNotFoundError` failures in subprocess `--help` tests (v1.1.0, verified-ci) |
