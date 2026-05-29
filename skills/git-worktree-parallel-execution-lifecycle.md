@@ -14,10 +14,12 @@ description: "Use when: (1) creating isolated git worktrees for parallel agent e
   a single-PR fix agent finds the shared main repo checked out to its target branch and starts
   editing there, but a sibling agent stashes + switches the branch out mid-session, silently
   discarding the unstaged edits — recover by locating the WIP stash and re-applying into a fresh
-  /tmp worktree."
+  /tmp worktree, (15) deciding whether a CLOSED-PR branch with `git cherry` +1 is keepable
+  unreleased work or merely superseded (content reached main via another PR, or the branch edits
+  since-deleted/renamed files) — investigate before keeping, don't assume cherry=+1 means keep."
 category: tooling
 date: 2026-05-28
-version: "1.1.0"
+version: "1.2.0"
 verification: verified-ci
 user-invocable: false
 history: git-worktree-parallel-execution-lifecycle.history
@@ -374,9 +376,35 @@ git worktree remove <worktree>       # now succeeds without --force
 ```bash
 pr_state=$(gh pr list --head "$br" --state all --json state --jq '.[0].state')
 # MERGED → cherry=1 is artifact — safe to remove
-# CLOSED → cherry=1 = real unreleased work — keep branch
+# CLOSED → cherry=+1 is necessary-but-NOT-sufficient for "keep" — INVESTIGATE first (see below)
 # NONE → real unreleased work — keep branch
 ```
+
+**CLOSED + cherry=+1 is NOT automatically keepable work.** A PR can be CLOSED because its work
+*landed on main through a DIFFERENT PR/branch* (superseded), not because it was abandoned-but-valuable.
+Before deciding keep-vs-delete on a CLOSED-PR branch, run two investigative checks:
+
+```bash
+# Check (a): did the feature/content reach main via a DIFFERENT commit/PR?
+git log origin/main --oneline | grep -i '<feature-keyword>'        # e.g. strict-rubric, marker symbol
+git grep '<marker-symbol-the-branch-introduces>' origin/main -- . # is the content already on main?
+
+# Check (b): does the branch's diff target files that STILL EXIST on main?
+git diff origin/main...<branch> --stat
+# If every path the branch touches no longer exists on main (file renamed/split/deleted),
+# the diff is stale and unrebaseable — a strong "superseded" signal.
+```
+
+| Investigation result | Verdict |
+| -------------------- | ------- |
+| Content already on main via another commit/PR | **SUPERSEDED → delete** (`git branch -D`) |
+| Branch only edits since-deleted/renamed files (vanished on main) | **SUPERSEDED → delete** (`git branch -D`) |
+| Content genuinely NOT on main AND files still exist | **KEEP** (real unreleased work) |
+
+Deletion uses `git branch -D` (capital), NOT `-d`: a cherry=`+` tip is not an ancestor of main,
+so `-d` refuses. `git tidy` also cannot auto-remove these — local-only branches that were never
+pushed (no tracking remote) or whose remote is already `[gone]` are the deliberate `git branch -D`
+human step, taken only AFTER content-on-main is confirmed by the checks above.
 
 #### Generate Reviewable Cleanup Script
 
@@ -493,6 +521,7 @@ gh api --method DELETE "repos/$REPO/git/refs/heads/<branch-name>"
 | Start implementation without checking git log | Planned work from prompt description alone | Work was already done in HEAD commit | Always run `git log --oneline -3` before any planning |
 | Assume large dirty count = artifacts | 187 files dirty → assumed `__pycache__` noise | agent-a117bab3 had 32 real modified Python files on a merged branch | Always inspect `git status --short` output per-file; never assume based on count |
 | Assume cherry=1 means unreleased work | Three branches showed cherry=1 despite MERGED PRs | Rebase-merge rewrites commit hashes; cherry count is 1 even though work is in main | Always check PR state; cherry count is only meaningful when combined with PR=NONE or CLOSED |
+| Treat a CLOSED-PR branch with cherry=+1 as keepable unreleased work | Classified `fix/strict-simplify-pr-site4-581-v2` (PR #586 CLOSED, cherry=+1) as "real unreleased work — keep" by the old heuristic | PR #586 was CLOSED because the strict-rubric feature landed via #583/#585/#587, and the branch edited `prompts.py` which main had split into a `prompts/` package — the +1 diff (123 lines) was stale/superseded, not valuable | On CLOSED+cherry=+, verify (a) content on main via another commit/PR (`git log origin/main` keyword grep / `git grep <marker> origin/main`) and (b) the branch's files still exist on main (`git diff origin/main...<branch> --stat`) before deciding keep-vs-delete; if superseded, delete with `git branch -D` |
 | `git checkout -- .` alone on staged-addition worktree | Ran `checkout -- .` then `git worktree remove` | `fatal: contains modified or untracked files` — staged new files (status `A`) survive `checkout --` unchanged | Run `reset HEAD -- .` first, then `checkout -- .`, then `clean -fd` |
 | Execute destructive ops directly | Planned `git worktree remove` directly on dirty worktrees | User wanted a script to review first | All destructive ops go into a reviewable script; only read-only analysis runs directly |
 | `git worktree remove --force` on dirty worktrees | Used `--force` for stubborn cases | Safety Net blocks `--force` | Clean stray files individually first, then remove without `--force` |
@@ -596,5 +625,6 @@ WORKTREE_PATH=$(git worktree list --porcelain 2>/dev/null | \
 | ProjectScylla | 36 worktrees, 6 dirty, 26 `[gone]` branches; reviewable script | cleanup session 2026-04-12 |
 | ProjectMnemosyne | 13 locked `worktree-agent-<hash>` from dead myrmidon sessions, all dirty=0; unlocked+removed without `--force` | 2026-05-04 |
 | ProjectHephaestus | Myrmidon wave parallelization — 32 → 4 worktrees; 3 PRs from unreleased work | myrmidon-wave 2026-04-05 |
+| ProjectHephaestus | CLOSED+cherry=+1 superseded-branch refinement: `fix/strict-simplify-pr-site4-581-v2` (PR #586 CLOSED) looked keepable but its strict-rubric work was on main via #583/#585/#587 and it edited the since-split `prompts.py` — read-only branch-safety audit, recommendation to user (verified-local, NOT CI) | worktree-cleanup/tidy audit 2026-05-28 |
 | AchaeanFleet | Phase 0.5 gitignore hygiene (commit dcf3d43); `git status --short` clean after cleanup | 2026-04-25 |
 | ProjectOdyssey | `scripts/rebase-all-branches.sh` inline cleanup refactor (PR #5408) | 2026-05-14 |
