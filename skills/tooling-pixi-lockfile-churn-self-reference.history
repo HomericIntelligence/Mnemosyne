@@ -1,0 +1,37 @@
+## v1.0.0 — 2026-05-24
+
+**Snapshot of skill at v1.0.0 before first amendment.**
+
+Documented the self-referential editable-path + hatch-vcs `pixi.lock` churn problem and the localized fix: remove the self-package entry from `[pypi-dependencies]` and install via `pixi run dev-install = "pip install -e . --no-deps"` instead.
+
+Key outcomes documented:
+- Root cause: pixi treats the VCS-derived version as changed on every invocation when `path = "."` + `editable = true` + `hatch-vcs` dynamic versioning are combined.
+- Fix: remove self-referential entry; add `dev-install` task.
+- CI invocation pattern: `pixi install --environment default` → `pixi run dev-install` → run hooks/tests.
+- Verified on ProjectHephaestus PRs #457, #526, #530, #532 (merged 2026-05).
+
+Failed attempts documented:
+1. `no-build-isolation = true` — broke hatchling visibility.
+2. Pixi v0.69.0 + lockfile v7 upgrade — judged too ecosystem-wide at time.
+3. `git checkout -- pixi.lock` — blocked by safety hooks.
+
+---
+
+## v1.1.0 — 2026-05-28
+
+**Amendment: permanent fix via lockfile v7 migration, CI-pin-completeness gotcha, and `requires-pixi` floor.**
+
+This amendment documents the LONG-TERM FIX that was actually implemented in ProjectHephaestus PR #675 (Closes #455): migrating `pixi.lock` to lockfile format v7 (Pixi >=0.68.0), which eliminates the source-dependency input hashes that cause the perpetual churn at the FORMAT level.
+
+New content added:
+- How-to for v6→v7 lockfile migration (`pixi lock` with Pixi >=0.68.0).
+- Verification command for confirming the reflow is a pure format upgrade (resolved package URL/hash SET comparison).
+- `requires-pixi = ">=0.69.0"` field in `pixi.toml [workspace]` as a belt-and-suspenders floor.
+- Critical gotcha: composite actions (`.github/actions/*/action.yml`) must be grepped alongside `.github/workflows/` when bumping pinned tool versions — missing the composite action caused a CI failure with `workspace requires pixi '>=0.69.0', but I am 0.63.2`.
+- Explains why `requires-pixi` is not a `version` field and does not trigger the version-single-source pre-commit hook.
+
+New failed attempts:
+- Bumped only 8 workflow pins, missed 9th pin in composite action → CI lint failure.
+- Judged v6→v7 diff by line count (~1200 lines changed) → actually pure format reflow.
+
+Verification: verified-ci — ProjectHephaestus PR #675 merged with all Required Checks passing.
