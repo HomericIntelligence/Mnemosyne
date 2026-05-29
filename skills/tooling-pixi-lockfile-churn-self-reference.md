@@ -2,10 +2,11 @@
 name: tooling-pixi-lockfile-churn-self-reference
 description: "Stop perpetual `pixi.lock` regeneration in Python projects that combine a self-referential `[pypi-dependencies]` editable path entry with `hatch-vcs` dynamic versioning. Use when: (1) every `pixi install` / `pixi run` rewrites `pixi.lock` even on a clean tree with no manifest edits, (2) pre-commit hooks fail because `pixi.lock` is perpetually dirty, (3) `pixi.toml` declares the package itself under `[pypi-dependencies]` with `path = \".\"` and `editable = true`, and (4) `pyproject.toml` uses `dynamic = [\"version\"]` with `[tool.hatch.version] source = \"vcs\"` (hatch-vcs). The combination makes pixi treat the source-of-truth version as changed on every invocation."
 category: tooling
-date: 2026-05-24
-version: "1.0.0"
+date: 2026-05-28
+version: "1.1.0"
 user-invocable: false
 verification: verified-ci
+history: tooling-pixi-lockfile-churn-self-reference.history
 tags:
   - pixi
   - pixi-lock
@@ -17,6 +18,10 @@ tags:
   - self-reference
   - pre-commit
   - no-build-isolation
+  - lockfile-v7
+  - ci-pin-completeness
+  - composite-action
+  - requires-pixi
 ---
 
 # Pixi Lockfile Churn from Self-Reference + hatch-vcs
@@ -25,10 +30,10 @@ tags:
 
 | Field | Value |
 | ------- | ------- |
-| **Date** | 2026-05-24 |
+| **Date** | 2026-05-28 |
 | **Objective** | Eliminate perpetual `pixi.lock` churn caused by combining a self-referential editable `[pypi-dependencies]` entry with `hatch-vcs` dynamic versioning in the same Python project. |
-| **Outcome** | Removed the self-package entry from `[pypi-dependencies]`; installed the package on demand via a `pixi run dev-install = "pip install -e . --no-deps"` task. Pre-commit workflow runs `pixi install` then `pixi run dev-install`. `pixi.lock` is now stable across invocations; CI is green. |
-| **Verification** | verified-ci (PRs #457, #526, #530, #532 merged with CI green) |
+| **Outcome** | Two proven approaches: (A) localized fix — remove self-package entry + `pixi run dev-install`; (B) permanent format fix — migrate to lockfile v7 (Pixi >=0.68.0) which eliminates source-dependency input hashes entirely. |
+| **Verification** | verified-ci — PRs #457, #526, #530, #532 (approach A) and PR #675 (approach B) all merged with CI green |
 
 ## When to Use
 
@@ -52,9 +57,14 @@ tags:
   ```
 
 - `git checkout -- pixi.lock` is blocked by a safety/pre-commit hook so manual cleanup fails.
-- You considered upgrading Pixi to v0.69 + lockfile v7 (which removes input hashes) but want a localized fix that doesn't ripple through the whole ecosystem.
 
 ## Verified Workflow
+
+Two proven approaches are documented below.
+
+## Approach A — Localized Fix (Remove Self-Reference)
+
+Use when you cannot or do not want to bump Pixi across the ecosystem yet. Faster to land, no ecosystem-wide coordination required.
 
 ### Quick Reference
 
@@ -138,43 +148,121 @@ pixi install && git diff --stat pixi.lock   # should report zero changes
 7. **Do NOT try `[pypi-options] no-build-isolation = true`** as a fix —
    see Failed Attempts.
 
+## Approach B — Permanent Fix: Migrate to Lockfile v7
+
+Use when you are ready to coordinate a Pixi version bump across CI. This is the more durable fix because it eliminates the churn at the FORMAT level — lockfile v7 removes the source-dependency input hashes that cause the perpetual rewrite.
+
+**Prerequisite:** Pixi >=0.68.0 (this session verified with 0.69.0).
+
+### Quick Reference
+
+```bash
+# 1. Upgrade local Pixi to >=0.68.0, then run:
+pixi lock
+# Pixi prints: "the lock file is up-to-date but uses an older format (v6),
+# re-solving all environments using locked content to upgrade to v7"
+
+# 2. Verify the reflow is a pure format upgrade (no dependency drift):
+git show HEAD:pixi.lock | grep -oE "(conda|pypi): [^ ]+" | sort -u > /tmp/old_pkgs.txt
+grep -oE "(conda|pypi): [^ ]+" pixi.lock | sort -u > /tmp/new_pkgs.txt
+diff /tmp/old_pkgs.txt /tmp/new_pkgs.txt   # must be empty
+
+# 3. Add requires-pixi floor to pixi.toml [workspace]:
+pixi workspace requires-pixi set ">=0.69.0"
+# Or manually: add `requires-pixi = ">=0.69.0"` under [workspace] in pixi.toml
+
+# 4. Bump ALL pixi-version pins in CI — grep the WHOLE .github/ tree:
+grep -rn "pixi-version" .github/
+# THIS MUST INCLUDE .github/actions/*/action.yml composite actions, not just workflows!
+
+# 5. Commit and push as a single PR; CI must use >=0.69.0 to read the v7 lock.
+```
+
+### Detailed Steps
+
+1. **Upgrade local Pixi** to >=0.68.0. Check version: `pixi --version`.
+
+2. **Run `pixi lock`** (or `pixi install`). Pixi will detect the v6 format and print
+   the upgrade message, then rewrite `pixi.lock` in v7 format.
+
+3. **Verify the diff is a pure format upgrade.** The v7 reflow touches roughly half
+   the lines (field reordering, new top-level `platforms:` block). Do NOT judge by
+   line count — judge by the resolved package URL/hash SET:
+
+   ```bash
+   git show HEAD:pixi.lock | grep -oE "(conda|pypi): [^ ]+" | sort -u > /tmp/old.txt
+   grep -oE "(conda|pypi): [^ ]+" pixi.lock | sort -u > /tmp/new.txt
+   diff /tmp/old.txt /tmp/new.txt   # must be empty — zero dependency drift
+   ```
+
+4. **Add `requires-pixi = ">=0.69.0"` to `[workspace]`** in `pixi.toml`. This field
+   is NOT a `version` field; the `check-version-single-source` pre-commit hook (which
+   greps `^\s*version\s*=` under `[workspace]`) does NOT flag it. It gives any
+   consumer running an older Pixi a clear error message instead of a confusing
+   v7-unreadable failure.
+
+   ```toml
+   [workspace]
+   requires-pixi = ">=0.69.0"
+   # ... other fields ...
+   ```
+
+5. **Bump ALL Pixi version pins in CI.** This is critical — a v7 lockfile is
+   UNREADABLE by older Pixi. Grep the ENTIRE `.github/` tree:
+
+   ```bash
+   grep -rn "pixi-version" .github/
+   ```
+
+   **CRITICAL:** This must include `.github/actions/*/action.yml` composite actions,
+   not just `.github/workflows/*.yml`. Missing even one pin will cause CI failures
+   of the form `workspace requires pixi '>=0.69.0', but I am 0.63.2`.
+
+6. **Land as a single coordinated PR** that includes the v7 lockfile, the
+   `requires-pixi` floor, and ALL updated CI pins together.
+
+### Why v7 is More Durable
+
+Lockfile v6 includes input hashes for source (path/editable) dependencies so pixi can
+detect manifest changes. With `hatch-vcs`, the "version" part of those inputs resolves
+differently on each invocation, so the hash always changes. Lockfile v7 removes these
+source-dependency input hashes entirely, making the format immune to this class of
+churn regardless of the build backend.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 | --------- | ---------------- | --------------- | ---------------- |
 | 1 | Keep the self-package entry in `[pypi-dependencies]` and add `[pypi-options] no-build-isolation = true` | CI (pixi v0.63.2) failed with `BackendUnavailable: Cannot import 'hatchling.build'` — pip's PEP 517 build subprocess could not see hatchling installed in the parent pixi env | `no-build-isolation` requires the build backend to be visible to the pip subprocess; pixi's environment isolation breaks that visibility. Don't reach for this flag to mask the self-reference problem |
-| 2 | Upgrade to Pixi v0.69.0 with lockfile v7 (which drops input hashes) | Ecosystem-wide change touching every consumer repo; risk and rollout cost too high for a localized symptom | Defer ecosystem-wide pixi version bumps; fix the root cause (the self-reference) in the affected repo instead |
-| 3 | `git checkout -- pixi.lock` on a clean tree to undo the churn | A pre-commit/safety hook blocked the raw checkout | Manual `git checkout` of generated files isn't a reliable workaround when safety hooks are active — eliminate the source of churn rather than papering over it |
+| 2 | `git checkout -- pixi.lock` on a clean tree to undo the churn | A pre-commit/safety hook blocked the raw checkout | Manual `git checkout` of generated files isn't a reliable workaround when safety hooks are active — eliminate the source of churn rather than papering over it |
+| 3 | Bumped only the 8 `setup-pixi` pins in `.github/workflows/` before adding `requires-pixi = ">=0.69.0"` | CI lint/unit-tests still failed: `workspace requires pixi '>=0.69.0', but I am 0.63.2` — a 9th pin was hardcoded in `.github/actions/setup-pixi-env/action.yml` composite action | Grep all of `.github/`, not just `.github/workflows/`. Composite actions are a separate, easily-missed location. The `requires-pixi` floor is what surfaced the missed pin — it turned a silent version mismatch into a loud, located error |
+| 4 | Judged the v6→v7 lock diff by line count (~1200 lines changed) as "large/risky" | The diff looked like a large dependency change but was actually a pure format reflow (field reordering, new `platforms:` block) | Judge lockfile diffs by the resolved package URL/hash SET, not by line count. A format reflow can touch half the file while changing zero actual dependencies |
+| 5 | Relied on the issue's stated "8 pins across 5 workflows" pin count | Undercounted: missed the composite action and miscounted per-file | Always re-derive counts from the live tree with `grep -rn "pixi-version" .github/` — don't trust documentation or issue descriptions for infrastructure counts |
 
 ## Results & Parameters
 
-### Final `pixi.toml` Snippet
+### Final `pixi.toml` Snippet (Approach B)
 
 ```toml
-# No self-reference under [pypi-dependencies]. If the table is otherwise empty,
-# remove it entirely.
+[workspace]
+requires-pixi = ">=0.69.0"
+# ... channels, platforms, etc. ...
 
-[tasks]
-dev-install = "pip install -e . --no-deps"
-# ...other tasks...
+# No self-reference under [pypi-dependencies] (either removed per Approach A,
+# or churn is now prevented by the v7 lockfile format).
 ```
 
-### Final `pyproject.toml` (unchanged — kept for reference)
+### Final CI Snippet (Approach B)
 
-```toml
-[build-system]
-requires = ["hatchling>=1.27.0,<2", "hatch-vcs>=0.4.0,<1"]
-build-backend = "hatchling.build"
-
-[project]
-name = "mypackage"
-dynamic = ["version"]
-
-[tool.hatch.version]
-source = "vcs"
+```yaml
+- uses: prefix-dev/setup-pixi@v0.8.1
+  with:
+    pixi-version: v0.69.0   # must match requires-pixi floor; bump in ALL locations
 ```
 
-### CI / Pre-commit Invocation Order
+**Locations to update:** `.github/workflows/*.yml` AND `.github/actions/*/action.yml`.
+
+### CI / Pre-commit Invocation Order (Approach A)
 
 ```yaml
 steps:
@@ -205,11 +293,21 @@ steps:
 | `pixi.lock` churn on clean tree | no | yes | No — see `lockfile-and-release-pipeline-management` |
 | `pixi.lock` drift vs `main` only | n/a | n/a | No — see `lockfile-and-release-pipeline-management` (section A) |
 
+### Approach Selection
+
+| Factor | Choose Approach A | Choose Approach B |
+| --- | --- | --- |
+| Speed to land | Faster (no ecosystem coordination) | Requires coordinated CI bump |
+| Durability | Localized — other projects can still churn | Permanent — format-level fix |
+| Ecosystem readiness | Pixi >=0.68.0 not yet adopted broadly | Pixi >=0.68.0 available everywhere |
+| Risk | Low (narrow change) | Low if all pins are updated together |
+
 ## Verified On
 
 | Project | Context | Details |
 | --------- | --------- | --------- |
-| ProjectHephaestus | PRs #457, #526, #530, #532 (merged 2026-05) — removed `homericintelligence-hephaestus = { path = ".", editable = true }` from `[pypi-dependencies]`, added `dev-install` task, updated pre-commit workflow | CI green; `pixi.lock` stable across invocations |
+| ProjectHephaestus | PRs #457, #526, #530, #532 (Approach A, merged 2026-05) | Removed `homericintelligence-hephaestus = { path = ".", editable = true }` from `[pypi-dependencies]`, added `dev-install` task, updated pre-commit workflow; CI green; `pixi.lock` stable across invocations |
+| ProjectHephaestus | PR #675 (Approach B, Closes #455, merged 2026-05-28) | Migrated `pixi.lock` to v7 format using Pixi 0.69.0; added `requires-pixi = ">=0.69.0"` to `[workspace]`; bumped all `pixi-version` pins in `.github/workflows/` AND `.github/actions/setup-pixi-env/action.yml`; all Required Checks passed (lint, pixi-check, integration-tests, unit-tests, build, pr-policy, security); local `pixi install` from v7 lock shows zero churn; full unit suite 2771 passed / 2 skipped |
 
 ## References
 
@@ -218,3 +316,4 @@ steps:
 - [pixi-cache-true-unreliable](pixi-cache-true-unreliable.md) — related pixi CI caveat
 - [Pixi PyPI options docs](https://pixi.sh/latest/reference/project_configuration/#the-pypi-options-table)
 - [hatch-vcs docs](https://github.com/ofek/hatch-vcs)
+- [Pixi lockfile v7 changelog](https://github.com/prefix-dev/pixi/releases/tag/v0.68.0)
