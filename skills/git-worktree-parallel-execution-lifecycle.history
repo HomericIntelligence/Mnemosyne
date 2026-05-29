@@ -1,6 +1,69 @@
 <!-- markdownlint-disable MD024 -->
 # git-worktree-parallel-execution-lifecycle — History
 
+## v1.2.0 (2026-05-28)
+
+**Changed by:** ProjectHephaestus worktree-cleanup + tidy leftover-branch audit
+**Verification:** verified-local
+
+### What changed
+
+- Refined the "Cherry=1 Rebase-Merge Artifact Classification" guidance: the `CLOSED → cherry=1 =
+  real unreleased work — keep branch` line is now qualified to `CLOSED → cherry=+1 is
+  necessary-but-NOT-sufficient for "keep" — INVESTIGATE first`. Added an investigate-first
+  subsection with two checks ((a) content-on-main via another commit/PR using
+  `git log origin/main` keyword grep / `git grep <marker> origin/main`; (b)
+  `git diff origin/main...<branch> --stat` for vanished/renamed/deleted paths) and a verdict table.
+- Documented that the deletion of a superseded CLOSED-PR branch uses `git branch -D` (not `-d`,
+  which refuses because a cherry=`+` tip is not an ancestor of main), and that `git tidy` cannot
+  auto-remove local-only/never-pushed or already-`[gone]` orphans — those are the deliberate
+  `git branch -D` human step after content-on-main is confirmed.
+- Added a Failed Attempts row: treating a CLOSED-PR branch with cherry=+1 as keepable unreleased
+  work (PR #586 / `fix/strict-simplify-pr-site4-581-v2`).
+- Extended frontmatter `description` with trigger (15): deciding whether a CLOSED-PR branch with
+  `git cherry` +1 is keepable unreleased work or merely superseded.
+- Added a Verified On row for the ProjectHephaestus worktree-cleanup/tidy audit (2026-05-28,
+  verified-local).
+- Bumped version 1.1.0 → 1.2.0 (minor — refined one guidance line + new failed-attempt + new
+  investigative subsection; no breaking changes). Skill-level `verification` stays `verified-ci`
+  from prior validation; the NEW CLOSED-PR refinement is **verified-local only** (read-only
+  branch-safety audit, classification + recommendation to the user — NOT a CI-validated change).
+
+### Why
+
+The existing `CLOSED + cherry=+1 ⇒ keep the branch (real unreleased work)` heuristic was too
+absolute and produced a near-miss during a ProjectHephaestus read-only branch audit. A CLOSED PR
+can mean "superseded," not "abandoned-but-valuable": branch `fix/strict-simplify-pr-site4-581-v2`
+(PR #586 CLOSED, cherry=+1) looked like real unreleased work by the old rule, but the strict-rubric
+feature it carried had already reached main via separate PRs #583/#585/#587 — deleting the branch
+lost nothing. The same branch also edited `hephaestus/automation/prompts.py`, but main had split
+that module into a `prompts/` package, so the file no longer existed on main and the branch's
+123-line diff was against a vanished path (stale, unrebaseable). The refined rule: on
+CLOSED+cherry=+, investigate (a) whether the content is on main via another commit/PR and (b)
+whether the branch's files still exist on main, BEFORE deciding keep-vs-delete; only genuinely
+unreleased work on still-valid files is kept.
+
+### Previous version (v1.1.0) snapshot of the refined guidance block
+
+````markdown
+#### Cherry=1 Rebase-Merge Artifact Classification
+
+`git cherry` reports `+1` for MERGED rebase PRs (hash rewrite). Always verify PR state:
+
+```bash
+pr_state=$(gh pr list --head "$br" --state all --json state --jq '.[0].state')
+# MERGED → cherry=1 is artifact — safe to remove
+# CLOSED → cherry=1 = real unreleased work — keep branch
+# NONE → real unreleased work — keep branch
+```
+````
+
+(The rest of the v1.1.0 file is unchanged; see
+`git show HEAD:skills/git-worktree-parallel-execution-lifecycle.md` at the commit prior to this
+amendment for the complete pre-amendment snapshot.)
+
+---
+
 ## v1.1.0 (2026-05-28)
 
 **Changed by:** ProjectHephaestus PR #635 rebase + review-fix session (Myrmidon swarm worker).
