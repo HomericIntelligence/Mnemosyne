@@ -150,8 +150,8 @@ class PlannerStateManager:
 |---|---|---|---|
 | 1 | N sequential `gh issue view --comments --json comments` calls (original `has_existing_plan`) | One `gh` subprocess per issue; 20 issues = 20 round-trips before the first worker starts | The `gh` CLI call is a subprocess + HTTP round-trip; never put it in a per-issue loop |
 | 2 | N sequential single-issue GraphQL calls (`_fetch_issue_comments_graphql` called per issue) | Same O(N) round-trip problem; GraphQL is still one HTTP call per issue | The per-issue GraphQL function (`last: 100, orderBy: UPDATED_AT`) is a useful building block — but alias it, don't call it N times |
-| 3 | Putting the batch fetch inside the worker pool | Tried calling `fetch_all_issue_comments_graphql` from within each worker | Race condition on the result dict; workers started before batch result arrived | Call batch fetch before the pool starts (in `filter()` or an explicit `prefetch_comments()` step) |
-| 4 | dict comprehension `{idx: num for idx, num in enumerate(issue_numbers)}` | Passed ruff check initially | ruff C416: unnecessary dict comprehension — rewrite using `dict()` | Use `dict(enumerate(issue_numbers))`; ruff C416 fires on `{k: v for k, v in iterable}` |
+| 3 | Putting the batch fetch inside the worker pool (called `fetch_all_issue_comments_graphql` from within each worker) | Race condition on the result dict; workers started before batch result arrived | Call batch fetch before the pool starts (in `filter()` or an explicit `prefetch_comments()` step) |
+| 4 | dict comprehension `{idx: num for idx, num in enumerate(issue_numbers)}` (passed ruff check initially) | ruff C416: unnecessary dict comprehension — rewrite using `dict()` | Use `dict(enumerate(issue_numbers))`; ruff C416 fires on `{k: v for k, v in iterable}` |
 
 ## Results & Parameters
 
