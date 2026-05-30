@@ -145,4 +145,3 @@ Checking per-module coverage floors...
 | Project | Context | Details |
 |---------|---------|---------|
 | ProjectHephaestus | issue #623 (test: add per-module coverage floor + e2e backstop) | Implemented parse_module_coverage() + CI step; 48 unit tests pass locally |
-
