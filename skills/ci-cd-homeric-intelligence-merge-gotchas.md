@@ -1,0 +1,201 @@
+---
+name: ci-cd-homeric-intelligence-merge-gotchas
+description: "Recurring HomericIntelligence CI/merge traps that block PR auto-merge even when the code is correct. Use when: (1) pixi-check fails 'lock-file not up-to-date with the workspace' or Lint/Type-Check break after removing pypi-dependencies; (2) a Keystone-style lint job fails fast (~20s) at 'Install build dependencies (just + linters)'; (3) CodeQL cpp/unused-{local,static}-variable flags a genuinely-used C++ variadic template parameter pack; (4) a PR is MERGEABLE with all REQUIRED checks green but auto-merge won't fire; (5) you are driving a chain of dependency-gated PRs and need to auto-arm each downstream PR when its gate merges."
+category: ci-cd
+date: 2026-05-31
+version: "1.0.0"
+user-invocable: false
+verification: verified-ci
+tags: [pixi, pixi-lock, codeql, auto-merge, branch-protection, just-systems, keystone, agamemnon, dependency-gated-pr]
+---
+
+# HomericIntelligence CI / Merge Gotchas
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2026-05-31 |
+| **Objective** | Unblock PR auto-merge across HomericIntelligence repos when the code is correct but CI/merge mechanics get in the way — pixi lock-format mismatch, just.systems install flakes, CodeQL variadic-pack false positives, auto-merge stalling on non-required checks, and ordering of dependency-gated PR cascades |
+| **Outcome** | Five distinct traps each have a verified, repeatable fix; established the diagnostic that distinguishes a real failure from infra flake (failing STEP NAME, not log), the correct CodeQL dismiss path (≤280-char comment + thread resolution), the required-contexts query, and the action-monitor pattern that arms held downstream PRs only after their gates merge |
+| **Verification** | verified-ci — all five traps observed and fixed in live CI during the Keystone pure-transport refactor; Keystone #577/578/579/580/581 and Agamemnon #419/420/421 all merged to `main` (2026-05-31) |
+
+## When to Use
+
+1. **pixi lock mismatch.** `pixi-check` fails `lock-file not up-to-date with the workspace`, or `Lint` / `Type-Check` / `dependency-scan` go red — especially right after you removed a `[pypi-dependencies]` table from `pixi.toml`.
+2. **Fast lint flake.** A Keystone-family `lint` job fails in ~20s at the step **"Install build dependencies (just + linters)"** (a `curl https://just.systems/install.sh` 403/EOF), not at an actual linter step.
+3. **CodeQL variadic-pack false positive.** `cpp/unused-local-variable` or `cpp/unused-static-variable` flags a C++ variadic template parameter pack (`args`, `Rest`) that is genuinely consumed via pack-expansion or forwarding.
+4. **Auto-merge won't fire.** A PR is `MERGEABLE` with every branch-protection-required context green, yet GitHub auto-merge does not merge because a NON-required check (Coverage, security/dependency-scan) is still red or pending.
+5. **Dependency-gated cascade.** You are driving a chain where a downstream PR must not merge until its gate PR(s) merge first (extraction-before-deletion), and you want each downstream PR auto-armed the moment its gates land.
+
+## Verified Workflow
+
+> **Verification level:** verified-ci — every trap below was hit and resolved in live CI this session; Keystone #577–#581 and Agamemnon #419–#421 merged to `main` 2026-05-31.
+
+### 1. pixi lock-format version trap
+
+CI's `setup-pixi` pins an **older** pixi that requires lock-file `version: 6`. Local pixi 0.69.x writes `version: 7`, which CI's pixi **cannot load** → `pixi install --locked` fails. This surfaces indirectly as red `Lint` / `Type-Check` / `dependency-scan` jobs (they all run `pixi install --locked` first), so the failure looks like a code problem when it is purely a lock-format problem.
+
+- pixi **0.39.5** writes v6 but lacks a `lock` subcommand, and its parselmouth pypi-name-mapping download (`raw.githubusercontent.com/prefix-dev/parselmouth`) flakes from sandboxes — so it is unreliable for regenerating the lock.
+- **Reliable fix:** resolve with a newer pixi to confirm the conda package set is unchanged, then **hand-edit the v6 lock** to drop orphaned pypi packages. Verify with `pixi install --locked` using a pixi NEWER than CI's: when it prints `lock file is up-to-date but uses an older format (v6)` and exits 0, that proves CI's older pixi will also accept it.
+- **Companion trap:** removing the `[pypi-dependencies]` table from `pixi.toml` WITHOUT regenerating/editing the lock makes `pixi-check` fail `lock-file not up-to-date with the workspace`. The lock must be edited to match the workspace in the same change.
+
+### 2. just.systems lint flake (transient infra, auto-rerunnable)
+
+A Keystone-family `lint` job that fails in ~20s at the step **"Install build dependencies (just + linters)"** is almost always the `curl https://just.systems/install.sh` returning 403 / closing the connection (EOF) — transient infra, NOT a lint error.
+
+- **Diagnose by the FAILING STEP NAME, not the log body:**
+  ```bash
+  gh api repos/<o>/<r>/actions/jobs/<jobid> \
+    --jq '.steps[]|select(.conclusion=="failure")|.name'
+  ```
+- If the failing step is the dep-install step → just rerun: `gh run rerun <runid> --repo <o>/<r> --failed`.
+- A REAL lint failure (clang-format / ruff / mypy) fails at a **later** step, after deps installed. Do not blindly rerun those.
+- An action-monitor can fully automate this: match the failing step name, rerun if it is the dep-install flake, and escalate only when a NON-dep-install step fails.
+
+### 3. CodeQL variadic-pack false positives
+
+`cpp/unused-local-variable` and `cpp/unused-static-variable` flag C++ variadic template parameter packs (`args`, `Rest`) as unused even when they are consumed via pack-expansion (`stringify(args)...`) or forwarding (`f(args...)`).
+
+- **No code rewrite eliminates it.** Removing a `(void)sizeof...(args)` hack, or de-recursing the formatter, just MOVES the flagged line numbers; the autofix bot keeps pushing non-sticking "Potential fix for pull request finding…" commits.
+- **Correct action = DISMISS AS FALSE POSITIVE** (after confirming the pack IS used):
+  ```bash
+  gh api --method PATCH repos/<o>/<r>/code-scanning/alerts/<n> \
+    -f state=dismissed \
+    -f dismissed_reason="false positive" \
+    -f dismissed_comment="<reason>"
+  ```
+  **CRITICAL:** `dismissed_comment` is capped at **280 chars**. Longer → HTTP 422 `Only 280 characters are allowed`.
+- Then resolve the associated review threads via GraphQL `addPullRequestReviewThreadReply` + `resolveReviewThread`. Map a thread to its alert by parsing `code-scanning/(\d+)` out of the comment body.
+
+### 4. Auto-merge blocks on ANY failing check, even non-required
+
+A PR can be `MERGEABLE` with ALL branch-protection-required contexts green, yet GitHub auto-merge will NOT fire while a NON-required check (Coverage, security/dependency-scan) is red. **Auto-merge is stricter than branch protection.**
+
+- Find what is actually required:
+  ```bash
+  gh api repos/<o>/<r>/branches/main/protection \
+    --jq .required_status_checks.contexts
+  ```
+- If the red check is non-required AND a real issue → fix it (do not bypass; the user may have said "fix all even if pre-existing"). Auto-merge fires once ALL checks (including pending non-required ones) reach a terminal state with no failures.
+- **Note:** some repos have NO branch protection. There `BLOCKED` + `mergeable=UNKNOWN` just means GitHub is still computing mergeability; it merges a moment later — nothing to fix.
+
+### 5. Dependency-gated PR cascade orchestration
+
+When PR-B must merge before PR-A is safe (e.g. extraction-before-deletion), enforce the ordering with an **action-monitor** (a persistent background `gh`-poll loop) rather than serializing wall-clock:
+
+- The monitor watches the gate PRs' state; when ALL gates show `MERGED`, it runs `gh pr merge <downstream> --auto --squash` to arm the held PR.
+- It emits ONLY actionable transitions: a gate reaching `MERGED`, a required check failing (`CI-FAIL`), or the held PR appearing.
+- Hold the downstream PR **UNARMED** (create it, run its CI, but do NOT arm auto-merge) until the monitor confirms the gates merged. This preserves the ordering invariant while CI runs in parallel.
+- When a gate's squash-merge creates a conflict for a sibling PR, rebase the sibling onto `main` (see [[parallel-swarm-pr-conflict-reconciliation]]).
+
+### Quick Reference
+
+```bash
+# Detect which STEP failed (flake vs real failure)
+gh api repos/<o>/<r>/actions/jobs/<jobid> \
+  --jq '.steps[]|select(.conclusion=="failure")|.name'
+
+# Rerun only failed jobs (use for the just.systems dep-install flake)
+gh run rerun <runid> --repo <o>/<r> --failed
+
+# Dismiss a CodeQL variadic-pack false positive (comment must be <=280 chars)
+gh api --method PATCH repos/<o>/<r>/code-scanning/alerts/<n> \
+  -f state=dismissed -f dismissed_reason="false positive" \
+  -f dismissed_comment="<=280 chars: pack is consumed via expansion/forwarding"
+
+# What contexts are ACTUALLY required by branch protection
+gh api repos/<o>/<r>/branches/main/protection \
+  --jq .required_status_checks.contexts
+
+# Arm auto-merge on a held downstream PR (once its gates merged)
+gh pr merge <downstream> --auto --squash
+
+# Confirm a pixi lock is v6 (the format CI's pinned pixi can load)
+grep -m1 '^version:' pixi.lock   # expect: version: 6
+```
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+|---------|----------------|---------------|----------------|
+| 1 | Regenerate `pixi.lock` with pixi 0.69 (`pixi update`) | Wrote lock-format v7; CI's older pixi can't load v7, so `Lint`/`Type-Check`/`dependency-scan` silently went red | Keep the lock at v6 — hand-edit it or regenerate with a v6-emitting pixi; verify with `pixi install --locked` |
+| 2 | `git restore` stale worktree mods to discard them | The Safety Net BLOCKED `git restore` (irreversible discard is gated) | Print the command for the user to run; never `--force` an irreversible discard |
+| 3 | Treated a fast (~20s) lint failure as a code error and re-ran blindly | It was the `just.systems` curl flake at the dep-install step, so the blind rerun wasted a cycle | Check the FAILING STEP NAME first; only rerun when it is the dep-install flake |
+| 4 | Rewrote the logger to satisfy CodeQL unused-variadic-pack | Redesigned the variadic templates twice; CodeQL still flagged the pack, just at new line numbers | It is a known false positive — DISMISS the alert (≤280-char comment) and resolve threads instead of rewriting |
+| 5 | Assumed a `MERGEABLE` PR with all required checks green would auto-merge | Auto-merge stalled on a non-required red check (Coverage) — auto-merge is stricter than branch protection | Query `required_status_checks.contexts`; fix the non-required red (don't bypass) so all checks reach a clean terminal state |
+
+## Results & Parameters
+
+### Dismiss a CodeQL false positive (variadic pack)
+
+```bash
+gh api --method PATCH repos/<o>/<r>/code-scanning/alerts/<n> \
+  -f state=dismissed \
+  -f dismissed_reason="false positive" \
+  -f dismissed_comment="Variadic pack consumed via expansion/forwarding; CodeQL mis-flags it."
+# dismissed_comment MUST be <=280 chars or the call returns HTTP 422
+#   "Only 280 characters are allowed"
+```
+
+### Required-contexts query (what auto-merge actually waits on minus non-required)
+
+```bash
+gh api repos/<o>/<r>/branches/main/protection \
+  --jq .required_status_checks.contexts
+```
+
+### Failing-step diagnosis (flake vs real)
+
+```bash
+gh api repos/<o>/<r>/actions/jobs/<jobid> \
+  --jq '.steps[]|select(.conclusion=="failure")|.name'
+# "Install build dependencies (just + linters)"  -> just.systems flake, rerun
+# a clang-format / ruff / mypy step               -> real lint failure, fix the code
+```
+
+### Rerun the flake
+
+```bash
+gh run rerun <runid> --repo <o>/<r> --failed
+```
+
+### Arm auto-merge on a held PR
+
+```bash
+gh pr merge <downstream> --auto --squash
+```
+
+### pixi lock format check
+
+```bash
+grep -m1 '^version:' pixi.lock   # must read "version: 6" for CI's pinned pixi
+# Verify acceptance with a pixi NEWER than CI's:
+pixi install --locked
+#   prints "lock file is up-to-date but uses an older format (v6)" and exits 0
+#   => CI's older pixi will also accept it
+```
+
+### Key parameters
+
+- `dismissed_comment` ≤ **280 chars** (HTTP 422 otherwise).
+- pixi lock must stay at **`version: 6`** for CI's pinned pixi.
+- Removing `[pypi-dependencies]` from `pixi.toml` requires editing/regenerating the lock in the SAME change, or `pixi-check` fails `lock-file not up-to-date with the workspace`.
+- A ~20s `lint` failure at "Install build dependencies (just + linters)" is the `just.systems` flake — rerun, do not edit code.
+- Auto-merge waits on ALL checks (required + non-required) reaching a clean terminal state; branch protection only gates the required ones.
+- Hold a dependency-gated downstream PR UNARMED until its gates merge; arm with `--auto --squash` from the action-monitor.
+
+### Verified On
+
+| Repo | Context | PRs (all merged 2026-05-31) |
+|------|---------|------------------------------|
+| ProjectKeystone | Keystone pure-transport refactor | #577, #578, #579, #580, #581 |
+| ProjectAgamemnon | Downstream consumers of the Keystone transport change | #419, #420, #421 |
+
+## Related Skills
+
+- [[parallel-swarm-pr-conflict-reconciliation]] — rebasing a sibling PR when a gate's squash-merge conflicts.
+- [[git-rebase-over-deletion]] — preferring rebase to discarding/deleting work.
+- [[always-sign-commits]] — all commits must be `-S` signed and verified.
+- [[squash-not-rebase-merge]] — HI repos disable rebase-merge; auto-merge with `--squash`.
+- [[cpp-cmake-ci-build-and-test-fixes]] — C++/CMake CI build and test triage.
