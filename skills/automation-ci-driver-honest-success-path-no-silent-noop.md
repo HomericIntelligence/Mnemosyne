@@ -39,7 +39,7 @@ Trigger phrases that should route to this skill:
 - "agent session returned in seconds with no commit"
 - "multi-repo run script success/failed buckets don't match GitHub"
 - "automation reports 'pushed CI fixes for PR #N' silently"
-- "worktree created off main instead of origin/<pr-head>"
+- "worktree created off main instead of `origin/<pr-head>`"
 - "repo done with open PRs still outstanding"
 - "drive-green honest reporting"
 - "silent no-op push to PR branch"
@@ -324,7 +324,7 @@ Completed. rc=1
 - [PR #833 - worktree pre-sync + explicit push refspec](https://github.com/HomericIntelligence/ProjectHephaestus/pull/833)
 - [PR #837 - no-commit guard between agent return and push](https://github.com/HomericIntelligence/ProjectHephaestus/pull/837)
 - [PR #839 - repo done gated on open PR count == 0](https://github.com/HomericIntelligence/ProjectHephaestus/pull/839)
-- [Issue #832 - worktree did not sync to origin/<pr-head>](https://github.com/HomericIntelligence/ProjectHephaestus/issues/832)
+- [Issue #832 - worktree did not sync to `origin/<pr-head>`](https://github.com/HomericIntelligence/ProjectHephaestus/issues/832)
 - [Issue #836 - driver pushed silently when agent produced no commit](https://github.com/HomericIntelligence/ProjectHephaestus/issues/836)
 - [Issue #838 - repo done evaluated per-issue, not per-repo](https://github.com/HomericIntelligence/ProjectHephaestus/issues/838)
 - [tooling-hephaestus-automation-loop-drive-green-broken-design](tooling-hephaestus-automation-loop-drive-green-broken-design.md) - related design-level bugs in the loop runner's phase model and PR discovery. Different layer; both skills apply when auditing `drive_prs_green`.
