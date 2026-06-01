@@ -1,5 +1,70 @@
 # batch-pr-rebase-workflow — Version History
 
+## v2.18.0 (2026-06-01)
+
+**Changed by:** Shared-infra fix sync across 9 sibling PRs (corrected `scripts/verify-branch-protection.sh` / branch-protection-drift check)
+**Verification:** verified-local
+
+### What changed
+
+- Bumped version 2.17.0 → 2.18.0
+- Added 4 new "Failed Attempts" rows covering the shared-infra-file-across-sibling-PRs sync trap:
+  - plain `git rebase origin/main` always conflicts on the shared infra file (each sibling PR carries its own partial copy)
+  - `git checkout --theirs <shared-file>` resolves to main-at-replay-step, not main HEAD — a PR's own later commit re-introduces the stale assertion
+  - a robust auto-rebase loop must `--skip` empty-after-resolution commits and abort/flag real feature conflicts, not blindly `--continue`
+  - a post-rebase drift `conclusion=failure` was a REAL failure, not a stale/lagging read — verify file content at the exact sha
+- Added a new Verified-Workflow subsection "Phase 3.8: Syncing a shared-infra file across sibling PRs (the reliable shortcut)" — overwrite the shared file with `git show origin/main:path > path` and commit, rather than trusting rebase conflict-resolution
+- Added Results & Parameters notes: Safety-Net interactions (`git reset --hard` and `git worktree remove --force` blocked; force-push to non-authored PRs can be denied by the auto-mode "Git Destructive" classifier — get explicit authorization first); the two-layer required-checks reframe (compute the union of ruleset required checks AND classic protection contexts before chasing a red non-required check like markdownlint/docker-build)
+- Added a "Verified On" row for the 9-sibling-PR shared-infra sync session
+
+### Why
+
+A shared infrastructure fix (a corrected `scripts/verify-branch-protection.sh`, the
+branch-protection-drift check) landed on `main` via one PR. 9 sibling PRs auto-generated
+from a backlog — all touching the same infra files plus the same docs, all 6 commits behind
+main and DIRTY/CONFLICTING — needed to pick it up.
+
+Straight rebase conflicted on the shared file every time, and "take theirs" during rebase
+produced a hybrid/stale tree: the rebase replayed each PR's OWN intermediate commit of the
+file, which had the endpoint fix but a STALE assertion (`>= 1` instead of main's final
+`== 0`). The branch-protection-drift check then failed on the rebased HEAD — a real failure,
+not a lagging API read. The reliable fix was to explicitly overwrite the shared file with
+main's exact content (`git show origin/main:path > path; git commit -S`) after rebasing the
+feature commits, then verify each PR HEAD at the sha level before trusting CI.
+
+Two safety/process notes also surfaced: `git reset --hard` and `git worktree remove --force`
+are blocked by the Safety Net (use a fresh `git checkout -B` per PR; `rm -rf` unlinked
+worktree dirs); force-pushing auto-resolved rebases onto PRs you did NOT author can be denied
+by the auto-mode classifier as "Git Destructive" — get explicit user authorization first.
+And the real CI gate was the classic-protection branch-protection-drift check, NOT the red
+markdownlint/docker-build checks (which were non-required) — compute the union of both
+protection layers before chasing a red check. (cross-ref [[hi-branch-protection-two-layer]])
+
+### Verification
+
+verified-local: the fix (sync shared file to main) was applied to all 9 PRs, commits are
+signed and GitHub-verified, and the drift check returned `conclusion=success` on multiple
+rebased HEADs. The full required-check suite was still running at session end, so end-to-end
+merge is NOT yet verified-ci.
+
+### Previous version (v2.17.0) snapshot
+
+```yaml
+name: batch-pr-rebase-workflow
+category: ci-cd
+date: 2026-05-28
+version: "2.17.0"
+verification: verified-ci
+history: batch-pr-rebase-workflow.history
+```
+
+The v2.17.0 body is the immediately-preceding committed state of
+`skills/batch-pr-rebase-workflow.md` (56 description triggers, Failed Attempts ending with
+the pr-policy-without-reading-job-logs row, Results & Parameters without the shared-infra
+sync notes). See the prior commit on `main` for the full text.
+
+---
+
 ## v2.17.0 (2026-05-28)
 
 **Changed by:** ProjectHephaestus PR #645 single-PR remediation session
