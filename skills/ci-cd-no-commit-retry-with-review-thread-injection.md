@@ -274,7 +274,7 @@ Where:
 
 - `{pr}`, `{issue}`, `{pr_head_branch}` are the PR number, issue number, and head branch name.
 - `{failing_check_names_bulleted}` is the output of `_failing_required_check_names`,
-  one check name per line, prefixed with `- `. Example:
+  one check name per line, prefixed with `` `- ` ``. Example:
 
   ```text
   - lint
