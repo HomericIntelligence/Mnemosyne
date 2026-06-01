@@ -1,13 +1,13 @@
 ---
 name: verify-audit-findings-before-acting
-description: "Strict-mode repo audits routinely hallucinate critical findings (references to nonexistent files, claims of missing CI checks that already exist) AND miss real ones (linter bugs, root causes). Verify each finding against current filesystem state BEFORE writing a remediation plan, and search for inverse hypotheses (what the audit MISSED) before acting. Use when: (1) consuming output from /repo-analyze-strict or any swarm-audit, (2) about to write a remediation plan from audit output, (3) about to bulk-file remediation issues, (4) deciding which audit majors are real, (5) the audit's CRITICAL/MAJOR count differs from what you can verify on disk."
+description: "Strict-mode repo audits AND PR-reviewer sub-agents routinely hallucinate critical findings (references to nonexistent files, claims of missing CI checks that already exist, REQUEST_CHANGES citing a red CI check that is ALSO red on main) AND miss real ones (linter bugs, root causes). Verify each finding against ground truth (filesystem state or `gh run list --branch main`) BEFORE writing a remediation plan or posting a review verdict, and search for inverse hypotheses (what the audit MISSED) before acting. Use when: (1) consuming output from /repo-analyze-strict or any swarm-audit, (2) about to write a remediation plan from audit output, (3) about to bulk-file remediation issues, (4) deciding which audit majors are real, (5) the audit's CRITICAL/MAJOR count differs from what you can verify on disk, (6) about to post a REQUEST_CHANGES verdict that cites a red CI check as the blocker."
 category: documentation
 date: 2026-05-31
-version: "1.2.0"
+version: "1.3.0"
 user-invocable: false
 verification: verified-ci
 history: verify-audit-findings-before-acting.history
-tags: [audit, code-review, fact-checking, remediation, phase-1-verification, inverse-hypothesis-search, audit-corrections-section, root-cause-discovery, remediation-plan-corrections]
+tags: [audit, code-review, fact-checking, remediation, phase-1-verification, inverse-hypothesis-search, audit-corrections-section, root-cause-discovery, remediation-plan-corrections, pr-reviewer-verdict-verification]
 ---
 
 # Verify Each Audit Finding Against the Filesystem Before Acting
@@ -17,9 +17,9 @@ tags: [audit, code-review, fact-checking, remediation, phase-1-verification, inv
 | Field | Value |
 |-------|-------|
 | **Date** | 2026-05-31 |
-| **Objective** | Catch hallucinated audit findings before they become wasted remediation work AND discover root-cause findings the audit missed by searching the inverse hypothesis space |
-| **Outcome** | Saved 3 false-positive PRs AND discovered 1 root-cause finding the audit missed; 10 PRs landed, 9 already merged with green CI on first attempt |
-| **Verification** | verified-ci (10 PRs merged with green CI in 2026-05-31 session; ≈10–25% false-positive rate corroborated across three strict-full sessions) |
+| **Objective** | Catch hallucinated audit findings AND PR-reviewer false blockers before they become wasted remediation work or unfair REQUEST_CHANGES verdicts, and discover root-cause findings the audit missed by searching the inverse hypothesis space |
+| **Outcome** | Saved 3 false-positive PRs AND discovered 1 root-cause finding the audit missed; 10 PRs landed, 9 already merged with green CI on first attempt. AchaeanFleet Dependabot session caught 2 reviewer agents citing pre-existing main-branch CI failures as PR blockers — flipped PR #688 verdict from REQUEST_CHANGES to APPROVE before posting. |
+| **Verification** | verified-ci (10 PRs merged with green CI in 2026-05-31 session; ≈10–25% false-positive rate corroborated across three strict-full sessions; new PR-reviewer-verdict case corroborated on AchaeanFleet Dependabot review) |
 | **History** | [changelog](./verify-audit-findings-before-acting.history) |
 
 ## When to Use
@@ -33,6 +33,7 @@ tags: [audit, code-review, fact-checking, remediation, phase-1-verification, inv
 - **Two swarm section agents disagree on the same checkable fact** — the disagreement itself is the verification trigger; grep the fact before filing either way.
 - **Before claiming the audit is "complete enough" to drive remediation** *(added v1.2.0)* — search the INVERSE hypothesis space: if the audit says "linter is MISSING", ALSO check "is the linter PRESENT but WRONG?" The inverse class is the most common audit blind spot and is often the actual root cause.
 - **The audit's CRITICAL/MAJOR count differs from your independent count** *(added v1.2.0)* — a 1- or 2-finding gap is normal noise; a 3+ finding gap means either you or the audit is wrong about ground truth. Verify before believing either side.
+- **Before posting a REQUEST_CHANGES verdict that cites a red CI check as the blocker** *(added v1.3.0)* — a PR-reviewer sub-agent (e.g. `feature-dev:code-reviewer`) inspects the PR's `statusCheckRollup` and sees a red check, but has no visibility into `main`'s independent CI state. The orchestrator MUST run `gh run list --branch main --limit 5` for the same job name before posting the verdict. If the same job is red on `main`, the failure is pre-existing — mention it but do NOT block on it. Trusting the reviewer agent's label without checking `main` produces false REQUEST_CHANGES verdicts that unfairly block clean dependency bumps.
 
 ## Verified Workflow
 
@@ -43,6 +44,18 @@ tags: [audit, code-review, fact-checking, remediation, phase-1-verification, inv
 ls <path-the-audit-claimed-is-missing>     # is the file really absent?
 grep -rn <symbol-or-config> <path>          # is the integration really missing?
 git log --all -- <path>                     # was it ever there? (helps spot a recent delete)
+```
+
+```bash
+# PR-reviewer REQUEST_CHANGES verdict: before treating a failing check as a PR blocker (added v1.3.0):
+# 1. Get the failing check names on the PR
+gh pr view N --repo OWNER/REPO --json statusCheckRollup \
+  --jq '.statusCheckRollup[] | select(.conclusion=="FAILURE") | .name'
+# 2. Check the same names on latest main
+gh run list --repo OWNER/REPO --branch main --limit 5 \
+  --json name,conclusion,headSha --jq '.[] | "\(.headSha[0:8]) \(.name) \(.conclusion)"'
+# 3. If a failure appears on BOTH the PR and the latest main run for the same job name,
+#    it's pre-existing -> mention it but do NOT block on it.
 ```
 
 ### Detailed Steps
@@ -153,6 +166,7 @@ This section is the bridge between the audit's reported finding count and the pl
 | Trust strict audit findings without verification before remediation planning | Auditor (Opus 4.7) flagged 3 CRITICAL + 26 MAJOR + 40 MINOR; I started drafting the remediation plan from the raw list | 3 of 29 findings (10.3%) were factually refuted by Phase 1: `_version.py` not tracked, `dist/` did not exist, `security.yml` did not duplicate `_required.yml`. Drafting against the raw list would have produced 3 PRs that fix non-issues | Phase 1 verification MUST run BEFORE remediation planning, not before issue filing. The plan must be written against the corrected finding list, not raw audit output |
 | Skip the inverse-hypothesis check ("audit says missing — also check is it present but wrong?") | Treat the audit's hypothesis space as complete | The audit missed `hephaestus/validation/doc_policy.py` linter that was REJECTING `--squash` and requiring `--rebase`. That linter was the ROOT CAUSE of `--rebase` text in skill files (myrmidon-swarm:318, learn:422). Fixing skills without fixing the linter would have blocked the very PRs the plan generated | For every "X is missing" finding, also ask "is X present but wrong?" — the inverse class is the most common audit blind spot and is often the root cause |
 | Omit AUDIT CORRECTIONS section from the remediation plan | Hand the plan to reviewers without explaining why the PR count differs from the audit's finding count | Reviewers ask "audit said 3 CRITICAL, plan has 1 PR — what happened?" Downstream agents re-introduce the refuted findings in subsequent rounds because the refutation evidence is not preserved | Every audit-driven remediation plan MUST include an AUDIT CORRECTIONS section listing what was refuted, with evidence. Reviewers must be able to immediately see why the plan's count differs |
+| Posting REQUEST_CHANGES on AchaeanFleet#688 citing `markdownlint` failure | Reviewer agent said CI was red, so I drafted REQUEST_CHANGES | `markdownlint` was ALSO failing on `main` at the same commit — failure was pre-existing, not caused by this PR (`docker/setup-qemu-action 3.6 → 4.1`). Had I posted, I would have unfairly blocked a clean bump | Always `gh run list --branch main --limit 5` before treating a red check as PR-introduced; reviewer sub-agents see only the PR's `statusCheckRollup` and have no visibility into `main`'s independent CI state |
 
 ## Results & Parameters
 
@@ -208,3 +222,4 @@ done
 | ProjectHephaestus | 2026-05-26 strict-mode full-coverage audit (B+ 84%) | 3 of 11 majors were stale: hallucinated `.claude/hooks/learn-trigger.py` reference (S11 critical), claim of "no gitleaks in CI" (S8 major) when gitleaks v8.30.0 was already wired, partially-wrong claim that `bootstrap` recipe was broken (S13 major). Caught all 3 in under 5 minutes of `ls`/`grep` verification before filing issues. |
 | ProjectHephaestus | 2026-05-27 `/repo-analyze-strict-full` (15 Sonnet agents, full coverage, B+ ~86% GO) | ~3 of ~16 findings false/stale (≈20%). New classes: S8 "no secrets-scanning in CI" was false — Gitleaks REQUIRED at `_required.yml:478-497` (S6 said present, S8 said absent → inter-agent disagreement was the trigger). Line drift in TRUE findings: development.md line 19 not 18; `runtime.py:93` already had `timeout=10`; README 2 pins not 3. Verified MAJORs held: stale CLAUDE.md `:411-413`, pr-policy absent from live ruleset, broken `just watch` reproduced live. |
 | ProjectHephaestus | 2026-05-31 `/repo-analyze-strict-full` 15-section audit (Opus 4.7 auditor, 3 CRITICAL + 26 MAJOR + 40 MINOR, B- 82.5% overall) | **3 of 29 findings (10.3%) REFUTED by Phase-1 Explore agent before remediation:** (1) `hephaestus/_version.py` CRITICAL "tracked despite .gitignore" — `git ls-files` returned empty, not tracked, gitignore + hatch-vcs already correct; (2) `dist/` MAJOR "contains stale dev wheels" — directory did not exist, already gitignored; (3) `security.yml` MAJOR "duplicates `_required.yml` security jobs" — `_required.yml` has NO security jobs, `security.yml` is standalone. **Phase-1 also DISCOVERED 1 root-cause finding the audit missed:** `hephaestus/validation/doc_policy.py` was REJECTING `--squash` and requiring `--rebase`, contradicting CLAUDE.md squash-only policy. This linter was the ROOT CAUSE of `--rebase` text in skill files (myrmidon-swarm:318, learn:422). Phase 1 sequenced PR1=fix linter first, PR2+=fix skills. **10 PRs landed; 9 already merged with green CI on first attempt; 1 in CI with auto-merge armed.** Without Phase 1, ~3 PRs would have fixed non-issues AND the next PR after skill fixes would have been blocked by the unfixed linter. Verification level upgraded to verified-ci. |
+| AchaeanFleet | 2026-05-31 Dependabot review session (11 `feature-dev:code-reviewer` agents dispatched in parallel) | **2 of 11 reviewer agents cited pre-existing CI failures as PR blockers.** PR #688 (`docker/setup-qemu-action 3.6 → 4.1`): reviewer returned REQUEST_CHANGES citing `markdownlint` red with 4 annotations. Orchestrator ran `gh run list --repo HomericIntelligence/AchaeanFleet --branch main --limit 5` and found `markdownlint`, `Validate claude cap_drop=ALL`, and `Smoke Test (achaean-codebuff)` were ALL red on `main` at commit `7e2d44d`, independent of any PR. Verdict flipped to APPROVE with note "CI failures are pre-existing on `main`, not introduced by this PR." PR #691 (`@types/node` bump): reviewer correctly identified `pixi-check` failure as PR-introduced (passes on main, fails on PR — actual pixi.lock contamination) but ALSO flagged `markdownlint` and `achaean-codebuff` as concerns — both pre-existing. Verdict (REQUEST_CHANGES for pixi.lock contamination) stayed correct but rationale was cleaned up before posting. New trigger added v1.3.0. |

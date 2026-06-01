@@ -1,5 +1,45 @@
 # verify-audit-findings-before-acting -- History
 
+## v1.3.0 (2026-05-31)
+
+**Changed by:** AchaeanFleet Dependabot review session (11 `feature-dev:code-reviewer` agents dispatched in parallel; PR #688 docker/setup-qemu-action 3.6 → 4.1; PR #691 @types/node bump). Orchestrator ran `gh run list --branch main` sanity check before posting verdicts, caught two reviewer agents citing pre-existing CI failures as PR blockers, flipped PR #688 from REQUEST_CHANGES to APPROVE, cleaned the PR #691 rationale.
+**Verification:** verified-local (caught 2 reviewer-agent false blockers in one session; pattern observed on AchaeanFleet main where `markdownlint`, `Validate claude cap_drop=ALL`, `Smoke Test (achaean-codebuff)` were red at commit 7e2d44d independent of any PR)
+
+### What changed
+
+- **Added new When-to-Use trigger:** "Before posting a REQUEST_CHANGES verdict that cites a red CI check as the blocker." The skill previously covered audit findings only. The same ground-truth-verification principle applies whenever a downstream agent (reviewer, auditor, planner) labels a CI failure as PR-introduced. Trusting the label without checking `main` produces false REQUEST_CHANGES verdicts that unfairly block clean dependency bumps.
+- **Added new Failed Attempts row:** Posting REQUEST_CHANGES on AchaeanFleet#688 citing `markdownlint` failure because the reviewer agent said CI was red — `markdownlint` was ALSO failing on `main` at the same commit (pre-existing). Lesson: always `gh run list --branch main --limit 5` before treating a red check as PR-introduced.
+- **Added new Quick Reference snippet:** the three-step verification command sequence for treating a failing check as a PR blocker: (1) `gh pr view --json statusCheckRollup` to get failing check names on the PR, (2) `gh run list --branch main --limit 5 --json name,conclusion,headSha` to check the same names on latest main, (3) if a failure appears on BOTH the PR and the latest main run for the same job name, it's pre-existing → mention it but do NOT block on it.
+- **Updated description** to explicitly name the PR-reviewer / REQUEST_CHANGES case (alongside the existing audit-findings case).
+- **Added new tag** `pr-reviewer-verdict-verification`.
+- **Bumped version 1.2.0 → 1.3.0, date → 2026-05-31.** New trigger + new Failed Attempts row + new workflow snippet = minor bump per /learn semver rules.
+
+### Why
+
+The skill's thesis ("verify each finding against ground truth before acting") was framed for strict-mode audit output. The 2026-05-31 AchaeanFleet Dependabot review session showed the same failure mode in a different surface: a `feature-dev:code-reviewer` agent inspected the PR's `statusCheckRollup`, saw `markdownlint` red, and returned REQUEST_CHANGES citing it as the blocker. The reviewer agent had no visibility into `main`'s independent CI state. Had the orchestrator trusted the verdict and posted REQUEST_CHANGES, it would have unfairly blocked a clean `docker/setup-qemu-action 3.6 → 4.1` bump on a failure that pre-dated the PR.
+
+The same failure-mode also affected the PR #691 reviewer (the `@types/node` bump): it correctly identified the `pixi-check` failure as PR-introduced (passes on main, fails on PR), but ALSO flagged `markdownlint` and `achaean-codebuff` as concerns. Both were pre-existing on main. The verdict (REQUEST_CHANGES for the pixi.lock contamination) was still correct, but the supporting rationale needed cleanup before posting.
+
+Naming this case explicitly in the skill (new trigger + Quick Reference) means future reviewer-agent dispatches automatically route through the `gh run list --branch main` sanity check before posting verdicts.
+
+### Previous version (v1.2.0) snapshot
+
+---
+name: verify-audit-findings-before-acting
+description: "Strict-mode repo audits routinely hallucinate critical findings (references to nonexistent files, claims of missing CI checks that already exist) AND miss real ones (linter bugs, root causes). Verify each finding against current filesystem state BEFORE writing a remediation plan, and search for inverse hypotheses (what the audit MISSED) before acting. Use when: (1) consuming output from /repo-analyze-strict or any swarm-audit, (2) about to write a remediation plan from audit output, (3) about to bulk-file remediation issues, (4) deciding which audit majors are real, (5) the audit's CRITICAL/MAJOR count differs from what you can verify on disk."
+category: documentation
+date: 2026-05-31
+version: "1.2.0"
+user-invocable: false
+verification: verified-ci
+history: verify-audit-findings-before-acting.history
+tags: [audit, code-review, fact-checking, remediation, phase-1-verification, inverse-hypothesis-search, audit-corrections-section, root-cause-discovery, remediation-plan-corrections]
+---
+
+(Full v1.2.0 body preserved in git history at commit immediately preceding the v1.3.0 amendment; v1.1.0 and v1.0.0 snapshots remain below in this file.)
+
+---
+
 ## v1.2.0 (2026-05-31)
 
 **Changed by:** ProjectHephaestus `/repo-analyze-strict-full` 15-section audit (Opus 4.7 auditor; 3 CRITICAL + 26 MAJOR + 40 MINOR; B- 82.5% overall). Phase 1 Explore agent verified findings against live repo before remediation planning. 10 PRs landed; 9 already merged with green CI on first attempt; 1 in CI with auto-merge armed.
