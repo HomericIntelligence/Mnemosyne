@@ -1,5 +1,57 @@
 # verify-audit-findings-before-acting -- History
 
+## v1.2.0 (2026-05-31)
+
+**Changed by:** ProjectHephaestus `/repo-analyze-strict-full` 15-section audit (Opus 4.7 auditor; 3 CRITICAL + 26 MAJOR + 40 MINOR; B- 82.5% overall). Phase 1 Explore agent verified findings against live repo before remediation planning. 10 PRs landed; 9 already merged with green CI on first attempt; 1 in CI with auto-merge armed.
+**Verification:** verified-ci (third corroborating session; 3 of 29 findings = 10.3% refuted by Phase 1 + 1 root-cause finding the audit missed surfaced by inverse-hypothesis search)
+
+### What changed
+
+- **Promoted verification level from `verified-local` → `verified-ci`.** Three sessions of corroborating evidence, and the 2026-05-31 session's plan + 10 PRs landed with 9 already merged green on first attempt (and 1 in CI with auto-merge armed). The skill's discipline is no longer hypothesis — it is the workflow that shipped.
+- **Added "Phase 1 verification BEFORE remediation planning"** as a new When-to-Use trigger and as a dedicated workflow section. Previous versions framed Phase 1 as "before issue filing"; the correct framing is "before drafting the remediation plan." Drafting a plan against unverified findings means PRs that fix non-issues AND leaves actual root causes untouched.
+- **Added "Inverse-Hypothesis Search Catalog"** as a new workflow section with a 7-row table mapping "audit says X is missing" → "also check: is X present but WRONG?" The 2026-05-31 session demonstrated the audit class is biased toward absence findings and systematically misses presence-but-wrong root causes. Catching the `doc_policy.py` linter REJECTING `--squash` was a direct application of this search.
+- **Added "AUDIT CORRECTIONS Section in the Remediation Plan"** as a required structural element of any audit-driven remediation plan. Includes a worked-example table format showing how to enumerate REFUTED findings with evidence AND NEW-FINDING discoveries from inverse-hypothesis search. Reviewers can immediately see why the plan's PR count differs from the audit's finding count.
+- **Added 2 new false-positive classes to Detailed Steps:**
+  - Class 6: "Already-fixed-state hallucination" — auditor flagged `_version.py` CRITICAL "tracked despite .gitignore"; `git ls-files` returned empty. Auditor flagged `dist/` MAJOR "contains stale dev wheels"; directory did not exist. Audit invented bad states the repo had never been in. Run `git ls-files`, `ls -d`, `find` to confirm claimed bad state before believing it.
+  - Class 7: "Cross-file collision hallucination" — auditor flagged `security.yml` MAJOR "duplicates `_required.yml` security jobs"; `_required.yml` contains no security jobs. Audit invented a structural overlap that did not exist. When an audit claims "file A duplicates file B", read both files; do not trust prose summaries.
+- **Added 3 new Failed Attempts rows:**
+  - Trusting strict audit findings without verification before remediation planning (10.3% refutation rate in this session).
+  - Skipping the inverse-hypothesis check (audit missed the `doc_policy.py` linter root cause).
+  - Omitting AUDIT CORRECTIONS section from the remediation plan (downstream agents re-introduce refuted findings).
+- **Added "Missed-finding rate" to Results & Parameters** — N=1 across one session is not yet a stable estimate; conjecture: 1–3 missed root causes per strict audit, with the inverse-hypothesis class being the most common.
+- **Updated "Verified On"** with the 2026-05-31 ProjectHephaestus session including concrete refutation evidence and the root-cause-discovery worked example.
+- **Updated description, tags, version, date.** Description now names the inverse-hypothesis search and the AUDIT CORRECTIONS pattern. Tags add `phase-1-verification`, `inverse-hypothesis-search`, `audit-corrections-section`, `root-cause-discovery`, `remediation-plan-corrections`. Version 1.1.0 → 1.2.0. Date → 2026-05-31.
+
+### Why
+
+A third strict-full audit corroborated the skill's thesis AND surfaced a critical methodology gap the previous versions did not name: Phase 1 verification was framed as "before issue filing" when the correct point of insertion is "before drafting the remediation plan." The 2026-05-31 session would have wasted ~3 PRs fixing non-issues AND left the actual root cause (the `doc_policy.py` linter) untouched if I had not run Phase 1 before planning. The corrected sequence (PR1 = fix linter, PR2+ = fix skills) is why all 10 PRs landed and 9 merged green on first attempt.
+
+Three sharper failure classes are now named:
+
+1. **Already-fixed-state hallucination** — auditor describes a violation in a state the repo has never been in. Verify with `git ls-files`/`ls -d`/`find` before believing.
+2. **Cross-file collision hallucination** — auditor describes structural duplication that doesn't exist. Read both files before believing.
+3. **Inverse-hypothesis blind spot** — audit is biased toward absence findings ("X is missing") and systematically misses presence-but-wrong findings ("X is present but enforces the wrong rule"). The inverse-hypothesis class is often the actual root cause of the symptoms the audit named.
+
+The AUDIT CORRECTIONS section is the bridge: reviewers see "audit said 3 CRITICAL, plan has 1 PR" and immediately read the evidence-backed refutation. Without this section, the discrepancy looks like the implementer dropped findings without justification.
+
+### Previous version (v1.1.0) snapshot
+
+---
+name: verify-audit-findings-before-acting
+description: "Strict-mode repo audits routinely hallucinate critical findings (references to nonexistent files, claims of missing CI checks that already exist). Verify each finding against current filesystem state BEFORE filing issues or fixing. Use when: (1) consuming output from /repo-analyze-strict or any swarm-audit, (2) about to bulk-file remediation issues, (3) deciding which audit majors are real."
+category: documentation
+date: 2026-05-27
+version: "1.1.0"
+user-invocable: false
+verification: verified-local
+history: verify-audit-findings-before-acting.history
+tags: [audit, code-review, fact-checking, remediation]
+---
+
+(Full v1.1.0 body preserved in git history at commit immediately preceding the v1.2.0 amendment; v1.0.0 snapshot remains below in this file.)
+
+---
+
 ## v1.1.0 (2026-05-27)
 
 **Changed by:** ProjectHephaestus `/repo-analyze-strict-full` session (15 Sonnet section agents, full file coverage, B+ ~86% GO)
