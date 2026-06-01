@@ -1,9 +1,9 @@
 ---
 name: parallel-agent-swarm-dispatch-patterns
-description: "Patterns for dispatching, prompting, and verifying parallel sub-agents in Myrmidon swarms. Use when: (1) preparing to dispatch 5+ agents in parallel via Task isolation=worktree, (2) a prior swarm round had high stall rate or sub-agents produced incorrect or missing artifacts, (3) writing dispatch prompts for issue implementation, skill-creation, or report generation, (4) routing tasks to model tiers (Opus / Sonnet / Haiku), (5) N wave issues share the same hot file and fan-out would cause rebase contention, (6) a plan has a bulk-transformation phase followed by an implementation phase that must be gated, (7) verifying sub-agent PR reports or artifacts after dispatch, (8) re-grading a batch of GitHub issues against CURRENT repo state before dispatching any agent (issue text reflects filing time, not now), (9) you need to remediate many audit findings in parallel by dispatching background swarm agents for multiple PRs, (10) orchestrating concurrent agents without file collisions across thematic PRs, (11) agents quitting early or fabricating issue numbers to satisfy a Closes-#N policy, (12) a wave plan has a strict dependency chain (PR D depends on all of wave C) and you must choose between N concurrent agents each polling on the gate vs ONE sequential state-machine agent that handles the chain end-to-end."
+description: "Patterns for dispatching, prompting, and verifying parallel sub-agents in Myrmidon swarms. Use when: (1) preparing to dispatch 5+ agents in parallel via Task isolation=worktree, (2) a prior swarm round had high stall rate or sub-agents produced incorrect or missing artifacts, (3) writing dispatch prompts for issue implementation, skill-creation, or report generation, (4) routing tasks to model tiers (Opus / Sonnet / Haiku), (5) N wave issues share the same hot file and fan-out would cause rebase contention, (6) a plan has a bulk-transformation phase followed by an implementation phase that must be gated, (7) verifying sub-agent PR reports or artifacts after dispatch, (8) re-grading a batch of GitHub issues against CURRENT repo state before dispatching any agent (issue text reflects filing time, not now), (9) you need to remediate many audit findings in parallel by dispatching background swarm agents for multiple PRs, (10) orchestrating concurrent agents without file collisions across thematic PRs, (11) agents quitting early or fabricating issue numbers to satisfy a Closes-#N policy, (12) a wave plan has a strict dependency chain (PR D depends on all of wave C) and you must choose between N concurrent agents each polling on the gate vs ONE sequential state-machine agent that handles the chain end-to-end, (13) you are about to write a polling/until/dependency-gate loop as the FIRST instruction in a sub-agent prompt and need the gate-loop early-exit hardening pattern (hard-capped `for` loop + `**DO NOT STOP HERE**` directive + ABSOLUTE RULE block)."
 category: tooling
 date: 2026-05-31
-version: "1.3.0"
+version: "1.4.0"
 user-invocable: false
 history: parallel-agent-swarm-dispatch-patterns.history
 tags:
@@ -58,6 +58,13 @@ tags:
   - gate-loop
   - polling-agent
   - chain-bundling
+  - dependency-gate
+  - polling-loop
+  - until-loop
+  - sequential-single-agent
+  - hard-cap-iteration
+  - do-not-stop-here
+  - absolute-rule-block
 ---
 
 # Skill: Parallel Agent Swarm Dispatch Patterns
@@ -68,7 +75,7 @@ tags:
 | ------- | ------- |
 | **Date** | 2026-05-31 |
 | **Objective** | Consolidate the full set of dispatch, prompt-engineering, verification, and phase-gating patterns for Myrmidon parallel sub-agent swarms into one authoritative reference. |
-| **Outcome** | Synthesised from 9 skills validated across ProjectScylla, ProjectArgus, ProjectAgamemnon, Myrmidons, and ProjectMnemosyne sessions (2026-05-06 → 2026-05-19). v1.1.0 adds the orchestrator-level pre-dispatch re-grade gate (Part 10): of 9 ProjectHephaestus issues, 2 were DONE-ALREADY (#539 fully resolved, #468 already decomposed to delegation-shim ratio 21/40), 1 was PARTIAL (#614). Also adds the delegation-shim-ratio heuristic for quantifying God-Class decomposition progress without dispatching an agent. v1.2.0 adds **Part 11 — Audit-Finding Parallel Remediation Swarm** (verified-ci): a ProjectHephaestus strict audit produced ~20 findings, batched into THEMATIC PRs (one GitHub issue per PR to satisfy the `pr-policy` one-`Closes #N`-per-PR gate), the orchestrator created the REAL issues FIRST and passed each agent its concrete number (anti-fabrication), built a pre-dispatch file-collision matrix (two PRs both wanted `loop_runner.py` and `auto-tag.yml` — resolved by single ownership), used anti-early-exit prompting (FOREGROUND tests; not done until the PR exists AND `autoMergeRequest` verified non-null), and sequenced the DRY-consolidation PR after its prerequisite merged — 4 PRs (#688/#690/#691/#689) all merged green, a 5th queued. v1.3.0 adds **Part 12 — Sequential vs Concurrent Dispatch for Dependency Chains** (verified-ci): during a 10-PR ProjectHephaestus audit-remediation swarm (2026-05-31), the orchestrator planned 4 waves (A → B → C → D). On the dependency-gated waves, 3 of 4 polling agents prematurely exited after their gate loop reported "still waiting"; the orchestrator had to re-launch them with hardened anti-early-exit prompts (~3 hours wasted). The fix that worked: bundle PR8 + PR10 (a strict A → B chain) into ONE sequential state-machine agent that waits for PR8's dependency, opens+auto-merges PR8, waits for PR10's three dependencies, then opens+auto-merges PR10. Both PRs landed with zero orchestrator re-launches. Decision rule: chains → 1 sequential agent; fans → N concurrent agents gated on the join point. Key results: stall rate 80% → 0% (7 guardrails), zero file-collision incidents with explicit ownership lines, artifact-confabulation failures caught by post-hoc `stat`/`gh pr view`, hot-file rebase contention eliminated by bundling, moot implementation work avoided by stop-and-reassess and pre-dispatch gates, and gate-loop early-exits eliminated by chain-bundling instead of polling-and-praying. |
+| **Outcome** | Synthesised from 9 skills validated across ProjectScylla, ProjectArgus, ProjectAgamemnon, Myrmidons, and ProjectMnemosyne sessions (2026-05-06 → 2026-05-19). v1.1.0 adds the orchestrator-level pre-dispatch re-grade gate (Part 10): of 9 ProjectHephaestus issues, 2 were DONE-ALREADY (#539 fully resolved, #468 already decomposed to delegation-shim ratio 21/40), 1 was PARTIAL (#614). Also adds the delegation-shim-ratio heuristic for quantifying God-Class decomposition progress without dispatching an agent. v1.2.0 adds **Part 11 — Audit-Finding Parallel Remediation Swarm** (verified-ci): a ProjectHephaestus strict audit produced ~20 findings, batched into THEMATIC PRs (one GitHub issue per PR to satisfy the `pr-policy` one-`Closes #N`-per-PR gate), the orchestrator created the REAL issues FIRST and passed each agent its concrete number (anti-fabrication), built a pre-dispatch file-collision matrix (two PRs both wanted `loop_runner.py` and `auto-tag.yml` — resolved by single ownership), used anti-early-exit prompting (FOREGROUND tests; not done until the PR exists AND `autoMergeRequest` verified non-null), and sequenced the DRY-consolidation PR after its prerequisite merged — 4 PRs (#688/#690/#691/#689) all merged green, a 5th queued. v1.3.0 adds **Part 12 — Sequential vs Concurrent Dispatch for Dependency Chains** (verified-ci): during a 10-PR ProjectHephaestus audit-remediation swarm (2026-05-31), the orchestrator planned 4 waves (A → B → C → D). On the dependency-gated waves, 3 of 4 polling agents prematurely exited after their gate loop reported "still waiting"; the orchestrator had to re-launch them with hardened anti-early-exit prompts (~3 hours wasted). The fix that worked: bundle PR8 + PR10 (a strict A → B chain) into ONE sequential state-machine agent that waits for PR8's dependency, opens+auto-merges PR8, waits for PR10's three dependencies, then opens+auto-merges PR10. Both PRs landed with zero orchestrator re-launches. Decision rule: chains → 1 sequential agent; fans → N concurrent agents gated on the join point. v1.4.0 adds **Part 13 — Dependency-Gate Loop Early-Exit Hardening** (verified-ci, same 2026-05-31 swarm): drills into the prompt-engineering recipe that prevents the early-exit mode whenever a sequential agent is genuinely impossible (DAG or external-event gate). Four discrete techniques: (1) never use an `until`/polling loop as the FIRST instruction — restructure as a hard-capped `for i in $(seq 1 N)` loop with explicit success branch and `exit 1` on cap; (2) IMMEDIATELY after the loop, on its own line, place `**DO NOT STOP HERE. Proceed immediately to Step 1.**` so the directive survives the agent's internal summarization; (3) include an ABSOLUTE RULE block at the TOP of the prompt that lists "waiting" / "monitor running" / "gate is polling" as explicit FAILURE states, not partial-progress states; (4) STRONGLY PREFER one SEQUENTIAL agent for both phases — the "wait for my OWN just-pushed PR" loop does NOT trigger early-exit; "wait for sibling agent's PR" DOES. Three Failed Attempt rows (PR8 v1 bare `until`, PR10 v1+v2 prose-above-loop note, one-gated-agent-per-dependent-PR) and a "Dependency-gate loop early-exit incidents" results table document the v1/v2/v3 attempts on the same chain. Key results: stall rate 80% → 0% (7 guardrails), zero file-collision incidents with explicit ownership lines, artifact-confabulation failures caught by post-hoc `stat`/`gh pr view`, hot-file rebase contention eliminated by bundling, moot implementation work avoided by stop-and-reassess and pre-dispatch gates, gate-loop early-exits eliminated by chain-bundling instead of polling-and-praying, and the residual DAG/external-event gates hardened with the hard-cap + DO-NOT-STOP-HERE + ABSOLUTE-RULE recipe. |
 | **Verification** | verified-local and verified-ci across multiple projects |
 
 ## When to Use
@@ -91,6 +98,8 @@ tags:
 - A PR shares modules with another PR — sequence the dependent PR to dispatch only after the prerequisite merges
 - A wave plan has a strict dependency chain (PR D depends on all of wave C, wave C depends on wave B, ...) and you must choose: N concurrent agents each polling on the gate, vs ONE sequential state-machine agent that handles the chain end-to-end — chains → 1 agent, fans → N agents
 - An agent's first observable action would be a polling/gate-wait loop on an external condition (sibling PR merge, CI completion, file appearing) — high risk of premature exit; bundle the chain into one agent instead, or place the dependency before the agent is even dispatched
+- About to put a `until <cond>; do sleep N; done` or any polling/dependency-gate loop as the FIRST instruction in a sub-agent prompt — apply the gate-loop early-exit hardening pattern (Part 13: hard-capped `for` loop + IMMEDIATELY-after-the-loop `**DO NOT STOP HERE**` directive + ABSOLUTE RULE block listing "waiting"/"monitor running" as FAILURE states)
+- Two or more thematic PRs share a merge-dependency (e.g., PR-B must wait for PR-A to merge) — strongly prefer a single SEQUENTIAL agent running both phases in one invocation over multiple agents each polling their gate (Part 13 #4); the "wait for my OWN PR" loop does NOT trigger the early-exit reflex
 
 ## Verified Workflow
 
@@ -638,6 +647,140 @@ Re-launching the agent costs ~30 minutes per cycle in dispatch + context-rebuild
                                                                           chain)
 ```
 
+### Part 13 — Dependency-Gate Loop Early-Exit Hardening (sub-agent SELF quits at loop start)
+
+**Context (verified-ci, ProjectHephaestus 2026-05-31):** in a 10-PR audit-remediation swarm,
+several PRs had merge-dependencies (e.g., "wait for PR #850 to merge before starting PR #851").
+Each gated agent received a bash `until` polling loop:
+
+```bash
+until [ "$(gh issue view 856 --json closedAt --jq '.closedAt')" != "null" ]; do
+  sleep 90
+done
+```
+
+**Failure mode:** THREE separate gated agents (PR8 v1, PR10 v1, PR10 v2) exited IMMEDIATELY
+when the gate loop returned "still waiting". Each wrote a final report like "monitor is still
+running, let me wait" and TERMINATED. The Agent runtime then surfaced these as "completed"
+tasks, but no PR was created. ~30% of the swarm needed manual re-launch; ~3 hours of orchestrator
+effort + 3 wasted agent invocations.
+
+**Root cause (model behavior, NOT runtime bug):** when a Claude sub-agent runs a polling bash
+loop and the loop hasn't broken yet, the agent treats the WAIT as the entire job and reports
+"done" as soon as it has dispatched the monitor. It does NOT understand that the polling loop
+is JUST a precondition gate — the actual work comes AFTER. This is distinct from the failure
+modes in `swarm-agent-status-misread-as-premature-exit` (parent misreads in-progress status)
+and `stale-background-bash-tasks-audit` (loop has no deadline). Here, the SUB-AGENT itself
+self-terminates at the loop's first iteration.
+
+This Part 13 is the prompt-engineering recipe for the residual case where Part 12's
+sequential-single-agent bundling is impossible (complex DAG, external event, or chain length
+exceeds a single agent's working budget). When Part 12 #4 applies, prefer it — Part 13 is the
+fallback hardening that prevents early-exit on the gates that cannot be eliminated.
+
+#### Working solution (v3, verified-ci)
+
+Four discrete techniques. Apply ALL of them when a gate is unavoidable; prefer technique (4) when possible.
+
+**1. NEVER use a polling loop as the FIRST instruction in a sub-agent prompt.**
+
+Restructure so the gate is a hard-capped `for i in $(seq 1 N); do ... done` loop with an
+explicit "if not done after N cycles, `exit 1`; OTHERWISE proceed to Step 1" comment. The
+explicit cap removes the "infinite wait" framing that triggers the early-exit reflex.
+
+```bash
+# WORKING — hard-capped, explicit success branch
+MAX_CYCLES=40   # 40 × 90s = 1 hour
+for i in $(seq 1 "$MAX_CYCLES"); do
+  if [ "$(gh issue view 856 --json closedAt --jq '.closedAt')" != "null" ]; then
+    echo "GATE OPEN at cycle $i — proceeding to Step 1"
+    break
+  fi
+  echo "Gate cycle $i/$MAX_CYCLES — issue 856 still open; sleeping 90s"
+  sleep 90
+done
+if [ "$(gh issue view 856 --json closedAt --jq '.closedAt')" = "null" ]; then
+  echo "FATAL: gate did not open after $MAX_CYCLES cycles" >&2
+  exit 1
+fi
+# DO NOT STOP HERE. Proceed immediately to Step 1.
+```
+
+**2. IMMEDIATELY after the loop, include a section header titled `**DO NOT STOP HERE. Proceed immediately to Step 1.**`**
+
+This is the ONLY reliable hack against the early-exit reflex. Without it, the agent reads the
+loop as the "task complete" signal regardless of any other framing. Put the directive on its
+own line with bold formatting so it survives any summarization the agent applies internally.
+
+```text
+... (gate loop ends) ...
+
+**DO NOT STOP HERE. Proceed IMMEDIATELY to Step 1 — implementation work.**
+The gate loop above was a PRECONDITION, not the task. The actual work starts NOW.
+
+## Step 1 — Implement PR #851
+...
+```
+
+**3. Include an ABSOLUTE RULE block at the TOP of the prompt.**
+
+State the only acceptable terminal report. Reporting "waiting" / "monitor running" must be
+explicitly marked as a FAILURE state, not a partial-progress state.
+
+```text
+## ABSOLUTE RULE
+
+The ONLY acceptable terminal report is:
+  - PR number opened, AND
+  - `gh pr merge <#> --auto --squash` exit 0, AND
+  - `autoMergeRequest` verified non-null via `gh pr view <#> --json autoMergeRequest`.
+
+Reporting "waiting", "monitor running", "gate is polling", "sleeping until X" is a FAILURE
+state, NOT a partial-progress state. If you reach the end of the prompt without satisfying
+the three terminal conditions, you have FAILED — report FAILED, not done.
+```
+
+**4. PREFER: one SEQUENTIAL agent for both phases over two gated agents.**
+
+If multiple PRs share a dependency, dispatch ONE agent that handles Phase 1 (PR-A) AND
+Phase 2 (PR-B) in the same invocation. The agent runs PR-A, waits for it to merge using
+its own foreground process (no polling-loop framing), then runs PR-B. This eliminates the
+early-exit hole BY DESIGN: there is no "wait for sibling" gate, only "wait for my own
+just-pushed PR to merge" — which the agent naturally treats as continuation.
+
+```text
+You are the SEQUENTIAL agent for PR8+PR10.
+
+## Phase 1 — PR8 (Closes #868)
+... full PR8 instructions ...
+After `gh pr merge --auto --squash` exits 0 and CI is green:
+  - WAIT here in the FOREGROUND for PR8 to merge:
+      until [ "$(gh pr view <PR8#> --json state --jq '.state')" = "MERGED" ]; do sleep 60; done
+  - Then proceed IMMEDIATELY to Phase 2.
+
+**DO NOT STOP HERE. Phase 2 IS the rest of your task.**
+
+## Phase 2 — PR10 (Closes #870)
+git fetch origin && git rebase origin/main   # fresh main with PR8 merged
+... full PR10 instructions ...
+```
+
+The "wait for my own PR to merge" loop is structurally identical to a sibling-gate loop, but
+the agent does NOT exit early on it — it correctly understands that its own PR's merge is a
+continuation point, not a job boundary. Empirically this collapses 3 failed attempts into 1
+successful run. (This is the same agent shape Part 12 #4 recommends; Part 13 #4 is the
+prompt-template formalization, while Part 12 establishes the decision rule.)
+
+#### Decision table — gate strategy
+
+| Situation | Strategy | Why |
+| --------- | -------- | --- |
+| Single PR with no dependency | Dispatch normally | No gate needed |
+| 2 PRs, one merge-dependency | **Sequential single agent** (Part 13 #4 / Part 12 #4) | Eliminates polling-loop early-exit by design |
+| 3+ PRs, linear dependency chain | **Sequential single agent** running them in order | Same; one prompt, N phases |
+| 3+ PRs, complex dependency DAG | Hard-capped gate loops (#1) + DO NOT STOP HERE (#2) + ABSOLUTE RULE (#3) | DAG can't collapse to one agent; harden the gates |
+| PR depends on external event (not another agent's PR) | Hard-capped gate loops (#1) + DO NOT STOP HERE (#2) + ABSOLUTE RULE (#3) | External event has no agent to merge with |
+
 ### Quick Reference
 
 Paste this template into a Task call with `subagent_type="general-purpose"` and `isolation=worktree`:
@@ -685,6 +828,51 @@ The user does NOT see your tool calls — only this final summary.
 5. Dispatch dependent PRs (shared modules) ONLY after their prerequisite merges; branch from fresh main.
 6. On each completion notification, independently verify `state`/`autoMergeRequest`/`files` (Part 9) —
    trust-but-verify, do NOT trust the self-report.
+
+**Dependency-gate sub-agent prompt template (Part 13) — when a sequential single agent is genuinely impossible:**
+
+```text
+## ABSOLUTE RULE (READ FIRST)
+The ONLY acceptable terminal report is: PR opened + `gh pr merge <#> --auto --squash` exit 0
++ `autoMergeRequest` verified non-null. Reporting "waiting" / "monitor running" / "gate is
+polling" is a FAILURE state, not partial progress. If you reach the prompt's end without
+satisfying ALL three terminal conditions, report FAILED, not done.
+
+## Gate (precondition only — NOT the task)
+MAX_CYCLES=40   # 40 × 90s = 1 hour cap
+for i in $(seq 1 "$MAX_CYCLES"); do
+  if [ "$(gh issue view <N> --json closedAt --jq '.closedAt')" != "null" ]; then
+    echo "GATE OPEN at cycle $i — proceeding to Step 1"; break
+  fi
+  echo "Gate cycle $i/$MAX_CYCLES — issue <N> still open; sleeping 90s"
+  sleep 90
+done
+if [ "$(gh issue view <N> --json closedAt --jq '.closedAt')" = "null" ]; then
+  echo "FATAL: gate did not open after $MAX_CYCLES cycles" >&2; exit 1
+fi
+
+**DO NOT STOP HERE. Proceed IMMEDIATELY to Step 1 — implementation work.**
+
+## Step 1 — Implementation
+... (rest of the prompt)
+```
+
+**STRONGLY PREFER: sequential-single-agent template (Part 13 #4 / Part 12 #4) over the gated template above:**
+
+```text
+You are the SEQUENTIAL agent for PR-A + PR-B.
+
+## Phase 1 — PR-A (Closes #<A>)
+... full PR-A instructions ...
+After `gh pr merge <PR-A#> --auto --squash` exits 0:
+  until [ "$(gh pr view <PR-A#> --json state --jq '.state')" = "MERGED" ]; do sleep 60; done
+
+**DO NOT STOP HERE. Phase 2 IS the rest of your task.**
+
+## Phase 2 — PR-B (Closes #<B>)
+git fetch origin && git rebase origin/main   # fresh main with PR-A merged
+... full PR-B instructions ...
+```
 
 For a FULL-fix PR that closes one epic issue, swap the partial-fix lines in the template above for:
 
@@ -739,6 +927,9 @@ For a FULL-fix PR that closes one epic issue, swap the partial-fix lines in the 
 | 37 | Dispatching the DRY-consolidation PR concurrently with the cleanup PR that edited the same modules | Both branch from the same stale main and race; the later merge sees outdated files | Sequence dependent PRs: dispatch the consolidation PR only AFTER its prerequisite merges, branching from the freshly-updated origin/main |
 | 38 | For a 4-wave dependency chain (A → B → C → D), dispatching N concurrent agents per wave each with an embedded "wait for dependency" polling loop, expecting them to self-sequence on the gate | 3 of 4 gate-loop agents prematurely exited after the loop returned "still waiting" — the agent interpreted the polling state as idle and reported "monitor running, will resume on signal" then quit. Wasted ~3 hours and 3 re-dispatch cycles. The wall-clock benefit of "concurrent polling" is ZERO because the chain is serial by definition | For STRICT CHAINS (A → B → C with no parallelism), bundle into ONE sequential state-machine agent that walks the chain end-to-end. The gate lives INSIDE the agent's step transitions, not at its entry point. Concurrent polling agents are an anti-pattern for chains because they cost the failure rate of N agents for zero wall-clock benefit. (Verified-ci: PR8+PR10 bundled agent — both PRs landed, zero re-launches.) |
 | 39 | Dispatching an agent whose first observable action is a polling loop on an external condition (sibling PR merge, CI completion, file appearance) | The polling loop returns "still waiting" → the agent interprets transient waiting as idle/done → reports "monitor running" and exits. Orchestrator sees only "I started a monitor" and assumes the agent is alive when it has stopped | Never let an agent's only initial action be a polling/gate loop. Either (a) bundle the gated work into a sequential state-machine agent where the gate is inside a step transition, or (b) wait for the dependency to merge at the orchestrator level BEFORE dispatching the agent — `gh pr view #X --json mergedAt` first, then dispatch with zero gate |
+| 40 | Bare `until [ "$(gh issue view N --jq closedAt)" != "null" ]; do sleep 90; done` as the FIRST instruction in a gated sub-agent prompt (PR8 v1) | Sub-agent exited IMMEDIATELY at the loop's first iteration with "monitor is still running, let me wait" — treated the WAIT as the entire job; runtime surfaced "completed" but NO PR was created | Never use an `until <cond>; do sleep N; done` loop as the FIRST instruction. Restructure as a hard-capped `for i in $(seq 1 N)` loop with explicit success branch + IMMEDIATE "DO NOT STOP HERE. Proceed to Step 1" directive (Part 13 #1 + #2) |
+| 41 | Added "DO NOT exit early" note above an `until` loop (PR10 v1, PR10 v2) | Sub-agent ran the `until` loop ONCE, saw the gate wasn't open, exited; the prose-level "DO NOT exit early" note did not survive the loop's early-iteration framing | A note ABOVE the loop is not enough; the directive must appear IMMEDIATELY AFTER the loop terminates, on its own line, with `**DO NOT STOP HERE. Proceed IMMEDIATELY to Step 1.**` formatting. Pair with an ABSOLUTE RULE block at the top of the prompt that lists "waiting/monitor running" as an explicit FAILURE state (Part 13 #2 + #3) |
+| 42 | Dispatching one gated agent per dependent PR (PR8 separate from PR10, PR10 polling PR8's merge) | Each gated agent quit at the polling step regardless of anti-stop hardening; 3 successive launches (PR8 v1, PR10 v1, PR10 v2) all early-exited at the gate; ~3h wasted | When two PRs share a merge-dependency, collapse them into ONE SEQUENTIAL agent (Phase 1: PR-A; Phase 2: PR-B after PR-A merges). The "wait for my OWN just-pushed PR" loop does not trigger the early-exit reflex; "wait for sibling agent's PR" does. v3 unified PR8+PR10 ran end-to-end in one invocation; PR8/#869 merged, PR10/#870 CI green (Part 13 #4 / Part 12 #4) |
 
 ## Results & Parameters
 
@@ -751,6 +942,26 @@ For a FULL-fix PR that closes one epic issue, swap the partial-fix lines in the 
 | Stall rate | 4/5 (80%) | 0/7 (0%) |
 | Avg duration per finished agent | mixed (recovery-heavy) | 305–455s, all under 8 min |
 | Token budget per finished agent | unbounded | 60k–83k, mostly under 100k |
+
+### Dependency-gate loop early-exit incidents (ProjectHephaestus, 2026-05-31)
+
+| Attempt | Strategy | Result | Lesson |
+| ------- | -------- | ------ | ------ |
+| PR8 v1 | Bare `until` loop as first instruction | Exited at first iteration with "monitor is still running, let me wait" — no PR | Polling loop as first instruction triggers early-exit reflex |
+| PR10 v1 | Bare `until` loop + prose note "DO NOT exit early" above the loop | Ran loop once, saw gate closed, exited — no PR | Prose-above-loop note does not survive the loop's early-iteration framing |
+| PR10 v2 | Same as v1 with additional anti-stop wording | Exited at loop start again — no PR | "Anti-stop" wording must be IMMEDIATELY AFTER the loop, not before |
+| PR8+PR10 v3 (unified) | Single sequential agent: Phase 1 (PR8) → wait for own PR8 to merge → Phase 2 (PR10) | Ran end-to-end: PR8/#869 merged, PR10/#870 CI green with auto-merge armed | "Wait for my OWN PR" loop does NOT trigger early-exit; "wait for sibling agent's PR" DOES |
+
+**Orchestrator overhead cost:** 3 wasted agent invocations + ~3 hours of orchestrator time to detect and re-launch. ~30% of the 10-PR swarm needed manual re-launch.
+
+**Validation parameters for hard-capped gate loops:**
+
+| Knob | Value | Why |
+| ---- | ----- | --- |
+| `MAX_CYCLES` (default) | 40 | 40 × 90s = 1 hour total cap |
+| Per-iteration `sleep` | 90s | Balance between responsiveness and gh API rate-limit pressure |
+| FATAL exit code on cap reached | `exit 1` | Surfaces as agent failure, not silent completion |
+| "DO NOT STOP HERE" placement | Immediately AFTER the loop, before Step 1 | Must survive the agent's internal summarization |
 
 ### Subagent type quick reference
 
@@ -832,3 +1043,4 @@ gh pr merge "$PR_NUMBER" --auto --rebase --repo HomericIntelligence/ProjectMnemo
 | ProjectHephaestus | 2026-05-28 | 9-issue Myrmidon swarm: pre-dispatch re-grade caught 2 DONE-ALREADY (#539, #468 shim-ratio 21/40) and 1 PARTIAL (#614); 6 PRs merged, main green, 762 automation tests pass |
 | ProjectHephaestus | 2026-05-29 | Audit-finding parallel remediation (Part 11): strict audit → ~20 findings → 4 thematic PRs (#688/#690/#691/#689), one issue per PR, issue-first anti-fabrication, file-collision matrix (`loop_runner.py`/`auto-tag.yml`), anti-early-exit prompts; all 4 merged green in CI, 5th conditional PR queued (**verified-ci**) |
 | ProjectHephaestus | 2026-05-31 | Sequential-vs-concurrent for dependency chains (Part 12): 10-PR audit-remediation swarm planned as 4 waves (A → B → C → D). 3 of 4 polling agents in dependency-gated waves prematurely exited after the gate-loop returned "still waiting"; ~3 hours wasted on re-launches. Fix: bundled PR8 + PR10 into ONE sequential state-machine agent (waits for PR8's deps, opens+merges PR8, waits for PR10's deps, opens+merges PR10). Both PRs landed (PR8 merged before PR10 even opened; PR10 armed for auto-merge), zero re-launches (**verified-ci**) |
+| ProjectHephaestus | 2026-05-31 | Dependency-gate loop early-exit hardening (Part 13): same 10-PR audit-remediation swarm; 3 separate gated agents (PR8 v1, PR10 v1, PR10 v2) exited at first iteration of `until <issue closedAt>` polling loops with "monitor is still running, let me wait"; ~30% of swarm required manual re-launch (~3h orchestrator effort + 3 wasted invocations). v3 unified PR8+PR10 into single sequential agent — PR8/#869 merged, PR10/#870 CI green with auto-merge armed; hard-cap `for` loop + `**DO NOT STOP HERE**` directive + ABSOLUTE RULE block is the fallback when sequential-single-agent is impossible (**verified-ci**) |

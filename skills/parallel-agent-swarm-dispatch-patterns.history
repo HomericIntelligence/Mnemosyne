@@ -1,6 +1,94 @@
 <!-- markdownlint-disable MD024 -->
 # parallel-agent-swarm-dispatch-patterns — History
 
+## v1.4.0 (2026-05-31)
+
+**Changed by:** ProjectHephaestus 10-PR audit-remediation swarm session (2026-05-31) — same
+session that drove v1.3.0, but drilling into the prompt-engineering recipe for the residual
+case where Part 12's sequential-single-agent bundling is impossible (DAG, external-event
+gate, or chain length exceeds a single agent's working budget).
+**Verification:** verified-ci (v3 unified PR8+PR10 sequential agent ran end-to-end; PR8/#869
+merged, PR10/#870 CI green with auto-merge armed). Stacks additively on the v1.3.0 Part 12
+decision rule that landed in PR #2075.
+
+### What changed
+
+- Added **Part 13** — Dependency-Gate Loop Early-Exit Hardening (sub-agent SELF quits at loop
+  start). Distinct from Part 12 (decision rule chain → 1 agent / fan-out → N agents) and from
+  v1.2.0 Part 11 #5 (anti-early-exit for FOREGROUND test runs); Part 13 targets the specific
+  failure mode where the SUB-AGENT itself self-terminates at the FIRST iteration of an
+  `until <gh-issue closedAt>` dependency-gate polling loop, even when bundling is not feasible.
+  Four discrete techniques: (1) never use a polling loop as the FIRST instruction — restructure
+  as a hard-capped `for i in $(seq 1 N)` loop with explicit success branch + FATAL `exit 1` on
+  cap; (2) IMMEDIATELY after the loop, include `**DO NOT STOP HERE. Proceed immediately to
+  Step 1.**` on its own line so the directive survives the agent's internal summarization;
+  (3) ABSOLUTE RULE block at the TOP of the prompt listing "waiting" / "monitor running" /
+  "gate is polling" as explicit FAILURE states; (4) STRONGLY PREFER one SEQUENTIAL agent for
+  both phases (matches Part 12 #4) — the "wait for my OWN just-pushed PR" loop does NOT trigger
+  the early-exit reflex, only "wait for sibling agent's PR" does. Added a decision table for
+  gate strategy (single PR, 2 PRs with dependency, 3+ linear chain, 3+ DAG, external event)
+  that defers to Part 12 / Part 13 #4 wherever sequential-single-agent applies.
+- Added an `### Quick Reference` "Dependency-gate sub-agent prompt template (Part 13)" and a
+  companion "STRONGLY PREFER: sequential-single-agent template (Part 13 #4 / Part 12 #4)".
+- Added 3 new Failed Attempts rows (40, 41, 42, continuing after Part 12's rows 38–39): bare
+  `until` loop as first instruction (PR8 v1), prose-above-loop "DO NOT exit early" note
+  (PR10 v1 + v2), and dispatching one gated agent per dependent PR (PR8 separate from PR10).
+- Added a "Dependency-gate loop early-exit incidents (ProjectHephaestus, 2026-05-31)" table to
+  Results & Parameters with the v1/v2/v3 attempts, plus a "Validation parameters for hard-capped
+  gate loops" table (`MAX_CYCLES`, `sleep`, FATAL exit code, "DO NOT STOP HERE" placement).
+- Added 7 new tags (deduped against v1.3.0's): `dependency-gate`, `polling-loop`, `until-loop`,
+  `sequential-single-agent`, `hard-cap-iteration`, `do-not-stop-here`, `absolute-rule-block`.
+  (`gate-loop` was already added in v1.3.0; not re-added.)
+- Added description trigger (13) for the gate-loop hardening pattern.
+- Added 2 new "When to Use" bullets: gate-loop hardening as the FIRST-instruction restructure
+  rule; sequential-single-agent preference over multiple gated agents on shared
+  merge-dependencies (cross-references Part 12 / Part 13 #4).
+- Added a second ProjectHephaestus 2026-05-31 row to Verified On covering the Part 13 evidence
+  (gate-loop early-exit hardening; complements the v1.3.0 row covering the Part 12 decision
+  rule).
+- Updated the Overview Outcome paragraph with the v1.4.0 summary; bumped version 1.3.0 → 1.4.0
+  (date stays 2026-05-31 since both updates came from the same session).
+
+### Why
+
+v1.3.0's Part 12 established the decision rule: dependency chain → 1 sequential agent;
+fan-out → N concurrent agents gated on the join point. That covers the case where the chain
+can be collapsed into a single agent. But the same 2026-05-31 session also surfaced cases
+where collapsing is NOT possible (DAG topology, external-event gates, chain too long for one
+agent's working budget) — and the early-exit failure mode hits HARDER there because there is
+no escape via bundling. THREE separate gated agents (PR8 v1, PR10 v1, PR10 v2) early-exited at
+the first iteration of their `until` polling loops; the orchestrator burned ~3 hours and 3
+agent invocations re-launching them.
+
+Part 13 codifies the prompt-engineering recipe that prevents the early-exit reflex on the
+gates that cannot be eliminated. The four techniques (hard-capped `for` loop, post-loop
+`**DO NOT STOP HERE**` directive, top-of-prompt ABSOLUTE RULE block, and the
+"prefer sequential-single-agent" guidance that cross-references Part 12 #4) are empirically
+validated: applying them to the v3 unified PR8+PR10 agent collapsed 3 failed attempts into 1
+successful run.
+
+Part 12 (decision rule) and Part 13 (gate-hardening recipe) are complementary: Part 12 tells
+you when you CAN avoid the gate (bundle into one agent), and Part 13 tells you how to harden
+the gate when you CAN'T avoid it. Together they close the loop on dependency-gate failures
+observed in the 2026-05-31 swarm.
+
+This learning was also session-locally captured as the user-memory rule
+`swarm-agents-quit-early-on-polling` but lacked the verified-ci v3 unified-agent solution and
+the four-technique hardening recipe. v1.4.0 elevates it to a permanent Mnemosyne skill
+amendment.
+
+### Previous version (v1.3.0) snapshot
+
+The v1.4.0 change is purely additive — Part 13, the dependency-gate prompt template, the
+sequential-single-agent template, rows 40–42, the Part 13 evidence table, the validation-knobs
+table, the new tags/triggers, and the second Verified On row were appended; no Part 1–12
+content, no v1.3.0 Failed Attempts row, no v1.3.0 table was removed or rewritten. The v1.3.0
+state (which itself preserves v1.2.0 → v1.1.0 → v1.0.0 additively) is recoverable as this file
+MINUS the v1.4.0 additions listed above, and via git history of
+`skills/parallel-agent-swarm-dispatch-patterns.md`.
+
+---
+
 ## v1.3.0 (2026-05-31)
 
 **Changed by:** ProjectHephaestus 10-PR audit-remediation swarm session (2026-05-31), where 3 of 4
