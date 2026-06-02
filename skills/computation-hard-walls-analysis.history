@@ -1,5 +1,31 @@
 # computation-hard-walls-analysis — History
 
+## v1.2.0 (2026-06-01)
+
+**Changed by:** M44 anyon/topological braiding fabric mechanism design (Myrmidon swarm physics agent)
+**Verification:** unverified — theoretical framework extended with TQC mechanism data and new failure mode
+
+### What changed
+- Added M44 (anyon topological braiding fabric) to multi-mechanism comparison table with scores
+- Added Mechanism C (TQC/Fibonacci) to Wall 5 Sign Problem defeat mechanisms section
+- Added new "Wall 11 — Analog Precision: Defeat Hierarchy" section: topological protection is the strongest Wall 11 defeat across all M-series mechanisms
+- Added **CRITICAL FAILURE MODE: Planck-Density Black Hole Collapse** section — applies to all Planck-density substrate mechanisms (M14, M44, and any future mechanisms)
+- Added Bekenstein Accessible Bits calculation section (canonical formula for 1 kg, 5 mm device → ~10^40 bits)
+- Extended Wall 3 assessment: topological Planck-gap inversion (room temperature negligibly cold relative to E_P gap)
+- Extended Wall 4 assessment: TQC IS the exponential Hilbert space by physics, but TQC is still BQP
+- Extended Wall 11 detailed step with TQC topological protection formula
+- Added two new Failed Attempts rows: Planck Hilbert space vs accessible register, and ignoring black hole collapse
+- Added M44 to Verified On table
+- Version bump 1.1.0 → 1.2.0
+
+### Why
+M44 design session revealed two recurring failure modes for Planck-substrate mechanisms not previously documented: (1) the fusion Hilbert space dramatically exceeds the Bekenstein bound — the accessible register is always limited to ~10^40 bits regardless of claimed substrate capacity; (2) Planck-density matter implies black hole collapse — every mechanism using Planck-density substrate must acknowledge and address this. Both patterns will recur in every future M-series Planck-substrate mechanism. TQC also revealed a new, more rigorous Wall 11 defeat mechanism via topological protection.
+
+### Previous version (v1.1.0) snapshot
+[See v1.1.0 entry below]
+
+---
+
 ## v1.1.0 (2026-06-01)
 
 **Changed by:** M16 asymptotic-safety substrate mechanism design (Myrmidon swarm physics agent)
