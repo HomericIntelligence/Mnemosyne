@@ -1,5 +1,38 @@
 <!-- markdownlint-disable MD024 -->
 
+## v1.1.0 — 2026-06-02
+
+**What changed:** Added Section G "Newly-Added Blocking Call Hangs the Full Suite (Unmocked-Wait Hang)" —
+the non-async sibling of the epoll hang. Same CI symptom (job stuck, no test-failure output), different
+root cause: a new method (`_wait_for_pr_terminal`) loops over a real `subprocess` call + real `time.sleep`
+bounded by a long env timeout, wired into a hot code path. The module's own targeted tests passed (they
+mocked the new method), but a sibling `run()`-level test drove the changed path without mocking the new
+call, so the full `pytest tests/unit` job hung ~16 min vs a ~4 min baseline. Captured the reusable
+diagnosis technique (baseline-duration comparison via `gh run list`, confirm CI runs the whole dir,
+reproduce with `PYTHONFAULTHANDLER=1` + `timeout --signal=ABRT` faulthandler dump, or grep all call sites)
+and the fix rule (every test reaching the path must mock the actual blocking call, not just the trigger).
+
+**Why:** Another verified-ci instance of the same class as the existing asyncio hang + sleep-mock hazards;
+amended rather than created a new skill.
+
+**Also:** Added When-to-Use item 8; three Failed-Attempts rows (module-only run declared done; assumed
+slow == variance; mocked the trigger but not the downstream wait); a Verified On row; new tags
+(`unmocked-blocking-call`, `subprocess-hang`, `baseline-duration-diagnosis`, `faulthandler`); bumped
+version 1.0.0 → 1.1.0, date → 2026-06-02; added top-level `verification: verified-ci` field.
+
+### Prior-version snapshot (v1.0.0 frontmatter)
+
+```yaml
+name: pytest-asyncio-hang-and-mock-hazards
+category: testing
+date: 2026-05-19
+version: "1.0.0"
+user-invocable: false
+history: pytest-asyncio-hang-and-mock-hazards.history
+tags: [asyncio, pytest, hang, timeout, epoll, AsyncMock, coroutine, patch, time-sleep,
+  oom, fastapi, pydantic-settings, event-loop, python, pytest-timeout, false-positive]
+```
+
 ## Superseded from testing-pytest-asyncio-daemon-coroutine-patch
 
 ```markdown

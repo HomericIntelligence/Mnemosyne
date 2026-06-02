@@ -2,9 +2,10 @@
 name: pytest-asyncio-hang-and-mock-hazards
 description: "Diagnosing and fixing pytest tests that hang or produce false results due to asyncio event loops, sleep mocks, and coroutine patching. Use when: (1) pytest CI step times out without reporting a test failure — hang signature, (2) async daemon tests block in epoll.poll(-1) and pytest-timeout does not interrupt them, (3) a coroutine internally reassigns a global asyncio.Event making pre-set fixtures ineffective, (4) patch('module.time.sleep') causes OOM via runaway retry loops, (5) FastAPI Depends() ignores a patched get_settings because the function reference was captured at import time, (6) a code-quality bot flags `await <asyncio.Task>` as a no-effect statement."
 category: testing
-date: 2026-05-19
-version: "1.0.0"
+date: 2026-06-02
+version: "1.1.0"
 user-invocable: false
+verification: verified-ci
 history: pytest-asyncio-hang-and-mock-hazards.history
 tags:
   - asyncio
@@ -23,6 +24,10 @@ tags:
   - python
   - pytest-timeout
   - false-positive
+  - unmocked-blocking-call
+  - subprocess-hang
+  - baseline-duration-diagnosis
+  - faulthandler
 ---
 
 # Pytest Asyncio Hang and Mock Hazards
@@ -45,6 +50,7 @@ tags:
 5. **`patch("app.get_settings", return_value=mock)` has no effect** — `Depends()` captured the original function at import time
 6. **Bot flags `await <asyncio.Task>` as "Statement has no effect"** — static analyser false positive; do not remove the `await`
 7. **Wall-clock timing assertions are flaky** — replace with deterministic `time.sleep` mock assertions
+8. **A newly-added blocking call hangs the FULL suite but not the module's own tests** — a sibling `run()`-level test reaches the new call without mocking it; root-cause by baseline-duration comparison + faulthandler
 
 ## Verified Workflow
 
@@ -228,6 +234,52 @@ python -X tracemalloc=10 -m pytest tests/unit/test_suspect.py -v
 
 `await <asyncio.Task>` is required cleanup: it blocks until the task completes, propagates exceptions, and prevents `RuntimeWarning: Task was destroyed but it is pending!`. The GitHub code-quality bot incorrectly models `await expr` as a bare expression statement. No code change is needed — dismiss the bot comment.
 
+#### G — Newly-Added Blocking Call Hangs the Full Suite (Unmocked-Wait Hang)
+
+This is the **non-async sibling** of the epoll hang: same CI symptom (job stuck, no test-failure output), different root cause. You add a new method that loops over a **real `subprocess` call + real `time.sleep`** bounded by a long env timeout, wire it into a hot code path, and the module's *own* targeted tests still pass (they mock the new method) — but a **sibling test in the same directory** drives the changed code path without mocking the new call, so the worker blocks on the real wait for the full timeout.
+
+**Worked example.** A new `_wait_for_pr_terminal` loops calling `gh pr view` plus `time.sleep(min(2**n, 60))` bounded by an 1800 s env timeout, wired into the green/auto-merge-armed branch of `_drive_issue`. `test_ci_driver.py` passed in isolation (it mocked `_wait_for_pr_terminal`, and `gh` returned fast locally). But the full CI unit job (`pytest tests/unit`) hung for ~16 min vs a ~4 min baseline. Cause: two `run()`-level tests — `TestRunCleanup::test_cleanup_all_called_on_success` and `test_preserved_worktrees_are_logged` — drove `CIDriver.run()` to a green, auto-merge-armed PR with `_enable_auto_merge` mocked `True` but **did not patch `_wait_for_pr_terminal`**, so the worker blocked on the real `gh pr view` + real `time.sleep`.
+
+**Diagnosis technique (reusable):**
+
+1. **Compare elapsed time to the baseline of the same job on main** — variance is not 4×:
+
+   ```bash
+   gh run list --workflow=ci.yml --branch=main --json createdAt,updatedAt \
+     --jq '.[] | ((.updatedAt|fromdate) - (.createdAt|fromdate))'
+   # 16 min on the PR vs ~4 min baseline = real hang, not noise
+   ```
+
+2. **Confirm the CI command runs the WHOLE dir** (`pytest tests/unit`), not just the module you tested in isolation — the hang can hide in a *sibling* test that exercises the changed path.
+
+3. **Reproduce locally with the EXACT CI flags + faulthandler** so the hung thread stack dumps on SIGABRT:
+
+   ```bash
+   PYTHONFAULTHANDLER=1 timeout --signal=ABRT 120 \
+     python -X faulthandler -m pytest tests/unit -p no:cacheprovider
+   # faulthandler prints the blocked stack — e.g. time.sleep / subprocess.run inside _wait_for_pr_terminal
+   ```
+
+   `--timeout=<N>` requires the `pytest-timeout` plugin; if it is absent, use the `timeout`+faulthandler approach above.
+
+4. **Or find it by inspection** — audit every call site of the changed method for an unmocked path:
+
+   ```bash
+   grep -n "_drive_issue(\|\.run()" tests/unit/test_*.py
+   # then check which of those tests reach the new blocking call without patching it
+   ```
+
+**Fix (reusable rule):** when you add a blocking call to a hot code path, **every** test that reaches that path must mock the new call — mocking the *trigger* (`_enable_auto_merge`) is not enough; mock the *actual blocking call*:
+
+```python
+# In every green-path and run()-level test that reaches the new wait:
+patch.object(driver, "_wait_for_pr_terminal", return_value="MERGED")
+# ...or "TIMEOUT" where the test asserts the still-pending branch.
+# Alternatively, set the wait's timeout env to 0.
+```
+
+After patching, the full automation suite ran **1003 passed in 93 s** (no hang).
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -250,6 +302,9 @@ python -X tracemalloc=10 -m pytest tests/unit/test_suspect.py -v
 | Removed `await` on `asyncio.Task` | Removed `await advance_task` to silence bot | Causes `RuntimeWarning: Task was destroyed but it is pending!` and silently swallows background exceptions | Never remove task awaits to satisfy a static analysis bot |
 | `_ = await advance_task` assignment | Assigned result to `_` to suppress "no effect" warning | Bot flags the `await` expression itself, not the assignment | Dismiss the bot comment; the code is correct |
 | `# noqa` comment to suppress bot | Added inline suppression | GitHub code-quality bot does not respect Python `# noqa` directives | Bot suppression requires config-file exclusions; correct response is dismissal |
+| Module-only test run passed, declared done | Ran only `test_ci_driver.py` (mocked the new `_wait_for_pr_terminal`) and called it green | The hang lived in a sibling `run()`-level test the isolated run never covered; `gh` returned fast locally so it passed there | Always run the full dir the way CI does (`pytest tests/unit`) before claiming green |
+| Assumed slow = variance | Treated the 16-min job as a slow runner / noise | It was a real hang on a blocked `time.sleep`/`subprocess.run`, not jitter | Compare to the baseline job duration on main; 4× the baseline is a hang, not variance |
+| Mocked `_enable_auto_merge` but not the downstream wait | Patched the auto-merge trigger to `True` but left `_wait_for_pr_terminal` real | Mocking the trigger still let the green path reach the real `gh pr view` + `time.sleep` and block to the 1800 s timeout | Mock the actual blocking call (`patch.object(driver, "_wait_for_pr_terminal", ...)`), not just the trigger that precedes it |
 
 ## Results & Parameters
 
@@ -376,3 +431,4 @@ def _settings_client(overrides: dict):
 | ProjectHephaestus | PR #412 — time.sleep OOM fix | 113 tests pass in 2.6 s after fix vs 30 s + OOM before |
 | ProjectScylla | PR #1217 — flaky sleep mock | 3257 tests pass; wall-clock assertion replaced with mock |
 | ProjectHermes | CI — FastAPI webhook rate-limit and timeout tests | All five isolation patterns confirmed |
+| HomericIntelligence | CI — `_wait_for_pr_terminal` unmocked-wait hang | Full `pytest tests/unit` hung ~16 min vs ~4 min baseline; sibling `run()`-level tests reached the new `gh pr view`+`time.sleep` unmocked; patched `_wait_for_pr_terminal` in all green-path tests → 1003 passed in 93 s, CI green |
