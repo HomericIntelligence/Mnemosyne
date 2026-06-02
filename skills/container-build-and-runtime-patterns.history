@@ -1,5 +1,49 @@
 # container-build-and-runtime-patterns — History
 
+## v1.1.0 (2026-06-02) — Docker CI lint/build gotchas (hadolint + buildx driver)
+
+**Changed by:** /learn AMEND (Claude Opus 4.8)
+**Verification:** verified-ci
+
+### What changed
+
+Added a "Docker CI lint/build gotchas" subsection under the Verified Workflow plus four
+Failed Attempts rows, capturing two related AchaeanFleet container/CI learnings (fixes
+merged to AchaeanFleet main; post-merge "Build All Agent Images" run on main HEAD went
+green):
+
+- **hadolint `ignored:` not `ignore:`** — `.hadolint.yaml` used `ignore:` for its
+  suppression list, but hadolint >= 2.x reads `ignored:`. The misspelled key is silently
+  dropped, voiding every suppression (DL3008/DL3015/DL3059/DL3016/DL3013/DL3006/DL4006/
+  SC2312/SC2015). hadolint itself exits 0 (findings are below `failure-threshold: error`),
+  but the hadolint-action surfaces each finding as a `::error::` annotation and fails the
+  step. Findings outside the suppression list (DL3046 `useradd -l`, DL3042
+  `pip --no-cache-dir`) are genuinely enforced — fix the Dockerfile. Merged: AchaeanFleet
+  PR #695.
+- **buildx `driver: docker` for `load:true` build-arg chains** — a build consuming a
+  locally `load:true`-built image via `BASE_IMAGE` build-arg fails under
+  `driver: docker-container` (isolated image store → falls back to pulling from docker.io
+  → `pull access denied ... insufficient_scope`). Fix: `driver: docker`. Related gotcha:
+  `cache-to: type=gha,mode=max` is incompatible with `driver: docker` ("Cache export is
+  not supported for the docker driver") — drop the GHA cache export. A `docker-container`
+  switch was a wrong attempted fix (documented as a Failed Attempt). Merged: AchaeanFleet
+  PRs #693 (remove gha cache) + #694 (revert driver to docker).
+- **smoke-matrix drift guard** — `test_smoke_matrix_drift.py` asserts every `vessels/<x>`
+  dir appears in the `test-smoke-vessels` CI matrix; removing a vessel requires adding it
+  to `EXCLUDED_VESSELS`. Merged: AchaeanFleet PR #696.
+
+Bumped version 1.0.0 → 1.1.0, date → 2026-06-02, verification verified-local →
+verified-ci. Added tags: hadolint, buildx-driver, gha-cache, load-true.
+
+### Prior-version snapshot
+
+- version: "1.0.0"
+- date: 2026-05-18
+- verification: verified-local
+- tags: [merged, docker, podman, container, dockerfile, multistage, rootless]
+
+---
+
 ## v1.0.0 (2026-05-18) — Merge of 41 skills
 
 **Changed by:** Skill-merge swarm (Phase C Wave 2, M4 / #1775)

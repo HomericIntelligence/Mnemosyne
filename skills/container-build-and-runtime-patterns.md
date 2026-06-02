@@ -2,12 +2,12 @@
 name: container-build-and-runtime-patterns
 description: "Canonical guide to container build and runtime patterns spanning Docker, Podman, and rootless: multi-stage builds, multi-arch OCI, UID/GID mismatch fixes, layer caching strategies, entrypoint patterns, healthchecks, pixi-volume isolation, GHA cache extraction, Conan-in-Docker chains, dockerfile extras validation. Use when: (1) writing or refactoring a Dockerfile, (2) diagnosing a rootless Podman or UID mismatch crash, (3) extracting / sharing image cache between local and GHA, (4) integrating Conan profiles with a multistage build, (5) container-based E2E test infra."
 category: ci-cd
-date: 2026-05-18
-version: "1.0.0"
+date: 2026-06-02
+version: "1.1.0"
 user-invocable: false
-verification: verified-local
+verification: verified-ci
 history: container-build-and-runtime-patterns.history
-tags: [merged, docker, podman, container, dockerfile, multistage, rootless]
+tags: [merged, docker, podman, container, dockerfile, multistage, rootless, hadolint, buildx-driver, gha-cache, load-true]
 ---
 
 # Container Build and Runtime Patterns
@@ -293,6 +293,84 @@ healthcheck:
   test: "wget -q -O /dev/stdout http://localhost:8080/health | grep -q ok || exit 1"
 ```
 
+### Docker CI lint/build gotchas
+
+**hadolint `.hadolint.yaml` suppression key is `ignored:` NOT `ignore:`:**
+
+```yaml
+# .hadolint.yaml
+# WRONG — silently dropped by hadolint >= 2.x; every suppression is voided:
+# ignore:
+#   - DL3008
+# CORRECT:
+ignored:
+  - DL3008
+  - DL3015
+  - DL3059
+  - DL3016
+  - DL3013
+  - DL3006
+  - DL4006
+  - SC2312
+  - SC2015
+failure-threshold: error
+```
+
+The misspelled `ignore:` key is silently dropped — every documented suppression is
+voided and all those accepted findings leak into CI. Subtlety: hadolint ITSELF exits 0
+(those findings are warning/info, below `failure-threshold: error`), but the
+**hadolint-action** surfaces every finding as a `::error::` annotation and fails the
+step. Verify locally — the ignored rules should disappear from the JSON:
+
+```bash
+hadolint -c .hadolint.yaml -f json Dockerfile
+```
+
+Findings NOT in the suppression list are genuinely enforced — fix the Dockerfile rather
+than adding new suppressions:
+
+```dockerfile
+# DL3046: useradd without -l bloats /var/log/lastlog for high UIDs
+RUN useradd -l -m -u 1000 agent
+# DL3042: pip without --no-cache-dir leaves cache in the layer
+RUN pip install --no-cache-dir <pkg>
+```
+
+**buildx driver MUST be `docker` (not `docker-container`) when a later build consumes a
+locally `load:true`-built image via build-arg:**
+
+```yaml
+# Step 1: build base with load: true into the Docker daemon
+- uses: docker/setup-buildx-action@v3
+  with:
+    driver: docker   # shares the daemon's image store — NOT docker-container
+- uses: docker/build-push-action@v6
+  with:
+    tags: achaean-base-node:latest
+    load: true
+# Step 2: consume it by name via build-arg
+- uses: docker/build-push-action@v6
+  with:
+    build-args: |
+      BASE_IMAGE=achaean-base-node:latest
+    # NOTE: no cache-to: type=gha — incompatible with driver: docker (see below)
+```
+
+The `docker-container` buildx driver has an ISOLATED image store and cannot see images
+loaded into the Docker daemon via `load: true`, so it falls back to PULLING the base
+from docker.io and fails with `failed to resolve source metadata ... pull access
+denied ... insufficient_scope`. Use `driver: docker`, matching the working
+build-vessels/smoke matrix that uses the identical two-step `load: true` pattern.
+
+**`cache-to: type=gha,mode=max` is INCOMPATIBLE with `driver: docker`** — it aborts the
+build with `Cache export is not supported for the docker driver`. With the docker
+driver, drop the GHA cache export entirely.
+
+**Smoke-matrix drift guard (`test_smoke_matrix_drift.py`):** the drift test asserts
+every `vessels/<x>` dir appears in the `test-smoke-vessels` CI matrix. Removing a vessel
+from the matrix requires adding it to that test's `EXCLUDED_VESSELS` allowlist, or the
+drift test goes red.
+
 ### Detailed Steps
 
 1. **Dockerfile authoring**: pin all base images with SHA256 digests; add `apt-get upgrade -y` for CVE defense; never put `#` comments after `\` in multi-line RUN blocks (Docker parses the token after `\` as a new instruction).
@@ -336,6 +414,10 @@ healthcheck:
 | `git config core.hooksPath .git/hooks` before pre-commit install | Set hooks path explicitly | If `core.hooksPath` is set, pre-commit refuses to install | Do not set `core.hooksPath` unless intentional; unset before `pre-commit install` |
 | Separate `helpers.py` for test utilities | Created `tests/foundation/helpers.py` | `conftest.py` is already the shared utilities file; extra file adds indirection | Put plain helper functions directly in `conftest.py` |
 | Using symlink `Dockerfile` → `Containerfile` during Docker-to-Podman migration | Kept `Dockerfile` symlink for compatibility | Unnecessary complexity | Rename directly to `Containerfile`; Podman finds it first |
+| `ignore:` key in `.hadolint.yaml` | Suppression list under `ignore:` | hadolint >= 2.x reads `ignored:`; the misspelled key is silently dropped, voiding every suppression so all accepted findings leak as `::error::` annotations (hadolint exits 0 but the action fails) | Use `ignored:`; verify with `hadolint -c .hadolint.yaml -f json <file>` — ignored rules should vanish from the JSON |
+| `driver: docker-container` to consume a `load:true` base via build-arg | Switched buildx to docker-container (someone's wrong attempted fix) | docker-container driver has an isolated image store; it can't see images loaded into the daemon and falls back to pulling from docker.io → `pull access denied ... insufficient_scope` | Use `driver: docker` (shares the daemon image store), matching the working build-vessels/smoke `load: true` pattern (AchaeanFleet #694) |
+| `cache-to: type=gha,mode=max` with `driver: docker` | Kept GHA cache export after switching to docker driver | Aborts the build with `Cache export is not supported for the docker driver` | Drop the GHA cache export when using `driver: docker` (AchaeanFleet #693) |
+| Removing a vessel from `test-smoke-vessels` matrix without updating the drift test | Dropped a vessel from the CI matrix | `test_smoke_matrix_drift.py` asserts every `vessels/<x>` dir is in the matrix → drift test goes red | Add the removed vessel to that test's `EXCLUDED_VESSELS` allowlist (AchaeanFleet #696) |
 
 ## Results & Parameters
 
@@ -406,6 +488,7 @@ schedule_cron: '0 6 * * *'   # 06:00 UTC — off-peak
 | --------- | --------- | --------- |
 | ProjectOdyssey | Multiple PRs — Docker-to-Podman migration, pixi isolation, UID mismatch | skills/docker-to-podman-migration.history |
 | AchaeanFleet | PR #219 — multi-arch OCI, Conan 2 profile chain, ENTRYPOINT enforcement | skills/container-build-and-runtime-patterns.history |
+| AchaeanFleet | PRs #693/#694/#695/#696 — hadolint `ignored:` key, buildx `driver: docker` for `load:true` build-arg, GHA cache + docker driver incompatibility, smoke-matrix drift guard (verified-ci: post-merge "Build All Agent Images" on main HEAD green) | skills/container-build-and-runtime-patterns.history |
 | ProjectKeystone | PR — rootless Podman DNS, compose mount clone-aware | skills/container-build-and-runtime-patterns.history |
 | ProjectNestor | PR — C++ coverage container, clang-format pinning, Podman CI containerization | skills/container-build-and-runtime-patterns.history |
 | ProjectScylla | PR — E2E container testing, pixi container env isolation | skills/container-build-and-runtime-patterns.history |
