@@ -1,0 +1,81 @@
+# computation-hard-walls-analysis — History
+
+## v1.1.0 (2026-06-01)
+
+**Changed by:** M16 asymptotic-safety substrate mechanism design (Myrmidon swarm physics agent)
+**Verification:** unverified — theoretical framework extended with new mechanism data point
+
+### What changed
+- Added M16 asymptotic-safety wall-by-wall analysis to Results & Parameters
+- Extended Failed Attempts table with one new entry (2D CFT conflation)
+- Added new insight: Wall 5 (sign problem) is specifically defeated by CDT/Lorentzian approaches (novel finding vs AdS/CFT defeat mechanism)
+- Updated Capability Score Rubric with M16 scores
+- Added NP-1/NP-2/NP-3 postulate taxonomy to new-physics postulate naming convention
+
+### Why
+M16 design session revealed that the sign problem (Wall 5) can be defeated via a different mechanism than the AdS/CFT path: Lorentzian CDT causal ordering eliminates the oscillatory Euclidean sign problem directly, independent of large-N limits. This is a distinct defeat mechanism worth documenting. Also: the 14-wall framework was applied for the second time, now with two distinct mechanism types (holographic boundary vs RG-flow substrate), allowing cross-mechanism comparison data.
+
+### Previous version (v1.0.0) snapshot
+
+```markdown
+---
+name: computation-hard-walls-analysis
+description: "Framework for analyzing 14 fundamental hard walls against exotic computation schemes in sci-fi mechanism design. Use when: (1) evaluating how many physical limits a fictional compute device breaks, (2) scoring mechanism plausibility against known physics limits, (3) writing scientifically rigorous speculative technology documents."
+category: architecture
+date: 2026-06-01
+version: "1.0.0"
+user-invocable: false
+verification: unverified
+tags: [physics, computation, limits, hard-walls, scifi, worldbuilding, mechanism-design]
+---
+
+# Computation Hard Walls Analysis Framework
+
+## Overview
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-06-01 |
+| **Objective** | Systematically evaluate exotic/fictional compute mechanisms against 14 known physical hard limits |
+| **Outcome** | Framework developed; holographic mechanism defeats 10 of 14 walls; 3 are genuinely inviolable |
+| **Verification** | unverified — theoretical framework, not implemented |
+
+## When to Use
+
+- Scoring a speculative or fictional computation mechanism for plausibility
+- Writing mechanism design documents for sci-fi worldbuilding
+- Checking which physical laws a proposed device must break and why
+- Comparing multiple exotic compute mechanisms on a common rubric
+- Grounding "impossible technology" in real physics language
+
+## Verified Workflow
+
+> **Warning (Proposed Workflow):** This workflow has not been validated end-to-end. Treat as a hypothesis until CI confirms. Verification level: `unverified` — theoretical framework only.
+
+### Quick Reference
+
+```
+The 14 Hard Walls (reference list):
+ 1. Holevo bound (classical bits extractable from qubits)
+ 2. Landauer floor (k_BT ln2 per bit erased)
+ 3. Cube-square thermal (volume heat vs surface cooling)
+ 4. Exponential Hilbert-space scaling (Feynman)
+ 5. NP-hard fermionic sign problem
+ 6. Chaos/Lyapunov limit (λ_L ≤ 2πk_BT/ℏ)
+ 7. Computational irreducibility (Wolfram)
+ 8. Data-movement/memory-wall energy
+ 9. Gravity's weakness (G_N extremely small)
+10. Force energy-scale ladder (electroweak >> gravity)
+11. Analog precision/noise wall (~5-10 bits classical)
+12. Bekenstein/holographic bound (S ≤ A/4G_N)
+13. Thompson AT²=Ω(n²) I/O lower bound (VLSI)
+14. Causality/speed-of-light latency
+```
+[... full content in v1.0.0 file ...]
+```
+
+---
+
+## v1.0.0 (2026-06-01)
+
+**Initial version.**
