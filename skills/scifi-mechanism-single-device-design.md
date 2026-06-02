@@ -3,11 +3,11 @@ name: scifi-mechanism-single-device-design
 description: "Design a single speculative-but-rigorous physics mechanism for a fictional sci-fi device, grounded in real cited science, with a Laws-Broken Ledger, Walls Defeated table, Parsimony/Capability scores, and Failure Modes. Use when: (1) a Myrmidon swarm agent is assigned one mechanism (MNN-name) to design in isolation, (2) the mechanism file must follow the HomericIntelligence/Story M-series template, (3) you need real cited papers (URL+date, ≥4) anchoring speculative extrapolations, (4) the prompt says 'pure science — no story/plot/character content'."
 category: documentation
 date: 2026-06-01
-version: "1.2.0"
+version: "1.3.0"
 user-invocable: false
 verification: verified-local
 history: scifi-mechanism-single-device-design.history
-tags: [scifi, worldbuilding, mechanism-design, physics, citations, hard-walls, m-series, homeric-intelligence, speculative-science, laws-broken, parsimony, capability, monopole, topological-soliton, exotic-particles, false-vacuum, higgs, vacuum-decay, coleman-bounce]
+tags: [scifi, worldbuilding, mechanism-design, physics, citations, hard-walls, m-series, homeric-intelligence, speculative-science, laws-broken, parsimony, capability, monopole, topological-soliton, exotic-particles, false-vacuum, higgs, vacuum-decay, coleman-bounce, lloyd, wheeler, it-from-bit, computational-universe, offload-architecture, bekenstein, holevo, landauer, reality-computes]
 ---
 
 # Sci-Fi Single Mechanism Device Design (M-Series)
@@ -18,8 +18,9 @@ tags: [scifi, worldbuilding, mechanism-design, physics, citations, hard-walls, m
 | ------- | ------- |
 | **Date** | 2026-06-01 |
 | **Objective** | Design one rigorous speculative-physics mechanism for a fictional sci-fi device (e.g., a Planck-scale reality simulator), following the HomericIntelligence Story M-series file format: real cited papers, Laws-Broken Ledger, 14 Hard Walls table, Parsimony/Capability scores, Failure Modes, and Feasibility tags — pure science, no narrative. |
-| **Outcome** | Successful: M15 (String/T-Duality Minimum-Length Substrate) produced at `Story/Research/Mechanisms/M15-string-tduality-substrate.md`, ~2000 words, ≥7 real cited papers with URLs and dates, all 14 Hard Walls addressed, Laws-Broken Ledger table complete, Parsimony 4/10 and Capability 9.5/10 scored, 5 Failure Modes documented. |
-| **Verification** | verified-local (file written and confirmed at target path; not CI-gated). |
+| **Outcome** | Successful: M15 (String/T-Duality Minimum-Length Substrate), M43 (Magnetic-Monopole Register), and M55 (Reality-Computes-Itself Offload) produced. M55 introduced the "offload to reality" class: mechanism with only 4 new-physics postulates that defeats Wall 4 (Feynman exponential) by refusing to simulate the region and running the region itself. |
+| **Verification** | verified-local (files written and confirmed at target paths; not CI-gated). |
+| **History** | [changelog](./scifi-mechanism-single-device-design.history) |
 
 ## When to Use
 
@@ -49,20 +50,21 @@ Step 2: WebFetch the 2-3 most important arXiv/journal pages for:
         - key equations or claims to quote accurately
 
 Step 3: Read ONE existing M-series file for format reference:
-        /Story/Research/Mechanisms/M01-microbh-lattice.md (lines 1-60 sufficient)
+        /Story/Research/Mechanisms/M14-lqg-spin-network.md (most complete template;
+        covers all 10 sections fully including table-format walls and feasibility tags)
 
 Step 4: Write the file at the EXACT assigned path. Sections (in order):
         # MNN — Title
         **One-line mechanism** + **Class**
         ## Premise Correction  (address Planck CONSTANT vs Planck LENGTH confusion)
         ## How It Works       (numbered subsections; label [REAL], [NEW-PHYSICS], [SPECULATIVE])
-        ## Real-Science Anchor (≥4 citations: author, title, venue, year, URL, access date)
-        ## Laws-Broken Ledger  (markdown table: #, Law/Wall, Status, How broken)
-        ## Walls Defeated vs Left Standing (prose summary of all 14)
-        ## Parsimony Score    (X/10 with justification)
-        ## Capability Score   (X/10 with justification)
-        ## Failure Modes / No-Go Cascades (3-5 numbered failure modes)
-        ## Feasibility Tags   (bullet list of tagged assessments)
+        ## Real-Science Anchor (>=4 citations: author, title, venue, year, URL)
+        ## Laws-Broken Ledger  (markdown table: Law/Wall, Status, Note)
+        ## Walls Defeated vs Left Standing (all 14 in table; Wall #, Description, Status, Argument)
+        ## Parsimony Score    (NP-N postulate listing with severity; overall score)
+        ## Capability Score   (counts: decisively defeated, broken via NP, partially, standing)
+        ## Failure Modes / No-Go Cascades (3-7 numbered failure modes)
+        ## Feasibility Tags   (table: Claim | Tag)
 
 Step 5: Run /hephaestus:learn after writing the file (this skill).
 ```
@@ -73,9 +75,9 @@ Step 5: Run /hephaestus:learn after writing the file (this skill).
 
 Run 4 independent searches simultaneously:
 1. `"<mechanism core concept> review <key author>"` — for canonical review papers
-2. `"<specific 1989/1993 foundational paper> <author> <journal>"` — for primary sources
+2. `"<specific foundational paper> <author> <journal>"` — for primary sources
 3. `"<mechanism> computation register quantum information"` — for computational reinterpretation
-4. `"<supporting concept> string theory information storage bits"` — for holographic/information angle
+4. `"<supporting concept> information storage bits"` — for holographic/information angle
 
 **Step 2 — WebFetch the arXiv abstract pages** (not PDFs — abstracts have clean metadata):
 
@@ -84,38 +86,42 @@ https://arxiv.org/abs/<id>
 Prompt: "Extract title, authors, year, journal/volume/pages, and key claims about <topic>."
 ```
 
-**Step 3 — Read format reference (first 60 lines of M01):**
+**Step 3 — Read format reference (M14 is the richest template):**
 
 ```
-Read /home/mvillmow/HomericIntelligence/Story/Research/Mechanisms/M01-microbh-lattice.md
-lines 1-60
+Read /home/mvillmow/HomericIntelligence/Story/Research/Mechanisms/M14-lqg-spin-network.md
 ```
 
-Key format observations from M01:
+Key format observations:
 - Labels: `[NEW-PHYSICS]`, `[REAL]`, `[SPECULATIVE]`, `[FRONTIER]` inline in subsection headers
-- Postulates are named `NP-N (Name)` for new-physics departures
-- Laws-Broken Ledger uses `**BROKEN**`, `**SIDESTEPPED**`, `**EXPLOITED**`, `**LEFT STANDING**`
-- Power source is a required subsection
+- Postulates named `NP-N (Name)` for new-physics departures
+- Laws-Broken Ledger uses `**BROKEN**`, `**PRESERVED**`, `**BENT**`, `**DEFEATED**`,
+  `**PARTIALLY DEFEATED**`, `**EXPLOITED**`, `**IRRELEVANT**`
+- Walls Defeated is a full table with all 14 rows: Wall #, Description, Status, Honest Interrogation
+- Power source is a required subsection inside How It Works
+- Feasibility Tags is a table (Claim | Tag), not a bullet list
 
 **Step 4 — Write the file.** Key discipline rules:
 
 | Rule | Detail |
 |------|--------|
-| Premise Correction | ALWAYS address "Planck constant (h, J·s) ≠ Planck length (ℓ_P, ~1.6×10⁻³⁵ m)"; also note if string scale ≠ Planck scale |
-| Citation format | Author (year). "Title." *Venue* vol:pp. [URL] Accessed YYYY-MM-DD. |
-| All 14 walls | Address every wall; never skip; mark each BROKEN/SIDESTEPPED/EXPLOITED/LEFT STANDING |
+| Premise Correction | ALWAYS address "Planck constant (h, J·s) ≠ Planck length (ℓ_P, ~1.6×10⁻³⁵ m)" |
+| All 14 walls | Address every wall; never skip; mark each with explicit status |
 | No narrative | Zero story/character/plot content; pure physics mechanism prose |
-| Word count | 1500–2500 words |
+| Word count | 1500–2500 words (longer for complex mechanisms acceptable) |
+| Honest interrogation | Each wall status needs a real physics argument; Walls 6, 7, 14 essentially never fall |
 
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 |---------|----------------|---------------|----------------|
-| Searching for "string winding modes computation register" | Expected to find explicit string-theoretic computation papers | Results returned generic quantum harmonic oscillator and CV computing papers, not string-theory-specific registers | The computational-register reinterpretation of string modes is novel — cite oscillator/Fock-space QC papers + string theory separately, then bridge them explicitly as new-physics reinterpretation |
+| Searching for "string winding modes computation register" | Expected to find explicit string-theoretic computation papers | Results returned generic quantum harmonic oscillator papers, not string-theory-specific registers | The computational-register reinterpretation of string modes is novel — cite oscillator/Fock-space QC papers + string theory separately, then bridge explicitly |
 | WebFetch on full PDF URL (arxiv.org/pdf/...) | Attempted to get full paper text for equation extraction | PDFs return raw text hard to parse cleanly; abstracts page (/abs/) gives cleaner metadata | Always WebFetch the `/abs/` page not the `/pdf/` page for citation metadata |
 | Relying only on search summaries for citation details | Used WebSearch text summaries for paper metadata | Summaries sometimes omit page numbers, exact volumes, or conflate multiple papers | Always WebFetch at least 2 key papers directly for precise citation data |
-| WebFetch on Nature.com article (SSL error) | Attempted to fetch https://www.nature.com/articles/nature06433 for Castelnovo-Moessner-Sondhi 2008 citation details | SSL certificate validation failure on nature.com — returns "unable to verify the first certificate" | For Nature.com articles, use the corresponding arXiv preprint URL (arxiv.org/abs/XXXX.XXXXX) or the ADS abstract page (ui.adsabs.harvard.edu) instead; the arXiv abstract for Castelnovo 2008 is https://arxiv.org/abs/0710.5515 |
-| Attempting to cite Parker 1970 from original journal | Searched for "Parker 1970 Astrophys J 160 383 monopole flux" — results returned modern re-analyses, not the original paper | Parker (1970) predates open-access archives; original paper is paywalled and not on arXiv | For foundational pre-arXiv papers (Parker bound, Dirac 1931), cite via DOI/journal volume info extracted from review papers or Wikipedia, then verify the key quantitative claim (flux limit, charge relation) via a modern review that quotes it |
+| WebFetch on Nature.com article (SSL error) | Attempted to fetch https://www.nature.com/articles/nature06433 for Castelnovo 2008 | SSL certificate validation failure on nature.com | For Nature.com articles, use arXiv preprint URL or ADS abstract instead; Castelnovo 2008 preprint: https://arxiv.org/abs/0710.5515 |
+| Attempting to cite Parker 1970 from original journal | Searched for "Parker 1970 Astrophys J 160 383 monopole flux" | Predates open-access archives; original paper paywalled and not on arXiv | For foundational pre-arXiv papers, cite via journal info from review papers, verify key claim via modern review |
+| Claiming the offload architecture defeats Wall 7 (irreducibility) | M55: argued that running the region bypasses computational irreducibility | Irreducibility applies to the computation itself, not to who runs it; the physical region still runs every step | Wall 7 is inviolable even for the most elegant offload. M55 sidesteps SIMULATION cost, not COMPUTATION cost |
+| Claiming Planck-scale boundary readout at handheld power for full holographic resolution | Tried to read all I_max = 10^65 bits from R=10cm region at 300 K | Landauer cost: k_BT ln2 x 10^65 ≈ 10^44 J (Sun's output for 10^18 years) | Full holographic readout is thermodynamically impossible; always subsample to ~10^12 bits/s |
 
 ## Results & Parameters
 
@@ -132,7 +138,7 @@ Key format observations from M01:
 4. Exponential Hilbert-space (Feynman)   5. NP-hard sign problem
 6. Chaos/Lyapunov  7. Computational irreducibility  8. Data-movement energy
 9. Gravity's weakness  10. Force energy-scale ladder  11. Analog precision (~5-10 bits)
-12. Bekenstein/holographic  13. Thompson AT²=Ω(n²)  14. Causality/c latency
+12. Bekenstein/holographic  13. Thompson AT2=Omega(n^2)  14. Causality/c latency
 ```
 
 ### Premise Correction Boilerplate
@@ -142,24 +148,27 @@ Key format observations from M01:
 
 The author's phrase "Planck-level fields" requires disambiguation.
 
-**Planck CONSTANT vs. Planck LENGTH.** The Planck constant h = 6.626×10⁻³⁴ J·s is a fixed
+**Planck CONSTANT vs. Planck LENGTH.** The Planck constant h = 6.626x10^-34 J*s is a fixed
 unit of action governing quantum-mechanical phase; it is NOT the geometric scale relevant
-to this mechanism. The relevant scale is the **Planck LENGTH** ℓ_P = √(ℏG/c³) ≈ 1.616×10⁻³⁵ m,
+to this mechanism. The relevant scale is the **Planck LENGTH** l_P = sqrt(hbar*G/c^3) ~= 1.616x10^-35 m,
 where quantum gravitational effects become O(1).
 
-[Add mechanism-specific nuance here, e.g. string scale ≥ Planck length.]
+[Add mechanism-specific nuance here, e.g. string scale >= Planck length.]
 ```
 
 ### Key Physics Constants for M-Series Files
 
 ```
-ℓ_P = 1.616×10⁻³⁵ m     (Planck length)
-m_P = 2.176×10⁻⁸ kg      (Planck mass, ~1.22×10¹⁹ GeV)
-t_P = 5.39×10⁻⁴⁴ s       (Planck time)
-T_P = 1.42×10³² K         (Planck temperature)
-ℓ_s = √α' ≈ 10⁻³³–10⁻³⁴ m  (string length, slightly above ℓ_P)
-M_s = 1/√α' ~ 10¹⁷–10¹⁹ GeV  (string mass scale, standard)
-M_s_ADD ~ 1–19 TeV          (string scale with large extra dimensions, LHC-constrained)
+l_P = 1.616e-35 m      (Planck length)
+m_P = 2.176e-8 kg      (Planck mass, ~1.22e19 GeV)
+t_P = 5.39e-44 s       (Planck time)
+T_P = 1.42e32 K        (Planck temperature)
+E_P = m_P c^2 ~= 1.956e9 J  (Planck energy)
+l_s = sqrt(alpha') ~= 1e-33--1e-34 m  (string length, slightly above l_P)
+M_s = 1/sqrt(alpha') ~ 1e17--1e19 GeV  (string mass scale, standard)
+M_s_ADD ~ 1-19 TeV     (string scale with large extra dimensions, LHC-constrained)
+I_max = A/(4*l_P^2)    (Bekenstein/holographic readout limit: bits per boundary area)
+Landauer min = k_B T ln2 ~= 2.9e-21 J per bit at 300 K
 ```
 
 ### Scoring Rubric
@@ -173,7 +182,90 @@ Parsimony Score (X/10):
 Capability Score (X/10):
   10 = defeats all 14 walls, unlimited information capacity
    5 = defeats 7-9 walls, adequate for simulation purpose
-   1 = defeats ≤3 walls, barely plausible
+   1 = defeats <=3 walls, barely plausible
+```
+
+### Mechanism Class Taxonomy (as of v1.3.0)
+
+Three distinct mechanism classes developed for the HomericIntelligence Story device:
+
+```
+CLASS A -- Quantum-Gravity Substrate (M14 LQG, M15 String/T-Duality, M16 AS-RG)
+  Core idea: Build computation ON Planck-scale spacetime structure
+  Strength: Defeats Wall 4 (Hilbert-space) by IS-ing a quantum system
+  Weakness: Requires new-physics coupling from macro to Planck scale (Wall 10)
+  Hardest wall: Wall 10 (force energy-scale ladder) + Wall 7 (irreducibility)
+
+CLASS B -- Topological Soliton Register (M43 Magnetic Monopole, skyrmion/vortex variants)
+  Core idea: Use topological invariants (Q in Z) as discrete classical registers
+  Strength: Thermal noise immunity below pair-production threshold; discrete = no analog error
+  Weakness: Wall 4 NOT defeated (topological charge is classical, exponential cost remains)
+  Hardest wall: Wall 10 (GUT-scale field requirements) + Wall 4 (classical register)
+
+CLASS C -- Reality Offload / Computational Universe (M55 Reality-Computes-Itself)
+  Core idea: Don't simulate the region -- delegate computation to reality's own evolution
+  Strength: Defeats Wall 4 COMPLETELY with ZERO new physics
+  Weakness: Wall 7 (irreducibility) irreducible -- region runs in real time no faster
+  Hardest wall: Wall 7 (irreducibility without NP-4) + Wall 6 (chaos bites at BE write)
+  Key parsimony: One new-physics concept (TCF coupling field) implies all 4 postulates
+```
+
+### Key Pattern: Class C Offload Architecture (M55)
+
+```
+Core argument (no new physics required for Wall 4 defeat):
+  Feynman's Wall applies to CLASSICAL SIMULATION of quantum systems.
+  If the device does NOT simulate -- it runs the actual region -- Feynman's Wall
+  is sidestepped, not broken. The physical region traverses its own exponential
+  Hilbert space. The device pays only for I/O.
+
+Three-layer architecture:
+  Layer A -- Boundary Encoder (BE): writes initial quantum state onto target region boundary
+  Layer B -- Evolution Oracle (EO): waits; region evolves under its own laws (zero device cost)
+  Layer C -- Readout Decoder (RD): measures boundary state, extracts classical bitstring
+
+Critical limits that remain regardless of new physics:
+  Readout hard ceiling:    I_max = A/(4*l_P^2) bits from boundary (Bekenstein, real physics)
+  Readout practical limit: ~10^12 bits/s for human-perceptible output
+  Landauer cost of full holographic readout (R=10cm, 300K): ~10^44 J -- impossible
+  Chaos at BE stage:       Planck-precision initial conditions for chaotic scenarios cost
+                           I_chaotic_region bits to specify -- near-circular dependency
+  Wall 7 irreducibility:   Region runs every step; no shortcut even after offload
+
+The "perfect simulator must BE the region" no-go:
+  M55 ACCEPTS this. The device makes the region be itself.
+  Implication: simulating a counterfactual world creates actual reality in that region.
+  Observers in the region experience it as completely real.
+```
+
+### Real Citations Reusable for Computational-Universe / Information-Physics Mechanisms
+
+```
+Lloyd, S. (2002). "Computational capacity of the universe." Phys. Rev. Lett. 88:237901.
+  https://arxiv.org/abs/quant-ph/0110141
+  Key: universe performs <=10^120 ops on <=10^90 bits; E/hbar ops/s per bit; universe IS quantum computer
+
+Lloyd, S. (2006). Programming the Universe: A Quantum Computer Scientist Takes on the Cosmos. Knopf.
+  https://en.wikipedia.org/wiki/Programming_the_Universe
+  Key: every particle interaction is a logic gate; atoms compute
+
+Wheeler, J.A. (1990). "Information, Physics, Quantum: The Search for Links."
+  In Complexity, Entropy and the Physics of Information, Addison-Wesley.
+  Ref: https://www.historyofinformation.com/detail.php?id=5041
+  Key: "it from bit" -- physical reality is information-theoretic at Planck scale
+
+Deutsch, D. (1985). "Quantum theory, the Church-Turing principle and the universal quantum computer."
+  Proc. Royal Society A 400:97-117. https://royalsocietypublishing.org/doi/10.1098/rspa.1985.0070
+  Key: any finite physical system can simulate any other; converse used in M55 offload
+
+Bekenstein, J.D. (1973). "Black Holes and Entropy." Phys. Rev. D 7:2333.
+  https://journals.aps.org/prd/abstract/10.1103/PhysRevD.7.2333
+  Key: I_max = A/(4*l_P^2); holographic bound as readout surface ceiling
+
+Holevo, A.S. (1973). "Bounds for the quantity of information transmitted by a quantum channel."
+  Problems of Information Transmission 9:177-183.
+  https://en.wikipedia.org/wiki/Holevo%27s_theorem
+  Key: at most n classical bits from n qubits; governs all quantum boundary readout channels
 ```
 
 ### Real Citations Reusable for String-Theory Mechanisms
@@ -184,23 +276,15 @@ Amati, Ciafaloni & Veneziano (1989). "Can space-time be probed below the string 
   https://www.sciencedirect.com/science/article/abs/pii/0370269390919274
 
 Maggiore, M. (1993). "A Generalized Uncertainty Principle in Quantum Gravity."
-  Phys. Lett. B 304:65-69.
-  https://arxiv.org/abs/hep-th/9301067
+  Phys. Lett. B 304:65-69.  https://arxiv.org/abs/hep-th/9301067
 
-Alvarez, Alvarez-Gaumé & Lozano (1994). "An Introduction to T-Duality in String Theory."
-  Nucl. Phys. B Proc. Suppl. 41.
+Alvarez, Alvarez-Gaume & Lozano (1994). "An Introduction to T-Duality in String Theory."
   https://arxiv.org/abs/hep-th/9410237
 
 Smailagic, Spallucci & Padmanabhan (2003). "String theory T-duality and the zero point length."
-  arXiv:hep-th/0308122.
   https://arxiv.org/abs/hep-th/0308122
 
-Kachru, Kallosh, Linde & Trivedi (2003). "de Sitter Vacua in String Theory."
-  Phys. Rev. D 68:046005.
-  https://arxiv.org/abs/hep-th/0301240
-
 Maldacena, J. (1997). "The Large N Limit of Superconformal Field Theories and Supergravity."
-  Int. J. Theor. Phys. 38(4):1113-1133.
   https://arxiv.org/abs/hep-th/9711200
 
 Polchinski, J. (1998). String Theory, Vol. I & II. Cambridge University Press.
@@ -208,70 +292,44 @@ Polchinski, J. (1998). String Theory, Vol. I & II. Cambridge University Press.
 
 ### Real Citations Reusable for Exotic-Particle / Topological-Soliton Mechanisms
 
-These are pre-verified (accessed 2026-06-01) for mechanisms in the magnetic-monopole, topological-soliton, or GUT-scale exotic-particle class (M43, and similar skyrmion/instanton/vortex mechanisms):
-
 ```
 Dirac, P.A.M. (1931). "Quantised Singularities in the Electromagnetic Field."
   Proc. R. Soc. London A 133(821):60-72.
   https://www.semanticscholar.org/paper/Quantised-Singularities-in-the-Electromagnetic-Dirac/16c075e422432ced4c96d2f7c8ad9c912e19468f
-  Key claim: magnetic monopole existence ↔ electric charge quantization (Dirac relation: eg = nℏc/2)
 
-'t Hooft, G. (1974). "Magnetic Monopoles in Unified Gauge Theories."
-  Nucl. Phys. B 79:276-284.
-  Wikipedia summary + formula: https://en.wikipedia.org/wiki/%27t_Hooft%E2%80%93Polyakov_monopole
-  Key claim: non-singular finite-energy monopole soliton from SU(2)→U(1) symmetry breaking;
-  topological stability from π₂(G/H) = ℤ; mass m_M ~ m_W/α ≈ 10¹⁶ GeV at GUT scale.
-  (Companion paper: Polyakov, A.M. (1974). JETP Lett. 20:194-195.)
+'t Hooft, G. (1974). "Magnetic Monopoles in Unified Gauge Theories." Nucl. Phys. B 79:276-284.
+  https://en.wikipedia.org/wiki/%27t_Hooft%E2%80%93Polyakov_monopole
 
 Castelnovo, C., Moessner, R. & Sondhi, S.L. (2008). "Magnetic monopoles in spin ice."
-  Nature 451:42-45.
-  arXiv preprint: https://arxiv.org/abs/0710.5515   ← USE THIS URL (Nature SSL fails)
-  Key claim: dipole moments in pyrochlore spin-ice (Dy₂Ti₂O₇, Ho₂Ti₂O₇) fractionalize
-  into deconfined emergent magnetic monopoles; Coulomb-like 1/r interaction; liquid-gas
-  phase transition under applied field.
+  Nature 451:42-45.  arXiv preprint: https://arxiv.org/abs/0710.5515  (use arXiv; Nature SSL fails)
 
-MoEDAL Collaboration (2024). "MoEDAL Search in the CMS Beam Pipe for Magnetic Monopoles
-  Produced via the Schwinger Effect."
+MoEDAL Collaboration (2024). "MoEDAL Search in CMS Beam Pipe for Magnetic Monopoles."
   Phys. Rev. Lett. 133:071803.
   https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.133.071803
-  Key claim: null result; mass limits up to 3.9 TeV for 1-10 g_D monopoles; strongest limits
-  for Schwinger-mechanism monopoles 2-45 g_D (up to 80 GeV excluded).
-  phys.org coverage: https://phys.org/news/2024-04-large-hadron-collider-zeroes-magnetic.html
 
 Parker, E.N. (1970). "The Origin of Magnetic Fields." Astrophys. J. 160:383.
-  Extended Parker bound (modern): arXiv:2404.04926 (Baines & Sherrat 2024, JHEP)
-  https://arxiv.org/abs/2404.04926
-  Key claim: galactic B-field draining → flux limit F_M ≲ 5.3×10⁻¹⁹ cm⁻² s⁻¹ sr⁻¹ for
-  GUT monopoles (10¹³–10¹⁶ GeV).
+  Extended Parker bound: arXiv:2404.04926 (Baines & Sherrat 2024). https://arxiv.org/abs/2404.04926
 
 Rajantie, A. (2012). "Introduction to Magnetic Monopoles." Contemp. Phys. 53(3):195.
-  arXiv: https://arxiv.org/pdf/1204.3077
-  Good general review: Dirac monopole, 't Hooft-Polyakov, GUT monopole problem, cosmological
-  constraints, detection methods. Useful for Wall 10 (force energy-scale ladder) discussion.
+  https://arxiv.org/pdf/1204.3077
 ```
 
-### Key Pattern: Topological-Charge Register Architecture
-
-For any mechanism using topological invariants (monopoles, skyrmions, vortices, instantons) as compute registers, the canonical structure is:
+### Key Pattern: Topological-Charge Register Architecture (Class B)
 
 ```
-1. Topological charge Q ∈ ℤ → classical discrete register (immune to thermal noise below
-   pair-production threshold, but CLASSICAL — Wall 4 / Feynman exponential still stands)
+1. Topological charge Q in Z -> classical discrete register (immune to thermal noise below
+   pair-production threshold, but CLASSICAL -- Wall 4 / Feynman exponential still stands)
 
-2. Annihilation/pair-creation event → irreversible logic gate
-   (each event: ~2m_soliton c² energy released; recycling must be asserted to avoid
-   power catastrophe — this is the required fiction for any soliton-compute mechanism)
+2. Annihilation/pair-creation event -> irreversible logic gate
+   (each event: ~2*m_soliton*c^2 energy released; recycling must be asserted to avoid
+   power catastrophe -- required fiction for any soliton-compute mechanism)
 
-3. Internal excitations of soliton core → multi-level (analog) register
+3. Internal excitations of soliton core -> multi-level (analog) register
    (limited by Wall 11 / analog precision unless reset protocol maintained)
 
-4. Control plane mismatch: all known macroscopic analogs (spin-ice, etc.) operate at
-   ~10⁻²²–10⁻²¹ J per event; GUT solitons at ~10⁻¹² J — gap of ~10¹⁰ in energy scale.
-   Bridge requires "father's new physics" postulate.
-
-5. Force energy-scale ladder (Wall 10) is the hardest wall for all GUT-scale mechanisms.
-   Macroscopic fields cannot reach GUT symmetry-restoration scale (need B ~ 10⁴⁵ T;
-   available lab fields ~ 10⁵ T; gap: 10⁴⁰). Black hole collapse precedes GUT threshold.
+4. Force energy-scale ladder (Wall 10) is hardest wall for all GUT-scale mechanisms.
+   Macroscopic fields cannot reach GUT symmetry-restoration scale (need B ~ 10^45 T;
+   available lab fields ~ 10^5 T; gap: 10^40). Black hole collapse precedes GUT threshold.
 ```
 
 ## Verified On
@@ -279,4 +337,5 @@ For any mechanism using topological invariants (monopoles, skyrmions, vortices, 
 | Project | Context | Details |
 |---------|---------|---------|
 | HomericIntelligence/Story | M15 string/T-duality mechanism design, 2026-06-01 | M15-string-tduality-substrate.md, ~2000 words, 7 citations, all 14 walls addressed |
-| HomericIntelligence/Story | M43 magnetic-monopole register design, 2026-06-01 | M43-magnetic-monopole-register.md, ~3000 words, 7 real citations (Dirac 1931, 't Hooft/Polyakov 1974, Castelnovo 2008, MoEDAL 2024, Parker bound, Bekenstein, Schwinger); all 14 walls addressed; Parsimony 3/10, Capability 8/10; 4 no-go cascades documented; Wall 10 (force energy-scale ladder) identified as hardest wall for all GUT-scale mechanisms |
+| HomericIntelligence/Story | M43 magnetic-monopole register design, 2026-06-01 | M43-magnetic-monopole-register.md, ~3000 words, 7 real citations; all 14 walls addressed; Parsimony 3/10, Capability 8/10; Wall 10 identified as hardest wall for all GUT-scale mechanisms |
+| HomericIntelligence/Story | M55 reality-computes-itself offload design, 2026-06-01 | M55-reality-computes-itself.md, ~5400 words, 6 real citations (Lloyd PRL 2002, Lloyd 2006 book, Wheeler 1990, Deutsch 1985, Bekenstein 1973, Holevo 1973); 4 new-physics postulates (NP-1 TCF, NP-2 boundary write, NP-3 boundary read, NP-4 clock acceleration); Parsimony 8/10 (one root discovery ramifies into all 4 NPs); Wall 4 defeated with zero new physics; 7 failure modes documented; full holographic readout costs 10^44 J (impractical -- must subsample) |

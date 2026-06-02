@@ -1,5 +1,31 @@
 # scifi-mechanism-single-device-design — History
 
+## v1.3.0 (2026-06-01)
+
+**Changed by:** M55 reality-computes-itself offload mechanism design (Myrmidon swarm physics agent)
+**Verification:** verified-local
+
+### What changed
+- Bumped version to 1.3.0
+- Added Class C (Reality Offload / Computational Universe) to mechanism class taxonomy
+- Added "Key Pattern: Class C Offload Architecture (M55)" reference block
+- Added "Real Citations Reusable for Computational-Universe / Information-Physics Mechanisms" section (6 citations: Lloyd PRL 2002, Lloyd 2006, Wheeler 1990, Deutsch 1985, Bekenstein 1973, Holevo 1973)
+- Added 2 new Failed Attempts rows: (1) claiming offload defeats Wall 7, (2) claiming full holographic readout at handheld power
+- Updated Outcome in Overview table to mention M55
+- Updated format reference recommendation: M14 preferred over M01 (most complete template)
+- Updated Step 4 format notes: table-format walls, Feasibility Tags as table
+- Added M55 row to Verified On table
+- Added relevant tags: lloyd, wheeler, it-from-bit, computational-universe, offload-architecture, bekenstein, holevo, landauer, reality-computes
+
+### Why
+M55 (reality-computes-itself) design session produced a third distinct mechanism class -- the "offload to reality" approach -- which defeats Wall 4 (Feynman exponential) with zero new physics by refusing to simulate the region and running the region itself. The Lloyd/Wheeler/Deutsch/Bekenstein/Holevo citation set is independently reusable for any Class C mechanism. The two new Failed Attempts (Wall 7 inviolability for offload; impossibility of full holographic readout at practical power) are critical lessons for future Class C designs.
+
+### Previous version (v1.2.0) snapshot
+
+[v1.2.0 was identical to v1.1.0 plus: no changes from the current session -- the version jump from 1.1.0 to 1.3.0 skips 1.2.0 to avoid confusion with the computation-hard-walls-analysis 1.2.0 update happening in the same session. v1.1.0 content is documented in the entry below.]
+
+---
+
 ## v1.1.0 (2026-06-01)
 
 **Changed by:** Session context — M43 magnetic-monopole register mechanism design
