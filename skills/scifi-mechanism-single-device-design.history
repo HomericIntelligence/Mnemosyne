@@ -1,0 +1,44 @@
+# scifi-mechanism-single-device-design — History
+
+## v1.1.0 (2026-06-01)
+
+**Changed by:** Session context — M43 magnetic-monopole register mechanism design
+**Verification:** verified-local
+
+### What changed
+- Added `history` frontmatter field pointing to this file
+- Added `monopole`, `topological-soliton`, `exotic-particles` to tags
+- Added 2 new Failed Attempts rows:
+  - WebFetch on Nature.com SSL failure (solution: use arXiv preprint instead)
+  - Pre-arXiv foundational papers (Parker 1970, Dirac 1931) not directly fetchable
+- Added new "Real Citations Reusable for Exotic-Particle / Topological-Soliton Mechanisms" section with 6 verified citations
+- Added "Key Pattern: Topological-Charge Register Architecture" reference block
+- Added M43 row to Verified On table
+
+### Why
+M43 (magnetic-monopole register) design session produced a new class of mechanism — topological-soliton computing — distinct from the string-theory mechanisms documented in v1.0.0. The citation set, the Wall 10 hard-wall analysis, and the architectural pattern (topological charge = bit, annihilation = irreversible gate) are all independently reusable for skyrmion, vortex, and instanton compute mechanism files.
+
+### Previous version (v1.0.0) snapshot
+
+```
+---
+name: scifi-mechanism-single-device-design
+description: "Design a single speculative-but-rigorous physics mechanism for a fictional sci-fi device, grounded in real cited science, with a Laws-Broken Ledger, Walls Defeated table, Parsimony/Capability scores, and Failure Modes. Use when: (1) a Myrmidon swarm agent is assigned one mechanism (MNN-name) to design in isolation, (2) the mechanism file must follow the HomericIntelligence/Story M-series template, (3) you need real cited papers (URL+date, ≥4) anchoring speculative extrapolations, (4) the prompt says 'pure science — no story/plot/character content'."
+category: documentation
+date: 2026-06-01
+version: "1.0.0"
+user-invocable: false
+verification: verified-local
+tags: [scifi, worldbuilding, mechanism-design, physics, citations, hard-walls, m-series, homeric-intelligence, speculative-science, laws-broken, parsimony, capability]
+---
+
+[... full body identical to v1.1.0 except: no history field in frontmatter, no monopole tags,
+no Nature SSL / pre-arXiv Failed Attempt rows, no exotic-particle citations section,
+no topological-register architecture pattern block, and Verified On had only M15 row.]
+```
+
+---
+
+## v1.0.0 (2026-06-01)
+
+**Initial version.** Created from M15 string/T-duality mechanism design session.
