@@ -1,9 +1,9 @@
 ---
 name: github-auto-merge-no-ci-runs
-description: "GitHub auto-merge stalls indefinitely on a CLEAN PR when no CI workflow ever runs on the branch. Use when: (1) PR has mergeStateStatus: CLEAN and auto-merge armed but hasn't merged after hours, (2) gh pr view --json statusCheckRollup returns empty array [], (3) docs-only, pod-spec, or non-code PRs stuck with armed auto-merge, (4) investigating why auto-merge didn't fire on a PR that looks ready, (5) gh pr list returns fewer PRs than expected — default limit is 30 and silently omits older PRs, (6) gh pr merge --auto --squash returns GraphQL 'Pull request is in clean status' error on a CLEAN PR, (7) gh pr merge --auto --squash returns GraphQL 'Pull request is in unstable status' — transient; retry after a few seconds, (8) squash-only repos reject --rebase flag on gh pr merge --auto, (9) scheduled workflow (apply.yml) shows failure on main but required checks all pass, (10) PRs armed with --auto --squash do not auto-fire after branch protection rules are relaxed (e.g., review requirement removed) — must be nudged with manual `gh pr merge <n> --squash`, (11) a required-check gate job (e.g. pr-policy) fails with 'Auto-merge is not enabled' immediately after PR creation though auto-merge IS enabled — a propagation race; re-run the failed job, (12) PR shows failed/cancelled checks but is actually fine — a pr-policy auto-merge check failed on the FIRST run and cancelled all sibling jobs (lint/tests/security/markdownlint/shellcheck all show cancelled) via the concurrency group, but the workflow re-ran on the auto_merge_enabled event and went green, (13) auto-merge not firing right after open but pr-policy failing — the workflow self-heals once gh pr merge --auto --squash propagates and the auto_merge_enabled trigger re-runs it; no manual rerun needed, (14) cancelled CI jobs after opening a PR — diagnose by comparing statusCheckRollup entries' startedAt: the earlier pr-policy run is the race, the later (re-run) one is authoritative."
+description: "GitHub auto-merge stalls indefinitely on a CLEAN PR when no CI workflow ever runs on the branch. Use when: (1) PR has mergeStateStatus: CLEAN and auto-merge armed but hasn't merged after hours, (2) gh pr view --json statusCheckRollup returns empty array [], (3) docs-only, pod-spec, or non-code PRs stuck with armed auto-merge, (4) investigating why auto-merge didn't fire on a PR that looks ready, (5) gh pr list returns fewer PRs than expected — default limit is 30 and silently omits older PRs, (6) gh pr merge --auto --squash returns GraphQL 'Pull request is in clean status' error on a CLEAN PR, (7) gh pr merge --auto --squash returns GraphQL 'Pull request is in unstable status' — transient; retry after a few seconds, (8) squash-only repos reject --rebase flag on gh pr merge --auto, (9) scheduled workflow (apply.yml) shows failure on main but required checks all pass, (10) PRs armed with --auto --squash do not auto-fire after branch protection rules are relaxed (e.g., review requirement removed) — must be nudged with manual `gh pr merge <n> --squash`, (11) a required-check gate job (e.g. pr-policy) fails with 'Auto-merge is not enabled' immediately after PR creation though auto-merge IS enabled — a propagation race; re-run the failed job, (12) PR shows failed/cancelled checks but is actually fine — a pr-policy auto-merge check failed on the FIRST run and cancelled all sibling jobs (lint/tests/security/markdownlint/shellcheck all show cancelled) via the concurrency group, but the workflow re-ran on the auto_merge_enabled event and went green, (13) auto-merge not firing right after open but pr-policy failing — the workflow self-heals once gh pr merge --auto --squash propagates and the auto_merge_enabled trigger re-runs it; no manual rerun needed, (14) cancelled CI jobs after opening a PR — diagnose by comparing statusCheckRollup entries' startedAt: the earlier pr-policy run is the race, the later (re-run) one is authoritative, (15) pr-policy fails 'Auto-merge is enabled before implementation review GO' on a freshly-armed PR — the repo now gates auto-merge behind a state:implementation-go label (NOT the old propagation race); apply the label with gh pr edit --add-label to make the armed state compliant."
 category: ci-cd
-date: 2026-05-29
-version: "1.4.0"
+date: 2026-06-03
+version: "1.5.0"
 user-invocable: false
 verification: verified-ci
 history: github-auto-merge-no-ci-runs.history
@@ -24,6 +24,7 @@ tags:
 | ------ | ----------- | --------- |
 | 2026-04-23 | Diagnose and fix 11 CLEAN PRs stuck with armed auto-merge for 9+ hours | All 11 PRs merged after path-filter broadening and manual merges |
 | 2026-05-29 | 4 ProjectHephaestus PRs each opened with a wave of `cancelled` checks (lint/tests/security) plus one `pr-policy` failure — looked broken | All 4 self-healed: the `auto_merge_enabled` event re-ran the workflow once `--auto --squash` propagated; green re-runs merged with zero human action |
+| 2026-06-03 | 6 ProjectHephaestus PRs (#901/#903/#904/#906/#908/#910) opened with auto-merge armed all failed `pr-policy` Check 2 "Auto-merge is enabled before implementation review GO" — the repo (after #899) now gates auto-merge behind a `state:implementation-go` label | All 6 went green + merged after `gh pr edit <PR> --add-label state:implementation-go`; the label change re-ran `pr-policy` green with no new commit |
 
 GitHub auto-merge requires at least one completed status check event before it fires — even
 when there are **no required status checks** configured on branch protection. A PR with
@@ -50,6 +51,7 @@ most common victims because no workflow triggers and zero status check events ar
 - A freshly-opened PR shows a wave of `cancelled` checks (lint, tests, security scans, markdownlint, shellcheck, pixi-check, etc.) alongside one `pr-policy` failure — the gate's "auto-merge enabled" step failed first and the workflow's `concurrency` group cancelled every sibling job in that run; this is the race, NOT many broken jobs
 - `gh pr checks <n>` lists those `cancelled` siblings flattened together with a later green re-run — do not panic at the red X's; cross-check `state` (may already be `MERGED`) and per-run `startedAt` to tell the superseded first run from the authoritative re-run
 - The workflow is also triggered on `auto_merge_enabled`, so it SELF-HEALS: once `gh pr merge --auto --squash` propagates, the whole run re-fires, `pr-policy` passes, and the PR merges with no human action — do NOT force-merge with `--admin` to "get past" the red
+- `pr-policy` fails with `::error::Auto-merge is enabled before implementation review GO` on a freshly-armed PR (NOT "Auto-merge is not enabled") — this is the NEW label-gated state machine (ProjectHephaestus #899), not the old propagation race. The repo now requires a `state:implementation-go` label before auto-merge may be armed; apply it with `gh pr edit <PR> --add-label state:implementation-go` (which re-runs `pr-policy` green with no new commit) OR leave auto-merge off until GO. Re-running the failed job ALONE will NOT fix this — you must align the label with the auto-merge state
 
 ## Verified Workflow
 
@@ -246,6 +248,59 @@ enough to beat the job.)
 (good signature, untrusted key) — that is fine. GitHub verifies by the registered key, so a
 `pr-policy` signature check that queries GraphQL passes on `verified: true`.
 
+### Auto-Merge Gated on an Implementation-Review Label (state machine, #899)
+
+> **Evolution note — this PARTIALLY SUPERSEDES the "Required-Check Gate Race" section
+> above.** The older guidance ("`pr-policy` saying auto-merge isn't enabled is just a
+> propagation race — it IS armed, the gate read stale metadata; wait or re-run it") no
+> longer fully applies on repos that adopted the #899 label-gated state machine. On those
+> repos, the `pr-policy` failure is NOT a race and re-running the job ALONE will NOT fix it.
+> Tell the two situations apart by the error string:
+> - `Auto-merge is not enabled on this PR` → the OLD propagation race; enable auto-merge
+>   fast / re-run / rely on the `auto_merge_enabled` self-heal (see the section above).
+> - `Auto-merge is enabled before implementation review GO` → the NEW state machine below;
+>   re-running alone does nothing — you must align the **label** with the auto-merge state.
+
+ProjectHephaestus's `pr-policy` gate changed in **PR #899** ("Gate implementation PR
+auto-merge on review GO", merged 2026-06-03, commit `73b67d3`). `pr-policy` Check 2 no
+longer just verifies that auto-merge is enabled — it now enforces a **state machine** that
+couples auto-merge to an implementation-review label:
+
+- If the PR HAS the `state:implementation-go` label → auto-merge MUST be enabled, else the
+  gate FAILS with `PR has state:implementation-go but auto-merge is not enabled`.
+- If the PR does NOT have that label → auto-merge MUST be DISABLED, else the gate FAILS with
+  `::error::Auto-merge is enabled before implementation review GO. Remove it with: gh pr merge <N> --disable-auto; re-enable only after state:implementation-go is applied.`
+
+**Consequence:** the long-standing habit of running `gh pr merge --auto --squash`
+immediately after `gh pr create` now FAILS `pr-policy` Check 2 on EVERY PR (auto-merge is
+armed but the label is absent), leaving the PR BLOCKED with a red `pr-policy` check even
+though every other check is green.
+
+**The valid label set on this repo:** `state:plan-go`, `state:plan-no-go`,
+`state:needs-plan`, `state:implementation-go`, `state:implementation-no-go`.
+
+**Both resolutions (pick one):**
+
+1. **Merge now — align the label to the armed auto-merge.** Apply the GO label:
+   ```bash
+   gh pr edit <PR> --add-label "state:implementation-go"
+   ```
+   #899 made `pr-policy` re-run on label/auto-merge changes, so the red check turns green
+   WITHOUT a new commit, and the already-armed auto-merge then fires. This is what was
+   observed to work across all six PRs.
+
+2. **Defer the merge — align the auto-merge to the (absent) label.** Leave auto-merge OFF
+   and add no GO label; the PR sits compliant (no label ⇒ no auto-merge) until a reviewer
+   applies `state:implementation-go`, at which point you arm `gh pr merge <PR> --auto
+   --squash`. If you already armed auto-merge prematurely, disable it to pass the gate:
+   ```bash
+   gh pr merge <PR> --disable-auto
+   ```
+
+**Rule of thumb on a #899-style repo:** the label and the auto-merge state must MATCH —
+either (`state:implementation-go` + auto-merge ON) or (no GO label + auto-merge OFF). Any
+mismatch fails `pr-policy` Check 2.
+
 ### Cascading Cancellations: One pr-policy Failure Cancels Every Sibling Job
 
 When the gate workflow uses a `concurrency` group with `cancel-in-progress: true` (common —
@@ -296,6 +351,7 @@ No human action is required — the correct response is to wait ~30-60s, not to 
 | Treated `cancelled` rollup entries as real failures | Counted every non-success entry in `statusCheckRollup` as a problem to investigate | The first-run entries were `CANCELLED` (cascade from the gate failure), and a LATER green re-run already superseded them | Filter by `conclusion=="FAILURE"` AND `startedAt` later than open-time+60s; only the latest run per check name is authoritative |
 | Considered `--admin` / force-merge to "get past" the red checks | Wanted to bypass the cancelled-job wave on an opened PR | Unnecessary and dangerous — the `auto_merge_enabled` event re-runs the workflow green within ~30-60s and merges on its own | Wait for the self-heal re-run; never force-merge to escape a transient pr-policy race |
 | Waited for the FIRST run to be re-run manually after editing the body | Assumed only a manual `gh run rerun` could clear the cancelled siblings | The `auto_merge_enabled` trigger (#681/#683) already re-fires the workflow once `--auto --squash` propagates — no manual rerun needed | If the gate workflow has the `auto_merge_enabled` trigger, do nothing but wait; manual rerun is only for workflows that lack it |
+| Ran `gh pr merge --auto --squash` right after `gh pr create` (old habit) | pr-policy Check 2 failed `Auto-merge is enabled before implementation review GO` | The repo (after #899) requires the `state:implementation-go` label before auto-merge may be armed | Apply `gh pr edit <PR> --add-label state:implementation-go` (reruns pr-policy green) OR leave auto-merge off until GO |
 
 ## Results & Parameters
 
@@ -382,3 +438,4 @@ gh run list -R "$REPO" --branch main --limit 5 --json workflowName,conclusion,st
 | ProjectCharybdis | 2026-05-05: 32 open PRs all armed with `--auto --squash`; branch protection initially required 1 review, then user removed the requirement; 23 CLEAN PRs did not auto-fire after relaxation | Manual `gh pr merge <n> --squash` loop consumed armed state; 17 merged cleanly, 6 reported `DIRTY` from sibling-induced conflicts that developed in the meantime |
 | ProjectHephaestus | 2026-05-21: required `pr-policy` gate failed `Auto-merge is not enabled` on PRs #423 and #428 — gate read `autoMergeRequest` ~4s after PR creation, before enablement propagated; PR #430 passed first try | Re-ran the failed `pr-policy` job after the parent run completed; live metadata re-fetch re-evaluated against the now-armed auto-merge state and passed |
 | ProjectHephaestus | 2026-05-29: 4 PRs each opened with one `pr-policy` failure + a cascade of `cancelled` siblings (lint/tests/security/markdownlint/shellcheck/pixi-check) via the `concurrency` group; `gh pr checks` made them look broken | All 4 self-healed with zero human action — the `auto_merge_enabled` trigger (shipped in #681/#683) re-ran the workflow once `--auto --squash` propagated, the re-run went green, and the PRs merged. Diagnosed by `state==MERGED` + filtering rollup by `startedAt` (later run authoritative) |
+| ProjectHephaestus | 2026-06-03: 6 fix PRs (#901,#903,#904,#906,#908,#910) opened with auto-merge armed all failed pr-policy Check 2 "Auto-merge is enabled before implementation review GO" until `state:implementation-go` label applied | label-change reran pr-policy green; all 6 merged. The repo's `pr-policy` gate (after #899) now state-machines auto-merge against the `state:implementation-go` label — re-running alone does NOT fix it |
