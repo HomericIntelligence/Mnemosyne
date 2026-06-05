@@ -2,10 +2,10 @@
 name: git-gpg-sign-email-mismatch-silent-unsigned-blocks-merge
 description: "Diagnose and fix silent GPG-signing failure modes that BLOCK PR merge under required_signatures even with green CI. Covers: (a) commit.gpgsign=true plus user.email that does not match any UID on the GPG signing key producing UNSIGNED commits with no error (reason=no_user); (b) GraphQL pullRequest.commits.signature.state lagging 10+ minutes behind reality so commits appear UNSIGNED in `gh pr view --json commits` while REST /commits/<sha> confirms verified=true; (c) sub-agent shells inheriting commit.gpgsign=true but silently failing to sign because gpg-agent was not pre-warmed (needs GPG_TTY + a priming gpg --batch call). Use when: (1) PR shows mergeStateStatus BLOCKED with mergeable MERGEABLE and all CI green, (2) gh api .../commits returns verification.reason=no_user, (3) dispatching sub-agents that override user.email to a bot identity while keeping a personal GPG key, (4) auditing multi-repo sweeps for invisible signing failures, (5) `gh pr view --json commits` shows signature.state=null for newly-pushed commits, (6) sub-agent push produces unsigned commits despite global commit.gpgsign=true config."
 category: ci-cd
-date: 2026-05-16
-version: "2.0.0"
+date: 2026-06-05
+version: "2.1.0"
 user-invocable: false
-verification: verified-ci
+verification: verified-local
 history: git-gpg-sign-email-mismatch-silent-unsigned-blocks-merge.history
 tags:
   - git
@@ -18,6 +18,7 @@ tags:
   - silent-failure
   - graphql-lag
   - gpg-agent
+  - worktree-config
 ---
 
 # Git GPG Signing: Email Mismatch Silently Produces Unsigned Commits, Blocks PR Merge
@@ -26,10 +27,10 @@ tags:
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-05-11 |
+| **Date** | 2026-06-05 (v2.1.0 amendment; original: 2026-05-11) |
 | **Objective** | Diagnose and remediate the invisible failure mode where `commit.gpgsign=true` combined with a `user.email` that has no matching UID on the GPG secret key produces an unsigned commit with no error, blocking PR merge under `required_signatures` rulesets despite green CI |
-| **Outcome** | Successful — re-authored 7 commits on ProjectKeystone PR #552 with the GPG-key-owner identity, re-signed with `--reset-author -S`, force-pushed, and GitHub flipped every commit to `verified: true` (PR unblocked, auto-merge fired) |
-| **Verification** | verified-ci |
+| **Outcome** | Successful across all historical contexts. Latest amendment (v2.1.0): confirmed that LOCAL `git log --show-signature` can lie about validity when author email mismatches GPG key UID; always verify via GitHub REST API `/commits/<sha>` which is authoritative |
+| **Verification** | verified-local (v2.1.0 amendment verified locally; full CI verification at v2.0.0) |
 
 ## When to Use
 
@@ -226,6 +227,7 @@ will sign correctly. Verify with the same `%G?` tripwire from step 11.
 | Attempt 6 | Checked PR mergeability without first verifying the diff was byte-identical to before the rebase | Risk: a poorly-configured rebase (e.g. rerere artifacts, autosquash side-effects, gitattribute clean filter changes) could silently rewrite content. If pushed, it would lose work | After any rewriting rebase, ALWAYS run `git diff <old-HEAD> <new-HEAD>` and confirm it is empty bytes before force-pushing |
 | Attempt 7 | Trusted `gh pr view --json commits --jq '.commits[].signature.state'` GraphQL output of `UNSIGNED` as authoritative and began remediation | GraphQL field lags 10+ min after push, even when commits ARE verified by GitHub. Verified via REST `/commits/<sha>` returning `verified=true reason=valid` while GraphQL still showed `null`/`UNSIGNED` for 31 commits across Argus #520, Scylla #1978, Agamemnon #382. ~30 min wasted on the 2026-05-16 sweep | Always poll REST `gh api repos/<O>/<R>/commits/<sha>` for signature state; treat GraphQL `signature.state` as advisory only. Cross-check one commit via REST before any remediation |
 | Attempt 8 | Re-sign commits by uploading the GPG key (again) to GitHub on the assumption it was missing | Existing key was already registered on the account; `gh gpg-key add` returned HTTP 422 "subkey already exists". Confirmed by `gh api user/gpg_keys` showing the key present and active. The underlying issue was GraphQL lag (Attempt 7), not key registration | Before re-uploading a GPG key, query REST commit verification on a single test commit; if `verified=true`, the issue is GraphQL lag (not key registration) and the correct action is to wait, not to re-upload |
+| Attempt 9 | In a new git worktree, committed code changes with `-S` flag without first configuring `user.email` in worktree-local config (inherited default bot email from global config). Pushed to remote with new branch. Commit appeared with valid local signature but GitHub API rejected it (`signature.isValid = false`) due to author email not matching GPG key | When first entering a new worktree, ALWAYS configure `git config user.email` to match the GPG key's UID BEFORE making the first commit. Global `commit.gpgsign=true` does not prevent the silent-failure when emails mismatch. Local `git log --show-signature` and `-S` flag create the illusion of a good signature, but GitHub's REST `/commits/<sha>` verification (the authoritative source) will reject it if author email ≠ key UID | Always configure worktree-local `user.email` in new worktrees to match the GPG key, even if inheriting `commit.gpgsign=true` globally. Use `git config user.email "<key_uid_email>"` immediately upon worktree entry, before any commits |
 
 ## Results & Parameters
 
@@ -346,3 +348,4 @@ git config --get user.email | xargs -I{} gpg --list-keys "$(git config --get use
 |---------|---------|---------|
 | ProjectKeystone | 2026-05-11 ecosystem-wide easy-issue sweep, PR #552 | Re-authored 7 commits with `--reset-author -S` rebase, byte-identical content diff confirmed (0 bytes), force-pushed; GitHub flipped all 7 commits from `verified: false reason: "no_user"` to `verified: true reason: "valid"`; `mergeStateStatus` flipped from `BLOCKED` to `CLEAN`; pre-armed auto-merge fired immediately |
 | ProjectArgus / ProjectScylla / ProjectAgamemnon | 2026-05-16 org-wide PR sweep — Argus #520, Scylla #1978, Agamemnon #382 | 31 commits across the three PRs showed `signature.state=null`/`UNSIGNED` via `gh pr view --json commits` (GraphQL) for 10+ minutes after push. REST `gh api repos/.../commits/<sha>` returned `verified=true reason=valid` for every commit immediately. Attempted `gh gpg-key add` returned HTTP 422 "subkey already exists" (key was already registered). Resolution: wait for GraphQL to catch up; no remediation needed. Lesson codified as Attempts 7 and 8 in this skill |
+| ProjectHephaestus | 2026-06-05 issue #770 shebang fix in new worktree | Committed with `-S` flag in new worktree without configuring `user.email` (inherited bot email from global default). Local `git log --show-signature` showed "Good signature" but GitHub REST API returned `signature.isValid=false` due to author email mismatch. Could not force-push to fix due to permission constraints. Demonstrates that local signing validation is insufficient; always verify via GitHub's REST API before declaring a commit signed. Lesson codified as Attempt 9: configure worktree-local `user.email` BEFORE first commit in new worktrees |

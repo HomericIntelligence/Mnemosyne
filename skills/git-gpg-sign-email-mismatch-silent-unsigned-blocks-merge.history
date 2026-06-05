@@ -1,5 +1,37 @@
 # git-gpg-sign-email-mismatch-silent-unsigned-blocks-merge — History
 
+## v2.1.0 (2026-06-05)
+
+**Changed by:** ProjectHephaestus issue #770 (shebang fix in new worktree)
+**Verification:** verified-local
+
+### What changed
+
+- Added Attempt 9 to Failed Attempts table: worktree-local `user.email` configuration BEFORE first commit
+- Updated Overview date and outcome to reflect amendment
+- Updated `date` frontmatter to 2026-06-05, bumped version to 2.1.0
+- Added `worktree-config` tag
+- Updated verification level to verified-local (amendment verified locally, not in CI)
+- Added ProjectHephaestus case to Verified On table
+
+### Why
+
+During ProjectHephaestus issue #770, I committed with `-S` in a new worktree without configuring
+`user.email` to match the GPG key UID. The commit inherited bot email from global config.
+Discovery: **local signing validation (git log --show-signature) is INSUFFICIENT.**
+
+Local git said "Good signature" but GitHub's authoritative REST API returned `signature.isValid=false`
+because author email ≠ GPG key UID. This extends v1.0.0 (commit-time silent-fail) with a new caveat:
+even when `-S` is used AND local validation passes, you must configure `user.email` to match a GPG
+key UID BEFORE committing in new worktrees. Silent-fail blocker PRs are preventable with
+early configuration.
+
+### Previous version (v2.0.0) snapshot
+
+[Full snapshot moved below v2.0.0 entry for space]
+
+---
+
 ## v2.0.0 (2026-05-16)
 
 **Changed by:** 2026-05-16 HomericIntelligence org-wide PR sweep (Argus #520, Scylla #1978, Agamemnon #382)
