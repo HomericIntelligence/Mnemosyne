@@ -1,5 +1,26 @@
 # audit-driven-remediation-workflow — History
 
+## v1.2.1 (2026-06-05)
+
+**Changed by:** ProjectHephaestus issue #795 YAGNI dead-code remediation session.
+**Verification:** verified-local
+
+### What changed
+- Added new Failed Attempts row documenting the YAGNI dead-code pattern: `hasattr(record, "_context_extras")` dead branch that was kept (documented) rather than deleted (fixed) for 6 months.
+- Added new "When to Use" trigger: "audit flags unreachable/dead code — verify zero producers via grep before deciding to delete (YAGNI) vs document"
+- Added ProjectHephaestus #795 to Verified On section: concrete example of YAGNI remediation via grep-verified zero-producer analysis + minimal regression test
+- Updated description to include the YAGNI dead-code decision point
+- Bumped version (1.2.0 → 1.2.1) as a patch-level amendment (added context rows to existing tables, no workflow changes)
+
+### Why
+Issue #795 provided a concrete, audit-driven YAGNI scenario that was not previously documented in the Failed Attempts or Verified On sections. The original learning from issue #708 (audit-driven-remediation foundation, v1.0.0) and the downstream-consumer drift / cross-module duplication patterns (v1.1.0, v1.2.0) are all about bugs or breaking changes. This session taught the inverse lesson: when an audit flags unreachable code with zero producers in-tree, the YAGNI principle argues for deletion (with regression test to lock in behavior) rather than preservation via documentation. This is the expected audit remediation path and should be documented alongside the failed-attempt lessons.
+
+### Previous version (v1.2.0) snapshot
+
+The v1.2.0 entry remains immediately below this entry (unchanged). No content was deleted in v1.2.1 — only additive amendments.
+
+---
+
 ## v1.2.0 (2026-05-25)
 
 **Changed by:** ProjectHephaestus PR #589 + post-completion strict-mode audit of epics #550, #576.

@@ -1,9 +1,9 @@
 ---
 name: audit-driven-remediation-workflow
-description: "Canonical end-to-end audit-driven remediation workflow: audit pass → severity classification → batch fix planning → PR generation → verification. Use when: (1) running a strict audit across a repo or ecosystem, (2) reconciling audit-finding issue counts against open issues, (3) generating remediation PRs from audit findings, (4) coordinating audit + fix + verification across multiple repos, (5) deciding fix vs accept/suppress for findings, (6) you added a new producer-side signal and must verify every downstream consumer reads it, (7) after landing a bug-pattern fix, grep sibling modules for the same pattern, (8) before declaring an epic complete, run a strict-audit by an independent reviewer agent."
+description: "Canonical end-to-end audit-driven remediation workflow: audit pass → severity classification → batch fix planning → PR generation → verification. Use when: (1) running a strict audit across a repo or ecosystem, (2) reconciling audit-finding issue counts against open issues, (3) generating remediation PRs from audit findings, (4) coordinating audit + fix + verification across multiple repos, (5) deciding fix vs accept/suppress for findings, (6) you added a new producer-side signal and must verify every downstream consumer reads it, (7) after landing a bug-pattern fix, grep sibling modules for the same pattern, (8) before declaring an epic complete, run a strict-audit by an independent reviewer agent, (9) audit flags unreachable/dead code (hasattr checks, dead branches) — verify zero producers via grep before deciding to delete (YAGNI) vs document."
 category: tooling
-date: 2026-05-25
-version: "1.2.0"
+date: 2026-06-05
+version: "1.2.1"
 user-invocable: false
 verification: verified-local
 history: audit-driven-remediation-workflow.history
@@ -486,6 +486,7 @@ After ALL swarm PRs in an audit-driven remediation epic have landed and the epic
 | Add a producer-side signal (`**Verdict: APPROVED**` marker in plan-reviewer) and verify only the producer's tests pass | Plan-reviewer's `_latest_review_is_final` gate was tested in isolation. 10 new unit tests, all green. PR opened. | The implementer.py phase that runs AFTER plan-reviewer never read the verdict. `_has_plan(issue_number)` only checks for substring `"Implementation Plan"`. A BLOCK plan got implemented. The user's stated workflow was silently broken. | When adding a producer-side signal, grep for EVERY downstream consumer and add an integration test that exercises the full pipeline. Use `grep -rn "<consumer-marker-pattern>" --include='*.py'` to find them. |
 | Fix the bug only in the originally-reported file | PR #575 replaced `get_repo_slug(...).split("/", 1)` with `get_repo_info(get_repo_root())` in `plan_reviewer.py:295-296`. Closed #574. | An identical bug pattern in `review_state.py:87-88` (a sibling module created by Bundle B in the same swarm) was not touched. Production crashed on every implementer gate check. The session declared both epics CLOSED while the user's stated workflow was silently broken. | When fixing a bug pattern, grep the WHOLE codebase for the same signature — especially in modules created by sibling agents in the same swarm. The originating fix is necessary but not sufficient. |
 | Trust that the swarm's own tests verify end-to-end correctness | The Part 2 swarm ran 5 sub-agent PRs; each agent independently asserted `pixi run pytest tests/unit -q -x` passed. Both epics were marked complete after 2362+ passing tests across all PRs. | The test for `review_state.py` patched `get_repo_slug` to return `"owner/name"` (slash-bearing, splits cleanly) — a contract violation that masked the production crash. Per-PR test passes do not establish system-level correctness when fixtures lie. | Test fixtures must satisfy the documented CONTRACT of the function they mock, not the buggy code's incidental expectations. Audit fixtures for "did this mock return a realistic value?" as part of every PR review. |
+| YAGNI dead-code remediation via hasattr() check removal | Audit #795 flagged `hasattr(record, "_context_extras")` branch as dead (no producer in hephaestus/logging/utils.py or tests). Plan was to either delete or document the external use-case. | Documented without fixing — assumed keeping dead code was safer than deletion. Actually: 6 months passed with zero external use; the branch became documentation burden on new readers without corresponding benefit. | When audit flags unreachable code (hasattr, isinstance, try/except block never triggered), verify zero producers via grep before keeping it. If producers == 0, delete under YAGNI rather than document. Add minimal regression test pinning new behavior to lock in YAGNI. |
 
 ## Results & Parameters
 
@@ -595,6 +596,7 @@ grep -rnE "^## (Changelog|Corrections Applied|Revision history|Change notes)" co
 | ProjectMnemosyne | Strict audit + doc remediation 2026-03-22 — B+ (87%) score | documentation-strict-audit-remediation-workflow source |
 | ArchIdeas corpus | 39-file research corpus parallel remediation, 6 repair classes, Apr 2026 | documentation-corpus-myrmidon-parallel-remediation source |
 | ArchIdeas corpus | 6-dimension quality rubric applied to 39 documents; all passed after remediation | documentation-architecture-research-quality-rubric source |
+| ProjectHephaestus | YAGNI dead-code remediation issue #795 — removed hasattr() dead branch via grep-verified zero-producer analysis, 72 tests passing | audit-yagni-dead-code-remediation source |
 
 ## References
 
