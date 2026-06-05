@@ -1,11 +1,15 @@
 ---
 name: dry-refactoring-workflow
 description: Complete TDD-driven workflow for identifying and eliminating code duplication
-  by extracting reusable helper methods
+  by extracting reusable helper methods. Covers private module extraction patterns,
+  test structure mirroring enforcement, and cryptographic commit signing requirements
+  in PR workflows.
 category: architecture
-date: 2026-02-15
-version: 1.0.0
+date: 2026-06-04
+version: 1.1.0
 user-invocable: false
+verification: verified-ci
+history: dry-refactoring-workflow.history
 ---
 # DRY Refactoring Workflow
 
@@ -15,11 +19,12 @@ Complete TDD-driven workflow for identifying and eliminating code duplication by
 
 | Attribute | Details |
 | ----------- | --------- |
-| **Date** | 2026-02-15 |
-| **Objective** | Extract duplicate token aggregation logic into reusable helper method |
-| **Outcome** | ✅ Successfully eliminated duplication, added tests, maintained functionality |
-| **Issue** | #642 |
-| **PR** | #714 |
+| **Date** | 2026-06-04 |
+| **Objective** | TDD-driven extraction of duplicated code into reusable helper modules, with emphasis on private module placement, test structure mirroring, and cryptographic commit signing |
+| **Outcome** | ✅ v1.0.0 (Feb 2026): Eliminated token aggregation duplication. v1.1.0 (Jun 2026): Extended with private module patterns, test mirroring enforcement, signing requirements. |
+| **Primary Issues** | #642 (original), #739 (private module extraction), #917 (pr-policy signing) |
+| **Primary PRs** | #714 (original), #900+ (refactoring PRs) |
+| **History** | [changelog](./dry-refactoring-workflow.history) |
 
 ## When to Use This Skill
 
@@ -36,6 +41,10 @@ Use this workflow when you encounter:
 - "Consolidate [X] code"
 - "DRY violation in [method names]"
 - "Create helper method for [pattern]"
+- "Extract duplicated function calls into a helper module"
+- "Private helper module placement — where should `_helper.py` go?"
+- "How to structure tests for root-level private modules?"
+- "Duplicated `importlib.metadata.version()` calls — consolidate into helper"
 
 ## Verified Workflow
 
@@ -222,11 +231,93 @@ Use this workflow when you encounter:
    gh pr merge --auto --rebase PR_NUMBER
    ```
 
+### Phase 7: Private Module Extraction (NEW in v1.1.0)
+
+When extracting duplicates spans multiple modules, create a **private helper module** with leading-underscore naming:
+
+1. **Place as a leaf module at package root** to avoid circular imports:
+
+   ```text
+   hephaestus/
+   ├── __init__.py
+   ├── _version_lookup.py          # Private helper — leaf module, not a package
+   ├── agents/
+   ├── utils/
+   └── ...
+   ```
+
+   **Why not a package?** Private packages (`_internal/`) with `__init__.py` can trigger circular imports if imported from multiple sibling modules that also depend on the package.
+   Leaf modules (`_version_lookup.py`) avoid this by having no sub-modules.
+
+2. **Store module-level constants in the helper** — especially PyPI distribution names that must NOT be guessed or normalized:
+
+   ```python
+   # hephaestus/_version_lookup.py
+   """Internal helper for version resolution via importlib.metadata."""
+
+   from importlib.metadata import PackageNotFoundError, version as _pkg_version
+
+   # CRITICAL: This is the literal [project].name from pyproject.toml
+   # importlib.metadata does NOT normalize between distribution and import names
+   _DIST_NAME = "HomericIntelligence-Hephaestus"
+
+   def lookup_version() -> str:
+       """Resolve package version from installed metadata.
+
+       Returns:
+           Version string from most recent git tag, or "unknown" if not found.
+       """
+       try:
+           return _pkg_version(_DIST_NAME)
+       except PackageNotFoundError:
+           return "unknown"
+   ```
+
+3. **Test structure mirroring** — Root-level private modules must have tests in a logical sub-package:
+
+   ```text
+   tests/unit/
+   ├── version/
+   │   ├── __init__.py
+   │   └── test_version_lookup.py    # Test for hephaestus/_version_lookup.py
+   └── ...
+   ```
+
+   **Pre-commit enforcement:** `test_*.py` files CANNOT live directly under `tests/unit/`. They must be in sub-directories that mirror the package structure. This enforces organization and catches orphaned test files.
+
+4. **Cryptographic commit signing requirement** — All commits in PRs must be signed:
+
+   ```bash
+   # Commit with mandatory -S flag
+   git commit -S -m "refactor: consolidate duplicate version resolution
+
+   Extract duplicated importlib.metadata.version() calls into
+   _version_lookup helper module.
+
+   Key learnings:
+   - Private modules use leading underscore (_module.py)
+   - Store PyPI dist name as module constant (not guessed at runtime)
+   - Root-level helpers go in tests/unit/category/ for test organization
+   - All commits must be cryptographically signed (-S)
+   - pr-policy CI gate validates every commit at GraphQL layer
+
+   Co-Authored-By: Claude Haiku 4.5 <noreply@anthropic.com>"
+
+   # Verify commit was actually signed
+   git log -1 --pretty=format:'%G?'   # Must print 'G', not 'N' or 'B'
+   ```
+
+   **CI validation:** The `pr-policy` required-check gate validates commit signatures at the GraphQL layer before allowing merge. Unsigned commits block auto-merge even if all other checks pass.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 | --------- | ---------------- | --------------- | ---------------- |
-| N/A | Direct approach worked | N/A | Solution was straightforward |
+| Place private helper in a sub-package (`_internal/__init__.py`) | Created `hephaestus/_internal/_version_lookup.py` to group private modules | Triggers circular imports when multiple sibling modules try to import from `_internal`, each bringing their own transitive dependencies that refer back to `_internal` | Use **leaf modules** for private helpers: `_version_lookup.py` (no sub-modules). Packages add layers that create circular paths. |
+| Guess PyPI distribution name at runtime from `__name__` or import path | Tried `_dist_name = __name__.split(".")[0]` or `__package__.replace("_", "-").title()` | `importlib.metadata` does NOT normalize distribution names. The name must match the literal `[project].name` value from pyproject.toml exactly. Guessing produced `KeyError` or `PackageNotFoundError`. | Store the PyPI distribution name as a module-level constant in the helper. Do not derive it; it is arbitrary and may differ from the import path. Document the dependency: "Update this constant if [project].name changes in pyproject.toml". |
+| Place test for `_version_lookup.py` directly under `tests/unit/` | Created `tests/unit/test_version_lookup.py` | Pre-commit hook `test-file-placement` rejected it — `test_*.py` files cannot live directly under `tests/unit/`. They must be in logical sub-directories that mirror the package structure. | Create `tests/unit/version/` sub-directory and place the test there. This enforces test organization and makes it clear which part of the codebase the test covers. |
+| Omit the `-S` flag when committing in a sub-agent dispatch | Ran `git commit -m "..."` without `-S` in a sub-agent shell | The pr-policy CI gate validates commit signatures at the GraphQL layer (via GitHub's `/graphql` API). Commits without valid signatures are flagged as `verification.reason: "unsigned"`, which blocks auto-merge even if all other checks pass. | **Always** use `git commit -S` when creating commits that will be pushed to a PR. The pr-policy gate is non-negotiable for ProjectHephaestus and similar repos. Pre-warm GPG by signing a test commit before agent dispatch if needed. |
+| Compare version strings across files to assert "single source" | Wrote drift-check that compared `pyproject.toml` version to `__init__.py` version as strings | After hatch-vcs, `pyproject.toml` no longer has a static `[project].version` field — it declares `dynamic = ["version"]`. String comparisons fail because the field doesn't exist. | Validate the **invariant** (hatch-vcs is configured correctly), not string equality. Check: `dynamic = ["version"]` is present, `[tool.hatch.version].source == "vcs"`. See `hatch-vcs-pyproject-auto-versioning-setup.md` skill. |
 ## Results & Parameters
 
 ### Code Changes
@@ -301,4 +392,9 @@ def _aggregate_token_stats(self, tier_results: dict[TierID, TierResult]) -> Toke
 
 ## Tags
 
-`refactoring`, `dry-principle`, `helper-methods`, `tdd`, `code-quality`, `python`, `pytest`
+`refactoring`, `dry-principle`, `helper-methods`, `tdd`, `code-quality`, `python`, `pytest`, `private-modules`, `test-structure`, `git-signing`, `importlib-metadata`
+
+## Version History
+
+- **v1.1.0** (2026-06-04): Added Phase 7 covering private module extraction patterns, test structure mirroring enforcement, cryptographic commit signing, PyPI distribution name handling. Verified via ProjectHephaestus issue #739.
+- **v1.0.0** (2026-02-15): Initial release covering token aggregation extraction with TDD workflow.

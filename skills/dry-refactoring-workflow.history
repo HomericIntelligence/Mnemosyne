@@ -1,0 +1,93 @@
+# dry-refactoring-workflow — History
+
+## v1.1.0 (2026-06-04)
+
+**Changed by:** ProjectHephaestus issue #739 - DRY refactoring for version resolution
+**Verification:** verified-ci
+
+### What changed
+
+- Added Phase 7: Private Module Extraction patterns
+- Added guidance on leaf module placement (`_version_lookup.py` vs `_internal/` packages)
+- Added emphasis on PyPI distribution name handling as module constant
+- Added test structure mirroring requirement (tests in logical sub-directories)
+- Added cryptographic commit signing requirement with pre-commit validation
+- Added 5 new Failed Attempts entries documenting:
+  - Private package vs leaf module tradeoff
+  - PyPI dist name storage vs runtime derivation
+  - Test file placement enforcement by pre-commit hooks
+  - Cryptographic signing requirement in pr-policy gate
+  - Post-hatch-vcs version validation pattern change
+- Updated Overview with v1.1.0 context and new issue/PR references
+- Added history field to frontmatter
+- Bumped version from 1.0.0 to 1.1.0
+- Updated date to 2026-06-04
+
+### Why
+
+ProjectHephaestus issue #739 required extracting duplicated `importlib.metadata.version()` calls into a helper module `hephaestus/_version_lookup.py`. This revealed several important patterns not covered in the v1.0.0 skill:
+
+1. **Private module placement**: Root-level private helpers should be leaf modules, not packages
+2. **Test structure**: Tests for root-level modules must go in logical sub-packages (pre-commit enforces)
+3. **PyPI names**: Distribution names must be stored as constants, not guessed from import paths
+4. **Cryptographic signing**: All PR commits must be signed; pr-policy CI gate validates at GraphQL layer
+
+These learnings prevent common pitfalls in DRY extraction and ensure compliance with ProjectHephaestus CI/CD requirements.
+
+### Previous version (v1.0.0) snapshot
+
+---
+
+```yaml
+---
+name: dry-refactoring-workflow
+description: Complete TDD-driven workflow for identifying and eliminating code duplication
+  by extracting reusable helper methods
+category: architecture
+date: 2026-02-15
+version: 1.0.0
+user-invocable: false
+---
+# DRY Refactoring Workflow
+
+Complete TDD-driven workflow for identifying and eliminating code duplication by extracting reusable helper methods.
+
+## Overview
+
+| Attribute | Details |
+| ----------- | --------- |
+| **Date** | 2026-02-15 |
+| **Objective** | Extract duplicate token aggregation logic into reusable helper method |
+| **Outcome** | ✅ Successfully eliminated duplication, added tests, maintained functionality |
+| **Issue** | #642 |
+| **PR** | #714 |
+
+## When to Use This Skill
+
+Use this workflow when you encounter:
+
+- **Code duplication**: Same logic appears in 2+ methods
+- **DRY violations**: Identical patterns that should be abstracted
+- **Refactoring tasks**: Need to improve code maintainability
+- **Follow-up issues**: Code review identified duplication to fix
+
+**Trigger phrases**:
+
+- "Extract duplicate [X] logic"
+- "Consolidate [X] code"
+- "DRY violation in [method names]"
+- "Create helper method for [pattern]"
+
+[... Phase 1-6 content identical to v1.0.0 ...]
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| N/A | Direct approach worked | N/A | Solution was straightforward |
+
+[... Results & Parameters section unchanged from v1.0.0 ...]
+```
+
+---
+
