@@ -1,9 +1,9 @@
 ---
 name: ci-complexity-extract-method-fix
-description: "Fix C901 cyclomatic complexity CI failures by extracting helper functions. Use when: (1) pre-commit or CI fails with 'is too complex (N > 10)', (2) adding conditional blocks to an existing function pushes it over the CC limit."
+description: "Fix C901 cyclomatic complexity CI failures by extracting helper functions. Use when: (1) pre-commit or CI fails with 'is too complex (N > 10)', (2) adding conditional blocks to an existing function pushes it over the CC limit, (3) multiple rendering/processing passes can be isolated."
 category: ci-cd
-date: 2026-03-25
-version: "1.0.0"
+date: 2026-06-06
+version: "1.1.0"
 user-invocable: false
 tags:
   - pre-commit
@@ -11,6 +11,8 @@ tags:
   - refactoring
   - ruff
   - C901
+  - method-extraction
+  - rendering-passes
 ---
 
 # Fix C901 Cyclomatic Complexity CI Failures
@@ -118,8 +120,84 @@ def _restore_judgment(ctx: Any) -> None:
         # ... timing loading ...
 ```
 
-## Verified On
+## Multi-Pass Rendering Pattern (ProjectHephaestus Issue #804)
 
-| Project | Context | Details |
+**New Pattern**: Extract multiple sequential rendering/processing passes into instance methods with **return-value threading** to avoid mutable state.
+
+### When This Pattern Applies
+
+- Method has multiple sequential rendering passes (workers → separator → logs)
+- Each pass computes state (e.g., row offsets) that feeds the next pass
+- Method exceeds CC limit due to pass complexity + conditional branches
+
+### Quick Reference
+
+```python
+# BEFORE: All 69 lines inline (CC too high, noqa: C901)
+def _refresh_display(self, screen, height, width):
+    """Monolithic display refresh with three rendering passes."""
+    # ... workers rendering (5-7 branches) ...
+    # ... separator rendering (3-4 branches) ...
+    ... logs rendering (4-5 branches) ...
+
+# AFTER: Extract passes as instance methods (each ~20-25 lines, CC <10)
+def _refresh_display(self, screen, height, width):
+    """Orchestrate three rendering passes."""
+    start_row = 0
+    start_row = self._draw_workers(start_row, height, width)
+    start_row = self._draw_separator(start_row, height, width)
+    start_row = self._draw_logs(start_row, height, width)
+
+def _draw_workers(self, start_row: int, height: int, width: int) -> int:
+    """Render worker status. Returns next free row."""
+    # ... worker logic ...
+    return next_row
+
+def _draw_separator(self, start_row: int, height: int, width: int) -> int:
+    """Render separator line. Returns next free row."""
+    # ... separator logic ...
+    return next_row
+
+def _draw_logs(self, start_row: int, height: int, width: int) -> int:
+    """Render log output. Returns next free row."""
+    # ... logs logic ...
+    return next_row
+```
+
+### Key Principles
+
+1. **Return-value threading**: Each helper takes `(start_row, height, width)` and returns the next free row
+2. **No mutable state**: Helpers don't modify shared state beyond their immediate scope
+3. **Instance methods**: Use `self` to access class state (e.g., workers, logs buffers)
+4. **Single responsibility**: Each method owns one rendering pass
+5. **Test independently**: Unit test each helper for boundary handling and return values
+
+### Test Structure
+
+```python
+def test_draw_workers_returns_next_row(self):
+    """Test return value threading."""
+    rows = self.display._draw_workers(start_row=0, height=10, width=80)
+    assert rows > 0
+    assert rows < 10  # Must not overflow
+
+def test_draw_separator_at_boundary(self):
+    """Test boundary handling."""
+    rows = self.display._draw_separator(start_row=8, height=10, width=80)
+    assert rows == 9  # Separator is 1 line
+    assert rows <= 10  # Must fit in height
+
+def test_draw_logs_truncates_long_lines(self):
+    """Test text truncation."""
+    long_log = "x" * 120
+    self.display.logs.append(long_log)
+    rows = self.display._draw_logs(start_row=0, height=5, width=80)
+    assert rows <= 5  # Must not overflow height
+```
+
+### Verified On
+
+| Project | PR | Details |
 | --------- | --------- | --------- |
-| ProjectScylla | PR #1546 CI fix | Extracted `_restore_judgment()` and `_restore_run_result()` from `_restore_run_context()`, CC 11 -> ~7 |
+| ProjectScylla | #1546 | Extracted `_restore_judgment()` and `_restore_run_result()` from `_restore_run_context()`, CC 11 -> ~7 |
+| ProjectHephaestus | #1050 | Extracted `_draw_workers()`, `_draw_separator()`, `_draw_logs()` from `_refresh_display()`, 69 lines → 3 methods, 8 tests → 23 tests, removed `# noqa: C901` |
