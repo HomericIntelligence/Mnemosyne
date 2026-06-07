@@ -461,7 +461,7 @@ MUST `patch.object(driver, "_wait_for_pr_terminal", return_value="MERGED")`
 **Production / test verification (verified-ci).** All four fixes landed as
 ProjectHephaestus **PR #879 (closes #878)**; the second ecosystem run that
 surfaced them confirmed: ProjectHermes #645/#648 were CLEAN + un-armed (bug 10),
-#647 hit the session-id collision (bug 11), ProjectOdyssey #5487/#5485/#5471 were
+PR #647 hit the session-id collision (bug 11), ProjectOdyssey #5487/#5485/#5471 were
 DIRTY (bug 12), and ~4 dependabot PRs were double-red from the `CI_BLOCKER.md`
 commit (bug 13). Full automation suite after the fix: **1011 passed, no hang**.
 
