@@ -18,7 +18,7 @@
     "tooling": 147,
     "training": 7
   },
-  "last_updated": "2026-06-07T14:43:48Z",
+  "last_updated": "2026-06-07T19:52:26Z",
   "plugins": [
     {
       "name": "agent-config-and-tier-architecture",
@@ -5656,7 +5656,7 @@
     {
       "name": "config-validation-and-schema-alignment",
       "description": "Canonical patterns for config validation and schema alignment: JSON-Schema generation from Pydantic, schema-wiring tests, config-filename and model-id validation, YAML linter false-positives, env-var double-underscore nesting, plugin-cache staleness, pixi container env isolation. Use when: (1) adding a new config validator, (2) wiring schema checks to CI, (3) diagnosing config-loader schema mismatches, (4) plugin/cache reports stale skill metadata, (5) reconciling config-filename conventions across model configs.",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "source": "./skills/config-validation-and-schema-alignment.md",
       "category": "tooling",
       "tags": [

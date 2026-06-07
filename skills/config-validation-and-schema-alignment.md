@@ -2,8 +2,8 @@
 name: config-validation-and-schema-alignment
 description: "Canonical patterns for config validation and schema alignment: JSON-Schema generation from Pydantic, schema-wiring tests, config-filename and model-id validation, YAML linter false-positives, env-var double-underscore nesting, plugin-cache staleness, pixi container env isolation. Use when: (1) adding a new config validator, (2) wiring schema checks to CI, (3) diagnosing config-loader schema mismatches, (4) plugin/cache reports stale skill metadata, (5) reconciling config-filename conventions across model configs."
 category: tooling
-date: 2026-05-18
-version: "1.0.0"
+date: 2026-06-07
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 history: config-validation-and-schema-alignment.history
@@ -47,6 +47,7 @@ Use this skill when:
 # str with min_length=1  → {"type": "string", "minLength": 1}
 # int | None             → {"oneOf": [{"type": "integer", "minimum": N}, {"type": "null"}]}
 # Literal["a","b"]       → {"type": "string", "enum": ["a","b"]}
+# float with ge=0.0, le=2.0 → {"type": "number", "minimum": 0.0, "maximum": 2.0}
 
 # Schema template
 {
@@ -147,12 +148,89 @@ git update-ref refs/heads/main refs/remotes/origin/main
 5. Name the test helper `check_schema`, not `validate` — `validate` can trigger false positives in some linters
 6. Add `D102` docstrings to pytest fixture methods (ruff enforces this)
 
+**D102 BAD/GOOD pattern:**
+
+```python
+# BAD — triggers D102
+@pytest.fixture
+def schema(self) -> dict[str, Any]:
+    return load_schema("model.schema.json")
+
+# GOOD
+@pytest.fixture
+def schema(self) -> dict[str, Any]:
+    """Load model schema."""
+    return load_schema("model.schema.json")
+```
+
+**Field mapping table: Pydantic → JSON Schema:**
+
+| Pydantic | JSON Schema |
+| ---------- | ------------- |
+| `str` with `min_length=1` | `{"type": "string", "minLength": 1}` |
+| `int` with `ge=1, le=100` | `{"type": "integer", "minimum": 1, "maximum": 100}` |
+| `float` with `ge=0.0, le=2.0` | `{"type": "number", "minimum": 0.0, "maximum": 2.0}` |
+| `bool` | `{"type": "boolean"}` |
+| `list[str]` | `{"type": "array", "items": {"type": "string"}}` |
+| `int \| None` | `{"oneOf": [{"type": "integer", "minimum": ...}, {"type": "null"}]}` |
+| `Literal["a", "b"]` | `{"type": "string", "enum": ["a", "b"]}` |
+| `@field_validator` with regex | `{"type": "string", "pattern": "^t[0-6]$"}` |
+
+**`validator_for()` efficiency pattern for test helpers:**
+
+```python
+# Prefer over jsonschema.validate() when reusing against multiple test calls
+import jsonschema
+
+def check_schema(instance: dict, schema: dict) -> None:
+    """Check instance against schema using jsonschema draft-07."""
+    validator_cls = jsonschema.validators.validator_for(schema)
+    validator = validator_cls(schema)
+    validator.validate(instance)  # raises jsonschema.ValidationError on failure
+```
+
+Note: `_validate_schema()` in the loader (one-shot per `load_*()` call) correctly uses
+`jsonschema.validate()`. Use `validator_for()` only in test helpers where the same schema
+is validated against multiple instances.
+
 #### B. Wiring Schema Validation into Loaders
 
 1. Place `_SCHEMAS_DIR` and `_validate_schema()` **after all imports** in `loader.py` — ruff-format reorders import blocks and will leave `ConfigurationError` undefined if helpers are placed between stdlib and local imports
 2. Call `_validate_schema()` after `_load_yaml()`, before Pydantic construction
 3. Guard with `if not name.startswith("_"):` consistently across all `load_*()` methods
 4. Fix Pydantic alias mismatches in fixtures: YAML key must be the `alias=` value, not the Python attribute name (e.g., `runs_per_eval` not `runs_per_tier`)
+
+**Audit fixtures before enabling validation:** Before wiring `_validate_schema()` into
+`load_test()` or `load_rubric()`, enumerate all fixture files and check which fields they
+actually use:
+
+```bash
+for f in tests/fixtures/tests/*/test.yaml; do head -5 "$f"; done
+grep -l "categories:" tests/fixtures/tests/*/expected/rubric.yaml
+grep -l "criteria:" tests/fixtures/tests/*/expected/rubric.yaml
+```
+
+This catches mismatches between schema patterns and actual fixture values before turning
+on strict validation. A common failure mode: ID pattern `^[0-9]{3}-...` in the schema vs.
+real IDs like `test-001` in fixtures — the schema must be updated before wiring or every
+fixture will fail validation.
+
+**Schema update guidance (before enabling strict validation):**
+
+Add missing fields and adjust constraints to match real fixture data. Keep
+`additionalProperties: false` throughout.
+
+Specific updates needed for ProjectScylla `test.schema.json`:
+
+- Add `language` field (required enum `python`/`mojo`)
+- Add `tiers` (optional array)
+- Broaden `id` pattern to accept `test-001` style IDs (not just `^[0-9]{3}-...`)
+
+Specific updates needed for ProjectScylla `rubric.schema.json`:
+
+- Add `categories` as an alternative top-level format (some rubrics use `categories:` instead of `requirements:`)
+- Add optional `criteria`, `skill_validation`, `skill_source` in requirement items
+- Make `requirements` optional if `categories` can substitute
 
 #### C. Config Filename / Model-ID Validation
 
@@ -165,6 +243,25 @@ git update-ref refs/heads/main refs/remotes/origin/main
    - `check-model-config-consistency` (exact/normalized match, enforces load-time contract)
 6. Use `pixi run python ...` in `language: system` pre-commit hooks (not plain `python`)
 7. Add `scripts/__init__.py` when tests import from `scripts/` to resolve mypy module conflicts
+
+**Testing the warning path for `load_defaults()`:** `load_defaults()` hard-codes
+`config/defaults.yaml` internally, so the warning path cannot be exercised through the
+public API without heavy monkeypatching. Test the `validate_defaults_filename()` validation
+function directly instead. The loader integration test covers the "no-warning" happy path
+end-to-end.
+
+```python
+class TestDefaultsFilenameValidation:
+    def test_load_defaults_warns_for_nonstandard_filename(self, tmp_path, caplog):
+        # Since load_defaults() hard-codes config/defaults.yaml, test the
+        # validation function directly to confirm warning behaviour.
+        from scylla.config.validation import validate_defaults_filename
+        nonstandard = tmp_path / "my_defaults.yaml"
+        warnings = validate_defaults_filename(nonstandard)
+        assert len(warnings) == 1
+        assert "my_defaults.yaml" in warnings[0]
+        assert "defaults.yaml" in warnings[0]
+```
 
 #### D. Audit and Fix Existing Mismatches
 
@@ -230,6 +327,7 @@ When a `config/` subdirectory is only consumed by test infrastructure and has be
 | `rm -rf "$VAR"` where `$VAR` holds `/tmp/` path | Used shell variable pointing to temp dir | Safety Net cannot evaluate variable values at hook time | Use `mktemp -d` for fresh temp dirs |
 | Place `_validate_schema` between import blocks | Put helper between stdlib and local imports in `loader.py` | ruff-format reorders imports; `ConfigurationError` becomes undefined at definition time | Place module-level helpers after ALL imports |
 | `python3 <validator-script>` with PyYAML mismatch | Ran script with system `python3` | `python3` (Homebrew) lacked PyYAML; conda `python` had it | `which -a python python3` first; print `sys.executable` to identify failing interpreter |
+| Exercise `load_defaults()` warning path via public API | Called `load_defaults()` with non-standard path to trigger warning | `load_defaults()` hard-codes `config/defaults.yaml` internally; warning path unreachable without heavy monkeypatching | Test `validate_defaults_filename()` validation function directly for the warning path |
 | N/A (majority of sub-skills) | Direct approach worked | N/A | Solutions were straightforward once existing validator primitives were identified |
 
 ## Results & Parameters
@@ -266,7 +364,7 @@ When a `config/` subdirectory is only consumed by test infrastructure and has be
 
 ### Plugin Cache Structure
 
-```
+```text
 ~/.claude/plugins/cache/<PluginName>/<plugin-id>/<version>/
 ├── .claude-plugin/marketplace.json   # must be synced when skills change
 └── skills/<skill-name>/SKILL.md     # manually sync from git show origin/main:<path>
@@ -276,7 +374,7 @@ Cache is keyed by **version string** (semver), not git SHA. A same-version updat
 
 ### Env-Var Nesting Convention
 
-```
+```text
 HEPHAESTUS_DATABASE__MAX_CONNECTIONS → database.max_connections (double __ = nesting)
 HEPHAESTUS_LOG_LEVEL                → log_level               (single _ = literal)
 HEPHAESTUS_A___B                    → a._b                    (triple ___ = nest + literal)
