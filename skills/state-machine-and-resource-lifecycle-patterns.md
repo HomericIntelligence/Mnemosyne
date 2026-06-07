@@ -9,8 +9,8 @@ description: "Use when: (1) a resumable state machine's advance() leaves a subte
   \ (5) ProcessPoolExecutor hangs on Python 3.14t free-threaded and workers only\
   \ run external subprocesses."
 category: architecture
-date: 2026-05-19
-version: "1.0.0"
+date: 2026-06-07
+version: "1.1.0"
 user-invocable: false
 history: state-machine-and-resource-lifecycle-patterns.history
 tags:
@@ -107,6 +107,38 @@ def _initialize_or_resume_experiment(self):
 config_dict = self.config.model_dump()
 config_dict.pop("tiers_to_run", None)  # Tiers are additive across resumes
 ```
+
+#### Pre-Seeding Validation When Resuming from Post-Setup States
+
+When resuming from a state where the setup action was already executed, pre-seed shared
+mutable state BEFORE building the action map. The scheduler is an in-memory object not
+stored in the checkpoint, so it must be reconstructed when the current state is already
+past the action that creates it:
+
+```python
+_current_exp_state = ExperimentState.INITIALIZING
+if self.checkpoint:
+    try:
+        _current_exp_state = ExperimentState(self.checkpoint.experiment_state)
+    except ValueError:
+        pass
+
+_resume_states = {
+    ExperimentState.TIERS_RUNNING,
+    ExperimentState.TIERS_COMPLETE,
+    ExperimentState.REPORTS_GENERATED,
+}
+scheduler: Any  # Single annotation before if/else to avoid duplicate-annotation mypy error
+if _current_exp_state in _resume_states:
+    self._validate_filesystem_on_resume(_current_exp_state)
+    scheduler = self._setup_workspace_and_scheduler()
+else:
+    scheduler = None
+```
+
+Note: `scheduler: Any` (bare annotation, no assignment) before the branches avoids the
+mypy `duplicate-annotation` error that would result from `scheduler: Any = None` followed
+by `scheduler: Any = ...` in the `if`-branch.
 
 ### Pattern 2 — SIGINT / Ctrl+C Interrupt Handling Across All SM Levels
 
@@ -360,6 +392,9 @@ git rebase -i origin/main
 | Rebase with all intermediate commits | Tried to rebase 7 commits onto main | Cascading conflicts since each commit partially undid the previous one | When commits form a superseding chain, drop intermediates and keep only the final result |
 | CamelCase alias for state enum | `from package.models import ExperimentState as _ES` | Triggers ruff N814 | Use `ExperimentState` directly — no alias |
 | `warnings.warn()` between imports | Placed warn between stdlib and package imports | Breaks E402 (module-level import not at top) | Move `warnings.warn()` after all imports |
+| Wrong subprocess mock path in tests | `patch("subprocess.run", ...)` in test | Does not intercept calls when module uses `subprocess` as module object | Use `patch("<package>.model_validation.subprocess.run", ...)` targeting the module's own reference |
+| State transition docstrings on inner functions | `"""INITIALIZING -> DIR_CREATED: ..."""` docstring on closures | Triggers D401 (docstring not in imperative mood) | Use `# INITIALIZING -> DIR_CREATED: ...` inline comments on closures instead of docstrings |
+| Duplicate type annotation for `scheduler` | `scheduler: Any = None` then `scheduler: Any = ...` in `if`-branch | mypy `duplicate-annotation` error | Single bare annotation before branches: `scheduler: Any` — then assign in branches without re-annotating |
 
 ## Results & Parameters
 

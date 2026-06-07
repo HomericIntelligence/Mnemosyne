@@ -18,7 +18,7 @@
     "tooling": 147,
     "training": 7
   },
-  "last_updated": "2026-06-07T14:43:48Z",
+  "last_updated": "2026-06-07T19:53:06Z",
   "plugins": [
     {
       "name": "agent-config-and-tier-architecture",
@@ -1006,7 +1006,7 @@
     {
       "name": "state-machine-and-resource-lifecycle-patterns",
       "description": "Use when: (1) a resumable state machine's advance() leaves a subtest stuck in the prior state after a sentinel exception fires before the state update; (2) Ctrl+C/SIGINT must leave long-running agent runs resumable instead of FAILED across a 4-level SM hierarchy; (3) global mutable semaphores leak or hang on shutdown and need replacing with a dependency-injected ResourceManager; (4) temp credential dirs accumulate in home after Docker runs due to silent rmtree failures; (5) ProcessPoolExecutor hangs on Python 3.14t free-threaded and workers only run external subprocesses.",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "source": "./skills/state-machine-and-resource-lifecycle-patterns.md",
       "category": "architecture",
       "tags": [
