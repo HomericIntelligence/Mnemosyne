@@ -355,4 +355,3 @@ class TestWithFixture:
 | Project | Context | Details |
 |---------|---------|---------|
 | ProjectHermes | tests/conftest.py `reset_server_state` fixture | 541 tests pass; 97.84% coverage; zero regression; handles asyncio.Lock + asyncio.Event reset for FastAPI+NATS application (PR #X) |
-
