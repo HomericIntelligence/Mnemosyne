@@ -12,8 +12,8 @@ description: "Update, fix, and extend docstrings and API documentation in source
   \ function has an undocumented error-handling contract (swallows exceptions silently,\
   \ returns special error shapes on failure)."
 category: documentation
-date: 2026-06-05
-version: "1.1.0"
+date: 2026-06-07
+version: "1.2.0"
 user-invocable: false
 history: docstring-and-api-documentation-update.history
 tags:
@@ -182,6 +182,7 @@ returns `(False, "")` instead of raising.
 
 **Fix**: Add an explicit `Note:` section in the docstring **before** the `Returns:` section,
 documenting:
+
 1. Both success case and failure cases as separate return shapes
 2. Which exceptions are swallowed and why (e.g., "to support scripts that require partial results")
 3. Cross-references to helper functions if applicable (e.g., `:func:\`get_command_path\``)
@@ -215,6 +216,7 @@ def run_command(cmd: str, timeout: int = 60) -> tuple[bool, str]:
 ```
 
 **Key points**:
+
 - Place `Note:` section **immediately after** the docstring summary, **before** `Args:`
 - Explicitly document BOTH the success shape `(True, <stdout>)` AND all failure shapes `(False, "")`
 - Explain the semantic difference: which case gets stderr vs empty string vs timeout
@@ -243,6 +245,75 @@ gh pr create --title "docs(scope): ..." --body "Closes #<issue>"
 gh pr merge --auto --rebase <pr-number>
 ```
 
+## Test File Docstring Documentation Pattern
+
+This pattern targets **test file docstring headers** (as opposed to the dev guide subsection
+insertion the main Backward-Pass Catalog / Dev-Guide workflow covers). Use this when a GitHub
+issue requests reviewing and documenting Float16 precision NOTEs scattered across test files.
+
+### Assess Each NOTE First
+
+Before adding any documentation, assess every `# NOTE: Float16 ...` comment in the affected files:
+
+- **Expected limitation**: large kernel accumulations, insufficient mantissa bits for
+  epsilon perturbations — document these in the file header docstring.
+- **Bug candidate**: unexpected NaN/Inf in small kernels, inconsistent behavior across runs —
+  open a separate tracking issue rather than silently documenting.
+
+### Mixed-Precision Training Context
+
+When explaining why tests use "FP32 compute" for Float16 tests, include this context:
+
+In real training, convolutions compute in **FP32 for numerical stability** while storing
+activations and weights in **FP16 for memory efficiency**. Tests that "use FP32 compute" are
+faithfully modeling this mixed-precision pattern — they are not working around Float16 failures.
+
+Float16's ~3.3 decimal digit precision (~11-bit mantissa) is insufficient for:
+
+- Large-kernel accumulations (K² × C_in > ~100–200 per output element)
+- Finite-difference gradient checking (requires > 5 digits precision)
+
+Affected test files for convolution layers:
+
+- `tests/models/test_lenet5_conv_layers.mojo` — Conv2 forward Float16 (n=150)
+- `tests/models/test_alexnet_layers.mojo` — Conv1, Conv2, Conv3 forward Float16 (n=363–1,728)
+
+### Documentation Section Template
+
+Insert using the `=` underline heading style (not `###`) so it renders consistently in
+IDE doc viewers and Mojo docstring parsers:
+
+```text
+Float16 Precision Limitations
+==============================
+<Layer/operation type> accumulates <N> multiplications per output element.
+Float16's ~3.3 decimal digit precision (~11-bit mantissa) is insufficient
+for <specific reason: large kernel accumulations / finite-difference epsilon /
+etc.>.
+
+<Additional context about what the test does instead and why it's valid.>
+This is an expected, fundamental limitation of Float16 arithmetic (not a bug).
+In practice, mixed-precision training computes in FP32 while storing in FP16
+for memory efficiency — tests using "FP32 compute" faithfully model this pattern.
+See issue #<tracking-issue> for detailed analysis.
+```
+
+### Commit Message Format for Test Doc Updates
+
+Use the `docs(tests):` prefix with a per-file list in the body:
+
+```text
+docs(tests): document Float16 precision limitations in test headers
+
+Add Float16 Precision Limitations sections to test file docstrings for:
+- tests/models/test_X.mojo: <brief explanation>
+- tests/shared/core/test_Y.mojo: <brief explanation>
+
+All limitations reference issue #NNNN for detailed analysis.
+
+Closes #<issue>
+```
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -269,6 +340,7 @@ gh pr merge --auto --rebase <pr-number>
 | Documenting only success return in Returns: | Wrote `Returns: (bool, str) tuple with stdout` without specifying both success and failure shapes | Callers unsure what `(False, "")` means — why empty string and not stderr? | Always document BOTH success case `(True, stdout)` AND all failure cases `(False, "")` in separate bullets within Returns: or Note: |
 | Placing Note: after Returns: section | Put error-handling contract in Note: at the end of docstring | Callers read Returns: first without seeing the critical exception-swallowing contract; POLA violation persists | Place Note: section **immediately after summary**, **before Args:** — makes silent error contract discoverable before callers see return types |
 | Assuming existing tests don't cover swallowed exceptions | Didn't verify test coverage for timeout / OSError paths | Could document a contract that tests don't actually exercise | Always read existing test file (e.g., `test_run_command.py`) and find TestRunCommand::test_timeout and TestRunCommand::test_failing_command to confirm contract is covered before finalizing docstring |
+| Checking for existing skill before creating | Searched for `fp16` skills in marketplace | Found `fp16-precision-test-documentation` — similar but targets test file docstrings, not dev guides | Always read the existing skill before deciding to create a new one; scope difference (test file vs. dev guide) justifies a new skill |
 
 ## Results & Parameters
 
