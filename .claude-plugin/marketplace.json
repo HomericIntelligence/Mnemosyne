@@ -18,7 +18,7 @@
     "tooling": 147,
     "training": 7
   },
-  "last_updated": "2026-06-07T14:43:48Z",
+  "last_updated": "2026-06-07T19:51:38Z",
   "plugins": [
     {
       "name": "agent-config-and-tier-architecture",
@@ -4692,8 +4692,8 @@
     },
     {
       "name": "mojo-dtype-shape-and-package-edges",
-      "description": "Canonical edge-case patterns for Mojo dtype handling, shape inference, and package builds: bfloat16/NaN canonicalization, exotic dtype defaults, shape-bound inference, parametric vs runtime dtype, package re-export rules, package-build edges, test patterns for dtype matrices, dtype string serialization. Use when: (1) implementing dtype-aware kernels and dealing with bfloat16/fp16 edge cases, (2) writing shape-bound inference for parametric tensors, (3) building/publishing a Mojo package and dealing with re-exports, (4) constructing dtype/shape test matrices.",
-      "version": "1.0.0",
+      "description": "Canonical edge-case patterns for Mojo dtype handling, shape inference, and package builds: bfloat16/NaN canonicalization, exotic dtype defaults, shape-bound inference, parametric vs runtime dtype, package re-export rules, package-build edges, test patterns for dtype matrices, dtype string serialization. Use when: (1) implementing dtype-aware kernels and dealing with bfloat16/fp16 edge cases, (2) writing shape-bound inference for parametric tensors, (3) building/publishing a Mojo package and dealing with re-exports, (4) constructing dtype/shape test matrices, (5) implementing or testing __hash__ on a Mojo tensor with float/int fields and empty-tensor edge cases, (6) enforcing # NOTE (Mojo vX.Y.Z): format via pre-commit hook.",
+      "version": "1.1.0",
       "source": "./skills/mojo-dtype-shape-and-package-edges.md",
       "category": "testing",
       "tags": [
@@ -4703,7 +4703,10 @@
         "shape",
         "package",
         "bfloat16",
-        "parametric"
+        "parametric",
+        "hash",
+        "notes",
+        "docstrings"
       ]
     },
     {

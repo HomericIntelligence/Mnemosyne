@@ -1,13 +1,13 @@
 ---
 name: mojo-dtype-shape-and-package-edges
-description: "Canonical edge-case patterns for Mojo dtype handling, shape inference, and package builds: bfloat16/NaN canonicalization, exotic dtype defaults, shape-bound inference, parametric vs runtime dtype, package re-export rules, package-build edges, test patterns for dtype matrices, dtype string serialization. Use when: (1) implementing dtype-aware kernels and dealing with bfloat16/fp16 edge cases, (2) writing shape-bound inference for parametric tensors, (3) building/publishing a Mojo package and dealing with re-exports, (4) constructing dtype/shape test matrices."
+description: "Canonical edge-case patterns for Mojo dtype handling, shape inference, and package builds: bfloat16/NaN canonicalization, exotic dtype defaults, shape-bound inference, parametric vs runtime dtype, package re-export rules, package-build edges, test patterns for dtype matrices, dtype string serialization. Use when: (1) implementing dtype-aware kernels and dealing with bfloat16/fp16 edge cases, (2) writing shape-bound inference for parametric tensors, (3) building/publishing a Mojo package and dealing with re-exports, (4) constructing dtype/shape test matrices, (5) implementing or testing __hash__ on a Mojo tensor with float/int fields and empty-tensor edge cases, (6) enforcing # NOTE (Mojo vX.Y.Z): format via pre-commit hook."
 category: testing
-date: 2026-05-18
-version: "1.0.0"
+date: 2026-06-07
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 history: mojo-dtype-shape-and-package-edges.history
-tags: [merged, mojo, dtype, shape, package, bfloat16, parametric]
+tags: [merged, mojo, dtype, shape, package, bfloat16, parametric, hash, notes, docstrings]
 ---
 
 # Mojo Dtype, Shape, and Package Edges
@@ -34,6 +34,10 @@ tags: [merged, mojo, dtype, shape, package, bfloat16, parametric]
 8. Reading binary files in Mojo; avoiding the UTF-8 `f.read()` trap
 9. Building, formatting, or filing upstream Mojo bugs reproducibly
 10. GPU kernel programming with the MAX GPU API
+11. Adding hash collision tests for shape/dtype/value sensitivity, including empty-tensor edge cases
+12. Guarding against dtype regression in `__hash__` when numel=0
+13. Converting, condensing, or enforcing `# NOTE (Mojo vX.Y.Z):` format in Mojo files
+14. Adding a pre-commit `pygrep` hook with negative lookahead regex for comment format
 
 ## Verified Workflow
 
@@ -267,8 +271,8 @@ fn test_specific_error_message() raises:
 ```mojo
 # ALWAYS use non-uniform grad_output for normalization backward tests
 # Uniform all-ones causes sum(x_hat)=0 cancellation — masks bugs
-# Layer norm: epsilon=1e-4, atol=1e-5
-# Batch norm: epsilon=1e-3, atol=1e-4
+# Layer norm: epsilon=1e-4, atol=1e-5, rtol=1e-2
+# Batch norm: epsilon=1e-3, atol=1e-4, rtol=2e-2
 # When batch_size=1: finiteness-only assertions (variance near 0 = FD instability)
 # Perturb the exact parameter whose gradient you are testing
 ```
@@ -280,6 +284,200 @@ fn test_specific_error_message() raises:
 # Data transfer: HostBuffer -> DeviceBuffer via copy_to_device()
 # Synchronize before reading results: ctx.synchronize()
 # Prefer SIMD width = simdwidthof[dtype]() for compute-bound kernels
+```
+
+### Hash Testing Patterns
+
+**Complete `__hash__` implementation with shape loop first:**
+
+```mojo
+fn __hash__(self) -> UInt:
+    var h: UInt = 0
+    # Shape loop MUST run before dtype and data loops
+    for i in range(len(self._shape)):
+        h = h * 31 + UInt(self._shape[i])
+    h = h * 31 + UInt(dtype_to_ordinal(self._dtype))
+    for i in range(self._numel):
+        var val = self._get_float64(i)
+        var local_val = val  # local copy required before UnsafePointer
+        var int_bits = (UnsafePointer.address_of(local_val)).bitcast[UInt64][]
+        h = h * 31 + UInt(int_bits)
+    return h
+```
+
+**Hash inequality assertion — no `assert_not_equal` for UInt:**
+
+```mojo
+# assert_not_equal does not exist for UInt type
+# CORRECT pattern (consistent with test_hash_different_values_differ):
+if hash(a) == hash(b):
+    raise Error("tensors should not collide on hash")
+```
+
+**Hash stability — single-instance repeated calls:**
+
+```mojo
+# Two-instance comparison (hash(a)==hash(b)) passes even if hash has side effects
+# that reset per new instance. Single-instance repeated calls give stronger guarantee:
+assert_equal_int(Int(hash(a)), Int(hash(a)), "hash must be stable across repeated calls")
+```
+
+**Integer dtype path — use DType.int32 explicitly:**
+
+```mojo
+# Use DType.int32 to exercise the _get_float64 integer cast path
+# DType.float32 does NOT exercise this branch
+var a = arange(0.0, 4.0, 1.0, DType.int32)
+var b = arange(0.0, 4.0, 1.0, DType.int32)
+assert_equal_int(Int(hash(a)), Int(hash(b)), "Integer-typed tensors with same values should have same hash")
+```
+
+### Empty Tensor Hash Edge Cases
+
+When `numel=0`, the data loop in `__hash__` is skipped entirely. The hash is determined
+solely by the shape dimensions and the dtype ordinal.
+
+**Shape loop must include all dimensions even when numel=0:**
+
+| Shape | numel | Shape loop iterations | Data loop iterations | Hash unique? |
+| ------- | ------- | ----------------------- | ---------------------- | -------------- |
+| `[0]` | 0 | 1 (value=0) | 0 | Yes |
+| `[0, 0]` | 0 | 2 (values=0, 0) | 0 | Yes — 2 iterations vs 1 |
+| `[0, 1]` | 0 | 2 (values=0, 1) | 0 | Yes — second dim differs |
+
+**test_hash_empty_tensor:**
+
+```mojo
+fn test_hash_empty_tensor() raises:
+    """Test __hash__ for 0-element tensor hashes without error and consistently.
+
+    A tensor with shape [0] has _numel=0, so the data loop is skipped.
+    The hash is determined only by shape and dtype, but must still be stable.
+    """
+    var shape = List[Int]()
+    shape.append(0)
+    var a = zeros(shape, DType.float32)
+    var b = zeros(shape, DType.float32)
+
+    # Should not raise - the empty data loop must be safe
+    var hash_a = hash(a)
+    var hash_b = hash(b)
+
+    # Two empty tensors with identical shape and dtype must hash the same
+    assert_equal_int(
+        Int(hash_a),
+        Int(hash_b),
+        "Empty tensors with same shape/dtype should have equal hashes",
+    )
+```
+
+**test_hash_empty_tensor_shapes_differ:**
+
+```mojo
+fn test_hash_empty_tensor_shapes_differ() raises:
+    """Test that empty tensors with different shapes produce different hashes."""
+    var shape_1d = List[Int]()
+    shape_1d.append(0)
+    var t1 = zeros(shape_1d, DType.float32)
+
+    var shape_2d_00 = List[Int]()
+    shape_2d_00.append(0)
+    shape_2d_00.append(0)
+    var t2 = zeros(shape_2d_00, DType.float32)
+
+    var shape_2d_01 = List[Int]()
+    shape_2d_01.append(0)
+    shape_2d_01.append(1)
+    var t3 = zeros(shape_2d_01, DType.float32)
+
+    if hash(t1) == hash(t2):
+        raise Error(
+            "Empty tensors [0] and [0,0] should have different hashes"
+        )
+    if hash(t1) == hash(t3):
+        raise Error(
+            "Empty tensors [0] and [0,1] should have different hashes"
+        )
+    if hash(t2) == hash(t3):
+        raise Error(
+            "Empty tensors [0,0] and [0,1] should have different hashes"
+        )
+```
+
+**dtype regression guard for empty tensors:**
+
+```mojo
+fn test_hash_empty_tensor_dtype_differs() raises:
+    """Test that empty tensors with different dtypes produce different hashes.
+
+    When numel=0, the data loop is skipped entirely, so dtype_to_ordinal is
+    the only contributor that can distinguish them.
+    """
+    var shape = List[Int]()
+    shape.append(0)
+    var a = zeros(shape, DType.float32)
+    var b = zeros(shape, DType.float64)
+    if hash(a) == hash(b):
+        raise Error(
+            "Empty tensors with different dtypes should have different hashes"
+        )
+```
+
+### NOTE Comment Standard
+
+**Format: `# NOTE (Mojo vX.Y.Z): <description>`**
+
+Rules:
+- Always include Mojo version in parentheses immediately after `NOTE`
+- Include project issue reference when tracked
+- Include upstream Mojo issue status
+- Include re-evaluation trigger condition
+- Concise 4-8 line form preferred over verbose blocks
+
+**Concise NOTE template:**
+
+```mojo
+# NOTE: <limitation description> blocked by a Mojo compiler limitation
+# (<specific symptom> as of Mojo v<version>).
+# Tracked in project issue #<number>; no upstream Mojo issue filed yet.
+# Re-evaluate when Mojo adds <feature> support.
+#
+# Workaround: <current approach>
+# Performance Impact: <quantified impact>
+```
+
+Source Mojo version from `pixi.toml`, not local binary (may crash on GLIBC mismatch):
+
+```bash
+grep -E "mojo|max" pixi.toml | head -5
+```
+
+**Pre-commit `pygrep` hook to enforce format (`.pre-commit-config.yaml`):**
+
+```yaml
+- id: check-note-format
+  name: Check NOTE format compliance
+  description: Enforce # NOTE (Mojo vX.Y.Z): format in Mojo files (issue #3285)
+  entry: '# NOTE(?!\s*\()'
+  language: pygrep
+  files: ^(benchmarks|examples|papers|scripts|shared|tests)/.*\.(mojo|🔥)$
+  types: [text]
+```
+
+**Critical:** Use negative lookahead `(?!\s*\()` — NOT `[^(]`. The character class
+`[^(]` falsely matches `# NOTE (Mojo v0.26.1):` because space before `(` is not `(`.
+
+**Python audit script (`scripts/check_note_format.py`):**
+
+```python
+import re
+from pathlib import Path
+
+EXCLUDED_DIRS = {".worktrees", ".pixi", "build", ".git", "__pycache__", ".mypy_cache"}
+SOURCE_DIRS = ["benchmarks", "examples", "papers", "scripts", "shared", "tests"]
+
+# CRITICAL: Use negative lookahead, NOT [^(]
+NOTE_VIOLATION_PATTERN = re.compile(r"# NOTE(?!\s*\()")
 ```
 
 ### Path and Format Utilities
@@ -354,6 +552,15 @@ Before filing any Mojo bug against modular/modular:
 | `Tuple return -> (T1, T2)` | Changed validate to return `(avg_loss, accuracy)` | Deprecated in Mojo guidelines; zero precedent in codebase | Use a second-pass accumulation instead |
 | `SKIP=hook-id` vs `--no-verify` | Considered `--no-verify` to bypass all hooks | CLAUDE.md explicitly prohibits `--no-verify` | Always use `SKIP=specific-hook-id` |
 | Running `mojo` locally on Debian 10 / GLIBC \< 2.32 | `pixi run mojo test tests/...` on older host | GLIBC 2.32/2.33/2.34 not found — Mojo binary requires newer libc | Mojo tests only run in Docker/CI; pre-commit hooks + CI are the local gate |
+| Skipping dtype in hash | Hashed only shape and data | Tensors of same shape and data but different dtypes collide | Include `dtype_to_ordinal(self._dtype)` in the hash chain |
+| Two-instance hash stability test | `hash(a) == hash(b)` with two separate instances | Passes even if hash has side effects that reset on each new instance | Single-instance repeated calls are a stronger stability guarantee |
+| `DType.float32` for integer dtype hash test | Used float32 arange to test hash | Does not exercise the integer cast path in `_get_float64` | Use `DType.int32` explicitly to cover the integer branch |
+| `assert_not_equal` for hash inequality | Used `assert_not_equal(hash(t1), hash(t2), ...)` | Function does not exist in test utility helpers for UInt type | Use `if hash(a) == hash(b): raise Error(...)` pattern |
+| `# NOTE[^(]` regex for NOTE format | Used character class negation to exclude `(` | `# NOTE (Mojo v0.26.1):` has a space before `(` so `# NOTE` with space matches — false positive | Use negative lookahead `(?!\s*\()` to allow any whitespace before `(` |
+| `language: pygrep` with `[^(]` pattern | Same flawed pattern in pre-commit hook | Compliant lines were flagged; hook blocked all commits | Negative lookaheads work fine in `language: pygrep` hooks |
+| Running `pixi run mojo --version` locally | Tried to verify Mojo version directly | GLIBC 2.32 required but host has 2.28; mojo binary crashes | Use `pixi.toml` version constraint instead — authoritative version spec |
+| `atol=1e-5` for batch norm gradient | Used layer norm tolerance for batch norm | Batch norm has more compounding intermediate steps; tighter tolerance fails | Use `atol=1e-4` for batch norm, `atol=1e-5` for layer norm |
+| `rtol=1e-5` for assert\_gradients\_close | Used same rtol as assert\_close\_float (1e-5) | assert\_gradients\_close and assert\_close\_float have 100-1000x different semantics | Use `rtol=1e-2` for layer norm and `rtol=2e-2` for batch norm in assert\_gradients\_close |
 
 ## Results & Parameters
 
@@ -368,6 +575,14 @@ Before filing any Mojo bug against modular/modular:
 | Shallow copy warning | `__copyinit__` shares `_data` pointer |
 | Subscript assign | Requires matching `__getitem__` lvalue |
 
+### Gradient Test Tolerance Reference
+
+| Layer | Helper | rtol | atol | Notes |
+| ------- | ------- | ------ | ------ | ------- |
+| Layer norm | `assert_gradients_close` | `1e-2` | `1e-5` | Simpler structure, tighter tolerance |
+| Batch norm | `assert_gradients_close` | `2e-2` | `1e-4` | More compounding intermediate steps |
+| Any layer | `assert_close_float` | `1e-5` | `1e-8` | Different helper — 100-1000x tighter semantics |
+
 ### Test File Limits
 
 - Max 10 `fn test_` per file; split into part1/part2/... as needed
@@ -375,6 +590,15 @@ Before filing any Mojo bug against modular/modular:
 - Assertion helpers: `assert_true`, `assert_almost_equal`, `assert_equal` (from conftest)
 - For float comparisons: `assert_almost_equal(val, expected, tolerance)`
 - For hash stability: assert equality between two calls, not against a magic constant
+- For hash inequality: use `if hash(a) == hash(b): raise Error(...)` — NOT `assert_not_equal`
+
+### NOTE Format Compliance Reference
+
+| Type | Before | After |
+| ------ | -------- | ------- |
+| Mojo limitation | `# NOTE: Mojo doesn't support __all__` | `# NOTE (Mojo v0.26.1): Mojo doesn't support __all__` |
+| Mojo limitation w/issue | `# NOTE: Batch iteration blocked by #3076` | `# NOTE (Mojo v0.26.1, #3076): Batch iteration blocked` |
+| General comment | `# NOTE: Check is inside else block` | `# Check is inside else block` |
 
 ### GPU Programming Checklist
 
