@@ -2,8 +2,8 @@
 name: github-bulk-issue-and-pr-operations
 description: "Canonical guide to bulk GitHub issue and PR operations via gh CLI / gh api / GraphQL: rate-limit recovery, batch-create/close/comment, parallel PR remediation waves, mass label edits, idempotent filing with duplicate detection. Use when: (1) creating or closing 20+ issues/PRs in one operation, (2) recovering from primary or secondary rate limits, (3) coordinating parallel-fix swarms via gh CLI, (4) GraphQL bulk operations that span multiple repos, (5) auto-merge / admin-merge mechanics for batches."
 category: tooling
-date: 2026-05-18
-version: "1.0.0"
+date: 2026-06-07
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 history: github-bulk-issue-and-pr-operations.history
@@ -320,6 +320,67 @@ def _load_existing_comment_ids(issue_number: int) -> None:
     _loaded.add(issue_number)
 ```
 
+## Pre-Work Preflight for Auto-Impl Worktrees
+
+This section covers a distinct case from the swarm-level preflight checks in Phase 0. It applies when an individual agent opens a pre-created worktree that may already have work completed by a prior session.
+
+### Triggers
+
+- `git log main..HEAD` returns no output — branch has NO commits ahead of main, meaning the fix was already merged by a prior PR. Distinct from bulk-operation triggers.
+- Pre-created worktrees in automated pipelines may have work already completed. The `.claude-prompt-NNNN.md` file provides agent context but does NOT indicate whether work is pending or done.
+
+### 2-Command Minimum Preflight (under 3 seconds)
+
+Run these two commands BEFORE reading any source files or planning implementation:
+
+```bash
+git log --oneline -10
+gh pr list --search "<issue-number>" --state all
+```
+
+- `git log` shows `Closes #N` or a commit referencing the issue → done; check PR state
+- `gh pr list` shows an open PR → confirm auto-merge status, report done
+- Neither → proceed with implementation
+
+### git diff Main Check
+
+```bash
+git diff main -- <target-file>
+```
+
+No output means the file is identical to main — it is already fixed.
+
+### Decision Matrix
+
+| git log has issue commit | git status clean | PR exists | Action |
+| -------------------------- | ----------------- | ----------- | -------- |
+| Yes | Yes | Yes | Verify PR state, confirm auto-merge, report done |
+| Yes | Yes | No | Create PR, enable auto-merge |
+| Yes | No | No | Commit uncommitted work, create PR |
+| No | Yes | No | Issue not yet implemented — proceed with implementation |
+| No | Any | Yes | Investigate PR content — unusual state |
+
+### Reporting Template (Already-Done Case)
+
+```
+Status: Already Done
+
+- Commit: <sha> <message>
+- PR: #<number> — <state>, auto-merge: <enabled/disabled>
+- Files changed: <list from git show --stat>
+
+No reimplementation needed.
+PR URL: <url>
+```
+
+### Key Lesson
+
+Clean `git status` does NOT mean implementation has not started. Prior commits may have done all the work. Always check `git log` too.
+
+### Why Pre-Created Worktrees Can Be Pre-Populated
+
+In automated pipelines (e.g., ProjectOdyssey), worktrees are created by orchestration agents that may also run an initial implementation pass. When a second agent session opens the same worktree, the work may already be complete. The `.claude-prompt-NNNN.md` file is dropped into the worktree for agent context but does not indicate whether implementation is pending or done.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -340,6 +401,9 @@ def _load_existing_comment_ids(issue_number: int) -> None:
 | Two agents touching the same hot file in the same sub-wave | `scripts/apply.sh` modified by agents for issues #187 and #195 | Merge conflict on same function block | Hot-file serialization: at most one agent per hot file per sub-wave |
 | `gh search issues "term"` for body-text scanning | Used GitHub search API for issue body matching | Returns false positives from repo names and README text | Use `gh issue list --json body \| jq 'select(.body \| test("term"))'` per-repo instead |
 | Mechanical string replace for terminology migration | `sed 's/old-term/new-term/g'` across all issue bodies | Inverted-semantic flags (SKIP_VERIFY vs TLS_VERIFY) get wrong boolean values; context-specific class renames lost | Use Sonnet agents with explicit terminology mapping table; flag inverted-semantic pairs in mapping |
+| Skip PR creation because no changes needed | Considered not creating a PR when the fix was already in main | Issue stays open with no resolution linked to it | Even for already-done work, a PR is required to close the issue formally |
+| Assuming clean git status means fresh start | Relied on `git status` showing a clean working tree as proof no work had been done | Clean status just means nothing is unstaged — prior commits may have done all the work | `git status` clean does not equal implementation not started; always check `git log` too |
+| Assuming the worktree always has new work to do | Started planning implementation steps after opening a pre-created worktree | Wasted tool calls on work already complete; branch had commits ahead of main from a prior session | Worktrees created by automation may lag behind main or may already have all work committed |
 
 ## Results & Parameters
 
