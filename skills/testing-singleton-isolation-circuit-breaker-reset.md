@@ -24,7 +24,7 @@ tags:
   - non-transient-retry
   - registry-reset
   - github-api
-  - 422
+  - "422"
   - graphql-schema-error
 ---
 

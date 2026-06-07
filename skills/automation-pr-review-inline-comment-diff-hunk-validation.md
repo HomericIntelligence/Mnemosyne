@@ -18,7 +18,7 @@ verification: verified-ci
 tags:
   - github-api
   - pull-request-review
-  - 422
+  - "422"
   - unprocessable-entity
   - diff-hunk
   - inline-comments
