@@ -18,7 +18,7 @@
     "tooling": 147,
     "training": 7
   },
-  "last_updated": "2026-06-07T14:43:48Z",
+  "last_updated": "2026-06-07T19:52:21Z",
   "plugins": [
     {
       "name": "agent-config-and-tier-architecture",
@@ -6480,7 +6480,7 @@
     {
       "name": "pre-commit-hooks-and-linting-config",
       "description": "Canonical guide to pre-commit hook configuration, single-source-of-truth versioning, CI/local parity, and integration of ruff/mypy/clang-format/yamllint/actionlint/golangci-lint/bandit/hadolint/shellcheck/markdownlint. Use when: (1) writing or amending .pre-commit-config.yaml, (2) diagnosing why a hook passes locally but fails in CI (version drift), (3) deciding fix-vs-suppress for lint findings, (4) adding a new linter to an existing pre-commit pipeline, (5) reconciling ruff/mypy/markdownlint config across multiple repos, (6) a pre-commit hook using a pixi console script false-fails locally even though CI passes \u2014 system-installed package in ~/.local/bin shadows the local dev version, (7) ruff I001/RUF059 fires on inline imports or unused tuple unpacking inside test functions after adding new tests, (8) mypy pre-commit hook fails because an UNTRACKED test file references methods not yet committed \u2014 the hook checks ALL .py files on disk including untracked ones.",
-      "version": "1.6.0",
+      "version": "1.7.0",
       "source": "./skills/pre-commit-hooks-and-linting-config.md",
       "category": "tooling",
       "tags": [
