@@ -18,7 +18,7 @@
     "tooling": 147,
     "training": 7
   },
-  "last_updated": "2026-06-07T14:43:48Z",
+  "last_updated": "2026-06-07T19:52:32Z",
   "plugins": [
     {
       "name": "agent-config-and-tier-architecture",
@@ -3700,7 +3700,7 @@
     {
       "name": "docstring-and-api-documentation-update",
       "description": "Update, fix, and extend docstrings and API documentation in source files to match current implementation semantics. Use when: (1) a function signature changed and the module docstring still shows the old call, (2) memory semantics (copy vs view) are mislabeled or inconsistent across sibling methods, (3) inline # NOTE comments in __init__ files need promotion to docstring Note: sections, (4) a catalog doc (backward-pass-catalog.md, testing-strategy.md) needs a new module section, formula, or gotcha subsection, (5) placeholder 'requires implementation' language persists after tests are written, (6) module docstrings have orphaned lowercase continuation fragments, (7) a new dunder/trait method is undocumented, (8) a utility function has an undocumented error-handling contract (swallows exceptions silently, returns special error shapes on failure).",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "source": "./skills/docstring-and-api-documentation-update.md",
       "category": "documentation",
       "tags": [
