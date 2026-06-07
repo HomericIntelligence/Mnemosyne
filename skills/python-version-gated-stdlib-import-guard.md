@@ -6,7 +6,7 @@ date: 2026-05-28
 version: "1.0.0"
 user-invocable: false
 verification: verified-ci
-tags: [python, stdlib, tomllib, tomli, version-guard, ci, import, 3.10, 3.11, compatibility]
+tags: [python, stdlib, tomllib, tomli, version-guard, ci, import, "3.10", "3.11", compatibility]
 ---
 
 # Python Version-Gated stdlib Import Guard

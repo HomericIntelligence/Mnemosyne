@@ -6,7 +6,7 @@ date: 2026-05-29
 version: "1.0.0"
 user-invocable: false
 verification: verified-local
-tags: [gh-cli, github-token, keyring, auth, 403, git-push, pr-merge, agent-shell]
+tags: [gh-cli, github-token, keyring, auth, "403", git-push, pr-merge, agent-shell]
 ---
 
 # GH_TOKEN Env PAT Shadows the Keyring gho_ Token
