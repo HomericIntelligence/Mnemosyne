@@ -2,8 +2,8 @@
 name: pre-commit-hooks-and-linting-config
 description: "Canonical guide to pre-commit hook configuration, single-source-of-truth versioning, CI/local parity, and integration of ruff/mypy/clang-format/yamllint/actionlint/golangci-lint/bandit/hadolint/shellcheck/markdownlint. Use when: (1) writing or amending .pre-commit-config.yaml, (2) diagnosing why a hook passes locally but fails in CI (version drift), (3) deciding fix-vs-suppress for lint findings, (4) adding a new linter to an existing pre-commit pipeline, (5) reconciling ruff/mypy/markdownlint config across multiple repos, (6) a pre-commit hook using a pixi console script false-fails locally even though CI passes — system-installed package in ~/.local/bin shadows the local dev version, (7) ruff I001/RUF059 fires on inline imports or unused tuple unpacking inside test functions after adding new tests, (8) mypy pre-commit hook fails because an UNTRACKED test file references methods not yet committed — the hook checks ALL .py files on disk including untracked ones."
 category: tooling
-date: 2026-05-28
-version: "1.6.0"
+date: 2026-06-07
+version: "1.7.0"
 user-invocable: false
 verification: verified-ci
 history: pre-commit-hooks-and-linting-config.history
@@ -316,6 +316,112 @@ echo '/.claude-prompt-*.md' >> .gitignore
 Add the `.gitignore` pattern BEFORE the next CI run to prevent recurrence.
 
 Verified by ProjectHephaestus PR #657.
+
+## Hook-Specific Patterns
+
+### detect-private-key: False Positive Handling
+
+Use when `detect-private-key` fires on files that contain fake/test credentials (TLS unit tests,
+Kubernetes secret manifests, example certs). Do **not** delete the hook — that would miss real
+leaks. Use `exclude:` to scope it.
+
+**Trigger conditions**:
+
+- `detect-private-key` hook false-fires on test fixtures, TLS unit tests, or k8s secret manifests
+  containing fake/test PEM headers (`BEGIN CERTIFICATE`, `BEGIN PRIVATE KEY`, `BEGIN RSA PRIVATE KEY`,
+  `BEGIN EC PRIVATE KEY`, `BEGIN CERTIFICATE REQUEST`).
+
+**Quick Reference**:
+
+```yaml
+# .pre-commit-config.yaml — under detect-private-key hook entry:
+- id: detect-private-key
+  exclude: '^(k8s/metrics-security\.yaml|tests/unit/test_grpc_tls\.cpp)$'
+```
+
+For broader exclusions (test directories, example certs, k8s secret patterns):
+
+```yaml
+- id: detect-private-key
+  exclude: '^(tests/|fixtures/|examples/|k8s/.*-secret.*\.yaml|k8s/.*-security.*\.yaml)$'
+```
+
+**Step-by-step**:
+
+1. **Identify flagged files** — read CI log from the `detect-private-key` hook; it lists each triggering path.
+2. **Confirm they are test fixtures** — verify the file is a unit test, example cert, generated credential, or Kubernetes manifest. If it contains real credentials, fix that instead of excluding.
+3. **Locate the hook entry** in `.pre-commit-config.yaml` — find the `repo: https://github.com/pre-commit/pre-commit-hooks` block and `- id: detect-private-key`.
+4. **Add `exclude:` directly under the hook id** — value is a Python regex anchored with `^...$`.
+5. **Escape regex metacharacters**: forward slashes `/` do not need escaping; dots `.` in filenames must be escaped as `\.`.
+6. **Verify locally**: `pre-commit run detect-private-key --all-files` — excluded files should pass; all other paths still checked.
+7. **Commit** — `.pre-commit-config.yaml` is in version control; CI picks it up automatically.
+
+**Regex rules for the `exclude:` field**:
+
+| Pattern | Matches |
+| --------- | --------- |
+| `^path/to/file\.ext$` | Exact file |
+| `^(file1\.yaml\|file2\.cpp)$` | Either of two exact files |
+| `^tests/` | All files under `tests/` |
+| `^k8s/.*-secret.*\.yaml$` | Any k8s YAML with `-secret` in the name |
+| `^k8s/.*-security.*\.yaml$` | Any k8s YAML with `-security` in the name |
+
+**Typical PEM patterns that trigger false positives in test files**:
+
+```
+-----BEGIN CERTIFICATE-----
+-----BEGIN PRIVATE KEY-----
+-----BEGIN RSA PRIVATE KEY-----
+-----BEGIN EC PRIVATE KEY-----
+-----BEGIN CERTIFICATE REQUEST-----
+```
+
+These appear in TLS unit tests (`test_grpc_tls.cpp`, `test_tls_*.py`) and Kubernetes secret manifests
+that embed cert/key material as base64 or raw PEM for local dev environments.
+
+**Failed attempts for this pattern**:
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| Delete the hook entirely | Remove `detect-private-key` from `.pre-commit-config.yaml` | Would miss real credential leaks in non-test paths — eliminates security value | Use `exclude:` to scope the hook, never remove it entirely |
+| Move test files to a different path | Rename `tests/unit/test_grpc_tls.cpp` to avoid detection | Disrupts test structure and doesn't scale for k8s manifests | Path-based `exclude:` is correct; don't relocate files to satisfy a hook |
+| Add `# noqa` or inline ignore comments | Tried per-line directives in C++ source | `detect-private-key` is a grep-based hook — inline suppressions not supported | Hook-level `exclude:` is the only supported suppression mechanism |
+
+### Go-Based Hook: Pre-Built Binary Download
+
+Use when a Go-based pre-commit hook (e.g., gitleaks) fails to build from source because the
+system Go version is too old for the hook's `go.mod` requirement.
+
+**Trigger conditions**:
+
+- A Go-based hook fails to build from source because system Go version is too old (e.g., system
+  Go 1.15 vs hook requirement Go 1.24.11).
+- pre-commit with `language: golang` reports "invalid go version" or Go compilation errors for a
+  hook that worked previously.
+
+**Fix**: Convert from `language: golang` (builds from source) to a `repo: local` hook that
+downloads the pre-built binary release:
+
+```yaml
+# AFTER (downloads pre-built binary):
+- repo: local
+  hooks:
+    - id: gitleaks
+      name: Gitleaks Secret Scan
+      entry: bash -c 'GITLEAKS_VERSION="8.30.1"; GITLEAKS_BIN="$HOME/.local/bin/gitleaks"; if [ ! -x "$GITLEAKS_BIN" ]; then mkdir -p "$HOME/.local/bin" && curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar -xz -C "$HOME/.local/bin" gitleaks; fi && "$GITLEAKS_BIN" protect --staged'
+      language: system
+      pass_filenames: false
+```
+
+**Key design decisions**:
+
+- Binary is cached at `$HOME/.local/bin/gitleaks` — only downloaded once
+- `curl -sSfL` fails fast on HTTP errors (`-f`) and follows redirects (`-L`)
+- `pass_filenames: false` because gitleaks scans the git diff, not individual files
+- Version is pinned inline — update the `GITLEAKS_VERSION` string when upgrading
+
+This pattern applies to any Go-based hook where the system Go is too old and upgrading Go is not
+feasible (e.g., constrained CI environments, conda-forge only providing old Go versions).
 
 ## Failed Attempts
 
