@@ -1,6 +1,32 @@
 <!-- markdownlint-disable MD024 -->
 # testing-singleton-isolation-circuit-breaker-reset — History
 
+## v1.3.0 (2026-06-07)
+
+**Changed by:** ProjectHephaestus PR #1084 (closes #1083) — fix commit `83d5aaf`, confirmed by a real CI failure and the fix that made CI pass
+**Verification:** verified-ci — the CI failure reproduced the breaker cascade; the mock-everywhere fix made CI green.
+
+### What changed
+
+- Added the **full-suite-before-green** dimension: when a change adds a NEW side-effecting call (here a `gh_pr_resolve_thread` GitHub API call) inside a function that EXISTING tests already exercise, running only the touched subdirectory (`tests/unit/automation` → `1174 passed`) can pass while the FULL suite (`tests/unit`, 3391 tests) fails in CI. Always run the complete unit suite before declaring green.
+- Documented the **same `_GH_BREAKER` cascade through a new door**: 2 existing validator tests left the new call unmocked, made real `gh` calls that fail in CI's no-network sandbox, each failure incremented the shared `github-api` breaker, and after the threshold it OPENED — cascading `CircuitBreakerOpenError` into many unrelated tests. The subset never crossed the threshold, hiding it locally.
+- Added the **mock-every-new-side-effecting-call** rule: when a function under test gains a new gh/network/db call, audit ALL existing callers' tests and add the mock (`patch.object(module, "gh_pr_resolve_thread")`), then run the full suite.
+- Added the **cascade-as-symptom** diagnosis rule: treat a `CircuitBreakerOpenError` cascade as a symptom; find the EARLIEST non-breaker failure (the real root cause that tripped the breaker), not the dozens of downstream breaker-open errors.
+- Added a prevention checklist (grep all callers' tests; run full suite; treat breaker-open as symptom; background long full-suite runs under time pressure).
+- Added two new `Failed Attempts` rows (15–16): running only `tests/unit/automation` and declaring green; leaving the new call unmocked in existing tests.
+- Added new `When to Use` triggers (10–11), a `### Run the FULL Suite Before Green (v1.3.0)` workflow section, a `### v1.3.0` Results & Parameters block, and a ProjectHephaestus PR #1084 row in `Verified On`.
+- Expanded tags; bumped date to 2026-06-07, version to 1.3.0.
+
+### Why
+
+v1.0.0–v1.2.0 covered resetting the held instance (not the registry), conftest scope, and fail-fast-test pollution. v1.3.0 captures a fourth route to the SAME `_GH_BREAKER` cascade: a new side-effecting call left unmocked in pre-existing tests, only visible at full-suite scope. Same search surface ("my change tripped the shared circuit breaker / passed locally on a subset but failed in CI"), so it belongs in this skill rather than a duplicate `testing-run-full-suite-before-green` file.
+
+### Previous version (v1.2.0) snapshot
+
+See the v1.2.0 entry below for the prior content; the v1.2.0 `.md` is preserved in this history log's lineage. The v1.3.0 amendment is purely additive (new triggers, a new workflow section, two new Failed Attempts rows, a new Results block, and a new Verified On row).
+
+---
+
 ## v1.2.0 (2026-06-06)
 
 **Changed by:** ProjectHephaestus PR #1042 (closes #1040) — merged to main

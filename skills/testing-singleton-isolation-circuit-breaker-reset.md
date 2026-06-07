@@ -1,9 +1,9 @@
 ---
 name: testing-singleton-isolation-circuit-breaker-reset
-description: "Test isolation for module-level singleton instances (e.g., circuit breaker, cache, registry) requires calling .reset() on the held reference directly — in a pytest autouse fixture in conftest.py at the broadest scope, OR at the top of any new test that trips the singleton — not via a registry-clearing reset helper that orphans the import-time-bound instance. Use when: (1) adding tests that intentionally trigger failures/exceptions to a class whose code path goes through a module-level circuit breaker / rate limiter / retry primitive, (2) new tests pass in isolation but make UNRELATED sibling tests fail with a 'circuit breaker is open'/unavailable error when the whole class runs, (3) a reset helper clears a registry (`_registry.clear()`) rather than resetting the import-time-bound instance, (4) testing code with module-level singleton instances (breakers, caches, registries, contextvar defaults) that maintain internal state across test runs, (5) a test passes locally in isolation but fails in CI with cross-test contamination, (6) the same test fails identically on multiple Python versions in CI (3.10/3.11/3.12/3.13) — a fingerprint of order-dependent shared state, (7) deciding where to put a pytest autouse fixture: single test file vs package conftest.py, (8) extending a non-transient/fail-fast error classifier and verifying it, (9) deciding whether HTTP 422 or GraphQL schema errors should be retried (they should NOT — they are deterministic)."
+description: "Test isolation for module-level singleton instances (e.g., circuit breaker, cache, registry) requires calling .reset() on the held reference directly — in a pytest autouse fixture in conftest.py at the broadest scope, OR at the top of any new test that trips the singleton — not via a registry-clearing reset helper that orphans the import-time-bound instance; AND you must run the FULL test suite (not just the changed subdirectory) before declaring green, because the breaker cascade only surfaces at full scope. Use when: (1) adding tests that intentionally trigger failures/exceptions to a class whose code path goes through a module-level circuit breaker / rate limiter / retry primitive, (2) new tests pass in isolation but make UNRELATED sibling tests fail with a 'circuit breaker is open'/unavailable error when the whole class runs, (3) a reset helper clears a registry (`_registry.clear()`) rather than resetting the import-time-bound instance, (4) testing code with module-level singleton instances (breakers, caches, registries, contextvar defaults) that maintain internal state across test runs, (5) a test passes locally in isolation but fails in CI with cross-test contamination, (6) the same test fails identically on multiple Python versions in CI (3.10/3.11/3.12/3.13) — a fingerprint of order-dependent shared state, (7) deciding where to put a pytest autouse fixture: single test file vs package conftest.py, (8) extending a non-transient/fail-fast error classifier and verifying it, (9) deciding whether HTTP 422 or GraphQL schema errors should be retried (they should NOT — they are deterministic), (10) you added a NEW side-effecting call (a gh/network/db call) inside a function existing tests already exercise and ran only the touched subdirectory's tests — audit every existing caller's test and mock the new call, then run the FULL suite, (11) CI shows a cascade of CircuitBreakerOpenError across many unrelated tests — treat it as a symptom and find the EARLIEST non-breaker failure (the real root cause that tripped the breaker)."
 category: testing
-date: 2026-06-06
-version: "1.2.0"
+date: 2026-06-07
+version: "1.3.0"
 user-invocable: false
 history: testing-singleton-isolation-circuit-breaker-reset.history
 verification: verified-ci
@@ -26,6 +26,13 @@ tags:
   - github-api
   - "422"
   - graphql-schema-error
+  - full-suite-before-green
+  - run-all-tests
+  - test-subset-trap
+  - new-side-effecting-call
+  - mock-every-caller
+  - cascade-symptom
+  - earliest-failure
 ---
 
 # Testing: Singleton Isolation — Circuit Breaker Reset Pattern
@@ -34,10 +41,10 @@ tags:
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-06-06 |
-| **Objective** | Ensure test isolation for module-level singleton instances by (a) resetting the held instance state, not just clearing registries, (b) putting the autouse reset fixture in `conftest.py` at the broadest scope OR calling `module._BREAKER.reset()` at the top of any new failure-triggering test, and (c) ALWAYS running the full test class/module so shared-state pollution surfaces |
-| **Outcome** | v1.0.0: 5 circuit breaker tests passing in `test_gh_call_circuit_breaker.py`. v1.1.0: cross-test contamination fixed in `tests/unit/automation/` after moving the fixture into a package-level conftest. v1.2.0: adding 2 new fail-fast tests turned 5 unrelated sibling tests red (shared `_GH_BREAKER` pushed OPEN); fixed by `module._GH_BREAKER.reset()` at each new test's top. Bundled with the 422/GraphQL non-transient retry-classifier fix that motivated the new tests. |
-| **Verification** | v1.0.0 verified-ci. v1.1.0 verified-ci (bug) / verified-local (fix). v1.2.0 **verified-ci** — fix merged to ProjectHephaestus main (PR #1042, closes #1040). |
+| **Date** | 2026-06-07 |
+| **Objective** | Ensure test isolation for module-level singleton instances by (a) resetting the held instance state, not just clearing registries, (b) putting the autouse reset fixture in `conftest.py` at the broadest scope OR calling `module._BREAKER.reset()` at the top of any new failure-triggering test, (c) ALWAYS running the FULL unit suite (not just the changed subdirectory) so shared-state pollution surfaces, and (d) mocking EVERY new side-effecting collaborator in EVERY existing test that reaches it |
+| **Outcome** | v1.0.0: 5 circuit breaker tests passing in `test_gh_call_circuit_breaker.py`. v1.1.0: cross-test contamination fixed in `tests/unit/automation/` after moving the fixture into a package-level conftest. v1.2.0: adding 2 new fail-fast tests turned 5 unrelated sibling tests red (shared `_GH_BREAKER` pushed OPEN); fixed by `module._GH_BREAKER.reset()` at each new test's top. v1.3.0: a NEW `gh_pr_resolve_thread` call was added inside a function existing tests already exercised; 2 tests left it unmocked, made real `gh` calls that fail in CI's no-network sandbox, tripped the shared `github-api` breaker, and cascaded `CircuitBreakerOpenError` into many unrelated tests. Running only `tests/unit/automation` (1174 passed) hid it; the full `tests/unit` (3391 tests) in CI exposed it. Fixed by mocking the new call in every reaching test, then running the full suite. |
+| **Verification** | v1.0.0 verified-ci. v1.1.0 verified-ci (bug) / verified-local (fix). v1.2.0 verified-ci (PR #1042, closes #1040). v1.3.0 **verified-ci** — CI failure confirmed the cascade and the mock-everywhere fix made CI pass (ProjectHephaestus PR #1084, closes #1083, fix commit `83d5aaf`). |
 
 ## When to Use
 
@@ -54,6 +61,9 @@ tags:
 - **A reset helper clears a registry** (`reset_all_circuit_breakers()` → resets each breaker then `_registry.clear()`) rather than resetting the import-time-bound instance — the helper ORPHANS the import-time `_GH_BREAKER`, so it keeps accumulating state across tests
 - **Extending a non-transient / fail-fast error classifier and verifying it** — e.g. adding patterns to `_NON_TRANSIENT_PATTERNS`. The new failing-call tests you write to verify it are exactly the tests that trip the shared breaker
 - **Deciding whether HTTP 422 / "unprocessable entity" or GraphQL schema errors should be retried** — they should NOT. They are deterministic; retrying can never succeed and wastes ~31s/failure (5 attempts × `2**attempt` backoff)
+- **You added a NEW side-effecting call** (a `gh`/network/db/subprocess call) inside a function that EXISTING tests already exercise — every prior caller's test that does not mock the new call will now make a real call, which fails in CI's no-network sandbox and (if the call goes through a shared breaker) trips the cascade. Audit all callers' tests and add the mock (`patch.object(module, "gh_pr_resolve_thread")`) before claiming green
+- **You ran only the touched subdirectory's tests** (e.g. `pixi run pytest tests/unit/automation`, saw 1174 passed) and want to declare green — DON'T. Stateful singletons (circuit breakers, caches, rate limiters) make a passing subset misleading because the breaker's failure threshold is only crossed at full scope. Run the FULL suite (`pixi run pytest tests/unit`)
+- **CI output shows a cascade of `CircuitBreakerOpenError` across many unrelated tests** — treat it as a SYMPTOM, not the root cause. The first real failure(s) that tripped the breaker are the cause; find the EARLIEST non-breaker failure in the run, not the dozens of downstream breaker-open errors
 
 ## Verified Workflow
 
@@ -235,6 +245,67 @@ Verifying that fix required adding tests that assert these errors raise WITHOUT
 retrying — and those very tests are what tripped the shared breaker, which is
 how the test-pollution bug surfaced.
 
+### Run the FULL Suite Before Green (v1.3.0) — new side-effecting calls + the subset trap
+
+This dimension is about a NEW failure mode that produced the SAME cascade
+through a different door. A change added a NEW side-effecting collaborator — a
+`gh_pr_resolve_thread` GitHub API call — INSIDE a validator function that
+existing tests already exercised. Two of those existing tests did not mock the
+new call, so when they ran they made REAL `gh` calls. In CI's no-network
+sandbox those calls fail, and each failure increments the shared `github-api`
+circuit breaker. After the threshold the breaker OPENED, and every SUBSEQUENT
+test that touched `github_api` then failed with `CircuitBreakerOpenError` —
+including many tests entirely unrelated to the change.
+
+Why it was invisible locally: running only the touched subdirectory
+(`pixi run pytest tests/unit/automation`) reported `1174 passed`. That subset
+never crossed the breaker's failure threshold (or the two real-call failures
+were too few to trip it within that scope), so the bug stayed hidden. CI runs
+the FULL `tests/unit` (3391 tests); at full scope the failures accumulated past
+the threshold and the cascade appeared.
+
+```bash
+# ❌ The trap — only the changed subdirectory; subset never trips the breaker
+pixi run pytest tests/unit/automation        # "1174 passed" — misleading green
+
+# ✅ Before declaring green — the FULL unit suite (what CI runs)
+pixi run pytest tests/unit                    # surfaces the breaker cascade
+```
+
+**The fix:** when a function under test gains a new side-effecting call, audit
+EVERY existing test that reaches the enclosing function and add the mock —
+then run the full suite.
+
+```python
+from hephaestus.automation import some_module
+
+# Mock the NEW side-effecting collaborator in EVERY test that reaches it
+with patch.object(some_module, "gh_pr_resolve_thread") as mock_resolve:
+    mock_resolve.return_value = None
+    some_module.validate_and_resolve(...)
+```
+
+**Reading a `CircuitBreakerOpenError` cascade:** the breaker turns a couple of
+unmocked-call failures into dozens of downstream failures. Do not chase the
+`CircuitBreakerOpenError`s — scroll to the EARLIEST non-breaker failure in the
+CI log; that first real failure is what tripped the breaker and is the actual
+root cause.
+
+**Under time pressure:** background a long full-suite run (`run_in_background`)
+rather than skipping it. A backgrounded `pixi run pytest tests/unit` finishing
+in the next turn is far cheaper than a CI-only breaker cascade.
+
+#### Prevention checklist (v1.3.0)
+
+1. After adding a side-effecting call to shared code, grep for ALL tests that
+   invoke the enclosing function and confirm each mocks the new call.
+2. Run the FULL unit suite locally before declaring green — never just the
+   changed subdirectory. Stateful singletons make a passing subset misleading.
+3. Treat a `CircuitBreakerOpenError` in test output as a SYMPTOM: the first real
+   failure(s) that tripped the breaker are the root cause — find the earliest
+   non-breaker failure, not the cascade.
+4. Background long full-suite runs rather than skipping them under time pressure.
+
 ### Detailed Steps
 
 1. **Identify the module-level singleton instance**:
@@ -310,8 +381,35 @@ how the test-pollution bug surfaced.
 | 12 | Relying on `reset_all_circuit_breakers()` in the class's `setup_method` to isolate new fail-fast tests | The helper resets each registered breaker then calls `_registry.clear()`, ORPHANING the import-time-bound `_GH_BREAKER`. After the first clear, the helper iterates an empty registry and never touches the singleton, which keeps accumulating `fail_counter`. Adding 2 fail-fast tests pushed it OPEN; 5 unrelated sibling tests then failed with `GitHubUnavailableError: circuit breaker is open`. | A registry-clearing reset helper does NOT protect import-time references. Reset the actual bound object: `module._GH_BREAKER.reset()` at the top of each failure-triggering test (matches the file's `test_circuit_breaker_wraps_gh_call_impl` pattern). |
 | 13 | Running only the new test in isolation to confirm it works | Each new fail-fast test PASSES alone — no prior test ran, so the shared breaker was clean. The pollution only manifests when the WHOLE class runs in file order: the new tests trip the breaker before later siblings execute. On pristine main all tests passed; adding 2 tests turned 5 siblings red. | ALWAYS run the full test class/module (not just your new test) to catch shared-state pollution. "Passes in isolation" is the trap, not the proof. |
 | 14 | Letting `_gh_call_impl` retry HTTP 422 / GraphQL-schema errors (no classifier entry) | 422 ("unprocessable entity") and GraphQL schema errors ("doesn't accept argument", "is declared by ... but not used") are deterministic — retrying can never succeed. `_gh_call_impl` retried them 5× with `2**attempt` backoff (~31s wasted per failure) before raising, AND each attempt is a breaker failure that worsens pollution. | Add deterministic failures to `_NON_TRANSIENT_PATTERNS` so they fail fast on attempt 1. Patterns added: `(?:^\|\s)422(?:\s\|$)\|unprocessable entity`, `doesn't accept argument`, `is declared by .* but not used`. |
+| 15 | Ran only `tests/unit/automation` locally after adding a new `gh_pr_resolve_thread` call to a validator (saw `1174 passed`), declared green | CI runs the full `tests/unit` (3391 tests). At full scope the unmocked real `gh` calls (which fail in CI's no-network sandbox) accumulate past the shared `github-api` breaker's failure threshold, OPEN it, and cascade `CircuitBreakerOpenError` into many unrelated tests. The automation subset never crossed the threshold, so the same tests "passed" locally and hid the problem. | Run the FULL unit suite (`pixi run pytest tests/unit`) before claiming green — never just the changed subdirectory. Stateful singletons (circuit breakers, caches, rate limiters) make a passing subset misleading. (ProjectHephaestus PR #1084, closes #1083, fix commit `83d5aaf`.) |
+| 16 | Added a new side-effecting `gh_pr_resolve_thread` call inside a function existing tests already exercised, but left it unmocked in 2 of those existing validator tests | Those 2 tests made REAL `gh` calls that fail in CI's no-network sandbox; each failure incremented the shared `github-api` circuit breaker until it OPENED, after which every subsequent test touching `github_api` failed with `CircuitBreakerOpenError`. Chasing the dozens of breaker-open errors wasted time — they were a cascade symptom, not the cause. | When a function under test gains a new side-effecting (gh/network/db) call, audit EVERY existing test that reaches the enclosing function and add the mock (`patch.object(module, "gh_pr_resolve_thread")`). Treat any `CircuitBreakerOpenError` as a symptom and find the EARLIEST non-breaker failure that tripped the breaker. |
 
 ## Results & Parameters
+
+### v1.3.0 — Full Suite Before Green + Mock Every New Side-Effecting Call
+
+```bash
+# The one rule: run the FULL unit suite, not the changed subdirectory.
+pixi run pytest tests/unit           # ✅ what CI runs (3391 tests)
+# NOT:
+pixi run pytest tests/unit/automation  # ❌ subset (1174) hides the breaker cascade
+```
+
+```python
+# When a function gains a new side-effecting call, mock it in EVERY reaching test:
+with patch.object(module, "gh_pr_resolve_thread") as mock_resolve:
+    mock_resolve.return_value = None
+    module.validate_and_resolve(...)
+```
+
+| Parameter / Rule | Value | Why it matters |
+|------------------|-------|----------------|
+| Full suite command | `pixi run pytest tests/unit` | The breaker threshold is only crossed at full scope; the subdirectory subset passes misleadingly |
+| Changed-subdir trap | `pixi run pytest tests/unit/automation` → `1174 passed` | False green; CI's full `tests/unit` (3391) exposed the cascade |
+| New side-effecting call | `gh_pr_resolve_thread` (a GitHub API call) | Added inside a function existing tests already exercised; unmocked real calls fail in CI sandbox |
+| Mock target | `patch.object(module, "gh_pr_resolve_thread")` | Mock the new collaborator in EVERY existing caller's test |
+| Cascade symptom | `CircuitBreakerOpenError` across unrelated tests | Find the EARLIEST non-breaker failure — that is the root cause that tripped the breaker |
+| Time-pressure rule | background the full-suite run | A backgrounded full run is cheaper than a CI-only cascade |
 
 ### v1.2.0 — Fail-Fast Test Reset + Non-Transient Retry Patterns
 
@@ -522,3 +620,4 @@ The "passes locally" trap is real: running a single failing test in isolation al
 | ProjectHephaestus | PR #633 — CircuitBreaker testing (v1.0.0) | tests/unit/automation/test_gh_call_circuit_breaker.py; 5 tests all passing; no cross-test state leakage |
 | ProjectHephaestus | PR #707 — conftest scope fix (v1.1.0) | Cross-test contamination: `test_pr_reviewer_posting.py` failed identically on Python 3.10/3.11/3.12/3.13 in CI because the autouse breaker reset lived only in `test_github_api.py`. Fixed by moving the fixture into `tests/unit/automation/conftest.py` (commit `3e4bc10`). 911 tests pass locally under the new conftest scope; CI re-run pending at /learn time, hence v1.1.0 is **verified-local** for the fix, **verified-ci** for the bug. |
 | ProjectHephaestus | PR #1042 — fail-fast test pollution + 422/GraphQL classifier (v1.2.0) | Adding 2 new fail-fast tests to a class in `hephaestus/automation/github_api.py`'s test suite turned 5 unrelated sibling tests red (`GitHubUnavailableError: circuit breaker is open`) because `setup_method`'s `reset_all_circuit_breakers()` clears the registry and orphans the import-time `_GH_BREAKER`. Fixed by calling `module._GH_BREAKER.reset()` at each new test's top. Bundled with adding `422`/`unprocessable entity`, `doesn't accept argument`, and `is declared by .* but not used` to `_NON_TRANSIENT_PATTERNS`. **verified-ci** — merged to main (PR #1042, closes #1040). |
+| ProjectHephaestus | PR #1084 (closes #1083) — full-suite-before-green + new-side-effecting-call mocking (v1.3.0) | A new `gh_pr_resolve_thread` GitHub API call was added inside a validator function existing tests already exercised. Two tests left it unmocked → real `gh` calls fail in CI's no-network sandbox → shared `github-api` circuit breaker tripped OPEN → `CircuitBreakerOpenError` cascaded into many unrelated tests. Running only `tests/unit/automation` (`1174 passed`) hid it; CI's full `tests/unit` (3391 tests) exposed it. Fixed by mocking the new call in every reaching test, then running the full suite. **verified-ci** — the CI failure confirmed the cascade and the fix made CI pass (fix commit `83d5aaf`). |
