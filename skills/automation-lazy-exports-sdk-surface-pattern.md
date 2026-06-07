@@ -232,13 +232,13 @@ pixi run mypy hephaestus/automation/__init__.py
 
 ## Key Learnings
 
-1. **Reuse lazy-loading infrastructure** — Don't restructure for peer-class additions. The TYPE_CHECKING + _LAZY_EXPORTS + __getattr__ pattern scales to any number of peer classes without modification to the core mechanism.
+1. **Reuse lazy-loading infrastructure** — Don't restructure for peer-class additions. The TYPE_CHECKING +_LAZY_EXPORTS + __getattr__ pattern scales to any number of peer classes without modification to the core mechanism.
 
 2. **Extend _PHASE_ENTRYPOINTS for preload guards** — New phase modules must be added to the tuple to ensure they're skipped during `_auto_import_on_access()` preload. Omitting them can cause eager-load regressions and increased import time.
 
 3. **Test-pin the public surface** — Add `test_public_surface_pins_expected_symbols()` to catch future __all__ omissions automatically. Issue #775 happened because there was no assertion on expected exports; a test prevents silent regressions.
 
-4. **Alphabetical ordering is load-bearing** — TYPE_CHECKING imports, __all__, and _LAZY_EXPORTS keys must all be alphabetically sorted for consistency and ease of review. Use case-sensitive ordering (uppercase letters first).
+4. **Alphabetical ordering is load-bearing** — TYPE_CHECKING imports, __all__, and_LAZY_EXPORTS keys must all be alphabetically sorted for consistency and ease of review. Use case-sensitive ordering (uppercase letters first).
 
 5. **One test file per package level** — Don't create parallel test files for similar concerns (e.g., test_package_surface.py). Extend existing test_package_imports.py to keep test organization DRY and discoverable.
 
