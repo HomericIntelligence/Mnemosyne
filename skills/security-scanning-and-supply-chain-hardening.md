@@ -8,8 +8,8 @@ description: "Use when: (1) CI security scans only trigger on push to main (not 
   pinned versions, (6) a GHA job fails at Set up job with Unable to resolve action
   for a transitive dependency you do not reference directly."
 category: ci-cd
-date: 2026-05-19
-version: "1.0.0"
+date: 2026-06-07
+version: "1.1.0"
 user-invocable: false
 history: security-scanning-and-supply-chain-hardening.history
 tags:
@@ -404,6 +404,7 @@ Only surface findings >= 7. Exclude: DoS, secrets on disk, rate-limiting, memory
 test-only files, log spoofing, regex injection, GitHub Action inputs without concrete untrusted path.
 
 **Phase 2 — Parallel agents (one per finding):** For each candidate, validate exploitability:
+
 1. Does untrusted user input (network/file upload/API/CLI) reach the vulnerable parameter?
 2. Is it an internal function with only hardcoded/developer-controlled values?
 3. Auto-exclude: CLI flags, env vars, hardcoded strings, ML pipeline internals, dead code.
@@ -465,6 +466,22 @@ If zero findings survive: output `No security vulnerabilities identified above t
 | `just` | `--tag` | `--tag 1.14.0` |
 | `pixi` | env var `PIXI_VERSION` | `PIXI_VERSION=0.65.0 curl ... \| bash` |
 | `rustup` | `--default-toolchain` | `--default-toolchain 1.75.0` |
+
+### jq Command Reference
+
+```bash
+# Check if SARIF has zero results
+jq '[.runs[].results[]] | length == 0' results.sarif
+
+# Count findings
+jq '[.runs[].results[]] | length' results.sarif
+
+# List finding rule IDs
+jq '[.runs[].results[].ruleId] | unique' results.sarif
+
+# List finding locations (files)
+jq '[.runs[].results[].locations[].physicalLocation.artifactLocation.uri] | unique' results.sarif
+```
 
 ### Verification checklist
 

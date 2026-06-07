@@ -18,7 +18,7 @@
     "tooling": 147,
     "training": 7
   },
-  "last_updated": "2026-06-07T14:43:48Z",
+  "last_updated": "2026-06-07T19:52:59Z",
   "plugins": [
     {
       "name": "agent-config-and-tier-architecture",
@@ -2784,7 +2784,7 @@
     {
       "name": "security-scanning-and-supply-chain-hardening",
       "description": "Use when: (1) CI security scans only trigger on push to main (not PRs), (2) Semgrep or Gitleaks failures are silently masked with continue-on-error, (3) Gitleaks SARIF parsing uses grep instead of jq causing always-fail required checks, (4) GitHub Actions use mutable version tags instead of pinned commit SHAs, (5) a Dockerfile or workflow installs tools via unverifiable curl|sh, npm, or pixi without pinned versions, (6) a GHA job fails at Set up job with Unable to resolve action for a transitive dependency you do not reference directly.",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "source": "./skills/security-scanning-and-supply-chain-hardening.md",
       "category": "ci-cd",
       "tags": [
