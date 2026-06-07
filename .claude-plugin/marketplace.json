@@ -18,7 +18,7 @@
     "tooling": 147,
     "training": 7
   },
-  "last_updated": "2026-06-07T14:43:48Z",
+  "last_updated": "2026-06-07T19:53:03Z",
   "plugins": [
     {
       "name": "agent-config-and-tier-architecture",
@@ -4368,7 +4368,7 @@
     {
       "name": "runtime-resource-optimization-mojo-python",
       "description": "Runtime performance and resource management across Mojo SIMD/vectorisation and Python infrastructure. Use when: (1) SIMD-vectorizing element-wise tensor operations (NaN/Inf detection, gradient clipping, norm accumulation) in Mojo for 4-16x throughput; (2) validating Mojo language patterns (out self, mut, List, trait conformances, ownership transfer); (3) identifying SIMD optimization opportunities or checking memory safety in Mojo code; (4) fixing OOM crashes in multi-stage Claude CLI/NATS pipelines via session reuse and payload pruning; (5) preventing machine crashes from unbounded workspace accumulation or concurrent process limits in E2E runs; (6) adding module-level caching to eliminate redundant JSON schema file reads; (7) parallelizing I/O-bound subprocess loops with ThreadPoolExecutor; (8) validating checkpoint results before re-running expensive API calls; (9) deduplicating shared artifacts across E2E judge/run directories.",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "source": "./skills/runtime-resource-optimization-mojo-python.md",
       "category": "optimization",
       "tags": [

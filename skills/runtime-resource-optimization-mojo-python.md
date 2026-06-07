@@ -15,8 +15,8 @@ description: >-
   validating checkpoint results before re-running expensive API calls; (9)
   deduplicating shared artifacts across E2E judge/run directories.
 category: optimization
-date: '2026-05-19'
-version: '1.0.0'
+date: '2026-06-07'
+version: '1.1.0'
 user-invocable: false
 history: runtime-resource-optimization-mojo-python.history
 tags:
@@ -220,6 +220,10 @@ def process_parallel(tasks, parallel: int = 1, *args, **kwargs):
 - `comptime simd_w = simd_width_of[dtype]()` — `float32` → 8 (AVX-256), `float64` → 4 (AVX-256)
 - Dispatch on `_dtype` in public function; scalar fallback for exotic dtypes.
 
+**Integer dtype guard**: Use `@parameter if` to return `False`/`0` for integer dtypes at compile
+time — integers cannot have NaN or Inf, so the check should be eliminated entirely at compile time
+rather than falling through to a runtime scalar path.
+
 **AnyTensor bitcast pattern** — `AnyTensor._data` is `UnsafePointer[UInt8]`; bitcast once outside
 the loop: `var ptr = tensor._data.bitcast[Float32]()`. Eliminates per-element dtype dispatch and
 offset calculation that `_get_float64(j)` / `_set_float64(j, val)` perform on every call.
@@ -333,6 +337,20 @@ Validate **content**, not just **existence**: check required fields (`exit_code`
 | Memory accesses per training step | 20M+ scalar | 2.5M SIMD | ~8× reduction |
 | AVX-256 SIMD width — float32 | — | 8 lanes | — |
 | AVX-256 SIMD width — float64 | — | 4 lanes | — |
+
+### Mojo SIMD NaN/Inf Test Edge Cases
+
+Always test SIMD NaN/Inf detection functions against these cases:
+
+- Tensor smaller than SIMD width (pure scalar tail path — no SIMD iterations execute)
+- NaN/Inf at first element (early exit on first SIMD chunk)
+- NaN/Inf at last element in the tail region (scalar tail path exercises)
+- NaN/Inf at exact SIMD boundary (last element of a full SIMD chunk)
+- Large tensors (1024+ elements)
+- Multiple dtypes (float32, float64)
+
+Also test with non-SIMD-aligned sizes: **1, 7, 13, 33** — these are not multiples of the SIMD
+width (8 for float32 or 16 for float32 on AVX-512) and exercise the tail logic on every run.
 
 ### Python Resource Profiles
 
