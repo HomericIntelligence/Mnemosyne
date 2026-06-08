@@ -2361,3 +2361,18 @@ review id you just created — this excludes pre-existing human-reviewer threads
 | GitHub GraphQL API | live schema introspection | v1.0.0: `__type(name: "PullRequestReviewComment" / "PullRequestReviewThread" / "PullRequestReview") { fields }`; v1.1.0: `__type(name: "AddPullRequestReviewCommentInput" / "AddPullRequestReviewThreadReplyInput") { inputFields }` + `AddPullRequestReviewThreadReplyPayload { fields }` confirmed the correct Input type and leaf |
 
 ---
+
+## v1.1.0 (2026-06-07)
+
+Nuance audit (amend): restore reply-endpoint, three-location posting, bash traps.
+
+- Per-comment REST reply endpoint as an alternative to inline review comments:
+  `gh api repos/OWNER/REPO/pulls/PR/comments/COMMENT_ID/replies --method POST -f body="..."`
+  (simpler than the GraphQL `addPullRequestReviewThreadReply` mutation for one-line replies).
+- Three-location posting for a comprehensive review: main PR review body +
+  line-specific PR comment + tracking-issue `gh issue comment`. Takeaway: prefer simple PR
+  comments over the inline review API (inline hunk-validation is complex/error-prone).
+- Bash traps for review-automation scripts: function-before-definition (use `echo >&2` in
+  arg-parsing before helpers exist); value-flag-consumes-next-flag guard
+  `[[ -z "$1" || "$1" == --* ]]`; pipe-subshell loses array mutations (use process
+  substitution `< <(...)`); `set_trunk_branch`-style helper missing `exit 1` on error.

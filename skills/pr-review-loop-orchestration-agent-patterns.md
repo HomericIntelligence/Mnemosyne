@@ -3,7 +3,7 @@ name: pr-review-loop-orchestration-agent-patterns
 description: "Use when: (1) building or debugging a Python implement-review loop where an LLM sub-agent reviews a PR and a fixer agent addresses inline comments, (2) a review loop resolves threads even though no commit was produced — resolution must be gated on a real commit not the model self-report, (3) a loop ends AMBIGUOUS or NO-GO too fast before ever earning an explicit GO verdict, (4) LLM or agent-generated inline PR review comments are rejected by GitHub (HTTP 422) because they do not lie on a changed diff hunk, (5) an agent-driven CI-fix session produces no commit and the PR stays red; the correct response is a single bounded retry with unresolved review threads injected verbatim, (6) a review fix plan file concludes no changes are needed and the automation should self-cancel without opening a new PR, (7) a feature-dev:code-reviewer sub-agent cannot execute shell commands and cannot post gh pr review — wrong agent type was chosen, (8) a GitHub GraphQL PR-review mutation field selection is wrong and the automation loop fails on every call with Field X does not exist, (9) pre-commit must cover the full PR diff from the merge-base not just the most-recent-edit files before pushing"
 category: ci-cd
 date: 2026-06-07
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 history: pr-review-loop-orchestration-agent-patterns.history
 tags:
@@ -40,6 +40,7 @@ tags:
 | **Objective** | Build and debug a Python implement-review loop that drives LLM sub-agents to review a PR and fix its inline comments, converging on an EVIDENCE-BASED `Verdict: GO`. Covers: commit-gated thread resolution, inline-comment diff-hunk (422) validation, one-shot no-commit retry with unresolved review threads injected, agent-type selection for review tasks, GraphQL field/input validation for PR-review mutations, self-cancelling review plans, and full merge-base pre-commit scope. |
 | **Outcome** | Merged across multiple ProjectHephaestus PRs (commit-gate + verdict-GO convergence #1084; inline-comment 422 validation #1043; no-commit retry + thread injection #847; GraphQL field/input validation #906/#1006) plus ProjectOdyssey and gh-tidy upstream review rounds. |
 | **Verification** | verified-ci |
+| **Version** | 1.1.0 |
 
 ## When to Use
 
@@ -230,6 +231,29 @@ Never assume a reverse child→parent edge exists; if `Child.parent` is absent, 
 (a bare exit-code check misses it). Give every raw-query function a direct unit test that
 asserts the query string and parsing — boundary mocks are what let broken queries ship.
 
+For a SIMPLE one-line reply to a single existing review comment you do not need the GraphQL
+`addPullRequestReviewThreadReply` mutation at all — the REST replies endpoint is shorter and
+avoids resolving a thread node id:
+
+```bash
+gh api repos/OWNER/REPO/pulls/PR/comments/COMMENT_ID/replies --method POST -f body="..."
+```
+
+Use the GraphQL reply mutation only when you also need the returned `comment { id }` or are
+already operating on thread node ids; otherwise the REST `comments/{id}/replies` POST is the
+simpler path.
+
+#### Three-location posting for a comprehensive review
+
+To make a comprehensive review maximally visible, post it in THREE places: (1) the main PR
+review body (`gh pr review`), (2) one line-specific PR comment for each concrete finding, and
+(3) a tracking-issue comment via `gh issue comment <n> --body "..."` so the issue history
+records the review outcome. KEY takeaway: prefer plain line-specific PR comments
+(`gh pr comment` / `comments/{id}/replies`) over the inline REVIEW API — the inline review
+path requires validating every comment against a changed diff hunk (see the 422 section),
+which is complex and error-prone; a simple PR comment carries the same feedback without the
+hunk-position constraint.
+
 #### Self-cancelling review plan and pre-push diff scope
 
 When a `.claude-review-fix-*.md` file's outer wrapper says "implement all fixes" but the
@@ -241,6 +265,25 @@ is already up to date. Trust the inner plan, not the outer shell.
 Before pushing, run pre-commit/validation over the FULL PR diff from the merge-base
 (`git diff origin/main...HEAD`), not just the most-recently-edited files — a fix can be
 clean while an earlier-touched file in the same PR still fails the gate.
+
+#### Bash traps in review-automation scripts
+
+When the review loop or its helpers are shell scripts (e.g. gh-tidy-style wrappers), four
+recurring traps:
+
+- **Function-before-definition.** Do NOT call color/echo helper functions from the
+  argument-parsing block at the top of the script — that block runs before the helpers are
+  defined, so the call expands to nothing (or errors). Emit early diagnostics with a plain
+  `echo "..." >&2` instead, and only switch to the pretty helpers after their definitions.
+- **Value-flag consumes the next flag.** A flag that takes a value (`--branch X`) must guard
+  against an absent value, otherwise it silently swallows the following flag as its argument.
+  Guard with `if [[ -z "$1" || "$1" == --* ]]; then error "missing value for --branch"; fi`.
+- **Pipe-subshell loses array mutations.** `cmd | while read ...; do arr+=(...); done` runs
+  the loop body in a subshell, so array (and variable) mutations vanish after the pipe. Use
+  process substitution to keep the loop in the current shell: `while read ...; do ...; done < <(cmd)`.
+- **Helper that doesn't `exit` on error.** A `set_trunk_branch`-style helper that prints an
+  error but forgets `exit 1` lets the script continue past a fatal condition with bad state.
+  Every fatal branch in a helper MUST `exit 1` (or `return 1` + a checked caller).
 
 ## Failed Attempts
 
@@ -266,6 +309,12 @@ clean while an earlier-touched file in the same PR still fails the gate.
 | Trust `gh api graphql` exit code alone | Relied on exit 0 to mean success | `gh api graphql` returns HTTP 200 with a top-level `errors` array on a failed op | Surface the `errors` array from the JSON; do not trust the exit code alone. |
 | Manufacture a commit for a self-cancelling plan | Considered committing a no-op when "implement all fixes" was the outer instruction | Would create spurious history and confuse reviewers; the inner plan said "no fixes required" | Read the entire plan body; if it cancels itself, do nothing and report the branch is already complete. |
 | `if git branch --list "$branch"; then` (bash review trap) | Used the exit code of `git branch --list` to test branch existence | `git branch --list` always exits 0; the exit code reflects execution, not a match | Test the OUTPUT: `[[ -n "$(git branch --list "$branch")" ]]`. |
+| Post every comprehensive-review finding through the inline review API | Mapped each finding into the `POST .../reviews` inline-comments payload | Inline comments must validate against a changed diff hunk (422 on any off-hunk line) — complex and error-prone for prose findings | Prefer a simple line-specific PR comment (`gh pr comment` / `comments/{id}/replies`); reserve the inline review API for true on-hunk annotations. Post comprehensively in THREE places: PR review body + line-specific PR comment + `gh issue comment` on the tracking issue. |
+| Reply to one review comment via the GraphQL thread-reply mutation | Resolved the thread node id then called `addPullRequestReviewThreadReply` for a one-line reply | Overkill — needed the thread node id and the full GraphQL round-trip for a trivial reply | For a single one-line reply use the REST endpoint `gh api repos/OWNER/REPO/pulls/PR/comments/COMMENT_ID/replies --method POST -f body="..."`; reserve the GraphQL mutation for when you need the returned `comment { id }`. |
+| Call color/echo helpers in the arg-parsing block (bash) | Invoked pretty-print helpers from the top-of-script flag parser | The parser runs before the helper definitions, so the call no-ops or errors | Emit early diagnostics with `echo "..." >&2`; only use the helpers after their definitions. |
+| Value-taking flag without an absent-value guard (bash) | `--branch X` read `$1` blindly as its value | A missing value silently swallows the next flag as the argument | Guard with `[[ -z "$1" \|\| "$1" == --* ]]` before consuming the value, else error out. |
+| Mutate an array inside a piped `while read` loop (bash) | Appended to an array inside `cmd \| while read` | The piped loop runs in a subshell; array mutations are lost after the pipe | Use process substitution: `while read ...; do arr+=(...); done < <(cmd)`. |
+| `set_trunk_branch`-style helper prints an error but doesn't exit (bash) | Helper logged the error and returned normally | The script continued past a fatal condition with bad trunk state | Every fatal branch in a helper MUST `exit 1` (or `return 1` + a checked caller). |
 
 ## Results & Parameters
 
