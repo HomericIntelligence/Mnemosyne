@@ -1,0 +1,754 @@
+<!-- markdownlint-disable MD024 -->
+
+# History: ci-transient-flake-and-environment-failures
+
+## v1.0.0 (2026-06-07)
+
+Consolidated 4 skills into `ci-transient-flake-and-environment-failures`:
+
+- `ci-trivy-install-transient-exit-rerun-resolves`
+- `ci-lychee-bot-403-lycheeignore`
+- `ci-local-reproduction-environment-conditions`
+- `ci-doctor-script-hook-check-ci-guard`
+
+## Superseded from ci-trivy-install-transient-exit-rerun-resolves
+
+**Original date/version**: 2026-05-11 / 1.0.0
+
+```yaml
+---
+name: ci-trivy-install-transient-exit-rerun-resolves
+description: "Diagnose and resolve a transient exit-1 from the aquasecurity/trivy install.sh curl-pipe-to-sh step in GitHub Actions, where the install logs end mid-stream with no trivy error message. Use when: (1) a depscan/sbom job fails with `##[error]Process completed with exit code 1.` immediately after the `aquasecurity/trivy info found version: X.Y.Z` log line, (2) the prior pip-audit step in the same job passed cleanly, (3) you are tempted to add `|| true` or `continue-on-error: true` to silence a Trivy install failure."
+category: ci-cd
+date: 2026-05-11
+version: "1.0.0"
+user-invocable: false
+verification: verified-ci
+tags: [ci, trivy, github-actions, transient, flake, depscan, sbom]
+---
+```
+
+# CI Trivy Install Transient Exit — Rerun Resolves
+
+## Overview
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-05-11 |
+| **Objective** | Recognize the trivy install.sh transient exit-1 signature and resolve it without code changes or banned suppressions. |
+| **Outcome** | Verified: the depscan job that failed on ProjectAgamemnon PR #368 was unblocked by a fresh CI run (rerun / new push) with zero code changes to the install step. |
+| **Verification** | verified-ci |
+
+## When to Use
+
+- A GitHub Actions job that installs Trivy via the upstream curl-pipe-to-sh recipe (`curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin "v${TRIVY_VERSION}"`) exits 1 with no trivy-emitted error.
+- The job log ends with the line `aquasecurity/trivy info found version: <ver> for v<ver>/Linux/64bit` followed within ~0.4s by `##[error]Process completed with exit code 1.`.
+- The previous step in the same job (commonly `pip-audit`) reported `No known vulnerabilities found` and exited cleanly.
+- You are about to "fix" the install step by adding `|| true` or `continue-on-error: true` — STOP, this is the wrong response and is banned by the org `forbid-suppressions` and `forbid-continue-on-error` lint guards.
+
+## Verified Workflow
+
+### Quick Reference
+
+```bash
+# 1) Confirm the signature: open the failed run, look at the trivy install step.
+#    The last informational log line MUST be the "found version" line, with no
+#    trivy stderr and no checksum/extraction output between it and the runner's
+#    "##[error]Process completed with exit code 1." line.
+
+# 2) Rerun the failed jobs. Unset PAT envs first so gh uses the runner's auth chain.
+unset GITHUB_TOKEN GH_TOKEN
+gh run rerun <RUN_ID> --repo "$ORG/$REPO" --failed
+
+# 3) Alternative: push any commit (even a no-op rebase / whitespace touch) to the
+#    PR branch. The new push triggers a fresh CI run that re-attempts the install.
+git commit --allow-empty -m "ci: retrigger CI to clear trivy install flake"
+git push
+
+# 4) Wait for the rerun. Multiple reruns are rarely needed — one usually suffices.
+gh run watch <NEW_RUN_ID> --repo "$ORG/$REPO" --exit-status
+```
+
+### Detailed Steps
+
+1. **Match the symptom signature exactly.** The diagnostic value of this skill comes from the precision of the signature. The trivy install step's log MUST end like this (no extraction, no checksum, no trivy version banner):
+
+   ```text
+   ##[group]Run TRIVY_VERSION=0.58.1
+   TRIVY_VERSION=0.58.1
+   curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
+     | sh -s -- -b /usr/local/bin "v${TRIVY_VERSION}"
+   trivy --version
+   shell: /usr/bin/bash -e {0}
+   ##[endgroup]
+   aquasecurity/trivy info checking GitHub for tag 'v0.58.1'
+   aquasecurity/trivy info found version: 0.58.1 for v0.58.1/Linux/64bit
+   ##[error]Process completed with exit code 1.
+   ```
+
+   If the log includes a download progress bar, a checksum-mismatch line, or a tar-extraction error, this is NOT the same flake — investigate normally.
+
+2. **Confirm the prior step passed.** A clean `pip-audit` (or equivalent dependency-scanner) immediately before the trivy step is part of the signature. It rules out a job-wide environment issue.
+
+3. **Rerun the failed jobs first.** Use `gh run rerun <RUN_ID> --failed` so only the broken jobs re-execute. Unset `GITHUB_TOKEN`/`GH_TOKEN` first if your shell has a PAT that lacks `actions:write` — otherwise `gh` falls back to the keyring/`gh auth` chain.
+
+4. **If a rerun isn't possible** (workflow definition has changed since the failed run, or the run is too old), push a fresh commit (an empty commit works) to the PR branch — the new push triggers a brand-new run.
+
+5. **Only investigate further if multiple reruns fail.** A repeat after two clean reruns implies a real problem (e.g., GitHub raw-content outage, version yank). At that point, switch to the durable fix below.
+
+6. **Durable follow-up (file as a separate issue, do not block the current PR).** Replace the curl-pipe-to-sh install with the official action, which provides retry semantics and clearer install diagnostics:
+
+   ```yaml
+   - name: Run Trivy filesystem scan
+     uses: aquasecurity/trivy-action@v<X>
+     with:
+       scan-type: fs
+       format: sarif
+       output: trivy-results.sarif
+   ```
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+|---------|----------------|---------------|----------------|
+| 1 | Add `\|\| true` to the `trivy --version` line in the workflow | Org-wide `forbid-suppressions` pre-commit / CI guard rejects the diff at lint time | Suppressions are policy-banned; do not reach for them as a fix for a flake |
+| 2 | Set `continue-on-error: true` on the depscan job | Org-wide `forbid-continue-on-error` guard rejects the workflow change | Same as above — the org policy explicitly bans this pattern |
+| 3 | Pin trivy to a different version (e.g. `0.57.x`) thinking the version was yanked | The same install.sh exit-1 reproduces with another version on a fresh run; reverting to `0.58.1` then succeeds on rerun | The version is not the variable; the curl-pipe-to-sh transport is. Don't churn the version number. |
+| 4 | Spend time reading `install.sh` source to find the failure path | The script writes nothing to stderr before the runner reports exit 1; no log evidence to investigate | Without log evidence, source-diving is speculative. Rerun first; investigate only if reruns reproduce. |
+
+## Results & Parameters
+
+**Symptom signature (copy-paste reference):**
+
+```text
+##[group]Run TRIVY_VERSION=0.58.1
+TRIVY_VERSION=0.58.1
+curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
+  | sh -s -- -b /usr/local/bin "v${TRIVY_VERSION}"
+trivy --version
+shell: /usr/bin/bash -e {0}
+##[endgroup]
+aquasecurity/trivy info checking GitHub for tag 'v0.58.1'
+aquasecurity/trivy info found version: 0.58.1 for v0.58.1/Linux/64bit
+##[error]Process completed with exit code 1.
+```
+
+Key features of the signature:
+
+- Job shell is `bash -e` (`-e` propagates any non-zero exit).
+- The `trivy info found version` line is the LAST informational line.
+- The runner's `##[error]` line appears <0.4s after the version-found line.
+- No trivy-emitted error message; no curl/sh error message.
+- The previous `pip-audit` (or equivalent) step in the same job exited 0.
+
+**Resolution commands (copy-paste reference):**
+
+```bash
+# Preferred: rerun only the failed jobs
+unset GITHUB_TOKEN GH_TOKEN
+gh run rerun <RUN_ID> --repo "$ORG/$REPO" --failed
+
+# Fallback: push any commit (empty is fine) to retrigger CI
+git commit --allow-empty -m "ci: retrigger CI to clear trivy install flake"
+git push
+```
+
+**Likely (theoretical) causes — do NOT cite as confirmed:**
+
+- `install.sh` exits non-zero on a transient network or checksum issue without writing to stderr.
+- `trivy --version` may fail on a first invocation if a config dir doesn't exist yet on the runner.
+- GitHub Actions runner ephemeral storage can be slow on first write of `/usr/local/bin/trivy`.
+
+**Durable follow-up (recommended PR for any repo that hits this twice):**
+
+```yaml
+# Replace this:
+- name: Install Trivy
+  run: |
+    TRIVY_VERSION=0.58.1
+    curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
+      | sh -s -- -b /usr/local/bin "v${TRIVY_VERSION}"
+    trivy --version
+
+# With this:
+- name: Run Trivy
+  uses: aquasecurity/trivy-action@v<X>
+  with:
+    scan-type: fs
+    format: sarif
+    output: trivy-results.sarif
+```
+
+The official action handles install errors more gracefully and provides retry semantics that the curl-pipe-to-sh recipe lacks.
+
+## Verified On
+
+| Project | Context | Details |
+|---------|---------|---------|
+| ProjectAgamemnon | 2026-05-11 HomericIntelligence ecosystem-wide easy-issue sweep — PR #368 final fix-up cycle | After force-push, the rerun (and the new run from the push) included the depscan job and were unblocked. No code change to the install step. |
+
+---
+
+## Superseded from ci-lychee-bot-403-lycheeignore
+
+**Original date/version**: 2026-05-03 / 1.0.0
+
+```yaml
+---
+name: ci-lychee-bot-403-lycheeignore
+description: "Fix lychee link-check CI failures caused by bot-blocking 403 responses or intermittent
+  connection resets from external sites. Use when: (1) lychee link-check CI job fails with HTTP 403
+  on claude.ai or other Anthropic URLs that block automated bots, (2) contributor-covenant.org or
+  similar community sites return connection reset (os error 104) intermittently causing flaky CI,
+  (3) a site returns a non-2xx response to lychee's user-agent that is clearly valid when visited
+  in a browser."
+category: ci-cd
+date: 2026-05-03
+version: "1.0.0"
+user-invocable: false
+verification: verified-ci
+tags:
+  - lychee
+  - link-check
+  - ci
+  - "403"
+  - lycheeignore
+  - bot-protection
+---
+```
+
+# CI: Lychee Link-Check Bot 403 and Connection Reset Fix
+
+## Overview
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-05-03 |
+| **Objective** | Fix lychee link-check CI failures caused by HTTP 403 responses from bot-protected URLs and intermittent connection resets from external community sites |
+| **Outcome** | Successful — link-check CI job passed after adding patterns to `.lycheeignore` |
+| **Verification** | verified-ci (PR #5347, ProjectOdyssey) |
+
+## When to Use
+
+- `link-check` CI job fails with HTTP 403 on `claude.ai`, `platform.claude.com`, or `code.claude.com`
+- `link-check` CI job fails with `os error 104` (connection reset) on `contributor-covenant.org`
+  or similar external community/standards sites
+- Lychee reports a URL as broken that loads correctly in a browser (bot-protection false-positive)
+- Adding new Anthropic documentation links to markdown files causes CI failures
+- The link-check is blocking a PR merge and the URLs are visually verified as valid
+
+## Verified Workflow
+
+### Quick Reference
+
+```bash
+# Add to .lycheeignore (create file if it doesn't exist):
+cat >> .lycheeignore << 'EOF'
+
+# Ignore Claude/Anthropic URLs that return 403 to bots (valid URLs, bot-protection blocks lychee)
+claude\.ai
+platform\.claude\.com
+code\.claude\.com
+
+# Ignore external sites that may be intermittently unavailable or return connection resets
+contributor-covenant\.org
+EOF
+
+# Verify the file has correct regex patterns
+cat .lycheeignore
+
+# Test locally (if lychee is installed)
+lychee --config .lychee.toml "**/*.md"
+```
+
+### Detailed Steps
+
+1. **Identify the failing URLs** — check the CI log for lychee output:
+
+   ```text
+   [ERROR] https://claude.ai/code — Status 403 (Forbidden)
+   [ERROR] https://contributor-covenant.org/... — Connection reset (os error 104)
+   ```
+
+2. **Classify each failure**:
+
+   | Failure Type | URL Pattern | Root Cause | Action |
+   |-------------|-------------|------------|--------|
+   | HTTP 403 | `claude.ai`, `platform.claude.com`, `code.claude.com` | Anthropic URLs return 403 to automated bots (lychee's user-agent) | Add to `.lycheeignore` |
+   | Connection reset (os error 104) | `contributor-covenant.org` | Intermittent network/server issue; site is valid but unreliable from CI | Add to `.lycheeignore` |
+
+3. **Add patterns to `.lycheeignore`**:
+
+   ```text
+   # Ignore Claude/Anthropic URLs that return 403 to bots
+   # (valid URLs — Anthropic's bot-protection blocks lychee's user-agent)
+   claude\.ai
+   platform\.claude\.com
+   code\.claude\.com
+
+   # Ignore external sites that may be intermittently unavailable
+   # contributor-covenant.org returns "Connection reset by peer" (os error 104) in CI
+   contributor-covenant\.org
+   ```
+
+   Notes on `.lycheeignore` format:
+   - Patterns are **regular expressions** (not glob patterns)
+   - Escape literal dots with `\.`
+   - A pattern matches any URL containing the pattern substring
+   - Comments start with `#`
+   - File must exist at the project root (same directory as `.lychee.toml` or where lychee is invoked)
+
+4. **Verify the fix** — commit and push to trigger CI, or run locally:
+
+   ```bash
+   # Run lychee locally (if installed via pixi/brew/cargo)
+   lychee --config .lychee.toml "**/*.md" --exclude-path .pixi
+
+   # Or via pixi (if lychee is in pixi.toml)
+   pixi run lychee "**/*.md"
+   ```
+
+5. **Commit**:
+
+   ```bash
+   git add .lycheeignore
+   git commit -m "fix(ci): add claude.ai and contributor-covenant.org to .lycheeignore
+
+   lychee treats HTTP 403 as a hard error. claude.ai returns 403 to bots.
+   contributor-covenant.org intermittently resets connections (os error 104).
+   Both patterns caused link-check CI failures despite the URLs being valid."
+   ```
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+|---------|----------------|---------------|----------------|
+| `--exclude-all-private` lychee flag | Tried excluding private/localhost URLs | Does not affect external URLs returning 403 | `--exclude-all-private` only skips private IP ranges and localhost, not bot-blocked external URLs |
+| Waiting for intermittent failures to clear | Assumed connection resets were transient and would stop | `contributor-covenant.org` resets consistently enough in CI to block every run | Add to `.lycheeignore`; don't rely on intermittent availability of external CI gates |
+| `--accept 403` lychee config option | Tried adding `accept = [403]` to `.lychee.toml` | Accepts 403 globally — too broad, would hide real broken links | Prefer `.lycheeignore` for targeted URL exclusion; reserve `--accept` for status codes you want to globally ignore |
+
+## Results & Parameters
+
+### `.lycheeignore` Entries for Common CI Failures
+
+```text
+# Ignore Claude/Anthropic URLs that return 403 to bots (valid URLs, bot-protection blocks lychee)
+claude\.ai
+platform\.claude\.com
+code\.claude\.com
+
+# Ignore external sites that may be intermittently unavailable
+contributor-covenant\.org
+```
+
+### Pattern Format Reference
+
+| Pattern | Matches | Notes |
+|---------|---------|-------|
+| `claude\.ai` | Any URL containing `claude.ai` | Escaped dot = literal dot |
+| `platform\.claude\.com` | `https://platform.claude.com/...` | Subdomain patterns |
+| `contributor-covenant\.org` | Any `contributor-covenant.org` URL | Handles all paths under domain |
+
+### Lychee Configuration (`.lychee.toml`)
+
+For the `.lycheeignore` file to be picked up automatically, ensure your `.lychee.toml` references it
+(this is the default behavior — lychee reads `.lycheeignore` automatically):
+
+```toml
+# .lychee.toml
+[params]
+exclude_path = [".pixi", "node_modules", "target"]
+# .lycheeignore is read automatically — no explicit config needed
+```
+
+## Verified On
+
+| Project | Context | Details |
+|---------|---------|---------|
+| ProjectOdyssey | 2026-05-03 — PR #5347/#5348, CI fix session | `claude.ai` (403) and `contributor-covenant.org` (os error 104) caused link-check failures; both fixed by `.lycheeignore` entries |
+
+## References
+
+- [lychee — .lycheeignore documentation](https://lychee.cli.rs/usage/excluding-links/)
+- [lychee GitHub](https://github.com/lycheeverse/lychee)
+
+---
+
+## Superseded from ci-local-reproduction-environment-conditions
+
+**Original date/version**: 2026-04-11 / 1.0.0
+
+```yaml
+---
+name: ci-local-reproduction-environment-conditions
+description: "Reproduce CI-only test failures locally by replicating all three CI environment conditions simultaneously: cold pixi cache, UID mismatch, and no-TTY. Use when: (1) tests pass locally 100% but fail in CI, (2) you've ruled out code-level differences, (3) CI uses Podman with pixi and named volumes."
+category: ci-cd
+date: 2026-04-11
+version: "1.0.0"
+user-invocable: false
+verification: verified-local
+tags:
+  - ci
+  - debugging
+  - flakiness
+  - podman
+  - docker
+  - reproduction
+  - uid
+  - tty
+  - pixi
+---
+```
+
+# CI Local Reproduction: Environment Conditions
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2026-04-11 |
+| **Objective** | Reproduce CI-only test failures locally by replicating CI environment conditions |
+| **Outcome** | Success — crash previously declared "non-reproducible locally" reproduced immediately, 100% deterministic, by combining all three CI conditions |
+| **Verification** | verified-local |
+
+## When to Use
+
+- Tests pass locally 100% of the time but fail consistently in CI
+- You've been told the failure is "non-deterministic" or "JIT flakiness" but haven't tried replicating CI conditions
+- CI uses Podman containers with pixi for dependency management and named volumes for caching
+- The failure involves permission errors, cache misses, or TTY-dependent behavior
+- An issue document incorrectly concluded the crash is non-reproducible
+
+## Verified Workflow
+
+### Quick Reference
+
+```bash
+# Step 1: Delete ALL named volumes (simulate cold pixi cache)
+podman compose down -v
+
+# Step 2: Start container with CI runner UID
+USER_ID=1001 GROUP_ID=1001 podman compose up -d
+
+# Step 3: Run test with no-TTY flag (same as CI)
+USER_ID=1001 GROUP_ID=1001 podman compose exec -T projectodyssey-dev bash -c \
+  "cd /workspace && mojo run tests/path/to/test.mojo"
+```
+
+### Detailed Steps
+
+1. **Identify the three CI-specific conditions** that differ from your local environment:
+   - **Cold pixi cache**: CI creates fresh named volumes every run; locally volumes persist
+   - **UID mismatch**: CI runner typically uses UID 1001, but container image is built with UID 1000
+   - **No TTY**: CI uses `podman compose exec -T` (the `-T` flag disables TTY allocation)
+
+2. **Verify your CI configuration** to confirm the exact values:
+
+   ```bash
+   # Check what UID the CI runner uses (look in your CI workflow YAML)
+   grep -r "USER_ID\|GROUP_ID\|uid\|user:" .github/workflows/
+   # Check compose exec calls
+   grep -r "exec -T\|compose exec" .github/workflows/ justfile
+   ```
+
+3. **Delete all named volumes** to simulate cold cache:
+
+   ```bash
+   podman compose down -v
+   # Verify volumes are gone
+   podman volume ls
+   ```
+
+4. **Start container with CI UID** (not your local UID):
+
+   ```bash
+   USER_ID=1001 GROUP_ID=1001 podman compose up -d
+   # Wait for container to be healthy
+   podman compose ps
+   ```
+
+5. **Run the failing test with no-TTY** (the `-T` flag):
+
+   ```bash
+   USER_ID=1001 GROUP_ID=1001 podman compose exec -T <service-name> bash -c \
+     "cd /workspace && <test command>"
+   ```
+
+6. **If still not reproducing**, check for additional differences:
+   - Environment variables set in CI but not locally (`CI=true`, `GITHUB_ACTIONS=true`)
+   - GitHub Actions runner resource limits (memory, CPU)
+   - Filesystem differences (overlay vs native)
+
+   ```bash
+   # Add CI env vars explicitly
+   USER_ID=1001 GROUP_ID=1001 podman compose exec -T <service-name> bash -c \
+     "export CI=true GITHUB_ACTIONS=true && cd /workspace && <test command>"
+   ```
+
+7. **Read the full stack trace**, not just the error summary:
+   - `execution crashed` is a symptom, not a cause
+   - The actual cause (permission error, missing file, segfault) appears in the stack trace
+   - `fortify_fail_abort` or `__fortify_fail` in the trace indicates a buffer overflow or permission violation
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| Run tests with warm cache + UID 1000 | 10 parallel agents ran the same test commands locally | All passed because agents used warm pixi cache and matching UID — not replicating CI | Never declare a test "passes locally" without verifying you're running under identical conditions |
+| Conclude "non-deterministic JIT flakiness" | Read only the `execution crashed` message, not full stack trace | The error message is the symptom; the real cause (permission error) was in the stack trace | Always read the complete stack trace before forming a hypothesis |
+| Declare crash "non-reproducible locally" | Filed issue doc concluding the crash couldn't be reproduced | Cold cache + UID mismatch + no-TTY was never tried simultaneously | Don't conclude non-reproducible until you've replicated ALL CI conditions at once |
+| Fix one condition at a time | Tried only cold cache, or only UID mismatch | Each condition alone may not trigger the crash; all three together are required | Replicate ALL differing conditions simultaneously, not one at a time |
+
+## Results & Parameters
+
+### CI Environment Variables (Podman-based CI with pixi)
+
+```bash
+# Typical CI configuration
+USER_ID=1001          # CI runner UID (differs from container build UID 1000)
+GROUP_ID=1001         # CI runner GID
+# Named volumes for pixi cache are fresh on each run (created with `docker compose up`)
+# compose exec uses -T flag (no TTY)
+```
+
+### Expected Behavior
+
+When all three conditions are correctly replicated:
+- A previously "non-reproducible" crash reproduces immediately and 100% deterministically
+- The full stack trace reveals the actual root cause (permission errors, missing cache dirs, etc.)
+- `fortify_fail_abort` in the stack trace points to a buffer overflow or permission violation from UID mismatch
+
+### Verification Approach That Confirmed the Method
+
+```bash
+# WRONG: Warm cache + UID 1000 + TTY (your local defaults)
+podman compose exec projectodyssey-dev bash -c "mojo run tests/failing_test.mojo"
+# Result: PASSES — false confidence
+
+# RIGHT: Cold cache + UID 1001 + no TTY (CI conditions)
+podman compose down -v
+USER_ID=1001 GROUP_ID=1001 podman compose up -d
+USER_ID=1001 GROUP_ID=1001 podman compose exec -T projectodyssey-dev bash -c \
+  "cd /workspace && mojo run tests/failing_test.mojo"
+# Result: CRASHES — reproducible, now debuggable
+```
+
+### Environment Condition Checklist
+
+| Condition | Local Default | CI Default | How to Replicate Locally |
+| ----------- | -------------- | ------------ | -------------------------- |
+| Pixi cache | Warm (persistent volumes) | Cold (fresh volumes each run) | `podman compose down -v` before starting |
+| Container UID | 1000 (matches image build UID) | 1001 (CI runner UID) | `USER_ID=1001 GROUP_ID=1001 podman compose up -d` |
+| TTY allocation | TTY present | No TTY (`-T` flag) | Use `podman compose exec -T` instead of `exec` |
+| CI env vars | Not set | `CI=true`, `GITHUB_ACTIONS=true` | Add to exec command if needed |
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| ProjectOdyssey | Reproducing `fortify_fail_abort` crash declared non-reproducible in `jit-fortify-buffer-overflow.md` | Cold cache + UID 1001 + `-T` flag combined triggered crash 100% deterministically |
+
+---
+
+## Superseded from ci-doctor-script-hook-check-ci-guard
+
+**Original date/version**: 2026-04-25 / 1.0.0
+
+```yaml
+---
+name: ci-doctor-script-hook-check-ci-guard
+description: "Shell doctor/health-check scripts that verify local developer setup (git hooks, SSH keys, local config files) must guard against CI environments where that infrastructure doesn't exist. Use when: (1) a doctor.sh CI job fails because .git/hooks/ doesn't exist on GitHub Actions runners, (2) any check_*() function in a health-check script validates developer-local resources that are absent in CI, (3) writing new doctor script checks that should only run locally, (4) debugging CI failures where a health/preflight script exits 1 due to missing local setup artifacts."
+category: ci-cd
+date: 2026-04-25
+version: "1.0.0"
+user-invocable: false
+verification: verified-ci
+tags:
+  - ci
+  - doctor
+  - shell
+  - git-hooks
+  - github-actions
+  - health-check
+  - ci-guard
+  - environment-detection
+---
+```
+
+# CI Doctor Script Hook-Check Guard
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2026-04-25 |
+| **Objective** | Fix CI failure where `scripts/doctor.sh` "Check 4: Git hooks" exited 1 because GitHub Actions runners lack `.git/hooks/` infrastructure |
+| **Outcome** | Added `${CI:-}` guard to skip developer-local checks in CI; PR #350 (ProjectMyrmidons) passed |
+| **Verification** | verified-ci |
+
+## When to Use
+
+- A CI job runs `just doctor` (or equivalent) and fails at a git-hooks check
+- A `check_hooks()` or similar function in a health-check script references `.git/hooks/` paths that don't exist in CI
+- Writing any new doctor/preflight check that validates developer-local setup (hooks, SSH agent, local config, pre-commit installations)
+- A GitHub Actions job exits 1 with errors like "pre-commit hook not installed" or "pre-commit hook not executable" from a health-check script
+- Deciding whether a check should be skipped silently in CI or should error
+
+## Verified Workflow
+
+### Quick Reference
+
+```bash
+# Standard CI guard pattern for any developer-local check function:
+if [[ "${CI:-}" == "true" ]]; then
+    warn "check skipped in CI" "reason: <why this is dev-local only>"
+    return
+fi
+```
+
+### Detailed Steps
+
+1. **Identify the failing check function** — Find the `check_*()` function in the doctor script that references local developer artifacts (`.git/hooks/`, `~/.ssh/`, `.pre-commit-config.yaml` install state, etc.).
+
+2. **Understand the CI context** — GitHub Actions automatically sets `CI=true` in all runner environments. The `${CI:-}` form safely handles both set (`CI=true`) and unset (local shell) cases without erroring on `set -u` shells.
+
+3. **Add the guard at the TOP of the check function**, before any file existence tests:
+
+   ```bash
+   check_hooks() {
+       section "Check N: Git hooks"
+
+       local hook_src="${REPO_ROOT}/hooks/pre-commit"
+       local hook_dst="${REPO_ROOT}/.git/hooks/pre-commit"
+
+       if [[ ! -f "$hook_src" ]]; then
+           warn "hooks/pre-commit source not found in repo"
+           return
+       fi
+
+       # In CI there is no .git/hooks directory; skip this check silently.
+       if [[ "${CI:-}" == "true" ]]; then
+           warn "pre-commit hook check skipped in CI" "hooks are installed by developers locally"
+           return
+       fi
+
+       if [[ ! -f "$hook_dst" ]]; then
+           fail "pre-commit hook not installed" \
+               "Run: just install-hooks"
+       elif [[ ! -x "$hook_dst" ]]; then
+           fail "pre-commit hook not executable" \
+               "Run: chmod +x .git/hooks/pre-commit"
+       else
+           pass "pre-commit hook installed and executable"
+       fi
+   }
+   ```
+
+4. **Use `warn` not `pass`** for the CI skip message — this makes it visible in CI logs that the check was intentionally skipped, rather than silently omitted.
+
+5. **Test locally** that the guard doesn't suppress the check in a normal developer shell (`CI` is not set locally unless the developer has it in their environment).
+
+6. **Verify in CI** — Push the fix and confirm the doctor CI job exits 0.
+
+### General Pattern for All Developer-Local Checks
+
+Any check that validates local developer environment setup should follow this template:
+
+```bash
+check_<name>() {
+    section "Check N: <description>"
+
+    # Skip checks that require local developer environment setup in CI.
+    if [[ "${CI:-}" == "true" ]]; then
+        warn "<check name> skipped in CI" "<brief reason>"
+        return
+    fi
+
+    # ... rest of check logic
+}
+```
+
+**Categories of checks that need CI guards:**
+
+| Check Type | Examples |
+| ------------ | --------- |
+| Git hooks | `.git/hooks/pre-commit`, `.git/hooks/commit-msg` |
+| SSH infrastructure | `~/.ssh/id_ed25519`, `ssh-agent` running |
+| Local config files | `~/.netrc`, `.env.local`, tool-specific dotfiles |
+| Pre-commit install state | `pre-commit` installed and configured |
+| GPG signing setup | GPG keys, git `user.signingkey` |
+| Editor/IDE config | `.editorconfig` compliance, IDE plugin installation |
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| No failed attempts | The fix was straightforward once the root cause was identified | N/A | `actions/checkout` creates a minimal git repo without hook infrastructure — this is expected and by design |
+
+## Results & Parameters
+
+### Root Cause Summary
+
+```
+GitHub Actions `actions/checkout`:
+  - Creates a shallow clone of the repository
+  - Does NOT run `git init` hooks setup
+  - Does NOT create .git/hooks/ directory
+  - The .git/hooks/ directory only exists after a developer runs:
+      pre-commit install
+      OR
+      just install-hooks
+      OR
+      git init (on a new repo)
+```
+
+### Environment Variable Reference
+
+```bash
+# GitHub Actions sets this automatically on all runners:
+CI=true
+
+# Safe access pattern (works with set -u):
+${CI:-}          # Expands to empty string if CI is unset
+${CI:-false}     # Expands to "false" if CI is unset
+
+# Recommended guard:
+if [[ "${CI:-}" == "true" ]]; then
+    # CI environment: skip developer-local checks
+fi
+```
+
+### Where This Guard Is Needed
+
+The `.git/hooks/` directory is absent on:
+- GitHub Actions runners (all OS: ubuntu, macos, windows)
+- GitLab CI runners (shallow clones)
+- Any CI system using `git clone --depth=1` or `actions/checkout`
+- Docker-based CI where the repo is copied in rather than cloned
+
+It IS present on:
+- Developer machines that have run `pre-commit install`
+- Full (non-shallow) clones where `git init` was run
+- CI jobs that explicitly run `pre-commit install` as a step (but then the hook exists, so the check passes)
+
+### Verified Fix (ProjectMyrmidons doctor.sh)
+
+```bash
+# Before: check_hooks() called fail() if .git/hooks/pre-commit was missing
+# → CI job exited 1 because actions/checkout does not create .git/hooks/
+
+# After: guard added at top of function
+if [[ "${CI:-}" == "true" ]]; then
+    warn "pre-commit hook check skipped in CI" "hooks are installed by developers locally"
+    return
+fi
+# → CI job passes; local developer runs still check for hook installation
+```
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| ProjectMyrmidons | PR #350 | `scripts/doctor.sh` Check 4 was failing `just doctor --skip-connectivity` in CI. Added `${CI:-}` guard. CI job passed after fix. |
+
+---
