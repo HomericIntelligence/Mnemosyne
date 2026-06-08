@@ -3,7 +3,7 @@ name: python-type-hints-and-mypy-patterns
 description: "Canonical guide to Python type annotation and mypy compliance patterns. Use when: (1) mypy with implicit_reexport=false or disallow_untyped_defs raises errors after a module refactor, (2) annotating hundreds of unannotated test functions in tests/unit/ to satisfy mypy strict mode, (3) AI-generated type annotations are placed at call sites instead of function definitions causing CI failures, (4) a manager/proxy class needs correct Callable or TypeVar generics to preserve return types without ParamSpec violations, (5) adding PEP 561 py.typed marker to make a typed package discoverable by mypy/pyright, (6) Pydantic model field types diverge from function signatures causing implicit-reexport or attribute-export errors."
 category: tooling
 date: 2026-06-07
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 history: python-type-hints-and-mypy-patterns.history
 tags:
@@ -230,6 +230,44 @@ Runtime behavior is identical (same binding in the module `__dict__`, so `mock.p
 - **`@dataclass` → `BaseModel` migration**: `field(default_factory=...)` → `Field(default_factory=...)`; `__post_init__` → `@model_validator`; Pydantic v2 has no `.dict()`/`.to_dict()` — use `.model_dump()` (and `model_dump(mode="json")` for `Path`/`Enum`).
 - **Redundant bool return**: a function that returns `True` on success and raises on failure should be `-> None` (POLA).
 
+#### 8. Tighten broad `except Exception` by operation
+
+Map each broad `except Exception` to the narrowest set of exceptions for the operation it guards. Keep `except Exception` only at true system boundaries (thread-pool workers, fire-and-forget handlers) with a `# broad catch: <reason>` comment.
+
+| Operation | Specific Exception Types |
+| --------- | ------------------------ |
+| `subprocess.run()` | `(subprocess.CalledProcessError, FileNotFoundError, OSError)` |
+| Any subprocess | `subprocess.SubprocessError` |
+| File read/write | `OSError` |
+| `json.loads()` | `json.JSONDecodeError` |
+| Pydantic `.model_validate_json()` | `(json.JSONDecodeError, ValueError)` |
+| Mixed subprocess + file I/O | `(subprocess.SubprocessError, OSError)` |
+| State file load (JSON + file + Pydantic) | `(json.JSONDecodeError, ValueError, OSError)` |
+
+**Gotcha**: keep the inline justification comment under ~60 chars after `#` to avoid E501 — `ruff-format` rewraps long comments and fails the commit on a second round.
+
+```python
+except (subprocess.CalledProcessError, FileNotFoundError, OSError) as e:  ...
+except (json.JSONDecodeError, ValueError, OSError) as e:  # state-file load
+except Exception as e:  # broad catch: top-level worker boundary
+```
+
+#### 9. Pydantic v2 `.to_dict()` → `.model_dump()` audit
+
+**Symptom**: `AttributeError: 'ModelName' object has no attribute 'to_dict'` at runtime after a Pydantic v1 → v2 migration — v2 removed `.dict()` and never defined `.to_dict()`.
+
+**Rule**: use `.model_dump()` for any `BaseModel` instance. **Selective replacement only** — leave custom `.to_dict()` methods on dataclasses untouched; those are valid hand-written serializers. Audit the whole codebase, since one missed call crashes at runtime:
+
+```bash
+grep -r "\.to_dict()" src/          # find calls
+grep -B 5 "class.*BaseModel" src/   # confirm the owning class is a BaseModel
+```
+
+```python
+# Before (fails on Pydantic v2 BaseModel):  result.token_stats.to_dict()
+# After:                                     result.token_stats.model_dump()
+```
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -246,6 +284,8 @@ Runtime behavior is identical (same binding in the module `__dict__`, so `mock.p
 | `SyncManager.Semaphore` / `multiprocessing.synchronize.Semaphore` for proxy type | Tried to annotate Manager proxy precisely | Not a resolvable annotation / wrong type (raw class vs proxy wrapper) | Manager proxies are runtime factories; use explicit, documented `-> Any` |
 | Assumed mutation sites blocked `frozen=True` | Grepped `.field =` and assumed they blocked freezing | Mutations were on different dataclasses/models with same field names | Verify the *type* of the mutated object before ruling out `frozen=True` |
 | Renaming model-ID constants without normalization | Updated constants + YAML to new naming | Old IDs baked into saved `experiment.json` survived | Add normalization at the deserialization boundary, not just at the constants |
+| Model validation by calling Claude CLI | Added validation calling Claude CLI to check model IDs | Short aliases like `"sonnet"` failed; the error message implied aliases were supported but the feature was absent | If an error message mentions a feature, that feature must be implemented |
+| Single edit on a serialization function (security hook) | Edited the whole function body including serialization code | A pre-tool-use security hook silently blocked the edit | Split the edit — change return type/docstring separately from the body — and verify it landed with `grep` |
 
 ## Results & Parameters
 
