@@ -3,7 +3,7 @@ name: readme-badges-live-sources-and-count-drift-prevention
 description: "Use when: (1) adding badges to a README and need live-source badge endpoints (shields.io, GitHub Actions status, PyPI JSON API) instead of hardcoded values; (2) adding missing PR-critical workflow badges to a README badge block; (3) automating README badge count validation to prevent drift when file/test counts grow; (4) verifying package names via PyPI before committing badge URLs; (5) replacing hardcoded test/file counts in README badges and prose with live commands users can run, preventing flakiness when counts change frequently."
 category: documentation
 date: 2026-06-07
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 history: readme-badges-live-sources-and-count-drift-prevention.history
 tags:
@@ -88,7 +88,7 @@ Use when a README is missing a CI badge or a new PR-critical workflow should be 
    [![Build](https://github.com/HomericIntelligence/ProjectOdyssey/actions/workflows/build-validation.yml/badge.svg?branch=main)](https://github.com/HomericIntelligence/ProjectOdyssey/actions/workflows/build-validation.yml)
    ```
 
-4. Validate: `pixi run pre-commit run --files README.md` (markdownlint, trailing-whitespace, end-of-file-fixer must all pass).
+4. Validate: `pixi run pre-commit run --files README.md` (markdownlint, trailing-whitespace, end-of-file-fixer must all pass). If a `justfile` shortcut like `just pre-commit-all` is documented, do not rely on it — `just` is frequently not on PATH; invoke `pixi run pre-commit run --files README.md` directly.
 5. Commit, push, PR with one `Closes #N` per line (never comma-separate issue refs).
 
 **Criteria for a "badge-worthy" workflow:** runs on every PR (`on: pull_request`), represents a critical quality gate (build/test/lint/security), and is not niche/supplemental (benchmarks, weekly scans). Always pin `?branch=main` for stable status.
@@ -202,6 +202,7 @@ Use when a doc-accuracy CI check makes a frequently-changing count flaky and the
 | Absolute-path exclusion in counter | `if any(excl in path ...)` on full absolute path | Repo root was `.worktrees/issue-3307/`, so `worktrees/` matched every path, zeroing results | Strip `repo_root + "/"` and check exclusions on the relative path |
 | Staging then formatting | Stage → commit → pre-commit ruff modifies staged content → stash restore rolls back the fix | pre-commit stashes unstaged files | Run `ruff format` before `git add`; format → stage → commit |
 | Writing tests for a docs change | Followed issue-template request for pytest tests on a one-line README edit | No code to test | Skip tests for pure documentation changes; don't follow template boilerplate blindly |
+| Running `just pre-commit-all` | Tried the justfile shortcut to run all pre-commit hooks | `just` not on PATH in this environment | Fall back to `pixi run pre-commit run --files README.md` directly |
 
 ## Results & Parameters
 
