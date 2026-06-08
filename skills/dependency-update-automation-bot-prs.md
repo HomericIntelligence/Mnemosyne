@@ -3,7 +3,7 @@ name: dependency-update-automation-bot-prs
 description: "Use when: (1) a repo uses pixi.toml for conda-forge deps but Dependabot only covers pip/github-actions — add Renovate to automate conda dep updates, (2) reviewing ANY bot-authored PR (Dependabot, Renovate) — run gh pr diff --name-only first because bot PRs frequently carry silent lockfile-format upgrades or maintainer fixup commits that the title doesn't mention, (3) a Dependabot PR title describes a single bump but the diff includes a pixi.lock v6->v7 format migration or unrelated files stacked on the bot branch, (4) a repo declares a centralized versions.yml/versions.json as single source of truth but automated bumps (Dependabot, weekly cron, hand-edits) update only the consumer files (Dockerfiles, workflow pins) while bypassing the manifest — causing silent drift."
 category: ci-cd
 date: 2026-06-07
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 history: dependency-update-automation-bot-prs.history
 tags:
@@ -154,6 +154,8 @@ gh pr view $N --repo $REPO --json commits --jq \
   '.commits[] | select((.authors[0].login | test("\\[bot\\]$")) | not) | {oid, author: .authors[0].login, headline: .messageHeadline}'
 ```
 
+> **Green CI does not certify scope.** `gh pr checks` is only a Pattern A detector (a red check whose name is unrelated to the title flags a format cascade). It is NOT a scope-safety signal for Pattern B: a maintainer-fixup contamination PR passes CI **by design**, because the fixup commit itself is what turned the checks green. A PR with all-green checks must STILL get the commit-author scope check (`gh pr view --json commits` + non-bot author test above). Never let "checks are passing" substitute for the commit-author enumeration — green CI certifies the build/tests pass, not that the diff is in scope.
+
 **Distinguish legitimate cascades from contamination.** A `package.json` change SHOULD update its sibling `package-lock.json`; a `pyproject.toml` change SHOULD update `pixi.lock` for the affected platform. Contamination is when the lockfile diff is *structurally different* from what the bump requires:
 
 | Legitimate cascade | Contamination |
@@ -230,6 +232,7 @@ git log --format="%h %s" --since="6 months ago" -- bases/Dockerfile.* \
 | Approve PR #691 because "the npm bump in /dagger is clean" | Read the title, glanced at the 4-line package.json change, prepared to APPROVE | Would land an unrelated `pixi.lock` v6→v7 cascade (linux-64 added, pypi-prerelease-mode removed) on main; every dev would fail `pixi install` until upgrading pixi | The title is the bot's intent, not the scope. `gh pr diff --name-only` is mandatory before APPROVE even when the bump is obviously clean |
 | Trust the PR author tag to mean "no human touched this branch" | Saw `dependabot[bot]` as PR author, assumed all commits were bot-authored | The author field reflects who OPENED the PR, not who committed since. PR #681's `a2c372a4` was maintainer-authored but the PR author still read `dependabot[bot]` | Check commit-level authors (`--json commits --jq '.commits[].authors[0].login'`), not the PR-level author cover page |
 | Approve PR #682 because the new `node:26-slim` digest was itself correct | Spot-check the digest, confirm it pins a real published image, APPROVE | Leaves `versions.yml` declaring `tag: "25-slim"` — the manifest now lies; and `digest-bump.yml` greps the OLD string and silently no-ops on the next run | A bump PR is judged on every file the value SHOULD be set in; manifest drift and workflow grep-fragility are the same bug — fix both or fix neither. Add a guard that fails when expected substitutions return 0 hits |
+| Skip the commit-author scope check because the PR's CI is already green | Assumed green checks (`gh pr checks` all passing) meant the scope was fine and APPROVE was safe | Pattern B contamination passes CI BY DESIGN — the maintainer's fixup commit is the very thing that turned CI green, so a green-checks PR can still carry a SRP-violating pile-on. `gh pr checks` is a Pattern A red-check detector only, never a scope-safety signal | Green CI certifies build/tests pass, not scope. Run the commit-author check (`gh pr view --json commits` + non-bot author test) on EVERY bot PR regardless of check status; never let passing checks substitute for the scope check |
 
 ## Results & Parameters
 
