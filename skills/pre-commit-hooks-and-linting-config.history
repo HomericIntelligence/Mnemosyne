@@ -1,4 +1,16 @@
+<!-- markdownlint-disable MD024 -->
 # pre-commit-hooks-and-linting-config -- History
+
+## v1.8.0 (2026-06-07) -- Absorb 4 lint/quality skills (ruff-format trap, PR-diff scope, editorconfig, toolchain-churn review exemption)
+
+Consolidated 4 overlapping skills into this canonical (LQ05 cluster):
+
+- `tooling-ruff-format-precommit-check-trap` — `ruff check` vs `ruff format` are SEPARATE tools sharing one binary; pre-push 4-command sequence.
+- `precommit-scope-full-pr-diff-not-current-edit` — run pre-commit against the full PR diff (`--from-ref/--to-ref`), not just `--files <current edit>`; sub-agent commit coverage.
+- `tooling-editorconfig-cross-editor-consistency` — add `.editorconfig` for cross-editor formatting on non-Python files.
+- `review-rubric-exempt-toolchain-forced-churn` — exempt toolchain-forced incidental churn from PR-review scope/YAGNI rubrics (intent-based carve-out).
+
+Each absorbed skill's original frontmatter and full body are preserved verbatim below under `## Superseded from <name>`.
 
 ## v1.6.0 (2026-06-07) -- Add ruff B904 raise-from and C901 complexity fix patterns
 
@@ -12437,3 +12449,719 @@ with open(p, 'w') as f: f.write(c.rstrip() + '\n')
 | Project | Context | Details |
 | --------- | --------- | --------- |
 | AchaeanFleet | CI repair — conflict resolution left trailing blank line in .github/workflows/ci.yml | 2026-04-23; yamllint passed after fix |
+
+
+## Superseded from tooling-ruff-format-precommit-check-trap
+
+**Original date:** 2026-06-04 &nbsp;&nbsp; **Original version:** 1.1.0
+
+```yaml
+name: tooling-ruff-format-precommit-check-trap
+description: "Running `pixi run ruff check` (or `ruff check`) locally does NOT exercise `ruff format --check` — they are SEPARATE tools sharing a binary. `check` is the linter (errors/warnings); `format` is the formatter (line-wrap/style). A worktree-driven edit that passes `ruff check`, `mypy`, and `pytest` locally can still fail the CI pre-commit gate because the project's pre-commit config runs `ruff-format` (which uses `--diff`/`--check` mode) and finds reflowable multi-line signatures. Use when: (1) CI pre-commit ruff-format hook failed but local `ruff check` passed, (2) deciding what to run before pushing a worktree edit, (3) `ruff check` vs `ruff format` difference unclear, (4) pre-commit hooks running locally before push, (5) ProjectHephaestus pre-push `pytest -q` passed but CI lint/pre-commit failed formatter checks, (6) editor format-on-save bypassed because edits came from tooling/Edit calls instead of editor save, (7) muscle-memory says 'I ran ruff' but the format step was skipped, (8) lint and tests pass yet CI rejects with multi-line function signatures or compact comprehensions that should fit on one line under the 100-col limit."
+category: tooling
+date: 2026-06-04
+version: "1.1.0"
+user-invocable: false
+verification: verified-local
+history: tooling-ruff-format-precommit-check-trap.history
+tags:
+  - ruff
+  - ruff-format
+  - ruff-check
+  - pre-commit
+  - formatter
+  - linter
+  - worktree
+  - pre-push
+  - ci-parity
+  - pixi
+  - projecthephaestus
+  - ci-lint
+```
+
+
+# Ruff Format vs Ruff Check: The Pre-Commit Trap
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2026-06-04 |
+| **Objective** | Stop CI pre-commit `ruff-format` failures caused by worktree edits where the agent ran `ruff check` (and other gates) locally but never ran `ruff format` — the two are different tools and `check` does not exercise the formatter. |
+| **Outcome** | Distinguishes `ruff check` (lint) from `ruff format` (style); prescribes a 4-command pre-commit sequence; adds the ProjectHephaestus PR #913 trap where pytest-only pre-push passed while CI formatter checks failed. |
+| **Verification** | verified-local — observed in CI on HomericIntelligence/ProjectHephaestus PR #707 and PR #913; local formatter/pre-commit parity commands documented, with PR #913 CI fix pending at capture time. |
+| **History** | [changelog](./tooling-ruff-format-precommit-check-trap.history) |
+
+## When to Use
+
+- A CI pre-commit `ruff-format` (or `ruff format --check`) hook failed even though `pixi run ruff check` passed locally.
+- You finished a worktree-driven multi-file edit and are about to `git push`.
+- You "ran ruff" mentally but cannot recall whether you ran `format` or just `check`.
+- Editor format-on-save is normally trusted, but the edits came from tooling (Edit calls, sed/awk scripts, codegen) that bypassed the editor entirely.
+- You want a defensive pre-push checklist that catches every CI gate without doing a multi-minute `--all-files` run.
+- A ProjectHephaestus branch passed the local pre-push `pytest -q` hook, but CI `lint` or `pre-commit` failed with `Would reformat: <file>`.
+- Diagnosing a CI failure that shows multi-line function signatures being reflowed to one line (or vice-versa) under a project's column limit (often 100).
+
+## Verified Workflow
+
+### Quick Reference
+
+```bash
+# --- THE 4-COMMAND PRE-COMMIT SEQUENCE (run in this order, in the worktree) ---
+pixi run ruff format hephaestus/ tests/          # 1. FORMAT (in place) — catches line-wrap/style
+pixi run ruff check hephaestus/ tests/           # 2. LINT — catches errors/warnings
+pixi run mypy                                    # 3. TYPES
+pre-commit run --files <touched files>           # 4. FULL HOOK SIMULATION (markdownlint, yamllint, shellcheck, …)
+
+# --- WHY ALL FOUR ---
+# 1 and 2 are SEPARATE tools that share the `ruff` binary. Running 2 does not run 1.
+# 3 catches type errors that lint+format both miss.
+# 4 is the most defensive — runs every configured pre-commit hook against the changed files,
+#   catching everything the CI gate would, including non-Python hooks.
+
+# --- PROJECTHEPHAESTUS CI PARITY ---
+pixi run --environment lint ruff format --check hephaestus scripts tests
+pixi run --environment lint pre-commit run --all-files --show-diff-on-failure
+
+# --- WHAT NOT TO DO ---
+pixi run ruff check . && git push   # WRONG — `check` does not exercise `ruff format`
+pytest -q && git push               # WRONG — tests do not exercise formatter hooks
+```
+
+### Detailed Steps
+
+#### The two tools, one binary
+
+`ruff` ships two distinct subcommands:
+
+- `ruff check` — the linter. Catches errors, unused imports, RUF/F/E/I rule violations.
+- `ruff format` — the formatter. Reflows whitespace, line wraps, quote style, trailing commas.
+
+They share a binary and a config file (`pyproject.toml [tool.ruff]`), but their RULE SETS DO NOT OVERLAP. `check` does not enforce formatter style; `format` does not enforce lint rules. Running one tells you nothing about the other.
+
+Pre-commit configs typically register `ruff-check` and `ruff-format` as TWO SEPARATE HOOKS. The `ruff-format` hook runs in check/diff mode (it does not rewrite during CI) and fails if any file would be reformatted.
+
+#### Reproducing the trap
+
+1. Edit several Python files via tooling (Edit tool calls, scripted refactors). Some new function signatures end up multi-line.
+2. Locally run `pixi run ruff check hephaestus/ tests/` → "All checks passed!"
+3. Locally run `pixi run mypy` → "Success: no issues found"
+4. Locally run `pixi run pytest tests/unit/<area>` → tests pass.
+5. Commit, push. CI's pre-commit step fails:
+   - Hook id: `ruff-format`
+   - Output: a diff showing function signatures being reflowed from multi-line back to single-line under the project's 100-col limit.
+   - Exit code: 1.
+
+The local gates never saw the formatter difference because none of them invoked `ruff format`. ProjectHephaestus PR #913 repeated the trap in miniature: local `python -m ruff check tests/unit/validation/test_git_metadata_safety.py`, focused pytest, validation pytest, and the repository pre-push `pytest -q` hook all passed, but CI still failed because the formatter wanted to collapse a multi-line list comprehension to one line.
+
+#### The fix (mechanical)
+
+```bash
+pixi run ruff format hephaestus/ tests/   # rewrites in place
+git diff --stat                            # see what was reflowed
+git add -A
+git commit -S -m "style(ruff): reformat after worktree edits"
+git push
+```
+
+Reformatting is a separate concern from the feature change. A dedicated `style:` commit keeps PR review focused on logic.
+
+#### Why this is so easy to miss
+
+- Most editors auto-format on save with `black`/`ruff format`. But worktree edits made via tooling (Edit, scripts, codegen) bypass the editor entirely — no save event, no format-on-save.
+- `ruff check` is the muscle-memory command. It sounds comprehensive ("check everything"), and the success message ("All checks passed!") feels like a green light.
+- Test and type gates passing reinforces false confidence: the agent reasons "everything passed, so the formatter is fine too."
+- The two tools are documented as separate, but the shared binary name encourages mental conflation.
+
+#### The defensive pre-push habit
+
+Run the 4-command sequence ABOVE before every `git push` from a worktree where edits came from tooling rather than an interactive editor. Cost: a few seconds per file. Saves a CI round-trip. The last command (`pre-commit run --files <touched>`) is the strongest single gate because it runs every configured hook against the actual changed files — markdownlint, yamllint, shellcheck, and so on.
+
+#### Targeted vs `--all-files`
+
+`pre-commit run --all-files` is the universally safe invocation but is slow on large repos (multi-minute). For worktree edits, `pre-commit run --files <touched files>` is fast and sufficient. If a sub-agent committed earlier in the same PR, prefer `pre-commit run --from-ref origin/main --to-ref HEAD` to cover the full PR diff. See `precommit-scope-full-pr-diff-not-current-edit.md`.
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| Trust `pixi run ruff check` alone before push | Ran lint, mypy, pytest; all green; pushed | `ruff check` does not exercise `ruff format`; CI's `ruff-format` hook then failed on 6 files with multi-line signatures that should have been single-line under the 100-col limit | `check` and `format` are TWO TOOLS, not one. Run both. |
+| Trust the editor's format-on-save | Assumed any unformatted file would be caught by the editor saving | Worktree edits came from tooling (Edit calls) that bypassed the editor entirely — no save event triggered the formatter | When edits originate from tooling, the editor's format-on-save is not in the loop. Run `ruff format` explicitly. |
+| Skip `ruff format` because "lint passed" | Reasoned that if `ruff check` is green, `ruff format` is implied | The two subcommands enforce ORTHOGONAL rule sets. Lint rules say nothing about line wrap; format rules say nothing about unused imports. | False confidence. Orthogonal tools give orthogonal signals. |
+| Run `pre-commit run --all-files` only | Used the universal "safe" invocation as the sole pre-push gate | Multi-minute runtime on large repos discourages adoption; engineers drop to `--files` and the gap reappears | Use `pre-commit run --files <touched>` for routine pre-push; reserve `--all-files` for major changes. |
+| Run `pre-commit run --files <only Python files>` | Listed only the `.py` files in the `--files` argument | Missed markdown, yaml, shell hooks that would also fail in CI on co-changed non-Python files | List ALL touched files in `--files`, not just the Python ones. Or use `--from-ref/--to-ref` for the full PR diff. |
+| Trust ProjectHephaestus pre-push `pytest -q` as CI parity | PR #913 was pushed after local `ruff check`, focused pytest, validation pytest, and the pre-push full unit suite all passed | CI `lint` ran `pixi run --environment lint ruff format --check hephaestus scripts tests`; CI `pre-commit` ran `ruff-format-python`; both failed because one test file still needed formatter reflow | ProjectHephaestus pre-push proves tests and coverage only. Run `pixi run --environment lint ruff format --check hephaestus scripts tests` or `pre-commit run --all-files` before pushing. |
+| Fix ruff I001/import order only | Adjusted import order until `python -m ruff check <file>` passed | `ruff check` covered import sorting but not formatter line reflow; CI still failed with `Would reformat: tests/unit/validation/test_git_metadata_safety.py` | After any lint/import fix, run `ruff format` or `ruff format --check`; a green lint pass is not a formatting pass. |
+| Change `.editorconfig` to "fix" line wrapping | Assumed editor config drove the formatter's column choice | `.editorconfig` is consumed by editors, not by `ruff format`. The formatter reads `pyproject.toml [tool.ruff] line-length` | Single source of truth for ruff formatting is `pyproject.toml`. Editor configs are advisory only. |
+| `--amend` after the format pass | Tried to fold the reformat into the feature commit to keep history clean | Once shared (pushed), amending requires force-push, which is forbidden under the repo's git safety protocol | Create a NEW `style(ruff):` commit. PR-history noise is acceptable; rewriting shared history is not. |
+| Disable `ruff-format` in pre-commit "because it's redundant with ruff-check" | Removed the `ruff-format` hook believing `ruff check` covered formatting | Lint rules and format rules are disjoint; without `ruff-format`, style drift accumulates silently and shows up in PR diffs as cosmetic noise | Keep both hooks. They are not redundant. |
+
+## Results & Parameters
+
+### Exact commands per project type
+
+```bash
+# --- PIXI-MANAGED PYTHON PROJECT (ProjectHephaestus pattern) ---
+pixi run ruff format hephaestus/ tests/
+pixi run ruff check hephaestus/ tests/
+pixi run mypy
+pre-commit run --files <touched files>
+
+# --- PROJECTHEPHAESTUS CI-PARITY FOR PRS ---
+pixi run --environment lint ruff format --check hephaestus scripts tests
+pixi run --environment lint pre-commit run --all-files --show-diff-on-failure
+
+# --- POETRY OR VANILLA PYTHON PROJECT ---
+poetry run ruff format src/ tests/
+poetry run ruff check src/ tests/
+poetry run mypy src/
+pre-commit run --files <touched files>
+
+# --- DIRECT INVOCATION (no env manager) ---
+ruff format <touched dirs>
+ruff check <touched dirs>
+mypy <touched dirs>
+pre-commit run --files <touched files>
+
+# --- FULL PR DIFF (after sub-agent work) ---
+pre-commit run --from-ref origin/main --to-ref HEAD
+```
+
+### What each command catches
+
+| Command | Catches | Does NOT catch |
+| --------- | --------- | ----------------- |
+| `ruff format` | Line wrap, whitespace, quote style, trailing commas | Lint errors (unused imports, RUF/F/E rules), types |
+| `ruff check` | Lint errors, unused imports, import order, RUF/F/E/I rules | Line wrap, formatter style |
+| `mypy` | Type errors, missing annotations | Lint, format, runtime errors |
+| `pre-commit run --files` | All configured hooks against listed files: ruff-format, ruff-check, markdownlint, yamllint, shellcheck, mypy, custom hooks | Hooks not in `.pre-commit-config.yaml` (CI-only validators) |
+
+### Concrete observation (PR #707)
+
+- Project: `HomericIntelligence/ProjectHephaestus`
+- Trigger: worktree-driven multi-file edit
+- Local gates (all green): `pixi run ruff check hephaestus/ tests/`, `pixi run mypy`, `pixi run pytest tests/unit/automation` (911 passed)
+- CI failure: `Run pre-commit` step, `ruff-format` hook, exit code 1
+- Files needing reformat: 6
+- Fix commit: `820eec0` — ran `pixi run ruff format hephaestus/ tests/`; reformatted 6 files in place
+- Post-fix local verification: clean
+- CI re-run: pending at time of capture
+
+### Concrete observation (PR #913)
+
+- Project: `HomericIntelligence/ProjectHephaestus`
+- Trigger: new tracked validation test added by tooling
+- Local gates that were green: `python -m ruff check tests/unit/validation/test_git_metadata_safety.py`, `python -m pytest -q tests/unit/validation --no-cov`, focused tidy tests, and the pre-push hook's full `pytest -q` run (`3168 passed, 6 skipped`, coverage `84.98%`)
+- CI failure: `lint` job ran `pixi run --environment lint ruff format --check hephaestus scripts tests` and reported `Would reformat: tests/unit/validation/test_git_metadata_safety.py`
+- CI failure: `pre-commit` job ran `pixi run --environment lint pre-commit run --all-files --show-diff-on-failure`; hook `ruff-format-python` modified the same file
+- Formatter diff: collapsed a multi-line list comprehension return into one line under the configured line length
+- Lesson: ProjectHephaestus' local pre-push hook is test-focused, not formatter parity. Run the lint-environment formatter or pre-commit before pushing.
+
+### Related skills
+
+- `pre-commit-hooks-and-linting-config.md` — canonical guide to pre-commit config across the ecosystem
+- `precommit-scope-full-pr-diff-not-current-edit.md` — when sub-agents have committed in the same PR, use `--from-ref/--to-ref` instead of `--files`
+- `pixi-precommit-hook-binary-resolution.md` — when the pre-commit hook resolves the wrong binary
+
+---
+
+
+## Superseded from precommit-scope-full-pr-diff-not-current-edit
+
+**Original date:** 2026-05-25 &nbsp;&nbsp; **Original version:** 1.0.0
+
+```yaml
+name: precommit-scope-full-pr-diff-not-current-edit
+description: "Before `git push` for a PR, run pre-commit against the full PR diff (every file changed since the merge-base with the target branch), not just the files of the most recent edit. `pre-commit run --files X Y Z` only checks X, Y, Z; a sub-agent's earlier commit can carry stale-formatter content that no one re-checks locally and that only fails in CI. Use when: (1) handing off work between sub-agents that each ran their own per-file pre-commit, (2) making fixup commits after a delegated change and preparing to push, (3) any time `pre-commit run --all-files` is considered too slow and you reach for `--files`, (4) diagnosing CI mojo-format / ruff-format / formatter failures on files you did not personally edit in this session, (5) writing a pre-push checklist for any repo where formatter hooks rewrite files."
+category: ci-cd
+date: 2026-05-25
+version: "1.0.0"
+user-invocable: false
+verification: verified-ci
+tags:
+  - pre-commit
+  - mojo-format
+  - sub-agent-handoff
+  - pr-diff
+  - ci-parity
+  - formatter
+  - pre-push
+```
+
+
+# Pre-commit Scope: Full PR Diff, Not Current Edit
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2026-05-25 |
+| **Objective** | Stop CI formatter failures caused by files committed by an earlier sub-agent that the human's fixup pre-commit invocation never re-checked, by scoping the pre-push pre-commit run to the entire PR diff rather than the most recent edit. |
+| **Outcome** | One round-trip saved per delegated-work PR; verified-ci on ProjectOdyssey PR #5453. |
+| **Verification** | verified-ci - the failure mode happened on PR #5453; after applying `pixi run pre-commit run --from-ref origin/main --to-ref HEAD`, the next push went green. |
+
+## When to Use
+
+- Handing off work between sub-agents that each ran their own per-file `pre-commit run --files ...`
+- Making fixup commits after a delegated change and preparing to push
+- Any time `pre-commit run --all-files` is considered too slow and you reach for `--files`
+- Diagnosing CI mojo-format / ruff-format / formatter failures on files you did not personally edit this session
+- Writing a pre-push checklist for any repo where formatter hooks rewrite files
+- Reviewing a sub-agent's "pre-commit passed" report before trusting it for push readiness
+
+## Verified Workflow
+
+### Quick Reference
+
+```bash
+# --- CANONICAL PRE-PUSH CHECK (ref-based, cleanest) ---
+pixi run pre-commit run --from-ref origin/main --to-ref HEAD
+
+# --- ALTERNATIVE: explicit file list spanning the whole PR diff ---
+git diff --name-only "$(git merge-base HEAD origin/main)" HEAD \
+  | xargs pixi run pre-commit run --files
+
+# --- WHAT NOT TO DO BEFORE PUSH ---
+# Checks ONLY the files you list — sub-agent's earlier files are skipped:
+pixi run pre-commit run --files train.sh analyze_phases.py README.md  # WRONG SCOPE
+
+# --- AFTER PUSH: catch CI-only hooks ---
+gh pr checks --watch
+```
+
+### Detailed Steps
+
+#### Pre-push protocol when sub-agents have committed in this PR
+
+1. Identify the target branch (usually `origin/main`).
+2. Run `pixi run pre-commit run --from-ref origin/main --to-ref HEAD`.
+   - This covers EVERY file changed in the PR diff, not just files in the working tree or in HEAD.
+   - It catches formatter drift on files committed by earlier sub-agents.
+3. If hooks rewrite files, `git add` the rewrites and create a NEW commit (never `--no-verify`, never `--amend` once the original commit is shared).
+4. Push.
+5. Run `gh pr checks --watch` to catch CI-only hooks (test-coverage validators, license checks) that the local pre-commit framework cannot run.
+
+#### Why the per-file invocation gives false confidence
+
+- `pre-commit run --files X Y Z` runs each hook on the literal list `[X, Y, Z]`. Hooks do not auto-expand to staged or recently changed files.
+- The repo's installed pre-commit hook (`.git/hooks/pre-commit`) runs only on staged files. If a sub-agent staged + committed file `A`, then you stage + commit file `B`, neither commit's hook ever saw the other file under the current formatter baseline.
+- `pre-commit run --all-files` is the only built-in that is guaranteed safe, but it is often skipped because it is slow on large repos. `--from-ref/--to-ref` is the targeted equivalent for a PR.
+
+#### Detecting a sub-agent's `SKIP=hook-id` bypass
+
+- Read the sub-agent's transcript for `SKIP=` in any `git commit` invocation.
+- If found, re-run that hook explicitly on the sub-agent's files: `pixi run pre-commit run <hook-id> --from-ref origin/main --to-ref HEAD`.
+- The most common offender is `SKIP=mojo-format` from sub-agents running on GLIBC-older hosts (see `mojo-glibc-compatibility.md` in ProjectOdyssey).
+
+#### Formatter version drift between sub-agent runs
+
+- Even with full-diff scope, a sub-agent running in a slightly different pixi env can produce different formatter output. If the pre-push run rewrites files, that is the symptom — commit the rewrites.
+- If you suspect persistent drift, run `pixi run mojo format --version` (or analog) in both envs and reconcile via `pixi.lock` before any future delegation.
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| Trust sub-agent's "pre-commit passed" report | Sub-agent ran `pre-commit run --files <its own files>`, reported pass, committed, and pushed responsibility back to the orchestrator | The sub-agent's invocation only covered the files it edited; the orchestrator's later fixup invocation only covered the orchestrator's files. Two non-overlapping partial checks do not equal full coverage. | Aggregate pre-commit scope across ALL commits in the PR, not per-commit. The orchestrator owns the pre-push check. |
+| `pre-commit run --files X Y Z` on the fixup-edit files | Ran pre-commit on the three files the orchestrator personally edited in the fixup commit (train.sh, analyze_phases.py, README.md) | Caught the orchestrator's issues; missed the sub-agent's `model.mojo` and `run_train.mojo` because `--files` is a literal list, not a "files I might care about" heuristic | Scope the pre-push invocation to the full PR diff: `--from-ref origin/main --to-ref HEAD` |
+| Push and let CI catch it | Skipped any local pre-push pre-commit run; relied on `gh pr checks --watch` | Did catch the failure, but cost a 3-5 minute CI round-trip plus an extra style-only commit polluting PR history | One local `--from-ref/--to-ref` invocation upstream is dramatically cheaper than a CI round-trip |
+| `pre-commit run --all-files` as the pre-push gate | Used the universal "safe" invocation | Slow on large repos (multi-minute), discouraging consistent use. Engineers drop back to `--files` and the gap reappears. | `--from-ref/--to-ref` gives full PR-diff coverage at PR-diff cost, not whole-repo cost. Preferred over `--all-files` for routine pre-push. |
+| Assume the installed git `pre-commit` hook on commit covered everything | Relied on `.git/hooks/pre-commit` firing during each `git commit` to enforce hygiene | The installed hook only runs against STAGED files. Sub-agent's stage + commit of file A does not retroactively re-check file B after the orchestrator commits B. | The installed hook is a per-commit-staged-files gate, not a per-PR gate. Pre-push needs an explicit full-diff invocation. |
+| `--amend` the sub-agent's commit to apply formatting | Tried to fix the formatter drift without polluting history with a style-only commit | The sub-agent's commit was already pushed (or about to be), and amending shared history requires force-push, which is forbidden on shared branches per the org's git safety protocol | Create a NEW commit with the formatter fixes. Style-noise in PR history is acceptable; rewriting shared history is not. |
+| `SKIP=mojo-format` on a host without Mojo, expecting CI to fix it later | Sub-agent ran on an older-GLIBC host where mojo-format would not execute, set `SKIP=mojo-format`, committed, and reported "pre-commit passed (mojo-format skipped due to environment)" | The orchestrator did not re-run `mojo-format` on the sub-agent's files because the orchestrator's `--files` list did not include them. CI then failed mojo-format. | When a sub-agent reports a `SKIP=`, the orchestrator MUST run that specific hook against the sub-agent's files (or, simpler, the full PR diff) before pushing. |
+| Add `pre-commit run --all-files` to a git pre-push hook | Tried to enforce the gate locally via a pre-push hook calling `--all-files` | Multi-minute push delay killed adoption; engineers disabled the hook within a week | Use `pre-commit run --from-ref @{push} --to-ref HEAD` in pre-push hooks, not `--all-files`. PR-diff scope is both correct and fast. |
+
+## Results & Parameters
+
+### Canonical Pre-Push Command
+
+```bash
+# For any PR targeting main:
+pixi run pre-commit run --from-ref origin/main --to-ref HEAD
+
+# Generalized (works for any base):
+pixi run pre-commit run --from-ref "$(git merge-base HEAD @{u})" --to-ref HEAD
+```
+
+### Optional: Git pre-push Hook Snippet
+
+Add to `.git/hooks/pre-push` (do NOT commit to the repo unless the team agrees; this is a personal-machine convenience):
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+# Run pre-commit against the PR diff vs the upstream branch.
+# Far faster than --all-files; far more correct than --files <recent edits>.
+remote_ref="$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || echo origin/main)"
+exec pixi run pre-commit run --from-ref "${remote_ref}" --to-ref HEAD
+```
+
+### Decision Matrix: Which `pre-commit run` Variant to Use When
+
+| Scenario | Command | Why |
+| ---------- | --------- | ----- |
+| During development, after editing one file | `pre-commit run --files <file>` | Fast, scoped to the change you just made |
+| Before `git commit` of staged changes | (installed hook fires automatically on staged files) | Default mechanism |
+| Before `git push` of a PR | `pre-commit run --from-ref origin/main --to-ref HEAD` | Covers full PR diff including sub-agent commits |
+| After upgrading a formatter or hook version | `pre-commit run --all-files` | Formatter baseline changed; whole repo must be re-checked |
+| Onboarding to a new repo | `pre-commit run --all-files` | Establish baseline before first contribution |
+
+### Expected Outputs
+
+- `pixi run pre-commit run --from-ref origin/main --to-ref HEAD` exits 0 with no diff output when the PR is push-ready.
+- If a formatter hook rewrites files, exit code is non-zero AND the working tree shows modifications; `git status` lists the rewritten files. Stage and commit the rewrites before pushing.
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| ProjectOdyssey | [PR #5453](https://github.com/HomericIntelligence/ProjectOdyssey/pull/5453) — Mojo refactor delegated to sub-agent; sub-agent's `model.mojo` and `run_train.mojo` passed the sub-agent's per-file pre-commit, failed CI mojo-format after orchestrator's fixup push. Applying `pixi run pre-commit run --from-ref origin/main --to-ref HEAD` before the next push produced a green CI run. | verified-ci |
+
+## References
+
+- [pre-commit docs: `run` command](https://pre-commit.com/#pre-commit-run)
+- [`pre-commit-hooks-and-linting-config`](pre-commit-hooks-and-linting-config.md) — canonical pre-commit configuration guide; this skill is a narrow companion focused on invocation scope
+- [ProjectOdyssey `.claude/shared/pr-workflow.md`](https://github.com/HomericIntelligence/ProjectOdyssey/blob/main/.claude/shared/pr-workflow.md) — PR workflow that this skill supplements
+
+---
+
+
+## Superseded from tooling-editorconfig-cross-editor-consistency
+
+**Original date:** 2026-03-25 &nbsp;&nbsp; **Original version:** 1.0.0
+
+```yaml
+name: tooling-editorconfig-cross-editor-consistency
+description: "Add .editorconfig for cross-editor formatting consistency. Use when: (1) repository
+  lacks .editorconfig, (2) contributors use different editors with inconsistent indentation/whitespace,
+  (3) non-Python files (YAML, JSON, Markdown, shell) need formatting standards beyond what ruff covers."
+category: tooling
+date: 2026-03-25
+version: "1.0.0"
+user-invocable: false
+verification: verified-precommit
+tags:
+  - editorconfig
+  - developer-experience
+  - formatting
+  - cross-editor
+```
+
+
+# Skill: EditorConfig Cross-Editor Consistency
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2026-03-25 |
+| **Objective** | Add `.editorconfig` to ensure consistent editor settings across all file types and IDEs |
+| **Outcome** | Success — PR created, pre-commit passes |
+| **Verification** | verified-precommit |
+
+## When to Use
+
+- Repository has no `.editorconfig` at the root
+- Multiple file types (Python, YAML, JSON, TOML, Markdown, shell) need consistent formatting
+- Python formatting is handled by ruff/black but non-Python files have no formatting enforcement
+- Audit finding flags missing cross-editor consistency configuration
+- Companion to `.gitattributes` (git-level line endings) — `.editorconfig` handles editor-level settings
+
+## Verified Workflow
+
+> **Note:** Verification level is `verified-precommit` — pre-commit hooks pass but CI validation pending.
+
+### Quick Reference
+
+```bash
+# 1. Check if .editorconfig exists
+ls .editorconfig 2>&1 || echo "does not exist"
+
+# 2. Inventory file types to determine indent settings
+find . -name "*.py" -o -name "*.yml" -o -name "*.yaml" -o -name "*.json" \
+       -o -name "*.toml" -o -name "*.sh" -o -name "*.md" \
+       -o -name "Dockerfile*" -o -name "Makefile" | head -20
+
+# 3. Create .editorconfig (see template below)
+
+# 4. Validate
+pre-commit run --files .editorconfig
+```
+
+### Detailed Steps
+
+1. **Check for existing `.editorconfig`** — if one exists, amend it rather than replacing.
+
+2. **Inventory file types in the repo** to determine which sections are needed:
+   - Python (`.py`) — always 4-space indent per PEP 8
+   - YAML (`.yml`, `.yaml`) — always 2-space indent
+   - JSON/TOML — typically 2-space indent
+   - Markdown (`.md`) — trailing whitespace must be preserved (significant for line breaks)
+   - Shell scripts (`.sh`) — typically 2-space indent
+   - Dockerfiles — typically 4-space indent
+   - Makefiles — **must use tabs** (Make syntax requires it)
+
+3. **Create `.editorconfig`** using this template:
+
+```ini
+root = true
+
+[*]
+end_of_line = lf
+insert_final_newline = true
+charset = utf-8
+trim_trailing_whitespace = true
+
+[*.py]
+indent_style = space
+indent_size = 4
+
+[*.{yml,yaml}]
+indent_style = space
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+[*.{json,toml}]
+indent_style = space
+indent_size = 2
+
+[*.sh]
+indent_style = space
+indent_size = 2
+
+[Dockerfile*]
+indent_style = space
+indent_size = 4
+```
+
+**Important**: If the repo has a `Makefile`, add:
+```ini
+[Makefile]
+indent_style = tab
+```
+
+4. **Key setting: `root = true`** — prevents EditorConfig from searching parent directories. Always include this.
+
+5. **Key setting: `trim_trailing_whitespace = false` for Markdown** — two trailing spaces in Markdown create a `<br>` line break. Trimming them would break formatting.
+
+6. **Run pre-commit** to validate:
+```bash
+pre-commit run --files .editorconfig
+```
+
+7. **Commit and PR** following conventional commit format:
+```
+feat(dx): add .editorconfig for cross-editor consistency
+```
+
+### Alignment with Existing Tools
+
+| Concern | `.editorconfig` | `.gitattributes` | ruff/black |
+| --------- | ----------------- | ------------------- | ------------ |
+| Line endings | `end_of_line = lf` | `* text=auto eol=lf` | N/A |
+| Python indent | `indent_size = 4` | N/A | Enforced |
+| YAML indent | `indent_size = 2` | N/A | N/A |
+| Trailing whitespace | `trim_trailing_whitespace` | N/A | Python only |
+| Final newline | `insert_final_newline` | N/A | Python only |
+
+`.editorconfig` is complementary — it configures the editor *before* you type, while linters/formatters fix *after* you save. `.gitattributes` normalizes at the git layer.
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| N/A | Direct approach worked | N/A | Adding .editorconfig is straightforward — no gotchas encountered |
+
+## Results & Parameters
+
+**Session outcome**: PR #1556 created in ProjectScylla
+
+**Template covers**: Python (4-space), YAML (2-space), JSON/TOML (2-space), shell (2-space), Dockerfile (4-space), Markdown (preserve trailing whitespace)
+
+**Pre-commit result**: All hooks passed (most skipped as not applicable to `.editorconfig` file type)
+
+**Relationship to other skills**:
+- Pair with `gitattributes-setup` for complete cross-platform + cross-editor consistency
+- Pair with `repo-hygiene-audit-implementation` when implementing audit findings
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| ProjectScylla | Issue #1526, PR #1556 | Audit finding S13 — DX section |
+
+---
+
+
+## Superseded from review-rubric-exempt-toolchain-forced-churn
+
+**Original date:** 2026-06-05 &nbsp;&nbsp; **Original version:** 1.0.0
+
+```yaml
+name: review-rubric-exempt-toolchain-forced-churn
+description: "Use when: (1) an automated PR-review agent flags lint/formatter/pre-commit-driven incidental changes as scope creep or YAGNI, (2) designing or fixing a code-review rubric's scope/YAGNI dimension, (3) a reviewer demands removal of whitespace/import-sort/mypy-annotation churn that the toolchain forced, (4) distinguishing toolchain-forced churn from author-chosen opportunistic work in review prompts"
+category: tooling
+date: 2026-06-05
+version: "1.0.0"
+user-invocable: false
+verification: verified-ci
+tags: [pr-review, rubric, yagni, scope-creep, pre-commit, lint, automation, review-agent]
+```
+
+
+# Exempting Toolchain-Forced Churn from PR-Review Scope/YAGNI Rubrics
+
+## Overview
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-06-05 |
+| **Objective** | Stop automated PR-review rubrics from flagging linter/formatter/pre-commit-forced incidental churn as scope creep, while still catching author-chosen opportunistic work |
+| **Outcome** | Added an intent-based carve-out to all three composable scope/YAGNI rubric blocks; TDD tests assert both the carve-out and retained scope-creep detection |
+| **Verification** | verified-ci (shipped in HomericIntelligence/ProjectHephaestus#1019, closes #1017; CI green) |
+
+## When to Use
+
+- An automated PR-review agent flags lint/formatter/pre-commit-driven incidental changes as scope creep or YAGNI
+- You are designing or fixing a code-review rubric's scope or YAGNI dimension
+- A reviewer (human or agent) demands removal of whitespace, import-sort, trailing-newline, or mypy-annotation churn that the toolchain *forced* in order to land a change
+- You need to distinguish toolchain-forced churn from author-chosen opportunistic work in review prompts
+- A scope rule is duplicated across multiple per-stage rubrics and they disagree after a partial fix
+
+## Verified Workflow
+
+### Quick Reference
+
+```bash
+# 1. Find every place the scope/YAGNI rule lives (it is usually duplicated)
+grep -nE 'scope creep|opportunistic|changed-lines|formatting churn|YAGNI' \
+    hephaestus/automation/prompts/_strict_rubric.py
+
+# 2. The three composable blocks that must ALL agree:
+#    _SEVEN_PRINCIPLES_DIMENSIONS   -> P2/YAGNI block (shared: plan, plan-loop, impl-loop, PR)
+#    _PR_STRICT_RUBRIC_DIMENSIONS   -> D2 "changed-lines-only"
+#    _IMPL_LOOP_STRICT_RUBRIC       -> dimension 6 "Diff scope"
+
+# 3. RED first: add tests asserting carve-out present AND scope-creep detection retained
+grep -nE 'pre-commit|toolchain|opportunistic|dependency bumps' tests/unit/automation/test_prompts.py
+
+# 4. Add the SAME intent-based carve-out to all three blocks (anchor phrases below)
+
+# 5. GREEN: rubric tests pass
+pixi run pytest tests/unit/automation/test_prompts.py -v
+```
+
+### Detailed Steps
+
+1. **Locate every copy of the scope rule.** A scope/YAGNI rule that feeds multiple
+   per-stage rubrics is almost always duplicated. In ProjectHephaestus it lived in
+   THREE blocks inside `hephaestus/automation/prompts/_strict_rubric.py`:
+   - `_SEVEN_PRINCIPLES_DIMENSIONS` — the P2/YAGNI block, shared by the plan,
+     plan-loop, impl-loop, and PR rubrics.
+   - `_PR_STRICT_RUBRIC_DIMENSIONS` — D2 "changed-lines-only".
+   - `_IMPL_LOOP_STRICT_RUBRIC` — dimension 6 "Diff scope" (the most explicit; it
+     literally said to flag "formatting churn in untouched files").
+
+   The original P2/YAGNI text was: *"Every diff hunk must map to a stated requirement
+   in THIS issue. Flag scope creep, opportunistic refactors..."* — with NO carve-out.
+
+2. **Write the carve-out as an intent test, not a size test.** The dividing line is
+   *who chose the change*, not how big it is:
+   - **ACCEPTABLE (do NOT flag, stay silent):** toolchain-FORCED incidental churn —
+     formatter/whitespace normalization, import sorting, trailing-newline fixes, type
+     annotations required to pass mypy, and other lint/pre-commit auto-fixes — on
+     files the change already touches.
+   - **STILL FLAG:** author-CHOSEN work — opportunistic refactors, unrelated rewrites,
+     "while we're here" features, dependency bumps that weren't asked for, new config
+     knobs without a consumer.
+   - **Key principle:** *"The test is intent, not size: churn the toolchain requires
+     is fine; churn the author chose is a finding."*
+
+3. **Apply the carve-out to all three blocks so they agree.** Fixing only the shared
+   `_SEVEN_PRINCIPLES` P2 block is insufficient: the per-stage `_IMPL_LOOP_STRICT_RUBRIC`
+   and `_PR_STRICT_RUBRIC_DIMENSIONS` copies still said "flag formatting churn", and a
+   per-stage copy overrides the shared carve-out for that stage. Every block that
+   restates the scope rule must restate the carve-out.
+
+4. **Use stable anchor phrases.** Write the carve-out around robust substrings —
+   `pre-commit`, `toolchain`, `opportunistic`, `dependency bumps that weren't asked for`
+   — so tests assert on durable anchors rather than brittle full sentences that break
+   on minor rewording.
+
+5. **TDD both directions.** Add tests in `tests/unit/automation/test_prompts.py` that
+   assert BOTH:
+   - the carve-out language is present (toolchain/pre-commit churn is exempt), AND
+   - genuine scope-creep detection is retained (e.g. "opportunistic",
+     "dependency bumps that weren't asked for").
+
+   Asserting both prevents over-correcting into a rubric so permissive it flags nothing.
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+|---------|----------------|---------------|----------------|
+| Flag every diff hunk not in the issue | P2/YAGNI rule said "Every diff hunk must map to a stated requirement in THIS issue. Flag scope creep, opportunistic refactors..." with no exception | Punished lint-forced churn; the agent generated false-positive review comments demanding removal of CI-required edits (e.g. PR #1015 inline comment r3366637812 flagged a whitespace-normalization edit as P2/YAGNI scope creep) | Carve out toolchain-forced incidental churn explicitly; an unbounded "flag everything" rule fights the linter |
+| Fix only the shared `_SEVEN_PRINCIPLES` P2 block | Added the carve-out to the shared constant only | The impl-loop dimension 6 and PR D2 per-stage copies still said "flag formatting churn", so the carve-out didn't fully take for those stages | A per-stage copy overrides the shared rule; update all three blocks so they agree |
+| Test on full-sentence rubric text | Assert exact carve-out sentence in tests | Minor rewording of the prompt broke the test even when behavior was correct | Assert on stable anchor substrings (pre-commit, toolchain, opportunistic), not whole sentences |
+| Soften the rule wholesale | Loosen scope language to stop the false positive | Risked a rubric that flags nothing — opportunistic refactors and unasked dependency bumps would slip through | Distinguish intent (toolchain-forced vs author-chosen); keep scope-creep detection and test for it |
+
+## Results & Parameters
+
+### Applied to issue #1017 (PR #1019)
+
+**Files changed**:
+- `hephaestus/automation/prompts/_strict_rubric.py` — carve-out added to all three
+  scope/YAGNI blocks:
+  - `_SEVEN_PRINCIPLES_DIMENSIONS` (P2/YAGNI block)
+  - `_PR_STRICT_RUBRIC_DIMENSIONS` (D2 "changed-lines-only")
+  - `_IMPL_LOOP_STRICT_RUBRIC` (dimension 6 "Diff scope")
+- `tests/unit/automation/test_prompts.py` — tests asserting the carve-out is present
+  AND scope-creep detection is retained.
+
+**The carve-out wording**:
+- ACCEPTABLE (do NOT flag, stay silent): toolchain-FORCED incidental churn —
+  formatter/whitespace normalization, import sorting, trailing-newline fixes, type
+  annotations required to pass mypy, lint/pre-commit auto-fixes — on files the change
+  already touches.
+- STILL FLAG: author-CHOSEN work — opportunistic refactors, unrelated rewrites,
+  "while we're here" features, dependency bumps that weren't asked for, new config
+  knobs without a consumer.
+- Key principle: *"The test is intent, not size: churn the toolchain requires is fine;
+  churn the author chose is a finding."*
+
+### Key Insights
+
+1. When a shared rubric constant feeds multiple per-stage rubrics, fix the shared block
+   AND each stage's own scope dimension so they agree — otherwise the per-stage copy
+   overrides the shared carve-out.
+2. Use STABLE ANCHOR phrases (`pre-commit`, `toolchain`, `opportunistic`) in rubric text
+   so tests assert on robust substrings, not brittle full sentences.
+3. TDD both directions: assert the carve-out language is present AND genuine
+   scope-creep detection (e.g. "dependency bumps that weren't asked for",
+   "opportunistic") is retained — this prevents over-correcting into a rubric that
+   flags nothing.
+
+### Verification Commands
+
+```bash
+# Carve-out anchors present in all three blocks
+grep -cE 'pre-commit|toolchain' hephaestus/automation/prompts/_strict_rubric.py
+# >= 3 (one per block)
+
+# Scope-creep detection retained
+grep -nE "opportunistic|dependency bumps that weren't asked for" \
+    hephaestus/automation/prompts/_strict_rubric.py
+
+# Rubric tests pass (RED -> GREEN)
+pixi run pytest tests/unit/automation/test_prompts.py -v
+```
+
+### References
+
+- ProjectHephaestus issue #1017 (problem report)
+- ProjectHephaestus PR #1019 (fix; closes #1017; CI green)
+- ProjectHephaestus PR #1015 inline comment r3366637812 (original false-positive example)
+
+---
