@@ -1,0 +1,831 @@
+<!-- markdownlint-disable MD024 -->
+# adr-authoring-indexing-and-maintenance — History
+
+## v1.0.0 (2026-06-07)
+
+Merged the following 5 skills into this canonical:
+
+- doc-generate-adr
+- adr-index-entry
+- adr-status-deferred-update
+- consolidate-duplicate-adr-references
+- adr-directory-tree-accuracy
+
+## Superseded from doc-generate-adr
+
+**Original date:** 2025-12-30
+**Original version:** 1.0.0
+
+```yaml
+name: doc-generate-adr
+description: Generate Architecture Decision Records (ADRs) to document significant
+  architectural decisions
+category: architecture
+date: 2025-12-30
+version: 1.0.0
+```
+
+# Generate Architecture Decision Records
+
+Create Architecture Decision Records for technical decisions.
+
+## Overview
+
+| Date | Objective | Outcome |
+| ------ | ----------- | --------- |
+| 2025-12-30 | Standardized architectural documentation | Consistent, traceable technical decisions |
+
+## When to Use
+
+- (1) Making significant architectural decisions
+- (2) Choosing between technical alternatives
+- (3) Documenting design trade-offs
+- (4) Recording rationale for future reference
+
+## Verified Workflow
+
+1. **Identify decision** - What choice needs documentation?
+2. **Research alternatives** - Gather evidence and performance data
+3. **Create ADR** - Run script or manually create file
+4. **Fill sections** - Context, Decision, Rationale, Consequences, Alternatives
+5. **Review** - Get team approval
+6. **Update status** - Change from "Proposed" to "Accepted"
+
+## Results
+
+Copy-paste ready commands:
+
+```bash
+# Create new ADR (if script available)
+./scripts/create_adr.sh "Decision Title"
+
+# Manual creation
+mkdir -p docs/adr
+cat > docs/adr/ADR-XXX-decision-title.md << 'EOF'
+# ADR-XXX: Decision Title
+
+**Status**: Proposed
+**Date**: $(date +%Y-%m-%d)
+**Deciders**: [Names/roles]
+
+## Context
+What is the issue we're facing?
+
+## Decision
+What decision are we making?
+
+## Rationale
+Why this decision? Key reasons.
+
+## Consequences
+### Positive
+- Benefit 1
+
+### Negative
+- Drawback 1
+
+## Alternatives Considered
+### Alternative 1
+Why not chosen.
+EOF
+```
+
+### ADR Format Template
+
+```markdown
+# ADR-XXX: Title
+
+**Status**: Proposed | Accepted | Deprecated | Superseded
+**Date**: YYYY-MM-DD
+**Deciders**: Names/roles
+
+## Context
+What is the issue we're facing?
+
+## Decision
+What decision are we making?
+
+## Rationale
+Why this decision? Key reasons.
+
+## Consequences
+### Positive
+- Benefit 1
+
+### Negative
+- Drawback 1
+
+### Neutral
+- Other impact 1
+
+## Alternatives Considered
+### Alternative 1
+Why not chosen.
+```
+
+### Status Lifecycle
+
+- **Proposed** - Under consideration
+- **Accepted** - Decision made and active
+- **Deprecated** - No longer recommended
+- **Superseded** - Replaced by newer ADR
+
+## Results & Parameters
+
+Copy-paste ready configurations and expected outputs.
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| N/A | Direct approach worked | N/A | Solution was straightforward |
+## Error Handling
+
+| Problem | Solution |
+| --------- | ---------- |
+| Missing context | Add background and constraints |
+| Unclear decision | Make decision more specific |
+| Missing alternatives | Document at least 2 alternatives |
+| No consequences | Think through positive and negative impacts |
+
+## References
+
+- See existing ADRs in `/docs/adr/` for examples
+- Related skill: doc-validate-markdown for markdown validation
+
+---
+
+## Superseded from adr-index-entry
+
+**Original date:** 2026-03-05
+**Original version:** 1.0.0
+
+```yaml
+name: adr-index-entry
+description: 'Add a missing ADR entry to the ADR index table in docs/adr/README.md.
+  Use when: an ADR file exists but is not listed in the index table.'
+category: documentation
+date: 2026-03-05
+version: 1.0.0
+user-invocable: false
+```
+
+# Skill: adr-index-entry
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| Date | 2026-03-05 |
+| Objective | Add a missing ADR entry to the ADR index table in `docs/adr/README.md` |
+| Outcome | Success — one-line table row added, pre-commit passed, PR #3338 created |
+| Category | documentation |
+
+## When to Use
+
+Use this skill when:
+
+- An ADR file exists under `docs/adr/` but its row is absent from the `## ADR Index` table in `docs/adr/README.md`
+- A quality audit or GitHub issue flags a missing ADR index entry (complexity: S)
+- A new ADR was merged without the author updating the index table
+
+## Verified Workflow
+
+### 1. Read the ADR file to get the canonical title, status, and date
+
+```bash
+head -10 docs/adr/ADR-NNN-<slug>.md
+```
+
+Extract:
+- `**Status**:` line → status value (e.g., `Accepted`)
+- `**Date**:` line → date value (e.g., `2025-12-30`)
+- First `# ADR-NNN: ...` heading → title after the colon
+
+### 2. Read the current README index to find the insertion point
+
+```bash
+cat docs/adr/README.md
+```
+
+Identify the last row in the `## ADR Index` table. The new row goes immediately after it,
+maintaining ascending ADR number order.
+
+### 3. Edit README.md to add the row
+
+Use the Edit tool with the exact last row as `old_string` and append the new row:
+
+```markdown
+| [ADR-NNN](ADR-NNN-<slug>.md) | <Title> | <Status> | <Date> |
+```
+
+The row format is: `| [ADR-NNN](filename.md) | Title | Status | YYYY-MM-DD |`
+
+### 4. Run pre-commit to verify
+
+```bash
+pixi run pre-commit run --all-files
+```
+
+Confirm `Markdown Lint` passes. GLIBC-related mojo errors in stderr are non-blocking —
+they appear because the mojo binary requires a newer GLIBC than the host system provides,
+but the relevant hooks (markdownlint, ruff, yaml, etc.) still run and pass.
+
+### 5. Commit, push, create PR
+
+```bash
+git add docs/adr/README.md
+git commit -m "docs(adr): add ADR-NNN to README index
+
+ADR-NNN-<slug>.md existed but was missing from the ADR index table.
+
+Closes #<issue-number>"
+
+git push -u origin <branch>
+gh pr create --title "docs(adr): add ADR-NNN to README index" \
+  --body "Closes #<issue-number>"
+gh pr merge --auto --rebase
+```
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| N/A | Task completed on first attempt | N/A | Read the ADR file first to get exact title/status/date — do not guess from the filename |
+
+## Results & Parameters
+
+| Parameter | Value |
+| ----------- | ------- |
+| File changed | `docs/adr/README.md` |
+| Lines changed | 1 inserted |
+| Pre-commit hooks | All passed (Markdown Lint, ruff, yaml, trailing-whitespace) |
+| PR | https://github.com/HomericIntelligence/ProjectOdyssey/pull/3338 |
+| Issue | #3150 |
+| Branch | `3150-auto-impl` |
+| Time to complete | ~2 minutes |
+
+## Key Insights
+
+1. **Verify title/status/date from the ADR file itself**: The issue description says "(Verify the actual title and date from the ADR file itself)" — always read the ADR rather than trusting the issue body or filename.
+
+2. **GLIBC errors are non-blocking**: On older Debian hosts, mojo format hooks emit GLIBC version errors to stderr but pre-commit still reports `Passed` for all relevant hooks. Do not treat these as failures.
+
+3. **Single-line edit is sufficient**: These index updates are always exactly one table row — no surrounding context changes needed. Use the Edit tool with the previous last row as `old_string` and append the new row.
+
+### Session Notes (adr-index-entry)
+
+**Date**: 2026-03-05
+**Issue**: ProjectOdyssey #3150 — [P2-1] Add missing entry to docs/adr/README.md index
+**Branch**: `3150-auto-impl`
+**PR**: https://github.com/HomericIntelligence/ProjectOdyssey/pull/3338
+
+What Happened:
+
+1. Read `.claude-prompt-3150.md` — issue was to add a missing ADR row to `docs/adr/README.md`
+2. Ran parallel reads of both files:
+   - `docs/adr/ADR-NNN-heap-corruption-workaround.md` → title: "Heap Corruption Workaround for Mojo Runtime Bug", status: Accepted, date: 2025-12-30
+   - `docs/adr/README.md` → last row was ADR-008, table ends at line 26
+3. Used Edit tool to append the new ADR row after ADR-008
+4. Ran `pixi run pre-commit run --all-files` — GLIBC errors in stderr but all hooks passed
+5. Committed with conventional commit format `docs(adr): add ADR entry to README index`
+6. Pushed and created PR #3338 with `gh pr create`
+7. Enabled auto-merge with `gh pr merge --auto --rebase`
+
+Environment Notes:
+
+- Host: Debian 5.10 (GLIBC 2.31) — mojo binary requires GLIBC 2.32+
+- Mojo hooks emit errors to stderr but pre-commit treats them as passed
+- `just` command not available directly; use `pixi run pre-commit run --all-files`
+
+Total wall time: ~2 minutes (read → edit → verify → commit → push → PR)
+
+---
+
+## Superseded from adr-status-deferred-update
+
+**Original date:** 2026-03-05
+**Original version:** 1.0.0
+
+```yaml
+name: adr-status-deferred-update
+description: 'Update ADR status to Accepted (Deferred) when implementation is bypassed
+  pending platform support. Use when: ADR is marked Accepted but code explicitly bypasses
+  the design, or a known platform limitation prevents activation.'
+category: documentation
+date: 2026-03-05
+version: 1.0.0
+user-invocable: false
+```
+
+## Overview
+
+| Attribute | Value |
+| ----------- | ------- |
+| Category | documentation |
+| Trigger | ADR status says Accepted but implementation uses a bypass (e.g., `# Temporary: Direct malloc`) |
+| Root Cause | Status label was set at design time and not updated when implementation deferred activation |
+| Fix | Change status to `Accepted (Deferred)` in both header and Document Metadata section |
+
+## When to Use
+
+- An ADR has `**Status**: Accepted` but the implementation explicitly bypasses the architecture
+- The bypass comment references a known platform gap (e.g., Mojo global variable support, missing stdlib feature)
+- The underlying design decision is still valid — only the _active status_ is incorrect
+- A PR or issue flags the discrepancy between ADR status and code reality
+
+## Verified Workflow
+
+1. **Read the ADR** to confirm it has both a header status and a Document Metadata status:
+
+   ```text
+   **Status**: Accepted          ← line ~3 (header)
+   ...
+   - **Status**: Accepted        ← line ~301 (Document Metadata section)
+   ```
+
+2. **Use `replace_all: true`** in the Edit tool to update both occurrences in one operation:
+
+   ```
+   old_string: **Status**: Accepted
+   new_string: **Status**: Accepted (Deferred)
+   replace_all: true
+   ```
+
+3. **Verify both locations were updated** by reading the file at the header and tail.
+
+4. **Run markdownlint** to confirm no formatting regressions:
+
+   ```bash
+   pixi run pre-commit run markdownlint-cli2 --files docs/adr/<adr-file>.md
+   ```
+
+   Note: Use `pixi run pre-commit run markdownlint-cli2 --files <file>`, NOT
+   `pixi run npx markdownlint-cli2` (npx may not be available in all environments).
+
+5. **Commit with conventional commit format**:
+
+   ```bash
+   git commit -m "docs(adr): update ADR-NNN status to Accepted (Deferred)"
+   ```
+
+6. **Create PR** linked to the tracking issue and enable auto-merge.
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| `just pre-commit-all` | Ran `just pre-commit-all` to validate markdown | `just` not available in the worktree shell environment | Use `pixi run pre-commit run markdownlint-cli2 --files <file>` instead |
+| `pixi run npx markdownlint-cli2` | Ran markdownlint via npx | `npx` not available in the pixi environment | Use `pixi run pre-commit run markdownlint-cli2 --files <file>` — pre-commit has the tool |
+| Single Edit without `replace_all` | Edited only the header status field | ADR has two status locations (header + Document Metadata); only one was updated | Use `replace_all: true` to catch all occurrences in one edit |
+
+## Results & Parameters
+
+### Correct Edit Command
+
+```text
+Tool: Edit
+file_path: docs/adr/ADR-NNN-<name>.md
+old_string: **Status**: Accepted
+new_string: **Status**: Accepted (Deferred)
+replace_all: true
+```
+
+### Correct Lint Command
+
+```bash
+# Works in pixi-managed environments (does NOT require npx or just)
+pixi run pre-commit run markdownlint-cli2 --files docs/adr/<adr-file>.md
+```
+
+### Commit Message Pattern
+
+```bash
+git commit -m "docs(adr): update ADR-NNN status to Accepted (Deferred)
+
+<Brief explanation of what the bypass is and why it is deferred>
+
+Closes #<issue-number>"
+```
+
+### When the ADR Already Has a "Current Limitation" Section
+
+If the ADR body already documents the bypass (e.g., has a "Current Limitation" or "Known Limitation"
+section with the bypass code), only the status label needs changing — no body edits required.
+The existing limitation section is sufficient context.
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| ProjectOdyssey | Issue #3151, PR #3339 | ADR-003 memory pool bypassed pending Mojo global state support |
+
+### Session Notes (ADR-003 Status Update)
+
+- **Date**: 2026-03-05
+- **Issue**: ProjectOdyssey #3151
+- **PR**: ProjectOdyssey #3339
+- **Branch**: `3151-auto-impl`
+
+Objective: Update `docs/adr/ADR-003-memory-pool-architecture.md` status from `Accepted` to
+`Accepted (Deferred)` to reflect that `pooled_alloc()`/`pooled_free()` bypass the
+memory pool via direct `malloc`/`free`, pending Mojo global variable support.
+
+File Changed: `docs/adr/ADR-003-memory-pool-architecture.md`
+
+- Line 3: `**Status**: Accepted` → `**Status**: Accepted (Deferred)`
+- Line 301: `- **Status**: Accepted` → `- **Status**: Accepted (Deferred)` (Document Metadata)
+
+Key Observations:
+
+1. ADR had status in two places — the header (line 3) and the Document Metadata section
+   (line ~301). Using `replace_all: true` on Edit updated both in one operation.
+2. The ADR body already had a "Current Limitation" section (lines 97-111) that documented
+   the bypass and explained the Mojo global state constraint. Only the status label was wrong.
+3. `just` was not available in the worktree shell. `pixi run npx markdownlint-cli2` also
+   failed. The working command was `pixi run pre-commit run markdownlint-cli2 --files <file>`.
+4. Markdownlint passed on first try — the change was purely a label update, no formatting impact.
+
+Environment: bash worktree; pixi; pre-commit via pixi; `just` and `npx` not available.
+
+---
+
+## Superseded from consolidate-duplicate-adr-references
+
+**Original date:** 2026-03-07
+**Original version:** 1.0.0
+
+```yaml
+name: consolidate-duplicate-adr-references
+description: 'Consolidate duplicate inline comments or docstring Notes into a single
+  ADR, then replace each duplicate with a short cross-reference. Use when: two or
+  more functions have nearly identical limitation comments, or an issue asks to reduce
+  maintenance burden by centralizing a workaround note in an ADR.'
+category: documentation
+date: 2026-03-07
+version: 1.0.0
+user-invocable: false
+```
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Purpose** | Replace duplicate inline limitation comments with a single ADR + concise cross-references |
+| **Trigger** | Follow-up issue requesting ADR consolidation of a workaround documented in multiple places |
+| **Scope** | Any language; illustrated with Mojo `.mojo` files and `docs/adr/` directory |
+| **Output** | New ADR file, updated ADR index, shortened inline comments pointing to the ADR |
+
+## When to Use
+
+- A GitHub issue says "consider a single shared ADR instead of cross-referencing between two function docstrings"
+- Two or more functions contain nearly identical `# NOTE:` or `Note:` blocks describing the same limitation/workaround
+- A follow-up from a PR asks to make a limitation "easier to update" when the underlying constraint is resolved
+- An audit finds that updating a limitation note requires editing multiple files
+
+## Verified Workflow
+
+1. **Read the issue and its plan** to confirm scope:
+
+   ```bash
+   gh issue view <number> --comments
+   ```
+
+2. **Locate all duplicate comment blocks** with Grep before editing anything:
+
+   ```
+   Grep pattern="NOTE.*<keyword>" glob="**/*.mojo" output_mode="content"
+   ```
+
+3. **Check the next ADR number** and read existing ADR structure:
+
+   ```bash
+   ls docs/adr/
+   ```
+
+   Read one recent ADR to match structure — Status, Date, Issue Reference,
+   Executive Summary, Context, Decision, Rationale, Consequences, Alternatives, Implementation
+   Plan, References, Revision History, Document Metadata.
+
+4. **Create the ADR** at `docs/adr/ADR-NNN-<kebab-name>.md`. Key sections to fill:
+
+   - **Executive Summary**: One paragraph — what the limitation is and what workaround is used
+   - **Context / Key Findings**: Bullet list of compiler/runtime facts discovered
+   - **Decision**: The workaround approach (e.g., scalar loop, file split, etc.)
+   - **Consequences**: Performance or maintenance impact (quantify if known)
+   - **Alternatives Considered**: Include "keep duplicate comments" as an alternative and explain why rejected
+   - **Supersession Criteria**: Explicit conditions under which this ADR becomes Superseded
+   - **Implementation Plan**: Check boxes — mark Phase 1 (consolidation) complete
+
+5. **Update `docs/adr/README.md`** — add one row to the index table:
+
+   ```markdown
+   | [ADR-NNN](ADR-NNN-<name>.md) | <Title> | Accepted | YYYY-MM-DD |
+   ```
+
+6. **Edit source files** — replace each verbose block with 2–3 lines:
+
+   ```mojo
+   # <Short description of limitation>; using <workaround>.
+   # See docs/adr/ADR-NNN-<name>.md for rationale.
+   ```
+
+   Also update any inline body comments that cross-reference the sibling function
+   (e.g., "see convert_to_fp32_master docstring") to reference the ADR directly instead.
+
+7. **Run pre-commit**:
+
+   ```bash
+   pixi run pre-commit run --all-files
+   ```
+
+   Watch for markdown line-length violations (MD013, 120-char limit). URLs in list items
+   are NOT automatically exempt — wrap the line if the link text + URL exceeds 120 chars.
+
+8. **Commit, push, and open PR**:
+
+   ```bash
+   git add docs/adr/ADR-NNN-<name>.md docs/adr/README.md <source-files>
+   git commit -m "docs(adr): add ADR-NNN for <topic>\n\nCloses #<number>"
+   git push -u origin <branch>
+   gh pr create --title "docs(adr): add ADR-NNN for <topic>" --body "Closes #<number>" --label documentation
+   gh pr merge --auto --rebase
+   ```
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| Manual `npx markdownlint-cli2` | Ran `pixi run npx markdownlint-cli2 <file>` to lint ADR before committing | `npx: command not found` even inside pixi environment | Use `pixi run pre-commit run --all-files` instead — it invokes markdownlint correctly |
+| Long URL list item on one line | Put `[Issue #NNN](https://...): description text (this ADR)` on one line | MD013 fired: line was 138 chars (limit 120) | Wrap after the closing `)` of the URL: `[Issue #NNN](https://...):↵  description text` |
+| Referencing sibling function in comment | Left "see sibling_fn() for details" in inline comment instead of pointing to ADR | Defeats the purpose — still requires navigating to another function | Update ALL cross-references to point directly to the new ADR path |
+
+## Results & Parameters
+
+**ADR file naming**: `docs/adr/ADR-NNN-<kebab-description>.md`
+(NNN = next integer after highest existing ADR)
+
+**Replacement comment pattern** (2–3 lines max):
+
+```mojo
+# <Limitation summary>; using <workaround>.
+# See docs/adr/ADR-NNN-<name>.md for rationale.
+```
+
+**Docstring Note replacement** (keep the `Note:` label, shorten body):
+
+```
+Note:
+    <Limitation> uses <workaround> (~Xx slower than optimized path).
+    See docs/adr/ADR-NNN-<name>.md for full rationale.
+```
+
+**Markdown line-length fix** for long issue links:
+
+```markdown
+- [Issue #NNN](https://github.com/Org/Repo/issues/NNN):
+  Description text that would have exceeded 120 chars
+```
+
+**Pre-commit command** (works in ProjectOdyssey with pixi):
+
+```bash
+pixi run pre-commit run --all-files
+```
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| ProjectOdyssey | Issue #3291 — FP16 SIMD limitation | [notes.md](../references/notes.md) |
+
+### Session Notes (consolidate-duplicate-adr-references)
+
+- **Date**: 2026-03-07
+- **Project**: ProjectOdyssey
+- **Issue**: #3291 — Consolidate duplicate FP16 SIMD limitation references
+- **Branch**: 3291-auto-impl
+- **PR**: #3886
+
+Objective: Issue #3291 was a follow-up from #3072. After the FP16 SIMD scalar workaround was implemented
+in `convert_to_fp32_master()` and `update_model_from_master()`, both functions contained
+nearly identical multi-line `# NOTE:` comment blocks. The issue asked whether a single ADR
+would be cleaner than cross-referencing between two function docstrings.
+
+Steps Taken:
+
+1. Read `gh issue view 3291 --comments` — full implementation plan was already posted as a
+   comment, specifying exact lines to change and ADR structure to follow.
+2. Read existing ADR files to match structure (heap corruption workaround ADR; README.md index).
+3. Read `shared/training/mixed_precision.mojo` around lines 239–360 to see the exact comment blocks.
+4. Created `docs/adr/ADR-010-fp16-simd-mojo-limitation.md` with full ADR structure.
+5. Added ADR-010 row to `docs/adr/README.md` index table.
+6. Edited `convert_to_fp32_master()` docstring: replaced 6-line `Note:` block with 3-line version pointing to ADR-010.
+7. Edited `update_model_from_master()` body comment: changed "see sibling function" to "see ADR-010".
+8. Also updated the inline body comment in `convert_to_fp32_master()` body (line 288) from "see docstring Note" to "see ADR-010".
+9. Ran `pixi run pre-commit run --all-files` — got MD013 error on line 198 of ADR (138 chars).
+10. Fixed by wrapping the long issue link.
+11. Committed, pushed, created PR #3886, enabled auto-merge.
+
+Exact Files Changed:
+
+- `docs/adr/ADR-010-fp16-simd-mojo-limitation.md` — created (new file)
+- `docs/adr/README.md` — added 1 row to index table
+- `shared/training/mixed_precision.mojo` — 3 comment edits (2 inline body, 1 docstring Note)
+
+Pitfalls Encountered:
+
+- MD013 line-length violation on issue link — `pixi run npx markdownlint-cli2` fails with `npx: command not found`; use `pixi run pre-commit run --all-files`; issue links in bullet lists are NOT exempt from MD013 — wrap after the closing `)` of the URL.
+- Background task confusion — tried `pixi run npx markdownlint-cli2` as a background task first; failure was benign (command not found, not a linting error).
+
+---
+
+## Superseded from adr-directory-tree-accuracy
+
+**Original date:** 2026-03-07
+**Original version:** 1.0.0
+
+```yaml
+name: adr-directory-tree-accuracy
+description: 'Update ADR directory tree listings to reflect actual filesystem contents
+  after file deletions or additions. Use when: (1) a file is deleted/added but the
+  ADR still shows the old listing, (2) a GitHub issue requests verifying helpers/tests
+  directories are accurately documented, (3) an ADR directory tree shows only a subset
+  of the files actually present.'
+category: documentation
+date: 2026-03-07
+version: 1.0.0
+user-invocable: false
+```
+
+# Skill: adr-directory-tree-accuracy
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| Date | 2026-03-07 |
+| Objective | Update ADR-004 directory tree to reflect actual `tests/helpers/` contents after `gradient_checking.mojo` was deleted in a prior PR |
+| Outcome | Success — single-file listing replaced with accurate 5-file listing, PR #3820 created and auto-merge enabled |
+| Category | documentation |
+
+## When to Use
+
+Use this skill when:
+
+- A file is deleted or added in a PR but the ADR directory tree was not updated alongside that change
+- A follow-up issue (e.g., "verify helpers directory" or "clean up after stub deletion") asks you to check whether documentation reflects reality
+- `grep` finds a directory tree in an ADR that lists fewer files than `ls` shows on disk
+- An issue describes the directory as "possibly empty" or "needing verification" when it actually still contains active files
+
+## Verified Workflow
+
+### 1. Read the issue and confirm the actual state
+
+```bash
+gh issue view <number> --comments
+ls tests/helpers/     # or the relevant directory
+```
+
+Key check: verify whether the deletion actually happened (the file may already be gone from a prior PR).
+
+### 2. Find the stale ADR reference
+
+```bash
+grep -n "helpers\|<deleted-file>" docs/adr/ADR-*.md
+```
+
+Identify which ADR contains the directory tree and which line needs updating.
+
+### 3. Compare ADR listing vs. actual filesystem
+
+Read the ADR section around the directory tree, then cross-reference with `ls`.
+Look for:
+
+- Files listed in the ADR that no longer exist (phantom references)
+- Files that exist on disk but are missing from the ADR listing (incomplete listing)
+
+### 4. Update the directory tree
+
+Use the Edit tool to replace the stale listing with an accurate one.
+Match the tree format already used in the ADR (ASCII tree with `├──` / `└──` connectors and trailing comments).
+
+Example replacement:
+
+**Before:**
+```text
+└── helpers/
+    └── fixtures.mojo                     # Test fixtures
+```
+
+**After:**
+```text
+└── helpers/
+    ├── __init__.mojo                     # Package re-exports
+    ├── fixtures.mojo                     # Test fixture utilities
+    ├── utils.mojo                        # Tensor debugging utilities
+    ├── test_fixtures.mojo                # Self-tests for fixtures.mojo
+    └── test_utils.mojo                   # Self-tests for utils.mojo
+```
+
+### 5. Validate with markdownlint
+
+```bash
+pixi run pre-commit run markdownlint-cli2 --files docs/adr/ADR-*.md
+```
+
+### 6. Commit and create PR
+
+```bash
+git add docs/adr/ADR-<N>-<name>.md
+git commit -m "docs(adr): update ADR-<N> <section> directory tree to reflect active files"
+git push -u origin <branch>
+gh pr create --title "docs(adr): update ADR-<N> <section> directory tree to reflect active files" \
+  --body "Closes #<issue>" --label "documentation"
+gh pr merge --auto --rebase
+```
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| Searching for `gradient_checking` in ADR-004 | Used `grep` to find stale reference to deleted file | No matches — file was already deleted from ADR in a prior PR | Always check both the filesystem AND the ADR independently; the issue may describe a state that has already been partially fixed |
+| Looking for "Related Files" section at a specific line | Issue description referenced line 326 as the location of a stale entry | The line number referenced an earlier state of the file | Don't rely on line numbers from issue descriptions; grep for the actual pattern instead |
+
+## Results & Parameters
+
+| Parameter | Value |
+| ----------- | ------- |
+| Files changed | `docs/adr/ADR-004-testing-strategy.md` |
+| Lines changed | 1 removed, 5 added |
+| Pre-commit hooks | All passed (markdownlint, trailing whitespace, end-of-file) |
+| PR | https://github.com/HomericIntelligence/ProjectOdyssey/pull/3820 |
+| Issue | #3252 |
+| Branch | `3252-auto-impl` |
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| ProjectOdyssey | Issue #3252 follow-up from #3061 | [notes.md](../references/notes.md) |
+
+## Key Insight
+
+When an issue says "verify this directory or clean it up," the actual task is often just a
+documentation accuracy fix — not code deletion. Confirm the filesystem state first, then update
+the ADR to match. The deleted file may already be gone from both disk and the ADR; the remaining
+work is ensuring the *rest* of the directory listing is complete and accurate.
+
+### Session Notes (adr-directory-tree-accuracy)
+
+- **Date**: 2026-03-07
+- **Issue**: ProjectOdyssey #3252 — "Remove empty tests/helpers/ directory after stub deletion"
+- **Branch**: `3252-auto-impl`
+- **Follow-up from**: #3061 (which deleted `gradient_checking.mojo`)
+
+What Actually Happened: The issue title was misleading. It said "remove empty tests/helpers/ directory" but the directory
+was not empty — it contained 5 active files: `__init__.mojo`, `fixtures.mojo`, `utils.mojo`,
+`test_fixtures.mojo`, `test_utils.mojo`. The real task (per the issue description body) was to verify
+the files are actively used and update ADR-004 to reflect accurate directory contents. Since the
+files are actively used, the correct resolution was updating the ADR directory tree listing — not
+deleting any files.
+
+ADR-004 State Before Fix (line 143-144):
+
+```text
+└── helpers/
+    └── fixtures.mojo                     # Test fixtures
+```
+
+ADR-004 State After Fix:
+
+```text
+└── helpers/
+    ├── __init__.mojo                     # Package re-exports
+    ├── fixtures.mojo                     # Test fixture utilities
+    ├── utils.mojo                        # Tensor debugging utilities
+    ├── test_fixtures.mojo                # Self-tests for fixtures.mojo
+    └── test_utils.mojo                   # Self-tests for utils.mojo
+```
+
+Why `gradient_checking.mojo` Was Not In ADR: The prior PR (#3061) that deleted it had already removed
+it from ADR-004's "Related Files" section. However, the directory tree was only partially updated —
+it removed the entry but didn't expand the listing to show the other remaining files.
+
+Commands Used:
+
+```bash
+ls tests/helpers/
+grep -n "helpers\|gradient_checker\|gradient_checking" docs/adr/ADR-004-testing-strategy.md
+pixi run pre-commit run markdownlint-cli2 --files docs/adr/ADR-004-testing-strategy.md
+git add docs/adr/ADR-004-testing-strategy.md
+git commit -m "docs(adr): update ADR-004 helpers directory tree to reflect active files"
+git push -u origin 3252-auto-impl
+gh pr create --title "docs(adr): update ADR-004 helpers directory tree to reflect active files" \
+  --body "Closes #3252" --label "documentation"
+gh pr merge --auto --rebase
+```
+
+Time Taken: Under 5 minutes total — purely a documentation accuracy fix.
+
+---
