@@ -1,6 +1,10 @@
 <!-- markdownlint-disable MD024 -->
 # pr-rebase-conflict-resolution-patterns — History
 
+## v1.1.0 (2026-06-07)
+
+Restore re-sign-after-rebase nuance (nuance audit): rebasing strips GPG/SSH commit signatures, so replayed commits must be re-signed (`git rebase --exec "git commit --amend --no-edit -S --no-verify" <base>`); local `git log --format='%G?'` may show `U` even for validly-signed commits — GitHub's REST `commit.verification.verified` is authoritative. Added a `### B2. Re-sign replayed commits` subsection and a Failed Attempts row.
+
 ## v1.0.0 (2026-06-07)
 
 Merged 16 overlapping PR-rebase / conflict-resolution skills into one canonical skill:

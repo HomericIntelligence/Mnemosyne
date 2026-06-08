@@ -3,7 +3,7 @@ name: pr-rebase-conflict-resolution-patterns
 description: "Use when: (1) a PR branch is CONFLICTING or DIRTY after main advances and needs rebasing, (2) a mass rebase of 10+ PRs is needed after a major refactor causes conflicts across the queue, (3) a stacked PR goes DIRTY when its prerequisite merges and the base must be retargeted — later CI/lint fix commits on the dependent branch are orphaned and must be cherry-picked, (4) a Safety Net hook blocks git checkout --theirs / --ours during automated rebase conflict resolution, (5) a file was completely rewritten on one branch and small targeted edits exist on the other, (6) a parallel swarm produced overlapping PRs that conflict on the same paths and one must be rebased onto the other, (7) a feature PR conflicts after a sibling refactor merges and edits must be ported to the new file structure, (8) a TypeScript or other language-level shadowing bug appears only after a rebase because two branches independently added identically-named locals to the same scope, (9) numerical or optimizer PRs conflict when main merged its own version of a shared module and API signatures changed"
 category: ci-cd
 date: 2026-06-07
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 history: pr-rebase-conflict-resolution-patterns.history
 tags: [git, rebase, merge-conflict, pr, batch, stacked-pr, cherry-pick, safety-net, parallel-swarm, serial-merge-train, full-rewrite, shadow-variable, tdz, numeric-equivalence, clang-format, cmake, pixi-lock, force-with-lease, auto-merge]
@@ -100,6 +100,11 @@ git checkout --ours marketplace.json                    # main has the union; PR
 - **Force-push always clears GitHub auto-merge.** Re-arm with `gh pr merge <N> --auto --squash` immediately after every push. Enable auto-merge only AFTER the push lands the PR in MERGEABLE — CONFLICTING state ignores the flag. Dependabot branches need `git push --force` (GitHub auto-rebases them, making the lease stale).
 - `git rebase --continue` opens no editor non-interactively; it has **no `--no-edit` flag**. If the staged diff is empty use `git rebase --skip`, not `--continue`.
 
+#### B2. Re-sign replayed commits (repos requiring verified commits)
+
+- **Rebasing STRIPS GPG/SSH commit signatures** — every replayed commit becomes unsigned. On a repo that requires verified commits, a plain rebase pushes unsigned commits and the merge stalls. Re-sign all replayed commits in one pass: `git rebase --exec "git commit --amend --no-edit -S --no-verify" <base>` (e.g. `<base>` = `origin/main`).
+- **Local `git log --format='%G?'` is NOT authoritative** — it may show `U` (unknown/untrusted) even when the commit IS validly signed (e.g. the signing key isn't in the local keyring). GitHub's REST `commit.verification.verified` field is the source of truth: `gh api repos/OWNER/REPO/commits/SHA --jq .commit.verification`. Trust that over local `%G?` before re-signing or worrying a signature is broken.
+
 #### C. Conflict resolution decision table
 
 | Conflict | Resolution |
@@ -163,6 +168,7 @@ git checkout --ours marketplace.json                    # main has the union; PR
 | `git checkout --ours/--theirs/--`, `git restore`, `--hard`, `-D`, `worktree remove --force` | Standard git during rebase / cleanup | Safety Net blocks them (and can't be whitelisted) | Use `git show :2:/:3:`, `git reset --keep`, `git branch -d`, `git stash`/`mktemp -d`, escalate to main conversation |
 | `git stash` mid-rebase per Safety Net's own hint | Followed "use git stash first" with unmerged paths | git refuses to stash with unmerged paths | Mid-rebase the only safe ops are `git show :<stage>:<file>` writes or escalation |
 | Enabling auto-merge before rebasing / not re-arming after force-push | Armed `--auto` on CONFLICTING PRs; assumed it persisted | CONFLICTING ignores the flag; every force-push silently clears auto-merge | Rebase→push→THEN arm; re-arm after every force-push |
+| Pushing replayed commits without re-signing / trusting local `%G?` | Plain rebase on a verified-commits repo, then force-pushed; read `U` from `git log --format='%G?'` as "broken signature" | Rebase strips GPG/SSH signatures → unsigned replayed commits stall the merge; local `%G?` reports `U` even for validly-signed commits (key not in keyring) | Re-sign all replayed commits: `git rebase --exec "git commit --amend --no-edit -S --no-verify" <base>`; verify via GitHub REST `commit.verification.verified`, not local `%G?` |
 | `git checkout --theirs`/blind take-theirs across a rebase | Looped take-theirs at each conflict | Resolves to main-at-that-replay-step, and a PR's own later commit re-introduces a stale value (`>=1` vs main's `==0`) → hybrid tree | Conflict-resolution ≠ "make this file match main"; verify the file at the final sha and fix the stale assertion |
 | Single-step resolution for a multi-commit rebase | Assumed one conflict round | A later commit removed what an earlier one added — opposite intent | Read `git log origin/<branch>` first; resolve each commit by its message's intent |
 | Trusting auto-merge / no-conflict-markers = semantically correct | Pushed a clean rebase without type-check | Two non-overlapping edits produced a TS7022/TS2448 shadow/TDZ bug | After any rebase touching shared code, run the type-checker/linter before pushing |
