@@ -1,0 +1,1432 @@
+<!-- markdownlint-disable MD024 -->
+
+# History: mojo-type-api-migration-and-import-patterns
+
+## v1.0.0 (2026-06-07)
+
+Consolidated 5 skills into the canonical `mojo-type-api-migration-and-import-patterns`:
+
+- mojo-type-and-api-migration
+- parametric-type-migration-review
+- fix-implicitlycopyable-removal
+- architecture-mojo-import-ambiguity-alias-pattern
+- dtype-native-migration
+
+## Superseded from mojo-type-and-api-migration
+
+**Original date/version**: 2026-06-07 / 1.1.0
+
+```yaml
+name: mojo-type-and-api-migration
+description: "Canonical guide to Mojo type and API migration across language versions: parametric dtype migration, Writable -> WritableTo transition, API version baselines, trait/conformance refactors, method API symmetry, parametric vs runtime dtype, decorator/method-wrapper changes. Use when: (1) upgrading Mojo to a new API baseline, (2) migrating callers after a Mojo stdlib breaking change, (3) reconciling parametric dtype usage with new runtime dtype patterns, (4) fixing trait-conformance compile errors after a stdlib upgrade."
+category: architecture
+date: 2026-06-07
+version: "1.1.0"
+user-invocable: false
+verification: verified-local
+history: mojo-type-and-api-migration.history
+tags: [merged, mojo, type-migration, api-migration, parametric-dtype, trait]
+```
+
+# Mojo Type and API Migration — Canonical Guide
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2026-06-07 |
+| **Objective** | Consolidated canonical guide for Mojo type and API migration patterns across language versions |
+| **Outcome** | Merged 40 skills (M3 sub-PR 2/4) covering stdlib import changes, parametric dtype, trait conformance, Writable/write\_to, overload disambiguation, Python interop, and more |
+| **Coverage** | Mojo 0.26.1 → 0.26.3 and beyond; ProjectOdyssey ~600 files, ~15,700 lines |
+
+## When to Use
+
+1. Upgrading Mojo to a new version with breaking API changes (stdlib imports, keyword removal, trait updates)
+2. Migrating a struct from runtime-typed to parametric (compile-time typed) design
+3. Fixing `Boolable`, `Writable`, `ImplicitlyCopyable`, or other trait-conformance compile errors
+4. Replacing deprecated `comptime` type aliases with canonical types
+5. Resolving `cannot implicitly convert 'X' value to 'X'` circular-import type identity errors
+6. Fixing overload ambiguity, parameter/method name collisions, or `escaping` closure mismatches
+7. Migrating `__str__`/`Stringable` to `write_to`/`Writable` for Mojo 0.26.3+
+8. Replacing `Python.import_module` calls with native Mojo stdlib equivalents
+9. Adding FP16 SIMD paths after a version bump that fixes a prior compiler limitation
+10. Promoting internal constants or API names to the public package surface
+
+## Verified Workflow
+
+### Quick Reference
+
+```bash
+# --- Version upgrade: triage errors first ---
+pixi run mojo package -I . shared -o /tmp/shared.mojopkg 2>&1 | grep ": error:" | sed 's/.*error: //' | sort | uniq -c | sort -rn | head -20
+
+# --- Fix in dependency order: core types → tensor → layers → tests ---
+# shared/core/ first; shared/tensor/ second; shared/layers/ third; tests/ last
+
+# --- Stdlib import qualification (0.26.3) ---
+find . -name "*.mojo" -exec python3 -c "
+import re, sys
+content = open(sys.argv[1]).read()
+fixed = re.sub(
+    r'^(from\s+)(testing|sys|memory|collections|algorithm|math|random|time|utils|os|bit)(\s+import\b)',
+    r'\1std.\2\3', content, flags=re.MULTILINE)
+if fixed != content:
+    open(sys.argv[1], 'w').write(fixed)
+    print('Fixed:', sys.argv[1])
+" {} \;
+
+# --- Remove deprecated 'escaping' keyword ---
+find . -name "*.mojo" | xargs grep -l "raises escaping" | while read f; do
+  sed -i 's/raises escaping/raises/g' "$f"
+done
+
+# --- Audit __str__ / Stringable for Writable migration ---
+grep -rn "def __str__" shared/ --include="*.mojo"
+grep -rn "Writable" shared/ --include="*.mojo" -l | xargs grep -l "def __str__"
+
+# --- Find parametric vs runtime dtype mismatches ---
+grep -rn "_set_float64\|_set_int64" shared/ --include="*.mojo" | grep -v "float\|double"
+
+# --- Verify package builds after fixes ---
+pixi run mojo package -I . shared -o /tmp/shared.mojopkg 2>&1 | grep ": error:"
+pixi run mojo test tests/shared/
+
+# --- Detect formatter bug: space-stripped take/owned modifiers ---
+grep -rn "\btake[A-Z]\|\bowned[A-Z]" examples/ shared/
+grep -rn "def.*\*, take \|def.*\*, owned " examples/ shared/
+
+# --- Detect overload pollution from Tensor[dtype] in core files ---
+grep -l "from shared.tensor.tensor import Tensor" \
+  shared/core/arithmetic.mojo shared/core/elementwise.mojo \
+  shared/core/activation.mojo shared/core/matrix.mojo
+```
+
+### Step 1 — Triage Before Touching Code
+
+Run the error-count query above. Categorize into:
+
+- **Hard errors** (block compilation): struct field type changes, import renames, keyword removal
+- **Warnings** (don't block): deprecation notices — fix these in a separate PR after hard errors
+
+Fix bottom-up: types used everywhere must be fixed first.
+
+### Step 2 — Stdlib Import Qualification
+
+Mojo 0.26.3 requires `std.` prefix for stdlib modules previously imported without qualification.
+The bulk-fix script above handles 92+ test files safely. Also remove `escaping` from `fn` type
+parameters — the keyword was removed in 0.26.3.
+
+### Step 3 — Parametric Dtype Migration
+
+When splitting a runtime-typed struct (`UnsafePointer[UInt8]`) into a parametric type
+(`Tensor[dtype: DType]` with `UnsafePointer[Scalar[dtype]]`) plus a type-erased wrapper:
+
+```mojo
+struct Tensor[dtype: DType = DType.float32](TensorLike):
+    var _data: UnsafePointer[Scalar[Self.dtype]]
+    # NO _dtype field — it's Self.dtype at compile time
+
+    fn __getitem__(self, index: Int) raises -> Scalar[Self.dtype]:
+        return self._data[index]  # Zero-branch typed access
+```
+
+Zero-copy conversion (shared refcount):
+
+```mojo
+fn __init__(out self, data: UnsafePointer[Scalar[dtype]], shape: List[Int],
+            strides: List[Int], refcount: UnsafePointer[Int], ...):
+    self._refcount = refcount
+    self._refcount[] += 1  # CRITICAL: shared ownership
+```
+
+Add backward-compat alias before removing the old name:
+
+```mojo
+comptime ExTensor = AnyTensor  # ALL existing code compiles during migration
+```
+
+### Step 4 — Trait Conformance Fixes
+
+**Boolable**: `Boolable` requires non-raising `__bool__`. Split into two methods:
+
+```mojo
+fn __bool__(self) -> Bool:          # Non-raising; returns False for multi-element (NumPy semantics)
+    if self._numel != 1:
+        return False
+    return self._get_float64(0) != 0.0
+
+fn bool_strict(self) raises -> Bool:  # Raising; PyTorch-style strict
+    return self.item() != 0.0
+```
+
+Trait list order: `Boolable` must come alphabetically before `Copyable`:
+
+```mojo
+struct ExTensor(
+    Boolable,       # alphabetical position BEFORE Copyable
+    Copyable,
+    Hashable,
+    ImplicitlyCopyable,
+    Movable,
+    ...
+):
+```
+
+Prior workaround (before the split): tests called `t.__bool__()` directly when `Bool(t)` was
+not yet available. Error `"no matching function in initialization"` with note about `Boolable`
+trait conformance failure indicates the struct still has a raising `__bool__`.
+
+Boolean syntax comparison:
+
+| Syntax | Requires | Works with `raises __bool__`? |
+| -------- | ---------- | ------------------------------- |
+| `Bool(t)` | `Boolable` trait (non-raising) | No |
+| `t.__bool__()` | Just the method | Yes (workaround) |
+| `t.bool_strict()` | Just the method | Yes (post-split canonical) |
+| `if t:` | Non-raising OR raising `__bool__` | Yes |
+
+**Hashable**: implementing `__hash__` alone is not sufficient — `Hashable` must also be declared
+in the struct trait list. Error `"no matching function in call to hash"` indicates the trait
+declaration is missing even when the method exists. Fix: add `Hashable` to the trait list
+(one-line change).
+
+**Module trait**: requires both `train(mut self)` and `inference(mut self)` even for stateless
+layers (allows stateful layers like BatchNorm to switch modes). Add no-op implementations
+for stateless layers.
+
+**Sequential containers**: wrapper structs containing `Sequential` must NOT declare `Copyable` —
+`Sequential` is `Movable`-only; the compiler rejects copying non-Copyable fields.
+
+**Writable / write\_to** (Mojo 0.26.3+). Full migration (preferred):
+
+```mojo
+struct MyStruct(Writable):
+    def write_to(self, mut writer: Some[Writer]):
+        writer.write("MyStruct(", self.value, ")")
+```
+
+Transitional delegation (when `__str__` still called externally):
+
+```mojo
+struct MyStruct(Writable, Stringable):
+    def write_to(self, mut writer: Some[Writer]):
+        writer.write(str(self))  # delegates during transition
+
+    def __str__(self) -> String:
+        return "MyStruct(" + str(self.value) + ")"
+```
+
+**Sequential parametric containers** — Mojo 0.26.1 has no `List[Trait]` dynamic dispatch. Use
+compile-time parametric bounds instead:
+
+```mojo
+struct Sequential2[T0: Module, T1: Module](Movable):
+    var layer0: T0
+    var layer1: T1
+
+    fn forward(mut self, input: ExTensor) raises -> ExTensor:
+        return self.layer1.forward(self.layer0.forward(input))
+```
+
+**Module trait conformance**: `forward` must be `fn forward(mut self, ...)` (not `self`).
+
+### Step 5 — Circular Import Resolution
+
+When two Mojo modules form a cycle, the compiler reports
+`cannot implicitly convert 'X' value to 'X'` even though both sides look identical. Fix: use
+function-scoped local imports to break the cycle:
+
+```mojo
+fn as_tensor[dtype: DType](self) raises -> Tensor[dtype]:
+    from shared.tensor.tensor import Tensor  # local import breaks cycle
+    return Tensor[dtype](self._data.bitcast[Scalar[dtype]](), ...)
+```
+
+**Overload pollution**: having `Tensor[dtype]` in scope at all (even private functions with
+`Tensor[dtype]` signatures in the same file) pollutes overload resolution. Error
+`"cannot implicitly convert AnyTensor to AnyTensor"` signals multiple candidate overloads,
+not a type-path mismatch. Of 242 build errors observed, 188 were this exact message. Fix:
+extract typed code to an isolated package with no `AnyTensor` imports.
+
+**Decision tree for reverse dependencies**:
+
+```text
+Found module-level import from Package A in Package B (reverse dep):
+
+1. Is the file a pure wrapper with zero callers?
+   YES → DELETE the file (removes 100+ lines of dead code)
+
+2. Is the imported function a pure utility with no package deps?
+   YES → MOVE to shared/base/ (break cycle at root)
+
+3. Is the import used in only 1-2 function bodies?
+   YES → Convert to function-scoped import (deferred resolution)
+
+4. Is it a constants-only import?
+   YES → KEEP (constants don't create compilation cycles)
+
+5. None of the above?
+   → Consider co-locating or inlining the logic
+```
+
+**Method wrapper template** — insert after `slice()` (analogous shape operation):
+
+```mojo
+fn tile(self, reps: List[Int]) raises -> ExTensor:
+    from shared.core.shape import tile as _tile   # local-scope import
+    return _tile(self, reps)
+
+fn split(self, num_splits: Int, axis: Int = 0) raises -> List[ExTensor]:
+    from shared.core.shape import split as _split
+    return _split(self, num_splits, axis)^   # ^ transfers ownership for List returns
+```
+
+**API symmetry audit**:
+
+```bash
+# 1. What's exported from the module
+grep -n "split\|tile\|repeat" shared/core/__init__.mojo
+
+# 2. What methods already exist on the struct
+grep -n "^    fn " shared/core/extensor.mojo | grep -E "split|tile|repeat"
+# The difference is the set of missing wrappers
+```
+
+**assert\_value\_at gotcha**: signature is `(tensor, index, expected, tolerance, message)`.
+Passing a string as the 4th positional argument fails because Mojo converts it to `Float64`.
+Always use the `message=` keyword:
+
+```mojo
+# WRONG — string interpreted as tolerance: Float64
+assert_value_at(parts[0], 0, 0.0, "should be 0.0")
+
+# CORRECT — message= keyword bypasses the tolerance parameter
+assert_value_at(parts[0], 0, 0.0, message="should be 0.0")
+```
+
+### Step 6 — Overload and Collision Fixes
+
+**Parameter/method name collision** (`struct Foo[dtype: DType]` + `fn dtype() -> DType`): the
+collision doesn't exist in Mojo 0.26.1 — test the actual compiler before "fixing" it.
+
+**Overload disambiguation** with `is_defined`:
+
+```mojo
+@parameter
+if is_defined["APPLE_SILICON"]():
+    ...
+```
+
+**Float literal overloads**: add `Float32` overload alongside `Float64` to avoid users needing
+`Float64(9.5)` everywhere.
+
+**`escaping` closure regression**: `escaping` is part of the fn type signature. Removing it is a
+breaking API change — preserve it if callers pass escaping closures.
+
+### Step 7 — API Cleanup Patterns
+
+**Deprecated alias removal**: always grep for all occurrences before removing — aliases appear in
+return types, docstrings, and test files. Replace with the ORIGINAL aliased-to type, not a new
+invented name. `Edit` with `replace_all=True` is safe on PascalCase Mojo type names — no
+substring collision risk; one pass handles signatures, docstrings, and body.
+
+Import-vs-comment rule: only add a concrete-type import if the alias is used as an actual type
+annotation, not just in a comment.
+
+Partial backward-compat test file removal: removing some aliases requires selective removal of
+relevant imports, test functions, and `main()` calls, plus updating the test count printed in
+`main()`.
+
+**Hyphenated directory rename**: Mojo cannot import from directories with hyphens. Rename at OS
+level and update all import paths, CI configs, and docs.
+
+**Promote constants to public API**: move shared constants (epsilon, tolerance) to a lightweight
+module imported without pulling in heavy dependencies.
+
+**Public API table**: distinguish "importable today" from "planned future" in `__init__.mojo`
+docstring tables.
+
+**Python interop → stdlib**: replace `Python.import_module("os")` / `Python.import_module("pathlib")`
+with native Mojo stdlib (`os.listdir`, etc.) once available. Use function-scoped Python bridge only
+for ops not yet in stdlib.
+
+### Step 8 — Deprecated Syntax for Mojo 0.26.1+
+
+| Deprecated Pattern | Replacement |
+| -------------------- | ------------- |
+| `inout self` in `__init__` | `out self` |
+| `inout self` in methods | `mut self` |
+| `@value` decorator | `@fieldwise_init` with trait list |
+| `DynamicVector` | `List` |
+| `-> (T1, T2)` tuple syntax | `-> Tuple[T1, T2]` |
+
+**Formatter bug — space-stripped `take`/`owned` in `def` functions**:
+`def __init__(out self, *, take existing: Self)` — `mojo format` strips the space from
+`take existing`, transforming it to `takeexisting` as a single parameter name. Compiles
+silently but the field is inaccessible. Detection:
+
+```bash
+grep -rn "\btake[A-Z]\|\bowned[A-Z]" examples/ shared/
+grep -rn "def.*\*, take \|def.*\*, owned " examples/ shared/
+```
+
+Fix: delete the constructor if it has no callers (most common), or convert to
+`fn __init__(out self, owned existing: Self):` if genuinely needed.
+
+### Step 9 — Worktree Discipline for Alias Removal
+
+When working in git worktrees:
+
+- Changes made in the main checkout do NOT automatically appear in the worktree branch.
+  Copy files explicitly to the worktree if needed, or work exclusively in the worktree.
+- A prior session may have already applied some changes. Always grep for remaining occurrences
+  FIRST before reading a task plan — the actual work may be a tiny fraction of what the plan
+  describes.
+- Check worktree branch state before applying replace\_all edits: some replacements may already
+  be done.
+
+### Step 10 — Verify Incrementally
+
+```bash
+# After each directory:
+pixi run mojo package -I . shared -o /tmp/shared.mojopkg 2>&1 | grep ": error:"
+
+# Run tests (CI environment; GLIBC mismatch prevents local execution on older hosts)
+pixi run mojo test tests/shared/
+
+# Track warnings separately
+pixi run mojo package -I . shared -o /tmp/shared.mojopkg 2>&1 | grep ": warning:" | wc -l
+```
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| Package split as first step | Moved files to `shared/base/`, `shared/tensor/` physically before code changes | 500+ import path changes with zero functional value; Mojo re-export chain limitation (\#3754) breaks transparent backward compat | Keep files in place; create new packages only for genuinely new files |
+| Auto-parameterized return types | `fn relu(t: Tensor) -> Tensor` without explicit `[dt: DType]` | `failed to infer parameter 'dtype'` — Mojo cannot infer return-type params from input params | All overloads need explicit `[dt: DType]` parameter |
+| Renaming struct param to avoid collision | Renamed `dtype` param to `dt` on struct to avoid `fn dtype()` collision | The collision doesn't exist in Mojo 0.26.1 — compiler accepts both | Test the actual compiler before fixing assumed issues |
+| `bitcast[Float32]()` in parametric layers | Copied layer parameters via `bitcast[Float32]()` regardless of dtype | Silent data corruption for float64/float16 — bitcast reinterprets bytes | Use typed `Tensor[dtype]._data` directly; no bitcast needed |
+| B4 refcount test in same scope | Created source + converted tensor in same scope to assert data valid | Mojo ASAP destruction doesn't fire within same scope — test always passes | Use helper functions that force source out of scope before assertion |
+| Removing `ImplicitlyCopyable` to fix List field | Dropped the trait as the "easy" fix | Caused 62-file cascade of implicit copy errors across codebase | Prefer `InlineArray` field replacement; map cascade depth before choosing approach |
+| `sed` bulk `fn` → `def` | Used sed to replace `fn` globally | Replaces `fn` inside comments, strings, identifiers | Use targeted regex at definition sites only; `fn` is only a warning (not error) in 0.26.3 |
+| Delegating `__bool__` to `item()` | `fn __bool__(self) -> Bool { return self.item() != 0.0 }` | `item()` raises for multi-element tensors; non-raising `__bool__` cannot call raising fn | Access `_numel` and buffer directly; delegate to `item()` only in `bool_strict()` |
+| `List[Module]` dynamic dispatch | Store trait objects in a `List` | Requires `ImplicitlyCopyable` for `List` elements; trait objects don't satisfy it without `UnsafePointer` | Use parametric bounds `[T0: Module, T1: Module]` for compile-time dispatch |
+| Single `Sequential[*Ts: Module]` | Unify into one struct with variadic type params | Mojo 0.26.1 does not support variadic generic parameters | Two structs (`Sequential2`, `Sequential3`) per depth; can unify when Mojo adds `*Ts: Module` |
+| `set(UInt32)` assuming bitcast semantics | `tensor.set(0, UInt32(0x7FC00000))` expecting raw bit write | Delegates to `_set_int64` which silently ignores float dtypes | Check the implementation of `set()` overloads — numeric conversion != bitcast |
+| Automated sed for Pattern-A comments in set() | `sed` to move inline comments out of parens in `set()` calls | sed is line-oriented; failed on multi-paren depth where comment is inside nested parens | Manual inspection per file; `grep -n "set(.*#"` locates candidates |
+| Moving AnyTensor only to break import cycle | Moved AnyTensor from shared.core to shared.tensor | Fixed some cycles but other cross-package imports maintained the cycle | Moving a type can leave other cycles; audit ALL cross-package imports before moving |
+| Skipping ADR re-test on version bump | Assumed version bump automatically supersedes old ADRs | ADR-010 stayed "Accepted" for months while FP16 SIMD already worked in 0.26.3 | Always write a concrete test for the claimed limitation when bumping Mojo version |
+| Multiple agents on overlapping files | Ran agents fixing different files simultaneously without file locks | Merge conflicts when agents modified the same shared type | Assign agents to non-overlapping directories; one agent per directory subtree |
+| Using `Bool(t)` in old test before non-raising `__bool__` | Called `Bool(t)` in the raising test before implementing the non-raising split | `Bool(t)` would not raise once `__bool__` became non-raising | After the split, raising tests must call `bool_strict()` explicitly |
+| Add `Boolable` to trait list without splitting `__bool__` | Conforming to `Boolable` while keeping `raises` on `__bool__` | `Boolable` requires non-raising `__bool__` — incompatible | `Boolable` and `raises __bool__` are mutually exclusive in Mojo |
+| Change `__bool__` to non-raising directly (no split) | Remove `raises` from `__bool__` to satisfy `Boolable` | Breaks multi-element error test semantics | Can't drop `raises` without adding `bool_strict()` and updating all raising tests |
+| Public typed wrappers alongside AnyTensor functions | Added `fn add_typed[dt: DType](a: Tensor[dt])` alongside `fn add(a: AnyTensor)` in same file | 242 Mojo overload resolution errors — having `Tensor[dtype]` in scope at all pollutes resolution | Extract all typed code to an isolated package; `Tensor[dtype]` must not appear in files with `AnyTensor` operations |
+| `Removing` only public typed wrappers, keeping internal | Removed `add_typed` etc. but kept `_add_typed` and `_dispatch_add` in same file | Same errors persisted — the issue is the `Tensor` TYPE being imported, not function visibility | Import of `Tensor[dtype]` is the problem, not function naming or visibility |
+| Change `__getitem__` to return `Float64` | Wider return type to accept more assignments | `Float32` cannot implicitly convert to `Float64` in Mojo; broke 108 call sites | Mojo has zero implicit numeric conversions between float types |
+| Proxy/reference return type from `__getitem__` | Return a mutable proxy that accepts any assignment | `"expression must be mutable in assignment"` — Mojo ownership prevents mutable references from `__getitem__` | Mojo ownership model does not support reference-returning subscript |
+| `def __init__(out self, *, take existing: Self)` | Used `take` modifier in a `def` function for ownership transfer | Parse error in Mojo 0.26.3; `mojo format` strips the space, turning `take existing` into `takeexisting` — compiles silently but field is inaccessible | Delete dead constructors (zero callers) or convert to `fn __init__(out self, owned existing: Self):` |
+| Making changes in main checkout without checking worktree | Edited main checkout directly while working on a worktree branch | Changes don't appear in worktree branch — required manual copy | Always work in the worktree for the PR branch, or explicitly copy changed files |
+| `replace_all` on already-handled aliases | Expected to find usages of removed alias name | String not found — prior session had already applied the replacement in worktree | Check worktree branch state before applying; some changes may already be done |
+| Assuming detailed plan means lots of work | Issue plan described removing 8 aliases from 6 files | All source/import changes had already been done by a prior session; only 1 comment update remained | Always grep for remaining occurrences FIRST before reading the plan |
+| Passing string as 4th positional arg to `assert_value_at` | Called `assert_value_at(tensor, idx, 0.0, "message")` | Mojo tried to convert `StringLiteral` to `Float64` for tolerance parameter | Always use `message=` keyword argument; check function signature before writing tests |
+| Keep `forward(self, ...)` immutable for `Module` trait | Left `forward()` as `fn forward(self, ...)` | Mojo compiler: signature mismatch with `Module` trait's `fn forward(mut self, ...)` | `Module` trait requires `mut self` on `forward()` to allow stateful layers |
+| Add `Copyable` to struct wrapping `Sequential` | Tried `struct SimpleMLP2(Copyable, Model, Movable)` | `Sequential3` is `Movable` only; compiler rejects copying a non-Copyable field | Don't declare `Copyable` on wrapper structs containing Sequential containers |
+
+## Results & Parameters
+
+### Version Upgrade Command Reference
+
+```bash
+# Get unique error categories
+pixi run mojo package -I . shared -o /tmp/shared.mojopkg 2>&1 | grep ": error:" | sort -u
+
+# Fix order (bottom-up dependency)
+# shared/core/ → shared/tensor/ → shared/layers/ → tests/ → examples/
+
+# After each phase, verify:
+pixi run mojo package -I . shared -o /tmp/shared.mojopkg && echo "OK"
+```
+
+### Writable Migration Decision Table
+
+| Condition | Pattern |
+| ----------- | --------- |
+| `__str__` used only for string representation | Full migration (replace with `write_to`) |
+| `__str__` called by other code (logging, display) | Transitional delegation (`write_to` calls `str(self)`) |
+| Formatting logic is simple (one or two fields) | Full migration |
+| Formatting logic is complex or multi-line | Transitional delegation |
+
+### Boolable Split — Copy-Paste Ready
+
+```mojo
+fn __bool__(self) -> Bool:
+    if self._numel != 1:
+        return False
+    return self._get_float64(0) != 0.0
+
+fn bool_strict(self) raises -> Bool:
+    return self.item() != 0.0
+```
+
+Trait list addition (alphabetical):
+
+```mojo
+struct MyStruct(
+    Boolable,   # new — must precede Copyable alphabetically
+    Copyable,
+    ...
+):
+```
+
+### Deprecated Alias Removal Command Reference
+
+```bash
+# Find all DEPRECATED aliases in a module
+grep -n "DEPRECATED" shared/core/<module>.mojo
+
+# Find all alias usages (always grep FIRST before reading the plan)
+grep -rn "AliasName" --include="*.mojo" --exclude-dir=".worktrees" --exclude-dir="build" .
+
+# Verify removal complete
+grep -rn "AliasName" --include="*.mojo" . || echo "All removed"
+
+# Commit message pattern
+# cleanup(<module>): remove deprecated <Module> backward result type aliases
+```
+
+### Parametric Dtype Critical Rules
+
+```yaml
+typed_pointer_rule: "UnsafePointer[Scalar[dtype]] auto-scales — do NOT multiply by dtype_size"
+module_boundary: "forward(AnyTensor) -> AnyTensor — can't be parametric in Mojo 0.26.1"
+layer_pattern: "input.as_tensor[dtype]() → compute → result.as_any()"
+circular_import_fix: "Function-scoped local import inside method body"
+refcount_protocol: "Share _refcount pointer; increment in constructor; both __del__ methods decrement"
+```
+
+### Agent Coordination for Bulk Migrations
+
+```text
+Agent 1: shared/core/           (types, tensor, memory)       — must finish first
+Agent 2: shared/layers/         (neural network layers)        — parallel after Agent 1
+Agent 3: shared/training/       (optimizers, loss functions)   — parallel after Agent 1
+Agent 4: tests/ + examples/     (nothing depends on these)     — runs last
+```
+
+### set() API Migration Patterns (bitcast→set())
+
+```bash
+# Find Pattern A: inline comment inside set() parens (# swallows closing delimiter)
+grep -n "set(.*#.*)" tests/ -r --include="*.mojo"
+
+# Find Pattern B: empty Float32(()) calls
+grep -n "Float32(())" tests/ -r --include="*.mojo"
+
+# Find Pattern C: garbled = in call args
+grep -n "set(.*= " tests/ -r --include="*.mojo"
+```
+
+Fix Pattern A: move `# comment` to after all closing `)`.
+Fix Pattern B: remove `Float32(())` wrapper and collapse actual value to one line.
+Fix Pattern C1: restore original comparison expression. Fix Pattern C2: comment out all
+references to commented-out declaration.
+
+### Module Trait Conformance Checklist
+
+```text
+[ ] Module import added to layer file
+[ ] "Module" added to struct trait list
+[ ] forward(self) changed to forward(mut self)
+[ ] train(mut self) method added (no-op for stateless layers)
+[ ] inference(mut self) method added (no-op for stateless layers)
+[ ] Struct compiles with: pixi run mojo build <layer-file>
+[ ] Existing layer tests still pass
+```
+
+### GLIBC Constraint
+
+Mojo binary requires GLIBC 2.32+ which is unavailable on many host OSes. Always use CI or Docker
+for Mojo compilation. For local commits with mojo-format unavailable:
+
+```bash
+SKIP=mojo-format git commit -m "fix: ..."
+```
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| ProjectOdyssey | Epic \#4998; PRs \#5002-\#5023, \#5200-\#5212; Mojo 0.26.1 → 0.26.3 | 600+ files, ~15,700 lines; 40 absorbed skills across parametric dtype, trait conformance, API migration |
+| ProjectOdyssey | Issues \#4091/\#3393, PR \#4869 | Boolable split: Bool(t) + bool\_strict() for ExTensor |
+| ProjectOdyssey | PRs \#5062-\#5063; Issue \#4998 | Circular import resolution: 255+ errors fixed via typed package isolation |
+| ProjectOdyssey | Issues \#3065/\#3064/\#3267, PRs \#3262/\#3264/\#3833 | Deprecated alias removal for Linear (2) and Conv (6) modules |
+| ProjectOdyssey | Issue \#3742 | Module trait conformance for Sequential container integration |
+
+---
+
+## Superseded from parametric-type-migration-review
+
+**Original date/version**: 2026-03-21 / 1.0.0
+
+```yaml
+name: parametric-type-migration-review
+description: "Systematic review methodology for planning large-scale parametric type system migrations in Mojo. Use when: reviewing compile-time parameterization of runtime-typed structs, dependency analysis for package splits, zero-copy conversion safety, or phased migration orchestration."
+category: architecture
+date: 2026-03-21
+version: 1.0.0
+user-invocable: false
+```
+
+# Parametric Type Migration Review
+
+## Overview
+
+| Attribute | Value |
+| ----------- | ------- |
+| **Date** | 2026-03-21 |
+| **Objective** | Review and revise a plan to split a 4,700-line runtime-typed tensor (ExTensor) into compile-time Tensor[dtype: DType] + runtime AnyTensor in Mojo 0.26.1 |
+| **Outcome** | Found 4 blockers, 8 high, 6 medium, 4 low issues; designed 3-layer package split; revised 7-phase plan into 17 sub-phases; revised scope from 9,700 to 15,700 lines |
+| **Context** | Mojo ML framework (ProjectOdyssey) — epic #4998, ~569 importing files, 395 test files, 4,793 ExTensor references |
+
+## When to Use This Skill
+
+- Reviewing a plan to convert runtime-typed fields to compile-time type parameters
+- Analyzing whether zero-copy conversions between typed and type-erased types are memory-safe
+- Designing package architecture to avoid circular dependencies when splitting a monolithic module
+- Estimating scope for a codebase-wide type migration (especially parametric types in Mojo)
+- Planning parallel sub-agent work with worktrees for phased migrations
+- Identifying which Mojo 0.26.1 features work vs. don't work for parametric design patterns
+
+## Verified Workflow
+
+### Quick Reference
+
+1. Read the plan thoroughly — understand the dual-type architecture before reviewing
+2. Launch parallel exploration agents (3 simultaneous) for codebase coverage
+3. Launch parallel plan agents (2 simultaneous) for feasibility + phase ordering analysis
+4. Cross-reference findings against codebase with targeted file reads
+5. Ask user key design questions (package placement, rename timing, test volume)
+6. Integrate findings into plan document in-place
+7. Update the tracking epic with overview + attached plan
+
+### Step 1: Parallel Codebase Exploration (3 agents)
+
+Launch 3 Explore agents simultaneously:
+
+**Agent 1 — Core struct patterns**: Read the target struct, key methods (`__getitem__`, `set()`, internal accessors), operator dispatch pattern, SIMD activation patterns, lazy expression system, shape manipulation List usage, trait definitions.
+
+**Agent 2 — Consumer patterns**: Read autograd (Variable, optimizers, tape), training (mixed_precision, gradient_ops), data (Dataset, Batch, cache), layer structs, gradient types. Focus on how the target type is stored in struct fields and collections.
+
+**Agent 3 — Language feature verification**: Search for existing usage of auto-parameterization (count instances), comptime aliases, Variant, @parameter if, rebind, parametric structs, bitcast patterns, import structure. Count references in tests.
+
+### Step 2: Parallel Plan Review (2 agents)
+
+**Agent A — Feasibility & safety gaps**: Check naming collisions in __init__.mojo, module placement circular deps, zero-copy refcount safety, operator overload correctness on parametric structs, trait boundary limitations, lazy expression dependencies.
+
+**Agent B — Phase ordering & scope**: Verify phase dependencies (especially trait→layer ordering), check scope estimates against actual grep counts, recommend PR splitting strategy, assess compilation time risk.
+
+### Step 3: Critical File Verification
+
+After plan agents return, read the specific files they flagged:
+- Refcount protocol (`__copyinit__`, `__del__`) in the target struct
+- Naming collisions in `__init__.mojo` files
+- Trait signatures that reference the target type
+- Import statements to verify dependency analysis claims
+
+### Step 4: User Design Questions
+
+Ask about: package placement, file rename timing, test volume handling strategy.
+
+### Step 5: Integrate and Publish
+
+- Edit the plan document in-place (not a separate review doc)
+- Post overview comment on tracking epic
+- Attach full plan to epic (use `<details>` collapse for large docs)
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| Separate review document | Created standalone review doc as deliverable | User wanted findings integrated directly into the plan, not a separate file | Ask delivery format preference before creating new files. In-place integration is often preferred. |
+| 2-layer package split | Proposed Tensor[dtype] in shared/tensor/ separate from ExTensor in shared/core/ | User wanted 3-layer split with base layer for zero-dependency utilities. 2-layer also creates circular deps. | Ask about package architecture early. Verify circular dep freedom by tracing actual imports, not conceptual analysis. |
+| Auto-parameterization assumption | Plan assumed `fn relu(t: Tensor) -> Tensor` would auto-parameterize | Mojo 0.26.1 auto-parameterization fails for return types. Codebase had 0 existing uses — strong signal. | Always verify language feature claims by checking existing usage count. Zero existing uses = likely doesn't work. |
+| Single-phase scope estimates | Original plan estimated ~200 lines for rename, ~3,000 for tests | Rename touches 4,703-line file + 569 importers (~1,500). Tests have 3,975 creation calls (~5,600). | Cross-reference scope estimates against actual grep counts. Multiply by 1.5-3x, not 1x. |
+
+## Results & Parameters
+
+### Blocker Categories for Parametric Type Migrations
+
+```yaml
+naming_collision:
+  description: "Existing comptime alias conflicts with new struct name"
+  detection: "grep for 'comptime <NewTypeName>' in __init__.mojo files"
+  fix: "Remove alias BEFORE creating new struct"
+
+refcount_protocol:
+  description: "Zero-copy conversion between typed and type-erased must share refcount"
+  detection: "Check if as_typed()/as_erased() increments shared _refcount"
+  fix: "Internal constructor takes shared refcount pointer, increments on construction"
+  test: "Create source, convert, let source die, verify target data intact"
+
+trait_boundary:
+  description: "Mojo 0.26.1 can't parameterize trait methods"
+  detection: "Check which structs implement traits with target type in signatures"
+  fix: "Traits stay on type-erased type; type safety only inside implementations"
+
+scope_underestimate:
+  description: "Reference count != actual lines changed"
+  detection: "grep -c for type name in all files, multiply by 1.5-3x"
+  fix: "Split large phases into sub-PRs, estimate per-directory"
+```
+
+### 3-Layer Package Architecture Pattern
+
+```yaml
+layer_1_base:
+  contents: "Constants, memory pool, broadcasting, dtype ordinal, error utils, type aliases"
+  rule: "Zero imports from layer 2 or 3"
+  detection: "grep imports in each candidate — must find zero deps on target type"
+
+layer_2_tensor:
+  contents: "Typed tensor, type-erased tensor, traits, gradient containers, validation, I/O"
+  rule: "Imports from layer 1 only"
+
+layer_3_core:
+  contents: "All operations, layers, module traits, sequential containers"
+  rule: "Imports from layers 1 and 2"
+```
+
+### Phase Ordering Rules
+
+```yaml
+traits_before_module_layers:
+  rule: "Update trait signatures BEFORE parameterizing structs that implement those traits"
+  detection: "grep for trait conformance on target structs"
+
+file_rename_last:
+  rule: "Defer file renames to final cleanup phase"
+  reason: "Avoids breaking N import paths early"
+
+package_split_first:
+  rule: "Move files to new packages BEFORE adding new types"
+  reason: "Ensures clean dependency chains from the start"
+```
+
+### Parallel Execution Windows
+
+```yaml
+window_1: [phase_3a, phase_3b, phase_3c, phase_3d]  # Core ops by category
+window_2: [phase_5b, phase_5c]  # Collections + optimizer
+window_3: [phase_7a, phase_7b, phase_7c, phase_7d]  # Tests by directory
+```
+
+---
+
+## Superseded from fix-implicitlycopyable-removal
+
+**Original date/version**: 2025-12-29 / 1.0.0
+
+```yaml
+name: fix-implicitlycopyable-removal
+description: Systematic approach to removing ImplicitlyCopyable trait from Mojo structs
+  and fixing resulting compilation errors
+category: debugging
+date: 2025-12-29
+version: 1.0.0
+user-invocable: false
+```
+
+# Skill: Fix ImplicitlyCopyable Removal
+
+## Overview
+
+| Attribute | Value |
+| --------- | ----- |
+| **Date** | 2025-12-29 |
+| **Session Context** | PR #2962 - ExTensor ImplicitlyCopyable Bug Fix |
+| **Objective** | Remove ImplicitlyCopyable trait from struct with List fields and fix resulting compilation errors |
+| **Outcome** | ✅ Success - 132 errors across 27 files resolved, all CI tests passing |
+| **Duration** | Multiple iterations across several hours |
+| **Files Modified** | 27 files (autograd, core, data, testing, training, layers) |
+
+## When to Use This Skill
+
+Use this skill when you need to:
+
+1. **Remove ImplicitlyCopyable from a struct** that contains non-trivial fields
+   (List, Dict, String, or other heap-allocated types)
+2. **Fix compilation errors** after removing ImplicitlyCopyable trait from a widely-used type
+3. **Debug memory corruption** caused by bitwise copies bypassing reference counting
+4. **Systematically refactor** a codebase to use explicit copying instead of implicit copies
+
+### Trigger Conditions
+
+- Struct contains `List[T]`, `Dict[K,V]`, `String`, or other types with shared ownership
+- Layer tests crash AFTER passing assertions (indicates destructor issues)
+- Mojo compiler errors about "cannot implicitly copy" or "cannot transfer value"
+- Memory corruption symptoms (use-after-free, double-free, segfaults)
+
+## Problem Context
+
+### The Bug
+
+`ImplicitlyCopyable` on a struct with `List[Int]` fields causes Mojo to perform
+**bitwise copies** that bypass `__copyinit__`. This breaks reference counting:
+
+1. Implicit copy creates bitwise duplicate (refcount pointer copied, not incremented)
+2. Refcount stays at 1 even with 2+ copies sharing the data
+3. First destructor decrements refcount to 0 and frees memory
+4. Second destructor accesses freed memory → **CRASH**
+
+### Example: ExTensor Bug
+
+```mojo
+# BEFORE (BUGGY)
+struct ExTensor(Copyable, ImplicitlyCopyable, Movable, Sized):
+    var _shape: List[Int]      # Shared ownership
+    var _strides: List[Int]    # Shared ownership
+    var _refcount: UnsafePointer[Int]  # Manual refcount
+```
+
+Problem: Passing `ExTensor` by value triggers bitwise copy, not `__copyinit__`, so refcount isn't incremented.
+
+## Verified Workflow
+
+### Phase 1: Remove the Trait
+
+1. **Identify the problematic struct** (usually contains List, Dict, or manual refcount)
+2. **Remove ImplicitlyCopyable from trait list**:
+
+   ```mojo
+   # Change from:
+   struct ExTensor(Copyable, ImplicitlyCopyable, Movable, Sized):
+
+   # To:
+   struct ExTensor(Copyable, Movable, Sized):
+   ```
+
+3. **Ensure `__copyinit__` exists and is correct**:
+
+   ```mojo
+   fn __copyinit__(out self, existing: Self):
+       # MUST increment refcount for shared data
+       self._data = existing._data
+       self._shape = existing._shape.copy()  # Deep copy List
+       self._strides = existing._strides.copy()
+       self._refcount = existing._refcount
+       if self._refcount:
+           self._refcount[] += 1  # Critical!
+   ```
+
+### Phase 2: Add Explicit Copy Method
+
+Create a `copy()` method using struct literal construction (REQUIRED because `__copyinit__` isn't directly callable):
+
+```mojo
+fn copy(self) -> Self:
+    var result = Self {
+        _data: self._data,
+        _shape: self._shape.copy(),
+        _strides: self._strides.copy(),
+        _dtype: self._dtype,
+        _numel: self._numel,
+        _is_view: self._is_view,
+        _refcount: self._refcount,
+        _original_numel_quantized: self._original_numel_quantized,
+        _allocated_size: self._allocated_size,
+    }
+    if result._refcount:
+        result._refcount[] += 1  # Increment refcount
+    return result^  # Transfer ownership
+```
+
+### Phase 3: Fix Compilation Errors Systematically
+
+After removing ImplicitlyCopyable, the compiler will flag every implicit copy. Fix each pattern:
+
+#### Pattern 1: List Indexing
+
+```mojo
+# BEFORE (implicit copy)
+var tensor = tensor_list[i]
+
+# AFTER (explicit copy)
+var tensor = tensor_list[i].copy()
+```
+
+#### Pattern 2: Tuple Unpacking
+
+```mojo
+# BEFORE (doesn't work without ImplicitlyCopyable)
+var images, labels = load_data()
+
+# AFTER (use indexing)
+var batch_data = load_data()
+var images = batch_data[0].copy()
+var labels = batch_data[1].copy()
+```
+
+#### Pattern 3: Function Returns
+
+```mojo
+# BEFORE (implicit copy on return)
+fn get_tensor(self) -> ExTensor:
+    return self._tensor  # Error!
+
+# AFTER (explicit ownership transfer)
+fn get_tensor(self) -> ExTensor:
+    return self._tensor.copy()
+```
+
+#### Pattern 4: Ownership Transfer (Local Variables)
+
+```mojo
+# BEFORE
+var result = some_tensor
+
+# AFTER (transfer ownership, no copy needed)
+var result = some_tensor^
+```
+
+#### Pattern 5: Tuple Returns
+
+```mojo
+# BEFORE
+return (tensor1, tensor2)
+
+# AFTER (transfer ownership)
+return (tensor1^, tensor2^)
+```
+
+#### Pattern 6: Closure Captures
+
+```mojo
+# BEFORE (doesn't work - closures can't capture non-ImplicitlyCopyable)
+var weights = get_weights()
+fn forward(x: ExTensor) -> ExTensor:
+    return conv2d(x, weights, ...)  # Error!
+
+# AFTER (use UnsafePointer)
+var weights_copy = get_weights().copy()
+var weights_ptr = UnsafePointer.address_of(weights_copy)
+fn forward(x: ExTensor) escaping -> ExTensor:
+    return conv2d(x, weights_ptr[], ...)
+```
+
+#### Pattern 7: Function Parameters
+
+```mojo
+# BEFORE (var means owned/mutable)
+fn argmax(var tensor: ExTensor) -> Int:
+    ...
+
+# AFTER (borrowed read-only)
+fn argmax(tensor: ExTensor) -> Int:
+    ...
+```
+
+### Phase 4: Batch Fix Strategy
+
+For large codebases (27+ files), parallelize fixes by module:
+
+1. **Autograd module** (backward_ops, functional, grad_utils, optimizers, tape_types, variable)
+2. **Core module** (arithmetic, attention, conv, dtype_cast, extensor, lazy_eval, matrix, normalization, etc.)
+3. **Data module** (_datasets_core, cache, transforms, loaders, etc.)
+4. **Testing/Training modules** (layer_testers, models, metrics, gradient_clipping, mixed_precision)
+5. **Utilities** (serialization, utils)
+
+Use Task agents to fix files in parallel batches.
+
+### Phase 5: Verification
+
+```bash
+# Local compilation check
+pixi run mojo build shared/core/extensor.mojo
+
+# Run affected tests
+pixi run mojo test tests/shared/core/layers/test_dropout.mojo
+pixi run mojo test tests/shared/core/layers/test_linear_struct.mojo
+
+# Commit and push
+git add -A
+git commit -m "fix(shared): remove ImplicitlyCopyable from ExTensor, add explicit .copy()"
+git push
+
+# Monitor CI
+gh pr checks <PR-number> --watch
+```
+
+## Failed Attempts (CRITICAL LEARNINGS)
+
+### ❌ Attempt 1: Return self in copy() method
+
+```mojo
+fn copy(self) -> Self:
+    return self  # FAILS - requires implicit copy
+```
+
+**Error**: `cannot implicitly copy 'ExTensor'`
+
+**Why it failed**: Even though we're in a method that's supposed to copy, returning
+`self` still requires an implicit copy, which we just removed.
+
+### Attempt 2: Call `__copyinit__` directly (Failed)
+
+```mojo
+fn copy(self) -> Self:
+    return Self.__copyinit__(self)  # FAILS - not callable
+```
+
+**Error**: `__copyinit__ is not directly callable`
+
+**Why it failed**: Mojo doesn't allow direct calls to lifecycle methods like
+`__copyinit__`, `__moveinit__`, etc. These are only invoked implicitly by the compiler.
+
+### ❌ Attempt 3: Use tuple unpacking
+
+```mojo
+var images, labels = load_cifar10_batch(...)  # FAILS
+```
+
+**Error**: `cannot synthesize __copyinit__ for tuple containing non-ImplicitlyCopyable types`
+
+**Why it failed**: Tuple destructuring requires each element to be ImplicitlyCopyable. Must use indexing instead.
+
+**Solution**:
+
+```mojo
+var batch_data = load_cifar10_batch(...)
+var images = batch_data[0].copy()
+var labels = batch_data[1].copy()
+```
+
+### ❌ Attempt 4: Capture non-ImplicitlyCopyable in closure
+
+```mojo
+var weights = get_weights()
+fn forward(x: ExTensor) -> ExTensor:
+    return conv2d(x, weights, ...)  # FAILS
+```
+
+**Error**: `cannot synthesize __copyinit__ for closure capturing 'weights'`
+
+**Why it failed**: Closures implicitly copy captured variables, which doesn't work without ImplicitlyCopyable.
+
+**Solution**: Use UnsafePointer to capture by reference:
+
+```mojo
+var weights_copy = get_weights().copy()
+var weights_ptr = UnsafePointer.address_of(weights_copy)
+fn forward(x: ExTensor) escaping -> ExTensor:
+    return conv2d(x, weights_ptr[], ...)
+```
+
+### ❌ Attempt 5: Assign without .copy()
+
+```mojo
+var pred_classes = predictions  # FAILS
+```
+
+**Error**: `cannot implicitly copy 'ExTensor'`
+
+**Solution**:
+
+```mojo
+var pred_classes = predictions.copy()
+```
+
+## Results & Parameters
+
+### Success Metrics
+
+- **Files Modified**: 27 files across 5 modules
+- **Compilation Errors Fixed**: 132 errors
+- **CI Test Pass Rate**: 100% (45/45 test jobs passing)
+- **Memory Corruption**: Eliminated (layer tests no longer crash)
+
+### Files Changed
+
+#### Core Changes
+
+1. `shared/core/extensor.mojo` - Removed trait, added copy() method
+2. `shared/core/layers/dropout.mojo` - Added ownership transfers
+3. `shared/core/layers/linear.mojo` - Added ownership transfers
+
+#### Data Pipeline
+
+1. `shared/data/formats/cifar_loader.mojo` - Fixed tuple returns
+2. `shared/data/datasets/cifar10.mojo` - Fixed tuple unpacking, added .copy()
+
+#### Training/Testing
+
+1. `shared/training/metrics/accuracy.mojo` - Fixed parameter signatures
+2. `shared/training/metrics/base.mojo` - Added .copy() for returns
+3. `shared/training/metrics/confusion_matrix.mojo` - Fixed parameter signatures
+4. `shared/testing/layer_testers.mojo` - Fixed closure captures with UnsafePointer
+
+#### Batch Fixes (Task Agent)
+
+10-27. 18 additional files across autograd/, core/, data/, testing/, training/ modules
+
+### Key Code Snippets
+
+**ExTensor copy() method** (shared/core/extensor.mojo:449-474):
+
+```mojo
+fn copy(self) -> Self:
+    var result = Self {
+        _data: self._data,
+        _shape: self._shape.copy(),
+        _strides: self._strides.copy(),
+        _dtype: self._dtype,
+        _numel: self._numel,
+        _is_view: self._is_view,
+        _refcount: self._refcount,
+        _original_numel_quantized: self._original_numel_quantized,
+        _allocated_size: self._allocated_size,
+    }
+    if result._refcount:
+        result._refcount[] += 1
+    return result^
+```
+
+**Closure capture workaround** (shared/testing/layer_testers.mojo:605-612):
+
+```mojo
+var w_copy = weights.copy()
+var b_copy = bias.copy()
+var w_ptr = UnsafePointer.address_of(w_copy)
+var b_ptr = UnsafePointer.address_of(b_copy)
+fn forward(x: ExTensor) raises escaping -> ExTensor:
+    return conv2d(x, w_ptr[], b_ptr[], stride=stride, padding=padding)
+```
+
+## Related Documentation
+
+- [Mojo Lifetimes & Copy Semantics](https://docs.modular.com/mojo/manual/lifecycle/life)
+- [Mojo Ownership & Borrowing](https://docs.modular.com/mojo/manual/values/ownership)
+- PR #2962: ExTensor ImplicitlyCopyable Removal
+
+## Tags
+
+`mojo` `ownership` `memory-safety` `refactoring` `ci-fix` `debugging` `reference-counting` `compilation-errors`
+
+---
+
+## Superseded from architecture-mojo-import-ambiguity-alias-pattern
+
+**Original date/version**: 2026-05-10 / 1.0.0
+
+```yaml
+name: architecture-mojo-import-ambiguity-alias-pattern
+description: "Resolve Mojo 1.0 'import of X is ambiguous' errors by aliasing the wrapper import locally. Use when: (1) two modules export the same name (e.g., a wrapper struct and a re-exported lower-level type), (2) a consumer imports both in one file and Mojo 1.0 rejects the duplicate name, (3) you want to preserve the public API of both modules without renaming or splitting tests."
+category: architecture
+date: 2026-05-10
+version: "1.0.0"
+user-invocable: false
+verification: verified-ci
+tags:
+  - mojo
+  - mojo-1.0
+  - imports
+  - alias
+  - namespace
+  - api-design
+  - layered-api
+```
+
+# Resolve Mojo Import Ambiguity with Local Alias
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2026-05-10 |
+| **Objective** | Allow a single Mojo source file to import the same name (`SGD`) from two distinct modules (a struct-based wrapper at `shared.training.SGD` and a re-export of the lower-level `shared.autograd.optimizers.SGD` at `shared.SGD`) without triggering Mojo 1.0's `error: import of 'SGD' is ambiguous`. |
+| **Outcome** | Success — `from shared.training import SGD as TrainingSGD` plus `from shared import SGD` compiles; both names remain importable from their canonical locations; comprehensive import-coverage test stays intact. |
+| **Verification** | verified-ci |
+| **Project** | ProjectOdyssey, PR #5388 |
+
+## When to Use
+
+1. Mojo 1.0 compiler emits `error: import of '<Name>' is ambiguous` when a file imports the same identifier from two different modules
+2. Two layers of a public API legitimately export the same name (typical in ML codebases: a high-level wrapper struct and a re-export of the underlying primitive)
+3. You want a fix local to the consumer (test file, script) without breaking either module's documented public surface
+4. Migrating Python code to Mojo where same-name imports silently shadowed each other and are now flagged at compile time
+5. Refactoring a package's `__init__.mojo` to re-export submodule symbols and a downstream test starts failing with the ambiguity error
+
+## Verified Workflow
+
+### Quick Reference
+
+```mojo
+# In the consuming file (e.g., tests/shared/test_imports.mojo):
+
+# shared.training.SGD is a struct-based wrapper around the autograd SGD
+# optimizer (shared/training/__init__.mojo) while shared.SGD re-exports
+# the lower-level shared.autograd.optimizers.SGD directly
+# (shared/__init__.mojo). They are intentionally two distinct types with
+# the same name, so we alias the training wrapper here to keep both
+# importable in one module without a name collision.
+from shared.training import (
+    Callback,
+    SGD as TrainingSGD,   # alias the wrapper
+    # ...other names...
+)
+from shared import (
+    AdaGrad,
+    Adam,
+    SGD,                  # keep the re-exported autograd SGD as SGD
+    # ...other names...
+)
+```
+
+### Detailed Steps
+
+1. **Identify the colliding names.** Read the compiler error: `error: import of '<Name>' is ambiguous`. Mojo points at the second import line, but the conflict is between the two source modules.
+2. **Determine which side is the "wrapper" and which is the "primitive."** Usually the higher-level module wraps the lower-level one. Alias the wrapper at the import site so the primitive keeps its short name.
+3. **Apply `... as <PrefixedName>` to one import.** Convention: alias to `<ModuleName><TypeName>` (e.g., `SGD as TrainingSGD`) so the alias telegraphs where it came from.
+4. **Add a comment block at the import site** explaining why the alias exists, citing both source paths. Mojo error messages and stack traces do not preserve aliases, so future readers need the breadcrumb.
+5. **Verify in CI** (`just test-mojo` or the relevant test group). Local hosts may have GLIBC < 2.32; use Podman or CI for actual test execution.
+
+### Why Aliasing Is the Right Fix
+
+- **Renaming one struct** would break public API consumers that legitimately import either name.
+- **Splitting the test file** would defeat the purpose of an import-coverage test that verifies all public names import cleanly from their canonical locations.
+- **Local alias** has zero blast radius, documents the intentional duplication at the site that has to deal with it, and preserves both module APIs unchanged.
+
+### How This Differs From Python
+
+In Python, the second `from X import SGD` silently shadows the first — the program runs but the first import is lost. Mojo 1.0 elevates this to a compile-time error. The stricter rule catches a real class of bugs (subtle wrong-type usage where the developer thought they got module A's `SGD` but actually got module B's). Expect to hit this regularly when migrating Python-style layered APIs to Mojo.
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| Rename the wrapper struct | Considered renaming `shared.training.SGD` to something like `TrainingSGD` at its definition site | Would break every downstream consumer that imports `from shared.training import SGD` — both names are intentionally part of the documented public API | Public API stability outranks local import convenience; fix at the consumer, not the producer |
+| Import a different symbol | Tried `from shared.training.optimizers import sgd_step` instead of `SGD` | `sgd_step` is a function, not a struct — it doesn't replace the type import the test needed to cover | Don't substitute a different shape (function vs struct) just to dodge the name collision; the coverage gap defeats the test |
+| Split `test_imports.mojo` into two files | Considered separating the `shared.training` imports from the top-level `shared` imports | The test exists specifically to prove every public name imports cleanly side-by-side from every documented module; splitting it removes the regression signal | Don't shrink a test's scope to make it pass — alias instead |
+
+## Results & Parameters
+
+### Files Modified
+
+| File | Change |
+| ------ | -------- |
+| Consumer test file (e.g., `tests/shared/test_imports.mojo`) | Added `SGD as TrainingSGD` alias on the `from shared.training import` line plus a comment block explaining the rationale |
+
+No producer modules touched — both `shared/__init__.mojo` and `shared/training/__init__.mojo` keep their existing `SGD` exports.
+
+### Pattern: When Two Same-Named Imports Are Intentional
+
+This pattern applies when ALL of these are true:
+
+1. Two modules export the same identifier
+2. Both names are documented public API and have downstream consumers
+3. The names refer to **different types** (not just two aliases of one type) — that's the whole point of having both
+4. A single source file legitimately needs to reference both
+
+If any of these fail, the right fix is usually de-duplication, not aliasing.
+
+### Trigger Checklist
+
+Watch for this pattern when:
+
+- Refactoring an `__init__.mojo` to re-export submodule symbols
+- Writing import-coverage tests that pull comprehensively from multiple submodules
+- Migrating Python code to Mojo where same-name imports were tolerated
+- Adding a high-level struct-based wrapper around a lower-level primitive (common in ML: optimizers, losses, layers)
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| ProjectOdyssey | PR #5388 (2026-05-10) | Resolved `error: import of 'SGD' is ambiguous` between `shared.training.SGD` (wrapper struct) and `shared.SGD` (re-export of `shared.autograd.optimizers.SGD`) by aliasing the wrapper as `TrainingSGD` at the consumer site; comprehensive `test_imports.mojo` coverage preserved |
+
+---
+
+## Superseded from dtype-native-migration
+
+**Original date/version**: 2026-03-19 / 1.0.0
+
+```yaml
+name: dtype-native-migration
+description: "Skill: dtype-native-migration"
+category: architecture
+date: 2026-03-19
+version: "1.0.0"
+user-invocable: false
+```
+
+# Skill: dtype-native-migration
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2025-12-31 |
+| **Category** | architecture |
+| **Objective** | Migrate custom dtype struct implementations to Mojo's native built-in types |
+| **Outcome** | ✅ Success - ~5000 lines removed, all tests pass |
+
+## When to Use
+
+Invoke this skill when:
+
+- You need to replace custom dtype structs (BF16, FP8, BF8, FP4) with Mojo native types
+- You encounter E8M0 (exponent-only) or other exotic dtype conversions
+- You're updating code that uses MXFP4/NVFP4 blocked formats
+- Mojo has added native support for a dtype you previously implemented manually
+
+## Verified Workflow
+
+### Step 1: Create Type Aliases File
+
+Create `shared/core/types/dtype_aliases.mojo`:
+
+```mojo
+"""Type aliases for Mojo built-in dtypes."""
+
+# Use comptime (not alias) to avoid deprecation warnings
+comptime BF16 = DType.bfloat16
+comptime FP8 = DType.float8_e4m3fn
+comptime BF8 = DType.float8_e5m2
+comptime FP4 = DType.float4_e2m1fn
+comptime E8M0 = DType.float8_e8m0fnu
+```
+
+### Step 2: Handle E8M0 Conversion (CRITICAL)
+
+**Native conversion does NOT work for E8M0** because it's exponent-only (no mantissa).
+
+Use manual exponent extraction:
+
+```mojo
+fn _e8m0_from_float32(scale: Float32) -> Scalar[E8M0]:
+    """Convert Float32 to E8M0 (power-of-2 only)."""
+    if scale <= 0.0 or isnan(scale):
+        return bitcast[E8M0, 1](SIMD[DType.uint8, 1](0))
+    if isinf(scale):
+        return bitcast[E8M0, 1](SIMD[DType.uint8, 1](255))
+
+    # Extract exponent from Float32 bits
+    var bits = bitcast[DType.uint32, 1](SIMD[DType.float32, 1](scale))
+    var float_exp = ((bits[0] >> 23) & 0xFF).cast[DType.uint8]()
+
+    # Round to nearest power of 2 based on mantissa
+    var mantissa = bits[0] & 0x7FFFFF
+    if mantissa >= 0x400000:  # >= 0.5
+        if float_exp < 255:
+            float_exp += 1
+
+    return bitcast[E8M0, 1](SIMD[DType.uint8, 1](float_exp))
+
+
+fn _e8m0_to_float32(e8m0_val: Scalar[E8M0]) -> Float32:
+    """Convert E8M0 to Float32 (power-of-2 result)."""
+    var exp = bitcast[DType.uint8, 1](e8m0_val)[0]
+
+    if exp == 0:
+        return Float32(0.0)
+    if exp == 255:
+        return Float32(1.0) / Float32(0.0)  # Infinity
+
+    # Construct Float32: sign=0, exponent=exp, mantissa=0
+    var float_bits = exp.cast[DType.uint32]() << 23
+    return bitcast[DType.float32, 1](SIMD[DType.uint32, 1](float_bits))[0]
+```
+
+### Step 3: Update Dependent Code
+
+Replace struct field types:
+
+```mojo
+# Before
+var scale: E8M0Scale  # Custom struct
+
+# After
+var scale: Scalar[E8M0]  # Native type
+```
+
+Replace method calls:
+
+```mojo
+# Before
+block.scale.exponent  # Struct field access
+E8M0Scale(byte_value)  # Constructor
+
+# After
+bitcast[DType.uint8, 1](block.scale)[0]  # Get raw bits
+bitcast[E8M0, 1](SIMD[DType.uint8, 1](byte_value))  # From raw bits
+```
+
+### Step 4: Update Test Tolerances
+
+E8M0's power-of-2 constraint means scale can be up to 2x off from optimal:
+
+```mojo
+# Before (assumes optimal scale)
+assert_true(error < expected * 0.5, "Error too large")
+
+# After (accounts for E8M0 quantization)
+assert_true(error < expected * 1.0, "Error too large")
+```
+
+### Step 5: Update CI and Delete Old Files
+
+1. Remove deleted test files from CI workflow patterns
+2. Delete old struct implementation files
+3. Delete obsolete test files
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| N/A | Direct approach worked | N/A | Solution was straightforward |
+## Results & Parameters
+
+### Type Mapping
+
+| Custom Type | Mojo Built-in | Alias |
+| ------------- | --------------- | ------- |
+| `BF16` struct | `DType.bfloat16` | `BF16` |
+| `FP8` struct | `DType.float8_e4m3fn` | `FP8` |
+| `BF8` struct | `DType.float8_e5m2` | `BF8` |
+| `FP4_E2M1` struct | `DType.float4_e2m1fn` | `FP4` |
+| `E8M0Scale` struct | `DType.float8_e8m0fnu` | `E8M0` |
+
+### Code Impact
+
+- **Files deleted:** 4 dtype files + 10 test files
+- **Lines removed:** ~5000
+- **Lines added:** ~750 (mostly helper functions for E8M0)
+
+### Key Patterns
+
+**Use `comptime` not `alias`:**
+```mojo
+comptime BF16 = DType.bfloat16  # Correct
+alias BF16 = DType.bfloat16    # Deprecated
+```
+
+**Import bitcast for dtype conversions:**
+```mojo
+from memory import bitcast
+```
+
+**Bitcast pattern for raw byte access:**
+```mojo
+# Read raw bits from native dtype
+var raw_byte = bitcast[DType.uint8, 1](scalar_val)[0]
+
+# Create native dtype from raw bits
+var scalar_val = bitcast[FP8, 1](SIMD[DType.uint8, 1](raw_byte))
+```
+
+## Platform Notes
+
+- `DType.bfloat16` is NOT supported on Apple Silicon
+- E8M0 (`DType.float8_e8m0fnu`) requires manual conversion helpers
+- FP8/BF8/FP4 native conversions work correctly
+
+---
