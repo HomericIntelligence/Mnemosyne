@@ -3,7 +3,7 @@ name: docstring-api-doc-generation-and-comment-hygiene
 description: "Use when: (1) updating, fixing, or extending docstrings and API documentation in source files to match current implementation semantics — changed signatures, memory semantics, orphaned fragments, undocumented methods; (2) creating API reference documentation from docstrings for a public module interface; (3) generating docstrings for undocumented functions and classes; (4) auditing and cleaning up inline NOTE/TODO/FIXME/placeholder comments — normalization, removal of shipped-feature placeholders, magic-number extraction; (5) using a package's public __version__ attribute in demo/example scripts rather than hardcoded strings, so version references stay in sync with releases."
 category: documentation
 date: 2026-06-07
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 history: docstring-api-doc-generation-and-comment-hygiene.history
 tags:
@@ -89,6 +89,8 @@ demo scripts dynamic. All changes are docs-only and carry near-zero functional r
 | Shipped-feature placeholder | `aliases to.*until.*supports` | Verify shipped, then remove stale comment |
 | No-op placeholder test | `pass  # Placeholder`, zero assertions | Remove function and its `main()` call |
 | Generator TODO in template string | `# TODO:` inside Python string literal | Replace with `# TEMPLATE:` |
+| New catalog MODULE section | `## SUMMARY TABLE:` in catalog.md | Insert before it; update all 4 header stats atomically |
+| Test-file Float16 NOTE | `# NOTE: Float16` in `tests/**/*.mojo` | Classify expected-vs-bug; `=`-underline header for expected |
 
 ### Detailed Steps
 
@@ -210,7 +212,85 @@ algorithm note, expanded `Example:`), and update the package listing entry (appe
 `(ExTensor, implements Hashable via __hash__)`). Do NOT add dunders to the import list — they
 are trait implementations, not importable symbols.
 
-#### D. Inline comment / NOTE cleanup
+#### D. Backward-pass catalog / dev-guide edits
+
+A backward-pass catalog (`backward-pass-catalog.md`) or dev guide (`testing-strategy.md`) often
+needs a new module section, formula block, or "Known Test Gotchas" subsection. These are
+structured docs — placement and atomic stat updates matter.
+
+1. Read the full target file first (use `Grep -C` / `offset`+`limit` if it exceeds the read
+   token limit).
+2. For a new MODULE section, insert it **before** `## SUMMARY TABLE:` — not at end of file —
+   so the catalog stays organized by module ahead of the summary.
+3. Update **all 4 header stat lines atomically** in one `Edit` call (total backward-function
+   count, broadcasting fraction, stability fraction, module count). Updating the total without
+   the fractions leaves the denominators wrong.
+4. For a "Known Test Gotchas" entry, insert between `## Gradient Checking` and
+   `## Layer Deduplication`; include Symptom, Root cause, Mathematical Proof sub-section, Safe
+   Alternatives, Rule, and Discovery context with PR/issue reference.
+5. Use ` ```text ` (not ` ```mojo `) for mathematical formulas and pseudocode.
+
+**Float16 accumulation in dev guides:** insert a `### Float16 Convolution Limitations`
+subsection between `### Parameters` and `### Example` under Gradient Checking. The accumulation
+error scales as `n × ε_machine`:
+
+```text
+Accumulation error ≈ n × ε_machine
+  where n = kernel_area × input_channels, ε_machine ≈ 9.77e-4 (Float16)
+```
+
+Float16 safe accumulations (tolerance `1e-1`): `n < ~100` (precisely ~102). Production
+convolutional layers exceed this for most kernels — supply per-layer `n` values (LeNet-5
+Conv2: `n=150`; AlexNet Conv1: `n=363`). See the Float16 Accumulation Reference table in
+Results & Parameters for the full per-layer breakdown.
+
+#### E. Test-file docstring documentation (Float16 NOTE review)
+
+Distinct from dev-guide subsection insertion (section D): this targets **test file docstring
+headers** when an issue asks to review and document Float16 precision NOTEs scattered across
+test files.
+
+1. **Assess each NOTE first** — classify every `# NOTE: Float16 ...` comment:
+   - **Expected limitation** (large-kernel accumulations, insufficient mantissa bits for
+     epsilon perturbations) → document in the test file header docstring.
+   - **Bug candidate** (unexpected NaN/Inf in small kernels, run-to-run inconsistency) → open
+     a separate tracking issue; do NOT silently document it as if expected.
+2. Explain the mixed-precision context: real training computes convolutions in **FP32 for
+   numerical stability** while storing activations/weights in **FP16 for memory efficiency**.
+   Tests that "use FP32 compute" faithfully model this — they are not working around Float16
+   failures. Float16's ~3.3 decimal digit precision (~11-bit mantissa) is insufficient for
+   large-kernel accumulations (K² × C_in > ~100–200) and finite-difference gradient checking.
+3. Write the section with the `=` underline heading style (not `###`) so it renders in IDE doc
+   viewers and Mojo parsers:
+
+```text
+Float16 Precision Limitations
+==============================
+<Layer/operation> accumulates <N> multiplications per output element.
+Float16's ~3.3 decimal digit precision (~11-bit mantissa) is insufficient
+for <large kernel accumulations / finite-difference epsilon / etc.>.
+
+This is an expected, fundamental limitation of Float16 arithmetic (not a bug).
+In practice, mixed-precision training computes in FP32 while storing in FP16
+for memory efficiency — tests using "FP32 compute" faithfully model this.
+See issue #<tracking-issue> for detailed analysis.
+```
+
+4. Commit with the `docs(tests):` prefix and a per-file list in the body:
+
+```text
+docs(tests): document Float16 precision limitations in test headers
+
+Add Float16 Precision Limitations sections to test file docstrings for:
+- tests/models/test_X.mojo: <brief explanation>
+- tests/shared/core/test_Y.mojo: <brief explanation>
+
+All limitations reference issue #NNNN for detailed analysis.
+
+Closes #<issue>
+```
+
+#### F. Inline comment / NOTE cleanup
 
 1. **Discovery** — always grep before editing (issue plans go stale):
 
@@ -252,7 +332,7 @@ new: alias GRADIENT_CHECK_EPSILON_FLOAT32: Float64 = 3e-4  # see #2704
 4. **Verify** — re-run the discovery greps and confirm zero remaining hits for the targeted
    categories.
 
-#### E. Dynamic version from package attribute in demo scripts
+#### G. Dynamic version from package attribute in demo scripts
 
 Demo/example scripts should consume the version the same way users should — by importing the
 package's public `__version__`, not hardcoding a string or calling `importlib.metadata` directly.
@@ -319,6 +399,13 @@ gh pr merge --auto --rebase <pr-number>
 | Running markdownlint via `pixi run npx` | `pixi run npx markdownlint-cli2 ...` | `npx: command not found` | Rely on pre-commit hooks instead |
 | Staging with `git add -A` | Added all untracked files | Picked up `__pycache__/` | Stage specific files for docs-only changes |
 | API doc / docstring gen treated as a one-shot | Assumed the direct approach always works | For greenfield docstrings the direct approach IS straightforward; the risk is skipping the read-first step | The pattern is simple, but still read existing code/docstrings before generating |
+| Re-adding an issue ref to an already-linked NOTE | Appended `(#NNNN)` to a multi-line NOTE block | The `#NNNN` already appeared elsewhere in the same NOTE block — it was already linked | If `#NNNN` appears anywhere in a multi-line NOTE block, it is already linked — don't re-add |
+| Skipping the issue-plan comment | Started editing straight from the issue title | The issue-plan comment had a pre-computed disposition table for each marker | Read the issue-plan comment first — it often has a ready disposition table |
+| Reading a full source file with `Read` | Attempted `Read` on a large file (e.g., `extensor.mojo`) | File exceeds the 25K token limit; the read fails | Use `Grep -C` for targeted context or `offset`+`limit` for specific line ranges |
+| Renaming a test fn without updating call sites | Renamed `test_slice_is_view` but left the `main()` call | Would cause a compile error — the old name is still referenced | Grep ALL call sites incl `main()` when renaming a test function |
+| Updating the header total without the fractions | Bumped the total backward-function count only | Broadcasting and stability fractions kept the old (wrong) denominator | Update all 4 header stat lines atomically in one Edit |
+| Inserting a MODULE section after the summary table | Appended the new module at end of catalog | Breaks reading flow — catalog is organized by module before the summary | Always insert a new MODULE section before `## SUMMARY TABLE:` |
+| Silently documenting a bug-candidate NOTE | Wrote an "expected limitation" header for a suspicious NaN NOTE | Buried a real bug as if it were by-design | Classify each NOTE expected-vs-bug; open a tracking issue for bug candidates |
 
 ## Results & Parameters
 
@@ -406,6 +493,19 @@ Note:
 | Conv2d / BatchNorm backward | `1e-1` (10%) | Accumulated matmul / normalization errors |
 | Linear backward | `0.10` wide + `0.01` abs | Matrix-op accumulated errors (#2704) |
 | Activation backward | `1e-2` float32, `1e-1` other | Elementwise, less accumulation |
+
+### Float16 Accumulation Reference Table
+
+Accumulation error ≈ `n × ε_machine`, where `n = kernel_area × input_channels` and Float16
+machine epsilon ≈ `9.77e-4`. Safe accumulations (tol=`1e-1`): `n < ~102`.
+
+| Layer | Formula | n | Float16 error | Exceeds tol 1e-1? |
+| ------- | --------- | --- | -------------- | ------------------- |
+| LeNet-5 Conv1 | 5² × 1 | 25 | ~2.4e-2 | Borderline |
+| LeNet-5 Conv2 | 5² × 6 | 150 | ~1.5e-1 | Yes |
+| AlexNet Conv1 | 11² × 3 | 363 | ~3.5e-1 | Yes |
+| AlexNet Conv2 | 5² × 64 | 1,600 | ~1.6 | Yes |
+| AlexNet Conv3 | 3² × 192 | 1,728 | ~1.7 | Yes |
 
 ### Dynamic Version Pattern
 

@@ -18,6 +18,24 @@ Consolidated 5 overlapping documentation skills into one general canonical:
 Specific cases from each were retained as concrete examples in the canonical's Detailed Steps.
 The full original body of each absorbed skill is preserved verbatim below.
 
+## v1.1.0 (2026-06-07)
+
+Restore catalog/dev-guide + test-docstring nuance (nuance audit pass 2). Re-added from the
+superseded `docstring-and-api-documentation-update` body:
+
+- Detailed Steps D (backward-pass catalog / dev-guide edits): insert a new MODULE section
+  before `## SUMMARY TABLE:`; update all 4 header stat lines atomically; Float16 accumulation
+  error ≈ `n × ε_machine` (ε_machine ≈ `9.77e-4`) with per-layer `n` values.
+- Detailed Steps E (test-file docstring pattern): classify each NOTE expected-vs-bug (open a
+  tracking issue for bug candidates rather than silently documenting); `=` underline heading
+  style; `docs(tests):` commit format.
+- Float16 Accumulation Reference table added to Results & Parameters.
+- New Failed Attempts rows: already-linked `#NNNN` in a multi-line NOTE block (don't re-add);
+  read the issue-plan comment first (pre-computed disposition table); `Read` on a large file
+  exceeds the 25K token limit (use `Grep -C` / `offset`+`limit`); renaming a test fn requires
+  grepping all call sites incl `main()`; atomic 4-line header stat update; MODULE-before-summary
+  placement; don't silently document a bug-candidate NOTE.
+
 ## Superseded from docstring-and-api-documentation-update
 
 **Original date:** 2026-06-07
