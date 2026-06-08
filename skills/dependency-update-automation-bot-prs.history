@@ -2,6 +2,10 @@
 
 # History: dependency-update-automation-bot-prs
 
+## v1.1.0 (2026-06-07)
+
+Restore green-CI-doesn't-certify-scope lesson (nuance audit pass 2): added a Pattern B note in the scope-contamination Detailed Steps and a `## Failed Attempts` row clarifying that `gh pr checks` is a Pattern A red-check detector only. Pattern B (maintainer-fixup) contamination PRs pass CI by design — the fixup commit is what turned CI green — so a green-checks PR must still get the commit-author scope check.
+
 ## v1.0.0 (2026-06-07)
 
 Consolidated 3 overlapping skills into the general canonical `dependency-update-automation-bot-prs`:
