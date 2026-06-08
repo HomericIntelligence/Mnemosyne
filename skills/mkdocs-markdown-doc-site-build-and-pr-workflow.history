@@ -1598,3 +1598,678 @@ PR changed files → all .md / static .json?
 | ProjectMnemosyne | PR security reviews, skill cleanup issues | Member skills |
 
 ---
+
+## v1.1.0 (2026-06-07)
+
+Absorbed 4 markdown-rule skills into this canonical (folded into the markdown-linting
+steps + Failed Attempts; originals preserved verbatim below):
+
+- `ci-markdownlint-md060-table-separator-spaces` (was ci-cd, v1.0.0, 2026-05-26)
+- `markdownlint-md012-trailing-blank-eof` (was tooling, v1.0.0, 2026-05-29)
+- `doc-validate-markdown` (was architecture, v1.0.0, 2025-12-30)
+- `fix-markdown-agent-docs` (was documentation, v1.1.0, 2026-03-06)
+
+## Superseded from ci-markdownlint-md060-table-separator-spaces
+
+**Original date/version**: 2026-05-26 / v1.0.0
+
+```yaml
+name: ci-markdownlint-md060-table-separator-spaces
+description: "Use when: (1) CI markdownlint job fails with MD060/table-column-style 'Table pipe is missing space to the right/left for style compact', (2) local pre-commit Markdown Lint hook passes but CI's separate markdownlint job fails on the same .md file, (3) adding or modifying any markdown table in docs/ and you want to pre-empt the CI gate."
+category: ci-cd
+date: 2026-05-26
+version: "1.0.0"
+user-invocable: false
+verification: verified-ci
+tags:
+  - markdownlint
+  - markdownlint-cli2
+  - MD060
+  - tables
+  - table-column-style
+  - ci-cd
+  - pre-commit-divergence
+  - docs
+```
+
+# CI markdownlint MD060: use spaced table separators
+
+## Overview
+
+| Field | Value |
+| ----- | ----- |
+| **Date** | 2026-05-26 |
+| **Objective** | Stop CI's markdownlint job from failing MD060 on table separators after local pre-commit Markdown Lint already passed |
+| **Outcome** | Verified — converting `\|---\|---\|---\|` to `\| --- \| --- \| --- \|` and re-running `pixi run npx markdownlint-cli2` locally produces 0 errors and unblocks CI |
+| **Verification** | verified-ci (CI passed on PR #5457 after fix applied to `docs/dev/autograd-phase2-design.md`) |
+
+## When to Use
+
+- CI's `markdownlint` job reports `MD060/table-column-style ... Table pipe is missing space to the right for style 'compact'` (or "to the left")
+- Local `pixi run pre-commit run --from-ref origin/main --to-ref HEAD` reports the **Markdown Lint** hook as `Passed`, but CI's separate `markdownlint` job fails on the same file
+- You are about to push a PR that adds or modifies any markdown table in `docs/` or any other markdown file scanned by CI
+- You see MD060 errors specifically on **table separator rows** (the `|---|` row, not data rows)
+
+## Verified Workflow
+
+### Quick Reference
+
+```bash
+# 1. Convert compact separators to spaced separators in the target file
+python3 - <<'PY'
+import re
+from pathlib import Path
+p = Path("docs/dev/<file>.md")
+text = p.read_text()
+def fix_sep(m):
+    cells = m.group(0).strip().strip('|').split('|')
+    return '| ' + ' | '.join(c.strip() for c in cells) + ' |'
+new = re.sub(r'^\|[\s:|-]+\|\s*$', fix_sep, text, flags=re.MULTILINE)
+p.write_text(new)
+PY
+
+# 2. Verify with the SAME tool CI runs (NOT pre-commit)
+pixi run npx markdownlint-cli2 docs/dev/<file>.md
+# Must print "Summary: 0 error(s)" before pushing
+```
+
+### Detailed Steps
+
+1. **Confirm the failure class.** Inspect the CI log:
+
+   ```bash
+   gh run view <RUN_ID> --log-failed | grep -E "MD060|table-column-style"
+   ```
+
+   Look for `Table pipe is missing space to the right for style 'compact'` (or `left`).
+   The reported line numbers will point at separator rows like `|---|---|---|`.
+
+2. **Apply the fix.** Replace every compact separator row with a spaced separator:
+
+   ```markdown
+   <!-- BEFORE (fails MD060 in CI) -->
+   | Col A | Col B | Col C |
+   |---|---|---|
+   | a | b | c |
+
+   <!-- AFTER (passes MD060) -->
+   | Col A | Col B | Col C |
+   | --- | --- | --- |
+   | a | b | c |
+   ```
+
+   The Quick Reference Python snippet above does this safely with a regex anchored
+   to lines that match `^\|[\s:|-]+\|\s*$` (separator rows only — never touches data rows).
+   The snippet also preserves alignment markers (`:---`, `:---:`, `---:`).
+
+3. **Verify with CI's actual tool, not pre-commit.**
+
+   ```bash
+   pixi run npx markdownlint-cli2 docs/dev/<file>.md
+   ```
+
+   Pre-commit's `Markdown Lint` hook and CI's `markdownlint` job use **different
+   config files / different rule enablement**. Local pre-commit may say `Passed`
+   while CI fails on MD060. The only authoritative pre-push check is running
+   `markdownlint-cli2` directly the way CI does.
+
+4. **Commit, push, watch CI.** The dedicated `markdownlint` job should now report success.
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| ------- | -------------- | ------------- | -------------- |
+| Trusted local pre-commit Markdown Lint hook | Ran `pixi run pre-commit run --from-ref origin/main --to-ref HEAD`; the `Markdown Lint` hook printed `Passed` and the PR was pushed | CI's `markdownlint` job is a **separate gate** with a different markdownlint-cli2 invocation/config that enables MD060 strictly. Local pre-commit's hook config did not flag MD060 on compact separators | Local pre-commit passing does NOT imply CI markdownlint will pass. Always run `pixi run npx markdownlint-cli2 <file>.md` directly before pushing any .md change |
+| `markdownlint-cli2 --fix` to auto-fix MD060 | Ran `pixi run npx markdownlint-cli2 --fix docs/dev/<file>.md` expecting auto-repair like other MD0xx rules | `--fix` covers many markdownlint rules but **not** MD060/table-column-style. The tool reported 0 modifications and the error persisted | MD060 has no autofix. Apply the regex/Python snippet (or hand-edit) — do not waste a cycle on `--fix` |
+| Adding more dashes to compact separators | Tried `\|------\|------\|------\|` thinking MD060 wanted longer dashes | MD060 is about **space padding around pipes**, not dash count. Compact-style separators fail regardless of how many `-` chars sit between the pipes | Spaces around pipes are the fix; dash count is irrelevant |
+
+## Results & Parameters
+
+### Reproducer
+
+```markdown
+| A | B | C |
+|---|---|---|
+| 1 | 2 | 3 |
+```
+
+`pixi run npx markdownlint-cli2 file.md` →
+
+```text
+file.md:2 MD060/table-column-style Table column style
+  [Table pipe is missing space to the right for style 'compact']
+```
+
+### Fixed form (passes)
+
+```markdown
+| A | B | C |
+| --- | --- | --- |
+| 1 | 2 | 3 |
+```
+
+### Pre-push verification command (only authoritative local check)
+
+```bash
+pixi run npx markdownlint-cli2 path/to/file.md
+# Required: "Summary: 0 error(s)" — anything else means CI will fail
+```
+
+### Why pre-commit and CI diverge
+
+| Gate | Tool invocation | MD060 enforced? |
+| ---- | --------------- | --------------- |
+| Local pre-commit `Markdown Lint` hook | Uses the hook's bundled config (may disable MD060 or use looser table-column-style) | Often no |
+| CI `markdownlint` job | Direct `markdownlint-cli2` with repo `.markdownlint*` config | Yes |
+
+The remediation is mechanical (regex/sed) and idempotent.
+
+## Verified On
+
+| Project | Context | Details |
+| ------- | ------- | ------- |
+| ProjectOdyssey | PR #5457 — `docs/dev/autograd-phase2-design.md` | 26 MD060 errors at table separator rows; fixed with the regex snippet; CI markdownlint job then passed |
+
+---
+
+## Superseded from markdownlint-md012-trailing-blank-eof
+
+**Original date/version**: 2026-05-29 / v1.0.0
+
+```yaml
+name: markdownlint-md012-trailing-blank-eof
+description: "Diagnose markdownlint MD012/no-multiple-blanks errors that are actually caused by a trailing double newline at end-of-file, not by visible double blanks at the reported line. Use when: (1) markdownlint CI reports MD012 at a line number close to the file's last content line, (2) the same MD012 error appears across multiple PRs touching different markdown files, (3) you almost stripped blank lines inside a fenced code block trying to fix MD012 (MD012 ignores blanks inside code fences by default), (4) you want a one-line POSIX fix that strips trailing whitespace and re-adds a single newline terminator."
+category: tooling
+date: 2026-05-29
+version: "1.0.0"
+user-invocable: false
+verification: verified-ci
+tags:
+  - markdownlint
+  - MD012
+  - no-multiple-blanks
+  - eof-newline
+  - end-of-file-fixer
+  - ci-unblocking
+  - pre-commit
+  - diagnostics
+```
+
+# Markdownlint MD012 Caused by Trailing-Blank at EOF
+
+## Overview
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-05-29 |
+| **Objective** | Correctly diagnose MD012/no-multiple-blanks failures whose true root cause is a `\n\n` sequence at end-of-file, not visible double blank lines at the reported line number |
+| **Outcome** | Applied as one-line fix across 4 separate ProjectMnemosyne PRs (#2001, #2002, #2003, #2004); all PRs pushed with auto-merge armed; CI MD012 violations resolved |
+| **Verification** | verified-ci — fix landed across 4 PRs with passing markdownlint check |
+
+## When to Use
+
+- Markdownlint CI reports an error of the form `<file>.md:<N> MD012/no-multiple-blanks Multiple consecutive blank lines [Expected: 1; Actual: 2]` where `<N>` is close to the file's last content line
+- The same MD012 error appears across multiple PRs touching different markdown files (e.g., a 4-of-9 hit rate suggests a systemic missing `end-of-file-fixer` pre-commit hook, not a content authoring problem)
+- You are tempted to edit the literal "line N" the linter reported, but the visible content there looks fine
+- You see `\n\n` runs inside fenced code blocks and are wondering whether to strip them (you should not — MD012 ignores blanks inside code fences by default)
+- You want a portable POSIX one-liner that fixes the EOF case without touching any other blank lines
+
+## Verified Workflow
+
+### Quick Reference
+
+```bash
+# 1. Detect the EOF-trailing-blank cause (last byte is \n AND second-to-last byte is \n):
+[ -z "$(tail -c 2 <file> | head -c 1 | tr -d '\n')" ] && \
+  printf "TRAILING_BLANK_AT_EOF: yes -- strip and re-add single newline\n"
+
+# 2. Fix (strips ALL trailing blank lines, re-adds exactly one final newline):
+printf '%s\n' "$(cat <file>)" > <file>.tmp && mv <file>.tmp <file>
+
+# 3. Verify locally (same lint version CI uses):
+npx --yes markdownlint-cli2 <file>
+
+# 4. (Prophylactic) install end-of-file-fixer in pre-commit:
+#    https://github.com/pre-commit/pre-commit-hooks
+#    - repo: https://github.com/pre-commit/pre-commit-hooks
+#      hooks:
+#        - id: end-of-file-fixer
+```
+
+### Detailed Steps
+
+1. **Read the CI error literally** — e.g. `skills/foo.md:149 MD012/no-multiple-blanks ... [Expected: 1; Actual: 2]`.
+
+2. **Check the file length**. If the file is ~149-150 lines long and the error is at line 149, the "Actual: 2" run almost certainly ends at EOF. The line number in the MD012 error points to where the consecutive-blank run *begins*, which at EOF is the last newline-after-content.
+
+3. **Confirm via the detection one-liner** (see Quick Reference). If the last two bytes are both `\n`, you have the EOF case.
+
+4. **Apply the fix**. `printf '%s\n' "$(cat file.md)" > file.md.tmp && mv file.md.tmp file.md` is POSIX-correct: command substitution strips *all* trailing newlines, then `printf '%s\n'` re-adds exactly one. Equivalent `sed` form: `sed -i -e :a -e '/^$/{$d;N;ba' -e '}' file.md`.
+
+5. **Verify with the same tool CI uses**. ProjectMnemosyne CI runs markdownlint v0.40.0 via markdownlint-cli2 v0.22.1. `npx --yes markdownlint-cli2 <file>` reproduces the CI error exactly.
+
+6. **Prophylaxis** — if the same pattern shows up in 2+ PRs, install the `end-of-file-fixer` pre-commit hook from `pre-commit/pre-commit-hooks`. Every future fix becomes a one-line auto-commit, and the class of bug disappears.
+
+7. **MD012 + fenced code blocks** — confirmed: markdownlint MD012 default config has `code_blocks: false` semantics (blank lines inside fenced code blocks are exempt). Do *not* strip `\n\n` runs inside `` ``` `` fences when chasing this error; you will damage the example output and the MD012 violation will still be there because the real one is at EOF.
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+|---------|----------------|---------------|----------------|
+| Edit literal "line N" the lint reported | Opened the file at the exact line in the MD012 error and looked for visible double blank lines | There were none at the reported line — the line was real content; the run actually started at EOF, several lines later | The MD012 line number marks where the consecutive-blank run *begins*, not where the issue is "felt". Always check EOF first when the line number ≈ file length |
+| Search file for any `\n\n\n` (triple newline) sequence | `grep -P` / `rg -U` for `\n{3,}` to find double-blanks anywhere | Misses the EOF case: at end-of-file the sequence is `\n\n<EOF>` (two newlines) not `\n\n\n` (three) | EOF is special — the "second blank line" is implicit. Use a tail-2-bytes check, not a body-scan regex |
+| Strip blank lines inside fenced code blocks | Saw `\n\n` runs inside `` ``` `` Python example blocks and thought MD012 was firing on those | MD012's `code_blocks: false` default exempts fenced code; the violation was at EOF the whole time. Would have damaged example output for zero lint benefit | MD012 ignores fenced code blocks by default. Filter your visual scan to *outside* code fences before suspecting in-fence blanks |
+| Use `sed -i '${/^$/d}' file.md` (single-line trailing-blank delete) | Tried the canonical short sed idiom to delete one trailing blank | Only deletes a single trailing blank line — leaves `\n\n` runs of length 3+ untouched; also macOS sed needs `-i ''` | Use `printf '%s\n' "$(cat file)" > file` for portability; it strips *all* trailing blank lines in one pass and works identically on GNU and BSD systems |
+
+## Results & Parameters
+
+**Tooling versions verified against:**
+
+| Tool | Version | Source |
+|------|---------|--------|
+| markdownlint | 0.40.0 | invoked by markdownlint-cli2 in ProjectMnemosyne CI |
+| markdownlint-cli2 | 0.22.1 | `npx --yes markdownlint-cli2 <file>` |
+
+**MD012 rule behavior (defaults):**
+
+| Setting | Default | Effect |
+|---------|---------|--------|
+| `maximum` | 1 | At most 1 consecutive blank line allowed |
+| `code_blocks` | false | Fenced code blocks are exempt from the rule |
+
+**One-line fixes (copy-paste ready):**
+
+```bash
+# Portable POSIX fix (works on GNU + BSD/macOS):
+printf '%s\n' "$(cat path/to/file.md)" > /tmp/_fix && mv /tmp/_fix path/to/file.md
+
+# GNU sed equivalent (strips ALL trailing blanks):
+sed -i -e :a -e '/^$/{$d;N;ba' -e '}' path/to/file.md
+
+# Detect before fixing (returns "yes" iff last two bytes are both newlines):
+[ -z "$(tail -c 2 path/to/file.md | head -c 1 | tr -d '\n')" ] && echo yes
+```
+
+**Pre-commit prophylaxis (`.pre-commit-config.yaml`):**
+
+```yaml
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: end-of-file-fixer
+        files: \.md$
+```
+
+**Observed hit rate during ProjectMnemosyne PR batch (2026-05-29):**
+
+| Metric | Value |
+|--------|-------|
+| Total markdownlint failures triaged | 9 |
+| Failures rooted in EOF trailing-blank | 4 (PRs #2001, #2002, #2003, #2004) |
+| Hit rate | 44% (4/9) |
+| PRs fixed with the one-liner | 4 (commits 6600e6a, 6ff96f5, 9e3fb70, 5611cdc) |
+| Average fix size | 1 line (trailing newline) |
+
+## Verified On
+
+| Project | Context | Details |
+|---------|---------|---------|
+| ProjectMnemosyne | Batch fix of 10 failing PRs on 2026-05-29; 4 of 9 markdownlint failures shared this exact root cause | PRs #2001, #2002, #2003, #2004 — all pushed with auto-merge armed; commits 6600e6a / 6ff96f5 / 9e3fb70 / 5611cdc |
+
+---
+
+## Superseded from doc-validate-markdown
+
+**Original date/version**: 2025-12-30 / v1.0.0
+
+```yaml
+name: doc-validate-markdown
+description: Validate markdown files for formatting, links, and style compliance using
+  markdownlint
+category: architecture
+date: 2025-12-30
+version: 1.0.0
+```
+
+# Validate Markdown Files
+
+Validate markdown formatting and style compliance.
+
+## Overview
+
+| Date | Objective | Outcome |
+| ------ | ----------- | --------- |
+| 2025-12-30 | Consistent markdown formatting | Clean documentation passing CI |
+
+## When to Use
+
+- (1) Before committing documentation
+- (2) Markdown linting errors in CI
+- (3) Creating new documentation
+- (4) Updating existing docs
+
+## Verified Workflow
+
+1. **Run validation** - Check all markdown files
+2. **Review errors** - Identify issues by rule ID
+3. **Auto-fix** - Fix auto-fixable issues
+4. **Manual fix** - Address remaining issues
+5. **Verify** - Re-run validation
+6. **Commit** - Stage and commit changes
+
+## Results
+
+Copy-paste ready commands:
+
+```bash
+# Check all markdown
+npx markdownlint-cli2 "**/*.md"
+
+# Check specific file
+npx markdownlint-cli2 README.md
+
+# Fix auto-fixable issues
+npx markdownlint-cli2 --fix "**/*.md"
+
+# Check with config
+npx markdownlint-cli2 --config .markdownlint.yaml "**/*.md"
+```
+
+### Common Issues & Fixes
+
+**MD040: Code blocks need language**
+
+```text
+Wrong: code block without language tag
+Correct: Add language like ```python or ```bash
+```
+
+**MD031: Blank lines around blocks**
+
+Add one blank line before and after code blocks.
+
+**MD013: Line too long**
+
+Keep lines under 120 characters. Break at natural boundaries.
+
+**MD022: Heading spacing**
+
+Add blank line before and after headings.
+
+### Configuration File
+
+`.markdownlint.yaml`:
+
+```yaml
+line-length:
+  line_length: 120
+  code_blocks: false
+  tables: false
+```
+
+### Validation Checklist
+
+- [ ] All code blocks have language specified
+- [ ] All code blocks have blank lines before and after
+- [ ] All lists have blank lines before and after
+- [ ] All headings have blank lines before and after
+- [ ] No lines exceed 120 characters
+- [ ] File ends with newline
+- [ ] No trailing whitespace
+
+## Results & Parameters
+
+Copy-paste ready configurations and expected outputs.
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| N/A | Direct approach worked | N/A | Solution was straightforward |
+## Error Handling
+
+| Problem | Solution |
+| --------- | ---------- |
+| MD040: Missing language tag | Add language: ` ```mojo ` |
+| MD031: Missing blank lines | Add blank line before/after block |
+| MD013: Line too long | Break line at 120 characters |
+| MD022: Heading spacing | Add blank line before/after heading |
+
+## References
+
+- Related skill: quality-run-linters for complete linting
+- Configuration: `.markdownlint.yaml`
+
+---
+
+## Superseded from fix-markdown-agent-docs
+
+**Original date/version**: 2026-03-06 / v1.1.0
+
+```yaml
+name: fix-markdown-agent-docs
+description: "Fix common markdown issues in agent hierarchy docs: malformed closing\
+  \ code fences, stale agent counts, and line length violations. Use when: (1) markdownlint\
+  \ fails on agents/hierarchy.md, (2) agent counts in docs diverge from actual .claude/agents/\
+  \ files, (3) closing code fences have language specifiers, (4) markdownlint reports\
+  \ MD040 or MD031 on closing fence line."
+category: documentation
+date: 2026-03-06
+version: 1.1.0
+user-invocable: false
+absorbed:
+  - fix-markdown-fenced-code-blocks
+```
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Skill** | fix-markdown-agent-docs |
+| **Category** | documentation |
+| **Applies To** | agents/hierarchy.md and similar agent hierarchy docs |
+| **Key Tools** | Read, Edit, Grep, Glob, Bash (pre-commit) |
+
+## When to Use
+
+- Markdownlint reports errors on `agents/hierarchy.md` after agent restructuring
+- PR review feedback flags stale agent counts (e.g., "13 specialists" when it's now 5)
+- Code fence closing tags have language specifiers (` ```text ` instead of ` ``` `)
+- Agent count tables/breakdowns don't match actual files in `.claude/agents/`
+- Lines exceed 120 characters (MD013) in hierarchy docs
+
+## Verified Workflow
+
+### Step 1: Read the file to understand current state
+
+```bash
+Read agents/hierarchy.md
+```
+
+### Step 2: Count actual agents by level using Grep
+
+```bash
+# Get level assignments from all agent YAML frontmatter
+Grep pattern="^level:" path=".claude/agents" glob="*.md" output_mode="content"
+```
+
+Count agents per level from the grep output. Exclude template files.
+
+### Step 3: Fix malformed closing code fences
+
+Closing code fences must be bare ` ``` ` with no language tag. The pattern ` ```text `
+on a closing fence is invalid — only opening fences take a language specifier.
+
+Search for this pattern and fix each occurrence:
+
+```
+old: ```text    ← closing fence (no opening context above)
+new: ```
+```
+
+**How to identify closing vs opening fences**: A closing fence immediately follows content
+lines (not a heading/blank line). An opening fence immediately follows a blank line or heading.
+
+### Step 4: Reconcile agent counts
+
+After counting actual Level 3 agents:
+
+1. Split into review specialists (name contains `-review-`) vs implementation specialists
+2. Update the diagram box counts (e.g., "4 Code Review Specialists", "6 Additional Specialists")
+3. Update the Level Summaries section text (e.g., "15 total (11 + 4)")
+4. Update the Agent Count table total
+5. Update the Level 3 Breakdown list
+
+Note: The `code-review-orchestrator` is Level 2, NOT a Level 3 review specialist.
+Do not count it in the Level 3 review specialist total.
+
+### Step 5: Fix line length violations (MD013)
+
+Lines over 120 chars must be wrapped. For bullet list items, wrap by continuing the
+text on the next line with 2-space indent (continuation indent):
+
+```markdown
+- **Field**: Short intro text that is within 120 chars;
+  continuation text here on next line indented 2 spaces
+```
+
+For italic historical notes at the end of sections, wrap at a natural sentence/clause boundary.
+
+### Step 6: Fix MD032 (lists need blank lines around them)
+
+If a bold heading like `**Level 3 Breakdown:**` is immediately followed by a list with
+no blank line, add a blank line between the heading text and the first list item.
+
+### Step 7: Validate
+
+```bash
+pixi run pre-commit run markdownlint-cli2 --all-files
+```
+
+Should output: `Markdown Lint...Passed`
+
+### Step 8: Commit (skip mojo-format if GLIBC incompatibility exists locally)
+
+```bash
+git add agents/hierarchy.md
+SKIP=mojo-format git commit -m "fix: correct agent counts and markdown in hierarchy.md"
+```
+
+### Markdownlint Quick Reference
+
+| Rule | Name | Fix |
+| ------ | ------ | ----- |
+| MD013 | line-length (max 120) | Wrap at natural clause boundary, indent continuation 2 spaces |
+| MD031 | blanks-around-fences | Ensure blank line before and after fenced block |
+| MD032 | blanks-around-lists | Add blank line before first list item after paragraph/heading |
+| MD040 | fenced-code-language | Opening fences need language; closing fences must be plain ` ``` ` |
+
+**Malformed Closing Fence** — triggers MD040/MD031:
+
+Wrong (closing fence with language tag):
+
+```text
+    └──────────────────────────────────────┘
+```text
+```
+
+Correct:
+
+```text
+    └──────────────────────────────────────┘
+```
+```
+
+**MD013 Line Wrap** — Mojo-specific bullet example:
+
+Wrong (>120 chars):
+
+```markdown
+- **Language Context**: Designs Mojo module structures, leverages Mojo features (SIMD, traits, structs); coordinates review across all code dimensions
+```
+
+Correct:
+
+```markdown
+- **Language Context**: Designs Mojo module structures, leverages Mojo features (SIMD, traits, structs);
+  coordinates review across all code dimensions
+```
+
+## Key Patterns
+
+### Malformed Fence Pattern
+
+```text
+# WRONG - closing fence with language tag
+Boilerplate Generation (Level 5)
+```text          ← INVALID closing fence
+
+# CORRECT
+Boilerplate Generation (Level 5)
+```              ← bare closing fence
+```
+
+### Agent Count Reconciliation
+
+The Level 3 total = implementation specialists + code review specialists.
+
+- **Code review specialists**: agents whose filenames contain `-review-specialist`
+  (e.g., `general-review-specialist.md`, `mojo-language-review-specialist.md`)
+- **Implementation specialists**: all other Level 3 agents
+- **NOT included**: `code-review-orchestrator` (this is Level 2)
+
+Example after PR #3319 consolidation (13→5 review specialists):
+
+| Category | Count | Agents |
+| ---------- | ------- | -------- |
+| Implementation | 11 | implementation, test, documentation, performance, security, blog writer, numerical stability, test flakiness, PR cleanup, mojo syntax validator, CI failure analyzer |
+| Code Review | 4 | general, mojo language, security, test |
+| **Total L3** | **15** | |
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| Match closing fence with surrounding context | Used box-drawing characters from diagram as part of old_string | Box-drawing chars varied in width/encoding between Read output and Edit matcher | Read the exact lines around the closing fence and use minimal unique context (2-3 lines before) |
+| Trust the plan's count directly | Used "10 implementation specialists + 5 code review" from plan doc without verifying | Plan doc was stale; actual files showed 11 + 4 | Always grep actual `.claude/agents/` files to verify counts before editing |
+| Fix all fences with replace_all | Tried replace_all on ` ```text ` → ` ``` ` | Would also replace opening ` ```text ` fences used legitimately for diagrams | Fix each closing fence individually using surrounding context to distinguish from openers |
+| Run `just pre-commit-all` | Tried to use justfile recipe | `just` not installed on this machine | Use `pixi run pre-commit run --all-files` directly |
+| Run `pixi run npx markdownlint-cli2` | Tried direct npx invocation | `npx` not in PATH in pixi environment | Use `pixi run pre-commit run markdownlint-cli2 --all-files` instead |
+
+## Results & Parameters
+
+**Environment**: Linux (Debian Buster), ProjectOdyssey worktree
+
+**Working commands**:
+
+```bash
+# Validate markdown only (fast)
+pixi run pre-commit run markdownlint-cli2 --all-files
+
+# Run all hooks except broken mojo-format (GLIBC issue on older distros)
+SKIP=mojo-format git commit -m "fix: ..."
+
+# Count agents per level
+grep -r "^level:" .claude/agents/*.md | grep "level: 3" | wc -l
+```
+
+**markdownlint rules triggered in hierarchy.md**:
+
+- `MD013` — line-length (limit: 120 chars)
+- `MD032` — blanks-around-lists (blank line required before/after list)
+- Malformed closing fences don't trigger markdownlint but break rendering
+
+**Agent level distribution after PR #3319** (ProjectOdyssey):
+
+| Level | Count |
+| ------- | ------- |
+| 0 | 1 |
+| 1 | 6 |
+| 2 | 4 |
+| 3 | 15 |
+| 4 | 6 |
+| 5 | 3 |
+| Total | 35 |
+
+---
