@@ -6,7 +6,7 @@
   },
   "description": "Skills marketplace for the HomericIntelligence agentic ecosystem",
   "version": "2.1.0",
-  "total_plugins": 999,
+  "total_plugins": 291,
   "categories": {
     "architecture": 45,
     "ci-cd": 44,
@@ -18,7 +18,7 @@
     "tooling": 110,
     "training": 7
   },
-  "last_updated": "2026-06-08T01:54:12Z",
+  "last_updated": "2026-06-08T02:30:26Z",
   "plugins": [
     {
       "name": "agent-config-validation-and-integrity",
@@ -290,8 +290,8 @@
     },
     {
       "name": "dry-refactoring-workflow",
-      "description": "Complete TDD-driven workflow for identifying and eliminating code duplication by extracting reusable helper methods. Use when: (1) extracting duplicated helper methods into a shared module using TDD (write a failing test against the canonical, delete the duplicate, run green); (2) creating a private leaf module with leading-underscore naming to centralize a repeated internal call (e.g. importlib.metadata version resolution, path construction) and prevent re-introduction across modules; (3) centralizing hardcoded path constants into a single module to prevent drift when directory structure changes (incl. phase-routed in_progress/completed splits); (4) deduplicating LLM JSON extraction, parser logic, or any call-site pattern copy-pasted across several files; (5) test structure must mirror source structure when extracting helpers; (6) running a full DRY consolidation pass (discovery via grep, classifying true duplicates vs intentional variants, dict-structure consolidation) and refactoring to a single canonical source. Also covers cryptographic commit signing requirements in PR workflows.",
-      "version": "1.3.0",
+      "description": "Complete TDD-driven workflow for identifying and eliminating code duplication by extracting reusable helper methods. Use when: (1) extracting duplicated helper methods into a shared module using TDD (write a failing test against the canonical, delete the duplicate, run green); (2) creating a private leaf module with leading-underscore naming to centralize a repeated internal call (e.g. importlib.metadata version resolution, path construction) and prevent re-introduction across modules; (3) centralizing hardcoded path constants into a single module to prevent drift when directory structure changes (incl. phase-routed in_progress/completed splits); (4) deduplicating LLM JSON extraction, parser logic, or any call-site pattern copy-pasted across several files; (5) test structure must mirror source structure when extracting helpers; (6) running a full DRY consolidation pass (discovery via grep, classifying true duplicates vs intentional variants, dict-structure consolidation) and refactoring to a single canonical source; (7) extract-method / SRP decomposition of over-long functions (50-LOC) and methods (100-LOC), including converting a mutating closure into a method via a small mutable box; (8) extracting repeated cached lookups into an @lru_cache helper (and clearing the cache so unittest.mock.patch works); (9) removing stale scripts / deprecated stubs (grep callers first) and replacing hardcoded file lists with dynamic Path.rglob discovery. Also covers cryptographic commit signing requirements in PR workflows.",
+      "version": "1.4.0",
       "source": "./skills/dry-refactoring-workflow.md",
       "category": "architecture",
       "tags": []
@@ -1210,7 +1210,7 @@
     {
       "name": "github-auto-merge-ci-gating-merge-method",
       "description": "Use when: (1) a PR has mergeStateStatus CLEAN or MERGEABLE but auto-merge never fires despite all checks passing, (2) gh pr merge --auto --rebase or --squash returns an error or silently fails on a squash-only repo, (3) a PR is BLOCKED because required CI status contexts never post (workflow never triggered, paths filter excluded PR, required check name mismatch), (4) GPG-signing failures or mismatched committer emails cause commits to be unsigned and block the pr-policy gate, (5) branch protection rulesets and classic branch protection disagree and their union blocks merge, (6) a CI ruleset chicken-and-egg deadlock blocks a PR that introduces a new workflow, (7) an advisory check should not block merge but currently does because it lives in the required gate, (8) deciding which merge method a repo supports before arming auto-merge, (9) auditing required-check names after adding or removing CI jobs, (10) state:implementation-go label or pr-policy gates auto-merge arming, (11) per-issue arming-state machine is triggered on the wrong event (optimistic point vs detected merge)",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "source": "./skills/github-auto-merge-ci-gating-merge-method.md",
       "category": "ci-cd",
       "tags": [
@@ -1497,7 +1497,7 @@
     {
       "name": "pr-rebase-conflict-resolution-patterns",
       "description": "Use when: (1) a PR branch is CONFLICTING or DIRTY after main advances and needs rebasing, (2) a mass rebase of 10+ PRs is needed after a major refactor causes conflicts across the queue, (3) a stacked PR goes DIRTY when its prerequisite merges and the base must be retargeted \u2014 later CI/lint fix commits on the dependent branch are orphaned and must be cherry-picked, (4) a Safety Net hook blocks git checkout --theirs / --ours during automated rebase conflict resolution, (5) a file was completely rewritten on one branch and small targeted edits exist on the other, (6) a parallel swarm produced overlapping PRs that conflict on the same paths and one must be rebased onto the other, (7) a feature PR conflicts after a sibling refactor merges and edits must be ported to the new file structure, (8) a TypeScript or other language-level shadowing bug appears only after a rebase because two branches independently added identically-named locals to the same scope, (9) numerical or optimizer PRs conflict when main merged its own version of a shared module and API signatures changed",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "source": "./skills/pr-rebase-conflict-resolution-patterns.md",
       "category": "ci-cd",
       "tags": [
@@ -1525,7 +1525,7 @@
     {
       "name": "pr-review-loop-orchestration-agent-patterns",
       "description": "Use when: (1) building or debugging a Python implement-review loop where an LLM sub-agent reviews a PR and a fixer agent addresses inline comments, (2) a review loop resolves threads even though no commit was produced \u2014 resolution must be gated on a real commit not the model self-report, (3) a loop ends AMBIGUOUS or NO-GO too fast before ever earning an explicit GO verdict, (4) LLM or agent-generated inline PR review comments are rejected by GitHub (HTTP 422) because they do not lie on a changed diff hunk, (5) an agent-driven CI-fix session produces no commit and the PR stays red; the correct response is a single bounded retry with unresolved review threads injected verbatim, (6) a review fix plan file concludes no changes are needed and the automation should self-cancel without opening a new PR, (7) a feature-dev:code-reviewer sub-agent cannot execute shell commands and cannot post gh pr review \u2014 wrong agent type was chosen, (8) a GitHub GraphQL PR-review mutation field selection is wrong and the automation loop fails on every call with Field X does not exist, (9) pre-commit must cover the full PR diff from the merge-base not just the most-recent-edit files before pushing",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "source": "./skills/pr-review-loop-orchestration-agent-patterns.md",
       "category": "ci-cd",
       "tags": [
@@ -2810,7 +2810,7 @@
     {
       "name": "pytest-fixture-patterns-and-deduplication",
       "description": "Use when: (1) pytest.mark.parametrize lists hardcode fixture filenames that must be manually updated when new fixtures are added \u2014 replace with glob-based auto-discovery; (2) test fixtures have duplicated YAML configs \u2014 find | md5sum shows 40+ duplicates and runtime block-based composition eliminates them; (3) duplicated test fixture configs should be migrated to a centralized shared location; (4) a schema validation test parametrizes over tier fixture files but only early tiers exist (e.g. t0/t1) and new tiers need coverage across the full range; (5) YAML fixture files and test parametrize lists must be expanded when new tiers are added to the tier registry; (6) a second division's fixture set is added to a flat tests/fixtures/ directory and capture-fixtures CLI needs named subdirs; (7) testing multi-level directory nesting in shutil.copytree migrations where deep paths must survive migration; (8) fixture and implementation symmetry must be validated \u2014 fixture YAML keys must match tested interface fields; (9) checkpoint state machine fixtures encode multi-state test scenarios and need refactoring for reuse; (10) an autouse fixture in conftest.py must reset module-level singleton state (asyncio objects, circuit breakers) at the broadest scope.",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "source": "./skills/pytest-fixture-patterns-and-deduplication.md",
       "category": "testing",
       "tags": [
@@ -4182,7 +4182,7 @@
     {
       "name": "skill-corpus-merge-consolidation-workflow",
       "description": "Workflows for maintaining a skills corpus: deduplicating overlapping skills, merging clusters into canonicals, preserving history snapshots, enumerating cluster members from examples, migrating formats (hierarchical\u2192flat, dual-dir\u2192single), and generalizing skills for cross-repo compatibility. Use when: (1) multiple skills share a common prefix and cover redundant content, (2) a merge epic lists only example members and a full member list is needed, (3) a merge PR deletes originals and their content must remain searchable, (4) legacy skills/<category>/<name>/SKILL.md files need migration to flat skills/<name>.md format, (5) skills have hardcoded repo paths that must be generalized, (6) a dual plugins/+skills/ directory must be consolidated, (7) bulk-migrating skills from one project to another, (8) a skill topic is now OBSOLETE and needs a prominent notice.",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "source": "./skills/skill-corpus-merge-consolidation-workflow.md",
       "category": "tooling",
       "tags": [
