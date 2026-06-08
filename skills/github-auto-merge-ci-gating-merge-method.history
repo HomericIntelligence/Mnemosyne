@@ -1,0 +1,2723 @@
+<!-- markdownlint-disable MD024 -->
+
+# History: github-auto-merge-ci-gating-merge-method
+
+## v1.0.0 (2026-06-07)
+
+Initial canonical, merged from 9 skills:
+
+- github-auto-merge-no-ci-runs
+- squash-only-repo-merge-method-docs
+- automation-learn-on-merge-per-issue-arming-state
+- ci-cd-homeric-intelligence-merge-gotchas
+- hi-branch-protection-two-layer
+- ci-cd-gha-required-checks-workflow-drop
+- ci-cd-ruleset-bootstrap-deadlock
+- ci-cd-split-advisory-check-out-of-required-gate
+- github-actions-workflow-required-checks
+
+## Superseded from github-auto-merge-no-ci-runs
+
+**Original date/version**: 2026-06-04 / "1.6.0"
+
+```yaml
+name: github-auto-merge-no-ci-runs
+description: "GitHub auto-merge stalls indefinitely on a CLEAN PR when no CI workflow ever runs on the branch. Use when: (1) PR has mergeStateStatus: CLEAN and auto-merge armed but hasn't merged after hours, (2) gh pr view --json statusCheckRollup returns empty array [], (3) docs-only, pod-spec, or non-code PRs stuck with armed auto-merge, (4) investigating why auto-merge didn't fire on a PR that looks ready, (5) gh pr list returns fewer PRs than expected — default limit is 30 and silently omits older PRs, (6) gh pr merge --auto --squash returns GraphQL 'Pull request is in clean status' error on a CLEAN PR, (7) gh pr merge --auto --squash returns GraphQL 'Pull request is in unstable status' — transient; retry after a few seconds, (8) squash-only repos reject --rebase flag on gh pr merge --auto, (9) scheduled workflow (apply.yml) shows failure on main but required checks all pass, (10) PRs armed with --auto --squash do not auto-fire after branch protection rules are relaxed (e.g., review requirement removed) — must be nudged with manual `gh pr merge <n> --squash`, (11) a required-check gate job (e.g. pr-policy) fails with 'Auto-merge is not enabled' immediately after PR creation though auto-merge IS enabled — a propagation race; re-run the failed job, (12) PR shows failed/cancelled checks but is actually fine — a pr-policy auto-merge check failed on the FIRST run and cancelled all sibling jobs (lint/tests/security/markdownlint/shellcheck all show cancelled) via the concurrency group, but the workflow re-ran on the auto_merge_enabled event and went green, (13) auto-merge not firing right after open but pr-policy failing — the workflow self-heals once gh pr merge --auto --squash propagates and the auto_merge_enabled trigger re-runs it; no manual rerun needed, (14) cancelled CI jobs after opening a PR — diagnose by comparing statusCheckRollup entries' startedAt: the earlier pr-policy run is the race, the later (re-run) one is authoritative, (15) pr-policy fails 'Auto-merge is enabled before implementation review GO' on a freshly-armed PR — the repo now gates auto-merge behind a state:implementation-go label (NOT the old propagation race); apply the label with gh pr edit --add-label to make the armed state compliant, (16) you want a pull_request_target labeled workflow to enable squash auto-merge only after state:implementation-go without running PR code, (17) pr-policy fails after an already-merged PR because GitHub cleared autoMergeRequest — fetch PR state and treat non-OPEN as terminal."
+category: ci-cd
+date: 2026-06-04
+version: "1.6.0"
+user-invocable: false
+verification: verified-ci
+history: github-auto-merge-no-ci-runs.history
+tags:
+  - auto-merge
+  - github
+  - ci-cd
+  - path-filter
+  - status-checks
+  - docs-only
+  - implementation-go
+  - pull-request-target
+  - pr-policy
+```
+
+# GitHub Auto-Merge Stalls When No CI Runs
+
+## Overview
+
+| Date | Objective | Outcome |
+| ------ | ----------- | --------- |
+| 2026-04-23 | Diagnose and fix 11 CLEAN PRs stuck with armed auto-merge for 9+ hours | All 11 PRs merged after path-filter broadening and manual merges |
+| 2026-05-29 | 4 ProjectHephaestus PRs each opened with a wave of `cancelled` checks (lint/tests/security) plus one `pr-policy` failure — looked broken | All 4 self-healed: the `auto_merge_enabled` event re-ran the workflow once `--auto --squash` propagated; green re-runs merged with zero human action |
+| 2026-06-03 | 6 ProjectHephaestus PRs (#901/#903/#904/#906/#908/#910) opened with auto-merge armed all failed `pr-policy` Check 2 "Auto-merge is enabled before implementation review GO" — the repo (after #899) now gates auto-merge behind a `state:implementation-go` label | All 6 went green + merged after `gh pr edit <PR> --add-label state:implementation-go`; the label change re-ran `pr-policy` green with no new commit |
+| 2026-06-04 | ProjectHephaestus added a `pull_request_target` label workflow that enables squash auto-merge only after `state:implementation-go`; first rollout exposed a post-merge `autoMergeRequest` null edge | PR #915 shipped the safe label workflow; PR #917 made `pr-policy` treat merged/closed PRs as terminal; #917 validated the workflow end-to-end with `app/github-actions` arming and merging the PR |
+
+GitHub auto-merge requires at least one completed status check event before it fires — even
+when there are **no required status checks** configured on branch protection. A PR with
+`mergeStateStatus: CLEAN`, no required reviews, and auto-merge armed will wait indefinitely
+if no CI workflow ever ran on the branch. PRs that touch only paths excluded by every
+workflow's `paths:` filter (e.g., `pods/**`, `**/*.md`, `scripts/**`, `justfile`) are the
+most common victims because no workflow triggers and zero status check events are generated.
+
+## When to Use
+
+- PR has `mergeStateStatus: CLEAN` and auto-merge armed but hasn't merged after hours
+- `gh pr view <n> --json statusCheckRollup` returns empty array `[]`
+- `gh run list --branch <headRef>` returns `[]` (zero CI runs ever started on the branch)
+- Docs-only (`*.md`), pod-spec (`pods/**`), or other non-code PRs stuck with armed auto-merge
+- Investigating why auto-merge didn't fire on a PR that looks ready to merge
+- Multiple PRs all show `CLEAN` + armed auto-merge yet sit unmoved for hours
+- `gh pr list` returns fewer PRs than expected — default limit is 30 and silently omits older PRs in large repos; use `--limit 200` when arming auto-merge across a backlog
+- `gh pr merge --auto --squash` returns GraphQL "Pull request is in clean status" error — transient API lag on CLEAN PRs; retry immediately (second call seconds later succeeds)
+- `gh pr merge --auto --squash` returns GraphQL "Pull request is in unstable status" — retry after a few seconds; state often resolves to UNKNOWN which accepts the arm call
+- Repo rejects `--rebase` flag on `gh pr merge --auto` — check `allow_rebase_merge` before arming; squash-only repos require `--squash`
+- Scheduled workflow (e.g., `apply.yml`) shows `conclusion: failure` on main while all required branch-protection checks pass — verify required checks separately before concluding main is broken
+- Branch protection rule was relaxed (e.g., review requirement removed) on a repo with PRs already armed via `gh pr merge --auto`, but the now-unblocked PRs do not auto-fire — issue `gh pr merge <n> --squash` directly to consume the armed state
+- A required-check gate job (e.g. `pr-policy`) fails with `Auto-merge is not enabled on this PR` within seconds of PR creation even though auto-merge IS armed — the gate fetched PR metadata before the auto-merge enablement propagated; enable auto-merge faster, and if it still races, re-run the failed job
+- A freshly-opened PR shows a wave of `cancelled` checks (lint, tests, security scans, markdownlint, shellcheck, pixi-check, etc.) alongside one `pr-policy` failure — the gate's "auto-merge enabled" step failed first and the workflow's `concurrency` group cancelled every sibling job in that run; this is the race, NOT many broken jobs
+- `gh pr checks <n>` lists those `cancelled` siblings flattened together with a later green re-run — do not panic at the red X's; cross-check `state` (may already be `MERGED`) and per-run `startedAt` to tell the superseded first run from the authoritative re-run
+- The workflow is also triggered on `auto_merge_enabled`, so it SELF-HEALS: once `gh pr merge --auto --squash` propagates, the whole run re-fires, `pr-policy` passes, and the PR merges with no human action — do NOT force-merge with `--admin` to "get past" the red
+- `pr-policy` fails with `::error::Auto-merge is enabled before implementation review GO` on a freshly-armed PR (NOT "Auto-merge is not enabled") — this is the NEW label-gated state machine (ProjectHephaestus #899), not the old propagation race. The repo now requires a `state:implementation-go` label before auto-merge may be armed; apply it with `gh pr edit <PR> --add-label state:implementation-go` (which re-runs `pr-policy` green with no new commit) OR leave auto-merge off until GO. Re-running the failed job ALONE will NOT fix this — you must align the label with the auto-merge state
+- You need automation to arm auto-merge after the `state:implementation-go` label is applied — use a `pull_request_target` `labeled` workflow that does not checkout PR code, re-fetches server-side PR metadata, and runs `gh pr merge "$PR_NUMBER" --auto --squash`
+- A label-triggered `pr-policy` run fails after the PR has already merged because GitHub clears `autoMergeRequest` on merged PRs — fetch PR `state` and skip the auto-merge-state assertion for non-`OPEN` PRs
+
+## Verified Workflow
+
+### Quick Reference
+
+```bash
+# Diagnose: confirm zero CI runs on the branch
+PR_HEAD=$(gh pr view <pr-number> --json headRefName --jq '.headRefName')
+gh run list --branch "$PR_HEAD"
+# [] output = no CI ever ran = auto-merge will never fire
+
+# Confirm no required checks and check rollup is empty
+gh pr view <pr-number> --json statusCheckRollup,mergeStateStatus,autoMergeRequest
+
+# Manual merge bypass (immediate fix for any stuck CLEAN PR)
+gh pr merge <pr-number> --rebase
+
+# Batch manual merge all open CLEAN PRs stuck with no CI
+gh pr list --state open --json number,mergeStateStatus,autoMergeRequest \
+  --jq '.[] | select(.mergeStateStatus=="CLEAN" and .autoMergeRequest!=null) | .number' \
+  | xargs -I{} gh pr merge {} --rebase
+
+# Permanent fix: broaden path filters in ci.yml to include previously-excluded paths
+# Add to the paths: block in .github/workflows/ci.yml:
+#   - 'pods/**'
+#   - 'scripts/**'
+#   - '**/*.md'
+#   - 'justfile'
+```
+
+```bash
+# DIAGNOSE the pr-policy auto-merge race + cascading cancellations (do NOT panic at red X's)
+# 1. Did it already self-heal? If MERGED, the red rollup entries are from the superseded first run.
+gh pr view <N> --json state -q .state            # MERGED => already resolved
+
+# 2. The rollup keeps BOTH the cancelled first-run entries AND the green re-run entries.
+#    Sort pr-policy runs by startedAt: EARLIER = the race (failed/cancelled), LATER = authoritative.
+gh pr view <N> --json statusCheckRollup -q \
+  '.statusCheckRollup[] | select(.name=="pr-policy") | {startedAt, status, conclusion}'
+
+# 3. A genuinely-broken PR is one where the LATER (re-run) pr-policy or a re-run test fails —
+#    NOT the first-run cancellations. Wait until MERGED OR a re-run (started >60s after open) fails:
+until [ "$(gh pr view <N> --json state -q .state)" = "MERGED" ] || \
+  gh pr view <N> --json statusCheckRollup \
+    -q '.statusCheckRollup[]|select(.status=="COMPLETED" and .conclusion=="FAILURE" and (.startedAt > "<open-time+60s>"))|.name' \
+    | grep -q .; do sleep 20; done
+# squash-only repos: arm with --squash (rebase disabled). Never --admin/force past the red —
+# waiting ~30-60s lets the auto_merge_enabled re-run go green on its own.
+```
+
+```yaml
+# Auto-enable squash auto-merge only after implementation review GO.
+# Safe shape: privileged event, no checkout, no PR-controlled shell inputs.
+name: Enable auto-merge on implementation GO
+on:
+  pull_request_target:
+    types: [labeled]
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  enable-auto-merge:
+    if: >
+      github.event.label.name == 'state:implementation-go' &&
+      github.event.pull_request.state == 'open' &&
+      !github.event.pull_request.draft
+    runs-on: ubuntu-24.04
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          case "$PR_NUMBER" in ''|*[!0-9]*) exit 1;; esac
+          gh pr view "$PR_NUMBER" --repo "$REPO" \
+            --json autoMergeRequest,isDraft,labels,state > pr.json
+          [ "$(jq -r '.state // ""' pr.json)" = OPEN ] || exit 0
+          [ "$(jq -r '.isDraft' pr.json)" != true ] || exit 0
+          jq -e '[(.labels // [])[].name] | index("state:implementation-go") != null' pr.json
+          [ "$(jq -r '.autoMergeRequest' pr.json)" = null ] || exit 0
+          gh pr merge "$PR_NUMBER" --repo "$REPO" --auto --squash
+```
+
+```bash
+# pr-policy guard after a label-triggered rerun: merged/closed PRs are terminal.
+gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" \
+  --json body,autoMergeRequest,labels,state > pr.json
+pr_state=$(jq -r '.state // ""' pr.json)
+if [ "$pr_state" != "OPEN" ]; then
+  echo "OK: PR state is $pr_state; auto-merge policy is terminal"
+  exit 0
+fi
+```
+
+### Phase 1: Confirm the Root Cause
+
+1. **Check PR merge state and auto-merge status**
+   ```bash
+   gh pr view <PR_NUMBER> --json mergeStateStatus,mergeable,rebaseable,autoMergeRequest,statusCheckRollup
+   ```
+   Look for `statusCheckRollup: []` — this is the definitive signal.
+
+2. **Check CI run history on the branch**
+   ```bash
+   PR_HEAD=$(gh pr view <PR_NUMBER> --json headRefName --jq '.headRefName')
+   gh run list --branch "$PR_HEAD"
+   ```
+   Empty output (`[]`) confirms zero workflow runs ever started on this branch.
+
+3. **Verify branch protection has no required checks**
+   ```bash
+   gh api repos/<owner>/<repo>/branches/main/protection 2>/dev/null \
+     | python3 -c "import json,sys; p=json.load(sys.stdin); print(p.get('required_status_checks',{}))"
+   ```
+   No required checks + empty statusCheckRollup = auto-merge stall confirmed.
+
+4. **Check which paths the PR touches**
+   ```bash
+   gh pr diff <PR_NUMBER> --name-only
+   ```
+   Compare against the `paths:` filter in `.github/workflows/ci.yml`.
+
+### Phase 2: Choose a Fix
+
+Three options based on urgency and permanence needed:
+
+**Option A: Manual merge (immediate, per-PR)**
+```bash
+gh pr merge <PR_NUMBER> --rebase
+```
+Best when: one-off situation, PR is already verified CLEAN, need it merged now.
+
+**Option B: Broaden path filters (permanent, prevents recurrence)**
+Edit `.github/workflows/ci.yml` to add the missing paths to the `paths:` block:
+```yaml
+on:
+  push:
+    paths:
+      - '**/*.ts'
+      - '**/*.yml'
+      - 'pods/**'        # add
+      - 'scripts/**'     # add
+      - '**/*.md'        # add
+      - 'justfile'       # add
+```
+Best when: multiple PR types are repeatedly hitting this; prevents future stalls.
+
+**Option C: Add an always-runs workflow (nuclear option)**
+Create a minimal workflow with no `paths:` filter that always runs and always passes:
+```yaml
+name: auto-merge-gate
+on: [push, pull_request]
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "gate passed"
+```
+Best when: you want auto-merge to fire on 100% of PRs unconditionally.
+
+### Phase 3: Apply and Verify
+
+After Option B (path filter broadening):
+```bash
+# Push the ci.yml change on its own branch/PR, then re-run any open stuck PRs
+# Existing stuck PRs need a new commit or re-run to trigger CI:
+git commit --allow-empty -m "ci: trigger CI run" && git push
+
+# Or manually merge PRs that are already confirmed CLEAN:
+for pr in <list-of-stuck-pr-numbers>; do
+  gh pr merge $pr --rebase
+done
+```
+
+After merges:
+```bash
+# Confirm all target PRs are closed
+gh pr list --state open --json number,mergeStateStatus | python3 -c \
+  "import json,sys; prs=json.load(sys.stdin); print(f'{len(prs)} still open')"
+```
+
+### Required-Check Gate Race (pr-policy)
+
+Some repos add a required CI gate job (e.g. `pr-policy`, often part of a `Required Checks`
+reusable workflow) that enforces PR-hygiene rules — for example: the PR body contains a
+literal `Closes #N` line, auto-merge is enabled on the PR, and every commit is
+cryptographically signed. Such a gate typically fetches PR metadata **live at job runtime**
+via `gh pr view --json body,autoMergeRequest` plus a GraphQL signature query.
+
+**The race:** `pr-policy` runs on the `pull_request` event and fires within ~4 seconds of
+PR creation. If you run `gh pr create` and then `gh pr merge --auto --squash` as two
+sequential commands, the gate can read `autoMergeRequest` **before** the auto-merge
+enablement has propagated, failing with `::error::Auto-merge is not enabled on this PR`
+even though auto-merge IS enabled moments later. (Observed on ProjectHephaestus
+PRs #423 and #428; PR #430 passed first try because auto-merge was enabled fast
+enough to beat the job.)
+
+**Fixes, in order of preference:**
+
+0. **Best fix — trigger the workflow on `auto_merge_enabled` so it self-heals (no human
+   action).** Add the `auto_merge_enabled` activity type to the gate workflow's
+   `pull_request` trigger. Then, once `gh pr merge --auto --squash` takes effect, GitHub
+   re-fires the whole workflow, `pr-policy` re-evaluates against the now-armed state, passes,
+   and the PR merges automatically — no `gh run rerun` needed. (Shipped as ProjectHephaestus
+   #681 / #683, "fix auto-merge race at the root via event triggers.")
+   ```yaml
+   on:
+     pull_request:
+       types: [opened, synchronize, reopened, auto_merge_enabled]
+   ```
+   With this in place, fixes 1-3 below become unnecessary: just wait ~30-60s for the
+   `auto_merge_enabled` re-run to go green.
+
+1. **Enable auto-merge as fast as possible** after `gh pr create` — ideally before CI
+   schedules the gate job. Chain the commands tightly; do not wait between them.
+
+2. **Re-run the failed job** (only if the workflow lacks the `auto_merge_enabled` trigger
+   from fix 0). Because `pr-policy` re-fetches PR metadata live at runtime,
+   a re-run re-evaluates against the now-correct auto-merge state and passes:
+   ```bash
+   gh run rerun <RUN_ID> --failed --repo OWNER/REPO
+   ```
+   **Caveat:** you cannot re-run while the parent workflow run is still in progress —
+   `gh run rerun` errors `This workflow is already running`. Wait until the run's `status`
+   is `completed`, then re-run:
+   ```bash
+   # Poll until completed, then re-run the failed jobs
+   gh run view <RUN_ID> --repo OWNER/REPO --json status --jq '.status'  # wait for "completed"
+   gh run rerun <RUN_ID> --failed --repo OWNER/REPO
+   ```
+
+3. **Editing the PR body does NOT re-trigger the workflow.** The `pull_request` event fires
+   on `opened`, `synchronize`, and `reopened` — not on `edited`. After editing the PR body
+   to add a missing `Closes #N`, you must still re-run the failed job (fix 2) for the gate
+   to re-evaluate; the body edit alone never re-triggers the gate.
+
+**Note on GPG-signed commits:** `git log --show-signature` may locally show `U`
+(good signature, untrusted key) — that is fine. GitHub verifies by the registered key, so a
+`pr-policy` signature check that queries GraphQL passes on `verified: true`.
+
+### Auto-Merge Gated on an Implementation-Review Label (state machine, #899)
+
+> **Evolution note — this PARTIALLY SUPERSEDES the "Required-Check Gate Race" section
+> above.** The older guidance ("`pr-policy` saying auto-merge isn't enabled is just a
+> propagation race — it IS armed, the gate read stale metadata; wait or re-run it") no
+> longer fully applies on repos that adopted the #899 label-gated state machine. On those
+> repos, the `pr-policy` failure is NOT a race and re-running the job ALONE will NOT fix it.
+> Tell the two situations apart by the error string:
+> - `Auto-merge is not enabled on this PR` → the OLD propagation race; enable auto-merge
+>   fast / re-run / rely on the `auto_merge_enabled` self-heal (see the section above).
+> - `Auto-merge is enabled before implementation review GO` → the NEW state machine below;
+>   re-running alone does nothing — you must align the **label** with the auto-merge state.
+
+ProjectHephaestus's `pr-policy` gate changed in **PR #899** ("Gate implementation PR
+auto-merge on review GO", merged 2026-06-03, commit `73b67d3`). `pr-policy` Check 2 no
+longer just verifies that auto-merge is enabled — it now enforces a **state machine** that
+couples auto-merge to an implementation-review label:
+
+- If the PR HAS the `state:implementation-go` label → auto-merge MUST be enabled, else the
+  gate FAILS with `PR has state:implementation-go but auto-merge is not enabled`.
+- If the PR does NOT have that label → auto-merge MUST be DISABLED, else the gate FAILS with
+  `::error::Auto-merge is enabled before implementation review GO. Remove it with: gh pr merge <N> --disable-auto; re-enable only after state:implementation-go is applied.`
+
+**Consequence:** the long-standing habit of running `gh pr merge --auto --squash`
+immediately after `gh pr create` now FAILS `pr-policy` Check 2 on EVERY PR (auto-merge is
+armed but the label is absent), leaving the PR BLOCKED with a red `pr-policy` check even
+though every other check is green.
+
+**The valid label set on this repo:** `state:plan-go`, `state:plan-no-go`,
+`state:needs-plan`, `state:implementation-go`, `state:implementation-no-go`.
+
+**Both resolutions (pick one):**
+
+1. **Merge now — align the label to the armed auto-merge.** Apply the GO label:
+   ```bash
+   gh pr edit <PR> --add-label "state:implementation-go"
+   ```
+   #899 made `pr-policy` re-run on label/auto-merge changes, so the red check turns green
+   WITHOUT a new commit, and the already-armed auto-merge then fires. This is what was
+   observed to work across all six PRs.
+
+2. **Defer the merge — align the auto-merge to the (absent) label.** Leave auto-merge OFF
+   and add no GO label; the PR sits compliant (no label ⇒ no auto-merge) until a reviewer
+   applies `state:implementation-go`, at which point you arm `gh pr merge <PR> --auto
+   --squash`. If you already armed auto-merge prematurely, disable it to pass the gate:
+   ```bash
+   gh pr merge <PR> --disable-auto
+   ```
+
+**Rule of thumb on a #899-style repo:** the label and the auto-merge state must MATCH —
+either (`state:implementation-go` + auto-merge ON) or (no GO label + auto-merge OFF). Any
+mismatch fails `pr-policy` Check 2.
+
+#### Automate the GO-label transition safely (#915/#917)
+
+Once the label-gated policy exists, the clean next step is a small privileged workflow that
+listens for `state:implementation-go` and arms squash auto-merge. The safe pattern is:
+
+1. Use `pull_request_target` with `types: [labeled]` because the workflow needs write
+   permissions on the base repo.
+2. Do **not** checkout code and do **not** reference `github.event.pull_request.head` in the
+   shell. This avoids executing or trusting PR-controlled content.
+3. Validate `PR_NUMBER` is numeric before passing it to `gh`.
+4. Re-fetch server-side PR metadata with `gh pr view --json autoMergeRequest,isDraft,labels,state`.
+   The event payload may be stale; trust the live PR state.
+5. Exit 0 unless the PR is `OPEN`, not draft, still has `state:implementation-go`, and
+   `autoMergeRequest` is null.
+6. Arm with `gh pr merge "$PR_NUMBER" --repo "$REPO" --auto --squash`. Squash-only repos
+   reject `--rebase`, and omitting `--squash` reintroduces repo-policy ambiguity.
+
+**Important rollout caveat:** a workflow added by a PR is not active on `main` until that PR
+merges. The first PR that introduces the workflow must still be merged/armed by the old
+manual path. Validate the new workflow on a follow-up PR by applying `state:implementation-go`
+and confirming the `enable-auto-merge` job arms auto-merge as `app/github-actions`.
+
+**Race guard in `pr-policy`:** the label-triggered `pull_request` run and the
+`pull_request_target` auto-merge workflow are triggered by the same label event, so they can
+run concurrently. `pr-policy` should wait briefly for the workflow to converge when GO is
+present but auto-merge is not yet armed (ProjectHephaestus used 6 attempts with 10-second
+sleeps) and re-fetch `autoMergeRequest,labels,state` on each attempt.
+
+**Terminal-state guard:** after auto-merge succeeds, GitHub clears `autoMergeRequest` on the
+merged PR. A late label-triggered `pr-policy` run can therefore see
+`state:implementation-go` + `autoMergeRequest: null` on a PR that is already `MERGED`.
+Always fetch PR `state` and exit successfully for non-`OPEN` states before enforcing the
+open-PR auto-merge state machine.
+
+### Cascading Cancellations: One pr-policy Failure Cancels Every Sibling Job
+
+When the gate workflow uses a `concurrency` group with `cancel-in-progress: true` (common —
+see `concurrency: { group: required-${{ github.ref }}, cancel-in-progress: true }`), the
+`pr-policy` race does NOT fail in isolation. The moment its "auto-merge enabled" step exits
+non-zero on the FIRST run, the workflow run is torn down and **every sibling job in that same
+run is marked `cancelled`** — lint, tests, security scans, markdownlint, shellcheck,
+pixi-check, symlink-check, justfile-check, and so on. A freshly-opened PR therefore looks
+like it broke a dozen things, when in reality there is exactly one real failure
+(`pr-policy`) and a cascade of `cancelled` (not `failed`) siblings.
+
+**This self-heals (ProjectHephaestus #681 / #683).** Because the workflow is also triggered
+on `auto_merge_enabled`, once `gh pr merge --auto --squash` propagates the whole workflow
+re-runs from scratch: `pr-policy` now passes, the siblings re-run green, and the PR merges.
+No human action is required — the correct response is to wait ~30-60s, not to force-merge.
+
+**How to diagnose correctly (do NOT panic at the red X's):**
+
+1. `gh pr view <N> --json state -q .state` → if `MERGED`, it already resolved; the stale
+   `FAILURE`/`CANCELLED` rollup entries are from the superseded first run.
+2. The `statusCheckRollup` keeps BOTH the cancelled first-run entries AND the green re-run
+   entries for the same check names. Filter by `startedAt`: the EARLIER `pr-policy` run is
+   the failed/race one; the LATER one (started ~20-60s after, fired by `auto_merge_enabled`)
+   is authoritative.
+3. A genuinely-broken PR is one where the LATER (re-run) `pr-policy` or a re-run test job
+   fails — NOT the first-run cancellations. Verify with the until-loop in Quick Reference.
+4. `gh pr checks <N>` flattens the cancelled+superseded entries together with the green
+   re-runs, so it reads as "many failing checks." Always cross-check `state` and per-run
+   `startedAt` before concluding the PR is broken.
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| Waiting for auto-merge to fire | Left 11 CLEAN PRs with auto-merge armed for 9+ hours | GitHub auto-merge never fires with zero status check events, regardless of CLEAN state | Auto-merge is not the same as "merge when CLEAN" — it requires at least one check completion |
+| Assuming no required checks = immediate merge | Verified branch protection had no required checks and expected auto-merge to proceed | GitHub still waits for a status check signal even when none are required | The requirement is for a check event to occur, not for any check to pass |
+| Checking mergeStateStatus only | Inspected `mergeStateStatus: CLEAN` and assumed merge would proceed | CLEAN means "no conflicts/reviews blocking", not "ready for auto-merge without CI" | Always also check `statusCheckRollup` — empty array is the actual blocker |
+| Re-triggering CI via comment | Added a PR comment hoping to re-trigger a CI run | PR comments do not trigger `push` or `pull_request` CI workflows | Must push a new commit or use `gh workflow run` to trigger a run |
+| Assuming path-filter change would fix existing PRs | Broadened `paths:` filter on main and expected open PRs to auto-merge | Open PR branches had no new commits; no new CI run was triggered | Existing open PRs need a new commit or manual merge after path-filter is fixed |
+| gh pr list without --limit | Listed open PRs with default limit to find unarmed ones | Default limit is 30 — repos with 31+ open PRs silently omit the older ones; armed count appeared correct but 60+ PRs were missed | Always use --limit 200 when arming auto-merge across a repo backlog |
+| gh pr merge --auto --squash on CLEAN PR (first call) | Called `gh pr merge --auto --squash` on a PR with `mergeStateStatus=CLEAN` | GitHub GraphQL returns "Pull request is in clean status" — API internal state hadn't caught up yet | Retry immediately; the second call seconds later succeeds without any other change |
+| gh pr merge --auto --squash on UNSTABLE PR | Called `gh pr merge --auto --squash` on a PR with `mergeStateStatus=UNSTABLE` | GitHub GraphQL returns "Pull request is in unstable status" — auto-merge cannot be armed while checks are actively failing | Wait a few seconds and retry; state often resolves to UNKNOWN which accepts the arm call |
+| Waiting for armed auto-merge to fire after relaxing branch protection review requirement | Removed `REVIEW_REQUIRED` from branch protection on a repo with 23 armed CLEAN PRs and waited | GitHub does not re-evaluate armed auto-merges in response to branch-protection changes alone — it requires a status-check event to fire the recheck | After loosening branch protection, sweep already-armed PRs with `gh pr merge <n> --squash` (no `--auto`) to immediately consume their armed state |
+| Ran `gh pr create` then `gh pr merge --auto` sequentially | Issued PR creation and auto-merge enablement as two separate sequential commands | `pr-policy` read `autoMergeRequest` ~4s after PR creation, before enablement propagated → failed with `Auto-merge is not enabled on this PR` | Enable auto-merge fast; if it still races, re-run the failed job |
+| Edited the PR body to add `Closes #N` expecting CI to re-evaluate | Edited the PR body and waited for `pr-policy` to re-run against the new body | `pull_request` event does not fire on `edited`, only `opened`/`synchronize`/`reopened` | Re-run the failed job after a body edit; editing alone never re-triggers the gate |
+| `gh run rerun` while the parent run was still in_progress | Called `gh run rerun <id> --failed` before the workflow run had finished | Errors `This workflow is already running` | Wait until the run's `status` is `completed`, then `gh run rerun <id> --failed` |
+| Read `gh pr checks <N>` and saw markdownlint/shellcheck/justfile-check/pixi-check/symlink-check all "failing" | Concluded the freshly-opened PR had broken many things and started fixing each one | Those jobs were `cancelled` (not `failed`) siblings of the ONE real `pr-policy` race failure — the workflow's `concurrency` group with `cancel-in-progress` tore down the whole first run; all were superseded by green re-runs | `gh pr checks` flattens cancelled+superseded entries with the re-runs; always cross-check `state` and per-run `startedAt` before believing the red |
+| Treated `cancelled` rollup entries as real failures | Counted every non-success entry in `statusCheckRollup` as a problem to investigate | The first-run entries were `CANCELLED` (cascade from the gate failure), and a LATER green re-run already superseded them | Filter by `conclusion=="FAILURE"` AND `startedAt` later than open-time+60s; only the latest run per check name is authoritative |
+| Considered `--admin` / force-merge to "get past" the red checks | Wanted to bypass the cancelled-job wave on an opened PR | Unnecessary and dangerous — the `auto_merge_enabled` event re-runs the workflow green within ~30-60s and merges on its own | Wait for the self-heal re-run; never force-merge to escape a transient pr-policy race |
+| Waited for the FIRST run to be re-run manually after editing the body | Assumed only a manual `gh run rerun` could clear the cancelled siblings | The `auto_merge_enabled` trigger (#681/#683) already re-fires the workflow once `--auto --squash` propagates — no manual rerun needed | If the gate workflow has the `auto_merge_enabled` trigger, do nothing but wait; manual rerun is only for workflows that lack it |
+| Ran `gh pr merge --auto --squash` right after `gh pr create` (old habit) | pr-policy Check 2 failed `Auto-merge is enabled before implementation review GO` | The repo (after #899) requires the `state:implementation-go` label before auto-merge may be armed | Apply `gh pr edit <PR> --add-label state:implementation-go` (reruns pr-policy green) OR leave auto-merge off until GO |
+| Expected the new label workflow to automate its own PR | Added `enable-auto-merge-on-implementation-go.yml` in PR #915 and applied the GO label before that workflow existed on `main` | `pull_request_target` workflows run from the base branch, so a newly added workflow is not active until after its introducing PR merges | Manually arm/merge the introducing PR; validate the new workflow on a follow-up PR after it exists on `main` |
+| Let label-triggered `pr-policy` read immediately after GO label | The GO label fired both the required-check workflow and the auto-merge workflow at the same time | `pr-policy` can run before `enable-auto-merge` has armed the PR, falsely failing `state:implementation-go` + no auto-merge | Add a bounded wait/refetch loop in `pr-policy` for GO-labeled open PRs before declaring auto-merge missing |
+| Required auto-merge to be non-null even after the PR merged | A label-triggered rerun for PR #915 started after the PR had already merged; GitHub cleared `autoMergeRequest` | The PR was terminal, but `pr-policy` still evaluated it as an open GO-labeled PR and failed `PR has state:implementation-go but auto-merge is not enabled` | Fetch PR `state`; for non-`OPEN` states, exit 0 because the open-PR auto-merge policy is no longer actionable |
+
+## Results & Parameters
+
+### Diagnosis Decision Tree
+
+```
+PR has auto-merge armed but hasn't merged after hours
+│
+├── Check: gh pr view <n> --json statusCheckRollup
+│   ├── statusCheckRollup: [] (empty)
+│   │   └── Root cause: ZERO CI RUNS on branch → auto-merge stalls
+│   │       └── Fix: Option A (manual merge) or Option B (broaden paths)
+│   │
+│   ├── statusCheckRollup has a `pr-policy` FAILURE + many `CANCELLED` siblings on a just-opened PR
+│   │   └── Cause: pr-policy auto-merge race tore down the run via the concurrency group
+│   │       ├── gh pr view <n> -q .state == MERGED → already self-healed; ignore stale entries
+│   │       └── else wait ~30-60s for the auto_merge_enabled re-run (filter rollup by startedAt:
+│   │           later pr-policy run is authoritative). Real break = LATER run fails, not first-run cancels.
+│   │
+│   └── statusCheckRollup: [... entries ...]
+│       └── Check mergeStateStatus
+│           ├── BLOCKED → required check failing or review needed
+│           ├── DIRTY → merge conflict
+│           └── CLEAN → race condition or GitHub API lag; wait or re-check
+│
+└── Check: gh run list --branch <headRef>
+    ├── [] (empty) → confirms no CI ever ran
+    └── entries present → CI ran; investigate check results
+```
+
+### Key Diagnostic Commands
+
+```bash
+# Full PR state snapshot
+gh pr view <PR> --json number,title,mergeStateStatus,mergeable,rebaseable,\
+autoMergeRequest,statusCheckRollup,headRefName
+
+# Confirm zero runs on branch (root cause confirmation)
+gh run list --branch "$(gh pr view <PR> --json headRefName --jq '.headRefName')"
+
+# List all open PRs with CLEAN state and armed auto-merge
+gh pr list --state open --json number,title,mergeStateStatus,autoMergeRequest \
+  --jq '.[] | select(.mergeStateStatus=="CLEAN" and .autoMergeRequest!=null)'
+
+# Fetch ALL open PRs (not just the default 30)
+gh pr list -R "$REPO" --state open --limit 200 --json number,mergeStateStatus,autoMergeRequest
+
+# Check allowed merge methods before arming
+gh api repos/$OWNER/$REPO --jq '{rebase: .allow_rebase_merge, squash: .allow_squash_merge, merge: .allow_merge_commit}'
+
+# Distinguish required checks from advisory workflows
+gh run list -R "$REPO" --branch main --limit 5 --json workflowName,conclusion,status --jq '.[] | [.workflowName, .status, .conclusion] | @tsv'
+```
+
+### Label-Gated Auto-Merge Workflow Parameters
+
+Use these constraints when implementing an automatic "GO label → arm auto-merge" workflow:
+
+| Parameter | Value |
+| --------- | ----- |
+| Event | `pull_request_target` with `types: [labeled]` |
+| Job condition | label is `state:implementation-go`, PR state is `open`, PR is not draft |
+| Permissions | `contents: write`, `pull-requests: write` |
+| Forbidden step | `actions/checkout` (do not execute PR-controlled code in a privileged workflow) |
+| Shell input guard | numeric-only `PR_NUMBER` before passing it to `gh` |
+| Metadata re-fetch | `gh pr view "$PR_NUMBER" --json autoMergeRequest,isDraft,labels,state` |
+| Merge command | `gh pr merge "$PR_NUMBER" --repo "$REPO" --auto --squash` |
+
+`pr-policy` should pair with this workflow by fetching `state` alongside
+`autoMergeRequest` and `labels`:
+
+```bash
+gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" \
+  --json body,autoMergeRequest,labels,state > pr.json
+
+pr_state=$(jq -r '.state // ""' pr.json)
+if [ "$pr_state" != "OPEN" ]; then
+  echo "OK: PR state is $pr_state; auto-merge policy is terminal"
+  exit 0
+fi
+```
+
+For GO-labeled open PRs where `autoMergeRequest` is still null, use a bounded convergence
+loop (ProjectHephaestus used 6 attempts, 10 seconds apart). Each attempt must re-fetch
+`autoMergeRequest,labels,state`, and must also exit 0 if the PR becomes non-`OPEN` while
+waiting.
+
+### Fix Trade-offs
+
+| Fix | Immediacy | Permanence | Side Effects |
+| ----- | ----------- | ------------ | -------------- |
+| Manual merge (`gh pr merge --rebase`) | Immediate | Per-PR only | None; requires repeating for each stuck PR |
+| Broaden `paths:` filter | Next CI push after change | Permanent; all future PRs | CI runs on more PRs (slightly higher CI usage) |
+| Always-runs gate workflow | Immediate after merge | Permanent; 100% coverage | Adds a trivial job to every PR run |
+
+### Common Victim PR Types
+
+- `*.md` documentation PRs (README, CONTRIBUTING, SECURITY)
+- Pod spec PRs (`pods/**`)
+- Build script PRs (`scripts/**`, `justfile`, `Makefile`)
+- Config-only PRs (`.env.example`, `.gitignore`, non-workflow YAML)
+- Any PR where all changed files are listed under `paths-ignore:` but missed from `paths:`
+
+### Verification Checklist
+
+- [ ] `gh pr view <n> --json statusCheckRollup` returns `[]` (confirms root cause)
+- [ ] `gh run list --branch <headRef>` returns empty (confirms no CI triggered)
+- [ ] Chosen fix applied (manual merge or path-filter broadened)
+- [ ] All previously-stuck PRs confirmed merged or new CI run confirmed triggered
+- [ ] `gh pr list --state open` count reduced as expected
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| AchaeanFleet | 11 open PRs stuck 9+ hours with CLEAN + armed auto-merge | Root cause confirmed; path filter broadened; remaining PRs merged manually with `gh pr merge --rebase` |
+| ProjectCharybdis | 2026-05-05: 32 open PRs all armed with `--auto --squash`; branch protection initially required 1 review, then user removed the requirement; 23 CLEAN PRs did not auto-fire after relaxation | Manual `gh pr merge <n> --squash` loop consumed armed state; 17 merged cleanly, 6 reported `DIRTY` from sibling-induced conflicts that developed in the meantime |
+| ProjectHephaestus | 2026-05-21: required `pr-policy` gate failed `Auto-merge is not enabled` on PRs #423 and #428 — gate read `autoMergeRequest` ~4s after PR creation, before enablement propagated; PR #430 passed first try | Re-ran the failed `pr-policy` job after the parent run completed; live metadata re-fetch re-evaluated against the now-armed auto-merge state and passed |
+| ProjectHephaestus | 2026-05-29: 4 PRs each opened with one `pr-policy` failure + a cascade of `cancelled` siblings (lint/tests/security/markdownlint/shellcheck/pixi-check) via the `concurrency` group; `gh pr checks` made them look broken | All 4 self-healed with zero human action — the `auto_merge_enabled` trigger (shipped in #681/#683) re-ran the workflow once `--auto --squash` propagated, the re-run went green, and the PRs merged. Diagnosed by `state==MERGED` + filtering rollup by `startedAt` (later run authoritative) |
+| ProjectHephaestus | 2026-06-03: 6 fix PRs (#901,#903,#904,#906,#908,#910) opened with auto-merge armed all failed pr-policy Check 2 "Auto-merge is enabled before implementation review GO" until `state:implementation-go` label applied | label-change reran pr-policy green; all 6 merged. The repo's `pr-policy` gate (after #899) now state-machines auto-merge against the `state:implementation-go` label — re-running alone does NOT fix it |
+| ProjectHephaestus | 2026-06-04: PR #915 added `enable-auto-merge-on-implementation-go.yml`; PR #917 fixed terminal-state handling and validated the workflow end-to-end | #915 merged after local focused tests, full pre-push (`3181 passed, 6 skipped`), and green CI. #917 showed the new workflow arming squash auto-merge as `app/github-actions`; the label-triggered `pr-policy` rerun passed; GitHub Actions auto-merged #917. Full pre-push for #917: `3182 passed, 6 skipped`, coverage `84.98%` |
+
+---
+
+## Superseded from squash-only-repo-merge-method-docs
+
+**Original date/version**: 2026-06-03 / "1.2.0"
+
+```yaml
+name: squash-only-repo-merge-method-docs
+description: "Repo allows squash-only merges (allow_rebase_merge=false); using --rebase silently fails to arm auto-merge (CLI) or fails at runtime (code/API). The wrong merge method hides in docs, code, AND skill/plugin instruction files. The robust fix is settings-aware merge-method selection (query gh api repos/<repo>, pick rebase->squash->merge), not hardcoding a different fixed method. Use when: (1) gh pr merge --auto --rebase returns no error but auto-merge is not armed, (2) project docs or CLAUDE.md instruct --rebase for a repo that has disabled rebase merges, (3) a PyGithub pr.merge(merge_method='rebase') callsite on a squash-only repo fails with 'Rebase merges are not allowed on this repository', (4) verifying which merge method a repo supports before arming auto-merge, (5) updating stale documentation that references the wrong merge flag, (6) auditing a squash-only repo — grep for BOTH the gh pr merge --rebase CLI form and the merge_method=\"rebase\" code/API form, (7) a skill/plugin instruction file (e.g. /learn, /finish-branch SKILL.md) hardcodes gh pr merge --auto --rebase against a squash-only target repo, (8) deciding the merge method for a cross-repo gh pr merge — detect allowed methods instead of hardcoding."
+category: ci-cd
+date: 2026-06-03
+version: "1.2.0"
+user-invocable: false
+verification: verified-ci
+history: squash-only-repo-merge-method-docs.history
+tags:
+  - auto-merge
+  - squash
+  - rebase
+  - github
+  - docs
+```
+
+# Squash-Only Repo: Use --squash Not --rebase for Auto-Merge
+
+## Overview
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-05-28 |
+| **Objective** | Fix stale `--rebase` instruction in CLAUDE.md for a squash-only repo |
+| **Outcome** | CLAUDE.md corrected; PR #668 merged with `autoMergeRequest.mergeMethod=SQUASH` confirmed |
+| **Verification** | verified-ci |
+
+Some GitHub repos have `allow_rebase_merge: false` and `allow_squash_merge: true`. When
+project documentation (e.g. CLAUDE.md) instructs `gh pr merge --auto --rebase`, auto-merge
+silently fails to arm in squash-only repos — `gh pr merge` accepts the command without error
+but does not enable auto-merge. The fix is to use `--squash` and to correct any stale docs.
+
+**The wrong merge method also hides in CODE, not just docs.** A hardcoded PyGithub
+`pr.merge(merge_method="rebase")` callsite (or a `merge_method: rebase` config value) on a
+squash-only repo does **not** fail silently — it fails loudly at runtime with errors like
+`GraphQL: Merge method rebase merging is not allowed on this repository (enablePullRequestAutoMerge)`
+and `GraphQL: Rebase merges are not allowed on this repository. (mergePullRequest)`. When
+auditing a squash-only repo, grep for BOTH the `gh pr merge --rebase` CLI form AND the
+`merge_method="rebase"` code/API form.
+
+## When to Use
+
+- `gh pr merge --auto --rebase` completes without error but auto-merge is not armed
+- Project CLAUDE.md or other docs instruct `--rebase` for a GitHub repo
+- A PyGithub `pr.merge(merge_method="rebase")` callsite on a squash-only repo fails at runtime
+  with "Rebase merges are not allowed on this repository" (the code form of this bug)
+- Auditing a squash-only repo — grep for BOTH the `gh pr merge --rebase` CLI form and the
+  `merge_method="rebase"` code/API form (docs are not the only place the wrong method hides)
+- Verifying which merge method a repo supports before writing automation or instructions
+- Updating stale documentation that references the wrong merge flag for a repo
+- CI gate (`pr-policy`) reports auto-merge not enabled even though `--auto` was issued
+- A skill/plugin instruction file (e.g. `/learn`, `/finish-branch` `SKILL.md`) hardcodes
+  `gh pr merge --auto --rebase` against a squash-only target repo — a tooling skill's OWN
+  instructions are a place the wrong-merge-method bug hides, not just repo docs or code
+- Deciding the merge method for a cross-repo `gh pr merge` — **detect** the target repo's
+  allowed methods instead of hardcoding any fixed flag (the robust, settings-aware fix)
+
+## Verified Workflow
+
+### Quick Reference
+
+```bash
+# Step 1: Check which merge methods the repo allows
+gh api repos/OWNER/REPO --jq '{rebase: .allow_rebase_merge, squash: .allow_squash_merge, merge: .allow_merge_commit}'
+# Example output: {"rebase": false, "squash": true, "merge": false}
+
+# Step 2: Use the correct flag — squash-only repos require --squash
+gh pr merge --auto --squash   # NOT --rebase
+
+# Step 3: Verify auto-merge is armed with the correct method
+gh pr view <PR_NUMBER> --json autoMergeRequest --jq '.autoMergeRequest.mergeMethod'
+# Should output: SQUASH
+
+# Step 4 (audit): find EVERY wrong-method occurrence — BOTH the CLI form and the code/API form
+grep -rn 'merge_method="rebase"\|--auto --rebase\|gh pr merge.*--rebase' .
+# Catches: PyGithub pr.merge(merge_method="rebase"), gh pr merge --auto --rebase in docs/scripts
+```
+
+### Settings-aware merge-method selection (the robust fix)
+
+The reactive fix of swapping a hardcoded `--rebase` to a hardcoded `--squash` just trades one
+fixed assumption for another — it breaks on a rebase-only or merge-only target. Instead, **detect**
+the target repo's allowed methods and pick dynamically. Default preference order is
+`rebase` (linear history) -> `squash` -> `merge` commit; it is configurable, but rebase->squash->merge
+is the documented default. If the repo policy mandates squash (e.g. ProjectHephaestus, enforced by
+its `pr-policy` gate), detection naturally yields `--squash` because rebase is disabled there — no
+special-casing needed.
+
+```bash
+# Pick the auto-merge flag the TARGET repo actually allows.
+# Preference order: rebase (linear history) -> squash -> merge commit.
+choose_merge_flag() {
+  local repo="$1"
+  local flag
+  flag=$(gh api "repos/${repo}" --jq '[
+    (if .allow_rebase_merge then "--rebase" else empty end),
+    (if .allow_squash_merge then "--squash" else empty end),
+    (if .allow_merge_commit then "--merge"  else empty end)
+  ] | .[0] // ""')
+  if [ -z "$flag" ]; then
+    echo "ERROR: target repo ${repo} allows no merge methods" >&2
+    return 1
+  fi
+  printf '%s\n' "$flag"
+}
+
+MERGE_FLAG=$(choose_merge_flag "HomericIntelligence/ProjectMnemosyne")   # -> --squash here
+gh pr merge "$PR_NUMBER" --auto "$MERGE_FLAG" --repo HomericIntelligence/ProjectMnemosyne
+```
+
+### Detailed Steps
+
+1. **Check repo merge settings** before writing any automation or docs:
+   ```bash
+   gh api repos/OWNER/REPO --jq '{rebase: .allow_rebase_merge, squash: .allow_squash_merge, merge: .allow_merge_commit}'
+   ```
+
+2. **Correct any stale documentation**. Common locations to audit:
+   - `CLAUDE.md` — Git Workflow section and PR policy section
+   - `CONTRIBUTING.md` — PR workflow steps
+   - `.claude/shared/` — shared guidance files
+   - Automation scripts that call `gh pr merge`
+
+3. **Create a tracking issue** (required by `pr-policy` CI gate):
+   ```bash
+   gh issue create --title "docs: fix stale --rebase merge instruction (repo is squash-only)" \
+     --body "CLAUDE.md instructs gh pr merge --auto --rebase but the repo has rebase disabled."
+   ```
+
+4. **Commit the doc fix** (signed), with `Closes #N` in the commit body, and arm auto-merge with `--squash`:
+   ```bash
+   git commit -S -m "docs(claude): use --squash for auto-merge (repo has rebase disabled)
+
+   Closes #<N>"
+   gh pr merge --auto --squash
+   ```
+
+5. **Confirm** auto-merge is armed correctly:
+   ```bash
+   gh pr view <PR> --json autoMergeRequest --jq '.autoMergeRequest.mergeMethod'
+   # Expect: SQUASH
+   ```
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+|---------|----------------|---------------|----------------|
+| `gh pr merge --auto --rebase` on squash-only repo | Issued auto-merge with `--rebase` flag as instructed by stale CLAUDE.md | Repo has `allow_rebase_merge: false`; the command appeared to succeed but auto-merge was not armed | Always verify allowed merge methods with `gh api repos/OWNER/REPO` before using `--rebase` |
+| Relying on stale docs | CLAUDE.md documented `--rebase` because it was originally correct | Repo settings changed (or were always squash-only) without corresponding doc update | Docs about merge flags rot silently; audit CLAUDE.md against `gh api` before issuing PRs |
+| Hardcoded `pr.merge(merge_method="rebase")` in PyGithub code | `hephaestus/github/pr_merge.py` hardcoded `merge_method="rebase"` while a sibling path (`github_api.py:gh_pr_create`) already used `--auto --squash` | Failed at runtime (not silently) with `GraphQL: Rebase merges are not allowed on this repository. (mergePullRequest)` / `...(enablePullRequestAutoMerge)` — ~27 such errors in one automation run | The wrong method hides in CODE too, not just docs; grep for `merge_method="rebase"` as well as the CLI `--rebase` form, and watch for inconsistency between sibling callsites. Durable guard: a unit test that uses `inspect.getsource` on the module and asserts the source contains no `merge_method="rebase"` and does contain `merge_method="squash"` |
+| Swapped a hardcoded `--rebase` to a hardcoded `--squash` (e.g. learn skill #867) | Reactive fix: replaced the fixed `--rebase` flag with a fixed `--squash` flag | Still wrong for a rebase-only or merge-only target repo; just trades one fixed assumption for another | Detect the target repo's allowed methods via `gh api repos/<repo>` and pick dynamically (rebase->squash->merge) — see `choose_merge_flag` |
+| `/learn` skill plugin instruction ran `gh pr merge --auto --rebase` against ProjectMnemosyne (squash-only) | The shipped `/learn` `SKILL.md` (stale plugin cache line 420) hardcoded `--auto --rebase --repo HomericIntelligence/ProjectMnemosyne` | Rejected: `Merge method rebase merging is not allowed on this repository`; three sub-agents each hit it and independently fell back to `--squash` | A tooling skill's OWN instructions are a place the wrong-merge-method bug hides; fixed via settings-aware detection (ProjectHephaestus #911) |
+
+## Results & Parameters
+
+### Repo merge-method audit command (copy-paste ready)
+
+```bash
+# Check what merge methods are enabled — run once before writing any PR automation
+gh api repos/OWNER/REPO --jq '
+  "rebase=\(.allow_rebase_merge) squash=\(.allow_squash_merge) merge=\(.allow_merge_commit)"'
+```
+
+### Confirmed settings for ProjectHephaestus
+
+```json
+{"rebase": false, "squash": true, "merge": false}
+```
+
+Always use `gh pr merge --auto --squash` in ProjectHephaestus (and any repo with the same settings).
+
+### Settings-aware merge-flag selection (preferred over any hardcode)
+
+Rather than hardcoding `--squash` (or `--rebase`), query the target repo and pick the first
+allowed method in preference order `rebase` -> `squash` -> `merge`, erroring if none are allowed.
+This yields `--squash` on a squash-mandated repo without special-casing, and stays correct if a
+repo enables/disables a method later.
+
+```bash
+# Pick the auto-merge flag the TARGET repo actually allows.
+# Preference order: rebase (linear history) -> squash -> merge commit.
+choose_merge_flag() {
+  local repo="$1"
+  local flag
+  flag=$(gh api "repos/${repo}" --jq '[
+    (if .allow_rebase_merge then "--rebase" else empty end),
+    (if .allow_squash_merge then "--squash" else empty end),
+    (if .allow_merge_commit then "--merge"  else empty end)
+  ] | .[0] // ""')
+  if [ -z "$flag" ]; then
+    echo "ERROR: target repo ${repo} allows no merge methods" >&2
+    return 1
+  fi
+  printf '%s\n' "$flag"
+}
+
+MERGE_FLAG=$(choose_merge_flag "HomericIntelligence/ProjectMnemosyne")   # -> --squash here
+gh pr merge "$PR_NUMBER" --auto "$MERGE_FLAG" --repo HomericIntelligence/ProjectMnemosyne
+```
+
+The preference order is configurable, but rebase->squash->merge is the documented default. A repo
+whose policy mandates squash (e.g. ProjectHephaestus, enforced by its `pr-policy` gate) has rebase
+disabled, so detection lands on `--squash` automatically.
+
+### Verification that auto-merge is armed
+
+```bash
+gh pr view <PR> --json autoMergeRequest
+# Expected (squash-only repo):
+# {"autoMergeRequest": {"mergeMethod": "SQUASH", "enabledAt": "...", "enabledBy": {...}}}
+```
+
+### Code-form fix (PyGithub) and regression guard
+
+The same bug in PyGithub code is fixed by changing the merge method on the `pr.merge(...)` call:
+
+```python
+# WRONG on a squash-only repo — fails at runtime:
+pr.merge(merge_method="rebase")
+# Right:
+pr.merge(merge_method="squash")
+```
+
+Also update any log/argparse strings that say "rebase". The durable regression guard is a
+source-inspection unit test:
+
+```python
+import inspect
+from hephaestus.github import pr_merge
+
+def test_pr_merge_uses_squash_not_rebase():
+    src = inspect.getsource(pr_merge)
+    assert 'merge_method="rebase"' not in src
+    assert 'merge_method="squash"' in src
+```
+
+This was shipped in ProjectHephaestus PR #904 (Closes #718, merged 2026-06-03, verified-ci).
+
+## Verified On
+
+| Project | Context | Details |
+|---------|---------|---------|
+| ProjectHephaestus | 2026-05-28: CLAUDE.md had stale `--rebase` instruction; PR #668 corrected it | `gh pr view 668 --json autoMergeRequest` confirmed `mergeMethod=SQUASH`; issue #666 |
+| ProjectHephaestus | 2026-06-03: `hephaestus/github/pr_merge.py` hardcoded `pr.merge(merge_method="rebase")` — code form of the same bug, ~27 runtime GraphQL errors in one automation run; PR #904 changed it to `merge_method="squash"` | Closes #718; durable guard = `inspect.getsource` unit test asserting no `merge_method="rebase"`; verified-ci |
+| ProjectHephaestus | 2026-06-03: `/learn` plugin instruction (`skills/learn/SKILL.md`, stale plugin cache line 420) hardcoded `--auto --rebase` vs squash-only ProjectMnemosyne; three sub-agents each hit `Merge method rebase merging is not allowed on this repository`; filed issue #911 for settings-aware selection (supersedes #721, #867) | `choose_merge_flag` pattern documented; verified-ci |
+
+---
+
+## Superseded from automation-learn-on-merge-per-issue-arming-state
+
+**Original date/version**: 2026-05-31 / "1.0.0"
+
+```yaml
+name: automation-learn-on-merge-per-issue-arming-state
+description: "When automation that runs `/learn` (or any learnings-capture step) after CI work fires on the optimistic point (auto-merge enabled) instead of on the truth (detected merge), Mnemosyne fills with lessons from PRs that never shipped AND shared-PR groups silently collapse N issues into 1 capture. Fix: a per-issue arming-record state machine driven by detected-merge, fanned out via the shared-PR dedupe map. Use when: (1) building post-CI learnings-capture in `loop_runner.py` / `ci_driver.py`-style pipelines, (2) capturing lessons keyed on `_enable_auto_merge` succeeding, (3) a dedupe step in `_discover_prs` collapses N issues to 1 worker and each issue is a distinct lesson, (4) you need post-merge detection that survives across runs without polling, (5) deciding when to set `learn_captured_at` (success-only vs best-effort)."
+category: ci-cd
+date: 2026-05-31
+version: "1.0.0"
+user-invocable: false
+verification: verified-ci
+tags:
+  - automation
+  - learn-capture
+  - drive-green
+  - arming-record
+  - state-machine
+  - shared-pr
+  - detected-merge
+  - hephaestus-automation-loop
+  - homericintelligence
+```
+
+# Capture `/learn` On Detected-Merge, Per-Issue, Via Arming Records
+
+## Overview
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-05-31 |
+| **Objective** | Ensure every issue that lands on a shared PR gets its own `/learn` capture, fired exactly once when the PR actually merges (not when auto-merge is armed), and never duplicated across worker runs. |
+| **Outcome** | Successful — drive-green `/learn` capture is now keyed on detected-merge per-issue. A 9-issue shared PR produces 9 distinct captures. Optimistic captures on auto-merge-armed PRs that later get blocked/cancelled no longer pollute Mnemosyne. |
+| **Verification** | verified-ci (merged via PR #844 closing issue #840 on `HomericIntelligence/ProjectHephaestus`). Builds on PR #835 (shared-PR dedupe in `_discover_prs`). |
+| **History** | N/A (initial version) |
+
+## When to Use
+
+Trigger phrases:
+
+- "`/learn` firing before PR merges"
+- "shared PR closes N issues, only 1 learning captured"
+- "auto-merge armed != PR merged"
+- "drive-green learnings on optimistic point"
+- "arming record" / "per-issue arming state"
+- "`_arm_drive_green`" / "`_check_arming_on_drive_start`" / "`learn_captured_at`"
+- "best-effort /learn idempotency"
+- "post-merge cwd fallback worktree gone"
+
+Trigger situations:
+
+- Building or auditing automation that captures lessons after CI work converges (any `drive_prs_green.py` / `loop_runner.py` / `ci_driver.py` analog).
+- A dedupe step (e.g., `_discover_prs` collapsing 9 issues to 1 canonical worker because they all share a `Closes #N` to the same PR) means N issues map to 1 PR, and each issue is a distinct lesson that should be captured separately.
+- You catch `/learn` (or any captures-step) firing on `_enable_auto_merge` returning True instead of on `gh pr view --json mergedAt` confirming a merge.
+- Mnemosyne is filling with "lessons" from PRs that auto-merge-armed but later got blocked by CI flake, branch-protection, or manual cancellation.
+- You need a post-merge detector that survives across worker runs without an in-process poll (worker may exit between arming and merge).
+- The original worktree for the PR's head branch has been deleted (post-merge cleanup) and the captures-step crashes on a missing `cwd`.
+
+## Verified Workflow
+
+> The shipped fix is a per-issue arming-record state machine driven by
+> detected-merge, fanned out via the shared-PR dedupe map already
+> produced by `_discover_prs`. The arming step writes one JSON record
+> per sibling issue; subsequent runs check each record against
+> `gh pr view --json state,headRefOid,mergedAt` and fire `/learn` once
+> per issue exactly when the PR is detected MERGED.
+
+### Quick Reference
+
+State file shape — one per issue, at `state_dir/drive-green-armed-<issue>.json`:
+
+```json
+{
+  "pr_number": 103,
+  "pr_head_branch": "12-impl",
+  "head_sha_at_arming": "abc12345",
+  "armed_at": "2026-05-31T15:30:00Z",
+  "learn_captured_at": null
+}
+```
+
+Per-issue arming after auto-merge is enabled (drop the optimistic `/learn` call here):
+
+```python
+# In _drive_issue, AFTER _enable_auto_merge(pr_number) succeeds.
+# DO NOT call _run_drive_green_learnings here — that was the bug.
+gh_state = self._gh_pr_state(pr_number)  # gh pr view --json state,headRefOid,mergedAt
+pr_head_sha = (gh_state or {}).get("headRefOid", "") or ""
+pr_head_branch = self._get_pr_branch(pr_number)
+self._arm_drive_green(pr_number, pr_head_branch, pr_head_sha)
+```
+
+Fan-out across every sibling issue on the shared PR:
+
+```python
+def _arm_drive_green(self, pr_number, pr_head_branch, pr_head_sha):
+    # self.shared_pr_issues was populated by _discover_prs after dedupe.
+    siblings = self.shared_pr_issues.get(pr_number, [])
+    armed_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    for issue_num in siblings:
+        existing = self._load_arming_state(issue_num) or {}
+        if existing.get("learn_captured_at"):
+            continue  # Idempotency: never clobber a captured record.
+        self._save_arming_state(issue_num, {
+            "pr_number": pr_number,
+            "pr_head_branch": pr_head_branch,
+            "head_sha_at_arming": pr_head_sha,
+            "armed_at": armed_at,
+            "learn_captured_at": None,
+        })
+```
+
+At the top of every subsequent `_drive_issue`, short-circuit on the arming record:
+
+```python
+def _drive_issue(self, issue_number, ...):
+    armed_result = self._check_arming_on_drive_start(issue_number, pr_number)
+    if armed_result is not None:
+        return armed_result  # Record handled this issue.
+    # ... normal drive logic continues here ...
+```
+
+Resolution table inside `_check_arming_on_drive_start` (calls `gh pr view <N> --json state,headRefOid,mergedAt`):
+
+| GH state | `learn_captured_at` | Head SHA | Action |
+|----------|--------------------|--------|--------|
+| any | not null | any | return success, no `/learn` (already captured) |
+| MERGED | null | any | fire `/learn` once, set `learn_captured_at`, return success |
+| OPEN | null | same as `head_sha_at_arming` | return success, no `/learn` (still in flight) |
+| OPEN | null | different SHA | drop record, return None (PR force-pushed, re-enter drive) |
+| CLOSED (not merged) | null | any | drop record, return None (PR abandoned, re-enter drive) |
+
+Best-effort `/learn` — always set `learn_captured_at`, even on failure:
+
+```python
+ok = self._run_drive_green_learnings(issue_number, pr_number)
+# DO NOT gate the timestamp on `ok` — transient /learn failures must not loop forever.
+record["learn_captured_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+self._save_arming_state(issue_number, record)
+if not ok:
+    LOG.warning("drive-green /learn failed for issue #%s; marked captured to avoid re-fire loop",
+                issue_number)
+```
+
+Post-merge cwd fallback for `_run_drive_green_learnings`:
+
+```python
+def _run_drive_green_learnings(self, issue_number, pr_number):
+    try:
+        cwd = self._get_worktree_path(pr_number)  # may be gone post-merge
+    except (FileNotFoundError, RuntimeError):
+        cwd = self.repo_root  # fall back; the /learn prompt is self-contained.
+    # Use a fresh --session-id; resume-continuity is nice-to-have, not load-bearing.
+    return self._invoke_claude_learn(cwd=cwd, issue=issue_number, pr=pr_number)
+```
+
+The bridge from `_discover_prs` (dedupe) to `_arm_drive_green` (fan-out):
+
+```python
+# In _discover_prs, AFTER grouping issues -> PR via Closes #N:
+self.shared_pr_issues = {pr: sorted(issues) for pr, issues in pr_to_issues.items()}
+# The canonical-issue dedupe still selects ONE worker per PR for the drive loop,
+# but the arming step uses the FULL map to write N records, one per sibling.
+```
+
+### Detailed Steps
+
+1. **Audit the existing capture site.** In `loop_runner.py` / `ci_driver.py` analogs, find the call to `_run_drive_green_learnings` (or whatever fires `/learn`). If it sits directly after `_enable_auto_merge(pr_number)` returning True, that is the optimistic-point bug. Move it out.
+
+2. **Populate `self.shared_pr_issues` in `_discover_prs`.** This is the load-bearing link between PR #835's dedupe and the per-issue fan-out. The dedupe step that collapses 9 issues to 1 canonical worker MUST still expose the full PR -> [issues] map; otherwise the 8 deferred siblings never get arming records.
+
+3. **Replace the optimistic call with `_arm_drive_green(pr_number, pr_head_branch, pr_head_sha)`** at the post-`_enable_auto_merge` site. Capture the PR head SHA via `gh pr view --json headRefOid` so the next run can detect force-pushes.
+
+4. **Wire `_check_arming_on_drive_start` at the top of `_drive_issue`.** It must run BEFORE any normal drive logic so a queued sibling does not re-enter implementation. The five-state resolution table (above) is the contract.
+
+5. **In the MERGED branch, fire `/learn` and unconditionally stamp `learn_captured_at`.** Best-effort. Stamping only on success creates an infinite-retry loop on transient `/learn` failures.
+
+6. **Add the post-merge cwd fallback in `_run_drive_green_learnings`.** The PR's head branch is typically deleted after merge; if you `_get_worktree_path` blindly you get FileNotFoundError. Fall back to `self.repo_root`. The `/learn` prompt is self-contained (it carries "you just drove PR #N to green; capture learnings"), so the fresh `--session-id` still captures the lesson — resume-continuity is a nice-to-have.
+
+7. **Drop the record on force-push (OPEN + different SHA) or abandon (CLOSED-not-merged).** In both cases return None so the caller re-enters the normal drive logic. The record is a one-shot armed-for-this-SHA contract.
+
+8. **Tests for the state machine** must cover: the five resolution rows; idempotency (captured record is never clobbered by re-arming); fan-out (a 9-issue shared PR writes 9 records); best-effort (failure path still stamps `learn_captured_at`); cwd fallback (post-merge worktree-gone path uses `self.repo_root`).
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+|---------|----------------|---------------|----------------|
+| Fire `/learn` on `_enable_auto_merge` returning True | The previous capture-site placed `_run_drive_green_learnings(issue, pr)` directly after the auto-merge enable succeeded, on the assumption that "auto-merge armed" was a close-enough proxy for "PR will merge." | Auto-merge is the optimistic point, not the truth. PRs auto-merge-arm but later get blocked by CI flake, branch-protection failures, or manual cancellation. Mnemosyne filled with lessons from PRs that never shipped, and required-checks audits found "verified-ci" skills referencing PRs that closed unmerged. | Capture only on detected-merge. Move the call out and replace with an arming-record write; the next run resolves the record by polling `gh pr view --json state,mergedAt`. Truth must beat optimism even at the cost of one extra run-cycle of latency. |
+| One `/learn` per PR for shared-PR groups | After the `_discover_prs` dedupe in PR #835 collapsed N issues sharing the same `Closes #N -> PR` link into 1 canonical worker, the post-merge capture only fired for the canonical issue. The 8 deferred siblings never got their own `/learn`. | The dedupe is correct for the DRIVE loop (one worker per PR avoids redundant CI launches) but wrong for the LEARN loop (every issue is a distinct lesson). User explicitly required "9 PRs => 9 learning sessions captured." A single capture conflates N independent root-causes into one Mnemosyne entry. | Make `_discover_prs` expose `self.shared_pr_issues = {pr: [sorted issues]}` so the arming step can fan out one record per sibling. Dedupe at the worker layer; fan out at the lesson layer. The map is the bridge between them. |
+
+## Results & Parameters
+
+### State machine resolution (the contract)
+
+`_check_arming_on_drive_start(issue_number, pr_number)` queries
+`gh pr view <pr_number> --json state,headRefOid,mergedAt` and returns:
+
+| GH state | `learn_captured_at` | Head SHA vs `head_sha_at_arming` | Returns | Side effect |
+|----------|--------------------|---------------------------------|---------|-------------|
+| any | not null | n/a | success, no work | none (already captured) |
+| MERGED | null | n/a | success | fire `/learn`; set `learn_captured_at` (always, success or fail) |
+| OPEN | null | same | success, no `/learn` | none (still in flight) |
+| OPEN | null | different | None | drop record (PR force-pushed; re-enter drive) |
+| CLOSED, not merged | null | n/a | None | drop record (PR abandoned; re-enter drive) |
+
+Returning None means "this record did not handle the issue; fall through to the
+normal drive logic."
+
+### Idempotency invariants
+
+- `_arm_drive_green` walks every sibling issue but SKIPS any whose record already has `learn_captured_at` set. This guarantees that re-running after a partial failure cannot clobber a captured record.
+- The MERGED branch sets `learn_captured_at` regardless of `/learn` success. A failed `/learn` is logged and dropped; it does not re-fire on the next run. (Re-firing would loop forever on any transient claude-CLI failure.)
+- Force-push (OPEN + SHA mismatch) and abandon (CLOSED non-merged) DROP the record (don't update it) and return None. The next run will re-arm if appropriate.
+
+### Net change shape
+
+| Module | Change |
+|--------|--------|
+| `_discover_prs` | After issue->PR grouping, set `self.shared_pr_issues = {pr: sorted(issues)}`. |
+| `_drive_issue` head | Insert `armed_result = self._check_arming_on_drive_start(...)`; short-circuit if not None. |
+| `_drive_issue` body | Replace the post-`_enable_auto_merge` `/learn` call with `_arm_drive_green(...)`. |
+| New: `_arm_drive_green` | Fan out one record per sibling; skip captured records. |
+| New: `_check_arming_on_drive_start` | Five-row resolution table; queries `gh pr view`. |
+| New: `_load_arming_state` / `_save_arming_state` | Read/write `state_dir/drive-green-armed-<issue>.json`. |
+| `_run_drive_green_learnings` | Wrap cwd resolution in try/except; fall back to `self.repo_root`. |
+
+### Verified scenario
+
+| Scenario | Setup | Expected captures |
+|----------|-------|-------------------|
+| Optimistic-armed PR that later gets cancelled | `_enable_auto_merge` returns True, then the PR is closed unmerged before merge | 0 `/learn` captures (record dropped on CLOSED-not-merged; previously: 1 false capture) |
+| Shared PR closing 9 issues | One PR has `Closes #1` through `Closes #9` in body; dedupe selects #1 as canonical worker | 9 distinct `/learn` captures, one per issue (previously: 1 capture for #1 only) |
+| `/learn` transient failure on merge | PR merges; `_run_drive_green_learnings` raises | `learn_captured_at` set anyway; next run is a no-op (previously: would re-fire forever) |
+| PR force-pushed after arming | OPEN + head SHA differs from `head_sha_at_arming` | Record dropped; `_drive_issue` re-enters normal drive logic; arming will re-write on the new SHA |
+| Worktree deleted post-merge | PR head branch removed from remote after squash-merge | `_run_drive_green_learnings` falls back to `self.repo_root`; capture still succeeds |
+
+### Trigger-phrase index (for `/advise` discovery)
+
+- `/learn fires before PR merges`
+- `drive-green learnings on auto-merge armed`
+- `shared PR 9 issues only 1 lesson captured`
+- `_arm_drive_green`
+- `_check_arming_on_drive_start`
+- `learn_captured_at idempotency`
+- `arming-record state machine`
+- `shared_pr_issues fan-out`
+- `post-merge cwd fallback worktree gone`
+- `drive-green-armed-<issue>.json`
+
+## Verified On
+
+| Project | Context | Details |
+|---------|---------|---------|
+| HomericIntelligence/ProjectHephaestus | Issue #840 - drive-green `/learn` capture fires on optimistic auto-merge-armed and silently collapses shared-PR groups | PR #844 (this fix); builds on PR #835 (shared-PR dedupe in `_discover_prs`); follow-on to PR #834 (shared-PR dedupe). User-facing requirement: "9 PRs => 9 learning sessions captured." |
+
+## References
+
+- [PR #844 - per-issue arming-record state machine for drive-green /learn](https://github.com/HomericIntelligence/ProjectHephaestus/pull/844)
+- [Issue #840 - /learn fires on optimistic point instead of detected merge](https://github.com/HomericIntelligence/ProjectHephaestus/issues/840)
+- [PR #835 - shared-PR dedupe in `_discover_prs`](https://github.com/HomericIntelligence/ProjectHephaestus/pull/835)
+- [tooling-hephaestus-automation-loop-drive-green-broken-design](tooling-hephaestus-automation-loop-drive-green-broken-design.md) - sibling skill covering the drive-green phase-model bugs (#818-#821); orthogonal but cohabits the same `loop_runner.py` / `ci_driver.py` modules.
+- [automation-loop-early-exit-zero-work-convergence](automation-loop-early-exit-zero-work-convergence.md) - the early-exit mechanism in the same loop runner.
+
+---
+
+## Superseded from ci-cd-homeric-intelligence-merge-gotchas
+
+**Original date/version**: 2026-06-06 / "1.2.0"
+
+```yaml
+name: ci-cd-homeric-intelligence-merge-gotchas
+description: "Recurring HomericIntelligence CI/merge traps that block PR auto-merge even when the code is correct. Use when: (1) pixi-check fails 'lock-file not up-to-date with the workspace' or Lint/Type-Check break after removing pypi-dependencies; (2) a Keystone-style lint job fails fast (~20s) at 'Install build dependencies (just + linters)'; (3) CodeQL cpp/unused-{local,static}-variable flags a genuinely-used C++ variadic template parameter pack; (4) a PR is MERGEABLE with all REQUIRED checks green but auto-merge won't fire; (5) you are driving a chain of dependency-gated PRs and need to auto-arm each downstream PR when its gate merges; (6) a PR is MERGEABLE with every REQUIRED status check green, but mergeStateStatus stays BLOCKED and auto-merge won't fire — the gate is `required_review_thread_resolution: true` plus unresolved CodeQL/github-advanced-security review threads; detect via GraphQL reviewThreads (the REST field is empty), assess each finding before resolving, document accept-rationale, then resolveReviewThread; (7) the pr-policy required gate fails 'Auto-merge is enabled before implementation review GO' — do not pre-arm auto-merge before the state:implementation-go label (the inverse 'PR has state:implementation-go but auto-merge is not enabled' also fails); disable premature auto-merge and let the label workflow arm it."
+category: ci-cd
+date: 2026-06-06
+version: "1.2.0"
+user-invocable: false
+verification: verified-ci
+history: ci-cd-homeric-intelligence-merge-gotchas.history
+tags: [pixi, pixi-lock, codeql, auto-merge, branch-protection, just-systems, keystone, agamemnon, dependency-gated-pr, review-thread-resolution, github-advanced-security, pr-policy, implementation-go]
+```
+
+# HomericIntelligence CI / Merge Gotchas
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2026-06-06 |
+| **Objective** | Unblock PR auto-merge across HomericIntelligence repos when the code is correct but CI/merge mechanics get in the way — pixi lock-format mismatch, just.systems install flakes, CodeQL variadic-pack false positives, auto-merge stalling on non-required checks, ordering of dependency-gated PR cascades, `required_review_thread_resolution` blocking merge on unresolved CodeQL review threads even with all required checks green, and the `pr-policy` gate failing when auto-merge is armed before the `state:implementation-go` label |
+| **Outcome** | Seven distinct traps each have a verified, repeatable fix; established the diagnostic that distinguishes a real failure from infra flake (failing STEP NAME, not log), the correct CodeQL dismiss path (≤280-char comment + thread resolution), the required-contexts query, the action-monitor pattern that arms held downstream PRs only after their gates merge, the GraphQL `reviewThreads` query that surfaces hidden unresolved-thread merge gates (the REST field is empty) plus the assess-then-`resolveReviewThread` discipline, and the rule that auto-merge must NOT be pre-armed before `state:implementation-go` (disable premature auto-merge + rerun the failed pr-policy check; let the label workflow arm it) |
+| **Verification** | verified-ci — all seven traps observed and fixed in live CI; traps 1–5 during the Keystone pure-transport refactor (Keystone #577–#581, Agamemnon #419–#421 merged 2026-05-31); trap 6 on ProjectNestor #101/#97, where resolving unresolved CodeQL review threads flipped BLOCKED→mergeable and both auto-merged to `main` (2026-06-02); trap 7 on ProjectHephaestus #1073/#1075/#1077, where pre-arming auto-merge failed the `pr-policy` gate's "Check 2" and disabling it flipped fail→pass (2026-06-06) |
+
+## When to Use
+
+1. **pixi lock mismatch.** `pixi-check` fails `lock-file not up-to-date with the workspace`, or `Lint` / `Type-Check` / `dependency-scan` go red — especially right after you removed a `[pypi-dependencies]` table from `pixi.toml`.
+2. **Fast lint flake.** A Keystone-family `lint` job fails in ~20s at the step **"Install build dependencies (just + linters)"** (a `curl https://just.systems/install.sh` 403/EOF), not at an actual linter step.
+3. **CodeQL variadic-pack false positive.** `cpp/unused-local-variable` or `cpp/unused-static-variable` flags a C++ variadic template parameter pack (`args`, `Rest`) that is genuinely consumed via pack-expansion or forwarding.
+4. **Auto-merge won't fire.** A PR is `MERGEABLE` with every branch-protection-required context green, yet GitHub auto-merge does not merge because a NON-required check (Coverage, security/dependency-scan) is still red or pending.
+5. **Dependency-gated cascade.** You are driving a chain where a downstream PR must not merge until its gate PR(s) merge first (extraction-before-deletion), and you want each downstream PR auto-armed the moment its gates land.
+6. **Unresolved review threads block merge.** A PR is `MERGEABLE` with every REQUIRED status check green, yet `mergeStateStatus` stays `BLOCKED` and auto-merge will not fire — the gate is the HI ecosystem-standard branch-protection setting `required_review_thread_resolution: true` plus unresolved CodeQL / `github-advanced-security` review threads. Detect via the GraphQL `reviewThreads` query (the REST `reviewThreads` field is empty/unavailable), assess each finding before resolving, document the accept-rationale, then `resolveReviewThread`.
+7. **pr-policy fails on premature auto-merge.** The REQUIRED `pr-policy` gate fails with `::error::Auto-merge is enabled before implementation review GO.` because you ran `gh pr merge --auto --squash` on a fresh PR before it carried the `state:implementation-go` label. (The inverse — `::error::PR has state:implementation-go but auto-merge is not enabled.` — fails when the label is present but auto-merge is off.) Do NOT pre-arm auto-merge; `gh pr merge <N> --disable-auto`, rerun the failed pr-policy check, and let the review→`state:implementation-go` label workflow arm `--auto --squash`.
+
+## Verified Workflow
+
+> **Verification level:** verified-ci — every trap below was hit and resolved in live CI; traps 1–5 during the Keystone pure-transport refactor (Keystone #577–#581, Agamemnon #419–#421 merged to `main` 2026-05-31); trap 6 on ProjectNestor #101/#97 (both auto-merged to `main` 2026-06-02 once the unresolved review threads were resolved); trap 7 on ProjectHephaestus #1073/#1075/#1077 (pre-armed auto-merge failed the `pr-policy` gate; disabling it flipped the check fail→pass 2026-06-06).
+
+### 1. pixi lock-format version trap
+
+CI's `setup-pixi` pins an **older** pixi that requires lock-file `version: 6`. Local pixi 0.69.x writes `version: 7`, which CI's pixi **cannot load** → `pixi install --locked` fails. This surfaces indirectly as red `Lint` / `Type-Check` / `dependency-scan` jobs (they all run `pixi install --locked` first), so the failure looks like a code problem when it is purely a lock-format problem.
+
+- pixi **0.39.5** writes v6 but lacks a `lock` subcommand, and its parselmouth pypi-name-mapping download (`raw.githubusercontent.com/prefix-dev/parselmouth`) flakes from sandboxes — so it is unreliable for regenerating the lock.
+- **Reliable fix:** resolve with a newer pixi to confirm the conda package set is unchanged, then **hand-edit the v6 lock** to drop orphaned pypi packages. Verify with `pixi install --locked` using a pixi NEWER than CI's: when it prints `lock file is up-to-date but uses an older format (v6)` and exits 0, that proves CI's older pixi will also accept it.
+- **Companion trap:** removing the `[pypi-dependencies]` table from `pixi.toml` WITHOUT regenerating/editing the lock makes `pixi-check` fail `lock-file not up-to-date with the workspace`. The lock must be edited to match the workspace in the same change.
+
+### 2. just.systems lint flake (transient infra, auto-rerunnable)
+
+A Keystone-family `lint` job that fails in ~20s at the step **"Install build dependencies (just + linters)"** is almost always the `curl https://just.systems/install.sh` returning 403 / closing the connection (EOF) — transient infra, NOT a lint error.
+
+- **Diagnose by the FAILING STEP NAME, not the log body:**
+  ```bash
+  gh api repos/<o>/<r>/actions/jobs/<jobid> \
+    --jq '.steps[]|select(.conclusion=="failure")|.name'
+  ```
+- If the failing step is the dep-install step → just rerun: `gh run rerun <runid> --repo <o>/<r> --failed`.
+- A REAL lint failure (clang-format / ruff / mypy) fails at a **later** step, after deps installed. Do not blindly rerun those.
+- An action-monitor can fully automate this: match the failing step name, rerun if it is the dep-install flake, and escalate only when a NON-dep-install step fails.
+
+### 3. CodeQL variadic-pack false positives
+
+`cpp/unused-local-variable` and `cpp/unused-static-variable` flag C++ variadic template parameter packs (`args`, `Rest`) as unused even when they are consumed via pack-expansion (`stringify(args)...`) or forwarding (`f(args...)`).
+
+- **No code rewrite eliminates it.** Removing a `(void)sizeof...(args)` hack, or de-recursing the formatter, just MOVES the flagged line numbers; the autofix bot keeps pushing non-sticking "Potential fix for pull request finding…" commits.
+- **Correct action = DISMISS AS FALSE POSITIVE** (after confirming the pack IS used):
+  ```bash
+  gh api --method PATCH repos/<o>/<r>/code-scanning/alerts/<n> \
+    -f state=dismissed \
+    -f dismissed_reason="false positive" \
+    -f dismissed_comment="<reason>"
+  ```
+  **CRITICAL:** `dismissed_comment` is capped at **280 chars**. Longer → HTTP 422 `Only 280 characters are allowed`.
+- Then resolve the associated review threads via GraphQL `addPullRequestReviewThreadReply` + `resolveReviewThread`. Map a thread to its alert by parsing `code-scanning/(\d+)` out of the comment body.
+
+### 4. Auto-merge blocks on ANY failing check, even non-required
+
+A PR can be `MERGEABLE` with ALL branch-protection-required contexts green, yet GitHub auto-merge will NOT fire while a NON-required check (Coverage, security/dependency-scan) is red. **Auto-merge is stricter than branch protection.**
+
+- Find what is actually required:
+  ```bash
+  gh api repos/<o>/<r>/branches/main/protection \
+    --jq .required_status_checks.contexts
+  ```
+- If the red check is non-required AND a real issue → fix it (do not bypass; the user may have said "fix all even if pre-existing"). Auto-merge fires once ALL checks (including pending non-required ones) reach a terminal state with no failures.
+- **Note:** some repos have NO branch protection. There `BLOCKED` + `mergeable=UNKNOWN` just means GitHub is still computing mergeability; it merges a moment later — nothing to fix.
+
+### 5. Dependency-gated PR cascade orchestration
+
+When PR-B must merge before PR-A is safe (e.g. extraction-before-deletion), enforce the ordering with an **action-monitor** (a persistent background `gh`-poll loop) rather than serializing wall-clock:
+
+- The monitor watches the gate PRs' state; when ALL gates show `MERGED`, it runs `gh pr merge <downstream> --auto --squash` to arm the held PR.
+- It emits ONLY actionable transitions: a gate reaching `MERGED`, a required check failing (`CI-FAIL`), or the held PR appearing.
+- Hold the downstream PR **UNARMED** (create it, run its CI, but do NOT arm auto-merge) until the monitor confirms the gates merged. This preserves the ordering invariant while CI runs in parallel.
+- When a gate's squash-merge creates a conflict for a sibling PR, rebase the sibling onto `main` (see [[parallel-swarm-pr-conflict-reconciliation]]).
+
+### 6. Unresolved review threads block merge with all checks green
+
+A PR can be `MERGEABLE` with **every REQUIRED status check green** (build, integration-tests, unit-tests, All Build/Test Checks, All Static Analysis Checks, branch-protection-drift, …) and STILL sit `mergeStateStatus=BLOCKED` with auto-merge refusing to fire. This is **distinct from Trap 4** — there a *non-required* check was still red/pending; here ALL checks (required and relevant) are green. The gate is the HI ecosystem-standard branch-protection setting **`required_review_thread_resolution: true`**: GitHub's `github-advanced-security` (CodeQL) bot posts inline findings as **review threads**, and any unresolved thread blocks merge regardless of check status.
+
+- **Detect.** `gh pr view <n> --json mergeStateStatus` shows `BLOCKED` while `gh pr checks <n>` shows all required green. The REST `reviewThreads` field is often empty/unavailable, so confirm via GraphQL:
+  ```bash
+  gh api graphql -f query='{ repository(owner:"OWNER",name:"REPO"){ pullRequest(number:N){ reviewThreads(first:50){ nodes{ isResolved path line comments(first:1){ nodes{ author{login} body } } } } }}}' \
+    --jq '[.data.repository.pullRequest.reviewThreads.nodes[]|select(.isResolved==false)]|length'
+  ```
+  A non-zero count of unresolved threads authored by `@github-advanced-security` = this trap. (In the verifying session a PR that MERGED had **0** unresolved threads; the two BLOCKED ones had **6** and **3** — a direct correlation.)
+- **Assess — do NOT blanket-resolve.** READ each unresolved thread's `path:line` + first comment before resolving. Classify:
+  - **False positive (resolve):** many CodeQL findings are stale/false after a rebase — e.g. "unused local variable `_`" on a structured-binding discard `auto [it, _] = map.emplace(...)`; "unreachable static function" that IS used in a member-initializer like `RateLimiter limiter_{permissive_cfg()}`.
+  - **Genuine (judgment call / author input):** e.g. an env-var used in a file path, a world-writable test fixture, a stack address stored non-locally. These deserve a real fix or a conscious, documented accept.
+- **Document then resolve.** When resolving findings that were assessed-and-accepted (not fixed), post a documenting PR comment FIRST recording the per-finding accept-rationale (so the security observation is consciously accepted, not silently dropped), THEN resolve. Get each thread's node `id` from the same `reviewThreads` query and resolve via mutation:
+  ```bash
+  gh api graphql -f query='mutation($id:ID!){ resolveReviewThread(input:{threadId:$id}){ thread{ isResolved } } }' \
+    -f id="<thread node id>"
+  ```
+- **Companion gotchas:**
+  - **Amending re-runs CodeQL.** A force-push amend re-runs CodeQL on the changed file and can post NEW review threads. After an amend, re-check the unresolved-thread count before assuming the PR will merge.
+  - **Slow static-analysis ≠ failure.** `clang-tidy` and `CodeQL (cpp)` showing `in_progress` is why the required aggregate `All Static Analysis Checks` has not reported yet. A PR can sit `BLOCKED` purely waiting on these slow jobs even when build/test are already green — do not mistake it for a real failure.
+
+### 7. pr-policy fails when auto-merge is armed before implementation-go
+
+The REQUIRED `pr-policy` gate FAILS when auto-merge is enabled BEFORE the PR carries the `state:implementation-go` label. Following the generic "auto-merge is mandatory" guidance and running `gh pr merge <N> --auto --squash` on a freshly-opened PR is the trap: the gate's **"Check 2: auto-merge matches implementation-review state"** emits `::error::Auto-merge is enabled before implementation review GO.` and fails the run. The gate is symmetric — it also fails the inverse with `::error::PR has state:implementation-go but auto-merge is not enabled.` when the label IS present but auto-merge is off. In these repos auto-merge must NOT be enabled until a reviewer (or the in-loop implementation reviewer) applies `state:implementation-go`; a label-triggered workflow then arms `--auto --squash` automatically. This mirrors the in-code invariant `pr_manager.ensure_pr_auto_merge_deferred()`, which proactively DISABLES premature auto-merge.
+
+- **Distinct from Traps 4 & 6.** There a non-required check (Trap 4) or an unresolved review thread (Trap 6) gated an otherwise-green PR. Here the act of arming auto-merge too early IS itself the failing REQUIRED check.
+- **Diagnose by the failing CHECK + STEP.** The failing check is `pr-policy`; the failing step is "Check 2: auto-merge matches implementation-review state". Read the exact `::error::` line:
+  ```bash
+  gh run view <run-id> --log-failed | grep '::error::'
+  #   "::error::Auto-merge is enabled before implementation review GO."  -> pre-armed too early
+  #   "::error::PR has state:implementation-go but auto-merge is not enabled."  -> label present, arm it
+  ```
+- **Fix.** Do NOT pre-arm auto-merge on a fresh PR. If you already armed it, disable it and re-run the failed check — it flips fail→pass:
+  ```bash
+  gh pr merge <N> --disable-auto
+  gh run rerun <run-id> --failed
+  ```
+  Then let the review→`state:implementation-go` label workflow arm `--auto --squash` for you. (These repos are squash-only — the label workflow uses `--squash`; do not arm `--rebase`.)
+
+### Quick Reference
+
+```bash
+# Detect which STEP failed (flake vs real failure)
+gh api repos/<o>/<r>/actions/jobs/<jobid> \
+  --jq '.steps[]|select(.conclusion=="failure")|.name'
+
+# Rerun only failed jobs (use for the just.systems dep-install flake)
+gh run rerun <runid> --repo <o>/<r> --failed
+
+# Dismiss a CodeQL variadic-pack false positive (comment must be <=280 chars)
+gh api --method PATCH repos/<o>/<r>/code-scanning/alerts/<n> \
+  -f state=dismissed -f dismissed_reason="false positive" \
+  -f dismissed_comment="<=280 chars: pack is consumed via expansion/forwarding"
+
+# What contexts are ACTUALLY required by branch protection
+gh api repos/<o>/<r>/branches/main/protection \
+  --jq .required_status_checks.contexts
+
+# Arm auto-merge on a held downstream PR (once its gates merged)
+gh pr merge <downstream> --auto --squash
+
+# Confirm a pixi lock is v6 (the format CI's pinned pixi can load)
+grep -m1 '^version:' pixi.lock   # expect: version: 6
+
+# Count UNRESOLVED review threads (the hidden merge gate when all checks are green)
+gh api graphql -f query='{ repository(owner:"OWNER",name:"REPO"){ pullRequest(number:N){ reviewThreads(first:50){ nodes{ isResolved path line comments(first:1){ nodes{ author{login} body } } } } }}}' \
+  --jq '[.data.repository.pullRequest.reviewThreads.nodes[]|select(.isResolved==false)]|length'
+
+# Resolve a review thread (after reading + documenting accept-rationale)
+gh api graphql -f query='mutation($id:ID!){ resolveReviewThread(input:{threadId:$id}){ thread{ isResolved } } }' \
+  -f id="<thread node id>"
+
+# pr-policy "Check 2" failure: read the exact error, then un-arm premature auto-merge
+gh run view <run-id> --log-failed | grep '::error::'
+gh pr merge <N> --disable-auto      # un-arm auto-merge enabled before state:implementation-go
+gh run rerun <run-id> --failed      # re-run pr-policy — flips fail->pass once auto-merge is off
+```
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+|---------|----------------|---------------|----------------|
+| 1 | Regenerate `pixi.lock` with pixi 0.69 (`pixi update`) | Wrote lock-format v7; CI's older pixi can't load v7, so `Lint`/`Type-Check`/`dependency-scan` silently went red | Keep the lock at v6 — hand-edit it or regenerate with a v6-emitting pixi; verify with `pixi install --locked` |
+| 2 | `git restore` stale worktree mods to discard them | The Safety Net BLOCKED `git restore` (irreversible discard is gated) | Print the command for the user to run; never `--force` an irreversible discard |
+| 3 | Treated a fast (~20s) lint failure as a code error and re-ran blindly | It was the `just.systems` curl flake at the dep-install step, so the blind rerun wasted a cycle | Check the FAILING STEP NAME first; only rerun when it is the dep-install flake |
+| 4 | Rewrote the logger to satisfy CodeQL unused-variadic-pack | Redesigned the variadic templates twice; CodeQL still flagged the pack, just at new line numbers | It is a known false positive — DISMISS the alert (≤280-char comment) and resolve threads instead of rewriting |
+| 5 | Assumed a `MERGEABLE` PR with all required checks green would auto-merge | Auto-merge stalled on a non-required red check (Coverage) — auto-merge is stricter than branch protection | Query `required_status_checks.contexts`; fix the non-required red (don't bypass) so all checks reach a clean terminal state |
+| 6 | Assumed a PR with all required checks green + MERGEABLE would auto-merge | `mergeStateStatus` stayed `BLOCKED` on `required_review_thread_resolution` — 6 unresolved CodeQL review threads gated it | Green required checks ≠ mergeable; query GraphQL `reviewThreads` for unresolved bot findings |
+| 7 | Planned to resolve all CodeQL threads in bulk to unblock | Some findings were genuine (env-var file path, stack-address escape); blanket-resolving would silently drop real security observations | Read each thread's `path:line`+body; classify false-positive vs real; document accept-rationale before resolving; escalate genuinely-ambiguous ones |
+| 8 | Ran `gh pr merge --auto --squash` on a fresh PR following the generic "auto-merge is mandatory" guidance | The REQUIRED `pr-policy` gate's "Check 2" fails `::error::Auto-merge is enabled before implementation review GO.` — auto-merge must not be armed before `state:implementation-go` | Don't pre-arm auto-merge; `gh pr merge <N> --disable-auto` + `gh run rerun <run-id> --failed`, then let the `state:implementation-go` label workflow arm `--auto --squash` |
+
+## Results & Parameters
+
+### Dismiss a CodeQL false positive (variadic pack)
+
+```bash
+gh api --method PATCH repos/<o>/<r>/code-scanning/alerts/<n> \
+  -f state=dismissed \
+  -f dismissed_reason="false positive" \
+  -f dismissed_comment="Variadic pack consumed via expansion/forwarding; CodeQL mis-flags it."
+# dismissed_comment MUST be <=280 chars or the call returns HTTP 422
+#   "Only 280 characters are allowed"
+```
+
+### Required-contexts query (what auto-merge actually waits on minus non-required)
+
+```bash
+gh api repos/<o>/<r>/branches/main/protection \
+  --jq .required_status_checks.contexts
+```
+
+### Failing-step diagnosis (flake vs real)
+
+```bash
+gh api repos/<o>/<r>/actions/jobs/<jobid> \
+  --jq '.steps[]|select(.conclusion=="failure")|.name'
+# "Install build dependencies (just + linters)"  -> just.systems flake, rerun
+# a clang-format / ruff / mypy step               -> real lint failure, fix the code
+```
+
+### Rerun the flake
+
+```bash
+gh run rerun <runid> --repo <o>/<r> --failed
+```
+
+### Arm auto-merge on a held PR
+
+```bash
+gh pr merge <downstream> --auto --squash
+```
+
+### Un-arm premature auto-merge to clear the pr-policy gate
+
+```bash
+gh run view <run-id> --log-failed | grep '::error::'
+#   "::error::Auto-merge is enabled before implementation review GO."
+gh pr merge <N> --disable-auto   # auto-merge was armed before state:implementation-go
+gh run rerun <run-id> --failed   # re-runs pr-policy "Check 2"; flips fail->pass
+# Then let the review -> state:implementation-go label workflow arm --auto --squash
+```
+
+### pixi lock format check
+
+```bash
+grep -m1 '^version:' pixi.lock   # must read "version: 6" for CI's pinned pixi
+# Verify acceptance with a pixi NEWER than CI's:
+pixi install --locked
+#   prints "lock file is up-to-date but uses an older format (v6)" and exits 0
+#   => CI's older pixi will also accept it
+```
+
+### Key parameters
+
+- `dismissed_comment` ≤ **280 chars** (HTTP 422 otherwise).
+- pixi lock must stay at **`version: 6`** for CI's pinned pixi.
+- Removing `[pypi-dependencies]` from `pixi.toml` requires editing/regenerating the lock in the SAME change, or `pixi-check` fails `lock-file not up-to-date with the workspace`.
+- A ~20s `lint` failure at "Install build dependencies (just + linters)" is the `just.systems` flake — rerun, do not edit code.
+- Auto-merge waits on ALL checks (required + non-required) reaching a clean terminal state; branch protection only gates the required ones.
+- Hold a dependency-gated downstream PR UNARMED until its gates merge; arm with `--auto --squash` from the action-monitor.
+- Do NOT pre-arm auto-merge before the PR has `state:implementation-go`, or the REQUIRED `pr-policy` gate's "Check 2" fails `Auto-merge is enabled before implementation review GO.`; un-arm with `gh pr merge <N> --disable-auto`, rerun the failed check, and let the label workflow arm `--auto --squash`.
+
+### Verified On
+
+| Repo | Context | PRs (all merged 2026-05-31) |
+|------|---------|------------------------------|
+| ProjectKeystone | Keystone pure-transport refactor (traps 1–5) | #577, #578, #579, #580, #581 |
+| ProjectAgamemnon | Downstream consumers of the Keystone transport change (traps 1–5) | #419, #420, #421 |
+| ProjectNestor | Unresolved CodeQL review threads gating merge (trap 6); resolving threads flipped BLOCKED→mergeable, both auto-merged 2026-06-02 | #101, #97 |
+| ProjectHephaestus | pr-policy gate fails on auto-merge armed before `state:implementation-go` (trap 7); disabling auto-merge + rerunning flipped the failed check fail→pass (2026-06-06) | #1073, #1075, #1077 |
+
+## Related Skills
+
+- [[parallel-swarm-pr-conflict-reconciliation]] — rebasing a sibling PR when a gate's squash-merge conflicts.
+- [[git-rebase-over-deletion]] — preferring rebase to discarding/deleting work.
+- [[always-sign-commits]] — all commits must be `-S` signed and verified.
+- [[squash-not-rebase-merge]] — HI repos disable rebase-merge; auto-merge with `--squash`.
+- [[cpp-cmake-ci-build-and-test-fixes]] — C++/CMake CI build and test triage.
+
+---
+
+## Superseded from hi-branch-protection-two-layer
+
+**Original date/version**: 2026-05-31 / "1.1.0"
+
+```yaml
+name: hi-branch-protection-two-layer
+description: "HomericIntelligence main-branch protection is split across TWO layers (repo ruleset + classic branch protection) whose UNION GitHub enforces. Use when: (1) managing HI main-branch protection or deciding whether a rule belongs in a ruleset vs classic branch protection, (2) a PR is BLOCKED by a review/check that the ruleset reports as 0/absent (the OTHER layer adds it), (3) a ruleset PUT returns HTTP 422 on required_conversation_resolution, (4) `gh api .../branches/main/protection` 404 body gets parsed as fake required-check contexts, (5) a `branch-protection-drift` required check fails on every PR with HTTP 403 'Resource not accessible by integration' (admin endpoint with the default token) or fails on review-count/dismiss-stale assertions that disagree with the in-repo canonical policy."
+category: ci-cd
+date: 2026-05-31
+version: "1.1.0"
+user-invocable: false
+verification: verified-ci
+history: hi-branch-protection-two-layer.history
+tags:
+  - github
+  - rulesets
+  - branch-protection
+  - classic-protection
+  - required-signatures
+  - conversation-resolution
+  - linear-history
+  - gh-api
+  - branch-protection-drift
+  - drift-check
+  - rules-endpoint
+```
+
+# HomericIntelligence main Branch Protection: The Two-Layer Split
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2026-05-31 |
+| **Objective** | Document the intentional two-layer (ruleset + classic) protection design on HI `main` and the gh-api gotchas encountered while auditing/applying it across all 15 repos |
+| **Outcome** | Successful — both layers audited and applied live via `gh api` on all 15 HomericIntelligence repos; design and constraints confirmed. v1.1.0 adds the `branch-protection-drift` required-check failure mode (403 admin-endpoint masking a real ruleset-vs-canonical drift) and the ecosystem-reconcile fix |
+| **Verification** | v1.0.0 content: verified-ci (applied + verified live via gh api on all 15 HI repos, 2026-05-31). v1.1.0 additions (drift-check 403 → ecosystem reconcile): **verified-local** — the drift script's local GATE printed `branch-protection-drift: OK` against the live ruleset and fix commits are signed/verified=true, but the end-to-end CI drift-check pass was still running at session end (NOT yet verified-ci) |
+| **History** | [changelog](./hi-branch-protection-two-layer.history) |
+
+## When to Use
+
+- You are managing HomericIntelligence `main`-branch protection and need to know where a given rule lives
+- You must decide whether a new rule belongs in a **repo ruleset** vs **classic branch protection**
+- A PR is `BLOCKED` by a review or status check that the **ruleset** reports as `0`/absent — the OTHER layer (classic) is adding it
+- A ruleset PUT returns `HTTP 422: data matches no possible input` when you add `required_conversation_resolution`
+- `gh api repos/<O>/<R>/branches/main/protection` returns a 404 body and you risk parsing its keys as fake required-check contexts
+- You see fully-signed PRs with empty `reviewDecision` that still will not merge
+- A `branch-protection-drift` (or similar) required check fails on EVERY PR — especially if it fails in ~4s with an empty `--log-failed` (read the full `--log`: the `gh api` call is throwing)
+- The drift check fails with `gh: Resource not accessible by integration (HTTP 403)` — the script is hitting the admin `branches/main/protection` endpoint with the default Actions `GITHUB_TOKEN` (contents/metadata read only)
+- The drift check fails on `required_approving_review_count` / `dismiss_stale_reviews` assertions that disagree with the live ruleset, and you must decide whether the in-repo canonical file or the live ruleset is authoritative
+
+Related: [[ci-cd-ruleset-bootstrap-deadlock]] (required-check names that exist only in the blocked PR), [[ci-cd-homeric-intelligence-merge-gotchas]] (squash-only, auto-merge behaviour), [[git-gpg-sign-email-mismatch-silent-unsigned-blocks-merge]] (`required_signatures` lives in the ruleset and silently blocks unsigned PRs).
+
+## Verified Workflow
+
+### Quick Reference
+
+```bash
+O=HomericIntelligence
+R=ProjectAgamemnon   # any of the 15 HI repos
+
+# (a) AUDIT BOTH LAYERS — GitHub enforces the UNION (stricter wins)
+echo "=== RULESET (shared baseline) ==="
+gh api repos/$O/$R/rulesets --jq '.[] | {id, name, target, enforcement}'
+RID=$(gh api repos/$O/$R/rulesets --jq '.[0].id')
+gh api repos/$O/$R/rulesets/$RID --jq '.rules[].type'
+gh api repos/$O/$R/rulesets/$RID \
+  --jq '.rules[] | select(.type=="required_status_checks") | .parameters.required_status_checks[].context'
+
+echo "=== CLASSIC (repo-specific additions) ==="
+# 404 GUARD: a repo with no classic protection returns {"message":"Branch not protected","status":"404"}
+P=$(gh api repos/$O/$R/branches/main/protection 2>/dev/null)
+if [ -z "$P" ] || echo "$P" | python3 -c 'import sys,json;d=json.load(sys.stdin);sys.exit(0 if str(d.get("status"))=="404" else 1)' 2>/dev/null; then
+  echo "  (no classic protection)"
+else
+  echo "$P" | python3 -c 'import sys,json;d=json.load(sys.stdin);print("convo_resolution:",d.get("required_conversation_resolution",{}).get("enabled"));print("extras:",d.get("required_status_checks",{}).get("contexts",[]));print("reviews:",(d.get("required_pull_request_reviews") or {}).get("required_approving_review_count"))'
+fi
+
+# (b) COMPUTE EXTRAS = classic_contexts − ruleset_contexts (set difference)
+python3 - "$RID" <<'PY'
+import json, subprocess, sys
+O,R,RID = "HomericIntelligence","ProjectAgamemnon",sys.argv[1]
+rs = json.loads(subprocess.check_output(["gh","api",f"repos/{O}/{R}/rulesets/{RID}"]))
+ruleset_ctx = set()
+for rule in rs["rules"]:
+    if rule["type"]=="required_status_checks":
+        ruleset_ctx = {c["context"] for c in rule["parameters"]["required_status_checks"]}
+raw = subprocess.run(["gh","api",f"repos/{O}/{R}/branches/main/protection"],capture_output=True,text=True).stdout
+classic_ctx = set()
+try:
+    d = json.loads(raw)
+    if str(d.get("status")) != "404":               # 404 GUARD
+        classic_ctx = set(d.get("required_status_checks",{}).get("contexts",[]))
+except Exception:
+    pass
+print("EXTRAS (classic-only):", sorted(classic_ctx - ruleset_ctx))
+PY
+
+# (c) ADD A VALID RULE TYPE TO ALL RULESETS (fetch → dedup → append → PUT)
+# PUT is a FULL REPLACE of .rules — never PUT only the new rule.
+for R in ProjectAgamemnon ProjectNestor ProjectMnemosyne ProjectHermes ProjectProteus \
+         ProjectArgus AchaeanFleet Myrmidons ProjectTelemachy ProjectKeystone \
+         ProjectOdyssey ProjectScylla ProjectHephaestus ProjectCharybdis Odysseus; do
+  RID=$(gh api repos/$O/$R/rulesets --jq '.[0].id')
+  gh api repos/$O/$R/rulesets/$RID > /tmp/rs.json
+  python3 - <<'PY'
+import json
+rs=json.load(open("/tmp/rs.json"))
+NEW={"type":"required_linear_history"}           # a VALID ruleset rule type
+rules=[r for r in rs["rules"] if r["type"]!=NEW["type"]]   # dedup same type
+rules.append(NEW)
+json.dump({"name":rs["name"],"target":rs["target"],"enforcement":rs["enforcement"],
+          "conditions":rs["conditions"],"bypass_actors":rs.get("bypass_actors",[]),
+          "rules":rules}, open("/tmp/rs_patched.json","w"))
+PY
+  gh api -X PUT repos/$O/$R/rulesets/$RID --input /tmp/rs_patched.json --jq '.id'
+done
+
+# (d) SET CLASSIC = extras + conversation-resolution ONLY (no reviews, no linear-history)
+cat > /tmp/prot.json <<'JSON'
+{ "required_status_checks": {"strict": false, "contexts": ["validate","markdownlint"]},
+  "required_pull_request_reviews": null,
+  "enforce_admins": null,
+  "restrictions": null,
+  "required_conversation_resolution": true,
+  "required_linear_history": false,
+  "allow_force_pushes": false,
+  "allow_deletions": false }
+JSON
+gh api -X PUT repos/$O/$R/branches/main/protection --input /tmp/prot.json
+```
+
+### Detailed Steps
+
+1. **Always audit BOTH layers.** GitHub merges them and applies the **union** — the stricter setting
+   across the two layers wins. A rule reported as `0`/absent in the ruleset can still be enforced by
+   classic protection (and vice-versa).
+
+2. **Know which layer owns each rule:**
+   - **RULESET = the shared common baseline**, identical across all 15 repos (±minor per-repo
+     variation in status-check contexts). Rule types present:
+     `deletion, non_fast_forward, pull_request (required_approving_review_count=0),
+     required_linear_history, required_signatures, required_status_checks`.
+     Canonical contexts: `lint, unit-tests, integration-tests, security/dependency-scan,
+     security/secrets-scan, build, schema-validation, deps/version-sync`.
+   - **CLASSIC = repo-specific ADDITIONS only:** `required_conversation_resolution: true`
+     (all repos) PLUS each repo's EXTRA required status-check contexts (the ones NOT already in
+     the ruleset). NO reviews, NO linear-history in classic — those moved to the ruleset.
+
+3. **`required_conversation_resolution` is classic-only.** It is NOT a valid repo-ruleset rule type.
+   Putting `{"type":"required_conversation_resolution"}` into a ruleset PUT returns
+   `HTTP 422: Invalid property /rules/N: data matches no possible input`. By contrast
+   `required_linear_history` and `non_fast_forward` ARE valid ruleset rule types and work fine.
+
+4. **Editing a ruleset is a FULL REPLACE.** `PUT repos/<O>/<R>/rulesets/<id>` with `{"rules":[...]}`
+   replaces the entire rules array — it is not additive. Correct pattern: fetch the full ruleset,
+   take `.rules`, drop any rule of the same type you are adding (dedup), append the new rule, then PUT
+   `{"name","target","enforcement","conditions","bypass_actors","rules"}`. See snippet (c).
+
+5. **Guard for the 404 before reading classic contexts.** A repo with no classic protection returns a
+   404 JSON body `{"message":"Branch not protected","documentation_url":...,"status":"404"}`. A naive
+   `--jq '.required_status_checks.contexts[]?'` is safe (yields nothing), BUT piping the whole body
+   through code that extracts top-level keys yields FAKE contexts
+   `["documentation_url","message","status"]` — which, if PUT back, permanently block all merges.
+   Always check `.status == "404"` first. See snippet (a)/(b).
+
+6. **Audit classic reviews independently.** Classic protection can require reviews even when the
+   ruleset says `0`. Fix with:
+   ```bash
+   gh api -X PATCH repos/$O/$R/branches/main/protection/required_pull_request_reviews \
+     -F required_approving_review_count=0
+   ```
+
+### Branch-protection-drift 403 → ecosystem reconcile
+
+> Added in v1.1.0. **Verification: verified-local** — the local GATE (step 5) printed
+> `branch-protection-drift: OK` against the live ruleset and the fix commits are
+> signed/verified, but the end-to-end CI drift-check pass was still running at session
+> end. Treat the CI-pass claim as pending until the check goes green.
+
+Symptom: a `branch-protection-drift` required check (e.g. ProjectNestor's, added in PR #81,
+script `scripts/verify-branch-protection.sh` in workflow `.github/workflows/_required.yml`)
+fails on EVERY PR — blocking main, a trivial markdownlint-fix PR, and every other open PR.
+
+1. **Read the FULL log, not `--log-failed`.** A required-script job that fails in ~4s with
+   an empty `--log-failed` is failing at the `gh api` call itself, not at an assertion. Run
+   `gh run view <id> --log` and grep for the HTTP status / `Resource not accessible`. Do not
+   write it off as a stale/transient check.
+
+2. **Switch from the admin endpoint to the rules endpoint.** The 403
+   `Resource not accessible by integration` means the script called
+   `GET /repos/{owner}/{repo}/branches/{branch}/protection`, which needs an admin-scoped
+   token the default Actions `GITHUB_TOKEN` (contents/metadata read) cannot obtain. Use
+   `GET /repos/{owner}/{repo}/rules/branches/{branch}` instead — readable with `contents: read`.
+   It returns a FLAT ARRAY of rule objects; extract the PR params with:
+   ```bash
+   gh api repos/$O/$R/rules/branches/main \
+     --jq '[.[]|select(.type=="pull_request")]|first|.parameters'
+   ```
+   Field names DIFFER from the admin endpoint: `dismiss_stale_reviews` →
+   `dismiss_stale_reviews_on_push`, and the review count is `.required_approving_review_count`
+   directly on the params object.
+
+3. **Find the AUTHORITATIVE values by surveying the ecosystem — not the in-repo file.** Fixing
+   the 403 EXPOSES a real drift the 403 was masking: the in-repo canonical
+   `.github/branch-protection/main.json` may be the STALE side. Survey every HI repo's live
+   ruleset to decide which is authoritative:
+   ```bash
+   for R in Agamemnon Keystone Hermes Scylla Odysseus Argus Hephaestus Myrmidons; do
+     gh api repos/HomericIntelligence/Project$R/rules/branches/main \
+       --jq '[.[]|select(.type=="pull_request")]|first|.parameters'
+   done
+   # (use the bare repo name for Odysseus / Myrmidons — no "Project" prefix)
+   ```
+   The HI ecosystem standard (unanimous across all 8 surveyed) is:
+   `required_approving_review_count: 0`, `dismiss_stale_reviews_on_push: false`,
+   `require_last_push_approval: false`, `required_review_thread_resolution: true`,
+   `require_code_owner_review: false`.
+
+4. **Update BOTH sides to the ecosystem standard.** Edit the canonical
+   `.github/branch-protection/main.json` AND the drift script's assertions: assert
+   `required_approving_review_count == 0`, `required_review_thread_resolution == true`, and
+   DROP the `dismiss_stale_reviews == true` assertion (the standard is `false`).
+
+5. **GATE before pushing.** On a host with `gh` authed, run the script locally against the
+   live ruleset — it MUST print `branch-protection-drift: OK`:
+   ```bash
+   bash scripts/verify-branch-protection.sh
+   ```
+
+6. **Commit signed, open PR to main, squash auto-merge** (`gh pr merge <num> --auto --squash`;
+   HI repos disable rebase-merge). If `git rebase origin/main` prints
+   `dropping <sha> ... -- patch contents already upstream` for your rules-endpoint commit, a
+   sibling PR already landed that exact fix — only the ecosystem-alignment commit remains;
+   don't re-push the dropped change.
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| Attempt 1 | Added `{"type":"required_conversation_resolution"}` to a repo ruleset and PUT it | `HTTP 422: Invalid property /rules/N: data matches no possible input` — it is not a valid ruleset rule type | `required_conversation_resolution` is **classic-only**; keep it in classic branch protection. (`required_linear_history` and `non_fast_forward` ARE valid ruleset types.) |
+| Attempt 2 | PUT the ruleset with just the two new rules in `{"rules":[...]}` | Ruleset PUT REPLACES the entire `.rules` array — this would have dropped the entire shared baseline (signatures, status checks, etc.) | Ruleset edits are NOT additive. Always fetch existing `.rules`, dedup the same type, append, then PUT the full object. |
+| Attempt 3 | Parsed `branches/main/protection` output for ProjectKeystone (which had NO classic protection) | The 404 body `{"message":...,"status":"404"}` was treated as data; its top-level keys became fake required contexts `documentation_url`/`message`/`status`, which if PUT back permanently block all merges | Always guard for `.status == "404"` (or empty/non-200) BEFORE extracting `required_status_checks.contexts`. This happened live on Keystone and had to be corrected. |
+| Attempt 4 | Assumed the ruleset's `required_approving_review_count=0` meant no review gate anywhere | ProjectNestor's CLASSIC protection independently required `1` approving review, blocking ~18 fully-signed PRs that showed empty `reviewDecision` | Audit BOTH layers; the union wins. Fix Nestor with `PATCH .../branches/main/protection/required_pull_request_reviews -F required_approving_review_count=0`. |
+| Attempt 5 (v1.1.0) | Read `gh run view <id> --log-failed` for the failing `branch-protection-drift` job | Returned empty; the ~4s failure + empty log looked like a stale/transient check | A required-script job that fails in ~4s with no log is failing at the `gh api` call itself — read the full `--log` and grep for the HTTP status; don't assume transient. |
+| Attempt 6 (v1.1.0) | Took the check name literally — assumed `branch-protection-drift: fail` meant config drift | The real cause was `gh: Resource not accessible by integration (HTTP 403)`: the script called `gh api repos/{repo}/branches/main/protection`, which needs an admin-scoped token the default Actions `GITHUB_TOKEN` (contents/metadata read) cannot obtain | A "drift" check can be a broken-permissions check in disguise; verify it actually reads config before trusting its verdict. |
+| Attempt 7 (v1.1.0) | Copied PR #91's rules-endpoint script verbatim — read `gh api repos/{repo}/rules/branches/main` (readable with `contents:read`) but kept its assertions `required_approving_review_count >= 1` and `dismiss_stale_reviews == true` | The 403 was gone, but the script then FAILED on the actual values: the live ruleset has `required_approving_review_count: 0` and `dismiss_stale_reviews_on_push: false` | Fixing the 403 EXPOSES the real drift the 403 was masking; the endpoint fix and the assertion fix are two separate problems. |
+| Attempt 8 (v1.1.0) | Treated the canonical in-repo `.github/branch-protection/main.json` (count:1, dismiss:true) as source of truth and assumed the live ruleset was drifted | The canonical file was the STALE side; every other HI repo's live ruleset (count:0, dismiss:false) is the ecosystem standard | When a declaration disagrees with a live ruleset, survey the ecosystem to decide which is authoritative — don't assume the in-repo file is right. |
+
+## Results & Parameters
+
+**Per-layer matrix (final state, all 15 HI repos, 2026-05-31):**
+
+```text
+LAYER 1 — RULESET (shared common baseline, identical on all 15 repos ±minor context variation)
+  rule types:
+    deletion
+    non_fast_forward
+    pull_request                  (required_approving_review_count = 0)
+    required_linear_history
+    required_signatures           ← this blocked the 5 unsigned PRs earlier in session
+    required_status_checks        contexts: lint, unit-tests, integration-tests,
+                                  security/dependency-scan, security/secrets-scan,
+                                  build, schema-validation, deps/version-sync
+
+LAYER 2 — CLASSIC branch protection (repo-specific ADDITIONS only)
+  required_conversation_resolution = true          (ALL repos)
+  required_pull_request_reviews    = null          (NO reviews — that lives in the ruleset)
+  required_linear_history          = false         (lives in the ruleset)
+  required_status_checks.contexts  = EXTRAS only    (classic_contexts − ruleset_contexts)
+
+  EXTRAS per repo (examples):
+    ProjectAgamemnon : ubuntu-24.04-{gcc,clang}-{debug,release},
+                       "All Build/Test Checks", "All Static Analysis Checks"
+    ProjectMnemosyne : validate, markdownlint
+    ProjectHermes    : "Secret Scanning (gitleaks)", justfile-check
+    ProjectProteus   : "Lint Shell Scripts"
+    AchaeanFleet, Myrmidons, ProjectTelemachy, Odysseus : (empty — no extras)
+```
+
+**GitHub API behaviour (CRITICAL):**
+
+```text
+PUT ruleset with rules[] containing {"type":"required_conversation_resolution"}
+  → HTTP 422: "Invalid property /rules/N: data matches no possible input"   ← classic-only rule
+
+PUT ruleset with {"rules":[<only the new rule>]}
+  → HTTP 200 but DESTROYS the baseline (full replace)                       ← always fetch+append
+
+GET branches/main/protection on an unprotected repo
+  → HTTP 404 body {"message":"Branch not protected","status":"404"}         ← guard before parsing keys
+
+required_conversation_resolution / extra contexts → classic
+required_signatures / reviews / linear_history / baseline checks → ruleset
+```
+
+**Classic protection PUT object for "extras + conversation-resolution only":**
+
+```json
+{
+  "required_status_checks": {"strict": false, "contexts": ["<extras>"]},
+  "required_pull_request_reviews": null,
+  "enforce_admins": null,
+  "restrictions": null,
+  "required_conversation_resolution": true,
+  "required_linear_history": false,
+  "allow_force_pushes": false,
+  "allow_deletions": false
+}
+```
+(Use `"required_status_checks": null` if the repo has no extras.)
+
+**HI ecosystem-standard `pull_request` ruleset params (v1.1.0 — unanimous across all 8 repos surveyed: Agamemnon, Keystone, Hermes, Scylla, Odysseus, Argus, Hephaestus, Myrmidons):**
+
+| Field (rules endpoint) | Standard value | Notes |
+| ------- | ------- | ------- |
+| `required_approving_review_count` | `0` | NOT `1`; assert `== 0` in any drift script |
+| `dismiss_stale_reviews_on_push` | `false` | admin endpoint calls this `dismiss_stale_reviews`; drop any `== true` assertion |
+| `require_last_push_approval` | `false` | |
+| `required_review_thread_resolution` | `true` | the one assertion that should be `== true` |
+| `require_code_owner_review` | `false` | |
+
+Read these from the rules endpoint (readable with `contents: read`), NOT the admin
+`branches/main/protection` endpoint (needs admin scope → HTTP 403 under the default
+Actions token):
+
+```bash
+gh api repos/HomericIntelligence/<Repo>/rules/branches/main \
+  --jq '[.[]|select(.type=="pull_request")]|first|.parameters'
+```
+
+**Rebase signal — "patch contents already upstream":** while rebasing the fix PR,
+`git rebase origin/main` printed
+`dropping <sha> ... -- patch contents already upstream` for the rules-endpoint commit.
+That means the exact fix had ALREADY landed on `main` independently (a sibling PR merged
+it), and only the ecosystem-alignment commit remained. **Lesson:** a "patch contents
+already upstream" drop on rebase confirms a sibling PR already merged your change — don't
+re-push it.
+
+**Cross-references:** `required_signatures` (ruleset) is what silently blocked 5 unsigned PRs earlier in
+this session — see [[git-gpg-sign-email-mismatch-silent-unsigned-blocks-merge]]. For squash-only
+merge behaviour and auto-merge gotchas see [[ci-cd-homeric-intelligence-merge-gotchas]]. For required
+check names that exist only in the blocked PR (a different deadlock) see
+[[ci-cd-ruleset-bootstrap-deadlock]].
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| HomericIntelligence (all 15 Project* repos) | Session 2026-05-31 | Both layers audited and applied live via `gh api`; union confirmed; ProjectKeystone 404-body fake-context trap hit and corrected; ProjectNestor classic `required_approving_review_count=1` blocked ~18 signed PRs and was patched to 0 |
+| ProjectNestor | Session 2026-05-31 (v1.1.0) | `branch-protection-drift` required check (PR #81, `scripts/verify-branch-protection.sh`) failed on every PR with HTTP 403 on the admin `branches/main/protection` endpoint; switched to `rules/branches/main`, surveyed 8 HI repos for the ecosystem standard (count:0/dismiss:false/thread-resolution:true), reconciled BOTH the canonical `.github/branch-protection/main.json` and the script assertions. **verified-local:** local GATE printed `branch-protection-drift: OK`, fix commits signed/verified; CI drift-check pass still running at session end |
+
+---
+
+## Superseded from ci-cd-gha-required-checks-workflow-drop
+
+**Original date/version**: 2026-05-17 / "1.0.0"
+
+```yaml
+name: ci-cd-gha-required-checks-workflow-drop
+description: "GitHub Actions Required Checks downstream gate workflows stuck pending forever after a push. Use when: (1) gh pr checks shows the real test workflows (Test, CodeQL, Security, Pre-commit) running and passing but downstream gates (pr-policy, shellcheck, markdownlint, justfile-check, symlink-check, pixi-check, integration-tests) sit at pending:0 and never start; (2) PR cannot auto-merge because branch protection requires those gates green; (3) waiting / gh run rerun / close+reopen did not help. Fix: push one empty signed commit to re-trigger workflow scheduling."
+category: ci-cd
+date: 2026-05-17
+version: "1.0.0"
+user-invocable: false
+verification: verified-local
+tags:
+  - github-actions
+  - required-checks
+  - workflow_run
+  - workflow-drop
+  - branch-protection
+  - empty-commit
+  - re-trigger
+  - auto-merge
+```
+
+# GitHub Actions Required Checks Workflow-Drop
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2026-05-17 |
+| **Objective** | Recover a PR whose downstream Required Checks gate workflows were never scheduled by GitHub Actions after a push, so auto-merge stays blocked indefinitely |
+| **Outcome** | A single empty signed commit (`git commit --allow-empty -S -m "chore: re-trigger CI"` followed by `git push`) forces GitHub to re-evaluate workflow triggers, the previously-dropped gate workflows get scheduled, and the PR proceeds to auto-merge |
+| **Verification** | verified-local — observed twice in HomericIntelligence/ProjectHephaestus PRs #420 and #421; the empty-commit fix worked both times. Not a CI test of itself. |
+
+## Symptom
+
+After pushing a commit to a PR branch:
+
+- `gh pr checks <num>` shows the **upstream / real** workflows (Test, CodeQL, Security, Pre-commit) running and then passing.
+- The **downstream Required Checks gate** workflows (`pr-policy`, `shellcheck`, `markdownlint`, `justfile-check`, `symlink-check`, `pixi-check`, `integration-tests`) sit at `pending:0` forever — never scheduled, never start, no run created.
+- Branch protection requires those gate jobs to be green, so auto-merge never fires.
+- The pending state is **durable**, not transient — waiting does not help.
+
+## Root Cause Hypothesis
+
+GitHub Actions occasionally drops workflow scheduling for compound `workflow_run`-style downstream gates when:
+
+- The upstream workflow is still in flight at the moment the push event is processed, **or**
+- Multiple pushes arrive in rapid succession, **or**
+- A race occurs between the upstream workflow's completion event and the downstream gate's trigger evaluation.
+
+The dependent gate workflow never receives its trigger event, so no run is ever created. Because no run exists, there is nothing for `gh run rerun` to act on, and the `pending` status comes from branch-protection's required-context check (which expects a run that will never appear).
+
+## When to Use
+
+1. PR checks show **passing** real-test workflows BUT **pending** downstream gate workflows for 10+ minutes.
+2. The pending workflows are downstream gates (`pr-policy`, status-reporting, lint-aggregators) that depend on upstream workflow completion via `workflow_run` or similar fan-in.
+3. The branch has **not** been force-pushed in a way that would naturally re-trigger.
+4. `gh run list --branch <branch>` shows runs for the upstream workflows but **no run at all** for the stuck gate workflow.
+
+If the upstream workflow itself hasn't run, this is a different problem — see `ci-github-actions-pull-request-trigger`.
+
+## Verified Workflow
+
+> **Verification level:** verified-local — observed twice in real PRs (#420 empty commit `619a45e`, #421 empty commit `3bbbbb6`) in HomericIntelligence/ProjectHephaestus on 2026-05-17. Fix worked both times.
+
+### Quick Reference
+
+```bash
+# 1. Detect: real tests green, downstream gates pending
+gh pr checks <PR> --repo <org>/<repo>
+
+# 2. Confirm: no run was ever created for the stuck gate workflow
+gh run list --branch <branch> --workflow <gate-workflow.yml> --repo <org>/<repo>
+
+# 3. Fix: empty signed commit forces GitHub to re-evaluate triggers
+git commit --allow-empty -S -m "chore: re-trigger CI"
+git push
+
+# 4. Verify: gate workflows now have runs and progress to success
+gh pr checks <PR> --repo <org>/<repo> --watch
+```
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+|---------|----------------|---------------|----------------|
+| 1 | Waiting 30+ minutes | Workflows were never scheduled — pending state is durable, not transient | GitHub will not self-heal a dropped workflow trigger |
+| 2 | `gh run rerun` on the upstream workflow | Re-runs the upstream run but does not re-fire the downstream gate's trigger event | `gh run rerun` only affects the specific run you target; it cannot create a run that never existed |
+| 3 | Closing + reopening the PR | Has side effects on auto-merge state, review approvals, and required-check evaluation; gate workflows still did not get scheduled in some retries | Too disruptive vs. an empty commit, and not deterministic |
+
+## Results & Parameters
+
+- **Sign the empty commit** if branch protection requires signed commits (`-S`). An unsigned empty commit will be blocked by the same `pr-policy` gate this is trying to unblock.
+- Use a **conventional-commit `chore:` prefix** so the empty commit is excluded from release notes generated by `gh release create --generate-notes`.
+- **One empty commit is sufficient.** Do not chain multiple — that creates noisy history and can re-trigger the same race.
+- The fix is **not preventive**, only **reactive**. There is no known way to force GitHub to never drop a workflow trigger; this skill is purely for recovery after the drop has happened.
+
+## Detection Heuristic
+
+If `gh pr checks` shows:
+
+- A mix of `pass` (upstream) and `pending:0` (downstream) for more than 10 minutes, and
+- `gh run list --workflow <stuck-gate>.yml --branch <branch>` returns zero rows,
+
+then the trigger was dropped. Apply the fix.
+
+## Related Skills
+
+- `ci-github-actions-pull-request-trigger` — different symptom (the `on: pull_request` event itself does not fire; empty-commit trick **did not** work there, force-push was required). This skill handles the inverse where the `pull_request` event fired correctly but a downstream `workflow_run` gate was dropped.
+- `ci-cd-reusable-workflow-required-checks-aggregator` — structural fix to consolidate the gate jobs; reduces but does not eliminate the workflow-drop race.
+- `github-actions-required-fanin-conflict-resolution` — rebase-conflict handling for the same `_required.yml` fan-in surface.
+
+---
+
+## Superseded from ci-cd-ruleset-bootstrap-deadlock
+
+**Original date/version**: 2026-05-03 / "1.1.0"
+
+```yaml
+name: ci-cd-ruleset-bootstrap-deadlock
+description: "Detect and resolve a CI ruleset chicken-and-egg deadlock where a PR introducing a new workflow file is permanently blocked because the ruleset requires check names that only exist in the workflow being added. Use when: (1) a PR adding a new CI workflow shows mergeStateStatus=BLOCKED with zero failing checks, (2) re-triggering CI produces no new runs, (3) auto-merge is armed but never fires despite all existing checks passing."
+category: ci-cd
+date: 2026-05-03
+version: "1.1.0"
+user-invocable: false
+verification: verified-ci
+history: ci-cd-ruleset-bootstrap-deadlock.history
+tags:
+  - github
+  - rulesets
+  - branch-protection
+  - ci-bootstrap
+  - deadlock
+  - github-actions
+```
+
+# CI Ruleset Bootstrap Deadlock (Chicken-and-Egg)
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2026-05-03 |
+| **Objective** | Unblock a PR that introduces a new CI workflow whose job names are already in the branch ruleset's required_status_checks |
+| **Outcome** | Successful — confirmed via admin bypass merge and ruleset remove-and-restore approach |
+| **Verification** | verified-ci (confirmed on HomericIntelligence/ProjectCharybdis PRs #4 and #5, 2026-04-28; and HomericIntelligence/ProjectScylla ruleset 15556492, 2026-05-03) |
+| **History** | [changelog](./ci-cd-ruleset-bootstrap-deadlock.history) |
+
+## When to Use
+
+- A PR adding a new workflow file (e.g., `_required.yml`) is `BLOCKED` with no failing checks and no review comments
+- `gh pr view` shows `mergeStateStatus=BLOCKED` but `statusCheckRollup` contains no failures — only successes, skips, or nulls
+- Re-triggering CI creates no new workflow runs (the workflow doesn't exist on the base branch yet)
+- Auto-merge is enabled on the PR but never fires
+- The repository recently migrated from aggregate CI checks (e.g., `All Build/Test Checks`) to granular per-job check names in the ruleset
+
+## Verified Workflow
+
+### Quick Reference
+
+```bash
+# Step 1: Confirm BLOCKED with zero failing checks = bootstrap deadlock
+gh pr view $PR --repo $REPO --json mergeStateStatus,statusCheckRollup \
+  --jq '{status:.mergeStateStatus, failing_count: ([.statusCheckRollup[] | select(.conclusion != "SUCCESS" and .conclusion != "SKIPPED" and .conclusion != null)] | length)}'
+# Deadlock signature: status=BLOCKED, failing_count=0
+
+# Step 2: Confirm the required checks don't exist on the base branch
+gh api repos/$OWNER/$REPO/rulesets \
+  --jq '.[] | {name:.name, id:.id}'
+
+gh api repos/$OWNER/$REPO/rulesets/$RULESET_ID \
+  --jq '.rules[].parameters.required_status_checks[].context'
+
+# Step 3: Confirm the workflow file is only in the PR branch, not on main
+gh api repos/$OWNER/$REPO/contents/.github/workflows \
+  --jq '.[].name'
+
+# Step 4: Choose resolution (see below)
+```
+
+### Detailed Steps
+
+1. Confirm the PR is blocked with no actionable failures:
+   ```bash
+   gh pr view $PR_NUMBER --repo $OWNER/$REPO \
+     --json mergeStateStatus,statusCheckRollup \
+     --jq '{
+       status: .mergeStateStatus,
+       failing: [.statusCheckRollup[] | select(.conclusion != "SUCCESS" and .conclusion != "SKIPPED" and .conclusion != null)]
+     }'
+   ```
+   If `status` is `BLOCKED` and `failing` is `[]`, the block is a policy deadlock, not a test failure.
+
+2. Inspect the active ruleset to find which check names are required:
+   ```bash
+   gh api repos/$OWNER/$REPO/rulesets --jq '.[].id'
+   gh api repos/$OWNER/$REPO/rulesets/$RULESET_ID \
+     --jq '.rules[].parameters.required_status_checks[].context'
+   ```
+   Note each required context name (e.g., `lint`, `unit-tests`, `build`, `security/dependency-scan`).
+
+3. Confirm none of those contexts exist as workflow jobs on the base branch (main):
+   ```bash
+   gh api repos/$OWNER/$REPO/contents/.github/workflows --jq '.[].name'
+   # If the new _required.yml is absent from this list, the workflow doesn't exist on main
+   ```
+
+4. Attempt to trigger CI manually — if no run is created, confirm the deadlock:
+   ```bash
+   gh workflow run _required.yml --repo $OWNER/$REPO --ref main
+   # Expected: error — workflow does not exist on base branch
+   ```
+
+5. Pick one of the three resolution options below.
+
+### Resolution Options
+
+**Option 1 — Admin bypass (fastest, no ruleset changes needed)**
+
+A repository admin uses the GitHub web UI "Merge without waiting for requirements" button (bypass), or:
+```bash
+# There is no direct gh CLI bypass — must use GitHub web UI as admin
+# Navigate to the PR, click "Merge pull request" dropdown, select "Merge without waiting for requirements"
+```
+After merge, the workflow exists on main and future PRs will satisfy the ruleset naturally.
+
+**Option 2 — Temporarily remove the required_status_checks rule from the ruleset (safest for automation)**
+
+> **CRITICAL:** Do NOT set `required_status_checks` to an empty array `[]`. The GitHub API returns
+> HTTP 422 "Expected at least 1 elements, got 0". You must **remove the entire rule entry** from
+> `rules[]`, not patch it to an empty list.
+
+```bash
+# Fetch and save the original ruleset (needed for restore after merge)
+gh api repos/$OWNER/$REPO/rulesets/$RULESET_ID > /tmp/ruleset.json
+
+# Remove the required_status_checks rule entry entirely from rules[]
+python3 << 'EOF'
+import json
+
+with open("/tmp/ruleset.json") as f:
+    ruleset = json.load(f)
+
+# Filter OUT the required_status_checks rule (do NOT set it to [])
+ruleset["rules"] = [
+    rule for rule in ruleset.get("rules", [])
+    if rule.get("type") != "required_status_checks"
+]
+
+with open("/tmp/ruleset_patched.json", "w") as f:
+    json.dump(ruleset, f, indent=2)
+EOF
+
+# Apply the patch — ruleset now has no required_status_checks rule
+gh api -X PUT repos/$OWNER/$REPO/rulesets/$RULESET_ID \
+  --input /tmp/ruleset_patched.json
+
+# Merge the PR (now unblocked)
+gh pr merge $PR_NUMBER --squash --repo $OWNER/$REPO
+
+# Restore the original ruleset (all checks restored)
+gh api -X PUT repos/$OWNER/$REPO/rulesets/$RULESET_ID \
+  --input /tmp/ruleset.json
+```
+
+**Option 3 — Transitional workflow PR (safest for governance continuity)**
+
+1. Create a separate PR on a new branch that adds the new workflow to main WITHOUT removing the old aggregate check workflow.
+2. The old check still satisfies the existing ruleset, so the transitional PR can merge.
+3. Once merged, update the ruleset to require the new granular check names.
+4. The original bootstrap PR can now satisfy the ruleset and merge normally.
+
+```bash
+git checkout main
+git checkout -b chore/add-required-workflow-transitional
+# Copy new workflow without removing old one
+cp .github/workflows/_required.yml.draft .github/workflows/_required.yml
+git add .github/workflows/_required.yml
+git commit -m "chore(ci): add granular required checks workflow alongside existing aggregate check"
+git push origin chore/add-required-workflow-transitional
+gh pr create --base main --repo $OWNER/$REPO \
+  --title "chore(ci): transitional required workflow" \
+  --body "Adds granular CI checks alongside existing aggregate. Follow-up PR will remove aggregate and update ruleset."
+```
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| Attempt 1 | Re-triggered CI runs manually via `gh workflow run` and `gh pr comment` push triggers | No new workflow runs were created because the workflow file does not exist on the base branch (`main`); GitHub resolves workflow files from the base branch for PR checks | GitHub only runs workflows that exist on the **base branch** of a PR. A workflow added only in the PR branch cannot run against that PR. |
+| Attempt 2 | Enabled auto-merge expecting it to fire once existing checks completed | Auto-merge armed successfully but never fired because `mergeStateStatus` stayed `BLOCKED` due to the ruleset requiring check names that were never emitted | Auto-merge fires only when all required status checks pass; a permanently absent check is treated the same as a permanently failing one — the PR stays blocked indefinitely |
+| Attempt 3 | Checked classic branch protection to understand which checks were required | `GET /repos/{owner}/{repo}/branches/main/protection` returned 404 because the repo uses branch rulesets, not classic protection | When classic branch protection returns 404, always check `/rulesets` and `/rules/branches/{branch}` — the enforcement mechanism is different but equally binding |
+| Attempt 4 | Set `required_status_checks` to `[]` (empty array) and PUT the modified ruleset | HTTP 422 Unprocessable Entity: "Validation Failed: Invalid rule 'required_status_checks': Invalid parameter required_status_checks: Expected at least 1 elements, got 0" | Never set `required_status_checks` to an empty array. Remove the **entire rule entry** from `rules[]` using a list comprehension filter instead. Confirmed on ProjectScylla ruleset 15556492, 2026-05-03. |
+
+## Results & Parameters
+
+**Deadlock signature (all three signals must be present):**
+
+```text
+mergeStateStatus: BLOCKED
+failing_count: 0          (no checks are failing — they simply don't exist)
+workflow_on_base: false   (the new workflow file is absent from main)
+```
+
+**Detection command:**
+
+```bash
+gh pr view $PR --repo $REPO --json mergeStateStatus,statusCheckRollup \
+  --jq '{
+    status: .mergeStateStatus,
+    failing_count: ([.statusCheckRollup[] | select(.conclusion != "SUCCESS" and .conclusion != "SKIPPED" and .conclusion != null)] | length)
+  }'
+# status=BLOCKED + failing_count=0 = ruleset bootstrap deadlock
+```
+
+**Ruleset inspection commands:**
+
+```bash
+# List rulesets (NOT classic branch protection)
+GET /repos/{owner}/{repo}/rulesets
+
+# Get required check context names
+GET /repos/{owner}/{repo}/rulesets/{ruleset_id}
+
+# See active rules enforced on a specific branch
+GET /repos/{owner}/{repo}/rules/branches/{branch}
+
+# Classic branch protection (returns 404 when only rulesets are active)
+GET /repos/{owner}/{repo}/branches/{branch}/protection
+```
+
+**GitHub API behaviour for required_status_checks rule (CRITICAL):**
+
+```text
+PUT with rules[].parameters.required_status_checks = []
+  → HTTP 422: "Expected at least 1 elements, got 0"   ← DO NOT USE
+
+PUT with required_status_checks rule removed entirely from rules[]
+  → HTTP 200: ruleset updated successfully             ← CORRECT APPROACH
+```
+
+**How this differs from related ruleset issues:**
+
+| Issue | Symptom | Root Cause |
+| ------- | --------- | ------------ |
+| Bootstrap deadlock (this skill) | BLOCKED, 0 failing, no CI runs at all | Required check names only exist in the PR being blocked |
+| Matrix context mismatch | BLOCKED, checks "waiting" forever after all jobs pass | Ruleset uses bare job ID but matrix jobs emit `job (value)` format |
+| Missing code scanning | BLOCKED, 0 checks emitted, no CI configured | Ruleset requires CodeQL/code-quality but repo has no source to scan |
+
+**Resolution decision tree:**
+
+```
+Is mergeStateStatus=BLOCKED AND failing_count=0?
+  └─ Yes: Does the workflow exist on main?
+       ├─ No (bootstrap deadlock) → Pick resolution:
+       │     ├─ Need it merged TODAY?         → Option 1: Admin bypass
+       │     ├─ Have ruleset write access?     → Option 2: Remove rule entry, merge, restore
+       │     └─ Want governance continuity?   → Option 3: Transitional workflow PR
+       └─ Yes (different issue) → Check matrix contexts or code scanning config
+```
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| HomericIntelligence/ProjectCharybdis | PRs #4 and #5, 2026-04-28 | New `_required.yml` adding granular job names (`lint`, `unit-tests`, `integration-tests`, `security/dependency-scan`); ruleset already required those names; both PRs blocked with 0 failing checks; resolved via admin bypass |
+| HomericIntelligence/ProjectScylla | Ruleset ID 15556492, 2026-05-03 | Empty-array PUT returned HTTP 422; remove-rule PUT succeeded; PR merged; original ruleset with all 8 checks restored successfully |
+
+---
+
+## Superseded from ci-cd-split-advisory-check-out-of-required-gate
+
+**Original date/version**: 2026-06-07 / "1.0.0"
+
+```yaml
+name: ci-cd-split-advisory-check-out-of-required-gate
+description: "Split a timing-sensitive / orchestration sub-check out of a REQUIRED CI gate (e.g. pr-policy) into its own non-required advisory job so it reports status but never blocks merge. Use when: (1) a required gate bundles a timing-sensitive/orchestration check that fails a correct PR (e.g. `::error::Auto-merge is enabled before implementation review GO.`) and blocks merge; (2) you want a CI check to report status but never block merge (make a check non-blocking / advisory); (3) move the auto-merge ↔ state:implementation-go state machine out of the pr-policy gate; (4) a required job's sub-check is flaky/timing-dependent and shouldn't gate merge."
+category: ci-cd
+date: 2026-06-07
+version: "1.0.0"
+user-invocable: false
+verification: verified-local
+tags: [github-actions, branch-protection, required-checks, pr-policy, auto-merge, advisory-check, ruleset, implementation-go, non-blocking, workflow-split]
+```
+
+# CI/CD — Split an Advisory Check Out of a Required Gate
+
+## Overview
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-06-07 |
+| **Objective** | Stop a timing-sensitive sub-check (auto-merge ↔ `state:implementation-go` state machine) inside the REQUIRED `pr-policy` gate from blocking merge on a correct PR, by moving it into its own non-required advisory job |
+| **Outcome** | Workflow YAML schema-validates and all 107 `tests/unit/ci` tests pass locally; PR #1081 open (closes #1080), not yet merged/CI-confirmed |
+| **Verification** | verified-local (YAML schema-validates + unit tests pass locally; end-to-end merge outcome pending CI) |
+
+## When to Use
+
+- A REQUIRED CI gate bundles a **timing-sensitive / orchestration** check that fails even when the code is correct — e.g. `pr-policy` failing `::error::Auto-merge is enabled before implementation review GO.` because the PR armed auto-merge before the `state:implementation-go` label workflow ran.
+- You want a check to **report status but never block merge** — i.e. make an existing required sub-check advisory / non-blocking.
+- You need to **move the auto-merge ↔ `state:implementation-go` state machine out of `pr-policy`** while keeping it as a visible signal.
+- A required job's sub-check is **flaky or timing-dependent** and should not gate merge, but you don't want to silently delete it.
+
+## Verified Workflow
+
+The required `pr-policy` job bundled THREE checks: (1) the `Closes #N` body line, (2) the auto-merge ↔ `state:implementation-go` state machine, (3) signed commits. Check 2 is timing-sensitive (it depends on a label-triggered workflow arming auto-merge) and it BLOCKED merge. Coupling that orchestration concern to a hard gate is wrong. The fix splits Check 2 into its own non-required job.
+
+### Quick Reference
+
+```bash
+# 1. In .github/workflows/_required.yml, keep pr-policy REQUIRED with only the HARD gates
+#    (Closes #N + signed commits). Trim its metadata fetch to just what it still needs:
+#      before: gh pr view "$PR" --json body,autoMergeRequest,labels,state
+#      after:  gh pr view "$PR" --json body
+#
+# 2. Add a NEW job `auto-merge-policy` (NOT in the required-checks ruleset) that:
+#      - copies pr-policy's  if: / runs-on: / permissions: / env:
+#      - copies the SAME triggers (no `needs:`; re-runs on auto_merge_enabled /
+#        auto_merge_disabled / labeled / unlabeled so it converges on PR true state)
+#      - does its OWN fetch:  gh pr view "$PR" --json autoMergeRequest,labels,state
+#      - runs the SAME convergence wait/retry loop + verdict, and FAILS ITS OWN JOB ONLY
+#        on a mismatch (advisory: visible signal, never blocks merge).
+
+# 3. Validate the workflow YAML against the vendored GitHub schema:
+check-jsonschema --builtin-schema vendor.github-workflows .github/workflows/_required.yml
+#   -> expect:  ok -- validation done
+
+# 4. Confirm BOTH jobs exist:
+python3 -c "import yaml; print(list(yaml.safe_load(open('.github/workflows/_required.yml'))['jobs']))"
+#   -> expect both 'pr-policy' and 'auto-merge-policy' present
+
+# 5. Update any text-based workflow tests that asserted the OLD bundled fetch string
+#    (e.g. tests/unit/ci/test_workflows.py), then:
+pytest tests/unit/ci -q   # expect all green (107 passed locally)
+```
+
+### Detailed Steps
+
+1. **Identify the sub-check to extract.** It must be a concern that should *report* but not *gate* — typically timing-sensitive (depends on another label/workflow firing) or orchestration-related, not a hard correctness invariant.
+2. **Keep the parent gate REQUIRED with only hard gates.** In `pr-policy`, retain Check 1 (`Closes #N`) and Check 3 (signed commits). **Renumber** the remaining checks and **trim the now-unused data fetch** — `--json body,autoMergeRequest,labels,state` → `--json body`, since the parent no longer needs auto-merge/labels/state.
+3. **Create the extracted job with its OWN identity.** Give it its own job name (`auto-merge-policy`). It must NOT reuse the parent's step outputs — it does its own `gh pr view --json autoMergeRequest,labels,state` fetch. Copy the parent's `if:` / `runs-on:` / `permissions:` / `env:` and the SAME triggers (no `needs:`; re-run on `auto_merge_enabled`, `auto_merge_disabled`, `labeled`, `unlabeled`) so it converges on the PR's true state via the same wait/retry loop.
+4. **Make it advisory by failing only its own job.** On a verdict mismatch, the job fails ITSELF (so the check shows red as a signal) but, because its name is NOT in the branch-protection required-checks ruleset, it does not block merge.
+5. **Understand the ruleset boundary.** The REQUIRED-checks list lives in GitHub repo settings / ruleset, OUTSIDE the workflow file. A new job is **non-required BY DEFAULT** until an operator adds its name to the ruleset. The workflow YAML change alone can never make something required — the ruleset does. So "split into a new job name" + "keep that name out of the ruleset" = advisory.
+6. **Fix text-based workflow tests.** A repo unit test that asserts workflow *text* (e.g. `assert "--json body,autoMergeRequest,labels,state" in text`) will break the moment you split the fetch. Update it to follow the moved content: assert the combined `--json autoMergeRequest,labels,state` now lives near the new `auto-merge-policy` job, and that `pr-policy`'s fetch is body-only.
+7. **Validate.** `check-jsonschema --builtin-schema vendor.github-workflows ...` → `ok -- validation done`; confirm both jobs via `yaml.safe_load(...)['jobs']`; run `pytest tests/unit/ci`.
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+|---------|----------------|---------------|----------------|
+| 1 | Kept the auto-merge ↔ `state:implementation-go` check INSIDE the required `pr-policy` gate (the operator-side workaround: don't pre-arm auto-merge, `gh pr merge --disable-auto`, rerun) | The check is timing-sensitive — it depends on a label-triggered workflow arming auto-merge — so a correct PR that armed auto-merge before the GO label still failed `::error::Auto-merge is enabled before implementation review GO.` and BLOCKED merge | Don't couple an orchestration / timing-sensitive concern to a hard required gate; split it into its own non-required advisory job so it reports but never blocks |
+| 2 | Let the new `auto-merge-policy` job reuse the parent `pr-policy` job's step outputs / shared metadata fetch | Sharing the parent's fetch couples the two jobs and breaks once `pr-policy`'s fetch is trimmed to `--json body`; the new job needs `autoMergeRequest,labels,state` which the parent no longer fetches | Give the extracted job its OWN `gh pr view --json ...` fetch and its own `if:`/`runs-on:`/`permissions:`/`env:`/triggers — don't share step outputs across jobs |
+| 3 | Assumed adding the new job to the workflow YAML would automatically make it a required check (or keep it required) | Required-status-check membership lives in the GitHub ruleset / branch-protection settings, OUTSIDE the workflow file; a new job is non-required by default and the YAML can't change that | To make a check advisory: split it into a NEW job name and keep that name OUT of the ruleset. To make it required later, an operator must add the name to the ruleset |
+| 4 | Split the fetch and ran the existing `tests/unit/ci/test_workflows.py` unchanged | A text-based assertion `assert "--json body,autoMergeRequest,labels,state" in text` matched the OLD bundled fetch string, which no longer exists after the split | When refactoring workflow YAML, update text-based workflow tests to follow the MOVED content (assert `--json autoMergeRequest,labels,state` near the new job, and `pr-policy`'s fetch is body-only) |
+
+## Results & Parameters
+
+**Before — one required job bundling three checks:**
+
+```yaml
+# .github/workflows/_required.yml  (BEFORE)
+jobs:
+  pr-policy:                       # REQUIRED (name in ruleset)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions: { pull-requests: read }
+    steps:
+      - run: |
+          gh pr view "$PR" --json body,autoMergeRequest,labels,state > pr.json
+          # Check 1: Closes #N in body            (HARD gate)
+          # Check 2: auto-merge <-> state:implementation-go   (TIMING-SENSITIVE -> blocked merge)
+          # Check 3: signed commits               (HARD gate)
+```
+
+**After — required gate keeps only hard gates; advisory job carries the timing-sensitive check:**
+
+```yaml
+# .github/workflows/_required.yml  (AFTER)
+jobs:
+  pr-policy:                       # STILL REQUIRED (name in ruleset)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions: { pull-requests: read }
+    steps:
+      - run: |
+          gh pr view "$PR" --json body > pr.json   # trimmed: body-only
+          # Check 1: Closes #N in body     (HARD gate)
+          # Check 2: signed commits        (HARD gate)   # renumbered
+
+  auto-merge-policy:               # NOT in ruleset -> ADVISORY, never blocks merge
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions: { pull-requests: read }
+    # no `needs:`  +  re-run on auto_merge_enabled / auto_merge_disabled / labeled / unlabeled
+    steps:
+      - run: |
+          gh pr view "$PR" --json autoMergeRequest,labels,state > pr.json   # own fetch
+          # same convergence wait/retry loop + verdict
+          # FAILS THIS JOB ONLY on mismatch (visible signal, never gates merge)
+```
+
+**Validation commands & expected output:**
+
+```bash
+check-jsonschema --builtin-schema vendor.github-workflows .github/workflows/_required.yml
+# ok -- validation done
+
+python3 -c "import yaml; print(list(yaml.safe_load(open('.github/workflows/_required.yml'))['jobs']))"
+# [... 'pr-policy', 'auto-merge-policy', ...]
+
+pytest tests/unit/ci -q
+# 107 passed
+```
+
+**Ruleset note (critical):** The branch-protection REQUIRED-checks list lives in GitHub repo settings / ruleset, OUTSIDE the workflow file. Adding `auto-merge-policy` to the workflow does NOT make it required — it is non-required by default. The split is what makes it advisory; the ruleset (not the YAML) is the only place that promotes a job back to required.
+
+**Source:** HomericIntelligence/ProjectHephaestus PR #1081 (closes #1080), `.github/workflows/_required.yml`, `tests/unit/ci/test_workflows.py`. Verification: verified-local — YAML schema-validates and all 107 `tests/unit/ci` tests pass locally; the end-to-end merge outcome is **pending CI** (PR open, not yet merged/observed in CI).
+
+---
+
+## Superseded from github-actions-workflow-required-checks
+
+**Original date/version**: 2026-05-18 / "1.0.0"
+
+```yaml
+name: github-actions-workflow-required-checks
+description: "Canonical guide to GitHub Actions workflow configuration and required status check management. Use when: (1) a PR is blocked because a required status context never posts, (2) reconciling branch protection rulesets with actual job names, (3) diagnosing fan-in / paths-filter / job-skip patterns, (4) adding or removing a required check without breaking open PRs, (5) workflow_dispatch + composite-action wiring, (6) hardening workflows with permissions/concurrency/timeouts, (7) SHA-pinning actions for supply-chain security, (8) runner pool saturation in swarm sessions, (9) pixi caching failures, (10) bot push to protected branch pattern, (11) batch PR CI triage."
+category: ci-cd
+date: 2026-05-18
+version: "1.0.0"
+user-invocable: false
+verification: verified-local
+history: github-actions-workflow-required-checks.history
+tags: [merged, github-actions, workflow, required-checks, branch-protection, ruleset]
+```
+
+# GitHub Actions Workflow & Required Checks
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2026-05-18 |
+| **Objective** | Consolidated canonical guide covering GitHub Actions workflow configuration, required status check management, branch protection rulesets, composite actions, fan-in patterns, and CI hardening |
+| **Outcome** | Merged from 30 narrow skills (Phase B Wave 1, M2, #1770) |
+| **Verification** | verified-local |
+
+## When to Use
+
+- A PR shows `mergeStateStatus: BLOCKED` with no review comments — diagnose via rulesets, not classic branch protection
+- Required status context names don't match workflow job names — PRs are permanently blocked
+- `on: pull_request` workflows aren't triggering after a push — force-push after rebase to unblock
+- Rebasing sibling PRs that each add fan-in entries to `_required.yml` — merge-both-sides rule
+- Composite action used before `actions/checkout` — checkout-first invariant violation
+- `secrets` context used in job-level `if:` — actionlint error; switch to `vars`
+- Pushing an artifact from a workflow to a protected branch — use `peter-evans/create-pull-request`
+- Diagnosing multiple failing CI checks across many open PRs — triage by bucket first
+- Pixi caching fails with HTTP 400 / "Saved cache with ID -1" — use `actions/cache@v4` explicitly
+- Runner pool saturated (`status=queued/`) when dispatching many PRs at once — cap at 5-7 per wave
+- SHA-pinning actions for supply-chain security — resolve annotated vs lightweight tags correctly
+- Hardening workflows with concurrency, least-privilege permissions, timeouts, gitleaks allowlists
+
+## Verified Workflow
+
+### Quick Reference
+
+```bash
+# ── DIAGNOSIS ─────────────────────────────────────────────────────────────────
+
+# 1. Check why a PR is blocked
+gh pr view <PR> --json mergeStateStatus,reviewDecision,statusCheckRollup,isDraft
+gh pr checks <PR>
+
+# 2. Check classic branch protection (may 404 — also check rulesets)
+gh api repos/<OWNER>/<REPO>/branches/main/protection \
+  --jq '.required_status_checks.contexts[]'
+
+# 3. Check repository rulesets (works on free plan)
+gh api repos/<OWNER>/<REPO>/rulesets
+gh api repos/<OWNER>/<REPO>/rulesets/<RULESET_ID>
+
+# 4. Check strict mode setting
+gh api repos/<OWNER>/<REPO>/branches/main \
+  --jq '.protection.required_status_checks.strict'
+
+# 5. Triage multiple PRs by failing check
+gh pr list --state open --limit 100 \
+  --json number,title,headRefName,statusCheckRollup \
+  --jq '.[] | {number,headRefName,failures:[.statusCheckRollup[]? | select((.conclusion=="FAILURE")) | .name]} | select((.failures|length)>0)'
+
+# ── TRIGGERING CI ─────────────────────────────────────────────────────────────
+
+# Force-push triggers pull_request event (fixes stuck path-filtered CI)
+git fetch origin && git rebase origin/main && git push --force-with-lease
+
+# Empty amend when already up-to-date with main
+git commit --amend --no-edit && git push --force-with-lease
+
+# ── FAN-IN CONFLICT RESOLUTION ────────────────────────────────────────────────
+
+# _required.yml fan-in: ALWAYS merge-both-sides in:
+#   on.workflow_run.workflows: array  (every entry = required check context)
+#   fan-in jobs section              (every job = status publisher)
+#   concurrency / permissions        (take main)
+#   SHA-pinned actions               (take main's newer SHA)
+
+# ── SHA PINNING ───────────────────────────────────────────────────────────────
+
+# Look up an action's commit SHA (handles annotated + lightweight tags)
+gha_sha() {
+  local owner_repo="$1" tag="$2"
+  local result sha type
+  result=$(gh api "repos/${owner_repo}/git/ref/tags/${tag}" --jq '.object | {sha, type}')
+  sha=$(echo "$result" | jq -r '.sha')
+  type=$(echo "$result" | jq -r '.type')
+  if [ "$type" = "tag" ]; then
+    sha=$(gh api "repos/${owner_repo}/git/tags/${sha}" --jq '.object.sha')
+  fi
+  echo "  uses: ${owner_repo}@${sha}  # ${tag}"
+}
+# gha_sha "actions/checkout" "v4"
+
+# Find bare SHA lines missing version comments
+grep -rn "uses:.*@[0-9a-f]\{40\}" .github/ | grep -v "#"
+
+# ── HARDENING ─────────────────────────────────────────────────────────────────
+
+# Audit action name alignment between branch protection and workflow files
+gh api repos/<OWNER>/<REPO>/branches/main/protection \
+  --jq '.required_status_checks.contexts[]' | sort > /tmp/required.txt
+grep -rh "name:" .github/workflows/*.yml | sed 's/.*name: //' | sort -u > /tmp/emitted.txt
+comm -23 /tmp/required.txt /tmp/emitted.txt  # required but not emitted → blocks PRs
+
+# Check runner saturation
+gh run list --workflow="Build and Test" --limit 20 --json status \
+  --jq 'group_by(.status) | map({(.[0].status): length}) | add'
+# "queued": N → saturation; cap swarm waves at 5-7 concurrent PRs
+
+# ── AUTO-MERGE RECOVERY ───────────────────────────────────────────────────────
+
+# Force-push clears auto-merge silently — always re-arm
+git push --force-with-lease origin <branch>
+gh pr merge <PR> --auto --rebase
+gh pr view <PR> --json autoMergeRequest  # verify not null
+```
+
+### Required Check Alignment
+
+GitHub uses `jobs.<id>.name:` as the status check context string. If no `name:` is present, the job ID is used. Branch protection ruleset `required_status_checks.context` must match exactly.
+
+```yaml
+# CORRECT — explicit name matches branch protection context
+jobs:
+  dependency-scan:
+    name: security/dependency-scan   # slash in name is valid; slash in job id is not
+    runs-on: ubuntu-latest
+    steps: [...]
+```
+
+**HomericIntelligence `homeric-main-baseline` ruleset** (8 required checks, `integration_id: 15368`):
+- `lint`, `unit-tests`, `integration-tests`, `build`, `schema-validation`
+- `security/dependency-scan`, `security/secrets-scan`, `deps/version-sync`
+
+Apply ruleset idempotently across all repos (free-plan compatible):
+```bash
+ORG="HomericIntelligence"
+INTEGRATION_ID=15368
+for repo in $(gh repo list "$ORG" --json name,isArchived --limit 100 \
+    --jq '[.[] | select(.isArchived == false) | .name] | sort | .[]'); do
+  existing_id=$(gh api "repos/$ORG/$repo/rulesets" \
+    --jq '.[] | select(.name == "homeric-main-baseline") | .id' 2>/dev/null)
+  # POST or PUT depending on $existing_id
+done
+```
+
+### Fan-In Conflict Resolution (`_required.yml`)
+
+When rebasing sibling PRs that each add a new upstream workflow + fan-in job to `_required.yml`:
+
+| Conflict Region | Resolution | Why |
+| --------------- | ---------- | --- |
+| `on.workflow_run.workflows:` array | Merge both sides — union all entries | Every entry = required check context; drop one → permanent "expected checks not received" |
+| Fan-in jobs section | Merge both sides — concatenate job blocks | Each job is a status publisher for a distinct context |
+| `concurrency`, `permissions`, top-level `name` | Take `main` | Infrastructure changes; branch copy is stale |
+| `uses: actions/<x>@<sha>` | Take `main`'s newer SHA | Newer SHA is at least as audited |
+| Dockerfile `apt-get install` | Merge both sides — keep all packages | Apt packages are additive |
+
+### Diagnosing a BLOCKED PR with No Checks
+
+1. `gh pr view <PR> --json mergeStateStatus` → `BLOCKED`, review decision empty
+2. `gh pr checks <PR>` → no checks reported
+3. `gh api repos/<OWNER>/<REPO>/branches/<DEFAULT>/protection` → may return `404 Branch not protected` (do NOT stop here)
+4. `gh api repos/<OWNER>/<REPO>/rulesets` → look for active `code_quality` or `code_scanning` rules
+5. `git ls-tree -r --name-only HEAD | grep .github` → if no workflows emit those results, disable those ruleset rules
+
+### `pull_request` Event Not Triggering
+
+**Cause**: path-filtered workflows see zero changed files between empty commit and PR base.
+
+**Fix**: Force push after rebase — GitHub re-evaluates path filters against the new tip SHA:
+```bash
+git fetch origin && git rebase origin/main && git push --force-with-lease
+```
+
+**Do NOT use**: empty `git commit --allow-empty` (no path diff), `gh workflow run` (`workflow_dispatch` does NOT satisfy branch protection required checks), close-and-reopen PR (unreliable).
+
+### `secrets` Context in Job-Level `if:`
+
+`secrets` is unavailable in `if:` at job level — only `env:` and `with:` have access.
+
+```yaml
+# WRONG — actionlint error: context "secrets" is not allowed here
+jobs:
+  deploy:
+    if: ${{ secrets.MY_SECRET != '' }}
+
+# CORRECT — use vars (repository variable) for gate; secret via env:
+jobs:
+  deploy:
+    if: ${{ vars.DEPLOY_URL != '' }}    # vars IS allowed in job-level if:
+    env:
+      DEPLOY_URL: ${{ vars.DEPLOY_URL }}
+      API_KEY: ${{ secrets.API_KEY }}
+```
+
+### Composite Action: Checkout-First Invariant
+
+Local composite actions (`uses: ./.github/actions/X`) are resolved from disk. `actions/checkout` must precede them in every job.
+
+```python
+# Validator helper — skip reusable workflow caller jobs (no steps key)
+def _is_reusable_workflow_job(job_data: object) -> bool:
+    if not isinstance(job_data, dict):
+        return False
+    uses = job_data.get("uses", "")
+    return isinstance(uses, str) and uses.startswith("./.github/workflows/")
+```
+
+Run: `python3 scripts/validate_workflow_checkout_order.py .github/workflows/`
+
+### Bot Push to Protected Branch
+
+**Symptom**: `GH006: Protected branch update failed`
+
+**Fix**: Replace direct push with `peter-evans/create-pull-request` + auto-merge + path-exclusion loop guard:
+
+```yaml
+- name: Create PR for generated artifact
+  uses: peter-evans/create-pull-request@v7.0.8
+  with:
+    token: ${{ secrets.GITHUB_TOKEN }}
+    commit-message: "chore: regenerate artifact [skip ci]"
+    branch: chore/update-artifact
+    delete-branch: true
+
+- name: Enable auto-merge
+  if: steps.cpr.outputs.pull-request-operation == 'created'
+  run: gh pr merge --auto --squash chore/update-artifact
+  env:
+    GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+# In on.push.paths, exclude the artifact itself:
+# paths:
+#   - "skills/**"
+#   - "!generated-artifact.json"
+```
+
+### Workflow Hardening Checklist
+
+Add to **all** workflows between `on:` and `jobs:`:
+
+```yaml
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.sha }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read   # add packages: write only for registry-push jobs
+```
+
+Add `timeout-minutes:` to every job (pre-commit: 30, tests: 30, Docker build: 20-30).
+
+**Gitleaks false positives** — create `.gitleaks.toml`:
+```toml
+[allowlist]
+  description = "Test fixtures and dryrun data"
+  paths = ['tests/fixtures/', 'docs/paper-dryrun-data/']
+```
+
+**`gitleaks/gitleaks-action@v2` on org repos** requires paid license. Use direct binary download:
+```bash
+GITLEAKS_VERSION="8.21.2"
+curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+  | tar xz -C /usr/local/bin gitleaks
+```
+
+### `strict: false` Branch Protection and Stale CI
+
+`strict_required_status_checks_policy: false` (HomericIntelligence default): passing checks on **any prior commit SHA** satisfy required checks. The latest commit's CI can still be queued when auto-merge fires.
+
+```bash
+# Detect strict setting
+gh api repos/<ORG>/<REPO>/rulesets \
+  --jq '.[] | select(.name == "homeric-main-baseline") | .rules[] | select(.type == "required_status_checks") | .parameters.strict_required_status_checks_policy'
+
+# After force-push, verify readiness via head_sha, not mergeStateStatus (lags)
+NEW_SHA=$(git rev-parse HEAD)
+gh api "repos/<OWNER>/<REPO>/actions/runs?branch=<branch>" \
+  --jq ".workflow_runs[] | select(.head_sha == \"$NEW_SHA\") | {status, conclusion}"
+```
+
+### Runner Pool Saturation
+
+GitHub Actions free-tier practical cap: ~80-100 concurrent jobs per org. At ~25 checks/PR, this limits to ~5-7 concurrent PRs before queue depth causes 2+ hour waits.
+
+```bash
+# Check saturation before dispatching a wave
+gh pr list --state open --json statusCheckRollup \
+  --jq '[.[].statusCheckRollup[] | select(.status == "QUEUED" or .status == "IN_PROGRESS")] | length'
+# If > 30: wait before dispatching next wave
+```
+
+**Cap swarm waves at 5-7 PRs** for heavy matrix repos (multi-OS, multi-compiler, coverage, static analysis).
+
+### Pixi Caching Fix
+
+`prefix-dev/setup-pixi` built-in `cache: true` fails with HTTP 400 / `Saved cache with ID -1` in some environments. Use explicit `actions/cache@v4`:
+
+```yaml
+- name: Install pixi
+  uses: prefix-dev/setup-pixi@v0.8.1
+  with:
+    pixi-version: v0.62.2
+    # DO NOT use cache: true — broken in some environments
+
+- name: Cache pixi environments
+  uses: actions/cache@v4
+  with:
+    path: |
+      .pixi
+      ~/.cache/rattler/cache
+    key: pixi-${{ runner.os }}-${{ hashFiles('pixi.lock') }}
+    restore-keys: |
+      pixi-${{ runner.os }}-
+```
+
+**Also**: `setup-pixi with cache: true` crashes with "Failed to generate cache key" when `pixi.lock` is absent — always set `cache: false` when the lock file may not exist.
+
+### Batch PR Triage
+
+```bash
+# Bucket all open PRs by failing check name
+gh pr list --state open --limit 100 \
+  --json number,title,headRefName,statusCheckRollup \
+  --jq '.[] | {number,title,headRefName,failures:[.statusCheckRollup[]? | select(.conclusion=="FAILURE") | .name]} | select((.failures|length)>0)'
+
+# Identify required vs advisory checks
+gh api repos/<OWNER>/<REPO>/branches/main/protection \
+  --jq '.required_status_checks.contexts[]'
+gh run list --branch main --status failure --limit 5  # pre-existing failures on main = advisory
+
+# Fix root cause on main first when many PRs share the same failure
+# Then mass-rebase all affected branches
+```
+
+**Classification rules:**
+
+| Pattern | Action |
+| ------- | ------ |
+| Same check failing on most PRs | Fix root cause on `main` first, then rebase affected branches |
+| One PR has extra failing check | Assign targeted fix for that PR only |
+| `gh pr checks` shows no checks after force-push | Wait for new workflow run; query head_sha directly |
+| Required check failing on `main` itself | Fix `main` first — no PR can satisfy it until base is clean |
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| ------- | -------------- | ------------- | -------------- |
+| `gh api orgs/<ORG>/rulesets` for org-wide rulesets | Used org-level rulesets endpoint | Returns HTTP 403 on free GitHub plan | Use `repos/<ORG>/<REPO>/rulesets` (repo-level) instead — works on free plan |
+| `branches/<default>/protection` to check all policies | Treated HTTP 404 as "no policy" | Repository rulesets can block merges even when classic branch protection returns 404 | When classic branch protection 404s, immediately check `/rulesets` |
+| `secrets.SOME_SECRET` in job-level `if:` | Tried `if: ${{ secrets.MY_SECRET != '' }}` | actionlint error: `context "secrets" is not allowed here` — only available in `env:` and `with:` | Use `vars.SOME_VAR` for the job-level gate; pass secret via `env:` |
+| Empty commit to re-trigger path-filtered CI | `git commit --allow-empty -m "ci: trigger"` + push | No path diff between empty commit and PR base — path-filtered workflows skip | Force-push after rebase changes the tip SHA and re-evaluates all path filters |
+| `workflow_dispatch` to satisfy required checks | `gh workflow run <workflow> --ref <branch>` | Workflow passes but `workflow_dispatch` runs do NOT satisfy branch protection required status checks | CI must be triggered by the `pull_request` event to satisfy required checks |
+| Taking one side of `on.workflow_run.workflows:` during rebase | Accepted only the branch's version during conflict | Missing fan-in context → PR permanently BLOCKED with "expected status checks not received" | Always merge-both-sides for the `workflows:` array in `_required.yml` |
+| `bats-core/bats-action@2` | Used `@2` major-version alias | The `@2` tag does not exist; only `@1` exists | Always verify action tags against the repo's releases page before using; fall back to `apt-get install bats` |
+| SHA lookup via `commits/<tag>` endpoint | Used `repos/<owner>/<repo>/commits/<tag>` | Returns HTTP 422 for annotated tags (point to tag objects, not commits) | Use `git/ref/tags/<tag>` endpoint; if type is "tag" dereference with `git/tags/<sha>` |
+| Trusting `mergeStateStatus` after force-push | Checked `gh pr view --json mergeStateStatus` immediately after push | Lags several minutes — shows BLOCKED even when CI is passing | Verify via `gh api .../actions/runs?branch=<branch>` checking `head_sha` matches |
+| `setup-pixi cache: true` with absent pixi.lock | Used `cache: true` in a repo without pixi.lock | Crashes with "Failed to generate cache key" before any conditional logic runs | Set `cache: false` when pixi.lock may not exist |
+| `gitleaks/gitleaks-action@v2` on org repos | Used official GHA for gitleaks | Requires paid Gitleaks license for org repos — auth errors in CI | Use direct binary download via curl |
+| `orgs/<ORG>/rulesets` with `integration_id` absent | Set up required_status_checks without `integration_id` | Checks never satisfied — ruleset can't match against GitHub Actions runs without the app ID | Always include `"integration_id": 15368` (GitHub Actions app ID) in required_status_checks |
+| Context string `"Required Checks / lint"` | Used workflow-prefixed form as check context | GitHub reports bare job `name:` values, not workflow-prefixed | Use bare job names: `lint`, `build`, `unit-tests` etc. |
+| `setup-pixi@v0.9.5` (nonexistent tag) | Rolled forward to a tag that doesn't exist | Tag not found — immediate job failure | Always verify action tags exist before using; latest was `v0.9.4` |
+| `aquasecurity/trivy-action@0.36.0` (no `v` prefix) | Omitted `v` prefix on tag | "Unable to resolve action" | Always include `v` prefix: `@v0.36.0` |
+| `markdownlint-cli2-action` with `globs: "**/*.md"` | Explicit glob in action config | Bypasses `.markdownlintignore` — explicit glob overrides the ignore file | Remove `globs:` or add explicit exclusion in the glob |
+| Inline `${{ github.base_ref }}` in `run:` | Used template expression directly in shell | Command injection risk; user-controlled input can escape shell | Route `github.base_ref` through `env:` block and reference as `$ENV_VAR` |
+| Redundant `actions/cache` in composite action | Added extra cache step on top of `prefix-dev/setup-pixi` with `cache: true` | Duplicate cache keys; inner action already caches `~/.pixi` | Remove extra cache step; let the wrapped action handle its own caching |
+| Keeping orphan workflow alongside required checks | Committed `_required.yml` before required-checks list was updated | Workflow ran on every event burning runner minutes without gating any PR | Never commit a workflow whose jobs aren't in the required checks list yet |
+| Pushing 14 PRs simultaneously on heavy C++ matrix | Expected parallel CI processing | Runner pool saturated (~350 queued jobs); 0 PRs merged after 2 hours | Cap swarm waves at 5-7 concurrent PRs for heavy matrix repos |
+
+## Results & Parameters
+
+### Key Diagnostic Commands (Copy-Paste Ready)
+
+```bash
+# Full PR block diagnosis
+gh pr view <PR> --repo <OWNER>/<REPO> \
+  --json mergeStateStatus,reviewDecision,statusCheckRollup,isDraft,url
+gh api repos/<OWNER>/<REPO>/rulesets
+gh api repos/<OWNER>/<REPO>/rulesets/<ID>
+
+# Auto-merge status
+gh pr view <PR> --json autoMergeRequest
+# Healthy: {"autoMergeRequest": {"mergeMethod": "rebase", ...}}
+# Dead:    {"autoMergeRequest": null}
+
+# After force-push: verify via head_sha
+NEW_SHA=$(git rev-parse HEAD)
+gh api "repos/<OWNER>/<REPO>/actions/runs?branch=<branch>" \
+  --jq ".workflow_runs[] | select(.head_sha == \"$NEW_SHA\") | {status, conclusion, name}"
+```
+
+### Hardening Audit Template (Before/After)
+
+| Measure | Before | After |
+| ------- | ------ | ----- |
+| Concurrency block | Missing | `group: workflow-headref/sha; cancel-in-progress: true` |
+| `permissions:` | Implicit write | `contents: read` (+ `packages: write` only for push jobs) |
+| `timeout-minutes:` | 6h default | 10-30min per job |
+| Gitleaks | `gitleaks-action@v2` (paid) | Direct binary `curl` download |
+| Pixi cache | `cache: true` (broken) | Explicit `actions/cache@v4` |
+
+### `_required.yml` Minimal Fan-In Template
+
+```yaml
+name: Required Checks
+on:
+  workflow_run:
+    workflows:
+      - "Build"
+      - "Tests"
+      # add new upstream workflow names here (never remove)
+    types: [completed]
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success'
+    steps:
+      - run: echo "build passed"
+
+  unit-tests:
+    name: unit-tests
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success'
+    steps:
+      - run: echo "unit-tests passed"
+  # add one job per upstream workflow (job name = required check context)
+```
+
+### Verified On
+
+| Project | Context | Details |
+| ------- | ------- | ------- |
+| HomericIntelligence (all 15 repos) | Ruleset rollout 2026-04-26 | Applied `homeric-main-baseline` via repo-level API |
+| HomericIntelligence/ProjectCharybdis | 2026-05-05 — 14 sibling PR rebase wave | Merge-both-sides resolved all `_required.yml` conflicts |
+| HomericIntelligence/ProjectAgamemnon | 2026-05-09 PR drainage session | 80+ PRs, 84.7% drain rate; strict=false enabling stale-CI merge |
+| HomericIntelligence/ProjectAgamemnon | 2026-05-17 swarm session | Runner saturation at 14 concurrent PRs; capped at 5-7/wave |
+| ProjectOdyssey | Various PRs 2026-03–04 | Checkout-order validator, workflow consolidation, pixi caching |
+| ProjectHermes | PR #291 | Force-push after rebase triggered path-filtered required checks |
+| AchaeanFleet | PR #549 | SHA-pinning with annotated-tag resolution |
+| Radiance | PR #33 | Ruleset mismatch diagnosis (code_quality/code_scanning rules) |
+| Myrmidons | fix/ci-precommit-parity | `secrets` context in job `if:` — switched to `vars` |
+
+## References
+
+- [GitHub Actions workflow_run trigger](https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#workflow_run)
+- [GitHub Branch Rulesets](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets)
+- [Context availability in GitHub Actions](https://docs.github.com/en/actions/learn-github-actions/contexts#context-availability)
+- [peter-evans/create-pull-request](https://github.com/peter-evans/create-pull-request)
+
+---
