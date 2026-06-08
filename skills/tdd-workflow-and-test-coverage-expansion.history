@@ -1,4 +1,1768 @@
 <!-- markdownlint-disable MD024 -->
+# tdd-workflow-and-test-coverage-expansion — History
+
+## v1.0.0 (2026-06-07)
+
+Initial canonical merge (cluster PT05) consolidating 7 skills:
+
+- phase-test-tdd
+- test-driven-bug-discovery
+- python-script-unit-test-coverage-expansion
+- generate-tests
+- testing-package-module-mock-coverage
+- fix-tests-after-config-refactor
+- testing-ast-import-layer-enforcement
+
+## Superseded from phase-test-tdd
+
+**Original date:** 2026-03-19
+**Original version:** 1.0.0
+
+```markdown
+---
+name: phase-test-tdd
+description: Generate test files and coordinate test-driven development (TDD). Use
+  when creating tests before implementation or during test phase.
+category: tooling
+date: '2026-03-19'
+version: 1.0.0
+mcp_fallback: none
+phase: Test
+---
+```
+
+# Test-Driven Development Skill
+
+## Overview
+
+| Item | Details |
+| ------ | --------- |
+| Date | N/A |
+| Objective | Coordinate test-driven development by writing tests first, then implementing to make them pass. - Creating tests before implementation (TDD workflow) |
+| Outcome | Operational |
+
+Coordinate test-driven development by writing tests first, then implementing to make them pass.
+
+## When to Use
+
+- Creating tests before implementation (TDD workflow)
+- Starting test phase of 5-phase workflow
+- Writing unit, integration, or performance tests
+- Need test files following Mojo or Python patterns
+
+### Quick Reference
+
+```bash
+# TDD Cycle: Write test → Run (fail) → Implement → Run (pass) → Refactor
+
+# Generate test file
+cat > tests/test_component.mojo << 'EOF'
+from testing import assert_equal
+
+fn test_basic_behavior() raises:
+    """Test basic functionality."""
+    let result = function_under_test()
+    assert_equal(result, expected_value)
+EOF
+
+# Run test (should fail initially)
+mojo test tests/test_component.mojo
+
+# Implement code to make test pass
+# Re-run test (should pass)
+mojo test tests/test_component.mojo
+```
+
+## Verified Workflow
+
+1. **Write test first** - Define expected behavior before implementation
+2. **Run test** (Red phase) - Test fails because code doesn't exist yet
+3. **Implement code** (Green phase) - Write minimal code to make test pass
+4. **Refactor** (Refactor phase) - Clean up while keeping tests passing
+5. **Repeat** - Add next test and repeat cycle
+
+## Test Types
+
+| Type | Location | Purpose |
+| ------ | ---------- | --------- |
+| Unit | `tests/unit/` | Test individual functions in isolation |
+| Integration | `tests/integration/` | Test component interactions |
+| Performance | `tests/performance/` | Benchmark SIMD and critical paths |
+
+## Mojo Test Pattern
+
+```mojo
+from testing import assert_equal, assert_true
+
+fn test_add() raises:
+    """Test addition operation."""
+    # Arrange
+    var a = 1
+    var b = 2
+
+    # Act
+    var result = add(a, b)
+
+    # Assert
+    assert_equal(result, 3)
+```
+
+## Python Test Pattern
+
+```python
+import pytest
+
+class TestComponent:
+    """Test suite for component."""
+
+    def test_basic(self):
+        """Test basic functionality."""
+        # Arrange
+        data = prepare_data()
+
+        # Act
+        result = process(data)
+
+        # Assert
+        assert result == expected
+```
+
+## Test Coverage Requirements
+
+- **Minimum**: 80% for new code
+- **Critical paths**: 100% coverage required
+- **Edge cases**: Must be tested (null, empty, boundary values)
+- **Error handling**: All error paths tested
+
+## Phase Dependencies
+
+- **Precedes**: Implementation phase (tests drive implementation)
+- **Parallel with**: Implementation and Package phases (all run after Plan)
+- **Receives input from**: Plan phase (specifications, acceptance criteria)
+- **Produces for**: Implementation phase (test contracts for code)
+
+## Output Location
+
+- **Test files**: `/tests/<type>/<module>_test.mojo` or `.py`
+- **Test documentation**: `/notes/issues/<issue-number>/README.md`
+- **Coverage reports**: `coverage/` directory
+
+## Error Handling
+
+| Error | Fix |
+| ------- | ----- |
+| Test import fails | Check file path and module structure |
+| Test timeout | Optimize code or increase timeout |
+| Flaky tests | Add setup/teardown, check for randomness |
+| Low coverage | Add tests for uncovered branches |
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| N/A | Direct approach worked | N/A | Solution was straightforward |
+## Results & Parameters
+
+N/A — this skill describes a workflow pattern.
+
+## References
+
+- `CLAUDE.md` - "Key Development Principles" (TDD section)
+- `CLAUDE.md` - "Common Mistakes to Avoid" (test failure patterns)
+- `notes/review/mojo-test-failure-learnings.md` - Real test failure solutions
+
+---
+
+**Key Principle**: Red → Green → Refactor. Don't skip the red phase.
+
+---
+
+## Superseded from test-driven-bug-discovery
+
+**Original date:** 2026-03-07
+**Original version:** 1.0.0
+
+```markdown
+---
+name: test-driven-bug-discovery
+description: "Writing unit tests that expose latent parsing bugs in text-processing\
+  \ functions \u2014 particularly functions that process subprocess/external tool\
+  \ output where single-line vs. multi-line input shapes behave differently."
+category: testing
+date: 2026-03-07
+version: 1.0.0
+user-invocable: false
+tags:
+- pytest
+- unit-testing
+- bug-discovery
+- string-parsing
+- git
+- porcelain
+- subprocess
+---
+```
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| Date | 2026-03-07 |
+| Objective | Add unit tests for git-quoted filename handling in `commit_changes()` |
+| Outcome | Tests exposed a real bug; both bug fix and tests merged in PR #1467 |
+| Issue | HomericIntelligence/ProjectScylla#1447 |
+
+## When to Use
+
+- Adding tests for functions that parse subprocess stdout (git, shell commands)
+- Testing string manipulation with `strip()`, `split()`, or slicing on multi-line text
+- Any function where correctness depends on whether input is single-line or multi-line
+- Verifying special-character or whitespace handling (quoted filenames, unicode, etc.)
+
+## The Core Bug Pattern
+
+`str.strip().split("\n")` is subtly wrong when processing line-oriented text that may
+have significant leading whitespace on individual lines.
+
+**Problem**: `stdout.strip()` strips leading whitespace from the *entire string*, which
+also removes the leading space from the first line if the string starts with a space.
+
+```python
+# BUG: strip() eats the leading space that belongs to the first line
+line = ' M "path with spaces/file.py"\n'
+lines = line.strip().split("\n")
+# → ['M "path with spaces/file.py"']   ← leading space gone!
+# line[3:] = 'path with spaces/file.py"'  ← no leading quote, unquoting skips
+
+# FIX: splitlines() preserves per-line leading whitespace
+lines = line.splitlines()
+# → [' M "path with spaces/file.py"']  ← leading space preserved
+# line[3:] = '"path with spaces/file.py"'  ← quote detected, unquoting fires
+```
+
+**Why this matters for `git status --porcelain`**:
+- `M file` = space at position 0 means "unmodified in index, modified in worktree"
+- The space is *semantically significant* — it encodes the index status
+- `line[3:]` relies on the space being at position 0 to correctly locate the filename
+
+## Verified Workflow
+
+### 1. Read the implementation before writing tests
+
+Always read the actual parsing logic, not just the docstring. Understand:
+- What positions are used for field extraction (e.g., `line[3:]`)
+- What string operations are applied to `stdout` before splitting into lines
+- What guard conditions control special-case handling
+
+### 2. Write parametrized tests covering shape variants
+
+```python
+@pytest.mark.parametrize(
+    "porcelain_line, expected_path",
+    [
+        # Single-line stdout where strip() would corrupt the leading space
+        (' M "path with spaces/file.py"', "path with spaces/file.py"),
+        # Unicode
+        (' M "répertoire/fichier.py"', "répertoire/fichier.py"),
+        # Untracked file with spaces
+        ('?? "dir with spaces/new file.py"', "dir with spaces/new file.py"),
+    ],
+)
+def test_quoted_filename_is_unquoted(
+    self, tmp_path: Path, porcelain_line: str, expected_path: str
+) -> None:
+    status_result = MagicMock()
+    status_result.stdout = porcelain_line + "\n"  # single-line stdout
+
+    with (
+        patch("<module>.run", side_effect=[status_result, MagicMock(), MagicMock()]) as mock_run,
+        patch("<module>.fetch_issue_info", return_value=mock_issue),
+    ):
+        commit_changes(42, tmp_path)
+
+    staged_files = mock_run.call_args_list[1][0][0]
+    assert expected_path in staged_files
+    assert f'"{expected_path}"' not in staged_files  # no surrounding quotes
+```
+
+### 3. Assert both positive and negative
+
+Always assert:
+- The unquoted path **is** in the staged files list
+- The *quoted* form (with surrounding `"`) is **not** in the staged files list
+
+This catches the case where the code partially works (e.g., strips leading quote but not
+trailing, or passes the raw quoted string alongside an unquoted one).
+
+### 4. Debug assertion failures by inspecting the actual list
+
+When a test fails with `assert 'x' in ['git', 'add', 'x"']`, the list is the actual
+`git add` argument list. Compare character by character against expected to pinpoint
+exactly where the parsing goes wrong.
+
+### 5. Fix: replace `strip().split("\n")` with `splitlines()`
+
+```python
+# Before (buggy)
+for line in result.stdout.strip().split("\n"):
+
+# After (correct)
+for line in result.stdout.splitlines():
+```
+
+`splitlines()` splits on all line boundary sequences (`\n`, `\r\n`, `\r`) and does NOT
+strip leading/trailing whitespace from individual lines.
+
+## Results & Parameters
+
+Copy-paste ready configurations and expected outputs.
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| N/A | Direct approach worked | N/A | Solution was straightforward |
+## Key Insight
+
+The existing tests (multi-line stdout like `"M  file1\nA  file2\n"`) passed because
+`.strip()` only removed the trailing newline — the first line didn't start with a space
+in those cases. The bug only surfaced when a single-line stdout started with a significant
+space (`M ...`).
+
+**Always test your parsing functions with both single-line and multi-line inputs.**
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| ProjectScylla | PR #1467, issue #1447 | `scylla/automation/pr_manager.py::commit_changes` |
+
+---
+
+## Superseded from python-script-unit-test-coverage-expansion
+
+**Original date:** 2026-05-29
+**Original version:** 1.1.0
+
+```markdown
+---
+name: python-script-unit-test-coverage-expansion
+description: "Use when: (1) a Python script in scripts/ has zero test coverage and needs
+  tests added; (2) a coverage threshold audit reveals that scripts/ is under-tested
+  vs. the threshold; (3) a follow-up issue requests tests for specific untested modules;
+  (4) you need to close CLI command-handler test gaps (cmd_run/cmd_repair style);
+  (5) you need to audit existing tests before writing new ones to avoid duplication;
+  (6) you are running a coverage swarm with one PR per source file or test shard;
+  (7) new tests must be documented and added to CI workflows that enumerate files manually."
+category: testing
+date: 2026-05-29
+version: "1.1.0"
+user-invocable: false
+verification: verified-local
+history: python-script-unit-test-coverage-expansion.history
+tags:
+  - python
+  - pytest
+  - unit-tests
+  - coverage
+  - mocking
+  - scripts
+---
+```
+
+# python-script-unit-test-coverage-expansion
+
+## Overview
+
+| Item | Details |
+| ------ | --------- |
+| Theme | Systematically adding mock-based unit tests to previously untested Python scripts and source modules |
+| Language | Python / pytest |
+| Patterns | Class-grouped tests, sys.path.insert import, tmp_path fixtures, mock-only subprocess/filesystem |
+| Proven Result | Raised scripts/ test coverage from 29% to 65% (10/34 → 22/34 scripts) across multiple sessions; coordinated Eval360-V2 coverage swarm across seven PRs |
+| Verification | verified-local |
+| History | [changelog](./python-script-unit-test-coverage-expansion.history) |
+
+## When to Use
+
+1. A Python script in `scripts/` has been identified as having zero test coverage
+2. A coverage threshold audit reveals the scripts/ folder is under-tested
+3. A follow-up GitHub issue requests tests for specific public functions or modules
+4. You need to close CLI command-handler test gaps (e.g., cmd_run/cmd_repair patterns)
+5. You are about to write tests and need to audit what already exists to avoid duplication
+6. You need to retrofit tests onto existing code without modifying the script itself
+7. You need to fan out Python coverage work into one isolated worker PR per file or module group
+8. A repository's CI workflow manually enumerates pytest files, so new tests must be added there too
+9. The user requires every new test class/function to document what it does, what code path it executes, and why that testing style is appropriate
+
+**Trigger phrases**:
+- "X% of scripts lack unit tests"
+- "add tests for the remaining untested scripts"
+- "script test coverage audit"
+- "follow-up to close the test gap"
+- "tests only cover argument parsing, not what the command actually does"
+- "coverage swarm"
+- "one PR per file"
+- "new tests are not counted in CI"
+- "document every new test with What/Executes/Why"
+
+## Verified Workflow
+
+### Quick Reference
+
+```bash
+# Step 0: Audit first — always grep before writing
+grep -rn "def test_" tests/unit/scripts/ --include="*.py" | wc -l
+ls scripts/*.py | grep -v __init__ | wc -l
+
+# Step 1: Run existing tests to establish baseline
+python3 -m pytest tests/unit/scripts/ -v --tb=short
+
+# Step 2: Import pattern (preferred — no path manipulation when pythonpath configured)
+# If pyproject.toml has: pythonpath = [".", "scripts"]
+from my_script import func_a, func_b
+
+# Step 3: Fallback sys.path.insert (when pythonpath not configured)
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "scripts"))
+from my_script import func_a, func_b
+
+# Step 4: Run tests directly (NOT via pixi — too slow for iteration)
+python3 -m pytest tests/unit/scripts/test_my_script.py -v
+
+# Step 5: Final validation via package manager
+<package-manager> run python -m pytest tests/unit/scripts/ -v
+
+# Coverage swarm quick gate
+git worktree add /tmp/<repo>-<module-slug> -b codex/coverage-<module-slug> origin/main
+python -m pytest <owned-test-files> -q --override-ini="addopts="
+python - <<'PY'
+import ast
+from pathlib import Path
+for path in map(Path, ["tests/test_target.py"]):
+    tree = ast.parse(path.read_text())
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith("test_"):
+            doc = ast.get_docstring(node) or ""
+            assert all(label in doc for label in ("What:", "Executes:", "Why:")), node.name
+PY
+```
+
+### Step 1: Audit Before Writing
+
+**Always search before writing a single test.** This avoids duplicating 8+ existing tests.
+
+```bash
+# Find all test files covering the target script
+grep -rl "my_script\|MyClass" tests/ --include="*.py"
+
+# Count existing tests per file
+grep -c "def test_" tests/unit/scripts/test_my_script.py
+
+# List test classes to identify coverage gaps
+grep -n "^class Test" tests/unit/scripts/test_my_script.py
+```
+
+Build a coverage matrix before writing:
+
+| Requirement | Covered? | Test function | File |
+| ------------- | ---------- | --------------- | ------ |
+| Happy path | ✅ | `test_happy_path` | `test_my_script.py:45` |
+| Missing file | ❌ | — | — |
+| Empty input | ❌ | — | — |
+
+### Step 2: Check pyproject.toml for pythonpath
+
+```toml
+[tool.pytest.ini_options]
+pythonpath = [".", "scripts"]
+```
+
+When present, this allows:
+- `from generate_changelog import parse_commit` (top-level scripts)
+- `from agents.agent_utils import AgentInfo` (sub-packages)
+- `from scripts.check_unit_test_structure import find_violations` (full path)
+
+If not present, use `sys.path.insert` at the top of the test file.
+
+### Step 3: Read the Script Before Writing Tests
+
+Read each script fully to find:
+1. Pure functions with no side effects (test directly, no mocking needed)
+2. Functions that call `subprocess.run` (mock `<module>.subprocess.run`)
+3. `main()` functions controlled by argparse (mock `sys.argv`)
+4. Module-level constants that affect behavior (mock with `patch("<module>._REPO_ROOT", ...)`)
+5. Class-based designs (instantiate in a fixture, test each method)
+
+Use quick `python3 -c` one-liners to verify assumptions before encoding them as assertions:
+
+```bash
+python3 -c "
+import sys; sys.path.insert(0, 'scripts')
+from my_script import parse_frontmatter
+fm, rest = parse_frontmatter('---\nname: foo\n---\nBody')
+print('fm:', fm)
+print('rest:', repr(rest))
+"
+```
+
+### Step 4: Rank by Testability × Impact (for bulk expansion)
+
+Score each untested script and test highest-ROI targets first:
+
+| Axis | High (3) | Medium (2) | Low (1) |
+| ------ | ---------- | ----------- | --------- |
+| **Testability** | Pure functions, no subprocess | Some mocking needed | Subprocess-heavy, no helpers |
+| **Impact** | Entry point / pre-commit hook | Frequently invoked | Rarely used utility |
+
+Highest scores get tested first. Minimum viable target = half the total scripts.
+
+### Step 5: Choose the Mock-Only Pattern by Script Type
+
+**Pure Functions (easiest — no mocking needed)**:
+
+```python
+from fix_table_underscores import fix_table_underscores
+
+def test_escapes_bare_underscore():
+    content = "column_name & value\n"
+    result = fix_table_underscores(content)
+    assert r"column\_name" in result
+```
+
+**Subprocess-Heavy Scripts (mock at module level)**:
+
+```python
+from unittest.mock import MagicMock, patch
+
+def test_successful_merge_returns_true():
+    mock_result = MagicMock()
+    mock_result.returncode = 0
+    with patch("merge_prs.subprocess.run", return_value=mock_result):
+        result = merge_pr(42)
+    assert result is True
+```
+
+For **sequential subprocess calls**, use `side_effect` with a list:
+
+```python
+with patch("get_stats.subprocess.run", side_effect=[mock_total, mock_open_result]):
+    result = get_issues_stats("2026-01-01", "2026-01-31", None, "owner/repo")
+```
+
+**Filesystem-Heavy Scripts (use tmp_path fixture)**:
+
+```python
+def test_detects_violation_in_file(tmp_path: Path) -> None:
+    f = tmp_path / "test.py"
+    f.write_text("Result = DomainResult\n")
+    violations = detect_shadowing(f)
+    assert len(violations) == 1
+```
+
+**Class-Based Scripts (instantiate and test methods)**:
+
+```python
+@pytest.fixture
+def fixer():
+    return MarkdownFixer(dry_run=True)
+
+class TestMarkdownFixer:
+    def test_dry_run_does_not_write(self, fixer, tmp_path):
+        md = tmp_path / "test.md"
+        original = "# Heading:\n\n\ncontent\n"
+        md.write_text(original)
+        fixer.fix_file(md)
+        assert md.read_text() == original  # unchanged
+```
+
+**Module-Level Constants**:
+
+```python
+with patch("check_defaults_filename._REPO_ROOT", tmp_path):
+    result = main()
+```
+
+The patched tmp_path must replicate the exact subdirectory structure the function expects.
+
+### Step 6: Standard Test File Template
+
+```python
+"""Tests for scripts/<script_name>.py."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from <script_name> import <function_to_test>
+
+
+class Test<FunctionName>:
+    """Tests for <function_name>()."""
+
+    def test_happy_path(self, tmp_path: Path) -> None:
+        """<Description of what passes>."""
+        # Arrange, Act, Assert
+
+    def test_error_case(self) -> None:
+        """<Description of error path>."""
+        ...
+```
+
+Key conventions:
+- `from __future__ import annotations` always first
+- Class-based test grouping (one class per function/feature)
+- Docstrings on every newly added test method
+- `tmp_path` fixture for filesystem operations
+- `pytest.CaptureFixture[str]` (not `object`) for capsys
+
+### Step 7: Dynamic Loader (for module-level patching)
+
+```python
+import importlib.util
+
+SCRIPT_PATH = Path(__file__).parent.parent.parent / "scripts" / "my_script.py"
+
+def load_module():
+    spec = importlib.util.spec_from_file_location("my_script", SCRIPT_PATH)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+@pytest.fixture
+def mod():
+    return load_module()
+```
+
+Use `unittest.mock.patch.object(mod, "GLOBAL_CONSTANT", fake_value)` to override
+module-level constants (e.g., hardcoded paths) in tests.
+
+### Step 8: CLI Handler Gap Pattern (cmd_run / cmd_repair)
+
+When an existing test file covers parser tests but not the actual command handlers:
+
+1. Identify correct patch path — must match `from ... import` inside the handler:
+
+   ```python
+   # In manage_experiment.py cmd_run():
+   from scylla.e2e.runner import run_experiment   # patch: "scylla.e2e.runner.run_experiment"
+   ```
+
+2. Capture config passed to mocked function via closure:
+
+   ```python
+   captured_configs: list[Any] = []
+
+   def mock_run_experiment(config, tiers_dir, results_dir, fresh):
+       captured_configs.append(config)
+       return {"T0": {}}
+
+   with patch("scylla.e2e.runner.run_experiment", side_effect=mock_run_experiment):
+       result = cmd_run(args)
+
+   assert captured_configs[0].tiers_to_run == [TierID.T0, TierID.T2]
+   ```
+
+3. Use `--skip-judge-validation` flag to eliminate additional mock requirements.
+
+4. Test exception-continue path with invalid JSON:
+
+   ```python
+   (run_dir / "run_result.json").write_text("{ not valid json }")
+   result = cmd_repair(args)
+   assert result == 0   # Must not crash
+   ```
+
+### Step 9: Agent Subdirectory Scripts
+
+If the repo has `scripts/agents/*.py`, create a parallel subdirectory:
+
+```
+tests/unit/scripts/agents/__init__.py
+tests/unit/scripts/agents/test_agent_utils.py
+tests/unit/scripts/agents/test_validate_agents.py
+```
+
+The `__init__.py` is required for pytest discovery.
+
+### Step 10: Run, Fix Pre-commit, Commit
+
+```bash
+# Run only new tests first (fast iteration)
+python3 -m pytest tests/unit/scripts/test_my_script.py -v
+
+# Run full suite before committing
+<package-manager> run python -m pytest tests/unit/scripts/ -v
+
+# Pre-commit auto-fixes ruff formatting — re-stage and re-commit
+git add tests/scripts/test_my_script.py
+git commit -m "test(scripts): add unit tests for my_script.py"
+```
+
+Common pre-commit issues to fix before second attempt:
+- **F841 unused variables** — remove `as mock_fh` when you don't assert on it
+- **var-annotated** — add type annotation: `config: dict[str, object] = {}`
+- **capsys type** — use `pytest.CaptureFixture[str]` not `object`
+- **E501 docstrings** — keep docstrings ≤100 chars
+
+### Step 11: Count and Report Coverage
+
+```
+Tested scripts before: N
+Tested scripts after:  N+K
+Total scripts:         M
+Coverage:              (N+K)/M * 100%
+Goal met:              YES / NO
+```
+
+### Step 12: Coverage Swarm and Documentation Gate
+
+Use this pattern when coverage work is too broad for one PR but still needs consistent quality.
+
+1. **Target the current worktree baseline, not stale pasted reports.** Re-run or inspect the
+   current tree first; skip coverage entries for files that no longer exist.
+2. **Give every worker a dedicated git worktree and branch.** Use one branch like
+   `codex/coverage-<module-slug>` per owned file or tight module group. Do not let multiple
+   workers edit or commit from the same checkout.
+3. **Declare file ownership before dispatch.** Each worker should own one source file or one
+   small, tightly grouped test shard and should not edit outside its assigned tests/source files.
+4. **Check CI test discovery.** If `.github/workflows/tests.yml` or similar workflows enumerate
+   pytest files manually, add every new test file to the relevant shard; otherwise local coverage
+   can improve while CI coverage ignores the file.
+5. **Require structured test documentation only for new tests.** Newly introduced `Test*`
+   classes and `test_*` functions should explain:
+   - `What:` the behavior being verified
+   - `Executes:` the source path or branch under test
+   - `Why:` why the mock/fixture/edge-case shape protects the behavior
+6. **Encapsulate common helper setup.** If a test file has module-level `_helper` functions shared
+   by classes, move them into a documented base class such as `ChoiceScoringTestBase` and have
+   test classes inherit it. Keep true fixtures as fixtures, but avoid hidden standalone helpers.
+7. **Run a structural audit before pushing.** Use an AST script to fail if any newly added
+   `test_*` lacks the required docstring labels, if existing tests still carry newly added
+   explanation blocks, or if module-level underscore helpers remain.
+8. **Validate in the worker worktree.** Run the owned test file(s) with coverage options disabled
+   if the repo's default `addopts` would pull in unrelated shards:
+
+   ```bash
+   python -m pytest <owned-test-file> -v --override-ini="addopts="
+   git diff --check
+   ```
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| Running tests via `pixi run python -m pytest` | Used pixi for test execution during development | Command timed out (>2 min env activation) | Use `python3 -m pytest` directly for fast iteration; only use pixi for final validation |
+| Running background pytest task | Launched pytest as a background task to avoid blocking | Output file was empty for minutes | Background tasks don't stream output — run pytest synchronously in foreground |
+| Importing unused constant in tests | Imported `SKILL_CATEGORY_OVERRIDE` for documentation but never asserted on it | Ruff auto-removed it, causing first commit to fail | Only import symbols you actually use in assertions; ruff-check runs in pre-commit |
+| Extending file without reading it | Attempted to write new test classes without reading existing file content | Edit tool rejected the change (file not read first) | Always read the target file before any edit — required by tool policy |
+| Writing tests immediately without audit | Started drafting test functions before searching | Would have duplicated 8+ existing tests | Always grep for existing tests first |
+| Single-file search | Only searched one test file | Missed additional tests in sibling test file | Search all files in `tests/` recursively |
+| Trusting issue title | Assumed "add tests" meant tests were missing | All required cases already existed | Issue wording "add any missing cases" implies audit first |
+| Wrong patch path for imported functions | Patched `<package>.automation.curses_ui.restore_terminal` | Module does `from scylla.utils.terminal import restore_terminal` inline | Patch at the definition site: `scylla.utils.terminal.restore_terminal` |
+| Mocking multiprocessing.Manager | Attempted to mock the Manager for RateLimitCoordinator tests | Mock didn't replicate the event/dict semantics correctly | Use a real `Manager()` in a `with Manager() as mgr:` context |
+| Thread timing test without state setup | Called `ui.start()` twice without controlling thread state | Thread completed before second call due to mocked curses.wrapper | Set `ui.running = True` and `ui.thread` manually to simulate already-running state |
+| Global subprocess mock | Used `patch("subprocess.run", ...)` | Mock was at stdlib level; module had its own import binding | Always patch at module level: `patch("<module_name>.subprocess.run", ...)` |
+| Shared checkout for multiple coverage workers | Started coverage work from one worktree before separating branches | Branch collisions and mixed staged changes required a salvage stash and replay into dedicated worktrees | Create one worktree per worker before any edits; keep file ownership explicit |
+| Relying on local test discovery only | Added new pytest files but did not update the CI workflow's manual test-file list | New tests would pass locally but not affect CI coverage because the workflow did not invoke them | Inspect `.github/workflows/*.yml`; add every new test file to the relevant shard |
+| Generic docstrings after coverage expansion | Added tests with ordinary one-line docstrings or no common-helper structure | New tests needed What/Executes/Why explanations, but applying that standard to pre-existing tests created noisy churn | Run an AST audit that requires labels only on new tests and restores existing test docstrings to their base state |
+| Targeting stale coverage entries | Used a pasted coverage report without checking the current checkout | Some reported files no longer existed, so workers would chase phantom targets | Verify the current tree first with `rg --files` and target only files that exist |
+
+## Results & Parameters
+
+### Verified Coverage Outcomes
+
+| Session | Before | After | New Tests | Files |
+| --------- | -------- | ------- | ----------- | ------- |
+| ProjectScylla #1162 | 10/34 (29%) | 22/34 (65%) | 453 | 13 |
+| ProjectScylla #1358 | 22/34 (65%) | 34/34 (100%) | 130 | 12 |
+| ProjectScylla #850 | ~73% | 74.93% | 106 | 5 |
+| ProjectScylla #1113 | 114 tests | 119 tests | 5 | 1 (extended) |
+| Eval360-V2 coverage swarm | 60% total baseline | 7 focused coverage PRs opened | 518+ | PRs #290-#296, verified locally |
+
+### Eval360-V2 Coverage Swarm Parameters (2026-05-29)
+
+| Parameter | Value |
+| --------- | ----- |
+| Worker isolation | One git worktree per branch under `/private/tmp/eval360-<module>` |
+| Branch naming | `codex/coverage-<module-slug>` |
+| CI quirk | `.github/workflows/tests.yml` manually enumerates test files |
+| Python environment | Python 3.14 venv with test extras installed |
+| Documentation gate | New `Test*` classes and `test_*` functions have `What:`, `Executes:`, `Why:`; existing tests keep their base docstrings |
+| Helper gate | No module-level standalone `_helper` functions in touched test files |
+| Local validation | Per-branch pytest files passed; PR #291 rebased test file later passed `39 passed` |
+
+### pyproject.toml pytest Configuration
+
+```toml
+[tool.pytest.ini_options]
+pythonpath = [".", "scripts"]
+```
+
+### Parametrize Pattern for Mapping Tables
+
+```python
+@pytest.mark.parametrize("commit_type,category", [
+    ("feat", "Features"),
+    ("fix", "Bug Fixes"),
+    ("perf", "Performance"),
+])
+def test_type_to_category_mapping(self, commit_type, category):
+    result = categorize_commits([f"abc|{commit_type}: msg|Author"])
+    assert category in result
+```
+
+### Registry/Dispatch Dict Test (no side effects)
+
+```python
+from generate_figures import FIGURES
+
+class TestFiguresRegistry:
+    def test_figures_functions_are_callable(self) -> None:
+        for name, (_category, fn) in FIGURES.items():
+            assert callable(fn)
+```
+
+### RateLimitCoordinator Safe Test Pattern
+
+```python
+def test_signal_rate_limit_sets_pause(self) -> None:
+    with Manager() as mgr:
+        coordinator = RateLimitCoordinator(mgr)
+        # Pre-set resume so check_if_paused doesn't block
+        coordinator._resume_event.set()
+        coordinator.signal_rate_limit(info)
+        assert coordinator._pause_event.is_set()
+```
+
+### Coverage Comment (when all cases already exist)
+
+```python
+# ============================================================================
+# Test __hash__
+# Coverage (issue #NNNN):
+#   (1) identical tensors produce equal hashes      -> test_hash_immutable
+#   (2) different shape produces different hash     -> test_hash_different_shapes_differ
+# ============================================================================
+```
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| ProjectScylla | Issue #1162, PR #1343 — scripts/ 29% → 65% | extend-script-test-coverage |
+| ProjectScylla | Issue #1358, PR #1383 — 12 additional scripts | script-unit-test-coverage |
+| ProjectScylla | Issue #850, PR #975 — source modules 74.93% | unit-tests-untested-modules |
+| ProjectScylla | Issue #1113 — cmd\_run/cmd\_repair gap | close-script-test-gap-cmd-run-repair |
+| ProjectMnemosyne | Issue #3309, PR #3927 — migrate\_odyssey\_skills.py | add-unit-tests-for-existing-script |
+| ProjectOdyssey | Issue #4051, PR #4859 — hash coverage audit | test-coverage-audit |
+
+---
+
+## Superseded from generate-tests
+
+**Original date:** 2026-03-19
+**Original version:** 1.0.0
+
+```markdown
+---
+name: generate-tests
+description: Create test cases for functions and modules. Use when implementing TDD
+  or improving coverage.
+category: testing
+date: '2026-03-19'
+version: 1.0.0
+mcp_fallback: none
+tier: 2
+---
+```
+
+# Generate Tests
+
+## Overview
+
+| Item | Details |
+| ------ | --------- |
+| Date | N/A |
+| Objective | Create comprehensive test cases for functions and modules to ensure correctness and improve code coverage. |
+| Outcome | Operational |
+
+Create comprehensive test cases for functions and modules to ensure correctness and improve code coverage.
+
+## When to Use
+
+- Following test-driven development (TDD) approach
+- Adding tests to increase coverage
+- Testing edge cases and error conditions
+- Validating refactoring doesn't break functionality
+
+### Quick Reference
+
+```python
+# Test generation pattern
+def generate_tests(function, test_cases: List[Tuple]):
+    """Create test cases for a function"""
+    for inputs, expected_output in test_cases:
+        result = function(*inputs)
+        assert result == expected_output, f"Failed for {inputs}"
+
+# Example: test matrix multiply
+test_cases = [
+    (([[1, 2], [3, 4]], [[1, 0], [0, 1]]), [[1, 2], [3, 4]]),  # Identity
+    (([], []), []),  # Empty
+]
+```
+
+## Verified Workflow
+
+1. **Analyze function**: Understand inputs, outputs, side effects
+2. **Identify test cases**: Normal cases, edge cases, error cases
+3. **Write assertions**: Create expected output for each case
+4. **Implement tests**: Create test functions in test file
+5. **Verify coverage**: Check that tests exercise all code paths
+
+## Output Format
+
+Test suite:
+
+- Test class/module with clear naming
+- Test methods (test_normal_case, test_edge_case, test_error_case)
+- Setup/teardown if needed
+- Clear assertions with error messages
+- Coverage report showing lines tested
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| N/A | Direct approach worked | N/A | Solution was straightforward |
+## Results & Parameters
+
+N/A — this skill describes a workflow pattern.
+
+## References
+
+- See `run-tests` skill for executing tests
+- See `calculate-coverage` skill for coverage analysis
+- See CLAUDE.md > TDD in Key Development Principles
+
+---
+
+## Superseded from testing-package-module-mock-coverage
+
+**Original date:** 2026-03-25
+**Original version:** 1.0.0
+
+```markdown
+---
+name: testing-package-module-mock-coverage
+description: "Add comprehensive mock-based unit tests for installed Python package modules
+  with subprocess/shutil calls. Use when: (1) a hephaestus/ module has no tests or
+  low coverage, (2) the module uses subprocess.run or shutil.which, (3) you need >85%
+  coverage without real command execution."
+category: testing
+date: 2026-03-25
+version: "1.0.0"
+user-invocable: false
+verification: verified-local
+tags:
+  - mock
+  - subprocess
+  - coverage
+  - hephaestus
+  - package-module
+---
+```
+
+
+# Testing Package Modules with Mock Coverage
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2026-03-25 |
+| **Objective** | Add comprehensive unit tests for installed Python package modules that use subprocess/shutil, achieving >85% coverage |
+| **Outcome** | 99% coverage of `readme_commands.py` with 65 tests, all mocked |
+| **Verification** | verified-local |
+
+## When to Use
+
+- A module under `hephaestus/` (installed package, not scripts/) has no or low test coverage
+- The module calls `subprocess.run`, `shutil.which`, or other external process functions
+- You need to mock at the module import path (not stdlib level) to prevent real execution
+- An issue or audit identifies coverage gaps in validation/utility modules
+
+## Verified Workflow
+
+### Quick Reference
+
+```bash
+# Run module-specific tests with coverage
+pixi run python -m pytest tests/unit/validation/test_readme_commands.py -v \
+  --cov=hephaestus.validation.readme_commands --cov-report=term-missing --no-cov-on-fail
+
+# Run full suite to verify no regressions
+pixi run pytest tests/unit -v
+```
+
+### Detailed Steps
+
+1. **Read the source module** to understand all public methods, subprocess calls, and error handling paths
+2. **Read the existing test file** (if any) to avoid duplicating tests
+3. **Organize tests into one class per public method/concept**:
+   - `TestCodeBlock` for dataclass methods
+   - `TestExtractCodeBlocks` for file parsing
+   - `TestCommandClassification` for is_blocked/is_allowed/is_safe
+   - `TestValidateSyntax` for mocked subprocess syntax checks
+   - `TestValidateExecution` for mocked subprocess execution
+   - `TestGenerateReport` for output formatting
+4. **Mock at the module import path**, not at stdlib:
+   ```python
+   # CORRECT - mocks the module's reference
+   @patch("hephaestus.validation.readme_commands.subprocess.run")
+
+   # WRONG - mocks globally, may miss the target
+   @patch("subprocess.run")
+   ```
+5. **Mock all external dependencies per method**:
+   - `subprocess.run` for validate_syntax, validate_execution
+   - `shutil.which` for validate_availability
+   - `get_repo_root` for validate_execution (returns Path)
+6. **Use `@pytest.mark.parametrize`** for exhaustive pattern lists (e.g., all BLOCKED_PATTERNS)
+7. **Cover all error paths**: TimeoutExpired, OSError, non-zero return codes
+8. **Python 3.14 compatibility**: Construct `subprocess.TimeoutExpired` with positional `cmd` and `timeout` only:
+   ```python
+   exc = subprocess.TimeoutExpired(cmd="bash", timeout=5)
+   mock_run.side_effect = exc
+   ```
+9. **Run module-specific coverage** with `--no-cov-on-fail` to see line coverage even when project threshold isn't met
+10. **Run ruff check + format** before committing
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| Importing unused constants | Imported `BLOCKED_PATTERNS`, `EXECUTE_LANGUAGES`, `SKIP_MARKERS` for documentation purposes | ruff F401 auto-removed them in pre-commit | Only import symbols actually used in assertions |
+| Running coverage without `--no-cov-on-fail` | Used default `--cov=hephaestus` from pyproject.toml | Coverage fails at 12% overall since only one module's tests ran | Use `--cov=hephaestus.validation.readme_commands --no-cov-on-fail` to see module-specific coverage |
+| Writing multi-line strings in test fixture | Used multi-line string with explicit newlines for markdown content | ruff format collapsed them to single-line concatenation | Let ruff format handle it; the single-line version is equivalent and passes formatting |
+
+## Results & Parameters
+
+### Mock Pattern Templates
+
+**Mocking subprocess.run (success)**:
+```python
+@patch("hephaestus.validation.readme_commands.subprocess.run")
+def test_valid_syntax(self, mock_run: MagicMock) -> None:
+    mock_run.return_value = MagicMock(returncode=0, stderr="", stdout="")
+    result = ReadmeValidator().validate_syntax("echo hello")
+    assert result.passed is True
+    mock_run.assert_called_once()
+```
+
+**Mocking subprocess.run (failure)**:
+```python
+@patch("hephaestus.validation.readme_commands.subprocess.run")
+def test_invalid_syntax(self, mock_run: MagicMock) -> None:
+    mock_run.return_value = MagicMock(returncode=2, stderr="syntax error", stdout="")
+    result = ReadmeValidator().validate_syntax("echo 'unterminated")
+    assert result.passed is False
+    assert result.error_message == "syntax error"
+```
+
+**Mocking subprocess.run (timeout)**:
+```python
+@patch("hephaestus.validation.readme_commands.subprocess.run")
+def test_timeout(self, mock_run: MagicMock) -> None:
+    exc = subprocess.TimeoutExpired(cmd="bash", timeout=5)
+    mock_run.side_effect = exc
+    result = ReadmeValidator().validate_syntax("echo hang")
+    assert result.passed is False
+    assert "timed out" in (result.error_message or "").lower()
+```
+
+**Mocking shutil.which**:
+```python
+@patch("hephaestus.validation.readme_commands.shutil.which")
+def test_binary_found(self, mock_which: MagicMock) -> None:
+    mock_which.return_value = "/usr/bin/echo"
+    result = ReadmeValidator().validate_availability("echo test")
+    assert result.passed is True
+    mock_which.assert_called_once_with("echo")
+```
+
+**Stacking multiple mocks (validate_execution needs both subprocess.run and get_repo_root)**:
+```python
+@patch("hephaestus.validation.readme_commands.get_repo_root")
+@patch("hephaestus.validation.readme_commands.subprocess.run")
+def test_execution(self, mock_run: MagicMock, mock_root: MagicMock) -> None:
+    mock_root.return_value = Path("/repo")
+    mock_run.return_value = MagicMock(returncode=0, stdout="ok", stderr="")
+    result = ReadmeValidator().validate_execution("echo hello")
+    assert result.passed is True
+```
+
+### Coverage Results
+
+| Module | Before | After | Tests |
+| -------- | -------- | ------- | ------- |
+| `hephaestus/validation/readme_commands.py` | ~0% | 99% | 65 |
+
+### Key pyproject.toml Settings
+
+```toml
+[tool.pytest.ini_options]
+addopts = ["--cov=hephaestus", "--cov-report=term-missing", "--cov-fail-under=80"]
+```
+
+Override for module-specific runs:
+```bash
+pixi run python -m pytest tests/unit/validation/test_readme_commands.py \
+  --cov=hephaestus.validation.readme_commands --cov-report=term-missing --no-cov-on-fail
+```
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| ProjectHephaestus | Issue #51: Add test coverage for readme_commands.py | 65 tests, 99% coverage, PR #94 |
+
+---
+
+## Superseded from fix-tests-after-config-refactor
+
+**Original date:** 2026-01-17
+**Original version:** 1.0.0
+
+```markdown
+---
+name: fix-tests-after-config-refactor
+description: Fix Tests After Config Refactor
+category: testing
+date: 2026-01-17
+version: 1.0.0
+user-invocable: false
+---
+```
+
+# Fix Tests After Config Refactor
+
+## Overview
+
+| Item | Details |
+| ------ | --------- |
+| Date | 2026-01-17 |
+| Objective | Fix failing unit tests after config structure refactoring |
+| Outcome | Operational |
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2026-01-17 |
+| **Objective** | Fix failing unit tests after config structure refactoring |
+| **Outcome** | ✅ SUCCESS - Fixed 5 failing tests in tier_manager |
+| **Impact** | Unblocked 2 PRs with CI test failures |
+
+## When to Use This Skill
+
+Use this skill when:
+
+1. **CI tests fail after merging a refactoring PR** that changes:
+   - Configuration file structure or location
+   - Directory organization
+   - Path resolution logic
+   - Centralized vs distributed configs
+
+2. **Test failures show `assert 0 == 1` or `assert len([]) == 1`** patterns
+   - Tests expecting to find files/configs but finding nothing
+   - Discovery/search methods returning empty results
+
+3. **Tests are creating temporary directory structures** that need updating:
+   - Old structure no longer matches new code paths
+   - Hardcoded path assumptions broken by refactoring
+
+4. **Multiple PRs fail with same test failures** after base branch update:
+   - Indicates tests need updating for merged changes
+   - Not specific to any PR's changes
+
+## Problem Indicators
+
+### Symptoms
+- CI tests pass on old commits but fail on new ones
+- Local tests pass on `main` before pull, fail after pull
+- Multiple unrelated PRs suddenly have same test failures
+- Error messages show discovery/loading methods finding nothing
+
+### Example Error Pattern
+```python
+def test_root_level_tools_mapped(self, tmp_path: Path) -> None:
+    ...
+    subtests = manager._discover_subtests(TierID.T5, tier_dir)
+
+>   assert len(subtests) == 1
+E   assert 0 == 1
+E    +  where 0 = len([])
+```
+
+### Root Cause Investigation
+1. Check recent merge commits on main branch
+2. Look for architecture/refactoring changes
+3. Compare old vs new directory structures
+4. Trace path resolution in updated code
+
+## Verified Workflow
+
+### 1. Identify the Breaking Change
+
+**Check recent commits:**
+```bash
+git log --oneline -10
+```
+
+**Look for refactoring commits:**
+- "refactor:", "feat(architecture):", "fix(structure):" prefixes
+- Changes to config loading, path resolution, directory structure
+
+**Example from this session:**
+```
+6f2a828 feat(architecture): unify config structure and fix documentation
+```
+
+### 2. Understand the Structural Change
+
+**Compare directory structures:**
+```bash
+# Old structure (before refactor)
+tests/fixtures/tests/test-XXX/
+  ├── t0/
+  │   ├── 00-empty/
+  │   │   └── config.yaml
+  │   └── 01-vanilla/
+  │       └── config.yaml
+
+# New structure (after refactor)
+tests/claude-code/shared/subtests/
+  ├── t0/
+  │   ├── 00-empty.yaml
+  │   └── 01-vanilla.yaml
+```
+
+**Key differences:**
+- Centralized vs distributed locations
+- File naming: `NN-name.yaml` vs `NN-name/config.yaml`
+- Path navigation changes in discovery code
+
+### 3. Trace Path Resolution in Code
+
+**Find the discovery/loading method:**
+```bash
+grep -n "def _discover_subtests" scylla/e2e/tier_manager.py
+```
+
+**Analyze path construction:**
+```python
+def _get_shared_dir(self) -> Path:
+    """Get path to the shared resources directory."""
+    # Navigate from tiers_dir to shared
+    return self.tiers_dir.parent.parent.parent / "claude-code" / "shared"
+```
+
+**Understand navigation:**
+- `tiers_dir` = `tests/fixtures/tests/test-001`
+- `.parent.parent.parent` = `tests/`
+- Result: `tests/claude-code/shared/`
+
+### 4. Update Test Setup to Match New Structure
+
+**Before (broken):**
+```python
+def test_root_level_tools_mapped(self, tmp_path: Path) -> None:
+    # Create OLD structure
+    tier_dir = tmp_path / "t5"
+    tier_dir.mkdir()
+    subtest_dir = tier_dir / "01-test"
+    subtest_dir.mkdir()
+
+    # Write config to OLD location
+    config_file = subtest_dir / "config.yaml"
+    config_file.write_text(yaml.safe_dump({...}))
+
+    # This fails - can't find configs in OLD structure
+    manager = TierManager(tmp_path)
+    subtests = manager._discover_subtests(TierID.T5, tier_dir)
+```
+
+**After (fixed):**
+```python
+def test_root_level_tools_mapped(self, tmp_path: Path) -> None:
+    # Create NEW structure matching TierManager expectations
+    tiers_dir = tmp_path / "tests" / "fixtures" / "tests" / "test-001"
+    tiers_dir.mkdir(parents=True)
+
+    # Create shared directory
+    shared_dir = tmp_path / "tests" / "claude-code" / "shared" / "subtests" / "t5"
+    shared_dir.mkdir(parents=True)
+
+    # Write config to NEW location with NEW naming
+    config_file = shared_dir / "01-test.yaml"
+    config_file.write_text(yaml.safe_dump({...}))
+
+    # This works - configs in NEW structure
+    manager = TierManager(tiers_dir)
+    tier_dir = tiers_dir / "t5"  # Legacy param, not used
+    subtests = manager._discover_subtests(TierID.T5, tier_dir)
+```
+
+### 5. Apply Pattern to All Failing Tests
+
+**Fix all tests in the affected class:**
+```bash
+# Run the failing test class
+pixi run pytest tests/unit/e2e/test_tier_manager.py::TestDiscoverSubtestsRootLevelMapping -xvs
+
+# Fix each test method with same pattern
+# All need: proper tiers_dir path + shared directory structure
+```
+
+### 6. Verify Fixes Locally
+
+**Test the specific class:**
+```bash
+pixi run pytest tests/unit/e2e/test_tier_manager.py::TestDiscoverSubtestsRootLevelMapping -xvs
+```
+
+**Expected output:**
+```
+============================= test session starts ==============================
+tests/unit/e2e/test_tier_manager.py::TestDiscoverSubtestsRootLevelMapping::test_root_level_tools_mapped PASSED
+tests/unit/e2e/test_tier_manager.py::TestDiscoverSubtestsRootLevelMapping::test_root_level_mcp_servers_mapped PASSED
+tests/unit/e2e/test_tier_manager.py::TestDiscoverSubtestsRootLevelMapping::test_root_level_agents_mapped PASSED
+tests/unit/e2e/test_tier_manager.py::TestDiscoverSubtestsRootLevelMapping::test_root_level_skills_mapped PASSED
+tests/unit/e2e/test_tier_manager.py::TestDiscoverSubtestsRootLevelMapping::test_resources_field_takes_precedence PASSED
+
+============================== 5 passed in 0.21s ===============================
+```
+
+### 7. Update All Affected PRs
+
+**For each PR with test failures:**
+```bash
+# Switch to PR branch
+git switch <pr-branch>
+
+# Add the test fixes
+git add tests/unit/e2e/test_tier_manager.py
+
+# Commit with clear message
+git commit -m "fix(tests): update tier_manager tests for new config structure"
+
+# Push to update PR
+git push
+```
+
+**Or cherry-pick from main:**
+```bash
+# After merging fix to main
+git switch <pr-branch>
+git cherry-pick <fix-commit-hash>
+git push
+```
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| N/A | Direct approach worked | N/A | Solution was straightforward |
+## Results & Parameters
+
+### Tests Fixed
+
+**File**: `tests/unit/e2e/test_tier_manager.py`
+
+| Test | Status | Changes |
+| ------ | -------- | --------- |
+| `test_root_level_tools_mapped` | ✅ PASS | Updated directory structure |
+| `test_root_level_mcp_servers_mapped` | ✅ PASS | Updated directory structure |
+| `test_root_level_agents_mapped` | ✅ PASS | Updated directory structure |
+| `test_root_level_skills_mapped` | ✅ PASS | Updated directory structure |
+| `test_resources_field_takes_precedence` | ✅ PASS | Updated directory structure |
+
+### Directory Structure Pattern
+
+**Template for test setup:**
+```python
+def test_something(self, tmp_path: Path) -> None:
+    # 1. Create tiers_dir matching expected path structure
+    tiers_dir = tmp_path / "tests" / "fixtures" / "tests" / "test-001"
+    tiers_dir.mkdir(parents=True)
+
+    # 2. Create shared directory for configs
+    shared_dir = tmp_path / "tests" / "claude-code" / "shared" / "subtests" / "<tier>"
+    shared_dir.mkdir(parents=True)
+
+    # 3. Write config with new naming convention
+    config_file = shared_dir / "NN-name.yaml"  # NOT NN-name/config.yaml
+    config_file.write_text(yaml.safe_dump({...}))
+
+    # 4. Create TierManager with proper tiers_dir
+    manager = TierManager(tiers_dir)  # NOT tmp_path
+
+    # 5. Call discovery method
+    tier_dir = tiers_dir / "<tier>"  # Legacy param
+    results = manager._discover_subtests(TierID.<TIER>, tier_dir)
+```
+
+### Commits Created
+
+| Branch | Commit | Status |
+| -------- | -------- | -------- |
+| `skill/architecture/unify-config-structure` | `caa34c1` | Merged to main |
+| `skill/debugging/e2e-path-resolution-fix` | `b57fce8` | Cherry-picked |
+
+### PRs Unblocked
+
+- **PR #186**: fix(e2e): resolve workspace paths to absolute before subprocess execution
+- **PR #187**: feat(skills): add e2e-path-resolution-fix debugging skill
+
+## Key Insights
+
+### 1. Path Navigation Dependencies
+
+When code navigates paths using `.parent` chains, tests MUST create the full directory structure:
+```python
+# If code does: tiers_dir.parent.parent.parent / "claude-code"
+# Tests must create: tmp_path / "tests" / "fixtures" / "tests" / "test-001"
+# So navigation works: test-001 -> tests -> fixtures -> tests -> claude-code
+```
+
+### 2. Test Isolation vs Structure Realism
+
+Balance between:
+- **Test isolation**: Using `tmp_path` for clean test environment
+- **Structure realism**: Matching real directory hierarchy for path navigation
+
+Solution: Create realistic structure INSIDE `tmp_path`
+
+### 3. Config Migration Patterns
+
+When centralizing configs, update both:
+1. **Production code**: New discovery/loading logic
+2. **Test code**: New directory structure in test setup
+
+Don't forget tests!
+
+### 4. Pre-existing Failure Identification
+
+Always test on main branch first:
+```bash
+git switch main
+git pull
+pixi run pytest <failing-test> -xvs
+```
+
+If it fails on main → Pre-existing, not your PR's fault
+If it passes on main → Your PR introduced it, must fix
+
+### 5. Cherry-Pick for Multiple PRs
+
+When same fix needed across multiple PRs:
+```bash
+# Fix on one branch
+git switch pr-branch-1
+# ... make fixes ...
+git commit -m "fix: ..."
+git push
+
+# Cherry-pick to other branches
+git switch pr-branch-2
+git cherry-pick <commit-hash>
+git push
+```
+
+## Related Skills
+
+- `e2e-path-resolution-fix` - Fixing path resolution bugs in E2E framework
+- `unify-config-structure` - The refactoring that required these test fixes
+- `debug-evaluation-logs` - Patterns for diagnosing test failures
+
+## Testing Commands
+
+### Run Specific Test Class
+```bash
+pixi run pytest tests/unit/e2e/test_tier_manager.py::TestDiscoverSubtestsRootLevelMapping -xvs
+```
+
+### Run Single Test
+```bash
+pixi run pytest tests/unit/e2e/test_tier_manager.py::TestDiscoverSubtestsRootLevelMapping::test_root_level_tools_mapped -xvs
+```
+
+### Check Test on Main Branch
+```bash
+git switch main
+git pull
+pixi run pytest <test-path> -xvs
+```
+
+### View CI Logs for Failed Tests
+```bash
+gh pr checks <pr-number> --watch=false
+gh run view <run-id> --log-failed | grep -A 50 "FAILED"
+```
+
+## Prevention
+
+### For Refactoring PRs
+
+When making structural changes:
+1. **Identify affected tests** before committing
+2. **Update tests in same PR** as the refactoring
+3. **Run full test suite** before pushing
+4. **Document structure changes** in PR description
+
+### For Test Maintainability
+
+1. **Avoid hardcoded paths** in tests when possible
+2. **Use helper functions** for common directory structures
+3. **Document path assumptions** in test comments
+4. **Keep tests close to production** structure
+
+### Example Helper Function
+
+```python
+def create_tier_test_structure(tmp_path: Path, tier_id: str) -> tuple[Path, Path]:
+    """Create standard directory structure for tier tests.
+
+    Returns:
+        (tiers_dir, shared_dir) tuple for test setup
+    """
+    tiers_dir = tmp_path / "tests" / "fixtures" / "tests" / "test-001"
+    tiers_dir.mkdir(parents=True)
+
+    shared_dir = tmp_path / "tests" / "claude-code" / "shared" / "subtests" / tier_id
+    shared_dir.mkdir(parents=True)
+
+    return tiers_dir, shared_dir
+```
+
+Usage:
+```python
+def test_something(self, tmp_path: Path) -> None:
+    tiers_dir, shared_dir = create_tier_test_structure(tmp_path, "t5")
+    config_file = shared_dir / "01-test.yaml"
+    # ... rest of test
+```
+
+---
+
+## Superseded from testing-ast-import-layer-enforcement
+
+**Original date:** 2026-04-29
+**Original version:** 1.0.0
+
+```markdown
+---
+name: testing-ast-import-layer-enforcement
+description: "Enforce import layer boundaries in Python packages using AST-level CI tests. Use when: (1) you've fixed a circular import and want to prevent regressions, (2) you have a strict layering rule (module A must never import from module B) and need it enforced in CI, (3) you want to catch both direct and lazy/function-local imports that violate architecture boundaries."
+category: testing
+date: 2026-04-29
+version: "1.0.0"
+user-invocable: false
+verification: verified-local
+tags:
+  - python
+  - ast
+  - import-boundary
+  - circular-imports
+  - layer-enforcement
+  - ci
+  - testing
+---
+```
+
+
+# Testing: AST Import Layer Enforcement
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2026-04-29 |
+| **Objective** | After fixing a circular import (`hephaestus.github` importing from `hephaestus.automation`), add a CI regression gate that fails immediately if the forbidden import edge is reintroduced |
+| **Outcome** | Four-test suite catches both runtime cycle failures and the structural AST invariant; no regression possible without a red CI build |
+| **Verification** | verified-local (ProjectHephaestus PR #308 — CI pending) |
+
+## When to Use
+
+- You have just fixed a circular import and want to prevent it from coming back silently
+- You have a layering rule like "package X must never import from package Y" that needs CI enforcement
+- A previous import cycle caused a hard-to-diagnose startup failure and you need structural protection
+- You want to catch lazy imports (`def foo(): from X import Y`) that would still cause runtime cycles
+
+## Verified Workflow
+
+### Quick Reference
+
+```python
+# tests/unit/test_no_import_cycles.py
+
+import ast
+import pathlib
+import subprocess
+import sys
+
+import hephaestus.github  # import the package to get __file__ for path resolution
+
+
+def test_planner_imports_cleanly() -> None:
+    """Original failure repro — must pass in a fresh subprocess (sys.modules contamination)."""
+    r = subprocess.run(
+        [sys.executable, "-c", "from hephaestus.automation.planner import main"],
+        capture_output=True, text=True,
+    )
+    assert r.returncode == 0, f"planner import failed:\n{r.stderr}"
+
+
+def test_packages_import_in_either_order() -> None:
+    """Both import orders must succeed (order-dependent cycles)."""
+    for code in [
+        "import hephaestus.github, hephaestus.automation",
+        "import hephaestus.automation, hephaestus.github",
+    ]:
+        r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+        assert r.returncode == 0, f"Import failed ({code}):\n{r.stderr}"
+
+
+def test_console_script_entry_points_resolve() -> None:
+    """Console-script targets still importable after removing __init__.py re-exports."""
+    for module in ["hephaestus.github.fleet_sync", "hephaestus.github.tidy"]:
+        r = subprocess.run(
+            [sys.executable, "-c",
+             f"import importlib; m = importlib.import_module('{module}'); assert callable(m.main)"],
+            capture_output=True, text=True,
+        )
+        assert r.returncode == 0, f"{module} failed:\n{r.stderr}"
+
+
+def test_github_package_does_not_import_automation() -> None:
+    """AST-level layering invariant: hephaestus.github must never import from hephaestus.automation."""
+    github_dir = pathlib.Path(hephaestus.github.__file__).parent
+    offenders: list[str] = []
+    for py in sorted(github_dir.rglob("*.py")):
+        tree = ast.parse(py.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and (node.module or "").startswith("hephaestus.automation"):
+                offenders.append(f"{py}:{node.lineno}  from {node.module} import ...")
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name.startswith("hephaestus.automation"):
+                        offenders.append(f"{py}:{node.lineno}  import {alias.name}")
+    assert not offenders, "github -> automation import edge reintroduced:\n" + "\n".join(offenders)
+```
+
+### Detailed Steps
+
+1. **Reproduce the original failure** with a subprocess test — ensures the cold-boot failure is
+   captured before `sys.modules` is contaminated by previous test-process imports.
+
+2. **Test both import orders** (package A first, then B; then B first, then A) — order-dependent
+   cycles only appear when the lower-layer package loads first and the higher-layer package tries
+   to complete initialization while the lower one is still partially initialized.
+
+3. **Add the AST walk** over the package directory using `pathlib.Path(...).rglob("*.py")` and
+   `ast.walk(tree)`. Check both `ast.ImportFrom` nodes (for `from X import Y` style) and
+   `ast.Import` nodes (for `import X` style). Walk the full AST — not just top-level statements —
+   so function-local imports are also caught.
+
+4. **Use `__file__` from the imported package** to locate the source directory. This is portable
+   across editable installs, wheel installs, and any layout where the package is importable.
+
+5. **Run the test suite** with `pixi run pytest tests/unit -v` and confirm all 4 tests pass.
+
+### Adapting to Other Projects
+
+To enforce a different boundary (e.g., `mypackage.ui` must not import `mypackage.db`):
+
+```python
+import mypackage.ui
+
+def test_ui_does_not_import_db() -> None:
+    ui_dir = pathlib.Path(mypackage.ui.__file__).parent
+    forbidden_prefix = "mypackage.db"
+    offenders: list[str] = []
+    for py in sorted(ui_dir.rglob("*.py")):
+        tree = ast.parse(py.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and (node.module or "").startswith(forbidden_prefix):
+                offenders.append(f"{py}:{node.lineno}  from {node.module} import ...")
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name.startswith(forbidden_prefix):
+                        offenders.append(f"{py}:{node.lineno}  import {alias.name}")
+    assert not offenders, f"ui -> db import edge detected:\n" + "\n".join(offenders)
+```
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| Test only one import order | `import hephaestus.github, hephaestus.automation` only | Order-dependent cycles pass when the "wrong" package loads first; failed only in the reverse order | Always test both A→B and B→A import orderings to catch order-dependent cycles |
+| `importlib.import_module` inside test process | Used `importlib.import_module("hephaestus.automation.planner")` directly in the test function instead of a subprocess | If an earlier test (or module collection phase) triggered a partial import that left a broken half-loaded module in `sys.modules`, the re-import succeeds silently because Python returns the cached partial module | Use `subprocess.run([sys.executable, "-c", "..."])` for each import test — each subprocess starts with a clean `sys.modules` state |
+| AST walk only at top-level statements | Used `for node in tree.body` instead of `ast.walk(tree)` | Missed function-local (`def foo(): from X import Y`) and class-body imports that also cause runtime cycles | `ast.walk(tree)` traverses all nodes recursively; always use it to catch imports at any nesting depth |
+
+## Results & Parameters
+
+### Test file location
+
+```
+tests/unit/test_no_import_cycles.py
+```
+
+### Four-test structure
+
+| Test | What It Catches |
+| ------ | ----------------- |
+| `test_planner_imports_cleanly` | Original failure repro — cold-boot import failure |
+| `test_packages_import_in_either_order` | Order-dependent circular imports |
+| `test_console_script_entry_points_resolve` | Console-script targets broken by `__init__.py` cleanup |
+| `test_github_package_does_not_import_automation` | Structural invariant — forbidden import edge at AST level |
+
+### Key design properties
+
+- **Subprocess isolation**: Each `subprocess.run` call spawns a fresh Python interpreter with an
+  empty `sys.modules`, so the test accurately reflects cold-boot import behavior regardless of what
+  the test runner has already loaded.
+- **AST is purely syntactic**: The walk catches imports whether or not the module is currently
+  importable. A file with syntax errors will raise `SyntaxError` on `ast.parse` — this is
+  intentional (syntax errors are their own problem).
+- **`rglob("*.py")` covers subpackages**: The walk recurses into nested `__init__.py` and submodules
+  automatically.
+
+### Subprocess pattern (reusable)
+
+```python
+def _run(code: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+    )
+```
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| ProjectHephaestus | PR #308 — fixed `hephaestus.github` → `hephaestus.automation` circular import | `pixi run pytest tests/unit -v` passed all 4 tests locally; CI pending |
+
+---
+
+## Prior history preserved from python-script-unit-test-coverage-expansion
+
 <!-- Superseded skill snapshots for python-script-unit-test-coverage-expansion (M53) -->
 
 ## v1.1.0 (2026-05-29)
