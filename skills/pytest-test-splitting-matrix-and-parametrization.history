@@ -3,6 +3,21 @@
 
 This file preserves the full original content of the skills merged into this canonical.
 
+## v1.1.0 (2026-06-07)
+
+Nuance audit pass 2: restore claude-CLI-preflight/idempotency-guard/overlap-dedup.
+
+- E2E preflight corrected from `ANTHROPIC_API_KEY` env-var check to `command -v claude` /
+  `claude --version` (agents use the `claude` CLI's own OAuth, not the env var).
+- Restored the `promote_run_to_completed()` idempotency guard
+  (`if not src.exists() and dst.exists(): return dst`) for resume-safety of the `shutil.move`
+  workspace promotion.
+- Restored matrix overlap/deduplication detection: the `_paths_overlap` helper plus a
+  `file -> [groups]` dupe scan, compared only between groups whose `path:` share a common
+  prefix to avoid false positives.
+- Added two Failed Attempts rows (ANTHROPIC_API_KEY mistake, pairwise-overlap false positive)
+  and a promote-guard row.
+
 ## v1.0.0 (2026-06-07)
 
 Merged 5 skills into `pytest-test-splitting-matrix-and-parametrization`:

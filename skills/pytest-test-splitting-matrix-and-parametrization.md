@@ -3,7 +3,7 @@ name: pytest-test-splitting-matrix-and-parametrization
 description: "Use when: (1) a monolithic test file exceeds the Edit tool's ~25K token limit and must be split into focused sub-modules preserving test count and git history; (2) coverage tracking is needed for _partN.mojo test files split from a single logical test — validate_test_coverage.py must group part files by base name using regex; (3) adding or splitting test groups in a CI matrix — group splitting by filesystem structure, glob pattern evolution, zero-discovery guards, matrix status checks; (4) a CI matrix sub-pattern level silently goes stale when space-separated multi-pattern strings are used and a subset stops matching files; (5) building E2E workspace lifecycle code with staged parallel test generation; (6) pytest-asyncio with auto mode where fixture and test both run in the same event loop and parametrize interacts with async fixtures; (7) creating a weekly GitHub Actions workflow for Mojo training tests excluded from per-PR CI because they are in the validate_test_coverage.py exclusion list; (8) a test file was split across part files and a CI workflow pattern must be updated to match the new filenames."
 category: testing
 date: 2026-06-07
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 history: pytest-test-splitting-matrix-and-parametrization.history
 tags: [pytest, test-splitting, ci-matrix, parametrize, coverage-tracking, stale-detection, weekly-workflow, e2e, glob-pattern]
@@ -50,6 +50,24 @@ done
 
 # --- Validate coverage after any split or matrix change ---
 python3 scripts/validate_test_coverage.py   # must exit 0
+
+# --- Check for overlapping/duplicate matrix groups (same file in 2+ groups) ---
+python3 -c "
+import sys; sys.path.insert(0, 'scripts')
+from validate_test_coverage import parse_ci_matrix, expand_pattern
+from pathlib import Path
+from collections import defaultdict
+root = Path('.')
+groups = parse_ci_matrix(root / '.github/workflows/comprehensive-tests.yml')
+file_to_groups = defaultdict(list)
+for g, info in groups.items():
+    for f in sorted(expand_pattern(info['path'], info['pattern'], root)):
+        file_to_groups[f].append(g)
+print('Duplicates:', {f: gs for f, gs in file_to_groups.items() if len(gs) > 1} or 'none')
+"
+
+# --- Preflight before agent E2E: check the claude CLI, NOT ANTHROPIC_API_KEY ---
+command -v claude >/dev/null 2>&1 || { echo "ERROR: claude CLI not found"; exit 1; }
 
 # --- Check for stale matrix sub-patterns ---
 python3 -c "
@@ -194,6 +212,35 @@ child entries never overlap. Create one matrix entry per subdirectory:
 root via space-separated patterns. Keep separate any group with `continue-on-error: true`
 or a distinct `path:` root.
 
+**Overlap / duplication detection**: After consolidation, scan for files that fall into two
+matrix groups (a file run twice wastes CI minutes and double-reports failures). Expand every
+group's glob, build a `file -> [groups]` map, and report any file in more than one group. Only
+compare groups whose `path:` values share a common prefix — comparing every pair
+unconditionally generates false positives between unrelated directories:
+
+```python
+def _paths_overlap(path_a: str, path_b: str) -> bool:
+    a, b = Path(path_a), Path(path_b)
+    try:
+        a.relative_to(b); return True
+    except ValueError:
+        pass
+    try:
+        b.relative_to(a); return True
+    except ValueError:
+        pass
+    return False
+
+# file -> groups dupe scan (only meaningful between path-overlapping groups)
+file_to_groups = defaultdict(list)
+for group_name, info in groups.items():
+    for f in sorted(expand_pattern(info["path"], info["pattern"], root)):
+        file_to_groups[f].append(group_name)
+dupes = {f: gs for f, gs in file_to_groups.items() if len(gs) > 1}
+```
+
+Always wrap `root.glob()` in `sorted()` — glob ordering is non-deterministic across platforms.
+
 **Zero-discovery guard**: In the `justfile`, change `exit 0` to `exit 1` when no files match
 — otherwise an empty/renamed subdirectory silently passes.
 
@@ -253,7 +300,17 @@ but have no periodic workflow, they are silently untested. Check WHY they were e
 #### F. E2E Workspace Lifecycle with Staged Parallel Generation
 
 Stage execution by concurrency profile; checkpoint auto-resumes (omit `--from` between
-stages):
+stages).
+
+**Preflight: check the `claude` CLI, NOT `ANTHROPIC_API_KEY`.** Agents invoke the `claude`
+CLI, which uses its own OAuth credentials — the `ANTHROPIC_API_KEY` env var is never read, so
+an env-var preflight passes when auth is broken and fails when auth is fine. Gate the runner
+on CLI availability instead:
+
+```bash
+command -v claude >/dev/null 2>&1 || { echo "ERROR: claude CLI not found"; exit 1; }
+claude --version   # confirms the CLI is on PATH and runnable
+```
 
 ```bash
 # Stage 1: Agent execution (high concurrency, off-peak)
@@ -271,7 +328,23 @@ python scripts/manage_experiment.py run --config "$EXPERIMENT_DIR" \
 Key lifecycle rules: use `shutil.copy2` (not `move`) for shared `pipeline_baseline.json` so
 siblings can be promoted; `_reset_non_completed_runs()` skip set must include
 `promoted_to_completed`; add an early-exit guard for already-complete experiments to avoid
-`rglob` over 360+ files. For parallel test generation, audit stale `@patch` references
+`rglob` over 360+ files. The `promote_run_to_completed()` function moves the run workspace with
+`shutil.move`, so guard it for resume-safety — if the source was already moved on a prior run,
+return the existing destination instead of crashing with `ENOENT`:
+
+```python
+def promote_run_to_completed(experiment_dir, tier_id, subtest_id, run_num):
+    src = get_run_dir(..., completed=False)
+    dst = get_run_dir(..., completed=True)
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    if not src.exists() and dst.exists():   # idempotency: already promoted
+        return dst
+    shutil.move(str(src), str(dst))
+    baseline = src.parent / "pipeline_baseline.json"
+    if baseline.exists():
+        shutil.copy2(baseline, dst.parent / "pipeline_baseline.json")
+    return dst
+``` For parallel test generation, audit stale `@patch` references
 first, then launch one agent per test file with full signatures, import paths, mock target
 paths, and a target test count; finish with `ruff check --fix --unsafe-fixes` + `ruff format`.
 
@@ -292,6 +365,9 @@ paths, and a target test count; finish with `ruff check --fix --unsafe-fixes` + 
 | Adding excluded training tests back to PR CI | Considered adding 9 files to `comprehensive-tests.yml` | They are excluded intentionally (slow/dataset-dependent) | Check WHY a file was excluded before deciding where to add coverage |
 | `--until diff_captured` for Stage 2 | Stopped before move to `completed/` | Judges read only from `completed/`; they never see the runs | Use `--until promoted_to_completed` |
 | `shutil.move` for `pipeline_baseline.json` | Moved the baseline on first run promotion | First run's baseline gone; siblings need it | Use `shutil.copy2` for shared baselines |
+| `ANTHROPIC_API_KEY` preflight for agent E2E | Checked the env var before launching agents | Agents call the `claude` CLI, which uses its own OAuth — the env var is never read, so the check is wrong in both directions | Preflight with `command -v claude` / `claude --version`, not the API-key env var |
+| Pairwise overlap detection across all groups | Compared every matrix group pair unconditionally for shared files | Unrelated directories were flagged as overlapping — false positives | Only compare groups whose `path:` values share a common prefix (`_paths_overlap`) |
+| `promote_run_to_completed` without resume guard | Called `shutil.move(src, dst)` directly on every promote | On Stage-3 resume the run was already moved; `src` gone → `ENOENT` crash | Guard with `if not src.exists() and dst.exists(): return dst` for idempotency |
 
 ## Results & Parameters
 
