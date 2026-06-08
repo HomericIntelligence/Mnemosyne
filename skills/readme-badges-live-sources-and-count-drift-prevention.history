@@ -15,6 +15,13 @@ Initial merge consolidating 5 README-badge skills into one canonical skill:
 4. `badge-count-drift-prevention` (ci-cd, 2026-03-07, v1.0.0)
 5. `replace-hardcoded-counts-with-live-commands` (documentation, 2026-03-03, v1.0.0)
 
+## v1.1.0 (2026-06-07)
+
+Restore `just`-not-on-PATH fallback (nuance audit pass 2): re-added the failure
+mode where `just pre-commit-all` fails because `just` is not on PATH, with the
+fallback to `pixi run pre-commit run --files README.md`. Added as a Failed
+Attempts row plus a one-line note in the single-CI-badge validation step.
+
 ## Superseded from readme-badges-live-sources-verification
 
 **Original date/version**: 2026-06-05 / 1.0.0
