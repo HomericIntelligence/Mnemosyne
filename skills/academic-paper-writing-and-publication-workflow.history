@@ -1,4 +1,25 @@
----
+<!-- markdownlint-disable MD024 -->
+
+# History: academic-paper-writing-and-publication-workflow
+
+This file preserves the full original content of the skills consolidated into
+the `academic-paper-writing-and-publication-workflow` canonical skill.
+
+## v1.0.0 (2026-06-07)
+
+Consolidated 4 skills into one general canonical:
+
+1. `academic-paper-validation` (v3.3.0, 2026-05-05)
+2. `latex-paper-parallel-assembly` (v1.1.0, 2026-04-14)
+3. `skill-arxiv-paper-publication-polish` (v1.0.0, 2026-02-07)
+4. `paper-final-review-publication-readiness-workflow` (v1.0.0, 2026-03-19)
+
+## Superseded from academic-paper-validation
+
+**Original date:** 2026-05-05
+**Original version:** 3.3.0
+
+~~~yaml
 name: academic-paper-validation
 description: "Systematic workflow for validating and improving academic paper quality through data accuracy checks, statistical methodology verification, LaTeX compilation fixes, arXiv build preparation, parallel myrmidon swarm review, and post-review mechanical revisions (pronoun voice changes, single-model table cleanup, in-place .tex/.md surgery, duplicate heading detection, item-block deduplication)"
 category: documentation
@@ -6,7 +27,8 @@ date: 2026-05-05
 version: 3.3.0
 user-invocable: false
 absorbed: [academic-paper-myrmidon-swarm-review]
----
+~~~
+
 # Academic Paper Validation
 
 ## Overview
@@ -884,3 +906,967 @@ grep -nE '\\emph\{(Difficulty|Repository|Language|Expected outcome)\}' paper.tex
 - ArXiv submission guide: https://arxiv.org/help/submit_tex
 - Romano, J., et al. (2006). Appropriate statistics for ordinal level data. (FAIR conference — thresholds 0.11/0.28/0.43)
 - Romano, J., et al. (2006). Journal article — thresholds 0.147/0.33/0.474 (different publication)
+
+---
+
+## Superseded from latex-paper-parallel-assembly
+
+**Original date:** 2026-04-14
+**Original version:** 1.1.0
+
+~~~yaml
+name: latex-paper-parallel-assembly
+description: "Assemble a large LaTeX research paper from parallel-agent-written parts. Use when: (1) a single agent cannot hold the full paper in context, (2) you have 20+ ideas/sections to write and want parallel speedup, (3) you need to merge N part files into one compilable .tex, (4) you need post-assembly error remediation (unicode, missing bib entries, tabular column drift, undefined commands), (5) removing inline arXiv hrefs from assembled paper body, (6) consolidating scattered verdict codes into a single Future Work section, (7) deduplicating bib entries introduced by parallel agents writing their own citation stubs."
+category: documentation
+date: 2026-04-14
+version: "1.1.0"
+user-invocable: false
+verification: verified-local
+tags: [latex, parallel, assembly, pdflatex, bibtex, cleanup, citations, verdicts]
+~~~
+
+
+# LaTeX Paper Assembly from Parallel Agent Parts
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2026-04-14 |
+| **Objective** | Produce a single compilable LaTeX paper from parts written by N parallel agents |
+| **Outcome** | Successful — 272 KB paper (3,320 lines, 102 pages, 0 errors) assembled from 4 parallel agent parts + cross-compiled with 395 BibTeX entries |
+| **Verification** | verified-local |
+
+## When to Use
+
+- A single agent cannot write the full paper without hitting context limits (>50 ideas, >40 pages)
+- You have independent parallel-writable sections (e.g., one idea per subsection, each self-contained)
+- You need a reproducible farm-and-assemble pattern with explicit error-remediation steps
+- Post-assembly compilation fails due to Unicode, missing bib keys, `\citeauthor`, or tabular column drift
+- Removing all inline arXiv hrefs from a LaTeX paper body after a parallel assembly pass
+- Consolidating scattered verdict codes (PURSUE/INVESTIGATE/DEPRIORITIZE) into a single Future Work section
+- Deduplicating bib entries introduced by parallel agents writing their own citation stubs
+
+## Verified Workflow
+
+### Quick Reference
+
+```bash
+# Step 1: Farm to N part files
+# Each agent writes part_N.tex with its assigned slice of subsections
+
+# Step 2: Assemble
+# head: keep lines 1..K from part1 (preamble + early sections)
+head -717 part1.tex > paper.tex
+# Append later part files, stripping their preambles (keep only from first \subsection)
+awk '/^\\subsection/{found=1} found{print}' part2.tex >> paper.tex
+awk '/^\\subsection/{found=1} found{print}' part3.tex >> paper.tex
+cat part4.tex >> paper.tex   # part4 has only body content, no preamble
+
+# Step 3: Unicode → math mode (must run before pdflatex)
+python3 - <<'PY'
+import pathlib, re
+tex = pathlib.Path("paper.tex").read_text(encoding="utf-8")
+replacements = {
+    "\u00e9": r"\'{e}", "\u00e8": r"\`{e}", "\u00e0": r"\`{a}",
+    "\u00e7": r"\c{c}", "\u00fc": r'\"u', "\u00f6": r'\"o',
+    "\u00d7": r"$\times$", "\u2014": "---", "\u2013": "--",
+    "\u03c1": r"$\rho$", "\u03c3": r"$\sigma$", "\u03b1": r"$\alpha$",
+    "\u03bc": r"$\mu$", "\u0394": r"$\Delta$", "\u2264": r"$\leq$",
+    "\u2265": r"$\geq$", "\u2248": r"$\approx$", "\u00b1": r"$\pm$",
+}
+for char, latex in replacements.items():
+    tex = tex.replace(char, latex)
+pathlib.Path("paper.tex").write_text(tex, encoding="utf-8")
+print("Unicode replacement done")
+PY
+
+# Step 4: Compile (first pass — will show missing bib keys)
+pdflatex -interaction=nonstopmode paper.tex 2>&1 | tail -5
+bibtex paper
+pdflatex -interaction=nonstopmode paper.tex 2>&1 | tail -5
+pdflatex -interaction=nonstopmode paper.tex 2>&1 | tail -5
+
+# Step 5: Extract missing bib keys and generate stubs
+grep "^LaTeX Warning.*Citation.*undefined" paper.log | \
+  grep -oP "(?<=Citation ')[^']+" | sort -u > missing_keys.txt
+python3 - <<'PY'
+keys = open("missing_keys.txt").read().splitlines()
+with open("references.bib", "a") as f:
+    for key in keys:
+        f.write(f"\n@misc{{{key},\n  title={{STUB: {key}}},\n  author={{Unknown}},\n  year={{2024}},\n  note={{Auto-generated stub. Replace with real entry.}}\n}}\n")
+print(f"Added {len(keys)} stub entries")
+PY
+
+# Step 6: Final compile (no undefined cite warnings)
+pdflatex -interaction=nonstopmode paper.tex && bibtex paper && \
+  pdflatex -interaction=nonstopmode paper.tex && \
+  pdflatex -interaction=nonstopmode paper.tex
+
+# Step 7: Verify
+grep -c "^!" paper.log && echo "errors above (should be 0)"
+grep "??" paper.log | grep -v pdfTeX
+pdfinfo paper.pdf | grep Pages
+```
+
+### Detailed Steps
+
+1. **Partition the paper into independent slices** — each part file should contain:
+   - Part 1: full preamble (`\documentclass` through `\maketitle`), introduction, models section, and the first N ideas
+   - Parts 2–N: only body content (subsections onward) for their assigned idea slices — NO `\documentclass`, NO `\begin{document}`, NO `\end{document}`
+
+2. **Farm to parallel agents** — launch N agents in a single message (one Agent tool call per part). Each agent:
+   - Gets the preamble template (lines 1–65 or equivalent) to understand column widths, package list, macros
+   - Gets its assigned idea slice from the research corpus
+   - Writes its part file to a known path (`part1.tex`, `part2.tex`, etc.)
+   - Must NOT include `\documentclass` in parts 2..N
+
+3. **Assemble** — use `head` to keep the preamble from part1 up to (but not including) any preamble-only content in later parts. Use `awk` to skip preamble lines in parts 2..N by looking for the first `\subsection` as the start marker.
+
+4. **Unicode → math mode** — run the Python replacement dict BEFORE any pdflatex run. LaTeX will silently fail or produce garbled output on unescaped non-ASCII. Key characters: `×`, `—`, `–`, accented letters (é, è, à, ç, ü, ö), Greek letters (ρ, σ, α, μ, Δ), math symbols (≤, ≥, ≈, ±).
+
+5. **First compile** — run `pdflatex + bibtex + pdflatex×2` once to discover all missing bib keys. Do NOT try to fix errors manually during this pass.
+
+6. **Stub-bib generation** — extract missing keys from `paper.log` with grep, generate `@misc{}` stub entries, append to `references.bib`. This lets the paper compile while you (or an agent) fills in real entries later.
+
+7. **Fix `\citeauthor{}` errors** — if plain BibTeX (not natbib) is used, `\citeauthor{}` is undefined. Replace with `\cite{}` using:
+   ```python
+   tex = re.sub(r'\\citeauthor\{([^}]+)\}(?:~\\cite\{\1\})?', r'\\cite{\1}', tex)
+   ```
+
+8. **Fix tabular column count drift** — if parallel agents produce tables with mismatched column specs (e.g., `{llp{7cm}}` for 3 columns but 4 cells in a row), grep for `Misplaced \noalign` or `Extra alignment tab` in the log. Fix by adding or removing column spec letters.
+
+9. **Final compile** — `pdflatex + bibtex + pdflatex×2`. Verify: `grep "^!" paper.log` → 0, `grep "??" paper.log` → 0, `pdfinfo paper.pdf | grep Pages` → expected page count.
+
+10. **Build script** — use the Scylla pattern: `pdflatex + bibtex + pdflatex + pdflatex` (4 runs total). Copy `~/ProjectScylla/docs/arxiv/haiku/build.sh` verbatim; it handles the exact sequencing. Required preamble directive: `\pdfoutput=1` for arXiv compatibility.
+
+### Optional Phase: Post-Assembly Citation and Verdict Cleanup
+
+Run after the assembly phase when the assembled paper contains inline arXiv hrefs, scattered verdict codes, unescaped underscores in `\texttt{}`, or duplicate bib entries from parallel agents.
+
+**Step C1: Remove inline arXiv hrefs from paper body**
+
+```python
+import pathlib, re
+
+tex = pathlib.Path("paper.tex").read_text(encoding="utf-8")
+
+# Pattern 1 — Mixed \href{arxiv}{text\cite{key}}: strip \href wrapper, keep inner content
+tex = re.sub(
+    r'\\href\{https://arxiv\.org/abs/[^}]+\}\{([^}]*(?:\\cite\{[^}]+\}[^}]*)?)\}',
+    r'\1',
+    tex
+)
+
+# Pattern 2 — Bare arXiv ID list items: \href{https://arxiv.org/abs/NNNN.NNNNN}{arXiv:NNNN.NNNNN}
+tex = re.sub(
+    r'\\href\{https://arxiv\.org/abs/(\d{4}\.\d+)\}\{arXiv:\d{4}\.\d+\}',
+    r'arXiv:\\texttt{\1}',
+    tex
+)
+
+# Pattern 3 — Domain-only link: \href{https://arxiv.org}{arXiv} → arXiv
+tex = tex.replace(r'\href{https://arxiv.org}{arXiv}', 'arXiv')
+
+pathlib.Path("paper.tex").write_text(tex, encoding="utf-8")
+print("arXiv href cleanup done")
+```
+
+Verification: `grep -c 'arxiv.org' paper.tex` → 0
+
+**Step C2: Consolidate verdict codes into Future Work section**
+
+- Grep for PURSUE/INVESTIGATE/DEPRIORITIZE in body text (not table cells):
+  ```bash
+  grep -n 'PURSUE\|INVESTIGATE\|DEPRIORITIZE' paper.tex
+  ```
+- In body paragraphs: replace with neutral prose (high-priority, candidate for investigation, lower-priority)
+- In table rows: replace with `\textbf{P}`/`\textbf{I}`/`\textbf{D}` + footnote pointing to Future Work section
+- Create new `\section{Future Work and Implementation Verdicts}` with:
+  - `\description` list defining P/I/D
+  - `longtable` per tier (PURSUE / INVESTIGATE / DEPRIORITIZE)
+  - Recommended Implementation Sequence as `\enumerate`
+- Remaining PURSUE/INVESTIGATE/DEPRIORITIZE count after cleanup = only Future Work section headings (intentional)
+- **Package requirement:** Check `\usepackage{longtable}` and `\usepackage{booktabs}` in preamble before adding the Future Work section — `longtable` for the environment, `booktabs` for `\toprule`/`\midrule`/`\bottomrule`
+
+**Step C3: Fix `\texttt{}` underscore escaping in research doc pointer lines**
+
+Agents adding `\textit{Full analysis: \texttt{research_X_Y_*.md}}` produce unescaped `_` inside `\texttt{}`. LaTeX interprets `_` as subscript → "Missing $ inserted" errors.
+
+```python
+import pathlib, re
+
+tex = pathlib.Path("paper.tex").read_text(encoding="utf-8")
+
+# First, fix any double-escaping from previous agent passes (\\_  →  \_)
+# Check: cat -A paper.tex | grep 'texttt' to see actual bytes
+tex = tex.replace('\\\\_', '\\_')
+
+# Then escape remaining bare underscores inside \texttt{} on research doc pointer lines
+def escape_texttt_underscores(m):
+    inner = m.group(1)
+    # Only escape if not already escaped
+    inner = re.sub(r'(?<!\\)_', r'\\_', inner)
+    return r'\texttt{' + inner + '}'
+
+tex = re.sub(r'\\texttt\{([^}]*research[^}]*)\}', escape_texttt_underscores, tex)
+pathlib.Path("paper.tex").write_text(tex, encoding="utf-8")
+print("texttt underscore escaping done")
+```
+
+**Critical:** `\verb|...|` does NOT work inside `\textit{}` — causes "\\verb ended by end of line" errors. Always use `\texttt{research\_X\_Y\_slug.md}` with explicitly escaped underscores.
+
+**Step C4: Deduplicate bib entries introduced by parallel agents**
+
+Parallel merge agents each add their own stubs with uppercase cite keys (e.g., `Banino2021PonderNet`). Original bib has lowercase versions (`banino2021pondernet`) — bibtex reports "Case mismatch" and "Repeated entry".
+
+```bash
+# Find duplicate keys (case-insensitive)
+grep -i '^@' references.bib | grep -oP '(?<=\{)[^,]+' | sort -fi | uniq -di
+
+# Remove uppercase duplicate entries from .bib (keep original lowercase entries)
+# Also remove bare % comment lines at top of .bib that bibtex tries to parse as entries
+
+# After editing .bib, ALWAYS clear intermediate files before rebuild:
+rm -f paper.aux paper.bbl paper.blg
+pdflatex -interaction=nonstopmode paper.tex
+bibtex paper
+pdflatex -interaction=nonstopmode paper.tex
+pdflatex -interaction=nonstopmode paper.tex
+# Target: "Output written on paper.pdf (N pages, ...)" with zero ! errors
+```
+
+**Verification sequence after all cleanup steps:**
+
+```bash
+grep -c 'arxiv.org' paper.tex          # → 0 after href cleanup
+grep -c '\\cite{' paper.tex            # should be unchanged (all cite keys preserved)
+grep -c 'PURSUE\|INVESTIGATE\|DEPRIORITIZE' paper.tex  # → N (only Future Work section labels)
+grep -n 'PURSUE\|INVESTIGATE\|DEPRIORITIZE' paper.tex  # verify all are in \section{Future Work}
+```
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| Single agent for full 38-idea paper | One agent writes the entire paper.tex | Context exhaustion mid-paper; agent loses track of earlier sections; inconsistent LaTeX macros between ideas | Partition into 4–6 parts; each agent handles a disjoint slice of 8–10 ideas |
+| Including `\documentclass` in all part files | Each part file was a standalone compilable document | Assembly produced multiple `\documentclass` commands in paper.tex, which pdflatex rejects | Only part1 gets the full preamble; parts 2..N start from their first `\subsection` |
+| Using `\citeauthor{}` without natbib | Agent wrote `\citeauthor{key}~\cite{key}` patterns | Plain BibTeX does not define `\citeauthor`; pdflatex errors on every citation of this form | Replace all `\citeauthor{X}~\cite{X}` patterns with `\cite{X}` using Python regex before compiling |
+| Ignoring missing bib keys until final compile | Compiled twice before checking for undefined citations | With 342 missing keys, the paper generated 342 "citation undefined" warnings and suppressed all reference hyperlinks | After first compile, immediately extract missing keys and generate stubs; never let missing keys persist into final build |
+| Manual Unicode → LaTeX replacement | Fixed Unicode chars one at a time when pdflatex reported them | Slow; new occurrences appear as new ideas are added; easy to miss low-frequency chars like ± or ≈ | Run the full Python replacement dict once before the first compile; maintain the dict as a canonical artifact |
+| Trusting column spec across agents | Let each agent write its own table column spec | Agents independently chose `{llp{7cm}}` vs `{lll}` vs `{l l p{6.5cm}}` for equivalent tables; assembled paper had mismatched specs at row boundaries | Provide agents with a standard table macro or template column spec; add a post-assembly tabular audit step |
+| Not anchoring awk at `\subsection` | Used `NR > 1` to skip the first line of each part file | Part files had multiple preamble lines before the first `\subsection` — all were included | Use `awk '/^\\subsection/{found=1} found{print}'` to skip everything before the first section marker |
+| Trying to fix bib collisions by hand | Two agents independently invented the same cite key for different papers | Merged bib file had duplicate `@article{foo2024,...}` entries; BibTeX silently used first and dropped second | Each agent should use a namespaced cite-key prefix (e.g., part1_foo2024, part2_foo2024) or agree on cite keys from a shared reference list before writing |
+| Using `\verb\|...\|` for research doc pointers | Replaced `\texttt{research_X_Y.md}` with `\verb\|research_X_Y.md\|` to avoid underscore escaping | `\verb` cannot be used inside `\textit{}` — "\\verb ended by end of line" error | Use `\texttt{research\_X\_Y.md}` with explicitly escaped underscores; Python `str.replace('_', '\\_')` works |
+| Python str.replace with raw string double-escape | Used `r'\_'` in replace call to escape underscores, but multiple agent passes can double-escape to `\\_` | `\\_` renders as a literal backslash followed by underscore in LaTeX, not an escaped underscore | Check actual file bytes (`cat -A`) to distinguish `\_` from `\\_`; fix with `content.replace('\\\\_', '\\_')` |
+| Fixing bib duplicates without clearing .aux | Removed duplicate uppercase entries from .bib then ran bibtex | .aux still referenced uppercase keys from previous pdflatex run → same "Case mismatch" errors | Always `rm paper.aux paper.bbl paper.blg` before the clean rebuild cycle after bib changes |
+| Replacing verdict codes globally | Used sed to replace all `PURSUE` → `high-priority` across entire paper | Replaced the Future Work section headings too, making the section incoherent | Restrict verdict replacement to body text only; Future Work section headings/definition list must keep PURSUE/INVESTIGATE/DEPRIORITIZE as defined terms |
+
+## Results & Parameters
+
+### Verified Assembly (2026-04-14)
+
+| Parameter | Value |
+| ----------- | ------- |
+| Source parts | 4 (part1.tex through part4.tex) |
+| Total ideas | 38 (34 original + 4 new) |
+| Final paper size | 3,320 lines, ~272 KB |
+| Final page count | 102 pages |
+| BibTeX entries | 395 (53 real + 342 stubs) |
+| LaTeX errors | 0 |
+| Unresolved references | 0 |
+| Unicode chars replaced | ~40 distinct characters |
+| Compile runs | 3 (pdflatex×1 + bibtex + pdflatex×2) |
+
+### Verified Citation and Verdict Cleanup (2026-04-14)
+
+| Parameter | Value |
+| ----------- | ------- |
+| arXiv hrefs removed | All (grep -c 'arxiv.org' paper.tex → 0) |
+| Cite keys preserved | Unchanged count |
+| Verdict codes consolidated | All body occurrences → Future Work section only |
+| Bib duplicates removed | Uppercase agent-generated stubs removed; lowercase originals kept |
+| Clean rebuild | rm paper.aux paper.bbl paper.blg → pdflatex → bibtex → pdflatex → pdflatex |
+| Final LaTeX errors | 0 |
+
+### Assembly Command (copy-paste)
+
+```bash
+# Given: part1.tex (lines 1-717 are preamble+section1-2), part2.tex, part3.tex, part4.tex
+head -717 part1.tex > paper.tex
+printf '\n\\section{Detailed Analyses of Candidate Mechanisms}\n\\label{sec:analyses}\n' >> paper.tex
+awk '/^\\subsection/{found=1} found{print}' part2.tex >> paper.tex
+awk '/^\\subsection/{found=1} found{print}' part3.tex >> paper.tex
+cat part4.tex >> paper.tex
+wc -l paper.tex  # sanity check
+```
+
+### Stub BibTeX Generator (copy-paste)
+
+```python
+import re, pathlib
+
+log = pathlib.Path("paper.log").read_text()
+bib = pathlib.Path("references.bib").read_text()
+existing_keys = set(re.findall(r'@\w+\{([^,]+),', bib))
+missing = set(re.findall(r"Citation '([^']+)' on page", log)) - existing_keys
+
+stubs = []
+for key in sorted(missing):
+    stubs.append(f"@misc{{{key},\n  title={{STUB: {key}}},\n  author={{Unknown}},\n  year={{2024}},\n  note={{Auto-generated stub. Replace with real entry.}}\n}}\n")
+
+with open("references.bib", "a") as f:
+    f.write("\n" + "\n".join(stubs))
+print(f"Added {len(stubs)} stub entries (total keys now {len(existing_keys)+len(stubs)})")
+```
+
+### Clean Bib Rebuild Sequence (copy-paste)
+
+```bash
+rm -f paper.aux paper.bbl paper.blg
+pdflatex -interaction=nonstopmode paper.tex
+bibtex paper
+pdflatex -interaction=nonstopmode paper.tex
+pdflatex -interaction=nonstopmode paper.tex
+# Target: "Output written on paper.pdf (N pages, ...)" with zero ! errors
+```
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| ArchIdeas | 38-idea AI architecture research paper | 4 parallel agents, head+awk assembly, 342 stubs, 3 compile passes, 102 pages final |
+| ArchIdeas (post-assembly cleanup) | Same paper, post-assembly citation and verdict cleanup pass | Removed all arXiv hrefs, consolidated PURSUE/INVESTIGATE/DEPRIORITIZE into Future Work section, fixed \texttt{} underscore escaping, deduplicated bib entries — paper built cleanly with 0 errors after cleanup |
+
+---
+
+## Superseded from skill-arxiv-paper-publication-polish
+
+**Original date:** 2026-02-07
+**Original version:** 1.0.0
+
+~~~yaml
+name: skill-arxiv-paper-publication-polish
+description: 'Skill: arXiv Paper Publication Polish'
+category: documentation
+date: 2026-02-07
+version: 1.0.0
+user-invocable: false
+~~~
+
+# Skill: arXiv Paper Publication Polish
+
+## Overview
+
+| Item | Details |
+| ------ | --------- |
+| Date | 2026-02-07 |
+| Objective | Apply publication-ready polish to LaTeX papers based on comprehensive review feedback |
+| Outcome | Operational |
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2026-02-07 |
+| **Objective** | Apply publication-ready polish to LaTeX papers based on comprehensive review feedback |
+| **Outcome** | ✅ SUCCESS - All 5 fix categories applied, paper compiles cleanly, ready for arXiv submission |
+| **Paper** | "Taming Scylla: Measuring Cost-of-Pass in Agentic CLI Tools" |
+| **Files Modified** | 3 (paper.tex, references.bib, paper.pdf) |
+| **Changes** | +36 insertions, -343 deletions |
+
+---
+
+## When to Use This Skill
+
+Use this skill when you have:
+
+1. **Completed comprehensive paper review** with identified issues across multiple categories
+2. **LaTeX paper ready for submission** to arXiv or conference
+3. **Multiple fix categories** requiring systematic application (precision, terminology, bibliography, paths, grammar)
+4. **Need for verification** that all fixes compile correctly without breaking references
+
+**Trigger conditions**:
+- User provides structured fix list from paper review
+- Paper has passed initial review but needs publication polish
+- Need to reduce bibliography to only cited entries
+- Multiple small fixes across different sections require coordination
+
+---
+
+## Verified Workflow
+
+### 1. Parse Fix Categories
+
+Organize fixes into categories for systematic application:
+
+| Category | Examples |
+| ---------- | ---------- |
+| **Precision** | Decimal places, rounding consistency, numerical formatting |
+| **Terminology** | Standardize technical terms (containers → git worktrees) |
+| **Bibliography** | Remove uncited entries, verify all citations resolve |
+| **Paths** | Correct file glob patterns, directory structures |
+| **Grammar & Style** | Subject-verb agreement, hyphenation, capitalization, formality |
+
+### 2. Read Affected Sections
+
+```bash
+# Read paper sections in parallel for all fix locations
+# Use offset/limit for targeted reads
+Read paper.tex (lines 1040-1060)  # Tier summary table
+Read paper.tex (lines 305-320)     # Container references
+Read paper.tex (lines 855-865)     # Test infrastructure
+Read paper.tex (lines 1480-1495)   # Reproducibility paths
+Read references.bib               # Full bibliography
+```
+
+### 3. Apply Fixes Systematically
+
+**Apply by category, not by line number** to prevent errors:
+
+```bash
+# Fix 1: Precision updates (tier summary table)
+Edit: Update all CoP values to 3 decimal places
+Edit: Fix inconsistent T4 mean score (4dp → 3dp)
+
+# Fix 2: Terminology standardization
+Edit: "container" → "git worktree" (3 locations)
+Edit: Remove "Docker" from required software list
+
+# Fix 3: Bibliography cleanup
+Write: New references.bib with only 10 cited entries (was 36)
+
+# Fix 4: Path corrections
+Edit: "tests/*/test.yaml" → "tests/fixtures/tests/*/test.yaml"
+
+# Fix 5: Grammar & style polish (20+ edits)
+Edit: Subject-verb agreement fixes
+Edit: Verb form corrections ("setup" → "set up")
+Edit: Hyphenation ("top level" → "top-level")
+Edit: Capitalization ("github" → "GitHub", "mcp" → "MCP")
+Edit: Formalize informal phrases ("super useful" → "particularly useful")
+```
+
+### 4. Full Compilation Verification
+
+**Critical**: Run full LaTeX compilation cycle to verify all fixes:
+
+```bash
+cd docs/arxiv/dryrun
+
+# Full compilation cycle (required for bibliography updates)
+pdflatex -interaction=nonstopmode paper.tex
+bibtex paper
+pdflatex -interaction=nonstopmode paper.tex
+pdflatex -interaction=nonstopmode paper.tex
+
+# Verification checks
+grep -c "^!" paper.log              # Check for LaTeX errors (expect: 0)
+grep "??" paper.log | grep -v pdfTeX # Check unresolved references (expect: empty)
+ls -lh paper.pdf                     # Verify PDF generated
+grep -c "@" references.bib           # Verify bibliography count
+```
+
+### 5. Targeted Verification
+
+**Verify each fix category was applied correctly**:
+
+```bash
+# Verify precision fixes (3 decimal places for CoP)
+grep -A 10 "Tier & Pass Rate" paper.tex | grep "& 0\.[0-9][0-9][0-9] \\\\"
+
+# Verify terminology fixes (no "container" references)
+grep -n "container" paper.tex  # Expect: 0 matches
+
+# Verify path fixes (full glob patterns)
+grep -n "tests/\*/test.yaml" paper.tex  # Expect: 0 matches
+
+# Verify grammar fixes (check removed informal phrases)
+grep -n "super useful\|kitchen sink\|spit out" paper.tex  # Expect: 0 matches
+
+# Verify bibliography reduced
+wc -l references.bib  # Should be ~100 lines (was ~400)
+```
+
+### 6. Commit All Changes
+
+```bash
+git add docs/arxiv/dryrun/paper.tex
+git add docs/arxiv/dryrun/references.bib
+git add docs/arxiv/dryrun/paper.pdf  # Include regenerated PDF
+
+git commit -m "fix(paper): polish for publication readiness
+
+Apply 5 categories of fixes based on comprehensive review:
+- Precision: 3 decimal places for CoP values
+- Terminology: git worktrees, remove Docker
+- Paths: correct glob patterns
+- Grammar: formalize style, fix subject-verb agreement
+- Bibliography: reduce to 10 cited entries only
+
+Verified: compiles cleanly, 0 errors, 0 unresolved references
+
+Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
+```
+
+---
+
+## Failed Attempts & Lessons Learned
+| Attempt | Issue | Resolution |
+| --------- | ------- | ------------ |
+| See detailed notes below | Various approaches tried | Refer to documentation in this section |
+
+### ❌ Attempt: Apply fixes in line-number order
+
+**Why it failed**: Line numbers shift after each edit, causing subsequent edits to target wrong text
+
+**Lesson**: Apply fixes by category and use unique text strings for `old_string` parameter, not line numbers
+
+---
+
+### ❌ Attempt: Skip bibtex recompilation after bibliography changes
+
+**Why it failed**: Bibliography changes require full compilation cycle (pdflatex → bibtex → pdflatex × 2) to update `.bbl` file
+
+**Lesson**: Always run full 4-step LaTeX compilation when bibliography changes:
+```bash
+pdflatex → bibtex → pdflatex → pdflatex
+```
+
+---
+
+### ❌ Attempt: Use `replace_all=true` for unique strings
+
+**Why it failed**: Some terms appear in multiple contexts (e.g., "container" in text vs code listings)
+
+**Lesson**: Default to `replace_all=false` and provide sufficient context in `old_string` to make matches unique
+
+---
+
+### ⚠️ Warning: Git worktree terminology requires Docker removal
+
+**Context**: When changing "container" to "git worktree", must also remove Docker from required software list
+
+**Lesson**: Terminology changes often have cascading effects in other sections (installation requirements, tool descriptions)
+
+---
+
+### ⚠️ Warning: Bibliography .bbl file must be committed for arXiv
+
+**Context**: arXiv does not run bibtex during compilation, requires pre-compiled `.bbl` file
+
+**Lesson**: Check `.gitignore` patterns for `*.bbl` - may need to force-add for arXiv submissions
+
+---
+
+## Results & Parameters
+
+### Compilation Results
+
+```
+LaTeX Compilation: SUCCESS
+- Errors: 0
+- Unresolved references: 0
+- PDF size: 494KB
+- Page count: 32 pages
+- Compilation time: ~8 seconds (full cycle)
+```
+
+### Fix Application Summary
+
+| Category | Edits | Impact |
+| ---------- | ------- | -------- |
+| Precision | 8 | CoP values 2dp → 3dp, T4 score 4dp → 3dp |
+| Terminology | 4 | "container" → "git worktree", remove Docker |
+| Bibliography | 1 | 36 entries → 10 cited entries (-307 lines) |
+| Paths | 2 | Add "fixtures/tests/" to glob patterns |
+| Grammar & Style | 15+ | Formalize tone, fix agreement, standardize hyphenation |
+
+### Verification Checklist Results
+
+- ✅ No LaTeX errors (`grep -c "^!" paper.log` = 0)
+- ✅ No unresolved references (`grep "??" paper.log` empty)
+- ✅ PDF generated (494KB)
+- ✅ Bibliography reduced (10 entries)
+- ✅ Container references removed (0 matches)
+- ✅ Glob paths corrected (0 old patterns)
+- ✅ Grammar fixes applied (0 informal phrases)
+- ✅ Pre-commit hooks passed
+
+### File Changes
+
+```
+ docs/arxiv/dryrun/paper.tex      |  66 +++----
+ docs/arxiv/dryrun/references.bib | 313 +------------------------------
+ docs/arxiv/dryrun/paper.pdf      | Bin 505761 → 505883 bytes
+ 3 files changed, 36 insertions(+), 343 deletions(-)
+```
+
+---
+
+## Copy-Paste Configuration
+
+### LaTeX Compilation Pipeline
+
+```bash
+# Full compilation cycle (required after bibliography changes)
+cd docs/arxiv/dryrun
+pdflatex -interaction=nonstopmode paper.tex
+bibtex paper
+pdflatex -interaction=nonstopmode paper.tex
+pdflatex -interaction=nonstopmode paper.tex
+```
+
+### Verification Commands
+
+```bash
+# Error checking
+grep -c "^!" paper.log                    # LaTeX errors (expect 0)
+grep "??" paper.log | grep -v pdfTeX       # Unresolved refs (expect empty)
+
+# Fix verification
+grep -n "container" paper.tex              # Terminology (expect 0)
+grep -n "tests/\*/test.yaml" paper.tex     # Paths (expect 0)
+grep -c "@" references.bib                 # Bibliography count
+
+# Grammar verification
+grep -n "do not apply\|setup the\|top level\|github hash\|Sub-tests" paper.tex
+grep -n "super useful\|figuring out\|kitchen sink\|hands out\|spit out" paper.tex
+```
+
+### arXiv Submission Checklist
+
+```bash
+# Required files for arXiv submission
+- paper.tex              # Main source
+- paper.bbl              # Pre-compiled bibliography (REQUIRED)
+- 00README.json          # arXiv configuration
+- figures/*.pdf          # Only PDFs referenced in paper
+- tables/*.tex           # Only tables \input'ed in paper
+
+# Files to EXCLUDE from arXiv submission
+- *.aux, *.blg, *.log, *.out  # Build artifacts
+- references.bib         # Not needed (use paper.bbl instead)
+- data/, raw/, archives/  # Source data (optional supplementary)
+```
+
+---
+
+## Related Skills
+
+- `paper-final-review` - Comprehensive 10-category GO/NO-GO review before polish
+- `latex-compilation-debug` - Troubleshoot LaTeX compilation errors
+- `bibliography-cleanup` - Remove uncited references from .bib files
+
+---
+
+## Success Metrics
+
+- **Compilation success rate**: 100% (0 errors, 0 warnings critical)
+- **Fix application rate**: 100% (all 5 categories applied, verified)
+- **Bibliography reduction**: 72% (36 → 10 entries, -307 lines)
+- **Pre-commit pass rate**: 100% (all hooks passed)
+
+---
+
+## Notes
+
+- This skill assumes you have a **structured fix list** from a prior review (see `paper-final-review` skill)
+- **Always run full compilation cycle** after bibliography changes (4-step process)
+- **Verify each fix category** independently before committing
+- **Include regenerated PDF** in commit to reflect all changes
+- For large papers (>50 pages), consider splitting fix categories into separate commits
+
+---
+
+## Superseded from paper-final-review-publication-readiness-workflow
+
+**Original date:** 2026-03-19
+**Original version:** 1.0.0
+
+~~~yaml
+name: paper-final-review-publication-readiness-workflow
+description: Paper Final Review - Publication Readiness Workflow
+category: documentation
+date: 2026-03-19
+version: 1.0.0
+user-invocable: false
+~~~
+
+# Paper Final Review - Publication Readiness Workflow
+
+## Overview
+
+| Attribute | Value |
+| ----------- | ------- |
+| Date | 2026-02-07 |
+| Objective | Validate academic paper against experimental data across 10 categories for publication readiness |
+| Outcome | ✅ Success - Paper ready for publication after 5 minor fixes |
+| Context | Final comprehensive review after multiple validation sessions (50+ prior fixes applied) |
+| Paper | "Taming Scylla" - AI agent evaluation framework with N=1 dryrun results |
+
+## When to Use This Skill
+
+Use this workflow when:
+
+1. **Final publication check** - Paper has been through multiple reviews and needs final GO/NO-GO assessment
+2. **Post-validation cleanup** - Previous automated/manual validation passes completed, need human-level polish
+3. **Reproducibility verification** - Need to verify paths, commands, and instructions match actual repository structure
+4. **Multi-category assessment** - Need comprehensive review across numerical accuracy, clarity, grammar, formatting, citations, reproducibility, figures, scientific rigor, and completeness
+5. **N=1 or pilot studies** - Papers with limited sample size requiring careful claim scoping
+
+**Do NOT use for:**
+- Initial drafts (use simpler validation workflows first)
+- Major structural rewrites (this is for polish, not reorganization)
+- Papers without experimental data to verify against
+
+## Verified Workflow
+
+### Phase 1: Establish Ground Truth
+
+1. **Identify raw data location** - Locate experimental output directory
+   ```bash
+   # Example: ~/fullruns/test001-dryrun/
+   # Contains: result.json, per-tier data, judge scores, timing logs
+   ```
+
+2. **Extract all numerical claims from paper** - Use structured extraction:
+   - Tier scores (T0-T6)
+   - Cost metrics (CoP values)
+   - Token counts (input/output/cache by tier)
+   - Timing values (latency, wall-clock, duration)
+   - Statistical values (correlations, alpha scores, ratios)
+   - Percentages and ranges
+
+3. **Cross-reference every number** - Verify against ground truth:
+   - Use exact file paths from data directory
+   - Document calculation method for derived values (ratios, percentages)
+   - Accept minor rounding differences (3 decimal places in text vs 2 in tables)
+
+### Phase 2: Category-by-Category Review
+
+Use this 10-category rubric with GO/CONDITIONAL GO/NO-GO grading:
+
+| # | Category | What to Check |
+| --- | ---------- | --------------- |
+| 1 | Numerical Accuracy | All numbers match data sources within rounding tolerance |
+| 2 | Internal Consistency | Terminology consistent, sections cross-reference correctly, methodology matches implementation |
+| 3 | Clarity & Readability | Logical flow, jargon explained, abstractions introduced before use |
+| 4 | Grammar & Spelling | Verb agreement, missing words, typos |
+| 5 | LaTeX Formatting | Compiles cleanly, figures resolve, math renders, cross-refs work |
+| 6 | Citations & References | BibTeX entries complete, all citations resolve, no missing author/key fields |
+| 7 | Reproducibility | Paths match repository structure, commands are copy-pasteable, software versions specified |
+| 8 | Figures & Tables | All render correctly, captions descriptive, referenced in text |
+| 9 | Scientific Rigor | Claims scoped to data, limitations acknowledged, uncertainty quantified |
+| 10 | Completeness | All major sections present, no TODOs or placeholders |
+
+### Phase 3: Document Issues with Precision
+
+For each issue found:
+
+```markdown
+**Issue Category: [Category Name]**
+
+**Location**: Line XXX or section reference
+**Severity**: NO-GO (blocks publication) / CONDITIONAL GO (polish) / MINOR (optional)
+**Current**: [exact text from paper]
+**Should be**: [corrected text]
+**Justification**: [why this matters, reference to data if applicable]
+```
+
+### Phase 4: Implement Fixes
+
+**Critical Pattern**: Fix all issues in a single commit/PR
+
+1. Read relevant sections to verify current state
+2. Apply all fixes using Edit tool (preserves line numbers better than Write)
+3. For BibTeX: Read first, then Edit (Write tool requires prior Read)
+4. Compile paper to verify: `cd docs && pdflatex -interaction=nonstopmode paper.tex && bibtex paper && pdflatex ... && pdflatex ...`
+5. Verify fixes: `grep -n "pattern1\|pattern2\|pattern3" paper.tex` should return 0 matches
+6. Check PDF: page count unchanged, file size reasonable
+
+### Phase 5: Create Implementation Plan
+
+Structure the plan document with:
+
+```markdown
+## Overall Assessment
+- Grade: GO / CONDITIONAL GO / NO-GO
+- Critical issues: [count]
+- Minor issues: [count]
+- Estimated fix time: [realistic estimate]
+
+## Review Categories
+[For each category: Grade, Justification, Issues Found, Verification Results]
+
+## Implementation Plan (Fixes)
+- Files to Modify: [list]
+- Fix 1: [description with old/new text]
+- Fix 2: [description with old/new text]
+- ...
+- Verification Steps: [checklist]
+
+## Checklist for Publication Readiness
+- [ ] All NO-GO issues resolved
+- [ ] All CONDITIONAL GO issues addressed
+- [ ] Final compilation successful
+- [ ] PDF reviewed
+- [ ] Co-authors acknowledged
+- [ ] Repository links functional
+```
+
+## Failed Attempts & Lessons Learned
+| Attempt | Issue | Resolution |
+| --------- | ------- | ------------ |
+| See detailed notes below | Various approaches tried | Refer to documentation in this section |
+
+### ❌ Don't assume file paths are correct without verification
+
+**What happened**: Paper listed model config paths as `claude-opus-4.5.yaml` (dots) but actual files use `claude-opus-4-5.yaml` (dashes). Also test path was `tests/001-hello-world` instead of `tests/fixtures/tests/test-001`.
+
+**Why it failed**: Copy-paste from outdated notes, didn't verify against actual directory structure.
+
+**Solution**: Always verify reproducibility paths with actual repository:
+```bash
+ls -la config/models/  # Check actual filenames
+ls -la tests/fixtures/tests/  # Verify test structure
+```
+
+### ❌ Don't use Write tool for BibTeX without reading first
+
+**What happened**: First attempt to edit `references.bib` failed with "File has not been read yet" error.
+
+**Why it failed**: Edit tool requires prior Read to establish baseline.
+
+**Solution**: Always Read → Edit pattern for bibliography files.
+
+### ⚠️ Be careful with precision inconsistencies
+
+**What happened**: Table showed CoP as $0.07/$0.25 (2 decimals) but text said $0.065/$0.247 (3 decimals). Both were technically correct but inconsistent.
+
+**Why it matters**: Readers may question data quality if precision varies across document.
+
+**Solution**: Document as "not blocking but inconsistent" - let author decide if they want to unify precision.
+
+### ✅ Use grep verification after all fixes
+
+**What worked**: After applying all edits, ran:
+```bash
+grep -n "Section 10\|15+\|agreement improve" docs/paper.tex
+```
+Zero matches confirmed all issues resolved. This catches any missed occurrences or typos in fix application.
+
+## Results & Parameters
+
+### Session Context
+
+- **Previous validation sessions**: 4+ prior passes (paper-validation-workflow, academic-paper-validation, academic-paper-review, academic-paper-qa)
+- **Prior fixes applied**: 50+ numerical corrections, median→mean methodology change, grammar/typos, LaTeX formatting
+- **This session**: Final comprehensive 10-category review
+
+### Issues Found (5 minor, 0 critical)
+
+1. **Grammar** (line 1130): "agreement improve" → "agreement should improve"
+2. **LaTeX cross-reference** (lines 820, 1210): Hardcoded "Section 10" → `\ref{sec:further}`
+3. **Clarity** (line 422): Ambiguous "15+" → exact "15"
+4. **BibTeX** (references.bib): Missing author field → `author={Anand Tyagi}`
+5. **Reproducibility paths** (lines 1302-1304, 1331): Incorrect file paths → corrected to match repository structure
+
+### Compilation Verification
+
+```bash
+cd docs
+pdflatex -interaction=nonstopmode paper.tex
+bibtex paper
+pdflatex -interaction=nonstopmode paper.tex
+pdflatex -interaction=nonstopmode paper.tex
+
+# Results:
+# - 0 compilation errors ✅
+# - 0 BibTeX warnings ✅  (down from 1)
+# - 29 pages (unchanged) ✅
+# - 485KB PDF ✅
+```
+
+### Fix Verification Commands
+
+```bash
+# Verify no remaining issues
+grep -n "Section 10\|15+\|agreement improve" docs/paper.tex
+# Expected: 0 matches ✅
+
+# Verify PDF generated
+ls -lh docs/paper.pdf
+# Expected: ~485KB, recent timestamp ✅
+
+# Verify page count unchanged
+pdfinfo docs/paper.pdf | grep Pages
+# Expected: Pages: 29 ✅
+```
+
+## Key Takeaways
+
+1. **Reproducibility paths are often wrong** - Authors write docs from memory, not by checking actual files. Always verify with `ls` commands.
+
+2. **Final reviews should be comprehensive but scoped** - Use 10-category rubric for complete coverage, but grade each category independently (GO/CONDITIONAL/NO-GO).
+
+3. **Fix everything in one commit** - Multiple validation passes are expensive. Once final review is done, apply all fixes atomically.
+
+4. **Precision inconsistencies are common** - Tables often use different decimal places than text. Document but don't necessarily block on this.
+
+5. **Post-fix verification is critical** - Run grep patterns, check compilation, verify PDF. Don't assume edits worked correctly.
+
+6. **N=1 papers need careful claim scoping** - Review should verify that claims are appropriately hedged ("consistent with", "preliminary support", not "proves" or "demonstrates").
+
+## Reusable Templates
+
+### Review Assessment Template
+
+```markdown
+## [Category Name]
+
+**Grade: ✅ GO / ⚠️ CONDITIONAL GO / ❌ NO-GO**
+
+**Justification:** [1-2 sentences]
+
+**Verification Results:**
+- [Item 1]: [Status] ✅/❌
+- [Item 2]: [Status] ✅/❌
+
+**Issues Found:**
+1. **Line XXX**: [Description] - [Current] → [Should be]
+
+**Recommended Actions:**
+- [Action 1]
+- [Action 2]
+```
+
+### Fix Implementation Template
+
+```bash
+# Fix 1: [Short description]
+# Old: [exact old text]
+# New: [exact new text]
+
+# Fix 2: [Short description]
+# Old: [exact old text]
+# New: [exact new text]
+```
+
+## Related Skills
+
+- `paper-validation-workflow` - Automated numerical validation against data
+- `academic-paper-validation` - Structured validation framework
+- `academic-paper-review` - Peer review simulation
+- `academic-paper-qa` - Q&A based validation
+
+## Success Criteria
+
+- [ ] All 10 categories assessed with GO/CONDITIONAL GO/NO-GO grades
+- [ ] Every numerical claim verified against ground truth data
+- [ ] All reproducibility paths verified against actual repository structure
+- [ ] All fixes applied in single atomic commit
+- [ ] Paper compiles with 0 errors and 0 warnings
+- [ ] PDF generated with expected page count
+- [ ] Grep verification confirms all issues resolved
+- [ ] Overall assessment document created with clear GO/NO-GO recommendation
+
+---
