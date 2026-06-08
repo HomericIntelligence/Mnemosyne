@@ -2,6 +2,16 @@
 
 # Changelog: mojo-ci-runtime-crash-diagnosis-and-mitigation
 
+## v1.1.0 (2026-06-07)
+
+Restore source-code-bug-knowledge block (nuance audit pass 2). Added section F
+("Source-Code Bug Root Causes — Check Before Assuming JIT Flakiness") covering the 3
+non-compiler root causes (double-free from synthesized shallow `__copyinit__`, broken
+`fetch_add` spinlock → CAS, bitcast UAF surviving ASAP destruction), the ASAP-destruction
+`data_ptr` fix, the `@always_inline` anti-pattern table, ADR-009 splitting rules + `fn main`
+deprecation, and the bitcast-UAF `tensor.set()` replacement rule. Added 4 corresponding
+Failed Attempts rows.
+
 ## v1.0.0 (2026-06-07)
 
 Initial consolidation. Merged 6 overlapping skills into one canonical:
