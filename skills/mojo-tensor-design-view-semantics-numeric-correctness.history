@@ -2,6 +2,14 @@
 
 # History: mojo-tensor-design-view-semantics-numeric-correctness
 
+## v1.1.0 (2026-06-07)
+
+Restore concatenate non-zero-axis caveat (nuance audit pass 2): document that
+`concatenate()` is stride-fixed only on the `actual_axis == 0` branch; the general
+(non-zero axis) branch still uses raw flat-offset memcpy and is knowingly unfixed
+(issue #4083). Added a clarifying sentence in the stride-access workflow and a
+`## Failed Attempts` row so the canonical no longer implies concatenate is fully fixed.
+
 ## v1.0.0 (2026-06-07)
 
 Initial canonical merged from 7 skills:

@@ -3,7 +3,7 @@ name: mojo-tensor-design-view-semantics-numeric-correctness
 description: "Use when: (1) designing ExTensor/AnyTensor types with parametric dtypes, view semantics, and stride-aware slices, (2) implementing or debugging zero-copy view operations (transpose, slice, ravel) for stride-aware tensor access, (3) diagnosing silent correctness bugs in tensor numeric operations (strided layout, dtype mismatch, bitcast corruption, NaN hashing), (4) adding NumPy-style truncation to Mojo tensor __str__ methods, (5) fixing DataLoader N-D batch slicing or shape assumptions, (6) SIMD-vectorizing element-wise tensor ops in Mojo for throughput gains, (7) adding Apple Silicon BF16 runtime guards to dtype/precision factory methods, (8) implementing or testing __hash__ on Mojo tensors with float/int fields and empty-tensor edge cases."
 category: architecture
 date: 2026-06-07
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 history: mojo-tensor-design-view-semantics-numeric-correctness.history
 tags:
@@ -146,6 +146,11 @@ Audit `as_contiguous()`, `concatenate()`, `tile()`, `repeat()`, `broadcast_to()`
 `permute()`, `reshape()`, `stack()`. Regression test: `arange(0..12).reshape(3,4)`,
 transpose, then assert all 12 element values — a test that only checks `is_contiguous()`
 and `_strides` will NOT catch the bug. Contiguify flat-buffer kernels (matmul) on input.
+
+`concatenate()` is only **partially** stride-fixed: the stride-based decomposition above
+covers the `if actual_axis == 0` branch only. The general-axis branch (non-zero
+`actual_axis`) still uses raw flat-offset memcpy and is a knowingly-unfixed flat-offset bug
+scoped out by design in issue #4083 — do NOT present `concatenate()` as fully fixed for all axes.
 
 #### 3. Safe Load/Store API (eliminate bitcast UAF)
 
@@ -322,6 +327,7 @@ Confirm the stdlib symbol via `strings .pixi/envs/default/lib/mojo/std.mojopkg |
 | `Float32()` cast in `@parameter fn` | Wrapped RHS for `parallelize[]` | `Float32()` constructor raises; parallel closures cannot raise | Use non-raising `_set_float64` in parallel/`@parameter` contexts |
 | `var new_shape = self._shape` | Direct assignment of a `List[Int]` field | `List[Int]` is not `ImplicitlyCopyable` | Always `.copy()` when assigning a `List[Int]` field |
 | Fix `slice()` only, not accessors | Assumed `view_with_strides` sufficed | Transposed-view reads still used `i * dtype_size` | Non-contiguous correctness requires fixing ALL element accessors |
+| Treat `concatenate()` as fully stride-fixed | Applied the stride decomposition and assumed all axes covered | Only the `actual_axis == 0` branch was fixed; the non-zero-axis branch still uses raw flat-offset memcpy (knowingly unfixed, issue #4083) | Document partial fixes explicitly; concatenate is stride-correct on axis 0 only |
 | Named API `get[dtype]`/`set[dtype]` | Method names on AnyTensor | Collide with existing 12 `set()` overloads | Use `load`/`store`/`data_ptr` (LLVM/SIMD terminology) |
 | `data_ptr` without `origin=MutAnyOrigin` | `UnsafePointer[Scalar[dtype]]` return | Doesn't match `_data.bitcast` origin | Include `origin=MutAnyOrigin` on returned AnyTensor pointers |
 | Missed pooling in bitcast migration | Migrated training but left `pooling.mojo` | float16 read as 4-byte float32 -> "NaN or Inf" crash | After any bitcast migration, grep the ENTIRE codebase |
