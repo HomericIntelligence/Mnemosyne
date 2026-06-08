@@ -14,6 +14,16 @@ Consolidated 4 skills into one general canonical:
 3. `skill-arxiv-paper-publication-polish` (v1.0.0, 2026-02-07)
 4. `paper-final-review-publication-readiness-workflow` (v1.0.0, 2026-03-19)
 
+## v1.1.0 (2026-06-07)
+
+Restore power-analysis/superlative/latex-verdict nuance (nuance audit pass 2):
+wired the Phase 2c pipeline power analysis (power@observed AND power@medium δ=0.3,
+null-as-small-effect vs underpower interpretation), the Phase 8 superlative-vs-aggregate
+guard, the Phase 3 table-column-semantics footnote, the \verb-in-\textit / \texttt
+underscore fix, cite-key-collision prevention, and the verdict-code Future Work longtable
+consolidation; added 2 Failed-Attempt rows (Pareto-dominance from one non-significant
+dimension; monotonicity claim without verifying data ordering).
+
 ## Superseded from academic-paper-validation
 
 **Original date:** 2026-05-05

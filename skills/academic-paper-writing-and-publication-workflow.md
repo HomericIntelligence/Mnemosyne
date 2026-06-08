@@ -1,9 +1,9 @@
 ---
 name: academic-paper-writing-and-publication-workflow
-description: "Use when: (1) assembling a large LaTeX research paper from parallel-agent-written parts and need to merge sections into a compilable .tex with unified bibliography; (2) performing pre-submission quality validation of a LaTeX paper covering data accuracy, statistical methodology, LaTeX compilation, and arXiv build preparation; (3) polishing an arXiv paper for submission — voice normalization, pronoun changes, duplicate heading removal, BibTeX deduplication, inline arXiv href removal; (4) conducting a final publication-readiness review checklist pass before camera-ready; (5) preparing a LaTeX arXiv paper for final review with a myrmidon swarm of specialist reviewers."
+description: "Use when: (1) assembling a large LaTeX research paper from parallel-agent-written parts and need to merge sections into a compilable .tex with unified bibliography; (2) performing pre-submission quality validation of a LaTeX paper covering data accuracy, statistical methodology, statistical power analysis, and arXiv build preparation; (3) polishing an arXiv paper for submission — voice normalization, pronoun changes, duplicate heading removal, BibTeX deduplication, inline arXiv href removal; (4) conducting a final publication-readiness review checklist pass before camera-ready; (5) preparing a LaTeX arXiv paper for final review with a myrmidon swarm of specialist reviewers; (6) wiring a pipeline-computed power analysis to interpret null results as small effects vs underpower; (7) consolidating scattered verdict codes into a Future Work longtable section and fixing \\verb/\\texttt underscore and cite-key-collision issues during parallel assembly."
 category: documentation
 date: 2026-06-07
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 history: academic-paper-writing-and-publication-workflow.history
 tags: [latex, arxiv, paper, publication, validation, bibtex, assembly, review, statistical-rigor, swarm]
@@ -117,6 +117,19 @@ Use when a single agent cannot write the whole paper. Partition into independent
 8. **Fix tabular column drift** — grep the log for `Misplaced \noalign` / `Extra alignment tab`; align column specs to cell counts. Give agents a shared table macro to prevent divergence.
 9. **Deduplicate bib entries** from parallel agents (uppercase vs lowercase cite keys cause "Case mismatch" / "Repeated entry"). After editing `.bib`, ALWAYS `rm -f paper.aux paper.bbl paper.blg` before the clean rebuild.
 10. **arXiv build directive**: add `\pdfoutput=1` to the preamble. Final compile is 4 runs (`pdflatex + bibtex + pdflatex + pdflatex`).
+11. **Cite-key collision PREVENTION** — two agents independently inventing the same cite key for different papers silently corrupts the merged `.bib` (BibTeX keeps the first, drops the second). Prevent it up front: give each agent a namespaced cite-key prefix (`part1_foo2024`, `part2_foo2024`) OR a shared reference list with agreed keys before they write. Do not try to fix collisions by hand after the merge.
+12. **`\verb` inside `\textit{}` breaks** — agents writing research-doc pointers as `\textit{Full analysis: \verb|research_X_Y.md|}` trigger `\verb ended by end of line`. Use `\texttt{research\_X\_Y\_slug.md}` with explicitly escaped underscores instead (`str.replace('_', r'\_')`), since bare `_` inside `\texttt{}` causes `Missing $ inserted`:
+
+    ```python
+    import re, pathlib
+    tex = pathlib.Path("paper.tex").read_text(encoding="utf-8")
+    tex = tex.replace('\\\\_', '\\_')   # first un-double-escape from prior passes
+    def esc(m): return r'\texttt{' + re.sub(r'(?<!\\)_', r'\\_', m.group(1)) + '}'
+    tex = re.sub(r'\\texttt\{([^}]*research[^}]*)\}', esc, tex)
+    pathlib.Path("paper.tex").write_text(tex, encoding="utf-8")
+    ```
+
+13. **Verdict-code consolidation** — when parallel parts scatter verdict codes (PURSUE/INVESTIGATE/DEPRIORITIZE), consolidate into one section. In **body prose** replace with neutral wording (high-priority / candidate for investigation / lower-priority); in **table cells** replace with `\textbf{P}`/`\textbf{I}`/`\textbf{D}` + a footnote pointing to the verdict section. Create a `\section{Future Work and Implementation Verdicts}` containing a `\description` list defining P/I/D, a `longtable` per tier, and an `\enumerate` implementation sequence. Requires `\usepackage{longtable}` (environment) and `\usepackage{booktabs}` (`\toprule`/`\midrule`/`\bottomrule`) in the preamble. Restrict replacement to body/table — keep the codes intact as defined terms inside the verdict section; afterward `grep -n 'PURSUE\|INVESTIGATE\|DEPRIORITIZE' paper.tex` should match only that section.
 
 #### Example B — Data accuracy and statistical methodology validation
 
@@ -134,6 +147,28 @@ Run before submission whenever the paper presents experimental results, especial
 
 4. **Multiple-comparison family size** — state Holm-Bonferroni `$m$` explicitly in captions; ensure all comparisons (incl. first→last contrast) go through the SAME `raw_p_values` list in the pipeline.
 5. **Degenerate-test framing** — a single-model Scheirer-Ray-Hare reduces to one-way Kruskal-Wallis (agent_model df=0, interaction not estimable); the paper must say so. Prefer Clopper-Pearson exact CIs over BCa bootstrap for binary data at n ≤ 15.
+5a. **Pipeline-computed power analysis (Phase 2c)** — power functions often exist but are never called from `export_data.py`, so the paper quotes hand-calculated estimates. Wire them in: import the power function, add `"power_analysis": []` to the results dict, and after the effect-sizes loop compute power at the **observed** δ AND at a **reference medium effect δ=0.3** for every adjacent-tier transition:
+
+   ```python
+   results["power_analysis"] = []   # add to results dict init
+   for model in models:
+       for i in range(len(tier_order) - 1):
+           observed_delta = next(
+               (es["cliffs_delta"] for es in results["effect_sizes"]
+                if es["model"]==model and es["metric"]=="pass_rate"
+                and es["tier1"]==tier_order[i] and es["tier2"]==tier_order[i+1]), None)
+           if observed_delta is None:
+               continue
+           results["power_analysis"].append({
+               "model": model, "metric": "pass_rate",
+               "tier1": tier_order[i], "tier2": tier_order[i+1], "n1": n1, "n2": n2,
+               "observed_delta": float(observed_delta),
+               "power_at_observed": float(mann_whitney_power(n1, n2, abs(observed_delta))),
+               "power_at_medium_0_3": float(mann_whitney_power(n1, n2, 0.3)),
+           })
+   ```
+
+   Verify with `python3 -c "import json;d=json.load(open('statistical_results.json'));print('power entries:',len(d.get('power_analysis',[])))"`. **Interpret null results correctly**: when power at medium δ=0.3 is high (0.95–0.98) a non-significant result reflects a genuinely small effect, NOT underpower — only flag transitions where power@medium is low (e.g. δ≈0.43 at n=30/15 gives power 0.37 → underpowered) as inconclusive.
 6. **Statistical language strength must match power** — hedge results, not methodology:
    - "confirms / proves / demonstrates" → "is consistent with / suggests / indicating".
    - "consistently outperform" → "outperform in aggregate" (when per-task varies).
@@ -141,6 +176,8 @@ Run before submission whenever the paper presents experimental results, especial
    - Keep "validates" for methodology/pipeline validation. Causal verbs → "is associated with" in observational designs.
 7. **Cross-reference infrastructure** — add `\label{}` to all sectioning commands; replace hardcoded "Section 4" with `Section~\ref{sec:...}`; remove manual numbering from titles; compile twice and confirm `grep -c "??" paper.log` is 0.
 8. **LaTeX compilation fixes** — Unicode→math (`$\rho$`), match tabular column counts, escape underscores in auto-generated tables at the Python write site (`criterion.replace("_", r"\_")`) AND in the static `.tex` for the immediate build; place `\appendix` before appendix content.
+8a. **Table column-semantics footnote (Phase 3)** — tables that mix per-row means with a "Total" row of absolute sums are ambiguous. When tier rows show per-run averages but the Total row shows absolute totals, add `\footnote{Token columns show per-run means for tier rows; the Total row shows absolute totals.}` to the table caption.
+8b. **Superlative-vs-aggregate check (Phase 8)** — guard against "X achieves the highest Y" when a low-n, wide-CI tier shows a spuriously higher value (e.g. T6=0.933 from 1 subtest/15 runs, CI [0.667, 1.000], vs T2=0.831 from 14 subtests/130 runs). Scope the superlative: "highest among tiers with representative coverage (T0--T4: 83.1\%, compared to T6's 93.3\% from a single subtest with wide CI [0.667, 1.000])".
 9. **Path / reproducibility** — extract archived data referenced by missing dirs; verify script paths with `ls`; for arXiv, transform ALL prefix variants (`docs/paper-dryrun/figures/` AND bare `paper-dryrun/figures/` → `figures/`). Verify build-script globs match actual file extensions (a `*.pdf` glob over PNG figures yields a tarball with zero figures even though LaTeX compiles).
 10. **Parallel swarm review** (papers >1,000 lines) — role-stratified myrmidons:
     - Coordinator (Opus): subdivide, aggregate, **independently verify every CRITICAL finding** before escalating (agents often search the wrong JSON — e.g. `cost_usd` lives only in `srh_tier_experiment.json`).
@@ -215,6 +252,8 @@ Run after validation, on a paper that has passed initial review, to apply a stru
 | Agent searched wrong JSON | Looked for `cost_usd` in `statistical_results.json` | `cost_usd` lives in `srh_tier_experiment.json` | Coordinator must check ALL data files before accepting "unverifiable" |
 | Write `.bib` without prior Read | First Edit on `references.bib` failed | Edit requires prior Read baseline | Always Read → Edit for bibliography files |
 | `gh pr merge --auto --rebase` | Followed project docs saying rebase | `Merge method rebase merging is not allowed` | Use `--squash`; branch protection requires squash auto-merge |
+| Claim Pareto-dominance from one significant dimension | Asserted "strictly Pareto-dominant" when the cost difference was non-significant (p=0.676) | Cannot claim Pareto dominance on a dimension where the null hypothesis is not rejected | When "Pareto" language appears, verify BOTH dimensions are established; a non-significant result "provides no evidence of" a difference, it does not "eliminate" one |
+| Claim "monotonic relationship" without checking ordering | Paper stated a monotonic capability-gap vs judge-agreement relationship | J2–J3 MAD (0.270) > J1–J3 MAD (0.210) despite a smaller capability gap — violates monotonicity | Before asserting monotonicity, verify the actual data ordering in the source file |
 
 ## Results & Parameters
 
@@ -249,6 +288,17 @@ Preamble: \pdfoutput=1   |   Figures: PDF ≤1.5 (arXiv may reject 1.7)
 | Taming Scylla (arXiv polish) | 5 fix categories, bib 36→10 (-307 lines), 32 pages, 0 errors/refs |
 | Taming Scylla (final review) | 10-category GO/NO-GO, 5 minor fixes atomic, 29 pages, 0 errors/warnings |
 | Haiku analysis (data/stat validation) | 60+ claims verified, caught Dunn's-vs-Mann-Whitney mislabel + 21-vs-7 comparison error, arXiv build produced |
+
+### Power-analysis reference values (interpret null results)
+
+| Transition | N1, N2 | Observed δ | Power@observed | Power@medium(0.3) |
+| ------------ | -------- | ------------ | ---------------- | ------------------- |
+| T0→T1 | 117, 83 | 0.094 | 0.20 | 0.95 |
+| T2→T3 | 130, 122 | -0.068 | 0.16 | 0.98 |
+| T4→T5 | 123, 30 | -0.313 | 0.77 | 0.73 |
+| T5→T6 | 30, 15 | +0.433 | 0.68 | 0.37 (underpowered) |
+
+Key insight: T0–T4 null results reflect genuinely small effects (power 0.95–0.98 at medium δ), not insufficient power; only δ≈0.43 at n=30/15 is underpowered.
 
 ### Pre-commit double-stage pattern
 
