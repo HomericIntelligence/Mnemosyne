@@ -1,6 +1,31 @@
 <!-- markdownlint-disable MD024 -->
 # pytest-async-mock-isolation-patterns — History
 
+## v1.3.0 (2026-06-07)
+
+**Changed by:** Session learning — PR #1060 layer 2/3 (`test_ci_driver_prs_mode.py` / `_discover_failing_prs` input-conditional path)
+**Verification:** verified-ci (PR #1060 merged 2026-06-08T03:36:07Z)
+
+### What changed
+
+- Added trigger (12) to description frontmatter: unit test for `_discover_prs([])` passes with non-empty issue list but fails in CI with empty list because empty list triggers input-conditional `_discover_failing_prs()` path that calls real `_gh_call`
+- Added When-to-Use trigger (15): same scenario in prose form
+- Added 5 new tags: `conditional-path`, `input-conditional`, `discover-failing-prs`, `options-issues-empty`, `empty-list-trigger`
+- Added bullet (7) to section G: input-conditional `_gh_call` paths — mock ALL branches reachable from the specific input under test; includes three-layer contamination peel detail and copy-paste fixture snippet
+- Added clarifying note to bullet (6) that `_drive_issue` must return a `WorkerResult` object, not `None`
+- Added 2 Failed Attempts rows: (a) testing `_discover_prs([])` with non-empty list only / not mocking `_discover_failing_prs`; (b) `_drive_issue` returning `None` crashing `run()` before ThreadPoolExecutor issues manifest
+- Added Verified On row for PR #1060 layer 2/3 (`test_ci_driver_prs_mode.py`, three-layer contamination fix)
+
+### Why
+
+PR #819 added `_discover_failing_prs()` to `ci_driver.py`. When `options.issues` is empty, `_discover_prs()` now calls `_discover_failing_prs()`, which calls real `_gh_call`. Tests that pass `issue_numbers=[661]` (non-empty) never exercise this branch — giving a false green. The five tests in `test_ci_driver_prs_mode.py` that called `_discover_prs([])` without mocking `_discover_failing_prs` all opened `_GH_BREAKER`. The input-conditional-path contamination vector (different behavior depending on what you pass, invisible until you test the right input) is a distinct trap not covered by the existing ThreadPoolExecutor section.
+
+### Previous version (v1.2.0) snapshot
+
+Section G ended at bullet (6) (ThreadPoolExecutor workers / `_drive_issue`). No bullet (7) or input-conditional content. Description had 11 triggers; When to Use had 14 entries; 5 new tags absent.
+
+---
+
 ## v1.2.0 (2026-06-07)
 
 **Changed by:** Nuance audit pass 2 — restore guard-test recipes (nuance audit pass 2)

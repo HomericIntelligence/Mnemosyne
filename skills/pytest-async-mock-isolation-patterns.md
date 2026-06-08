@@ -1,9 +1,9 @@
 ---
 name: pytest-async-mock-isolation-patterns
-description: "Use when: (1) pytest CI step times out or hangs due to asyncio event loops, epoll blocking, or runaway retry loops caused by sleep mocks; (2) an asyncio coroutine internally reassigns a global Event making pre-set fixtures ineffective; (3) writing integration tests for asyncio code that calls httpx.AsyncClient and need stateful fault injection (500/503/timeouts) via respx without nested context issues; (4) tests pass individually but fail together due to module-level singleton state (circuit breaker, cache, registry) not reset between tests; (5) a class-level patch.object becomes stale after importlib.reload() — use patch() string form; (6) FastAPI Depends() ignores a patched get_settings because the function reference was captured at import time; (7) an automation/agent-orchestration unit test reaches an invoke_claude subprocess gate that is absent in CI; (8) tests pass in isolation but fail when run after a test that mutates shared asyncio objects; (9) a mock service must simulate latency, kill, or queue-starvation side effects — not just record the fault command; (10) a test name says 'and' but only one assertion is made and a mock assertion is missing; (11) a ThreadPoolExecutor in one test spawns worker threads that outlive that test and open _GH_BREAKER after the next test's conftest autouse reset has already run — conftest reset is necessary but NOT sufficient against background threads."
+description: "Use when: (1) pytest CI step times out or hangs due to asyncio event loops, epoll blocking, or runaway retry loops caused by sleep mocks; (2) an asyncio coroutine internally reassigns a global Event making pre-set fixtures ineffective; (3) writing integration tests for asyncio code that calls httpx.AsyncClient and need stateful fault injection (500/503/timeouts) via respx without nested context issues; (4) tests pass individually but fail together due to module-level singleton state (circuit breaker, cache, registry) not reset between tests; (5) a class-level patch.object becomes stale after importlib.reload() — use patch() string form; (6) FastAPI Depends() ignores a patched get_settings because the function reference was captured at import time; (7) an automation/agent-orchestration unit test reaches an invoke_claude subprocess gate that is absent in CI; (8) tests pass in isolation but fail when run after a test that mutates shared asyncio objects; (9) a mock service must simulate latency, kill, or queue-starvation side effects — not just record the fault command; (10) a test name says 'and' but only one assertion is made and a mock assertion is missing; (11) a ThreadPoolExecutor in one test spawns worker threads that outlive that test and open _GH_BREAKER after the next test's conftest autouse reset has already run — conftest reset is necessary but NOT sufficient against background threads; (12) a unit test for a method like _discover_prs([]) passes with a non-empty issue list but fails in CI when called with an empty list — because an empty list triggers an input-conditional code path (_discover_failing_prs) that calls real _gh_call and opens the shared circuit breaker."
 category: testing
 date: 2026-06-07
-version: "1.2.0"
+version: "1.3.0"
 user-invocable: false
 history: pytest-async-mock-isolation-patterns.history
 tags:
@@ -50,6 +50,11 @@ tags:
   - action-builder
   - runner-entry-point
   - is-setup-state-guard
+  - conditional-path
+  - input-conditional
+  - discover-failing-prs
+  - options-issues-empty
+  - empty-list-trigger
 ---
 
 # Pytest Async, Mock, and Test Isolation Patterns
@@ -79,6 +84,7 @@ tags:
 12. **The same test fails identically on multiple Python versions in CI (3.10–3.13)** — a fingerprint of order-dependent shared state
 13. **`GitHubUnavailableError: GitHub API circuit breaker is open` in test B, but test B never calls a real `gh`** — test A's `ThreadPoolExecutor` workers are still running and open the breaker after the conftest autouse reset for test B has already fired
 14. **Testing a `RuntimeError`/precondition guard** (`if x is None: raise`, `result.returncode != 0`, `_is_setup` state) — nulling one field trips an *earlier* guard, or a closure guard inside an action-builder is unreachable through the state machine, or a test calls the internal delegate instead of the runner entry point
+15. **A unit test for `driver._discover_prs([])` passes with a non-empty issue list but fails in CI when called with an empty list** — because the empty-list branch calls `_discover_failing_prs()` (and optionally `_discover_bot_prs()`) which both reach real `_gh_call`; tests that never set `options.issues = []` never hit this path and give a false green
 
 ## Verified Workflow
 
@@ -267,6 +273,26 @@ A module-level singleton (`_GH_BREAKER = CircuitBreaker(fail_max=5, ...)`) keeps
 
    Mocking only the outer helpers (`_discover_prs`, `_sweep_orphaned_arming_records`) is insufficient: `run()` still dispatches `_drive_issue` into a `ThreadPoolExecutor`. A partial mock leaves real worker threads running past the test boundary.
 
+   Note: `_drive_issue` must return a `WorkerResult` object (not `None`) — `run()` calls `result.success` on the return value; returning `None` causes `AttributeError` on `NoneType` before the ThreadPoolExecutor issue even manifests.
+
+7. **Input-conditional `_gh_call` paths: mock ALL branches reachable from the input under test.** `_discover_prs(issue_numbers)` only calls `_discover_failing_prs()` when `self.options.issues` is empty (PR #819 feature: discover work from failing CI checks). A test that passes a non-empty `issue_numbers` list never triggers this branch and gives a false green. When writing or auditing tests for `_discover_prs([])` (empty list), also mock `_discover_failing_prs` — and `_discover_bot_prs` if `options.include_bot_prs=True` in the fixture — to prevent any real `_gh_call`:
+
+   ```python
+   # Every test calling _discover_prs([]) with empty issue_numbers must mock ALL
+   # input-conditional paths that reach real _gh_call:
+   with patch.object(driver, "_validate_pr_open", return_value=True):
+       with patch.object(driver, "_find_pr_for_issue", return_value=None):
+           with patch.object(driver, "_discover_failing_prs", return_value={}):
+               result = driver._discover_prs([])
+   ```
+
+   Also ensure the test fixture sets `include_bot_prs=False` (or mock `_discover_bot_prs`) — a fixture defaulting `include_bot_prs=True` activates a second real-`_gh_call` path even before `_discover_failing_prs` is reached.
+
+   The three-layer contamination peel (PR #1060, test file `test_ci_driver_prs_mode.py`):
+   - Layer 1: `_drive_issue` returned `None` → `run()` crashed on `result.success` (AttributeError). Fix: return `WorkerResult(issue_number=N, success=True)`.
+   - Layer 2: Fixture had `include_bot_prs=True` → `_discover_bot_prs` called real `_gh_call`. Fix: set `include_bot_prs=False` in fixture.
+   - Layer 3: `_discover_prs([])` with empty list → `_discover_failing_prs` called real `_gh_call`. Fix: add `patch.object(driver, "_discover_failing_prs", return_value={})`.
+
 **Run the FULL suite before declaring green.** A passing subset (`pytest tests/unit/automation` → 1174 passed) is misleading because a shared breaker's threshold is only crossed at full scope. Run what CI runs (`pytest tests/unit`). When a function gains a NEW side-effecting call (a `gh`/network/db call), audit EVERY existing test that reaches it and add the mock — an unmocked real call fails in CI's no-network sandbox, trips the shared breaker, and cascades `CircuitBreakerOpenError` into unrelated tests. Treat that cascade as a SYMPTOM: find the EARLIEST non-breaker failure (the real root cause). Background long runs rather than skipping them.
 
 | Where the singleton is tripped | Where the autouse reset belongs |
@@ -381,6 +407,8 @@ Testing `RuntimeError` precondition guards (`if x is None: raise`, `result.retur
 | Left a new side-effecting `gh` call unmocked in existing tests | Added `gh_pr_resolve_thread` to a validator existing tests exercised | Real `gh` calls fail in CI's no-network sandbox → tripped shared breaker → `CircuitBreakerOpenError` cascade | Mock the new collaborator in EVERY reaching test; the cascade is a symptom — find the earliest real failure |
 | `patch.object(imported_logger, "error")` | Asserted subprocess error logging | A sibling test's `importlib.reload()` replaced the logger; the patch targeted the stale object | Use the string form `patch("pkg.module.logger.error")` (resolves at runtime) |
 | Mock `_discover_prs` + `_sweep_orphaned_arming_records` only when testing `driver.run()` | Expected those two patches to fully contain `run()` side effects | `run()` still dispatches `_drive_issue` into a `ThreadPoolExecutor`; workers outlived the test boundary and opened `_GH_BREAKER` after the next test's conftest reset | Mock the per-item worker (`_drive_issue`) too — prevent threads from spawning entirely; the conftest autouse reset is not enough against background threads (PR #1060, commit 4ac2263) |
+| Tested `_discover_prs([])` with non-empty issue list only, declared test suite green | Tests for `_discover_prs` passed with `issue_numbers=[661]`; tests calling `_discover_prs([])` were not mocking `_discover_failing_prs` | `_discover_prs([])` takes a different code path when `options.issues` is empty (calls `_discover_failing_prs()` → real `_gh_call`); non-empty tests never exercise that branch and give a false green | Mock `_discover_failing_prs` in every test that calls `_discover_prs([])` with an empty list; also set `include_bot_prs=False` or mock `_discover_bot_prs` to block the second real-call path (PR #1060, `test_ci_driver_prs_mode.py`) |
+| Mock `_drive_issue` to `return_value=None` to stop ThreadPoolExecutor | Expected `None` return to be harmless | `run()` calls `result.success` on the return value; `None.success` raises `AttributeError` — the test fails before the ThreadPoolExecutor problem even manifests | Return a valid `WorkerResult(issue_number=N, success=True)` from the mock |
 | Manual per-test asyncio Lock init | Each test re-creates `app.state.lock` in its body | Easy to forget on new tests; forgotten tests inherit dirty state | Use `@pytest.fixture(autouse=True)` in conftest |
 | `app.state.inflight_lock.clear()` | Tried to "clear" an asyncio.Lock | asyncio.Lock has no `clear()` method | Replace the instance: `app.state.inflight_lock = asyncio.Lock()` |
 | Module-scope fixture for async state | `scope="module"` | Lock held by test 1 still held when test 2 runs | Use default function scope with `autouse=True` |
@@ -526,4 +554,5 @@ PATH="$CLEAN_PATH" pixi run pytest tests/unit/automation/ -q --no-cov
 | ProjectCharybdis | PR #88 — chaos integration tests (NATS + mock Agamemnon) | Chaos tests R02–R05 green after adding side-effect simulation |
 | HomericIntelligence | CI — `_wait_for_pr_terminal` unmocked-wait hang | Full `pytest tests/unit` hung ~16 min vs ~4 min baseline; patched the wait in all green-path tests → 1003 passed in 93 s |
 | ProjectHephaestus | PR #1060, commit 4ac2263 — ThreadPoolExecutor worker lifetime crosses test boundary; `_drive_issue` must be mocked when testing `CIDriver.run()` | `test_run_gate_does_not_abort_with_prs` was opening `_GH_BREAKER` in sibling tests via executor workers; mocking `_drive_issue` eliminated the threads; verified-ci |
+| ProjectHephaestus | PR #1060 (layer 2/3) — input-conditional `_discover_failing_prs` path in `test_ci_driver_prs_mode.py`; three-layer contamination peel | Five tests calling `_discover_prs([])` opened `_GH_BREAKER` via new PR #819 code path (empty-list → `_discover_failing_prs()`); also `include_bot_prs=True` fixture default activated `_discover_bot_prs`; also `_drive_issue` returning `None` crashed `run()` before any of that; fixed all three layers; merged 2026-06-08T03:36:07Z; verified-ci |
 | ProjectScylla | PRs #1210/#1310/#819/#1312/#1313 — RuntimeError/precondition guard tests, runner entry-point coverage, closure-guard via action builder | Parametrized multi-guard (all-valid-then-null), `side_effect=[ok, fail]` subprocess guards, `_is_setup` state guard, `actions[StateKey]()` closure invocation, runner-level zombie test; 3265 pass at 78.42% coverage |
