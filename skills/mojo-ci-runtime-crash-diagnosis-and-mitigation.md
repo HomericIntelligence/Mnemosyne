@@ -3,7 +3,7 @@ name: mojo-ci-runtime-crash-diagnosis-and-mitigation
 description: "Use when: (1) CI fails non-deterministically with 'JIT session error: Cannot allocate memory' or SIGSEGV in libKGENCompilerRTShared.so on GHA free-tier runners (VMA exhaustion from ~3.6 GB per mojo invocation), (2) auditing GHA workflows for unprotected bare 'pixi run mojo' calls and applying retry logic for JIT crash resilience, (3) validating that an upstream Mojo fix (runtime crash, codegen flag, compiler-driver bug) actually landed in a bumped nightly before removing downstream workarounds, (4) diagnosing a 'SIGILL on this host but works on others' crash using 4-layer CPU feature detection (kernel /proc/cpuinfo, raw cpuid, compiler-rt __builtin_cpu_supports, compiler driver target resolution), (5) fixing a deterministic Mojo runtime crash (exit 134) when container image UID differs from host runner UID causing Permission denied on ~/.modular, (6) understanding historically documented JIT retry patterns that are now obsolete after modular/modular#6413."
 category: ci-cd
 date: 2026-06-07
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 history: mojo-ci-runtime-crash-diagnosis-and-mitigation.history
 tags:
@@ -311,6 +311,79 @@ _ensure_writable build .pixi datasets lenet5_weights tests/configs/fixtures /tmp
 # Use ${{ steps.uid.outputs.user_id }}, NOT ${{ env.USER_ID }} (env from earlier step is unreliable).
 ```
 
+#### F. Source-Code Bug Root Causes — Check Before Assuming JIT Flakiness
+
+> **Scope note:** The compiler-level AVX-512 mis-emission bug (#6413) was fixed upstream, but
+> these are **source-code bugs** independent of #6413 and remain current guidance. A crash with
+> only runtime-library frames is NOT automatically JIT flakiness — non-determinism is often
+> explained by timing/allocation-layout variation, not compiler non-determinism. In one case
+> (ProjectOdyssey PR #5197–5204), 16 "flaky" files actually had 3 concrete source bugs.
+
+Three non-compiler root causes to rule out first:
+
+- **(a) Double-free from a synthesized shallow `__copyinit__`**: A struct marked `Copyable`
+  with `UnsafePointer` fields but no explicit `__copyinit__`, stored in a `List[T]` that
+  reallocates. Mojo synthesizes a shallow `__copyinit__` that duplicates the raw pointer; both
+  copies later call `__del__` → double-free. Fix: write an explicit deep `__copyinit__`.
+- **(b) Broken `fetch_add` spinlock**: `SpinLock.lock()` implemented via `fetch_add` to "claim"
+  the lock. `fetch_add` is atomic and returns the previous value, but the add and the
+  subsequent conditional branch are not atomic together, so two threads can both observe a free
+  lock and both enter the critical section. Fix: use CAS / `compare_exchange_weak`.
+- **(c) Bitcast UAF from an alias surviving ASAP destruction**: Writing tensor data via
+  `tensor._data.bitcast[T]()[i] = val` creates a pointer alias. Mojo's ASAP (As Soon As
+  Possible) destruction may destroy `tensor` before all writes through the bitcast alias
+  complete → dangling write. Fix below.
+
+**ASAP-destruction fix — acquire `data_ptr[dtype]()` before the loop** to keep the source
+tensor alive (crash *before* output = VMA / JIT volume; crash *after* output = ASAP UAF):
+
+```mojo
+# BEFORE (DANGEROUS — ASAP destruction UAF):
+var output_plus = forward_fn(input_copy_plus)
+var output_minus = forward_fn(input_copy_minus)
+for j in range(output_plus.numel()):
+    var diff = output_plus._get_float64(j) - output_minus._get_float64(j)
+
+# AFTER (SAFE — deriving data_ptr keeps the tensor alive across the loop):
+var out_plus_ptr = output_plus.data_ptr[dtype]()
+var out_minus_ptr = output_minus.data_ptr[dtype]()
+for j in range(output_plus.numel()):
+    var diff = Float64(out_plus_ptr[j]) - Float64(out_minus_ptr[j])
+```
+
+**Bitcast-UAF replacement rule:** replace `tensor._data.bitcast[T]()[i] = val` with
+`tensor.set(i, T(val))`.
+
+**`@always_inline` anti-pattern** — adding it to large branching methods DRAMATICALLY worsens
+JIT crashes. If CI crashes get *worse* after a change, `git diff` for `@always_inline` additions.
+
+| Method characteristics | `@always_inline` safe? |
+| --- | --- |
+| Small body (1-3 lines), compile-time params | Yes |
+| Large body (10+ lines), runtime branching | NO |
+| Called in tight loops (100+ times) | Risky — test thoroughly |
+| Has 5+ if/elif branches | NO |
+
+**ADR-009 — test-file splitting + `fn main` deprecation:** heap corruption appears at a
+threshold of **15 cumulative test-function executions** within one JIT process session
+(CI-only crashes that pass locally are characteristic — CI runs integration tests
+sequentially). Split rules:
+
+| Rule | Detail |
+| --- | --- |
+| Max functions per file | 10 |
+| Part file naming | `test_<base>_part1.mojo`, `test_<base>_part2.mojo`, ... |
+| Import block | Copy the FULL import block verbatim to every part file |
+| main entrypoint | MUST use `def main() raises:` (not `fn main()`) for Mojo 0.26.3+ |
+| CI glob | Update to `test_*_part*.mojo` |
+
+```bash
+# After splitting, globally fix the deprecated entrypoint in each new part file:
+for f in $(find . -name "test_*_part*.mojo"); do
+  sed -i 's/fn main() raises:/def main() raises:/g' "$f"
+done
+```
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -326,6 +399,9 @@ _ensure_writable build .pixi datasets lenet5_weights tests/configs/fixtures /tmp
 | Classified the UID crash as non-deterministic JIT flakiness | Closed it as unfixable JIT noise; local tests at UID 1000 passed | Crash was 100% deterministic at the CI UID; warm-cache local UID-1000 runs masked it | Always reproduce at the exact CI runner UID before calling a crash flaky |
 | `MODULAR_HOME=/tmp/.modular` to redirect the startup check | Set the env var to move `.modular` | `libAsyncRTMojoBindings.so` reads `$HOME/.modular` directly via native C++ before any env handling | Fix permissions or pre-create the dir / redirect `$HOME`; env-var redirect does not affect the native call |
 | Non-recursive `chown` in `_ensure_writable` | `sudo chown $(id -u):$(id -g) "$dir"` without `-R` | Existing root-owned subdirs (`build/release/`) stayed root:root; linker still failed | Use `chown -R` when reclaiming a tree that may contain root-owned children; use `sudo -n` (plain sudo blocks on `exec -T`) and include `/bin/mkdir` in the NOPASSWD grant |
+| Assumed crash = JIT flake (closed/retried) | Closed/retried 16 crashing test files without investigating | The 16 files had 3 concrete source bugs: double-free from a synthesized shallow `__copyinit__`, a broken `fetch_add` spinlock, and a bitcast UAF — non-determinism came from timing/allocation layout, not the compiler | Check for double-free, broken locks, and bitcast UAF (section F) before concluding JIT instability |
+| `@always_inline` to fix bitcast/heap crashes | Applied `@always_inline` to a 15+ line, 5+ branch method | All six test groups failed or worsened — inlining increased JIT compilation volume at every call site (ProjectOdyssey PR #5099) | `@always_inline` is an anti-pattern for large branching bodies; if CI crashes worsen, `git diff` for `@always_inline` additions |
+| `fn main() raises:` in new ADR-009 split files | Wrote all new part files with `fn main()` | Mojo 0.26.3 deprecated `fn main()`; CI failed with a parse error on every new file | After any split on Mojo 0.26.3+, globally replace `fn main() raises:` with `def main() raises:` |
 
 ## Results & Parameters
 
