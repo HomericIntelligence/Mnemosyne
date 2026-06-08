@@ -5,6 +5,21 @@
 This file preserves the full verbatim content of the skills consolidated into
 `gha-workflow-authoring-pitfalls`, kept for provenance and reference.
 
+## v1.1.0 (2026-06-07)
+
+**Changed by**: session debugging `update-marketplace.yml` create-PR org block
+**Verification**: verified-ci
+
+**What changed**: Added pitfall #6 "GitHub Actions blocked from creating PRs by org policy" —
+diagnosis commands (repo vs org `actions/permissions/workflow`), the two-distinct-settings nuance
+(`can_approve_pull_request_reviews` create-PR toggle vs `default_workflow_permissions` read/write
+default, with the 409 "Write permissions disabled by org" being a red herring), three fixes
+(org toggle / scoped PAT-or-App token / direct commit to main), and the definitive validation
+method (force a real artifact change so the create-PR step fires, then confirm a PR was actually
+created — a green run alone is not proof). Added a Quick Reference row, three Failed Attempts rows,
+a Results & Parameters bullet, an extended `description` trigger (6), and a ProjectMnemosyne
+Verified On row (PR #2261). Bumped version 1.0.0 → 1.1.0; added `verification: verified-ci`.
+
 ## v1.0.0 (2026-06-07)
 
 Consolidated the following 5 skills into the canonical `gha-workflow-authoring-pitfalls`:

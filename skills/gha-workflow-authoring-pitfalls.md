@@ -1,9 +1,10 @@
 ---
 name: gha-workflow-authoring-pitfalls
-description: "Use when: (1) a workflow file is silently ignored or produces 0 jobs due to invalid YAML job IDs (forward slashes), (2) a composite-action input description contains ${{ }} expressions that get evaluated unexpectedly, (3) a security hook blocks editing a workflow run: block because of a ${{ }} injection sink — and you need the env-var-lift pattern, (4) documenting platform asymmetries (Linux-only, macOS-skipped) in workflow header comments, (5) a WorkflowDispatch or PreToolUse hook fires on an edit to .github/workflows/*.yml."
+description: "Use when: (1) a workflow file is silently ignored or produces 0 jobs due to invalid YAML job IDs (forward slashes), (2) a composite-action input description contains ${{ }} expressions that get evaluated unexpectedly, (3) a security hook blocks editing a workflow run: block because of a ${{ }} injection sink — and you need the env-var-lift pattern, (4) documenting platform asymmetries (Linux-only, macOS-skipped) in workflow header comments, (5) a WorkflowDispatch or PreToolUse hook fires on an edit to .github/workflows/*.yml, (6) a workflow step fails with 'GitHub Actions is not permitted to create or approve pull requests' and you need to diagnose repo-vs-org policy and choose org-toggle vs PAT/App-token vs direct-commit."
 category: ci-cd
 date: 2026-06-07
-version: "1.0.0"
+version: "1.1.0"
+verification: verified-ci
 user-invocable: false
 history: gha-workflow-authoring-pitfalls.history
 tags:
@@ -21,6 +22,9 @@ tags:
   - documentation
   - pretooluse
   - edit-tool
+  - create-pull-request
+  - org-policy
+  - github-token-permissions
 ---
 
 # GitHub Actions: Workflow-Authoring Pitfalls
@@ -53,6 +57,7 @@ tags:
 | `${{ }}` in `run:` blocks hook | `PreToolUse:Edit` / actionlint / zizmor rejects the diff | Lift expr into a step-scoped `env:` block; reference as quoted `"$VAR"` |
 | Undocumented platform scope | Audit flags "misleading cross-platform claims" | 14-line header comment block before `name:` with Scope/CAPABILITY/EXPAND TRIGGER |
 | Edit tool path-blocked on workflows | `PreToolUse:Edit` hook error on `.github/workflows/*.yml` by path | Use `python3 -c` surgical replace via Bash, or full rewrite via `Write` |
+| Actions blocked from creating PRs | `GitHub Actions is not permitted to create or approve pull requests` at the create-PR step | Org admin enables "Allow Actions to create and approve PRs"; or pass a fine-grained PAT/App token to checkout + create-PR step; or commit direct to main |
 
 ```bash
 # Detection one-liners
@@ -213,6 +218,73 @@ p.write_text(text)
 
 Workaround B (larger restructuring): `Read` the file, build the full updated content, write it back with the `Write` tool. The `Write` tool may **also** be blocked if content trips the scanner (e.g. an identifier like `validate_eval`); fall back to Workaround A and rename the offending identifier in the replacement. **Never use `--no-verify`** to bypass pre-commit hooks.
 
+#### 6. GitHub Actions blocked from creating PRs by org policy
+
+A workflow step using `peter-evans/create-pull-request` (or `gh pr create`) fails with:
+
+```
+##[error]GitHub Actions is not permitted to create or approve pull requests.
+```
+
+The workflow's own `permissions:` block being correct (`contents: write`, `pull-requests: write`) is **NOT** enough — there is a **separate repo/org toggle** that gates PR creation by Actions. The permissions block governs token scope, not whether Actions is *allowed* to open PRs at all.
+
+**Diagnose which layer is the blocker:**
+
+```bash
+# Repo level — inspect default workflow permissions + PR-approval toggle
+gh api repos/OWNER/REPO/actions/permissions/workflow
+#   → look at default_workflow_permissions and can_approve_pull_request_reviews
+
+# Try to raise repo level; a 409 means the ORG is the blocker (repo can't exceed org)
+gh api --method PUT repos/OWNER/REPO/actions/permissions/workflow \
+  -f default_workflow_permissions=write
+#   → HTTP 409 Conflict: "Write permissions for workflows are disabled by the organization"
+
+# Org level (needs admin:org scope; 403 otherwise)
+gh api orgs/ORG/actions/permissions/workflow
+```
+
+**Two distinct org settings — easy to confuse:**
+
+1. **"Allow GitHub Actions to create and approve pull requests"** — the PR-creation toggle. This is the one you usually need.
+2. **"Default workflow permissions: read vs write"** (`default_workflow_permissions`) — separate. A workflow's own `permissions:` block **overrides** this default, so you often do **NOT** need to flip it.
+
+The 409 "Write permissions disabled by org" complains about **#2**, which is a **red herring** if your workflow already declares its own `permissions:` block. The actual blocker for `create-pull-request` is **#1**.
+
+**Fixes (ascending blast radius):**
+
+1. **Org admin enables setting #1** (UI: org Settings → Actions → General → Workflow permissions → "Allow GitHub Actions to create and approve pull requests"; or API):
+
+   ```bash
+   gh api --method PUT orgs/ORG/actions/permissions/workflow \
+     -F can_approve_pull_request_reviews=true
+   ```
+
+   Caveat: org-wide, and the SAME toggle also lets Actions **approve** PRs (self-approval / required-review bypass risk) across every repo.
+
+2. **Scoped alternative (no org change):** pass a fine-grained PAT or GitHub App installation token (Contents + PullRequests: write) to **BOTH** the `actions/checkout` `token:` and the create-PR step's `token:`, instead of `${{ secrets.GITHUB_TOKEN }}`. Limits PR-creation to that one workflow.
+
+   ```yaml
+   - uses: actions/checkout@v4
+     with:
+       token: ${{ secrets.PR_BOT_TOKEN }}
+   - uses: peter-evans/create-pull-request@v6
+     with:
+       token: ${{ secrets.PR_BOT_TOKEN }}
+   ```
+
+3. **Drop the PR step and commit directly to main** (needs only `contents: write`, which orgs usually allow) — loses the review-PR gate.
+
+**How to VALIDATE the fix definitively:** a green workflow run is **NOT** proof. If the generated artifact is unchanged, the create-PR step is skipped by its `if:` and the run shows success without creating anything. Force a real change so the step fires, then confirm a PR was actually created:
+
+```bash
+# Deliberately desync the artifact on a branch, dispatch, then check a PR exists
+gh workflow run update-marketplace.yml --ref <branch>
+gh pr list --head <branch> --json author   # author.login == "app/github-actions" → real PR created
+```
+
+This session proved it by deliberately desyncing `marketplace.json` on a branch, dispatching, and confirming the workflow opened a real PR. Also note: the scheduled/auto regeneration job **silently goes stale** when this block is in effect — every push-triggered run fails at the PR step, but the failure is easy to miss.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -225,6 +297,9 @@ Workaround B (larger restructuring): `Read` the file, build the full updated con
 | Bypassing the injection hook ("steps.*.outputs.* is trusted") | Offered skip / argued trust | The hook flags a real sink class; even trusted sources can transitively carry attacker input | Apply the env-var lift uniformly — it's correct for trusted sources too |
 | Inline / job-level comment for platform scope | Comment next to `matrix.os` or inside the job | Readers skip it as job-specific and miss the workflow-wide scope | Put scope at the top before `name:`; reference issues with `#NNN`, not doc paths |
 | Single-sentence scope note ("Linux-only due to pixi") | Terse one-liner | Didn't say what still works cross-platform → ambiguous "what's broken" | Include both limitation AND capability for honesty |
+| Declaring `permissions: pull-requests: write` in the workflow to let Actions open a PR | Added the permissions block, expected create-PR to succeed | Still got `GitHub Actions is not permitted to create or approve pull requests` | The workflow `permissions:` block sets token scope, not the separate repo/org create-PR toggle; it does not override that policy |
+| Raising repo create-PR permission via API | `gh api --method PUT repos/OWNER/REPO/actions/permissions/workflow -f default_workflow_permissions=write` | HTTP 409 `Conflict: "Write permissions for workflows are disabled by the organization"` | Repo can't exceed org policy; and `default_workflow_permissions` is a DIFFERENT toggle than create-PR — chasing it is a red herring |
+| Treating a green workflow run as proof the create-PR fix worked | Dispatched the workflow, saw a successful run | The create-PR step was skipped by its `if:` (no artifact change), so success was a no-op — no PR ever created | Force a real change so the step fires, then confirm a PR was actually created (`gh pr list --head <branch>` shows `app/github-actions`) |
 
 ## Results & Parameters
 
@@ -233,6 +308,7 @@ Workaround B (larger restructuring): `Read` the file, build the full updated con
 - **Env-var lift**: ~3 added YAML lines per expression, no CI runtime cost; runtime behavior identical; security posture strictly improved. Always double-quote `"$VAR"`; never use a `GITHUB_` prefix; `env:` is per-step.
 - **Platform-scope header**: 14-line comment block before `name:`. Parameters to fill: `REASON`, `EXCLUDED_PLATFORMS`, `ISSUE_REF`, `CAPABILITY_CLAIM`, `EXPANSION_CONDITION`, `EXPANDED_MATRIX`, `DOC_REFERENCE`. Validate with `pre-commit run --all-files` and confirm YAML still parses.
 - **Edit-tool path block**: Workaround A (`python3 -c` replace) for targeted edits; Workaround B (`Read` + `Write`) for restructures; rename scanner-tripping identifiers if `Write` is also blocked.
+- **Actions-create-PR block**: TWO independent toggles — `can_approve_pull_request_reviews` (the create/approve-PR gate, the one you usually need) vs `default_workflow_permissions` (read/write default, overridden by a workflow's own `permissions:` block). A repo-level 409 means the ORG is the blocker. Fix order: org toggle (org-wide, also enables PR self-approval) → scoped PAT/App token on checkout + create-PR steps → direct commit to main (`contents: write` only). Validate by forcing a real artifact change so the create-PR step fires, then `gh pr list --head <branch> --json author` to confirm `app/github-actions` opened a PR — a green run alone is not proof (skipped step shows success).
 - **Reference**: <https://github.blog/security/vulnerability-research/how-to-catch-github-actions-workflow-injections-before-attackers-do/>
 
 ## Verified On
@@ -245,3 +321,4 @@ Workaround B (larger restructuring): `Read` the file, build the full updated con
 | HomericIntelligence/ProjectOdyssey | PR #5445 (commit `702a5a2e`) — `.github/workflows/docs.yml` env-var lift | `validate-readme-commands` check went FAILURE → SUCCESS after lifting `steps.validation-level.outputs.level` into `env:` |
 | ProjectHephaestus | Issue #794 / PR #977 — `.github/workflows/test.yml` platform-scope header | 14-line header comment block added; pre-commit passed; workflow executed successfully (verified-local) |
 | HomericIntelligence/ProjectScylla | PR #1455 / Issue #1429 — Edit-tool path block | Workarounds documented in `.claude/shared/error-handling.md` |
+| ProjectMnemosyne | 2026-06-07: `update-marketplace.yml` create-PR step 403, diagnosed org block, validated org-toggle fix by live dispatch | PR #2261 |
