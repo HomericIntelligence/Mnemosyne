@@ -2,6 +2,19 @@
 
 # pytest-configuration-discovery-and-ci-pitfalls — History
 
+## v1.1.0 (2026-06-07)
+
+restore fixture-timeout calibration (nuance audit pass 2)
+
+Restored the YAML fixture `timeout_seconds` calibration nuance that was dropped in the v1.0.0
+consolidation:
+- Calibration formula `timeout_seconds = max(180, ceil(actual_duration * 3 / 60) * 60)` (3× observed duration, 60s granularity, 180s floor)
+- `calibrate_timeout()` Python helper
+- Fixture Timeout Calibration Table (Results & Parameters)
+- `grep -rn "== 300"` hardcoded-assertion / over-inflated-fixture detection
+- New "Detailed Steps" Step 9 subsection + Failed Attempts row (raising the default makes it worse)
+- ProjectHephaestus PR #884 Verified On row
+
 ## v1.0.0 (2026-06-07)
 
 Consolidated 6 overlapping pytest configuration / discovery / CI skills into one general

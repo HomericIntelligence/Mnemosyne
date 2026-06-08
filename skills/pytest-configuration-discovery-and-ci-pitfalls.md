@@ -3,7 +3,7 @@ name: pytest-configuration-discovery-and-ci-pitfalls
 description: "Use when: (1) CI Python test job hangs until timeout with no explicit failure — hang signature from asyncio daemon tasks blocking epoll; (2) pytest warns 'ignoring pytest config in pyproject.toml!' or pytest.ini coexists with pyproject.toml causing dual-config conflicts; (3) test collection count is suspiciously low or ImportError on a scripts/ module — conftest.py missing sys.path guard; (4) slim 'pip install pytest' CI jobs silently inherit addopts from pyproject.toml and fail because pytest-cov or other plugins in addopts are not installed; (5) developers run bare pytest and only unit tests are discovered because tests/integration/ is not in testpaths; (6) CI test counts differ from local collection counts — marker-based selection (-m unit, -m integration) inconsistency; (7) a CI matrix has patterns referencing renamed or deleted test files — stale pattern detection; (8) pytest-watch dependency must be replaced with an alternative watcher dependency; (9) test is flaky only in the full suite due to class-level patch.object or hardcoded calendar dates/Unix timestamps; (10) coverage gate fires for a partial test run (e.g. pytest -m integration) but full-suite coverage is fine; (11) a ModuleNotFoundError fires when patching a scripts/ module not on sys.path during single-file pytest runs — add sys.path guard to conftest.py."
 category: testing
 date: 2026-06-07
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 history: pytest-configuration-discovery-and-ci-pitfalls.history
 tags: [pytest, configuration, test-discovery, testpaths, markers, pytest-ini, pyproject-toml, addopts, pythonpath, conftest, sys-path, ci-matrix, stale-patterns, pytest-watcher, coverage, isolation, mock]
@@ -70,7 +70,11 @@ grep -r "test_<name>" . --include="*.yml" --include="*.yaml" --include="*.toml"
 # 7 — Replace unmaintained pytest-watch
 # pixi.toml: pytest-watch = ">=4.2,<5"  ->  pytest-watcher = ">=0.4,<1"   (ptw CLI unchanged)
 
-# 8 — Class-level mock leakage / date-bomb detection
+# 8 — YAML fixture timeout calibration: timeout = max(180, ceil(dur*3/60)*60)
+grep -rn "timeout_seconds" tests/unit/
+grep -rn "== 300" tests/unit/        # over-inflated fixtures / stale hardcoded assertions
+
+# 9 — Class-level mock leakage / date-bomb detection
 grep -rn "patch.object.*__class__" tests/
 grep -rn "17[6-9][0-9]\{7\}\|18[0-2][0-9]\{7\}" tests/
 ```
@@ -264,7 +268,44 @@ if _scripts_dir not in sys.path:
 
 `.parents[N]` = directory levels from conftest up to project root (`tests/conftest.py` → `parents[1]`; `tests/unit/analysis/conftest.py` → `parents[3]`). The guard prevents duplicate entries on full-suite runs. Use the `sys.path` guard (no importable names) rather than a bare `import scripts_module` — ruff F401 strips an unused import, but the guard block survives. Once the guard is in place, do **not** use `create=True` on the patch — the module is fully importable.
 
-#### Step 9 — Class-Level Patch Leaks Mock State; Date-Bomb Tests
+#### Step 9 — YAML Fixture `timeout_seconds` Over-Inflated (calibrate from observed duration)
+
+**Root cause**: YAML test fixtures are often created with a generic default `timeout_seconds = 300` that is far too conservative. When many fixtures inherit this default, the cumulative job timeout is inflated (e.g., ~147,900s vs ~29,820s actually needed), tripping a pipeline-level timeout long before any individual test is slow.
+
+**Calibration formula** — 3× observed duration, rounded up to the nearest 60s, with a 180s floor:
+
+```
+timeout_seconds = max(180, ceil(actual_duration * 3 / 60) * 60)
+```
+
+- Multiplier: 3× observed duration (head-room for CI jitter / cold caches)
+- Granularity: round up to the nearest 60s
+- Floor: 180s minimum
+
+```python
+import math
+
+def calibrate_timeout(actual_duration_seconds: float) -> int:
+    raw = actual_duration_seconds * 3
+    rounded = math.ceil(raw / 60) * 60
+    return max(180, rounded)
+```
+
+```bash
+# Collect observed durations from recorded results
+grep -r "duration_seconds" tests/fixtures/results/ | sort
+
+# CRITICAL: find hardcoded assertions / over-inflated fixtures pinned to the old default
+grep -rn "timeout_seconds" tests/unit/
+grep -rn "== 300" tests/unit/         # surfaces tests asserting the stale 300s default
+# Update any hardcoded assertion to the new floor (180) or make it data-driven, then:
+git add tests/fixtures/
+git commit -m "test(fixtures): calibrate timeout_seconds using 3x observed duration formula"
+```
+
+The `grep -rn "== 300"` check is the key signal: it finds both over-inflated fixtures and tests whose assertions were pinned to the old generic default. Recalibrate the data and convert assertions to be data-driven rather than re-pinning a new magic number.
+
+#### Step 10 — Class-Level Patch Leaks Mock State; Date-Bomb Tests
 
 **Mock leakage**: `patch.object(instance.__class__, "method", ...)` patches the **class**, not the instance. If a test fails mid-context-manager the patch stays active for all subsequent tests — even in other classes — causing order-dependent flakiness that only appears in the full suite. Fix with an autouse teardown:
 
@@ -303,6 +344,7 @@ def test_parses_date():
 | `pip install pytest pytest-cov` (no pyyaml) | Added cov plugin only | Tests did `import yaml` → `ModuleNotFoundError: No module named 'yaml'` | Slim jobs must list every transitive the tests need, or use the real env |
 | Lower `fail_under` to match partial run | Edited 80→78 in pyproject.toml | Next full run hits 96%, next partial run hits 78% again | Don't lower the gate — apply `--cov-fail-under` only to the full-suite CI step |
 | Remove `[tool.coverage.report]` wholesale | Deleted the whole block | Lost `precision`/`exclude_lines` too | Surgical: delete only the `fail_under` line |
+| Raise the YAML fixture `timeout_seconds` default | Bumped the generic `300` default higher to stop pipeline timeouts | Inflated the cumulative job timeout further (~147,900s) — fewer fixtures, same magic-number problem | Calibrate per fixture: `max(180, ceil(observed*3/60)*60)`; grep `== 300` for stale assertions |
 | Add `_isolate` teardown to the wrong class | Added fixture to a class that didn't leak | Leak originates elsewhere; fixing the symptom class is a no-op | `grep` for `patch.object.*__class__` to find the source class |
 | Widen date tolerance 24h→7d | Stretched the window on a hardcoded epoch | Defers the failure ~5 days; doesn't eliminate it | Make the test temporally reflexive, not the tolerance bigger |
 | Verify `ptw` CLI before `pixi install` | Checked the entry point before re-solving the lock | Premature — the new package's entry point isn't installed yet | `pixi install` first, then verify `ptw`; pytest-watcher ships `ptw` |
@@ -358,6 +400,18 @@ exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:"]
 | `tests/unit/conftest.py` | `parents[2]` |
 | `tests/unit/analysis/conftest.py` | `parents[3]` |
 
+### Fixture Timeout Calibration Table
+
+Formula: `timeout_seconds = max(180, ceil(actual_duration * 3 / 60) * 60)`
+
+| Observed Duration | Raw (3×) | Rounded to 60s | Final |
+|-------------------|----------|----------------|-------|
+| 28s | 84s | 120s | 180s (floor) |
+| 45s | 135s | 180s | 180s |
+| 72s | 216s | 240s | 240s |
+| 150s | 450s | 480s | 480s |
+| 300s | 900s | 900s | 900s |
+
 ### pytest-watch → pytest-watcher Lock Delta
 
 | Before | After |
@@ -374,6 +428,7 @@ exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:"]
 | ProjectScylla | Issue #1131 — `patch.object.__class__` leaking mock state | 3799 tests pass after autouse `_isolate` fixture |
 | ProjectHephaestus | Issue #740, PR #925 — testpaths expansion + markers | Bare `pytest` discovers 3406 (3188 unit + 218 integration); 84.80% coverage |
 | ProjectHephaestus | Issue #746, PR #921 — pytest-watch → pytest-watcher | docopt removed; 3170 tests pass; `ptw` CLI unchanged |
+| ProjectHephaestus | PR #884 — 47 YAML fixture files with `timeout_seconds = 300` default | Calibrated via `max(180, ceil(dur*3/60)*60)`; total timeout ~147,900s → ~29,820s (~80% reduction) |
 | ProjectHephaestus | PR #367 — `test_rate_limit.py` hardcoded epoch `1778284800` | Began failing once clock passed May 8 2026 5pm UTC; made temporally reflexive |
 | ProjectArgus | CI "Test exporter" matrix — PRs #273, #289 | slim `pip install pytest pytest-cov` missing `pyyaml`; addopts `--cov` inherited |
 | ProjectHermes | PR #475 — `fail_under = 80` in pyproject.toml | integration-only CI job failed at 78.52%; gate moved to full-suite step |
