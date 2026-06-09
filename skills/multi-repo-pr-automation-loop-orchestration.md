@@ -2,8 +2,8 @@
 name: multi-repo-pr-automation-loop-orchestration
 description: "Use when: (1) running an automation loop (drive-prs-green, hephaestus-automation-loop, loop_runner.py, ci_driver.py) across multiple repos and it skips PRs, reports success incorrectly, silently no-ops, or never arms auto-merge, (2) a multi-repo swarm is orchestrating PRs across 3+ HomericIntelligence repos with sequential-within-repo merge ordering, (3) an ecosystem-wide sweep implements every planned issue across all repos in parallel waves, (4) the automation driver logs success but live GitHub state shows open failing PRs — always cross-check live state per repo before reporting done, (5) a hephaestus automation loop deadlocks because the drive-green phase skips iterations or the implementer returns early before labeling with state:implementation-go, (6) an org-wide issue backlog across 10+ repos needs parallel implementation with one signed auto-merge PR per issue, (7) automated review-plan files (claude-review-fix-*.md) need to be bulk-processed across stale PR branches, (8) _wait_for_pr_terminal polls the full timeout on a BLOCKED PR — add early-exit guarded by both _failing_required_check_names and _pending_required_check_names"
 category: ci-cd
-date: 2026-06-07
-version: "1.1.0"
+date: 2026-06-08
+version: "1.2.0"
 user-invocable: false
 history: multi-repo-pr-automation-loop-orchestration.history
 tags:
@@ -29,6 +29,8 @@ tags:
   - blocked-pr-early-exit
   - pending-required-checks
   - wait-for-pr-terminal
+  - issues-scoped-drive-green
+  - bot-pr-discovery-scope
 ---
 
 # Multi-Repo PR Automation Loop and Swarm Orchestration
@@ -37,7 +39,7 @@ tags:
 
 | Field | Value |
 | ------- | ------- |
-| **Date** | 2026-06-07 |
+| **Date** | 2026-06-08 |
 | **Objective** | One canonical for driving PRs to green across many HomericIntelligence repos via an automation loop or a myrmidon swarm: make the driver report honestly (no silent no-op, wait for the real terminal state, gate "repo done" on live open-PR count), cross-check every run summary against live GitHub state before reporting success, unblock the loop-runner / implementer deadlocks (drive-green discovery + the `state:implementation-go` labeling deadlock), orchestrate parallel waves across 3+ repos with sequential-within-repo merge ordering, run ecosystem-wide and org-wide planned-issue sweeps, and bulk-process automated review-plan files across stale PR branches. |
 | **Outcome** | Driver hardened across five ProjectHephaestus releases (PRs #833/#837/#839 → #876 → #879 → #1090) from "lies success" → "honest reporting" → "waits for the real outcome" → "re-arms, survives concurrency, resolves conflicts, never self-inflicts a lint failure" → "BLOCKED early-exit (PR #1090 closes #1088)". Existing-PR labeling deadlock shipped fixed (PRs #1073/#1075/#1077/#1079). Report-vs-live-state protocol surfaced honesty gaps merged as PR #849. Swarm pattern merged 87 PRs across 8 repos and ran ecosystem sweeps (51+ PRs / 78 issues retired, 0 broken-main events). Org-wide planned-issue swarm piloted ~51 signed squash-auto-merge PRs across 5 repos (430 plan-carrying issues detected). Batch review-plan processing cleared 14 OPEN PRs in ~20-30 min. |
 | **Verification** | verified-ci |
@@ -52,6 +54,7 @@ tags:
 - An ecosystem-wide sweep classifies 500+ issues and implements them in parallel waves or bundle-PR-per-repo.
 - An org-wide planned-issue backlog (issues carrying a `# Implementation Plan` comment) across 10+ repos needs one signed squash-auto-merge PR per issue.
 - Automated review-plan files (`review-plan-*.md` + `review-*.json` with `phase=failed`) need bulk processing across 10+ stale PR branches.
+- A `--issues`-scoped drive-green run still pulls in unrelated bot PRs or scans/arms every open PR and fails `rc=1` on out-of-scope PRs.
 
 ## Verified Workflow
 
@@ -160,6 +163,40 @@ deterministic-uuid5 `--session-id` resume in try/except (3× backoff) then fall 
 prompt). The force-engagement prompt FORBIDS committing a blocker file (use a `BLOCKED:` line) and
 requires every edited file to pass the repo's own linters with NO rule disabled — and avoids
 committing to bot PRs (a commit orphans a Dependabot PR; recovery is `@dependabot recreate`).
+
+**A `--issues`-scoped drive-green run must touch ONLY those issues' PRs (v1.2.0 / PR #1110).**
+When an operator scopes a `ci_driver` run with `--issues N1,N2`, the run must not over-reach into the
+rest of the repo. The failing-PR discovery path was ALREADY correctly gated on `if not self.options.issues:`
+(#819), but two other paths leaked repo-wide work into a scoped run and had to be fixed to mirror it:
+
+1. **Bot-PR discovery is default-ON** (`--include-bot-prs`, default on, #848). A scoped `--issues 725,711`
+   run still ran `_discover_bot_prs()` and pulled in an unrelated Dependabot PR (#1032):
+   `Found 3 PR(s) to drive: {725:996, 711:997, 1032:1032}`. Gate it the same way as failing-PR discovery —
+   the no-args backlog sweep keeps bot PRs, a scoped run does not:
+
+   ```python
+   if self.options.include_bot_prs and not self.options.issues:
+       ...  # only discover bot PRs on the UNSCOPED backlog sweep
+   ```
+
+2. **The repo-done gate + `_arm_all_unarmed_open_prs` scanned ALL open PRs.** `_list_open_prs_remaining()`
+   returns the FULL paginated open-PR set (#838), so a scoped run armed unrelated PRs and failed
+   `rc=1` with `"Repo not done: 59 open PR(s) need manual action"` — for PRs the operator never selected.
+   In `run()`, after building `self.open_prs_remaining`, FILTER it to only the PRs this run drove
+   (`pr_map.values()`) when scoped, so the done-gate and arming consider only scoped PRs; the unscoped
+   sweep keeps full repo-wide behavior:
+
+   ```python
+   if self.options.issues and self.open_prs_remaining:
+       scoped = set(pr_map.values())
+       self.open_prs_remaining = [pr for pr in self.open_prs_remaining if pr.get("number") in scoped]
+   ```
+
+The plan + implement phases already scope correctly (the loop passes the discovered issue list via
+`--issues`); only drive-green over-reached. A scoped validation run (`--issues 725,711`) is the right way
+to test one or two PRs without driving the whole backlog. Tests that asserted bot PRs union even when
+`--issues` is set were asserting the BUG — flip them to assert the union only on the UNSCOPED path
+(clear `options.issues=[]`).
 
 #### Report-vs-live-state verification
 
@@ -282,6 +319,7 @@ Bulk-process automated `review-plan-*.md` + `review-*.json` (`phase=failed`) acr
 | Trust the summary banner / `rc=0` | Reported from `_summary.json` (`Driven 8 / Failed 4`) | "Driven" only means the driver was invoked; 7/8 had 0 in-scope PRs, 3/4 "Failed" were false | Cross-check live `gh pr list --state open` per repo before reporting; classify each failure mode |
 | `hephaestus-automation-loop --phases drive-green --loops N` | Increased loop budget / set `--loops 1` | Not-final-loop gate + zero-work early-exit make N>1 unreachable; `--loops 1` discovers `@me` issues not PRs | Bypass via `drive_prs_green.py --issues <N> --force-run`; fix is PR-based discovery (#818-#821) |
 | "Skip existing PRs to avoid clobbering" early-return | `_implement_issue` hard-returned before the review loop | Existing PRs never reviewed → never labeled `state:implementation-go` → never armed; 9 green PRs stuck | Replace the skip with `sync_worktree_to_remote_branch`; gate idempotency on the terminal label |
+| Run drive-green with `--issues` but leave bot-PR discovery + the open-PR done/arming gate repo-wide | Scoped `--issues 725,711` but `_discover_bot_prs()` stayed default-ON and `_list_open_prs_remaining()` returned the full paginated open-PR set | Scoped run pulled in unrelated Dependabot PRs (e.g. #1032) and armed/failed `rc=1` on all 59 open PRs the operator never selected | Gate bot-PR discovery on `not options.issues` (mirror the #819 failing-PR gate) and filter the done-gate/arming to `pr_map.values()` when scoped; the unscoped sweep stays repo-wide |
 | Parallel PR merges within one repo | Merged #4/#5/#6 in parallel on one base | #6 conflicted when #4/#5 advanced main | Merge sequentially within a repo (oldest-first); parallelize only across repos |
 | Unlimited clean merges per wave | Tried to merge 39 CLEAN PRs in one pass | Each merge advanced main, cascading 24+ to DIRTY | Cap 5 merges/repo/pass; rescan + rebase before continuing |
 | Parallel rebase / parallel `--admin` merge | One agent per branch / 5-concurrent admin merges on one base | Agents clobbered each other's checkout; admin merge hit GraphQL stale-base race (13/17 failed) | Sequential loop in fresh worktrees; `--admin` bypasses protection, not the mergeability race |
@@ -306,6 +344,7 @@ Bulk-process automated `review-plan-*.md` + `review-*.json` (`phase=failed`) acr
 | #879 | #878 | v1.2.0: `_recheck_and_arm_after_fix`, guarded session-id resume → fresh uuid4, `mergeStateStatus`/`DIRTY`/`_resolve_dirty_pr`, lint-clean blocker prompt. Suite: 1011 passed |
 | #1073/#1075/#1077/#1079 | #1072/#1074/#1076/#1078 | existing-PR review→label deadlock fix: enter review loop, origin-sync anti-clobber, session-path fix, review_validator, bot-thread resolve |
 | #1090 | #1088 | v1.3.0: BLOCKED early-exit in `_wait_for_pr_terminal` — guarded by both `_failing_required_check_names` and new `_pending_required_check_names`; handle `"BLOCKED"` in `_drive_issue` and `_check_arming_on_drive_start` callers. Suite: 3402 passed. |
+| #1110 | — | scope drive-green to `--issues`: gate bot-PR discovery on `include_bot_prs and not options.issues` (#848/#819); filter `open_prs_remaining` to `pr_map.values()` when scoped so the done-gate + `_arm_all_unarmed_open_prs` consider only scoped PRs. Full `ci_driver` suite green in CI; PR CLEAN/MERGEABLE. |
 
 ### Org merge policy (all 12 HomericIntelligence repos)
 
@@ -350,6 +389,7 @@ merge-conflict ~1.
 | Project | Context | Details |
 | --------- | --------- | --------- |
 | ProjectHephaestus | Driver honest-success path | PRs #833/#837/#839 (guards) → #876 (wait-for-merge) → #879 (re-arm/concurrency/DIRTY/lint) → #1090 (BLOCKED early-exit closes #1088). Suite 3402 passed; verified-ci (mypy 320 files clean, ruff clean, all pre-commit hooks). |
+| ProjectHephaestus | Scoped drive-green honors `--issues` | PR #1110: bot-PR discovery gated on `not options.issues` (mirror #819); `open_prs_remaining` filtered to `pr_map.values()` when scoped so the done-gate + arming consider only scoped PRs. Repro: `--issues 725,711` pulled in Dependabot #1032 and failed `rc=1` on all 59 open PRs before the fix. Full `ci_driver` suite green in CI; verified-ci. |
 | ProjectHephaestus | Report-vs-live-state | Run `20260531T190615Z`: banner `Driven 8 / Failed 4` decomposed to 1 honest-idle + 7 architecturally-blind / 1 real-bug + 3 false-failures; honesty gaps merged as PR #849. `Telemachy #246` MERGED 29s after reported failed. |
 | ProjectHephaestus | Loop deadlocks | drive-green discovery #818-#821 (NOT shipped, bypass verified live 2026-05-30); existing-PR labeling deadlock shipped as PRs #1073/#1075/#1077/#1079 (9 green PRs unblocked). |
 | HomericIntelligence ecosystem | Swarm PR orchestration | 8 repos, 87 PRs merged + Odysseus pins (2026-04-19); 12-repo silent-failures sweep 17/18 auto-squash-merged (2026-05-10). |
