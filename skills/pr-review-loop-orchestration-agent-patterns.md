@@ -1,9 +1,9 @@
 ---
 name: pr-review-loop-orchestration-agent-patterns
-description: "Use when: (1) building or debugging a Python implement-review loop where an LLM sub-agent reviews a PR and a fixer agent addresses inline comments, (2) a review loop resolves threads even though no commit was produced — resolution must be gated on a real commit not the model self-report, (3) a loop ends AMBIGUOUS or NO-GO too fast before ever earning an explicit GO verdict, (4) LLM or agent-generated inline PR review comments are rejected by GitHub (HTTP 422) because they do not lie on a changed diff hunk, (5) an agent-driven CI-fix session produces no commit and the PR stays red; the correct response is a single bounded retry with unresolved review threads injected verbatim, (6) a review fix plan file concludes no changes are needed and the automation should self-cancel without opening a new PR, (7) a feature-dev:code-reviewer sub-agent cannot execute shell commands and cannot post gh pr review — wrong agent type was chosen, (8) a GitHub GraphQL PR-review mutation field selection is wrong and the automation loop fails on every call with Field X does not exist, (9) pre-commit must cover the full PR diff from the merge-base not just the most-recent-edit files before pushing"
+description: "Use when: (1) building or debugging a Python implement-review loop where an LLM sub-agent reviews a PR and a fixer agent addresses inline comments, (2) a review loop resolves threads even though no commit was produced — resolution must be gated on a real commit not the model self-report, (3) a loop ends AMBIGUOUS or NO-GO too fast before ever earning an explicit GO verdict, (4) LLM or agent-generated inline PR review comments are rejected by GitHub (HTTP 422) because they do not lie on a changed diff hunk, (5) an agent-driven CI-fix session produces no commit and the PR stays red; the correct response is a single bounded retry with unresolved review threads injected verbatim, (6) a review fix plan file concludes no changes are needed and the automation should self-cancel without opening a new PR, (7) a feature-dev:code-reviewer sub-agent cannot execute shell commands and cannot post gh pr review — wrong agent type was chosen, (8) a GitHub GraphQL PR-review mutation field selection is wrong and the automation loop fails on every call with Field X does not exist, (9) pre-commit must cover the full PR diff from the merge-base not just the most-recent-edit files before pushing, (10) an existing-PR review handler short-circuits NO-GO PRs as if they were settled (idempotency `if has_go or has_no_go: skip`) so a failed-review PR never re-enters the loop — short-circuit on GO ONLY, (11) an existing-PR worktree sync fails `git fetch origin {issue}-auto-impl` with exit 128 because the PR head branch was ASSUMED from the issue number instead of read from the PR's real `headRefName`"
 category: ci-cd
-date: 2026-06-07
-version: "1.1.0"
+date: 2026-06-08
+version: "1.2.0"
 user-invocable: false
 history: pr-review-loop-orchestration-agent-patterns.history
 tags:
@@ -27,6 +27,12 @@ tags:
   - self-cancelling-review-plan
   - pre-commit-merge-base-diff
   - graphql-review-threads
+  - existing-pr-short-circuit
+  - no-go-re-review
+  - go-only-short-circuit
+  - pr-head-branch-resolution
+  - headrefname
+  - assumed-branch-name-fetch-128
   - homericintelligence
 ---
 
@@ -36,11 +42,11 @@ tags:
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-06-07 |
-| **Objective** | Build and debug a Python implement-review loop that drives LLM sub-agents to review a PR and fix its inline comments, converging on an EVIDENCE-BASED `Verdict: GO`. Covers: commit-gated thread resolution, inline-comment diff-hunk (422) validation, one-shot no-commit retry with unresolved review threads injected, agent-type selection for review tasks, GraphQL field/input validation for PR-review mutations, self-cancelling review plans, and full merge-base pre-commit scope. |
-| **Outcome** | Merged across multiple ProjectHephaestus PRs (commit-gate + verdict-GO convergence #1084; inline-comment 422 validation #1043; no-commit retry + thread injection #847; GraphQL field/input validation #906/#1006) plus ProjectOdyssey and gh-tidy upstream review rounds. |
+| **Date** | 2026-06-08 |
+| **Objective** | Build and debug a Python implement-review loop that drives LLM sub-agents to review a PR and fix its inline comments, converging on an EVIDENCE-BASED `Verdict: GO`. Covers: commit-gated thread resolution, inline-comment diff-hunk (422) validation, one-shot no-commit retry with unresolved review threads injected, agent-type selection for review tasks, GraphQL field/input validation for PR-review mutations, self-cancelling review plans, full merge-base pre-commit scope, the existing-PR short-circuit being GO-ONLY (NO-GO PRs MUST re-enter the loop), and using the PR's real `headRefName` for the worktree instead of an assumed `{issue}-auto-impl`. |
+| **Outcome** | Merged across multiple ProjectHephaestus PRs (commit-gate + verdict-GO convergence #1084; inline-comment 422 validation #1043; no-commit retry + thread injection #847; GraphQL field/input validation #906/#1006; existing-PR NO-GO re-review #1104; real PR head-branch resolution #1106) plus ProjectOdyssey and gh-tidy upstream review rounds. |
 | **Verification** | verified-ci |
-| **Version** | 1.1.0 |
+| **Version** | 1.2.0 |
 
 ## When to Use
 
@@ -53,6 +59,7 @@ tags:
 - A `feature-dev:code-reviewer` sub-agent returns "I cannot run shell commands. Available tools: Read, WebFetch, WebSearch, Grep, Glob, TaskStop."
 - A `gh api graphql` PR-review mutation fails on every call with `Field 'X' doesn't exist on type 'Y'` or `InputObject '<Input>' doesn't accept argument '<arg>'`.
 - You want a comprehensive multi-specialist PR review filed as structured GitHub review comments.
+- An existing-PR review loop skips NO-GO PRs as if settled (e.g. `Successful: 0 / Skipped: N`, every PR already carries a terminal label), or fails `git fetch origin {issue}-auto-impl` with `exit 128` on an assumed `{issue}-auto-impl` branch.
 
 ## Verified Workflow
 
@@ -137,6 +144,41 @@ dispatch ONE sub-agent per comment (SERIALIZE same-file comments), tier models s
 medium→sonnet / hard→opus. A `state:skip` label (name sourced from the single-source
 `state_labels` module, auto-provisioned, honored on issue OR PR) skips all phases — gate the
 auto-apply on TRUE iteration exhaustion, not on a single iteration-0 non-GO.
+
+#### Existing-PR handler: short-circuit on GO ONLY, and use the PR's real head branch
+
+The existing-PR handler (`_review_existing_pr`) must enforce two invariants that mirror the
+core "converge ONLY on `Verdict: GO`; a re-open OVERRIDES a stale GO" rule:
+
+1. **GO-ONLY short-circuit.** The idempotency guard must skip a PR ONLY when it already carries
+   the GO label — `if has_go: return` — NOT `if has_go or has_no_go: return`. A
+   `state:implementation-no-go` label is NOT terminal: it means the PR FAILED review and must
+   keep going. Treating NO-GO as settled is identical to the long-standing "zero threads != GO"
+   bug at the existing-PR layer. Symptom in a live 5-loop run: all 60 existing PRs carried a
+   terminal label (10 GO, 50 NO-GO), so every PR was skipped every loop (`Successful: 0 /
+   Skipped: 60`) AND the fallback `drive-green` phase was itself skipped, so NO-GO PRs were
+   NEVER re-implemented or re-reviewed. FIX: short-circuit on `has_go` only; a NO-GO PR then
+   falls through into `_run_impl_review_loop`, which already does NO-GO → address (resume the
+   implementer session) → re-review → converge-on-GO. Bound the re-run with
+   `MAX_REVIEW_ITERATIONS` and only re-implement when there are ACTIONABLE threads; the
+   documented defense against burning tokens on a genuinely-stuck PR is to gate a re-run on the
+   PR head SHA having advanced (same marker discipline as the no-commit forensics path).
+
+2. **Resolve the PR's REAL head branch — never assume `{issue}-auto-impl`.** `_review_existing_pr`
+   must NOT prepare the worktree with `branch_name = f"{issue_number}-auto-impl"`. That is an
+   ASSUMPTION, and `find_pr_for_issue` can match a PR via a PR-body `Closes #N` search
+   (strategy 2), so the PR's head branch may be named after a DIFFERENT issue or a bundle.
+   `sync_worktree_to_remote_branch` then runs `git fetch origin {assumed-branch}` which fails
+   `fatal: couldn't find remote ref ...; exit 128` whenever the real `headRefName` differs from
+   the convention (confirmed live: issue #725 → PR #996 whose real `headRefName` is
+   `708-auto-impl`). FIX: call `get_pr_head_branch(pr_number)` (`gh pr view <pr> --json
+   headRefName`; returns `None` on failure for a safe fallback) and use the resolved branch for
+   the worktree create + sync + review loop + `WorkerResult`; fall back to the assumed name ONLY
+   if the lookup returns `None`. The FRESH-implementation path (no existing PR) keeps the
+   `{issue}-auto-impl` convention because it CREATES the branch itself. This bug was LATENT —
+   before the GO-ONLY fix, NO-GO PRs short-circuited before reaching the fetch, so it never
+   fired for them; the GO-ONLY fix EXPOSED it. Test note: any test exercising this path MUST
+   mock `get_pr_head_branch` or it makes a real `gh` call (a test took 103s before mocking).
 
 #### Inline-comment diff-hunk 422 validation
 
@@ -315,6 +357,8 @@ recurring traps:
 | Value-taking flag without an absent-value guard (bash) | `--branch X` read `$1` blindly as its value | A missing value silently swallows the next flag as the argument | Guard with `[[ -z "$1" \|\| "$1" == --* ]]` before consuming the value, else error out. |
 | Mutate an array inside a piped `while read` loop (bash) | Appended to an array inside `cmd \| while read` | The piped loop runs in a subshell; array mutations are lost after the pipe | Use process substitution: `while read ...; do arr+=(...); done < <(cmd)`. |
 | `set_trunk_branch`-style helper prints an error but doesn't exit (bash) | Helper logged the error and returned normally | The script continued past a fatal condition with bad trunk state | Every fatal branch in a helper MUST `exit 1` (or `return 1` + a checked caller). |
+| Short-circuit the existing-PR handler on GO **or** NO-GO | `_review_existing_pr` skipped re-review with `if has_go or has_no_go: return`, treating a `state:implementation-no-go` PR as terminal/settled | In a live 5-loop run all 60 existing PRs carried a terminal label (10 GO, 50 NO-GO), so every PR was skipped every loop (`Successful: 0 / Skipped: 60`) and the fallback `drive-green` phase was skipped too — NO-GO PRs were NEVER re-implemented or re-reviewed | Short-circuit on `has_go` ONLY; a NO-GO label is NOT terminal (it means review FAILED). Let NO-GO fall through into `_run_impl_review_loop` (NO-GO → resume implementer → re-review → converge-on-GO), bounded by `MAX_REVIEW_ITERATIONS`; gate a re-run on the PR head SHA advancing to avoid burning tokens on a stuck PR (PR #1104). |
+| Sync the existing-PR worktree to the assumed `{issue}-auto-impl` branch | `_review_existing_pr` set `branch_name = f"{issue_number}-auto-impl"` and called `sync_worktree_to_remote_branch` → `git fetch origin {issue}-auto-impl` | `find_pr_for_issue` can match a PR via a PR-body `Closes #N` search, so the PR head branch may belong to a DIFFERENT issue/bundle; the fetch failed `fatal: couldn't find remote ref …; exit 128` every loop (live: issue #725 → PR #996, real `headRefName` `708-auto-impl`). Latent until the GO-ONLY fix let NO-GO PRs reach the fetch | Resolve the PR's REAL head via `get_pr_head_branch(pr_number)` (`gh pr view <pr> --json headRefName`; `None` on failure) and use it for worktree create + sync + loop + result; fall back to the assumed name only on `None`. The fresh-impl path keeps the convention (it creates the branch). Tests MUST mock `get_pr_head_branch` (a real `gh` call took 103s) (PR #1106). |
 
 ## Results & Parameters
 
@@ -326,6 +370,8 @@ recurring traps:
 | Convergence requires explicit GO | parse reviewer output, require literal `Verdict: GO` (last line, not substring) | "zero threads" + AMBIGUOUS/NO-GO is not success |
 | Fixer never resolves | resolution mutation lives in the reviewer/validator on the next pass | evidence-based; fixer can't self-declare victory |
 | Reviewer resolution is diff-evidence-based, matched by thread `id` | resolve addressed threads, re-open (new thread) the rest | re-open OVERRIDES a stale GO; GitHub has no unresolve mutation |
+| Existing-PR short-circuit is GO-ONLY | `_review_existing_pr`: `if has_go: return` (NOT `has_go or has_no_go`) | a NO-GO label is NOT terminal; it must re-enter the loop (PR #1104) |
+| Existing-PR worktree uses the PR's real head branch | `get_pr_head_branch(pr)` → `headRefName`; fall back to `{issue}-auto-impl` only on `None` | the PR may have matched via `Closes #N`, so the head branch can differ from the issue number (PR #1106) |
 
 ### `--nitpick` severity model and per-comment dispatch
 
@@ -434,6 +480,8 @@ mutation {
 | ProjectHephaestus | PR #1043 (closes #1039) | Inline-comment diff-hunk 422 validation; full-diff hunk parser; fail-open on empty diff; new 422-path tests |
 | ProjectHephaestus | PR #847 | `_format_review_threads_block`, `_failing_required_check_names`, `_force_engagement_prompt`, `_retry_no_commit_once`; 18 new tests; forensics marker |
 | ProjectHephaestus | PR #906 (closes #905) / PR #1006 (closes #999) | GraphQL field + input-argument validation; corrected `addPullRequestReview` selection and `addPullRequestReviewThreadReply` mutation |
+| ProjectHephaestus | PR #1104 | Existing-PR handler short-circuits on GO ONLY; NO-GO PRs re-enter `_run_impl_review_loop` instead of being skipped as settled (`_review_existing_pr` in `implementer_phase_runner.py`) |
+| ProjectHephaestus | PR #1106 | `get_pr_head_branch(pr_number)` in `_review_utils`; `_review_existing_pr` uses the PR's real `headRefName` (not the assumed `{issue}-auto-impl`) for worktree create + sync + loop; fixes `git fetch … exit 128` |
 | HomericIntelligence/AchaeanFleet | 11 Dependabot PRs, 2026-05-31 | `feature-dev:code-reviewer` read-only blocker discovered; agent-type selection rule |
 | ProjectOdyssey | PR #3343 (issue #3152) / PR #3109 (issue #3033) | Self-cancelling review plan no-op; comprehensive multi-specialist PR review orchestration |
 | gh-tidy (HaywardMorihara/gh-tidy) | PRs #63/#67/#68/#69 | Upstream bash PR review rounds; logic/safety traps (verified-local) |
