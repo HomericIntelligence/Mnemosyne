@@ -2,6 +2,43 @@
 
 # History: multi-repo-pr-automation-loop-orchestration
 
+## v1.2.0 (2026-06-08)
+
+**Changed by:** ProjectHephaestus PR #1110 (scope drive-green to `--issues`)
+**Verification:** verified-ci (full `ci_driver` suite green in CI; PR CLEAN/MERGEABLE)
+
+### What changed
+
+- Added a "## When to Use" trigger: a `--issues`-scoped drive-green run still pulls in unrelated bot PRs or scans/arms every open PR and fails `rc=1` on out-of-scope PRs
+- Added a subsection under the drive-green / honest-reporting area documenting the two scope leaks and their gates:
+  - **Bot-PR discovery** (`--include-bot-prs`, default on, #848) must be gated the same way the failing-PR discovery already is (`if not self.options.issues:`, #819): `if self.options.include_bot_prs and not self.options.issues:`
+  - **The repo-done gate + `_arm_all_unarmed_open_prs`** scanned ALL open PRs via `_list_open_prs_remaining()` (full paginated set, #838); when `self.options.issues` is set, FILTER `self.open_prs_remaining` to the PRs this run drove (`pr_map.values()`)
+- Added ONE Failed-Attempts row: run drive-green with `--issues` but leave bot-PR discovery + the open-PR done/arming gate repo-wide → scoped run pulled in unrelated Dependabot PRs and armed/failed `rc=1` on all 59 open PRs
+- Version bumped 1.1.0 → 1.2.0 (minor: new failed-attempt + new trigger)
+- Updated `date:` to 2026-06-08
+
+### Why
+
+When an operator scopes a drive-green / `ci_driver` run with `--issues N1,N2`, the run must touch ONLY those issues' PRs. Two discovery/gate paths leaked repo-wide work into a scoped run:
+
+1. **Bot-PR discovery is default-ON.** With `--issues 725,711` set, `ci_driver` still ran `_discover_bot_prs()` and pulled in an unrelated Dependabot PR (#1032) — `Found 3 PR(s) to drive: {725:996, 711:997, 1032:1032}`.
+2. **The repo-done gate + `_arm_all_unarmed_open_prs` scanned ALL open PRs.** `_list_open_prs_remaining()` returns the FULL paginated open-PR set, so a scoped run armed unrelated PRs and failed `rc=1` with "Repo not done: 59 open PR(s) need manual action" — for PRs the operator never selected.
+
+The failing-PR discovery path was ALREADY correctly gated (`if not self.options.issues:`, #819); these two were the remaining leaks, fixed to mirror it. The plan + implement phases already scope correctly (the loop passes the discovered issue list via `--issues`); only drive-green over-reached. A scoped validation run (`--issues 725,711`) is the right way to test one or two PRs without driving the whole backlog. Tests that asserted bot PRs union even when `--issues` is set were asserting the BUG and had to be flipped to test the union on the UNSCOPED path (clear `options.issues=[]`).
+
+### Pre-amendment v1.1.0 body snapshot (BLOCKED early-exit area)
+
+> **BLOCKED early-exit (v1.3.0 / PR #1090 closes #1088).** `mergeStateStatus=BLOCKED` has two causes:
+> (a) branch-protection gate (e.g. unresolved required review threads) — **never self-heals**, the driver
+> will timeout in 30 min; and (b) required CI checks still in-flight — **transient, must keep polling**.
+> GitHub uses `BLOCKED` for BOTH causes, so a naive early-exit on `BLOCKED + not failing` is wrong when
+> checks are still pending. The correct guard requires BOTH `_failing_required_check_names` AND
+> `_pending_required_check_names` to be empty before returning `"BLOCKED"` and leaving the PR armed.
+> (At v1.1.0 the skill carried no drive-green `--issues` scoping section; both bot-PR discovery and the
+> repo-done/arming gate were repo-wide regardless of `--issues`.)
+
+---
+
 ## v1.1.0 (2026-06-07)
 
 **Changed by:** PR #1090 closes #1088 — BLOCKED early-exit in `_wait_for_pr_terminal`
