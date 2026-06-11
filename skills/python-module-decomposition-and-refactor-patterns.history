@@ -1,6 +1,99 @@
 <!-- markdownlint-disable MD024 -->
 # python-module-decomposition-and-refactor-patterns — History
 
+## v1.4.0 (2026-06-11)
+
+**Changed by:** Issue #712 — `ImplementationPhaseRunner` decomposition (ProjectHephaestus)
+**Verification:** verified-precommit
+
+### What changed
+
+- Added Phase 19: "Complete the Decomposition — Move Bodies Then Delete Originals (do not
+  append shims on top)". Documents the **append-only-shim anti-pattern** as a distinct failure
+  mode of phase-class decomposition (complements Phase 11 reverse-delegation and Phase 13
+  C901 extraction), with the `self.X` → `self.ctx.X` rewrite table, the F811 / file-growth /
+  C901-survival diagnostic fingerprint, the MOVE→DELETE→verify sequence, the two `# noqa: C901`
+  structural decompositions, and the verification grep/ruff/wc commands. Phase 19 is marked
+  inline as `verified-precommit (issue #712)`.
+- Added 6 Failed Attempts rows: (a) append-only shim block leaving originals in place
+  (F811 + file grows + C901 survives), (b) inverted `_impl` bounce-back to the runner original,
+  (c) confident empty stub with a real-behavior docstring, (d) running move-out and
+  delete-originals agents in parallel on the same file (race/clobber), (e) shim targeting a
+  sibling that lacks the method instead of ctx, (f) leftover unused `impl = self.ctx.impl`
+  local → F841 after rerouting dispatch.
+- Added the **same-file edits must be serialized** sub-agent sequencing constraint (move-out
+  first, then delete-originals; different-file edits may run in parallel) — complements
+  `feedback-prefer-sequential-agent-for-dependency-chains`.
+- Extended `description` (trigger 13), Overview date, When-to-Use bullets, Quick Reference
+  decision tree (Phase 19), Verified On (new issue #712 row), and new tags. Bumped MINOR
+  1.3.0 → 1.4.0.
+
+### Why
+
+Issue #712 (decompose `ImplementationPhaseRunner`, a 1,712 LoC God Class, into five phase
+classes) exposed a decomposition that LOOKED done — phase classes created, wired in `__init__`,
+shims appended — but in which every acceptance criterion was silently unmet and the file was
+strictly worse: F811 redefinitions on every appended shim, the file grew to ~1,860 LoC (shims
+added on top of un-deleted originals), and the `# noqa: C901` waivers survived on the now-dead
+original bodies. The new content adds findings and a workflow phase (not a rewrite of the core
+recommendation), so it is a MINOR bump. The verification level is `verified-precommit` because
+the runner-deletion step was interrupted by a session limit before the full pre-commit/pytest
+gate could be confirmed green end-to-end — the rest of the skill remains verified-local.
+
+### Previous version (v1.3.0) snapshot
+
+---
+name: python-module-decomposition-and-refactor-patterns
+description: >-
+  Use when: (1) a Python module or class exceeds 800–1000 lines and contains
+  identifiable method clusters with distinct responsibilities, (2) extracting
+  method groups into dedicated collaborator classes or sub-modules via TDD,
+  (3) fixing circular import errors caused by partially-initialized modules or
+  eager __init__.py re-exports, (4) refactoring class methods to purely
+  functional/immutable style, (5) preparing a codebase for extensibility
+  through extraction, parameterization, and protocol-based abstraction,
+  (6) extracting a CLI entry point or main() out of a module while preserving
+  existing patch-based tests without edits (reverse-delegation pattern),
+  (7) reducing cyclomatic complexity (CC>15) by extracting helper steps from
+  oversized pipeline methods carrying `# noqa: C901`, (8) refactoring a broad
+  repository-wide scanner to target a single subdirectory using
+  Path.is_relative_to() allow-lists, (9) detecting and fixing double-increment
+  bugs caused by incomplete context-manager refactors where callers still hold
+  stale manual counter management, (10) safely removing legacy dead-code files
+  marked as fallback/reference-only after verifying zero real callers,
+  (11) reading the existing substrate code before estimating a large refactor
+  to avoid 3-5x LOC over-estimation, (12) finalizing code after parallel phases
+  complete by addressing technical debt accumulated during rapid development.
+category: architecture
+date: 2026-06-05
+version: "1.3.0"
+user-invocable: false
+history: python-module-decomposition-and-refactor-patterns.history
+tags:
+  - python
+  - refactoring
+  - srp
+  - tdd
+  - dry
+  - circular-imports
+  - module-decomposition
+  - collaborator-extraction
+  - extensibility
+  - cli-extraction
+  - patch-routing
+  - entry-point
+  - cyclomatic-complexity
+  - pipeline-extraction
+  - scanner-scoping
+  - context-manager
+  - dead-code
+  - estimation
+  - phase-cleanup
+---
+
+(v1.3.0 contained Phases 1-18 plus the consolidated Superseded blocks; for full text see
+commit history.)
+
 ## v1.3.0 (2026-06-07)
 
 **Changed by:** Skill-consolidation pass (cluster PYR02)

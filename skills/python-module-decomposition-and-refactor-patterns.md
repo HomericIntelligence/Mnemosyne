@@ -19,10 +19,14 @@ description: >-
   marked as fallback/reference-only after verifying zero real callers,
   (11) reading the existing substrate code before estimating a large refactor
   to avoid 3-5x LOC over-estimation, (12) finalizing code after parallel phases
-  complete by addressing technical debt accumulated during rapid development.
+  complete by addressing technical debt accumulated during rapid development,
+  (13) completing a God-Class→phase-class decomposition WITHOUT leaving the
+  original method bodies in place — moving each body INTO the phase before
+  deleting the original, avoiding the append-only-shim anti-pattern that grows
+  the file, triggers F811 redefinitions, and leaves `# noqa: C901` waivers alive.
 category: architecture
-date: 2026-06-05
-version: "1.3.0"
+date: 2026-06-11
+version: "1.4.0"
 user-invocable: false
 history: python-module-decomposition-and-refactor-patterns.history
 tags:
@@ -45,6 +49,11 @@ tags:
   - dead-code
   - estimation
   - phase-cleanup
+  - god-class
+  - phase-class-decomposition
+  - append-only-shim
+  - f811-redefinition
+  - move-then-delete
 ---
 
 # Python Module Decomposition and Refactor Patterns
@@ -53,7 +62,7 @@ tags:
 
 | Field | Value |
 | ------- | ------- |
-| **Date** | 2026-06-05 |
+| **Date** | 2026-06-11 |
 | **Objective** | Decompose oversized Python modules/classes into focused, independently testable units using SRP, TDD, and DRY principles |
 | **Outcome** | Synthesized from 13 verified skills; covers function-level extraction, class-based extraction, circular import fixes, immutability refactoring, extensibility-driven decomposition, CLI entry-point extraction with preserved patch routing, top-level symbol extraction to break sibling module cycles, CC>15 pipeline-step extraction, scanner-to-subdirectory scoping, context-manager double-counter fixes, safe legacy-code deletion, substrate-read-before-estimate discipline, and post-parallel phase cleanup |
 | **Trigger** | Files >800 lines, circular import errors, mixed-concern methods, C901/CC>15 complexity, extensibility requirements, CLI main() extraction, deferred imports inside function bodies preventing static analysis, broad scanners needing subdirectory scope, stale callers after context-manager refactors, dead fallback files, pessimistic refactor estimates, technical debt after parallel phases |
@@ -77,6 +86,14 @@ Apply this skill when any of the following is true:
 - A code file declares itself **"kept for reference / fallback only"** but has zero real callers and leaves stale back-references in production code
 - A `TODO.md`/roadmap/audit estimates **"thousands of LOC" or weeks** for a substrate rewrite — read the substrate first to avoid a 3-5x pessimistic estimate
 - You are in the **cleanup phase** after parallel Test/Implementation/Package phases and need to address accumulated technical debt before merge
+- You are **decomposing a God Class into phase/collaborator classes** and find yourself tempted
+  to APPEND a block of one-line delegation shims to the bottom of the original class while
+  leaving the original method bodies in place earlier in the file (the **append-only-shim
+  anti-pattern** — file grows, ruff flags F811, `# noqa: C901` waivers survive) (Phase 19)
+- A phase's `_xxx_impl` method **bounces straight back** to `self.ctx.runner._xxx(...)` instead
+  of holding the real body — the phase owns none of its responsibility (inverted `_impl`)
+- Two sub-agents must move bodies OUT of a runner AND delete the runner originals — they must
+  be **serialized** (move-out first, then delete-originals) to avoid racing on the same bodies
 
 ## Verified Workflow
 
@@ -100,6 +117,9 @@ Decision tree:
   Dead "fallback only" file, 0 callers  → Safe Legacy Deletion (Phase 16)
   Estimating a big rewrite              → Read substrate FIRST (Phase 17)
   Cleanup after parallel phases         → Finalization checklist (Phase 18)
+  God Class → phase classes (shims)     → MOVE bodies THEN delete originals (Phase 19)
+    F811 + file GREW + C901 survived      ↳ append-only-shim anti-pattern: you forgot to
+                                            delete the originals after appending the shims
 
 Universal rule for mock patches after any move:
   Patch where the name is LOOKED UP at call time — not where it was defined.
@@ -797,6 +817,86 @@ complex functions simplified, naming consistent, docs updated, all tests passing
 formatted, zero compiler warnings, coverage at/above floor, ready for review. Cleanup is the
 final polishing gate before PR approval and merge.
 
+### Phase 19: Complete the Decomposition — Move Bodies Then Delete Originals (do not append shims on top)
+
+> Verification: **verified-precommit (issue #712)** — the fixes below were applied and reasoned
+> through on the `ImplementationPhaseRunner` decomposition (a 1,712 LoC God Class → five phase
+> classes), but the runner-deletion step was interrupted by a session limit before the full
+> pre-commit/pytest gate could be confirmed green end-to-end. Treat this phase's checklist as the
+> correct sequence; the broader skill remains verified-local.
+
+Use when decomposing a God Class into collaborator/phase classes via the reverse-delegation
+pattern (Phase 11). The **append-only-shim anti-pattern** is the dominant failure mode: a partial
+implementation creates the phase classes, wires them in `__init__`, and APPENDS a block of
+one-line delegation shims to the bottom of the original class — **but never deletes the original
+method bodies** earlier in the same class. Every acceptance criterion is then silently UNMET and
+the file is strictly *worse* than before.
+
+**Failure signals (all observed together — this is the diagnostic fingerprint):**
+
+| Signal | Why it happens | What it proves |
+| ------- | -------------- | -------------- |
+| **`ruff` F811 redefinition** on every appended shim | Each shim `def _has_plan(self, n): ...` redefines a name already defined earlier in the same class | The originals are still present (now unreachable dead code) — the move never happened |
+| **File GREW, not shrank** (1,712 → ~1,860 LoC) | Shims were *added on top of* the originals | AC "thin coordinator ≤500 LoC" is unmet — the diff makes the file LARGER |
+| **`# noqa: C901` waivers survive** | The waivers live on the original (now-dead) method bodies, which were never deleted | AC "no C901 waivers" unmet — `grep -n "noqa: C901"` still returns hits |
+| **Inverted `_impl` bounce-back** | The phase's `_xxx_impl` is a one-line bounce BACK to `self.ctx.runner._xxx(...)` | The real body was never moved into the phase; the phase owns none of its responsibility and only works while the runner original (the exact code the ACs require deleting) still exists |
+| **Confident empty stubs** | An extracted helper is left as `return {}` / `raise NotImplementedError()` with a docstring claiming real behavior | Silently misleads the next caller — either port the real body or delete the method |
+
+**The correct completion sequence (MOVE → DELETE → verify):**
+
+1. **MOVE** each real method body FROM the God Class INTO the matching phase `_xxx_impl` method,
+   rewriting `self.X` → `self.ctx.X`:
+
+   | In the God Class (runner) | In the phase `_xxx_impl` body |
+   | ------------------------- | ----------------------------- |
+   | `self.options` | `self.ctx.options` |
+   | `self.state_dir` | `self.ctx.state_dir` |
+   | `self.repo_root` | `self.ctx.repo_root` |
+   | `self.impl` | `self.ctx.impl` |
+   | `self._impl_module` | `self.ctx.impl_module()` (property → method call) |
+   | `self._log` | `self.ctx.impl._log` |
+   | `self._save_state` | `self.ctx.impl._save_state` |
+   | `self._fetch_plan_and_review(...)` (cross-runner call that **tests patch**) | `self.ctx.runner._fetch_plan_and_review(...)` (preserves the test-patch interception site) |
+
+2. **Copy any module-level imports** the moved body needs to the top of the new phase module.
+
+3. **THEN delete the original body** from the God Class, keeping ONLY the one-line shim at the
+   bottom (`def _has_plan(self, n): return self.plan_phase._has_plan(n)`). The shim is the LAST
+   thing standing in the runner; the real body now lives in the phase.
+
+4. **Decompose the two `# noqa: C901` methods structurally and DROP the waivers:**
+   - entry-point `_implement_issue` → `_run_pipeline` + `_handle_pipeline_exception` + a deduped
+     `_update_failed_state` helper;
+   - the review loop → `_iterate` / `_check_termination` / `_address` / `_warn_if_unresolved`
+     fragments, each CC≤8.
+
+5. **Verify:**
+   ```bash
+   grep -n "noqa: C901" <file>          # must return ZERO
+   ruff check --select=C901 <file>      # must pass
+   ruff check <file>                    # must show NO F811 (and no F841)
+   wc -l <file>                         # must be at/under target (≤500 for a thin coordinator)
+   python -c "import <module>"          # must succeed
+   ```
+
+**Sequencing constraint for parallel sub-agents (operational):** When two sub-agents must
+(a) MOVE bodies OUT of the runner into a phase and (b) DELETE the runner originals, they MUST be
+**serialized** — the move-out agent runs FIRST and returns, THEN the delete-originals agent runs.
+Running them in parallel races on the same method bodies and clobbers. **Same-file edits must be
+serialized; different-file edits may run in parallel.** (Complements
+`feedback-prefer-sequential-agent-for-dependency-chains`.)
+
+**Two companion fixes (simple but easy to miss):**
+
+- A delegating shim must target the object that actually **defines** the method. `impl_module()`
+  on the runner called `self.impl.impl_module()`, but `IssueImplementer` has no such public
+  method — the canonical accessor is `StageContext.impl_module()`. Fix: store `self.ctx = ctx`
+  in `__init__` and return `self.ctx.impl_module()`. Lesson: a shim points at the **ctx** that
+  owns the method, not a sibling that doesn't.
+- After switching a method to dispatch through `self.ctx.runner._xxx`, a now-unused
+  `impl = self.ctx.impl` local triggers ruff **F841**. Lesson: after rerouting dispatch, grep the
+  enclosing method for the old local and delete it if unreferenced.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -827,6 +927,12 @@ final polishing gate before PR approval and merge.
 | **Forgetting fixture migration after scoping a scanner** | Scoped the scanner to `scylla/` but left existing tests writing fixtures at `tmp_path/"bad.py"` | Root-level fixtures are now out of scope — tests returned zero findings and failed | After narrowing scanner scope, move every test fixture into the scoped dir and update hard-coded path assertions (`"bad.py"` → `"scylla/bad.py"`) |
 | **Trusting a TODO/audit LOC estimate without reading the substrate** | Took `TODO.md` "Phase 2: ~5000 LOC" and an audit's "CRITICAL: autograd missing" as authoritative effort | Existing tape/registry/SavedTensors infra already covered ~70%; estimate was 3-5x too high and conflated "documented" with "missing" | Read every substrate file in full with line-cited evidence BEFORE estimating (Phase 17); re-classify "missing" as "incomplete, N% gap" |
 | **Deleting legacy code before verifying zero callers** | Assumed a "fallback only" file was dead and considered deleting it on the strength of its header alone | "Fallback only" claims are not self-enforcing — the codebase may still depend on it in non-obvious ways; dead code passes all CI | Systematically grep all callers across `*.py/*.sh/*.md/.github/` first, rewrite stale back-references as self-contained comments, then delete and run full suites (Phase 16) |
+| **Append-only shim block, originals left in place** (issue #712) | Created phase classes, wired them in `__init__`, and APPENDED a block of one-line delegation shims to the bottom of the God Class — but never deleted the original method bodies earlier in the class | `ruff` flagged F811 redefinition on every shim; file GREW 1,712 → ~1,860 LoC (shims on top of originals); `# noqa: C901` waivers survived on the now-dead original bodies; every AC silently UNMET and the file was strictly worse | MOVE each body INTO the phase `_xxx_impl` FIRST, THEN delete the runner original keeping only the shim. Appending shims is not decomposition (Phase 19) |
+| **Inverted `_impl` bounce-back to the runner original** (issue #712) | Wrote the phase's `_xxx_impl` as a one-line bounce BACK to `self.ctx.runner._xxx(...)` | The real body was never moved into the phase; the phase owns none of its responsibility and only works while the runner original (the code the ACs require deleting) still exists | The direction is runner shim → phase `_impl` holds the real body, never the reverse. Move the body into the phase, not a pointer back to the runner (Phase 19) |
+| **Confident empty stub with a real-behavior docstring** (issue #712) | Left an extracted helper as `return {}` / `raise NotImplementedError()` while its docstring claimed it performed real work | Silently misleads the next caller — the stub passes import and lint but returns wrong data at runtime | Either port the real body into the helper or delete the method entirely; never ship a stub that lies about its behavior (Phase 19) |
+| **Running move-out and delete-originals agents in parallel on the same file** (issue #712) | Dispatched one sub-agent to move bodies OUT of the runner and another to delete the runner originals concurrently | Both agents edited the same method bodies and raced/clobbered each other's edits | Serialize same-file edits: move-out agent runs FIRST and returns, THEN delete-originals agent runs; only different-file edits may run in parallel (Phase 19) |
+| **Shim targeting a sibling that lacks the method** (issue #712) | `impl_module()` on the runner delegated to `self.impl.impl_module()`, but `IssueImplementer` had no such public method | The canonical accessor lives on `StageContext`, not on the sibling `impl` object | A delegating shim must target the object that actually DEFINES the method — store `self.ctx = ctx` and return `self.ctx.impl_module()` (Phase 19) |
+| **Leftover unused `impl = self.ctx.impl` local after rerouting dispatch** (issue #712) | Switched a method to dispatch through `self.ctx.runner._xxx(...)` but left the now-unused `impl = self.ctx.impl` local at the top | ruff F841: local variable assigned but never used | After rerouting dispatch, grep the enclosing method for the old local and delete it if unreferenced (Phase 19) |
 
 ## Results & Parameters
 
@@ -896,3 +1002,4 @@ Revised LOC estimate: ~X (vs TODO "~Y"); justification: ~Z% already in substrate
 | ProjectHephaestus | PR #745 — deleted 587-line legacy `run_automation_loop.sh` + helper + 480 lines of tests; scrubbed 8 stale back-references across 4 files; 1093 tests + 26 shell tests pass | Superseded `legacy-code-deletion-safe-removal-pattern` (Phase 16) |
 | ProjectOdyssey | PR #5457 — Phase 0 substrate read revised a TODO "~5000 LOC" estimate to ~1400; actual landed +937 LOC (CI green) | Superseded `architecture-estimate-rewrite-read-substrate-first` (Phase 17) |
 | HomericIntelligence ecosystem | Cleanup-phase coordination after parallel Test/Implementation/Package phases (KISS/DRY/SOLID finalization before merge) | Superseded `phase-cleanup` (Phase 18) |
+| ProjectHephaestus | Issue #712 — decompose `ImplementationPhaseRunner` (1,712 LoC God Class) into five phase classes; surfaced the append-only-shim anti-pattern (F811 + file grew to ~1,860 + C901 waivers survived), inverted `_impl` bounce-back, confident empty stubs, and the move-out/delete-originals serialization constraint; fixes applied and reasoned through but interrupted by a session limit before the full gate ran (verified-precommit) | Append-only-shim anti-pattern + MOVE→DELETE→verify completion sequence (Phase 19) |
