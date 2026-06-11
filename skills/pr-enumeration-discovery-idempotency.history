@@ -5,6 +5,55 @@
 This file preserves the full original content of every skill merged into the
 `pr-enumeration-discovery-idempotency` canonical.
 
+## v1.1.0 (2026-06-10)
+
+**What changed:** Widened the `_discover_failing_prs` except tuple from the
+narrow `(json.JSONDecodeError, subprocess.CalledProcessError)` shown in the
+v1.0.0 example to the canonical 4-tuple
+`(subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError,
+json.JSONDecodeError)`. Added a new "Symmetric subprocess failure-mode
+handling" section under Verified Workflow, a new Failed Attempts row for
+narrow-tuple soft-fail, and a row in the Verified On table for PR #1097/#1151.
+
+**Why it changed:** The example code in v1.0.0 caught only 2 of the 4
+subprocess failure modes that a `gh`-wrapped helper can raise. A real
+production incident (ProjectHephaestus issue #1096) showed that a `gh` CLI
+hang (`subprocess.TimeoutExpired`) or a missing binary (`OSError` /
+`FileNotFoundError`) propagated uncaught out of `_discover_failing_prs`,
+got swallowed by the worker-thread exception handler, and marked the entire
+work item failed — directly violating the docstring contract "Empty dict
+on any lookup failure — discovery must never abort the drive." The fix
+landed in PR #1097 (merged via PR #1151) with two regression tests. The
+v1.0.0 example code in this skill is now a known-bad pattern that
+reviewers would have copy-pasted into new helpers.
+
+**Previous content of `pr-enumeration-discovery-idempotency.md` v1.0.0**
+(full snapshot preserved below for reference). Inline-diff summary of
+what changed in the .md:
+
+- Frontmatter: `version: "1.0.0"` → `"1.1.0"`, `date: 2026-06-07` →
+  `2026-06-10`, new tags `subprocess-except`, `TimeoutExpired`,
+  `soft-fail`, `symmetric-failure-modes`.
+- Description: extended item (8) to mention the symmetric-tuple bug
+  alongside the silent-`return []` bug.
+- Quick Reference: added a one-liner showing the canonical 4-tuple.
+- New Verified Workflow subsection: "Symmetric subprocess failure-mode
+  handling: the canonical `gh`-wrapped except 4-tuple".
+- `_discover_failing_prs` code example: except tuple widened to
+  4-tuple, demoted `logger.error` to `logger.info` (soft-fail is
+  expected, not an error), aligned wording with the in-repo
+  implementation at `hephaestus/automation/ci_driver.py:491-498`.
+- `_discover_bot_prs` code example: except tuple widened to 4-tuple
+  for symmetric coverage (same binary, same failure modes).
+- Failed Attempts: new row "Narrow-tuple soft-fail catches only a
+  subset of subprocess failure modes".
+- Verified On: new row PR #1097/#1151 (issue #1096).
+
+(The full prior content of `pr-enumeration-discovery-idempotency.md`
+v1.0.0 is captured at the canonical's git history at the commit prior
+to this amendment; see this file's earlier "Superseded from ..."
+blocks for the source-skill text that pre-dated v1.0.0.)
+
 ## v1.0.0 (2026-06-07)
 
 Initial merge consolidating 8 source skills:

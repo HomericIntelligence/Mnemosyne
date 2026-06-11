@@ -1,9 +1,9 @@
 ---
 name: pr-enumeration-discovery-idempotency
-description: "Use when: (1) gh pr list silently truncates results because the default limit is 30 and a repo has more open PRs, (2) gh label list or gh issue list silently drops entries past the default pagination limit, (3) Dependabot or other bot-authored PRs are invisible to issue-driven automation because they have no Closes #N link — use synthetic issue-key union pattern, (4) an automation tool creates duplicate PRs for the same issue because it lacks an idempotency check before calling gh pr create, (5) GitHub API reports a PR as merged but the remote ref and local working tree have not yet synced — merged state is not proof of remote sync, (6) a bulk PR-sync tool times out (HTTP 504) because gh pr list with statusCheckRollup at 50+ PRs is too heavy — fetch statusCheckRollup per-PR instead, (7) a bulk driver silently skips the whole PR queue by returning an empty list on a gh error instead of raising, (8) stale CI classification marks BEHIND/BLOCKED PRs as FAILING and skips them when they should be rebased"
+description: "Use when: (1) gh pr list silently truncates results because the default limit is 30 and a repo has more open PRs, (2) gh label list or gh issue list silently drops entries past the default pagination limit, (3) Dependabot or other bot-authored PRs are invisible to issue-driven automation because they have no Closes #N link — use synthetic issue-key union pattern, (4) an automation tool creates duplicate PRs for the same issue because it lacks an idempotency check before calling gh pr create, (5) GitHub API reports a PR as merged but the remote ref and local working tree have not yet synced — merged state is not proof of remote sync, (6) a bulk PR-sync tool times out (HTTP 504) because gh pr list with statusCheckRollup at 50+ PRs is too heavy — fetch statusCheckRollup per-PR instead, (7) a bulk driver silently skips the whole PR queue by returning an empty list on a gh error instead of raising, (8) stale CI classification marks BEHIND/BLOCKED PRs as FAILING and skips them when they should be rebased, (9) a docstring promises a soft-fail (Empty dict on any lookup failure — discovery must never abort) but the except tuple catches only a subset of subprocess failure modes — a gh-CLI hang (subprocess.TimeoutExpired) or missing binary (OSError/FileNotFoundError) propagates uncaught, violating the contract"
 category: ci-cd
-date: 2026-06-07
-version: "1.0.0"
+date: 2026-06-10
+version: "1.1.0"
 user-invocable: false
 history: pr-enumeration-discovery-idempotency.history
 tags:
@@ -23,6 +23,10 @@ tags:
   - merged-state-sync
   - pr-discovery
   - bulk-pr-sync
+  - subprocess-except
+  - TimeoutExpired
+  - soft-fail
+  - symmetric-failure-modes
 ---
 
 # PR Enumeration, Discovery, and Idempotency
@@ -31,9 +35,9 @@ tags:
 
 | Field | Value |
 | ------- | ------- |
-| **Date** | 2026-06-07 |
-| **Objective** | Canonical reference for correctly *finding* PRs (pagination, bot PRs, limit caps), filing them idempotently, reasoning about state divergence between the GitHub API and the remote, and classifying a bulk PR queue for routing. |
-| **Outcome** | Consolidated from 8 verified skills covering gh enumeration, synthetic-issue-key bot discovery, duplicate-PR prevention, merged-state sync verification, and bulk PR-sync classification. |
+| **Date** | 2026-06-10 |
+| **Objective** | Canonical reference for correctly *finding* PRs (pagination, bot PRs, limit caps), filing them idempotently, reasoning about state divergence between the GitHub API and the remote, classifying a bulk PR queue for routing, and using the canonical 4-tuple of subprocess failure modes when a soft-fail contract is in force. |
+| **Outcome** | Consolidated from 8 verified skills covering gh enumeration, synthetic-issue-key bot discovery, duplicate-PR prevention, merged-state sync verification, bulk PR-sync classification, and (v1.1.0) symmetric subprocess except-tuple coverage for soft-fail discovery helpers. |
 | **Verification** | verified-ci |
 | **History** | [changelog](./pr-enumeration-discovery-idempotency.history) |
 
@@ -75,6 +79,19 @@ git show origin/main:path/to/file 2>/dev/null && echo PRESENT || echo DELETED
 gh pr list --state open --limit 100 \
   --json number,title,headRefName,baseRefName,headRefOid,mergeable,mergeStateStatus
 gh pr view <n> --json statusCheckRollup                  # fetch CI per-PR (never 504s)
+```
+
+```python
+# ── SOFT-FAIL DISCOVERY: the canonical 4-tuple for ANY gh-wrapped helper whose
+#    docstring promises "Empty dict / [] on any lookup failure — never abort." ──
+except (
+    subprocess.CalledProcessError,   # gh exited non-zero
+    subprocess.TimeoutExpired,       # gh hung past the timeout
+    OSError,                         # missing binary / FileNotFoundError / permission
+    json.JSONDecodeError,            # malformed stdout from --json
+) as exc:
+    logger.info("<helper> skipped: gh ... failed (%s)", exc)   # POLA: keep observable
+    return {}
 ```
 
 ### Detailed Steps
@@ -138,17 +155,23 @@ For PR-driven automation (enumerate by PR, not by issue), filter on two fields. 
 
 ```python
 def _discover_failing_prs(repo_root: str) -> dict[int, int]:
-    """Returns {pr_number: pr_number} — the synthetic-key invariant."""
+    """Returns {pr_number: pr_number} — the synthetic-key invariant.
+
+    Empty dict on any lookup failure — discovery must never abort the drive.
+    """
     try:
         result = _gh_call(["pr", "list", "--limit", "1000",
             "--json", "number,isDraft,statusCheckRollup,mergeStateStatus"],
-            cwd=repo_root, check=False)
-        if result.returncode != 0:
-            logger.error("Failed to enumerate PRs: %s", result.stderr)
-            return {}
+            cwd=repo_root)
         prs = json.loads(result.stdout or "[]")
-    except (json.JSONDecodeError, subprocess.CalledProcessError) as exc:
-        logger.error("Error processing PR list: %s", exc); return {}
+    except (
+        subprocess.CalledProcessError,   # gh exited non-zero
+        subprocess.TimeoutExpired,       # gh hung past its timeout
+        OSError,                         # gh binary missing / permission denied
+        json.JSONDecodeError,            # malformed --json stdout
+    ) as exc:
+        logger.info("Failing-PR discovery skipped: gh pr list failed (%s)", exc)
+        return {}
     failing: dict[int, int] = {}
     for pr in prs:
         if pr.get("isDraft", False):                      continue
@@ -163,6 +186,72 @@ def _discover_failing_prs(repo_root: str) -> dict[int, int]:
 
 Always use `--json` (text output silently caps at 30 regardless of `--limit`). Cost is one `gh pr list` call per repo; for repos over 1000 PRs use `--paginate` via `gh api`.
 
+#### Symmetric subprocess failure-mode handling: the canonical 4-tuple
+
+A discovery helper whose docstring promises a soft-fail ("**Empty dict on any lookup failure — discovery must never abort the drive**") MUST catch every transient failure mode the wrapped binary can raise. Catching only 2 of the 4 canonical `subprocess`-wrapped CLI failure modes is a latent bug: the uncaught modes propagate out of the helper, get caught by an outer worker-thread exception handler, and mark the entire work item failed — directly violating the docstring contract. The bug is invisible until the rare failure mode fires in production.
+
+The **canonical except 4-tuple** for any helper that wraps an external CLI (here, `gh`):
+
+| Exception | Trigger | Realistic scenario |
+| --------- | ------- | ------------------ |
+| `subprocess.CalledProcessError` | Non-zero exit code (only when `check=True` or you raise it yourself) | gh reports auth error, rate limit, repo-not-found |
+| `subprocess.TimeoutExpired` | Process hung past the `timeout=` argument | gh CLI hang on a slow API response; the canonical gh-CLI hang signal |
+| `OSError` (incl. `FileNotFoundError`) | Binary missing, permission denied, broken pipe | gh not on PATH (CI without gh installed); EACCES on the binary; tmpfs full |
+| `json.JSONDecodeError` | `--json` stdout was empty/truncated/garbled | gh wrote a banner before the JSON (auth migration warning); HTTP body returned as HTML |
+
+`OSError` is the parent class of `FileNotFoundError`, so catching `OSError` covers the missing-binary case without naming it separately. Do **not** broaden to bare `except Exception` — that masks programmer errors (AttributeError from a malformed Mock, TypeError from a refactor that broke the signature) which you DO want to surface as bugs.
+
+##### The cross-module symmetric check
+
+When the same binary is wrapped by multiple helpers in the same module/package, their except tuples should **converge** on the same canonical set. An asymmetry is a code smell: either one helper is over-catching (masking a real bug class) or the other is under-catching (latent uncaught path). Worked example from `hephaestus.automation`:
+
+```text
+ci_driver.py:_discover_failing_prs   ← wraps `gh pr list`, soft-fails to {}
+loop_runner.py:_count_failing_prs    ← wraps `gh pr list`, soft-fails to 0
+```
+
+Both wrap `gh pr list` against the SAME failure modes. They MUST converge on the same except tuple. The original `_discover_failing_prs` shipped with `(CalledProcessError, JSONDecodeError)` while `_count_failing_prs` shipped with `(TimeoutExpired, OSError)` — disjoint sets, no single helper covered the full 4-tuple. A 60-second `gh` hang in `_discover_failing_prs` propagated; the operator saw the whole multi-repo drive crash because two sister functions disagreed about what "transient" meant. The fix (PR #1097) was to widen both to the canonical 4-tuple.
+
+##### Procedure to apply
+
+1. **Grep the module for every wrapper of the same binary.**
+   ```bash
+   rg -n 'subprocess\.run.*"gh"' hephaestus/automation/
+   rg -n '_gh_call' hephaestus/automation/
+   ```
+2. **Compare each helper's except tuple.** Are they catching the same set? If not, that's the bug.
+3. **Widen each to the union** — for `gh`-wrapped soft-fail helpers, the canonical 4-tuple above.
+4. **Preserve the observability log.** Demote `logger.error` to `logger.info` when the soft-fail is *expected* on the unhappy path (transient gh failure shouldn't trigger pages); a silent fallback with NO log line violates POLA and turns a 10-second debug into a multi-hour log archaeology project. Pattern:
+   ```python
+   logger.info("<helper> skipped: gh ... failed (%s)", exc)
+   return {}   # or [] or 0 — match the soft-fail contract
+   ```
+5. **Add regression tests for each newly-caught exception.** Pattern after the existing `_returns_empty_on_gh_error` test:
+   ```python
+   def test_returns_empty_when_gh_times_out(monkeypatch):
+       def fake_gh(*args, **kwargs):
+           raise subprocess.TimeoutExpired(cmd=["gh", "pr", "list"], timeout=60.0)
+       monkeypatch.setattr(ci_driver, "_gh_call", fake_gh)
+       assert driver._discover_failing_prs() == {}
+
+   def test_returns_empty_when_gh_binary_missing(monkeypatch):
+       def fake_gh(*args, **kwargs):
+           raise FileNotFoundError(2, "No such file or directory: 'gh'")
+       monkeypatch.setattr(ci_driver, "_gh_call", fake_gh)
+       assert driver._discover_failing_prs() == {}
+   ```
+   One regression test per exception type; the test name should encode the failure mode so a future reader sees "ah, the TimeoutExpired path is covered."
+
+##### Why NOT broaden to `except Exception`
+
+Catching the canonical 4-tuple keeps the soft-fail surface **precise**. Bare `except Exception` swallows the bug classes you want to surface:
+
+- `AttributeError` from a malformed `Mock(spec=...)` in a unit test — silent test failure
+- `TypeError` from a refactor that changed `_gh_call`'s signature — silent regression
+- `KeyError` / `IndexError` from a JSON-shape change after the schema evolves — silent data corruption
+
+If the codebase has a true "fail-safe orchestrator" need for `except Exception`, use the classification pattern from `silent-boundary-observability-exception-classification` (route expected to WARNING, unexpected to ERROR with `exc_info=True`). For a *discovery helper* with a tight, well-defined contract, stay with the explicit 4-tuple.
+
 #### Bot-PR discovery: union a `user.type=='Bot'` sweep with a synthetic issue key
 
 An issue→PR resolver ("for each open issue, find its closing `Closes #N` PR") **cannot by construction** see a PR that has no originating issue. Dependabot/Renovate/Lychee/Sweep PRs have no issue body and no `Closes #N` line, so the driver reports "nothing to do" while bot PRs pile up. You cannot fix this by raising a limit or adding an `--author` filter — the discovery **direction** is wrong. Add a complementary PR→PR sweep:
@@ -175,8 +264,13 @@ def _discover_bot_prs(self) -> dict[int, int]:
         result = _gh_call(["api", "--paginate",
             f"/repos/{owner}/{repo}/pulls?state=open&per_page=100"], check=False)
         raw = json.loads(result.stdout or "[]")
-    except (subprocess.CalledProcessError, json.JSONDecodeError) as exc:
-        logger.error("Could not enumerate bot PRs: %s", exc); return {}
+    except (
+        subprocess.CalledProcessError,
+        subprocess.TimeoutExpired,
+        OSError,
+        json.JSONDecodeError,
+    ) as exc:
+        logger.info("Bot-PR discovery skipped: gh api failed (%s)", exc); return {}
     bots: dict[int, int] = {}
     for pr in raw:
         if (pr.get("user") or {}).get("type") != "Bot":   # REST discriminator
@@ -283,6 +377,9 @@ Three compounding bugs each silently neuter a bulk PR-sync tool (`hephaestus.git
 | Catch the bulk `gh` list error and `return []` | Treat a failed list as an empty list | Tool logged "No open PRs" and exited SUCCESS while silently skipping the entire queue. | A list failure is fatal — raise so the exit status reflects the unprocessed queue; only a true empty result returns `[]`. |
 | Classify ANY `CI=FAILURE` PR as FAILING (skip) | Skip every red PR | After a fix lands on main, every BEHIND PR shows its old failing run, so the tool skips all of them and rebases nothing. | Gate FAILING on `mergeStateStatus == CLEAN`; a BEHIND/BLOCKED + MERGEABLE red PR is OUTDATED → rebase (re-runs CI fresh). |
 | Abort the whole run when one per-PR `gh pr view` is flaky | One transient fetch error blocks the queue | A single flaky fetch would strand every remaining PR. | Downgrade the flaky PR to `CI=UNKNOWN` (falls through to rebase); never abort the run for one PR. |
+| Narrow-tuple soft-fail in a `gh`-wrapped discovery helper | Caught only `(subprocess.CalledProcessError, json.JSONDecodeError)` in `_discover_failing_prs` despite a docstring promising "Empty dict on any lookup failure — discovery must never abort" | A `gh` CLI hang (`subprocess.TimeoutExpired`) and a missing binary (`OSError` / `FileNotFoundError`) propagated uncaught, got swallowed by the outer worker-thread exception handler, and marked the entire work item failed — silently violating the soft-fail contract. The sister helper `_count_failing_prs` in the same package caught a disjoint subset `(TimeoutExpired, OSError)`, so neither covered the full failure surface. | A soft-fail helper wrapping an external CLI MUST catch the canonical 4-tuple `(subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError, json.JSONDecodeError)`. Sister helpers wrapping the same binary must converge on the same tuple — an asymmetry IS the bug. Keep the precise tuple (do not broaden to `except Exception` — that masks `AttributeError`/`TypeError` from refactors and Mocks). Preserve a `logger.info(...)` line on the soft-fail path so it stays observable (POLA — a silent fallback with no log is a multi-hour debug). |
+| Bare `except Exception` "to be safe" in a discovery helper | Replaced the narrow tuple with `except Exception` after one TimeoutExpired escape | Swallowed `AttributeError` from a malformed `Mock(spec=...)` in a unit test (silent test pass on a broken refactor) and `KeyError` from a JSON-schema drift after the `gh --json` field set changed (silent data corruption — discovery returned `{}` because the dict access blew up, not because gh failed). | The broad boundary is the wrong tool for a discovery helper with a tight contract. Stay with the explicit 4-tuple; use the classification pattern (`silent-boundary-observability-exception-classification`) only when fail-safe orchestrator semantics genuinely require `except Exception` AND you want unexpected types to log at ERROR. |
+| Silent fallback to `{}` with NO log line | Caught the right exceptions but stripped the log call "to reduce log noise" | Operator saw "all repos clean" while every `gh pr list` was actually timing out. Debug took multiple hours of log archaeology before the timeout pattern was visible. | A soft-fail path is *expected*, not silent. Keep `logger.info("<helper> skipped: gh ... failed (%s)", exc)` — `INFO` (not `ERROR`) so it doesn't page on-call, but never *absent*. POLA: every fallback branch must be observable in logs. |
 
 ## Results & Parameters
 
@@ -339,3 +436,4 @@ git fetch origin --quiet && \
 | HomericIntelligence/ProjectOdyssey | Merged-state read-direction false positives (PRs #5458/#5459/#5460, 2026-05-26) | Audit swarm on stale feature-branch working tree hallucinated "Wave 2 didn't execute" |
 | ProjectKeystone | Merged-state write-direction divergence (PR #571 / branch `512-impl`, 2026-05-29) | Parallel `.issue_implementer` pushed a different implementation; caught before a clobbering push |
 | HomericIntelligence/ProjectHephaestus | Bulk PR-sync 504 + silent no-op + stale-classify (`fleet_sync`, PRs #1028/#1030, 2026-06-06) | Run listed 56 PRs and rebased 49 (7 genuine conflicts) |
+| HomericIntelligence/ProjectHephaestus | Symmetric 4-tuple soft-fail in `_discover_failing_prs` (issue #1096 → PR #1097, merged via PR #1151, 2026-06-10) | Widened narrow `(CalledProcessError, JSONDecodeError)` except to canonical `(CalledProcessError, TimeoutExpired, OSError, JSONDecodeError)` in `hephaestus/automation/ci_driver.py:491-498`; aligned with sister helper `loop_runner._count_failing_prs:684`; added 2 regression tests in `tests/unit/automation/test_ci_driver_failing_pr_discovery.py` (gh timeout + missing-binary). All checks passed first try (pre-commit, unit/integration tests on Python 3.10–3.13, pr-policy, auto-merge, CodeQL). |
