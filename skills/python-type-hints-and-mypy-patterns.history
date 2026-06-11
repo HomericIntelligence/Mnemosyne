@@ -2,6 +2,20 @@
 
 # History: python-type-hints-and-mypy-patterns
 
+## v1.2.0 (2026-06-11)
+
+Add downstream-consumer cascade insight for type-erasure fixes (ProjectHephaestus
+#757/#956, merged a29d6361, verified-ci): when you replace an `object`-typed
+passthrough wrapper signature with `Callable[..., R] + TypeVar`, the precise return
+type flows to *every* consumer, so `# type: ignore[attr-defined]` comments in
+unrelated downstream callers (e.g. reading `.returncode` off the result) also become
+removable. Grep consumers for now-removable ignores after fixing erasure at the
+source. Reinforced that a `# type: ignore` is a code smell pointing at the real bug,
+and that ProjectHephaestus has a `forbid-suppressions` CI gate discouraging gratuitous
+suppressions. Expanded section 3, added two Failed Attempts rows (silencing with
+`# type: ignore` as a non-fix; forgetting to grep downstream consumers), and a Verified
+On detail.
+
 ## v1.1.0 (2026-06-07)
 
 restore exception-tightening table + to_dict symptom + lessons (nuance audit pass 2)

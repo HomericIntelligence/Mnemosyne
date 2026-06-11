@@ -1,9 +1,9 @@
 ---
 name: python-type-hints-and-mypy-patterns
-description: "Canonical guide to Python type annotation and mypy compliance patterns. Use when: (1) mypy with implicit_reexport=false or disallow_untyped_defs raises errors after a module refactor, (2) annotating hundreds of unannotated test functions in tests/unit/ to satisfy mypy strict mode, (3) AI-generated type annotations are placed at call sites instead of function definitions causing CI failures, (4) a manager/proxy class needs correct Callable or TypeVar generics to preserve return types without ParamSpec violations, (5) adding PEP 561 py.typed marker to make a typed package discoverable by mypy/pyright, (6) Pydantic model field types diverge from function signatures causing implicit-reexport or attribute-export errors."
+description: "Canonical guide to Python type annotation and mypy compliance patterns. Use when: (1) mypy with implicit_reexport=false or disallow_untyped_defs raises errors after a module refactor, (2) annotating hundreds of unannotated test functions in tests/unit/ to satisfy mypy strict mode, (3) AI-generated type annotations are placed at call sites instead of function definitions causing CI failures, (4) a manager/proxy class needs correct Callable or TypeVar generics to preserve return types without ParamSpec violations, or you see a `func: object`/`-> object` passthrough wrapper forcing `# type: ignore[arg-type]`/`[operator]`/`[attr-defined]` (including in downstream consumers) that a forbid-suppressions audit flags, (5) adding PEP 561 py.typed marker to make a typed package discoverable by mypy/pyright, (6) Pydantic model field types diverge from function signatures causing implicit-reexport or attribute-export errors."
 category: tooling
-date: 2026-06-07
-version: "1.1.0"
+date: 2026-06-11
+version: "1.2.0"
 user-invocable: false
 history: python-type-hints-and-mypy-patterns.history
 tags:
@@ -24,6 +24,10 @@ tags:
   - manager-proxy
   - bulk-annotation
   - ci-fix
+  - type-ignore
+  - type-erasure
+  - forbid-suppressions
+  - resilient-call
 ---
 
 # Python Type Hints and mypy Patterns
@@ -32,7 +36,7 @@ tags:
 
 | Field | Value |
 | ------- | ------- |
-| **Date** | 2026-06-07 |
+| **Date** | 2026-06-11 |
 | **Category** | tooling |
 | **Objective** | Canonical reference for Python type annotation and mypy strict-mode compliance: bulk annotation, call-site error fixes, generic return preservation, manager-proxy hints, PEP 561 markers, and Pydantic/API alignment |
 | **Outcome** | Consolidated from 6 skills covering bulk test annotation, call-site fixes, Callable/TypeVar generics, manager-proxy hints, py.typed packaging, and type-system/API alignment |
@@ -44,6 +48,7 @@ tags:
 - mypy with `disallow_untyped_defs` flags hundreds of unannotated test functions and you need to remove a `[[tool.mypy.overrides]]` suppress block
 - AI-generated code placed type annotations at function **call sites** instead of definitions, causing `SyntaxError` during pytest collection or ruff `F821`
 - A wrapper function must preserve the return type of a wrapped callable but interleaves keyword-only params between `*args`/`**kwargs` (ParamSpec/PEP 612 violation)
+- You see a `func: object`/`-> object` passthrough wrapper, or `# type: ignore[arg-type]`/`[operator]`/`[attr-defined]` on a callable forwarder — or a mypy/`forbid-suppressions` audit flags `type: ignore` on a wrapper — and want to remove the suppressions by fixing the generics instead of loosening config
 - A method returns a `multiprocessing.Manager()` proxy object (Semaphore/Queue) that cannot be annotated precisely
 - A typed package needs a PEP 561 `py.typed` marker so mypy/pyright recognize it
 - mypy with `implicit_reexport = false` raises "does not explicitly export attribute X" after a refactor
@@ -173,7 +178,16 @@ def resilient_call(
                 raise
 ```
 
-`Callable[..., R]` accepts any callable and preserves the return type `R`, so call sites keep precise types (`result["key"]` is checked) with **zero `# type: ignore`**. One `R` per module suffices — each call rebinds it. If mypy still complains, the error is real, not masked.
+`Callable[..., R]` accepts any callable and preserves the return type `R`, so call sites keep precise types (`result["key"]` is checked) with **zero `# type: ignore`**. One `R` per module suffices — each call rebinds it. If mypy still complains, the error is real, not masked. `*args: Any, **kwargs: Any` for the forwarded args is sufficient — full ParamSpec is **not** required when you only need to preserve the return type (and is illegal once you interleave wrapper params).
+
+**The `object`-erasure tell**: `func: object, *args: object, **kwargs: object -> object` forces `# type: ignore[arg-type]` and `# type: ignore[operator]` *inside* the wrapper (you can't call an `object`) **and** erases the return type for every caller. A `# type: ignore` is a code smell pointing at the real bug — remove it by fixing the types, not by loosening config. ProjectHephaestus enforces this with a `forbid-suppressions` CI gate that actively discourages gratuitous `type: ignore` suppressions.
+
+**Cascade to downstream consumers**: fixing the erasure at the source restores the real return type for *every* caller, so `# type: ignore` comments in **unrelated downstream consumers** also become removable. In ProjectHephaestus #757, typing `resilient_call(func: subprocess.run, ...) -> R` let `subprocess.run(...)`'s `CompletedProcess[bytes]` flow through, so a `# type: ignore[attr-defined]` in `loop_runner.py` (reading `completed.returncode` off the previously-`object` result) could be deleted. **After fixing type erasure at the source, grep consumers for now-removable ignores:**
+
+```bash
+git grep -n "type: ignore" -- '*.py'   # then delete the ones the fix made unnecessary
+<package-manager> run mypy <path>/      # confirm each deletion still type-checks clean
+```
 
 #### 4. Manager / proxy return types — explicit Any
 
@@ -273,7 +287,9 @@ grep -B 5 "class.*BaseModel" src/   # confirm the owning class is a BaseModel
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 | --------- | ---------------- | --------------- | ---------------- |
 | ParamSpec with interleaved params | `def retry(func: Callable[P, R], *args: P.args, max_retries: int, **kwargs: P.kwargs) -> R:` | PEP 612 forbids parameters between `P.args` and `P.kwargs` | ParamSpec is for transparent forwarding only; when you add wrapper-specific params, use `Callable[..., R] + TypeVar` |
-| `object`-typed signature for wrappers | `def retry(func: object, *args: object, **kwargs: object) -> object:` | Erases all type info; every call site needs `# type: ignore` | Even broad `Callable[..., R]` preserves return-type semantics; never erase to `object` |
+| `object`-typed signature for wrappers | `def retry(func: object, *args: object, **kwargs: object) -> object:` | Erases all type info; needs `# type: ignore[arg-type]`/`[operator]` inside the wrapper *and* every call site loses the return type | Even broad `Callable[..., R]` preserves return-type semantics; never erase to `object` |
+| Silence the wrapper errors with `# type: ignore` | Added `# type: ignore[arg-type]`/`[operator]` to make `object`-typed `func(...)` type-check | Suppresses the symptom, not the cause — the return type is still erased for callers; ProjectHephaestus `forbid-suppressions` gate discourages it | A `# type: ignore` is a code smell pointing at the real bug; fix the types (`Callable[..., R] + TypeVar`), don't mask them |
+| Fixed the wrapper but left downstream `# type: ignore[attr-defined]` | Typed the wrapper correctly but didn't revisit callers that previously got `object` back | Stale `# type: ignore[attr-defined]` (e.g. `completed.returncode`) lingered, now unnecessary and flagged by the suppressions gate | After fixing erasure at the source, `git grep "type: ignore"` consumers and delete the ones the fix made removable |
 | Add `: Any` via simple regex on multi-line signatures | Regex inserted `: Any` across multi-line `def`s and into multi-line imports | Corrupted signatures; inserted `from typing import Any` inside import statements | Use AST-based tools or fix manually; `ast.parse()` every file after automated edits |
 | Use `object` instead of `Any` for untyped test params | Annotated fixture params `: object` | Caused a cascade of secondary mypy errors | Use `Any` for permissive test/fixture params; `object` is too strict |
 | `-> None` on value-returning fixtures/helpers | Bulk-applied `-> None` to all functions | `[return-value]`/`[func-returns-value]` errors on functions that return values | Inner helpers and fixtures returning values need `-> Any` (or precise type) |
@@ -359,5 +375,5 @@ pre-commit run --all-files
 | ProjectScylla | PR #708, issue #641 — Manager proxy return type | `-> Any` on `_setup_workspace_and_semaphore`; mypy + tests pass |
 | ProjectScylla | Issue #1530, PR #1559 — PEP 561 py.typed marker | pre-commit verified |
 | ProjectScylla | Issues #679/#729/#799/#796/#1355, PR #1541 — type-alias/base-class/frozen/except/normalization | up to 4800 tests pass |
-| ProjectHephaestus | Issue #757, PR #956 — Callable[..., R] + TypeVar | Replaced `object` signature; 124 tests pass in CI |
+| ProjectHephaestus | Issue #757, PR #956 (merged a29d6361) — Callable[..., R] + TypeVar | Replaced `resilient_call` `object` signature; removed 2 `# type: ignore` in `subprocess_resilience.py` + 1 `[attr-defined]` in downstream `loop_runner.py`; mypy/pre-commit + full py3.10–3.13 matrix green |
 | ProjectHephaestus | PRs #308/#74/#88 — explicit re-export, bool→None, audit | mypy clean, all tests pass |
