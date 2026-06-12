@@ -2,6 +2,57 @@
 
 # stale-documentation-audit-and-broken-reference-repair — History
 
+## v1.1.0 (2026-06-12)
+
+- **Changed by:** ProjectHephaestus #1208 / PR #1233 — doc-version-currency CI drift guard
+- **Verification:** verified-local — CI validation pending
+- **Bump rationale:** MINOR (additive — new drift-test variant + Failed-Attempts rows + triggers;
+  no removals, no behavior changes to existing guidance).
+
+### What changed
+
+1. **Drift-detection test pattern** gained a new subsection: *"Variant: doc-version-currency guard
+   anchored to the git TAG (hatch-vcs repos)"*. It documents the three non-obvious rules:
+   (a) authority = the latest `vX.Y.Z` git tag via
+   `hephaestus.version.consistency._version_from_git_tag(repo_root)` (leading `v` stripped;
+   internally `git describe --tags --abbrev=0 --match 'v[0-9]*'`), NOT `pyproject.toml`;
+   (b) compare with `>=` / "does-not-trail" via
+   `hephaestus.version.parsing.parse_version_tuple(v, on_non_numeric="raise")`, NEVER `==`
+   (`==` causes a release-time race that reds `main` on a fresh tag push before the doc is edited);
+   (c) the guard must RUN in CI — absent tags must `pytest.fail(...)` (NOT `pytest.skip`), the job's
+   `actions/checkout` needs `fetch-depth: 0` + `fetch-tags: true`, and the wording-coupled regex
+   gets `assert match is not None` plus an in-code `# WARNING:` comment for future editors (POLA).
+   Also captured: TDD non-skip discipline (RED = `1 failed`, GREEN = `-rs` with `0 skipped`),
+   the currency-claim-vs-historical-event-name distinction, and the `tests/unit/docs/` placement note.
+2. **Failed Attempts** gained six rows: `pytest.skip` on tag-less CI → silent no-op (fix: hard
+   fail + fetch-tags); `==`-to-tag → release-time race (fix: `>=`); pyproject-as-authority on a
+   hatch-vcs repo → no such field (fix: `_version_from_git_tag`); bare `actions/checkout` for a
+   tags-dependent job → shallow/tag-less (fix: `fetch-depth: 0` + `fetch-tags: true`); and a
+   wording-coupled regex with no guard → vacuous pass on reword (fix: `assert match is not None`
+   + WARNING comment).
+3. **When to Use** gained a trigger for a dated currency claim (latest-released-version /
+   last-updated) trailing the git tag line where a CI-effective guard is wanted.
+4. **Key parameters** notes that `security-md-version-sync`'s pyproject-as-source-of-truth
+   assumption does NOT apply to hatch-vcs / dynamic-versioning repos.
+5. **Verified On** gained a ProjectHephaestus row: Issue #1208 / PR #1233.
+6. Frontmatter `date` → 2026-06-12, `version` → "1.1.0".
+
+### Why
+
+PR #1233 fixed MIGRATION.md/ROADMAP.md version-currency drift in a hatch-vcs repo (#1208). The
+reusable, non-obvious learning is that a doc-version-currency guard for such a repo must (a) anchor
+to the git TAG as authority (NOT pyproject, which has no static version field), (b) actually RUN in
+CI rather than silently skip on a tag-less shallow checkout, and (c) use `>=` / "does-not-trail"
+semantics rather than `==` to avoid a release-time race. The skill already covered version-drift in
+docs but lacked the git-tag-authority + CI-effective + non-`==` discipline.
+
+### Verification detail (verified-local)
+
+RED→GREEN confirmed locally: 86 passed, 0 skipped on GREEN; RED failed (exit 1) against the stale
+0.9.2 state — a genuine `1 failed`, explicitly not "1 skipped" masquerading as a pass. Pre-commit
+(ruff / mypy / yamllint / test-structure) green. Committed and pushed on PR #1233, but CI had not
+yet gone green at capture time — hence verified-local, CI validation pending.
+
 ## v1.0.0 (2026-06-07)
 
 Consolidated 10 documentation skills into one canonical covering stale-doc drift audits and broken-reference repair. Absorbed skills:

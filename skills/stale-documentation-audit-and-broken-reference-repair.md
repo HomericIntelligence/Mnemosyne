@@ -2,8 +2,8 @@
 name: stale-documentation-audit-and-broken-reference-repair
 description: "Use when: (1) running a doc-drift audit across a corpus — detecting stale counts, metric discrepancies, cross-doc contradictions, ecosystem-role drift; (2) removing phantom directory references from documentation when a path no longer exists; (3) fixing broken documentation references (dead links, stale headings); (4) auditing documentation examples for policy violations; (5) auditing and rewriting getting-started stubs by sourcing real commands from justfile and versions from pixi.toml; (6) fixing incorrect tier labels or version numbers in docs that have drifted from implementation; (7) managing the full lifecycle of placeholder and stub documentation — deletion under YAGNI, deferred-comment placeholders, rewriting with accurate codebase-grounded content; (8) resolving audit nitpicks for monolithic code by documenting verified design rationale; (9) resolving CONTRIBUTING.md case-clashes and circular cross-references in docs/; (10) validating anchor fragments in markdown deep-links to detect broken headings."
 category: documentation
-date: 2026-06-07
-version: "1.0.0"
+date: 2026-06-12
+version: "1.1.0"
 user-invocable: false
 history: stale-documentation-audit-and-broken-reference-repair.history
 tags: [doc-drift, stale-doc, broken-references, phantom-dir, placeholder, stub, anchor-validation, tier-labels, doc-audit, doc-sync, merged]
@@ -34,6 +34,7 @@ tags: [doc-drift, stale-doc, broken-references, phantom-dir, placeholder, stub, 
 - An audit nitpick questions a monolithic file's organization and needs a documented rationale
 - Both `CONTRIBUTING.md` and `docs/contributing.md` exist with a circular cross-reference
 - README/docs deep-link to specific installation headings and you need CI to catch broken anchors
+- A dated currency claim (latest-released-version / last-updated) in a doc trails the git tag line and you want a CI-*effective* guard (one that actually runs, not silently skips)
 
 ## Verified Workflow
 
@@ -267,6 +268,11 @@ gh pr merge --auto --rebase
 | Full pre-commit suite without skipping | Ran all hooks on a host with a GLIBC mismatch | `mojo-format` fails on GLIBC < 2.32 (environment, not code) | Use `SKIP=mojo-format`; only non-Mojo hooks matter for doc-only changes |
 | Deleting `docs/contributing.md` to resolve the case-clash | Removed the file entirely | Breaks inbound links from the docs index | Reduce to a redirect; keep root as canonical |
 | Per-file reviewers for citation corpus | Reviewed each entry individually | Could not see cross-document §-drift or arXiv ID-to-title swaps | Both failure modes need a cross-corpus structural audit, not per-file review |
+| `pytest.skip` when no git tag is reachable | Skipped the doc-version drift test on a tag-less CI checkout | Silent no-op gate — the headline drift guard then guards nothing (green-but-skipped) | Make absent-tags a hard `pytest.fail(...)` with remediation, AND add `fetch-tags: true` so the test actually runs |
+| `==`-to-latest-tag for the version-currency assert | `assert documented == canonical_tag` | Release-time race: a freshly-pushed newer tag instantly reds `main` before anyone edits the doc | Use `>=` / "does-not-trail" semantics — doc merely "not ahead" passes, only a trailing doc fails |
+| Using pyproject `[project].version` as the authority on a hatch-vcs repo | Tried to read the canonical version from `pyproject.toml` | hatch-vcs / dynamic versioning has NO static `[project].version` field — `security-md-version-sync`'s pyproject-as-source assumption does not apply | Authority is the latest git tag via `_version_from_git_tag(repo_root)` |
+| Bare `actions/checkout` for a job whose tests need tags | Left the default shallow checkout on the unit-test job | A bare checkout is shallow and tag-less, so `_version_from_git_tag` returns `None` and the guard skips/fails | Add `fetch-depth: 0` + `fetch-tags: true` (mirror auto-tag.yml / release.yml) |
+| Regex coupled to doc wording with no guard | Relied on the regex silently returning no match after a reword | A reworded sentence makes the regex match nothing → test passes vacuously, drift undetected | `assert match is not None` (fail loud on reword) + an in-code `# WARNING:` comment to update the regex in lockstep |
 
 ## Results & Parameters
 
@@ -303,6 +309,89 @@ def test_no_stale_claims(doc: Path, pattern: str) -> None:
     assert not matches, f"{doc.name} contains forbidden phrase: {matches}"
 ```
 
+#### Variant: doc-version-currency guard anchored to the git TAG (hatch-vcs repos)
+
+When a doc carries a *currency claim* (e.g. "the latest released version is **0.9.5**" or
+"Last updated: 0.9.5") that must not trail the real release, the authority is the **latest
+`vX.Y.Z` git tag**, NOT `pyproject.toml`. A hatch-vcs / dynamic-versioning repo has **no static
+`[project].version`** field, so the older `security-md-version-sync` pattern (pyproject as source
+of truth) is WRONG here and must be rejected. Three non-obvious rules — apply ALL THREE:
+
+1. **Authority = the git tag**, resolved with the project's own helper (do not re-implement):
+
+   ```python
+   from hephaestus.version.consistency import _version_from_git_tag   # "0.9.5" (leading v stripped)
+   from hephaestus.version.parsing import parse_version_tuple          # ("0","9","5") -> (0, 9, 5)
+
+   canonical = _version_from_git_tag(repo_root)   # internally: git describe --tags --abbrev=0 --match 'v[0-9]*'
+   ```
+
+2. **Compare with `>=` / "does-not-trail", NEVER `==`.** Drift = the doc trailing the tag:
+
+   ```python
+   documented_tuple = parse_version_tuple(documented, on_non_numeric="raise")
+   canonical_tuple  = parse_version_tuple(canonical,  on_non_numeric="raise")
+   assert documented_tuple >= canonical_tuple, (
+       f"doc trails git tag: documented {documented} < tag {canonical}"
+   )
+   ```
+
+   `==` reintroduces a release-time race: a freshly-pushed *newer* tag would instantly red `main`
+   before anyone edits the doc. With `>=`, "doc merely not ahead" passes; only a doc that has
+   fallen *behind* fails.
+
+3. **The guard must RUN in CI — a `pytest.skip` is a silent no-op gate** that guards nothing.
+   - **WARN/comment + assert-not-None on the regex** (POLA): the regex
+     (`r"latest released version is \*\*(\d+\.\d+\.\d+)\*\*"`) is coupled to the exact doc
+     wording. Put an in-code `# WARNING:` comment above it telling future editors to update it in
+     lockstep with the doc phrasing, and `assert match is not None` so a reword fails LOUD, not silent.
+   - **Absent tags → hard `pytest.fail(...)`, never `pytest.skip`** — with remediation guidance
+     (run `git fetch --tags`; set `fetch-tags: true`). If the workflow ever regresses to a
+     tag-less checkout, the test goes RED loudly instead of green-but-skipped.
+
+   ```python
+   def test_doc_version_not_behind_git_tag(repo_root: Path) -> None:
+       canonical = _version_from_git_tag(repo_root)
+       if canonical is None:
+           pytest.fail(  # NOT pytest.skip — a skip makes this guard a no-op
+               "No vX.Y.Z git tag reachable. CI checkout must be deep + tagged: "
+               "run `git fetch --tags` locally; in the workflow set "
+               "`fetch-depth: 0` and `fetch-tags: true` on actions/checkout."
+           )
+       text = (repo_root / "MIGRATION.md").read_text()
+       # WARNING: this regex is coupled to MIGRATION.md's exact wording.
+       # If you reword that sentence, update this pattern IN LOCKSTEP.
+       match = re.search(r"latest released version is \*\*(\d+\.\d+\.\d+)\*\*", text)
+       assert match is not None, "MIGRATION.md currency sentence reworded — update the regex"
+       documented = match.group(1)
+       assert parse_version_tuple(documented, on_non_numeric="raise") >= parse_version_tuple(
+           canonical, on_non_numeric="raise"
+       ), f"MIGRATION.md version {documented} trails git tag {canonical}"
+   ```
+
+   The companion fix lives in the **workflow**, not the test: the unit-test job's
+   `actions/checkout` step needs `fetch-depth: 0` + `fetch-tags: true` (a bare checkout is shallow
+   and tag-less, so `_version_from_git_tag` returns `None`). Mirror the config already in
+   `auto-tag.yml` / `release.yml`.
+
+   ```yaml
+   - uses: actions/checkout@<sha>
+     with:
+       fetch-depth: 0      # full history
+       fetch-tags: true    # tags are required for _version_from_git_tag
+   ```
+
+   **TDD non-skip discipline:** the RED step must assert the test FAILS (`1 failed`) against the
+   stale state — explicitly NOT "1 skipped" masquerading as a pass. GREEN runs with `-rs` and
+   asserts `0 skipped`.
+
+   **Distinguish a currency claim from a historical event name:** "Last updated: <date>" is a
+   currency claim to sync; "the strict <date> audit" is an *event name* — leave it untouched.
+
+   **Test placement:** a new `tests/unit/docs/` dir does NOT trip a one-directional source↔test
+   mirror-structure check (no `hephaestus/docs/` source is required), and the no-loose-files check
+   is satisfied because the test lives inside a subpackage.
+
 ### Reliable markdownlint invocation
 
 ```bash
@@ -321,6 +410,10 @@ pixi run npx markdownlint-cli2 <file>
 - **Files most likely to hold stale refs**: `docs/index.md`, `docs/README.md`, `docs/glossary.md`,
   `references/notes.md`, `docs/analysis-prompt.md`.
 - **Policy-audit exclusions**: `docs/arxiv/`, `tests/claude-code/`, `.pixi/`, `build/`, `node_modules/`.
+- **Doc-version authority on hatch-vcs repos**: the latest `vX.Y.Z` git tag (via
+  `_version_from_git_tag`), NOT `pyproject.toml` — there is no static `[project].version` field.
+  `security-md-version-sync`'s pyproject-as-source-of-truth assumption does NOT apply to
+  dynamic-versioning repos.
 
 ## Verified On
 
@@ -331,4 +424,5 @@ pixi run npx markdownlint-cli2 <file>
 | ProjectOdyssey | Issues #3344, #3365; PR #3320; PR #4847 | Workflow README audit, agent-count fix, post-migration README sync |
 | ProjectOdyssey | Issues #3142/#3308, #3304/#3913, #3305/#3917, #3918/#4830, #3141/#3303, #3914/#4828, #3915/#4829 | Stub deletion, installation/quickstart rewrite, IDE-setup extend, getting-started audit, anchor validator |
 | ProjectHephaestus | Issue #792 (PR #984); Issue #630 (PR #667) | Monolith-rationale ADR; CONTRIBUTING case-clash redirect |
+| ProjectHephaestus | Issue #1208 (PR #1233) | MIGRATION.md + ROADMAP.md version sync + git-tag-anchored CI doc-version-currency drift guard (`_version_from_git_tag` + `>=`, fetch-tags, hard-fail-not-skip) |
 | mvillmow/Random | Predictive-Coding-in-Mojo Phase 0 | Cross-doc citation drift: 8 stale §-refs, 2 arXiv ID swaps caught |
