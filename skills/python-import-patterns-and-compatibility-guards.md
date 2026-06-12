@@ -1,9 +1,10 @@
 ---
 name: python-import-patterns-and-compatibility-guards
-description: "Use when: (1) a child module would create circular dependencies by importing the parent at module level — use function-local imports to defer the lookup and keep the import graph acyclic; (2) extending a public SDK surface with peer classes using lazy-loading __init__.py infrastructure (lazy exports pattern via __getattr__) to prevent eager-load regressions when adding new peers to __all__; (3) code uses a stdlib module added in a later Python version (tomllib in 3.11+, ExceptionGroup in 3.11+) and the CI matrix includes older Python — add a version-gated try/except import guard so the module remains importable; (4) adding cross-OS CI matrix and Windows jobs fail with ModuleNotFoundError for POSIX-only stdlib modules (curses, fcntl, grp, tzdata) — add conditional import guards and ensure tzdata is listed as an optional Windows dependency."
+description: "Use when: (1) a child module would create circular dependencies by importing the parent at module level — use function-local imports to defer the lookup and keep the import graph acyclic; (2) extending a public SDK surface with peer classes using lazy-loading __init__.py infrastructure (lazy exports pattern via __getattr__) to prevent eager-load regressions when adding new peers to __all__; (3) code uses a stdlib module added in a later Python version (tomllib in 3.11+, ExceptionGroup in 3.11+) and the CI matrix includes older Python — add a version-gated try/except import guard so the module remains importable; (4) adding cross-OS CI matrix and Windows jobs fail with ModuleNotFoundError for POSIX-only stdlib modules (curses, fcntl, grp, tzdata) — add conditional import guards and ensure tzdata is listed as an optional Windows dependency; (5) a branch widening a lazy SDK surface (_LAZY_EXPORTS/__all__/__getattr__ in __init__.py) goes DIRTY/CONFLICTING on rebase because a sibling PR already landed the identical export — resolve by keeping ONE copy of the shared entry, and FIRST check mergeStateStatus=DIRTY when a PR reads as CI-failing but no test actually failed."
 category: architecture
-date: 2026-06-07
-version: "1.0.0"
+date: 2026-06-11
+version: "1.1.0"
+verification: verified-local
 user-invocable: false
 history: python-import-patterns-and-compatibility-guards.history
 tags:
@@ -21,6 +22,9 @@ tags:
   - fcntl
   - tzdata
   - compatibility
+  - merge-conflict
+  - rebase
+  - mergestate-dirty
 ---
 
 # Python Import Patterns and Compatibility Guards
@@ -29,15 +33,16 @@ tags:
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-06-07 |
+| **Date** | 2026-06-11 |
 | **Objective** | Manage the Python import graph and import compatibility across versions and platforms: avoid circular dependencies with function-local imports, extend public SDK surfaces via lazy exports without eager-load regressions, and guard stdlib imports that vary by Python version or OS |
 | **Outcome** | Acyclic import graphs, Windows-importable packages, CI matrices green on older Python and POSIX-only stdlib, and lazy SDK surfaces that scale to new peer classes |
-| **Verification** | verified-ci |
+| **Verification** | verified-ci (lazy-export add/add rebase episode #799/#988 = verified-local) |
 
 ## When to Use
 
 - **Function-local imports (coupling avoidance)**: A child module needs ambient state from a parent module (e.g., `logging.utils` already imports `utils.helpers`), and a module-level child-to-parent import would create a circular dependency or import-graph bloat. The import is used in only one or two functions.
 - **Lazy exports (SDK surface)**: Extending a public package `__all__` with peer classes from submodules, adding `TYPE_CHECKING` imports, preventing eager-load regressions, or avoiding architectural restructuring when widening the public surface.
+- **Lazy-export add/add rebase conflict**: A branch widens the lazy SDK surface (`_LAZY_EXPORTS` + `__all__` + `__getattr__`) and goes `DIRTY`/`CONFLICTING` because a *sibling PR already landed the identical export* on main. The PR reads as "CI failing" but the logs show only runner/setup steps and **no test actually failed** — the merge conflict itself is the blocker. Resolve by keeping ONE copy of the shared entry.
 - **Version-gated stdlib guard**: A CI matrix includes Python 3.10 and code does a bare import of a 3.11+ stdlib module (`tomllib`, `ExceptionGroup`); `pytest` collection fails with `ModuleNotFoundError` on the lowest Python in the matrix.
 - **Windows / POSIX-only stdlib guard**: Adding a cross-OS CI matrix where Windows jobs fail with `ModuleNotFoundError` for `curses`/`fcntl`/`termios`/`grp`/`pwd`, or `zoneinfo.ZoneInfo` raises `ZoneInfoNotFoundError` on Windows (needs `tzdata`).
 
@@ -99,6 +104,18 @@ grep -rn "^import tomllib" hephaestus/ scripts/ tests/   # expect 0 after fix
 grep -rn "^import \(curses\|fcntl\|termios\|grp\|pwd\)" hephaestus/  # each needs a guard
 ```
 
+```bash
+# (5) LAZY-EXPORT ADD/ADD REBASE CONFLICT — "CI failing" but no test failed
+gh pr view <N> --json mergeStateStatus --jq .mergeStateStatus   # DIRTY → conflict, not a test
+git fetch origin main && git rebase origin/main                 # conflict localises to __init__.py
+git show origin/main:hephaestus/automation/__init__.py | grep PRReviewer  # confirm main has it
+#   → keep ONE copy of the shared _LAZY_EXPORTS entry; key ORDER is irrelevant (set()-based tests)
+git rebase --continue
+pixi run python -m pytest tests/ && pre-commit run --all-files  # ruff-format may reflow old lines
+git commit -S -m "..."                                          # GPG (not SSH); key-email committer
+git push --force-with-lease origin HEAD:<branch>                # rebase rewrote history
+```
+
 ### Detailed Steps
 
 #### A. Function-local imports to avoid coupling / circular deps
@@ -143,6 +160,18 @@ grep -rn "^import \(curses\|fcntl\|termios\|grp\|pwd\)" hephaestus/  # each need
        assert not missing, f"Missing peer classes in __all__: {missing}"
    ```
 7. **Validate**: `pixi run pytest tests/unit/automation/ -v && pixi run ruff check ... && pixi run mypy ...`.
+
+#### B2. Resolving a lazy-export add/add rebase conflict (sibling PR landed the same widening first)
+
+Symptom: the PR reads as "CI failing", but `gh run view` shows only runner/setup steps and **no test failure**. The real blocker is a merge conflict, not a test.
+
+1. **Diagnose before touching CI.** When a PR is reported CI-failing with no failing test in the logs, run `gh pr view <N> --json mergeStateStatus` FIRST. `DIRTY` (or `CONFLICTING`) means a merge conflict — not a test — blocks the merge. Don't re-run CI; rebase.
+2. **Fetch and rebase** onto the advanced main: `git fetch origin main && git rebase origin/main`. The conflict localises to `__init__.py`'s `_LAZY_EXPORTS` dict where both branches added the *same* export line (e.g. both added `"PRReviewer": "hephaestus.automation.pr_reviewer"`).
+3. **Keep ONE copy.** Both sides want the identical line — delete the duplicate, keep a single entry. Verify main already carries it: `git show origin/main:hephaestus/automation/__init__.py | grep PRReviewer`.
+4. **Don't fight dict key ORDER.** The surface-pinning tests use `set()` equality and `<=` subset checks (see `test_public_surface_pins_expected_symbols`), so `_LAZY_EXPORTS` / `__all__` key order does not affect pass/fail. A richer branch-side `EXPECTED_PUBLIC_SYMBOLS` identity test coexists with main's test — no dedup needed.
+5. **Continue and re-verify**: `git rebase --continue`, then run the FULL suite (`pixi run python -m pytest tests/`) — a surface change can ripple. Then `pre-commit run --all-files`: **ruff-format may reformat a line that was fine on the old base** (e.g. collapse a multi-line f-string assertion). Re-run pre-commit until clean and commit the format fix with `git commit -S` (committer email MUST be the GPG key's email, e.g. `4211002+mvillmow@users.noreply.github.com`, or pr-policy signing fails; use the default GPG format, NOT SSH — SSH-signed commits can trip a false-NOGO in the automation reviewer when local git can't verify them without an `allowedSignersFile`).
+6. **Push needs `--force-with-lease`** because the rebase rewrote history.
+7. **Stale/duplicate-issue smell**: if main *already* contains the change your branch was trying to make, the branch may be partly redundant — but its test improvements can still be worth keeping. Keep the richer tests, drop only the now-duplicate production change.
 
 #### C. Version-gated stdlib import guard (newer-Python module on older matrix)
 
@@ -200,6 +229,11 @@ General pattern + known backports:
 | Move the helper function to dodge the edge | Relocate `get_current_correlation_id()` into `utils` | Creates a god-module, couples `utils.helpers` to logging concerns, violates SRP | Move the import, not the function — keep it where it semantically belongs |
 | Eager-load new phase modules in `__init__.py` | `from .address_reviewer import AddressReviewer` directly | Defeats lazy loading, increases import time, breaks the established pattern | Use `_LAZY_EXPORTS` + `__getattr__` and add the module to `_PHASE_ENTRYPOINTS` |
 | Create a parallel surface test file | New `test_package_surface.py` to pin `__all__` | DRY violation — existing `test_package_imports.py` already iterates `__all__` | Extend existing test coverage; don't duplicate iteration logic |
+| Re-run CI on a "CI failing" lazy-export PR with no failing test | Assumed a flaky/red check and triggered `gh run rerun` | The blocker was a merge conflict (`mergeStateStatus=DIRTY`), not a test; logs showed only runner setup | When a PR reads CI-failing but no test failed, check `gh pr view <N> --json mergeStateStatus` FIRST — `DIRTY` means rebase, not re-run |
+| Treat the duplicated `_LAZY_EXPORTS` entry as a real merge of two different lines | Tried to keep both sides of the add/add conflict | Both branches added the *identical* export (sibling PR #968 landed it first); keeping both yields a duplicate key | Keep ONE copy; verify with `git show origin/main:<__init__> \| grep <symbol>` |
+| Reorder `_LAZY_EXPORTS`/`__all__` keys to "match main" during the conflict | Fought over dict key ordering to make tests pass | Surface tests use `set()` equality / `<=` subset, so order never affected pass/fail — wasted effort | Order-insensitive surface tests mean you only need set-membership correct, not key order |
+| Commit the resolved rebase without re-running pre-commit | Assumed code clean on the old base stays clean post-rebase | `ruff-format` reflowed a multi-line f-string assertion onto one line on the new base → pre-commit failed | Always re-run `pre-commit run --all-files` after a rebase; ruff-format is base-sensitive |
+| `git push` the rebased branch normally | Plain push after a history-rewriting rebase | Non-fast-forward rejection (rebase rewrote history) | Push rebased branches with `--force-with-lease` |
 | Bare `import tomllib` assuming 3.11+ matrix | Used stdlib `tomllib` directly | Matrix also ran 3.10; collection failed with `ModuleNotFoundError: No module named 'tomllib'` | Always check the lowest Python in the matrix before using newer stdlib modules |
 | `try/except ImportError` instead of version guard | `try: import tomllib except ImportError: import tomli as tomllib` | Works at runtime but mypy cannot statically narrow the type; false positive on 3.11+ | Use `sys.version_info >= (3, 11)` — mypy treats it as a narrowing predicate |
 | Skip declaring the backport dependency | Did not add `tomli; python_version < '3.11'` | `tomli` absent in fresh CI env → `ModuleNotFoundError: No module named 'tomli'` | Declare backports as conditional deps in both `pyproject.toml` and `pixi.toml` |
@@ -289,5 +323,6 @@ def test_entry_point_importable(module_path: str) -> None:
 |---------|---------|---------|
 | ProjectHephaestus | PR #633 — correlation_id propagation | Function-local import of `get_current_correlation_id` in `hephaestus/utils/helpers.py:170-172`; lint passes with no `noqa` |
 | ProjectHephaestus | Issue #775 / PR #968 — widen automation SDK surface | Exposed PlanReviewer, AddressReviewer, CIDriver (+Options) via `__all__`/`_LAZY_EXPORTS`/`_PHASE_ENTRYPOINTS`; surface-pinning test; 1081 automation tests pass |
+| ProjectHephaestus | Issue #799 / PR #988 — lazy-export add/add rebase conflict | Branch `799-auto-impl` widened `_LAZY_EXPORTS`/`__all__` in `hephaestus/automation/__init__.py`; main had already added the same `"PRReviewer"` entry via #968/#775 → PR read CI-failing but `mergeStateStatus=DIRTY` was the real blocker. Rebased onto origin/main (only `__init__.py` conflicted; `test_package_imports.py` rebased clean even though both edited it), kept ONE `"PRReviewer"` copy, set()-based surface tests ignored key order. Full suite 4136 passed / 19 skipped; pre-commit reflowed one f-string line; GPG-signed. **verified-local** — CI re-run on the rebased branch not observed (task stopped at commit, no push). |
 | ProjectHephaestus | PR #657 — fix broken main CI | `sys.version_info` guard for `tomllib`/`tomli` in `tests/unit/ci/test_bandit_config.py`; conditional deps in `pyproject.toml`/`pixi.toml`; 2590 tests pass |
 | ProjectHephaestus | PRs #534, #536, #538 (issue #539 tracks full port) — Windows-importability | curses guard in `CursesUI`, fcntl guard in `planner.py`, `tzdata` for `hephaestus.github.rate_limit` |

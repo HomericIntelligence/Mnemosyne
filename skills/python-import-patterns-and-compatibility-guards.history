@@ -2,6 +2,47 @@
 
 # History: python-import-patterns-and-compatibility-guards
 
+## v1.1.0 (2026-06-11)
+
+Amended with the lazy-export **add/add rebase conflict** episode (ProjectHephaestus
+issue #799 / PR #988), the counterpart to the v1.0.0 #775/#968 surface-widening:
+when a sibling PR lands the identical `_LAZY_EXPORTS`/`__all__` widening first, the
+rebasing branch goes `DIRTY`/`CONFLICTING` and the PR misleadingly reads as
+"CI failing" though no test failed.
+
+Changes:
+
+- Frontmatter: `date` 2026-06-07 → 2026-06-11; `version` 1.0.0 → 1.1.0; added
+  `verification: verified-local`; added trigger clause (5) to `description`;
+  added tags `merge-conflict`, `rebase`, `mergestate-dirty`.
+- Overview: date bumped; Verification annotated (canonical verified-ci; new episode
+  verified-local).
+- When to Use: added the lazy-export add/add rebase-conflict bullet.
+- Verified Workflow: new sub-section **B2** (diagnose via `gh pr view --json
+  mergeStateStatus`, rebase, keep ONE shared export copy, set()-based tests ignore
+  key order, re-run pre-commit for ruff-format reflow, `--force-with-lease` push);
+  new Quick Reference snippet (5).
+- Failed Attempts: +5 rows (re-run CI vs check mergeStateStatus; keep-both on
+  identical add/add; reorder keys to "match main"; skip post-rebase pre-commit;
+  plain push of rewritten history).
+- Verified On: added the #799/#988 row (verified-local; CI re-run on rebased branch
+  not observed — task stopped at commit, no push).
+
+Verification: verified-local — full suite 4136 passed / 19 skipped and
+`pre-commit run --all-files` passed locally on ProjectHephaestus; CI re-run on the
+rebased branch was not observed.
+
+### Previous version snapshot (v1.0.0 frontmatter)
+
+```yaml
+name: python-import-patterns-and-compatibility-guards
+category: architecture
+date: 2026-06-07
+version: "1.0.0"
+user-invocable: false
+verification: verified-ci
+```
+
 ## v1.0.0 (2026-06-07)
 
 Initial canonical, merged from 4 source skills:
