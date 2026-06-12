@@ -1,16 +1,21 @@
 ---
 name: ruff-specific-rule-fixes
-description: "Patterns for fixing specific Ruff lint rule violations and addressing systemic linter policy failures. Use when: (1) fixing Ruff S101 violations in production code by replacing bare assert guards with explicit RuntimeError raises, (2) fixing Ruff C901 cyclomatic complexity violations by extracting helper functions, (3) the same policy violation reappears in two or more independent documents or configs — indicating the linter/validator that should enforce the policy is absent or misconfigured (root-cause fix: add the lint rule, not re-fix every instance), (4) deciding between adding a noqa suppression, fixing the violation, or promoting the rule to error-level enforcement."
+description: "Patterns for fixing specific Ruff lint rule violations and addressing systemic linter policy failures. Use when: (1) fixing Ruff S101 violations in production code by replacing bare assert guards with explicit RuntimeError raises, (2) fixing Ruff C901 cyclomatic complexity violations by extracting helper functions, (3) the same policy violation reappears in two or more independent documents or configs — indicating the linter/validator that should enforce the policy is absent or misconfigured (root-cause fix: add the lint rule, not re-fix every instance), (4) deciding between adding a noqa suppression, fixing the violation, or promoting the rule to error-level enforcement, (5) a large multi-file feature PR passes functionally but fails CI on Ruff E501 line-length (>100 chars) or ruff format in NEWLY-ADDED test files — run ruff check AND ruff format --check on tests/ before pushing, and fix the two opposite shapes (too-long literal vs over-wrapped call expression)."
 category: tooling
-date: 2026-06-07
-version: "1.0.0"
+date: 2026-06-11
+version: "1.1.0"
 user-invocable: false
+verification: verified-ci
 history: ruff-specific-rule-fixes.history
 tags:
   - ruff
   - lint
   - S101
   - C901
+  - E501
+  - line-length
+  - ruff-format
+  - test-files
   - assert
   - runtimeerror
   - cyclomatic-complexity
@@ -20,6 +25,10 @@ tags:
   - policy-enforcement
   - root-cause
   - pre-commit
+  - console-script
+  - version-flag
+  - composable-arg-helper
+  - parametrized-entry-point-test
 ---
 
 # Ruff Specific Rule Fixes
@@ -28,10 +37,11 @@ tags:
 
 | Field | Value |
 | ------- | ------- |
-| **Date** | 2026-06-07 |
-| **Objective** | Fix specific Ruff rule violations (S101 assert-in-production, C901 cyclomatic complexity) and recognize when repeated policy violations mean the linter itself is the root cause |
-| **Outcome** | Verified — S101 guards converted across 20+ sites (PRs #1142, #1211), C901 extractions verified (PRs #1546, #1050), wrong-direction linter root-cause pattern verified-CI (PRs #863/#865/#866/#867) |
+| **Date** | 2026-06-11 |
+| **Objective** | Fix specific Ruff rule violations (S101 assert-in-production, C901 cyclomatic complexity, E501 line-length on newly-added test code) and recognize when repeated policy violations mean the linter itself is the root cause |
+| **Outcome** | Verified — S101 guards converted across 20+ sites (PRs #1142, #1211), C901 extractions verified (PRs #1546, #1050), wrong-direction linter root-cause pattern verified-CI (PRs #863/#865/#866/#867), E501-on-test-files + composable `--version` rollout verified-CI (PR #1035, merged) |
 | **Verification** | verified-ci |
+| **History** | [changelog](./ruff-specific-rule-fixes.history) |
 
 ## When to Use
 
@@ -40,6 +50,9 @@ tags:
 - The **same policy violation** appears in 2+ independent files/configs — the linter that should enforce the policy is absent, misconfigured, or wrong-direction.
 - You are deciding between a `# noqa` suppression, fixing the violation, or promoting the rule to error-level enforcement.
 - You are tempted to open N parallel PRs to fix N violating files — pause and check the linter first.
+- A large multi-file feature PR (e.g. 44 entry points) passes its tests locally but **CI fails on Ruff E501** (`line-too-long`, limit = 100) or `ruff format --check` — the offending lines are in the **newly-added TEST files**, not production code.
+- You hand-wrapped a `subprocess.run(...)` / call expression onto multiple lines and `ruff format` keeps reporting "files were modified" because it wants them collapsed onto one line.
+- You are rolling out a cross-cutting CLI flag (e.g. `-V/--version`) across many console scripts and want the repo-idiomatic pattern (composable `add_*_arg(parser)` helper + a parametrized entry-point test) rather than a monolithic `create_parser()`.
 
 ## Verified Workflow
 
@@ -55,6 +68,11 @@ pre-commit run --all-files            # ruff C901 + custom CC hook
 # Linter-as-root-cause — count distinct files violating the SAME rule
 audit_output | grep "Rule: <rule-id>" | awk '{print $2}' | sort -u | wc -l
 # >= 2 distinct files  ->  fix the LINTER first, not each file
+
+# E501 / format on a large feature PR — lint AND format-check BOTH prod + tests
+pixi run ruff check  hephaestus/ tests/        # E501 line-length (limit = 100)
+pixi run ruff format --check hephaestus/ tests/  # format wants some lines collapsed
+# Newly-ADDED test files are just as subject to E501 + ruff format as production code.
 ```
 
 ```python
@@ -238,6 +256,110 @@ systemic one. The linter/validator that should enforce the policy is the FIRST s
 
 7. **If META is also wrong** (e.g. CLAUDE.md says `--rebase` but branch protection disables rebase merge), the deployed config is ground truth — fix META first, then linter, then dependents. Confirm via `gh api repos/<owner>/<repo>/branches/<branch>/protection`.
 
+#### Pattern D — Ruff E501 / format failures in newly-added TEST code on a large feature PR
+
+**Key insight**: A feature PR that touches many files (44 console-script entry points in
+ProjectHephaestus PR #1035) can pass every unit + integration test locally yet fail CI on a
+SINGLE category — Ruff **E501** (`line-too-long`, limit = 100) or `ruff format --check`. The
+offending lines are almost always in the **newly-ADDED test files**, not the production change.
+New test code is just as subject to the line-length limit and the formatter as production code;
+"my code passes" is not enough when the test files you added are unformatted.
+
+1. **Lint AND format-check BOTH trees before pushing** (this is the whole prevention):
+
+   ```bash
+   pixi run ruff check  hephaestus/ tests/
+   pixi run ruff format --check hephaestus/ tests/
+   ```
+
+   For a large multi-file feature PR this is the single most common avoidable CI failure in
+   this repo. Run it on `tests/` explicitly — it is easy to lint only the production package and
+   forget the test files the feature added.
+
+2. **Fix the TWO OPPOSITE shapes** — the same 100-char limit produces two failure modes that
+   need opposite fixes:
+
+   **Shape (a): a single-line literal that is too long → break into a multi-line assignment.**
+   A long iterable literal inlined into a `for` header overflows 100 chars. Hoist it into a
+   multi-line tuple assignment with one element per line, then iterate:
+
+   ```python
+   # BEFORE (105 chars — E501):
+   for symbol in ("create_parser", "COMMAND_REGISTRY", "format_table", "Colors", "add_version_arg"):
+       assert symbol in cli.__all__
+
+   # AFTER (each line < 100):
+   symbols = (
+       "create_parser",
+       "COMMAND_REGISTRY",
+       "format_table",
+       "Colors",
+       "add_version_arg",
+   )
+   for symbol in symbols:
+       assert symbol in cli.__all__
+   ```
+
+   **Shape (b): a manually wrapped call expression that ruff format wants on ONE line → let the
+   formatter collapse it.** Do NOT hand-wrap a `subprocess.run(...)` / call that already fits
+   under 100 chars when joined — `ruff format` will keep reporting "files were modified" until
+   you collapse it:
+
+   ```python
+   # BEFORE (over-wrapped by hand — ruff format rewrites this):
+   result = subprocess.run(
+       [binary, "--version"],
+       capture_output=True,
+       text=True,
+       timeout=30,
+   )
+
+   # AFTER (88 chars — what ruff format produces; let the formatter decide):
+   result = subprocess.run([binary, "--version"], capture_output=True, text=True, timeout=30)
+   ```
+
+   Rule of thumb: never hand-wrap to satisfy E501 a line that already fits on one line — run
+   `ruff format` and accept its layout. Only break lines that genuinely exceed 100 chars even
+   when joined (Shape a).
+
+3. **Positive convention worth reusing — composable arg-helper + parametrized entry-point test.**
+   The change that triggered the E501 was the *correct* architecture: a cross-cutting CLI flag
+   rolled out via a small composable helper (mirroring the repo's existing `add_json_arg()` /
+   `add_logging_args()`), NOT a monolithic `create_parser()` every CLI must route through.
+
+   ```python
+   # hephaestus/cli/utils.py — one helper, sits next to add_json_arg()
+   def add_version_arg(parser: argparse.ArgumentParser) -> None:
+       """Add a -V/--version flag that prints '<prog> <version>' and exits 0."""
+       parser.add_argument(
+           "-V", "--version", action="version", version=f"%(prog)s {__version__}"
+       )
+   # action="version" gives exit code 0 automatically.
+
+   # Each entry point opts in next to its other arg helpers:
+   add_version_arg(parser)
+   add_json_arg(parser)
+   ```
+
+   Guard the rollout with ONE parametrized integration test over every entry point, so a future
+   CLI that forgets the convention fails CI loudly:
+
+   ```python
+   @pytest.mark.parametrize("command,module_path,attr", ENTRY_POINTS)
+   def test_entry_point_responds_to_version(command, module_path, attr):
+       for flag in ("--version", "-V"):
+           result = subprocess.run([command, flag], capture_output=True, text=True, timeout=30)
+           assert result.returncode == 0
+   ```
+
+4. **Verify and push:**
+
+   ```bash
+   pixi run ruff check  hephaestus/ tests/    # zero E501
+   pixi run ruff format --check hephaestus/ tests/  # "X files already formatted"
+   pixi run pytest tests/unit tests/integration -q
+   ```
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -250,6 +372,9 @@ systemic one. The linter/validator that should enforce the policy is the FIRST s
 | Fix linter and dependent files in one PR | Considered bundling validator + all doc fixes into one mega-PR | Linter and doc changes have different test surfaces; bundling makes CI feedback ambiguous | Keep the linter fix as its own atomic PR; dependent fixes land afterward |
 | Flip only the validator, not its tests | Planned to update validator code but leave its test suite | Validator tests still asserted the wrong direction — the linter PR itself fails CI | Validator source + its tests are one atomic change; flip both together |
 | Single-direction regression test | Wrote a test asserting only "accepts `--squash`" | A future agent with the same wrong-direction model could re-flip the assertion and ship it | Pair tests: assert correct accepted AND wrong rejected, to prevent silent drift |
+| Push a 44-file feature PR after only running the tests | Ran the unit + integration suite (green) and pushed PR #1035 without ruff-checking the new test files | CI failed on E501 — a 105-char tuple literal in `test_utils.py` and over-wrapped `subprocess.run` calls in the integration test | New TEST code is subject to E501 + `ruff format` too; run `ruff check` AND `ruff format --check` on `tests/`, not just `hephaestus/`, before pushing |
+| Hand-wrap the long `for` header to fit 100 chars | Tried to keep the symbol tuple inline and wrap the `for` line | A long iterable literal inlined in a `for` header still overflows; wrapping the statement does not shorten the literal | Hoist the literal into a multi-line `symbols = (...)` assignment (one element per line) and iterate over the name |
+| Hand-wrap `subprocess.run(...)` across multiple lines to "be safe" | Manually broke the call onto 5 lines to avoid E501 | The joined call is only ~88 chars; `ruff format` wants it on ONE line and reported "files were modified" every run | Never hand-wrap a call that fits under 100 chars joined — let `ruff format` choose the layout; only break lines that exceed 100 even when joined |
 
 ## Results & Parameters
 
@@ -274,6 +399,29 @@ Representative replacement messages: `"experiment_dir must be set before getting
 - **Ruff C901**: `max-complexity = 10` (in `pyproject.toml` lint config).
 - **Custom hook**: `Check Cyclomatic Complexity` — runs separately from ruff at the same threshold; both must pass for CI green.
 
+### E501 / format on a large feature PR (verified — PR #1035)
+
+```text
+Issue #724 / PR #1035: add -V/--version to all 44 hephaestus-* console scripts.
+  First push: green tests, RED CI — only category failing was Ruff E501 (limit=100)
+  in the NEW test files:
+    - tests/unit/cli/test_utils.py     : 105-char inline tuple in a for-header   -> Shape (a)
+    - tests/integration/test_cli_entry_points.py : over-wrapped subprocess.run() -> Shape (b)
+  Fix: hoist tuple to multi-line `symbols = (...)`; collapse subprocess.run to one line.
+  Result: green CI, MERGED 2026-06-12T01:00:43Z.
+
+Prevention command (run on BOTH trees before every push):
+  pixi run ruff check  hephaestus/ tests/
+  pixi run ruff format --check hephaestus/ tests/
+```
+
+The composable arg-helper used: `add_version_arg(parser)` in `hephaestus/cli/utils.py`,
+sitting next to `add_json_arg()` / `add_logging_args()`, using
+`action="version", version=f"%(prog)s {__version__}"` (exit code 0). A parametrized
+integration test (`@pytest.mark.parametrize("command,module_path,attr", ENTRY_POINTS)`)
+asserts every `hephaestus-*` CLI responds to `--version` and `-V` with exit 0 — this is the
+guard that prevents a new CLI from silently skipping the convention.
+
 ### Linter-as-root-cause re-sequencing template
 
 ```text
@@ -293,3 +441,4 @@ WRONG ORDER (fails CI):           CORRECT ORDER:
 | ProjectScylla | C901 — extracted `_restore_judgment()` / `_restore_run_result()` from `_restore_run_context()`, CC 11 -> ~7 | PR #1546 |
 | ProjectHephaestus | C901 multi-pass — extracted `_draw_workers/_separator/_logs` from `_refresh_display()`, 69 lines -> 3 methods, 8 -> 23 tests, removed `# noqa: C901` | PR #1050 (issue #804) |
 | ProjectHephaestus | Linter-as-root-cause — strict audit caught 2 skill files violating `--squash`-only merge policy; root cause was a wrong-direction validator | PRs #863, #865, #866, #867 |
+| ProjectHephaestus | E501 / ruff-format on a 44-file feature PR — `-V/--version` rollout via composable `add_version_arg()`; CI failed only on E501 in the NEW test files (105-char tuple literal + over-wrapped `subprocess.run`); fixed both opposite shapes, green CI, merged | PR #1035 (issue #724) |

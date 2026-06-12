@@ -5,6 +5,46 @@
 This file preserves the full verbatim content of the skills consolidated into
 `ruff-specific-rule-fixes.md`, along with the version history of the canonical.
 
+## v1.1.0 (2026-06-11)
+
+**Changed by:** ProjectHephaestus issue #724 / PR #1035 — add `-V/--version` to all 44
+`hephaestus-*` console scripts.
+**Verification:** verified-ci (PR #1035 reached green CI and MERGED 2026-06-12T01:00:43Z).
+
+### What changed
+
+- Added **Pattern D — Ruff E501 / format failures in newly-added TEST code on a large feature PR**
+  to the Verified Workflow.
+- Added 3 Failed Attempts rows (push-without-ruff-checking-tests; hand-wrap the long `for` header;
+  hand-wrap `subprocess.run` that fits on one line).
+- Added a Results & Parameters subsection documenting the two opposite E501 shapes and the
+  composable `add_version_arg()` + parametrized entry-point test convention.
+- Added a "Verified On" row for PR #1035.
+- Extended the description with trigger (5); added `verification: verified-ci` frontmatter field;
+  added tags: E501, line-length, ruff-format, test-files, console-script, version-flag,
+  composable-arg-helper, parametrized-entry-point-test.
+- Bumped version 1.0.0 → 1.1.0 (minor: new findings + new failed attempts + extended workflow);
+  updated date to 2026-06-11.
+
+### Why
+
+The prior canonical covered S101 (Pattern A), C901 (Pattern B), and linter-as-root-cause
+(Pattern C) but had no guidance for the most common avoidable CI failure on a large multi-file
+feature PR: Ruff E501 (`line-too-long`, limit = 100) and `ruff format --check` failing on the
+*newly-added test files*, not the production change. PR #1035 passed its full test suite locally
+yet failed CI purely on test-file formatting. The durable lesson: newly-ADDED test code is
+subject to E501 + `ruff format` exactly like production code, so `ruff check` AND
+`ruff format --check` must run on `tests/` before pushing; and the same 100-char limit produces
+two OPPOSITE fixes (break a too-long literal vs. let `ruff format` collapse a hand-wrapped call).
+
+### Previous version (v1.0.0) snapshot
+
+The v1.0.0 content is preserved by the consolidation snapshots already recorded below
+(the four superseded source skills and the v1.0.0 consolidation note). The v1.1.0 amendment is
+purely additive — it appends Pattern D, three Failed Attempts rows, one Results subsection, one
+Verified-On row, and frontmatter (verification field + tags) without altering any prior
+Pattern A/B/C content.
+
 ## v1.0.0 (2026-06-07)
 
 Initial consolidation. Merged 4 overlapping skills into the general canonical:
