@@ -19,10 +19,13 @@ description: >-
   marked as fallback/reference-only after verifying zero real callers,
   (11) reading the existing substrate code before estimating a large refactor
   to avoid 3-5x LOC over-estimation, (12) finalizing code after parallel phases
-  complete by addressing technical debt accumulated during rapid development.
+  complete by addressing technical debt accumulated during rapid development,
+  (13) auditing a God-Class decomposition PR that ADDED delegation shims but left
+  the original method bodies in place — F811 redefinitions, file grew instead of
+  shrank, and `# noqa: C901` waivers survived in dead code.
 category: architecture
-date: 2026-06-05
-version: "1.3.0"
+date: 2026-06-11
+version: "1.4.0"
 user-invocable: false
 history: python-module-decomposition-and-refactor-patterns.history
 tags:
@@ -45,6 +48,7 @@ tags:
   - dead-code
   - estimation
   - phase-cleanup
+  - shim-replaces-body
 ---
 
 # Python Module Decomposition and Refactor Patterns
@@ -53,7 +57,7 @@ tags:
 
 | Field | Value |
 | ------- | ------- |
-| **Date** | 2026-06-05 |
+| **Date** | 2026-06-11 |
 | **Objective** | Decompose oversized Python modules/classes into focused, independently testable units using SRP, TDD, and DRY principles |
 | **Outcome** | Synthesized from 13 verified skills; covers function-level extraction, class-based extraction, circular import fixes, immutability refactoring, extensibility-driven decomposition, CLI entry-point extraction with preserved patch routing, top-level symbol extraction to break sibling module cycles, CC>15 pipeline-step extraction, scanner-to-subdirectory scoping, context-manager double-counter fixes, safe legacy-code deletion, substrate-read-before-estimate discipline, and post-parallel phase cleanup |
 | **Trigger** | Files >800 lines, circular import errors, mixed-concern methods, C901/CC>15 complexity, extensibility requirements, CLI main() extraction, deferred imports inside function bodies preventing static analysis, broad scanners needing subdirectory scope, stale callers after context-manager refactors, dead fallback files, pessimistic refactor estimates, technical debt after parallel phases |
@@ -94,6 +98,8 @@ Decision tree:
   Extensibility blocked by coupling     → Extract-Parameterize-Protocol pattern
   Extract CLI main() while keeping      → Reverse-Delegation Pattern (Phase 11) OR
     existing patch.object tests intact    Top-Level Extraction (Phase 12)
+  Shims added but bodies left in place   → Shim-Replaces-Body fix (Phase 11b)
+    (F811, file grew, C901 survived)       move body into phase, DELETE original
   CC>15 pipeline method (# noqa: C901)  → Pipeline-Step Extraction (Phase 13)
   Broad scanner → one subdirectory      → Allow-list scope helper (Phase 14)
   Counter == 2 after ctx-manager move   → Audit callers, drop stale +1/-1 (Phase 15)
@@ -481,6 +487,52 @@ pytest tests/ -q
 | ruff + mypy | clean (288 files) |
 | Verification level | verified-local |
 
+### Phase 11b: Shim-Replaces-Body — the Append-Only Anti-Pattern
+
+The reverse-delegation pattern (Phase 11) is only **HALF** the move. The shim on the host
+class is the patchable address; the real body must **MOVE** into the collaborator/phase. A
+decomposition that **ADDS** shims while **KEEPING** the original bodies is a no-op for the
+size/complexity acceptance criteria and actively breaks lint.
+
+**Symptom triad that means "you appended instead of replaced"**:
+
+1. ruff **F811** redefinition on the duplicated names (the shim redefines a name already
+   defined earlier in the same class).
+2. **`wc -l` went UP, not down** — the file grew because both copies coexist.
+3. **`grep noqa: C901`** still finds the waivers — they rode along in the dead original bodies,
+   so the complexity is still "present" and the AC for removing waivers is unmet.
+
+**Correct sequence per method** (do these as ONE atomic change so the tree is never
+half-migrated):
+
+1. Move the real body into `Phase._xxx_impl(...)`, rewriting `self.X` → `self.ctx.X`
+   (options/state_dir/repo_root/impl/status_tracker/state_lock) and `self._impl_module` →
+   `self.ctx.impl_module()`.
+2. For cross-collaborator calls that tests patch on the runner, dispatch through
+   `self.ctx.runner._xxx(...)` (NOT `self.ctx.impl._xxx`) so
+   `patch.object(impl.phase_runner, "_xxx")` still intercepts.
+3. **DELETE** the original body from the host class.
+4. Add the one-line shim on the host class:
+   `def _xxx(self, ...): return self.<phase>._xxx_impl(...)`.
+5. Drop any `# noqa: C901` that was on the deleted body — its complexity now lives in the
+   decomposed phase fragments, each under the CC budget.
+
+**Verification gates** (all must pass before claiming the AC met):
+
+```bash
+grep -n "noqa: C901" <runner>.py            # must be ZERO
+python -c "import <pkg>.<runner>"            # imports cleanly (no leftover refs to deleted helpers)
+ruff check <runner>.py                       # no F811, no F841, no ARG002
+wc -l <runner>.py                            # must be SMALLER than before
+pixi run python -m pytest tests/ -q          # full suite green (the real gate — do not skip)
+```
+
+**Sequencing note for multi-agent / parallel edits**: the "move body into phase" edit and the
+"delete original + add shim on runner" edit touch **DIFFERENT files** but are logically
+coupled. Run them **SEQUENTIALLY** (phase first, runner second) — never let two agents edit the
+phase file and the runner file's overlapping method region concurrently, or one will reference
+a body the other just moved.
+
 ### Phase 12: Top-Level Symbol Extraction — Breaking Sibling-Module Cycles
 
 Use when two sibling modules (e.g., `implementer_cli.py`, `implementer_phase_runner.py`) have
@@ -827,6 +879,10 @@ final polishing gate before PR approval and merge.
 | **Forgetting fixture migration after scoping a scanner** | Scoped the scanner to `scylla/` but left existing tests writing fixtures at `tmp_path/"bad.py"` | Root-level fixtures are now out of scope — tests returned zero findings and failed | After narrowing scanner scope, move every test fixture into the scoped dir and update hard-coded path assertions (`"bad.py"` → `"scylla/bad.py"`) |
 | **Trusting a TODO/audit LOC estimate without reading the substrate** | Took `TODO.md` "Phase 2: ~5000 LOC" and an audit's "CRITICAL: autograd missing" as authoritative effort | Existing tape/registry/SavedTensors infra already covered ~70%; estimate was 3-5x too high and conflated "documented" with "missing" | Read every substrate file in full with line-cited evidence BEFORE estimating (Phase 17); re-classify "missing" as "incomplete, N% gap" |
 | **Deleting legacy code before verifying zero callers** | Assumed a "fallback only" file was dead and considered deleting it on the strength of its header alone | "Fallback only" claims are not self-enforcing — the codebase may still depend on it in non-obvious ways; dead code passes all CI | Systematically grep all callers across `*.py/*.sh/*.md/.github/` first, rewrite stale back-references as self-contained comments, then delete and run full suites (Phase 16) |
+| **Append shim block without deleting the original method bodies** | When decomposing a God Class into phase classes, added ~30 one-line delegation shims at the BOTTOM of the runner class while leaving every original method body in place earlier in the same class | Each shim redefines a name already defined earlier in the class → ruff F811 (redefinition) on every pair; the file GREW (1,712 → ~1,860 LoC) instead of shrinking; both `# noqa: C901` waivers remained in the now-dead original bodies, so AC2 (≤500 LoC thin coordinator) and AC3 (no C901 waivers) were both unmet | Shims must REPLACE originals, not shadow them. After extracting a method body into a phase `_impl`, DELETE the original from the host class and keep ONLY the shim. Verify with `grep -n 'noqa: C901' <file>` (must be zero) and `wc -l <file>` (must shrink). F811 from a linter is the signal that a body was left behind (Phase 11b) |
+| **Phase `_impl` methods bounce straight back to the runner's original method** | ReviewPhase._run_impl_review_step_impl (and 3 siblings) were written as one-line `return self.ctx.runner._run_impl_review_step(**kw)` — delegating to the runner's ORIGINAL body instead of holding the real logic | The phase owns none of its responsibility; the bounce only works while the runner originals still exist — exactly the code the decomposition must delete. It also inverts the convention of every other `_impl` method (which hold real bodies), a P7/POLA violation | Direction matters: runner shim → phase `_impl` (real body), NEVER phase `_impl` → runner original. The real body lives in the phase; the runner keeps only the thin shim. When moving a body across the boundary, move it INTO the phase and convert the runner side to the shim in the SAME change (Phase 11b) |
+| **Leave a `_parse_address_result` stub returning `{}` with a confident docstring** | Created a phase helper whose docstring claimed it parsed the address-session result, but the body was just `return {}` and nothing called it | A silently-empty stub with an authoritative docstring misleads the next reader/caller into thinking parsing happens; the real parsing body still lived only on the runner original about to be deleted | When extracting, either PORT the real body or DELETE the method — never ship an empty stub whose docstring lies. If the extracted method is genuinely reachable, wire it into a caller (e.g. via a `parse_fn` lambda) so it's exercised |
+| **Carry helper parameters that the extracted method never uses** | Phase state-transition helpers `_enter_learn_phase`/`_enter_followup_phase` kept the original `(state, issue_number, slot_id)` signature after extraction even though only `state` was used | ruff ARG002 (unused-method-argument) flagged `issue_number` and `slot_id` | After moving a body into a smaller-scope method, prune parameters the new body no longer references — extraction usually narrows the needed inputs. Update both the signature and every call site in the same edit |
 
 ## Results & Parameters
 

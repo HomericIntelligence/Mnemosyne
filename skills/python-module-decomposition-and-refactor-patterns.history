@@ -1,6 +1,66 @@
 <!-- markdownlint-disable MD024 -->
 # python-module-decomposition-and-refactor-patterns — History
 
+## v1.4.0 (2026-06-11)
+
+**Changed by:** Issue #712 ImplementationPhaseRunner SRP decomposition — PR #998 review loop
+**Verification:** verified-precommit
+
+> Honesty note: the fix (move-body-into-phase + delete-original + shim) was applied and the
+> module imports cleanly; the F811/F841/ARG002 reasoning and the `grep noqa: C901` / `wc -l`
+> gates were verified. The FULL `pytest tests/` suite was NOT confirmed green end-to-end in
+> the session that produced this learning — hence `verified-precommit`, not `verified-ci`.
+
+### What changed
+
+- Added **Phase 11b: Shim-Replaces-Body — the Append-Only Anti-Pattern** after Phase 11
+  (reverse-delegation). Documents the symptom triad (F811 redefinition, file grew instead of
+  shrank, `# noqa: C901` waivers survived in dead code), the correct atomic move-body →
+  delete-original → add-shim sequence, the verification gates, and the sequencing note for
+  multi-agent edits (phase first, runner second; never edit the overlapping method region
+  concurrently).
+- Added **4 Failed Attempts rows**: (1) append shim block without deleting originals →
+  F811/grew/waivers survived; (2) phase `_impl` bounces back to runner original (wrong
+  direction; P7/POLA violation); (3) lying empty `_parse_address_result` stub returning `{}`
+  with an authoritative docstring; (4) carrying unused extracted parameters → ARG002.
+- Extended the `description` "Use when" list with trigger (13): auditing a God-Class
+  decomposition PR that ADDED delegation shims but left original bodies in place.
+- Updated the Quick Reference decision tree with the Phase 11b row.
+- Added the `shim-replaces-body` tag.
+- Updated the Overview `Date` and frontmatter `date` to 2026-06-11.
+- Bumped MINOR 1.3.0 → 1.4.0.
+
+### Why
+
+Issue #712's ImplementationPhaseRunner God-Class decomposition (surfaced in the PR #998 review
+loop) demonstrated that reverse-delegation (Phase 11) is only half the move: the shim is the
+patchable address, but the real body MUST move into the phase/collaborator. An append-only
+decomposition that adds shims while keeping the original method bodies is a no-op for the
+size/complexity acceptance criteria and actively breaks lint — ruff F811 fires on every
+shadowed name, the file grows instead of shrinking, and the `# noqa: C901` waivers ride along
+in the now-dead originals so the "remove waivers" AC stays unmet. Phase 11b makes the
+"shim-REPLACES-body" rule explicit (delete the original; keep only the shim), supplies a
+symptom triad to recognize the anti-pattern in review, and adds a sequencing rule so parallel
+agents never half-migrate a method across the phase/runner file boundary. The 4 Failed
+Attempts capture the concrete review findings (bounce-back delegation, lying stub, unused
+carried params) so future decompositions avoid them.
+
+### Previous version (v1.3.0) snapshot
+
+---
+name: python-module-decomposition-and-refactor-patterns
+category: architecture
+date: 2026-06-05
+version: "1.3.0"
+user-invocable: false
+history: python-module-decomposition-and-refactor-patterns.history
+---
+
+(v1.3.0 contained Phases 1-18 plus the consolidated Superseded blocks for the 6 absorbed
+skills; description carried triggers 1-12. For full text see git history at the v1.3.0 commit.)
+
+---
+
 ## v1.3.0 (2026-06-07)
 
 **Changed by:** Skill-consolidation pass (cluster PYR02)
