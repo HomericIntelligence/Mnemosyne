@@ -1,6 +1,67 @@
 <!-- markdownlint-disable MD024 -->
 # pr-rebase-conflict-resolution-patterns — History
 
+## v1.2.0 (2026-06-11)
+
+**Changed by:** PR #1014 / issue #720 modify-delete conflict resolution
+**Verification:** verified-ci
+
+**What changed:** Added three new learnings surfaced while driving
+ProjectHephaestus PR #1014 (issue #720) to green CI:
+
+1. **Diagnosis — DIRTY with all checks green.** New "When to Use" trigger
+   and a Quick-Reference classify-step note: when
+   `gh pr view N --json mergeStateStatus,mergeable,statusCheckRollup` returns
+   `DIRTY`/`CONFLICTING` while every check is `SUCCESS`, the merge conflict
+   IS the blocker — rebase, do not chase a phantom failing job.
+2. **modify/delete conflict on an intentionally-deleted file.** New
+   "When to Use" trigger plus a conflict-resolution decision-table row for
+   `CONFLICT (modify/delete): <path> deleted in <commit> and modified in
+   HEAD`: the resolution is a decision about intent, not a text merge —
+   FIRST confirm the base/main copy still contains the content the PR
+   removes (`git show origin/main:<path> | grep -niE '<stale-tokens>'`,
+   guarding against discarding a legitimate base addition), THEN `git rm
+   <path>` + `GIT_EDITOR=true git rebase --continue`.
+3. **Post-rebase verification checklist (§ C2).** No conflict markers in
+   rewritten files; distinguish intentional anti-pattern examples
+   ("❌ flake8", "Never use `src/`") from stale practice by reading
+   context — raw grep token counts mislead; run the REAL gate
+   (`pre-commit run --all-files` + the full test suite), not just a single
+   formatting hook. Cross-linked to § B2: local `git log --format='%G?'`=`U`
+   without an `allowedSignersFile` is a false negative — trust GitHub
+   `.commit.verification.verified`.
+
+**Why it changed:** PR #1014 (the github-actions-python-cicd rewrite that
+deleted a stale `references/notes.md`) was OPEN but BLOCKED with
+`mergeStateStatus=DIRTY`, `mergeable=CONFLICTING`, and **no failing CI
+checks** — the modify/delete conflict alone blocked the merge. main had
+MODIFIED `references/notes.md` while the PR DELETED it; resolving by
+re-confirming the base was still stale and then `git rm` produced a clean
+rebase, with `pre-commit run --all-files` (32/32 hooks) and `pixi run
+python -m pytest tests/` (4134 passed, 19 skipped, 85.81% coverage) green.
+
+**Inline-diff summary of what changed in the .md:**
+
+- Frontmatter: `version: "1.1.0"` → `"1.2.0"`, `date: 2026-06-07` →
+  `2026-06-11`.
+- Overview table: Date `2026-06-07` → `2026-06-11`.
+- When to Use: two new top triggers (DIRTY-with-all-green; intentional
+  modify/delete).
+- Quick Reference CLASSIFY step: added the
+  `mergeStateStatus,mergeable,statusCheckRollup` diagnostic note.
+- Conflict-resolution decision table: new row for intentional
+  modify/delete (verify base stale → `git rm`).
+- New `#### C2. Post-rebase verification checklist` subsection.
+- Failed Attempts: three new rows (hunting a failing job on a DIRTY PR;
+  `git rm` without checking the base copy; treating raw grep counts as
+  residue).
+- Verified On: ProjectHephaestus row extended with PR #1014/#720.
+
+(The full prior content of `pr-rebase-conflict-resolution-patterns.md`
+v1.1.0 is preserved in this canonical's git history at the commit
+immediately preceding this amendment; the v1.1.0 and v1.0.0 notes plus
+the "Superseded from …" blocks below capture the lineage.)
+
 ## v1.1.0 (2026-06-07)
 
 Restore re-sign-after-rebase nuance (nuance audit): rebasing strips GPG/SSH commit signatures, so replayed commits must be re-signed (`git rebase --exec "git commit --amend --no-edit -S --no-verify" <base>`); local `git log --format='%G?'` may show `U` even for validly-signed commits — GitHub's REST `commit.verification.verified` is authoritative. Added a `### B2. Re-sign replayed commits` subsection and a Failed Attempts row.

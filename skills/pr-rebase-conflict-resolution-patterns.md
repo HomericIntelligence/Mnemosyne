@@ -2,8 +2,8 @@
 name: pr-rebase-conflict-resolution-patterns
 description: "Use when: (1) a PR branch is CONFLICTING or DIRTY after main advances and needs rebasing, (2) a mass rebase of 10+ PRs is needed after a major refactor causes conflicts across the queue, (3) a stacked PR goes DIRTY when its prerequisite merges and the base must be retargeted — later CI/lint fix commits on the dependent branch are orphaned and must be cherry-picked, (4) a Safety Net hook blocks git checkout --theirs / --ours during automated rebase conflict resolution, (5) a file was completely rewritten on one branch and small targeted edits exist on the other, (6) a parallel swarm produced overlapping PRs that conflict on the same paths and one must be rebased onto the other, (7) a feature PR conflicts after a sibling refactor merges and edits must be ported to the new file structure, (8) a TypeScript or other language-level shadowing bug appears only after a rebase because two branches independently added identically-named locals to the same scope, (9) numerical or optimizer PRs conflict when main merged its own version of a shared module and API signatures changed"
 category: ci-cd
-date: 2026-06-07
-version: "1.1.0"
+date: 2026-06-11
+version: "1.2.0"
 user-invocable: false
 history: pr-rebase-conflict-resolution-patterns.history
 tags: [git, rebase, merge-conflict, pr, batch, stacked-pr, cherry-pick, safety-net, parallel-swarm, serial-merge-train, full-rewrite, shadow-variable, tdz, numeric-equivalence, clang-format, cmake, pixi-lock, force-with-lease, auto-merge]
@@ -15,7 +15,7 @@ tags: [git, rebase, merge-conflict, pr, batch, stacked-pr, cherry-pick, safety-n
 
 | Field | Value |
 |-------|-------|
-| Date | 2026-06-07 |
+| Date | 2026-06-11 |
 | Objective | One canonical playbook for rebasing PR branches onto an advanced main and resolving every class of rebase/merge conflict — single PRs, mass waves, stacked PRs, parallel-swarm collisions, Safety-Net-blocked resolution, full-file rewrites, and language-level bugs introduced by merging two independent branch edits |
 | Outcome | Verified across the HomericIntelligence ecosystem (ProjectOdyssey, ProjectScylla, ProjectMnemosyne, ProjectKeystone, ProjectHephaestus, ProjectHermes, ProjectNestor, AchaeanFleet, Myrmidons, Agamemnon, Odysseus) — hundreds of PRs rebased and merged |
 | Verification | verified-ci |
@@ -23,6 +23,8 @@ tags: [git, rebase, merge-conflict, pr, batch, stacked-pr, cherry-pick, safety-n
 
 ## When to Use
 
+- A PR is `DIRTY`/`CONFLICTING` with **all CI checks green/passing** — the merge conflict itself is the sole blocker; rebase, don't hunt for a failing job (`gh pr view N --json mergeStateStatus,mergeable,statusCheckRollup`).
+- A rebase hits a **modify/delete conflict on a file the PR intentionally deletes** (`CONFLICT (modify/delete): <path> deleted in <commit> and modified in HEAD`) — confirm the base copy is still the stale content the PR removes, then `git rm`.
 - A PR is `CONFLICTING`/`DIRTY` after main advances and needs a rebase + force-push.
 - A mass rebase of 10-160+ PRs is needed after a major refactor lands on main.
 - A systemic CI failure (bad pip-audit flag, broken workflow, broken pixi.lock) blocks all PRs — fix main first, then rebase the queue.
@@ -52,6 +54,9 @@ gh api repos/OWNER/REPO --jq '{allow_squash_merge,allow_rebase_merge,allow_merge
 # ─── 1. CLASSIFY ───
 gh pr list --state open --json number,mergeStateStatus,autoMergeRequest --limit 200 \
   --jq '.[] | "#\(.number) [\(.mergeStateStatus)]"'   # MERGEABLE→arm; DIRTY/CONFLICTING→rebase
+# DIRTY/CONFLICTING with EVERY check green = the conflict IS the blocker (no phantom failing job):
+gh pr view N --json mergeStateStatus,mergeable,statusCheckRollup
+#   mergeStateStatus=DIRTY, mergeable=CONFLICTING, all rollup SUCCESS → rebase, do NOT chase CI
 
 # ─── 2. REBASE ONE PR (isolated worktree, never local checkout) ───
 git worktree add /tmp/pr-<N> origin/<branch>            # clean checkout from remote ref
@@ -117,9 +122,17 @@ git checkout --ours marketplace.json                    # main has the union; PR
 | Test files — both sides added coverage | Semantic merge: keep main's new tests AND the PR's helpers/tests; upgrade inherited tests to the PR's docstring standard; re-run the owned test file. |
 | Full-file rewrite vs small delta | Take the rewrite side (`git checkout --theirs` in rebase = PR), then hand-apply the small delta from main's commit. Never auto-merge — it produces an incoherent hybrid. |
 | Absorbed/deleted file (UD: deleted by us, modified by them) | `git rm <file>` (keep the deletion). |
+| modify/delete on an **intentionally-deleted** file (`CONFLICT (modify/delete): <path> deleted in <commit> and modified in HEAD. Version HEAD … left in tree.`) | This is a decision about **intent**, not a text merge. FIRST verify the base/main copy still contains the content the PR removes — `git show origin/main:<path> \| grep -niE '<stale-tokens>'` — to guard against main having added something legitimate you'd discard. Once confirmed stale, resolve by deletion: `git rm <path>` then `GIT_EDITOR=true git rebase --continue`. |
 | Source code, semantic | Read each hunk's intent (`git show REBASE_HEAD -- <file>` vs `git show HEAD:<file>`); decide per-hunk, never blanket `--ours`/`--theirs`. Use Sonnet+ for analysis, not Haiku. |
 | Whitespace-only / EOF-fixer cascade (stacked PRs) | sed-loop auto-resolver keeping HEAD — ONLY after pre-flight confirms whitespace-only, ≤5 lines, HEAD provably correct. |
 | Trivial conflict, Edit can't exact-match (em-dashes/alignment) | Python regex hunk-replace; then `grep -c '^<<<\|^>>>\|^===' file` must be 0. |
+
+#### C2. Post-rebase verification checklist (run before claiming clean)
+
+- **No conflict markers survive** in any rewritten file: `grep -nE '^(<<<<<<<|=======|>>>>>>>)' <file>` returns nothing.
+- **Distinguish stale-practice-being-taught from anti-pattern-being-warned-against by reading surrounding context, not raw grep counts.** A rewritten file that intentionally teaches "❌ flake8" / "Never use `src/`" will still match `grep flake8|src/`; those are correct anti-pattern examples, not residue. Read the surrounding lines before treating a token hit as a failure — raw counts mislead.
+- **Run the REAL gate, not just formatting hooks**: `pre-commit run --all-files` (all hooks, not a single markdownlint) AND the full test suite (`pixi run python -m pytest tests/`). A clean rebase with green formatting can still ship broken code.
+- **Local `git log --format='%G?'`=`U`/`N` after a rebase is a FALSE NEGATIVE** when the environment lacks an `allowedSignersFile` for the SSH key — the commit IS signed and GitHub verifies it server-side. Trust GitHub REST `.commit.verification.verified`, not local `%G?` (see § B2).
 
 #### D. Stacked PRs & cherry-picking diverged fixes
 
@@ -190,6 +203,9 @@ git checkout --ours marketplace.json                    # main has the union; PR
 | Suppressing a transitive-dep CVE with `--ignore-vuln` | Silenced a pip-audit red across all PRs | Hides the advisory; must repeat per CVE | Pin the fixed version in `pixi.toml`, regen lock, ship as a separate small PR that unblocks the repo |
 | Punting a mechanical lint failure to the author | Deferred a Mojo Syntax Validation failure | It was mechanical (variadic `List[T](args)` → typed literal `var x: List[Int]=[...]`) | Read the actual error; reserve "needs author" for real domain decisions |
 | Rebasing onto a broken main / starting without checking for open PRs | Rebased a queue while main CI was red / `git branch -vv` "ahead 1" misled | Can't unblock PRs via a broken main; "ahead 1" is a squash artifact | `gh pr list --state open` + `gh run list --branch main` first; `git cherry` to confirm unmerged work |
+| Hunting for a failing CI job on a DIRTY PR | Re-ran/inspected checks on a PR stuck BLOCKED with `mergeStateStatus=DIRTY`, `mergeable=CONFLICTING` | Every check was already green — the **merge conflict itself** was the blocker, no job to fix | `gh pr view N --json mergeStateStatus,mergeable,statusCheckRollup`; DIRTY+all-green → rebase, don't chase CI (ProjectHephaestus PR #1014) |
+| `git rm` on a modify/delete conflict without checking the base copy | Blindly deleted the file to keep the PR's intent | If main legitimately ADDED content to that file, the deletion silently discards it | A modify/delete is a decision about intent: first `git show origin/main:<path> \| grep -niE '<stale-tokens>'` to confirm the base is still stale, THEN `git rm` + `GIT_EDITOR=true git rebase --continue` |
+| Treating raw grep token counts as conflict residue after a rewrite | Failed a rewritten skill because `grep flake8` still matched | The matches were intentional anti-pattern examples ("❌ flake8", "Never use `src/`"), not stale practice | Read surrounding context — distinguish a practice being WARNED-against from one being TAUGHT; counts mislead |
 
 ## Results & Parameters
 
@@ -244,7 +260,7 @@ git commit --allow-empty -S -m "chore: re-trigger CI"
 | ProjectScylla | 30 stale PRs; 21 PRs (17 conflicting) semantic+parallel; PR #1931 feature-on-refactor port (#1929 runner.py decomposition); pip-audit `--min-severity high` blocker fix + 13-issue wave; git-rebase-over-deletion #832→#882 | verified-ci / verified-local |
 | ProjectKeystone | 14 + 11 PRs rebased; additive CMakeLists keep-both; #329 silent-drop recovery; pure-transport decouple→port→delete (#577-#581) per ADR-015/016 | verified-ci |
 | ProjectNestor | 8 hot-file-sharing PRs via SERIAL MERGE TRAIN (#83/#87/#94/#97/#99/#101); PR #101 clang-format-CMake mangling + local-build-before-push | verified-ci |
-| ProjectHephaestus | 30+ PR myrmidon waves; pixi task path / ruff S101 / caplog propagation; transitive-CVE pin #881 unblocked #879; PR #394 drop-and-redo (f-string conversion deferred) | verified-ci |
+| ProjectHephaestus | 30+ PR myrmidon waves; pixi task path / ruff S101 / caplog propagation; transitive-CVE pin #881 unblocked #879; PR #394 drop-and-redo (f-string conversion deferred); PR #1014/#720 DIRTY-with-all-green diagnosis + modify/delete resolution on an intentionally-deleted `references/notes.md` (rebase clean, pre-commit 32/32 hooks + 4134 tests green) | verified-ci |
 | ProjectHermes | ~30 PRs sharing server.py/config.py/publisher.py via batch take-HEAD; PR 120 incomplete-implementation; CLEAN-but-un-armed arming #645/#648 | verified-ci |
 | AchaeanFleet | Wave 2+3 rebase of 21 DIRTY PRs (Dockerfiles/ci.yml); PR #661 TS7022/TS2448 shadow/TDZ fix; #690 self-inflicted CI_BLOCKER removal via detached worktree | verified-ci |
 | Myrmidons | 13 stacked-PR EOF-fixer cascade (~39 trivial conflicts, sed loop); shellcheck swarm in `.claude/worktrees/agent-*` (git -C + detached-HEAD branch -f); 0-open-PR squash-artifact detection | verified-ci / verified-local |
