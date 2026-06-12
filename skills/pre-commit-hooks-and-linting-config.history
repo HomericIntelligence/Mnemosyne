@@ -1,6 +1,23 @@
 <!-- markdownlint-disable MD024 -->
 # pre-commit-hooks-and-linting-config -- History
 
+## v1.9.0 (2026-06-11) -- Add lint+pre-commit dual-gate shared-root-cause pattern (ruff format --check)
+
+**Changed by:** skill/precommit-lint-ruff-format-dual-failure (ProjectHephaestus issue #814 / PR #1058)
+**Verification:** verified-ci (local `pre-commit run --all-files` passed all hooks; the underlying `ruff format --check` is satisfied after the one-command fix)
+
+### What changed
+
+- Added 1 new "When to Use" trigger: BOTH the required `lint` check and the `pre-commit` check are red on the SAME `ruff format --check` diff — treat as ONE problem; a single `ruff format <files>` run clears both.
+- Added description trigger (13): lint + pre-commit dual failure sharing one formatter root cause; "files were modified by this hook" means a formatter mutated files in CI's check mode.
+- Added Detailed Steps subsection "lint + pre-commit dual failure: one `ruff format` clears both gates".
+- Added 2 new Failed Attempts rows: debugging lint and pre-commit as two separate problems; hand-wrapping a comprehension after a manual edit without re-running `ruff format`.
+- Added Verified On row for ProjectHephaestus PR #1058 (issue #814).
+
+### Why
+
+In ProjectHephaestus PR #1058, `gh pr checks` showed exactly two red checks — `lint` and `pre-commit` — both caused by the identical `ruff format --check` diff on `ensure_state_labels.py` and `loop_runner.py`. A prior commit hand-wrapped two comprehensions across multiple lines; ruff's formatter collapses them to a single line. The `lint` job's `ruff format --check` reported `Would reformat:`; the `pre-commit` job's `Ruff Format Python` hook reported "files were modified by this hook / 2 files reformatted". One `pixi run --environment lint ruff format <files>` (2 files changed, 2 insertions, 8 deletions — pure whitespace) cleared both gates. The prior skill captured "ruff check vs format are separate tools" but not the dual-gate (lint + pre-commit) shared-root-cause insight, nor the "files were modified by this hook == run the formatter and commit" reading.
+
 ## v1.8.0 (2026-06-07) -- Absorb 4 lint/quality skills (ruff-format trap, PR-diff scope, editorconfig, toolchain-churn review exemption)
 
 Consolidated 4 overlapping skills into this canonical (LQ05 cluster):
