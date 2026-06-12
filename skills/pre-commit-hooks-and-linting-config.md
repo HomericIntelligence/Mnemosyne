@@ -1,13 +1,13 @@
 ---
 name: pre-commit-hooks-and-linting-config
-description: "Canonical guide to pre-commit hook configuration, single-source-of-truth versioning, CI/local parity, and integration of ruff/mypy/clang-format/yamllint/actionlint/golangci-lint/bandit/hadolint/shellcheck/markdownlint. Use when: (1) writing or amending .pre-commit-config.yaml, (2) diagnosing why a hook passes locally but fails in CI (version drift), (3) deciding fix-vs-suppress for lint findings, (4) adding a new linter to an existing pre-commit pipeline, (5) reconciling ruff/mypy/markdownlint config across multiple repos, (6) a pre-commit hook using a pixi console script false-fails locally even though CI passes — system-installed package in ~/.local/bin shadows the local dev version, (7) ruff I001/RUF059 fires on inline imports or unused tuple unpacking inside test functions after adding new tests, (8) mypy pre-commit hook fails because an UNTRACKED test file references methods not yet committed — the hook checks ALL .py files on disk including untracked ones, (9) CI ruff-format hook fails even though local `ruff check` passed — `ruff check` (lint) and `ruff format --check` (formatter) are SEPARATE tools sharing one binary and running only `check` never exercises the formatter, (10) running pre-commit against the full PR diff (every file changed since merge-base) with `--from-ref/--to-ref` not just `--files <current edit>` — a sub-agent's earlier commit can carry stale-formatter content that fails only in CI, (11) adding .editorconfig for cross-editor formatting consistency on non-Python files (YAML, JSON, Markdown, shell, Makefile), (12) an automated PR-reviewer flags lint/formatter/pre-commit-forced incidental churn as scope creep — toolchain-forced churn is exempt from YAGNI/scope review while author-chosen opportunistic work is still flagged."
+description: "Canonical guide to pre-commit hook configuration, single-source-of-truth versioning, CI/local parity, and integration of ruff/mypy/clang-format/yamllint/actionlint/golangci-lint/bandit/hadolint/shellcheck/markdownlint. Use when: (1) writing or amending .pre-commit-config.yaml, (2) diagnosing why a hook passes locally but fails in CI (version drift), (3) deciding fix-vs-suppress for lint findings, (4) adding a new linter to an existing pre-commit pipeline, (5) reconciling ruff/mypy/markdownlint config across multiple repos, (6) a pre-commit hook using a pixi console script false-fails locally even though CI passes — system-installed package in ~/.local/bin shadows the local dev version, (7) ruff I001/RUF059 fires on inline imports or unused tuple unpacking inside test functions after adding new tests, (8) mypy pre-commit hook fails because an UNTRACKED test file references methods not yet committed — the hook checks ALL .py files on disk including untracked ones, (9) CI ruff-format hook fails even though local `ruff check` passed — `ruff check` (lint) and `ruff format --check` (formatter) are SEPARATE tools sharing one binary and running only `check` never exercises the formatter, (10) running pre-commit against the full PR diff (every file changed since merge-base) with `--from-ref/--to-ref` not just `--files <current edit>` — a sub-agent's earlier commit can carry stale-formatter content that fails only in CI, (11) adding .editorconfig for cross-editor formatting consistency on non-Python files (YAML, JSON, Markdown, shell, Makefile), (12) an automated PR-reviewer flags lint/formatter/pre-commit-forced incidental churn as scope creep — toolchain-forced churn is exempt from YAGNI/scope review while author-chosen opportunistic work is still flagged, (13) BOTH the required `lint` and `pre-commit` jobs fail together on a Python PR — suspect a single `ruff format` drift (commonly a hand-wrapped comprehension/call that fits on one line and ruff collapses); fix once with `pixi run --environment lint ruff format <files>` and both clear."
 category: tooling
-date: 2026-06-07
-version: "1.8.0"
+date: 2026-06-11
+version: "1.9.0"
 user-invocable: false
 verification: verified-ci
 history: pre-commit-hooks-and-linting-config.history
-tags: [merged, pre-commit, linting, ruff, mypy, clang-format, yamllint, actionlint, hooks, pixi-environment, bandit, markdownlint, sast, ruff-format, editorconfig, pr-diff, ci-parity, pr-review, yagni]
+tags: [merged, pre-commit, linting, ruff, mypy, clang-format, yamllint, actionlint, hooks, pixi-environment, bandit, markdownlint, sast, ruff-format, editorconfig, pr-diff, ci-parity, pr-review, yagni, lint-precommit-double-failure, comprehension-collapse]
 ---
 
 # Pre-commit Hooks and Linting Configuration
@@ -46,6 +46,8 @@ tags: [merged, pre-commit, linting, ruff, mypy, clang-format, yamllint, actionli
 - Ruff B904: "Within an `except` clause, raise exceptions with `raise ... from err`" — bare `raise X(...)` inside `except ImportError`
 - Ruff C901: "`main` is too complex (N > 10)" — inline `main()` function with many branches
 - CI `ruff-format` (or `ruff format --check`) hook failed even though local `pixi run ruff check` passed — `ruff check` (lint) and `ruff format` (style) are SEPARATE tools sharing one binary; running `check` never exercises the formatter
+- BOTH the required `lint` job AND the required `pre-commit` job go red together on a Python PR — suspect a SINGLE `ruff format` drift FIRST; both jobs invoke the same formatter (`lint` runs `ruff format --check`, `pre-commit` runs the `ruff-format-python` hook `--all-files`) so one drift surfaces as two red checks
+- A prior commit hand-wrapped a list/generator comprehension (or call) across multiple lines that fits within `line-length` — `ruff format` collapses it back to one line and `--check` reports "Would reformat"; the author never ran `ruff format` locally
 - You finished a worktree/tooling-driven multi-file edit (Edit calls, codegen, scripted refactors that bypass editor format-on-save) and are about to `git push`
 - Before pushing a PR where one or more sub-agents committed, you need pre-commit to cover the FULL PR diff (every file changed since merge-base), not just the files of your most recent edit
 - Diagnosing CI formatter failures (mojo-format / ruff-format) on files you did not personally edit this session — a sub-agent's `--files`-scoped pre-commit missed them
@@ -353,6 +355,54 @@ reflow as a dedicated `style(ruff):` commit (never `--amend` once pushed). Never
 Verified by ProjectHephaestus PRs #707 and #913 (local `ruff check`/pytest/pre-push all
 green, CI `ruff-format` still failed).
 
+#### `lint` + `pre-commit` both red == one `ruff format` drift (diagnostic shortcut)
+
+When BOTH the required `lint` job and the required `pre-commit` job fail together on a Python
+PR, suspect a single `ruff format` drift BEFORE anything else — they are equivalent formatter
+gates and will both flag the same files. The `lint` job runs `ruff format --check hephaestus
+scripts tests` → `Would reformat: <file>` → exit 1. The `pre-commit` job runs the
+`ruff-format-python` hook with `--all-files` → `N files reformatted ... files were modified
+by this hook` → exit 1. Same formatter, same files, two red checks. Passing one locally
+guarantees the other (`ruff format --check` ≡ `ruff-format-python` hook), so you only need to
+clear one.
+
+**Most common cause — hand-wrapped code that fits on one line.** An editor or a prior
+automated edit splits a comprehension/call across lines, but it fits within `line-length`, so
+`ruff format` collapses it back:
+
+```python
+# Hand-wrapped (what the prior commit left) — ruff format WILL rewrite this:
+return sorted(
+    e["name"]
+    for e in entries
+    if not e.get("isArchived", False)
+    and not e.get("isFork", False)
+)
+
+# After `ruff format` (single line, fits the limit) — what CI expects:
+return sorted(
+    e["name"] for e in entries if not e.get("isArchived", False) and not e.get("isFork", False)
+)
+```
+
+**The mechanical fix (zero logic change):**
+
+```bash
+pixi run --environment lint ruff format <named files>   # e.g. the two files CI listed
+pixi run pre-commit run --all-files                      # confirm all hooks pass
+git commit -S -m "style(ruff): reflow hand-wrapped comprehensions"   # existing branch, signed
+```
+
+Net diff is pure whitespace/line-wrap (e.g. `2 files changed, 2 insertions(+), 8
+deletions(-)`). Never hand-wrap a comprehension or call that fits on one line — ruff will undo
+it. The CI ruff version is pinned (0.15.x via pixi), so the local `--environment lint` pixi env
+matches CI exactly; running it locally is authoritative.
+
+Verified-local by ProjectHephaestus PR #1058 (issue #814): `lint` + `pre-commit` both red from
+hand-wrapped comprehensions in `ensure_state_labels.py` and `loop_runner.py`; `ruff format` on
+the two files fixed both checks; `pre-commit run --all-files` green and full pytest (3521
+passed) green locally. CI re-validation pending push.
+
 #### Pre-commit scope before push: full PR diff, not the current edit
 
 `pre-commit run --files X Y Z` runs each hook on the LITERAL list `[X, Y, Z]`; the installed
@@ -604,6 +654,8 @@ feasible (e.g., constrained CI environments, conda-forge only providing old Go v
 | Leave `main()` at C901 complexity 17 | Added multiple `if/elif` branches inline in a single large `main()` function | Ruff `ruff-check-complexity` hook fires: "C901 `main` is too complex (17 > 10)" | Extract sub-operations into private helpers (e.g., `_check_module_floors()`, `_emit_json_report()`); each helper must have complexity ≤10 |
 | Trust `pixi run ruff check` alone before push | Ran lint, mypy, pytest; all green; pushed | `ruff check` does not exercise `ruff format`; CI's `ruff-format` hook then failed on multi-line signatures that should be single-line under the 100-col limit | `check` and `format` are TWO TOOLS sharing one binary; run both. Keep both hooks — they are not redundant |
 | Trust editor format-on-save for tooling edits | Assumed unformatted files caught on save | Worktree edits from Edit/codegen bypass the editor — no save event triggers the formatter | Run `ruff format` explicitly after tooling edits; `.editorconfig` does NOT drive ruff's column (it reads `pyproject.toml line-length`) |
+| Triage `lint` and `pre-commit` both-red as two separate problems | Started debugging the `pre-commit` failure independently of the `lint` failure | Both jobs run the same formatter (`ruff format --check` vs `ruff-format-python --all-files`); a single drift surfaced as two red checks | When both go red on a Python PR, suspect ONE `ruff format` drift first; fix once and both clear |
+| Hand-wrap a comprehension/call that fits on one line | Editor/prior automated edit split a `sorted(... for ... if ...)` across multiple lines | `ruff format` collapses it back under `line-length`; `--check` reports "Would reformat" → exit 1 | Never hand-wrap code that fits the limit; run `pixi run --environment lint ruff format <files>` and let ruff own line-wrap |
 | `pre-commit run --files X Y Z` before push of a multi-author PR | Listed only the files the orchestrator personally edited | `--files` is a literal list; a sub-agent's earlier-committed file was skipped and failed CI formatter | Scope pre-push to the full PR diff: `pre-commit run --from-ref origin/main --to-ref HEAD` |
 | `pre-commit run --all-files` as the routine pre-push gate | Used the universal "safe" invocation every push | Multi-minute on large repos; engineers drop back to `--files` and the coverage gap reappears | Use `--from-ref/--to-ref` for routine pre-push; reserve `--all-files` for version bumps/onboarding. On a sub-agent `SKIP=`, re-run that hook against the full diff |
 | `trim_trailing_whitespace = true` for Markdown in `.editorconfig` | Applied the global whitespace-trim rule to `*.md` | Two trailing spaces in Markdown are a significant `<br>` line break; trimming silently breaks formatting | Set `trim_trailing_whitespace = false` under `[*.md]`; Makefiles must use `indent_style = tab` |
@@ -757,7 +809,7 @@ indent_style = tab                 # Make syntax requires tabs
 | Project | Context | Details |
 | --------- | --------- | --------- |
 | Multiple HI repos | Synthesized from 53 skills across ProjectOdyssey, ProjectHephaestus, ProjectArgus, ProjectKeystone, AchaeanFleet, Myrmidons | [history file](pre-commit-hooks-and-linting-config.history) |
-| ProjectHephaestus | PRs #707, #913 (ruff-format trap), #1019 closes #1017 (review-rubric toolchain-churn carve-out) | [history file](pre-commit-hooks-and-linting-config.history) |
+| ProjectHephaestus | PRs #707, #913 (ruff-format trap), #1019 closes #1017 (review-rubric toolchain-churn carve-out), PR #1058 issue #814 (`lint`+`pre-commit` double-failure == one ruff-format drift; verified-local) | [history file](pre-commit-hooks-and-linting-config.history) |
 | ProjectOdyssey | PR #5453 (full-PR-diff pre-commit scope fixed CI mojo-format on sub-agent files) | [history file](pre-commit-hooks-and-linting-config.history) |
 | ProjectScylla | PR #1556, audit finding S13 (.editorconfig cross-editor consistency) | [history file](pre-commit-hooks-and-linting-config.history) |
 

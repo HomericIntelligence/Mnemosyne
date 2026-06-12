@@ -1,6 +1,30 @@
 <!-- markdownlint-disable MD024 -->
 # pre-commit-hooks-and-linting-config -- History
 
+## v1.9.0 (2026-06-11) -- Add `lint` + `pre-commit` double-failure == one ruff-format drift + comprehension-collapse pattern
+
+**Changed by:** ProjectHephaestus PR #1058 (issue #814, "Remove hardcoded Odysseus skip list")
+**Verification:** verified-local (pre-commit `--all-files` all hooks Passed; full pytest 3521 passed in clean env; CI re-validation pending push)
+
+### What changed
+
+- Added description trigger (13): BOTH required `lint` and `pre-commit` jobs failing together → suspect a single `ruff format` drift; fix once with `pixi run --environment lint ruff format <files>`.
+- Added 2 "When to Use" bullets: the `lint`+`pre-commit` double-failure diagnostic, and the hand-wrapped-comprehension-that-fits-on-one-line cause.
+- Added body subsection "`lint` + `pre-commit` both red == one `ruff format` drift (diagnostic shortcut)" with the comprehension before/after example and the one-command mechanical fix.
+- Added 2 Failed Attempts rows: triaging the two red checks as separate problems, and hand-wrapping a comprehension that fits on one line.
+- Added tags `lint-precommit-double-failure`, `comprehension-collapse`.
+- Bumped version 1.8.0 → 1.9.0; date → 2026-06-11.
+
+### Why
+
+PR #1058 had two failing required checks (`lint` and `pre-commit`) from one root cause: a prior commit left list/generator comprehensions in `hephaestus/automation/ensure_state_labels.py` (`_gh_list_org_repos`) and `loop_runner.py` (`_gh_list_repos`) hand-wrapped across multiple lines. Both fit within `line-length`, so `ruff format` (0.15.x, pinned via pixi) collapses each onto a single line. The `lint` job runs `ruff format --check hephaestus scripts tests` → "Would reformat: ..." → exit 1; the `pre-commit` job runs the `ruff-format-python` hook `--all-files` → "2 files reformatted ... files were modified by this hook" → exit 1. Same formatter, same files, two red checks. Fix: `pixi run --environment lint ruff format <the two files>` → `2 files changed, 2 insertions(+), 8 deletions(-)`, pure whitespace, zero logic change; signed commit on the existing branch (not a new branch). The prior canonical (v1.8.0) covered `ruff check` vs `ruff format` being separate tools but not the double-required-check diagnostic shortcut or the comprehension-collapse cause.
+
+### Previous-version snapshot (v1.8.0)
+
+- Frontmatter: `version: "1.8.0"`, `date: 2026-06-07`, `verification: verified-ci`, description ended at trigger (12) (toolchain-forced churn review exemption), tags ended at `yagni`.
+- Body did NOT contain the "`lint` + `pre-commit` both red == one `ruff format` drift" subsection; the formatter narrative was limited to the "`ruff check` vs `ruff format` — the pre-commit trap" subsection (multi-line signatures).
+- Failed Attempts table ended its formatter rows at "Trust editor format-on-save for tooling edits".
+
 ## v1.8.0 (2026-06-07) -- Absorb 4 lint/quality skills (ruff-format trap, PR-diff scope, editorconfig, toolchain-churn review exemption)
 
 Consolidated 4 overlapping skills into this canonical (LQ05 cluster):
