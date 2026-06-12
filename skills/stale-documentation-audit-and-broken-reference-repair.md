@@ -1,12 +1,12 @@
 ---
 name: stale-documentation-audit-and-broken-reference-repair
-description: "Use when: (1) running a doc-drift audit across a corpus — detecting stale counts, metric discrepancies, cross-doc contradictions, ecosystem-role drift; (2) removing phantom directory references from documentation when a path no longer exists; (3) fixing broken documentation references (dead links, stale headings); (4) auditing documentation examples for policy violations; (5) auditing and rewriting getting-started stubs by sourcing real commands from justfile and versions from pixi.toml; (6) fixing incorrect tier labels or version numbers in docs that have drifted from implementation; (7) managing the full lifecycle of placeholder and stub documentation — deletion under YAGNI, deferred-comment placeholders, rewriting with accurate codebase-grounded content; (8) resolving audit nitpicks for monolithic code by documenting verified design rationale; (9) resolving CONTRIBUTING.md case-clashes and circular cross-references in docs/; (10) validating anchor fragments in markdown deep-links to detect broken headings."
+description: "Use when: (1) running a doc-drift audit across a corpus — detecting stale counts, metric discrepancies, cross-doc contradictions, ecosystem-role drift; (2) removing phantom directory references from documentation when a path no longer exists; (3) fixing broken documentation references (dead links, stale headings); (4) auditing documentation examples for policy violations; (5) auditing and rewriting getting-started stubs by sourcing real commands from justfile and versions from pixi.toml; (6) fixing incorrect tier labels or version numbers in docs that have drifted from implementation; (7) managing the full lifecycle of placeholder and stub documentation — deletion under YAGNI, deferred-comment placeholders, rewriting with accurate codebase-grounded content; (8) resolving audit nitpicks for monolithic code by documenting verified design rationale; (9) resolving CONTRIBUTING.md case-clashes and circular cross-references in docs/; (10) validating anchor fragments in markdown deep-links to detect broken headings; (11) syncing a stale doc-version claim (e.g. MIGRATION.md says 0.9.2 but git tags show v0.9.5) to the correct version authority, and deciding WHETHER to add a drift-detection regression test — including the fragility traps that make a prose-regex-vs-git-tag test fail in CI for reasons unrelated to the doc being wrong (Pattern D anti-patterns)."
 category: documentation
-date: 2026-06-07
-version: "1.0.0"
+date: 2026-06-12
+version: "1.1.0"
 user-invocable: false
 history: stale-documentation-audit-and-broken-reference-repair.history
-tags: [doc-drift, stale-doc, broken-references, phantom-dir, placeholder, stub, anchor-validation, tier-labels, doc-audit, doc-sync, merged]
+tags: [doc-drift, stale-doc, broken-references, phantom-dir, placeholder, stub, anchor-validation, tier-labels, doc-audit, doc-sync, version-currency, git-tag-authority, drift-test-fragility, pattern-d, merged]
 ---
 
 # Stale Documentation Audit and Broken Reference Repair
@@ -15,10 +15,10 @@ tags: [doc-drift, stale-doc, broken-references, phantom-dir, placeholder, stub, 
 
 | Field | Value |
 | ------- | ------- |
-| **Date** | 2026-06-07 |
-| **Objective** | Canonical workflow for auditing stale documentation and repairing broken references: drift audits, phantom-dir/dead-link removal, placeholder lifecycle, getting-started rewrites, tier-label fixes, anchor validation |
-| **Outcome** | Consolidated from 10 skills covering doc-drift audits, broken-reference repair, policy-violation audits, placeholder/stub lifecycle, monolith-rationale docs, CONTRIBUTING case-clash, and anchor validation |
-| **Verification** | verified-ci |
+| **Date** | 2026-06-12 |
+| **Objective** | Canonical workflow for auditing stale documentation and repairing broken references: drift audits, phantom-dir/dead-link removal, placeholder lifecycle, getting-started rewrites, tier-label fixes, anchor validation, doc-version-currency sync + drift-test fragility |
+| **Outcome** | Consolidated from 10 skills covering doc-drift audits, broken-reference repair, policy-violation audits, placeholder/stub lifecycle, monolith-rationale docs, CONTRIBUTING case-clash, and anchor validation. v1.1.0 adds the doc-version-currency sync workflow and the Pattern D drift-test fragility anti-patterns |
+| **Verification** | verified-ci overall; the doc-version-currency drift-test fragility content (§10) is `unverified` — a planning hypothesis from ProjectHephaestus #1208, never executed in CI |
 
 ## When to Use
 
@@ -34,6 +34,7 @@ tags: [doc-drift, stale-doc, broken-references, phantom-dir, placeholder, stub, 
 - An audit nitpick questions a monolithic file's organization and needs a documented rationale
 - Both `CONTRIBUTING.md` and `docs/contributing.md` exist with a circular cross-reference
 - README/docs deep-link to specific installation headings and you need CI to catch broken anchors
+- A doc states a stale released-version claim (e.g. `MIGRATION.md` says "latest released version is 0.9.2" but `git tag` shows v0.9.5) and you must sync it to the correct **version authority** — AND decide whether to add a drift-detection regression test (see §10 for the fragility traps before you couple a prose regex to a git-tag-derived authority)
 
 ## Verified Workflow
 
@@ -235,6 +236,70 @@ Scan only fenced shell code blocks (never prose, to avoid matching prohibition t
 `build/`). Anchor command rules to line starts and exclude `#`-commented lines (intentional
 "BLOCKED" demonstrations are not violations). Add a regression test per new pattern.
 
+#### 10. Doc-version-currency sync + drift-test fragility (Pattern D) — UNVERIFIED
+
+> **Warning:** This sub-section is a **planning hypothesis** from ProjectHephaestus #1208 — the
+> plan was NOT executed (no edits applied, no tests run, no CI). The drift-test fragility modes
+> below are reasoning, not observed CI failures. Treat the drift-test recommendation as a caution,
+> not a verified recipe. The *sync* half (find the authority, edit the prose, distinguish currency
+> claims from historical references) follows the same verified mechanics as §1.
+
+A doc names a stale released version (`MIGRATION.md`: "latest released version is **0.9.2**" while
+`git tag` shows `v0.9.5`). Two parts: (a) **sync the prose to the version authority**, and
+(b) **decide whether to add a drift-detection regression test** — the trap is that such a test is
+fragile and can red CI for reasons unrelated to the doc being wrong.
+
+**(a) Verify the version authority FIRST — do not trust a precedent skill's source-of-truth.**
+In a **hatch-vcs** repo the canonical version is the latest git tag, NOT a static
+`[project].version` (that field does not exist — `pyproject.toml` declares `dynamic = ["version"]`):
+
+```bash
+git tag --sort=-v:refname | head -1          # the real authority in a hatch-vcs repo
+grep -n "version" pyproject.toml | head      # confirm there is NO static [project].version
+```
+
+The sibling skill `security-md-version-sync` assumes `pyproject.toml [project].version` is the
+source of truth — that is **WRONG for a hatch-vcs repo**. Always confirm the version authority for
+*this* repo before reusing any precedent.
+
+**(a cont.) Scope precisely, and distinguish currency claims from historical references.** Grep the
+version AND any associated date, but do not blindly edit every hit:
+
+```bash
+grep -rn "0\.9\.2\|2026-05-28" docs/ README.md CLAUDE.md   # find every candidate
+```
+
+A match like `ROADMAP.md:9 … "the strict 2026-05-28 audit"` names a **historical event**, not a
+current-version claim — editing it would be wrong. **Edit currency claims; leave historical
+references that legitimately name a past date/version.**
+
+**(b) Drift-detection regression test — three fragility modes (anti-patterns, do NOT ship blindly).**
+The tempting test asserts the MIGRATION.md prose names the latest git tag, e.g. via a helper like
+`hephaestus/version/consistency._version_from_git_tag` and a regex
+`latest released version is \*\*(\d+\.\d+\.\d+)\*\*`. It is fragile because:
+
+1. **Regex brittleness** — the regex is coupled to exact prose + bold markup. A future copy-edit
+   ("the most recent release is …") or removing `**` makes the test RED even though the doc is
+   *correct*. The test now guards the wording, not the version.
+2. **Silent skip on shallow CI checkout** — `_version_from_git_tag` returns `None` when tags aren't
+   fetched (common with `actions/checkout` `fetch-depth: 1` / no `fetch-tags: true`). A
+   `pytest.skip` on `None` means **the gate silently does nothing** — it can pass forever while the
+   doc drifts. **A guard that skips in CI is not a guard.**
+3. **Release-time race** — asserting the doc `==` latest tag turns every new `vX.Y.Z` push into a
+   RED main until someone edits the doc. Pattern D ("stop maintaining the number") ironically
+   **re-introduces a manual chore**: now you must edit the doc with/before every tag or main breaks.
+
+**Mitigations (Proposed — not yet verified):**
+
+- **Prefer a live source over an assertion.** Make the doc *link* to GitHub Releases / `git tag`
+  output instead of hardcoding a number. This kills the maintenance burden with no brittle gate —
+  the same "stop maintaining the number" philosophy used for badge/count drift (see the badges
+  skill), applied to version prose.
+- If a test is used, assert the doc version is **`<=` latest tag** (drift-direction guard), not
+  `==`, so a fresh release tag does not instantly red main.
+- If `_version_from_git_tag` returns `None` in CI, **fail loud or fetch tags** (`fetch-tags: true`)
+  — never silently `skip`. A loud `xfail`/explicit-fail with a message beats a green no-op.
+
 ### Validate, Commit, and PR
 
 ```bash
@@ -267,6 +332,11 @@ gh pr merge --auto --rebase
 | Full pre-commit suite without skipping | Ran all hooks on a host with a GLIBC mismatch | `mojo-format` fails on GLIBC < 2.32 (environment, not code) | Use `SKIP=mojo-format`; only non-Mojo hooks matter for doc-only changes |
 | Deleting `docs/contributing.md` to resolve the case-clash | Removed the file entirely | Breaks inbound links from the docs index | Reduce to a redirect; keep root as canonical |
 | Per-file reviewers for citation corpus | Reviewed each entry individually | Could not see cross-document §-drift or arXiv ID-to-title swaps | Both failure modes need a cross-corpus structural audit, not per-file review |
+| (Pattern D, unverified) Reading version from `pyproject.toml [project].version` per a precedent skill | Planned to treat `pyproject.toml` as the version authority (as `security-md-version-sync` does) | The repo is hatch-vcs: `dynamic = ["version"]`, no static `[project].version` field exists; the real authority is `git tag --sort=-v:refname \| head -1` | Verify the version authority for THIS repo before trusting a precedent skill's source-of-truth |
+| (Pattern D, unverified) Drift-test regex coupling prose to git tag | `re` against `latest released version is \*\*(\d+\.\d+\.\d+)\*\*` | Brittle: any reword or markup change (drop `**`, "most recent release is …") reds the test even though the doc is correct — it guards wording, not the version | Don't couple a test to exact prose+markup; prefer a live-source link over a regex assertion |
+| (Pattern D, unverified) `pytest.skip` when `_version_from_git_tag` is None | Skip the drift test if tags aren't fetched in CI | Shallow CI checkout (`fetch-depth: 1`, no `fetch-tags`) → helper returns None → test silently skips and passes forever while the doc drifts | A guard that skips in CI is not a guard; fail loud or `fetch-tags: true`, never silent skip |
+| (Pattern D, unverified) Asserting doc version `==` latest tag | Exact-match drift gate | The moment a new `vX.Y.Z` is pushed, main goes RED until someone edits the doc — converts "nice-to-have currency" into a release-blocking chore (re-introduces the manual maintenance Pattern D was meant to remove) | Assert `<=` latest tag (drift-direction), or link to a live source so there is no number to maintain |
+| (Pattern D, unverified) Bulk-editing every `0.9.2`/`2026-05-28` grep hit | Considered syncing all matches in one sweep | `ROADMAP.md:9` named "the strict 2026-05-28 audit" — a historical event, not a currency claim; editing it would be wrong | When bulk-syncing a stale date/version, distinguish currency claims (edit) from historical references that legitimately name a past date (leave) |
 
 ## Results & Parameters
 
@@ -303,6 +373,14 @@ def test_no_stale_claims(doc: Path, pattern: str) -> None:
     assert not matches, f"{doc.name} contains forbidden phrase: {matches}"
 ```
 
+**When this pattern is SAFE vs FRAGILE.** The pattern above asserts a *forbidden phrase never
+reappears* — that is safe, because the authority is a static blocklist with no external
+dependency. It becomes **fragile** the moment you couple the regex to a **moving external authority**
+(a git tag) — i.e. asserting the prose *equals the latest version*. See §10 for the three failure
+modes (regex brittleness, silent-skip on shallow CI checkout, release-time race). Rule of thumb:
+**negative tests against a fixed blocklist are safe; positive tests against a live version authority
+are release-coupled and usually better replaced by a live-source link in the doc.**
+
 ### Reliable markdownlint invocation
 
 ```bash
@@ -331,4 +409,5 @@ pixi run npx markdownlint-cli2 <file>
 | ProjectOdyssey | Issues #3344, #3365; PR #3320; PR #4847 | Workflow README audit, agent-count fix, post-migration README sync |
 | ProjectOdyssey | Issues #3142/#3308, #3304/#3913, #3305/#3917, #3918/#4830, #3141/#3303, #3914/#4828, #3915/#4829 | Stub deletion, installation/quickstart rewrite, IDE-setup extend, getting-started audit, anchor validator |
 | ProjectHephaestus | Issue #792 (PR #984); Issue #630 (PR #667) | Monolith-rationale ADR; CONTRIBUTING case-clash redirect |
+| ProjectHephaestus | Issue #1208 (planning only — **unverified**) | Doc-version-currency sync (MIGRATION.md 0.9.2 → v0.9.5) + Pattern D drift-test fragility (§10): hatch-vcs git-tag authority, regex/silent-skip/release-race anti-patterns, currency-vs-historical scoping. Plan NOT executed — no edits, no tests, no CI |
 | mvillmow/Random | Predictive-Coding-in-Mojo Phase 0 | Cross-doc citation drift: 8 stale §-refs, 2 arXiv ID swaps caught |

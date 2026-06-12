@@ -2,6 +2,51 @@
 
 # stale-documentation-audit-and-broken-reference-repair — History
 
+## v1.1.0 (2026-06-12)
+
+**Changed by:** ProjectHephaestus issue #1208 planning session (doc-version-currency sync +
+drift-detection regression test design). **Plan NOT executed.**
+**Verification:** unverified (for the new §10 content; the rest of the skill remains verified-ci)
+
+### What changed
+
+- Added detailed-step **§10 "Doc-version-currency sync + drift-test fragility (Pattern D)"** with an
+  UNVERIFIED warning banner.
+- Added a When-to-Use bullet (#11) for stale doc-version claims + the drift-test decision.
+- Extended the frontmatter `description` (case 11) and added tags: `version-currency`,
+  `git-tag-authority`, `drift-test-fragility`, `pattern-d`. Bumped `version` 1.0.0 → 1.1.0, `date`
+  → 2026-06-12.
+- Added a "When this pattern is SAFE vs FRAGILE" caveat to the existing
+  *Drift-detection test pattern (Python)* subsection (negative blocklist test = safe; positive test
+  vs a live version authority = release-coupled).
+- Added 5 Failed Attempts rows (all marked "Pattern D, unverified"): pyproject-as-authority in a
+  hatch-vcs repo; prose-regex brittleness; `pytest.skip`-on-None silent no-op; `==`-latest-tag
+  release race; bulk-editing currency-vs-historical hits.
+- Added a ProjectHephaestus #1208 (unverified) row to Verified On.
+
+### Why
+
+Issue #1208: `MIGRATION.md` claimed "latest released version is 0.9.2" while git tags show v0.9.5.
+The plan synced the prose to the git-tag authority AND proposed a drift-detection regression test
+asserting the prose names the latest `vX.Y.Z` tag. The durable learning is that such a test —
+coupling a markdown prose regex to a git-tag-derived authority — is **fragile**: (1) the regex
+breaks on any reword/markup change; (2) it silently skips on shallow CI checkouts (a guard that
+skips is not a guard); (3) `==`-latest-tag turns every new tag into a release-blocking RED main,
+re-introducing the manual chore Pattern D was meant to remove. The v1.0.0 skill presented its
+drift-detection test pattern uncritically; v1.1.0 documents when that pattern is safe vs fragile and
+recommends linking to a live source over a brittle equality gate. Also captures the hatch-vcs
+authority lesson (no static `[project].version`; the latest git tag is canonical — the
+`security-md-version-sync` precedent is wrong for such repos) and the currency-vs-historical
+scoping discipline (do not edit `ROADMAP.md` references that name a past audit date). Marked
+unverified because the plan was never executed.
+
+### Previous version (v1.0.0) snapshot
+
+See the v1.0.0 entry below for the full prior snapshot (unchanged sections); this amendment is
+purely additive — no v1.0.0 content was removed or rewritten.
+
+---
+
 ## v1.0.0 (2026-06-07)
 
 Consolidated 10 documentation skills into one canonical covering stale-doc drift audits and broken-reference repair. Absorbed skills:
