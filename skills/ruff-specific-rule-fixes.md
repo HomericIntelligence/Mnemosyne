@@ -1,9 +1,9 @@
 ---
 name: ruff-specific-rule-fixes
-description: "Patterns for fixing specific Ruff lint rule violations and addressing systemic linter policy failures. Use when: (1) fixing Ruff S101 violations in production code by replacing bare assert guards with explicit RuntimeError raises, (2) fixing Ruff C901 cyclomatic complexity violations by extracting helper functions, (3) the same policy violation reappears in two or more independent documents or configs — indicating the linter/validator that should enforce the policy is absent or misconfigured (root-cause fix: add the lint rule, not re-fix every instance), (4) deciding between adding a noqa suppression, fixing the violation, or promoting the rule to error-level enforcement."
+description: "Patterns for fixing specific Ruff lint rule violations and addressing systemic linter policy failures. Use when: (1) fixing Ruff S101 violations in production code by replacing bare assert guards with explicit RuntimeError raises, (2) fixing Ruff C901 cyclomatic complexity violations by extracting helper functions, (3) the same policy violation reappears in two or more independent documents or configs — indicating the linter/validator that should enforce the policy is absent or misconfigured (root-cause fix: add the lint rule, not re-fix every instance), (4) deciding between adding a noqa suppression, fixing the violation, or promoting the rule to error-level enforcement, (5) adding a new scripts/*.py to a repo with an auto-discovering smoke test, or adding a # noqa whose rule may not be in the ruff select list."
 category: tooling
-date: 2026-06-07
-version: "1.0.0"
+date: 2026-06-12
+version: "1.1.0"
 user-invocable: false
 history: ruff-specific-rule-fixes.history
 tags:
@@ -20,6 +20,12 @@ tags:
   - policy-enforcement
   - root-cause
   - pre-commit
+  - RUF100
+  - unused-noqa
+  - select-list
+  - scripts-smoke-test
+  - help-contract
+  - D103
 ---
 
 # Ruff Specific Rule Fixes
@@ -28,9 +34,9 @@ tags:
 
 | Field | Value |
 | ------- | ------- |
-| **Date** | 2026-06-07 |
-| **Objective** | Fix specific Ruff rule violations (S101 assert-in-production, C901 cyclomatic complexity) and recognize when repeated policy violations mean the linter itself is the root cause |
-| **Outcome** | Verified — S101 guards converted across 20+ sites (PRs #1142, #1211), C901 extractions verified (PRs #1546, #1050), wrong-direction linter root-cause pattern verified-CI (PRs #863/#865/#866/#867) |
+| **Date** | 2026-06-12 |
+| **Objective** | Fix specific Ruff rule violations (S101 assert-in-production, C901 cyclomatic complexity, RUF100 unused-noqa) and recognize when repeated policy violations mean the linter itself is the root cause; honor the auto-discovered scripts smoke `--help` contract |
+| **Outcome** | Verified — S101 guards converted across 20+ sites (PRs #1142, #1211), C901 extractions verified (PRs #1546, #1050), wrong-direction linter root-cause pattern verified-CI (PRs #863/#865/#866/#867); RUF100 unused-noqa + scripts smoke `--help` contract verified-precommit (PR #1250) |
 | **Verification** | verified-ci |
 
 ## When to Use
@@ -40,6 +46,7 @@ tags:
 - The **same policy violation** appears in 2+ independent files/configs — the linter that should enforce the policy is absent, misconfigured, or wrong-direction.
 - You are deciding between a `# noqa` suppression, fixing the violation, or promoting the rule to error-level enforcement.
 - You are tempted to open N parallel PRs to fix N violating files — pause and check the linter first.
+- You are **adding a new `scripts/*.py`** to a repo with an auto-discovering smoke test, or **adding a `# noqa: <RULE>` whose `<RULE>` may not be in the ruff `select` list** (RUF100 unused-noqa risk).
 
 ## Verified Workflow
 
@@ -238,6 +245,69 @@ systemic one. The linter/validator that should enforce the policy is the FIRST s
 
 7. **If META is also wrong** (e.g. CLAUDE.md says `--rebase` but branch protection disables rebase merge), the deployed config is ground truth — fix META first, then linter, then dependents. Confirm via `gh api repos/<owner>/<repo>/branches/<branch>/protection`.
 
+#### Pattern D — Adding a new `scripts/*.py` (RUF100 unused-noqa + smoke `--help` contract)
+
+> **Verification: verified-precommit** (ProjectHephaestus issue #1214 / PR #1250, 2026-06-12).
+> Caught and fixed locally via `pixi run ruff check`, the auto-discovered smoke test,
+> and `pre-commit run`; full CI not yet confirmed green at capture time.
+
+Two tightly-coupled findings share the same search surface: *adding a new
+`scripts/*.py` to a ProjectHephaestus-style repo*.
+
+**Finding A — `# noqa: <RULE>` is RUF100 (unused-noqa) when `<RULE>` is NOT in ruff `select`.**
+
+A `subprocess.run([...])` call written with `# noqa: S603` triggered
+`RUF100 Unused noqa directive` because `S603` is absent from this repo's ruff
+`select` list:
+
+```toml
+# pyproject.toml — only specific S-rules are enabled, NOT broad "S" or "S603"
+select = ["E","F","W","I","N","D","UP","S101","S102","S105","S106","B","SIM","C4","C901","RUF"]
+```
+
+This is a concrete instance of dimension (4) — *deciding between adding a noqa,
+fixing the violation, or promoting the rule*. **Decision rule: noqa only for
+rules you actually `select`; otherwise the noqa is dead and itself RUF100-flagged.**
+Before adding a `# noqa: X`, confirm `X` is in `select` (or covered by an enabled
+broad family). For a static-literal `subprocess.run` arg list (no `shell=True`),
+no enabled bandit rule fires, so **no noqa is needed at all** — remove it.
+
+```python
+# BAD — S603 is not selected, so the directive is dead -> RUF100 unused-noqa
+subprocess.run(["git", "status"], check=True)  # noqa: S603
+# GOOD — static literal args, no shell; nothing fires; no noqa
+subprocess.run(["git", "status"], check=True)
+```
+
+**Finding B — every `scripts/*.py` is auto-discovered into a smoke test with a strict `--help` contract.**
+
+In ProjectHephaestus, `tests/unit/scripts/conftest.py` auto-parametrizes EVERY
+`scripts/*.py` into
+`tests/unit/scripts/test_scripts_smoke.py::test_script_help_exits_zero`. That test
+runs `python scripts/<name>.py --help` and asserts BOTH `returncode == 0` AND
+`assert combined.strip()` (stdout+stderr non-empty) — UNLESS the basename is in the
+`HELP_RUNS_REAL_WORK` allowlist.
+
+Any new `scripts/*.py` MUST honor `--help`/`-h` by printing something AND have a
+module docstring (so `print(__doc__)` is non-empty). Otherwise the auto-discovered
+smoke test fails the moment the file lands — even for a one-liner guard script.
+**Do NOT reach for `HELP_RUNS_REAL_WORK`; genuinely honor `--help`.**
+
+```python
+"""One-line module docstring — required so print(__doc__) is non-empty."""
+
+def main() -> int:
+    if len(sys.argv) > 1 and sys.argv[1] in ("--help", "-h"):
+        print(__doc__)
+        return 0
+    ...
+```
+
+Also: ruff **D103** (missing-docstring-in-public-function) is NOT ignored for
+`tests/**` here — per-file-ignores only drops `S101,D102,D107` (`"tests/**" =
+["S101","D102","D107"]`). New test functions therefore need one-line docstrings
+or ruff fails.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -250,6 +320,9 @@ systemic one. The linter/validator that should enforce the policy is the FIRST s
 | Fix linter and dependent files in one PR | Considered bundling validator + all doc fixes into one mega-PR | Linter and doc changes have different test surfaces; bundling makes CI feedback ambiguous | Keep the linter fix as its own atomic PR; dependent fixes land afterward |
 | Flip only the validator, not its tests | Planned to update validator code but leave its test suite | Validator tests still asserted the wrong direction — the linter PR itself fails CI | Validator source + its tests are one atomic change; flip both together |
 | Single-direction regression test | Wrote a test asserting only "accepts `--squash`" | A future agent with the same wrong-direction model could re-flip the assertion and ship it | Pair tests: assert correct accepted AND wrong rejected, to prevent silent drift |
+| Add `# noqa: S603` to silence a presumed bandit finding | Annotated a static-literal `subprocess.run([...])` with `# noqa: S603` | `S603` is not in the repo's ruff `select` list, so the directive is dead -> `RUF100 Unused noqa directive` | Remove the noqa — and it wasn't needed at all (static literal args, no `shell=True`); noqa only for rules you actually `select` |
+| Ship a new `scripts/*.py` guard without a `--help` branch | Added a one-liner guard script with no `--help`/`-h` handling | The auto-discovered `test_script_help_exits_zero` runs `--help` and asserts exit 0 AND non-empty output — it failed the moment the file landed | Honor `--help`/`-h` -> `print(__doc__)`; add a module docstring; don't reach for `HELP_RUNS_REAL_WORK` |
+| Omit docstrings on new pytest test functions | Wrote new test functions under `tests/` without docstrings | ruff `D103` (missing-docstring-in-public-function) is NOT ignored for `tests/**` (per-file-ignores drops only `S101,D102,D107`) | Add a one-line docstring to every new public test function |
 
 ## Results & Parameters
 
@@ -274,6 +347,37 @@ Representative replacement messages: `"experiment_dir must be set before getting
 - **Ruff C901**: `max-complexity = 10` (in `pyproject.toml` lint config).
 - **Custom hook**: `Check Cyclomatic Complexity` — runs separately from ruff at the same threshold; both must pass for CI green.
 
+### RUF100 unused-noqa + scripts smoke `--help` contract (verified-precommit)
+
+- **ruff `select` (ProjectHephaestus `pyproject.toml`)** — a `# noqa: X` whose `X`
+  is not here is dead and RUF100-flagged:
+
+  ```toml
+  select = ["E","F","W","I","N","D","UP","S101","S102","S105","S106","B","SIM","C4","C901","RUF"]
+  ```
+
+  Only specific S-rules (`S101/S102/S105/S106`) are enabled — NOT broad `S` or `S603`.
+
+- **per-file-ignores** — `D103` is NOT dropped for tests, so new test functions
+  still need docstrings:
+
+  ```toml
+  "tests/**" = ["S101","D102","D107"]
+  ```
+
+- **scripts smoke-test assertion** (`tests/unit/scripts/test_scripts_smoke.py::test_script_help_exits_zero`,
+  auto-parametrized by `tests/unit/scripts/conftest.py` over every `scripts/*.py`):
+  `returncode == 0` **AND** `combined.strip()` (stdout+stderr non-empty), unless the
+  basename is in `HELP_RUNS_REAL_WORK`.
+
+- **`--help` idiom** every new `scripts/*.py` must implement (plus a module docstring):
+
+  ```python
+  if len(sys.argv) > 1 and sys.argv[1] in ("--help", "-h"):
+      print(__doc__)
+      return 0
+  ```
+
 ### Linter-as-root-cause re-sequencing template
 
 ```text
@@ -293,3 +397,4 @@ WRONG ORDER (fails CI):           CORRECT ORDER:
 | ProjectScylla | C901 — extracted `_restore_judgment()` / `_restore_run_result()` from `_restore_run_context()`, CC 11 -> ~7 | PR #1546 |
 | ProjectHephaestus | C901 multi-pass — extracted `_draw_workers/_separator/_logs` from `_refresh_display()`, 69 lines -> 3 methods, 8 -> 23 tests, removed `# noqa: C901` | PR #1050 (issue #804) |
 | ProjectHephaestus | Linter-as-root-cause — strict audit caught 2 skill files violating `--squash`-only merge policy; root cause was a wrong-direction validator | PRs #863, #865, #866, #867 |
+| ProjectHephaestus | RUF100 unused-noqa (`# noqa: S603` not in `select`) + scripts smoke `--help` contract (auto-discovered `test_script_help_exits_zero`), verified-precommit | issue #1214 / PR #1250 |
