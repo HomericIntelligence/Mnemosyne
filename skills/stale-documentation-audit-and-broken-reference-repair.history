@@ -2,6 +2,40 @@
 
 # stale-documentation-audit-and-broken-reference-repair — History
 
+## v1.1.0 (2026-06-12)
+
+**Changed by:** ProjectHephaestus issue #1211 planning session — implementation-plan for removing a
+phantom `.claude/shared/` directory reference from `CLAUDE.md`.
+**Verification:** verified-local (audit/verification technique directly verified on disk; downstream
+PR outcome pending — the plan had not been implemented or merged at capture time).
+
+### What changed
+
+- Added a **Planning Discipline** section codifying:
+  - the **remove-vs-redirect decision rule** (remove under KISS/YAGNI when an adjacent surviving
+    line already covers the intent; redirect only when no surviving pointer covers it);
+  - the **confirm-then-fix audit sequence** (whole-corpus `grep -rn` → `ls` to prove absence →
+    adjacent-line check → minimal single-line `Edit` → re-grep the whole corpus);
+  - a **reviewer-risk checklist** (ephemeral/worktree copies via `git ls-files`, drifting line
+    numbers, MD022/MD032 blank-line regressions, memory-sourced external invariants).
+- Added 4 Failed Attempts rows: patch-only-the-cited-line; trust-the-audit's-line-number;
+  exclude-ephemeral-copy-without-checking-git-tracked-status; add-a-drift-guard-for-a-MINOR-fix
+  (YAGNI).
+- Added trigger #11 to the description and a "planning" bullet to When to Use.
+- Added `planning-discipline`, `remove-vs-redirect`, `confirm-then-fix` tags.
+- Added ProjectHephaestus #1211 to the Verified On table (planning-only; PR pending).
+- Bumped `date` to 2026-06-12 and `version` to 1.1.0.
+
+### Why
+
+A planning session for a one-line phantom-path fix surfaced durable, reusable *planning* judgment
+(remove-vs-redirect; what to verify before declaring a phantom-path audit complete; which
+assumptions to flag as reviewer risks) that the v1.0.0 execution-focused workflow did not capture.
+
+### Previous version (v1.0.0) snapshot
+
+See the `## v1.0.0 (2026-06-07)` consolidation entry below for the prior content of record.
+
 ## v1.0.0 (2026-06-07)
 
 Consolidated 10 documentation skills into one canonical covering stale-doc drift audits and broken-reference repair. Absorbed skills:

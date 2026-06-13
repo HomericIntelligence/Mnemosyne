@@ -1,12 +1,12 @@
 ---
 name: stale-documentation-audit-and-broken-reference-repair
-description: "Use when: (1) running a doc-drift audit across a corpus — detecting stale counts, metric discrepancies, cross-doc contradictions, ecosystem-role drift; (2) removing phantom directory references from documentation when a path no longer exists; (3) fixing broken documentation references (dead links, stale headings); (4) auditing documentation examples for policy violations; (5) auditing and rewriting getting-started stubs by sourcing real commands from justfile and versions from pixi.toml; (6) fixing incorrect tier labels or version numbers in docs that have drifted from implementation; (7) managing the full lifecycle of placeholder and stub documentation — deletion under YAGNI, deferred-comment placeholders, rewriting with accurate codebase-grounded content; (8) resolving audit nitpicks for monolithic code by documenting verified design rationale; (9) resolving CONTRIBUTING.md case-clashes and circular cross-references in docs/; (10) validating anchor fragments in markdown deep-links to detect broken headings."
+description: "Use when: (1) running a doc-drift audit across a corpus — detecting stale counts, metric discrepancies, cross-doc contradictions, ecosystem-role drift; (2) removing phantom directory references from documentation when a path no longer exists; (3) fixing broken documentation references (dead links, stale headings); (4) auditing documentation examples for policy violations; (5) auditing and rewriting getting-started stubs by sourcing real commands from justfile and versions from pixi.toml; (6) fixing incorrect tier labels or version numbers in docs that have drifted from implementation; (7) managing the full lifecycle of placeholder and stub documentation — deletion under YAGNI, deferred-comment placeholders, rewriting with accurate codebase-grounded content; (8) resolving audit nitpicks for monolithic code by documenting verified design rationale; (9) resolving CONTRIBUTING.md case-clashes and circular cross-references in docs/; (10) validating anchor fragments in markdown deep-links to detect broken headings; (11) PLANNING a phantom-path / stale-reference fix — applying the remove-vs-redirect decision rule (remove under KISS/YAGNI when an adjacent line already covers the intent; redirect only when no surviving pointer covers it) and the confirm-then-fix audit discipline (re-grep the whole corpus, re-verify line numbers on disk, check git-tracked status of ephemeral copies)."
 category: documentation
-date: 2026-06-07
-version: "1.0.0"
+date: 2026-06-12
+version: "1.1.0"
 user-invocable: false
 history: stale-documentation-audit-and-broken-reference-repair.history
-tags: [doc-drift, stale-doc, broken-references, phantom-dir, placeholder, stub, anchor-validation, tier-labels, doc-audit, doc-sync, merged]
+tags: [doc-drift, stale-doc, broken-references, phantom-dir, placeholder, stub, anchor-validation, tier-labels, doc-audit, doc-sync, merged, planning-discipline, remove-vs-redirect, confirm-then-fix]
 ---
 
 # Stale Documentation Audit and Broken Reference Repair
@@ -15,10 +15,10 @@ tags: [doc-drift, stale-doc, broken-references, phantom-dir, placeholder, stub, 
 
 | Field | Value |
 | ------- | ------- |
-| **Date** | 2026-06-07 |
-| **Objective** | Canonical workflow for auditing stale documentation and repairing broken references: drift audits, phantom-dir/dead-link removal, placeholder lifecycle, getting-started rewrites, tier-label fixes, anchor validation |
-| **Outcome** | Consolidated from 10 skills covering doc-drift audits, broken-reference repair, policy-violation audits, placeholder/stub lifecycle, monolith-rationale docs, CONTRIBUTING case-clash, and anchor validation |
-| **Verification** | verified-ci |
+| **Date** | 2026-06-12 |
+| **Objective** | Canonical workflow for auditing stale documentation and repairing broken references: drift audits, phantom-dir/dead-link removal, placeholder lifecycle, getting-started rewrites, tier-label fixes, anchor validation; plus the **planning discipline** (remove-vs-redirect decision rule + confirm-then-fix audit) for phantom-path fixes |
+| **Outcome** | Consolidated from 10 skills covering doc-drift audits, broken-reference repair, policy-violation audits, placeholder/stub lifecycle, monolith-rationale docs, CONTRIBUTING case-clash, and anchor validation; v1.1.0 adds phantom-path planning discipline |
+| **Verification** | verified-ci (execution workflow); verified-local (v1.1.0 planning-discipline section — see that section's note) |
 
 ## When to Use
 
@@ -34,6 +34,58 @@ tags: [doc-drift, stale-doc, broken-references, phantom-dir, placeholder, stub, 
 - An audit nitpick questions a monolithic file's organization and needs a documented rationale
 - Both `CONTRIBUTING.md` and `docs/contributing.md` exist with a circular cross-reference
 - README/docs deep-link to specific installation headings and you need CI to catch broken anchors
+- You are **planning** (not yet executing) a phantom-path / stale-reference fix and must decide
+  between *removing* the dead pointer and *redirecting* it, and want a confirm-then-fix audit recipe
+
+## Planning Discipline (remove-vs-redirect + confirm-then-fix)
+
+> **Verification of this section:** `verified-local`. The audit/verification *technique* below was
+> directly verified on disk (`ls .claude/` proved `.claude/shared/` is absent; `grep -rn` found one
+> tracked occurrence). The downstream PR outcome is **pending** — the plan that produced this
+> learning had not yet been implemented or merged when captured. Treat the decision rule as sound;
+> treat any claim about the eventual fix landing cleanly as unverified.
+
+### Remove-vs-redirect decision rule
+
+When a doc points at a path/file/section that no longer exists, choose deliberately:
+
+| Situation | Action | Why |
+| --------- | ------ | --- |
+| An **adjacent surviving line already covers the same intent** | **REMOVE** the dead pointer | KISS/YAGNI — the redirect would be pure redundancy |
+| **No surviving pointer covers the intent** and the information would otherwise be lost | **REDIRECT** to the current location | Preserves the reader's path to the information |
+
+**Worked example** (ProjectHephaestus #1211): `CLAUDE.md` "Getting Help" list item 4 pointed at
+`.claude/shared/` (a phantom dir). The adjacent item 3 (`CLAUDE.md:415`, "Review documentation in
+`docs/` directory") already covered the shared-docs intent, so item 4 was redundant → **remove**,
+not redirect.
+
+### Confirm-then-fix audit sequence (the verified-local technique)
+
+1. `grep -rn "<stale-string>" . --include="*.md"` — find **every** hit across the whole tree, not
+   just the line the audit cited.
+2. `ls <path>` — prove the directory/file is actually absent (don't trust the audit's claim).
+3. Check whether an **adjacent line already covers the intent** → drives remove-vs-redirect.
+4. Make a **minimal single-line `Edit`** (don't rewrite the section).
+5. **Re-grep the whole corpus** before declaring done — sibling stale copies (worktree mirrors,
+   `docs/` duplicates) survive a single-line patch.
+
+### Reviewer-risk checklist for the resulting plan
+
+Surface these as explicit risks; each is a place where a phantom-path plan commonly goes wrong:
+
+- **Ephemeral / worktree copies.** A `.claude/worktrees/agent-*/CLAUDE.md` mirror is often assumed
+  out-of-scope (regenerated/discarded by the worktree lifecycle) but that assumption is rarely
+  verified. Run `git ls-files <path> | head` to confirm it is **untracked** before excluding it; if
+  it is tracked, the plan misses an occurrence.
+- **Line numbers drift.** An audit's cited `file:N` (e.g. `CLAUDE.md:417`) can shift between the
+  audit date and the edit. Mitigation: re-`grep -n` on disk and edit by matched string, never by the
+  audit's stale line number.
+- **Markdownlint blank-line regressions.** Deleting a list item can trip MD022/MD032 — reason about
+  it, but the proof is `pre-commit run markdownlint --files <file>`, not inspection.
+- **Memory-sourced external invariants.** Policy facts pulled from prior memory rather than
+  re-verified this session (e.g. the `pr-policy` auto-merge gate requiring a `state:implementation-go`
+  label; the GPG committer-email-must-match-key rule; a specific signing email) should be flagged as
+  assumed-from-memory so the reviewer re-confirms them against the live repo config.
 
 ## Verified Workflow
 
@@ -267,6 +319,10 @@ gh pr merge --auto --rebase
 | Full pre-commit suite without skipping | Ran all hooks on a host with a GLIBC mismatch | `mojo-format` fails on GLIBC < 2.32 (environment, not code) | Use `SKIP=mojo-format`; only non-Mojo hooks matter for doc-only changes |
 | Deleting `docs/contributing.md` to resolve the case-clash | Removed the file entirely | Breaks inbound links from the docs index | Reduce to a redirect; keep root as canonical |
 | Per-file reviewers for citation corpus | Reviewed each entry individually | Could not see cross-document §-drift or arXiv ID-to-title swaps | Both failure modes need a cross-corpus structural audit, not per-file review |
+| Patching only the audit-cited line for a phantom path | Edited just the one `file:N` the audit named | Sibling stale copies (worktree mirrors, `docs/` duplicates) survived untouched | Re-grep the **whole corpus** for the stale string, not just the cited line, before declaring done |
+| Trusting the audit's reported line number verbatim | Edited at `CLAUDE.md:417` because the audit said so | Line numbers drift between the audit date and the edit; the target had moved | Re-`grep -n` on disk and edit by matched string, never by the audit's stale `line:N` |
+| Excluding an ephemeral/worktree copy without checking | Assumed `.claude/worktrees/agent-*/CLAUDE.md` was out-of-scope | Could miss a **git-tracked** occurrence if the assumption is wrong | Run `git ls-files <path>` to confirm it is untracked before excluding it from scope |
+| Adding a grep-based pre-commit drift-guard for a single MINOR doc fix | Proposed a regression gate to lock the stale string out | Over-engineering (YAGNI) for a one-line fix; the guard isn't earned | Skip the regression gate unless the reviewer explicitly asks for it |
 
 ## Results & Parameters
 
@@ -331,4 +387,5 @@ pixi run npx markdownlint-cli2 <file>
 | ProjectOdyssey | Issues #3344, #3365; PR #3320; PR #4847 | Workflow README audit, agent-count fix, post-migration README sync |
 | ProjectOdyssey | Issues #3142/#3308, #3304/#3913, #3305/#3917, #3918/#4830, #3141/#3303, #3914/#4828, #3915/#4829 | Stub deletion, installation/quickstart rewrite, IDE-setup extend, getting-started audit, anchor validator |
 | ProjectHephaestus | Issue #792 (PR #984); Issue #630 (PR #667) | Monolith-rationale ADR; CONTRIBUTING case-clash redirect |
+| ProjectHephaestus | Issue #1211 (planning only — PR pending) | Phantom-dir planning discipline: remove-vs-redirect rule + confirm-then-fix audit; `verified-local` technique, downstream PR outcome pending |
 | mvillmow/Random | Predictive-Coding-in-Mojo Phase 0 | Cross-doc citation drift: 8 stale §-refs, 2 arXiv ID swaps caught |
