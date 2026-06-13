@@ -3,9 +3,9 @@ name: ci-matrix-yaml-multiformat-regex-fallback
 description: "Regex fallback pattern for parsing CI matrix Python version lists that appear in either inline bracket format (python-version: [\"3.10\", \"3.11\"]) or multiline YAML sequence format. Use when: (1) extending a function that parses CI workflow YAML for Python version lists, (2) a regex-based parser only handles one of the two common GHA matrix formats, (3) reviewing a plan to add multiline sequence support alongside existing inline bracket support."
 category: ci-cd
 date: 2026-06-13
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
-verification: unverified
+verification: verified-local
 history: ci-matrix-yaml-multiformat-regex-fallback.history
 tags: [yaml, regex, python-version, ci-matrix, github-actions, multiformat]
 ---
@@ -18,8 +18,8 @@ tags: [yaml, regex, python-version, ci-matrix, github-actions, multiformat]
 |-------|-------|
 | **Date** | 2026-06-13 |
 | **Objective** | Extend `extract_ci_matrix_python_versions` to handle both inline bracket and multiline YAML sequence formats |
-| **Outcome** | Plan reviewed (R1); corrected regex and verified assumptions; not yet implemented |
-| **Verification** | unverified |
+| **Outcome** | Implemented and all 56 tests pass; PR #1308 open (CI pending) |
+| **Verification** | verified-local |
 | **History** | [changelog](./ci-matrix-yaml-multiformat-regex-fallback.history) |
 
 GitHub Actions CI matrix workflows express `python-version` lists in two common formats:
@@ -48,7 +48,7 @@ A regex-based parser that only handles the inline bracket format silently return
 
 ## Verified Workflow
 
-> **Warning:** This workflow has **not** been validated end-to-end. The implementation is a proposed plan derived from code inspection only — no tests were run. Treat as a hypothesis until CI confirms.
+> **Status (v1.2.0):** Implementation complete. All 56 tests in `tests/unit/scripts_lib/test_check_python_version_consistency.py` pass locally. PR HomericIntelligence/ProjectHephaestus#1308 is open; CI pending. Pattern below is confirmed correct.
 
 ### Quick Reference
 
@@ -139,7 +139,34 @@ def extract_ci_matrix_python_versions(content: str) -> list[str]:
 
 3. **`check_ci_matrix_coverage` hardcodes `test.yml`**: Intentionally out of scope for #1284 but worth noting in the PR description.
 
+### Implementation Outcome (v1.2.0)
+
+7 new unit tests added to `TestExtractCiMatrixPythonVersions` in
+`tests/unit/scripts_lib/test_check_python_version_consistency.py`:
+
+| Test | Purpose |
+|------|---------|
+| `test_extracts_sequence_format_double_quoted` | Basic double-quoted sequence |
+| `test_extracts_sequence_format_unquoted` | Unquoted version numbers |
+| `test_extracts_sequence_format_single_quoted` | Single-quoted items |
+| `test_extracts_sequence_format_deduplicates_and_sorts` | Output contract |
+| `test_bracket_format_takes_precedence_when_both_present` | Precedence rule |
+| `test_sequence_format_with_4_space_indent` | Indent-agnosticism |
+| `test_sequence_format_no_trailing_newline` | **Critical**: `(?=\n\|$)` lookahead |
+
+1 new integration test added to `TestCheckCiMatrixCoverage`:
+
+| Test | Purpose |
+|------|---------|
+| `test_sequence_format_workflow_is_parsed` | End-to-end: fix propagates through coverage check |
+
+**Ruff E402 trap**: The three module-level `_CI_MATRIX_*` constants must be placed
+**after all imports** (including local `hephaestus.*` imports). Placing them between
+`import re` and the first hephaestus import triggers E402 (module-level import not at
+top of file).
+
 ### Reference
 
 - Source file: `hephaestus/scripts_lib/check_python_version_consistency.py`
-- Issue: HomericIntelligence/ProjectHephaestus #1284
+- Issue: HomericIntelligence/ProjectHephaestus#1284
+- PR: HomericIntelligence/ProjectHephaestus#1308 (open, CI pending as of 2026-06-13)
