@@ -3,14 +3,15 @@
 
 ## v1.13.0 (2026-06-13)
 
-**Changed by:** /learn from ProjectHephaestus issue #1289 R5 planning session (CIDriver god-class decomposition — planning-time verification rules)
+**Changed by:** /learn from ProjectHephaestus issue #1289 R5+R6 planning sessions (CIDriver god-class decomposition — planning-time verification rules, return-type verification, acquired_slot confirmation)
 **Verification:** unverified (planning session findings; implementation not yet executed)
 
 ### What changed
 
-Added Phases 25–27 covering three pre-implementation verification rules discovered during the
-R5 planning session for issue #1289 (renumbered from PR branch Phases 24–26 to avoid collision
-with canonical Phase 24 from v1.11.0):
+Added Phases 25–29 covering five pre-implementation verification rules from R5 and R6
+planning sessions for issue #1289 (Phases 25–27 renumbered from PR branch Phases 24–26;
+Phases 28–29 from PR branch Phases 27–28, all to avoid collision with canonical Phase 24
+from v1.11.0 and Phase 24 in v1.12.0 history):
 
 **Phase 25: Keyword-Only Method Signature Verification**
 
@@ -41,15 +42,36 @@ method to a collaborator does not require migrating this patch. Rule: read the p
 before adding any site to the migration table; if it already targets a sub-module, it stays
 where it is.
 
+**Phase 28: Return-Type Verification for Delegation Stubs**
+
+Six stubs in the R6 plan had wrong return types inferred from expected behavior:
+`_recheck_and_arm_after_fix` (plan: `-> bool`, actual: `-> WorkerResult | None`),
+`_resolve_dirty_pr` (plan: `-> bool`, actual: `-> WorkerResult`),
+`_attempt_ci_fixes` (plan: `-> bool`, actual: `-> WorkerResult | None`),
+`_gh_pr_state` (plan: `-> dict`, actual: `-> dict[str, Any] | None`),
+`_enable_auto_merge` (plan: `-> None`, actual: `-> bool`),
+`_run_drive_green_compact` (plan: `-> None`, actual: `-> bool`).
+Key insight: wrong stub return types fail mypy in the HOST file (`ci_driver.py`), not the
+collaborator modules. The host file must be included in the mypy target list.
+
+**Phase 29: `acquired_slot` IS a Real Parameter for Three Methods**
+
+Confirmed that three methods DO have `acquired_slot` as a real positional parameter:
+`_recheck_and_arm_after_fix`, `_resolve_dirty_pr`, `_attempt_ci_fixes`. These are distinct
+from `_retry_no_commit_once` (Phase 25), which does NOT have `acquired_slot`. Fabrication
+risk runs both ways: parameters may be fabricated (non-existent) or overlooked (genuinely
+present but excluded from the plan). Source-reading the `def` line is the only reliable check.
+
 Also added:
-- 3 new rows to Failed Attempts table (keyword-only signature fabrication, range-grep
-  insufficient for multi-module split, delegation chain pre-check omitted)
-- 3 new use-case descriptions in frontmatter (19–21, renumbered)
-- 5 new tags (keyword-only-signature, gh-call-patch-migration, test-class-bucket-analysis,
-  delegation-chain-pre-check, review-utils-delegation)
-- 3 new When-to-Use bullets
-- 3 new Quick Reference decision-tree entries (Phases 25/26/27)
-- 1 new Verified On row
+- 4 new rows to Failed Attempts table (keyword-only signature fabrication, range-grep
+  insufficient, delegation chain pre-check omitted, R6 return-type drift)
+- 5 new use-case descriptions in frontmatter (19–23, renumbered)
+- 9 new tags (keyword-only-signature, gh-call-patch-migration, test-class-bucket-analysis,
+  delegation-chain-pre-check, review-utils-delegation, return-type-verification,
+  stub-return-type-drift, mypy-host-file-target, acquired-slot-positional)
+- 5 new When-to-Use bullets
+- 5 new Quick Reference decision-tree entries (Phases 25/26/27/28/29)
+- 2 new Verified On rows
 
 ---
 
