@@ -2,8 +2,8 @@
 name: stale-documentation-audit-and-broken-reference-repair
 description: "Use when: (1) running a doc-drift audit across a corpus — detecting stale counts, metric discrepancies, cross-doc contradictions, ecosystem-role drift; (2) removing phantom directory references from documentation when a path no longer exists; (3) fixing broken documentation references (dead links, stale headings); (4) auditing documentation examples for policy violations; (5) auditing and rewriting getting-started stubs by sourcing real commands from justfile and versions from pixi.toml; (6) fixing incorrect tier labels or version numbers in docs that have drifted from implementation; (7) managing the full lifecycle of placeholder and stub documentation — deletion under YAGNI, deferred-comment placeholders, rewriting with accurate codebase-grounded content; (8) resolving audit nitpicks for monolithic code by documenting verified design rationale; (9) resolving CONTRIBUTING.md case-clashes and circular cross-references in docs/; (10) validating anchor fragments in markdown deep-links to detect broken headings."
 category: documentation
-date: 2026-06-07
-version: "1.0.0"
+date: 2026-06-12
+version: "1.1.0"
 user-invocable: false
 history: stale-documentation-audit-and-broken-reference-repair.history
 tags: [doc-drift, stale-doc, broken-references, phantom-dir, placeholder, stub, anchor-validation, tier-labels, doc-audit, doc-sync, merged]
@@ -267,6 +267,7 @@ gh pr merge --auto --rebase
 | Full pre-commit suite without skipping | Ran all hooks on a host with a GLIBC mismatch | `mojo-format` fails on GLIBC < 2.32 (environment, not code) | Use `SKIP=mojo-format`; only non-Mojo hooks matter for doc-only changes |
 | Deleting `docs/contributing.md` to resolve the case-clash | Removed the file entirely | Breaks inbound links from the docs index | Reduce to a redirect; keep root as canonical |
 | Per-file reviewers for citation corpus | Reviewed each entry individually | Could not see cross-document §-drift or arXiv ID-to-title swaps | Both failure modes need a cross-corpus structural audit, not per-file review |
+| Assuming `pre-commit run --files <doc>` validated the markdown | Edited `docs/ROADMAP.md` and ran pre-commit; "Markdown Lint ... (no files to check) Skipped" | The markdownlint hook excludes some doc paths via its file filter, so it silently skipped the edited file; the markdown was never linted | Check the Markdown Lint hook's status line; if Skipped for your file, the path is excluded — keep edits to safe single-token literal changes and don't rely on markdownlint catching issues |
 
 ## Results & Parameters
 
@@ -311,6 +312,9 @@ pixi run pre-commit run markdownlint-cli2 --files <path/to/file.md>
 pre-commit run --all-files
 # FAILS — npx/just not in pixi conda env; pixi env init ~2 min
 pixi run npx markdownlint-cli2 <file>
+# CAVEAT: markdownlint excludes some doc paths via its hook file filter — `pre-commit run
+# --files docs/ROADMAP.md` printed "Markdown Lint ... (no files to check) Skipped" (ProjectHephaestus
+# #1190). A Skipped status means the file was NOT linted; verify the hook's status line, don't assume.
 ```
 
 ### Key parameters
@@ -331,4 +335,5 @@ pixi run npx markdownlint-cli2 <file>
 | ProjectOdyssey | Issues #3344, #3365; PR #3320; PR #4847 | Workflow README audit, agent-count fix, post-migration README sync |
 | ProjectOdyssey | Issues #3142/#3308, #3304/#3913, #3305/#3917, #3918/#4830, #3141/#3303, #3914/#4828, #3915/#4829 | Stub deletion, installation/quickstart rewrite, IDE-setup extend, getting-started audit, anchor validator |
 | ProjectHephaestus | Issue #792 (PR #984); Issue #630 (PR #667) | Monolith-rationale ADR; CONTRIBUTING case-clash redirect |
+| ProjectHephaestus | Issue #1190 (PR #1270) | ROADMAP CLI-count drift 37→47; markdownlint hook-skip caveat (observed at pre-commit time) |
 | mvillmow/Random | Predictive-Coding-in-Mojo Phase 0 | Cross-doc citation drift: 8 stale §-refs, 2 arXiv ID swaps caught |

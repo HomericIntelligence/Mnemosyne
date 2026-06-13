@@ -2,6 +2,23 @@
 
 # stale-documentation-audit-and-broken-reference-repair — History
 
+## v1.1.0 (2026-06-12)
+
+**Changed by:** ProjectHephaestus #1190 (PR #1270) — ROADMAP CLI tool count 37→47
+**Verification:** verified-precommit (markdownlint-skip wrinkle observed at pre-commit time)
+
+### What changed
+
+- Added Failed Attempts row: `pre-commit run --files <doc>` can silently skip markdownlint for excluded doc paths
+- Added a CAVEAT to "Reliable markdownlint invocation" about the Skipped status line
+- Added ProjectHephaestus #1190 (PR #1270) to Verified On
+
+### Why
+
+Editing docs/ROADMAP.md and running `pixi run pre-commit run --files docs/ROADMAP.md` reported
+"Markdown Lint ... (no files to check) Skipped" — the hook's file filter excludes that path, so the
+markdown was never linted. The prior guidance implied pre-commit always triggers markdownlint for .md files.
+
 ## v1.0.0 (2026-06-07)
 
 Consolidated 10 documentation skills into one canonical covering stale-doc drift audits and broken-reference repair. Absorbed skills:
