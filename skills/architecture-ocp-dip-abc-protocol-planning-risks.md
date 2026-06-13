@@ -5,7 +5,7 @@ category: architecture
 date: 2026-06-13
 version: "1.0.0"
 user-invocable: false
-verification: unverified
+verification: verified-ci
 tags: ["ocp", "dip", "protocol", "abc", "abstractmethod", "solid", "refactoring", "planning"]
 ---
 
@@ -17,8 +17,8 @@ tags: ["ocp", "dip", "protocol", "abc", "abstractmethod", "solid", "refactoring"
 |-------|-------|
 | **Date** | 2026-06-13 |
 | **Objective** | Document planning assumptions and risks when introducing typing.Protocol and abc.ABC to an existing codebase (ProjectHephaestus issue #1193) |
-| **Outcome** | Unverified planning artifact — implementation not yet attempted |
-| **Verification** | unverified |
+| **Outcome** | Planning risks confirmed by implementation — see `python-abc-protocol-contract-test-regression.md` for implementation learnings |
+| **Verification** | verified-ci (implementation completed 2026-06-13, CI green) |
 
 ## When to Use
 
@@ -117,4 +117,4 @@ When proposing OCP/DIP abstractions for an existing pipeline:
 
 | Project | Context | Details |
 |---------|---------|---------|
-| ProjectHephaestus | Issue #1193 OCP/DIP refactoring plan | Planning artifact only — implementation not attempted |
+| ProjectHephaestus | Issue #1193 OCP/DIP refactoring plan | Planning artifact validated — implementation completed 2026-06-13, CI green |
