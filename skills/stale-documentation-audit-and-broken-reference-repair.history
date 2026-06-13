@@ -2,6 +2,62 @@
 
 # stale-documentation-audit-and-broken-reference-repair — History
 
+## v1.1.0 (2026-06-12)
+
+**Changed by:** ProjectHephaestus #1212 / PR #1244 · **Verification:** verified-precommit
+
+### What changed
+
+Refinement to the long-standing "count from code, never from another doc" rule for the case
+where a count **annotates an adjacent human-curated enumeration** (a repo-structure tree, a tier
+table, a hand-picked subset). Edits to the `.md` (all surgical, exact-string):
+
+- Frontmatter: `version` 1.0.0 → 1.1.0; `date` 2026-06-07 → 2026-06-12.
+- Added a "When to Use" trigger: "a stale count annotates an adjacent CURATED enumeration —
+  reconcile number-to-list (clarify scope/unit), not number-to-`find`".
+- Extended the **Universal rules** block with a "count annotating a curated list" refinement:
+  the list is authoritative; clarify the count's scope/unit so number == list rather than bumping
+  the number to the raw `find` count; never trust the count stated in the audit issue body.
+- Added two Failed Attempts rows: (a) bumping `19 subpackages` → `20` to match `find`
+  contradicted the 19-entry tree below it; (b) trusting the issue's stated `21 subpackages`
+  (real = 20 dirs / 19 documented).
+- Added a "Curated-list count verification" subsection to Results & Parameters with hardened
+  one-liners (assert number == enumeration count; negative-guard the bumped value) and the
+  #1212/#1244 reference.
+- Added a "Verified On" row for ProjectHephaestus #1212 / PR #1244.
+
+### Why
+
+In #1212, `CLAUDE.md:28` said "19 subpackages" while `hephaestus/` has 20 real dirs — but the
+repo-structure tree directly below enumerates exactly 19 leaf entries; the 20th dir
+(`hephaestus/scripts_lib/`) is internal repo-meta pre-commit tooling, absent from
+`hephaestus/__init__.py` re-exports and every curated list. Bumping the number to 20 to match
+`find` would have contradicted the list printed below it. The correct fix is to clarify the
+*scope* ("19 documented subpackages") so number == list. The same applied to
+`COMPATIBILITY.md:42` (7 stable + 12 provisional = 19 rows) and to `CLAUDE.md:49`'s "23 entries"
+(stated the unit: "23 SKILL.md skills"). The audit issue itself wrongly claimed "21 subpackages"
+— a reminder that issue-filed counts are also stale.
+
+### Snapshot of pre-amendment .md (frontmatter + key blocks, v1.0.0)
+
+```yaml
+name: stale-documentation-audit-and-broken-reference-repair
+category: documentation
+date: 2026-06-07
+version: "1.0.0"
+user-invocable: false
+history: stale-documentation-audit-and-broken-reference-repair.history
+```
+
+Pre-amendment **Universal rules** block (now extended):
+
+> **Universal rules**: count from code (never from other docs); use `Edit` with exact strings,
+> not whole-section rewrites; use `replace_all: true` when a stale phrase repeats; after fixing
+> the primary file, re-grep the whole corpus — stale copies survive in `docs/`,
+> `references/notes.md`, `docs/analysis-prompt.md`. Always Read a file before Editing it.
+
+The full v1.0.0 snapshot is preserved in the consolidation entry below.
+
 ## v1.0.0 (2026-06-07)
 
 Consolidated 10 documentation skills into one canonical covering stale-doc drift audits and broken-reference repair. Absorbed skills:
