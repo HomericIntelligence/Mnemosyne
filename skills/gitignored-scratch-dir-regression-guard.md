@@ -1,0 +1,272 @@
+---
+name: gitignored-scratch-dir-regression-guard
+description: "Guard a gitignored-but-name-colliding scratch directory (e.g. ProjectHephaestus `build/`, the sanctioned automation-loop scratch dir whose name collides with the Python packaging-output convention) with a `repo: local` Python pre-commit hook that asserts `git ls-files <dir>/` stays EMPTY — i.e. guard against the dir becoming git-TRACKED, NOT against on-disk runtime junk. Use when: (1) a strict repo audit flags a gitignored runtime/scratch dir as a packaging/distribution risk because its name collides with a tooling convention (build/, dist/, target/, out/); (2) you are tempted to `rm` live loop-written logs or edit a `.gitignore` that already ignores the dir — DON'T, a running loop regenerates them in seconds; (3) you want a durable regression guard that rides the existing required pre-commit CI gate with no new workflow. PLANNING learning — the proposed hook+script was NOT executed end-to-end; only the audit ground-truth git/grep checks were run."
+category: ci-cd
+date: 2026-06-12
+version: "1.0.0"
+user-invocable: false
+verification: unverified
+tags:
+  - ci-cd
+  - pre-commit
+  - regression-guard
+  - gitignore
+  - git-ls-files
+  - scratch-dir
+  - build-dir
+  - packaging
+  - sdist
+  - hatch
+  - runtime-state
+  - untracked
+  - planning
+  - repo-audit
+---
+
+# Guard a Gitignored Scratch Dir Against TRACKED State (Not On-Disk Junk)
+
+> ⚠️ **PLANNING learning — proposed fix UNVERIFIED.** The audit FACTS below were
+> verified-local (`git ls-files build/` → 0 entries, `git check-ignore -v build/`
+> → `.gitignore:5:build/`, `pyproject.toml [tool.hatch.build.targets.sdist]
+> only-include` read directly). The proposed FIX — a new `repo: local` pre-commit
+> hook plus `scripts/check_build_dir_untracked.py` — was designed but **NOT
+> executed end-to-end**. Treat the "Proposed Workflow" as a blueprint to validate,
+> not a recipe known to pass. Line numbers cited were read once and drift — anchor
+> on content, not numbers.
+
+## Overview
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-06-12 |
+| **Objective** | A strict ProjectHephaestus audit (#1214) flagged the sanctioned, gitignored `build/` automation-loop scratch dir as a "junk drawer" packaging risk because its name collides with the Python packaging-output convention (`build/`, `dist/`), raising the spectre of a stray glob sweeping loop logs into a distribution. Design a durable guard that neutralizes the *real* risk without disrupting the live loop. |
+| **Outcome (proposed)** | Do NOT delete on-disk runtime files and do NOT touch `.gitignore` (it already ignores `build/`). Instead add a `repo: local` Python pre-commit hook (`scripts/check_build_dir_untracked.py`) that asserts `git ls-files build/` stays EMPTY, mirroring the exact shape of an existing guard (`scripts/check_security_policy_no_hardcoded_date.py`): `get_repo_root()` walks up to `pyproject.toml`, a pure check fn, `sys.exit(1)` with a remediation message. It rides the already-required pre-commit CI gate — no new workflow. |
+| **Verification** | unverified (audit facts verified-local; proposed hook/script not executed) |
+
+## When to Use
+
+- A **strict repo audit** flags a *gitignored* runtime/scratch directory as a
+  packaging or distribution risk **because its name collides with a tooling
+  convention** — `build/` (Python/CMake), `dist/`, `target/` (Rust/Maven),
+  `out/`, `_build/`. The dir is sanctioned (a project doc mandates "all temp
+  files go in `<dir>/`") but the name overlaps a convention some glob might sweep.
+- You catch yourself wanting to **`rm` live runtime junk** (`build/loop_*.log`)
+  to "clean up" what the audit flagged. DON'T — a live automation loop
+  regenerates those files within seconds (the "Shape B" anti-pattern from the
+  sibling skill `claude-code-scheduled-tasks-lockfile-gitignore`). Policing
+  on-disk presence is futile.
+- You are about to **edit `.gitignore`** for the flagged dir. First run
+  `git check-ignore -v <dir>/`. If it already reports a matching rule, the
+  gitignore is correct and needs no change — the residual risk is purely
+  *future TRACKED state*, which a gitignore entry alone does not prevent
+  (someone can `git add -f`, or the sdist allowlist can widen).
+- You want a **build-free regression guard** that catches the dir becoming
+  tracked and rides an **already-required** pre-commit CI gate, with **no new
+  GitHub workflow** and no full test run.
+- A nested checkout lives *inside* the scratch dir (e.g.
+  `build/ProjectMnemosyne`, a live clone read by an `/advise` pipeline). You
+  must confirm it is **not stray** before any cleanup — the guard targets
+  TRACKED state, so a gitignored live clone is irrelevant to it and must NOT be
+  deleted.
+
+## Verified Workflow
+
+> ⚠️ **PROPOSED, NOT VERIFIED.** Despite the section title (required by the skill
+> validator), the whole of this section is a blueprint that was designed but **not
+> run**. Only the step-1 audit ground-truth checks were executed. Validate every
+> other step before trusting it.
+
+### Quick Reference
+
+```bash
+# 1. VERIFY the audit facts before acting (these WERE run for #1214):
+git ls-files build/            # MUST be empty → dir is not tracked (the real risk is absent today)
+git check-ignore -v build/     # Expected: .gitignore:N:build/  → gitignore already correct, do NOT edit it
+
+# 2. VERIFY the packaging claim — only-include is an ALLOWLIST, not a denylist:
+#    confirm build/ is ABSENT from [tool.hatch.build.targets.sdist] only-include
+#    (absence = excluded from the sdist; the audit's "harmless to the wheel" claim held)
+
+# 3. Do NOT delete live runtime junk and do NOT rm/edit .gitignore.
+
+# 4. Add the regression guard hook + script (see below), then:
+python3 scripts/check_build_dir_untracked.py   # exit 0 when build/ has no tracked files
+pre-commit run check-build-dir-untracked --all-files
+```
+
+### Detailed Steps
+
+1. **Verify the audit's ground-truth facts first.** Three checks decide whether
+   there is anything to do:
+
+   ```bash
+   git ls-files build/            # → 0 entries for #1214 (no tracked files: real risk NOT yet realized)
+   git check-ignore -v build/     # → .gitignore:5:build/ for #1214 (already ignored: leave .gitignore alone)
+   ```
+
+   And confirm the packaging exclusion by reading
+   `pyproject.toml [tool.hatch.build.targets.sdist] only-include`: it is an
+   **exact-path allowlist**, so `build/` being **absent** from it means it is
+   genuinely excluded from the sdist. (Verify the wheel target too if present.)
+
+2. **Frame the guard around TRACKED state, not on-disk presence.** The packaging
+   risk is realized *only* if files in the dir become git-**tracked** (or the
+   sdist allowlist widens to include the dir). Runtime-written on-disk files are
+   harmless to distribution as long as they are never tracked. So the durable
+   assertion is: **`git ls-files build/` stays EMPTY.** Do not write any check
+   that inspects on-disk files — a live loop defeats it.
+
+3. **Write the guard as a `repo: local` Python-script hook, mirroring an existing
+   guard's exact shape.** Copy the structure of
+   `scripts/check_security_policy_no_hardcoded_date.py`:
+   `get_repo_root()` walks up parent dirs until it finds `pyproject.toml`; a pure
+   check function returns the offending paths; `main()` prints a remediation
+   message and `sys.exit(1)` if non-empty. Sketch:
+
+   ```python
+   #!/usr/bin/env python3
+   """Assert build/ stays UNTRACKED (it is the gitignored automation-loop scratch dir)."""
+   import subprocess
+   import sys
+   from pathlib import Path
+
+   def get_repo_root() -> Path:
+       p = Path(__file__).resolve()
+       for parent in p.parents:
+           if (parent / "pyproject.toml").exists():
+               return parent
+       raise SystemExit("could not locate repo root (no pyproject.toml found)")
+
+   def tracked_under_build(root: Path) -> list[str]:
+       out = subprocess.run(
+           ["git", "ls-files", "build/"],
+           cwd=root, capture_output=True, text=True, check=True,
+       ).stdout
+       return [line for line in out.splitlines() if line.strip()]
+
+   def main() -> int:
+       offenders = tracked_under_build(get_repo_root())
+       if offenders:
+           print("ERROR: build/ is the gitignored automation-loop scratch dir and")
+           print("must stay UNTRACKED, but these files are tracked:")
+           for f in offenders:
+               print(f"  {f}")
+           print("Remediation: git rm --cached <file>  (do NOT commit build/ contents)")
+           return 1
+       return 0
+
+   if __name__ == "__main__":
+       sys.exit(main())
+   ```
+
+4. **Wire it into `.pre-commit-config.yaml` as a `repo: local` hook.** Insert it
+   near the other local guards (for #1214 the candidate insertion point was
+   *after* `check-security-policy-no-hardcoded-date`; anchor on that hook's `id:`,
+   NOT on a line number). Use `language: system`, `pass_filenames: false`,
+   `always_run: true`:
+
+   ```yaml
+   - repo: local
+     hooks:
+       - id: check-build-dir-untracked
+         name: assert build/ scratch dir stays untracked
+         entry: python3 scripts/check_build_dir_untracked.py
+         language: system
+         pass_filenames: false
+         always_run: true
+   ```
+
+   It rides the already-required pre-commit CI gate, so **no new workflow** is
+   needed. `language: system` assumes `python3` on PATH in the hook env (true for
+   this repo); a repo that prefers isolated hook envs would use
+   `language: python` with declared deps instead.
+
+5. **Do NOT use `language: pygrep`.** The guard must shell out to `git ls-files`;
+   a pygrep one-liner cannot express that. A `system` (or `python`) Python script
+   is required.
+
+6. **Leave the nested live clone alone.** If a real checkout lives under the dir
+   (e.g. `build/ProjectMnemosyne`, read by the `/advise` pipeline), confirm it is
+   active, then leave it. The guard only sees *tracked* paths, so a gitignored
+   nested clone is invisible to it and is correctly ignored.
+
+7. **Optionally document the convention** in a repo-hygiene section of
+   `CONTRIBUTING.md` (the plan assumed such a section exists — verify before
+   inserting): "`build/` is the sanctioned gitignored scratch dir; never commit
+   its contents; the `check-build-dir-untracked` hook enforces this."
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+|---------|----------------|---------------|----------------|
+| Delete the on-disk runtime junk the audit flagged | `rm build/loop_*.log` to "clean the junk drawer" | A live automation loop (`loop_runner.py` writes work reports under `build/`) regenerates the files within seconds; you cannot out-race a running process from the client side | Guard against TRACKED state, not on-disk presence. Policing runtime-written files is the "Shape B" anti-pattern — futile by construction |
+| Edit `.gitignore` to "fix" the flagged dir | Reached for the `.gitignore` to add/strengthen the `build/` rule | `git check-ignore -v build/` already returned `.gitignore:5:build/` — the dir was already ignored; editing it is a no-op that wastes a commit and risks breaking the existing rule | Always run `git check-ignore -v <dir>/` FIRST. If it already matches, the gitignore is correct and the residual risk is purely *future tracked-state*, which needs a guard, not a gitignore edit |
+| Treat the gitignore entry as sufficient protection | Assumed "it's gitignored, so it can never enter a distribution" | A gitignore entry does not prevent `git add -f`, nor does it prevent the sdist `only-include` allowlist from later widening to include the dir; the realized risk is TRACKED state, which gitignore alone does not block | Add a regression guard that asserts `git ls-files build/` stays EMPTY — that is the invariant the packaging risk actually depends on |
+| Write the guard with `language: pygrep` | Wanted a zero-script one-line pre-commit pattern | The check must shell out to `git ls-files build/`; pygrep can only match file contents/lines, not query the git index | Use a `repo: local` `language: system` (or `language: python`) Python script that runs `git ls-files`; pygrep cannot express an index query |
+| Delete the nested `build/ProjectMnemosyne` checkout as "stray junk" | Saw a whole repo clone inside the flagged scratch dir and assumed it was leftover junk | It is a LIVE clone the `/advise` pipeline reads on demand; deleting it breaks that pipeline. It is gitignored, so it is irrelevant to the tracked-state guard anyway | Confirm a nested checkout is active before any cleanup; the regression guard targets only tracked paths, so live gitignored clones are correctly invisible to it |
+| Trust the cited line numbers verbatim | Plan referenced `pyproject.toml:158-165`, `loop_runner.py:351`, `CLAUDE.md:455`, `.gitignore:5`, and a `.pre-commit-config.yaml` insertion "~line 207" | Line numbers were read once and drift as files change; anchoring on them makes the workflow brittle | Anchor on CONTENT (the hook `id:`, the `only-include` key, the section heading), never on line numbers |
+
+## Results & Parameters
+
+**The core durable insight (this is the planning learning).** When an audit flags
+a *gitignored* scratch/runtime dir whose name collides with a packaging convention,
+the realized risk is **git-TRACKED state**, not on-disk junk. The durable guard
+asserts `git ls-files <dir>/` stays EMPTY. Deleting live runtime files or editing
+an already-correct `.gitignore` accomplishes nothing.
+
+**Ground-truth facts verified-local for ProjectHephaestus #1214** (these WERE run):
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Dir is untracked today | `git ls-files build/` | 0 entries (real risk not yet realized) |
+| Dir is already ignored | `git check-ignore -v build/` | `.gitignore:5:build/` (do NOT edit gitignore) |
+| Dir excluded from sdist | read `[tool.hatch.build.targets.sdist] only-include` | `build/` ABSENT from the exact-path allowlist → genuinely excluded ("harmless to wheel" claim held) |
+
+**`only-include` is an ALLOWLIST, not a denylist.** A path's *absence* from
+`[tool.hatch.build.targets.sdist] only-include` means it is **excluded** from the
+sdist. Do not mistake it for a denylist where absence would mean "included."
+
+**Hook config that rides the existing required gate (no new workflow):**
+
+```yaml
+- repo: local
+  hooks:
+    - id: check-build-dir-untracked
+      name: assert build/ scratch dir stays untracked
+      entry: python3 scripts/check_build_dir_untracked.py
+      language: system        # assumes python3 on PATH; use `python` for isolated hook env
+      pass_filenames: false
+      always_run: true
+```
+
+**Uncertain assumptions / open risks (carried honestly from the planning session):**
+
+- The `.pre-commit-config.yaml` insertion point ("after
+  `check-security-policy-no-hardcoded-date`, ~line 207") and all cited line
+  numbers (`pyproject.toml:158-165`, `loop_runner.py:351`, `CLAUDE.md:455`,
+  `.gitignore:5`) were read once and **drift** — anchor on content.
+- Whether `CONTRIBUTING.md` has a natural "repo hygiene" section for the doc note
+  was **NOT directly verified**; the plan assumes one exists.
+- `language: system` assumes `python3` is on PATH in the hook env (true for this
+  repo). Repos preferring isolated envs should use `language: python` with
+  declared deps.
+- The nested `build/ProjectMnemosyne` checkout is a **live** clone the `/advise`
+  pipeline reads — confirmed not-stray; must NOT be deleted.
+
+**Related skills (complementary, not duplicates):**
+
+- `claude-code-scheduled-tasks-lockfile-gitignore` — the "Shape B" sibling:
+  *untrack/gitignore* a live runtime file to silence CI/CLI dirty-tree guards.
+  Shares the "don't fight the live process that regenerates the file" insight,
+  but solves the inverse problem (silence guards) rather than this one (assert
+  the dir stays untracked).
+- `ci-hygiene-and-validation-gates` — the regression-guard / stale-detector
+  family: build-free `repo: local` Python pre-commit hooks that catch
+  regressions and ride the existing CI gate. This skill is a specific instance
+  of that pattern applied to a gitignored scratch dir.
+
+## Verified On
+
+| Project | Context | Details |
+|---------|---------|---------|
+| ProjectHephaestus | Issue #1214 (strict audit, 2026-06-12) — `build/` (gitignored automation-loop scratch dir, name-colliding with Python packaging output) flagged as a "junk drawer" distribution risk | Audit FACTS verified-local: `git ls-files build/` → 0, `git check-ignore -v build/` → `.gitignore:5:build/`, `only-include` allowlist excludes `build/`. Proposed FIX (the `check-build-dir-untracked` `repo: local` hook + script) designed but NOT executed — this is a PLANNING learning |
