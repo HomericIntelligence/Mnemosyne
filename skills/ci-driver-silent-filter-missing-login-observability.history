@@ -1,10 +1,27 @@
+# ci-driver-silent-filter-missing-login-observability — History
+
+## v1.1.0 (2026-06-12)
+
+**Changed by:** R1 plan for issue #1152 — negative test coverage for `--all` path
+**Verification:** unverified
+
+### What changed
+- Added new Failed Attempts row: "Acknowledging a TDD gap without closing it"
+- Extended workflow detail: negative tests for conditional guards must assert BOTH absence of side effect AND successful execution of guarded path
+- Added remaining risk note for `test_discover_bot_prs_no_warning_under_all`
+- Added R1 implementation details: two new negative test methods, `import logging` at module top, removed redundant `include_all_authors = False` from positive tests
+
+### Why
+R0 plan named the missing negative test with "Consider adding one" but did not add it. Reviewer correctly NOGO'd. R1 closes the gap with two new negative test methods. Lesson: any TDD gap named in the plan must be resolved in the same plan, not deferred to the implementer.
+
+### Previous version (v1.0.0) snapshot
+
 ---
 name: ci-driver-silent-filter-missing-login-observability
 description: "When an author-filter guard silently drops items with a missing REST field, add a warning-level log inside the filter branch. Use when: (1) a filter uses .get() on a field that could be None from a schema change, (2) silent drops could cause a done-gate to false-green."
 category: debugging
 date: 2026-06-12
-version: "1.1.0"
-history: ci-driver-silent-filter-missing-login-observability.history
+version: "1.0.0"
 user-invocable: false
 verification: unverified
 tags: []
@@ -17,8 +34,6 @@ tags: []
 | Field | Value |
 |-------|-------|
 | **Date** | 2026-06-12 |
-| **Version** | 1.1.0 |
-| **History** | [ci-driver-silent-filter-missing-login-observability.history](ci-driver-silent-filter-missing-login-observability.history) |
 | **Objective** | Add warning-level logs at author-filter sites in `hephaestus/automation/ci_driver.py` so PRs with a missing `user.login` REST field are surfaced rather than silently dropped (issue #1152) |
 | **Outcome** | Plan complete; implementation not yet run |
 | **Verification** | unverified |
@@ -62,36 +77,16 @@ if viewer and user.get('login') != viewer:
 4. **Write tests** in `tests/unit/automation/test_ci_driver_author_scope.py` (the file already has the fixture and driver pattern):
    - Add a fixture `_MISSING_LOGIN_OPEN_PULLS` with `login: None` entries
    - Add a fixture `_MISSING_LOGIN_BOT_PULLS` with `"type": "Bot"` and `login: None`
-   - For the positive (warning-emitting) tests: assert the warning is emitted via `caplog.at_level(logging.WARNING, logger="hephaestus.automation.ci_driver")`
-   - For the negative (no-warning) tests: assert no warning fires AND (where not coupling to other logic) the PR appears in results — see "Negative Test Completeness" below
+   - For each fixture: assert the warning is emitted via `caplog.at_level(logging.WARNING, logger="hephaestus.automation.ci_driver")`
+   - Do NOT add a test for the `--all` path (warning must NOT fire there)
 
 5. **Order-of-guards check for `_discover_bot_prs`**: The Bot-type guard fires first (`if user.get("type") != "Bot": continue`). A Bot PR with `login: None` passes the type check, then hits the viewer filter — this is the correct path for the warning to fire. Reviewers must confirm this ordering is preserved.
-
-### Negative Test Completeness
-
-**Negative test pattern for conditional guards:**
-Negative tests must assert BOTH:
-1. The side effect does NOT fire (e.g., no warning logged)
-2. The guarded code path executed successfully (e.g., the PR appears in results)
-
-For `_list_open_prs_remaining` under `--all`: assert no warning fires AND the PR appears in the returned list.
-
-For `_discover_bot_prs` under `--all`: assert no warning fires. Asserting the PR appears in results is acceptable to omit here — the bot-type check precedes the viewer check, so a bot PR with `login=None` is included only if it passes the bot-type filter; verifying the PR number would add coupling to bot-type logic that is tested separately.
-
-R1 test methods added:
-- `test_list_open_prs_remaining_no_warning_under_all` — asserts no warning + PR in results
-- `test_discover_bot_prs_no_warning_under_all` — asserts no warning only (bot-type coupling risk)
-
-Style fixes applied in R1:
-- `import logging` moved to module top (was inside `with` block)
-- Redundant `include_all_authors = False` removed from positive tests (it is the default; the assignment was a misleading no-op)
 
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 |---------|----------------|---------------|----------------|
-| Acknowledging TDD gap without closing it | R0 plan noted the missing negative test for `--all` path with "Consider adding one" but did not add it to the plan | Reviewer correctly issued NOGO — named gaps must be resolved in the same plan, not deferred to the implementer | Any TDD gap identified during planning must be closed in that same plan iteration; "consider adding" is not acceptable |
-| None yet (implementation) | Plan phase only | N/A | Line numbers (346, 492) verified at plan time but may drift before implementation — re-read the file before editing |
+| None yet | Plan phase only | N/A | Line numbers (346, 492) verified at plan time but may drift before implementation — re-read the file before editing |
 
 ## Results & Parameters
 
@@ -121,17 +116,6 @@ def test_missing_login_emits_warning(caplog):
         # call the filter function with a PR where user.login is None
         ...
     assert any("no user.login" in r.message for r in caplog.records)
-
-def test_list_open_prs_remaining_no_warning_under_all(caplog):
-    with caplog.at_level(logging.WARNING, logger="hephaestus.automation.ci_driver"):
-        result = _list_open_prs_remaining(..., include_all_authors=True)
-    assert not any("no user.login" in r.message for r in caplog.records)
-    assert any(pr["number"] == EXPECTED_PR_NUMBER for pr in result)
-
-def test_discover_bot_prs_no_warning_under_all(caplog):
-    with caplog.at_level(logging.WARNING, logger="hephaestus.automation.ci_driver"):
-        _discover_bot_prs(..., include_all_authors=True)
-    assert not any("no user.login" in r.message for r in caplog.records)
 ```
 
 ## Verified On
@@ -139,3 +123,9 @@ def test_discover_bot_prs_no_warning_under_all(caplog):
 | Project | Context | Details |
 |---------|---------|---------|
 | ProjectHephaestus | Issue #1152 planning session | Plan only; implementation pending |
+
+---
+
+## v1.0.0 (2026-06-12)
+
+**Initial version.**
