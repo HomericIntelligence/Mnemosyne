@@ -3,11 +3,11 @@ name: stale-documentation-audit-and-broken-reference-repair
 description: "Use when: (1) running a doc-drift audit across a corpus — detecting stale counts, metric discrepancies, cross-doc contradictions, ecosystem-role drift; (2) removing phantom directory references from documentation when a path no longer exists; (3) fixing broken documentation references (dead links, stale headings); (4) auditing documentation examples for policy violations; (5) auditing and rewriting getting-started stubs by sourcing real commands from justfile and versions from pixi.toml; (6) fixing incorrect tier labels or version numbers in docs that have drifted from implementation; (7) managing the full lifecycle of placeholder and stub documentation — deletion under YAGNI, deferred-comment placeholders, rewriting with accurate codebase-grounded content; (8) resolving audit nitpicks for monolithic code by documenting verified design rationale; (9) resolving CONTRIBUTING.md case-clashes and circular cross-references in docs/; (10) validating anchor fragments in markdown deep-links to detect broken headings."
 category: documentation
 date: 2026-06-12
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: unverified
 history: stale-documentation-audit-and-broken-reference-repair.history
-tags: [doc-drift, stale-doc, broken-references, phantom-dir, placeholder, stub, anchor-validation, tier-labels, doc-audit, doc-sync, drift-detection-test, ci-effective, version-currency, merged]
+tags: [doc-drift, stale-doc, broken-references, phantom-dir, placeholder, stub, anchor-validation, tier-labels, doc-audit, doc-sync, drift-detection-test, ci-effective, version-currency, subpackage-count, directory-tree, merged]
 ---
 
 # Stale Documentation Audit and Broken Reference Repair
@@ -16,10 +16,10 @@ tags: [doc-drift, stale-doc, broken-references, phantom-dir, placeholder, stub, 
 
 | Field | Value |
 | ------- | ------- |
-| **Date** | 2026-06-07 |
+| **Date** | 2026-06-12 |
 | **Objective** | Canonical workflow for auditing stale documentation and repairing broken references: drift audits, phantom-dir/dead-link removal, placeholder lifecycle, getting-started rewrites, tier-label fixes, anchor validation |
 | **Outcome** | Consolidated from 10 skills covering doc-drift audits, broken-reference repair, policy-violation audits, placeholder/stub lifecycle, monolith-rationale docs, CONTRIBUTING case-clash, and anchor validation |
-| **Verification** | verified-ci |
+| **Verification** | verified-ci (core workflow); the v1.2.0 "Counting subpackages for a directory-tree drift fix" planning addition is `unverified` — see its inline warning |
 
 ## When to Use
 
@@ -35,6 +35,7 @@ tags: [doc-drift, stale-doc, broken-references, phantom-dir, placeholder, stub, 
 - An audit nitpick questions a monolithic file's organization and needs a documented rationale
 - Both `CONTRIBUTING.md` and `docs/contributing.md` exist with a circular cross-reference
 - README/docs deep-link to specific installation headings and you need CI to catch broken anchors
+- A README/CLAUDE.md directory tree omits or miscounts a subpackage and you must re-derive the true package count from the filesystem (not trust the doc's own number or the issue's)
 
 ## Verified Workflow
 
@@ -109,6 +110,46 @@ Add a self-verifying command to the doc so future readers can re-check:
 bullet (`- N agents` → `- M agents`) and the Agent Hierarchy line (`All N agents` → `All M agents`).
 
 Optionally add a drift-detection regression test (see Results & Parameters) and an ADR.
+
+#### 1b. Counting subpackages for a directory-tree drift fix (planning)
+
+> **Warning:** This subsection is `unverified` — derived from an implementation *plan* for
+> ProjectHephaestus #1188 (README directory tree omits the `scripts_lib/` subpackage). The plan was
+> not executed end-to-end (no pre-commit run, no regression test executed). Treat the counting
+> recipe as verified, but treat the proposed regression test and edit-placement assumptions as
+> hypotheses until CI confirms.
+
+When a README/CLAUDE.md directory tree omits a subpackage and quotes a package count, **re-derive
+the count from the filesystem yourself** — trust neither the doc's claim nor the audit issue's
+number. Both can carry the same off-by-one error.
+
+```bash
+# WRONG — overcounts: includes __pycache__/ and any dot-dirs
+ls -d hephaestus/*/ | wc -l            # returned 21 (20 real + __pycache__)
+
+# RIGHT — count only real packages (those with an __init__.py)
+find hephaestus -maxdepth 2 -name __init__.py -printf '%h\n' | sort -u | wc -l
+# or, tracked files only (ignores cache entirely):
+git ls-files 'hephaestus/*/__init__.py' | wc -l   # → 20
+```
+
+Then re-grep the **bare number** across the whole corpus and disambiguate every hit before editing —
+the same stale count usually lives in more than one file, and an unrelated metric will false-positive:
+
+```bash
+grep -rn "19" README.md CLAUDE.md
+# README.md:tree caption "19 ... subpackages"  → REAL stale copy (fix)
+# CLAUDE.md:28 "19 documented subpackages"      → REAL second stale copy (fix)
+# CLAUDE.md:62 "19.7k LoC"                       → FALSE POSITIVE, unrelated metric (do NOT change)
+```
+
+For the tree insertion itself, the new entry must sort into the existing order — verify the **local
+neighborhood** is alphabetical (e.g. `scripts_lib/` sorts between `resilience/` and `system/`) by
+reading the adjacent lines; do not assume the entire tree is sorted. The inserted comment text is
+planner-authored prose, not a copied docstring — flag it for maintainer wording review. The real
+acceptance gate is a regression test that asserts every `*/__init__.py` package appears in the tree,
+not the greps (the greps are for human/CI reproduction). The CLAUDE.md "avoid raw grep" guidance
+applies to agent tool-use, not to a doc's copy-paste verification block.
 
 #### 2. Phantom-directory references
 
@@ -336,6 +377,11 @@ gh pr merge --auto --rebase
 | `assert documented == latest_tag` for version currency | Required the doc version to equal the latest git tag exactly | Reds `main` the instant a NEW tag is pushed, before anyone edits the doc — reintroduces the manual chore the test was meant to kill | Assert "does not trail": `documented_tuple >= canonical_tuple` (a newer tag passes; a genuinely-stale doc still fails); reuse the repo's version-tuple parser |
 | RED step that only checks "the run failed" | Treated any non-pass as a successful RED | A SKIP also isn't a pass, so a silent-skip masquerades as a satisfied RED step | Run `pytest -rs`; require the summary be `1 failed` (NOT `1 skipped`/`1 passed`); GREEN steps require `0 skipped` |
 | Comparing a `v`-prefixed tag tuple to a bare doc version | Assumed `git describe` form matched the doc's printed form | `_version_from_git_tag` strips the leading `v` (returns `"0.9.5"`) — a `v`-prefixed parse would mis-compare | Verify the helper's return form before assuming the comparison is like-for-like |
+| `ls -d hephaestus/*/ \| wc -l` as the package count | Counted directory entries to ground-truth the README tree | Returned 21 — includes `__pycache__/`; the real tracked count is 20 | Count only dirs with `__init__.py` (`git ls-files '*/__init__.py'`); `ls \| wc -l` is not a reliable package count |
+| Trusting the audit issue's count ("19 → 20") | Took the issue's number as ground truth | The issue can carry the same off-by-one as the README; both said "19" | Re-derive the count independently from the filesystem before fixing |
+| Editing the first `19` grep hit found | Planned to fix the count where grep matched | `CLAUDE.md:62 "19.7k LoC"` is an unrelated metric that must NOT change | Grep the bare number, then disambiguate every hit (real duplicate vs noise) before editing |
+| Assuming the whole tree is alphabetical | Inferred insertion point from "tree is sorted" | Only the local neighborhood was verified; full-tree order was never checked | Read the adjacent lines to confirm the local sort; don't assume global ordering |
+| Treating the greps as the acceptance gate | Listed grep/pytest in the plan's verification block | Greps reproduce the finding but don't prevent regression; a planner-authored comment may mis-word | The regression test (every `*/__init__.py` appears in the tree) is the real gate; flag authored prose for maintainer review |
 
 ## Results & Parameters
 
@@ -402,6 +448,25 @@ def test_documented_version_not_stale() -> None:
     fetch-tags: true
 ```
 
+### Subpackage-tree drift test pattern (Python, proposed — unverified)
+
+> Proposed in the #1188 plan but **not executed**. The `parents[2]` depth assumes a
+> `tests/unit/<file>.py` layout → repo root; verify the actual depth before relying on it.
+
+```python
+"""Fail if a hephaestus subpackage is missing from the README directory tree."""
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[2]   # tests/unit/<file>.py -> root (VERIFY depth)
+
+def test_readme_lists_every_subpackage() -> None:
+    pkg_dir = REPO_ROOT / "hephaestus"
+    packages = {p.parent.name for p in pkg_dir.glob("*/__init__.py")}  # ignores __pycache__
+    readme = (REPO_ROOT / "README.md").read_text()
+    missing = sorted(name for name in packages if f"{name}/" not in readme)
+    assert not missing, f"README directory tree omits subpackages: {missing}"
+```
+
 ### Reliable markdownlint invocation
 
 ```bash
@@ -431,4 +496,5 @@ pixi run npx markdownlint-cli2 <file>
 | ProjectOdyssey | Issues #3142/#3308, #3304/#3913, #3305/#3917, #3918/#4830, #3141/#3303, #3914/#4828, #3915/#4829 | Stub deletion, installation/quickstart rewrite, IDE-setup extend, getting-started audit, anchor validator |
 | ProjectHephaestus | Issue #792 (PR #984); Issue #630 (PR #667) | Monolith-rationale ADR; CONTRIBUTING case-clash redirect |
 | ProjectHephaestus | Issue #1208 R1 (post-NOGO replan) — **Proposed/unverified** | Drift-guard CI-effectiveness: silent-skip→hard-fail+fetch-tags, `==`→`>=` currency, RED-must-not-skip; CI-checkout root cause verified-by-inspection, end-to-end fix unverified |
+| ProjectHephaestus | Issue #1188 (planning only — unverified) | README tree omits `scripts_lib/` subpackage; count-from-code recipe, bare-number disambiguation, subpackage-tree regression test |
 | mvillmow/Random | Predictive-Coding-in-Mojo Phase 0 | Cross-doc citation drift: 8 stale §-refs, 2 arXiv ID swaps caught |

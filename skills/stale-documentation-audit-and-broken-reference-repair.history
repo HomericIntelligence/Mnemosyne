@@ -2,6 +2,43 @@
 
 # stale-documentation-audit-and-broken-reference-repair — History
 
+## v1.2.0 (2026-06-12)
+
+**Changed by:** ProjectHephaestus issue #1188 implementation plan (README directory tree omits the
+`scripts_lib/` subpackage — doc-vs-reality drift). Planning artifact only. Stacked on top of the
+v1.1.0 #1208 amendment (same skill, independent learning).
+**Verification:** unverified (the new content); core workflow remains verified-ci.
+
+### What changed
+
+- New workflow subsection **1b. Counting subpackages for a directory-tree drift fix (planning)**
+  with a `> Warning:` honesty banner (unverified).
+- New "When to Use" trigger for directory-tree subpackage omission / miscount.
+- 5 new Failed Attempts rows: `ls -d */ | wc -l` overcounts via `__pycache__`; trusting the issue's
+  count; editing the first bare-number grep hit (LoC false-positive); assuming the whole tree is
+  alphabetical; treating greps (not the regression test) as the acceptance gate.
+- New Results & Parameters block: subpackage-tree drift regression test (proposed, unverified —
+  `parents[2]` depth unverified).
+- New Verified On row for ProjectHephaestus #1188 (planning only).
+- Added `subpackage-count`, `directory-tree` tags; bumped `version` 1.1.0 → 1.2.0.
+
+### Why
+
+Planning #1188 surfaced a transferable doc-drift lesson: when a directory tree quotes a package
+count, the count must be re-derived from the filesystem (dirs with `__init__.py` / `git ls-files`),
+because `ls | wc -l` includes `__pycache__` and both the README *and* the audit issue can carry the
+same off-by-one. Grepping the bare number surfaces real duplicates (a second stale copy in
+CLAUDE.md) plus noise (an unrelated "19.7k LoC" metric) that must be disambiguated before editing.
+Captured as `unverified` because the plan was never executed (no pre-commit, no test run); the
+proposed regression test and edit-placement assumptions are hypotheses.
+
+### Previous version (v1.1.0) snapshot
+
+See the v1.1.0 entry below for the prior #1208 amendment content. The remainder of the skill is
+preserved verbatim in the live file's unchanged sections.
+
+---
+
 ## v1.1.0 (2026-06-12)
 
 **Changed by:** ProjectHephaestus #1208 R1 (post-NOGO replan)
@@ -47,6 +84,8 @@ user-invocable: false
 history: stale-documentation-audit-and-broken-reference-repair.history
 tags: [doc-drift, stale-doc, broken-references, phantom-dir, placeholder, stub, anchor-validation, tier-labels, doc-audit, doc-sync, merged]
 ```
+
+---
 
 ## v1.0.0 (2026-06-07)
 
