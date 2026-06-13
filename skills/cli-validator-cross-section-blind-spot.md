@@ -3,9 +3,9 @@ name: cli-validator-cross-section-blind-spot
 description: "Markdown-section validators that break on the first non-matching H2 silently miss duplicate sections later in the document. Use when: (1) a tier/table validator parses a markdown section and stops early, (2) a CI gate passes despite a doc contradiction, (3) a 'break' at a section-end guard is the only early-exit in a line-by-line parser."
 category: debugging
 date: 2026-06-13
-version: "1.0.0"
+version: "2.0.0"
 user-invocable: false
-verification: unverified
+verification: verified-ci
 tags: [validation, markdown-parser, state-machine, cli-tier-docs, duplicate-section, break-vs-continue]
 ---
 
@@ -17,9 +17,9 @@ tags: [validation, markdown-parser, state-machine, cli-tier-docs, duplicate-sect
 |-------|-------|
 | **Date** | 2026-06-13 |
 | **Objective** | Detect contradictory CLI tier documentation across two `## Console-Script Stability Tiers` sections in COMPATIBILITY.md |
-| **Outcome** | Plan produced; implementation pending CI verification |
-| **Verification** | unverified — plan not yet executed |
-| **Issue** | ProjectHephaestus #1257 |
+| **Outcome** | Implemented and verified — PR #1301 merged, 22 tests pass, CI green |
+| **Verification** | verified-ci — PR #1301 merged |
+| **Issue** | ProjectHephaestus #1255 |
 | **See also** | `validation-cli-tier-docs-duplicate-section-detection` (issue #1255) — detailed step-by-step fix workflow |
 
 ## When to Use
@@ -31,7 +31,7 @@ tags: [validation, markdown-parser, state-machine, cli-tier-docs, duplicate-sect
 
 ## Verified Workflow
 
-> **Warning:** This workflow has not been validated end-to-end. Treat as a hypothesis until CI confirms.
+> **Status**: Verified — implemented in PR #1301, 22 tests pass, CI green.
 
 ### Quick Reference
 
@@ -84,25 +84,19 @@ if section_count > 1:
 5. Update existing test unpacking: `tiers, _ =` → `tiers, _, _ =`; `tiers, occ =` → `tiers, occ, _ =` (4 test sites)
 6. Add `TestCrossSectionDetection` class with 4 new tests covering: two-section contradiction, single-section count, main() exit code, non-tier H2 still ends section
 
-## Key Uncertainties (Planning-Phase Risks)
+## Resolved Uncertainties
 
-### 1. 3-tuple return is a clean API extension
+### 1. 3-tuple return is a clean API extension (resolved)
 
-`load_documented_tiers` currently returns a 2-tuple; the plan changes it to a 3-tuple `(tiers, occurrences, section_count)`. This is a public function, so if any callers outside the main module exist (e.g., external code, other tests), they will break silently.
+`load_documented_tiers` previously returned a 2-tuple; it now returns `(tiers, occurrences, section_count)`. `grep -rn "load_documented_tiers" hephaestus/ tests/ scripts/` confirmed only two callers: `main()` and the test file. Both were updated atomically in PR #1301.
 
-**The plan only verified the four call sites in the existing test file and `main()`.** Always run before implementing:
+### 2. `section_count > 1` emitted in `main`, not in `find_violations` (resolved, acceptable design)
 
-```bash
-grep -rn "load_documented_tiers" hephaestus/ tests/ scripts/
-```
+The `duplicate-section` finding is placed in `main()` rather than in `find_duplicate_tiers()` or `find_violations()`, since those functions do not have access to `section_count`. This is a clean design — callers invoking `find_violations` directly without `main()` will not see this finding, but no such callers exist.
 
-### 2. `section_count > 1` emitted in `main`, not in `find_violations`
+### 3. `test_load_tiers_stops_at_next_section` renamed (resolved)
 
-The `duplicate-section` finding is placed in `main()` rather than in `find_duplicate_tiers()` or `find_violations()`, since those functions do not have access to `section_count`. This is a clean design but means the finding does not appear if callers invoke `find_violations` directly without going through `main()`.
-
-### 3. `test_load_tiers_stops_at_next_section` contract preserved
-
-The existing test verifies that rows under `## Other Section` are NOT accumulated. The `break` → `continue` change preserves this: `in_section = False` is set when the non-matching H2 is seen, so content under it is still excluded. The test still passes — but the test name implies a hard stop (`break`), which is semantically wrong after the fix. Consider renaming to `test_load_tiers_excludes_content_under_other_sections`.
+Renamed to `test_load_tiers_excludes_content_under_other_sections` in PR #1301. The new behavior is a soft state reset, not a hard stop, and the test name now reflects that correctly.
 
 ## Failed Attempts
 
@@ -119,12 +113,16 @@ The existing test verifies that rows under `## Other Section` are NOT accumulate
 - Section 2 (`hephaestus-foo → Internal`) never reached
 - `find_duplicate_tiers({"hephaestus-foo": ["Stable"]}) == []` → validator reports OK
 
-**Risk**: `load_documented_tiers` 3-tuple API change may break undiscovered callers outside `main()` and the test file. Run `grep -r "load_documented_tiers" hephaestus/ scripts/` before implementing.
+**Root cause**: `cli_tier_docs.py:89-90` — `break` on non-matching H2 means:
+- Section 1 parsed: `hephaestus-foo -> Stable`
+- `## Public API` H2 triggers `break`
+- Section 2 (`hephaestus-foo -> Internal`) never reached
+- `find_duplicate_tiers({"hephaestus-foo": ["Stable"]}) == []` -> validator reports OK
 
-**Risk**: `test_duplicate_section_finding_emitted_by_main` uses a minimal pyproject without `[build-system]` — verify tomllib parses it without error.
+**Resolved**: Both callers updated atomically in PR #1301; only `main()` and the test file called `load_documented_tiers`. `test_duplicate_section_finding_emitted_by_main` uses a minimal pyproject and tomllib parsed it without error.
 
 ## Verified On
 
 | Project | Context | Details |
 |---------|---------|---------|
-| ProjectHephaestus | Issue #1257 planning — plan only, not yet implemented | Plan review pending |
+| ProjectHephaestus | Issue #1255, PR #1301 | 22 tests pass, CI green, verified-ci |
