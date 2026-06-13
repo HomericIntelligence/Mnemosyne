@@ -2,6 +2,79 @@
 
 # stale-documentation-audit-and-broken-reference-repair — History
 
+## v1.1.0 (2026-06-12)
+
+**Changed by:** planning issue #1192 (ProjectHephaestus) — stale prompts.py citation repair
+
+**Verification:** verified-local (ProjectHephaestus commit 9472f080; corpus-grep clean; PR #1268 BLOCKED on green checks — NOT confirmed merged at capture time)
+
+**What changed:**
+
+- Added a new detailed step `3b. Stale file:line citation repair (content-anchored replacement)` to the Verified Workflow, with the #1192 example.
+- Extended **When to Use** with two triggers: dangling `file.py:NN-MM` line ranges after a file→package split, and audit-reported coordinates that are themselves off-by-one (locate by content/grep).
+- Added a `STALE file:line CITATION REPAIR` block to the Quick Reference.
+- Added six **Failed Attempts** rows: trusting the audit's reported line (off-by-one), re-citing a fresh `:NN`, citing an unconfirmed replacement target, fixing only the original site, and modernizing historical release-note prose.
+- Added a commit-format row, a Key-parameters note, and a Verified-On entry for #1192.
+- Bumped version 1.0.0 → 1.1.0, date → 2026-06-12, Overview verification annotated, added `file-line-citation` and `content-anchor` tags.
+
+**Why:**
+
+Issue #1192 reported a dangling `hephaestus/automation/prompts.py:474-475` citation in `docs/release-notes/plan-reviewer-final-verdict.md`. The file had been split into the `hephaestus/automation/prompts/` package, so the `file:line` reference no longer resolved. The repair surfaced five reusable lessons the prior skill did not capture: (1) the audit's reported line was itself stale (off-by-one — actual token on line 24, not 25), so the dangling ref must be located by **content/grep**, not the reported coordinate; (2) the replacement must be **content-anchored** (a path to `prompts/__init__.py` and its durable "last matching line" contract text), NOT a fresh line number that re-rots on the next refactor; (3) **re-grep the whole corpus** after the primary fix to catch recurring tokens; (4) **confirm the replacement target exists** before citing it; (5) a **historical-accuracy guardrail** — the note documents the historical `APPROVED/REVISE/BLOCK` verdict vocabulary while the code now emits `GO/NOGO`; repair only the broken traceability citation and leave the historical narrative intact rather than "modernizing" surrounding prose.
+
+### Snapshot of v1.0.0 main `.md` content (pre-amendment)
+
+```markdown
+---
+name: stale-documentation-audit-and-broken-reference-repair
+description: "Use when: (1) running a doc-drift audit across a corpus — detecting stale counts, metric discrepancies, cross-doc contradictions, ecosystem-role drift; (2) removing phantom directory references from documentation when a path no longer exists; (3) fixing broken documentation references (dead links, stale headings); (4) auditing documentation examples for policy violations; (5) auditing and rewriting getting-started stubs by sourcing real commands from justfile and versions from pixi.toml; (6) fixing incorrect tier labels or version numbers in docs that have drifted from implementation; (7) managing the full lifecycle of placeholder and stub documentation — deletion under YAGNI, deferred-comment placeholders, rewriting with accurate codebase-grounded content; (8) resolving audit nitpicks for monolithic code by documenting verified design rationale; (9) resolving CONTRIBUTING.md case-clashes and circular cross-references in docs/; (10) validating anchor fragments in markdown deep-links to detect broken headings."
+category: documentation
+date: 2026-06-07
+version: "1.0.0"
+user-invocable: false
+history: stale-documentation-audit-and-broken-reference-repair.history
+tags: [doc-drift, stale-doc, broken-references, phantom-dir, placeholder, stub, anchor-validation, tier-labels, doc-audit, doc-sync, merged]
+---
+
+# Stale Documentation Audit and Broken Reference Repair
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2026-06-07 |
+| **Objective** | Canonical workflow for auditing stale documentation and repairing broken references: drift audits, phantom-dir/dead-link removal, placeholder lifecycle, getting-started rewrites, tier-label fixes, anchor validation |
+| **Outcome** | Consolidated from 10 skills covering doc-drift audits, broken-reference repair, policy-violation audits, placeholder/stub lifecycle, monolith-rationale docs, CONTRIBUTING case-clash, and anchor validation |
+| **Verification** | verified-ci |
+
+## When to Use
+
+- A "Future Improvements" / "Future Work" section lists a feature that already shipped
+- Docs state a metric (test count, coverage %, file/agent count) that disagrees with the codebase
+- `CLAUDE.md` contradicts `pyproject.toml`/`CONTRIBUTING.md` on thresholds or policy
+- External architecture docs describe a project's ecosystem role inaccurately
+- A directory/file was removed but docs still reference the path (phantom dir / dead link)
+- Documentation examples contain commands that violate repo policy (e.g. `--label`, `--no-verify`)
+- Getting-started stubs contain fabricated APIs, placeholder prose, or malformed code fences
+- Tier labels / version numbers in docs have drifted from the authoritative table
+- Stub files contain only boilerplate and should be deleted, deferred, or rewritten
+- An audit nitpick questions a monolithic file's organization and needs a documented rationale
+- Both `CONTRIBUTING.md` and `docs/contributing.md` exist with a circular cross-reference
+- README/docs deep-link to specific installation headings and you need CI to catch broken anchors
+
+## Verified Workflow
+
+(The full v1.0.0 Verified Workflow — Quick Reference, Detailed Steps 1–9, Failed Attempts,
+Results & Parameters, and Verified On — is preserved verbatim and extended in the v1.1.0 main
+`.md`. The amendment is purely additive: no prior content was removed, so the complete prior body
+is recoverable via `git show` of the pre-amendment commit. The v1.0.0 frontmatter, Overview, and
+When-to-Use are reproduced verbatim above.)
+
+**Universal rules** (v1.0.0): count from code (never from other docs); use `Edit` with exact
+strings, not whole-section rewrites; use `replace_all: true` when a stale phrase repeats; after
+fixing the primary file, re-grep the whole corpus — stale copies survive in `docs/`,
+`references/notes.md`, `docs/analysis-prompt.md`. Always Read a file before Editing it.
+```
+
 ## v1.0.0 (2026-06-07)
 
 Consolidated 10 documentation skills into one canonical covering stale-doc drift audits and broken-reference repair. Absorbed skills:

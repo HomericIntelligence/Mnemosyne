@@ -2,11 +2,11 @@
 name: stale-documentation-audit-and-broken-reference-repair
 description: "Use when: (1) running a doc-drift audit across a corpus — detecting stale counts, metric discrepancies, cross-doc contradictions, ecosystem-role drift; (2) removing phantom directory references from documentation when a path no longer exists; (3) fixing broken documentation references (dead links, stale headings); (4) auditing documentation examples for policy violations; (5) auditing and rewriting getting-started stubs by sourcing real commands from justfile and versions from pixi.toml; (6) fixing incorrect tier labels or version numbers in docs that have drifted from implementation; (7) managing the full lifecycle of placeholder and stub documentation — deletion under YAGNI, deferred-comment placeholders, rewriting with accurate codebase-grounded content; (8) resolving audit nitpicks for monolithic code by documenting verified design rationale; (9) resolving CONTRIBUTING.md case-clashes and circular cross-references in docs/; (10) validating anchor fragments in markdown deep-links to detect broken headings."
 category: documentation
-date: 2026-06-07
-version: "1.0.0"
+date: 2026-06-12
+version: "1.1.0"
 user-invocable: false
 history: stale-documentation-audit-and-broken-reference-repair.history
-tags: [doc-drift, stale-doc, broken-references, phantom-dir, placeholder, stub, anchor-validation, tier-labels, doc-audit, doc-sync, merged]
+tags: [doc-drift, stale-doc, broken-references, phantom-dir, placeholder, stub, anchor-validation, tier-labels, doc-audit, doc-sync, file-line-citation, content-anchor, merged]
 ---
 
 # Stale Documentation Audit and Broken Reference Repair
@@ -15,10 +15,10 @@ tags: [doc-drift, stale-doc, broken-references, phantom-dir, placeholder, stub, 
 
 | Field | Value |
 | ------- | ------- |
-| **Date** | 2026-06-07 |
-| **Objective** | Canonical workflow for auditing stale documentation and repairing broken references: drift audits, phantom-dir/dead-link removal, placeholder lifecycle, getting-started rewrites, tier-label fixes, anchor validation |
+| **Date** | 2026-06-12 |
+| **Objective** | Canonical workflow for auditing stale documentation and repairing broken references: drift audits, phantom-dir/dead-link removal, stale `file:line` citation repair, placeholder lifecycle, getting-started rewrites, tier-label fixes, anchor validation |
 | **Outcome** | Consolidated from 10 skills covering doc-drift audits, broken-reference repair, policy-violation audits, placeholder/stub lifecycle, monolith-rationale docs, CONTRIBUTING case-clash, and anchor validation |
-| **Verification** | verified-ci |
+| **Verification** | verified-ci (core); verified-local (file:line citation repair, #1192) |
 
 ## When to Use
 
@@ -27,6 +27,8 @@ tags: [doc-drift, stale-doc, broken-references, phantom-dir, placeholder, stub, 
 - `CLAUDE.md` contradicts `pyproject.toml`/`CONTRIBUTING.md` on thresholds or policy
 - External architecture docs describe a project's ecosystem role inaccurately
 - A directory/file was removed but docs still reference the path (phantom dir / dead link)
+- A doc/release-note cites a `file.py:NN-MM` line range that no longer resolves (file split into a package, lines shifted) — repair by content-anchored reference, not a fresh line number
+- An audit issue reports a stale citation at a specific line, but the reported coordinate may itself be off-by-one — locate the bad token by content/grep, not by the reported line
 - Documentation examples contain commands that violate repo policy (e.g. `--label`, `--no-verify`)
 - Getting-started stubs contain fabricated APIs, placeholder prose, or malformed code fences
 - Tier labels / version numbers in docs have drifted from the authoritative table
@@ -52,6 +54,14 @@ gh api orgs/<ORG>/repos --paginate --jq '.[] | "\(.name) -- \(.description)"' | 
 # ── BROKEN / PHANTOM REFERENCES ──────────────────────────────────────────────
 grep -rn "<removed-path>" docs/ README.md CONTRIBUTING.md   # find dead refs
 ls <removed-path> 2>/dev/null || echo "Confirmed removed"   # confirm gone
+
+# ── STALE file:line CITATION REPAIR ──────────────────────────────────────────
+# Locate the dangling ref by CONTENT, never trust the audit's reported line (off-by-one)
+grep -rn '<module>\.py:[0-9]' docs/                         # find the bad file:line token
+ls hephaestus/automation/prompts/__init__.py                # confirm the REPLACEMENT target exists
+grep -n "<durable-contract-text>" <replacement-path>        # confirm it holds the durable anchor text
+# Replace file:line with a content-anchored path (NO fresh :NN — that just re-rots)
+grep -rn '<module>\.py:[0-9]' docs/                         # RE-GREP corpus post-fix → expect zero
 
 # ── POLICY-VIOLATION AUDIT ───────────────────────────────────────────────────
 pixi run python scripts/audit_doc_examples.py --verbose     # scans fenced shell blocks only
@@ -155,6 +165,38 @@ heading anchors. Edge cases: `` `pixi install` fails `` → `pixi-install-fails`
 `Run Tests (without shell)` → `run-tests-without-shell`; `Step 1 Setup` → `step-1-setup`. Add a
 step to `.github/workflows/link-check.yml` after the lychee step. Test hermetically with
 `TemporaryDirectory` (portable in class-based tests where `tmp_path` fixtures aren't injected).
+
+#### 3b. Stale `file:line` citation repair (content-anchored replacement)
+
+A doc, release note, or changelog cites `path/to/file.py:NN-MM`, but the file was split into a
+package or the lines shifted, so the citation dangles. Repair it with a **content-anchored**
+reference — never a fresh line number.
+
+1. **Locate by content, not the reported line.** An audit that flags the dangling citation
+   reports a line coordinate that is itself stale — it can be off-by-one (e.g. the audit said
+   line 25; the actual dangling `prompts.py:474-475` token was on line 24). Trust the token, not
+   the coordinate: `grep -rn '<module>\.py:[0-9]' docs/`.
+2. **Confirm the replacement target genuinely exists.** Before citing
+   `hephaestus/automation/prompts/__init__.py`, `ls` it and `grep` for the durable contract text
+   it contains (e.g. the "last matching line" rule). A replacement citation that is itself wrong
+   is no better than the original.
+3. **Replace with a content-anchored path, NOT a new `:NN`.** Cite the package `__init__.py` (or
+   the durable text it contains) so the reference survives the next refactor. Re-introducing
+   `:NN` just resets the decay clock — it will rot again on the next line shift.
+4. **Re-grep the whole corpus after the primary fix.** A single stale token often recurs:
+   `grep -rn '<bad-token>' docs/` post-fix must return zero. Do this as a verification step, not
+   only at the original site.
+5. **Historical-accuracy guardrail (release notes / changelogs).** Repair only the broken
+   *traceability* citation; leave the historical narrative intact. Example: a final-verdict note
+   documented the historical `APPROVED/REVISE/BLOCK` vocabulary even though the code now emits
+   `GO/NOGO`. Do NOT "modernize" surrounding prose to match current code — that rewrites history.
+   Scope the fix to the dangling reference only.
+
+**Example** — ProjectHephaestus #1192: `docs/release-notes/plan-reviewer-final-verdict.md` cited
+`hephaestus/automation/prompts.py:474-475`, but `prompts.py` had been split into the
+`hephaestus/automation/prompts/` package. Fix: replace the `file:line` citation with a
+content-anchored reference to `hephaestus/automation/prompts/__init__.py` (no new line number);
+corpus re-grep returned zero; the historical `APPROVED/REVISE/BLOCK` narrative was left untouched.
 
 #### 4. Placeholder / stub lifecycle (delete · defer · annotate · rewrite)
 
@@ -267,6 +309,11 @@ gh pr merge --auto --rebase
 | Full pre-commit suite without skipping | Ran all hooks on a host with a GLIBC mismatch | `mojo-format` fails on GLIBC < 2.32 (environment, not code) | Use `SKIP=mojo-format`; only non-Mojo hooks matter for doc-only changes |
 | Deleting `docs/contributing.md` to resolve the case-clash | Removed the file entirely | Breaks inbound links from the docs index | Reduce to a redirect; keep root as canonical |
 | Per-file reviewers for citation corpus | Reviewed each entry individually | Could not see cross-document §-drift or arXiv ID-to-title swaps | Both failure modes need a cross-corpus structural audit, not per-file review |
+| Trusted the audit's reported line number | Jumped to the line the issue cited for the dangling citation | Off-by-one — the actual `prompts.py:474-475` token was one line up | Locate by content/grep (`grep -rn '<module>\.py:[0-9]' docs/`), not the reported coordinate |
+| Replaced a stale `file:line` with a fresh line number | Re-cited the same content at its new `:NN` | The next refactor shifts lines again — the new `:NN` re-rots immediately | Replace with a content-anchored path (package `__init__.py` / durable text), never a fresh line number |
+| Cited the replacement target without confirming it | Pointed at the new package path on faith | A replacement that is itself wrong is no better than the original dangling ref | `ls` the target and `grep` for the durable contract text before citing it |
+| Fixed only the original citation site | Repaired the one flagged line, declared done | The same stale token often recurs elsewhere in the corpus | Re-grep the whole corpus for the bad token post-fix; expect zero remaining |
+| Modernizing release-note prose to match current code | Tempted to rewrite historical `APPROVED/REVISE/BLOCK` to `GO/NOGO` | Rewrites history; the note documents a past verdict vocabulary, not current behavior | Repair only the broken traceability citation; leave the historical narrative intact |
 
 ## Results & Parameters
 
@@ -278,6 +325,7 @@ gh pr merge --auto --rebase
 | Agent count fix | `fix(docs): update stale agent count references (N → M agents)` |
 | Phantom dir | `fix(docs): Remove phantom tests/integration/ references` |
 | Broken refs | `fix(docs): Remove broken <dir>/ references from CLAUDE.md` |
+| Stale file:line citation | `docs(<scope>): fix stale <module>.py:NN citation` |
 | Stub deletion | `docs: delete N empty placeholder documentation stubs` |
 | Getting-started rewrite | `docs(getting-started): rewrite <files> with accurate commands` |
 | Tier labels | `fix(docs): Fix all tier label mismatches in metrics-definitions.md` |
@@ -321,6 +369,10 @@ pixi run npx markdownlint-cli2 <file>
 - **Files most likely to hold stale refs**: `docs/index.md`, `docs/README.md`, `docs/glossary.md`,
   `references/notes.md`, `docs/analysis-prompt.md`.
 - **Policy-audit exclusions**: `docs/arxiv/`, `tests/claude-code/`, `.pixi/`, `build/`, `node_modules/`.
+- **Stale `file:line` citations**: locate by content (`grep -rn '<module>\.py:[0-9]' docs/`), not the
+  audit's reported line (off-by-one). Replace with a content-anchored path (package `__init__.py` or
+  durable text), never a fresh `:NN`. Confirm the target exists, re-grep the corpus to zero, and do
+  NOT modernize surrounding historical prose (release-note narrative stays as written).
 
 ## Verified On
 
@@ -331,4 +383,5 @@ pixi run npx markdownlint-cli2 <file>
 | ProjectOdyssey | Issues #3344, #3365; PR #3320; PR #4847 | Workflow README audit, agent-count fix, post-migration README sync |
 | ProjectOdyssey | Issues #3142/#3308, #3304/#3913, #3305/#3917, #3918/#4830, #3141/#3303, #3914/#4828, #3915/#4829 | Stub deletion, installation/quickstart rewrite, IDE-setup extend, getting-started audit, anchor validator |
 | ProjectHephaestus | Issue #792 (PR #984); Issue #630 (PR #667) | Monolith-rationale ADR; CONTRIBUTING case-clash redirect |
+| ProjectHephaestus | Issue #1192 (PR #1268, commit 9472f080) | Stale `prompts.py:474-475` citation → content-anchored `prompts/__init__.py`; corpus-grep clean; verified-local (CI pending at capture) |
 | mvillmow/Random | Predictive-Coding-in-Mojo Phase 0 | Cross-doc citation drift: 8 stale §-refs, 2 arXiv ID swaps caught |
