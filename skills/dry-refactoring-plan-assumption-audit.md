@@ -1,12 +1,12 @@
 ---
 name: dry-refactoring-plan-assumption-audit
-description: "Checklist of hidden assumptions that bite DRY module-consolidation plans before implementation starts. Use when: (1) planning to merge two modules into one canonical, (2) replacing a module with a delegation shim, (3) porting tests from one file to another."
+description: "Checklist of hidden assumptions that bite DRY module-consolidation plans before implementation starts. Use when: (1) planning to merge two modules into one canonical, (2) replacing a module with a delegation shim that re-exports from the canonical, (3) porting tests from one file to another, (4) extending a main() function with new sub-checks, (5) consolidating two functions with the same name but different signatures."
 category: architecture
 date: 2026-06-13
-version: "1.0.0"
+version: "2.0.0"
 user-invocable: false
 verification: unverified
-tags: [dry, refactoring, module-consolidation, planning, assumptions, shim, __all__, packaging]
+tags: [dry, refactoring, module-consolidation, planning, assumptions, shim, __all__, packaging, test-delegation, signature-collision]
 ---
 
 # DRY Refactoring — Plan Assumption Audit
@@ -17,8 +17,9 @@ tags: [dry, refactoring, module-consolidation, planning, assumptions, shim, __al
 |-------|-------|
 | **Date** | 2026-06-13 |
 | **Objective** | Capture the hidden assumptions that invalidated parts of the plan for consolidating `hephaestus/scripts_lib/check_python_version_consistency.py` into `hephaestus/validation/python_version.py` (issue #1189) |
-| **Outcome** | Plan produced with 5 unverified assumptions identified post-plan; implementation not yet started |
+| **Outcome** | Plan produced; NOGO on first version; revised plan addresses all 5 failure modes |
 | **Verification** | unverified — plan not yet implemented or CI-confirmed |
+| **History** | v1.0.0: initial 5-assumption capture. v2.0.0: revised with concrete fix patterns for signature collision and test delegation. |
 
 ## When to Use
 
@@ -28,6 +29,7 @@ tags: [dry, refactoring, module-consolidation, planning, assumptions, shim, __al
 - Adding new public functions to an existing module within a package
 - Extending a `main()` function with new sub-checks
 - Adding a `from packaging.version import Version` (or any ecosystem dependency) to a new function
+- Two modules share a function name with different signatures
 
 ## Verified Workflow
 
@@ -52,6 +54,9 @@ grep "packaging" pyproject.toml
 
 # 5. Find all callers of the function being renamed/consolidated
 grep -rn "from hephaestus.scripts_lib import\|from hephaestus.validation import" hephaestus/ tests/ scripts/
+
+# 6. Find same-name functions across both modules
+grep -rn "^def <function_name>" hephaestus/<module_a>.py hephaestus/<module_b>.py
 ```
 
 ### Detailed Steps
@@ -62,30 +67,71 @@ grep -rn "from hephaestus.scripts_lib import\|from hephaestus.validation import"
 
 2. **Trace every early-return path in `main()` before extending it.**
    Open the target `main()` function and list every `return` / `sys.exit` statement.
-   Any new sub-checks added after the function body must not be gated behind an early exit that already existed (e.g., `if args.json: ... return 0`).
+   Any new sub-checks added must not be gated behind an early exit that already existed (e.g., `if args.json: ... return 0`).
+   Fix: move ALL check calls before the format-branching block, then use results in both JSON and text paths.
    Each output-mode branch (JSON, plain text, quiet) must invoke the same set of checks.
 
-3. **Count test classes before deciding the shim strategy.**
-   If replacing a test file with an import-only shim, verify that the target test file (`tests/unit/<canonical>/test_<module>.py`) already contains equivalent test classes covering every function from the source file.
-   Pytest collects zero tests from an import-only shim — the 400+ lines of test classes do not teleport.
+3. **Test delegation shims must import test CLASSES, not just symbols.**
+   If replacing a test file with an import-only shim, the shim must import the test **classes** themselves:
+   ```python
+   # CORRECT: pytest re-discovers imported test classes at module scope
+   from tests.unit.validation.test_python_version import TestFoo, TestBar
+
+   # WRONG: pytest collects zero tests from import-only shims of non-test symbols
+   from hephaestus.scripts_lib.check_python_version_consistency import extract_pyproject_versions
+   ```
+   Count `grep "^class Test" | wc -l` in the source test file; verify they all exist in the destination before shimming.
 
 4. **Verify runtime dependencies before adding new imports.**
    For any `import X` inside a new function, confirm `X` appears in `[project.dependencies]` in `pyproject.toml`.
    `packaging` is common in the Python ecosystem but not universal — check before assuming.
 
-5. **Resolve same-name, different-signature collisions explicitly.**
-   When the source and destination modules both have a function with the same name but different signatures (e.g., `content: str` vs `path: Path`), the plan must list every caller and state exactly which signature each caller uses and how the migration path works.
-   "adapt internally" is not specific enough for implementation.
+5. **When two modules share a function name with incompatible signatures, add a new name — do not alias.**
+   If the canonical module has `extract_pyproject_versions(path: Path)` and the source module has
+   `extract_pyproject_versions(content: str)`, a shim alias re-exporting the path version under the
+   string name causes silent behavioral regression: `"".is_file()` returns `False`, so every
+   string-content call returns `{}`.
+
+   Fix pattern:
+   - Keep `extract_pyproject_versions(path: Path)` unchanged for existing callers in the canonical module.
+   - Extract a private helper `_extract_versions_from_text(content: str)` that both implementations delegate to.
+   - Add a new public function `extract_pyproject_versions_str(content: str)` in the canonical module that
+     calls `_extract_versions_from_text`.
+   - In the shim, alias `extract_pyproject_versions_str as extract_pyproject_versions` so the source module's
+     callers get the string-based version without renaming their calls.
+   - Add both names to `__all__` in `validation/__init__.py`.
+
+   ```python
+   # canonical module (validation/python_version.py)
+   def _extract_versions_from_text(content: str) -> dict[str, ...]:
+       """Shared implementation — used by both public entry points."""
+       ...
+
+   def extract_pyproject_versions(path: Path) -> dict[str, ...]:
+       """Existing callers use this; unchanged."""
+       content = path.read_text()
+       return _extract_versions_from_text(content)
+
+   def extract_pyproject_versions_str(content: str) -> dict[str, ...]:
+       """New entry point for callers that already have the file content."""
+       return _extract_versions_from_text(content)
+
+   # shim (scripts_lib/check_python_version_consistency.py)
+   from hephaestus.validation.python_version import (
+       extract_pyproject_versions_str as extract_pyproject_versions,  # preserve caller contract
+       ...
+   )
+   ```
 
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 |---------|----------------|---------------|----------------|
-| Plan written without reading `validation/__init__.py` | Assumed `__all__` either didn't exist or would be auto-updated | `__init__.py` had an explicit `__all__`; new symbols not listed there silently break `from hephaestus.validation import new_function` | Always `Read` every `__init__.py` that re-exports before writing the plan |
-| Plan assumed import-only shim satisfies test coverage | Replaced test file body with `from hephaestus.scripts_lib import ...` | pytest collects zero tests from a file with no `class Test` or `def test_` | Count test classes in the source file; verify they exist in destination before shimming |
-| Plan extended `main()` without tracing early exits | Added new sub-checks at the bottom of `main()` | Existing `if args.json: ... return 0` exits before reaching the new checks | List all `return`/`sys.exit` in `main()` before adding code; ensure all output modes run all checks |
-| Assumed `packaging` is a declared dependency | Used `from packaging.version import Version` in new function | `packaging` is in the ecosystem but may not be in `[project.dependencies]` | `grep packaging pyproject.toml` before adding the import |
-| Named new function same as internal helper | Added `extract_classifiers_python_versions(content: str)` next to existing `_CLASSIFIER_VERSION_RE` regex path | Behavior divergence risk: existing tests may rely on the tomllib path (case-sensitive, exact match) while new function uses regex (potentially case-insensitive) | When two code paths handle the same data, write a test that asserts both paths return identical results before merging |
+| Plan claimed "no signature change needed" | Shim re-exported `extract_pyproject_versions(path)` under the same name as the source module's `extract_pyproject_versions(content)` | `"".is_file()` returns `False`; every string-content caller received `{}` silently | When same-name collision exists, a shim alias at the wrong layer is a silent regression — add a new name instead |
+| Import-only test shim | Replaced test file body with `from hephaestus.scripts_lib import extract_pyproject_versions` | pytest collects zero tests; 400+ lines of test classes do not teleport via non-test symbol imports | Test delegation shims must import test classes: `from tests.unit.validation.test_python_version import TestFoo, TestBar` |
+| Added new sub-checks after `if args.json:` | Placed new `check_*` calls after an existing `if args.json: ...; return 0` block | JSON callers exit before reaching the new checks; CI never sees the new coverage | List all early exits in `main()` first; move check calls above the format-branching block |
+| Did not update `validation/__init__.py __all__` | Added 8+ new functions to `python_version.py` without updating the package's `__init__.py` | `from hephaestus.validation import new_function` raises `AttributeError` even though the function exists | Grep all `__init__.py` files that import from the modified module; add every new symbol to `__all__` |
+| Assumed `packaging` is a declared dependency | Used `from packaging.version import Version` in a new function | `packaging` may not be in `[project.dependencies]`; runtime `ImportError` on CI | `grep packaging pyproject.toml` before adding the import |
 
 ## Results & Parameters
 
@@ -96,23 +142,23 @@ grep -rn "from hephaestus.scripts_lib import\|from hephaestus.validation import"
 
 - [ ] Read `hephaestus/<package>/__init__.py` — does `__all__` exist? New symbols listed?
 - [ ] Traced all `return`/`sys.exit` in target `main()` — do all output modes reach new checks?
-- [ ] Counted test classes in source test file (`grep "^class Test" | wc -l`) — all present in destination?
+- [ ] Counted test classes in source test file (`grep "^class Test" | wc -l`) — shim imports test classes (not symbols)?
 - [ ] Verified `packaging` in `pyproject.toml [project.dependencies]`
-- [ ] Same-name collision resolved: all callers identified, migration path stated explicitly
+- [ ] Same-name collision resolved: path-vs-string identified, `_extract_versions_from_text` helper added, shim aliases new name?
 ```
 
 ### Issue #1189 Specific Findings
 
 | Assumption | Status | Correct Answer |
 |------------|--------|----------------|
-| `validation/__init__.py __all__` doesn't need updating | WRONG | Has explicit `__all__`; 8 new symbols must be added |
-| `scripts_lib` test shim satisfies coverage | WRONG | Shim has zero test classes; ported tests must live in `tests/unit/validation/test_python_version.py` |
-| JSON mode runs all checks | WRONG | `if args.json: ... return 0` exits before new CI sub-checks |
+| `validation/__init__.py __all__` doesn't need updating | WRONG | Has explicit `__all__`; 9 new symbols must be added |
+| `scripts_lib` test shim satisfies coverage | WRONG | Shim must import test classes; zero tests collected from symbol-only imports |
+| JSON mode runs all checks | WRONG | `if args.json: ... return 0` exits before new CI sub-checks; move checks before branch |
 | `packaging` is a declared dependency | UNVERIFIED | Not checked against `pyproject.toml` before plan was written |
-| Same-name function collision is safe | UNVERIFIED | `extract_classifiers_python_versions` name used in both modules with different signatures |
+| Same-name `extract_pyproject_versions` collision is safe to shim | WRONG | `path: Path` vs `content: str` — shim at wrong layer returns `{}` silently; fix = `extract_pyproject_versions_str` + `_extract_versions_from_text` helper |
 
 ## Verified On
 
 | Project | Context | Details |
 |---------|---------|---------|
-| ProjectHephaestus | Planning phase for issue #1189 (python-version-consistency consolidation) | Plan produced 2026-06-13; implementation pending |
+| ProjectHephaestus | Planning phase for issue #1189 (python-version-consistency consolidation) | v1.0.0 plan NOGO'd; v2.0.0 revised plan addresses all 5 failure modes; implementation pending |
