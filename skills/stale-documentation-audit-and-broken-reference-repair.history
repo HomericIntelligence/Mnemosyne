@@ -2,6 +2,36 @@
 
 # stale-documentation-audit-and-broken-reference-repair — History
 
+## v1.1.0 (2026-06-12)
+
+MINOR bump — added a doc-drift **consolidation PLANNING** workflow (new `### 10` subsection),
+6 new Failed Attempts rows, a new "When to Use" bullet, a `consolidation-planning` tag, and a
+ProjectHephaestus #1216 entry in Verified On.
+
+The new §10 content is `unverified` (a planning artifact: the plan was written but not executed
+end-to-end; no CI confirmation), so its subsection is titled "(proposed)" and carries the warning
+line "This workflow has not been validated end-to-end. Treat as a hypothesis until CI confirms."
+The skill-level `verification: verified-ci` is unchanged — it reflects the previously-verified
+audit/repair workflows, not the new planning subsection.
+
+### Snapshot of prior frontmatter (v1.0.0)
+
+```yaml
+name: stale-documentation-audit-and-broken-reference-repair
+category: documentation
+date: 2026-06-07
+version: "1.0.0"
+user-invocable: false
+history: stale-documentation-audit-and-broken-reference-repair.history
+tags: [doc-drift, stale-doc, broken-references, phantom-dir, placeholder, stub, anchor-validation, tier-labels, doc-audit, doc-sync, merged]
+```
+
+Core durable learning added in this bump: when PLANNING a doc-drift consolidation, the issue's
+cited file:line ranges are frequently STALE and the duplicated content appears in MORE places than
+the issue cites — always re-grep directory-wide and verify every line number on disk before
+planning edits. Evidence: ProjectHephaestus #1216 cited `CONTRIBUTING.md:34-45` (actually 53-65)
+and one README block (a second drifted copy existed at README:130-138).
+
 ## v1.0.0 (2026-06-07)
 
 Consolidated 10 documentation skills into one canonical covering stale-doc drift audits and broken-reference repair. Absorbed skills:

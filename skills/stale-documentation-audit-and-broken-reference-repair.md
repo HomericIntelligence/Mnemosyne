@@ -2,11 +2,11 @@
 name: stale-documentation-audit-and-broken-reference-repair
 description: "Use when: (1) running a doc-drift audit across a corpus — detecting stale counts, metric discrepancies, cross-doc contradictions, ecosystem-role drift; (2) removing phantom directory references from documentation when a path no longer exists; (3) fixing broken documentation references (dead links, stale headings); (4) auditing documentation examples for policy violations; (5) auditing and rewriting getting-started stubs by sourcing real commands from justfile and versions from pixi.toml; (6) fixing incorrect tier labels or version numbers in docs that have drifted from implementation; (7) managing the full lifecycle of placeholder and stub documentation — deletion under YAGNI, deferred-comment placeholders, rewriting with accurate codebase-grounded content; (8) resolving audit nitpicks for monolithic code by documenting verified design rationale; (9) resolving CONTRIBUTING.md case-clashes and circular cross-references in docs/; (10) validating anchor fragments in markdown deep-links to detect broken headings."
 category: documentation
-date: 2026-06-07
-version: "1.0.0"
+date: 2026-06-12
+version: "1.1.0"
 user-invocable: false
 history: stale-documentation-audit-and-broken-reference-repair.history
-tags: [doc-drift, stale-doc, broken-references, phantom-dir, placeholder, stub, anchor-validation, tier-labels, doc-audit, doc-sync, merged]
+tags: [doc-drift, stale-doc, broken-references, phantom-dir, placeholder, stub, anchor-validation, tier-labels, doc-audit, doc-sync, consolidation-planning, merged]
 ---
 
 # Stale Documentation Audit and Broken Reference Repair
@@ -34,6 +34,7 @@ tags: [doc-drift, stale-doc, broken-references, phantom-dir, placeholder, stub, 
 - An audit nitpick questions a monolithic file's organization and needs a documented rationale
 - Both `CONTRIBUTING.md` and `docs/contributing.md` exist with a circular cross-reference
 - README/docs deep-link to specific installation headings and you need CI to catch broken anchors
+- **PLANNING** a doc-drift consolidation: two+ onboarding/setup blocks have drifted from a canonical recipe and you must write an implementation plan before touching files
 
 ## Verified Workflow
 
@@ -235,6 +236,62 @@ Scan only fenced shell code blocks (never prose, to avoid matching prohibition t
 `build/`). Anchor command rules to line starts and exclude `#`-commented lines (intentional
 "BLOCKED" demonstrations are not violations). Add a regression test per new pattern.
 
+#### 10. Doc-drift consolidation PLANNING (proposed)
+
+> **Warning:** This workflow has not been validated end-to-end. Treat as a hypothesis until CI confirms.
+
+Use when an issue asks you to *consolidate* two or more drifted onboarding/setup blocks onto a
+single canonical recipe and you must produce an **implementation plan** before editing. The core
+durable lesson: **the issue's cited file:line ranges are frequently STALE and the duplicated
+content frequently appears in MORE places than the issue cites — always re-grep directory-wide
+and verify every line number on disk before planning any edit.**
+
+Proposed planning steps:
+
+1. **Distrust the issue's line numbers.** Do not plan against `file.md:34-45` from the issue body.
+   `grep -n` for the actual heading or recipe and confirm where it really lives.
+
+   ```bash
+   # Issue claimed canonical block at CONTRIBUTING.md:34-45; reality:
+   grep -n "just bootstrap\|^## Development Setup" CONTRIBUTING.md   # → 53-65, NOT 34-45
+   ```
+
+2. **Directory-wide grep, never single-file, to find ALL copies.** The issue usually cites one
+   drifted block; there are often more.
+
+   ```bash
+   grep -rn "pre-commit install\|pixi install" README.md CONTRIBUTING.md docs/
+   # Cited block: README.md:54-61. Grep ALSO found README:130-138
+   # ("Setup Development Environment") with the SAME drift — patching only the
+   # cited block would have left the drift alive.
+   ```
+
+3. **Classify each grep hit by surrounding context** before deciding to edit. Incidental keyword
+   matches are not drift. (e.g. README:50/252/515 matched `pixi install` but were an extras note,
+   a dependency-add example, and a branch-protection example — correctly left untouched.)
+
+4. **Source ground truth for the canonical command from the authoritative file — never invent it.**
+
+   ```bash
+   sed -n '20,24p' justfile   # bootstrap recipe: pixi install / pixi run dev-install / pixi run pre-commit install
+   ```
+
+   The README was "subtly wrong" precisely because it predated `dev-install` and the
+   `pixi run pre-commit` wrapper — read the recipe, do not reconstruct it from memory.
+
+5. **Reduce-to-redirect, do not delete.** Keep the section heading + anchor and replace the command
+   block with a pointer to the canonical recipe. This preserves inbound anchors and reading flow.
+
+6. **Verify the redirect target anchor resolves.** When a redirect points at
+   `CONTRIBUTING.md#development-setup`, add a plan step that confirms the GitHub-rendered slug exists.
+
+   ```bash
+   grep -n "^## Development Setup" CONTRIBUTING.md   # confirms the #development-setup anchor
+   ```
+
+7. **Gate:** docs-only change → markdownlint is the only gate (MD032 blanks-around-lists is the
+   usual offender); no unit tests.
+
 ### Validate, Commit, and PR
 
 ```bash
@@ -267,6 +324,11 @@ gh pr merge --auto --rebase
 | Full pre-commit suite without skipping | Ran all hooks on a host with a GLIBC mismatch | `mojo-format` fails on GLIBC < 2.32 (environment, not code) | Use `SKIP=mojo-format`; only non-Mojo hooks matter for doc-only changes |
 | Deleting `docs/contributing.md` to resolve the case-clash | Removed the file entirely | Breaks inbound links from the docs index | Reduce to a redirect; keep root as canonical |
 | Per-file reviewers for citation corpus | Reviewed each entry individually | Could not see cross-document §-drift or arXiv ID-to-title swaps | Both failure modes need a cross-corpus structural audit, not per-file review |
+| Planning edits against the issue's cited line numbers | Took `CONTRIBUTING.md:34-45` from the issue body as the canonical block | Lines 34-45 were the "Code Contributions" list; the real `just bootstrap` block was at 53-65 | Never trust issue line numbers — grep for the actual heading/recipe and verify on disk before planning (ProjectHephaestus #1216) |
+| Single-file grep to find the drifted copies | Grepped only the README block the issue cited (`README.md:54-61`) | A SECOND onboarding copy at README:130-138 had the same drift; patching only the cited block leaves the drift alive | Directory-wide `grep -rn` across README/CONTRIBUTING/docs to find every copy |
+| Treating every keyword hit as drift to edit | Considered editing all `pixi install` matches | README:50/252/515 matched but were an extras note, a dependency-add example, a branch-protection example — different contexts | Classify each grep hit by surrounding context before deciding to edit |
+| Reconstructing the canonical command from memory | Was about to write the `pixi install`/`pre-commit` steps from recollection | README was subtly wrong because it predated `dev-install` and the `pixi run pre-commit` wrapper | Source the recipe from the `justfile` (`sed -n '20,24p' justfile`), never invent it |
+| Adding a cross-doc redirect without checking the target anchor | Planned to point READMEs at `CONTRIBUTING.md#development-setup` | A redirect to a non-existent anchor silently 404s on GitHub render | Add a plan step `grep -n "^## Development Setup" CONTRIBUTING.md` to confirm the slug resolves |
 
 ## Results & Parameters
 
@@ -331,4 +393,5 @@ pixi run npx markdownlint-cli2 <file>
 | ProjectOdyssey | Issues #3344, #3365; PR #3320; PR #4847 | Workflow README audit, agent-count fix, post-migration README sync |
 | ProjectOdyssey | Issues #3142/#3308, #3304/#3913, #3305/#3917, #3918/#4830, #3141/#3303, #3914/#4828, #3915/#4829 | Stub deletion, installation/quickstart rewrite, IDE-setup extend, getting-started audit, anchor validator |
 | ProjectHephaestus | Issue #792 (PR #984); Issue #630 (PR #667) | Monolith-rationale ADR; CONTRIBUTING case-clash redirect |
+| ProjectHephaestus | Issue #1216 (planning artifact, **unverified**) | Consolidate two drifted README onboarding blocks onto canonical `just bootstrap` — PLANNING only; plan written but not executed end-to-end, no CI confirmation. Source of the §10 doc-drift consolidation planning workflow |
 | mvillmow/Random | Predictive-Coding-in-Mojo Phase 0 | Cross-doc citation drift: 8 stale §-refs, 2 arXiv ID swaps caught |
