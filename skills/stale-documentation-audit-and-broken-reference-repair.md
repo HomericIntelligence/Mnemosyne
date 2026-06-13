@@ -2,9 +2,10 @@
 name: stale-documentation-audit-and-broken-reference-repair
 description: "Use when: (1) running a doc-drift audit across a corpus — detecting stale counts, metric discrepancies, cross-doc contradictions, ecosystem-role drift; (2) removing phantom directory references from documentation when a path no longer exists; (3) fixing broken documentation references (dead links, stale headings); (4) auditing documentation examples for policy violations; (5) auditing and rewriting getting-started stubs by sourcing real commands from justfile and versions from pixi.toml; (6) fixing incorrect tier labels or version numbers in docs that have drifted from implementation; (7) managing the full lifecycle of placeholder and stub documentation — deletion under YAGNI, deferred-comment placeholders, rewriting with accurate codebase-grounded content; (8) resolving audit nitpicks for monolithic code by documenting verified design rationale; (9) resolving CONTRIBUTING.md case-clashes and circular cross-references in docs/; (10) validating anchor fragments in markdown deep-links to detect broken headings."
 category: documentation
-date: 2026-06-07
-version: "1.0.0"
+date: 2026-06-12
+version: "1.1.0"
 user-invocable: false
+verification: unverified
 history: stale-documentation-audit-and-broken-reference-repair.history
 tags: [doc-drift, stale-doc, broken-references, phantom-dir, placeholder, stub, anchor-validation, tier-labels, doc-audit, doc-sync, merged]
 ---
@@ -108,6 +109,40 @@ Add a self-verifying command to the doc so future readers can re-check:
 bullet (`- N agents` → `- M agents`) and the Agent Hierarchy line (`All N agents` → `All M agents`).
 
 Optionally add a drift-detection regression test (see Results & Parameters) and an ADR.
+
+##### Count-annotates-curated-list rule (Added 2026-06-12 from planning; not yet CI-confirmed)
+
+A doc count usually **annotates an adjacent human-curated enumeration** (a tree, a tier table,
+a bullet list). Its contract is "this number = the count of the list beside it," NOT
+"this number = `find … | wc -l`." When an audit flags such a count as stale, **reconcile
+number-to-LIST, not number-to-filesystem.** Bumping the number to the raw `find` count while the
+curated list is unchanged produces an internally-contradictory doc (a number promising N over a
+list of N-1) — strictly worse than the original "staleness" and a POLA-review NOGO.
+
+Three sub-rules:
+
+1. **Before changing a flagged count, locate what it annotates** (the tree/table/list immediately
+   adjacent) and count THAT. If the curated count and the `find` count differ, the gap is usually
+   an intentionally-excluded item (internal tooling, private module) — investigate the gap item's
+   role (read its `__init__` docstring; check whether it is re-exported from the public
+   `__init__`) before deciding.
+2. **Prefer scope-clarifying words over number bumps** when the number is correct for its curated
+   set: `"N documented subpackages"`, `"N SKILL.md skills"`, `"N public modules"`. This resolves
+   the audit's ambiguity complaint without changing a correct number AND without scope-creeping the
+   curated list. Do NOT enroll an internal-only item into a public-facing curated list just to
+   justify a bump — that is scope creep beyond a `[MINOR]` count-clarity fix (violates KISS/YAGNI).
+3. **Verify the PROPERTY, not the string you wrote.** A check like `grep -q "ships 20 subpackages"`
+   passes while the doc self-contradicts. Instead assert *number == enumeration count* and add a
+   negative guard that the wrong value was not introduced (see Results & Parameters for the idiom).
+
+**Concrete case (ProjectHephaestus issue #1212)** — `CLAUDE.md:28` said "(19 subpackages)" above
+a tree enumerating exactly 19 leaf packages; `find hephaestus -maxdepth 1 -type d ! -name
+__pycache__ | wc -l` = 20. The 20th dir, `hephaestus/scripts_lib/`, is internal pre-commit tooling
+(docstring: "Importable library code for repo-meta consistency check scripts"), absent from the
+tree and from `hephaestus/__init__.py` re-exports. A first plan bumped 19→20 "to match find"; a
+reviewer NOGO'd it because the number annotates the 19-entry tree, and the same contradiction sat
+in `COMPATIBILITY.md:42` ("ships 19 subpackages" over Stable(7)+Provisional(12)=19 tier tables, no
+`scripts_lib` row). Correct fix: keep 19 and clarify scope — "19 documented subpackages".
 
 #### 2. Phantom-directory references
 
@@ -267,6 +302,9 @@ gh pr merge --auto --rebase
 | Full pre-commit suite without skipping | Ran all hooks on a host with a GLIBC mismatch | `mojo-format` fails on GLIBC < 2.32 (environment, not code) | Use `SKIP=mojo-format`; only non-Mojo hooks matter for doc-only changes |
 | Deleting `docs/contributing.md` to resolve the case-clash | Removed the file entirely | Breaks inbound links from the docs index | Reduce to a redirect; keep root as canonical |
 | Per-file reviewers for citation corpus | Reviewed each entry individually | Could not see cross-document §-drift or arXiv ID-to-title swaps | Both failure modes need a cross-corpus structural audit, not per-file review |
+| Bumping a flagged count to the raw `find`/`wc` value | Treated "19 subpackages" as stale and changed it to 20 to match the filesystem | The number annotates an adjacent 19-entry curated tree; 20 contradicts the list, and the same orphan appears in a sibling doc's tier tables | A count annotates the list beside it — reconcile number-to-list, not number-to-filesystem |
+| Enrolling the gap item into the curated list to justify the bump | Considered adding a `scripts_lib` row to the tree + a tier-table row | `scripts_lib` is internal pre-commit tooling, not public API — documenting it as public surface is scope creep beyond a [MINOR] count-clarity fix | Investigate the gap item's role; internal-only items stay excluded — clarify the count's SCOPE instead |
+| Verification that greps the string just written | `grep -q "ships 20 subpackages"` as the acceptance check | Passes even though the doc now self-contradicts (number 20 over a 19-row table) | Assert the PROPERTY (number == enumeration count) and add a negative guard against the wrong value |
 
 ## Results & Parameters
 
@@ -313,9 +351,28 @@ pre-commit run --all-files
 pixi run npx markdownlint-cli2 <file>
 ```
 
+### Property-based count verification (Added 2026-06-12 from planning; not yet CI-confirmed)
+
+When a count annotates a curated enumeration, verify the *property* (number == list length), not
+the string you wrote, and add a negative guard against the raw-`find` value:
+
+```bash
+# number annotates a tree → assert the tree count equals the number in prose
+test "$(sed -n '<tree-line-range>p' DOC.md | grep -cE '^│   ├──|^│   └──')" -eq 19 \
+  && grep -q "19 documented subpackages" DOC.md
+# number annotates tier tables → count the table rows, assert equality
+prov=$(sed -n '/### Provisional/,/## Next/p' DOC.md | grep -cE '^\| `pkg\.') ; test "$prov" -eq 12
+# negative guard: the wrong (raw-find) value must NOT appear
+! grep -rn "20 subpackages" DOC.md
+# identify the gap item's role before deciding to exclude it
+cat hephaestus/<gap_dir>/__init__.py   # read docstring; check it's absent from public __init__ re-exports
+```
+
 ### Key parameters
 
 - **Counts**: round + `+` for non-deterministic (`3,000+`); exact (no `+`) for deterministic sums.
+- **Curated-list counts**: reconcile number-to-list, not number-to-filesystem; prefer scope words
+  (`"N documented subpackages"`) over bumping a number that is correct for its adjacent enumeration.
 - **Mojo version in docs**: range from `pixi.toml` (`>=0.26.1,<0.27`), never a nightly string.
 - **HTML comments** pass MD033 (comments aren't elements) — safe for deferred-section placeholders.
 - **Files most likely to hold stale refs**: `docs/index.md`, `docs/README.md`, `docs/glossary.md`,

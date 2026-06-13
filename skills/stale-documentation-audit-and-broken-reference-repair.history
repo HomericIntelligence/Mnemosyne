@@ -2,6 +2,81 @@
 
 # stale-documentation-audit-and-broken-reference-repair — History
 
+## v1.1.0 (2026-06-12)
+
+**Changed by:** issue #1212 plan-reviewer NOGO (count-vs-curated-list)
+**Verification:** unverified (planning-stage refinement; the plan was written and passed
+re-review but the implementation PR is not yet merged/CI-green)
+
+**What changed:** Added the "count-annotates-curated-list" rule as a new subsection under
+Detailed Steps §1 (drift audit), three Failed-Attempts rows, a property-based count-verification
+idiom in Results & Parameters, and a Key-parameters bullet. Bumped version 1.0.0 → 1.1.0 and added
+`verification: unverified` to frontmatter.
+
+**Why:** A doc count usually annotates an adjacent human-curated enumeration (tree / tier table /
+list). Its contract is "this number = the count of the list beside it," NOT
+"this number = `find … | wc -l`." Bumping the number to the raw filesystem count while the curated
+list is unchanged yields an internally-contradictory doc (a number promising N over a list of N-1)
+— worse than the original staleness and a POLA NOGO. Concrete case: ProjectHephaestus #1212,
+`CLAUDE.md:28` "(19 subpackages)" annotates a 19-leaf tree while `find` returns 20 (the 20th dir,
+`hephaestus/scripts_lib/`, is internal pre-commit tooling absent from the tree and from public
+re-exports). A first plan bumped 19→20; the reviewer NOGO'd it. Correct fix: keep 19 and clarify
+scope — "19 documented subpackages" — and verify the property (number == enumeration count) plus a
+negative guard, never grep the string just written.
+
+### Full snapshot of the PREVIOUS version (v1.0.0) content
+
+````markdown
+---
+name: stale-documentation-audit-and-broken-reference-repair
+description: "Use when: (1) running a doc-drift audit across a corpus — detecting stale counts, metric discrepancies, cross-doc contradictions, ecosystem-role drift; (2) removing phantom directory references from documentation when a path no longer exists; (3) fixing broken documentation references (dead links, stale headings); (4) auditing documentation examples for policy violations; (5) auditing and rewriting getting-started stubs by sourcing real commands from justfile and versions from pixi.toml; (6) fixing incorrect tier labels or version numbers in docs that have drifted from implementation; (7) managing the full lifecycle of placeholder and stub documentation — deletion under YAGNI, deferred-comment placeholders, rewriting with accurate codebase-grounded content; (8) resolving audit nitpicks for monolithic code by documenting verified design rationale; (9) resolving CONTRIBUTING.md case-clashes and circular cross-references in docs/; (10) validating anchor fragments in markdown deep-links to detect broken headings."
+category: documentation
+date: 2026-06-07
+version: "1.0.0"
+user-invocable: false
+history: stale-documentation-audit-and-broken-reference-repair.history
+tags: [doc-drift, stale-doc, broken-references, phantom-dir, placeholder, stub, anchor-validation, tier-labels, doc-audit, doc-sync, merged]
+---
+
+# Stale Documentation Audit and Broken Reference Repair
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2026-06-07 |
+| **Objective** | Canonical workflow for auditing stale documentation and repairing broken references: drift audits, phantom-dir/dead-link removal, placeholder lifecycle, getting-started rewrites, tier-label fixes, anchor validation |
+| **Outcome** | Consolidated from 10 skills covering doc-drift audits, broken-reference repair, policy-violation audits, placeholder/stub lifecycle, monolith-rationale docs, CONTRIBUTING case-clash, and anchor validation |
+| **Verification** | verified-ci |
+
+## When to Use
+
+- A "Future Improvements" / "Future Work" section lists a feature that already shipped
+- Docs state a metric (test count, coverage %, file/agent count) that disagrees with the codebase
+- `CLAUDE.md` contradicts `pyproject.toml`/`CONTRIBUTING.md` on thresholds or policy
+- External architecture docs describe a project's ecosystem role inaccurately
+- A directory/file was removed but docs still reference the path (phantom dir / dead link)
+- Documentation examples contain commands that violate repo policy (e.g. `--label`, `--no-verify`)
+- Getting-started stubs contain fabricated APIs, placeholder prose, or malformed code fences
+- Tier labels / version numbers in docs have drifted from the authoritative table
+- Stub files contain only boilerplate and should be deleted, deferred, or rewritten
+- An audit nitpick questions a monolithic file's organization and needs a documented rationale
+- Both `CONTRIBUTING.md` and `docs/contributing.md` exist with a circular cross-reference
+- README/docs deep-link to specific installation headings and you need CI to catch broken anchors
+
+## Verified Workflow
+
+(The full v1.0.0 Verified Workflow — Quick Reference plus the nine Detailed Steps: drift audit,
+phantom-directory references, broken links and anchors, placeholder/stub lifecycle, getting-started
+rewrite, tier-label/version fixes, monolith-rationale, CONTRIBUTING case-clash redirect, and
+policy-violation audit — together with the Failed Attempts table, Results & Parameters section, and
+Verified On table, are preserved verbatim in git history at the commit immediately prior to this
+amendment. The v1.1.0 amendment is purely additive: it inserts the count-annotates-curated-list
+subsection under Detailed Step §1, three new Failed-Attempts rows, the property-based
+count-verification idiom in Results & Parameters, and two frontmatter/key-parameter lines. No
+v1.0.0 content was removed or rewritten.)
+````
+
 ## v1.0.0 (2026-06-07)
 
 Consolidated 10 documentation skills into one canonical covering stale-doc drift audits and broken-reference repair. Absorbed skills:
