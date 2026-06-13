@@ -2,6 +2,24 @@
 
 # stale-documentation-audit-and-broken-reference-repair — History
 
+## v1.1.0 (2026-06-12)
+
+**Changed by:** Session: ProjectHephaestus issue #1211 / PR #1236 (doc-drift fix — removed a dangling `.claude/shared/` phantom-directory pointer from CLAUDE.md:417).
+
+**Verification:** verified-local — the merge-method pitfall is a documented ground-truth policy fact from ProjectHephaestus CLAUDE.md, confirmed this session by using `gh pr merge --auto --squash` instead of the skill's `--rebase`. (The underlying doc fix's `verified-ci` is NOT yet confirmed; PR #1236 is open with CI pending.)
+
+**What changed:**
+
+- Added a Failed Attempts row: copying the recipe's hardcoded `gh pr merge --auto --rebase` verbatim arms an un-mergeable PR on squash-only repos.
+- Made the "Validate, Commit, and PR" merge command method-agnostic: `gh pr merge --auto --<method>   # <method> = squash|rebase|merge per the repo's pr-policy; ProjectHephaestus = squash`.
+- Added a Key-parameters bullet: merge method is per-repo policy — verify against the target repo's CLAUDE.md / branch-protection before copying any `gh pr merge` line.
+- Added a Verified-On row for ProjectHephaestus Issue #1211 (PR #1236).
+- Bumped `version` 1.0.0 → 1.1.0 and `date` to 2026-06-12.
+
+**Why:** The skill's recipe hardcoded `gh pr merge --auto --rebase`, which is wrong for squash-only repos. ProjectHephaestus disables rebase merges and enforces squash-only via its `pr-policy` CI gate (CLAUDE.md: "Auto-merge MUST be enabled (`gh pr merge --auto --squash`) (squash-only; rebase is disabled)"). Following the skill verbatim would arm a PR that can never merge. The merge METHOD is a per-repo policy, not a universal.
+
+**Snapshot reference:** previous v1.0.0 skill body is preserved unchanged in the entries below.
+
 ## v1.0.0 (2026-06-07)
 
 Consolidated 10 documentation skills into one canonical covering stale-doc drift audits and broken-reference repair. Absorbed skills:

@@ -2,8 +2,8 @@
 name: stale-documentation-audit-and-broken-reference-repair
 description: "Use when: (1) running a doc-drift audit across a corpus — detecting stale counts, metric discrepancies, cross-doc contradictions, ecosystem-role drift; (2) removing phantom directory references from documentation when a path no longer exists; (3) fixing broken documentation references (dead links, stale headings); (4) auditing documentation examples for policy violations; (5) auditing and rewriting getting-started stubs by sourcing real commands from justfile and versions from pixi.toml; (6) fixing incorrect tier labels or version numbers in docs that have drifted from implementation; (7) managing the full lifecycle of placeholder and stub documentation — deletion under YAGNI, deferred-comment placeholders, rewriting with accurate codebase-grounded content; (8) resolving audit nitpicks for monolithic code by documenting verified design rationale; (9) resolving CONTRIBUTING.md case-clashes and circular cross-references in docs/; (10) validating anchor fragments in markdown deep-links to detect broken headings."
 category: documentation
-date: 2026-06-07
-version: "1.0.0"
+date: 2026-06-12
+version: "1.1.0"
 user-invocable: false
 history: stale-documentation-audit-and-broken-reference-repair.history
 tags: [doc-drift, stale-doc, broken-references, phantom-dir, placeholder, stub, anchor-validation, tier-labels, doc-audit, doc-sync, merged]
@@ -246,7 +246,7 @@ git commit -m "docs(<scope>): <description>
 Closes #<issue>"
 git push -u origin <branch>
 gh pr create --title "docs(<scope>): <description>" --body "Closes #<issue>"
-gh pr merge --auto --rebase
+gh pr merge --auto --<method>   # <method> = squash|rebase|merge per the repo's pr-policy; ProjectHephaestus = squash
 ```
 
 ## Failed Attempts
@@ -267,6 +267,7 @@ gh pr merge --auto --rebase
 | Full pre-commit suite without skipping | Ran all hooks on a host with a GLIBC mismatch | `mojo-format` fails on GLIBC < 2.32 (environment, not code) | Use `SKIP=mojo-format`; only non-Mojo hooks matter for doc-only changes |
 | Deleting `docs/contributing.md` to resolve the case-clash | Removed the file entirely | Breaks inbound links from the docs index | Reduce to a redirect; keep root as canonical |
 | Per-file reviewers for citation corpus | Reviewed each entry individually | Could not see cross-document §-drift or arXiv ID-to-title swaps | Both failure modes need a cross-corpus structural audit, not per-file review |
+| Copying `gh pr merge --auto --rebase` verbatim from the recipe | Used the skill's hardcoded `--rebase` merge method on ProjectHephaestus | ProjectHephaestus disables rebase merges; its `pr-policy` CI gate requires squash-only (`gh pr merge --auto --squash`). `--rebase` would arm an un-mergeable PR | The merge METHOD (`--squash`/`--rebase`/`--merge`) is per-repo policy, not universal — verify the target repo's CLAUDE.md / branch-protection / pr-policy before copying any `gh pr merge` line |
 
 ## Results & Parameters
 
@@ -321,6 +322,9 @@ pixi run npx markdownlint-cli2 <file>
 - **Files most likely to hold stale refs**: `docs/index.md`, `docs/README.md`, `docs/glossary.md`,
   `references/notes.md`, `docs/analysis-prompt.md`.
 - **Policy-audit exclusions**: `docs/arxiv/`, `tests/claude-code/`, `.pixi/`, `build/`, `node_modules/`.
+- **Merge method is per-repo policy** — verify squash vs rebase vs merge against the target repo's
+  CLAUDE.md / branch-protection before copying any `gh pr merge` line. ProjectHephaestus: `--squash`
+  (rebase disabled).
 
 ## Verified On
 
@@ -331,4 +335,5 @@ pixi run npx markdownlint-cli2 <file>
 | ProjectOdyssey | Issues #3344, #3365; PR #3320; PR #4847 | Workflow README audit, agent-count fix, post-migration README sync |
 | ProjectOdyssey | Issues #3142/#3308, #3304/#3913, #3305/#3917, #3918/#4830, #3141/#3303, #3914/#4828, #3915/#4829 | Stub deletion, installation/quickstart rewrite, IDE-setup extend, getting-started audit, anchor validator |
 | ProjectHephaestus | Issue #792 (PR #984); Issue #630 (PR #667) | Monolith-rationale ADR; CONTRIBUTING case-clash redirect |
+| ProjectHephaestus | Issue #1211 (PR #1236) | Phantom-dir removal (.claude/shared/ in CLAUDE.md); surfaced squash-only merge-method pitfall |
 | mvillmow/Random | Predictive-Coding-in-Mojo Phase 0 | Cross-doc citation drift: 8 stale §-refs, 2 arXiv ID swaps caught |
