@@ -28,10 +28,16 @@ description: >-
   when there are exactly two branches, unifying heterogeneous return types at the
   extraction boundary (e.g. AgentRunResult → subprocess.CompletedProcess), wrapping
   BOTH codex calls in try/except CalledProcessError, and verifying all exception contracts
-  before documenting which exceptions propagate out of the wrapper.
+  before documenting which exceptions propagate out of the wrapper,
+  (15) planning god-function decomposition (functions > 80L that are oversized per project
+  threshold) — arithmetic chain verification per target, docstring budget counting, for-loop
+  body sizing (extract if > 40L), return type tracing when a helper absorbs the only call
+  site to a data-fetching function, N-tuple completeness for orchestrator helpers, explicit
+  parameter audit for captured variables, approach-table completeness (ALL helpers listed),
+  and AST-measure-before-planning discipline to avoid stale line numbers.
 category: architecture
 date: 2026-06-13
-version: "1.7.0"
+version: "1.8.0"
 user-invocable: false
 history: python-module-decomposition-and-refactor-patterns.history
 tags:
@@ -77,9 +83,9 @@ tags:
 | Field | Value |
 | ------- | ------- |
 | **Date** | 2026-06-13 |
-| **Objective** | Decompose oversized Python modules/classes into focused, independently testable units using SRP, TDD, and DRY principles |
-| **Outcome** | Synthesized from 13+ verified skills; covers function-level extraction, class-based extraction, circular import fixes, immutability refactoring, extensibility-driven decomposition, CLI entry-point extraction with preserved patch routing, top-level symbol extraction to break sibling module cycles, CC>15 pipeline-step extraction, scanner-to-subdirectory scoping, context-manager double-counter fixes, safe legacy-code deletion, substrate-read-before-estimate discipline, post-parallel phase cleanup, god-class decomposition planning risks (state ownership, cross-call coupling, constant re-export, delegation stub type loss, coverage omit-allowlist traps), exception-contract verification before documenting wrapper behavior, and three Phase 20 implementation-time traps (exception-boundary removal unmasks StopIteration from exhausted side_effect mocks; returncode-guard obligation at every call site of an absorbed-exception helper; agent mock type determines downstream subprocess.run consumption) |
-| **Trigger** | Files >800 lines, circular import errors, mixed-concern methods, C901/CC>15 complexity, extensibility requirements, CLI main() extraction, deferred imports inside function bodies preventing static analysis, broad scanners needing subdirectory scope, stale callers after context-manager refactors, dead fallback files, pessimistic refactor estimates, technical debt after parallel phases, planning a multi-collaborator god-class decomposition, extracting a two-branch provider-conditional dispatch with heterogeneous return types, documenting exception contracts for wrapper methods |
+| **Objective** | Decompose oversized Python modules/classes/functions into focused, independently testable units using SRP, TDD, and DRY principles |
+| **Outcome** | Synthesized from 14+ verified skills; covers function-level extraction, class-based extraction, circular import fixes, immutability refactoring, extensibility-driven decomposition, CLI entry-point extraction with preserved patch routing, top-level symbol extraction to break sibling module cycles, CC>15 pipeline-step extraction, scanner-to-subdirectory scoping, context-manager double-counter fixes, safe legacy-code deletion, substrate-read-before-estimate discipline, post-parallel phase cleanup, god-class decomposition planning risks (state ownership, cross-call coupling, constant re-export, delegation stub type loss, coverage omit-allowlist traps), exception-contract verification before documenting wrapper behavior, three Phase 20 implementation-time traps (exception-boundary removal unmasks StopIteration from exhausted side_effect mocks; returncode-guard obligation at every call site of an absorbed-exception helper; agent mock type determines downstream subprocess.run consumption), and god-function decomposition planning rules (arithmetic chain verification, docstring budget, for-loop body sizing, return type tracing, N-tuple completeness, captured variable audit, approach table completeness, AST-measure discipline) |
+| **Trigger** | Files >800 lines, circular import errors, mixed-concern methods, C901/CC>15 complexity, extensibility requirements, CLI main() extraction, deferred imports inside function bodies preventing static analysis, broad scanners needing subdirectory scope, stale callers after context-manager refactors, dead fallback files, pessimistic refactor estimates, technical debt after parallel phases, planning a multi-collaborator god-class decomposition, extracting a two-branch provider-conditional dispatch with heterogeneous return types, documenting exception contracts for wrapper methods, planning god-function decomposition (individual functions > 80L) |
 
 ## When to Use
 
@@ -102,6 +108,7 @@ Apply this skill when any of the following is true:
 - You are in the **cleanup phase** after parallel Test/Implementation/Package phases and need to address accumulated technical debt before merge
 - You are **planning a god-class decomposition** (3,000+ lines, 40+ methods, multiple collaborator targets) and need to reason about state ownership migration, cross-call coupling, delegation stub typing, constant re-export risks, and CI omit-allowlist traps before writing any code
 - A function contains a **two-branch if/else over a boolean predicate** (e.g., `is_codex(agent)`) where each branch invokes a different external agent/subprocess API returning heterogeneous types, and you want to extract it into a unified private helper method without introducing a Protocol/Strategy class
+- You are **planning god-function decomposition** — individual functions exceeding the project's line-length threshold (e.g., > 80L) and need arithmetic chain verification, docstring budget accounting, for-loop body sizing, return type tracing for absorbed call sites, N-tuple completeness for orchestrator helpers, captured variable auditing, and approach-table completeness before writing any code
 
 ## Verified Workflow
 
@@ -127,6 +134,7 @@ Decision tree:
   Cleanup after parallel phases         → Finalization checklist (Phase 18)
   Planning god-class decomposition      → Planning risk audit (Phase 19)
   Two-branch bool-predicate dispatch    → Provider-dispatch extraction (Phase 20)
+  Planning god-function decomposition   → Function-size planning rules (Phase 21)
 
 Universal rule for mock patches after any move:
   Patch where the name is LOOKED UP at call time — not where it was defined.
@@ -1220,6 +1228,198 @@ Do not assume extraction made the method simple enough; measure it.
       remove-outer-except-Exception exposes previously-swallowed StopIteration (Trap 1)
 ```
 
+### Phase 21: God-Function Decomposition — Function-Size Planning Rules
+
+Use when decomposing individual functions that exceed the project's line-length threshold (> 80L
+by convention). This phase is the function-level analogue to Phase 19 (god-class), covering the
+eight planning rules that caused reviewer NOGO across the R0→R3 planning cycle for issue #1180
+(7 god-functions across 4 files in `hephaestus/automation/`).
+
+**Warning:** This workflow has not been validated end-to-end. Treat as a hypothesis until CI confirms.
+
+#### Rule 1: Arithmetic chain verification is non-negotiable
+
+Write an explicit arithmetic chain for EVERY target function:
+
+```text
+<helper_name>: <X> lines sig+doc + <Y> lines body = <Z> total
+```
+
+If any target shows > 80L without a helper covering it, the plan is incomplete.
+No marginal waivers ("borderline" or "acceptable overage" are not valid justifications).
+
+**What failed (R0):** Plan waived `_implement_issue` at 128L as "marginal overage" — reviewer gave NOGO.
+**What failed (R1):** Plan claimed `_implement_issue` was reduced but included no extraction step — NOGO.
+
+#### Rule 2: Docstring budget counts toward function span
+
+Before computing post-extraction size, check whether the function has a long docstring:
+
+```bash
+# Find docstring span for a function
+python3 -c "
+import ast, pathlib
+src = pathlib.Path('<file>.py').read_text()
+tree = ast.parse(src)
+for node in ast.walk(tree):
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == '<func>':
+        print(f'Function starts: {node.lineno}, body[0] ends: {node.body[0].end_lineno}')
+"
+```
+
+If the docstring exceeds ~15 lines, either:
+- Subtract the docstring lines from the post-extraction size estimate, OR
+- Plan to trim the docstring explicitly as part of the extraction step.
+
+**Example:** `_address_issue` had a 24-line docstring (lines 477–504). Plans that ignored it
+calculated the post-extraction count wrong.
+
+#### Rule 3: For-loop body sizing — extract if > 40L
+
+When a function contains a for/while loop whose body exceeds ~40L, that loop body is a
+standalone extraction candidate. Do not plan to extract just the outer scaffold.
+
+**Example:** `_run_ci_fix_session` (250L) needed 5 helpers, not 1–2. The CI polling while-loop
+body and the codex/claude dispatch arms were each > 40L.
+
+```text
+Decision rule:
+  loop body > 40L  → extract the body as a standalone helper
+  loop body ≤ 40L  → may inline (but verify with arithmetic chain)
+```
+
+#### Rule 4: Return type tracing when helper absorbs the only call site
+
+Before finalizing a helper's return type, trace every call to every function that will be
+inside the extracted helper:
+
+```bash
+# Find all call sites for a function about to be absorbed
+grep -n "<func_name>" <target_file>.py
+```
+
+If the helper absorbs the ONLY call site to a data-fetching function (e.g. `fetch_issue_info`),
+the CALLER still needs that data. Return it as an extra tuple element — do NOT assume the
+caller can re-fetch it.
+
+**Example:** `_prepare_worktree_for_existing_pr` absorbed the only `fetch_issue_info` call.
+R0/R1 plans returned `tuple[Path, str]` — the caller then had no `issue.title`/`issue.body`
+for the review loop, causing a `NameError`.
+
+#### Rule 5: N-tuple return completeness for complex orchestrators
+
+When extracting a sub-orchestrator that returns multiple values, trace every variable the
+slim parent uses AFTER the helper call. All must be in the return tuple.
+
+**Verification procedure:**
+
+```python
+# Manually list all variables the slim parent reads after the helper call
+# Example: after _process_review_iteration(), what does _run_impl_review_loop() use?
+# → last_verdict, last_grade, review_text, posted_thread_ids,
+#   go_blocked_by_automation, reopened, should_break
+# = 7-tuple; R2 plan had 6 (dropped 'reopened') → NameError in zero-thread continue check
+```
+
+**Rule:** draft the tuple skeleton FIRST, then write the helper signature. Never finalize a
+helper signature until you have enumerated every consumer variable on the call side.
+
+#### Rule 6: Explicit parameter audit for captured variables
+
+When extracting a helper from a long function, the extracted body may reference variables
+from the enclosing scope that are NOT in the proposed parameter list. Audit every name
+reference in the extracted body:
+
+```bash
+# Quick scope audit: list all names in the extracted block that are not local assignments
+python3 -c "
+import ast, textwrap
+src = '''<paste extracted block here>'''
+tree = ast.parse(textwrap.dedent(src))
+names = {n.id for n in ast.walk(tree) if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load)}
+assigned = {n.targets[0].id for n in ast.walk(tree) if isinstance(n, ast.Assign)
+            and isinstance(n.targets[0], ast.Name)}
+print('Possibly-captured:', names - assigned)
+"
+```
+
+Any name that is not a Python builtin and not in the proposed parameter list is a missing parameter.
+
+**Example:** `_build_ci_fix_prompt` used `worktree_path` from the enclosing scope in an f-string.
+When extracted, the variable is not in scope — it must be an explicit parameter.
+
+#### Rule 7: Approach table must list ALL helpers per target
+
+The Approach table row for each target function MUST list ALL helpers that will be extracted
+from it, not just the first or most obvious one.
+
+| Target | Helpers | Post-extraction size |
+|--------|---------|---------------------|
+| `_run_impl_review_loop` | `_process_review_iteration`, `_run_address_step_if_needed` | 52L |
+
+**What failed (R2):** Reviewer found `_process_review_iteration` and `_run_address_step_if_needed`
+missing from the Approach table for `_run_impl_review_loop`.
+
+**Rule:** After drafting the approach table, re-read each function and ask "what else will be extracted?"
+Do not declare a row complete until the arithmetic chain closes at ≤ 80L.
+
+#### Rule 8: AST-measure before planning — never trust issue line numbers
+
+Issue bodies and prior plan drafts regularly state stale line numbers. Always re-measure
+at plan time using AST:
+
+```bash
+python3 -c "
+import ast, pathlib
+src = pathlib.Path('<target>.py').read_text()
+tree = ast.parse(src)
+funcs = []
+for node in ast.walk(tree):
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        end = node.end_lineno or node.lineno
+        funcs.append((end - node.lineno + 1, node.lineno, node.name))
+for size, lineno, name in sorted(funcs, reverse=True)[:20]:
+    print(f'{size:4d} lines  line {lineno:4d}  {name}')
+"
+```
+
+**Example:** Issue #1180 cited `_drive_issue` at line 711 — actual: 731.
+`_run_ci_fix_session` cited at 2590 — actual: 2610. These 20-line drifts caused
+post-extraction arithmetic chains to be wrong.
+
+**Rule:** Run the AST measurement on the actual file at plan time. Record the measured
+line numbers and function sizes explicitly in the plan. Never carry forward issue-cited
+or prior-draft numbers without re-verification.
+
+#### God-Function Planning Checklist (Phase 21)
+
+```markdown
+## God-Function Decomposition Planning Checklist (Phase 21)
+
+### Pre-plan (do before writing the plan)
+- [ ] AST-measure every oversized function: `python3 -c "import ast ..."` (Rule 8)
+- [ ] Record measured line numbers and function sizes — never trust issue-cited numbers
+- [ ] List every function > 80L as a candidate target
+
+### Per target function
+- [ ] Write arithmetic chain: `X lines sig+doc + Y lines body = Z total` (Rule 1)
+- [ ] If Z > 80 without a helper listed: plan is incomplete — add an extraction step
+- [ ] Check docstring length; if > 15L, subtract from budget or plan to trim (Rule 2)
+- [ ] Identify every for/while loop; if body > 40L, add it as a standalone helper (Rule 3)
+
+### Per helper extracted
+- [ ] Trace all functions absorbed by the helper — is any the ONLY call site to a
+      data-fetching function? If yes, return the fetched data in the tuple (Rule 4)
+- [ ] For orchestrator helpers: enumerate ALL variables the slim parent reads after
+      the call; all must be in the return tuple (Rule 5)
+- [ ] Audit every name reference in the extracted body against the parameter list;
+      any captured variable from enclosing scope must be an explicit parameter (Rule 6)
+
+### Approach table review
+- [ ] For each target row, confirm ALL helpers are listed (not just the first one) (Rule 7)
+- [ ] Arithmetic chain closes at ≤ 80L for every target
+```
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -1267,6 +1467,15 @@ Do not assume extraction made the method simple enough; measure it.
 | **Did not add `if result.returncode != 0: return False` after calling `_invoke_agent_session`** | Caller continued executing after the helper returned a non-zero `CompletedProcess` because the absorbed `CalledProcessError` didn't re-raise | No-commit marker was written and execution continued as if the agent session succeeded — incorrect behavior | A helper that absorbs exceptions into returncode transfers the error-check responsibility to the caller; add `if result.returncode != 0: return <error_value>` immediately after every call site (Phase 20, Trap 2) |
 | **Set mock agent to `return_value=MagicMock()` (success) when testing a path that should fail early** | In `test_returns_false_when_head_not_advanced_and_retry_fails`, mock `invoke_claude_with_session` to return normally (no exception) expecting `_retry_no_commit_once` to fail | Agent succeeded, then `_retry_no_commit_once` consumed more `subprocess.run` side_effects than provided, triggering `StopIteration` | Change the agent mock to raise `CalledProcessError` so `_invoke_agent_session` returns non-zero immediately and the retry loop exits without consuming additional `run` calls (Phase 20, Trap 1+2 interaction) |
 | **Assumed `# noqa: C901` could be removed without measuring post-refactor complexity** | Removed the annotation at the same time as the helper extraction, assuming the extraction was sufficient | The extracted method may still exceed the complexity threshold due to remaining try/except, if/else, and early-return branches | Run `ruff check --select C901 <file>.py` after extraction; remove `# noqa: C901` only after confirming "All checks passed!" (Phase 20, Trap 3) |
+| **Waiving a 128L function as "marginal overage" without an extraction step (R0)** | Plan for issue #1180 noted `_implement_issue` at 128L was "a marginal overage" and did not include an extraction step | Reviewer gave NOGO: no waivers on the 80L threshold; 128L is not marginal — it requires an extraction plan | Write an explicit arithmetic chain for every target; if any target shows > 80L without a helper, the plan is incomplete. No marginal waivers. (Phase 21, Rule 1) |
+| **Claiming a target was reduced without listing the extraction step (R1)** | R1 plan stated `_implement_issue` was reduced but listed no new helper and no arithmetic chain | Reviewer gave NOGO: the reduction was claimed but not demonstrated; no helper = no reduction | Arithmetic chain verification is non-negotiable: `X lines sig+doc + Y lines body = Z total` must appear for every target, with the helper explicitly named (Phase 21, Rule 1) |
+| **Ignoring docstring lines when computing post-extraction size** | Plans for `_address_issue` computed post-extraction count without subtracting its 24-line docstring (lines 477–504) | Post-extraction arithmetic chains were wrong; the function appeared to fit when it did not | Before computing post-extraction size, find the docstring span and subtract those lines from the budget, or plan to trim the docstring explicitly (Phase 21, Rule 2) |
+| **Planning 1–2 helpers for a 250L function with a 40L+ loop body (R0/R1)** | `_run_ci_fix_session` (250L) was planned with 1–2 helpers; CI polling while-loop body and codex/claude dispatch arms were not counted as extraction candidates | The loop bodies alone exceeded 40L each; reviewers caught that the plan undercounted required helpers | When a for/while loop body exceeds ~40L, that body is a standalone extraction candidate; plan for it explicitly (Phase 21, Rule 3) |
+| **Helper return type omitted the absorbed fetch call's data (R0/R1)** | `_prepare_worktree_for_existing_pr` was planned with return type `tuple[Path, str]` despite absorbing the only `fetch_issue_info` call | The caller still needed `issue.title` and `issue.body` for the review loop but had no way to get them — would cause `NameError` at runtime | Trace every function absorbed by a helper; if it absorbs the only call to a data-fetching function, return the fetched data as an extra tuple element (Phase 21, Rule 4) |
+| **Orchestrator helper return tuple dropped 'reopened' variable (R2)** | `_process_review_iteration` was specified with a 6-tuple: `(last_verdict, last_grade, review_text, posted_thread_ids, go_blocked_by_automation, should_break)` — `reopened` was omitted | The slim parent's zero-thread continue check used `reopened` — `NameError` at that code path | Enumerate ALL variables the slim parent reads after the helper call; a 7-tuple was needed. Draft the tuple skeleton before writing the helper signature (Phase 21, Rule 5) |
+| **Extracted helper body used `worktree_path` from enclosing scope — not in parameter list** | `_build_ci_fix_prompt` extraction plan did not include `worktree_path` in the parameter list, even though the f-string body referenced it | When extracted, `worktree_path` is not in scope — `NameError` at runtime | Audit every name in the extracted body against the proposed parameter list; any captured variable from the enclosing scope must be added as an explicit parameter (Phase 21, Rule 6) |
+| **Approach table omitted helpers for `_run_impl_review_loop` (R2)** | The Approach table row for `_run_impl_review_loop` listed only one helper; `_process_review_iteration` and `_run_address_step_if_needed` were missing | Reviewer flagged both helpers as absent from the table; arithmetic chain was therefore also missing | After drafting the approach table, re-read each function and confirm ALL helpers are listed; do not declare a row complete until the arithmetic chain closes at ≤ 80L (Phase 21, Rule 7) |
+| **Used issue-cited line numbers without re-measuring (R0–R2)** | Plans carried forward stale line numbers from the issue body: `_drive_issue` at line 711 (actual: 731), `_run_ci_fix_session` at 2590 (actual: 2610) | 20-line drift made post-extraction arithmetic chains wrong; helpers were sized to wrong baselines | Run AST measurement on the actual file at plan time; record measured line numbers explicitly; never trust issue-cited or prior-draft line numbers (Phase 21, Rule 8) |
 
 ## Results & Parameters
 
@@ -1340,3 +1549,4 @@ Revised LOC estimate: ~X (vs TODO "~Y"); justification: ~Z% already in substrate
 | ProjectHephaestus | Issue #1196 — planning refactor of `_retry_no_commit_once` (164 lines, codex/claude branches threaded through) and `_run_ci_fix_session` (two identical 17-line post-agent blocks); plan: extract `_invoke_agent_session` (not Protocol; two-branch bool-predicate; wraps `AgentRunResult` → `CompletedProcess`) + `_push_ci_fix` (duplicate post-agent block); 5 unverified risks: `AgentRunResult.returncode` field existence, `CalledProcessError` absorption loses codex error signal, head-advancement as sole success signal, `# noqa: C901` removal safety, duplicate block character-identity (unverified — plan not yet executed) | New Phase 20: Provider-Conditional Dispatch Extraction (v1.5.0) |
 | ProjectHephaestus | Issue #1196 Phase 20 reviewer NOGO — reviewer verified source: `AgentRunResult` (runtime.py:28–34) has `stdout`/`stderr`/`session_id` fields (NO `returncode`); `run_codex_session` raises `CalledProcessError` at runtime.py:397–403 on non-zero exit; `resume_codex_session` same behavior; POLA violation caught: docstring claimed "never raises CalledProcessError" without verifying wrapped functions; corrected pattern: wrap BOTH codex calls in `try/except CalledProcessError`, use `CompletedProcess(returncode=0)` (synthetic, only reachable without exception), document `TimeoutExpired` as sole propagating exception | Phase 20 correction: exception-contract verification before wrapper docstrings (v1.6.0) |
 | ProjectHephaestus | Issue #1196 Phase 20 implementation — extracted `_invoke_agent_session` + `_push_ci_fix` into `ci_driver.py`; removed `# noqa: C901` from `_run_ci_fix_session`; added 11 new tests (`TestInvokeAgentSession` 8 tests, `TestPushCiFix` 3 tests); 157 tests in `test_ci_driver.py` pass; ruff + mypy clean; three implementation traps discovered: (1) outer `except Exception` was masking `StopIteration` from exhausted mock `side_effect` lists — removal exposed latent miscounting in `test_codex_ci_fix_session_skips_push_when_head_did_not_advance` (needed 3rd `run` side_effect for `clean_status`); (2) caller of `_invoke_agent_session` in `_retry_no_commit_once` lacked `if retry_result.returncode != 0: return False` — no-commit marker was being written incorrectly; (3) mock for `invoke_claude_with_session` in retry test had to be changed from `return_value=...` to `raise CalledProcessError` to avoid consuming excess `run` side_effects; CI gate pending (verified-local) | Phase 20 implementation traps: exception-boundary removal unmasks StopIteration, returncode-guard obligation at call sites, agent-mock type determines downstream `run` consumption (v1.7.0) |
+| ProjectHephaestus | Issue #1180 — planning decomposition of 7 god-functions across 4 files in `hephaestus/automation/` (R0→R3 planning cycle): R0 NOGO (waived 128L `_implement_issue` as "marginal"); R1 NOGO (claimed reduction with no extraction step); R2 NOGO (6-tuple dropped `reopened`, approach table missing two helpers); R3 approved; 8 planning rules identified: (1) arithmetic chain non-negotiable — no waivers; (2) docstring lines count toward function span; (3) for-loop body > 40L is a standalone extraction candidate; (4) helpers absorbing the only call to a data-fetching function must return the fetched data; (5) orchestrator N-tuple must cover ALL post-call variables; (6) every captured variable in an extracted body is a missing parameter; (7) approach table must list ALL helpers per target; (8) AST-measure before planning — never trust issue-cited line numbers (unverified — plan not yet executed) | New Phase 21: God-Function Decomposition Planning Rules (v1.8.0) |
