@@ -2,6 +2,61 @@
 
 # stale-documentation-audit-and-broken-reference-repair — History
 
+## v1.1.0 (2026-06-12)
+
+**Changed by:** ProjectHephaestus #1216 doc-consolidation planning + R0-NOGO/R1-fix review cycle
+**Verification:** unverified (planning artifacts; plans written, not executed end-to-end, no CI confirmation)
+
+MINOR bump from v1.0.0 (the v1.0.0 file on `main` had no planning subsections — the earlier
+session's planning PR was still open when this bump was authored, so BOTH that session's
+consolidation-planning learnings AND this session's command-validity learning are folded into one
+v1.1.0 bump here).
+
+### What changed
+
+- Added §10 "Doc-drift consolidation PLANNING (proposed)" — distrust issue line numbers,
+  directory-wide grep for ALL copies, classify each hit by context, source the canonical command
+  from the `justfile`, reduce-to-redirect, verify the redirect anchor resolves. (unverified)
+- Added §11 "Verify the NEW command actually RUNS before shipping a doc fix (proposed)" — a doc fix
+  that replaces/"improves" a command must verify the replacement runs on THIS repo (not that it
+  looks canonical or appears in a sibling doc); a feature name is not an environment name; an
+  un-sourced command is a STOP signal; reduce-to-redirect can mean dropping a line; includes a
+  command-validity check and a "count-must-not-increase" guard. (unverified)
+- Added 2 "When to Use" bullets (consolidation planning; command-replacement verification).
+- Added 9 Failed Attempts rows (5 consolidation-planning, 4 command-validity).
+- Added 2 ProjectHephaestus #1216 rows to Verified On (consolidation planning; R0-NOGO/R1-fix
+  command-validity), both marked **unverified**.
+- Added `consolidation-planning` and `command-validity` tags; bumped `date` to 2026-06-12.
+
+### Why
+
+ProjectHephaestus #1216 R0 plan got a NOGO because it "upgraded" a working README activation line
+(`pixi shell`, which activates the `default` env) to `pixi shell -e dev`, which ERRORS
+`unknown environment 'dev'` — `dev` is a *feature* composed into `default` (per `pixi.toml
+[environments]`), not an environment. The plan copied `-e dev` from CONTRIBUTING.md because it
+looked canonical, but that sibling line was itself pre-existing drift. The whole mandate of the
+change was to remove "subtly wrong" docs, yet it nearly shipped a NON-RUNNING command — a P7/POLA
+regression. R1 fixed it by DROPPING the activation line (the canonical-doc redirect already covers
+it). Durable lesson: verify the NEW command actually runs before shipping it; verification must
+include a command-validity check (`pixi run -e dev true 2>&1 | grep -q "unknown environment"`) and
+a count-must-not-increase guard, not just grep-for-text.
+
+The skill-level `verification: verified-ci` is unchanged — it reflects the previously-verified
+audit/repair workflows. Both new subsections are explicitly titled "(proposed)" and carry the
+end-to-end warning.
+
+### Previous version (v1.0.0) frontmatter snapshot
+
+```yaml
+name: stale-documentation-audit-and-broken-reference-repair
+category: documentation
+date: 2026-06-07
+version: "1.0.0"
+user-invocable: false
+history: stale-documentation-audit-and-broken-reference-repair.history
+tags: [doc-drift, stale-doc, broken-references, phantom-dir, placeholder, stub, anchor-validation, tier-labels, doc-audit, doc-sync, merged]
+```
+
 ## v1.0.0 (2026-06-07)
 
 Consolidated 10 documentation skills into one canonical covering stale-doc drift audits and broken-reference repair. Absorbed skills:
