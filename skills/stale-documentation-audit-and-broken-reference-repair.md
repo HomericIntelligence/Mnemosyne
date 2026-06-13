@@ -2,11 +2,12 @@
 name: stale-documentation-audit-and-broken-reference-repair
 description: "Use when: (1) running a doc-drift audit across a corpus — detecting stale counts, metric discrepancies, cross-doc contradictions, ecosystem-role drift; (2) removing phantom directory references from documentation when a path no longer exists; (3) fixing broken documentation references (dead links, stale headings); (4) auditing documentation examples for policy violations; (5) auditing and rewriting getting-started stubs by sourcing real commands from justfile and versions from pixi.toml; (6) fixing incorrect tier labels or version numbers in docs that have drifted from implementation; (7) managing the full lifecycle of placeholder and stub documentation — deletion under YAGNI, deferred-comment placeholders, rewriting with accurate codebase-grounded content; (8) resolving audit nitpicks for monolithic code by documenting verified design rationale; (9) resolving CONTRIBUTING.md case-clashes and circular cross-references in docs/; (10) validating anchor fragments in markdown deep-links to detect broken headings."
 category: documentation
-date: 2026-06-07
-version: "1.0.0"
+date: 2026-06-12
+version: "1.1.0"
 user-invocable: false
+verification: verified-local
 history: stale-documentation-audit-and-broken-reference-repair.history
-tags: [doc-drift, stale-doc, broken-references, phantom-dir, placeholder, stub, anchor-validation, tier-labels, doc-audit, doc-sync, merged]
+tags: [doc-drift, stale-doc, broken-references, phantom-dir, placeholder, stub, anchor-validation, tier-labels, doc-audit, doc-sync, count-drift, source-of-truth, merged]
 ---
 
 # Stale Documentation Audit and Broken Reference Repair
@@ -15,7 +16,7 @@ tags: [doc-drift, stale-doc, broken-references, phantom-dir, placeholder, stub, 
 
 | Field | Value |
 | ------- | ------- |
-| **Date** | 2026-06-07 |
+| **Date** | 2026-06-12 |
 | **Objective** | Canonical workflow for auditing stale documentation and repairing broken references: drift audits, phantom-dir/dead-link removal, placeholder lifecycle, getting-started rewrites, tier-label fixes, anchor validation |
 | **Outcome** | Consolidated from 10 skills covering doc-drift audits, broken-reference repair, policy-violation audits, placeholder/stub lifecycle, monolith-rationale docs, CONTRIBUTING case-clash, and anchor validation |
 | **Verification** | verified-ci |
@@ -34,6 +35,7 @@ tags: [doc-drift, stale-doc, broken-references, phantom-dir, placeholder, stub, 
 - An audit nitpick questions a monolithic file's organization and needs a documented rationale
 - Both `CONTRIBUTING.md` and `docs/contributing.md` exist with a circular cross-reference
 - README/docs deep-link to specific installation headings and you need CI to catch broken anchors
+- A doc hardcodes a count (e.g. "13 of 37 declared tools") that disagrees with the authoritative manifest/code (e.g. `pyproject.toml [project.scripts]`) — re-count from the source of truth, never from a second doc
 
 ## Verified Workflow
 
@@ -48,6 +50,13 @@ ls .claude/agents/*.md | wc -l                                              # re
 grep "fail_under" pyproject.toml                                            # real coverage threshold
 grep -r "<old_count>" . --include="*.md" --exclude-dir=.git                 # find ALL stale copies
 gh api orgs/<ORG>/repos --paginate --jq '.[] | "\(.name) -- \(.description)"' | sort  # role truth
+
+# ── COUNT DRIFT vs MANIFEST/CODE (source of truth, never a second doc) ────────
+# Count from the AUTHORITATIVE manifest, not another doc. Example: [project.scripts] entries.
+grep -cE '^\s*[a-z][a-z0-9-]*\s*=\s*"[^"]+:[^"]+"' pyproject.toml         # -> e.g. 47 (heuristic, not a TOML parse)
+# Re-grep the WHOLE corpus for the stale number AS A PHRASE-SCOPED COUNT, never the bare digits:
+grep -rnE 'of 37|37 declared|37 tools|37 scripts' . --include="*.md" --exclude-dir=.git
+# If that phrase-scoped grep returns exactly ONE line -> exact-string Edit (NOT replace_all on bare digits).
 
 # ── BROKEN / PHANTOM REFERENCES ──────────────────────────────────────────────
 grep -rn "<removed-path>" docs/ README.md CONTRIBUTING.md   # find dead refs
@@ -108,6 +117,29 @@ Add a self-verifying command to the doc so future readers can re-check:
 bullet (`- N agents` → `- M agents`) and the Agent Hierarchy line (`All N agents` → `All M agents`).
 
 Optionally add a drift-detection regression test (see Results & Parameters) and an ADR.
+
+##### Count-drift from a single source of truth (verified-local, ProjectHephaestus #1190)
+
+When a doc hardcodes a count that disagrees with the authoritative manifest/code:
+
+1. **Count from the SOURCE OF TRUTH, never a second doc.** For ProjectHephaestus the truth was
+   `pyproject.toml [project.scripts]`, counted with
+   `grep -cE '^\s*[a-z][a-z0-9-]*\s*=\s*"[^"]+:[^"]+"' pyproject.toml` → `47` declared entries
+   (vs. the stale `ROADMAP.md` claim of "13 of 37 declared tools").
+2. **Re-grep the WHOLE corpus for the stale number AS A PHRASE-SCOPED COUNT** — e.g.
+   `of 37|37 declared|37 tools|37 scripts`, not the bare `37` — so you don't false-match unrelated
+   37s. This both scopes the edit AND proves no stale copies survive in `docs/`, `references/`,
+   `README`, `CLAUDE.md`.
+3. **Use exact-string `Edit`, not `replace_all`,** when the phrase-scoped grep returns exactly one
+   line. `replace_all` on a bare number would corrupt unrelated values.
+4. **Use the precise number with NO `+` suffix** for a deterministic enumeration (`47`, not `47+`).
+5. **Skip pytest for a pure one-token doc edit;** a drift-regression test is optional, not required.
+
+**Caveats (carried as risks):** the `grep -cE` is a heuristic, not anchored to the `[project.scripts]`
+TOML table — it can over/under-count if script-like `key = "mod:fn"` lines live in other tables;
+treat a matching second doc (e.g. README/COMPATIBILITY's `47`) as corroboration, not proof, since
+docs can share a common stale-update origin. Verify the NUMERATOR too: the unchanged "13"
+(tested-tools count) was assumed accurate — if it is also stale the fix is incomplete.
 
 #### 2. Phantom-directory references
 
@@ -267,6 +299,10 @@ gh pr merge --auto --rebase
 | Full pre-commit suite without skipping | Ran all hooks on a host with a GLIBC mismatch | `mojo-format` fails on GLIBC < 2.32 (environment, not code) | Use `SKIP=mojo-format`; only non-Mojo hooks matter for doc-only changes |
 | Deleting `docs/contributing.md` to resolve the case-clash | Removed the file entirely | Breaks inbound links from the docs index | Reduce to a redirect; keep root as canonical |
 | Per-file reviewers for citation corpus | Reviewed each entry individually | Could not see cross-document §-drift or arXiv ID-to-title swaps | Both failure modes need a cross-corpus structural audit, not per-file review |
+| Trusting a second doc's count instead of the manifest | Considered taking the count from another doc that already said "47" | Docs can share a common stale-update origin and be jointly wrong | Count from the authoritative manifest/code; treat a matching doc as corroboration only |
+| `grep -cE` for `[project.scripts]` not anchored to the TOML table | Counted script-like `key = "mod:fn"` lines repo-wide | A heuristic regex can over/under-count if other TOML tables hold `key = "mod:fn"` lines | Accept the heuristic only when it matches an independent signal; for certainty parse the TOML table |
+| Fixing only the denominator, assuming the numerator was current | Updated "37"→"47" but left "13" tested-tools count unverified | If "13" is also stale the fix is incomplete | Verify BOTH numerator and denominator against the source of truth, not just the drifted one |
+| `replace_all` on a bare drifted number | Tempted to `replace_all: true` on `37` | Bare-number replace_all corrupts unrelated 37s elsewhere in the corpus | Phrase-scope the grep first; when it returns one line use exact-string Edit, not replace_all |
 
 ## Results & Parameters
 
@@ -331,4 +367,5 @@ pixi run npx markdownlint-cli2 <file>
 | ProjectOdyssey | Issues #3344, #3365; PR #3320; PR #4847 | Workflow README audit, agent-count fix, post-migration README sync |
 | ProjectOdyssey | Issues #3142/#3308, #3304/#3913, #3305/#3917, #3918/#4830, #3141/#3303, #3914/#4828, #3915/#4829 | Stub deletion, installation/quickstart rewrite, IDE-setup extend, getting-started audit, anchor validator |
 | ProjectHephaestus | Issue #792 (PR #984); Issue #630 (PR #667) | Monolith-rationale ADR; CONTRIBUTING case-clash redirect |
+| ProjectHephaestus | Issue #1190 | Count drift: ROADMAP.md "13 of 37 declared tools" → 47 `[project.scripts]` entries; counted from `pyproject.toml`, phrase-scoped corpus re-grep, exact-string Edit (verified-local) |
 | mvillmow/Random | Predictive-Coding-in-Mojo Phase 0 | Cross-doc citation drift: 8 stale §-refs, 2 arXiv ID swaps caught |
