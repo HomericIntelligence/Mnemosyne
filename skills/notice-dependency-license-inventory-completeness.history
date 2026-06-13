@@ -1,0 +1,274 @@
+# notice-dependency-license-inventory-completeness — History
+
+## v1.1.0 (2026-06-12)
+
+**Changed by:** Rebase of PR #2371 onto main (skill/notice-dependency-license-inventory-completeness-r1)
+**Verification:** verified-local (base skill body from main v1.0.0)
+
+### What changed
+- Added `history:` frontmatter field and this history file.
+- Bumped `version` 1.0.0 → 1.1.0. The skill body is main's verified-local v1.0.0 content
+  (executed and verified in ProjectHephaestus issue #1218 / PR #1254), not the planning-stage
+  version from the PR branch.
+- Note: PR #2371's planning-stage v1.1.0 amendments were already superseded by main's
+  verified-local v1.0.0 content, which contains more complete and accurate information.
+
+---
+
+## v1.1.0-pr2371 (2026-06-12) [planning-stage, folded into v1.1.0]
+
+**Changed by:** ProjectHephaestus issue #1218 plan re-iteration (R1) after a plan-review NOGO
+**Verification:** unverified
+
+### What changed
+- Added a "verify the license token against ground truth" requirement: a NOTICE is a legal doc, so the license string must be confirmed against authoritative package metadata (PyPI `info.license` and the bundled LICENSE file), and the entry must lead with the SPDX identifier matching the file's house style — NOT a prose token like "Public domain".
+- Added the concrete resolution: tzdata's verified license is `Apache-2.0` (PyPI `info.license == "Apache-2.0"`; ships `licenses/LICENSE_APACHE`). The public-domain IANA tz data is real but secondary → parenthetical, not the primary token.
+- Replaced the brittle "case-insensitive substring membership" guard with EXACT, PEP 503-normalized name matching modeled on the repo's existing `_find_dep` parser (strip `;` marker, strip version operator, then normalize both dep names and NOTICE tokens and compare as a set).
+- Added 2 Failed Attempts rows (non-SPDX prose token; substring membership) and a Verification-must-prove-the-license-string note.
+
+### Why
+v1.0.0 (verification: unverified) left two minor gaps that a plan reviewer NOGO'd: (1) it asserted a license string into a legal file without a ground-truth verification step, and used the non-SPDX "Public domain" as the leading token; (2) its membership check was substring-based, which the skill itself flagged as brittle. R1 folded both fixes into the actual plan steps and verified the license against PyPI.
+
+### Previous version (v1.0.0) snapshot
+```markdown
+---
+name: notice-dependency-license-inventory-completeness
+description: "When a hand-maintained NOTICE / license-inventory / attribution doc claims to be the COMPLETE list of runtime dependencies, it silently drifts from pyproject.toml's [project].dependencies — platform-conditional deps (e.g. tzdata; platform_system=='Windows') get missed because they only ship to one platform. Use when: (1) auditing or fixing a NOTICE/THIRD-PARTY/SBOM/attribution file for completeness, (2) any doc-vs-pyproject inventory that can drift, (3) planning a fix that should add a guard test diffing the doc against the dependency source of truth, (4) writing a license entry for tzdata or other IANA/public-domain-data packages."
+category: documentation
+date: 2026-06-12
+version: "1.0.0"
+user-invocable: false
+verification: unverified
+tags:
+  - notice
+  - license-inventory
+  - third-party
+  - attribution
+  - sbom
+  - pyproject
+  - platform-conditional-deps
+  - pep-508
+  - pep-503
+  - tzdata
+  - drift-detection
+  - guard-test
+---
+
+# NOTICE / License-Inventory Completeness vs pyproject Dependencies
+
+A hand-maintained NOTICE / license-inventory / attribution document that claims to be the
+*complete* list of runtime dependencies silently drifts from the real source of truth —
+`pyproject.toml [project].dependencies`. The highest-risk drift is **platform-conditional
+dependencies** (PEP 508 environment markers like `; platform_system == 'Windows'`), because
+they only install on one platform and are trivial to overlook in a manual inventory.
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2026-06-12 |
+| **Objective** | Plan a fix for a NOTICE file that omitted a platform-conditional runtime dependency (`tzdata; platform_system == 'Windows'`) while claiming to be a complete inventory, and prevent silent recurrence |
+| **Outcome** | Plan produced: add the missing entry in the file's existing inline-parenthetical style + add a regression guard test diffing `[project].dependencies` against the NOTICE inventory section |
+| **Verification** | unverified — planning learning; the proposed guard-test workflow has not been executed in CI |
+
+## When to Use
+
+- Auditing or fixing a `NOTICE` / `THIRD_PARTY_LICENSES` / `SBOM` / attribution file that
+  asserts it is the COMPLETE runtime-dependency inventory
+- Any documentation-vs-`pyproject.toml` inventory that can silently drift over time
+- Planning a fix that should also add a regression GUARD TEST diffing the doc against the
+  dependency source of truth, so the gap cannot recur
+- Writing a license-attribution entry for `tzdata` or other IANA / public-domain-data
+  packages (the timezone-data wheel, etc.)
+- A dependency is **platform-conditional** (`; platform_system == 'Windows'`,
+  `; python_version < '3.11'`) and may be missing from the manual inventory because it only
+  ships to one platform
+
+## The Core Problem
+
+A NOTICE / license-inventory file that asserts it is a *complete* runtime-dependency
+inventory is, in practice, a doc that drifts from `pyproject.toml [project].dependencies`.
+The highest-risk drift is **platform-conditional dependencies** declared with PEP 508
+environment markers, because they install on only one platform and are easy to miss when a
+human eyeballs the dependency list on their own machine.
+
+**Concrete instance (ProjectHephaestus):**
+
+- `pyproject.toml [project].dependencies` declared `tzdata; platform_system == 'Windows'`
+- `NOTICE` listed only `packaging`, `pyyaml`, and `pydantic` — `tzdata` was absent
+- On Linux/macOS the omission is invisible (`tzdata` never installs there), so a developer
+  reviewing the NOTICE on POSIX would never notice the gap
+
+`tzdata` is the Windows companion to the project's POSIX-only import guards
+(`curses` / `fcntl` / `grp`): it packages the IANA tz database so `zoneinfo.ZoneInfo` can
+resolve timezones on Windows, which CPython does not bundle there (POSIX bundles it).
+
+## Verified Workflow
+
+> **Warning:** This workflow has not been validated end-to-end. Treat as a hypothesis until
+> CI confirms. Verification level: unverified.
+
+### Quick Reference
+
+```bash
+# 1. Enumerate the REAL runtime deps (the source of truth), markers and all.
+python3 - <<'PY'
+import tomllib
+with open("pyproject.toml", "rb") as f:
+    data = tomllib.load(f)
+for spec in data["project"]["dependencies"]:
+    print(spec)   # e.g. "tzdata; platform_system == 'Windows'"
+PY
+
+# 2. Diff against what the NOTICE inventory section actually lists.
+#    Platform-conditional deps (anything after a ';' marker) are the prime suspects.
+grep -nE "platform_system|python_version|sys_platform" pyproject.toml
+
+# 3. Add the missing entry to NOTICE following the file's EXISTING style
+#    (match the inline parenthetical platform/version note already used for other
+#     conditional deps — do NOT invent a new subsection).
+
+# 4. Add/locate a guard test next to an existing pyproject-parsing test
+#    (e.g. the dependency-floor-consistency test) and run it.
+pytest tests/unit -k "notice or license_inventory or dependency" -v
+```
+
+### Fix Pattern
+
+**(a) Add the missing entry in the file's existing conventions.** If other
+conditional deps are noted inline like `tzdata (Windows only)` or
+`backports.zoneinfo (Python < 3.11)`, match that parenthetical style rather than adding a
+new "Platform-conditional dependencies" subsection. POLA: the file's existing format is the
+contract.
+
+**(b) Add a regression GUARD TEST** that parses `[project].dependencies`, strips version
+specifiers and environment markers down to the bare distribution name, normalizes per PEP
+503, and asserts each name appears in the NOTICE's delimited inventory section. Place it
+next to an existing test that already parses `pyproject.toml` (e.g. a
+dependency-floor-consistency test) so it reuses the same runner, repo-root resolution, and
+parsing structure.
+
+```python
+import re
+import tomllib
+from pathlib import Path
+
+
+def _bare_name(spec: str) -> str:
+    """'tzdata; platform_system == "Windows"' -> 'tzdata' (PEP 503 normalized)."""
+    name = re.split(r"[<>=!~;\[ ]", spec.strip(), maxsplit=1)[0]
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def test_notice_lists_every_runtime_dependency():
+    root = Path(__file__).resolve().parents[3]  # verify this depth per repo layout
+    with open(root / "pyproject.toml", "rb") as f:
+        deps = tomllib.load(f)["project"]["dependencies"]
+
+    notice = (root / "NOTICE").read_text()
+    # Scope to the delimited runtime section ONLY (header .. next ==== rule).
+    m = re.search(
+        r"Third-party runtime dependencies\s*\n(.*?)\n=+", notice, re.DOTALL
+    )
+    assert m, "Runtime-dependencies section not found in NOTICE (formatting changed?)"
+    section = m.group(1).lower()
+
+    missing = [
+        _bare_name(d) for d in deps
+        if re.search(rf"\b{re.escape(_bare_name(d))}\b", section) is None
+    ]
+    assert not missing, f"NOTICE is missing runtime deps: {missing}"
+```
+
+### Detailed Steps
+
+1. **Read the doc's claim.** Confirm the file actually asserts completeness; that assertion
+   is what makes the omission a bug rather than a stylistic choice.
+2. **Extract the real source of truth.** Parse `[project].dependencies` with `tomllib`
+   (stdlib ≥ 3.11; `tomli` on 3.10), keeping the full specifier including markers.
+3. **Identify the gap, focusing on markers.** Anything with a `;` marker is the prime
+   suspect. In the concrete case it was `tzdata; platform_system == 'Windows'`.
+4. **Add the entry in the existing style** (see Fix Pattern (a)).
+5. **Verify the license string** against the distributed package metadata before writing the
+   legal line (see the tzdata reference and Risk 3 below) — a NOTICE is a legal document.
+6. **Add the guard test** next to an existing pyproject-parsing test (see Fix Pattern (b)),
+   asserting the section was found (non-empty) BEFORE asserting membership, so a NOTICE
+   format change fails loudly instead of vacuously passing.
+7. **Decide extras scope explicitly** (see Risk 4): the base guard covers
+   `[project].dependencies` only, not `[project.optional-dependencies]`.
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| Trust the manual NOTICE on POSIX | Reviewed the NOTICE inventory on a Linux dev box and judged it complete | Platform-conditional deps (`tzdata; platform_system == 'Windows'`) never install on POSIX, so the omission is invisible there | Diff the NOTICE against `[project].dependencies` programmatically; never eyeball a single-platform inventory |
+| Case-insensitive substring match in the guard | `if name.lower() in notice.lower()` over the whole NOTICE | FALSE-PASS when a dist name is a substring of prose (or another package), and FALSE-FAIL when the NOTICE author abbreviates/case-shifts; import name ≠ distribution name for some packages | Match the bare PEP 508 *distribution* name as a whole word, scoped to the delimited runtime section, normalized per PEP 503 (lowercase, runs of `-_.` → single `-`) |
+| Parse the runtime section by header alone | Assume the block runs from the `Third-party runtime dependencies` header to the next `====` rule, then match membership | If NOTICE formatting changes the delimiter, the parser silently scopes the wrong (possibly empty) region and the membership assertions pass vacuously | `assert` the section was actually found and non-empty BEFORE asserting membership, so a format change fails loudly |
+| Take the tzdata license from memory/issue text | Wrote the attribution line citing "public-domain IANA data + Apache-2.0 packaging" sourced from the issue and prior-learnings block | The license string was not verified against the tzdata PyPI page / its distributed LICENSE; a NOTICE is a legal document and an unverified SPDX/license string is a defect | Confirm the SPDX/license string against the actual distributed package metadata before writing a legal-attribution line |
+| Add a new "Platform-conditional dependencies" subsection | Considered grouping conditional deps under a fresh heading | Diverges from the file's existing inline-parenthetical convention; surprises future maintainers and complicates the guard's section parser | Match the existing inline style (e.g. `tzdata (Windows only)`); the file's format is the contract (POLA) |
+| Guard only `[project].dependencies` and call it "fully guarded" | Wrote a guard over base deps and described the NOTICE as fully protected | The NOTICE also documents `[project.optional-dependencies]` extras in a separate section, which the guard does not cover; "fully guarded" over-claims | Decide extras coverage explicitly; if the guard covers base deps only, say so — don't imply total coverage |
+
+## Results & Parameters
+
+### Fix shape
+
+- **Edit:** add `tzdata` to the NOTICE runtime-dependency inventory in the existing
+  inline-parenthetical style (e.g. `tzdata (Windows only — IANA tz database for zoneinfo)`).
+- **Guard:** a regression test parsing `[project].dependencies`, reducing each spec to its
+  PEP 503-normalized bare distribution name, and asserting membership in the delimited
+  NOTICE runtime section (after asserting the section is non-empty).
+
+### tzdata license reference (verify before quoting)
+
+- `tzdata` packages the **IANA tz database** — the *data* is **public domain**.
+- The Python packaging wrapper is licensed **Apache-2.0**.
+- It exists so `zoneinfo.ZoneInfo` can resolve timezone data on **Windows**, where CPython
+  does not bundle the IANA database (POSIX systems bundle it). Hence the
+  `platform_system == 'Windows'` marker — it is the Windows companion to the project's
+  POSIX-only import guards (`curses` / `fcntl` / `grp`).
+- These license facts were sourced from issue text + prior-learnings, NOT verified against
+  the distributed package metadata. **Confirm before writing the legal line.**
+
+### Risks for the implementer (most-uncertain assumptions)
+
+1. **Guard-test name-matching brittleness.** NOTICE uses human distribution names; import
+   name ≠ distribution name for some packages, and authors may abbreviate/case-shift. A
+   naive case-insensitive substring check FALSE-PASSes (dep name as a substring of prose) or
+   FALSE-FAILs. Mitigation: match the bare PEP 508 distribution name as a whole word, scope
+   to the delimited runtime section only, and normalize per PEP 503.
+2. **Section-delimiter parsing is fragile.** The test assumes the runtime block is bounded by
+   the `Third-party runtime dependencies` header and the next `====` rule. A formatting
+   change silently scopes the wrong region. Mitigation: assert the section was found
+   (non-empty) before asserting membership, so a format change fails loudly, not vacuously.
+3. **License facts unverified.** Public-domain IANA data + Apache-2.0 packaging were taken
+   from the issue text / prior-learnings, NOT confirmed against the tzdata PyPI page or its
+   LICENSE during planning. Mitigation: verify the SPDX/license string against the actual
+   distributed package metadata before writing the legal line.
+4. **Scope-creep / over-claim risk.** The guard covers `[project].dependencies` only
+   (unconditional + conditional runtime). It does NOT cover
+   `[project.optional-dependencies]` extras, which the NOTICE documents in a separate
+   section. Mitigation: decide explicitly whether the guard should also cover extras;
+   covering only base deps must not be described as "fully guarded".
+
+### Parsing notes
+
+- Use `tomllib` (stdlib ≥ Python 3.11; `tomli` on 3.10) to read `[project].dependencies`
+  rather than regex over raw TOML.
+- Reduce each PEP 508 spec to a bare name by splitting on the first of
+  `< > = ! ~ ; [ ` or space, then PEP 503-normalize: lowercase and collapse runs of
+  `-_.` to a single `-`.
+- Verify the test's repo-root depth (`Path(__file__).resolve().parents[N]`) against the
+  actual test location — in a git worktree an off-by-one resolves to `.worktrees/`.
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| ProjectHephaestus | Issue #1218 (planning) | NOTICE omitted `tzdata; platform_system == 'Windows'` while claiming a complete runtime inventory; plan = add entry in existing style + guard test diffing `[project].dependencies` vs NOTICE. Guard-test workflow NOT yet executed in CI (unverified). |
+```
+
+---
+
+## v1.0.0 (2026-06-12)
+
+**Initial version.** (See PR #2366.)

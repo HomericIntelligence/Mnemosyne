@@ -2,7 +2,8 @@
 name: notice-dependency-license-inventory-completeness
 category: documentation
 date: 2026-06-12
-version: "1.0.0"
+version: "1.1.0"
+history: notice-dependency-license-inventory-completeness.history
 user-invocable: false
 verification: verified-local
 tags:
