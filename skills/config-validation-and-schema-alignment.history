@@ -1,5 +1,38 @@
 # config-validation-and-schema-alignment — History
 
+## v1.2.0 (2026-06-12) — Duplicate-key/duplicate-section blindness in section-scoped markdown validators
+
+**Changed by:** ProjectHephaestus issue #1213 / PR #1248
+**Verification:** verified-local
+
+### What changed
+
+Added learning about a doubly-blind validator pattern: a section-scoped markdown parser that
+(a) reads only one named H2 section (stopping at the next H2) and (b) flattens parsed rows
+into a `dict[key, value]` is blind to duplicate keys AND to a second copy of the entire section
+elsewhere in the document. Both blindnesses allow self-contradictory docs to pass a "duplicate
+or conflict detector" silently.
+
+Concrete context: `load_documented_tiers` in `hephaestus/validation/cli_tier_docs.py` collapsed
+`dict[cli] = tier` (last-write-wins). Fixed via collect-then-detect pattern: `(tiers, occurrences)`
+where `occurrences: dict[cli, list[tier]]` plus `find_duplicate_tiers()` distinguishing
+`conflicting-tier` (disagreeing values) from `duplicate-tier` (agreeing values). The section
+parser's structural `break` at the next H2 also hid an entire second copy of the
+`## Console-Script Stability Tiers` section — fixed by deleting the 76-line stale duplicate.
+
+### Why
+
+The real validator (run via `TestRealRepo`-style test) caught a genuine three-way conflict that
+a hand-rolled plan-review dedup check had reported clean. Strengthening a CI-enforced validator
+demands a verify-clean-day-one step that runs the ACTUAL validator against the ACTUAL artifact.
+
+### Snapshot reference
+
+`hephaestus/validation/cli_tier_docs.py` — collect-then-detect + duplicate-section removal;
+full suite 4298 passed; verified-local.
+
+---
+
 ## v1.0.0 (2026-05-18) — Merge of 16 skills
 
 **Changed by:** Skill-merge swarm (Phase C Wave 2, M10 / #1784)
