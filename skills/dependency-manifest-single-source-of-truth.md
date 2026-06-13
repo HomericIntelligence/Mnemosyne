@@ -1,9 +1,9 @@
 ---
 name: dependency-manifest-single-source-of-truth
-description: "Use when: (1) Python dependencies are declared in multiple manifests (pixi.toml, pyproject.toml, requirements*.txt) with divergent version constraints, (2) aligning floor constraints (e.g., >=9.0 vs >=9.0.0) or upper-cap constraints (e.g., <2 vs <3) across manifests for packages with API-incompatible major versions, (3) removing a duplicated version field from pixi.toml [workspace] that pyproject.toml already owns, (4) implementing semantic-version-aware (PEP 440) regression guards that detect manifest drift in CI, (5) ensuring pip-install users and pixi dev-env users see the same tested package versions."
+description: "Use when: (1) Python dependencies are declared in multiple manifests (pixi.toml, pyproject.toml, requirements*.txt) with divergent version constraints, (2) aligning floor constraints (e.g., >=9.0 vs >=9.0.0) or upper-cap constraints (e.g., <2 vs <3) across manifests for packages with API-incompatible major versions, (3) removing a duplicated version field from pixi.toml [workspace] that pyproject.toml already owns, (4) implementing semantic-version-aware (PEP 440) regression guards that detect manifest drift in CI, (5) ensuring pip-install users and pixi dev-env users see the same tested package versions, (6) an unbounded pixi python pin (python = \">=3.10\") resolves the dev/lint env to an untested interpreter (e.g. Python 3.14 free-threaded cp314t) outside the declared/CI support matrix — add an explicit upper bound + a drift guard against the classifier ceiling."
 category: ci-cd
-date: 2026-06-07
-version: "1.0.0"
+date: 2026-06-12
+version: "1.1.0"
 user-invocable: false
 history: dependency-manifest-single-source-of-truth.history
 tags:
@@ -17,6 +17,9 @@ tags:
   - pep-440
   - drift-detection
   - ci-guardrail
+  - python-version-ceiling
+  - free-threaded-cpython
+  - interpreter-support-matrix
 ---
 
 # Dependency Manifest: Single Source of Truth
@@ -28,10 +31,10 @@ Keep Python dependency declarations consistent across `pixi.toml`, `pyproject.to
 
 | Field | Value |
 | ------- | ------- |
-| **Date** | 2026-06-07 |
-| **Objective** | Eliminate dependency declaration drift (floors, upper-caps, duplicated version fields) across multiple manifests and enforce consistency with semantic-version-aware regression guards |
-| **Outcome** | Successful — single source of truth per concern, drift-detection scripts/tests, and PEP 440 comparison that catches `9.0` vs `9.0.0` representation skew |
-| **Verification** | verified-ci |
+| **Date** | 2026-06-12 |
+| **Objective** | Eliminate dependency declaration drift (floors, upper-caps, duplicated version fields, **and the base python interpreter pin**) across multiple manifests and enforce consistency with semantic-version-aware regression guards |
+| **Outcome** | Successful — single source of truth per concern, drift-detection scripts/tests, and PEP 440 comparison that catches `9.0` vs `9.0.0` representation skew. v1.1.0 adds the pixi-python-ceiling worked example (planning-stage, unverified) |
+| **Verification** | verified-ci (v1.0.0 content); the v1.1.0 pixi-python-ceiling additions are planning-stage, unverified |
 
 ## When to Use
 
@@ -46,6 +49,10 @@ Keep Python dependency declarations consistent across `pixi.toml`, `pyproject.to
 - Floors/caps that are semantically equal but differ in string form (`9.0` vs `9.0.0`)
 - `pixi.toml [workspace]` has a `version` field that duplicates `pyproject.toml [project] version`
 - Unbounded `[pypi-dependencies]` entries that need an explicit `<next-major>` upper bound
+- An **unbounded base python pin** (`pixi.toml [dependencies] python = ">=3.10"`) lets the
+  solver resolve dev/lint envs to an **untested interpreter** outside the support matrix
+  (e.g. Python 3.14.4 free-threaded `cp314t`, no-GIL) — cap it one minor above the last
+  tested version and add a drift guard against the classifier ceiling
 - Adding regression tests / CI guardrails to lock in manifest consistency going forward
 
 ## The Core Problem
@@ -255,6 +262,66 @@ pre-commit hook that runs it whenever a manifest changes:
       always_run: true
 ```
 
+#### 8. Cap the base python pin so envs don't resolve to an untested interpreter (planning-stage, unverified)
+
+> **Warning:** This subsection is planning-stage and **unverified** — it captures a plan
+> written for ProjectHephaestus issue #1184 that was **not executed end-to-end** (no
+> `pixi update python`, no CI run). Treat the commands and line numbers as a hypothesis to
+> re-confirm before editing. Everything above (steps 1–7) remains `verified-ci`.
+
+An **unbounded** version constraint on the *base interpreter* is the same trap as an
+unbounded `[pypi-dependencies]` cap (step 6), one level deeper: it governs which Python the
+solver picks for **every** environment. `pixi.toml [dependencies] python = ">=3.10"` lets
+the solver resolve `default`, `lint`, and `dev` envs to whatever the newest conda-forge
+build is — here **Python 3.14.4 free-threaded (`cp314t`, no-GIL)** — even though the
+project's classifiers stop at 3.13 and the CI matrix only tests 3.10–3.13. The locked
+interpreter then sits **outside the declared/CI-tested support matrix**.
+
+Fix: add an explicit upper bound capped **one minor above the last tested version**
+(`<3.14`, NOT `<3.13` — the latter needlessly drops 3.13, the top of the CI matrix):
+
+```toml
+# pixi.toml [dependencies] — base table, inherited by default/lint/dev envs
+python = ">=3.10,<3.14"   # GOOD — keeps 3.13, blocks cp314t resolution
+# python = ">=3.10"       # BAD  — resolves to 3.14.4 free-threaded (cp314t), untested
+# python = ">=3.10,<3.13" # BAD  — needlessly drops 3.13 (still in the CI matrix)
+```
+
+The cap belongs in the **shared `[dependencies]` table**, which all envs inherit — capping
+the single base pin fixes every env header that resolved to the bad interpreter. Verify the
+pin lives only in the base table (no per-env override) before assuming this is sufficient:
+
+```bash
+grep -n python pixi.toml          # confirm python is pinned ONCE, in [dependencies]
+```
+
+`requires-python` (the **distributed-wheel install gate** in `pyproject.toml`) is a
+**different contract** from the locked dev-env interpreter. Tightening the pixi env cap does
+**not** require tightening `requires-python` — treat them as separate decisions.
+
+Lock the invariant with a **drift guard** that extracts the pixi python upper bound and
+compares it to the highest classifier version, normalized via `packaging.version.Version`
+(never raw string comparison — `"3.13" != "3.13.0"`). Reuse an existing consistency checker
+and its existing pre-commit trigger rather than adding a new hook (DRY). In ProjectHephaestus
+the target is `hephaestus/scripts_lib/check_python_version_consistency.py` (the planned
+insert points were near lines 94 / 188 with wiring at 270–275 — **fragile to drift,
+re-confirm before editing**).
+
+After tightening the bound, `pixi lock` reports "already up-to-date" because the locked
+`cp314t` build still satisfies `>=3.10` as *read* — force re-resolution with
+`pixi update python`, then grep the lock to confirm the bad build is gone:
+
+```bash
+pixi update python                                   # force re-resolution (NOT `pixi lock`)
+grep -nE "cp314t|3\.14|free-threaded" pixi.lock      # expect: no matches after the cap
+```
+
+> **Single biggest unverified step:** `pixi update python` was assumed to re-resolve to a
+> 3.13 build, but this was **not executed**. It could instead fail to find a conda-forge 3.13
+> build for the locked platform, or churn the lock for unrelated reasons (this repo is
+> hatch-vcs + self-referential editable-install). Inspect the lock diff; a transitive dep
+> (markupsafe, msgpack, pydantic-core, …) could in principle require 3.14 (low risk, unverified).
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -270,6 +337,11 @@ pre-commit hook that runs it whenever a manifest changes:
 | `parents[4]` for repo root in tests | Computed project root from test file depth | In a git worktree this resolved to `.worktrees/`, not the project root | Verify depth with `Path(...).parents[i]` loop; here `parents[3]` was correct |
 | `from scripts.X import Y` / `sys.path.insert` | Import check scripts as a package | `scripts/` has no `__init__.py`; pytest import machinery conflicts with sys.path hacks | Load with `importlib.util.spec_from_file_location()` for scripts without `__init__.py` |
 | Hand-inspecting manifests | Manual verification of consistency | Error-prone; inconsistencies surface only after release | Regression tests lock consistency in permanently |
+| Cap base python at `<last-tested` (planning-stage) | Set `python = ">=3.10,<3.13"` to block the untested interpreter | Needlessly drops 3.13, the top of the CI matrix | Cap the python pin one minor **above** the last tested version (`<3.14`, not `<3.13`) |
+| `pixi lock` after tightening the python bound (planning-stage) | Expected re-resolution off `cp314t` | Reports "already up-to-date" — the locked `cp314t` build still satisfies `>=3.10` | Use `pixi update python` to force re-resolution, then grep `pixi.lock` for `cp314t`/`3.14` |
+| Raw string compare in the python drift guard (planning-stage) | `assert pixi_ceiling == classifier_ceiling` with `"3.13"` vs `"3.13.0"` | `"3.13" != "3.13.0"`; normalization drift goes undetected | Normalize both sides with `packaging.version.Version` before comparing |
+| Cap only `pixi.toml`, leave classifiers/COMPATIBILITY.md unchanged (planning-stage) | Edit one manifest's python ceiling in isolation | Silent drift: classifiers/COMPATIBILITY.md say something else | Treat the whole matrix (requires-python, classifiers, mypy target, COMPATIBILITY.md, pixi pin) as one source of truth |
+| Conflate `requires-python` with the env python pin (planning-stage) | Tighten `requires-python` when capping the pixi env interpreter | They are different contracts (wheel install gate vs locked dev interpreter); over-tightening the install gate breaks pip users on otherwise-supported Pythons | Cap the pixi env pin; leave `requires-python` as a separate decision |
 
 ## Results & Parameters
 
@@ -356,6 +428,51 @@ pixi run python -c "import altair; print(altair.__version__)"  # verify installe
 - Dependabot auto-appends a colon when `commit-message.prefix` ends in `)` (e.g.,
   `chore(deps)` → `chore(deps): ...`); document this in `.github/dependabot.yml`.
 
+### Base python pin ceiling (planning-stage, unverified — ProjectHephaestus #1184)
+
+```toml
+# pixi.toml [dependencies] — one base pin, inherited by default/lint/dev envs
+python = ">=3.10,<3.14"   # <3.14 = one minor above last-tested 3.13; blocks cp314t
+```
+
+Drift guard (compare pixi ceiling to highest classifier, PEP 440 normalized):
+
+```python
+from packaging.version import Version
+
+# pixi python upper bound, e.g. ">=3.10,<3.14" -> "3.14"
+# highest "Programming Language :: Python :: 3.13" classifier -> "3.13"
+# Invariant: pixi ceiling is exactly one minor above the highest classifier.
+assert Version(pixi_python_ceiling) > Version(highest_classifier)        # never raw str
+assert Version("3.13") != Version("3.13.0") is False  # both normalize equal — use Version
+```
+
+```bash
+pixi update python                                 # force re-resolution off cp314t
+grep -nE "cp314t|3\.14|free-threaded" pixi.lock    # expect no matches after the cap
+grep -n python pixi.toml                           # confirm single base pin, no per-env override
+```
+
+### Risks / Unverified Assumptions (planning learnings, ProjectHephaestus #1184)
+
+The #1184 plan was **written but not executed** (no `pixi update`, no tests, no CI). The
+reviewer/implementer should know these reliances were taken from team-KB or read-only
+inspection, not re-verified:
+
+- **cp314t instability is assumed, not proven for this repo.** The justification "outside the
+  declared/CI-tested matrix" is solid regardless; the stronger claim (3.14 free-threaded
+  causes `ProcessPoolExecutor` hangs here) is team-KB lore, not re-verified on disk. The repo
+  may actually run fine on 3.14t.
+- **`pixi update python` re-resolution is the single biggest unverified step.** It was assumed
+  to yield a 3.13 build; it could instead fail to find a conda-forge 3.13 build for the locked
+  platform.
+- **Line numbers in `check_python_version_consistency.py` (insert ~94/188, wire 270–275) are
+  fragile.** Read once, not re-confirmed; re-check before editing.
+- **Lock churn may not be "only the python re-resolution."** hatch-vcs + self-referential
+  editable install can churn the lock for unrelated reasons — inspect the diff.
+- **Transitive-dep resolvability on 3.13 not verified.** A locked dep (markupsafe, msgpack,
+  pydantic-core, …) could in principle require 3.14 (low risk, unverified).
+
 ## Verified On
 
 | Project | Context | Details |
@@ -366,3 +483,4 @@ pixi run python -c "import altair; print(altair.__version__)"  # verify installe
 | ProjectHephaestus | Issue #748, PR #934 | mypy upper-cap unified to `<2` across pyproject + pixi dev/lint features; regression test added |
 | ProjectHephaestus | Issue #785 | pytest 9.x / pytest-cov 7.x tight floors; PEP 440 semantic-version regression guard |
 | ProjectScylla | Issue #1119, PR #1170 | Added `<next-major>` upper bounds to 11 unbounded `[pypi-dependencies]`; 3209 tests pass |
+| ProjectHephaestus | Issue #1184 (planning-stage, unverified) | Plan to cap base `python = ">=3.10,<3.14"` so dev/lint envs stop resolving to 3.14.4 free-threaded `cp314t`, plus a classifier-ceiling drift guard; **not executed** (no `pixi update`, no CI) |

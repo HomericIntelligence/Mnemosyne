@@ -2,6 +2,55 @@
 
 # History: dependency-manifest-single-source-of-truth
 
+## v1.1.0 (2026-06-12)
+
+**Changed by:** ProjectHephaestus issue #1184 planning session (lockfile resolves dev/lint
+envs to Python 3.14.4 free-threaded `cp314t`, outside the declared/CI support matrix).
+
+**Verification:** The new v1.1.0 content is **unverified** (planning-stage). The plan was
+written but NOT executed — no `pixi update python`, no tests, no CI run. The existing v1.0.0
+content remains `verified-ci`; this amendment does **not** downgrade the skill's overall
+verification, and every new addition is marked inline "(planning-stage, unverified)".
+
+### What changed
+
+- Added a 6th "When to Use" trigger and a "When to Use" bullet for the unbounded **base
+  python pin** case (`pixi.toml [dependencies] python = ">=3.10"` resolving dev/lint envs to
+  an untested interpreter such as `cp314t`).
+- Added Verified Workflow step **#8**: cap the base python pin one minor above the last
+  tested version (`<3.14`, not `<3.13`); cap belongs in the shared `[dependencies]` table;
+  `requires-python` is a separate contract; add a classifier-ceiling drift guard reusing the
+  existing consistency checker; force re-resolution with `pixi update python` then grep the
+  lock for `cp314t`.
+- Added 5 Failed Attempts rows (cap-at-last-tested drops 3.13; `pixi lock` no-ops; raw-string
+  drift-guard comparison; single-manifest edit drift; conflating `requires-python` with the
+  env pin).
+- Added Results & Parameters: base-python-pin ceiling snippet, drift-guard sketch, and a
+  **Risks / Unverified Assumptions** subsection capturing the planning learnings (cp314t
+  instability assumed not proven; `pixi update python` re-resolution is the biggest unverified
+  step; fragile line numbers; lock-churn risk; transitive-dep resolvability unverified).
+- Bumped version 1.0.0 → 1.1.0 (MINOR: new findings + new failed attempts + new worked
+  example); updated `date` to 2026-06-12.
+
+### Why
+
+An unbounded version constraint on the *base interpreter* is the same trap as an unbounded
+`[pypi-dependencies]` cap (already covered by v1.0.0 step 6), one level deeper — it governs
+which Python every pixi env resolves to. The fix (explicit upper bound + PEP-440-normalized
+drift guard) shares the exact same search surface as this skill, so it is an extension, not a
+new skill.
+
+### Previous version (v1.0.0) snapshot
+
+The complete v1.0.0 skill body is preserved immediately below in this history file (the
+v1.0.0 canonical-merge section and its six superseded-skill snapshots) and in git history at
+the parent commit of this amendment. v1.0.0 frontmatter: `version: "1.0.0"`,
+`date: 2026-06-07`, `verification: verified-ci`, no python-ceiling content (steps 1–7 only;
+Failed Attempts ended at the "Hand-inspecting manifests" row; Verified On ended at the
+ProjectScylla #1119 row).
+
+---
+
 ## v1.0.0 (2026-06-07)
 
 Initial canonical merge. Superseded the following 6 skills:
