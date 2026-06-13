@@ -2,12 +2,12 @@
 name: config-validation-and-schema-alignment
 description: "Canonical patterns for config validation and schema alignment: JSON-Schema generation from Pydantic, schema-wiring tests, config-filename and model-id validation, YAML linter false-positives, env-var double-underscore nesting, plugin-cache staleness, pixi container env isolation. Use when: (1) adding a new config validator, (2) wiring schema checks to CI, (3) diagnosing config-loader schema mismatches, (4) plugin/cache reports stale skill metadata, (5) reconciling config-filename conventions across model configs."
 category: tooling
-date: 2026-06-07
-version: "1.1.0"
+date: 2026-06-12
+version: "1.2.0"
 user-invocable: false
 verification: verified-local
 history: config-validation-and-schema-alignment.history
-tags: [merged, config-validation, json-schema, pydantic, config-loader]
+tags: [merged, config-validation, json-schema, pydantic, config-loader, duplicate-detection, section-scoped-parser, last-write-wins]
 ---
 
 # Config Validation and Schema Alignment
@@ -36,6 +36,7 @@ Use this skill when:
 8. Python environment mismatch causes `import yaml` to fail in a validation script
 9. A git operation is blocked by the Safety Net hook and you need the correct fallback
 10. Python version is misaligned across `pyproject.toml`, `pixi.toml`, Dockerfile, and CI matrix
+11. A markdown-table or section validator flattens parsed rows into a `dict[key, value]` and silently loses duplicate keys (last-write-wins), OR a section-scoped parser that stops at the next H2 is structurally blind to a duplicated entire section elsewhere in the document — defeating any duplicate/conflict detector built on top of it
 
 ## Verified Workflow
 
@@ -135,6 +136,53 @@ git -C "$REPO" show origin/main:.claude-plugin/marketplace.json > "$CACHE/.claud
 # Substitute for git reset --hard:
 git checkout origin/main
 git update-ref refs/heads/main refs/remotes/origin/main
+
+# --- Collect-then-detect pattern (duplicate-key/duplicate-section blindness) ---
+# WRONG: flatten into dict at parse time — duplicate rows silently overwrite (last-write-wins)
+tiers: dict[str, str] = {}
+for cli, tier in parsed_rows:
+    tiers[cli] = tier   # second occurrence overwrites first; contradiction lost
+
+# RIGHT: collect all occurrences first, flatten last, detect duplicates on the list
+from collections import defaultdict
+
+def load_documented_tiers(
+    doc: str,
+) -> tuple[dict[str, str], dict[str, list[str]]]:
+    """Parse table; return (flat_tiers, occurrences) preserving every row."""
+    occurrences: dict[str, list[str]] = defaultdict(list)
+    for cli, tier in _parse_table_rows(doc):
+        occurrences[cli].append(tier)
+    tiers = {k: v[-1] for k, v in occurrences.items()}  # flatten last
+    return tiers, dict(occurrences)
+
+def find_duplicate_tiers(
+    occurrences: dict[str, list[str]],
+) -> list[dict]:
+    """Return conflicting-tier findings (distinct values) and duplicate-tier findings (same value)."""
+    findings = []
+    for cli, seen in occurrences.items():
+        if len(seen) > 1:
+            kind = "conflicting-tier" if len(set(seen)) > 1 else "duplicate-tier"
+            findings.append({"type": kind, "cli": cli, "values": seen})
+    return findings
+
+# Keystone regression test — must surface conflicting-tier even when scripts/tiers align:
+# find_violations({"x": "y"}, {"x": "Internal"}, find_duplicate_tiers({"x": ["Stable", "Internal"]}))
+# → should emit conflicting-tier for "x"
+
+# Thread duplicate findings through find_violations via an OPTIONAL param so existing callers
+# are untouched (backward-compatible extension):
+def find_violations(
+    scripts: dict[str, str],
+    tiers: dict[str, str],
+    duplicates: list[dict] | None = None,
+) -> list[dict]:
+    findings = []
+    if duplicates:
+        findings.extend(duplicates)
+    # ... existing membership + valid-value checks ...
+    return findings
 ```
 
 ### Detailed Steps by Sub-domain
@@ -329,6 +377,10 @@ When a `config/` subdirectory is only consumed by test infrastructure and has be
 | `python3 <validator-script>` with PyYAML mismatch | Ran script with system `python3` | `python3` (Homebrew) lacked PyYAML; conda `python` had it | `which -a python python3` first; print `sys.executable` to identify failing interpreter |
 | Exercise `load_defaults()` warning path via public API | Called `load_defaults()` with non-standard path to trigger warning | `load_defaults()` hard-codes `config/defaults.yaml` internally; warning path unreachable without heavy monkeypatching | Test `validate_defaults_filename()` validation function directly for the warning path |
 | N/A (majority of sub-skills) | Direct approach worked | N/A | Solutions were straightforward once existing validator primitives were identified |
+| Flatten parsed rows into `dict[key, value]` | Used `tiers[cli] = tier` so a duplicate row overwrote silently (last-write-wins) | The contradiction is destroyed at parse time; the cross-check downstream can never see it | Preserve all occurrences in `dict[key, list[value]]`; flatten LAST, detect duplicates on the list |
+| Trust a hand-rolled dedup check to declare the live doc clean before strengthening a gate | Plan-review ran a local one-off dedup query and reported no duplicates | It missed a real conflicting triple in the live file that the actual validator caught the moment it ran | Verify-clean-day-one must run the REAL validator against the REAL artifact (a `TestRealRepo`-style test), not an approximation |
+| Add within-section duplicate detection but leave the section parser section-scoped | Detector found duplicate rows inside one section | A second, entire copy of the same H2 section later in the file was never parsed (parser `break`s at the next H2), so the cross-section duplication stayed invisible and the validator still reported OK | Account for duplicated WHOLE sections, not just duplicated rows; the genuine fix may be deleting the stale duplicate section |
+| Re-commit a doc fix whose hunk context didn't match the live file | PR diff was rendered against a stale base and "removed" lines that no longer existed | It did not touch the real remaining duplication; reviewer flagged "diff generated against a stale base" | Re-derive doc edits against the current on-disk file (grep the live file) every turn; the automation loop resets the worktree between turns |
 
 ## Results & Parameters
 
@@ -388,3 +440,4 @@ HEPHAESTUS_A___B                    → a._b                    (triple ___ = ne
 | ProjectHephaestus | Issues #29, #44, #58, #64; PRs #67, #75, #112, #130, #417 | Config env nesting, YAML linter fix, Python CI matrix, Safety Net git reset |
 | ProjectMnemosyne | `/hephaestus:worktree-cleanup` stale after PR #308 | 2026-05-04; cache sync pattern verified |
 | ProjectHermes | Safety Net session — stash drop, worktree remove, rm -rf blocked | Observed live |
+| ProjectHephaestus | issue #1213 / PR #1248 | `hephaestus/validation/cli_tier_docs.py` collect-then-detect + duplicate-section removal; full suite 4298 passed; verified-local |
