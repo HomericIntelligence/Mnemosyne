@@ -11,9 +11,10 @@ description: >-
   inconsistencies.
 category: architecture
 date: 2026-06-13
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: unverified
+history: architecture-god-function-decomposition-planning-risks.history
 tags:
   - python
   - refactoring
@@ -29,6 +30,10 @@ tags:
   - arithmetic-verification
   - control-flow-signals
   - scope-validation
+  - pipeline-stages
+  - loop-body-measurement
+  - docstring-budget
+  - return-type-tracing
 ---
 
 # Architecture: God-Function Decomposition — Planning Risks
@@ -45,6 +50,18 @@ tags:
 These risks surface whenever an engineer or agent plans god-function extractions from
 an issue description that cites line numbers, function sizes, or file paths. The
 issue body may be weeks or months old; the code on disk is authoritative.
+
+---
+
+## When to Use
+
+- Planning an extraction pass on over-long functions (god functions > 80L) in any Python codebase
+- Working from an issue that cites specific line numbers, function sizes, or file locations
+- Before finalizing a decomposition plan that waives work on a function
+- Before stating a line-count target is met in a plan
+- When a plan defines new helpers — audit that every helper has a shown call site
+- When extracting polling loops or helpers with control-flow sentinel return values
+- When adding test stubs — before specifying file paths in a plan
 
 ---
 
@@ -354,7 +371,137 @@ discrepancy in the plan and proceed from disk reality.
 
 ---
 
+## Verified Workflow
+
+> **Warning:** This workflow has not been validated end-to-end. Treat as a hypothesis until CI confirms.
+
+These are proposed pre-planning steps that avoid the documented failure modes.
+
+### Quick Reference
+
+```bash
+# 1. Measure all functions in a file before planning any extractions
+python3 -c "
+import ast
+src = open('hephaestus/automation/TARGET_FILE.py').read()
+tree = ast.parse(src)
+for node in ast.walk(tree):
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        size = node.end_lineno - node.lineno + 1
+        if size > 80:
+            print(f'{node.name}: {node.lineno}–{node.end_lineno} ({size}L)')
+" | sort -t'(' -k2 -rn
+
+# 2. Locate a function by name (never trust issue's file:line citation)
+grep -rn "def TARGET_FUNCTION" hephaestus/automation/
+
+# 3. Verify test file exists before writing stubs
+ls tests/unit/automation/test_TARGET.py 2>/dev/null || echo "FILE DOES NOT EXIST"
+head -60 tests/unit/automation/test_TARGET.py 2>/dev/null
+```
+
+### Detailed Steps
+
+1. Run AST measurement on every target file — do not trust issue-cited line numbers.
+2. For each function: confirm its location on disk (grep by name).
+3. For each function that must reach ≤N lines: write the explicit subtraction chain.
+4. For each new helper: confirm at least one call site in the replacement blocks.
+5. For each extracted poll/retry loop: enumerate all sentinel return states.
+6. For each test stub: verify file existence and dominant fixture pattern.
+7. For each helper passing a sentinel/empty value downstream: read the downstream function.
+
+---
+
+## Results & Parameters
+
+### Line-Count Budget Formula
+
+```text
+<function>: <current>L
+  − <helper_1>: <extracted_lines>L  (pipeline stage 1)
+  − <helper_2>: <extracted_lines>L  (pipeline stage 2)
+  − <docstring_trim>: <trimmed_lines>L  (if applicable)
+  = <remaining>L (target ≤ <cap>L)
+```
+
+### Pipeline Stage Counting Heuristic
+
+For a function with N distinct pipeline stages, the minimum number of helper extractions
+is typically N−1 (leaving one stage in the orchestrator). For functions > 120L:
+
+- Count ALL distinct stages before choosing helpers
+- A for-loop whose body exceeds 40L is itself a god-pattern requiring extraction
+- Measure: `loop_body_lines = (loop_end_line - loop_start_line + 1)`
+- Subtract the docstring from the function's available budget before planning
+
+### Return Type Tracing Pattern
+
+Before specifying a helper's return type, identify every variable the caller uses
+after the helper call. If the helper absorbed the only call to a data-fetching function,
+the caller now needs those fields back via the return tuple.
+
+```text
+Helper absorbs: fetch_issue_info(issue_number)
+Caller needs after: issue.title, issue.body, issue.state
+→ Return type: tuple[Path, str, IssueInfo]  (not just tuple[Path, str])
+```
+
+---
+
 ## Failed Attempts
+
+### R1: Single Helper Insufficient for `_run_implementation_and_review` (130L)
+
+**What was tried**: R1 plan extracted only `_run_advise_and_implement` (37L), leaving 98L.
+Claimed the target (≤80L) was met.
+
+**Why it failed**: 98L > 80L. The function has 2 distinct pipeline stages (implement + review).
+A second extraction `_run_review_loop_and_label` (43L) was needed to reach 58L.
+
+**Lesson**: When a function has 2+ distinct pipeline stages, count them all before choosing
+helpers. One extraction rarely suffices for functions > 120L.
+
+---
+
+### R1: `_run_impl_review_loop` Needed 2 Helpers, Not 1
+
+**What was tried**: R1 extracted only `_run_address_step_if_needed` (22L), leaving 118L
+(target 80L).
+
+**Why it failed**: 118L still over the cap. The for-loop body itself (53L) needed extraction
+as `_process_review_iteration` to reach 68L.
+
+**Lesson**: Measure the loop body separately from its header + finalize block. A for-loop
+whose body exceeds 40L is itself a god-pattern. Use:
+`loop_body_lines = (loop_end - loop_start + 1)`.
+
+---
+
+### R1: `_address_issue` Arithmetic Was Wildly Off
+
+**What was tried**: R1 initially claimed 2 extractions leaving 74L. Actual subtraction gave 136L.
+
+**Why it failed**: The docstring (27L) was not counted in the function's line total.
+A 27L docstring contributes 17% of a 159L function's span. Required 3 extractions + docstring trim.
+
+**Lesson**: Count the docstring as part of the function span. Subtract it from budget or
+plan to trim it before allocating extraction budget.
+
+---
+
+### R1: `_prepare_worktree_for_existing_pr` Return Type Changed Mid-Plan
+
+**What was tried**: Plan initially specified return type `tuple[Path, str]`. Mid-planning,
+discovered `issue.title`/`issue.body` were also needed by the caller for the review loop.
+
+**Why it failed**: The helper absorbed the only call to `fetch_issue_info`. The caller now
+needed those fields back but the return type didn't include them.
+
+**Lesson**: Before specifying a helper's return type, trace every variable the caller uses
+after the call. If the helper consumed the only call to a data-fetching function, the
+return tuple must include those fields.
+
+---
 
 ### R0: Waiving Functions at 128–130L as "Marginal"
 
@@ -453,6 +600,23 @@ Before submitting or approving a god-function decomposition plan:
     [ ] Read the downstream function's first 20 lines
     [ ] Confirm it handles the empty value correctly
     [ ] Cite the verification in the plan (file:line range)
+
+[ ] For functions > 120L:
+    [ ] Enumerate ALL distinct pipeline stages before choosing helpers
+    [ ] A single extraction rarely reaches ≤80L — count stages first
+
+[ ] For each for-loop in a function being decomposed:
+    [ ] Measure the loop body: loop_body_lines = (loop_end - loop_start + 1)
+    [ ] If loop body > 40L: plan extraction of the body as its own helper
+
+[ ] For each function's line total:
+    [ ] Count the docstring as part of the span — subtract it from the budget
+    [ ] If docstring > 20L: consider trimming it as a separate budget-reduction step
+
+[ ] For each new helper's return type:
+    [ ] Trace every variable the caller uses after the helper call
+    [ ] If the helper absorbed the only call to a data-fetching function:
+        the return tuple MUST include those fields (e.g., IssueInfo fields)
 ```
 
 ---
@@ -463,3 +627,4 @@ Before submitting or approving a god-function decomposition plan:
 | --------- | --------- |
 | ProjectHephaestus (R0) | Planning session for issue #1180 — decompose 5 god-functions in `hephaestus/automation/`; `_implement_issue` cited as 354 lines in issue, found as 127 lines on disk; `_run_impl_review_loop` cited at `ci_driver.py:1513`, found at `_review_phase.py:374-503`; `_finalize_address_state` defined in plan but not called in replacement block; test file existence unverified; `_poll_ci_until_concluded` sentinel contract risk identified |
 | ProjectHephaestus (R1) | Second planning iteration for issue #1180 after R0 NOGO review; AST re-measurement confirmed `_implement_issue` is 128L not 354L and `_run_impl_review_loop` is at `_review_phase.py:374`; arithmetic subtraction chain revealed `_run_ci_fix_session` needs 5 helpers (not 3) to reach ≤80L; `_run_address_step_if_needed` sentinel return pattern documented with all 3 control-flow states; R0 waiver-on-"marginal" grounds rejected — 128L = 60% over cap and is in scope |
+| ProjectHephaestus | Issue #1180 R2 plan (2026-06-13) | 3rd TASK/PLAN/REVIEW cycle; all 7 target functions scoped to ≤80L |

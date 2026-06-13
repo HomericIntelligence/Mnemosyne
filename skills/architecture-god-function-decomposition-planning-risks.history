@@ -1,0 +1,96 @@
+# architecture-god-function-decomposition-planning-risks — History
+
+## v1.2.0 (2026-06-13)
+
+**Changed by:** Issue #1180 R2 plan — third TASK/PLAN/REVIEW cycle
+**Verification:** unverified
+
+### What changed
+- Bumped version 1.1.0 → 1.2.0
+- Added `## When to Use` section (was missing, causing validation failure)
+- Added `## Verified Workflow` section with Quick Reference and Detailed Steps (proposed, not verified-ci)
+- Added `## Results & Parameters` section with line-count budget formula, pipeline stage heuristic, and return type tracing pattern
+- Added 4 new Failed Attempts entries from R1 plan review:
+  - R1: Single helper insufficient for `_run_implementation_and_review` (130L)
+  - R1: `_run_impl_review_loop` needed 2 helpers, not 1
+  - R1: `_address_issue` arithmetic was wildly off (docstring not counted)
+  - R1: `_prepare_worktree_for_existing_pr` return type changed mid-plan
+- Added 4 new Planning Checklist items:
+  - For functions > 120L: enumerate ALL distinct pipeline stages
+  - For each for-loop: measure body lines independently (> 40L → own helper)
+  - For each function: count the docstring in the line span
+  - For each new helper's return type: trace all variables caller uses after the call
+- Added v1.2.0 Verified On row: Issue #1180 R2 plan (all 7 functions scoped to ≤80L)
+- Added `history` frontmatter field (first amendment with history tracking)
+- Added new tags: pipeline-stages, loop-body-measurement, docstring-budget, return-type-tracing
+- Fixed validation failure: v1.1.0 was missing 3 required sections (When to Use, Verified Workflow, Results & Parameters)
+
+### Why
+R1 plan review (second NOGO cycle) exposed four new failure modes:
+1. Multi-stage functions > 120L require counting ALL pipeline stages — one extraction rarely reaches ≤80L.
+2. For-loop bodies > 40L are their own god-pattern and warrant separate extraction; the loop body must be measured independently.
+3. Docstrings count against the function's line budget; a 27L docstring in a 159L function is 17% of the span.
+4. A helper's return type must be determined by tracing what the caller needs after the call — if the helper absorbed the only data-fetching call, the return tuple must include those fields.
+
+### Previous version (v1.1.0) snapshot
+
+```
+---
+name: architecture-god-function-decomposition-planning-risks
+description: >-
+  Use when: planning an extraction pass on over-long functions (god functions)
+  in hephaestus/automation/ or similar large Python codebases, especially when
+  working from an issue that cites specific line numbers, function sizes, or
+  file locations — before finalizing an extraction plan that waives work on a
+  function, verify on disk that the cited size matches reality; apply the
+  sentinel return pattern for extracted poll loops; verify test file existence
+  before writing stubs; and audit plan documents for helper-defined-but-never-called
+  inconsistencies.
+category: architecture
+date: 2026-06-13
+version: "1.1.0"
+user-invocable: false
+verification: unverified
+tags:
+  - python
+  - refactoring
+  - god-function
+  - planning
+  - extraction
+  - risk-management
+  - line-number-validation
+  - poll-loop
+  - sentinel-pattern
+  - test-stubs
+  - planning-risks
+  - arithmetic-verification
+  - control-flow-signals
+  - scope-validation
+---
+```
+
+Note: v1.1.0 was missing required sections (When to Use, Verified Workflow, Results & Parameters)
+and therefore failed `validate_plugins.py`. The v1.2.0 amendment fixes these omissions while
+adding the new R2 learnings.
+
+---
+
+## v1.1.0 (2026-06-13)
+
+**Initial amendment version.** Added R1 planning-iteration learnings:
+- Risk 7 (Arithmetic Verification)
+- Risk 8 (Control-Flow Sentinel Return Values — all signal states)
+- Risk 9 (Scope Against Actual Disk State)
+- R1 Verified On row
+
+---
+
+## v1.0.0 (2026-06-13)
+
+**Initial version.** Documented 6 planning-phase failure modes from Issue #1180 R0 plan:
+- Risk 1: Stale issue-cited line numbers
+- Risk 2: Refactored file/line reference
+- Risk 3: Helper defined but never called
+- Risk 4: Sentinel return pattern for poll loops
+- Risk 5: Test file existence verification
+- Risk 6: Empty-replies-dict edge case
