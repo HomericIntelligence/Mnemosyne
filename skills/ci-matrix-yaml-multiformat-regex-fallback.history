@@ -1,0 +1,45 @@
+# ci-matrix-yaml-multiformat-regex-fallback — History
+
+## v1.1.0 (2026-06-13)
+
+**Changed by:** R1 plan review — issue #1284 (ProjectHephaestus)
+**Verification:** unverified
+
+### What changed
+- Corrected `_CI_MATRIX_SEQUENCE_RE`: `(?:\n|$)` → `(?=\n|$)` lookahead to fix dropped final element when no trailing newline
+- Dropped `re.MULTILINE` flag (irrelevant; pattern uses literal `\n`)
+- Added `(?=\n|$)` explanation and no-trailing-newline test fixture to Quick Reference
+- Added 3 new Failed Attempts rows: consuming alternation, re.MULTILINE, false export claim
+- Verified and corrected two false assumptions from v1.0.0: function is NOT in `validation/__init__.py __all__`; `_CI_MATRIX_PYTHON_RE` does NOT exist
+- Added history frontmatter field
+- Renamed section "Verified Workflow" → "Proposed Workflow" (consistent with unverified status)
+
+### Why
+R1 plan review caught two major issues: (1) broken `(?:\n|$)` end-anchor drops the final sequence element without trailing newline — the `$` branch is a dead consuming alternation; (2) the plan falsely claimed the function was public API exported at `validation/__init__.py:105`. Both were confirmed by code inspection.
+
+### Previous version (v1.0.0) snapshot
+
+```markdown
+---
+name: ci-matrix-yaml-multiformat-regex-fallback
+description: "Regex fallback pattern for parsing CI matrix Python version lists..."
+category: ci-cd
+date: 2026-06-13
+version: "1.0.0"
+user-invocable: false
+verification: unverified
+tags: [yaml, regex, python-version, ci-matrix, github-actions, multiformat]
+---
+
+[Full v1.0.0 content merged as PR #2464 on 2026-06-13]
+Key defects in v1.0.0:
+- _CI_MATRIX_SEQUENCE_RE used `(?:\s+-\s+["\']?\d+\.\d+["\']?\s*\n)+` with re.MULTILINE — drops last element without trailing \n
+- Step 5 said "Verify public API export — check validation/__init__.py around line 105" — function is not exported there at all
+- _CI_MATRIX_PYTHON_RE phantom constant referenced in Detailed Steps
+```
+
+---
+
+## v1.0.0 (2026-06-13)
+
+**Initial version.** PR #2464.
