@@ -3,10 +3,11 @@ name: pytest-nested-marker-walk-up-contract
 description: "Documents planning patterns for nested-marker test coverage of walk-up path resolvers. Use when: (1) writing tests for functions that walk directory trees looking for marker files (e.g., .git, pyproject.toml), (2) pinning first-match-up (innermost-wins) contracts against regressions, (3) testing nested-repo scenarios where a seed path may sit inside a sub-repo nested under a parent repo."
 category: testing
 date: 2026-06-13
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags: ["pytest", "walk-up", "get_repo_root", "nested-marker", "tmp_path", "first-match"]
+history: pytest-nested-marker-walk-up-contract.history
 ---
 
 # pytest-nested-marker-walk-up-contract
@@ -19,7 +20,7 @@ tags: ["pytest", "walk-up", "get_repo_root", "nested-marker", "tmp_path", "first
 | **Objective** | Pin the walk-up resolver's first-match-up (innermost-wins) contract with nested-marker test layouts to prevent regressions when a seed path sits inside a sub-repo nested under a parent repo |
 | **Outcome** | Planning complete — four test cases designed; not yet executed |
 | **Verification** | unverified (plan only, tests not run, CI not observed) |
-| **History** | N/A (initial version) |
+| **History** | See `pytest-nested-marker-walk-up-contract.history` |
 
 ## When to Use
 
@@ -44,7 +45,7 @@ def test_nested_git_over_git(tmp_path):
     (inner / ".git").mkdir(parents=True)
     seed = inner / "src"
     seed.mkdir(parents=True)
-    assert get_repo_root(seed) == inner
+    assert get_repo_root(seed) == inner.resolve()
 ```
 
 ### Detailed Steps
@@ -55,16 +56,16 @@ def test_nested_git_over_git(tmp_path):
 
    | Test Method | Outer Marker | Inner Marker | Seed Location | Expected Result |
    |-------------|--------------|--------------|---------------|-----------------|
-   | `test_nested_git_over_git` | `.git` dir | `.git` dir | `inner/src/` | `inner/` |
-   | `test_nested_pyproject_over_pyproject` | `pyproject.toml` file | `pyproject.toml` file | `inner/src/` | `inner/` |
-   | `test_nested_git_over_pyproject` | `.git` dir | `pyproject.toml` file | `inner/src/` | `inner/` |
-   | `test_nested_pyproject_over_git` | `pyproject.toml` file | `.git` dir | `inner/src/` | `inner/` |
+   | `test_nested_git_over_git` | `.git` dir | `.git` dir | `inner/src/` | `inner.resolve()` |
+   | `test_nested_pyproject_over_pyproject` | `pyproject.toml` file | `pyproject.toml` file | `inner/src/` | `inner.resolve()` |
+   | `test_nested_git_over_pyproject` | `.git` dir | `pyproject.toml` file | `inner/src/` | `inner.resolve()` |
+   | `test_nested_pyproject_over_git` | `pyproject.toml` file | `.git` dir | `inner/src/` | `inner.resolve()` |
 
 3. **Build layouts inline with `tmp_path`** — do not extract to a shared fixture. Each test constructs its own `outer/.git` (or `outer/pyproject.toml`) and `outer/inner/.git` (or `outer/inner/pyproject.toml`) from scratch. This keeps tests self-contained and avoids fixture coupling.
 
 4. **Place the seed one level below the inner marker** (`inner/src`) — this confirms the walk terminates at `inner/`, not `outer/`, and that the resolver doesn't over-walk past the first match.
 
-5. **Assert `get_repo_root(seed) == inner`** (not `outer`) for all four cases.
+5. **Assert `get_repo_root(seed) == inner.resolve()`** (not `outer`) for all four cases.
 
 6. **Run tests locally** before pushing:
    ```bash
@@ -83,6 +84,7 @@ def test_nested_git_over_git(tmp_path):
 | Shared fixture for layout construction | Extract `outer`/`inner` directory setup into a `@pytest.fixture` | Fixtures complicate the test by introducing indirection and coupling multiple tests to one setup shape; different marker combos need different structures | Build layouts inline in each test method; `tmp_path` is already a pytest fixture, no extra layer needed |
 | Single "representative" test | Cover only `git+git` nesting and skip pyproject combos | Misses cross-marker interaction bugs where the resolver treats `.git` and `pyproject.toml` with different priority logic | All four cross-combinations are required for full contract coverage |
 | Seed placed at `inner/` directly | Pass `inner/` (the marker directory) as the seed | If the walk starts at a directory that IS the marker level, it may trivially return `inner/` without exercising the walk-termination logic | Place seed one level below inner marker (`inner/src`) to force the walk to actually traverse upward |
+| Assert `get_repo_root(seed) == inner` (unresolved path) | Compare the resolver's return directly against an unresolved `tmp_path` subpath (e.g., `assert get_repo_root(seed) == inner`) | `get_repo_root()` calls `Path(start_path).resolve()` at helpers.py:117, so the return is always a resolved path. On CI environments where `$TMPDIR` is a symlink, `inner != inner.resolve()` and the assertion fails spuriously | Always assert `== inner.resolve()` — match the resolver's own `.resolve()` call to be CI-stable |
 
 ## Results & Parameters
 

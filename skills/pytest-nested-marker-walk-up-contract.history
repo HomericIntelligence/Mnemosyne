@@ -1,0 +1,23 @@
+## v1.0.0 — 2026-06-13
+
+Initial version. Documents planning patterns for nested-marker test coverage of
+`get_repo_root()`. Covers four cross-combination test cases (git+git,
+pyproject+pyproject, git+pyproject, pyproject+git) with inline `tmp_path`
+layout construction. Three failed attempts documented: shared fixture,
+single-representative test, and seed placed at the marker level. Verification
+status: unverified (plan only, tests not run).
+
+---
+
+## v1.1.0 — 2026-06-13
+
+Added a fourth **Failed Attempt** identified during a plan review (NOGO R0→R1
+cycle): asserting `get_repo_root(seed) == inner` against an unresolved
+`tmp_path` subpath. The fix is to always use `== inner.resolve()` because
+`get_repo_root()` calls `Path(start_path).resolve()` at helpers.py:117, making
+its return value always a resolved path. On CI environments where `$TMPDIR` is
+a symlink, `inner != inner.resolve()` causes spurious assertion failures.
+
+All four test-body assertions in the Proposed Workflow updated from
+`== inner` to `== inner.resolve()`. `history` frontmatter field added pointing
+to this file.
