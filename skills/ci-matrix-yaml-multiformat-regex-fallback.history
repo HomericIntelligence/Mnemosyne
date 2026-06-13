@@ -1,5 +1,26 @@
 # ci-matrix-yaml-multiformat-regex-fallback — History
 
+## v1.2.0 (2026-06-13)
+
+**Changed by:** Implementation complete — issue #1284, PR #1308 (ProjectHephaestus)
+**Verification:** verified-local
+
+### What changed
+- Updated `verification` from `unverified` → `verified-local`
+- Updated `version` from `1.1.0` → `1.2.0`
+- Updated Overview table: outcome now reflects completed implementation (all 56 tests pass)
+- Replaced "Warning: not validated end-to-end" banner with confirmed-correct status note
+- Added "Implementation Outcome" subsection documenting the 7 new unit tests and 1 integration test
+- Added Ruff E402 trap: module-level constants must follow ALL imports, not just `import re`
+- Updated Reference section to include PR #1308
+
+### Why
+Implementation shipped in PR #1308. All 56 tests pass locally. Promoting to `verified-local`
+so future implementers can trust the pattern rather than treating it as a hypothesis.
+The E402 trap is a new failure mode discovered during implementation that was not in v1.1.0.
+
+---
+
 ## v1.1.0 (2026-06-13)
 
 **Changed by:** R1 plan review — issue #1284 (ProjectHephaestus)
