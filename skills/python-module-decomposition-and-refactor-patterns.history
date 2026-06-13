@@ -1,6 +1,47 @@
 <!-- markdownlint-disable MD024 -->
 # python-module-decomposition-and-refactor-patterns — History
 
+## v1.4.0 (2026-06-12)
+
+**Changed by:** ProjectHephaestus #1178 first-slice scoping session (planning only)
+**Verification:** unverified (planning learning — plan produced, NO code extracted, NO tests
+run, NO CI; the verified phases 1–18 are unchanged and retain their prior verification levels)
+
+### What changed
+
+Added **Phase 19: Scope the FIRST Slice of a 3000+ Line God Class (Planning — UNVERIFIED)** to
+the workflow, with a prominent warning banner. New content:
+
+- Description trigger (13); 4 new tags (`first-slice-scoping`, `god-class`, `thin-delegation`,
+  `planning`); Overview date → 2026-06-12, outcome/trigger note the unverified Phase 19.
+- A "When to Use" bullet for 3000+ line God Classes with an explicit unverified caveat.
+- A Quick Reference decision-tree line for the first-slice case (marked UNVERIFIED).
+- 5 new Failed Attempts rows (pick-by-size, unverified omit-allowlist assertion, snapshot line
+  numbers, paraphrased lifted bodies, module-level-patch-follows-moved-symbol).
+- A Verified On row for #1178 marked UNVERIFIED (planning only).
+
+### Why
+
+Durable planning learnings about scoping the lowest-risk FIRST slice when decomposing a huge
+single-class file (ci_driver.py, 3363 lines, one CIDriver, 51 methods, 5 `# noqa: C901`):
+(1) pick by cohesion + minimal coupling (single shared `self.` attr), not by size or the
+scariest method; (2) deliberately DEFER the C901 carriers; (3) retain thin delegation wrappers
+so tests stay untouched (precedent: implementer_state.py #597); (4) one slice per PR under an
+umbrella issue. The most fragile claim (coverage-omit allowlist / "12 automation modules" count)
+and snapshot line numbers are captured as cautions: verify by running, not by reading.
+
+**Verification note:** the skill is NOT relabeled `verification: unverified` overall, because
+phases 1–18 remain verified-ci/verified-local. The new learning is unverified and is flagged
+inline (warning banner on Phase 19, UNVERIFIED markers in Overview / When to Use / Quick
+Reference / Verified On). Minor bump 1.3.0 → 1.4.0 (additive findings).
+
+### Previous version (v1.3.0) snapshot
+
+See the `## v1.3.0 (2026-06-07)` entry below and prior git history for the full pre-amendment
+content; the v1.3.0 body is preserved unchanged in this file's earlier entries.
+
+---
+
 ## v1.3.0 (2026-06-07)
 
 **Changed by:** Skill-consolidation pass (cluster PYR02)
