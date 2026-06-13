@@ -3,7 +3,7 @@ name: docstring-api-doc-generation-and-comment-hygiene
 description: "Use when: (1) updating, fixing, or extending docstrings and API documentation in source files to match current implementation semantics — changed signatures, memory semantics, orphaned fragments, undocumented methods; (2) creating API reference documentation from docstrings for a public module interface; (3) generating docstrings for undocumented functions and classes; (4) auditing and cleaning up inline NOTE/TODO/FIXME/placeholder comments — normalization, removal of shipped-feature placeholders, magic-number extraction; (5) using a package's public __version__ attribute in demo/example scripts rather than hardcoded strings, so version references stay in sync with releases."
 category: documentation
 date: 2026-06-07
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 history: docstring-api-doc-generation-and-comment-hygiene.history
 tags:
@@ -63,6 +63,10 @@ demo scripts dynamic. All changes are docs-only and carry near-zero functional r
 9. Runtime `print("NOTE: ...")` statements confuse users into thinking something is broken
 10. A demo/example script contains a hardcoded version string that should be the package's
     public `__version__` so example code stays in sync with releases
+11. A behavior-change PR fixed a function's docstring but the module-level summary block
+    (e.g., a `FAILS LOUDLY` / `FAILS WITH` / `RAISES` / `CONTRACT` block at the top of the
+    module) was not updated — they diverged and now give contradictory information to readers
+    who only read the module header
 
 ## Verified Workflow
 
@@ -406,6 +410,7 @@ gh pr merge --auto --rebase <pr-number>
 | Updating the header total without the fractions | Bumped the total backward-function count only | Broadcasting and stability fractions kept the old (wrong) denominator | Update all 4 header stat lines atomically in one Edit |
 | Inserting a MODULE section after the summary table | Appended the new module at end of catalog | Breaks reading flow — catalog is organized by module before the summary | Always insert a new MODULE section before `## SUMMARY TABLE:` |
 | Silently documenting a bug-candidate NOTE | Wrote an "expected limitation" header for a suspicious NaN NOTE | Buried a real bug as if it were by-design | Classify each NOTE expected-vs-bug; open a tracking issue for bug candidates |
+| Trusting issue body's variable name | Issue body cited `STATIC_FALLBACK_LICENSES`; nearly edited code searching for that symbol | Real symbol on disk was `FALLBACK_LICENSES`; issue body had a stale name from an earlier draft | Always grep for the actual symbol name before editing — issue descriptions can reference pre-refactor names |
 
 ## Results & Parameters
 
@@ -516,6 +521,24 @@ machine epsilon ≈ `9.77e-4`. Safe accumulations (tol=`1e-1`): `n < ~102`.
 | Synchronization | Automatic — reflects each released git tag |
 | Verification | Smoke-run the script; expect the actual installed version printed |
 
+### Module-Level vs Function-Level Docstring Drift
+
+When a behavior-change PR fixes a function's docstring, the module-level summary block
+(common patterns: `FAILS LOUDLY`, `FAILS WITH`, `RAISES`, `CONTRACT`, `NOTE:`) is NOT
+automatically updated. These blocks are maintained independently and can diverge after a PR.
+
+**Detection grep:**
+
+```bash
+grep -n "FAILS LOUDLY\|FAILS WITH\|CONTRACT\|RAISES\|NOTE:" <file> | head -10
+```
+
+If the function docstring describes a path that does not appear in the module summary block,
+add the missing bullet. The module summary is what readers see first and must stay in sync
+with the function-level contract.
+
+**Scope of change:** module summary block only — no functional code change, docs-only PR.
+
 ### Validation Commands
 
 ```bash
@@ -535,5 +558,5 @@ other hooks (ruff, markdownlint, trailing-whitespace, end-of-file-fixer, check-y
 | --------- | --------- | --------- |
 | ProjectOdyssey | Copy/view, catalog, fp16, re-export docstring updates | see history |
 | ProjectScylla | Issue #1364, PR #1397 (module docstring line-wrap audit) | see history |
-| ProjectHephaestus | Issue #797 (run_command POLA contract); Issue #787 (demo `__version__`) | see history |
+| ProjectHephaestus | Issue #797 (run_command POLA contract); Issue #787 (demo `__version__`); Issue #1306 (module-level FAILS LOUDLY block drift after #1303 added fallback path) | see history |
 | Multiple repos | NOTE/TODO/FIXME inline-comment cleanup passes | see history |
