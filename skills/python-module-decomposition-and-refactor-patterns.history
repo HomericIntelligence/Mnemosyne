@@ -1,6 +1,65 @@
 <!-- markdownlint-disable MD024 -->
 # python-module-decomposition-and-refactor-patterns — History
 
+## v1.5.0 (2026-06-13)
+
+**Changed by:** ProjectHephaestus issue #1289 — `ci_driver.py` (3,358 lines)
+god-class decomposition planning cycle (R0→R1→R2). R1 plan incorrectly claimed
+"only one test fixture line changes"; R2 patch-string audit found 80+ updates
+required across 4 test files.
+**Verification:** unverified (planning-phase learning; implementation of issue #1289
+is pending).
+
+### What changed
+
+Added **Phase 21: Pre-Migration Patch-String Audit** — a prerequisite step that
+must be completed before finalizing any god-class extraction plan. Python resolves
+symbol names from the module where the *call site* lives at runtime; when method
+bodies move to collaborator modules, any `patch("original_module.symbol")` string
+that was intercepting calls through the original module will stop intercepting.
+
+The planning blindspot: R1 plan for `ci_driver.py → 4 collaborators` claimed
+"only one test fixture line changes." The actual count after a complete grep audit
+was 80+ patch string updates across 4 test files, with 9 distinct symbols requiring
+migration and `_gh_call` split across 3 different collaborators depending on which
+method's code path each test exercises.
+
+What was added in the canonical `.md`:
+
+- **Description trigger (14)**: auditing test `patch()` strings before extraction.
+- **When-to-Use**: new bullet for plans claiming small test fixture impact without audit.
+- **Quick Reference decision tree**: new row routing to Phase 21.
+- **Phase 21 body**: workflow (grep → trace → build table → update strings), the
+  real scale table from issue #1289 (9 symbols, 80+ patches), the `_gh_call` split
+  case (17 patches → 3 collaborators), stale patch string detector command, and
+  verification via test suite failure signature.
+- **Failed Attempts**: 1 new row: `Module-patch string blindspot` — R1 claimed
+  "only one fixture line changes" when the real count was 80+ patch string updates.
+- **Verified On**: new row for ProjectHephaestus issue #1289 (planning-phase,
+  unverified, implementation pending).
+- **Tags**: `patch-string-migration`, `pre-migration-audit`.
+
+Bumped MINOR 1.4.0 → 1.5.0 (additive extension; existing phases unchanged).
+
+### Why
+
+The module-patch string migration problem is a planning blindspot that caused a
+multi-cycle review iteration (R1 incorrectly scoped test impact). The root cause is
+mechanical: Python name resolution is from the call site's module, not the symbol's
+origin module. Capturing the grep-first, table-before-claiming discipline prevents
+the same undercount in future decompositions.
+
+The `_gh_call` split across 3 collaborators (17 patches, no single migration target)
+is the canonical hard case — it must be documented explicitly because naive analysis
+would assign all 17 to one collaborator.
+
+### Previous version snapshot (v1.4.0)
+
+- date: 2026-06-10
+- version: "1.4.0"
+- Phase list: 1–19
+- Failed Attempts: 36 rows (including 3 Phase 20 rows added on branch skill/amend-decomp-phase19)
+
 ## v1.4.0 (2026-06-10)
 
 **Changed by:** ProjectHephaestus PR #998 (issue #712) — `IssueImplementer` /

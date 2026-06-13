@@ -23,10 +23,12 @@ description: >-
   (13) decomposing a 1000–2000 LoC orchestrator into named pipeline phases
   (PlanPhase, ImplementPhase, ReviewPhase, FollowUpPhase, PRCreatePhase) while
   preserving existing `patch.object(impl, ...)` AND `patch.object(impl.phase_runner, ...)`
-  test contracts via reverse-delegation shims and a dual-back-reference StageContext.
+  test contracts via reverse-delegation shims and a dual-back-reference StageContext,
+  (14) auditing and migrating all test `patch()` string targets when method bodies move
+  from a god-class to collaborator modules (pre-migration patch-string grep discipline).
 category: architecture
-date: 2026-06-10
-version: "1.4.0"
+date: 2026-06-13
+version: "1.5.0"
 user-invocable: false
 history: python-module-decomposition-and-refactor-patterns.history
 tags:
@@ -54,6 +56,8 @@ tags:
   - stage-context
   - orchestration-decomposition
   - patch-preservation
+  - patch-string-migration
+  - pre-migration-audit
 ---
 
 # Python Module Decomposition and Refactor Patterns
@@ -62,10 +66,10 @@ tags:
 
 | Field | Value |
 | ------- | ------- |
-| **Date** | 2026-06-05 |
+| **Date** | 2026-06-13 |
 | **Objective** | Decompose oversized Python modules/classes into focused, independently testable units using SRP, TDD, and DRY principles |
-| **Outcome** | Synthesized from 13 verified skills; covers function-level extraction, class-based extraction, circular import fixes, immutability refactoring, extensibility-driven decomposition, CLI entry-point extraction with preserved patch routing, top-level symbol extraction to break sibling module cycles, CC>15 pipeline-step extraction, scanner-to-subdirectory scoping, context-manager double-counter fixes, safe legacy-code deletion, substrate-read-before-estimate discipline, and post-parallel phase cleanup |
-| **Trigger** | Files >800 lines, circular import errors, mixed-concern methods, C901/CC>15 complexity, extensibility requirements, CLI main() extraction, deferred imports inside function bodies preventing static analysis, broad scanners needing subdirectory scope, stale callers after context-manager refactors, dead fallback files, pessimistic refactor estimates, technical debt after parallel phases |
+| **Outcome** | Synthesized from 14 verified skills; covers function-level extraction, class-based extraction, circular import fixes, immutability refactoring, extensibility-driven decomposition, CLI entry-point extraction with preserved patch routing, top-level symbol extraction to break sibling module cycles, CC>15 pipeline-step extraction, scanner-to-subdirectory scoping, context-manager double-counter fixes, safe legacy-code deletion, substrate-read-before-estimate discipline, post-parallel phase cleanup, phase-strategy with dual-back-reference StageContext, and pre-migration patch-string audit |
+| **Trigger** | Files >800 lines, circular import errors, mixed-concern methods, C901/CC>15 complexity, extensibility requirements, CLI main() extraction, deferred imports inside function bodies preventing static analysis, broad scanners needing subdirectory scope, stale callers after context-manager refactors, dead fallback files, pessimistic refactor estimates, technical debt after parallel phases, pre-migration patch-string audit before god-class extraction |
 
 ## When to Use
 
@@ -87,6 +91,7 @@ Apply this skill when any of the following is true:
 - A `TODO.md`/roadmap/audit estimates **"thousands of LOC" or weeks** for a substrate rewrite — read the substrate first to avoid a 3-5x pessimistic estimate
 - You are in the **cleanup phase** after parallel Test/Implementation/Package phases and need to address accumulated technical debt before merge
 - A **1000–2000 LoC orchestrator class** (e.g. `IssueImplementer`, `ImplementationPhaseRunner`) needs decomposition into named pipeline phases AND existing tests use BOTH `patch.object(impl, "_xxx")` and `patch.object(impl.phase_runner, "_xxx")` against methods you must move (Phase 19)
+- A **god-class extraction plan** claims "only N test fixture lines change" — you need to enumerate every `patch("module.symbol")` call in test files before finalizing the plan (Phase 21)
 
 ## Verified Workflow
 
@@ -115,6 +120,10 @@ Decision tree:
     impl.phase_runner methods             ctx.impl + ctx.runner; phases call
                                           self.ctx.runner._xxx() to preserve both
                                           patch addresses
+  God-class extraction plan claims few  → Pre-migration patch-string audit (Phase 21):
+    test changes OR before finalizing      grep ALL patch("module.symbol") calls,
+    any extraction plan                    build symbol→collaborator migration table
+                                          before claiming test impact
 
 Universal rule for mock patches after any move:
   Patch where the name is LOOKED UP at call time — not where it was defined.
@@ -968,6 +977,68 @@ contract during the lifetime of those tests.
 | StageContext fields | `impl`, `runner`, plus already-wired collaborators |
 | Init-order guard | `assert impl.state_mgr is not None` in `__post_init__` |
 
+### Phase 21: Pre-Migration Patch-String Audit
+
+Before extracting any methods from a god-class, build a complete patch migration table.
+This is a prerequisite step — never claim "only N fixture lines change" without
+completing this audit first.
+
+**Why this matters**: Python resolves symbol names from the module where the *call site*
+lives at runtime. When a method body moves to a collaborator module, the collaborator must
+explicitly import every symbol its methods call (e.g., `from .github_api import _gh_call`).
+Any `patch("original_module.symbol")` string that was intercepting calls via the original
+module will STOP intercepting once the method body moves — the name is now looked up from
+the collaborator's namespace.
+
+**Scale of changes (real example from issue #1289, ci_driver.py → 4 collaborators)**:
+
+| Symbol | Patch count | Destination collaborator |
+|--------|------------|--------------------------|
+| `gh_pr_checks` | 21 patches | `ci_check_inspector` |
+| `_gh_call` | 17 patches | split across 3 collaborators by method location |
+| `get_repo_info` | 14 patches | `pr_discovery` |
+| `compact_session` | 5 patches | `post_merge_processor` |
+| `sync_worktree_to_remote_branch` | 5 patches | `ci_fix_orchestrator` |
+| `rebase_worktree_onto` | 4 patches | `ci_fix_orchestrator` |
+| `run` | 6 patches | `ci_fix_orchestrator` |
+| `gh_pr_resolve_thread` | 3 patches | `ci_check_inspector` |
+| `invoke_claude_with_session` | 2 patches | `ci_fix_orchestrator` |
+| **Total** | **80+** | across 4 test files |
+
+**Workflow**:
+
+1. Grep all test patch strings for the source module:
+   ```bash
+   grep -rn 'patch("hephaestus.automation.original_module\.' tests/
+   ```
+2. For each unique symbol found, identify which methods call it (read the method bodies).
+3. Determine which collaborator each method is moving to.
+4. Build a migration table: `Symbol → source module → patches count → destination collaborator`.
+5. For each patch call in each test file: update the string to
+   `hephaestus.automation.collaborator_module.symbol`.
+6. **Patches for methods STAYING on the original class** → no change to patch string.
+7. **Constructor/fixture patches** (`__init__` dependencies like `get_repo_root`,
+   `WorktreeManager`) → no change (`__init__` stays on the original class, so lookups
+   remain in the original module's namespace).
+
+```bash
+# Stale patch string detector — run after migration to verify completeness
+grep -rn \
+  'original_module\.gh_pr_checks\|original_module\._gh_call\|original_module\.get_repo_info' \
+  tests/unit/ && echo "FAIL: stale patches remain" || echo "PASS: all patch strings migrated"
+```
+
+**Key insight — `_gh_call` is called from many methods across collaborators**:
+When a frequently-called helper like `_gh_call` is used in methods that go to
+DIFFERENT collaborators, each collaborator must import it at module level, and
+the 17 patches for `_gh_call` must be sorted by which collaborator's methods each
+test is exercising. There is no single migration target — the target depends on
+which method's code path the test exercises.
+
+**Verification**: After updating all patch strings, run the full test suite. A
+`AssertionError: Expected 'symbol' to have been called once. Called 0 times.` error
+means a stale patch string remains.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -1009,6 +1080,7 @@ contract during the lifetime of those tests.
 | **Shared mutable dict write-back lost after extraction** | Planned to move `_discover_prs` (writes `self.shared_pr_issues`) to `PRDiscovery` and `_arm_drive_green` (reads `self.shared_pr_issues`) to `PostMergeProcessor` without a write-back contract | After extraction the dict lives nowhere both collaborators can see; `_arm_drive_green` silently gets an empty dict and post-merge arming fan-out (#840 behavior) breaks | Inject `shared_pr_issues_setter: Callable[[dict], None]` into the writing collaborator and `shared_pr_issues_provider: Callable[[], dict]` into the reading collaborator; both lambdas close over the *parent's* dict at call-time. Setter must use `.clear() + .update()` (not `=`) to preserve dict object identity so the provider always returns the same live object (Phase 20) |
 | **`_viewer_login` cache claimed to live in two places** | Plan stated cache "stays on CIDriver" AND said "keep `self._viewer_login` as instance attribute on `PRDiscovery`" simultaneously | Two separate caches diverge: test fixture pre-seeds `driver._viewer_login = "mvillmow"` but the collaborator reads its own `PRDiscovery._viewer_login` — fixture is bypassed and tests break silently while the "no test changes" claim is wrong | Pick ONE source of truth: move the cache entirely to the collaborator (`PRDiscovery._viewer_login`), update the one test fixture line accordingly, and let the CIDriver delegation stub route through the collaborator (Phase 20) |
 | **Method assigned to wrong collaborator by name inference** | Assigned `_tracked_worktree_changes` to `CICheckInspector` because the name sounds like inspection | Only call site is inside `_retry_no_commit_once` (a `CIFixOrchestrator` method, line 2343); its dependency `_git_stdout_for_push_guard` is also in `CIFixOrchestrator` — cross-collaborator coupling undeclared in plan | Always grep ALL call sites (`grep -n "_method_name"`) and read the method's dependency chain before assigning to a collaborator; assign to where both the caller and the callee's dependencies live (Phase 20) |
+| **Module-patch string blindspot** | R1 plan claimed "only one test fixture line changes" after god-class extraction | Python resolves symbols from the module where the *call site* lives; when method bodies move to collaborators, `patch("original_module.symbol")` stops intercepting; the real count was 80+ patch string updates across 4 test files | Before finalizing any extraction plan, grep ALL `patch("module.symbol")` calls in test files, trace each to its owning method's destination collaborator, and build an explicit migration table (Phase 21) |
 
 ## Results & Parameters
 
@@ -1079,3 +1151,4 @@ Revised LOC estimate: ~X (vs TODO "~Y"); justification: ~Z% already in substrate
 | ProjectOdyssey | PR #5457 — Phase 0 substrate read revised a TODO "~5000 LOC" estimate to ~1400; actual landed +937 LOC (CI green) | Superseded `architecture-estimate-rewrite-read-substrate-first` (Phase 17) |
 | HomericIntelligence ecosystem | Cleanup-phase coordination after parallel Test/Implementation/Package phases (KISS/DRY/SOLID finalization before merge) | Superseded `phase-cleanup` (Phase 18) |
 | ProjectHephaestus | PR #998 (issue #712) — `IssueImplementer`/`ImplementationPhaseRunner` decomposition into 5 named phase modules (Plan/Implement/Review/FollowUp/PRCreate) with `_stage_context.StageContext` carrying both `impl` and `runner`; ~30 reverse-delegation shims preserve `patch.object(impl, ...)` AND `patch.object(impl.phase_runner, ...)` contracts; verified-local (test suite green; review iterations identified the dual-back-reference fix and the "no NotImplementedError stubs" rule) | Phase 19: Phase-Strategy with Dual-Back-Reference StageContext |
+| ProjectHephaestus | Issue #1289 — `ci_driver.py` (3,358 lines) decomposition planning into 4 collaborators (PRDiscovery, CICheckInspector, CIFixOrchestrator, PostMergeProcessor); R1 plan incorrectly claimed "only one fixture line changes"; R2 audit found 80+ patch string updates across 4 test files (`gh_pr_checks`: 21 patches, `_gh_call`: 17 patches split across 3 collaborators, `get_repo_info`: 14 patches, etc.); **unverified** (planning-phase learning; implementation pending) | Phase 21: Pre-Migration Patch-String Audit |
