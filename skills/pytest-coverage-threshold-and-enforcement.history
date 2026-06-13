@@ -1,6 +1,32 @@
 <!-- markdownlint-disable MD024 -->
 # pytest-coverage-threshold-and-enforcement — History
 
+## v1.3.0 (2026-06-13)
+
+**Amendment**: Promoted Issue #1198 planning content from unverified to verified-ci (PR #1293), and added test_doc_config.py fixture isolation finding.
+
+### New content added
+
+- Overview Outcome and Verification updated to mention v1.3.0
+- Verified Workflow note: promoted Steps I (planning pre-conditions) from "unverified" to "verified-ci (PR #1293)"
+- Section I warning block: replaced warning with verified-ci notice (4054 passed, 21 skipped; TOTAL 85.57% ≥ 83% gate; CI run #27458373439)
+- Section I step 7: new finding — `test_doc_config.py` fixtures (`_minimal_pyproject(fail_under=80)`) are isolated tmp_path test data, not repo assertions; no test changes needed when raising the real floor
+- New subsection "Verified behaviors from ProjectHephaestus #1198 / PR #1293 (v1.3.0)" in Results & Parameters: 5 confirmed behaviors (addopts absence acceptance, CLAUDE.md pattern requirement, fixture isolation, measure-first buffer, addopts cosmetic under `--override-ini`)
+- Failed Attempts: 2 new rows — raising floor without updating CLAUDE.md (hidden `check_claude_md_threshold()` dependency); assuming `test_doc_config.py` fixtures assert real config
+- Verified On: updated Issue #1198 row from "Unverified — planning session" to "verified-ci" with PR #1293 details
+
+### Verification level
+
+`verified-ci` — PR #1293 merged; floor raised 80% → 83%; 4054 unit tests passed, 21 skipped; TOTAL 85.57% ≥ 83% gate confirmed.
+
+### Source
+
+- Issue: ProjectHephaestus #1198
+- PR: ProjectHephaestus #1293
+- Session date: 2026-06-13
+
+---
+
 ## v1.2.0 (2026-06-13)
 
 **Amendment**: Added per-module branch-rate floor margin rule from ProjectHephaestus issue #1197, PR #1288.
