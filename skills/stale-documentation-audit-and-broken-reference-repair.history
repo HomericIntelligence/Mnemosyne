@@ -2,6 +2,39 @@
 
 # stale-documentation-audit-and-broken-reference-repair — History
 
+## v1.1.0 (2026-06-12)
+
+Amended with the count-set disambiguation learning from ProjectHephaestus #1212 (planning,
+unverified): a doc count flagged as stale can disagree with `find … | wc -l` for two different
+reasons — genuine staleness, or the doc counting a narrower set on purpose (documented packages,
+skill DEFINITIONS, public modules). Changes:
+
+- New `description` trigger (11) + a "When to Use" bullet about ambiguous count semantics.
+- New disambiguation prose in Step 1: reconcile dir count vs definition-file count vs total-file
+  count; the `_`-prefixed-directory trap (`skills/_repo_analyze_common` has no `SKILL.md`); fix the
+  *prose* when a count is correct but its unit is ambiguous ("23 SKILL.md skills"); resolve author
+  intent before bumping a structure-listing count (19-vs-20 `scripts_lib` gap).
+- New Quick Reference + Results commands (`find -name SKILL.md`, worktree-excluded corpus re-grep,
+  `git ls-files` scope check).
+- Universal-rules update: never count from a sibling doc; exclude `.claude/worktrees/` mirrors.
+- 4 new Failed Attempts rows; 1 new Verified On row.
+
+Prior v1.0.0 snapshot retained below.
+
+### Superseded v1.0.0 frontmatter
+
+```yaml
+name: stale-documentation-audit-and-broken-reference-repair
+category: documentation
+date: 2026-06-07
+version: "1.0.0"
+user-invocable: false
+history: stale-documentation-audit-and-broken-reference-repair.history
+tags: [doc-drift, stale-doc, broken-references, phantom-dir, placeholder, stub, anchor-validation, tier-labels, doc-audit, doc-sync, merged]
+```
+
+The v1.0.0 body is the unmodified consolidation recorded immediately below.
+
 ## v1.0.0 (2026-06-07)
 
 Consolidated 10 documentation skills into one canonical covering stale-doc drift audits and broken-reference repair. Absorbed skills:

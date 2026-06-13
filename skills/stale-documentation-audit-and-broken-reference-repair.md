@@ -1,9 +1,9 @@
 ---
 name: stale-documentation-audit-and-broken-reference-repair
-description: "Use when: (1) running a doc-drift audit across a corpus — detecting stale counts, metric discrepancies, cross-doc contradictions, ecosystem-role drift; (2) removing phantom directory references from documentation when a path no longer exists; (3) fixing broken documentation references (dead links, stale headings); (4) auditing documentation examples for policy violations; (5) auditing and rewriting getting-started stubs by sourcing real commands from justfile and versions from pixi.toml; (6) fixing incorrect tier labels or version numbers in docs that have drifted from implementation; (7) managing the full lifecycle of placeholder and stub documentation — deletion under YAGNI, deferred-comment placeholders, rewriting with accurate codebase-grounded content; (8) resolving audit nitpicks for monolithic code by documenting verified design rationale; (9) resolving CONTRIBUTING.md case-clashes and circular cross-references in docs/; (10) validating anchor fragments in markdown deep-links to detect broken headings."
+description: "Use when: (1) running a doc-drift audit across a corpus — detecting stale counts, metric discrepancies, cross-doc contradictions, ecosystem-role drift; (2) removing phantom directory references from documentation when a path no longer exists; (3) fixing broken documentation references (dead links, stale headings); (4) auditing documentation examples for policy violations; (5) auditing and rewriting getting-started stubs by sourcing real commands from justfile and versions from pixi.toml; (6) fixing incorrect tier labels or version numbers in docs that have drifted from implementation; (7) managing the full lifecycle of placeholder and stub documentation — deletion under YAGNI, deferred-comment placeholders, rewriting with accurate codebase-grounded content; (8) resolving audit nitpicks for monolithic code by documenting verified design rationale; (9) resolving CONTRIBUTING.md case-clashes and circular cross-references in docs/; (10) validating anchor fragments in markdown deep-links to detect broken headings; (11) DISAMBIGUATING what a flagged-stale count actually counts (documented-set vs filesystem-set) before bumping it — a 'wrong' count is often a definitional mismatch, not an off-by-one."
 category: documentation
-date: 2026-06-07
-version: "1.0.0"
+date: 2026-06-12
+version: "1.1.0"
 user-invocable: false
 history: stale-documentation-audit-and-broken-reference-repair.history
 tags: [doc-drift, stale-doc, broken-references, phantom-dir, placeholder, stub, anchor-validation, tier-labels, doc-audit, doc-sync, merged]
@@ -15,7 +15,7 @@ tags: [doc-drift, stale-doc, broken-references, phantom-dir, placeholder, stub, 
 
 | Field | Value |
 | ------- | ------- |
-| **Date** | 2026-06-07 |
+| **Date** | 2026-06-12 |
 | **Objective** | Canonical workflow for auditing stale documentation and repairing broken references: drift audits, phantom-dir/dead-link removal, placeholder lifecycle, getting-started rewrites, tier-label fixes, anchor validation |
 | **Outcome** | Consolidated from 10 skills covering doc-drift audits, broken-reference repair, policy-violation audits, placeholder/stub lifecycle, monolith-rationale docs, CONTRIBUTING case-clash, and anchor validation |
 | **Verification** | verified-ci |
@@ -24,6 +24,9 @@ tags: [doc-drift, stale-doc, broken-references, phantom-dir, placeholder, stub, 
 
 - A "Future Improvements" / "Future Work" section lists a feature that already shipped
 - Docs state a metric (test count, coverage %, file/agent count) that disagrees with the codebase
+- An audit flags a stale file/subpackage/skill/test count, but it's unclear *which set* the doc
+  counts (documented packages vs filesystem dirs; skill DEFINITIONS vs every dir incl. `_`-prefixed
+  partials) — disambiguate before assuming the number is arithmetically wrong
 - `CLAUDE.md` contradicts `pyproject.toml`/`CONTRIBUTING.md` on thresholds or policy
 - External architecture docs describe a project's ecosystem role inaccurately
 - A directory/file was removed but docs still reference the path (phantom dir / dead link)
@@ -48,6 +51,13 @@ ls .claude/agents/*.md | wc -l                                              # re
 grep "fail_under" pyproject.toml                                            # real coverage threshold
 grep -r "<old_count>" . --include="*.md" --exclude-dir=.git                 # find ALL stale copies
 gh api orgs/<ORG>/repos --paginate --jq '.[] | "\(.name) -- \(.description)"' | sort  # role truth
+
+# ── DISAMBIGUATE A FLAGGED COUNT (which set does the doc count?) ──────────────
+find hephaestus -maxdepth 1 -mindepth 1 -type d ! -name __pycache__ | wc -l  # real subpackage dirs
+find skills -name SKILL.md | wc -l                                          # skill DEFINITIONS (usual unit)
+find skills -maxdepth 1 -mindepth 1 -type d | wc -l                         # dirs (incl. _-prefixed partials)
+grep -rn "<stale phrase>" . --include="*.md" | grep -v ".claude/worktrees/" # corpus re-grep, no worktree mirrors
+git ls-files <path>                                                         # confirm a hit is a tracked file
 
 # ── BROKEN / PHANTOM REFERENCES ──────────────────────────────────────────────
 grep -rn "<removed-path>" docs/ README.md CONTRIBUTING.md   # find dead refs
@@ -76,10 +86,14 @@ git diff --stat
 pre-commit run --all-files            # or: SKIP=mojo-format pixi run pre-commit run --all-files
 ```
 
-**Universal rules**: count from code (never from other docs); use `Edit` with exact strings, not
-whole-section rewrites; use `replace_all: true` when a stale phrase repeats; after fixing the
-primary file, re-grep the whole corpus — stale copies survive in `docs/`, `references/notes.md`,
-`docs/analysis-prompt.md`. Always Read a file before Editing it.
+**Universal rules**: count from code (never from another doc — sibling docs propagate the same
+drift); disambiguate WHICH set the doc counts before assuming a number is wrong; use `Edit` with
+exact strings, not whole-section rewrites; use `replace_all: true` when a stale phrase repeats;
+after fixing the primary file, re-grep the whole corpus — stale copies survive in `docs/`,
+`references/notes.md`, `docs/analysis-prompt.md`, and sibling files the issue never mentioned
+(e.g. `COMPATIBILITY.md`). When re-grepping, EXCLUDE worktree mirrors (`grep -v
+".claude/worktrees/"`) so you don't edit transient copies, and confirm each hit is tracked with
+`git ls-files <path>`. Always Read a file before Editing it.
 
 ### Detailed Steps
 
@@ -108,6 +122,26 @@ Add a self-verifying command to the doc so future readers can re-check:
 bullet (`- N agents` → `- M agents`) and the Agent Hierarchy line (`All N agents` → `All M agents`).
 
 Optionally add a drift-detection regression test (see Results & Parameters) and an ADR.
+
+**Disambiguate WHICH set is counted before bumping a number.** A doc count flagged as stale can
+disagree with `find … | wc -l` for two different reasons: (a) genuine staleness (a real dir was
+added and never documented), or (b) the doc counts a *narrower set on purpose* (documented
+packages, skill DEFINITIONS, public modules) that legitimately differs from the raw filesystem
+count. Before editing, run BOTH a structural count AND a "what does the surrounding text
+enumerate?" check, then reconcile three numbers — dir count, definition-file count, total-file
+count — and pick the unit the doc actually means.
+
+- The `_`-prefixed-directory trap: `skills/_repo_analyze_common` is a real dir but holds shared
+  partials (no `SKILL.md`, leading underscore). `find -type d | wc -l` over-counts it as a "skill."
+  Count the DEFINITION file (`find -name SKILL.md`) when the doc's unit is "skills."
+- When the count is already correct but its *unit* is ambiguous, the fix is to DISAMBIGUATE the
+  prose (e.g. "23 SKILL.md skills"), not to bump the number. In ProjectHephaestus #1212 the
+  "23 entries" skill count was correct; the complaint was ambiguity, not arithmetic.
+- When a structure *listing* enumerates fewer leaf packages than `find` returns (e.g. listing shows
+  19, `find` shows 20 because `scripts_lib` is omitted), confirm the author's intent before bumping:
+  if the listing is meant as an exhaustive filesystem mirror → bump to 20; if it documents only
+  public/stable packages → ADD the missing package to keep a count matching the enumerated set, or
+  keep 19. Do not bump the number without resolving intent.
 
 #### 2. Phantom-directory references
 
@@ -267,6 +301,10 @@ gh pr merge --auto --rebase
 | Full pre-commit suite without skipping | Ran all hooks on a host with a GLIBC mismatch | `mojo-format` fails on GLIBC < 2.32 (environment, not code) | Use `SKIP=mojo-format`; only non-Mojo hooks matter for doc-only changes |
 | Deleting `docs/contributing.md` to resolve the case-clash | Removed the file entirely | Breaks inbound links from the docs index | Reduce to a redirect; keep root as canonical |
 | Per-file reviewers for citation corpus | Reviewed each entry individually | Could not see cross-document §-drift or arXiv ID-to-title swaps | Both failure modes need a cross-corpus structural audit, not per-file review |
+| Counting from one doc to fix another | Reading CLAUDE.md's own listing to derive the number | Propagates the existing drift instead of resolving it | Always count from the codebase (`find`/`wc`), never from a sibling doc |
+| `find skills -type d \| wc -l` to get the skill count | Counted 24 dirs incl. `_repo_analyze_common` partials | Over-counts: that dir has no `SKILL.md` and isn't a skill | Count the DEFINITION file (`find -name SKILL.md`), and state the unit in the doc |
+| Bumping the ambiguous "23 entries" to a new number | Treating the line as a wrong number | 23 was already correct for the `SKILL.md` count; the complaint was ambiguity, not arithmetic | Disambiguate WHAT is counted before assuming a number is wrong |
+| Grepping the corpus without excluding worktrees | `grep -rn "19 subpackages" .` | Matches transient `.claude/worktrees/` mirror copies, risking edits to non-tracked files | Exclude worktree mirrors and confirm scope with `git ls-files` |
 
 ## Results & Parameters
 
@@ -313,9 +351,26 @@ pre-commit run --all-files
 pixi run npx markdownlint-cli2 <file>
 ```
 
+### Count-disambiguation verification commands
+
+```bash
+find hephaestus -maxdepth 1 -mindepth 1 -type d ! -name __pycache__ | wc -l   # real subpackage dirs
+find skills -name SKILL.md | wc -l                                            # skill definitions (the unit docs mean)
+find skills -maxdepth 1 -mindepth 1 -type d | wc -l                           # dirs (includes _-prefixed partials)
+grep -rn "<stale phrase>" . --include="*.md" | grep -v ".claude/worktrees/"   # corpus re-grep, worktrees excluded
+git ls-files <path>                                                           # confirm a hit is a tracked file
+```
+
+When the three counts disagree, the doc's surrounding prose decides the unit: a structure
+*listing* of leaf packages means dir count; "N skills/entries" means the `SKILL.md` definition
+count (NOT the dir count, which includes `_`-prefixed partials). If a count is correct but its unit
+is ambiguous, fix the prose ("23 SKILL.md skills"), not the number.
+
 ### Key parameters
 
 - **Counts**: round + `+` for non-deterministic (`3,000+`); exact (no `+`) for deterministic sums.
+- **Count source**: always `find`/`wc` from the codebase, never another doc (siblings carry the
+  same drift). Disambiguate dir vs definition-file vs total-file count and match the doc's unit.
 - **Mojo version in docs**: range from `pixi.toml` (`>=0.26.1,<0.27`), never a nightly string.
 - **HTML comments** pass MD033 (comments aren't elements) — safe for deferred-section placeholders.
 - **Files most likely to hold stale refs**: `docs/index.md`, `docs/README.md`, `docs/glossary.md`,
@@ -331,4 +386,5 @@ pixi run npx markdownlint-cli2 <file>
 | ProjectOdyssey | Issues #3344, #3365; PR #3320; PR #4847 | Workflow README audit, agent-count fix, post-migration README sync |
 | ProjectOdyssey | Issues #3142/#3308, #3304/#3913, #3305/#3917, #3918/#4830, #3141/#3303, #3914/#4828, #3915/#4829 | Stub deletion, installation/quickstart rewrite, IDE-setup extend, getting-started audit, anchor validator |
 | ProjectHephaestus | Issue #792 (PR #984); Issue #630 (PR #667) | Monolith-rationale ADR; CONTRIBUTING case-clash redirect |
+| ProjectHephaestus | Issue #1212 (planning, unverified) | Count-set disambiguation: subpackage 19-vs-20 listing gap, skill 23 `SKILL.md` vs 24 dirs (`_repo_analyze_common` partial), worktree-excluded corpus re-grep surfacing `COMPATIBILITY.md` |
 | mvillmow/Random | Predictive-Coding-in-Mojo Phase 0 | Cross-doc citation drift: 8 stale §-refs, 2 arXiv ID swaps caught |
