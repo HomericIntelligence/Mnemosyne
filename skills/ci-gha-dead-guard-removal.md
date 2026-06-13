@@ -1,0 +1,234 @@
+---
+name: ci-gha-dead-guard-removal
+description: "Use when: (1) a GHA workflow has a detect step that checks file presence and emits skip=true/false, and the guarded files are always committed — the detect+guard pattern is dead code; (2) a workflow step has `if: steps.detect.outputs.skip == 'false'` but the detection can never emit skip=true for this repo; (3) you need to verify whether a detect-and-guard scaffold in a reusable or caller workflow is load-bearing before removing it."
+category: ci-cd
+date: 2026-06-13
+version: "1.0.0"
+verification: unverified
+user-invocable: false
+tags:
+  - github-actions
+  - workflow-authoring
+  - dead-code
+  - kiss
+  - yagni
+  - detect-and-guard
+  - file-presence
+  - skip-flag
+  - reusable-workflow
+  - ci-cleanup
+---
+
+# CI: GHA Dead Detect-and-Guard Removal
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Goal** | Identify and remove dead detect+guard scaffolding in GHA workflows where the guarded files are always committed, making the detection always produce `skip=false` and all `if:` guards permanently entered |
+| **Pattern** | File-presence detect step + downstream `if: steps.detect.outputs.skip == 'false'` guards → unconditional step execution |
+| **Output** | Simplified workflow YAML with detect step deleted and all `if:` guards stripped |
+| **Language** | YAML (GHA workflow files) — no Python code changes |
+| **Build required** | No — pure YAML edit; YAML syntax check is the only local verification needed |
+| **Verification** | unverified |
+
+## When to Use
+
+- A workflow contains a step like `detect-pixi` or `detect-justfile` that emits `skip=true` or `skip=false` based on file presence (`[ -f pixi.toml ] && echo "skip=false" || echo "skip=true"`), AND the target file is always committed in the repository.
+- Downstream steps guard execution with `if: steps.detect.outputs.skip == 'false'` — making those guards dead (always entered).
+- KISS/YAGNI applies: the scaffolding adds complexity with no benefit when the condition can never be false.
+- You need to verify whether removing guards is safe (the file might be a reusable template copied to other repos).
+
+## Verified Workflow
+
+### Quick Reference
+
+```bash
+# Step 1 — confirm files are committed (not just present on disk)
+git ls-files pixi.toml justfile
+
+# Step 2 — check if the workflow is called by other repos
+grep -r "uses:.*_required.yml" .github/workflows/
+
+# Step 3 — validate YAML syntax after edit
+python3 -c "
+import yaml
+with open('.github/workflows/_required.yml') as f:
+    yaml.safe_load(f)
+print('YAML syntax OK')
+"
+
+# Step 4 — commit, push, PR
+git commit -S -m "ci: remove dead detect+guard scaffolding from pixi-check and justfile-check"
+gh pr create --title "ci: remove dead skip-if-absent guards in _required.yml" \
+  --body "$(printf 'Remove dead file-presence detect steps and skip guards.\n\nCloses #<issue-number>\n')"
+gh pr merge --auto --rebase
+```
+
+### Detailed Steps
+
+#### Step 1 — Identify the dead pattern
+
+The pattern is: a detect step emits `skip=true/false` based on file presence, and downstream steps are gated on `if: steps.<id>.outputs.skip == 'false'`.
+
+```yaml
+# DEAD PATTERN — detect step always emits skip=false when pixi.toml is committed
+- name: Detect pixi
+  id: detect-pixi
+  run: |
+    if [ -f pixi.toml ]; then
+      echo "skip=false" >> "$GITHUB_OUTPUT"
+    else
+      echo "skip=true" >> "$GITHUB_OUTPUT"
+    fi
+
+- name: Install pixi
+  if: steps.detect-pixi.outputs.skip == 'false'   # always true; guard is dead
+  uses: prefix-dev/setup-pixi@v0.8.1
+
+- name: Run lint
+  if: steps.detect-pixi.outputs.skip == 'false'   # always true; guard is dead
+  run: pixi run lint
+```
+
+#### Step 2 — Verify the guard is always-entered
+
+The simplest proof — `ls` the target files AND confirm they are tracked by git:
+
+```bash
+ls pixi.toml justfile            # confirm they exist on disk
+git ls-files pixi.toml justfile  # confirm they are committed (tracked)
+```
+
+If both commands show the files, the detect step's output is permanently `skip=false`. No need to trace CI logs or read run history — file presence on disk combined with `git ls-files` is sufficient evidence.
+
+#### Step 3 — Critical: check if the workflow is a reusable template
+
+**Before removing guards**, verify the workflow is NOT intended as a reusable template copied to other repos. If it is, the guards would be load-bearing for repos that lack the guarded files.
+
+```bash
+# Check if the workflow is called by other workflows in this repo
+grep -r "uses:.*_required.yml" .github/workflows/
+
+# Check for org-wide or cross-repo references
+gh search code "uses: <org>/<repo>/.github/workflows/_required.yml" --limit 10
+
+# Check if template/copying documentation mentions this file
+grep -r "_required.yml" docs/ README.md CONTRIBUTING.md 2>/dev/null
+```
+
+If other repos call this workflow as a reusable workflow, do NOT remove the guards — they protect those repos from failing when the files are absent.
+
+#### Step 4 — Note nuanced double-guards
+
+Some detect steps check multiple file name variants. After removal, the downstream tool will pick up whichever variant exists:
+
+```bash
+# Double-guard: checks lowercase AND uppercase
+[ ! -f justfile ] && [ ! -f Justfile ]
+```
+
+After removing the guard, `just --evaluate` and `just --list` run unconditionally; `just` picks up whichever filename exists (`justfile` or `Justfile`) automatically. This is fine behavior — note the nuance if both variants could coexist.
+
+#### Step 5 — Apply the fix
+
+Delete the entire detect step and remove all `if:` guards that reference it:
+
+```yaml
+# BEFORE
+jobs:
+  pixi-check:
+    steps:
+      - uses: actions/checkout@v4
+      - name: Detect pixi
+        id: detect-pixi
+        run: |
+          if [ -f pixi.toml ]; then
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Install pixi
+        if: steps.detect-pixi.outputs.skip == 'false'
+        uses: prefix-dev/setup-pixi@v0.8.1
+      - name: Run lint
+        if: steps.detect-pixi.outputs.skip == 'false'
+        run: pixi run lint
+
+# AFTER
+jobs:
+  pixi-check:
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pixi
+        uses: prefix-dev/setup-pixi@v0.8.1
+      - name: Run lint
+        run: pixi run lint
+```
+
+#### Step 6 — Verify YAML syntax
+
+No `pixi run pytest` applies for pure CI workflow edits. YAML syntax check is the correct local verification:
+
+```bash
+python3 -c "
+import yaml, sys
+with open('.github/workflows/_required.yml') as f:
+    yaml.safe_load(f)
+print('YAML syntax OK')
+"
+```
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| Guarding removal on CI log inspection | Tried to verify guard is dead by reading CI run history | Unnecessary — file presence + `git ls-files` is sufficient; CI logs do not add information | `ls` + `git ls-files` is the correct, minimal proof that a file-presence guard is dead |
+| Removing guards from a reusable workflow without checking callers | Deleted detect steps in a `_required.yml` assumed to be local | If that file is called by other repos via `uses:`, those repos break when their guarded file is absent | Always `grep -r "uses:.*<filename>"` and `gh search code` before removing guards from any reusable/shared workflow |
+| Assuming single filename variant | Removed double-guard `[ ! -f justfile ] && [ ! -f Justfile ]` without noting the uppercase form | Capital `Justfile` (which `just` also accepts) would be left unguarded | Note both filename variants; `just` handles either automatically, but document the nuance |
+
+## Results & Parameters
+
+### Typical diff size
+
+Removing detect+guard scaffolding for two jobs (`pixi-check` and `justfile-check`) produces a small, focused diff:
+
+- Delete the entire detect step block (5–10 lines each)
+- Remove `if: steps.<id>.outputs.skip == 'false'` from each guarded step (1 line each)
+- Net result: 15–25 lines removed, 0 lines added
+
+### YAML syntax verification command
+
+```bash
+python3 -c "
+import yaml
+with open('.github/workflows/_required.yml') as f:
+    yaml.safe_load(f)
+print('YAML syntax OK')
+"
+# Expected output: YAML syntax OK
+```
+
+### Reusable-workflow check commands
+
+```bash
+# Local callers
+grep -r "uses:.*_required.yml" .github/workflows/
+# Expected: no output (file is not called by other workflows in this repo)
+
+# Org-wide callers
+gh search code "uses: <org>/<repo>/.github/workflows/_required.yml" --limit 10
+# Expected: no results (file is not a shared reusable workflow)
+```
+
+### Related patterns
+
+- `gha-workflow-authoring-pitfalls` — broader GHA authoring traps (slash job IDs, expression injection, org policy)
+- `ci-hygiene-and-validation-gates` — adding CI gates to catch regressions and config drift
+- `stale-ci-pattern-removal` — removing stale test-file references from workflow pattern strings
+
+## Verified On
+
+| Project | Context | Details |
+| --------- | --------- | --------- |
+| ProjectHephaestus | Issue #1200 (plan phase only) — remove dead skip-if-absent guards in `_required.yml` | Planning confirmed `pixi.toml` and `justfile` are always committed; detect steps in `pixi-check` and `justfile-check` jobs are provably dead code; PR implementation pending |
