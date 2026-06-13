@@ -1,5 +1,30 @@
 # ci-driver-silent-filter-missing-login-observability — History
 
+## v1.2.0 (2026-06-13)
+
+**Changed by:** Post-implementation learning capture — issue #1152 shipped, CI green
+**Verification:** verified-ci
+
+### What changed
+
+- Bumped verification from `unverified` to `verified-ci` — PR #1152 merged at commit `d54bd678`
+- Updated Outcome to "Implemented and merged"
+- Replaced plan-note banner with verified banner in Verified Workflow section
+- Updated Quick Reference code block to the confirmed exact pattern from the implementation
+  (double-quoted keys, `missing_field`/`filter` extra fields, `#821` comment on `continue`)
+- Updated "Assumptions That May Not Hold" table: two assumptions now confirmed true
+- Added "Severity Decision" subsection confirming WARNING (not ERROR)
+- Expanded Test Pattern section with confirmed `caplog` behavior, severity rationale, and key
+  insight on negative tests (`include_all_authors=True` sets `viewer=""` -> outer `if viewer and`
+  short-circuits)
+- Added second row to "Verified On" table confirming CI-green implementation
+
+### Why
+
+The plan phase was complete at v1.1.0. The implementation was subsequently completed and merged
+(PR #1152). This version captures the confirmed-working code and test patterns so future
+implementers get the exact shipped form rather than the plan-time approximation.
+
 ## v1.1.0 (2026-06-12)
 
 **Changed by:** R1 plan for issue #1152 — negative test coverage for `--all` path

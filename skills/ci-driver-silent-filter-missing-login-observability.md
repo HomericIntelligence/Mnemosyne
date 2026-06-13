@@ -2,11 +2,11 @@
 name: ci-driver-silent-filter-missing-login-observability
 description: "When an author-filter guard silently drops items with a missing REST field, add a warning-level log inside the filter branch. Use when: (1) a filter uses .get() on a field that could be None from a schema change, (2) silent drops could cause a done-gate to false-green."
 category: debugging
-date: 2026-06-12
-version: "1.1.0"
+date: 2026-06-13
+version: "1.2.0"
 history: ci-driver-silent-filter-missing-login-observability.history
 user-invocable: false
-verification: unverified
+verification: verified-ci
 tags: []
 ---
 
@@ -16,12 +16,12 @@ tags: []
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-06-12 |
-| **Version** | 1.1.0 |
+| **Date** | 2026-06-13 |
+| **Version** | 1.2.0 |
 | **History** | [ci-driver-silent-filter-missing-login-observability.history](ci-driver-silent-filter-missing-login-observability.history) |
 | **Objective** | Add warning-level logs at author-filter sites in `hephaestus/automation/ci_driver.py` so PRs with a missing `user.login` REST field are surfaced rather than silently dropped (issue #1152) |
-| **Outcome** | Plan complete; implementation not yet run |
-| **Verification** | unverified |
+| **Outcome** | Implemented and merged — ProjectHephaestus commit `d54bd678`, PR #1152 |
+| **Verification** | verified-ci |
 
 ## When to Use
 
@@ -32,20 +32,26 @@ tags: []
 
 ## Verified Workflow
 
-> **Note:** This workflow is in plan phase only and has not been validated end-to-end. Treat as a hypothesis until CI confirms. Verification status: `unverified`.
+> **Verified:** This workflow has been validated end-to-end — PR #1152 (ProjectHephaestus) merged at
+> commit `d54bd678`. CI green. Verification status: `verified-ci`.
 
 ### Quick Reference
 
 ```python
 # Pattern: add warning INSIDE the existing viewer filter branch, before continue
-if viewer and user.get('login') != viewer:
-    if user.get('login') is None:
+# Confirmed exact pattern from PR #1152 (commit d54bd678):
+if viewer and user.get("login") != viewer:
+    if user.get("login") is None:
         logger.warning(
-            "PR #%s has no user.login — skipped by author filter",
-            pr.get('number', '?'),
-            extra={"pr_number": pr.get('number'), "url": pr.get('html_url')},
+            "PR #%s has no user.login; skipping under author filter (#821)",
+            pr.get("number"),
+            extra={
+                "missing_field": "user.login",
+                "filter": "author",
+                "pr_number": pr.get("number"),
+            },
         )
-    continue
+    continue  # #821: hide other-author PRs
 ```
 
 ### Detailed Steps
@@ -53,7 +59,7 @@ if viewer and user.get('login') != viewer:
 1. **Locate both filter sites** in `hephaestus/automation/ci_driver.py`:
    - `_list_open_prs_remaining` (near line 346): filters open PRs by viewer login
    - `_discover_bot_prs` (near line 492): filters Bot-type PRs by viewer login
-   - Read lines 285–504 in a single pass to get full context for both sites
+   - Read lines 285-504 in a single pass to get full context for both sites
 
 2. **Insert the warning guard** at each site, nested inside the existing `if viewer and user.get('login') != viewer:` block, immediately before the `continue` statement.
 
@@ -71,6 +77,7 @@ if viewer and user.get('login') != viewer:
 
 **Negative test pattern for conditional guards:**
 Negative tests must assert BOTH:
+
 1. The side effect does NOT fire (e.g., no warning logged)
 2. The guarded code path executed successfully (e.g., the PR appears in results)
 
@@ -79,10 +86,12 @@ For `_list_open_prs_remaining` under `--all`: assert no warning fires AND the PR
 For `_discover_bot_prs` under `--all`: assert no warning fires. Asserting the PR appears in results is acceptable to omit here — the bot-type check precedes the viewer check, so a bot PR with `login=None` is included only if it passes the bot-type filter; verifying the PR number would add coupling to bot-type logic that is tested separately.
 
 R1 test methods added:
+
 - `test_list_open_prs_remaining_no_warning_under_all` — asserts no warning + PR in results
 - `test_discover_bot_prs_no_warning_under_all` — asserts no warning only (bot-type coupling risk)
 
 Style fixes applied in R1:
+
 - `import logging` moved to module top (was inside `with` block)
 - Redundant `include_all_authors = False` removed from positive tests (it is the default; the assignment was a misleading no-op)
 
@@ -100,33 +109,47 @@ Style fixes applied in R1:
 | Assumption | Risk | Mitigation |
 |------------|------|------------|
 | Line numbers 346 and 492 are stable | Any unrelated commit to ci_driver.py shifts them | Re-read file at implementation time; do not rely on plan-time line numbers |
-| `logger.warning(..., extra={...})` is the established kwarg style | Existing calls may be positional-only | Grep the actual call sites (lines 313, 337, 464, 483) before writing new calls |
-| `caplog.at_level` with logger string works in pytest | Standard pytest behavior | Confirmed standard; low risk |
+| `logger.warning(..., extra={...})` is the established kwarg style | Existing calls may be positional-only | Confirmed true in PR #1152: `extra={"missing_field": ..., "filter": ..., "pr_number": ...}` |
+| `caplog.at_level` with logger string works in pytest | Standard pytest behavior | Confirmed: no propagate=False issue for `hephaestus.automation.ci_driver` |
 
 ### Warning Scope: Viewer-Filter Only
 
 The warning fires **only** when:
+
 - `viewer` is not None (viewer-scoped run)
 - `user.get('login')` is None (missing REST field)
 
-It does **not** fire when `include_all_authors=True` because the entire `if viewer and ...` block is skipped. This is intentional — under `--all`, all PRs are included regardless of login.
+It does **not** fire when `include_all_authors=True` because the entire `if viewer and ...` block is
+skipped. This is intentional — under `--all`, all PRs are included regardless of login.
 
-### Test Pattern (pytest caplog)
+### Severity Decision: WARNING not ERROR
+
+`ERROR` is reserved for cannot-list-PRs failures (e.g. lines 313, 337 in ci_driver.py). Missing
+login is recoverable schema variation — the PR is still processed downstream, it just lacks an
+author identity. `WARNING` is the correct level.
+
+### Test Pattern (pytest caplog) — Confirmed Working
+
+`caplog.at_level(logging.WARNING, logger="hephaestus.automation.ci_driver")` works correctly for
+this logger. No `propagate=False` issue. Confirmed in PR #1152.
 
 ```python
 import logging
 
+# POSITIVE: warning fires + PR excluded
 def test_missing_login_emits_warning(caplog):
     with caplog.at_level(logging.WARNING, logger="hephaestus.automation.ci_driver"):
         # call the filter function with a PR where user.login is None
         ...
     assert any("no user.login" in r.message for r in caplog.records)
 
+# NEGATIVE: warning does NOT fire when include_all_authors=True
+# (viewer="", outer `if viewer and` short-circuits — warning never reached)
 def test_list_open_prs_remaining_no_warning_under_all(caplog):
     with caplog.at_level(logging.WARNING, logger="hephaestus.automation.ci_driver"):
         result = _list_open_prs_remaining(..., include_all_authors=True)
     assert not any("no user.login" in r.message for r in caplog.records)
-    assert any(pr["number"] == EXPECTED_PR_NUMBER for pr in result)
+    assert any(pr["number"] == EXPECTED_PR_NUMBER for pr in result)  # PR still included
 
 def test_discover_bot_prs_no_warning_under_all(caplog):
     with caplog.at_level(logging.WARNING, logger="hephaestus.automation.ci_driver"):
@@ -134,8 +157,14 @@ def test_discover_bot_prs_no_warning_under_all(caplog):
     assert not any("no user.login" in r.message for r in caplog.records)
 ```
 
+**Key insight on negative tests:** `include_all_authors=True` sets `viewer=""`, causing the outer
+`if viewer and ...` to short-circuit. The warning guard is never reached. The negative test for
+`_list_open_prs_remaining` must also assert the PR is present in results — that's the "guarded path
+executed successfully" half of the negative assertion.
+
 ## Verified On
 
 | Project | Context | Details |
 |---------|---------|---------|
-| ProjectHephaestus | Issue #1152 planning session | Plan only; implementation pending |
+| ProjectHephaestus | Issue #1152 planning session (R0-R1) | Plan verified through two review iterations |
+| ProjectHephaestus | Issue #1152 implementation | Implemented and merged — commit `d54bd678`, CI green |
