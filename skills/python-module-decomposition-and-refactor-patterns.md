@@ -31,7 +31,7 @@ description: >-
   before documenting which exceptions propagate out of the wrapper.
 category: architecture
 date: 2026-06-13
-version: "1.6.0"
+version: "1.7.0"
 user-invocable: false
 history: python-module-decomposition-and-refactor-patterns.history
 tags:
@@ -64,6 +64,10 @@ tags:
   - agentrunresult
   - completedprocess
   - boolean-predicate-dispatch
+  - mock-side-effect-exhaustion
+  - stopiteration-exception-boundary
+  - returncode-guard
+  - noqa-c901-removal-verification
 ---
 
 # Python Module Decomposition and Refactor Patterns
@@ -74,7 +78,7 @@ tags:
 | ------- | ------- |
 | **Date** | 2026-06-13 |
 | **Objective** | Decompose oversized Python modules/classes into focused, independently testable units using SRP, TDD, and DRY principles |
-| **Outcome** | Synthesized from 13+ verified skills; covers function-level extraction, class-based extraction, circular import fixes, immutability refactoring, extensibility-driven decomposition, CLI entry-point extraction with preserved patch routing, top-level symbol extraction to break sibling module cycles, CC>15 pipeline-step extraction, scanner-to-subdirectory scoping, context-manager double-counter fixes, safe legacy-code deletion, substrate-read-before-estimate discipline, post-parallel phase cleanup, god-class decomposition planning risks (state ownership, cross-call coupling, constant re-export, delegation stub type loss, coverage omit-allowlist traps), and exception-contract verification before documenting wrapper behavior |
+| **Outcome** | Synthesized from 13+ verified skills; covers function-level extraction, class-based extraction, circular import fixes, immutability refactoring, extensibility-driven decomposition, CLI entry-point extraction with preserved patch routing, top-level symbol extraction to break sibling module cycles, CC>15 pipeline-step extraction, scanner-to-subdirectory scoping, context-manager double-counter fixes, safe legacy-code deletion, substrate-read-before-estimate discipline, post-parallel phase cleanup, god-class decomposition planning risks (state ownership, cross-call coupling, constant re-export, delegation stub type loss, coverage omit-allowlist traps), exception-contract verification before documenting wrapper behavior, and three Phase 20 implementation-time traps (exception-boundary removal unmasks StopIteration from exhausted side_effect mocks; returncode-guard obligation at every call site of an absorbed-exception helper; agent mock type determines downstream subprocess.run consumption) |
 | **Trigger** | Files >800 lines, circular import errors, mixed-concern methods, C901/CC>15 complexity, extensibility requirements, CLI main() extraction, deferred imports inside function bodies preventing static analysis, broad scanners needing subdirectory scope, stale callers after context-manager refactors, dead fallback files, pessimistic refactor estimates, technical debt after parallel phases, planning a multi-collaborator god-class decomposition, extracting a two-branch provider-conditional dispatch with heterogeneous return types, documenting exception contracts for wrapper methods |
 
 ## When to Use
@@ -1126,6 +1130,65 @@ def _push_ci_fix(self, head_before: str, session_id: str, worktree: Path) -> boo
     return True
 ```
 
+**Implementation-time traps (verified during execution of Phase 20 for issue #1196)**
+
+Three additional hazards surface only during actual test execution, not during planning:
+
+**Trap 1: Mock `side_effect` exhaustion uncovered by exception-boundary removal**
+
+When the original oversized method had an outer `except Exception` catch-all, exhausted mock
+`side_effect` lists caused `StopIteration` to be silently swallowed. After extracting the
+helper and removing the outer `except Exception`, pre-existing tests that provided only N-1
+`side_effects` start failing with raw `StopIteration` instead of the intended assertion.
+
+```python
+# WRONG: pre-existing test only provides 2 side_effects for a path that now calls run 3×
+with patch("subprocess.run", side_effect=[result1, result2]):  # StopIteration on 3rd call
+    driver._retry_no_commit_once(...)
+
+# RIGHT: count EVERY subprocess.run call including those inside nested helper methods
+with patch("subprocess.run", side_effect=[result1, result2, clean_status]):  # all 3 covered
+    driver._retry_no_commit_once(...)
+```
+
+**Count rule:** every time you modify a function or add a helper it calls, count every
+`subprocess.run` (or other mocked call) the test path exercises, including those inside
+NEW helper methods the test now reaches transitively. The `except Exception` was masking
+`StopIteration`; its removal surfaces the latent miscounting.
+
+**Trap 2: Returncode guard required at every call site**
+
+Because `_invoke_agent_session` absorbs `CalledProcessError` into `returncode != 0` instead
+of re-raising, callers MUST check the returncode immediately. Without the guard, execution
+continues as if the agent succeeded even when it failed:
+
+```python
+# WRONG: caller ignores returncode — continues executing after agent failure
+result = self._invoke_agent_session(session_id, prompt, timeout)
+# ... continues executing as if agent succeeded
+
+# RIGHT: guard at every call site
+result = self._invoke_agent_session(session_id, prompt, timeout)
+if result.returncode != 0:
+    return False   # abort early; do not write no-commit marker or advance head
+```
+
+This is the direct consequence of the "absorbed exception → returncode signal" contract: the
+helper cannot both absorb the exception AND raise it. The caller owns the check.
+
+**Trap 3: C901 `# noqa` removal requires re-measurement, not assumption**
+
+After extracting the helpers, the remaining method may still have enough branches (try/except,
+if/else, early returns) to exceed the complexity threshold. Remove `# noqa: C901` only after
+running:
+
+```bash
+ruff check --select C901 hephaestus/automation/ci_driver.py
+# Must output "All checks passed!" before removing the annotation
+```
+
+Do not assume extraction made the method simple enough; measure it.
+
 **Verification checklist for this pattern**
 
 ```markdown
@@ -1145,12 +1208,16 @@ def _push_ci_fix(self, head_before: str, session_id: str, worktree: Path) -> boo
       reading every wrapped function's exception contract
 - [ ] Caller uses head-advancement as sole success signal (not returncode check)
 - [ ] Hardcoded `returncode=0` on claude path is correct (claude raises on failure)
+- [ ] Every call site of the new helper has an immediate `if result.returncode != 0: return`
+      guard (absorbed exceptions require caller-side returncode check — Trap 2)
 - [ ] `# noqa: C901` on the original function can be removed — re-run `ruff --select C901`
-      after extraction to confirm (do NOT assume removal is safe without measuring)
+      after extraction to confirm (do NOT assume removal is safe without measuring — Trap 3)
 - [ ] Duplicate post-agent block is character-identical in both branches (diff them)
 - [ ] Test classes `TestInvokeAgentSession` and `TestPushCiFix` added
 - [ ] All existing test patches target same module namespace (no patch retargeting needed
       if helpers remain in same file)
+- [ ] RECOUNT every mocked call in pre-existing tests that reach the helper transitively;
+      remove-outer-except-Exception exposes previously-swallowed StopIteration (Trap 1)
 ```
 
 ## Failed Attempts
@@ -1196,6 +1263,10 @@ def _push_ci_fix(self, head_before: str, session_id: str, worktree: Path) -> boo
 | **Assuming `# noqa: C901` can be removed without re-measuring complexity** | Plan removed the noqa suppressor as part of extraction, assuming post-refactor CC was below threshold | Outer `try/except` around sync + snapshot + prompt-build still contributes branches; if those remain, ruff re-flags the method | Run `ruff check --select C901 <file>.py` after extraction to confirm removal is safe; do not assume (Phase 20 Step 5) |
 | **Treating head-advancement as sole success signal without verifying original code** | After extraction, plan assumed caller only checks `_head_advanced()` after `_invoke_agent_session` | Original codex branch at line 2709 also checked `CalledProcessError` as a distinct failure mode; absorbed-error approach changes semantics if callers relied on that distinct signal | Verify the original error-handling contract before assuming return-value check can be dropped; if the original differentiated `CalledProcessError` from "ran successfully but no head advance", the absorbed approach loses that distinction (Phase 20) |
 | **Assuming duplicate post-agent blocks are identical without diffing** | Plan said lines 2722–2743 and 2777–2798 in `_run_ci_fix_session` were "character-identical" based on visual inspection | Even one extra blank line or minor spacing difference invalidates "identical"; extracting non-identical blocks silently changes behavior | Diff the two blocks explicitly (`diff <(sed -n '2722,2743p' ci_driver.py) <(sed -n '2777,2798p' ci_driver.py)`) before claiming they are character-identical (Phase 20) |
+| **Left pre-existing test side_effects unchanged after removing outer `except Exception`** | After removing the catch-all `except Exception` from the oversized method, kept old tests that provided N-1 `side_effect` values for mocked `subprocess.run` | `StopIteration` from the exhausted mock bubbled up as a test failure; the outer `except Exception` had been silently swallowing it | Count every `subprocess.run` call the test path exercises — including those inside newly extracted helper methods — after any exception-boundary change (Phase 20, Trap 1) |
+| **Did not add `if result.returncode != 0: return False` after calling `_invoke_agent_session`** | Caller continued executing after the helper returned a non-zero `CompletedProcess` because the absorbed `CalledProcessError` didn't re-raise | No-commit marker was written and execution continued as if the agent session succeeded — incorrect behavior | A helper that absorbs exceptions into returncode transfers the error-check responsibility to the caller; add `if result.returncode != 0: return <error_value>` immediately after every call site (Phase 20, Trap 2) |
+| **Set mock agent to `return_value=MagicMock()` (success) when testing a path that should fail early** | In `test_returns_false_when_head_not_advanced_and_retry_fails`, mock `invoke_claude_with_session` to return normally (no exception) expecting `_retry_no_commit_once` to fail | Agent succeeded, then `_retry_no_commit_once` consumed more `subprocess.run` side_effects than provided, triggering `StopIteration` | Change the agent mock to raise `CalledProcessError` so `_invoke_agent_session` returns non-zero immediately and the retry loop exits without consuming additional `run` calls (Phase 20, Trap 1+2 interaction) |
+| **Assumed `# noqa: C901` could be removed without measuring post-refactor complexity** | Removed the annotation at the same time as the helper extraction, assuming the extraction was sufficient | The extracted method may still exceed the complexity threshold due to remaining try/except, if/else, and early-return branches | Run `ruff check --select C901 <file>.py` after extraction; remove `# noqa: C901` only after confirming "All checks passed!" (Phase 20, Trap 3) |
 
 ## Results & Parameters
 
@@ -1268,3 +1339,4 @@ Revised LOC estimate: ~X (vs TODO "~Y"); justification: ~Z% already in substrate
 | ProjectHephaestus | Issue #1179 — planning decomposition of `CIDriver` (ci_driver.py, 3,338 lines, 51 methods) into 4 collaborator modules; substrate read revealed `implementer_phase_runner.py` was 1,308 lines not 2,633 (stale audit); 6 planning risks identified including split-ownership on `_viewer_login`, cross-call coupling in `CIFixOrchestrator`, unverified mypy strict mode for `*args/**kwargs` stubs, ungrepped external callers of `FAILING_CHECK_CONCLUSIONS`, delegation stub LOC overhead tightening line count target, and unverified `test_omit_allowlist.py` (unverified — plan not yet executed) | New Phase 19: God-Class Decomposition Planning Risk Audit (v1.4.0) |
 | ProjectHephaestus | Issue #1196 — planning refactor of `_retry_no_commit_once` (164 lines, codex/claude branches threaded through) and `_run_ci_fix_session` (two identical 17-line post-agent blocks); plan: extract `_invoke_agent_session` (not Protocol; two-branch bool-predicate; wraps `AgentRunResult` → `CompletedProcess`) + `_push_ci_fix` (duplicate post-agent block); 5 unverified risks: `AgentRunResult.returncode` field existence, `CalledProcessError` absorption loses codex error signal, head-advancement as sole success signal, `# noqa: C901` removal safety, duplicate block character-identity (unverified — plan not yet executed) | New Phase 20: Provider-Conditional Dispatch Extraction (v1.5.0) |
 | ProjectHephaestus | Issue #1196 Phase 20 reviewer NOGO — reviewer verified source: `AgentRunResult` (runtime.py:28–34) has `stdout`/`stderr`/`session_id` fields (NO `returncode`); `run_codex_session` raises `CalledProcessError` at runtime.py:397–403 on non-zero exit; `resume_codex_session` same behavior; POLA violation caught: docstring claimed "never raises CalledProcessError" without verifying wrapped functions; corrected pattern: wrap BOTH codex calls in `try/except CalledProcessError`, use `CompletedProcess(returncode=0)` (synthetic, only reachable without exception), document `TimeoutExpired` as sole propagating exception | Phase 20 correction: exception-contract verification before wrapper docstrings (v1.6.0) |
+| ProjectHephaestus | Issue #1196 Phase 20 implementation — extracted `_invoke_agent_session` + `_push_ci_fix` into `ci_driver.py`; removed `# noqa: C901` from `_run_ci_fix_session`; added 11 new tests (`TestInvokeAgentSession` 8 tests, `TestPushCiFix` 3 tests); 157 tests in `test_ci_driver.py` pass; ruff + mypy clean; three implementation traps discovered: (1) outer `except Exception` was masking `StopIteration` from exhausted mock `side_effect` lists — removal exposed latent miscounting in `test_codex_ci_fix_session_skips_push_when_head_did_not_advance` (needed 3rd `run` side_effect for `clean_status`); (2) caller of `_invoke_agent_session` in `_retry_no_commit_once` lacked `if retry_result.returncode != 0: return False` — no-commit marker was being written incorrectly; (3) mock for `invoke_claude_with_session` in retry test had to be changed from `return_value=...` to `raise CalledProcessError` to avoid consuming excess `run` side_effects; CI gate pending (verified-local) | Phase 20 implementation traps: exception-boundary removal unmasks StopIteration, returncode-guard obligation at call sites, agent-mock type determines downstream `run` consumption (v1.7.0) |
