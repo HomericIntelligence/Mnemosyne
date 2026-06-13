@@ -1,11 +1,12 @@
 ---
 name: hephaestus-env-var-fallback-path-resolution
-description: "Centralize fragile __file__.parents[N] patterns with env-var + walk-up fallback resolvers. Use when: (1) multiple files use __file__.parents[N] to resolve paths, (2) paths differ between editable installs and CI, (3) need single source of truth for repo_root() or scripts_dir()."
+description: "Centralize fragile __file__.parents[N] patterns with env-var + walk-up fallback resolvers, and avoid the worktree+editable-install trap where a __file__-anchored repo-root walk-up silently resolves to a PARENT meta-repo / sibling checkout that shares the marker file (making a checker read the WRONG file). Use when: (1) multiple files use __file__.parents[N] to resolve paths, (2) paths differ between editable installs and CI, (3) need single source of truth for repo_root() or scripts_dir(), (4) a get_repo_root()/marker-file walk-up runs inside a git worktree nested under a meta-repo or monorepo with nested pyproject.toml, (5) a validator/checker PASSES even on injected-violation input and you suspect repo-root/path resolution, (6) choosing between `python -m pkg.mod` and `python path/to/shim.py` to invoke an installed entry point."
 category: architecture
-date: 2026-06-04
-version: "1.0.0"
+date: 2026-06-12
+version: "1.1.0"
 user-invocable: false
-verification: verified-local
+verification: verified-ci
+history: hephaestus-env-var-fallback-path-resolution.history
 tags:
   - path-resolution
   - __file__-parents
@@ -13,6 +14,14 @@ tags:
   - dry-principle
   - editable-install
   - constants
+  - git-worktree
+  - pip-install-e
+  - get_repo_root
+  - repo-root-resolution
+  - python-m-vs-script
+  - pep660
+  - marker-file-walkup
+  - verification-fidelity
 ---
 
 # ProjectHephaestus: Env-Var + Fallback Path Resolution
@@ -21,14 +30,14 @@ tags:
 
 | Attribute | Value |
 |-----------|-------|
-| **Date** | 2026-06-04 |
-| **Objective** | Replace 5 identical __file__.parents[N] patterns (1 production + 4 test) with centralized repo_root() and scripts_dir() resolvers; support both editable installs and CI environments |
-| **Outcome** | ✅ All 5 patterns replaced in hephaestus/constants.py; all 3175 tests pass; PR #931 created with signed commits |
-| **Verification** | verified-local (tests pass locally; CI validation pending on merged PR) |
-| **History** | None yet |
+| **Date** | 2026-06-12 (v1.1.0); 2026-06-04 (v1.0.0) |
+| **Objective** | (v1.0.0) Replace 5 identical __file__.parents[N] patterns with centralized repo_root()/scripts_dir(). (v1.1.0) Capture the worktree+editable-install failure mode where a __file__-anchored marker walk-up resolves to the PARENT meta-repo and a checker reads the WRONG pyproject.toml, plus the `python -m pkg.mod` fix and the verification-fidelity lesson |
+| **Outcome** | ✅ (v1.0.0) 5 patterns centralized, 3175 tests pass, PR #931. (v1.1.0) Root-caused a "checker passes on injected violation" bug to repo-root resolution reading the parent meta-repo; switched the CI step to `python -m hephaestus.scripts_lib.check_version_single_source`; `deps/version-sync` passed in CI (13s) |
+| **Verification** | verified-ci (deps/version-sync gate passed in CI after the `-m` fix; PR #1266) |
+| **History** | `hephaestus-env-var-fallback-path-resolution.history` (v1.0.0 archived) |
 | **Project** | ProjectHephaestus |
-| **Issue** | [#741](https://github.com/HomericIntelligence/ProjectHephaestus/issues/741) |
-| **PR** | [#931](https://github.com/HomericIntelligence/ProjectHephaestus/pull/931) |
+| **Issue** | [#741](https://github.com/HomericIntelligence/ProjectHephaestus/issues/741), [#1181](https://github.com/HomericIntelligence/ProjectHephaestus/issues/1181) |
+| **PR** | [#931](https://github.com/HomericIntelligence/ProjectHephaestus/pull/931), [#1266](https://github.com/HomericIntelligence/ProjectHephaestus/pull/1266) |
 
 ## When to Use
 
@@ -37,6 +46,9 @@ tags:
 - Need a single source of truth for directory paths that spans both test and production code
 - Tests and automation scripts independently calculate the same paths (high DRY violation risk)
 - Path calculation happens at module import time (not in functions) — requires stable, early binding
+- **(v1.1.0) A `__file__`-anchored marker walk-up (`get_repo_root()`) runs inside a git worktree nested under a meta-repo, or in a monorepo with nested `pyproject.toml` / `.git` markers** — the first ancestor with the marker may NOT be the intended root
+- **(v1.1.0) A validator/checker PASSES even on injected-violation input** — suspect repo-root/path resolution reading a sibling/parent file BEFORE suspecting the checker logic
+- **(v1.1.0) Choosing how to invoke an installed entry point** — prefer `python -m pkg.mod` over `python path/to/shim.py`; the script-path form lets `sys.path[0]`/CWD/editable-finder interaction land `__file__` outside the worktree
 
 ## Verified Workflow
 
@@ -139,6 +151,63 @@ SCRIPTS_DIR = scripts_dir()
    # Expected: zero hits
    ```
 
+### Worktree + Editable-Install Trap (v1.1.0)
+
+**The failure mode.** `get_repo_root(start_path)` walks UP from `start_path`,
+returning the first dir containing a `.git` entry OR a `pyproject.toml` marker.
+When the code is checked out in a **git worktree** nested under a meta-repo
+(e.g. `<meta-repo>/build/.worktrees/issue-1181/`) and installed editable
+(`pip install -e .`, PEP 660), and the **parent meta-repo itself contains a
+`pyproject.toml`**, the marker is AMBIGUOUS — more than one ancestor matches.
+
+Observed on ProjectHephaestus #1181 / #1266: a version-single-source checker
+reported PASS even with an injected `[project].version` violation, because it
+resolved repo root to the PARENT meta-repo's clean `pyproject.toml` instead of
+the worktree's. The checker logic was correct; it read the WRONG file.
+
+- Run as a **module** → `python -m hephaestus.scripts_lib.check_version_single_source`
+  → module `__file__` stays the literal worktree path; walk-up stops at the
+  worktree root → correctly detected the violation (exit 1).
+- Run as a **script shim** → `python scripts/check_version_single_source.py`
+  → `sys.path[0]` / editable-finder interaction materialized `__file__`
+  (and a CWD-seeded `get_repo_root()` fallback) OUTSIDE the worktree, on the
+  parent checkout that shares the marker → read the clean parent pyproject
+  (exit 0). Violation masked.
+
+**The fix (verified-ci).** Invoke installed-package entry points as MODULES:
+`python -m package.module`, NOT `python path/to/shim.py`. The `-m` form makes
+module `__file__` and import resolution unambiguous and immune to
+`sys.path[0]`/CWD-dependent resolution, so a `__file__`-anchored
+`get_repo_root()` anchors to the installed package and reads the checked-out
+tree you intend. In a plain CI checkout (no nested worktree, no sibling marker)
+the script-path form also works — but `-m` is strictly more robust and is the
+canonical way to run an installed module. The repo's CI step was switched to
+`-m`; `deps/version-sync` passed in CI (13s).
+
+**Verification fidelity (the headline lesson).** LOCAL verification of
+`__file__`-anchored tooling run from inside a git worktree is **untrustworthy**.
+A marker-file walk-up is AMBIGUOUS whenever more than one ancestor has the
+marker — exactly a worktree nested under a meta-repo that is itself a Python
+project, or any monorepo with nested `pyproject.toml`. It returns the FIRST
+match walking up, which may not be the intended root. When a validator passes
+on known-bad input, verify WHICH file it read before touching its logic, and
+confirm with a synthetic FAIL.
+
+**Diagnostic probe.** Print the resolved root and the file actually read, and
+compare against the worktree path you expect:
+
+```python
+from hephaestus.scripts_lib.check_version_single_source import get_repo_root, _load_toml
+rr = get_repo_root()  # or pass an explicit, correct start_path seed
+print("resolved repo_root:", rr)
+print("version read:", _load_toml(rr / "pyproject.toml").get("project", {}).get("version"))
+# If rr points at a PARENT/SIBLING checkout instead of your worktree, that's the bug.
+```
+
+Also: a CWD-seeded `get_repo_root()` (default `Path.cwd()` when no `start_path`)
+and `__pycache__` compound the confusion. Always pass an explicit, correct seed
+and confirm it equals the worktree root.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -149,6 +218,11 @@ SCRIPTS_DIR = scripts_dir()
 | __all__ export list | Added `__all__ = ['REPO_ROOT', 'SCRIPTS_DIR']` | Unnecessary when module has no prior exports; adds maintenance burden | Only use __all__ if module already exports multiple items; single constants don't need it |
 | Logging during path resolution | Added logger calls to trace fallback execution | Test wanted to verify fallback happened; logging is implementation detail, not test concern | Use caplog/capsys for test verification only if there's a logging requirement; don't add logging for debugging |
 | Fixing sites piecemeal | Fixed tests first, left production code for follow-up | Allowed 4 test fixes to merge without fixing production loop_runner.py:763 | All 5 identical-pattern sites (1 production + 4 test) must be fixed in the same commit; prevents staggered debt |
+| Assumed the checker was buggy (v1.1.0) | Edited/instrumented the version-single-source checker logic because it PASSED with an injected static `[project].version` | Logic was correct; root cause was repo-root resolution reading the PARENT meta-repo's clean pyproject.toml inside a worktree | When a validator passes on known-bad input, verify WHICH file it read before touching its logic |
+| Suspected stale bytecode (v1.1.0) | Used `python -B` and purged `__pycache__` | Behavior unchanged; not a bytecode issue | Rule out path/repo-root resolution before bytecode |
+| Ran the shim "how CI calls it" (v1.1.0) | `python scripts/check_version_single_source.py` to mirror CI | Inside the worktree this resolved repo_root to the parent meta-repo (sibling pyproject marker), masking the violation | Prefer `python -m pkg.mod`; it removes the `sys.path[0]`/`__file__` ambiguity |
+| Trusted a local clean PASS (v1.1.0) | Treated a local PASS as proof the gate works | The PASS came from reading the WRONG file (parent checkout) | Confirm resolved repo_root equals the worktree before trusting any result; verify with a synthetic FAIL |
+| Relied on `get_repo_root()` default seed (v1.1.0) | Let a probe use the default `Path.cwd()` seed | Returned the meta-repo root, not the worktree | Always seed the resolver explicitly; CWD and `__file__` can both leak outside a worktree |
 
 ## Results & Parameters
 
@@ -199,6 +273,31 @@ export HEPHAESTUS_SCRIPTS_DIR=/custom/scripts
 HEPHAESTUS_REPO_ROOT=/tmp/test pytest tests/unit -v
 ```
 
+### Repo-Root Walk-Up Contract & the `-m` Fix (v1.1.0)
+
+| Parameter | Value |
+|-----------|-------|
+| **`get_repo_root(start_path)` contract** | Walks UP from `start_path`, returns the FIRST ancestor containing a `.git` entry OR a `pyproject.toml` marker; module seeds it with `Path(__file__).resolve().parent`; default `start_path` is `Path.cwd()` when omitted |
+| **Ambiguity condition** | More than one ancestor has the marker — a worktree nested under a meta-repo that is itself a Python project, or a monorepo with nested `pyproject.toml` |
+| **Symptom** | Checker/validator returns PASS (exit 0) on injected-violation input because it read a parent/sibling file |
+| **Robust invocation (fix)** | `python -m package.module` — unambiguous module `__file__`, immune to `sys.path[0]`/CWD |
+| **Fragile invocation** | `python path/to/shim.py` — `sys.path[0]`/editable-finder can land `__file__` outside the worktree |
+| **CI result** | After switching the gate step to `-m`, `deps/version-sync` passed in CI (~13s) |
+
+**Diagnostic snippet (compare resolved root vs your worktree):**
+```python
+from hephaestus.scripts_lib.check_version_single_source import get_repo_root, _load_toml
+rr = get_repo_root()
+print(rr, _load_toml(rr / "pyproject.toml").get("project", {}).get("version"))
+```
+
+### Cross-Links
+
+- `hephaestus-env-var-fallback-path-resolution` (this skill) — env-var override + walk-up resolver design
+- `architecture-python-src-layout-migration` — src-layout & editable-install packaging context
+- `git-worktree-sys-path-precedence-issue` — companion: worktree `sys.path` ordering loads STALE CODE in subprocess console scripts (different failure: wrong code vs. this skill's wrong data file)
+- Companion CI dead-required-gate learning (ProjectHephaestus #1181/#1266) — the worktree repo-root resolution bug is WHY the dead-gate verification initially looked like it passed
+
 ## Key Principles Applied
 
 1. **DRY**: 5 identical patterns replaced with 1 source of truth
@@ -213,3 +312,4 @@ HEPHAESTUS_REPO_ROOT=/tmp/test pytest tests/unit -v
 | Project | Context | Details |
 |---------|---------|---------|
 | ProjectHephaestus | Issue #741 / PR #931 | 5 identical __file__.parents patterns centralized; 3175 tests pass locally |
+| ProjectHephaestus | Issue #1181 / PR #1266 | Worktree+editable-install repo-root resolution masked an injected version violation; switching the gate step to `python -m hephaestus.scripts_lib.check_version_single_source` fixed it; `deps/version-sync` passed in CI (~13s) — verified-ci |
