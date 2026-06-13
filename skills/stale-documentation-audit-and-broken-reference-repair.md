@@ -1,12 +1,12 @@
 ---
 name: stale-documentation-audit-and-broken-reference-repair
-description: "Use when: (1) running a doc-drift audit across a corpus — detecting stale counts, metric discrepancies, cross-doc contradictions, ecosystem-role drift; (2) removing phantom directory references from documentation when a path no longer exists; (3) fixing broken documentation references (dead links, stale headings); (4) auditing documentation examples for policy violations; (5) auditing and rewriting getting-started stubs by sourcing real commands from justfile and versions from pixi.toml; (6) fixing incorrect tier labels or version numbers in docs that have drifted from implementation; (7) managing the full lifecycle of placeholder and stub documentation — deletion under YAGNI, deferred-comment placeholders, rewriting with accurate codebase-grounded content; (8) resolving audit nitpicks for monolithic code by documenting verified design rationale; (9) resolving CONTRIBUTING.md case-clashes and circular cross-references in docs/; (10) validating anchor fragments in markdown deep-links to detect broken headings; (11) an issue claims a file contains a specific string — verify it before trusting the claim; (12) a doc or test comment references a line number in another file that may have shifted."
+description: "Use when: (1) running a doc-drift audit across a corpus — detecting stale counts, metric discrepancies, cross-doc contradictions, ecosystem-role drift; (2) removing phantom directory references from documentation when a path no longer exists; (3) fixing broken documentation references (dead links, stale headings); (4) auditing documentation examples for policy violations; (5) auditing and rewriting getting-started stubs by sourcing real commands from justfile and versions from pixi.toml; (6) fixing incorrect tier labels or version numbers in docs that have drifted from implementation; (7) managing the full lifecycle of placeholder and stub documentation — deletion under YAGNI, deferred-comment placeholders, rewriting with accurate codebase-grounded content; (8) resolving audit nitpicks for monolithic code by documenting verified design rationale; (9) resolving CONTRIBUTING.md case-clashes and circular cross-references in docs/; (10) validating anchor fragments in markdown deep-links to detect broken headings; (11) an issue claims a file contains a specific string — verify it before trusting the claim; (12) a doc or test comment references a line number in another file that may have shifted; (13) PLANNING a doc-drift consolidation — issue line numbers are stale and more copies exist than cited; (14) a flagged stale count is ambiguous which set the doc counts — disambiguate before bumping; (15) planning a phantom-path fix — applying the remove-vs-redirect decision rule and confirm-then-fix audit discipline; (16) a dated currency claim in a doc trails the git tag and you want a CI-effective version-currency guard; (17) a README/CLAUDE.md directory tree omits or miscounts a subpackage; (18) syncing a stale doc-version claim to the correct version authority and deciding whether to add a drift-detection regression test."
 category: documentation
 date: 2026-06-13
-version: "1.2.0"
+version: "1.9.0"
 user-invocable: false
 history: stale-documentation-audit-and-broken-reference-repair.history
-tags: [doc-drift, stale-doc, broken-references, phantom-dir, placeholder, stub, anchor-validation, tier-labels, doc-audit, doc-sync, merged]
+tags: [doc-drift, stale-doc, broken-references, phantom-dir, placeholder, stub, anchor-validation, tier-labels, doc-audit, doc-sync, merged, merge-method, consolidation-planning, count-disambiguation, remove-vs-redirect, confirm-then-fix, version-currency, git-tag-authority, subpackage-count, pattern-d, drift-test-fragility]
 ---
 
 # Stale Documentation Audit and Broken Reference Repair
@@ -17,7 +17,7 @@ tags: [doc-drift, stale-doc, broken-references, phantom-dir, placeholder, stub, 
 | ------- | ------- |
 | **Date** | 2026-06-13 |
 | **Objective** | Canonical workflow for auditing stale documentation and repairing broken references: drift audits, phantom-dir/dead-link removal, placeholder lifecycle, getting-started rewrites, tier-label fixes, anchor validation, ADR LoC figure updates, stale line-number citations |
-| **Outcome** | Consolidated from 10 skills covering doc-drift audits, broken-reference repair, policy-violation audits, placeholder/stub lifecycle, monolith-rationale docs, CONTRIBUTING case-clash, and anchor validation; v1.1.0 adds ADR LoC drift pattern; v1.2.0 adds stale line-number citation audit and issue-body claim verification |
+| **Outcome** | Consolidated from 10 skills covering doc-drift audits, broken-reference repair, policy-violation audits, placeholder/stub lifecycle, monolith-rationale docs, CONTRIBUTING case-clash, and anchor validation; v1.1.0 adds ADR LoC drift pattern; v1.2.0 adds stale line-number citation audit and issue-body claim verification; v1.9.0 adds merge-method per-repo note, doc-drift consolidation PLANNING, count-set disambiguation, phantom-path remove-vs-redirect, git-tag version-currency guard, subpackage counting, and Pattern D drift-test fragility |
 | **Verification** | verified-ci |
 
 ## When to Use
@@ -37,6 +37,12 @@ tags: [doc-drift, stale-doc, broken-references, phantom-dir, placeholder, stub, 
 - An ADR file (e.g. `docs/adr/`) cites LoC figures or percentage metrics that have drifted as the codebase grew since the ADR was authored; `CLAUDE.md` or other doc files repeat the same stale counts
 - An issue claims a file "contains" a specific string — grep for that exact string before trusting the claim (issue bodies may have been written against an older version of main)
 - A doc or test file references another file by line number (e.g. `install.sh:137–141`) — the cited line numbers may have shifted independently across files that reference the same construct
+- **PLANNING** a doc-drift consolidation: two+ onboarding/setup blocks have drifted from a canonical recipe and you must write an implementation plan before touching files
+- An audit flags a stale file/subpackage/skill/test count, but it is unclear *which set* the doc counts (documented packages vs filesystem dirs; skill DEFINITIONS vs every dir incl. `_`-prefixed partials) — disambiguate before assuming the number is arithmetically wrong
+- You are **planning** (not yet executing) a phantom-path / stale-reference fix and must decide between *removing* the dead pointer and *redirecting* it, and want a confirm-then-fix audit recipe
+- A dated currency claim (latest-released-version / last-updated) in a doc trails the git tag line and you want a CI-effective guard (one that actually runs, not silently skips)
+- A README/CLAUDE.md directory tree omits or miscounts a subpackage and you must re-derive the true package count from the filesystem (not trust the doc's own number or the issue's)
+- A doc states a stale released-version claim (e.g. `MIGRATION.md` says "latest released version is 0.9.2" but `git tag` shows v0.9.5) and you must sync it to the correct version authority — AND decide whether to add a drift-detection regression test (see §18 for the fragility traps before you couple a prose regex to a git-tag-derived authority)
 
 ## Verified Workflow
 
@@ -84,6 +90,13 @@ grep -n "claimed incorrect string" path/to/file.md  # returns nothing → claim 
 grep -n "guard_pattern\|function_name" path/to/source.sh
 # Step 3: Search for ALL stale variants — docs and test files updated independently
 grep -rn "old_ref_1\|old_ref_2" docs/ tests/ --include="*.md" --include="*.bats" --include="*.sh"
+
+# ── DISAMBIGUATE A FLAGGED COUNT (which set does the doc count?) ─────────────
+find hephaestus -maxdepth 1 -mindepth 1 -type d ! -name __pycache__ | wc -l  # real subpackage dirs
+find skills -name SKILL.md | wc -l                                          # skill DEFINITIONS (usual unit)
+find skills -maxdepth 1 -mindepth 1 -type d | wc -l                         # dirs (incl. _-prefixed partials)
+grep -rn "<stale phrase>" . --include="*.md" | grep -v ".claude/worktrees/" # corpus re-grep, no worktree mirrors
+git ls-files <path>                                                         # confirm a hit is a tracked file
 
 # ── ANCHOR VALIDATION ────────────────────────────────────────────────────────
 python3 scripts/validate_installation_anchors.py README.md docs/getting-started/installation.md
@@ -284,6 +297,348 @@ gh pr create --title "docs(<scope>): <description>" --body "Closes #<issue>"
 gh pr merge --auto --rebase
 ```
 
+### Disambiguate a flagged count (which set does the doc count?)
+
+**Disambiguate WHICH set is counted before bumping a number.** A doc count flagged as stale can
+disagree with `find … | wc -l` for two different reasons: (a) genuine staleness (a real dir was
+added and never documented), or (b) the doc counts a *narrower set on purpose* (documented
+packages, skill DEFINITIONS, public modules) that legitimately differs from the raw filesystem
+count. Before editing, run BOTH a structural count AND a "what does the surrounding text
+enumerate?" check, then reconcile three numbers — dir count, definition-file count, total-file
+count — with the doc's claimed unit. Use `git ls-files <path>` to confirm a grep hit is actually
+tracked (worktree mirrors false-positive with raw `grep -rn`). Exclude `.claude/worktrees/` when
+re-grepping the corpus (`grep -v ".claude/worktrees/"`).
+
+#### 10. Doc-drift consolidation PLANNING (proposed)
+
+> **Warning:** This workflow has not been validated end-to-end. Treat as a hypothesis until CI confirms.
+
+Use when an issue asks you to *consolidate* two or more drifted onboarding/setup blocks onto a
+single canonical recipe and you must produce an **implementation plan** before editing. The core
+durable lesson: **the issue's cited file:line ranges are frequently STALE and the duplicated
+content frequently appears in MORE places than the issue cites — always re-grep directory-wide
+and verify every line number on disk before planning any edit.**
+
+Proposed planning steps:
+
+1. **Distrust the issue's line numbers.** Do not plan against `file.md:34-45` from the issue body.
+   `grep -n` for the actual heading or recipe and confirm where it really lives.
+
+   ```bash
+   # Issue claimed canonical block at CONTRIBUTING.md:34-45; reality:
+   grep -n "just bootstrap\|^## Development Setup" CONTRIBUTING.md   # → 53-65, NOT 34-45
+   ```
+
+2. **Directory-wide grep, never single-file, to find ALL copies.** The issue usually cites one
+   drifted block; there are often more.
+
+   ```bash
+   grep -rn "pre-commit install\|pixi install" README.md CONTRIBUTING.md docs/
+   # Cited block: README.md:54-61. Grep ALSO found README:130-138
+   # ("Setup Development Environment") with the SAME drift — patching only the
+   # cited block would have left the drift alive.
+   ```
+
+3. **Classify each grep hit by surrounding context** before deciding to edit. Incidental keyword
+   matches are not drift. (e.g. README:50/252/515 matched `pixi install` but were an extras note,
+   a dependency-add example, and a branch-protection example — correctly left untouched.)
+
+4. **Source ground truth for the canonical command from the authoritative file — never invent it.**
+
+   ```bash
+   sed -n '20,24p' justfile   # bootstrap recipe: pixi install / pixi run dev-install / pixi run pre-commit install
+   ```
+
+   The README was "subtly wrong" precisely because it predated `dev-install` and the
+   `pixi run pre-commit` wrapper — read the recipe, do not reconstruct it from memory.
+
+5. **Reduce-to-redirect, do not delete.** Keep the section heading + anchor and replace the command
+   block with a pointer to the canonical recipe. This preserves inbound anchors and reading flow.
+
+6. **Verify the redirect target anchor resolves.** When a redirect points at
+   `CONTRIBUTING.md#development-setup`, add a plan step that confirms the GitHub-rendered slug exists.
+
+   ```bash
+   grep -n "^## Development Setup" CONTRIBUTING.md   # confirms the #development-setup anchor
+   ```
+
+7. **Gate:** docs-only change → markdownlint is the only gate (MD032 blanks-around-lists is the
+   usual offender); no unit tests.
+
+#### 10. Doc-version-currency sync + drift-test fragility (Pattern D) — UNVERIFIED
+
+> **Warning:** This sub-section is a **planning hypothesis** from ProjectHephaestus #1208 — the
+> plan was NOT executed (no edits applied, no tests run, no CI). The drift-test fragility modes
+> below are reasoning, not observed CI failures. Treat the drift-test recommendation as a caution,
+> not a verified recipe. The *sync* half (find the authority, edit the prose, distinguish currency
+> claims from historical references) follows the same verified mechanics as §1.
+
+A doc names a stale released version (`MIGRATION.md`: "latest released version is **0.9.2**" while
+`git tag` shows `v0.9.5`). Two parts: (a) **sync the prose to the version authority**, and
+(b) **decide whether to add a drift-detection regression test** — the trap is that such a test is
+fragile and can red CI for reasons unrelated to the doc being wrong.
+
+**(a) Verify the version authority FIRST — do not trust a precedent skill's source-of-truth.**
+In a **hatch-vcs** repo the canonical version is the latest git tag, NOT a static
+`[project].version` (that field does not exist — `pyproject.toml` declares `dynamic = ["version"]`):
+
+```bash
+git tag --sort=-v:refname | head -1          # the real authority in a hatch-vcs repo
+grep -n "version" pyproject.toml | head      # confirm there is NO static [project].version
+```
+
+The sibling skill `security-md-version-sync` assumes `pyproject.toml [project].version` is the
+source of truth — that is **WRONG for a hatch-vcs repo**. Always confirm the version authority for
+*this* repo before reusing any precedent.
+
+**(a cont.) Scope precisely, and distinguish currency claims from historical references.** Grep the
+version AND any associated date, but do not blindly edit every hit:
+
+```bash
+grep -rn "0\.9\.2\|2026-05-28" docs/ README.md CLAUDE.md   # find every candidate
+```
+
+A match like `ROADMAP.md:9 … "the strict 2026-05-28 audit"` names a **historical event**, not a
+current-version claim — editing it would be wrong. **Edit currency claims; leave historical
+references that legitimately name a past date/version.**
+
+**(b) Drift-detection regression test — three fragility modes (anti-patterns, do NOT ship blindly).**
+The tempting test asserts the MIGRATION.md prose names the latest git tag, e.g. via a helper like
+`hephaestus/version/consistency._version_from_git_tag` and a regex
+`latest released version is \*\*(\d+\.\d+\.\d+)\*\*`. It is fragile because:
+
+1. **Regex brittleness** — the regex is coupled to exact prose + bold markup. A future copy-edit
+   ("the most recent release is …") or removing `**` makes the test RED even though the doc is
+   *correct*. The test now guards the wording, not the version.
+2. **Silent skip on shallow CI checkout** — `_version_from_git_tag` returns `None` when tags aren't
+   fetched (common with `actions/checkout` `fetch-depth: 1` / no `fetch-tags: true`). A
+   `pytest.skip` on `None` means **the gate silently does nothing** — it can pass forever while the
+   doc drifts. **A guard that skips in CI is not a guard.**
+3. **Release-time race** — asserting the doc `==` latest tag turns every new `vX.Y.Z` push into a
+   RED main until someone edits the doc. Pattern D ("stop maintaining the number") ironically
+   **re-introduces a manual chore**: now you must edit the doc with/before every tag or main breaks.
+
+**Mitigations (Proposed — not yet verified):**
+
+- **Prefer a live source over an assertion.** Make the doc *link* to GitHub Releases / `git tag`
+  output instead of hardcoding a number. This kills the maintenance burden with no brittle gate —
+  the same "stop maintaining the number" philosophy used for badge/count drift (see the badges
+  skill), applied to version prose.
+- If a test is used, assert the doc version is **`<=` latest tag** (drift-direction guard), not
+  `==`, so a fresh release tag does not instantly red main.
+- If `_version_from_git_tag` returns `None` in CI, **fail loud or fetch tags** (`fetch-tags: true`)
+  — never silently `skip`. A loud `xfail`/explicit-fail with a message beats a green no-op.
+
+### Validate, Commit, and PR
+
+```bash
+git diff --stat                                  # confirm only intended files changed
+pre-commit run --all-files                       # runs markdownlint with precise line numbers
+git add <changed-files>
+git commit -m "docs(<scope>): <description>
+
+Closes #<issue>"
+git push -u origin <branch>
+gh pr create --title "docs(<scope>): <description>" --body "Closes #<issue>"
+gh pr merge --auto --rebase
+```
+
+#### Variant: doc-version-currency guard anchored to the git TAG (hatch-vcs repos)
+
+When a doc carries a *currency claim* (e.g. "the latest released version is **0.9.5**" or
+"Last updated: 0.9.5") that must not trail the real release, the authority is the **latest
+`vX.Y.Z` git tag**, NOT `pyproject.toml`. A hatch-vcs / dynamic-versioning repo has **no static
+`[project].version`** field, so the older `security-md-version-sync` pattern (pyproject as source
+of truth) is WRONG here and must be rejected. Three non-obvious rules — apply ALL THREE:
+
+1. **Authority = the git tag**, resolved with the project's own helper (do not re-implement):
+
+   ```python
+   from hephaestus.version.consistency import _version_from_git_tag   # "0.9.5" (leading v stripped)
+   from hephaestus.version.parsing import parse_version_tuple          # ("0","9","5") -> (0, 9, 5)
+
+   canonical = _version_from_git_tag(repo_root)   # internally: git describe --tags --abbrev=0 --match 'v[0-9]*'
+   ```
+
+2. **Compare with `>=` / "does-not-trail", NEVER `==`.** Drift = the doc trailing the tag:
+
+   ```python
+   documented_tuple = parse_version_tuple(documented, on_non_numeric="raise")
+   canonical_tuple  = parse_version_tuple(canonical,  on_non_numeric="raise")
+   assert documented_tuple >= canonical_tuple, (
+       f"doc trails git tag: documented {documented} < tag {canonical}"
+   )
+   ```
+
+   `==` reintroduces a release-time race: a freshly-pushed *newer* tag would instantly red `main`
+   before anyone edits the doc. With `>=`, "doc merely not ahead" passes; only a doc that has
+   fallen *behind* fails.
+
+3. **The guard must RUN in CI — a `pytest.skip` is a silent no-op gate** that guards nothing.
+   - **WARN/comment + assert-not-None on the regex** (POLA): the regex
+     (`r"latest released version is \*\*(\d+\.\d+\.\d+)\*\*"`) is coupled to the exact doc
+     wording. Put an in-code `# WARNING:` comment above it telling future editors to update it in
+     lockstep with the doc phrasing, and `assert match is not None` so a reword fails LOUD, not silent.
+   - **Absent tags → hard `pytest.fail(...)`, never `pytest.skip`** — with remediation guidance
+     (run `git fetch --tags`; set `fetch-tags: true`). If the workflow ever regresses to a
+     tag-less checkout, the test goes RED loudly instead of green-but-skipped.
+
+   ```python
+   def test_doc_version_not_behind_git_tag(repo_root: Path) -> None:
+       canonical = _version_from_git_tag(repo_root)
+       if canonical is None:
+           pytest.fail(  # NOT pytest.skip — a skip makes this guard a no-op
+               "No vX.Y.Z git tag reachable. CI checkout must be deep + tagged: "
+               "run `git fetch --tags` locally; in the workflow set "
+               "`fetch-depth: 0` and `fetch-tags: true` on actions/checkout."
+           )
+       text = (repo_root / "MIGRATION.md").read_text()
+       # WARNING: this regex is coupled to MIGRATION.md's exact wording.
+       # If you reword that sentence, update this pattern IN LOCKSTEP.
+       match = re.search(r"latest released version is \*\*(\d+\.\d+\.\d+)\*\*", text)
+       assert match is not None, "MIGRATION.md currency sentence reworded — update the regex"
+       documented = match.group(1)
+       assert parse_version_tuple(documented, on_non_numeric="raise") >= parse_version_tuple(
+           canonical, on_non_numeric="raise"
+       ), f"MIGRATION.md version {documented} trails git tag {canonical}"
+   ```
+
+   The companion fix lives in the **workflow**, not the test: the unit-test job's
+   `actions/checkout` step needs `fetch-depth: 0` + `fetch-tags: true` (a bare checkout is shallow
+   and tag-less, so `_version_from_git_tag` returns `None`). Mirror the config already in
+   `auto-tag.yml` / `release.yml`.
+
+   ```yaml
+   - uses: actions/checkout@<sha>
+     with:
+       fetch-depth: 0      # full history
+       fetch-tags: true    # tags are required for _version_from_git_tag
+   ```
+
+   **TDD non-skip discipline:** the RED step must assert the test FAILS (`1 failed`) against the
+   stale state — explicitly NOT "1 skipped" masquerading as a pass. GREEN runs with `-rs` and
+   asserts `0 skipped`.
+
+   **Distinguish a currency claim from a historical event name:** "Last updated: <date>" is a
+   currency claim to sync; "the strict <date> audit" is an *event name* — leave it untouched.
+
+   **Test placement:** a new `tests/unit/docs/` dir does NOT trip a one-directional source↔test
+   mirror-structure check (no `hephaestus/docs/` source is required), and the no-loose-files check
+   is satisfied because the test lives inside a subpackage.
+
+### Reliable markdownlint invocation
+
+```bash
+# WORKS
+pixi run pre-commit run markdownlint-cli2 --files <path/to/file.md>
+pre-commit run --all-files
+# FAILS — npx/just not in pixi conda env; pixi env init ~2 min
+pixi run npx markdownlint-cli2 <file>
+```
+
+### Key parameters
+
+- **Counts**: round + `+` for non-deterministic (`3,000+`); exact (no `+`) for deterministic sums.
+- **Mojo version in docs**: range from `pixi.toml` (`>=0.26.1,<0.27`), never a nightly string.
+- **HTML comments** pass MD033 (comments aren't elements) — safe for deferred-section placeholders.
+- **Files most likely to hold stale refs**: `docs/index.md`, `docs/README.md`, `docs/glossary.md`,
+  `references/notes.md`, `docs/analysis-prompt.md`.
+- **Policy-audit exclusions**: `docs/arxiv/`, `tests/claude-code/`, `.pixi/`, `build/`, `node_modules/`.
+- **Doc-version authority on hatch-vcs repos**: the latest `vX.Y.Z` git tag (via
+  `_version_from_git_tag`), NOT `pyproject.toml` — there is no static `[project].version` field.
+  `security-md-version-sync`'s pyproject-as-source-of-truth assumption does NOT apply to
+  dynamic-versioning repos.
+
+#### 1b. Counting subpackages for a directory-tree drift fix (planning)
+
+> **Warning:** This subsection is `unverified` — derived from an implementation *plan* for
+> ProjectHephaestus #1188 (README directory tree omits the `scripts_lib/` subpackage). The plan was
+> not executed end-to-end (no pre-commit run, no regression test executed). Treat the counting
+> recipe as verified, but treat the proposed regression test and edit-placement assumptions as
+> hypotheses until CI confirms.
+
+When a README/CLAUDE.md directory tree omits a subpackage and quotes a package count, **re-derive
+the count from the filesystem yourself** — trust neither the doc's claim nor the audit issue's
+number. Both can carry the same off-by-one error.
+
+```bash
+# WRONG — overcounts: includes __pycache__/ and any dot-dirs
+ls -d hephaestus/*/ | wc -l            # returned 21 (20 real + __pycache__)
+
+# RIGHT — count only real packages (those with an __init__.py)
+find hephaestus -maxdepth 2 -name __init__.py -printf '%h\n' | sort -u | wc -l
+# or, tracked files only (ignores cache entirely):
+git ls-files 'hephaestus/*/__init__.py' | wc -l   # → 20
+```
+
+Then re-grep the **bare number** across the whole corpus and disambiguate every hit before editing —
+the same stale count usually lives in more than one file, and an unrelated metric will false-positive:
+
+```bash
+grep -rn "19" README.md CLAUDE.md
+# README.md:tree caption "19 ... subpackages"  → REAL stale copy (fix)
+# CLAUDE.md:28 "19 documented subpackages"      → REAL second stale copy (fix)
+# CLAUDE.md:62 "19.7k LoC"                       → FALSE POSITIVE, unrelated metric (do NOT change)
+```
+
+For the tree insertion itself, the new entry must sort into the existing order — verify the **local
+neighborhood** is alphabetical (e.g. `scripts_lib/` sorts between `resilience/` and `system/`) by
+reading the adjacent lines; do not assume the entire tree is sorted. The inserted comment text is
+planner-authored prose, not a copied docstring — flag it for maintainer wording review. The real
+acceptance gate is a regression test that asserts every `*/__init__.py` package appears in the tree,
+not the greps (the greps are for human/CI reproduction). The CLAUDE.md "avoid raw grep" guidance
+applies to agent tool-use, not to a doc's copy-paste verification block.
+
+## Planning Discipline (remove-vs-redirect + confirm-then-fix)
+
+> **Verification of this section:** `verified-local`. The audit/verification *technique* below was
+> directly verified on disk (`ls .claude/` proved `.claude/shared/` is absent; `grep -rn` found one
+> tracked occurrence). The downstream PR outcome is **pending** — the plan that produced this
+> learning had not yet been implemented or merged when captured. Treat the decision rule as sound;
+> treat any claim about the eventual fix landing cleanly as unverified.
+
+### Remove-vs-redirect decision rule
+
+When a doc points at a path/file/section that no longer exists, choose deliberately:
+
+| Situation | Action | Why |
+| --------- | ------ | --- |
+| An **adjacent surviving line already covers the same intent** | **REMOVE** the dead pointer | KISS/YAGNI — the redirect would be pure redundancy |
+| **No surviving pointer covers the intent** and the information would otherwise be lost | **REDIRECT** to the current location | Preserves the reader's path to the information |
+
+**Worked example** (ProjectHephaestus #1211): `CLAUDE.md` "Getting Help" list item 4 pointed at
+`.claude/shared/` (a phantom dir). The adjacent item 3 (`CLAUDE.md:415`, "Review documentation in
+`docs/` directory") already covered the shared-docs intent, so item 4 was redundant → **remove**,
+not redirect.
+
+### Confirm-then-fix audit sequence (the verified-local technique)
+
+1. `grep -rn "<stale-string>" . --include="*.md"` — find **every** hit across the whole tree, not
+   just the line the audit cited.
+2. `ls <path>` — prove the directory/file is actually absent (don't trust the audit's claim).
+3. Check whether an **adjacent line already covers the intent** → drives remove-vs-redirect.
+4. Make a **minimal single-line `Edit`** (don't rewrite the section).
+5. **Re-grep the whole corpus** before declaring done — sibling stale copies (worktree mirrors,
+   `docs/` duplicates) survive a single-line patch.
+
+### Reviewer-risk checklist for the resulting plan
+
+Surface these as explicit risks; each is a place where a phantom-path plan commonly goes wrong:
+
+- **Ephemeral / worktree copies.** A `.claude/worktrees/agent-*/CLAUDE.md` mirror is often assumed
+  out-of-scope (regenerated/discarded by the worktree lifecycle) but that assumption is rarely
+  verified. Run `git ls-files <path> | head` to confirm it is **untracked** before excluding it; if
+  it is tracked, the plan misses an occurrence.
+- **Line numbers drift.** An audit's cited `file:N` (e.g. `CLAUDE.md:417`) can shift between the
+  audit date and the edit. Mitigation: re-`grep -n` on disk and edit by matched string, never by the
+  audit's stale line number.
+- **Markdownlint blank-line regressions.** Deleting a list item can trip MD022/MD032 — reason about
+  it, but the proof is `pre-commit run markdownlint --files <file>`, not inspection.
+- **Memory-sourced external invariants.** Policy facts pulled from prior memory rather than
+  re-verified this session (e.g. the `pr-policy` auto-merge gate requiring a `state:implementation-go`
+  label; the GPG committer-email-must-match-key rule; a specific signing email) should be flagged as
+  assumed-from-memory so the reviewer re-confirms them against the live repo config.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -307,6 +662,11 @@ gh pr merge --auto --rebase
 | Deleting `docs/contributing.md` to resolve the case-clash | Removed the file entirely | Breaks inbound links from the docs index | Reduce to a redirect; keep root as canonical |
 | Per-file reviewers for citation corpus | Reviewed each entry individually | Could not see cross-document §-drift or arXiv ID-to-title swaps | Both failure modes need a cross-corpus structural audit, not per-file review |
 | Trusting issue body claim of specific incorrect string | Planned to remove text the issue said was "incorrect" in a doc | That exact text no longer existed in main — a prior PR had already fixed it; issue body was written against an older version | Grep for the exact claimed string before planning any edit; if grep returns nothing the issue premise is stale |
+| `pytest.skip` when no git tag is reachable | Skipped the doc-version drift test on a tag-less CI checkout | Silent no-op gate — the headline drift guard then guards nothing (green-but-skipped) | Make absent-tags a hard `pytest.fail(...)` with remediation, AND add `fetch-tags: true` so the test actually runs |
+| `==`-to-latest-tag for the version-currency assert | `assert documented == canonical_tag` | Release-time race: a freshly-pushed newer tag instantly reds `main` before anyone edits the doc | Use `>=` / "does-not-trail" semantics — doc merely "not ahead" passes, only a trailing doc fails |
+| Using pyproject `[project].version` as the authority on a hatch-vcs repo | Tried to read the canonical version from `pyproject.toml` | hatch-vcs / dynamic versioning has NO static `[project].version` field — `security-md-version-sync`'s pyproject-as-source assumption does not apply | Authority is the latest git tag via `_version_from_git_tag(repo_root)` |
+| Bare `actions/checkout` for a job whose tests need tags | Left the default shallow checkout on the unit-test job | A bare checkout is shallow and tag-less, so `_version_from_git_tag` returns `None` and the guard skips/fails | Add `fetch-depth: 0` + `fetch-tags: true` (mirror auto-tag.yml / release.yml) |
+| Regex coupled to doc wording with no guard | Relied on the regex silently returning no match after a reword | A reworded sentence makes the regex match nothing → test passes vacuously, drift undetected | `assert match is not None` (fail loud on reword) + an in-code `# WARNING:` comment to update the regex in lockstep |
 | Searching only the issue-reported stale line-number value | Only grepped for `137-141` (the value cited in the issue) | The test file had a *different* stale value (`127-129`) from independent update history; missed it entirely | Search for all plausible old values across all referencing files — doc and test files may carry different stale numbers from independent update histories |
 
 ## Results & Parameters
@@ -362,6 +722,9 @@ pixi run npx markdownlint-cli2 <file>
 - **Files most likely to hold stale refs**: `docs/index.md`, `docs/README.md`, `docs/glossary.md`,
   `references/notes.md`, `docs/analysis-prompt.md`.
 - **Policy-audit exclusions**: `docs/arxiv/`, `tests/claude-code/`, `.pixi/`, `build/`, `node_modules/`.
+- **Merge method is per-repo policy** — verify squash vs rebase vs merge against the target repo's
+  CLAUDE.md / branch-protection before copying any `gh pr merge` line. ProjectHephaestus: `--squash`
+  (rebase disabled).
 
 ## Verified On
 
@@ -374,4 +737,7 @@ pixi run npx markdownlint-cli2 <file>
 | ProjectHephaestus | Issue #792 (PR #984); Issue #630 (PR #667) | Monolith-rationale ADR; CONTRIBUTING case-clash redirect |
 | ProjectHephaestus | Issue #1177 (PR #1281) | Stale LoC figures in ADR + CLAUDE.md after `automation/` grew; re-measured on-disk (`26,125 / 48,498 = 53.9%`); doc-only fix; all CI passed |
 | ProjectHephaestus | Issue #1222 (planning session) | Stale guard line-number citations in docs/INSTALLER_ARCHITECTURE.md and test comments after install.sh code churn; issue body described already-fixed content; 2 files had different stale values (137-141 vs 127-129) from independent update history; verified-local |
+| ProjectHephaestus | Issue #1211 (PR #1236) | Phantom-dir removal (.claude/shared/ in CLAUDE.md); surfaced squash-only merge-method pitfall |
+| ProjectHephaestus | Issue #1216 (planning artifact, **unverified**) | Consolidate two drifted README onboarding blocks onto canonical `just bootstrap` — PLANNING only; plan written but not executed end-to-end, no CI confirmation. Source of the §13 doc-drift consolidation planning workflow |
+| ProjectHephaestus | Issue #1208 (planning artifact, **unverified**) | Doc-version-currency sync + drift-test fragility (Pattern D) — hatch-vcs repo, git-tag authority, `>=` semantics; plan not executed in CI. Source of §18 Pattern D workflow |
 | mvillmow/Random | Predictive-Coding-in-Mojo Phase 0 | Cross-doc citation drift: 8 stale §-refs, 2 arXiv ID swaps caught |
