@@ -1,6 +1,36 @@
 <!-- markdownlint-disable MD024 -->
 # pr-rebase-conflict-resolution-patterns — History
 
+## v1.4.0 (2026-06-13)
+
+**Changed by:** ProjectMnemosyne skill/learn-sha-pin-blocks-stale-prs (2026-06-13)
+
+**Verification:** verified-ci — 107 PRs unblocked and merged via Myrmidon Haiku swarm rebase, ProjectMnemosyne 2026-06-13
+
+**What changed:**
+
+- Added **trigger (13)** to frontmatter `description`: PR BLOCKED with `mergeable=MERGEABLE` but a required check shows `SKIPPED` due to org-wide SHA-pin policy causing a `needs:` dependency chain collapse.
+- Added **When to Use** bullet for the SHA-pin-blocked SKIPPED-required-check scenario (distinct from DIRTY/CONFLICTING cases — git sees no conflict, CI collapses a `needs:` chain).
+- Added **Section J** ("SHA-pin-blocked stale PRs — required check SKIPPED via dependency chain") covering: root-cause chain, diagnosis commands (`gh pr view --json statusCheckRollup`, `gh run view --log-failed | grep 'not allowed'`, `git show origin/<branch>:.github/workflows/*.yml | grep '@v[0-9]'`), single-PR rebase fix, explanation of why empty re-trigger commits do NOT work, companion "combined-status pending with count=0" caching fix via empty signed commit, and Myrmidon swarm pattern for 100+ affected PRs.
+- Added **4 Failed Attempts** rows: (1) empty re-trigger commit on SHA-pin-blocked PR, (2) arming auto-merge before rebase while BLOCKED, (3) `git checkout --ours/--theirs` blocked by Safety Net, (4) diagnosing SHA-pin-blocked PRs as a code/CI failure rather than a workflow-file staleness issue.
+- Added **SHA-pin diagnosis and fix commands** to the Results & Parameters bash block.
+- Added **Verified On** row: ProjectMnemosyne 2026-06-13, 107 PRs rebased in parallel Haiku swarm.
+- Added tags: `sha-pin`, `unpinned-actions`, `skipped-required-check`, `markdownlint`, `lint-blocked`, `org-policy`, `myrmidon-swarm`.
+
+**Why:** The skill previously covered DIRTY/CONFLICTING PRs (git conflict) but not the distinct class of BLOCKED PRs where the git state is MERGEABLE but a required CI check is SKIPPED because an upstream `needs:` job fails due to an org policy enforcement. This manifests identically to a stuck PR — `mergeStateStatus=BLOCKED` — but has a different root cause (workflow file staleness, not content conflict) and a different fix (rebase to inherit workflow changes, not conflict resolution). The empty-commit re-trigger is the most common wrong first instinct and is now explicitly documented as a failed attempt.
+
+## v1.3.0 (2026-06-11)
+
+**Changed by:** ProjectHephaestus PR #1014/#720 DIRTY-with-all-green + modify/delete resolution
+
+**What changed:**
+
+- Added trigger (11): PR DIRTY with all CI checks green — the merge conflict IS the sole blocker.
+- Added trigger (12): modify/delete conflict on a file the PR intentionally deletes.
+- Added C2 post-rebase verification checklist.
+- Added Failed Attempts rows for DIRTY-all-green diagnosis and modify/delete conflict.
+- Added Verified On rows for ProjectHephaestus PR #1014/#720.
+
 ## v1.2.0 (2026-06-11)
 
 **Changed by:** ProjectHephaestus PR #967 (issue #768) add/add already-merged rebase
