@@ -97,7 +97,7 @@ grep -rn "return [0-9]" path/to/module/
 
 4. **Anchor log-line classification on the line prefix, not a free substring scan.** Initial classifier used `" wrote " in line`, which substring-scans EVERY line including `ERROR:` lines; since the logged path embeds a user-controlled token (an exe basename `%e` that can contain spaces), an `ERROR: failed to write core to .../<name with ' wrote ' in it>` line could be misclassified as success. Each log line is `"<iso-timestamp> <message>"` — split off the timestamp (`line.split(maxsplit=1)`) and require the MESSAGE portion to `startswith("wrote ")`. This is the Python analogue of the inverse-grep / anchor-the-match lesson. Add a regression test with an ERROR line whose path embeds the literal `" wrote "`.
 
-5. **Classify into three verdicts; map only the real-defect one to the blocking code.** `OK` (a `wrote ` line present — even if a WARNING is also present, since a successful capture can still log a chmod/limit warning) and `RAN_WITH_ERRORS` (handler ran, no success line) both exit 0 — the handler RAN, the signal was not lost. Only `NOT_RUN` (missing/empty/unreadable log) exits the distinct blocking code. The blocking line is "was the failure SIGNAL lost", not "did the capture succeed". Surface the verdict via a discrete JSON field (`emit_json_status(exit_code, message=detail, verdict=verdict)`), not embedded in the message string, so it is aggregable.
+5. **Classify into three verdicts; map only the real-defect one to the blocking code.** `OK` (a `wrote` line present — even if a WARNING is also present, since a successful capture can still log a chmod/limit warning) and `RAN_WITH_ERRORS` (handler ran, no success line) both exit 0 — the handler RAN, the signal was not lost. Only `NOT_RUN` (missing/empty/unreadable log) exits the distinct blocking code. The blocking line is "was the failure SIGNAL lost", not "did the capture succeed". Surface the verdict via a discrete JSON field (`emit_json_status(exit_code, message=detail, verdict=verdict)`), not embedded in the message string, so it is aggregable.
 
 6. **Keep the capture path loud after relaxing argument requirements.** To let `--verify` run without the kernel-supplied positionals, the positionals were made `nargs="?"` (optional), which silently weakened the capture path (a malformed `core_pattern` line missing tokens would no longer error at argparse time). Re-add an explicit guard in `main()`: if NOT `--verify` and any kernel token is missing, fail loudly (`return 1`) instead of silently no-opping. Test both: missing-positionals-without-verify returns 1, AND a full capture still writes the core (regression).
 
@@ -153,7 +153,7 @@ target = next((Path(c) for c in cleaned if Path(c).is_dir()), Path(cleaned[-1]))
 
 | Verdict | Meaning | Exit code | Blocking? |
 | --------- | --------- | ----------- | ----------- |
-| `OK` | a `wrote ` line present (WARNING allowed) | 0 | no |
+| `OK` | a `wrote` line present (WARNING allowed) | 0 | no |
 | `RAN_WITH_ERRORS` | handler ran, no success line | 0 | no |
 | `NOT_RUN` | log missing / empty / unreadable | 3 | **yes** |
 
