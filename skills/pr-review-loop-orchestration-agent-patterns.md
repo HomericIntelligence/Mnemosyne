@@ -224,7 +224,7 @@ Generalizable rules:
    and emit `{"addressed": []}`.
 
 Signal phrases to look for in the reviewer's own text (authoritative classification):
-"non-blocking", "pre-existing", "out of scope for #<issue>", "doesn't block merge",
+"non-blocking", "pre-existing", "out of scope for #`<issue>`", "doesn't block merge",
 "worth a follow-up issue".
 
 Concrete case (PR #1245 / #1216): the sole thread was labelled "Non-blocking
