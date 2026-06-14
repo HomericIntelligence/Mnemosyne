@@ -1,9 +1,9 @@
 ---
 name: git-worktree-sys-path-precedence-issue
-description: "Document the sys.path ordering issue in workspace-based git worktrees where the main project directory comes before the worktree in Python's module search path, causing subprocess-spawned entry points (console scripts) to import modules from the main repo instead of the worktree, even though the editable install (.pth file) correctly points to the worktree. Code changes work in direct Python imports but fail in subprocess invocations. Also covers the pixi console script stale-binary failure mode where the script shebang points to the main worktree's installed package. Use when: (1) running console scripts via subprocess that load stale code from the main repo, (2) debugging entry points that work in direct Python imports but fail via pixi run or subprocess.run(), (3) code changes in a git worktree work when imported directly but fail when invoked as a console script, (4) sys.path shows main project directory before worktree path, (5) pixi run hephaestus-* returns old output after editing source in a worktree."
+description: "Document the sys.path ordering issue in workspace-based git worktrees where the main project directory comes before the worktree in Python's module search path, causing subprocess-spawned entry points (console scripts) to import modules from the main repo instead of the worktree, even though the editable install (.pth file) correctly points to the worktree. Code changes work in direct Python imports but fail in subprocess invocations. Also covers the pixi console script stale-binary failure mode where the script shebang points to the main worktree's installed package. Use when: (1) running console scripts via subprocess that load stale code from the main repo, (2) debugging entry points that work in direct Python imports but fail via pixi run or subprocess.run(), (3) code changes in a git worktree work when imported directly but fail when invoked as a console script, (4) sys.path shows main project directory before worktree path, (5) VERIFYING a console-script fix from inside a worktree where the installed entry point emits empty/unpatched output and you might wrongly conclude 'the fix does not work' — re-verify via `python -m <module>` and probe `module.__file__` / `inspect.getsource(main)`."
 category: tooling
 date: 2026-06-13
-version: "1.1.0"
+version: "1.2.0"
 history: git-worktree-sys-path-precedence-issue.history
 user-invocable: false
 verification: verified-local
@@ -85,6 +85,33 @@ pixi run hephaestus-agent-stage --version
 
 # 7. Fix for worktree with its own pixi env: refresh the editable install
 pixi run dev-install
+```
+
+### Console-Script Verification Probe
+
+**The trap**: After applying a fix inside a worktree, you run the installed console-script to verify it — and it returns empty or unpatched output. You conclude "the fix is broken." It is not broken: the installed entry point loaded the OUTER repo's copy of the module, not your worktree's copy. The console-script shebang hardcodes the main worktree's Python interpreter, so `inspect.getfile()` will reveal a path outside your worktree.
+
+**Probe to reveal which copy is loaded:**
+
+```python
+from hephaestus.validation import repo_analyze_skills as m
+import inspect
+print("MODFILE:", m.__file__)          # reveals WHICH copy is loaded
+print("HAS_FIX:", "args.json" in inspect.getsource(m.main))
+```
+
+If `MODFILE` shows a path in the outer/main repo (not your worktree), the console-script binary is stale regardless of your edits.
+
+**Authoritative local verification**: use `python -m <module>` or `from <module> import main; main([...])`, NOT the installed entry point:
+
+```bash
+# Wrong (may silently load outer repo):
+pixi run hephaestus-repo-analyze-skills --json
+
+# Correct (always loads from current editable install):
+pixi run python -m hephaestus.validation.repo_analyze_skills -- --json
+# OR:
+pixi run python -c "from hephaestus.validation.repo_analyze_skills import main; main(['--json'])"
 ```
 
 ### Detailed Steps
@@ -261,6 +288,8 @@ pixi run hephaestus-agent-stage --version
 | Setting PYTHONPATH in shell before invoking subprocess | Exported `PYTHONPATH=/path/to/worktree:$PYTHONPATH` in bash, then called subprocess | subprocess.run() did NOT inherit the shell's exported PYTHONPATH; only env passed explicitly to subprocess gets it | When using subprocess.run() in Python, env vars are NOT inherited from the parent shell unless explicitly passed via the `env=` parameter; `os.environ.copy()` is required. |
 | Checking only the main .pth file | Examined `.pth` file in main repo's site-packages | Missed that the worktree was using the SAME `.pixi/envs/default` and the .pth file there was also pointing to the worktree (correctly) | Both the main repo and worktree share `.pixi/envs/default`; the .pth file is correct in both cases. The issue is NOT the .pth target but the sys.path ordering. |
 | Used `pixi run hephaestus-*` console script to test worktree changes | Ran `pixi run hephaestus-check-python-version --json` after modifying `validation/python_version.py` in a worktree; expected to see new `ci_checks` key in output | Console script shebang points to the MAIN worktree's installed Python; `pixi run python -c "import hephaestus.validation.python_version as m; import inspect; print(inspect.getfile(m))"` confirmed the file loaded was from the main repo, not the worktree | Use `pixi run python -c "from hephaestus.X import main; main()"` instead of console script binaries when testing changes inside a worktree. The console script binary itself is stale even when direct imports work. |
+| Trusting empty console-script run as proof fix is broken | Ran the installed console-script entry point after patching code in a worktree; observed empty/unpatched output and concluded the fix did not take effect | Empty output from the installed script is not evidence the fix failed; `module.__file__` revealed the OUTER repo was loaded — the installed entry point's shebang hardcodes the main repo's Python interpreter | Probe with `import inspect; print(m.__file__)` before concluding a fix is broken. Empty or unpatched output from a console-script means the outer copy is loaded, not that the patch is wrong. |
+| `pixi run dev-install` to fix the shadowing | Ran `pixi run dev-install` in the worktree hoping it would re-point `which <console-script>` to the worktree's code and eliminate the sys.path shadowing issue | Re-points `which <console-script>` to the worktree's bin directory but does NOT fix the script-execution `sys.path[0]` shadowing; direct Python imports remain the only reliable worktree verification path | `pixi run dev-install` fixes the entry-point binary location but not the deeper `sys.path[0]` precedence issue. Always verify with `python -m <module>` or `from <module> import main; main([...])` rather than the installed script. |
 
 ## Results & Parameters
 
@@ -405,6 +434,7 @@ Does your code run subprocess commands from a git worktree?
 |---------|---------|---------|
 | ProjectHephaestus | Issue #724: Add -V/--version flag to 44 console scripts | 2026-06-06 — Discovered during implementation that `pixi run hephaestus-agent-stage --version` loaded stale code from main repo in a git worktree. Direct imports worked correctly. Root cause: sys.path ordering with main repo before worktree. Solution: Use `pixi run` for all subprocess invocations of console scripts. Verified locally (pixi run works, direct subprocess fails). CI not examined in detail. |
 | ProjectHephaestus | Issue #1189: python-version-consistency DRY refactor | 2026-06-13 — Discovered that `pixi run hephaestus-check-python-version --json` returned old JSON without the new `ci_checks` key even after modifying `validation/python_version.py` in the worktree. Diagnosed with `inspect.getfile()` — file path pointed to main worktree. Workaround: `pixi run python -c "from hephaestus.validation.python_version import main; main()" -- --json`. |
+| ProjectHephaestus | Issue #1217: console-script verification trap (closed PR #2381) | 2026-06-12 — Observed that running the installed console-script after patching `hephaestus.validation.repo_analyze_skills` inside a worktree emitted empty/unpatched output. `module.__file__` confirmed the outer repo was loaded. Authoritative verification via `python -m hephaestus.validation.repo_analyze_skills` showed the fix was correct all along. `pixi run dev-install` re-pointed the binary but did not resolve `sys.path[0]` shadowing. |
 
 ## References
 
