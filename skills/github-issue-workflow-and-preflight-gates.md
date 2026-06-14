@@ -1,9 +1,9 @@
 ---
 name: github-issue-workflow-and-preflight-gates
-description: "Use when: (1) starting work on any GitHub issue — run preflight checks to avoid duplicate implementation, (2) building or maintaining automated preflight safety gates in issue-implementation workflows, (3) filing 10–40 audit findings as a tracked GitHub issue queue with a parent tracker, (4) filing issues that cite repo-internal markdown docs — push docs to origin/main first so URLs resolve on first render, (5) posting structured progress updates or completion summaries to GitHub issues, (6) filing a feature request against a third-party OSS repo with a proposed patch and duplicate check, (7) verifying an already-resolved issue and closing it with grep evidence"
+description: "Use when: (1) starting work on any GitHub issue — run preflight checks to avoid duplicate implementation, (2) building or maintaining automated preflight safety gates in issue-implementation workflows, (3) filing 10–40 audit findings as a tracked GitHub issue queue with a parent tracker, (4) filing issues that cite repo-internal markdown docs — push docs to origin/main first so URLs resolve on first render, (5) posting structured progress updates or completion summaries to GitHub issues, (6) filing a feature request against a third-party OSS repo with a proposed patch and duplicate check, (7) verifying an already-resolved issue and closing it with grep evidence, (8) the duplicate-search before filing often reshapes scope — finding an existing issue may convert 'file N issues' into 'comment on K existing + file (N-K) new'"
 category: tooling
-date: 2026-05-28
-version: "1.1.0"
+date: 2026-06-08
+version: "1.2.0"
 user-invocable: false
 history: github-issue-workflow-and-preflight-gates.history
 tags: [github, issues, preflight, duplicate-prevention, workflow, bulk-filing, tracker, audit, progress-update, upstream, feature-request, safety-gates, automation]
@@ -31,7 +31,7 @@ Consolidates: `preflight-verify-before-implementing`, `preflight-script-integrat
 - **Bulk audit filing**: After running `/repo-analyze*` or any multi-section audit with 10–40 findings you want as a tracked GitHub issue queue
 - **Doc-push-first**: Filing N>5 issues that cite repo-internal markdown not yet on `origin/main`; issues that cross-reference each other by GitHub number
 - **Progress updates**: Reporting implementation progress, design decisions, blockers, or completion summaries to a GitHub issue
-- **Upstream feature requests**: Filing a feature/bug against a third-party OSS repo with a proposed patch gist and duplicate check
+- **Upstream feature requests**: Filing a feature/bug against a third-party OSS repo with a proposed patch gist and duplicate check; even when the task says "file N issues" — the duplicate-search pass can collapse scope (e.g., turn "file 2 issues" into "comment on 1 existing + file 1 new")
 - **Verify-and-close**: An issue is suspected to be already resolved — verify absence of the removed content with grep, confirm replacement content exists at path:line, comment the evidence on the issue, then close it
 
 **Don't use when:**
@@ -128,8 +128,11 @@ gh issue comment <number> --body-file /path/to/update.md
 
 # ── UPSTREAM OSS FEATURE REQUEST ──
 
-# Duplicate check first (always --state all)
+# Duplicate check first (always --state all) — scope-reshaping pass
+# Run BEFORE drafting any issue body; use at least two keyword angles
 gh issue list --repo <owner>/<repo> --state all --search "<keywords>" --limit 20
+gh issue list --repo <owner>/<repo> --state all --search "<related keywords>" --limit 20
+# If existing issue found: comment on it; a URL recorded in your tracker = "filed" for acceptance purposes
 
 # Label discovery
 gh label list --repo <owner>/<repo>
@@ -303,6 +306,7 @@ Syntax-checked with `bash -n`; smoke-tested with `<DEV_MODE>=1` in throwaway rep
 | Assigning labels without checking upstream repo | Assumed common labels like `feature` or `good-first-issue` existed | Labels vary per repo; assigning a non-existent label causes `gh issue create` to fail | Always run `gh label list --repo <owner>/<repo>` before any `--label` argument |
 | Filing from memory / stale context of upstream code | Drafted issue without re-reading current source | Existing pattern may differ from memory; patch becomes inconsistent | Always read the full source file before proposing a change |
 | Skipping duplicate check before filing upstream | Jumped straight to implementation | Risk of filing a duplicate issue, wasting maintainer time | Always run `gh issue list --state all --search "<keywords>"` first |
+| Skipped the duplicate-check because the task said "file 2 issues" | Treated issue-filing requirement as literal, started drafting both bodies | One was already filed (by the same author) months earlier; the other was based on a stale audit (the cited code already existed). Drafting both consumed time before discovery | Always run duplicate-search FIRST — even when the upstream relationship is yours. Authors forget what they've filed. The duplicate-collapse can re-scope the entire task, not merely confirm absence. |
 | Pipe to preserve exit code in bash preflight tests | `bash -c "..." \| cat; echo $?` | Pipe runs in subshell; `$?` is lost | Write output to temp file, capture `LAST_EXIT=$?` after |
 | Concluding "already resolved" from keyword presence without grep | Assumed absence of macos/windows CI refs from memory | Keyword presence elsewhere in context does not prove absence in files | Always run `grep -rn <removed-content> <dir>` and confirm exit code 1 before closing |
 
@@ -353,6 +357,16 @@ Key parameters: `--limit 100` for PR fetch; `grep -qx "$ISSUE"` for full-line ma
 | Cross-link references resolved on first render | 25 | Zero backfill needed |
 | `gh issue edit` for backfill | 1 | Only the epic; children correct first time |
 | Sleep between `gh issue create` | 1 s | Sufficient for ≤30 issues |
+
+### Duplicate-Collapse Decision Tree (Upstream Issue Filing)
+
+After running the duplicate-search (Step 2 of upstream feature request), branch on what was found:
+
+- **Existing issue found, scope fully covers your need** → COMMENT on it recording your interest + the SLA you'll wait. Record the URL in your tracking issue. Do not file a duplicate.
+- **Existing issue found, scope partially covers** → comment cross-linking your narrower issue; file the narrower one.
+- **No existing issue** → file as planned.
+
+In all cases, the tracking-issue acceptance criterion "issue filed/recorded" is satisfied by a URL — not by authorship. A comment on a pre-existing matching issue, with the URL captured in your tracking issue, fully discharges the requirement.
 
 ### Gist Visibility Reference
 
