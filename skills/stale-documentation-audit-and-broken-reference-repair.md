@@ -429,7 +429,7 @@ The tempting test asserts the MIGRATION.md prose names the latest git tag, e.g. 
 - If `_version_from_git_tag` returns `None` in CI, **fail loud or fetch tags** (`fetch-tags: true`)
   — never silently `skip`. A loud `xfail`/explicit-fail with a message beats a green no-op.
 
-### Validate, Commit, and PR
+### Validate, Commit, and PR (Version Currency)
 
 ```bash
 git diff --stat                                  # confirm only intended files changed
