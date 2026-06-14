@@ -1,5 +1,47 @@
 # dependency-floor-near-tested-version — History
 
+## v1.2.0 (2026-06-14)
+
+**Changed by:** Issue #1202 / PR #1295 — first green CI run of this pattern
+**Verification:** verified-ci
+
+### What changed
+
+- Bumped verification from `unverified` to `verified-ci` — PR #1295 passed all CI gates (lint, unit-tests, integration-tests, markdownlint)
+- Updated Outcome in Overview table from "pending" to "verified-ci"
+- Removed the "Warning: not validated" blockquote from Verified Workflow (now confirmed)
+- Added pip-specific two-sided bound pattern to When to Use, Quick Reference, Detailed Steps, and Results & Parameters
+- Added `TestPipPinning` test class template (uses `_floor(spec)` and `_upper_cap(spec)` directly — does NOT use `TestPytestConsistency._find_dep()`)
+- Added "Choosing Between Test Patterns" table distinguishing dev-tools (cross-manifest) from load-bearing packages (absolute bounds)
+- Added Failed Attempts row: "Rebasing onto main after sibling issue landed" — rebase conflict in test file when `TestRuffConsistency` (from #1201) had already merged
+- Added pip to Verified On table: Issue #1202 / PR #1295, pip pinned `>=23.0,<27`, lock at 26.1.2
+- Updated pixi.toml lookup key notes for pip (`pixi["dependencies"]["pip"]` — top-level section)
+- Bumped version to 1.2.0, updated date to 2026-06-14
+
+### Why
+
+PR #1295 (issue #1202) pinned pip in `pixi.toml` from `"*"` to `">=23.0,<27"` and added `TestPipPinning`
+to `tests/unit/scripts/test_dependency_floor_consistency.py`. All CI gates passed, making this the
+first end-to-end validated run of the dependency-floor pattern. Key learnings:
+
+1. **pip requires two-sided bound** (unlike ruff which only needed a floor raise). pip floor=23.0
+   because that is the first stable PEP 660 editable-install release; cap = `installed_major + 1`
+   (pip 26.x installed → cap `<27`).
+2. **Test pattern differs**: `TestPipPinning` uses `_floor(spec)` and `_upper_cap(spec)` directly
+   and does NOT use `TestPytestConsistency._find_dep()`. The ruff tests check cross-manifest
+   consistency; pip tests check absolute bounds enforcement.
+3. **Lock re-solve not needed**: `pixi.lock` already satisfied `>=23.0,<27` (pip 26.1.2 in lock).
+4. **CI failure was a rebase conflict**: The branch was based on an older main that did not have
+   `TestRuffConsistency` (from issue #1201, which landed on main first). Fix: rebase onto
+   origin/main, keep both test classes, apply ruff auto-fixes surfaced by the rebase.
+
+### Previous version (v1.1.0) snapshot
+
+The v1.1.0 entry remains immediately below this entry (unchanged). The v1.1.0-rendered .md file
+content prior to v1.2.0 edits is preserved in git history at the parent commit of this amendment.
+
+---
+
 ## v1.1.0 (2026-06-13)
 
 **Changed by:** Issue #1201 plan review (NOGO → GO after DRY fix)
