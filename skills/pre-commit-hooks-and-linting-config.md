@@ -710,7 +710,7 @@ like `pre-commit`, `toolchain`, `opportunistic`) AND that scope-creep detection 
 Verified by ProjectHephaestus PR #1019 (closes #1017; false positive originated from
 PR #1015 inline comment r3366637812).
 
-## Hook-Specific Patterns
+## Hook-Specific Patterns (Ruff Format Reference)
 
 ### detect-private-key: False Positive Handling
 
@@ -929,7 +929,7 @@ like `pre-commit`, `toolchain`, `opportunistic`) AND that scope-creep detection 
 Verified by ProjectHephaestus PR #1019 (closes #1017; false positive originated from
 PR #1015 inline comment r3366637812).
 
-## Hook-Specific Patterns
+## Hook-Specific Patterns (Additional Reference)
 
 ### detect-private-key: False Positive Handling
 
