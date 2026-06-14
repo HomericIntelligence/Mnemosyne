@@ -45,10 +45,17 @@ description: >-
   wrapping injected callables so patch.object remains effective after extraction, updating
   attribute access in sibling test files after cache migration, updating companions tuples in
   phase-wiring tests when AGENT_* constants move to extracted modules, and patching each
-  module's imported run separately when a method chain splits across module boundaries.
+  module's imported run separately when a method chain splits across module boundaries,
+  (18) post-extraction DRY and constructor-injection refinement — thin delegation stubs on
+  the original class preserve patch.object targets without requiring test edits, __setattr__
+  override propagates test-time attribute changes (e.g. state_dir) to collaborators,
+  .clear()/.update() preserves shared mutable dict identity so host and collaborator share
+  the same object, circular import trap when a utility function imported by a sibling module
+  must stay in the original file (define a local copy in the collaborator instead), and
+  from __future__ import annotations required in collaborator modules using PEP 604 union types.
 category: architecture
 date: 2026-06-13
-version: "1.10.0"
+version: "1.11.0"
 user-invocable: false
 history: python-module-decomposition-and-refactor-patterns.history
 tags:
@@ -129,6 +136,7 @@ Apply this skill when any of the following is true:
 - You are **planning god-class delegation extraction** where methods being moved to a collaborator populate shared mutable state (dicts, caches) that the host class reads elsewhere, where a method is used by multiple collaborator groups (assign to host, not one group), or where test fixtures pre-seed cache attributes on the host that will no longer be in scope after extraction
 - You are **executing a god-class decomposition with narrow-callable injection (DIP)** and need to wire collaborators using injected callables — including: using lambda wrapping (not bare method references) to preserve patch.object effectiveness, updating sibling test files that directly access attributes now living on a collaborator, updating companions tuples in phase-wiring tests when AGENT_* constants move to extracted modules, and patching each module's `run` import independently when a pre/post-agent SHA read splits across module boundaries
 - A class's **sibling test files access internal attributes directly** (e.g., `driver._viewer_login`) that will move to an extracted collaborator — grep test files before and after extraction to update attribute paths
+- You are **refining a completed extraction** (DRY pass / constructor-injection cleanup) and need to add thin delegation stubs to preserve test `patch.object` targets, wire a `__setattr__` override to propagate test-time attribute changes to collaborators, use `.clear()/.update()` to preserve shared mutable dict object identity, detect circular import traps for utility functions imported by sibling modules, or add `from __future__ import annotations` to collaborator files that use PEP 604 union types
 
 ## Verified Workflow
 
@@ -157,6 +165,7 @@ Decision tree:
   Planning god-function decomposition   → Function-size planning rules (Phase 21)
   God-class delegation w/ shared state → Shared-state write-back rules (Phase 22)
   God-class execution w/ DIP injection → Narrow-callable injection rules (Phase 23)
+  Post-extraction DRY / constructor pass → Delegation stub + setattr refinement (Phase 24)
 
 Universal rule for mock patches after any move:
   Patch where the name is LOOKED UP at call time — not where it was defined.
@@ -1804,6 +1813,218 @@ for the constant; without it, the test only scans the primary module and fails.
 - [ ] ci_driver.py line count meets target (−28% or better)
 ```
 
+### Phase 24: Post-Extraction DRY / Constructor-Injection Refinement
+
+Use when the initial god-class extraction is complete and merged, and a follow-on PR
+applies DRY cleanup, constructor injection improvements, and import ordering. This phase
+captures the additional implementation traps discovered during ProjectHephaestus PR #1320
+(issue #1289) — the review-addressed refinement of the Phase 23 extraction.
+
+#### Rule 1: Thin delegation stubs preserve `patch.object` targets at zero test-edit cost
+
+After extraction, the original class may have deleted methods entirely. If any test does
+`patch.object(OriginalClass, '_method')`, `patch.object` requires the attribute to exist
+on the target class at the time the patch is applied. Deleting the method causes:
+
+```
+AttributeError: <class 'OriginalClass'> does not have the attribute '_method'
+```
+
+The fix is to leave a thin delegation stub on the original class:
+
+```python
+# WRONG — method deleted entirely; all patch.object('_method') tests fail:
+class CIDriver:
+    pass  # _method was removed in extraction
+
+# RIGHT — thin delegation stub; patch.object still works:
+class CIDriver:
+    def _method(self, *args, **kw):
+        return self._collaborator._method(*args, **kw)
+```
+
+**Rule:** Move method BODIES to collaborators. Leave thin delegation stubs on the original
+class for every method that any test patches via `patch.object(OriginalClass, '_method')`.
+Grep before removing any method: `grep -rn "patch.object.*OriginalClass.*'_method'" tests/`.
+
+#### Rule 2: `__setattr__` override propagates test-time attribute changes to collaborators
+
+Tests often do `driver.state_dir = tmp_path` (direct attribute assignment on the host)
+to inject a test-specific path. After extraction, if the collaborator stores its own
+copy of `state_dir`, the test-time assignment on the host doesn't reach the collaborator.
+
+Add a `__setattr__` override on the original class to propagate specified attributes:
+
+```python
+class CIDriver:
+    _PROPAGATED_ATTRS: frozenset[str] = frozenset({"state_dir", "dry_run"})
+
+    def __setattr__(self, name: str, value: object) -> None:
+        super().__setattr__(name, value)
+        # Propagate to collaborators if they are already initialized
+        if name in self._PROPAGATED_ATTRS:
+            for collab_attr in ("_pr_discovery", "_ci_fix_orchestrator", ...):
+                collab = self.__dict__.get(collab_attr)
+                if collab is not None and hasattr(collab, name):
+                    object.__setattr__(collab, name, value)
+```
+
+**Critical guard:** Use `self.__dict__.get(collab_attr)` (not `getattr`) and check
+`is not None` before propagating — `__setattr__` is called during `__init__` before
+collaborators exist, so `getattr` would trigger infinite recursion via `__init__`'s
+own assignments.
+
+#### Rule 3: `.clear()` + `.update()` preserves shared mutable dict object identity
+
+When a dict is shared between the host and collaborators (e.g., `shared_pr_issues`),
+do NOT reassign it with `self.shared_pr_issues = new_dict`. Reassignment breaks object
+identity — the collaborator still holds a reference to the old dict:
+
+```python
+# WRONG — host rebinds; collaborator still references old dict:
+self.shared_pr_issues = discovered_prs   # new object; collaborator out of sync
+
+# RIGHT — mutate in place; all holders see the change:
+self.shared_pr_issues.clear()
+self.shared_pr_issues.update(discovered_prs)
+```
+
+Apply this pattern wherever the dict is "replaced wholesale" in collaboration with a
+method that has been moved to a collaborator.
+
+#### Rule 4: Circular import trap — utility functions imported by sibling modules must stay in the original file
+
+When a utility function (e.g., `_pr_is_failing`) is:
+- Defined in `ci_driver.py`, AND
+- Imported at module level by a sibling module (e.g., `loop_runner.py`):
+  `from hephaestus.automation.ci_driver import _pr_is_failing`
+
+Moving that function to a collaborator module creates a circular import:
+
+```text
+loop_runner.py  →  ci_driver.py (imports CIDriver)
+loop_runner.py  →  pr_discovery.py (imports _pr_is_failing)
+pr_discovery.py →  ci_driver.py (collaborator)  ← CIRCULAR if ci_driver imports pr_discovery
+```
+
+**Resolution:** Keep the function in `ci_driver.py`. When the collaborator also needs it,
+define a **local copy** in the collaborator module — do NOT import from `ci_driver.py`:
+
+```python
+# pr_discovery.py — local copy to avoid circular import
+def _pr_is_failing(pr: dict) -> bool:
+    """Local copy; ci_driver.py keeps the authoritative definition for loop_runner.py."""
+    return ...  # same implementation
+```
+
+**Detection command** before moving any utility function:
+
+```bash
+grep -rn "from hephaestus.automation.ci_driver import _pr_is_failing" .
+# Any match in a sibling module = circular import risk if function moves
+```
+
+#### Rule 5: `from __future__ import annotations` required in collaborator modules with PEP 604 union types
+
+Collaborator modules often use modern union syntax (PEP 604): `dict[int, list[int]] | None`.
+On Python 3.10 this works at runtime, but if the module is processed before the runtime
+version guard or uses string annotations for forward references, the `|` operator in
+annotations may fail.
+
+Add `from __future__ import annotations` at the top of every collaborator module that uses
+`X | Y` union type syntax. This is especially important when:
+- The module uses `| None` in function signatures
+- Type hints reference types from `TYPE_CHECKING`-guarded imports
+- Collaborator modules are extracted from a host that already had the import
+
+```python
+# At the top of every collaborator module — before all other imports:
+from __future__ import annotations
+```
+
+#### Rule 6: Pre-commit runs twice — first pass auto-fixes; second pass must be clean
+
+After any extraction or DRY pass:
+
+```bash
+pre-commit run --files hephaestus/automation/ci_driver.py \
+    hephaestus/automation/pr_discovery.py \
+    hephaestus/automation/ci_fix_orchestrator.py \
+    ...
+# First pass: ruff auto-fixes (import ordering, unused imports, trailing commas)
+# Re-run immediately:
+pre-commit run --files ...
+# Second pass: must be fully clean — "Passed" on every hook
+```
+
+Never count a pre-commit run as "clean" if it made changes; only the second pass with
+zero auto-fix changes counts as clean.
+
+#### Rule 7: Structural tests that grep source text need companion module parametrization
+
+Tests that grep source files for module-level constants (e.g., `AGENT_CI_DRIVER`,
+`from .session_naming import`) fail when those constants or imports move to collaborator
+modules, because the test only scans the original file.
+
+The fix is to add collaborator filenames to the `companions` tuple in the test's
+parametrization, telling the test to scan both the original module AND collaborators:
+
+```python
+# BEFORE — test only scans ci_driver.py:
+@pytest.mark.parametrize("module,const,companions", [
+    ("ci_driver.py", "AGENT_CI_DRIVER", ()),
+])
+
+# AFTER — test also scans ci_fix_orchestrator.py where the constant now lives:
+@pytest.mark.parametrize("module,const,companions", [
+    ("ci_driver.py", "AGENT_CI_DRIVER", ("ci_fix_orchestrator.py",)),
+])
+```
+
+**Detection:** Run the full test suite after extraction. Any `test_phase_agent_wiring.py`
+or `test_structural_constants.py` failure with "constant not found in module" is a companion
+parametrization miss.
+
+**Note:** Relative imports (`from .session_naming import`) MUST be used in collaborators
+(not absolute imports) to match the pattern the structural test's regex expects.
+
+#### Phase 24 Checklist
+
+```markdown
+## Post-Extraction DRY / Constructor-Injection Checklist (Phase 24)
+
+### Before removing any method from the original class
+- [ ] `grep -rn "patch.object.*OriginalClass.*'_method'" tests/` — if match: add thin
+      delegation stub BEFORE removing the body
+- [ ] Stub form: `def _method(self, *args, **kw): return self._collab._method(*args, **kw)`
+
+### Shared mutable state
+- [ ] Every reassignment `self.shared_dict = new_dict` is replaced with
+      `.clear(); .update(new_dict)` to preserve object identity for all holders
+
+### Test-time attribute propagation
+- [ ] If tests do `driver.<attr> = <value>`, add `__setattr__` override that
+      propagates `<attr>` to all collaborators
+- [ ] Use `self.__dict__.get(collab_attr)` (not `getattr`) to guard against
+      `__init__`-time calls when collaborators don't exist yet
+
+### Circular import check before moving utility functions
+- [ ] `grep -rn "from <host_module> import <func>" .` — any sibling module match
+      means <func> cannot move without a local copy in the collaborator
+
+### Collaborator module preamble
+- [ ] Every collaborator file starts with `from __future__ import annotations`
+      if it uses `X | Y` union types in any annotation
+
+### Pre-commit
+- [ ] Ran pre-commit twice — second pass is fully clean (first pass may auto-fix)
+
+### Structural tests
+- [ ] After any AGENT_* constant or `from .session_naming import` moves:
+      update `companions` tuple in `test_phase_agent_wiring.py`
+- [ ] Collaborator uses relative import (`from .session_naming import`) not absolute
+```
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -1871,6 +2092,12 @@ for the constant; without it, the test only scans the primary module and fails.
 | **Forgetting `_viewer_login` attribute access in sibling test files** | Moved `_viewer_login` from `CIDriver` to `PRDiscovery` without updating `test_ci_driver_author_scope.py` which accessed `driver._viewer_login` directly | mypy reported `"CIDriver" has no attribute "_viewer_login"`; 6 mypy errors; tests failed | After moving any instance attribute to a collaborator, grep all test files for `driver.<attr>` and update to `driver._collaborator.<attr>` (Phase 23, Rule 3) |
 | **`companions=()` not updated in phase-wiring test** | `AGENT_CI_DRIVER` import moved to extracted collaborators (`ci_fix_orchestrator.py`, `post_merge_processor.py`) but `test_phase_agent_wiring.py` still had `("ci_driver.py", "AGENT_CI_DRIVER", ())` with empty companions tuple | Test checks the combined source of module + companions for the AGENT_* import; empty companions meant only `ci_driver.py` was scanned, which no longer has the import | When an `AGENT_*` constant moves to an extracted collaborator, add that collaborator filename to the `companions` tuple in `test_phase_agent_wiring.py` (Phase 23, Rule 4) |
 | **Logger patches targeting old module after extraction** | Left `patch("hephaestus.automation.ci_driver.logger")` for a warning that now emits from `pr_discovery.logger` | Mock showed 0 calls — warning emitted from extracted module's logger | After extracting a module, grep all test files for `ci_driver.logger` patches and update to `<new_module>.logger` (Phase 4) |
+| **Deleting method from original class without checking for `patch.object` usage** | Removed `_method` body from `CIDriver` after moving to `CIFixOrchestrator` | `patch.object(CIDriver, '_method')` raised `AttributeError: does not have the attribute '_method'`; tests failed | Leave a thin delegation stub `def _method(self, *args, **kw): return self._collab._method(*args, **kw)` on the original class; grep `patch.object.*OriginalClass.*'_method'` before removing any method (Phase 24, Rule 1) |
+| **`self.shared_pr_issues = discovered_prs` broke collaborator sync** | Delegation stub reassigned `self.shared_pr_issues = result` instead of mutating in place | Collaborator held a reference to the old dict object; arming fan-out read stale data from host's new dict | Use `.clear(); .update(discovered_prs)` to mutate in place and preserve object identity for all holders (Phase 24, Rule 3) |
+| **Moved `_pr_is_failing` to `pr_discovery.py` without checking sibling imports** | Moved the function to the collaborator as it was only called from there | `loop_runner.py` does `from hephaestus.automation.ci_driver import _pr_is_failing` at module level → circular import: `ci_driver` → `pr_discovery` → (would need ci_driver) | Keep the function in `ci_driver.py`; define a local copy in `pr_discovery.py` to avoid the import cycle (Phase 24, Rule 4) |
+| **Collaborator module missing `from __future__ import annotations`** | New collaborator modules used `dict[int, list[int]] \| None` without the future import | Runtime `TypeError: unsupported operand type(s) for \|` on Python 3.9 (or unexpected annotation evaluation errors) | Add `from __future__ import annotations` as the first non-comment line of every collaborator module using PEP 604 union types (Phase 24, Rule 5) |
+| **Counting first pre-commit run as "clean" when it made auto-fixes** | Ran pre-commit once, saw no hook failures, declared it clean | First pass made ruff auto-fixes (import ordering, trailing commas); second pass would have shown additional issues | Always run pre-commit twice; only the second pass with zero file changes counts as clean (Phase 24, Rule 6) |
+| **Structural test failed: constant not found in companions** | `AGENT_CI_DRIVER` moved to `ci_fix_orchestrator.py` but `companions=()` left empty in parametrize | `test_phase_agent_wiring.py` only scanned `ci_driver.py` — constant no longer there; test failed with "constant not found" | Add collaborator filename to `companions` tuple; ensure collaborator uses relative import (`from .session_naming import`) to match test regex (Phase 24, Rule 7) |
 
 ## Results & Parameters
 
@@ -1886,6 +2113,7 @@ for the constant; without it, the test only scans the primary module and fails.
 | `stages.py` + `run_report.py` (re-export) | 1,534 + 1,385 | 855 + 289 | −44% / −79% | 4 new modules |
 | Extensibility refactor (6 PRs) | — | — | −415 net | `discovery/`, `subtest_provider.py`, `TestFixture` |
 | `ci_driver.py` (4 collaborators, narrow-callable DIP) | 3,338 | 2,404 | −28% | `pr_discovery.py` (260L), `ci_check_inspector.py` (130L), `ci_fix_orchestrator.py` (530L), `post_merge_processor.py` (230L) |
+| `ci_driver.py` (DRY + constructor-injection refinement) | 2,404 | 1,410 | −41% further (−58% total from 3,358) | Thin delegation stubs, `__setattr__` propagation, `.clear()/.update()` dict identity, `_pr_is_failing` local copy, `from __future__ import annotations` |
 
 ### New test benchmarks
 
@@ -1948,3 +2176,4 @@ Revised LOC estimate: ~X (vs TODO "~Y"); justification: ~Z% already in substrate
 | ProjectHephaestus | Issue #1180 — planning decomposition of 7 god-functions across 4 files in `hephaestus/automation/` (R0→R3 planning cycle): R0 NOGO (waived 128L `_implement_issue` as "marginal"); R1 NOGO (claimed reduction with no extraction step); R2 NOGO (6-tuple dropped `reopened`, approach table missing two helpers); R3 approved; 8 planning rules identified: (1) arithmetic chain non-negotiable — no waivers; (2) docstring lines count toward function span; (3) for-loop body > 40L is a standalone extraction candidate; (4) helpers absorbing the only call to a data-fetching function must return the fetched data; (5) orchestrator N-tuple must cover ALL post-call variables; (6) every captured variable in an extracted body is a missing parameter; (7) approach table must list ALL helpers per target; (8) AST-measure before planning — never trust issue-cited line numbers (unverified — plan not yet executed) | New Phase 21: God-Function Decomposition Planning Rules (v1.8.0) |
 | ProjectHephaestus | Issue #1289 — planning second decomposition pass of `ci_driver.py` (3,358 lines) using Dependency Inversion + delegation stubs to preserve `patch.object` test targets; 4 collaborators proposed (`PRDiscovery`, `CICheckInspector`, `CIFixOrchestrator`, `ArmingOrchestrator`); 6 additional planning risks identified: (1) `shared_pr_issues` write-back not designed — `_discover_prs` moving to `PRDiscovery` populates dict that arming fan-out reads on CIDriver; (2) `_tracked_worktree_changes` used by both `CICheckInspector` and `CIFixOrchestrator` — cross-collaborator coupling if assigned to one; (3) test fixture pre-seeding of `driver._viewer_login` stops working after cache migrates to collaborator; (4) method bodies not read before assigning to collaborators (`_arm_all_unarmed_open_prs` etc. assigned by name only); (5) conditional `__init__.py` export step not resolved at plan time — `__init__.py` not read; (6) line count projection used 25-line average for method bodies without reading actual lengths — no fallback plan if target not reached after PRDiscovery (unverified — implementation not yet started) | New Phase 22: God-Class Delegation Shared-State Write-Back Rules (v1.9.0) |
 | ProjectHephaestus | PR #1292 (Issue #1179) — executed CIDriver god-class decomposition using narrow-callable injection (DIP): ci_driver.py 3,338 → 2,404 lines (−28%); 4 collaborators extracted (`pr_discovery.py` 260L, `ci_check_inspector.py` 130L, `ci_fix_orchestrator.py` 530L, `post_merge_processor.py` 230L); 4 implementation traps discovered: (1) bare bound-method references to injected callables bypass `patch.object` — all injected callables must be lambda-wrapped; (2) pre/post-SHA split after orchestrator extraction requires patching BOTH `ci_fix_orchestrator.run` and `ci_driver.run` independently; (3) `_viewer_login` attribute migration generated 6 mypy errors in sibling test files — all attribute access paths must be updated; (4) `AGENT_CI_DRIVER` move to extracted module broke `test_phase_agent_wiring.py` — companions tuple required update; 146 existing tests + 22 new tests pass; all CI gates passed (verified-ci) | New Phase 23: God-Class Narrow-Callable DIP Execution Pattern (v1.10.0) |
+| ProjectHephaestus | PR #1320 (Issue #1289) — DRY + constructor-injection refinement of the Phase 23 extraction; ci_driver.py 2,404 → 1,410 lines (−41% further; −58% total from 3,358); 7 post-extraction patterns identified: (1) thin delegation stubs on original class preserve `patch.object` targets without test edits; (2) `__setattr__` override with `self.__dict__.get()` guard propagates test-time `state_dir` / `dry_run` assignments to collaborators; (3) `.clear()/.update()` preserves `shared_pr_issues` dict object identity across host + collaborators; (4) `_pr_is_failing` must stay in `ci_driver.py` because `loop_runner.py` imports it at module level — define local copy in collaborator to avoid circular import; (5) `from __future__ import annotations` required in collaborator modules using PEP 604 `X \| Y` union types; (6) pre-commit first pass auto-fixes; only second pass counts as clean; (7) structural tests scanning source text for `AGENT_*` constants / relative imports need `companions` tuple updated; 1,600 tests passed; pre-commit clean on both passes (verified-ci) | New Phase 24: Post-Extraction DRY / Constructor-Injection Refinement (v1.11.0) |
