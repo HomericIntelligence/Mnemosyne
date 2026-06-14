@@ -67,7 +67,7 @@ cat hephaestus/automation/prompts/__init__.py  # lists all 28 symbols explicitly
 |---------|----------------|---------------|----------------|
 | Wildcard shims | `from new.location.module import *` shim files in old locations | Modules without `__all__` export nothing private; `from X import __all__` crashes with ImportError | Always enumerate symbols explicitly; `import *` is not a migration tool |
 | "No logic changes" claim | `git mv` + shim assumed to preserve all imports | Relative imports in moved modules break immediately (`from .sibling` → `from ..sibling`) | Audit every relative import before claiming a move is logic-free |
-| Stale file count | Used audit figure of 52 files | Actual on-disk count was 50; audit was dated | Always `ls hephaestus/automation/*.py | wc -l` before referencing file counts |
+| Stale file count | Used audit figure of 52 files | Actual on-disk count was 50; audit was dated | Always `ls hephaestus/automation/*.py \| wc -l` before referencing file counts |
 | 8 sub-package decomposition | Proposed physical split into core/, runners/, drivers/, etc. | ADR-0001 explicitly rejected physical decomposition as the remedy; install-boundary was the prescribed fix | Read the cited ADR before proposing structural reorganization |
 
 ## Results & Parameters
