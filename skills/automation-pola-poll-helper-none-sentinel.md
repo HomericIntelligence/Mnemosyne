@@ -16,7 +16,7 @@ tags: []
 | Field | Value |
 |-------|-------|
 | **Date** | 2026-06-13 |
-| **Objective** | Refactor poll helper that returns `tuple[Data] | WorkerResult` to return `tuple[Data] | None`, preserving caller ownership of result construction |
+| **Objective** | Refactor poll helper that returns `tuple[Data] \| WorkerResult` to return `tuple[Data] \| None`, preserving caller ownership of result construction |
 | **Outcome** | Successful — single-responsibility poll helper, cleaner caller, no isinstance discrimination |
 | **Verification** | verified-ci |
 
@@ -76,8 +76,8 @@ checks, required_checks = poll_result
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 |---------|----------------|---------------|----------------|
-| Keep union as-is | Leave `tuple | WorkerResult` return type and document it | POLA violation flagged in PR review — surprising contract for a "poll" function | Poll helpers should be data-only; terminal state belongs to calling layer |
-| Use Optional alias | `Optional[tuple[list, list]]` instead of explicit `| None` | No functional issue, just style — `| None` is more explicit in Python 3.10+ | Either works; `X | None` reads more clearly at a glance |
+| Keep union as-is | Leave `tuple \| WorkerResult` return type and document it | POLA violation flagged in PR review — surprising contract for a "poll" function | Poll helpers should be data-only; terminal state belongs to calling layer |
+| Use Optional alias | `Optional[tuple[list, list]]` instead of explicit `\| None` | No functional issue, just style — `\| None` is more explicit in Python 3.10+ | Either works; `X \| None` reads more clearly at a glance |
 
 ## Results & Parameters
 
