@@ -302,4 +302,3 @@ Keep only essential JSON data in responses."""  # noqa: E501
 | Project | Context | Details |
 |---------|---------|---------|
 | ProjectHephaestus | Issue #1082: token reduction via terse directives | Local test suite: 21 tests pass; awaiting CI confirmation |
-

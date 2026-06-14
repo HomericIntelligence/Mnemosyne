@@ -178,4 +178,3 @@ This skill should be cross-referenced with:
    or `pytest.raises()` for validation that must run in all Python modes
 4. **Intentional deferrals**: Document why tests are incomplete or TODOs are
    deferred; single-line comments invite confusion
-
