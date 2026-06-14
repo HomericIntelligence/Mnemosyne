@@ -2,11 +2,19 @@
 name: bash-stderr-mktemp-trap-return
 description: "Pattern for separating stderr from stdout in bash functions using mktemp + trap RETURN. Use when: (1) a bash function calls a tool that mixes stderr into stdout (e.g., 2>&1 corrupts jq input), (2) you need clean stdout for piping while still capturing error details, (3) function uses local temp files that need guaranteed cleanup."
 category: debugging
-date: 2026-06-12
-version: "1.0.0"
+date: 2026-06-14
+version: "1.1.0"
 user-invocable: false
-verification: unverified
-tags: []
+verification: verified-ci
+tags:
+  - bash
+  - stderr
+  - mktemp
+  - trap
+  - RETURN
+  - jq
+  - gh
+  - json
 ---
 
 # Bash stderr/stdout Separation: mktemp + trap RETURN
@@ -17,8 +25,8 @@ tags: []
 |-------|-------|
 | **Date** | 2026-06-12 |
 | **Objective** | Separate stderr from stdout in bash functions so tools like `jq` receive clean JSON input |
-| **Outcome** | Proposed pattern — not yet validated in CI |
-| **Verification** | unverified |
+| **Outcome** | mktemp + trap RETURN confirmed; all CI checks green in PR #1273 |
+| **Verification** | verified-ci — PR #1273 (issue #1122) |
 
 ## When to Use
 
@@ -28,8 +36,6 @@ tags: []
 - The script uses `#!/usr/bin/env bash` — the pattern relies on bash-specific `trap RETURN`
 
 ## Verified Workflow
-
-> **Warning:** This workflow has not been validated end-to-end. Treat as a hypothesis until CI confirms.
 
 ### Quick Reference
 
@@ -100,12 +106,10 @@ result=$(external_tool --json-output 2>"$_err_file") || {
 # result is now clean, pipe-safe stdout
 ```
 
-**Verification status**: The pattern is theoretically sound per bash manual (trap RETURN described in bash 4.x+). Not yet confirmed in the CI environment for ProjectHephaestus. Bash version >=4.2 required for reliable `trap RETURN` behavior in sourced functions.
-
-**Source**: Planning notes for ProjectHephaestus issue #1125 (`choose_merge_flag.sh` stderr/jq fix).
+**Verification status**: Confirmed in CI — PR #1273 (issue #1122). Bash version >=4.2 required for reliable `trap RETURN` behavior in sourced functions.
 
 ## Verified On
 
 | Project | Context | Details |
 |---------|---------|---------|
-| ProjectHephaestus | Issue #1125 planning — proposed fix for `scripts/choose_merge_flag.sh:21` | Pattern designed, not yet CI-validated |
+| ProjectHephaestus | Issue #1122 / PR #1273 — `scripts/choose_merge_flag.sh:21` + 5 regression tests | All CI checks green: lint, shell-tests, integration-tests, shell-check |

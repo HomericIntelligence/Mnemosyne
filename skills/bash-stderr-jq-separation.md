@@ -2,10 +2,10 @@
 name: bash-stderr-jq-separation
 description: "Pattern for separating stderr from stdout in bash functions that pipe command output into jq. Use when: (1) a bash function captures CLI output (gh api, curl, etc.) for JSON parsing, (2) the command may emit stderr warnings/banners alongside valid JSON stdout, (3) 2>&1 is used to combine channels before piping into jq — this corrupts JSON parsing."
 category: debugging
-date: 2026-06-12
-version: "1.0.0"
+date: 2026-06-14
+version: "1.1.0"
 user-invocable: false
-verification: unverified
+verification: verified-ci
 tags:
   - bash
   - stderr
@@ -28,7 +28,7 @@ tags:
 | **Date** | 2026-06-12 |
 | **Objective** | Prevent gh/curl stderr noise (warnings, banners, debug traces) from corrupting jq JSON input |
 | **Outcome** | mktemp + trap RETURN pattern cleanly separates channels; dedicated regression test guards against re-introduction |
-| **Verification** | unverified — plan not yet implemented in CI |
+| **Verification** | verified-ci — PR #1273 (issue #1122) confirmed all CI checks green |
 
 ## When to Use
 
@@ -39,8 +39,6 @@ tags:
 - Adding a regression guard test: the stderr-noise test is the correct guard, not the happy-path test alone
 
 ## Verified Workflow
-
-> **Warning:** This workflow has not been validated end-to-end. Treat as a hypothesis until CI confirms.
 
 ### Quick Reference
 
@@ -152,9 +150,15 @@ choose_merge_flag owner/repo
 # With mktemp fix: --rebase (exit 0)
 ```
 
-**Count of tests the plan adds:**
+**Regression tests added in PR #1273 (5 tests):**
 
-The issue body specifies 3 required tests. The plan adds a 4th (stderr-noise regression guard). The reviewer should confirm whether 4 tests are welcome or the plan should be trimmed to 3 (dropping the dedicated regression test and relying on the general stderr-noise assertion).
+| Test | What It Guards |
+|------|----------------|
+| `test_shell_helper_handles_gh_stderr_noise` | Direct regression: fails against old `2>&1` version, passes with fix |
+| `test_shell_helper_selects_rebase_when_all_allowed` | Preference order: rebase wins when all methods allowed |
+| `test_shell_helper_selects_squash_when_rebase_disallowed` | Fallback to squash when rebase disabled |
+| `test_shell_helper_exits_1_when_no_methods_allowed` | Error path: exit 1 when no merge methods enabled |
+| `test_shell_helper_selects_merge_when_rebase_and_squash_disallowed` | Merge commit fallback |
 
 **jq boolean fields and `//` operator:**
 
@@ -164,4 +168,4 @@ If the script uses `jq -r '... | .[0] // ""'`, ensure the `// ""` is applied to 
 
 | Project | Context | Details |
 |---------|---------|---------|
-| ProjectHephaestus | Issue #1125 planning (unverified) | `scripts/choose_merge_flag.sh:21` fix + `tests/integration/test_choose_merge_flag_sh.py` |
+| ProjectHephaestus | Issue #1122 / PR #1273 — `scripts/choose_merge_flag.sh:21` fix + 5 regression tests | All CI checks green: lint, shell-tests, integration-tests, shell-check |
