@@ -1,5 +1,14 @@
 ## Archive Entry
 
+- **version**: 1.1.0
+- **date**: 2026-06-13
+- **changed-by**: Salvage agent — fold in console-script verification-trap learning from closed PR #2381 (ProjectHephaestus Issue #1217)
+- **verification**: verified-local
+- **what-changed**: (1) Description trigger (5) rewritten from generic "stale output" framing to actionable verification-trap framing — probe `module.__file__` / `inspect.getsource(main)` before concluding a fix is broken. (2) Added "Console-Script Verification Probe" sub-section under Verified Workflow explaining the trap and the authoritative `python -m <module>` verification pattern. (3) Added two Failed-Attempts rows: "Trusting empty console-script run as proof fix is broken" and "`pixi run dev-install` to fix the shadowing". (4) Added Verified On row for ProjectHephaestus Issue #1217 (2026-06-12, verified-local).
+- **why**: Closed PR #2381 dropped this learning; the verification-trap is distinct enough from the existing stale-binary failure mode to warrant explicit documentation and probe commands.
+
+## Archive Entry
+
 - **version**: 1.0.0
 - **date**: 2026-06-13
 - **changed-by**: Session — issue #1189 python-version-consistency DRY refactor
