@@ -1,13 +1,13 @@
 ---
 name: skill-corpus-merge-consolidation-workflow
-description: "Workflows for maintaining a skills corpus: deduplicating overlapping skills, merging clusters into canonicals, preserving history snapshots, enumerating cluster members from examples, migrating formats (hierarchical→flat, dual-dir→single), and generalizing skills for cross-repo compatibility. Use when: (1) multiple skills share a common prefix and cover redundant content, (2) a merge epic lists only example members and a full member list is needed, (3) a merge PR deletes originals and their content must remain searchable, (4) legacy skills/<category>/<name>/SKILL.md files need migration to flat skills/<name>.md format, (5) skills have hardcoded repo paths that must be generalized, (6) a dual plugins/+skills/ directory must be consolidated, (7) bulk-migrating skills from one project to another, (8) a skill topic is now OBSOLETE and needs a prominent notice."
+description: "Workflows for maintaining a skills corpus: deduplicating overlapping skills, merging clusters into canonicals, preserving history snapshots, enumerating cluster members from examples, migrating formats (hierarchical→flat, dual-dir→single), and generalizing skills for cross-repo compatibility. Use when: (1) multiple skills share a common prefix and cover redundant content, (2) a merge epic lists only example members and a full member list is needed, (3) a merge PR deletes originals and their content must remain searchable, (4) legacy skills/<category>/<name>/SKILL.md files need migration to flat skills/<name>.md format, (5) skills have hardcoded repo paths that must be generalized, (6) a dual plugins/+skills/ directory must be consolidated, (7) bulk-migrating skills from one project to another, (8) a skill topic is now OBSOLETE and needs a prominent notice, (9) a mass PR drain or consolidation has closed PRs as superseded and you need to audit for silently-dropped unique content."
 category: tooling
-date: 2026-06-07
-version: "2.0.0"
+date: 2026-06-14
+version: "2.1.0"
 user-invocable: false
 verification: verified-ci
 history: skill-corpus-merge-consolidation-workflow.history
-tags: [skill-merge, deduplication, semver, consolidation, history, manifest, enumeration, flat-format, migration, plugin-generalization, corpus-maintenance]
+tags: [skill-merge, deduplication, semver, consolidation, history, manifest, enumeration, flat-format, migration, plugin-generalization, corpus-maintenance, salvage-audit, closed-pr, post-drain]
 ---
 
 # Skill Corpus Merge Consolidation Workflow
@@ -323,6 +323,110 @@ Replace hardcoded values with placeholders (longest patterns first):
 
 Add "Verified On" table to each generalized skill. Move project-specific details to `references/notes.md`.
 
+### Part F — Post-Drain Closure Audit (Salvage Silently-Dropped Content)
+
+After a mass PR drain closes PRs as "superseded" or folds them into a carrier PR, audit the
+closures for silently-dropped unique content. Drain agents operate under time pressure and
+**over-close**: approximately 26% of closed-not-merged PRs contain genuinely-lost content.
+This audit is a mandatory companion step to every large drain pass.
+
+**When to run**: Immediately after any drain session that closed ≥5 PRs as "superseded" without
+merging them.
+
+#### Quick Reference
+
+```bash
+# Step 1: Enumerate closed-not-merged PRs in the drain window
+gh pr list --state closed \
+  --search "closed:>=<ISO-date> -is:merged" \
+  --json number,title,headRefName \
+  --limit 200
+
+# Step 2: Map each PR to its target skill file (exclude .history files)
+gh pr diff <N> --name-only | grep '\.md$' | grep -v '\.history'
+
+# Step 3: Check the current main state of a skill before auditing
+git show origin/main:skills/<file>.md | head -5
+
+# Step 4: Verify an ADD-new-skill PR's target actually exists on main
+git show origin/main:skills/<file>.md 2>&1 | head -1
+# If output starts with "fatal:" — the whole skill is LOST, highest priority salvage
+
+# Step 5: Salvage — one amendment PR per skill-family
+git checkout -b fix/salvage-<label> origin/main
+# ... edit skills/<file>.md, bump version, append .history entry ...
+git add skills/<file>.md skills/<file>.history
+git commit -m "fix(salvage): restore dropped content in <skill> from closed PRs"
+gh pr create --title "fix(salvage): restore <N> learnings in <skill>" \
+  --body "..."
+gh pr merge --auto --squash
+```
+
+#### Detailed Steps
+
+**Step 1: Enumerate closed-not-merged PRs**
+
+Query the drain window by ISO date. Use `closed:>=<ISO-date>` to bound the search to the
+drain session's timeframe. Collect PR numbers, titles, and head branch names.
+
+**Step 2: Map PRs to skill-family clusters**
+
+For each closed PR, identify the single skill file it targets:
+
+```bash
+gh pr diff <N> --name-only | grep '\.md$' | grep -v '\.history'
+```
+
+Sort PRs by target skill file. PRs naturally cluster into skill-families (a skill targeted
+by 14 sibling PRs is a single audit unit). Group before auditing — do NOT audit one PR at
+a time in isolation.
+
+**Step 3: Partition audit by skill-family**
+
+Dispatch one analysis agent per skill-family cluster. Each agent:
+
+1. Reads the CURRENT `origin/main` version of the skill file ONCE
+2. Reviews every closed PR in its cluster against the current canonical
+3. Verdicts each PR: **COVERED** (all unique content already on main), **PARTIAL** (some
+   content missing — quote verbatim), or **LOST** (core learning entirely absent)
+
+This partition pattern is far more efficient than one-agent-per-PR (which re-reads the same
+canonical N times) and far more accurate (the agent sees exactly what main currently has).
+
+**Step 4: Audit rules**
+
+| Rule | Detail |
+| ------ | ------- |
+| Judge COVERED by content, NOT version number | A PR's "Phase 19" may land as "Phase 18b" in a carrier that used a lower version number; content match is what counts |
+| Highest-risk closure type: ADD-new-skill PRs | If the PR was supposed to create a new skill and was closed as superseded, FIRST verify the target file exists on main (`git show origin/main:skills/<file>.md`). If it doesn't exist — the entire skill is LOST |
+| Carriers absorb siblings — always audit siblings | A carrier PR that claims to fold N sibling learnings into one is the #1 source of silent loss; verify each sibling's content is actually present |
+| Diff against CURRENT main, not merge-base | Other PRs may have merged between the drain and the audit, updating the canonical |
+
+**Step 5: Salvage**
+
+Group LOST/PARTIAL content by target skill-family. Create one amendment PR per skill (not
+one per lost learning — fewer PRs reduces cascade churn). Each PR:
+
+- Restores the missing content into the appropriate section (Failed Attempts, Verified
+  Workflow, When to Use)
+- Bumps the canonical's version above what is currently on main (MINOR bump)
+- Appends a `.history` changelog entry noting what was restored and from which closed PRs
+- Validates with `python3 scripts/validate_plugins.py` before pushing
+- Arms `gh pr merge --auto --squash`
+
+#### Observed Over-Close Rates
+
+| Drain Session | Closed PRs Audited | Had Dropped Content | Over-Close Rate |
+| -------------- | ------------------- | ------------------- | --------------- |
+| 2026-06-14 myrmidon-merge-triage | 38 | 10 | 26% |
+
+#### Carrier PR Risk Pattern
+
+A "carrier" PR (one PR absorbing many siblings' content) is the highest-risk closure type.
+Example: carrier PR #2346 jumped a skill v1.0.0→v1.9.0 while silently dropping 6 of the
+14 sibling learnings it claimed to absorb. Always enumerate and check every sibling a
+carrier claims to cover.
+
 ### Semver Rules for Skill Amendments
 
 | Change Type | Bump | When |
@@ -364,6 +468,10 @@ Add "Verified On" table to each generalized skill. Move project-specific details
 | Committing before running pre-commit | Let the first `git commit` trigger the hooks | `end-of-file-fixer` modified the `.history` file during commit, aborting it; the branch was pushed with no commit and an empty PR number, forcing a manual retry | Run `pre-commit run --files <canonical>.md <canonical>.history` once, `git add -A skills/` again, THEN commit |
 | Re-dispatching merge agent by agent ID during recovery | Re-launched an agent for a cluster believed dead, keyed off the background-task notification ID | Two agents both ran `skill/ruff-specific-rule-fixes`, producing duplicate PRs #2233 + #2234; notification IDs had been reshuffled/mislabeled | Track cluster progress from git/gh state (`git ls-remote --heads`, `gh pr list --head`), never from agent/background-task IDs; only re-dispatch when both are empty |
 | Relying on update-marketplace.yml to refresh the index | Expected the workflow to keep `marketplace.json` current post-consolidation | Workflow regenerates the file but FAILS at "Open PR" — org policy blocks GitHub Actions from creating PRs; `marketplace.json` silently went stale | Regenerate manually in a dedicated PR (`python3 scripts/generate_marketplace.py` → commit → PR) as the final reconcile step of every pass |
+| Trusting drain-agent close-as-superseded verdicts without a follow-up audit | Accepted every "closed as superseded" and "folded into carrier" decision from the drain pass without reviewing the closed PRs | 10 of 38 closed PRs (26%) had content that was not on main — including 6 learnings silently dropped from a single carrier PR that claimed to absorb 14 siblings | Always run a post-drain closure audit; over-close rates of ~26% are normal under time pressure |
+| One-agent-per-closed-PR audit | Dispatched one agent per closed PR to compare it against main | Each agent re-read the same canonical skill file independently — N agents for N PRs targeting one skill all re-fetched the same file, wasting context and producing inconsistent verdicts | Partition the audit by skill-family; one agent per cluster reads the canonical ONCE then checks all N sibling PRs against it |
+| Judging COVERED by matching version numbers | Checked if the PR's version number was lower than the current canonical version | A v1.4.0 PR's content can be fully present in a v1.13.0 canonical under renumbered phases and sections — version number comparison produces false "COVERED" verdicts | Judge COVERED by content presence, not by version number comparison |
+| Assuming a closed ADD-new-skill PR is safe because a related merged PR exists | Saw that a related PR had merged and concluded the new-skill content was absorbed | The specific target file may not exist on main if the carrier PR used a different filename or dropped the skill creation entirely | Always `git show origin/main:skills/<file>.md` to verify the exact target file exists before concluding an ADD-new-skill closure is covered |
 
 ## Results & Parameters
 
@@ -450,3 +558,4 @@ Do this as a final reconcile step of every consolidation pass — do not rely on
 | ProjectMnemosyne | 20 merge PRs using history-as-superseded-snapshot pattern | 2026-05-18 |
 | ProjectMnemosyne | 17-cluster 1100-skill consolidation with manifest-first enumeration | 2026-05-19 |
 | ProjectMnemosyne | 2026-06-07 full-corpus pass: 50 clusters, 273 skills -> 50 canonicals, 10 waves of <=5 worktree swarm agents | corpus 518 -> 291 (-227, -44%) |
+| ProjectMnemosyne | 2026-06-14 post-drain closure audit: 38 closed PRs audited via 4-agent swarm partitioned by skill-family; 10 had dropped content (26%); salvaged via 5 amendment PRs (#2514-#2518, all merged) | verified-ci |

@@ -1,6 +1,39 @@
 <!-- markdownlint-disable MD024 -->
 # skill-corpus-merge-consolidation-workflow — History
 
+## v2.1.0 (2026-06-14)
+
+**Changed by:** Post-drain closure audit workflow (2026-06-14 myrmidon-merge-triage session)
+**Verification:** verified-ci
+**Previous version:** v2.0.0
+
+### What changed
+
+- **Added Part F — Post-Drain Closure Audit**: New workflow section covering the mandatory
+  companion step after any mass PR drain that closes PRs as "superseded." Includes quick
+  reference commands, a step-by-step audit procedure, skill-family partition strategy,
+  COVERED/PARTIAL/LOST verdict rules, salvage PR creation pattern, an observed over-close
+  rate table (~26%), and carrier PR risk documentation.
+- **Added trigger (9) to description**: "a mass PR drain or consolidation has closed PRs as
+  superseded and you need to audit for silently-dropped unique content."
+- **Added 5 new Failed Attempts rows** documenting: trusting drain-agent verdicts without
+  audit, one-agent-per-PR (instead of per-cluster) audit strategy, judging COVERED by version
+  number rather than content, and assuming ADD-new-skill closures are safe without verifying
+  the target file exists on main.
+- **Added tags**: `salvage-audit`, `closed-pr`, `post-drain`.
+- **Added Verified On row** for the 2026-06-14 audit (38 closed PRs, 10 with dropped content,
+  5 salvage PRs #2514-#2518 merged).
+
+### Why
+
+A 2026-06-14 audit of 38 PRs closed as "superseded" during a drain pass found a ~26%
+over-close rate. One carrier PR (#2346) claimed to absorb 14 siblings but silently dropped 6
+of their learnings. A 4-agent swarm partitioned by skill-family was the key efficiency
+insight. All 10 dropped-content PRs were recovered via 5 amendment PRs, all merged in CI.
+This is a MINOR bump — no existing workflow is changed, only a new Part F workflow added.
+
+---
+
 ## v2.0.0 (2026-06-07)
 
 **Changed by:** 2026-06-07 full-corpus consolidation pass (50 clusters)
