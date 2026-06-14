@@ -1,9 +1,9 @@
 ---
 name: ruff-specific-rule-fixes
-description: "Patterns for fixing specific Ruff lint rule violations and addressing systemic linter policy failures. Use when: (1) fixing Ruff S101 violations in production code by replacing bare assert guards with explicit RuntimeError raises, (2) fixing Ruff C901 cyclomatic complexity violations by extracting helper functions, (3) fixing Ruff RUF022 (__all__ not sorted) or I001 (import block un-sorted) — both are [*]-fixable; never manually reorder because isort uses the alias name not the original symbol, always use `ruff check --fix`, (4) the same policy violation reappears in two or more independent documents or configs — indicating the linter/validator that should enforce the policy is absent or misconfigured (root-cause fix: add the lint rule, not re-fix every instance), (5) deciding between adding a noqa suppression, fixing the violation, or promoting the rule to error-level enforcement, (6) main goes red after a ruff/mypy version-floor bump — E501 line-length overruns, ruff-format implicit-string-concat collapses, or unused-ignore mypy errors appear retroactively in files that previously passed CI, (7) a # type: ignore[tag] comment becomes an unused-ignore error after a mypy or ruff floor bump, (8) adding a new scripts/*.py to a repo with an auto-discovering smoke test, or adding a # noqa whose rule may not be in the ruff select list."
+description: "Patterns for fixing specific Ruff lint rule violations and addressing systemic linter policy failures. Use when: (1) fixing Ruff S101 violations in production code by replacing bare assert guards with explicit RuntimeError raises, (2) fixing Ruff C901 cyclomatic complexity violations by extracting helper functions, (3) fixing Ruff RUF022 (__all__ not sorted) or I001 (import block un-sorted) — both are [*]-fixable; never manually reorder because isort uses the alias name not the original symbol, always use `ruff check --fix`, (4) the same policy violation reappears in two or more independent documents or configs — indicating the linter/validator that should enforce the policy is absent or misconfigured (root-cause fix: add the lint rule, not re-fix every instance), (5) deciding between adding a noqa suppression, fixing the violation, or promoting the rule to error-level enforcement, (6) main goes red after a ruff/mypy version-floor bump — E501 line-length overruns, ruff-format implicit-string-concat collapses, or unused-ignore mypy errors appear retroactively in files that previously passed CI, (7) a # type: ignore[tag] comment becomes an unused-ignore error after a mypy or ruff floor bump, (8) adding a new scripts/*.py to a repo with an auto-discovering smoke test, or adding a # noqa whose rule may not be in the ruff select list, (9) E501 or ruff format failures appear in newly-added TEST files on a large multi-file feature PR — running only the test suite before pushing misses these; CI fails on line-length or format in the new test files."
 category: tooling
 date: 2026-06-13
-version: "1.3.0"
+version: "1.4.0"
 user-invocable: false
 history: ruff-specific-rule-fixes.history
 tags:
@@ -42,6 +42,11 @@ tags:
   - scripts-smoke-test
   - help-contract
   - D103
+  - test-files
+  - feature-pr
+  - parametrize
+  - entry-points
+  - add_version_arg
 ---
 
 # Ruff Specific Rule Fixes
@@ -51,8 +56,8 @@ tags:
 | Field | Value |
 | ------- | ------- |
 | **Date** | 2026-06-13 |
-| **Objective** | Fix specific Ruff rule violations (S101 assert-in-production, C901 cyclomatic complexity, RUF022 `__all__`-sort, I001 import-sort, RUF100 unused-noqa) and recognize when repeated policy violations mean the linter itself is the root cause; honor the auto-discovered scripts smoke `--help` contract |
-| **Outcome** | Verified — S101 guards converted across 20+ sites (PRs #1142, #1211), C901 extractions verified (PRs #1546, #1050), wrong-direction linter root-cause pattern verified-CI (PRs #863/#865/#866/#867), RUF022 + I001 fixes (issue #1189); RUF100 unused-noqa + scripts smoke `--help` contract verified-precommit (PR #1250) |
+| **Objective** | Fix specific Ruff rule violations (S101 assert-in-production, C901 cyclomatic complexity, RUF022 `__all__`-sort, I001 import-sort, RUF100 unused-noqa) and recognize when repeated policy violations mean the linter itself is the root cause; honor the auto-discovered scripts smoke `--help` contract; fix E501/ruff-format failures in newly-added test files on large feature PRs |
+| **Outcome** | Verified — S101 guards converted across 20+ sites (PRs #1142, #1211), C901 extractions verified (PRs #1546, #1050), wrong-direction linter root-cause pattern verified-CI (PRs #863/#865/#866/#867), RUF022 + I001 fixes (issue #1189); RUF100 unused-noqa + scripts smoke `--help` contract verified-precommit (PR #1250); E501/format in new test files fixed (ProjectHephaestus PR #1035) |
 | **Verification** | verified-ci |
 
 ## When to Use
@@ -66,10 +71,18 @@ tags:
 - **main goes red after a ruff/mypy version-floor bump** (e.g., ruff 0.1.x to 0.15): E501 line-length overruns, ruff-format implicit-string-concat collapses, or `# type: ignore[tag]` comments become unused-ignore errors in files that previously passed CI.
 - A `# type: ignore[tag]` comment fires mypy error `[unused-ignore]` after a mypy floor bump — the annotation was covering a type error that no longer exists in the new mypy version.
 - You are **adding a new `scripts/*.py`** to a repo with an auto-discovering smoke test, or **adding a `# noqa: <RULE>` whose `<RULE>` may not be in the ruff `select` list** (RUF100 unused-noqa risk).
+- You pushed a **large feature PR (40+ files)** after running only the test suite and CI fails on **E501 or `ruff format`** in newly-added test files — running tests does not invoke the linter; newly-added test files are subject to the same E501 line-length limit and `ruff format` rules as production code.
 
 ## Verified Workflow
 
 ### Quick Reference
+
+```bash
+# E501 / format on a large feature PR — lint AND format-check BOTH prod + tests
+pixi run ruff check hephaestus/ tests/      # E501 line-length (limit = 100)
+pixi run ruff format --check hephaestus/ tests/   # format wants some lines collapsed
+# Newly-ADDED test files are just as subject to E501 + ruff format as production code.
+```
 
 ```bash
 # S101 — find assert guards in production code (exclude tests)
@@ -445,6 +458,85 @@ pixi run mypy
 Important: the `lint` job MUST be a required CI check. If it is advisory-only, retroactive
 violations merge silently (as happened with PR #1308 when `lint` was not required).
 
+#### Pattern F — E501 / ruff format failures in newly-added test files on a large feature PR
+
+> **Verification: verified-ci** (ProjectHephaestus PR #1035, 2026-06-13).
+
+On a large feature PR (40+ files), newly-added test files are just as subject to **E501
+(line-length)** and **`ruff format`** as production code. Running only the test suite before
+pushing does not invoke the linter or formatter — CI will fail on E501 or format in the new
+test files even if all tests pass locally.
+
+**Always run ruff check AND ruff format --check over BOTH source and test directories before
+pushing a large PR:**
+
+```bash
+# E501 / format on a large feature PR — lint AND format-check BOTH prod + tests
+pixi run ruff check hephaestus/ tests/      # E501 line-length (limit = 100)
+pixi run ruff format --check hephaestus/ tests/   # format wants some lines collapsed
+# Newly-ADDED test files are just as subject to E501 + ruff format as production code.
+```
+
+**Two opposite fix shapes for E501 violations:**
+
+**(F1) Long literal that still overflows after wrapping the container — extract the literal:**
+
+Hand-wrapping only the `for`-header or call-signature does not help if the literal itself
+overflows 100 chars. Extract the literal to a variable first:
+
+```python
+# BAD — hand-wrapping the for-header still leaves the literal past col 100
+for command, module_path, attr in [
+    ("hephaestus", "hephaestus.__main__", "main"),
+    ("hephaestus-cli-a-very-long-entry-point-name-that-overflows-the-100-char-limit", "hephaestus.cli", "cli_main"),
+]:
+    ...
+
+# GOOD — extract the literal to a named constant
+ENTRY_POINTS = [
+    ("hephaestus", "hephaestus.__main__", "main"),
+    (
+        "hephaestus-cli-a-very-long-entry-point-name-that-overflows-the-100-char-limit",
+        "hephaestus.cli",
+        "cli_main",
+    ),
+]
+for command, module_path, attr in ENTRY_POINTS:
+    ...
+```
+
+**(F2) Hand-wrapped call that `ruff format` collapses — stop hand-wrapping it:**
+
+If `ruff format` keeps rewriting a hand-wrapped call back onto one line, the call already
+fits within the line-length limit and ruff's style is the single-line form. Stop fighting it:
+
+```python
+# BAD — hand-wrapping subprocess.run that fits on one line; ruff format undoes this every time
+result = subprocess.run(
+    ["git", "status"],
+    check=True,
+)
+
+# GOOD — let ruff format collapse it; this is within the limit
+result = subprocess.run(["git", "status"], check=True)
+```
+
+**Positive convention folded in from PR #1035:**
+
+For cross-cutting CLI flag rollouts (e.g., `--version` across all entry points), use:
+
+- A composable `add_version_arg(parser)` helper so the flag is added identically everywhere.
+- A parametrized integration test:
+  ```python
+  @pytest.mark.parametrize("command,module_path,attr", ENTRY_POINTS)
+  def test_version_flag(command: str, module_path: str, attr: str) -> None:
+      """Each entry point exposes --version and exits zero."""
+      result = subprocess.run([command, "--version"], capture_output=True, text=True)
+      assert result.returncode == 0
+  ```
+  This pattern makes the ENTRY_POINTS list the single source of truth and forces the same
+  line-length discipline on every parametrized row.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -465,6 +557,9 @@ violations merge silently (as happened with PR #1308 when `lint` was not require
 | Add `# noqa: S603` to silence a presumed bandit finding | Annotated a static-literal `subprocess.run([...])` with `# noqa: S603` | `S603` is not in the repo's ruff `select` list, so the directive is dead -> `RUF100 Unused noqa directive` | Remove the noqa — and it wasn't needed at all (static literal args, no `shell=True`); noqa only for rules you actually `select` |
 | Ship a new `scripts/*.py` guard without a `--help` branch | Added a one-liner guard script with no `--help`/`-h` handling | The auto-discovered `test_script_help_exits_zero` runs `--help` and asserts exit 0 AND non-empty output — it failed the moment the file landed | Honor `--help`/`-h` -> `print(__doc__)`; add a module docstring; don't reach for `HELP_RUNS_REAL_WORK` |
 | Omit docstrings on new pytest test functions | Wrote new test functions under `tests/` without docstrings | ruff `D103` (missing-docstring-in-public-function) is NOT ignored for `tests/**` (per-file-ignores drops only `S101,D102,D107`) | Add a one-line docstring to every new public test function |
+| Pushed 44-file feature PR after only running the test suite | Ran `pixi run python -m pytest` locally; all tests passed; pushed to CI | CI failed on E501 in newly-added test files — the test runner does not invoke ruff check or ruff format | Always run `pixi run ruff check <src>/ tests/` AND `pixi run ruff format --check <src>/ tests/` before pushing any PR that adds new files |
+| Hand-wrapped a long `for`-header to fix E501 in a test file | Broke the `for command, module_path, attr in [...]` header onto multiple lines | The long string literal inside the list still overflowed col 100 — wrapping the header does not shorten the literal | Extract the literal list to a named constant (e.g., `ENTRY_POINTS`) so each row can be broken independently |
+| Hand-wrapped `subprocess.run(...)` call across multiple lines | Split `subprocess.run(["git", "status"], check=True)` onto 3 lines to "look tidy" | `ruff format` kept collapsing it back to one line on every run — the call already fit within the line-length limit | Stop hand-wrapping calls that fit on one line; `ruff format` is the canonical style authority — let it collapse them |
 
 ## Results & Parameters
 
@@ -542,3 +637,4 @@ WRONG ORDER (fails CI):           CORRECT ORDER:
 | ProjectHephaestus | RUF022 + I001 — `__all__` sort and import-block sort in `hephaestus/validation/` after python-version-consistency DRY refactor; 3 errors fixed in one `ruff check --fix` pass across 2 files | Issue #1189 |
 | ProjectHephaestus | Floor-bump retroactive violations (ruff 0.1.x to 0.15, PR #1294) — 4 violations across 3 test files: (D1) implicit two-literal concat collapse in `test_check_python_version_consistency.py:321-324`; (D2a) E501 in `test_choose_merge_flag_sh.py:60` fixed with bash `\<newline>` continuation inside f-string; (D2b) E501 in `test_planner_loop.py:681` one-line docstring expanded; (D3) unused `# type: ignore[type-arg]` in `test_choose_merge_flag_sh.py:30` removed and `[str]` generic added. Verified-local (pixi run mypy + ruff format --check + ruff check all clean). | Issue #1313 |
 | ProjectHephaestus | RUF100 unused-noqa (`# noqa: S603` not in `select`) + scripts smoke `--help` contract (auto-discovered `test_script_help_exits_zero`), verified-precommit | issue #1214 / PR #1250 |
+| ProjectHephaestus | E501 + `ruff format` failures in newly-added test files on 44-file feature PR; two opposite E501 fix shapes (extract literal vs. stop hand-wrapping); `add_version_arg` helper + parametrized `@pytest.mark.parametrize("command,module_path,attr", ENTRY_POINTS)` integration test pattern | PR #1035 |
