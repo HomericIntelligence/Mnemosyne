@@ -1,6 +1,59 @@
 <!-- markdownlint-disable MD024 -->
 # python-module-decomposition-and-refactor-patterns — History
 
+## v1.15.0 (2026-06-13)
+
+**Changed by:** Salvage agent — folding three learnings from closed PRs #2400, #2396, #2418 into canonical
+**Verification:** unverified (content from closed PRs; CI not yet run)
+
+### What changed
+
+Added three new phases salvaged from closed PRs that were never merged into the canonical skill:
+
+**Phase 33: Zero-Arg Provider for Host Attributes Reassigned Post-Construction** (from closed #2400, LOST, verified-local ProjectHephaestus #1269)
+
+When a collaborator captures a host attribute BY VALUE at construction (`ArmingStateStore(self.state_dir)`),
+it silently breaks when the host reassigns that attribute after `__init__` (e.g. a pytest fixture sets
+`d.state_dir = tmp_path`). The collaborator still holds the original snapshot; 4 sibling startup-sweep
+tests write/read divergent dirs and show "Called 0 times". Fix: pass `lambda: self.state_dir` typed
+`Callable[[], Path]`; the collaborator stores `self._state_dir_provider` and calls it lazily. Detection:
+`grep -n "\.state_dir = " tests/.../test_<host>.py` before extracting.
+
+Rule: run the FULL host test suite — the breakage surfaces in a sibling cluster, not the new
+collaborator's own tests.
+
+**Phase 34: First-Slice-by-Cohesion Heuristic** (from closed #2396, PARTIAL)
+
+Pick the FIRST slice of a 3000+ line god class by cohesion and minimal coupling, NOT by size or the
+scariest method. The best first slice is the method cluster whose bodies touch a single shared `self.`
+attribute (verified empirically with AST self-attribute grep). Deliberately defer `# noqa: C901`
+carriers to later slices; the first PR removes ZERO C901 markers and says so explicitly. One slice
+per PR.
+
+**Phase 35: Three-Guard-File Atomic Omit-Allowlist Update** (from closed #2418, PARTIAL)
+
+When adding a new module, update THREE places in a single commit that PRECEDES creating the new module
+file: (1) `pyproject.toml [tool.coverage.run] omit` glob; (2)
+`tests/unit/validation/test_omit_allowlist.py` `expected_modules` frozen set; (3)
+`tests/integration/test_orchestration_smoke.py` `OMITTED_MODULES` list. The update must be atomic
+and precede module creation. Common failure: used `tests/unit/test_omit_allowlist.py` (does not exist)
+— correct path is `tests/unit/validation/test_omit_allowlist.py`; verify guard file paths on disk
+with `ls` before writing the plan, don't assume from memory.
+
+Also added:
+- 3 new trigger conditions (27–29) in frontmatter description
+- 13 new tags (zero-arg-provider, lazy-host-attribute, post-construction-reassignment,
+  first-slice-cohesion, ast-self-attribute-grep, c901-deferral, three-guard-file-atomic,
+  omit-allowlist-atomic, guard-file-path-verification)
+- 3 new When-to-Use bullets (Phases 33–35)
+- 3 new Quick Reference routing rows (Phases 33–35)
+- 3 new Failed Attempts rows
+- 3 new Verified On rows
+- Updated Outcome and Trigger in Overview table
+- Bumped 1.14.0 → 1.15.0
+
+---
+
 ## v1.14.0 (2026-06-13)
 
 **Changed by:** MERGE-BOTH rebase — folding unique content from PR #2319 (branch skill/decomp-shim-must-replace-not-append, v1.11.0 base) into v1.13.0 canonical

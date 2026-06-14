@@ -80,10 +80,22 @@ description: >-
   (26) discriminating between methods that take `acquired_slot` and methods that do not by
   their conceptual role: methods that acquire a semaphore slot (rebase/resolve/fix workers)
   have `acquired_slot`; methods that are sub-steps executed INSIDE an already-acquired slot
-  do not.
+  do not,
+  (27) fixing a collaborator that captured a host attribute by VALUE at construction time
+  (`ArmingStateStore(self.state_dir)`) and silently breaks when the host reassigns that
+  attribute after `__init__` — fix by passing a zero-arg provider lambda so the collaborator
+  resolves the path lazily,
+  (28) picking the FIRST slice to extract from a 3000+ line god class by cohesion and minimal
+  coupling (NOT by size or scariest method) — use an AST self-attribute grep to identify the
+  method cluster whose bodies touch a single shared `self.` attribute, and deliberately defer
+  `# noqa: C901` carriers to later slices so the first PR removes ZERO C901 markers,
+  (29) atomically updating THREE guard files in a single commit that PRECEDES creating a new
+  module: `pyproject.toml [tool.coverage.run] omit`, `tests/unit/validation/test_omit_allowlist.py`
+  `expected_modules` frozen set, and `tests/integration/test_orchestration_smoke.py`
+  `OMITTED_MODULES` list — verify guard file paths on disk with `ls` before writing the plan.
 category: architecture
 date: 2026-06-13
-version: "1.14.0"
+version: "1.15.0"
 user-invocable: false
 history: python-module-decomposition-and-refactor-patterns.history
 tags:
@@ -142,6 +154,15 @@ tags:
   - shim-replaces-body
   - append-only-shim
   - f811-redefinition
+  - zero-arg-provider
+  - lazy-host-attribute
+  - post-construction-reassignment
+  - first-slice-cohesion
+  - ast-self-attribute-grep
+  - c901-deferral
+  - three-guard-file-atomic
+  - omit-allowlist-atomic
+  - guard-file-path-verification
 ---
 
 # Python Module Decomposition and Refactor Patterns
@@ -152,8 +173,8 @@ tags:
 | ------- | ------- |
 | **Date** | 2026-06-13 |
 | **Objective** | Decompose oversized Python modules/classes/functions into focused, independently testable units using SRP, TDD, and DRY principles |
-| **Outcome** | Synthesized from 17+ verified skills; covers function-level extraction, class-based extraction, circular import fixes, immutability refactoring, extensibility-driven decomposition, CLI entry-point extraction with preserved patch routing, top-level symbol extraction to break sibling module cycles, CC>15 pipeline-step extraction, scanner-to-subdirectory scoping, context-manager double-counter fixes, safe legacy-code deletion, substrate-read-before-estimate discipline, post-parallel phase cleanup, god-class decomposition planning risks (state ownership, cross-call coupling, constant re-export, delegation stub type loss, coverage omit-allowlist traps, shared mutable dict write-back, methods shared across multiple collaborators, test fixture pre-seeding after cache extraction, method body read before assignment, __init__.py export conditionality verification), exception-contract verification before documenting wrapper behavior, three Phase 20 implementation-time traps (exception-boundary removal unmasks StopIteration from exhausted side_effect mocks; returncode-guard obligation at every call site of an absorbed-exception helper; agent mock type determines downstream subprocess.run consumption), god-function decomposition planning rules (arithmetic chain verification, docstring budget, for-loop body sizing, return type tracing, N-tuple completeness, captured variable audit, approach table completeness, AST-measure discipline), god-class narrow-callable DIP execution (lambda wrapping for patch.object compatibility, cross-module import patching when method chains split, sibling test attribute path updates after cache migration, companions tuple updates in phase-wiring tests), post-extraction DRY and constructor-injection refinement (thin delegation stubs, __setattr__ propagation, .clear()/.update() dict identity, circular import avoidance via local copies, from __future__ import annotations in collaborators), keyword-only method signature verification before writing stubs (fabricated positional signatures pass AST checks silently but raise TypeError at runtime), `_gh_call` multi-module split attribution via test-class boundary bucketing (range-grep spot-checks are insufficient for 4+ destination modules; class-boundary bucket analysis is required), delegation-chain pre-check before adding `_gh_call` patches to migration tables (if existing test patches a sub-module like `_review_utils._gh_call`, that patch does not move regardless of where the method relocates), return-type verification for delegation stubs (both parameters AND return types must be source-read; a stub with a wrong return type fails mypy in the host file not the collaborator modules, and is invisible unless the host file is in the mypy target list), acquired_slot parameter confirmation (three specific methods — _recheck_and_arm_after_fix, `_resolve_dirty_pr`, `_attempt_ci_fixes` — all have acquired_slot as a real positional parameter), keyword-only forwarding call verification for methods like _mark_drive_green_learn_result (stub def must include `*` AND forwarding call must use `param=value` keyword syntax), fabricated-param prevention protocol (in 3 consecutive rounds R4/R5/R6 the #1 rejection cause was fabricated signatures — use `sed -n` on the exact line range before writing any stub; never write "confirmed from source" without running the command), and acquired_slot vs no-acquired_slot slot-ownership mnemonic (methods that ACQUIRE a semaphore slot have the param; sub-steps executing INSIDE an acquired slot do not) |
-| **Trigger** | Files >800 lines, circular import errors, mixed-concern methods, C901/CC>15 complexity, extensibility requirements, CLI main() extraction, deferred imports inside function bodies preventing static analysis, broad scanners needing subdirectory scope, stale callers after context-manager refactors, dead fallback files, pessimistic refactor estimates, technical debt after parallel phases, planning a multi-collaborator god-class decomposition, extracting a two-branch provider-conditional dispatch with heterogeneous return types, documenting exception contracts for wrapper methods, planning god-function decomposition (individual functions > 80L), planning delegation-stub extraction where extracted methods populate shared dicts or caches read by the host class, executing a god-class decomposition using narrow-callable injection (DIP) where bare bound-method references to injected callables break patch.object, applying post-extraction DRY cleanup and constructor-injection refinement (delegation stubs, __setattr__ propagation, dict identity preservation), writing delegation stubs for methods with keyword-only parameters (`*` separator), planning migration of a symbol patched in 10+ test sites across multiple test classes when the symbol will move to 4+ destination modules, verifying whether an existing test's _gh_call patch already targets a sub-module (making migration unnecessary for that test), source-reading the `->` return annotation for every delegation stub (wrong return types fail mypy in the host file and are invisible if the host file is not in the mypy target list), confirming positional vs keyword-only status of parameters for methods before finalizing stub signatures, verifying the forwarding call uses `param=value` syntax for every keyword-only parameter, applying the fabricated-param prevention protocol (run `sed -n` on each def line range before writing any stub), or distinguishing slot-worker methods (have `acquired_slot`) from sub-step methods (do not) |
+| **Outcome** | Synthesized from 17+ verified skills; covers function-level extraction, class-based extraction, circular import fixes, immutability refactoring, extensibility-driven decomposition, CLI entry-point extraction with preserved patch routing, top-level symbol extraction to break sibling module cycles, CC>15 pipeline-step extraction, scanner-to-subdirectory scoping, context-manager double-counter fixes, safe legacy-code deletion, substrate-read-before-estimate discipline, post-parallel phase cleanup, god-class decomposition planning risks (state ownership, cross-call coupling, constant re-export, delegation stub type loss, coverage omit-allowlist traps, shared mutable dict write-back, methods shared across multiple collaborators, test fixture pre-seeding after cache extraction, method body read before assignment, __init__.py export conditionality verification), exception-contract verification before documenting wrapper behavior, three Phase 20 implementation-time traps (exception-boundary removal unmasks StopIteration from exhausted side_effect mocks; returncode-guard obligation at every call site of an absorbed-exception helper; agent mock type determines downstream subprocess.run consumption), god-function decomposition planning rules (arithmetic chain verification, docstring budget, for-loop body sizing, return type tracing, N-tuple completeness, captured variable audit, approach table completeness, AST-measure discipline), god-class narrow-callable DIP execution (lambda wrapping for patch.object compatibility, cross-module import patching when method chains split, sibling test attribute path updates after cache migration, companions tuple updates in phase-wiring tests), post-extraction DRY and constructor-injection refinement (thin delegation stubs, __setattr__ propagation, .clear()/.update() dict identity, circular import avoidance via local copies, from __future__ import annotations in collaborators), keyword-only method signature verification before writing stubs (fabricated positional signatures pass AST checks silently but raise TypeError at runtime), `_gh_call` multi-module split attribution via test-class boundary bucketing (range-grep spot-checks are insufficient for 4+ destination modules; class-boundary bucket analysis is required), delegation-chain pre-check before adding `_gh_call` patches to migration tables (if existing test patches a sub-module like `_review_utils._gh_call`, that patch does not move regardless of where the method relocates), return-type verification for delegation stubs (both parameters AND return types must be source-read; a stub with a wrong return type fails mypy in the host file not the collaborator modules, and is invisible unless the host file is in the mypy target list), acquired_slot parameter confirmation (three specific methods — _recheck_and_arm_after_fix, `_resolve_dirty_pr`, `_attempt_ci_fixes` — all have acquired_slot as a real positional parameter), keyword-only forwarding call verification for methods like _mark_drive_green_learn_result (stub def must include `*` AND forwarding call must use `param=value` keyword syntax), fabricated-param prevention protocol (in 3 consecutive rounds R4/R5/R6 the #1 rejection cause was fabricated signatures — use `sed -n` on the exact line range before writing any stub; never write "confirmed from source" without running the command), and acquired_slot vs no-acquired_slot slot-ownership mnemonic (methods that ACQUIRE a semaphore slot have the param; sub-steps executing INSIDE an acquired slot do not), zero-arg provider pattern when a collaborator captures a host attribute by value at construction time and the host reassigns that attribute after `__init__` (pass `lambda: self.state_dir` instead of `self.state_dir`; four sibling startup-sweep tests fail with "Called 0 times" when the snapshot diverges), first-slice-by-cohesion heuristic for god-class decomposition (pick the method cluster whose bodies touch a SINGLE shared `self.` attribute — verified empirically with AST self-attribute grep; deliberately defer `# noqa: C901` carriers so first PR removes zero C901 markers), and three-guard-file atomic omit-allowlist update (commit pyproject.toml omit glob + test_omit_allowlist.py expected_modules + test_orchestration_smoke.py OMITTED_MODULES in one atomic commit that PRECEDES the new module file; verify guard file paths on disk with `ls` before writing the plan) |
+| **Trigger** | Files >800 lines, circular import errors, mixed-concern methods, C901/CC>15 complexity, extensibility requirements, CLI main() extraction, deferred imports inside function bodies preventing static analysis, broad scanners needing subdirectory scope, stale callers after context-manager refactors, dead fallback files, pessimistic refactor estimates, technical debt after parallel phases, planning a multi-collaborator god-class decomposition, extracting a two-branch provider-conditional dispatch with heterogeneous return types, documenting exception contracts for wrapper methods, planning god-function decomposition (individual functions > 80L), planning delegation-stub extraction where extracted methods populate shared dicts or caches read by the host class, executing a god-class decomposition using narrow-callable injection (DIP) where bare bound-method references to injected callables break patch.object, applying post-extraction DRY cleanup and constructor-injection refinement (delegation stubs, __setattr__ propagation, dict identity preservation), writing delegation stubs for methods with keyword-only parameters (`*` separator), planning migration of a symbol patched in 10+ test sites across multiple test classes when the symbol will move to 4+ destination modules, verifying whether an existing test's _gh_call patch already targets a sub-module (making migration unnecessary for that test), source-reading the `->` return annotation for every delegation stub (wrong return types fail mypy in the host file and are invisible if the host file is not in the mypy target list), confirming positional vs keyword-only status of parameters for methods before finalizing stub signatures, verifying the forwarding call uses `param=value` syntax for every keyword-only parameter, applying the fabricated-param prevention protocol (run `sed -n` on each def line range before writing any stub), distinguishing slot-worker methods (have `acquired_slot`) from sub-step methods (do not), a collaborator capturing a host attribute by value at construction time and failing when the host reassigns that attribute post-construction, choosing the first slice to extract from a large god class, or adding a new module to a package guarded by a three-file omit-allowlist |
 
 ## When to Use
 
@@ -189,6 +210,9 @@ Apply this skill when any of the following is true:
 - Writing a delegation stub for a method with **keyword-only params that also appear after `*` in the source** — the stub def must include `*`, the forwarding call must use `keyword=value`; missing the keyword syntax in the forwarding call raises `TypeError` even when the stub def is correct (Phase 30)
 - Planning has **failed due to fabricated signatures in three or more consecutive review rounds** — activate the fabricated-param prevention protocol: `sed -n '<start>,<end>p'` for every `def` line before writing any stub; do not write "confirmed from source" without running the command (Phase 31)
 - Determining whether a method should receive **`acquired_slot` as a parameter** — use the slot-ownership mnemonic: methods that ACQUIRE a semaphore slot (rebase/resolve/fix workers) have the param; methods that execute AS A SUB-STEP already inside an acquired slot do not (Phase 32)
+- A **collaborator captured a host attribute by value** at construction time (`ArmingStateStore(self.state_dir)`) and silently fails when the host reassigns that attribute after `__init__` (e.g. a pytest fixture sets `d.state_dir = tmp_path`) — detection: `grep -n "\.state_dir = " tests/.../test_<host>.py`; fix: pass `lambda: self.state_dir` typed `Callable[[], Path]` and call lazily (Phase 33)
+- Choosing the **first slice to extract** from a 3,000+ line god class — pick by cohesion and minimal coupling (NOT by size or scariest method); use an AST self-attribute grep to find the method cluster whose bodies touch exactly ONE shared `self.` attribute; deliberately defer `# noqa: C901` carriers so the first PR removes ZERO C901 markers and says so explicitly (Phase 34)
+- **Adding a new module** to a package guarded by a three-file omit-allowlist — update `pyproject.toml [tool.coverage.run] omit`, `tests/unit/validation/test_omit_allowlist.py` `expected_modules`, and `tests/integration/test_orchestration_smoke.py` `OMITTED_MODULES` in a single commit that precedes module file creation; verify guard file paths with `ls` before writing the plan (Phase 35)
 - A **shim was added to the host class but the original body was NOT deleted** — ruff F811 redefinition, `wc -l` went UP instead of DOWN, and `# noqa: C901` waivers remain; the correct sequence is delete-original-then-add-shim in one atomic change (Phase 11b)
 - Decomposing an orchestrator whose tests pin method names on **BOTH the implementer AND the phase runner** (`patch.object(impl, "_xxx")` AND `patch.object(impl.phase_runner, "_xxx")`) — use a frozen `StageContext` dataclass carrying both back-references so phases route dispatch through `self.ctx.runner._xxx()` (Phase 18b)
 - Planning a god-class decomposition and needing to understand the **full scope of patch-string migration** before writing any extraction code — build a symbol → patch-count → destination-collaborator table first (Phase 18c)
@@ -233,6 +257,10 @@ Decision tree:
   Keyword-only forwarding call wrong    → _mark_drive_green_learn_result pattern (Phase 30)
   Fabricated params in consecutive runs → Fabricated-param prevention protocol (Phase 31)
   acquired_slot vs no acquired_slot     → Slot-ownership mnemonic (Phase 32)
+  Collaborator captured host attr by    → Zero-arg provider pattern (Phase 33)
+    value; breaks on post-init reassign
+  Choosing first slice of god class     → First-slice-by-cohesion heuristic (Phase 34)
+  Adding module to 3-file omit guard   → Three-guard-file atomic update (Phase 35)
 
 Universal rule for mock patches after any move:
   Patch where the name is LOOKED UP at call time — not where it was defined.
@@ -2821,6 +2849,225 @@ reading, reducing the planning error rate in future rounds.
 - [ ] If uncertain: find a call site with `grep -n "methodname" ci_driver.py` and count args
 ```
 
+### Phase 33: Zero-Arg Provider for Host Attributes Reassigned Post-Construction
+
+**Problem**: When a collaborator captures a host attribute BY VALUE at construction time
+(`ArmingStateStore(self.state_dir)`), it silently breaks when the host reassigns that
+attribute after `__init__` — e.g., a pytest fixture sets `d.state_dir = tmp_path`. The
+collaborator still holds the original path; all file reads and writes go to a divergent
+directory. This surfaces NOT in the new collaborator's own tests but in sibling clusters
+whose startup-sweep tests share the host object.
+
+**Detection**:
+
+```bash
+grep -n "\.state_dir = " tests/.../test_<host>.py
+# If any fixture or test reassigns state_dir after construction, the snapshot is stale
+```
+
+**WRONG** (captures value at construction time; never tracks reassignment):
+
+```python
+# In host __init__:
+self._store = ArmingStateStore(self.state_dir)
+
+# In collaborator __init__:
+def __init__(self, state_dir: Path) -> None:
+    self.state_dir = state_dir          # snapshot; loses sync if host reassigns
+
+def _path(self, n: str) -> Path:
+    return self.state_dir / f"...{n}.json"
+```
+
+**RIGHT** (zero-arg provider; resolves lazily at call time):
+
+```python
+# In host __init__:
+from collections.abc import Callable
+self._store = ArmingStateStore(lambda: self.state_dir)
+
+# In collaborator __init__:
+def __init__(self, state_dir_provider: Callable[[], Path]) -> None:
+    self._state_dir_provider = state_dir_provider   # live lookup
+
+def _path(self, n: str) -> Path:
+    return self._state_dir_provider() / f"...{n}.json"
+```
+
+**Type annotation**: `Callable[[], Path]` from `collections.abc`.
+
+**Why the breakage is hard to spot**: The collaborator's own test suite passes because those
+tests construct the collaborator directly with the correct path. The failures appear in
+SIBLING test classes (e.g., `TestArmingStartupSweep`) that create the host, reassign
+`state_dir` for isolation, and then call host methods that delegate to the collaborator. The
+collaborator writes to the original (wrong) path and the test reads from the reassigned path
+— `AssertionError: Called 0 times`.
+
+**Rule**: Before extracting any collaborator, grep for post-construction attribute reassignment
+in ALL test files that use the host class. If any test does `host.<attr> = <value>` after
+construction, every collaborator that stores `<attr>` must store a provider instead.
+
+#### Phase 33 Checklist
+
+```markdown
+## Zero-Arg Provider Checklist (Phase 33)
+
+### Detection — do before designing the collaborator constructor
+- [ ] `grep -n "\.<attr> = " tests/` for every host attribute the collaborator will store
+- [ ] If ANY test reassigns the attribute post-construction: use provider pattern
+- [ ] Run the FULL host test suite (not just the new collaborator's tests) — breakage appears
+      in sibling test classes, not the collaborator's own tests
+
+### Implementation
+- [ ] Import `Callable` from `collections.abc` (not `typing`) in the collaborator module
+- [ ] Constructor param typed `Callable[[], Path]` (or appropriate return type)
+- [ ] Store as `self._<attr>_provider`, never read at construction
+- [ ] Every method that needs the value calls `self._<attr>_provider()` at use time
+- [ ] Injection site uses `lambda: self.<attr>` — NOT `self.<attr>` (bare value)
+```
+
+### Phase 34: First-Slice-by-Cohesion Heuristic for God-Class Decomposition
+
+**Problem**: When starting to decompose a 3,000+ line god class, the natural impulse is to
+pick the first slice by SIZE (largest method cluster) or by FEAR (the most complex method
+with a `# noqa: C901` suppressor). Both heuristics produce a first PR that is harder to
+review, harder to land CI-clean, and harder to rebase on subsequent changes.
+
+**Correct heuristic**: Pick the method cluster whose bodies touch the **fewest shared
+`self.` attributes** — ideally exactly one. High cohesion + minimal coupling means:
+
+1. The extracted class constructor is simple (one or two injected dependencies).
+2. No shared mutable state write-back problem (Phase 22) needs to be solved.
+3. The first PR removes ZERO `# noqa: C901` markers (those require more structural change and
+   more reviewer scrutiny — deliberately defer them to later slices).
+4. The PR description can honestly say "no complexity suppressors removed" and reviewers
+   do not need to verify C901 reductions.
+
+**Empirical verification with AST self-attribute grep**:
+
+```python
+python3 -c "
+import ast
+src = open('ci_driver.py').read()
+tree = ast.parse(src)
+for node in ast.walk(tree):
+    if isinstance(node, ast.FunctionDef):
+        attrs = sorted({n.attr for n in ast.walk(node)
+                        if isinstance(n, ast.Attribute)
+                        and isinstance(n.value, ast.Name)
+                        and n.value.id == 'self'})
+        print(node.name, '->', attrs)
+"
+```
+
+Run this, then group methods by their `self.` attribute sets. The group with the smallest
+union of attributes is the best first slice.
+
+**Routing row for the Quick Reference**:
+
+| Signal | First-slice candidate |
+|--------|-----------------------|
+| Methods whose `self.` attribute sets share exactly one attribute | YES — extract together |
+| Methods that carry `# noqa: C901` | NO — defer to later slice |
+| Largest method cluster by line count | Probably NOT — likely high coupling |
+| Methods with fewest cross-calls to non-candidates | Better signal than size |
+
+**Rule**: One slice per PR. The first PR should explicitly state in its description that
+zero C901 suppressors were removed — this sets accurate reviewer expectations.
+
+#### Phase 34 Checklist
+
+```markdown
+## First-Slice-by-Cohesion Checklist (Phase 34)
+
+### Measurement (do before proposing any slice)
+- [ ] Run AST self-attribute grep on the target file (see Python snippet above)
+- [ ] For each candidate method group: record the union of `self.` attributes touched
+- [ ] Rank groups by union size (ascending) — smallest union = highest cohesion
+
+### Selection criteria
+- [ ] Chosen group has ONE shared `self.` attribute (or minimal set)
+- [ ] NO method in the chosen group carries `# noqa: C901` — defer those to later slices
+- [ ] Cross-calls from the chosen group to non-candidates are minimal (ideally zero)
+
+### PR description discipline
+- [ ] State explicitly: "This PR removes ZERO C901 suppressors" (prevents reviewer hunt)
+- [ ] One slice per PR — do not combine first slice with any C901 removal
+```
+
+### Phase 35: Three-Guard-File Atomic Omit-Allowlist Update
+
+**Problem**: When adding a new module to a package that is covered by a coverage omit
+allowlist, there are THREE files that must be updated — not one, not two. Updating fewer
+causes CI failure on one of the guard tests. Updating them AFTER creating the module causes
+a window where CI is broken.
+
+**The three guard files** (verify exact paths on disk with `ls` — do NOT assume from memory):
+
+| Guard file | What to update |
+|------------|----------------|
+| `pyproject.toml` `[tool.coverage.run]` `omit` | Add glob for new module (e.g., `hephaestus/automation/new_module.py`) |
+| `tests/unit/validation/test_omit_allowlist.py` | Add module name to `expected_modules` frozen set |
+| `tests/integration/test_orchestration_smoke.py` | Add module name to `OMITTED_MODULES` list |
+
+**Critical sequencing**: The three-file update commit must **PRECEDE** the commit that
+creates the new module file. If you create the module first, the guard tests immediately
+fail CI. If you update the guards first, CI passes on that commit, and the subsequent
+module-creation commit also passes.
+
+**Wrong path gotcha** (real example from closed #2418): The common assumption is that the
+allowlist test lives at `tests/unit/test_omit_allowlist.py`. The correct path is
+`tests/unit/validation/test_omit_allowlist.py` (inside a `validation/` subdirectory).
+Using the wrong path means you're editing a file that doesn't exist — and the real guard
+test still fails CI.
+
+**Verification workflow**:
+
+```bash
+# Step 1: verify the guard file paths BEFORE writing the plan
+ls tests/unit/validation/test_omit_allowlist.py   # confirm this path exists
+ls tests/integration/test_orchestration_smoke.py  # confirm this path exists
+grep -n "omit" pyproject.toml | head -20          # find the omit stanza
+
+# Step 2: update all three in a single commit (guards before module)
+git add pyproject.toml \
+    tests/unit/validation/test_omit_allowlist.py \
+    tests/integration/test_orchestration_smoke.py
+git commit -m "chore: pre-register new_module.py in omit allowlist guards"
+
+# Step 3: then create the new module file and commit separately
+git add hephaestus/automation/new_module.py
+git commit -m "feat: add new_module.py"
+```
+
+**Relationship to Phase 19 Step 6**: Phase 19 Step 6 documents that `test_omit_allowlist.py`
+exists and must be updated. Phase 35 extends this with: (a) the exact path under
+`validation/`, (b) the third guard file (`test_orchestration_smoke.py`), and (c) the
+atomic-before-creation sequencing requirement.
+
+#### Phase 35 Checklist
+
+```markdown
+## Three-Guard-File Atomic Omit-Allowlist Checklist (Phase 35)
+
+### Before writing the plan
+- [ ] `ls tests/unit/validation/test_omit_allowlist.py` — confirm this exact path exists
+- [ ] `ls tests/integration/test_orchestration_smoke.py` — confirm this exact path exists
+- [ ] `grep -n "omit" pyproject.toml` — find the `[tool.coverage.run]` omit stanza
+- [ ] NEVER assume paths from memory; always verify with ls on disk
+
+### Commit sequencing (critical)
+- [ ] Commit 1 (guards): update pyproject.toml + test_omit_allowlist.py + test_orchestration_smoke.py
+- [ ] Commit 2 (module): create the new .py file
+- [ ] Commit 1 must land in CI before Commit 2 — do NOT merge them
+
+### Content of each guard update
+- [ ] pyproject.toml: add `hephaestus/automation/<new_module>.py` to `omit` list under `[tool.coverage.run]`
+- [ ] test_omit_allowlist.py: add `"<new_module>"` to `expected_modules` frozen set
+- [ ] test_orchestration_smoke.py: add `"<new_module>"` to `OMITTED_MODULES` list
+- [ ] All three must be consistent — same module name in all three places
+```
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -2901,6 +3148,9 @@ reading, reducing the planning error rate in future rounds.
 | **R6 `_resolve_dirty_pr` stub had fabricated 4th param `worktree_path` with false "confirmed from source"** | Added positional `worktree_path: Path` as a 4th parameter to `_resolve_dirty_pr` with a note claiming it was "confirmed from source" | Source L1227-1229 shows 3 params (`self, issue_number, pr_number, acquired_slot`); call site L919 confirms 3 args; the 4th param did not exist; the false confirmation claim wasted a review round | Never write "confirmed from source" without actually running `sed -n` or Read on that exact line range during the current planning session; this is the same root cause as all prior fabrications (Phase 31) |
 | **R6 `_mark_drive_green_learn_result` stub had fabricated `pr_number`, missing keyword-only `succeeded`** | Wrote stub with positional `pr_number` (doesn't exist in source) and omitted the keyword-only `succeeded` parameter entirely | Source L1550-1556: `def _mark_drive_green_learn_result(self, issue_number: int, record: dict[str, Any], *, succeeded: bool) -> None` — no `pr_number`, `succeeded` is keyword-only; forwarding call must use `succeeded=succeeded` | Both the stub def AND the forwarding call must be correct; a method named for "learn result" doesn't need `pr_number`; read the def line to know; pass keyword-only params with `param=value` in the forwarding call (Phase 30) |
 | **R4 `_retry_no_commit_once` had fabricated `acquired_slot`** | Added positional `acquired_slot` parameter to `_retry_no_commit_once` based on its presence in similar-looking worker methods | Source: `_retry_no_commit_once` uses `*` (keyword-only) with no `acquired_slot` at all — it is a sub-step executed inside a worker, not a worker itself | Methods that execute AS SUB-STEPS inside an acquired slot do not receive `acquired_slot`; only methods dispatched BY the slot scheduler receive it (Phase 32); source-read the def line to confirm (Phase 25) |
+| **Collaborator captured host attr by value; broke on post-init reassign** | `ArmingStateStore(self.state_dir)` passed the path by value at construction; a pytest fixture then set `d.state_dir = tmp_path`; the store still wrote to the original path | 4 sibling `TestArmingStartupSweep` tests wrote/read divergent dirs; mock assertions showed "Called 0 times" even though the method ran | Pass a zero-arg provider `lambda: self.state_dir` typed `Callable[[], Path]`; store as `self._state_dir_provider`; call lazily at use time; grep `\.state_dir = ` in test files BEFORE extracting (Phase 33) |
+| **Picking first god-class slice by size / scariest method** | Selected the largest method cluster (by line count) as the first extraction target; it carried multiple `# noqa: C901` suppressors | Reviewers expected C901 reduction evidence; the PR was harder to land CI-clean; the large coupling surface made rebasing subsequent PRs expensive | Pick the first slice by cohesion: use the AST self-attribute grep and select the cluster touching the fewest `self.` attributes; explicitly state "this PR removes zero C901 markers" in the description; defer C901 carriers to later slices (Phase 34) |
+| **Used `tests/unit/test_omit_allowlist.py` path (does not exist)** | When adding a new module, planned to update `tests/unit/test_omit_allowlist.py` — the assumed path without checking | File does not exist at that path; the real guard is at `tests/unit/validation/test_omit_allowlist.py`; CI failed on the unmodified guard | Always `ls` the guard file paths before writing any plan; the `validation/` subdirectory is non-obvious; the third guard (`test_orchestration_smoke.py`) also exists and must be updated atomically (Phase 35) |
 
 ## Results & Parameters
 
@@ -2983,3 +3233,6 @@ Revised LOC estimate: ~X (vs TODO "~Y"); justification: ~Z% already in substrate
 | ProjectHephaestus | Issue #1289 R5 planning session — 3 new pre-implementation verification rules discovered: (1) `_retry_no_commit_once` at ci_driver.py:2296 uses keyword-only `*` separator; plan gave it a fabricated positional signature including non-existent `acquired_slot` param — AST Criterion 6 would pass silently but runtime raises `TypeError`; fix: read actual `def` line before any stub; (2) `_gh_call` patched in 26 sites across one test file moving to 4+ destination modules — two range-grep spot-checks only covered 2 of 26 sites; fix: bucket all patch lines by test-class start-line boundary; (3) `_find_pr_for_issue` tests already patch `_review_utils._gh_call` (not `ci_driver._gh_call`) because the method already delegates through `_review_utils`; these sites do not need migration regardless of where the method moves; fix: read the patch string before adding any site to the migration table (plan not yet executed) | New Phases 25–27: Keyword-Only Sig Verification, _gh_call Bucket Analysis, Delegation Chain Pre-Check (v1.13.0) |
 | ProjectHephaestus | Issue #1289 R6 planning session — 2 new verification rules discovered: (1) six delegation stubs had wrong return types (`-> bool` or `-> None` or bare `-> dict` instead of `WorkerResult \| None`, `WorkerResult`, `dict[str, Any] \| None`, `bool`); mypy in ci_driver.py rejected all six; Criterion 9 only covered collaborator modules — adding ci_driver.py to the mypy target list is required to surface host-file type errors; fix: source-read `->` annotation for every stub; (2) three methods — `_recheck_and_arm_after_fix` (L1149), `_resolve_dirty_pr` (L1229), `_attempt_ci_fixes` (L1292) — all DO have `acquired_slot` as a real positional parameter (unlike `_retry_no_commit_once` which did NOT); fabrication risk runs both ways: parameters may genuinely exist or be absent; source-read is the only reliable check (plan not yet executed) | New Phases 28–29: Return-Type Verification, acquired_slot Confirmation (v1.13.0) |
 | ProjectHephaestus | Issue #1289 R7 planning session — 3 new planning-time rules discovered: (1) `_mark_drive_green_learn_result` (L1550-1556) uses keyword-only `succeeded: bool` with no `pr_number` at all; R6 stub had fabricated `pr_number` and missing `succeeded`; R7 fix: both stub def AND forwarding call must be correct for keyword-only params — stub def needs `*`, forwarding call needs `succeeded=succeeded`; (2) fabricated method signatures were the #1 rejection cause in 3 consecutive rounds (R4 fabricated `acquired_slot` in `_retry_no_commit_once`; R5 had 6 wrong return types; R6 had fabricated `worktree_path` in `_resolve_dirty_pr` and fabricated `pr_number` + missing `succeeded` in `_mark_drive_green_learn_result`); prevention: `sed -n '<start>,<end>p'` for EVERY stub, never use "confirmed from source" without running the command; (3) `acquired_slot` ownership mnemonic: methods that ARE semaphore-slot workers (dispatched by slot scheduler) have the param; sub-steps executing INSIDE an acquired slot do not; use as prior then source-verify (plan not yet executed) | New Phases 30–32: Keyword-Only Forwarding Call, Fabricated-Param Prevention Protocol, acquired_slot Mnemonic (v1.13.0) |
+| ProjectHephaestus | Closed PR #2400 (LOST) / verified-local ProjectHephaestus #1269 — collaborator `ArmingStateStore` captured `self.state_dir` by value at construction; pytest fixture reassigned `d.state_dir = tmp_path` post-init; 4 sibling `TestArmingStartupSweep` tests showed "Called 0 times" because collaborator wrote to original path while test read from fixture path; fix: pass `lambda: self.state_dir` typed `Callable[[], Path]` (unverified — salvaged from closed PR) | New Phase 33: Zero-Arg Provider for Host Attributes Reassigned Post-Construction (v1.15.0) |
+| ProjectHephaestus | Closed PR #2396 (PARTIAL) — first-slice-by-cohesion heuristic derived from the pattern of choosing "largest cluster" or "scariest method (C901)" as first extractions and paying high review cost; AST self-attribute grep provides empirical evidence for which cluster has fewest self. attribute dependencies; first PR must state "removes ZERO C901 markers"; one slice per PR discipline (unverified — salvaged from closed PR) | New Phase 34: First-Slice-by-Cohesion Heuristic for God-Class Decomposition (v1.15.0) |
+| ProjectHephaestus | Closed PR #2418 (PARTIAL) — three-guard-file atomic omit-allowlist update; common failure: assumed guard path was `tests/unit/test_omit_allowlist.py` (does not exist); real path is `tests/unit/validation/test_omit_allowlist.py`; also required updating `tests/integration/test_orchestration_smoke.py` OMITTED_MODULES; atomic commit ordering: guards commit must precede module creation commit (unverified — salvaged from closed PR) | New Phase 35: Three-Guard-File Atomic Omit-Allowlist Update (v1.15.0) |
