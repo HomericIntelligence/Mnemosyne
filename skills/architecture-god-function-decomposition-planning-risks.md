@@ -488,7 +488,6 @@ return tuple must include those fields.
 
 ---
 
-
 ### R0: Waiving Functions at 128–130L as "Marginal"
 
 **What was tried**: R0 plan waived `_implement_issue` (128L) and `_run_impl_review_loop`
