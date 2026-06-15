@@ -1,5 +1,69 @@
 # planning-check-already-shipped-before-planning — History
 
+## v1.3.0 (2026-06-15)
+
+**Changed by:** ProjectHephaestus issue #1357 planning session (continued) — after the status-note
+reshape (v1.2.0), the plan-loop reviewer returned a SECOND NOGO, this time Grade F, because the
+submitted plan artifact was an empty placeholder: the planner had paused its turn on a background
+`pytest`/Monitor full-suite count and the artifact contained zero plan content.
+**Verification:** verified-local (the fix was confirmed when the very next iteration produced a
+complete, gradeable plan; the background-suite count itself remained unconfirmed at the boundary,
+which is exactly the open-risk-flagging the lesson prescribes)
+
+### What changed
+
+- Added the core NEW lesson (Verified-Workflow step 11): never gate the emission of a due artifact
+  on an in-flight background job. Emit the COMPLETE forward-looking plan from evidence in hand; a
+  still-running gate becomes a flagged open-risk line inside Verification, never a reason to output
+  a placeholder. An empty/placeholder artifact fails EVERY rubric dimension and is an automatic
+  Grade F — strictly worse than the v1.2.0 status-note NOGO.
+- Added the generalizable rule distinguishing "no deadline → may keep working/waiting" from
+  "artifact due THIS turn (your output IS the posted artifact) → must emit now from evidence in
+  hand + flag open risk."
+- Added a When-to-Use trigger: "you're tempted to wait on a background job / Monitor / long test run
+  before producing a due plan or review artifact."
+- Added a Failed Attempts row: paused the turn on a background `pytest`/Monitor for a full-suite
+  count → submitted the placeholder "Output not yet flushed…" → plan-loop Grade F.
+- Added a Results & Parameters subsection documenting the Grade F NOGO, the placeholder text, the
+  root cause, the verified fix, and the generalizable rule.
+- Extended the planner decision tree with the "artifact DUE this turn + background job running"
+  branch; added a Verified On row for the Grade F NOGO and its fix.
+- Frontmatter: bumped `version` 1.2.0 → 1.3.0, kept `date` 2026-06-15, broadened `description`
+  (added clause 5 about background-job placeholders → Grade F), kept `verification: verified-local`.
+
+### Why
+
+v1.2.0 covered the FIRST NOGO (a retrospective status note is a category error → Grade D). It did
+not cover what happens when a planner, trying to get a fuller verification, blocks the emission of a
+due artifact on a pending background task. The #1357 session learned that doing so produces an empty
+placeholder artifact, which is STRICTLY WORSE — an automatic Grade F that fails every rubric
+dimension and addresses none of the prior findings. The fix is to treat already-collected evidence
+as sufficient to emit a complete draft and to demote a still-running gate to a flagged open-risk
+line item, never withholding the whole artifact. This was verified when the very next iteration
+produced a complete, gradeable plan.
+
+### Previous version (v1.2.0) snapshot
+
+```markdown
+---
+name: planning-check-already-shipped-before-planning
+description: "Before writing an implementation plan, verify the ACTUAL on-disk state — grep/wc/test the real source — instead of trusting the issue body's stated starting condition (LOC counts, method counts, \"needs to be done\"). The fix may already be merged, OR already landed uncommitted in a sibling worktree that git log will NOT show. And even when the work IS already on disk, the plan-loop still demands a FORWARD-LOOKING plan — a retrospective status note gets NOGO'd, and gates you defer to the reviewer are stage-handoff failures. Use when: (1) planning a follow-up or consolidation issue, (2) issue body cites specific file paths or LOC/method counts, (3) git status shows an untracked sibling worktree directory, (4) the plan-loop reviewer NOGO'd your plan as a 'status note' / retrospective."
+category: architecture
+date: 2026-06-15
+version: "1.2.0"
+user-invocable: false
+verification: verified-local
+history: planning-check-already-shipped-before-planning.history
+tags: []
+---
+```
+
+(The v1.3.0 edits are purely additive — a new trigger, Verified-Workflow step 11, one Failed
+Attempts row, a Results subsection, a decision-tree branch, and a Verified On row; the full v1.2.0
+body is reconstructable from this changelog plus the v1.1.0 and v1.0.0 snapshots below.)
+
+---
+
 ## v1.2.0 (2026-06-15)
 
 **Changed by:** ProjectHephaestus issue #1357 planning session (continued) — after confirming the

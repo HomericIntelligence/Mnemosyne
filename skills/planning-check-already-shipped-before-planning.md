@@ -1,9 +1,9 @@
 ---
 name: planning-check-already-shipped-before-planning
-description: "Before writing an implementation plan, verify the ACTUAL on-disk state — grep/wc/test the real source — instead of trusting the issue body's stated starting condition (LOC counts, method counts, \"needs to be done\"). The fix may already be merged, OR already landed uncommitted in a sibling worktree that git log will NOT show. And even when the work IS already on disk, the plan-loop still demands a FORWARD-LOOKING plan — a retrospective status note gets NOGO'd, and gates you defer to the reviewer are stage-handoff failures. Use when: (1) planning a follow-up or consolidation issue, (2) issue body cites specific file paths or LOC/method counts, (3) git status shows an untracked sibling worktree directory, (4) the plan-loop reviewer NOGO'd your plan as a 'status note' / retrospective."
+description: "Before writing an implementation plan, verify the ACTUAL on-disk state — grep/wc/test the real source — instead of trusting the issue body's stated starting condition (LOC counts, method counts, \"needs to be done\"). The fix may already be merged, OR already landed uncommitted in a sibling worktree that git log will NOT show. And even when the work IS already on disk, the plan-loop still demands a FORWARD-LOOKING plan — a retrospective status note gets NOGO'd, gates you defer to the reviewer are stage-handoff failures, and an EMPTY/placeholder artifact (output withheld while a background job runs) is an automatic Grade F. Use when: (1) planning a follow-up or consolidation issue, (2) issue body cites specific file paths or LOC/method counts, (3) git status shows an untracked sibling worktree directory, (4) the plan-loop reviewer NOGO'd your plan as a 'status note' / retrospective, (5) you're tempted to wait on a background job / Monitor / long test run before producing a due plan or review artifact."
 category: architecture
 date: 2026-06-15
-version: "1.2.0"
+version: "1.3.0"
 user-invocable: false
 verification: verified-local
 history: planning-check-already-shipped-before-planning.history
@@ -18,7 +18,7 @@ tags: []
 |-------|-------|
 | **Date** | 2026-06-15 |
 | **Objective** | Detect whether a GitHub issue's fix is already done before writing an implementation plan — and, even when it IS done, still emit a FORWARD-LOOKING plan (not a retrospective status note) and run every gate yourself instead of deferring to the plan reviewer |
-| **Outcome** | Successful — caught both a shipped fix (PR #1308, merged) and a fix that had already landed uncommitted in an untracked `1-fix` worktree (issue #1357); then diagnosed why a "status note" plan for that landed work was NOGO'd (Grade D) and what reshaping + gate-running resolves it |
+| **Outcome** | Successful — caught both a shipped fix (PR #1308, merged) and a fix that had already landed uncommitted in an untracked `1-fix` worktree (issue #1357); then diagnosed why a "status note" plan for that landed work was NOGO'd (Grade D), and why a SUBSEQUENT plan that withheld its content while a background `pytest` ran was NOGO'd even harder (Grade F, empty placeholder), and what resolves each |
 | **Verification** | verified-local (the uncommitted-worktree finding ran a SUBSET of tests; the boundary/mypy/ruff gates ran GREEN this session; the original merged-fix example remains verified-ci) |
 | **History** | [changelog](./planning-check-already-shipped-before-planning.history) |
 
@@ -30,6 +30,7 @@ tags: []
 - **`git status` shows an untracked sibling worktree directory** (e.g. `1-fix/`) — the implementation may already be done there but not yet committed/merged, so `git log` on `main` shows nothing
 - The issue describes a refactor/decomposition as FUTURE work but a parallel branch/worktree may have already completed it
 - **The plan-loop reviewer NOGO'd your plan as a "status note" / retrospective** — discovering the work is already on disk does NOT exempt you from writing a forward-looking implementation plan; describing what shipped (bullets + caveats) fails the rubric even when the code is correct
+- **You're tempted to wait on a background job / Monitor / long test run before producing a due plan or review artifact** — a deliverable with a hard turn-boundary (a plan-loop artifact, a review verdict, any "your output IS the posted artifact" contract) must be emitted NOW from evidence in hand; blocking the emission on a pending background task produces an empty/placeholder artifact that is an automatic Grade F
 - Before any implementation plan step — running this check costs seconds and avoids wasted (and worse, duplicate/conflicting) work
 
 ## Verified Workflow
@@ -89,6 +90,8 @@ pixi run pytest tests/unit/path/to/relevant_tests.py -v
 
 10. **RUN the gates yourself — never DEFER a verification you could run to the reviewer** — Listing a checkable gate (e.g. ADR-0001 boundary tests, `mypy`) as "highest-value follow-up for the plan reviewer" is a **stage-handoff failure** that triggers NOGO. If you can run it during planning, run it and cite it as completed. For the #1357 decomposition this session ran and observed GREEN: the import-surface + automation-boundary tests (ADR-0001 intact), whole-tree `mypy` (the real proof of DIP — no collaborator secretly takes `self`/`CIDriver`, upgrading step 7's call-site inference to proof), `ruff`, and an import-graph confirmation that all 4 collaborators import only sibling `hephaestus.automation.*` + `hephaestus.agents.runtime`, never the base `hephaestus` surface (dependency arrow points automation→library, never reversed). **Gotchas:** (a) the `pixi run mypy` task already targets the whole tree — passing file paths causes `error: Duplicate module named ...`; run `pixi run mypy` with NO arguments. (b) `pixi run pytest` injects `--cov`; ad-hoc subset runs need `--no-cov` (or `-p no:cov`) or pytest errors `unrecognized arguments: --cov`. (c) a subset run reporting low TOTAL coverage (e.g. 9.18%) is a SUBSET ARTIFACT — never cite it as the suite being red OR green.
 
+11. **NEVER gate the emission of a due artifact on an in-flight background job** — Emit the COMPLETE forward-looking plan (or review verdict) from the evidence already in hand: line counts, grep'd stubs, already-green gates. If one verification is still running (a background `pytest`, a `Monitor` you launched, an external job), mark THAT one criterion as "not yet confirmed — open risk, run before completion" INSIDE the Verification section, and emit the rest of the artifact anyway. A plan that is 95% confirmed + 1 flagged open risk is gradeable; a placeholder is an automatic Grade F. Distinguish two situations: (a) a **transient external dependency still in progress when you have NO deadline** — fine to keep working/waiting; (b) **an artifact is due THIS turn** ("your output IS the posted artifact") — you MUST emit now from evidence in hand, never output nothing. Pausing the turn to wait for a background full-suite count, then submitting the literal placeholder "Output not yet flushed. I'll wait for the monitor notification rather than polling.", fails EVERY rubric dimension (Requirements / Completeness / Concreteness / Risk / Verification / Stage-Handoff all F) and is STRICTLY WORSE than the status-note NOGO of step 9 — it addresses none of the prior findings either.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -104,6 +107,7 @@ pixi run pytest tests/unit/path/to/relevant_tests.py -v
 | Defer a checkable gate to the reviewer | Listed `test_import_surface.py` / `test_automation_boundary.py` / `mypy` as "highest-value follow-up for the plan reviewer" | Stage-handoff failure → NOGO; a verification you can run yourself must not be punted downstream | RUN every gate you can during planning and cite it as completed; only genuinely-unrunnable checks may be handed off |
 | Run `pixi run mypy <paths>` | Passed explicit file paths to the mypy task to type-check only the touched files | `error: Duplicate module named ...` — the `pixi run mypy` task already targets the whole tree, so extra paths double-register modules | Run `pixi run mypy` bare (no arguments); it already covers the whole source tree |
 | Run subset `pixi run pytest <files>` without `--no-cov` | Invoked an ad-hoc subset pytest run to check a few modules | `pytest: error: unrecognized arguments: --cov` — the pixi pytest task injects `--cov`, which the bare pytest invocation rejects | Add `--no-cov` (or `-p no:cov`) for ad-hoc subset runs; and treat any low TOTAL-coverage number from a subset as an artifact, not a result |
+| Pause the turn on a background job, submit an empty artifact | Started a long-running background `pytest tests/unit/automation` / `Monitor` to get a full-suite pass count, then PAUSED and deferred the turn — so the submitted plan artifact was the literal placeholder "Output not yet flushed. I'll wait for the monitor notification rather than polling." | NOGO, Grade F — an empty/placeholder artifact fails EVERY rubric dimension (Requirements / Completeness / Concreteness / Risk / Verification / Stage-Handoff all F); STRICTLY WORSE than the status-note NOGO and addresses none of the prior findings | Never gate a due artifact on an in-flight background job. Emit the complete plan from evidence in hand; a still-running gate becomes a flagged open-risk line in Verification, never a reason to output nothing. "No deadline → may wait" vs "artifact due this turn → emit from evidence + flag open risk" |
 
 ## Results & Parameters
 
@@ -205,6 +209,37 @@ type level (no collaborator secretly takes `self`/`CIDriver`), upgrading step 7'
 inference to proof. It does NOT prove each collaborator is behaviorally SRP (single reason to
 change) — that remains asserted from the responsibility table, not demonstrated.
 
+### Concrete example (issue #1357 — the SECOND NOGO: an empty placeholder artifact, Grade F)
+
+After the status-note plan was reshaped (step 9) and the deferred gates were run (step 10), the
+plan-loop reviewer returned a SECOND NOGO — this time **Grade F**, because the submitted plan
+artifact was an EMPTY PLACEHOLDER: the literal text
+
+```text
+Output not yet flushed. I'll wait for the monitor notification rather than polling.
+```
+
+Root cause: the planner had launched a long-running background verification (a `Monitor` /
+background `pytest tests/unit/automation` run to get a full-suite pass count) and PAUSED, deferring
+its turn — so when the plan was DUE the artifact contained zero plan content. The reviewer noted
+this is STRICTLY WORSE than the prior status-note NOGO: an empty/placeholder artifact fails every
+rubric dimension (Requirements / Completeness / Concreteness / Risk / Verification / Stage-Handoff
+all F) and addresses none of the prior findings.
+
+The fix (verified — the very next iteration produced a complete plan): never gate the plan artifact
+on an in-flight background job. Emit the COMPLETE forward-looking plan from the evidence already in
+hand (line counts, grep'd stubs, already-green gates); if one verification is still running, mark
+THAT criterion as "not yet confirmed — open risk, run before completion" inside the Verification
+section rather than withholding the whole artifact. A plan that is 95% confirmed + 1 flagged open
+risk is gradeable; a placeholder is an automatic F.
+
+Generalizable rule: when a deliverable has a hard turn-boundary (a plan-loop artifact, a review
+verdict, any "your output IS the posted artifact" contract), treat already-collected evidence as
+sufficient to emit a complete draft. A background task that has not reported by the deadline becomes
+a documented open-risk line item, never a reason to emit nothing. Distinguish "transient external
+dependency still in progress" (legit to keep working/waiting when you have NO deadline) from "an
+artifact is due THIS turn" (must emit now from evidence in hand).
+
 ### Decision tree for planners
 
 ```
@@ -233,6 +268,15 @@ Before writing any implementation plan:
     │                 run subsets with --no-cov; run `pixi run mypy` bare, no paths)
     ├─ FULL suite + mypy + ruff + boundary green → verified-ci, safe to report done
     └─ SOME FAIL → issue is genuinely open; proceed with planning
+
+When the artifact is DUE this turn (plan-loop / review verdict):
+│
+└─ Is a background job (pytest / Monitor / external) still running?
+    ├─ NO deadline this turn → fine to keep working/waiting
+    └─ ARTIFACT DUE THIS TURN → EMIT NOW from evidence in hand; mark the still-running
+        gate as an open-risk line in Verification. NEVER withhold the artifact / submit a
+        placeholder ("Output not yet flushed…") — that is an automatic Grade F, worse than
+        a status note.
 ```
 
 ## Verified On
@@ -242,3 +286,4 @@ Before writing any implementation plan:
 | ProjectHephaestus | Issue #1291 — YAML sequence support in CI matrix extractor | PR #1308 merged 2026-06-13, commit dd15c35f (verified-ci) |
 | ProjectHephaestus | Issue #1357 — CIDriver god-class decomposition already landed in an uncommitted `1-fix` worktree | `ci_driver.py` measured 2,449 lines (≤ target), all 4 collaborator modules present, 211 subset tests green; full gate not run (verified-local) |
 | ProjectHephaestus | Issue #1357 — plan-loop NOGO (Grade D) on a retrospective "status note" for the landed work | Reshaped into a forward plan + ran the deferred gates: boundary tests 2 passed, `pixi run mypy` clean (402 files), ruff clean, 25 delegation stubs; full automation suite count unconfirmed (verified-local) |
+| ProjectHephaestus | Issue #1357 — SECOND plan-loop NOGO (Grade F) on an EMPTY placeholder artifact (output withheld while a background `pytest`/Monitor ran) | Fix verified: emit the complete plan from evidence in hand and flag the still-running gate as an open risk — the very next iteration got a complete, gradeable plan (verified-local) |
