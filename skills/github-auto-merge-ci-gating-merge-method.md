@@ -2,8 +2,8 @@
 name: github-auto-merge-ci-gating-merge-method
 description: "Use when: (1) a PR has mergeStateStatus CLEAN or MERGEABLE but auto-merge never fires despite all checks passing, (2) gh pr merge --auto --rebase or --squash returns an error or silently fails on a squash-only repo, (3) a PR is BLOCKED because required CI status contexts never post (workflow never triggered, paths filter excluded PR, required check name mismatch), (4) GPG-signing failures or mismatched committer emails cause commits to be unsigned and block the pr-policy gate, (5) branch protection rulesets and classic branch protection disagree and their union blocks merge, (6) a CI ruleset chicken-and-egg deadlock blocks a PR that introduces a new workflow, (7) an advisory check should not block merge but currently does because it lives in the required gate, (8) deciding which merge method a repo supports before arming auto-merge, (9) auditing required-check names after adding or removing CI jobs, (10) state:implementation-go label or pr-policy gates auto-merge arming, (11) per-issue arming-state machine is triggered on the wrong event (optimistic point vs detected merge), (12) mergeStateStatus=BLOCKED with all CI green and auto-merge armed — unresolved review threads are the PRIMARY blocker to check FIRST before assuming CI failure"
 category: ci-cd
-date: 2026-06-14
-version: "1.3.0"
+date: 2026-06-15
+version: "1.4.0"
 user-invocable: false
 history: github-auto-merge-ci-gating-merge-method.history
 tags:
@@ -32,6 +32,7 @@ tags:
 | 2026-06-07 | Consolidated canonical for why GitHub auto-merge does not fire and how to arm it correctly: wrong merge method, missing/required CI status contexts, two-layer branch protection, GPG-signing blockers, ruleset bootstrap deadlock, the `state:implementation-go` arming-state machine, and advisory-vs-required gate split | Each failure mode has a verified diagnosis + fix; verified across many HomericIntelligence repos in live CI |
 | 2026-06-14 | Add the classic-vs-ruleset review-count UNION hard gate (a required human approval automation cannot provide), the keystone-PR self-introduced-required-context merge-train deadlock (merge keystone first, then re-rebase the queue), and duplicate check-run resolution after a re-run | Diagnosed live across 13 open ProjectHephaestus PRs during a `/myrmidon-swarm` drive (verified-local; the PRs had not yet merged at capture, the review-union gate was confirmed by API inspection) |
 | 2026-06-14 | Expanded unresolved review thread diagnostic to verified-ci status: PR #1282 was BLOCKED despite all CI green and auto-merge armed; the stated "lint failure" was stale; the real blockers were 2 unresolved review threads. Resolving via `resolveReviewThread` GraphQL mutation immediately triggered auto-merge (merged 2026-06-15T03:05:38Z by app/github-actions). Added full GraphQL copy-paste workflow for thread query + reply + resolve. | verified-ci — PR #1282 ProjectHephaestus merged within seconds of thread resolution |
+| 2026-06-15 | Folded v1.3.0 improvements from the briefly-reintroduced `squash-only-repo-merge-method-docs` standalone (PR #2546) back into this consolidated skill, then re-removed the standalone duplicate (restoring the #2200 consolidation): the f-string regression-test pattern (`inspect.getsource(_make_agent_prompt)`, not a `_AGENT_PROMPT_TEMPLATE` constant), the explicit per-block `<!-- merge-method-allowed: example -->` lint-exemption marker replacing a brittle 10-line look-back heuristic, the plain-`jq -r` form (not `gh api --jq -` over stdin), and tiered helper sourcing for cross-repo callers | verified-ci (shipped in ProjectHephaestus PR #1069); standalone duplicate re-removed |
 
 GitHub auto-merge is **stricter than branch protection** and fires only when EVERY check (required and non-required) reaches a clean terminal state, the chosen merge method is allowed, every required status context has actually posted, all commits are verified-signed, and BOTH protection layers (ruleset + classic) are satisfied. A PR that looks ready (`mergeStateStatus: CLEAN`/`MERGEABLE`) can sit forever when any one of those is silently unmet. This skill covers the merge-blocking mechanics; it does NOT cover general CI failure diagnosis, rebase-conflict resolution, review-loop orchestration, or PR enumeration.
 
@@ -399,6 +400,9 @@ Two distinct state machines gate arming:
 | Treated a never-posting required context as a CI flake | Re-ran CI / waited for `required-checks-gate` to post on every queued PR | The context was introduced by an unmerged keystone PR and is not on `main`; `git grep -c <ctx> origin/main -- .github/` returns 0 | Merge the keystone PR FIRST, then RE-REBASE the queue onto new `main` so each PR inherits the producer workflow and the context posts |
 | Assumed CI failure based on stale UI message when BLOCKED with green checks | Took "lint failure" message at face value; investigated lint jobs; re-ran CI | Lint had already been fixed in prior commits; CI was already green; the UI message was stale from an older run | Always run `gh pr checks <PR>` and `gh pr view --json mergeStateStatus` to get current state; do not trust the web UI error text |
 | Waited for auto-merge to self-trigger after CI passed (BLOCKED) | Expected auto-merge to fire on its own once CI was green | Two unresolved review threads were silently blocking the merge engine (`required_review_thread_resolution: true`) | `mergeStateStatus=BLOCKED` + all CI green + auto-merge armed = QUERY REVIEW THREADS FIRST via GraphQL `reviewThreads`; `resolveReviewThread` immediately unblocks |
+| Regression test asserted `template = mod._AGENT_PROMPT_TEMPLATE` for an f-string template | The hardcoded `gh pr merge --auto --merge` lived inside an f-string built at call time by `_make_agent_prompt()` in `hephaestus/github/tidy.py`, not a module-level constant | `AttributeError: module 'hephaestus.github.tidy' has no attribute '_AGENT_PROMPT_TEMPLATE'` | For f-string templates, assert on `inspect.getsource(mod._make_agent_prompt)` (the f-string analogue of the `inspect.getsource(pr_merge)` PyGithub guard), not on a presumed module-level template constant |
+| Used a 10-line look-back heuristic to exempt instructional `choose_merge_flag` example blocks from the merge-method lint | The lint exempted any hardcoded-flag hit within 10 lines of a `choose_merge_flag` mention | Brittle: re-orderings or a long preface broke the heuristic; a skill author could not predict whether their example would lint-clean | Replace with an explicit per-block marker `<!-- merge-method-allowed: example -->` on the immediately preceding non-blank line of the fenced block; the lint walks fence -> first non-blank and checks exact-string equality (concrete, file-local, predictable) |
+| `gh api --jq '...' -` to process a stdin-piped response body | `printf '%s' "$raw" \| gh api --jq '...' -` to chain a second jq pass over a captured response | Non-standard usage; `gh api --jq` is documented to operate on the response of its OWN API call, not stdin. Some `gh` versions silently fail | Use plain `jq -r '...' 2>/dev/null` directly on the captured response body — the conventional, unsurprising form |
 
 ## Results & Parameters
 
@@ -423,6 +427,78 @@ auto-merge armed but not merged
 └── unsigned commit / email mismatch
        → required_signatures / pr-policy signature gate → re-sign with -S (registered key verified)
 ```
+
+### Tiered helper sourcing for cross-repo callers
+
+Prefer **sourcing the helper** over re-defining `choose_merge_flag` inline. The helper exists as
+a real, sourceable file in ProjectHephaestus: `scripts/choose_merge_flag.sh`. A sub-agent running
+a Hephaestus skill from inside *another* repo (e.g. running `/finish-branch` against a
+ProjectMnemosyne worktree) cannot see that file via the current worktree's
+`git rev-parse --show-toplevel`. Use a three-candidate tiered lookup with `--squash` as the
+org-wide-correct fallback (every HomericIntelligence repo is squash-only):
+
+```bash
+HELPER=""
+for cand in \
+    "${HEPHAESTUS_REPO_ROOT:-}/scripts/choose_merge_flag.sh" \
+    "$(git rev-parse --show-toplevel 2>/dev/null)/scripts/choose_merge_flag.sh" \
+    "$HOME/Projects/ProjectHephaestus/scripts/choose_merge_flag.sh"; do
+    if [ -r "$cand" ]; then HELPER="$cand"; break; fi
+done
+if [ -n "$HELPER" ]; then
+    . "$HELPER"
+    MERGE_FLAG=$(choose_merge_flag "$(gh repo view --json nameWithOwner --jq .nameWithOwner)") \
+        || MERGE_FLAG="--squash"   # safe org-wide default per HomericIntelligence policy
+else
+    MERGE_FLAG="--squash"
+fi
+gh pr merge --auto "$MERGE_FLAG"
+```
+
+The helper itself uses plain `jq -r` on the captured response body — NOT the `gh api --jq -`
+stdin-pipe trick, which is non-standard and silently fails on some `gh` versions.
+
+### Marker-based lint exemption for instructional code blocks
+
+The companion lint (`hephaestus/validation/skill_merge_method.py` in ProjectHephaestus) scans
+skill files for hardcoded `gh pr merge --auto --(rebase|squash|merge)` and would otherwise flag
+any "do-not-copy" example. The exemption is an explicit per-block marker on the immediately
+preceding non-blank line of the fenced code block:
+
+```text
+<!-- merge-method-allowed: example -->
+\`\`\`bash
+gh pr merge --auto --rebase   # OLD: do not copy
+\`\`\`
+```
+
+The lint walks backward from the matching line to the fence open, then to the first non-blank
+line, and checks exact-string equality. The marker exempts only the *immediately following*
+block; a second hardcoded flag in a *later* block is still flagged. This replaced an earlier
+fragile 10-line look-back heuristic ("is this hit near a `choose_merge_flag` mention?") because
+the marker is concrete, file-local, and predictable for skill authors.
+
+### Regression-test pattern for f-string templates
+
+When the hardcoded merge flag lives inside an f-string built at call time (not a module-level
+constant), an `inspect.getsource` assertion is the durable regression guard. Example for
+`hephaestus/github/tidy.py:_make_agent_prompt`:
+
+```python
+import inspect
+import re
+from hephaestus.github import tidy
+
+def test_agent_prompt_does_not_hardcode_merge_method() -> None:
+    source = inspect.getsource(tidy._make_agent_prompt)
+    assert not re.search(r"--auto\s+--(rebase|squash|merge)\b", source), \
+        "tidy._make_agent_prompt still hardcodes a merge method; use choose_merge_flag instead."
+    assert "choose_merge_flag" in source
+```
+
+This is the f-string analogue of the `inspect.getsource(pr_merge)` test for the PyGithub
+call-site bug. Asserting on `_AGENT_PROMPT_TEMPLATE` (assuming a module constant) raises
+`AttributeError` because the template is constructed inside the function — a common gotcha.
 
 ### Confirmed HomericIntelligence settings
 
