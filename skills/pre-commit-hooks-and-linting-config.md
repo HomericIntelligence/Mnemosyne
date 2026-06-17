@@ -2,12 +2,12 @@
 name: pre-commit-hooks-and-linting-config
 description: "Canonical guide to pre-commit hook configuration, single-source-of-truth versioning, CI/local parity, and integration of ruff/mypy/clang-format/yamllint/actionlint/golangci-lint/bandit/hadolint/shellcheck/markdownlint. Use when: (1) writing or amending .pre-commit-config.yaml, (2) diagnosing why a hook passes locally but fails in CI (version drift), (3) deciding fix-vs-suppress for lint findings, (4) adding a new linter to an existing pre-commit pipeline, (5) reconciling ruff/mypy/markdownlint config across multiple repos, (6) a pre-commit hook using a pixi console script false-fails locally even though CI passes — system-installed package in ~/.local/bin shadows the local dev version, (7) ruff I001/RUF059 fires on inline imports or unused tuple unpacking inside test functions after adding new tests, (8) mypy pre-commit hook fails because an UNTRACKED test file references methods not yet committed — the hook checks ALL .py files on disk including untracked ones, (9) CI ruff-format hook fails even though local `ruff check` passed — `ruff check` (lint) and `ruff format --check` (formatter) are SEPARATE tools sharing one binary and running only `check` never exercises the formatter, (10) running pre-commit against the full PR diff (every file changed since merge-base) with `--from-ref/--to-ref` not just `--files <current edit>` — a sub-agent's earlier commit can carry stale-formatter content that fails only in CI, (11) adding .editorconfig for cross-editor formatting consistency on non-Python files (YAML, JSON, Markdown, shell, Makefile), (12) an automated PR-reviewer flags lint/formatter/pre-commit-forced incidental churn as scope creep — toolchain-forced churn is exempt from YAGNI/scope review while author-chosen opportunistic work is still flagged, (13) removing a duplicate standalone markdownlint CI job when the lint job already runs pre-commit --all-files — MUST verify the job is NOT a required-check context in branch protection before deleting it, and MUST pre-scan the newly-in-scope files for violations that --fix cannot auto-fix, (14) the pre-commit hook exclude pattern for .claude/ may be LOAD-BEARING (not merely defensive) — confirm with git ls-files .claude/ before removing it; two tracked .md files (.claude/security/guidelines.md and .claude/workflows/development.md) exist in ProjectHephaestus and must remain excluded to match the standalone CI job's intent, (15) after removing a duplicate markdownlint CI job update every doc that names that job by its old CI name (e.g. docs/DEFINITION_OF_DONE.md and .github/README.md) or CI job name references become stale; (16) BOTH the required `lint` check AND the `pre-commit` check are red in a PR — they share the same `ruff format` hook, so a single `ruff format <files>` run clears both; do not debug as two separate problems; (17) adding a commit-msg-stage hook (e.g. conventional-commit validator) — must set `default_install_hook_types: [pre-commit, commit-msg]` in .pre-commit-config.yaml or plain `pre-commit install` silently omits the commit-msg stage and the hook is permanently inert for all contributors; (18) verifying that a commit-msg-stage hook actually fires — `pre-commit run --all-files` does NOT invoke commit-msg-stage hooks; drive them via `pre-commit run --hook-stage commit-msg --commit-msg-filename <file>` instead."
 category: tooling
-date: 2026-06-13
-version: "2.2.0"
+date: 2026-06-17
+version: "2.3.0"
 user-invocable: false
 verification: verified-ci
 history: pre-commit-hooks-and-linting-config.history
-tags: [merged, pre-commit, linting, ruff, mypy, clang-format, yamllint, actionlint, hooks, pixi-environment, bandit, markdownlint, sast, ruff-format, editorconfig, pr-diff, ci-parity, pr-review, yagni, commit-msg, default-install-hook-types]
+tags: [merged, pre-commit, linting, ruff, mypy, clang-format, yamllint, actionlint, hooks, pixi-environment, bandit, markdownlint, sast, ruff-format, editorconfig, pr-diff, ci-parity, pr-review, yagni, commit-msg, default-install-hook-types, check-toml, toml, uv-lock]
 ---
 
 # Pre-commit Hooks and Linting Configuration
@@ -16,9 +16,11 @@ tags: [merged, pre-commit, linting, ruff, mypy, clang-format, yamllint, actionli
 
 | Field | Value |
 | ------- | ------- |
-| **Date** | 2026-05-18 |
+| **Date** | 2026-06-17 |
 | **Objective** | Canonical single-entry-point for all pre-commit hook and linting advice across the HomericIntelligence ecosystem |
-| **Outcome** | Consolidated from 53 narrow skills; verified-local |
+| **Outcome** | Consolidated from 53 narrow skills; current TOML/Ruff hook parity amendment verified-ci |
+| **Verification** | verified-ci |
+| **History** | [changelog](./pre-commit-hooks-and-linting-config.history) |
 
 ## When to Use
 
@@ -27,6 +29,8 @@ tags: [merged, pre-commit, linting, ruff, mypy, clang-format, yamllint, actionli
 - Deciding whether to fix or suppress a lint finding (ruff, mypy, bandit, hadolint, shellcheck)
 - Adding a new linter (golangci-lint, yamllint, actionlint, markdownlint-cli2) to a pipeline
 - Reconciling ruff/mypy config across repos (`pyproject.toml` vs `mypy.ini` vs hook args)
+- A Python repo fails CI before tests because `pyproject.toml` has invalid TOML or a duplicate table, and the team needs a local pre-commit gate
+- A repo uses `uv.lock` or another lockfile and needs `astral-sh/ruff-pre-commit` `rev:` kept in parity with the locked Ruff version
 - Investigating pre-commit timing / performance regressions
 - Migrating bandit, golangci-lint (v1->v2), or mypy hook to pixi environment
 - Fixing markdownlint MD060 table formatting issues in bulk
@@ -95,6 +99,13 @@ SKIP=mojo-format pixi run pre-commit run --all-files --show-diff-on-failure
 # --- VERSION DRIFT CHECK ---
 pixi run python scripts/check_precommit_versions.py
 # Expected: OK: all pre-commit hook versions are consistent with pixi.toml
+
+# --- PYTHON TOML + RUFF PRE-COMMIT PARITY (uv.lock repos) ---
+pre-commit run check-toml --all-files
+pre-commit run ruff --all-files
+pre-commit run ruff-format --all-files
+python -c "import tomllib; tomllib.load(open('pyproject.toml', 'rb'))"
+PYTHON=.venv/bin/python just install-hooks
 
 # --- RUFF (check and format are SEPARATE tools, one binary) ---
 pixi run ruff format .          # FORMATTER: line-wrap/whitespace/quotes (rewrites in place)
@@ -186,6 +197,30 @@ git commit --amend --no-edit  # if not yet pushed
 2. Update `rev:` in `.pre-commit-config.yaml` to exact matching tag.
 3. Never use semver ranges in `rev:`; always exact git tags.
 4. For JS tools (markdownlint-cli2): npm and conda-forge version numbers differ -- exclude from drift tracking.
+
+#### Python TOML validity + locked Ruff hooks
+
+1. Add `check-toml` from `pre-commit/pre-commit-hooks` to `.pre-commit-config.yaml`.
+   Ruff does not validate duplicate TOML table structure.
+2. Keep `astral-sh/ruff-pre-commit` pinned to the exact locked Ruff version. For
+   uv projects, parse `uv.lock` and require `rev: v<locked ruff version>`; in the
+   Inference360 PR #157 fix this was `v0.15.17`.
+3. Keep both hook IDs:
+   - `ruff` catches lint/import/unused-code failures.
+   - `ruff-format` catches formatter drift. It is not covered by `ruff`.
+4. Remove the malformed or duplicate TOML table, then verify directly:
+   `python -c "import tomllib; tomllib.load(open('pyproject.toml', 'rb'))"`.
+5. Add a regression test that parses `.pre-commit-config.yaml` and the lockfile,
+   then asserts the hook IDs include `check-toml`, `ruff`, and `ruff-format`, and
+   the Ruff hook `rev:` equals the locked Ruff version.
+6. Add a setup recipe such as `install-hooks` that calls
+   `${PYTHON:-python3} -m pre_commit install`, then document
+   `PYTHON=.venv/bin/python just install-hooks` when local `just` may resolve a
+   broken host Python.
+7. Verify all three hook surfaces independently:
+   `pre-commit run check-toml --all-files`,
+   `pre-commit run ruff --all-files`, and
+   `pre-commit run ruff-format --all-files`.
 
 #### Migrating bandit from pygrep to AST hook
 
@@ -442,6 +477,29 @@ reflow as a dedicated `style(ruff):` commit (never `--amend` once pushed). Never
 
 Verified by ProjectHephaestus PRs #707 and #913 (local `ruff check`/pytest/pre-push all
 green, CI `ruff-format` still failed).
+
+#### `check-toml` is required for duplicate TOML tables
+
+TOML parse failures can abort CI before tests or lint even start. In Inference360 PR
+#157, dependency setup failed because `pyproject.toml` had a duplicate
+`[tool.coverage.paths]` table. Ruff did not catch this because it operates on Python
+lint/format surfaces, not TOML table semantics. The correct pre-commit surface is
+`check-toml` from `pre-commit/pre-commit-hooks`, with a focused regression test that
+asserts the hook remains installed.
+
+When the same repo also uses Ruff, keep lockfile parity and both Ruff hook IDs in one
+test so future drift fails locally:
+
+```python
+def test_pre_commit_guards_toml_and_locked_ruff_version() -> None:
+    config = yaml.safe_load(Path(".pre-commit-config.yaml").read_text())
+    hook_ids = {hook["id"] for repo in config["repos"] for hook in repo["hooks"]}
+    assert {"check-toml", "ruff", "ruff-format"} <= hook_ids
+    assert ruff_pre_commit_rev(config) == f"v{locked_ruff_version(Path('uv.lock'))}"
+```
+
+Treat `ruff` and `ruff-format` as separate required gates. `ruff` will not catch
+format drift, and `ruff-format` will not catch TOML structural errors.
 
 #### Pre-commit scope before push: full PR diff, not the current edit
 
@@ -1167,6 +1225,10 @@ feasible (e.g., constrained CI environments, conda-forge only providing old Go v
 | `.gitignore` prevents ruff scan | Assumed `.gitignore` entry stops ruff from scanning | `.gitignore` has no effect on ruff; ruff scans whatever files exist on disk | Generated files must be explicitly excluded in `pyproject.toml` |
 | `mirrors-mypy` without `additional_dependencies` | Standard hook config | "Library stubs not installed for yaml" | `mirrors-mypy` creates an isolated venv; stubs must be declared via `additional_dependencies` |
 | Semver range in `rev:` | Used `>=1.19.1` in `rev:` field | `rev:` only accepts exact git tags | Always use exact tag matching installed binary |
+| Ruff as TOML validator | Expected Ruff hooks to catch a duplicate `[tool.coverage.paths]` table in `pyproject.toml` | Ruff does not validate TOML table structure; CI failed before tests during TOML parsing | Add `check-toml` from `pre-commit/pre-commit-hooks` and keep a direct `tomllib` smoke check for `pyproject.toml` |
+| Only add `ruff` hook | Added or checked only the `ruff` hook after seeing Ruff-related failures | `ruff` lint and `ruff-format` formatting are separate hook IDs; format drift still reaches CI | Require both `ruff` and `ruff-format` in `.pre-commit-config.yaml` and in regression tests |
+| Let Ruff hook rev drift from `uv.lock` | Kept `astral-sh/ruff-pre-commit` at a different tag than the locked Ruff package | Local hook behavior no longer matched CI/dev dependencies | Parse `uv.lock` and assert the hook `rev:` equals `v<locked ruff version>` |
+| Run `just install-hooks` with host Python | Relied on this host's default `just`/Python resolution | Local `just` can point at a broken Miniconda Python entry point | Implement the recipe through a `PYTHON` variable and document `PYTHON=.venv/bin/python just install-hooks` |
 | Guessing tag from pixi constraint | Assumed `v1.19.0` from constraint `>=1.19.1` | pixi resolves to latest satisfying version, not lower bound | Run `pixi run <tool> --version` rather than inferring from constraint |
 | `[[tool.mypy.overrides]]` in `pyproject.toml` | Added `ignore_errors = true` for test dirs | `mirrors-mypy` hook venv does not auto-load `pyproject.toml` | Use `mypy.ini` for overrides -- auto-discovered by mypy regardless of invocation context |
 | `--config-file pyproject.toml` in hook args | Force config loading | `pyproject.toml` has stricter settings that broke scripts (269 new errors) | Config files have stricter settings; mixing hook args with config files causes regressions |
@@ -1265,15 +1327,21 @@ feasible (e.g., constrained CI environments, conda-forge only providing old Go v
 ```yaml
 # .pre-commit-config.yaml -- canonical structure
 repos:
-  # 1. Pinned to exact version matching pixi.toml
+  # 1. Generic file syntax checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-toml
+
+  # 2. Pinned to exact version matching pixi.toml / uv.lock
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.9.1  # must match: pixi run ruff --version
+    rev: v0.15.17  # must match: pixi/uv locked Ruff version
     hooks:
       - id: ruff
         args: [--fix]
       - id: ruff-format
 
-  # 2. mypy with pixi
+  # 3. mypy with pixi
   - repo: local
     hooks:
       - id: mypy
@@ -1283,7 +1351,7 @@ repos:
         types: [python]
         pass_filenames: false
 
-  # 3. mypy per-file for hyphenated dirs
+  # 4. mypy per-file for hyphenated dirs
   - repo: local
     hooks:
       - id: mypy-examples
@@ -1312,6 +1380,34 @@ repos:
         language: system
         files: \.(py|mojo)$
         pass_filenames: true
+```
+
+### Python uv.lock + TOML Guard Pattern
+
+For uv-based Python repos, add a regression test that treats the pre-commit config and
+lockfile as a contract:
+
+```python
+def test_pre_commit_guards_toml_and_locked_ruff_version() -> None:
+    config = yaml.safe_load(Path(".pre-commit-config.yaml").read_text())
+    hook_ids = {hook["id"] for repo in config["repos"] for hook in repo["hooks"]}
+
+    assert "check-toml" in hook_ids
+    assert "ruff" in hook_ids
+    assert "ruff-format" in hook_ids
+    assert ruff_pre_commit_rev(config) == f"v{locked_ruff_version(Path('uv.lock'))}"
+```
+
+Verification commands from Inference360 PR #157:
+
+```bash
+.venv/bin/python -m pytest -q tests/test_quality_gate_scripts.py::test_pre_commit_guards_toml_and_locked_ruff_version
+.venv/bin/python -c "import tomllib; tomllib.load(open('pyproject.toml', 'rb'))"
+.venv/bin/pre-commit run check-toml --all-files
+.venv/bin/pre-commit run ruff --all-files
+.venv/bin/pre-commit run ruff-format --all-files
+PYTHON=.venv/bin/python just --dry-run install-hooks
+git diff --check
 ```
 
 ### golangci-lint v2 Config
@@ -1407,6 +1503,7 @@ indent_style = tab                 # Make syntax requires tabs
 | --------- | --------- | --------- |
 | Multiple HI repos | Synthesized from 53 skills across ProjectOdyssey, ProjectHephaestus, ProjectArgus, ProjectKeystone, AchaeanFleet, Myrmidons | [history file](pre-commit-hooks-and-linting-config.history) |
 | ProjectHephaestus | PRs #707, #913 (ruff-format trap), #1019 closes #1017 (review-rubric toolchain-churn carve-out) | [history file](pre-commit-hooks-and-linting-config.history) |
+| Inference360 | PR #157 (TOML duplicate-key guard, Ruff hook lockfile parity, hook install docs; checks passed and PR merged) | [history file](pre-commit-hooks-and-linting-config.history) |
 | ProjectOdyssey | PR #5453 (full-PR-diff pre-commit scope fixed CI mojo-format on sub-agent files) | [history file](pre-commit-hooks-and-linting-config.history) |
 | ProjectScylla | PR #1556, audit finding S13 (.editorconfig cross-editor consistency) | [history file](pre-commit-hooks-and-linting-config.history) |
 | ProjectMnemosyne | Closed PR #2353 (commit-msg-stage hooks + `default_install_hook_types` learning) | [history file](pre-commit-hooks-and-linting-config.history) |
