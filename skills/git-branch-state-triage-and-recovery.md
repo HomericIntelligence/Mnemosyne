@@ -1,9 +1,9 @@
 ---
 name: git-branch-state-triage-and-recovery
-description: "Diagnose and recover branches that have entered an invalid or obsolete state. Use when: (1) a branch is many commits behind main and its remote tracking ref is gone — determine whether any net-new contribution remains before creating a PR, (2) a branch has no common ancestor with main ('fatal: refusing to merge unrelated histories') and needs content extraction and recreation, (3) a stacked PR was retargeted and lint/CI fix commits made after retarget are orphaned from the prerequisite PR and must be cherry-picked, (4) fix commits exist locally but cannot fast-forward push to a remote PR branch because histories diverged after a rebase — cherry-pick onto the remote tip instead, (5) a branch has hundreds or thousands of HEAD-only files vs main and main underwent corpus consolidation — run a three-way file-count diff (branch vs main vs merge-base) to distinguish 'pre-consolidation originals already absorbed' from 'genuinely unmerged new work' before any destructive reset"
+description: "Diagnose and recover branches that have entered an invalid or obsolete state. Use when: (1) a branch is many commits behind main and its remote tracking ref is gone — determine whether any net-new contribution remains before creating a PR, (2) a branch has no common ancestor with main ('fatal: refusing to merge unrelated histories') and needs content extraction and recreation, (3) a stacked PR was retargeted and lint/CI fix commits made after retarget are orphaned from the prerequisite PR and must be cherry-picked, (4) fix commits exist locally but cannot fast-forward push to a remote PR branch because histories diverged after a rebase — cherry-pick onto the remote tip instead, (5) a branch has hundreds or thousands of HEAD-only files vs main and main underwent corpus consolidation — run a three-way file-count diff (branch vs main vs merge-base) to distinguish 'pre-consolidation originals already absorbed' from 'genuinely unmerged new work' before any destructive reset, (6) a branch LOOKS unmerged — `git cherry origin/main <branch>` shows every commit with a `+` prefix, `git rev-list --count origin/main..<branch>` reports commits ahead, and an auto-rebase onto main conflicts — but its PR was squash-merged, so the work is actually subsumed; disambiguate with message-search on main (`git log origin/main --oneline | grep '(#PRnum)'`) + `gh pr list --state all`, NOT with git cherry / ahead-counts"
 category: tooling
-date: 2026-06-13
-version: "1.1.0"
+date: 2026-06-16
+version: "1.2.0"
 user-invocable: false
 history: git-branch-state-triage-and-recovery.history
 tags: [git, branch, triage, recovery, stale, superseded, orphan, diverged, merge-base, cherry-pick, fork-point, diff-filter, unrelated-histories, non-fast-forward, consolidation, three-way-diff, count-diff, hard-reset, stash]
@@ -31,6 +31,7 @@ is always: **what state is this branch in, and how do I recover it?** Three dist
 - A `git diff origin/main...HEAD` shows a large file count difference but you suspect most of it is merge noise
 - Staged files with AD status in `git status --short` (added in index, deleted from working dir)
 - Hundreds or thousands of HEAD-only files exist vs main, and main has commit messages like "consolidate N skills into X" or "absorb C086" — this is a **corpus consolidation** divergence, not unique unmerged work
+- A branch **looks unmerged but is actually subsumed by a squash-merge**: `git cherry origin/main <branch>` shows every commit with a `+` prefix, `git rev-list --count origin/main..<branch>` reports commits "ahead", and an auto-rebase onto main **conflicts** — yet the branch's PR was already squash-merged. Squash gives the merged work a brand-new patch-id, so `git cherry` never matches and these signals are **false positives**. Disambiguate with message-search on main, **not** git cherry / ahead-counts (see "Squash-merge false positive" below). A worktree showing "uncommitted modified files" can be the same false alarm — verify with a 0-unique-lines diff against main
 
 **State B — Orphan / unrelated history:**
 - `git merge-base` returns nothing between branch and main
@@ -65,6 +66,22 @@ git log --diff-filter=D --oneline origin/main -- <path> | head -1  # how main di
 git ls-files --stage | awk '{print $1, $4}' | sort > /tmp/staged.txt
 git ls-tree -r origin/main | awk '{print $3, $4}' | sort > /tmp/mainh.txt
 comm -23 /tmp/staged.txt /tmp/mainh.txt           # staged files NOT on main = true new work
+
+# === State A: squash-merge FALSE POSITIVE — do NOT trust git cherry / ahead-counts ===
+# These LIE on squash repos (squash = new patch-id, cherry never matches):
+git cherry origin/main <branch>                   # every commit shows '+' even when subsumed
+git rev-list --count origin/main..<branch>        # >0 "ahead" even when subsumed
+# Reliable disambiguator — message-search on main for the squash commit (PR number / subject):
+git log origin/main --oneline | grep -iE '<distinctive phrase or (#PRnum)>'
+# found on main  => branch is SUBSUMED: safe to discard, no rebase/PR. Cross-check PR state:
+gh pr list --head <branch> --state all --json number,state   # MERGED/CLOSED corroborates
+# rebase conflicts on a subsumed branch are EXPECTED (squash content on main collides with the
+# original un-squashed commits). Report "subsumed" and STOP — do not resolve, do not auto-delete.
+
+# === State A: worktree "uncommitted modified files" 0-unique-lines redundancy check ===
+# A modified working-tree file can be byte-for-byte already on main (it shipped via a merged PR):
+diff <(git show origin/main:<path>) <(cat <worktree>/<path>) | grep -c '^>'  # 0 = no unique lines
+# 0 unique lines on ALL modified files => the "uncommitted work" already merged; safe to discard.
 
 # === State A (large-scale): three-way count diff for consolidation divergence ===
 MERGE_BASE=$(git merge-base HEAD origin/main)
@@ -123,6 +140,72 @@ git cherry-pick <fix-sha>                         # apply only the targeted fix
    - Its "new" files are already present on main.
 
    When all three hold the branch has zero net contribution and can be discarded.
+
+#### State A (squash-merge) — `git cherry` false positive, message-search disambiguator
+
+On repos where PRs are **squash-merged** (the default on many repos), the commit-level
+"is this on main?" tools cannot be trusted:
+
+- `git cherry origin/main <branch>` shows **every** branch commit with a `+` prefix (its
+  meaning is "this patch is not on main"), so a fully-merged branch looks entirely unmerged.
+- `git rev-list --count origin/main..<branch>` reports the branch is N commits **ahead**.
+
+Both are **false positives**. The reason: squash-merge collapses the branch's commits into a
+single brand-new commit on main with a **different patch-id**. `git cherry`'s patch-id
+matching never matches the branch's original commits, and the original commits are genuinely
+not reachable from main, so the ahead-count is non-zero. **Neither signal means the work is
+unmerged.**
+
+The reliable disambiguator is **message-search on main**. Take a distinctive phrase from the
+branch's commit subject (or the PR title), and grep main's history:
+
+```bash
+git log origin/main --oneline | grep -iE '<distinctive phrase or (#PRnum)>'
+```
+
+If the squash commit is found on main, the branch is **subsumed** — safe to discard, no
+rebase and no PR required. Cross-check the PR state to corroborate:
+
+```bash
+gh pr list --head <branch> --state all --json number,state   # MERGED / CLOSED corroborates
+```
+
+Important consequence: when you try to auto-rebase a subsumed branch onto main it will
+**conflict**, *precisely because* the same changes already exist on main as a squash commit
+and the branch's original un-squashed commits collide with them. **A rebase conflict on a
+subsumed branch is expected and is NOT evidence of unmerged work.** Correct action:
+
+- Report "subsumed" and **stop**. Do **not** spawn a conflict-resolution swarm — every
+  resolution would be "take main's side" on every file, producing an empty branch with zero
+  net benefit.
+- Do **not** auto-delete the branch. Branch deletion is left to the user / gh-tidy's own
+  y/N prompts (and is Safety-Net-blocked anyway — see below).
+
+**Worktree-redundancy variant.** A worktree reporting "uncommitted modified files" can be the
+same false alarm. Diff each working-tree file against `origin/main` and count unique lines:
+
+```bash
+diff <(git show origin/main:<path>) <(cat <worktree>/<path>) | grep -c '^>'
+```
+
+`0` unique lines on **all** modified files means the "uncommitted work" is byte-for-byte
+already on main (it shipped via a merged PR); the worktree is safe to discard. Real example:
+worktree `agent-a7fe2df2b7f6e658b` had 3 modified files all showing 0 unique lines vs main —
+the `log_on_error` changes had already merged via PR #1372.
+
+**Destructive ops are Safety-Net-blocked — hand them to the user.** Once safety is proven
+(subsumed / 0-unique-lines), the *recovery* commands are blocked by the CC Safety Net hook
+even with in-conversation user approval; the assistant cannot override the hook and must print
+the exact command for the **user** to run manually:
+
+- `git checkout -- <file>` (discards tracked changes) — "use `git stash` first", then hand to user
+- `git worktree remove --force <path>` (can discard uncommitted work) — hand to user
+- `git tag -d <tag>` (deletes tags) — hand to user
+- `git branch -D <branch>` — branch deletion is gh-tidy's job anyway
+- `git stash drop` and `rm -rf .worktrees/` are likewise blocked
+
+Workflow shape: **prove** safety (subsumed / 0-unique-lines), **then print** the precise
+`--force` / `-d` / `checkout --` command for the user to execute.
 
 #### State A (large-scale) — Three-way count diff for corpus-consolidation divergence
 
@@ -224,6 +307,9 @@ branch and main may have diverged in *opposite* directions simultaneously.
 | Treating a fix plan at face value | Plan said "2 commits ahead, just push" | Plan was written before the remote accumulated additional commits | Re-diagnose actual remote state with `git log --oneline HEAD..origin/<branch>` before acting |
 | Keeping local commits and merging (diverged) | Would merge the local cleanup commit with the remote's equivalent | Remote already had an equivalent cleanup commit; merge would create a duplicate | Cherry-pick the minimal fix only, not the full local commit stack |
 | Deleting an orphan branch before extraction | Tempted to just `git push --delete` the broken branch | Risked losing valid skill content that lived only on the branch tip | Extract content (and check whether it is already on main) before deleting |
+| Relied on `git cherry origin/main <branch>` to detect unmerged work | All commits showed `+` so branches looked unmerged | Squash-merge gives every original commit a new patch-id; cherry never matches | Use message-search (`git log origin/main --oneline \| grep '(#PR)'`) + `gh pr list --state all`, not git cherry, for squash repos |
+| Considered spawning a rebase-conflict-resolution swarm for 7 conflicting branches | Conflicts existed only because the squash content already on main collides with original commits | Resolution would be "take main's side" everywhere → empty branch | Confirm subsumed first; report subsumed and stop — don't resolve, don't delete |
+| Assistant tried `git worktree remove --force` / `git tag -d` / `git checkout --` | Blocked by CC Safety Net hook | Cannot override the hook even with user approval in-chat | Prove safety, then print the exact destructive command for the user to run manually |
 
 ## Results & Parameters
 
@@ -318,6 +404,8 @@ branches, because they touch a narrow region the remote version differs in only 
 | ProjectMnemosyne | Branch `feature/myrmidon-merge-triage` (32 ahead, 525 behind, remote gone) — confirmed fully superseded; no PRs opened | State A |
 | ProjectMnemosyne | Branch `skill/debugging/fixme-todo-cleanup-v2` pushed from ProjectOdyssey's history — no merge-base; content already on main; deleted | State B |
 | ProjectOdyssey | PR #3197, issue #3088 — BF16 test skip; reset to remote (13 remote-only commits) + cherry-pick fix | State C |
+| ProjectHephaestus | 7 local branches all failed auto-rebase with conflicts; `git cherry` showed every commit `+`. Message-search proved all subsumed: `999-fix-pr-thread-reply-mutation`→`187720a … (#1041)`, `fix-1282-work`→`22fc435 … (#1282)`, `rc2-conflict-gate`→`d3701b8 … (#1335)`. Reported subsumed; no swarm, no delete | State A — squash-merge false positive |
+| ProjectHephaestus | Worktree `agent-a7fe2df2b7f6e658b` — 3 "uncommitted modified" files all 0 unique lines vs main (`log_on_error` changes already merged via PR #1372); safe to discard | State A — worktree 0-unique-lines |
 
 ## References
 

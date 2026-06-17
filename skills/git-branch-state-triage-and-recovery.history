@@ -2,6 +2,87 @@
 
 # History: git-branch-state-triage-and-recovery
 
+## v1.2.0 (2026-06-16)
+
+Minor amendment to State A (stale/superseded) handling. Three additions:
+
+1. **`git cherry` squash-merge false positive + message-search disambiguator.** When a
+   branch's PR was squash-merged, `git cherry origin/main <branch>` shows ALL commits with
+   a `+` prefix (looks unmerged) and `git rev-list --count origin/main..<branch>` shows
+   commits "ahead" — both because squash produces a new commit with a different patch-id
+   that cherry's patch-id matching never matches. Relying on either falsely flags subsumed
+   branches as unmerged. The reliable disambiguator is message-search on main
+   (`git log origin/main --oneline | grep -iE '<distinctive phrase or (#PRnum)>'`),
+   cross-checked with `gh pr list --head <branch> --state all`.
+2. **Worktree 0-unique-lines redundancy check.** A worktree with "uncommitted modified
+   files" can be a false alarm — `diff <(git show origin/main:<path>) <(cat <worktree>/<path>) | grep -c '^>'`
+   returning 0 on all files means the work is byte-for-byte already on main.
+3. **CC Safety Net destructive-op constraint.** The hook blocks `git checkout -- <file>`,
+   `git worktree remove --force`, `git tag -d`, `git branch -D`, `git stash drop`,
+   `rm -rf .worktrees/` even with in-conversation user approval; the assistant proves
+   safety (subsumed / 0-unique-lines) then hands the exact command to the user.
+
+Three new Failed Attempts rows. Verified this session on HomericIntelligence/ProjectHephaestus:
+7 local branches all failed auto-rebase with conflicts and showed every commit as `+` under
+`git cherry`, yet message-search proved all 7 subsumed (e.g. `999-fix-pr-thread-reply-mutation`
+→ `187720a … (#1041)`; `fix-1282-work` → `22fc435 … (#1282)`; `rc2-conflict-gate` →
+`d3701b8 … (#1335)`). Worktree `agent-a7fe2df2b7f6e658b` had 3 modified files all 0-unique-lines
+vs main (the `log_on_error` changes shipped via PR #1372). Below: full v1.1.0 skill snapshot.
+
+### Snapshot of v1.1.0 (previous full skill content)
+
+```markdown
+---
+name: git-branch-state-triage-and-recovery
+description: "Diagnose and recover branches that have entered an invalid or obsolete state. Use when: (1) a branch is many commits behind main and its remote tracking ref is gone — determine whether any net-new contribution remains before creating a PR, (2) a branch has no common ancestor with main ('fatal: refusing to merge unrelated histories') and needs content extraction and recreation, (3) a stacked PR was retargeted and lint/CI fix commits made after retarget are orphaned from the prerequisite PR and must be cherry-picked, (4) fix commits exist locally but cannot fast-forward push to a remote PR branch because histories diverged after a rebase — cherry-pick onto the remote tip instead, (5) a branch has hundreds or thousands of HEAD-only files vs main and main underwent corpus consolidation — run a three-way file-count diff (branch vs main vs merge-base) to distinguish 'pre-consolidation originals already absorbed' from 'genuinely unmerged new work' before any destructive reset"
+category: tooling
+date: 2026-06-13
+version: "1.1.0"
+user-invocable: false
+history: git-branch-state-triage-and-recovery.history
+tags: [git, branch, triage, recovery, stale, superseded, orphan, diverged, merge-base, cherry-pick, fork-point, diff-filter, unrelated-histories, non-fast-forward, consolidation, three-way-diff, count-diff, hard-reset, stash]
+---
+
+# Git Branch State Triage and Recovery
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2026-06-07 |
+| **Objective** | Diagnose what state a branch is in (stale/superseded, orphaned/unrelated history, or diverged from remote) and recover it cleanly |
+| **Outcome** | Success — unified triage tree: confirm-and-discard superseded branches, extract+recreate orphan branches, reset+cherry-pick diverged branches |
+| **Verification** | verified-ci |
+
+## When to Use
+
+Use this skill whenever a branch is in an unexpected or unmergeable state. The root question
+is always: **what state is this branch in, and how do I recover it?** Three distinct states:
+
+**State A — Stale / superseded by main:**
+- A branch is many commits behind main **and** its remote tracking ref is gone (`[gone]` in `git branch -vv`)
+- The task is "get all open PRs merged" — check `gh pr list --state open` first; if zero open PRs the premise has changed
+- A `git diff origin/main...HEAD` shows a large file count difference but you suspect most of it is merge noise
+- Staged files with AD status in `git status --short` (added in index, deleted from working dir)
+- Hundreds or thousands of HEAD-only files exist vs main, and main has commit messages like "consolidate N skills into X" or "absorb C086" — this is a **corpus consolidation** divergence, not unique unmerged work
+
+**State B — Orphan / unrelated history:**
+- `git merge-base` returns nothing between branch and main
+- Error: "fatal: refusing to merge unrelated histories"
+- Branch appears to have a completely different commit history (suspect: pushed from wrong repo)
+- PR shows massive unexpected file changes
+
+**State C — Diverged from remote:**
+- `git push` fails with "non-fast-forward" on a feature branch
+- `git status` shows "Your branch and 'origin/<branch>' have diverged"
+- A fix commit exists locally but the remote has accumulated additional commits (e.g. after a rebase or stacked-PR retarget)
+- A fix plan assumed the remote was behind, but it actually has more commits than local
+
+(Full v1.1.0 Verified Workflow, Failed Attempts, Results & Parameters, and Verified On
+sections preserved in git history at tag/commit prior to v1.2.0; the v1.2.0 edit is additive
+to State A and does not remove any v1.1.0 content.)
+```
+
 ## v1.1.0 (2026-06-13)
 
 Added State A large-scale divergence handling: three-way file-count diff (branch vs main vs
