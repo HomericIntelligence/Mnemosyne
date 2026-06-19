@@ -1,5 +1,25 @@
 # planning-verify-issue-premise-before-implementing — History
 
+## v2.1.0 (2026-06-19)
+
+**Changed by:** ProjectHermes issue #556 THIRD re-plan round (R2 — plan-reviewer NOGO follow-up)
+**Verification:** unverified
+
+### What changed
+
+- **MINOR bump (2.0.0 → 2.1.0): adds the R2 "self-contained vs blocked-on-merge" lesson + the "vendor fixes latent bugs" lesson.** v2.0.0 corrected the disposition to "issue is VALID, blocked on merge ordering." R1 then planned to wire in the prerequisite gated on #354 merging; a reviewer graded it A on quality but NOGO'd it on ONE trigger: "correct but blocked on an external merge → not actionable today." This round captures that as a durable lesson and its fix.
+- **PRIMARY new lesson (step 2a + Failed Attempts row):** "correct but blocked on an external merge" is itself a NOGO trigger, and a deterministic `git merge-base --is-ancestor` gate does NOT rescue it (it just evaluates to "blocked"). The fix is to make the PR SELF-CONTAINED — regenerate/vendor the prerequisite INTO the current branch from sources already on it (generate `requirements.txt` from this branch's own `pixi.lock` via `pixi list --json`, confirmed locally → 96 pkgs) so the PR stands alone vs main. Only stack/wait if the prereq genuinely can't be reproduced (needs secrets/infra you lack).
+- **TERTIARY new lesson (step 2b + Failed Attempts row):** vendoring a copy from another branch is a chance to FIX latent bugs, not transcribe. #354's `sync_requirements.py` froze a `_RUNTIME_DEPS` set already stale vs `pyproject.toml` (missing `starlette` + `urllib3`-for-CVE). Derive the set from the source of truth; a frozen mirror of dynamic data is latent drift by construction.
+- Rewrote Overview Outcome/Verification/History, the Verified-Workflow warning, Quick Reference (added steps 2b/2c), Results subsections (self-contained PR), the uncertain-assumptions list (now reflects R2 reality: requirements.txt pins not hand-verified, Dockerfile `pip install -r` switch is a real unrun behavior change, editable self-package equivalence reasoned-not-tested, `tests/unit/` layout assumed), and Verified On (three rounds).
+- Updated the description frontmatter + tags (`self-contained-pr`, `blocked-on-external-merge`, `vendoring`, `frozen-mirror-drift`, `source-of-truth`) and added two When-to-Use bullets.
+- Added a cross-reference to the NEW `ci-gate-verify-artifact-is-consumed-before-guarding` skill (the SECONDARY R2 lesson, split into its own skill because someone debugging "my CI check passes but doesn't catch the bug" would never search a premise-verification skill).
+
+### Why
+
+The R1 plan was A-grade but NOGO'd purely because its disposition depended on an external merge. The generalizable lesson — "make it actionable today by removing the dependency, not by adding a better gate" — is a natural continuation of this skill's premise/branch-scan/disposition lineage, so it amends here rather than spawning a new skill. The SECONDARY R2 lesson (a CI gate guarding an unconsumed artifact is theater) is independently searchable and was split into its own skill per the "one skill per independent learning" rule.
+
+---
+
 ## v2.0.0 (2026-06-19)
 
 **Changed by:** ProjectHermes issue #556 re-plan (plan-reviewer NOGO follow-up)

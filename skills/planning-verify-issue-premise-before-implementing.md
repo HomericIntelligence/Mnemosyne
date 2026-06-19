@@ -1,13 +1,13 @@
 ---
 name: planning-verify-issue-premise-before-implementing
-description: "When an issue's premise references an artifact (script, file, committed config) that may not exist on the working branch, VERIFY existence FIRST — and do it REPO-WIDE, not just on the current branch. A branch-scoped `git ls-files | grep` that returns nothing does NOT prove the artifact was never built: it may live on a sibling unmerged branch (often the prerequisite issue's own `<n>-auto-impl` branch). Before concluding 'never landed,' scan origin/main AND every remote branch (`git ls-tree -r <ref> | grep`, looped over `git branch -r`). When the artifact exists on an unmerged branch, the issue is usually VALID and merely blocked on merge ordering — not a candidate for re-scope/close. Then: read the named check script's ACTUAL runtime deps (grep for subprocess/import/external-tool calls) before asserting its CI environment — two superficially similar drift-check scripts can have OPPOSITE needs (one stdlib-only/pixi-free, one shelling out to `pixi list --json`). Finally, when a plan's correctness hinges on a judgment call, reduce it to a DETERMINISTIC runnable check (`git merge-base --is-ancestor`, file existence, exit code) — a re-scope/close recommendation that 'requires human ratification' is a NOGO trigger for plan reviewers. Use when: (1) planning an issue that names a specific script/file/artifact as already-existing context, (2) the issue is a follow-up to a prior issue/PR whose deliverables you have not confirmed merged, (3) you are about to conclude an artifact 'never existed' from a current-branch check only, (4) you are about to assert a CI job's toolchain (pixi/node/stdlib) without reading the script's calls, (5) your plan's central decision needs human sign-off rather than a runnable gate."
+description: "When an issue's premise references an artifact (script, file, committed config) that may not exist on the working branch, VERIFY existence FIRST — and do it REPO-WIDE, not just on the current branch. A branch-scoped `git ls-files | grep` that returns nothing does NOT prove the artifact was never built: it may live on a sibling unmerged branch (often the prerequisite issue's own `<n>-auto-impl` branch). Before concluding 'never landed,' scan origin/main AND every remote branch (`git ls-tree -r <ref> | grep`, looped over `git branch -r`). When the artifact exists on an unmerged branch, the issue is usually VALID and merely blocked on merge ordering — but do NOT stop there: a plan that says 'do X, but only after sibling PR #N merges' is itself a NOGO trigger ('correct but blocked on an external merge → not actionable today'), and a deterministic `git merge-base --is-ancestor` gate does NOT rescue it because the next stage still cannot proceed. The fix is to make the PR SELF-CONTAINED: regenerate/vendor the prerequisite INTO the current branch from sources already on it (e.g. generate `requirements.txt` from this branch's own `pixi.lock` via `pixi list --json`) so the PR stands alone against main — only stack/wait if the prerequisite genuinely cannot be reproduced (needs secrets/infra you lack). When you DO vendor a copy from another branch, treat it as a chance to FIX latent bugs: replace any frozen mirror of dynamic data (a hardcoded `_RUNTIME_DEPS` allowlist that's supposed to mirror `pyproject.toml`) with a live read of the source of truth — a frozen mirror is latent drift by construction. Then read the named check script's ACTUAL runtime deps (grep for subprocess/import/external-tool calls) before asserting its CI environment — two superficially similar drift-check scripts can have OPPOSITE needs (one stdlib-only/pixi-free, one shelling out to `pixi list --json`). Finally, when a plan's correctness hinges on a judgment call, reduce it to a DETERMINISTIC runnable check (`git merge-base --is-ancestor`, file existence, exit code) — a re-scope/close recommendation that 'requires human ratification' is a NOGO trigger for plan reviewers. Use when: (1) planning an issue that names a specific script/file/artifact as already-existing context, (2) the issue is a follow-up to a prior issue/PR whose deliverables you have not confirmed merged, (3) you are about to conclude an artifact 'never existed' from a current-branch check only, (4) your plan would gate the next stage on an external/sibling PR merging, (5) you are vendoring code or a list from another branch and could transcribe its latent bugs, (6) you are about to assert a CI job's toolchain (pixi/node/stdlib) without reading the script's calls, (7) your plan's central decision needs human sign-off rather than a runnable gate."
 category: architecture
 date: 2026-06-19
-version: "2.0.0"
+version: "2.1.0"
 user-invocable: false
 verification: unverified
 history: planning-verify-issue-premise-before-implementing.history
-tags: [planning, issue-premise, verify-before-implementing, branch-scoped-vs-repo-scoped, scan-all-branches, unmerged-branch, merge-ordering, requirements-drift, single-source-of-truth, ci-gate, pixi, deterministic-gate, plan-reviewer-nogo, re-scope, intent-vs-literal-ask, follow-up-issue, unverified-assumptions, dependency-sync]
+tags: [planning, issue-premise, verify-before-implementing, branch-scoped-vs-repo-scoped, scan-all-branches, unmerged-branch, merge-ordering, self-contained-pr, blocked-on-external-merge, vendoring, frozen-mirror-drift, source-of-truth, requirements-drift, single-source-of-truth, ci-gate, pixi, deterministic-gate, plan-reviewer-nogo, re-scope, intent-vs-literal-ask, follow-up-issue, unverified-assumptions, dependency-sync]
 ---
 
 # Planning: Verify the Issue Premise Before Implementing
@@ -18,9 +18,9 @@ tags: [planning, issue-premise, verify-before-implementing, branch-scoped-vs-rep
 |-------|-------|
 | **Date** | 2026-06-19 |
 | **Objective** | Capture durable planning discipline for issues whose premise names an artifact that may not exist on the working branch — verify existence REPO-WIDE (all branches) before concluding it was never built, read a check script's real runtime deps before asserting its CI env, and reduce judgment-call dispositions to deterministic runnable gates |
-| **Outcome** | Plan REVISED for ProjectHermes #556: the assumed `sync_requirements.py` + `requirements.txt` DO exist — on `origin/354-auto-impl` (the prerequisite issue's branch), not on `main`. The issue is VALID and blocked on merge ordering, provable by `git merge-base --is-ancestor origin/354-auto-impl origin/main` (→ false). The earlier "re-scope/close" disposition (v1.0.0) was WRONG and is corrected here. |
-| **Verification** | unverified — PLANNING session only; no code written or executed end-to-end, no CI run, `gh pr view 354` failed (PR object not accessible), branch↔issue linkage inferred from naming convention |
-| **History** | v1.0.0 → v2.0.0 (MAJOR: the central worked-example conclusion was overturned). See `planning-verify-issue-premise-before-implementing.history`. |
+| **Outcome** | Plan REVISED for ProjectHermes #556 across THREE NOGO rounds. R1: the assumed `sync_requirements.py` + `requirements.txt` DO exist — on `origin/354-auto-impl`, not `main` — so the issue is VALID, blocked on merge ordering. But that R1 plan, graded A on quality, was STILL NOGO'd on one trigger: "correct but blocked on an external merge → not actionable today." R2 (v2.1.0): removed the blocker by making the PR SELF-CONTAINED — vendored a corrected `sync_requirements.py` and GENERATED `requirements.txt` from the CURRENT branch's own `pixi.lock` (`pixi list --json` → 96 pkgs), so the PR stands alone against `main` with no cross-PR ordering dependency. The earlier "re-scope/close" disposition (v1.0.0) was WRONG (corrected in v2.0.0); the "gate on #354 merging" disposition (R1) was correct-but-unactionable (corrected here). |
+| **Verification** | unverified — PLANNING session only; no code written or executed end-to-end, no CI run, `pixi list --json` confirmed locally (96 pkgs) but the full generated `requirements.txt` and the Dockerfile `pip install -r` switch were NOT run end-to-end |
+| **History** | v1.0.0 → v2.0.0 (MAJOR: worked-example conclusion overturned) → v2.1.0 (MINOR: adds the self-contained-vs-blocked-on-merge workflow step + the vendor-fixes-latent-bugs lesson). See `planning-verify-issue-premise-before-implementing.history`. |
 
 This skill's own v1.0.0 example is a cautionary tale: it concluded the named artifacts
 "never landed" from a single-branch `git ls-files`, and recommended re-scoping/closing the
@@ -34,16 +34,20 @@ ordering." The three corrections below are the durable lessons.
 - An issue's body cites a specific script, file, or committed config as already-existing context (e.g. "the existing `scripts/sync_requirements.py --check`" or "the committed `requirements.txt`").
 - The issue is framed as a follow-up to a prior issue/PR (e.g. "follow-up from #354") whose deliverables you have not independently confirmed MERGED.
 - You are about to conclude an artifact "never existed" / "never landed" from a check run only on the current working branch.
+- Your plan would gate the next stage on an external/sibling PR merging ("do X after #N lands") — even at A-grade quality this is a NOGO ("correct but blocked on an external merge → not actionable today"); prefer making the PR self-contained.
+- You are vendoring code or a list from another branch and could transcribe its latent bugs (especially a frozen allowlist that's supposed to mirror a live source of truth).
 - The issue's stated failure mode depends on a build step or committed file you have not inspected.
 - You are about to assert a CI job's toolchain needs (pixi / node / stdlib-only) without reading the check script's actual `subprocess`/`import`/external-tool calls.
 - Your plan's central decision is a judgment call (re-scope, close, defer) that would require human sign-off rather than a runnable gate.
 
 ## Verified Workflow
 
-> **Warning:** This workflow has NOT been validated end-to-end. It was produced in a
-> PLANNING session — no code was written or executed end-to-end, CI never ran, `gh pr view 354`
+> **Warning:** This workflow has NOT been validated end-to-end. It was produced across three
+> PLANNING rounds — no code was written or executed end-to-end, CI never ran, `gh pr view 354`
 > failed (no accessible PR object), and the #354 ↔ `354-auto-impl` branch linkage was INFERRED
-> from naming convention, not confirmed via the PR API. The section is titled "Verified
+> from naming convention, not confirmed via the PR API. Only `pixi list --json` was confirmed to
+> run locally (96 pkgs); the full generated `requirements.txt` and the Dockerfile switch to
+> `pip install -r requirements.txt` were NOT executed end-to-end. The section is titled "Verified
 > Workflow" only to satisfy the marketplace validator. Treat every step below as a
 > **Proposed Workflow / hypothesis** until CI and a human planner confirm it.
 
@@ -61,10 +65,24 @@ for b in $(git branch -r --format='%(refname:short)' | grep -v HEAD); do
 done
 # -> FOUND in origin/354-auto-impl   (built, not yet merged to main)
 
-# 2. If found on a sibling branch, the issue is VALID + blocked on merge order.
-#    Reduce that to a DETERMINISTIC gate instead of a "close the issue" recommendation:
+# 2. If found on a sibling branch, the issue is VALID. The merge-order fact is real:
 git merge-base --is-ancestor origin/354-auto-impl origin/main && echo MERGED || echo BLOCKED
-# -> BLOCKED  (false exit) == #354 not yet in main == #556 cannot land its CI job yet
+# -> BLOCKED  (false exit) == #354 not yet in main.
+# BUT: a plan that says "do X after #354 merges" is STILL a NOGO ("correct but blocked on an
+# external merge → not actionable today"). The merge-base gate does NOT rescue it — the next
+# stage cannot proceed today. DO NOT stack/wait. Make the PR SELF-CONTAINED instead (step 2b).
+
+# 2b. SELF-CONTAINED: regenerate the prerequisite from sources ALREADY on your branch,
+#     so the PR stands alone against main with no cross-PR ordering dependency.
+pixi list --json > /tmp/pkgs.json   # confirmed locally: 96 pkgs from THIS branch's pixi.lock
+#   -> generate requirements.txt from THIS branch's pixi.lock, commit it in THIS PR.
+#   Only stack/wait if the prereq genuinely can't be reproduced (needs secrets/infra you lack).
+
+# 2c. When VENDORING a script/list from another branch, FIX its latent bugs — don't transcribe.
+git show origin/354-auto-impl:scripts/sync_requirements.py | grep -n '_RUNTIME_DEPS'
+#   -> a hardcoded _RUNTIME_DEPS frozen set, ALREADY stale vs pyproject.toml (missing
+#      starlette + urllib3, the latter pinned for a CVE). A frozen mirror of dynamic data is
+#      latent drift BY CONSTRUCTION. Derive the runtime set live from pyproject.toml instead.
 
 # 3. Read the check script's ACTUAL runtime deps BEFORE asserting its CI env:
 git show origin/354-auto-impl:scripts/sync_requirements.py | grep -nE 'subprocess|import |pixi|node'
@@ -84,11 +102,36 @@ git show origin/354-auto-impl:scripts/sync_requirements.py | grep -nE 'subproces
    not absent. **Issues are frequently the CI-wiring / integration tail of a sibling issue
    whose code lives on an unmerged branch.**
 
-2. **When the artifact exists on an unmerged branch, the correct disposition is usually "valid,
-   blocked on merge ordering" — NOT re-scope/close.** Reduce that to a deterministic gate the
-   implementer can run: `git merge-base --is-ancestor origin/354-auto-impl origin/main` returns
-   false (BLOCKED) while #354 is unmerged. This is a runnable fact, not a recommendation
-   requiring sign-off (see step 4).
+2. **When the artifact exists on an unmerged branch, the issue is "valid" — NOT re-scope/close.
+   The merge-ordering fact is real (`git merge-base --is-ancestor origin/354-auto-impl
+   origin/main` → false while #354 is unmerged) — but do NOT make it the plan's disposition.**
+
+2a. **"Correct but blocked on an external merge" is itself a NOGO trigger — make the PR
+   self-contained instead.** This is the PRIMARY R2 lesson. The R1 plan said "wire in
+   `sync_requirements.py` + `requirements.txt`, gated on #354 merging." A reviewer graded it A on
+   quality but NOGO'd on ONE trigger: the plan is correct but BLOCKED on an external merge → not
+   actionable today / not "ready as-is." Crucially, the deterministic `git merge-base
+   --is-ancestor` gate did NOT rescue it — a runnable gate that still evaluates to "blocked"
+   leaves the next stage unable to proceed today. **The fix is NOT a better gate; it is removing
+   the dependency.** Make the PR self-contained: reproduce the prerequisite INTO the current
+   branch from sources already on it. For #556 the R2 plan vendored a corrected
+   `sync_requirements.py` and GENERATED `requirements.txt` from the CURRENT branch's own
+   `pixi.lock` (`pixi list --json`, confirmed locally → 96 pkgs) — one PR, no cross-PR ordering
+   dependency. **Heuristic:** when an issue's prerequisite lives on an unmerged branch, prefer
+   "reproduce the prerequisite locally from sources already on my branch" over "stack/wait."
+   Only stack if the prerequisite genuinely cannot be regenerated (it needs secrets/infra you
+   lack).
+
+2b. **Vendoring a copy of code from another branch is a chance to FIX its latent bugs, not
+   blindly transcribe.** This is the TERTIARY R2 lesson. #354's `sync_requirements.py` hardcoded
+   a frozen `_RUNTIME_DEPS` set that was ALREADY stale vs the current branch's `pyproject.toml` —
+   it omitted `starlette` and `urllib3` (the latter pinned for CVE-2026-44431/44432).
+   Transcribing it verbatim would have silently dropped two runtime deps from the generated
+   `requirements.txt`, re-creating the very drift the check exists to prevent. The fix: derive the
+   runtime set from `pyproject.toml [project.dependencies]` dynamically instead of a frozen list.
+   **Heuristic:** when you copy a list/set that's supposed to mirror another source of truth,
+   replace the frozen copy with a read of the source of truth. A frozen mirror of dynamic data is
+   latent drift by construction.
 
 3. **Read the named check script's ACTUAL runtime dependencies before asserting its CI
    environment.** Do not generalize the toolchain of a superficially similar script in the same
@@ -124,6 +167,8 @@ git show origin/354-auto-impl:scripts/sync_requirements.py | grep -nE 'subproces
 | Concluded artifact "never built" from `git ls-files` on current branch only | On branch `90-170-171-auto-impl`, `git ls-files \| grep -iE 'requirements\|sync_req'` returned nothing, so the v1.0.0 plan concluded `sync_requirements.py` / `requirements.txt` never landed and recommended re-scoping/closing #556 | Branch-scoped check missed the files, which exist on the sibling unmerged branch `origin/354-auto-impl`; "never built" was a wrong, branch-scoped claim that flipped the entire disposition | Scan `origin/main` AND all remote branches (`git ls-tree -r <ref> \| grep`, looped over `git branch -r`) before concluding an artifact is missing — issues are often the CI-wiring tail of a sibling issue's unmerged branch |
 | Asserted the CI job should be pixi-free (copied `check_dep_sync.py`'s pattern) | The first plan said the new check should run in a stdlib-only / pixi-free CI job, mirroring the repo's existing `check_dep_sync.py` (`tomllib` only) | `sync_requirements.py` calls `subprocess.run(["pixi","list","--json"])`, so it REQUIRES pixi in CI; the "stdlib checks run before pixi" heuristic does not generalize across two superficially similar scripts | Read the check script's `subprocess`/`import`/external-tool calls before deciding its CI env (pixi/node/etc.); same-repo drift checkers can have OPPOSITE runtime needs |
 | Recommended re-scoping/closing the issue, deferring to human ratification | v1.0.0's central decision was "recommend re-scoping or closing #556," surfaced as a human-ratify judgment call | Plan reviewer NOGO'd: a discretionary sign-off blocks the next stage from auto-proceeding | Reduce the decision to a deterministic runnable check (`git merge-base --is-ancestor origin/354-auto-impl origin/main` → false = blocked) instead of a recommendation requiring human judgment |
+| Gated the plan on a sibling PR merging (deterministic merge-base check) | R1 plan: "wire in `sync_requirements.py` + `requirements.txt`, but only after #354 merges," with `git merge-base --is-ancestor origin/354-auto-impl origin/main` as the gate | Reviewer graded it A on quality but NOGO'd: "correct but blocked on external merge" is not actionable today, even at A-grade. The deterministic gate did NOT rescue it — it just evaluates to "blocked," so the next stage still can't proceed today | Make the PR self-contained: regenerate the prerequisite from sources already on your branch (e.g. generate `requirements.txt` from this branch's own `pixi.lock` via `pixi list --json`) instead of stacking/waiting. Removing the dependency, not a better gate, is the fix |
+| Vendored a frozen `_RUNTIME_DEPS` allowlist from another branch verbatim | Planned to copy #354's `sync_requirements.py` as-is, including its hardcoded `_RUNTIME_DEPS` set, into the current branch | The frozen set was already stale vs the current branch's `pyproject.toml` (missing `starlette` and `urllib3`, the latter pinned for CVE-2026-44431/44432); transcribing it would silently drop two runtime deps and re-create the drift the check exists to prevent | Derive the set from the source of truth (`pyproject.toml [project.dependencies]`); never freeze a mirror of dynamic data — a frozen mirror is latent drift by construction |
 | Trusted the "follow-up from #354" lineage via branch naming | Treated #556 ↔ #354 deliverables and the #354 ↔ `354-auto-impl` link as fact from naming convention | `gh pr view 354` failed (no accessible PR object); the linkage was inferred, never confirmed against the PR API | Fetch linked/parent issues/PRs from the source of truth; when the API call fails, flag the inferred linkage as a reviewer risk rather than a verified fact |
 | Assumed merge order without enforcing it | The plan assumes #354 merges BEFORE #556, since #556's new CI job references files that only exist post-#354 | The dependency is stated but not enforced; if merge order is reversed, the new `docker-deps` job references nonexistent files and fails | State the ordering as a deterministic gate AND note that the plan itself does not enforce merge order — call it out as the plan's main residual risk |
 
@@ -144,11 +189,26 @@ done
 # -> FOUND in origin/354-auto-impl   (BUILT, not yet merged to main)
 ```
 
-### Deterministic disposition gate (replaces the human-ratify recommendation)
+### Deterministic disposition gate (the merge-order FACT — but NOT the disposition)
 
 ```bash
 # Is the prerequisite branch already in main? false (BLOCKED) => #556 valid but cannot land yet.
 git merge-base --is-ancestor origin/354-auto-impl origin/main && echo MERGED || echo BLOCKED
+# NOTE: a plan whose disposition is "wait until this returns MERGED" is STILL a NOGO
+# ("correct but blocked on an external merge"). The gate is a true fact, not a green light.
+```
+
+### Self-contained PR (the R2 fix — remove the external-merge dependency)
+
+```bash
+# Instead of depending on #354's sync_requirements.py + requirements.txt, regenerate the
+# prerequisite from sources ALREADY on the current branch, so the PR stands alone vs main:
+pixi list --json    # confirmed locally on THIS branch's pixi.lock -> 96 pkgs
+#   -> generate requirements.txt from this output; commit it in THIS PR.
+# And when vendoring sync_requirements.py, FIX its latent bug instead of transcribing:
+#   #354's frozen _RUNTIME_DEPS set was stale (missing starlette + urllib3-for-CVE) vs
+#   pyproject.toml -> derive the runtime set live from pyproject.toml [project.dependencies].
+# Only stack/wait if the prereq genuinely can't be reproduced (needs secrets/infra you lack).
 ```
 
 ### Script-specific CI runtime deps (the second correction)
@@ -163,29 +223,35 @@ git show origin/main:scripts/check_dep_sync.py  | grep -nE 'import|subprocess'
 
 ### Most uncertain assumptions (honest reviewer risks)
 
-- **`pixi list --json` may require an installed env on CI.** It may need `pixi install --locked`
-  on the CI pixi version; NOT verified. The plan defers this to the first CI run — the main
-  remaining unknown.
-- **Merge order is assumed, not enforced.** The plan assumes #354 merges before #556. Files
-  referenced by the new CI job exist only post-#354; if merge order is reversed, the `docker-deps`
-  job references nonexistent files and fails. The dependency is stated but the merge order is not
-  enforced by the plan itself.
+- **`pixi list --json` may require a prior `pixi install --locked` on CI.** Confirmed to run
+  locally (96 pkgs), but whether the CI pixi environment needs `pixi install --locked` first is
+  STILL deferred to the first CI run (a fallback is specified, but unproven in CI specifically).
+- **The generated `requirements.txt` pin versions are not hand-verified line by line.** Only
+  fastapi/starlette/urllib3 were confirmed via `pixi list`; the rest were shown as `<lock>`
+  placeholders. The plan is "generate it, commit verbatim," not a hand-checked file.
+- **Switching the Dockerfile to `COPY requirements.txt` + `pip install -r requirements.txt` is a
+  real behavior change to the production image build.** The `docker build` verification step
+  exercises it locally in the plan, but the plan was NOT actually run end-to-end — verification
+  commands are proposed, not executed. Verification level = unverified.
+- **The Dockerfile change drops the editable self-package (`hermes`) from the build path
+  implicitly.** The prior inline extraction also excluded it, and `src/hermes/` is `COPY`'d
+  separately, so this is BELIEVED equivalent — but the equivalence was reasoned, not tested.
 - **#354 ↔ branch linkage is inferred.** `gh pr view 354` failed (no accessible PR object); the
   #354 ↔ `354-auto-impl` link was inferred from branch naming convention, not confirmed via the
-  PR API.
-- **No command executed end-to-end against #354's branch.** The verification commands would
-  require checking out `354-auto-impl`; they are proposed, not run. Verification level =
-  unverified.
+  PR API. (Note: R2's self-contained design no longer DEPENDS on #354 merging — the linkage now
+  matters only for attribution, not for the plan's correctness.)
+- **`tests/unit/` directory layout assumed to exist.** Not directly confirmed in this round.
 
 ## Verified On
 
 | Project | Context | Details |
 |---------|---------|---------|
-| ProjectHermes | Issue #556 ("Add check-reqs to CI to catch requirements drift") — re-plan after plan-reviewer NOGO, on branch `90-170-171-auto-impl` | Unverified. v1.0.0 concluded the assumed `sync_requirements.py` + `requirements.txt` "never landed" (branch-scoped `git ls-files`) and recommended closing the issue — WRONG. A scan of all remote branches found both on `origin/354-auto-impl`. Corrected disposition: issue is VALID, blocked on merge order (`git merge-base --is-ancestor origin/354-auto-impl origin/main` → false). `sync_requirements.py` calls `pixi list --json` so its CI job needs pixi (unlike stdlib-only `check_dep_sync.py`). `gh pr view 354` failed; branch linkage inferred. |
+| ProjectHermes | Issue #556 ("Add check-reqs to CI to catch requirements drift") — THREE re-plan rounds after successive plan-reviewer NOGOs, on branch `90-170-171-auto-impl` | Unverified. v1.0.0 concluded the assumed `sync_requirements.py` + `requirements.txt` "never landed" (branch-scoped `git ls-files`) and recommended closing the issue — WRONG. A scan of all remote branches found both on `origin/354-auto-impl` (v2.0.0 correction: issue is VALID). R1 then planned to wire them in gated on #354 merging; graded A but NOGO'd ("correct but blocked on an external merge → not actionable today"). R2 (v2.1.0) made the PR self-contained: generated `requirements.txt` from THIS branch's own `pixi.lock` (`pixi list --json` → 96 pkgs confirmed locally) and vendored a CORRECTED `sync_requirements.py` (deriving the runtime set from `pyproject.toml` instead of #354's stale frozen `_RUNTIME_DEPS` that omitted `starlette`/`urllib3`). `sync_requirements.py` calls `pixi list --json` so its CI job needs pixi (unlike stdlib-only `check_dep_sync.py`). `gh pr view 354` failed; branch linkage inferred. |
 
 ## References
 
 - [git-unmerged-branch-file-access.md](git-unmerged-branch-file-access.md) — read/plan against files that exist only on non-main branches (`git show origin/<branch>:path`, `git log --all`); the mechanics behind this skill's repo-wide existence scan.
+- [ci-gate-verify-artifact-is-consumed-before-guarding.md](ci-gate-verify-artifact-is-consumed-before-guarding.md) — the SECONDARY R2 lesson, split out: a drift/lint gate on an artifact nothing reads is theater; grep for the consumer and wire one in the same PR.
 - [planning-verify-integration-point-exists-before-guarding.md](planning-verify-integration-point-exists-before-guarding.md)
 - [planning-verify-live-state-before-assuming-work-remains.md](planning-verify-live-state-before-assuming-work-remains.md)
 - [planning-verify-assumptions-before-enforcement-gate.md](planning-verify-assumptions-before-enforcement-gate.md)
