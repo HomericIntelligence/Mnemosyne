@@ -1,0 +1,61 @@
+<!-- markdownlint-disable MD024 -->
+# planning-verify-live-state-before-assuming-work-remains — History
+
+## v1.1.0 (2026-06-19)
+
+**Changed by:** Re-planning of GitHub issue #24 ("Standardize default branch across ecosystem") after a NOGO review (same session, after PR #2583).
+**Verification:** verified-local
+
+### What changed
+
+- Added 2 new Failed Attempts rows:
+  - The 5-repo-scan false negative: verifying only the named repos missed `ProjectKeystone`'s
+    orphan `refs/heads/master` (Keystone was NOT one of the named 5; it already defaulted to `main`).
+  - The unverified expected-value annotation: asserted a grep would return count `4`; running it
+    returned `3` (the 4th `master` literal was a trailing `# master` comment the regex cannot match).
+- Strengthened verification guidance: write fail-loud checks (`--jq 'any()'` boolean) rather than
+  `grep 'Not Found' || echo 'Not Found'`; verify "already-applied" claims by direct live read
+  (`gh api .../rulesets`) rather than inference from config files.
+- Updated Results & Parameters with the directly-read live ruleset value
+  (`homeric-main-baseline`, active, id 15556483) and the ProjectKeystone orphan-master facts.
+- Added a cross-link to the new sibling skill
+  `planning-verify-full-population-not-just-named-entities`.
+- Added `history:` frontmatter field; bumped version 1.0.0 → 1.1.0; date stays 2026-06-19.
+
+### Why
+
+v1.0.0 verified live state per *named* entity and declared issue #24 complete. The reviewer
+flagged uneven coverage because the issue was ecosystem-wide. Extending the loop to all 15 repos
+found `ProjectKeystone`'s stale unprotected orphan `master` — the one real residue. The companion
+corrections (run-the-command-for-expected-values, fail-loud checks, direct-read over inference)
+directly strengthen this skill's verification discipline. The population-scoping headline is
+captured in the new sibling skill; the corrections live here.
+
+### Previous version (v1.0.0) snapshot
+
+```yaml
+name: planning-verify-live-state-before-assuming-work-remains
+description: "When an issue describes work to be done (a migration, rename, or config change), verify the LIVE external state FIRST with gh/grep before planning any edits — the work may already be complete, making the correct plan a verify-and-close plan with ZERO source edits. An issue body is a snapshot from when it was filed and drifts: the default branch, CI config, open-PR bases, and linked-issue states all change underneath it. Includes the gh-API gotcha that `gh api repos/ORG/REPO/branches/master` RETURNS the default branch via HTTP redirect for a MISSING branch (false positive that master exists) — use the `git/refs/heads` listing instead. Use when: (1) an issue/ticket describes a migration or change that may already be done, (2) planning work whose premise depends on live external state (default branch, CI config, issue status), (3) before recommending edits driven by an issue's stated assumptions, (4) before writing any 'Files to Modify' that exist only because the issue said so."
+category: tooling
+date: 2026-06-19
+version: "1.0.0"
+```
+
+Failed Attempts (v1.0.0, 3 rows):
+
+1. Trust the issue's repo table → stale snapshot; all repos already on `main`.
+2. Probe `branches/master` to test existence → redirects to default branch, false positive.
+3. Blind find/replace master→main → corrupts `--branch master` guards and `action@master` pins.
+
+Results & Parameters (v1.0.0) listed: all 15 repos default `main`; no `refs/heads/master` in the
+5 named repos; workflows target `main`; 0 non-main open PRs; 4 tracking issues CLOSED; FREE-plan
+org-rulesets 404 constraint; and three "uncertain assumptions" — notably (b) only the 5 named repos
+had refs exhaustively listed, the gap this amendment + sibling skill close.
+
+---
+
+## v1.0.0 (2026-06-19)
+
+**Initial version.** Created in PR #2583 from the issue #24 first-pass planning session: verify
+live external state (default branch, refs, CI triggers, open-PR bases, linked-issue states) with
+gh/grep before assuming an issue's described work remains undone.
