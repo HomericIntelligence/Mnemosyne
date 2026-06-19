@@ -1,9 +1,9 @@
 ---
 name: gha-security-scanning-supply-chain
-description: "Use when: (1) adding CodeQL SAST to TypeScript/JavaScript workflows or Semgrep/Gitleaks to any PR pipeline, (2) CI security scans only trigger on push to main — not PRs — and need promotion to PR gates, (3) Gitleaks SARIF parsing uses grep instead of jq causing always-fail required checks, (4) enforcing pinned SHA-based action versions instead of mutable tags, (5) auditing or porting curl|bash installers with SHA-256 verification, (6) a GHA job fails at 'Set up job' due to unresolved transitive action dependency."
+description: "Use when: (1) adding CodeQL SAST to TypeScript/JavaScript workflows or Semgrep/Gitleaks to any PR pipeline, (2) CI security scans only trigger on push to main — not PRs — and need promotion to PR gates, (3) Gitleaks SARIF parsing uses grep instead of jq causing always-fail required checks, (4) enforcing pinned SHA-based action versions instead of mutable tags, (5) auditing or porting curl|bash installers with SHA-256 verification, (6) a GHA job fails at 'Set up job' due to unresolved transitive action dependency, (7) adding Bandit SAST as a required CI check for Python/pixi projects."
 category: ci-cd
-date: 2026-06-07
-version: "1.1.0"
+date: 2026-06-19
+version: "1.2.0"
 user-invocable: false
 history: gha-security-scanning-supply-chain.history
 tags:
@@ -26,6 +26,9 @@ tags:
   - trivy
   - pixi
   - dockerfile
+  - bandit
+  - python-sast
+  - nosec
 ---
 
 # GitHub Actions Security Scanning and Supply-Chain Hardening
@@ -34,10 +37,10 @@ tags:
 
 | Field | Value |
 |-------|-------|
-| Date | 2026-06-07 |
-| Objective | Set up security scanning (CodeQL/Semgrep/Gitleaks SAST + secrets), harden CI supply-chain (action SHA pinning, dependency scanning), and pin/verify curl\|bash installers with SHA-256 |
-| Outcome | Consolidated guidance for security gate setup, scan-trigger gaps, SARIF parsing fixes, action SHA pinning, transitive-pin diagnosis, and installer trust-model hardening |
-| Verification | verified-ci |
+| Date | 2026-06-19 |
+| Objective | Set up security scanning (CodeQL/Semgrep/Gitleaks SAST + secrets + Bandit Python SAST), harden CI supply-chain (action SHA pinning, dependency scanning), and pin/verify curl\|bash installers with SHA-256 |
+| Outcome | Consolidated guidance for security gate setup, scan-trigger gaps, SARIF parsing fixes, action SHA pinning, transitive-pin diagnosis, installer trust-model hardening, and Bandit SAST integration for Python/pixi projects |
+| Verification | verified-local |
 
 ## When to Use
 
@@ -52,6 +55,7 @@ tags:
 - Adding `curl|bash` installers, or porting/hardening existing ones with SHA-256 verification and multi-platform support
 - Adding automated dependency vulnerability scanning (pip-audit/npm audit + Dependabot)
 - Isolating `security-events: write` permission from base required checks
+- Adding Bandit SAST as a required CI check for Python/pixi projects (medium+ severity, JSON report artifact)
 - Performing a security code review where static-analysis output is noisy with false positives
 
 ## Verified Workflow
@@ -361,6 +365,51 @@ Fail fast (print manual URL + `exit 1`) on unsupported distros instead of silent
 `npm install -g <pkg>@X.Y.Z`. Test the security property functionally: call `download_and_verify`
 with a wrong hash and assert non-zero exit + file cleanup.
 
+#### I. Add Bandit SAST as a required CI check (Python/pixi projects)
+
+Bandit writes the JSON report **before** exiting non-zero on findings. The exit propagates to the
+step (failing the job), while the artifact remains on disk. Use a single invocation — no `|| true`,
+no duplicate scan.
+
+```yaml
+security-sast-scan:
+  name: security/sast-scan
+  runs-on: ubuntu-24.04
+  steps:
+    - uses: actions/checkout@<SHA>  # v4
+    - uses: prefix-dev/setup-pixi@<SHA>  # v0.9.x
+      with:
+        pixi-version: v0.67.2
+        cache: true
+    - name: Run Bandit SAST scan (medium+ severity, emit JSON report)
+      run: pixi run python -m bandit -ll --ini .bandit -r src/<pkg> -f json -o bandit.json
+    - name: Upload Bandit JSON report
+      if: always() && hashFiles('bandit.json') != ''
+      uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # v5.0.0
+      with:
+        name: bandit-report
+        path: bandit.json
+        retention-days: 90
+```
+
+Key decisions:
+
+- **`if: always() && hashFiles('bandit.json') != ''`** — preserves triage data on both pass and fail.
+- **`pixi run python -m bandit`** — invoke via `python -m bandit` rather than `pixi run bandit` when
+  adding flags beyond what the pixi task embeds (see Failed Attempts).
+- **`actions/upload-artifact@v5.0.0`** — pin to full SHA. `@v7` does not exist on GitHub.com.
+  Verify any tag with: `gh api repos/actions/upload-artifact/git/refs/tags/v5.0.0 -q '.object.sha'`
+- **`.bandit` INI** — start with no `skips` list. Only add skips when a real finding requires it
+  (YAGNI). Do NOT pre-emptively skip B101 (assert_used).
+- **Inline `# nosec`** for real false positives — prefer site-specific suppression over widening
+  the global `skips` list. Include the rule ID and one-line rationale:
+  ```python
+  working_dir: str = "/tmp"  # nosec B108 — ephemeral agent working directory
+  ```
+
+When adding a new package under `src/<name>/`, also update the `-r` target in the `bandit` task in
+`pixi.toml` and the `files:` regex in `.pre-commit-config.yaml`.
+
 #### H. Security code review with false-positive filtering
 
 Two-phase agents: Phase 1 (single agent) lists candidates with confidence 1-10, surfacing only ≥7
@@ -397,6 +446,10 @@ threshold.`
 | Single-agent identify+filter review | One agent does both phases | Anchors on its own Phase 1 output | Separate identification from validation with independent agents |
 | Bumped Gitleaks version in workflow only | Updated version/URL/SHA in `security.yml` but not the tests | `test_security_workflow.py` still asserted the OLD `EXPECTED_SHA256`, so tests pointed at the stale hash | On a scanner version bump also update `GITLEAKS_VERSION`, `GITLEAKS_TARBALL`, `EXPECTED_SHA256` in `tests/workflows/test_security_workflow.py` |
 | Guessed the `--tag` pin version | Picked a plausible recent version when migrating Dockerfile off `cargo install` | Wrong version changed tool behavior across the migration | Recover the exact prior version from git history: `git log --oneline --all -- Dockerfile` then `git show COMMIT:Dockerfile \| grep cargo` |
+| Pixi task with embedded args + extra CLI args | `bandit = "bandit -ll --ini .bandit -r src/telemachy"` invoked as `pixi run bandit -f json -o bandit.json` | Arg doubling: `bandit: error: unrecognized arguments: src/telemachy` | Use `pixi run python -m bandit -ll --ini .bandit -r src/<pkg>` for invocations that need extra flags; keep pixi task as a bare entry point or omit extra flags at call site |
+| Pre-emptive skip of B101 in `.bandit` | Added `skips = B101` before any asserts existed in `src/` | YAGNI — adds a suppression rule with zero benefit; flagged in review | Start `.bandit` with no `skips`; only add suppressions when an actual finding requires it |
+| `actions/upload-artifact@v7` | Pinned upload artifact action to `@v7` | Tag `v7` does not exist on GitHub.com (latest is v4/v5); workflow fails at "Set up job" | Pin to full SHA for v5.0.0: `actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0`; verify tags with `gh api repos/actions/upload-artifact/git/refs/tags/v5.0.0 -q '.object.sha'` |
+| Global `.bandit` skip for false positive | Widened `skips = B108` for a single hardcoded `/tmp` default | Suppresses B108 globally across all files; any future real hardcoded path would be silently missed | Use inline `# nosec B108 — ephemeral agent working directory` at the specific site only |
 
 ## Results & Parameters
 
@@ -419,6 +472,7 @@ threshold.`
 | `github/codeql-action/*` | v3.27.5 | `4e828ff8a76ab34a99dd1f01ba9ca34eb10ebddad` |
 | `prefix-dev/setup-pixi` | v0.9.4 | `a0af7a228712d6121d37aba47adf55c1332c9c2e` |
 | `actions/github-script` | v8 | `ed597411d8f924073f98dfc5c65a23a2325f34cd` |
+| `actions/upload-artifact` | v5.0.0 | `330a01c490aca151604b8cf639adc76d48f6c5d4` |
 
 ### CodeQL / npm audit configuration
 
@@ -445,6 +499,20 @@ just   v1.36.0 linux-x86_64:   bc7c9f377944f8de9cd0418b11d2955adebfa25a488c0b5e3
 | `just` | `--tag` | `--tag 1.14.0` |
 | `pixi` | env `PIXI_VERSION` | `PIXI_VERSION=0.65.0 curl ... \| bash` |
 | `rustup` | `--default-toolchain` | `--default-toolchain 1.75.0` |
+
+### Bandit configuration reference
+
+| Setting | Value | Reason |
+|---------|-------|--------|
+| Severity threshold | `-ll` (medium+) | Low-severity findings are noise in most projects |
+| Report format (CI) | `-f json -o bandit.json` | Machine-readable; upload as artifact; parseable on pass AND fail |
+| INI file | `--ini .bandit` | Centralizes config; scoped to project `targets` + `skips` |
+| Initial `skips` list | _(empty)_ | YAGNI — only add when a real finding requires suppression |
+| False-positive suppression | `# nosec B<ID>  # <rationale>` inline | Site-specific; auditable; `.bandit` skips stay clean |
+| Pixi invocation (bare task) | `pixi run bandit` | Only when the pixi task embeds all needed flags |
+| Pixi invocation (extra flags) | `pixi run python -m bandit -ll --ini .bandit -r src/<pkg>` | Use when adding `-f`, `-o`, or other flags beyond the task default |
+| Artifact upload condition | `if: always() && hashFiles('bandit.json') != ''` | Preserves triage data on both pass and fail |
+| Artifact retention | `retention-days: 90` | Sufficient for triage; keeps storage low |
 
 ### jq command reference (SARIF)
 
@@ -476,3 +544,4 @@ jq '[.runs[].results[].ruleId] | unique' results.sarif # rule IDs
 | ProjectKeystone | PR #451 — Gitleaks SARIF false-positive fix | jq parser |
 | ProjectOdyssey | Issue #755, PR #869 — pip-audit + Dependabot | dependency scanning |
 | ProjectAgamemnon | PR #400 — transitive trivy pin failure | two-strikes-and-drop |
+| ProjectTelemachy | Issue #157 — Bandit SAST as required CI check (pixi project, `_required.yml`) | verified-local (2026-06-19) |
