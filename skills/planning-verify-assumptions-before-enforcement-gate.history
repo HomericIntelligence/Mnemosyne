@@ -1,5 +1,32 @@
 # planning-verify-assumptions-before-enforcement-gate — History
 
+## v1.2.0 (2026-06-19)
+
+**Changed by:** Third NOGO of issue #179 (prior two NOGOs — submodule scope, dead pytest harness — were fixed; this round fixed a matcher-vs-edit window mismatch). Forked `origin/main` because v1.1.0 (PR #2605) was already MERGED.
+**Verification:** unverified
+
+### What changed
+
+- Added 2 new Failed Attempts rows:
+  - Sized the matcher look-back window (`ANON_LOOKBACK = 1`, `lines[max(0,i-1):i+1]`) without reconciling it against the edit's offset; the edit placed a 2-line comment block above `GF_AUTH_ANONYMOUS_ENABLED`, landing the `e2e-only` marker at `i-2` — outside the window. The plan's own "re-run gate → GREEN" step would have failed. Fix: widen to `ANON_LOOKBACK = 2` and keep the marker as the first comment line (`i-2`).
+  - The self-test's passing fixture put the marker at `i-1` (more lenient than the shipped `i-2` layout), giving false confidence. Fix: self-test must mirror the byte-for-byte shipped layout plus a boundary negative (`i-3` must fail) to pin the window size.
+- Added the PRIMARY lesson "matcher-vs-edit contract" and SECONDARY lesson "self-test must mirror the shipped layout" as Detailed Steps 11–12, plus Quick Reference steps 10–11.
+- Added the GENERAL through-line of all three NOGOs (verify the gate against the POST-FIX tree, not just the pre-fix tree) as a When-to-Use bullet, a callout after Detailed Step 12, and a Results bullet.
+- Updated Overview Objective/Outcome to reflect the third NOGO and the matcher-vs-edit fix.
+- Updated Results & Parameters with the matcher-vs-edit contract facts, self-test-mirrors-shipped-layout fixtures, and a refreshed Open-reviewer-tasks list (added the i-2-fragility risk; restated verification stays unverified).
+- Updated description (added through-line + trigger 6) and tags (`matcher-vs-edit-contract`, `post-fix-tree`, `lookback-window`, `self-test-mirrors-shipped-layout`).
+- Bumped version 1.1.0 → 1.2.0 (minor: new findings + new failed attempts; existing recommendation extended, not replaced).
+
+### Why
+
+The plan for issue #179 was NOGO'd a third time. After the first two NOGOs (submodule scope, dead pytest harness) were fixed, this round surfaced a self-inflicted correctness bug: the enforcement gate's matcher window did not cover the exact line offset where the plan's own edit lands the required `e2e-only` marker, so the new CI gate would have been red on the very tree the plan produces. The fix reconciles both sides of the matcher-vs-edit contract and makes the self-test mirror the shipped layout. All three NOGOs share one root cause — an assumption about the gate's runtime behavior never checked against the concrete artifact the plan ships — so this is an amendment (minor bump), not a new skill. Verification stays `unverified`: the gate script was still not executed in CI.
+
+### Previous version (v1.1.0) snapshot
+
+The full v1.1.0 body (description, Overview, When to Use, Proposed + Verified Workflow with 9-step Quick Reference and Detailed Steps 1–10, an 8-row Failed Attempts table, and Results & Parameters) is preserved in PR #2605 / the v1.1.0 commit. The v1.2.0 body above supersedes it, preserving all original rows and adding 2 new Failed Attempts (matcher-vs-edit window mismatch, lenient self-test fixture) plus Detailed Steps 11–12 and the post-fix-tree through-line.
+
+---
+
 ## v1.1.0 (2026-06-19)
 
 **Changed by:** Re-planning of issue #179 after a NOGO review (stacks on PR #2603, which created v1.0.0 and was already merged).
