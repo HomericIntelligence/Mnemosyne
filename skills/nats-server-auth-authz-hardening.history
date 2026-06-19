@@ -1,5 +1,30 @@
 # Changelog — nats-server-auth-authz-hardening
 
+## v1.2.0 — 2026-06-19
+
+**Changed by:** Odysseus session 2026-06-19 — issue #176 implementation (token-based NATS auth, CI-verified).
+
+**Verification:** `verified` (PR #303, CI passed)
+
+### What changed
+
+- Updated `description` to cover token-based auth, dual-listener trap, brace-depth awk validator, and CI gating use cases.
+- Updated `version` 1.1.0 → 1.2.0 and `verification` `unverified` → `verified`.
+- Added new `When to Use` bullets for: dual authorization{} listener trap, leaf.conf remote port 7422, brace-depth awk validator, fail-closed CI assertion, and CI-step-vs-justfile distinction.
+- Added **Verified Workflow (v1.2.0)** section documenting the token-based auth pattern end-to-end:
+  - The dual-listener trap with concrete HCL for both `server.conf` and `leaf.conf`.
+  - Brace-depth awk block extractor (replaces broken range-match pattern).
+  - Correct fail-closed CI assertion (`! nats-server -c leaf.conf -t`, not grep on output).
+  - CI must have a dedicated step — a justfile recipe with no CI caller provides zero enforcement.
+- Added 4 new Failed Attempts rows (v1.2.0): grep-based fail-closed assertion; simple awk range extraction; assuming .gitignore covers *.creds; assuming justfile recipe = CI gate.
+- Added second `Verified On` row for the v1.2.0 implementation session (issue #176, PR #303, CI passed).
+
+### Why
+
+The v1.1.0 skill was a planning + review artifact marked `unverified`. Issue #176 was an actual execution: token-based auth was implemented, `tools/validate-nats-auth.sh` was written, and a CI step was wired. Several non-obvious traps were hit during execution that are not captured in the planning skill: the dual-listener requirement (auth on the client listener does NOT cover the leafnode listener), the brace-depth awk requirement for nested-block validation, NATS's fail-closed (exit non-zero) vs silent-empty-string behavior on unset env vars, port 7422 for leafnode remotes vs 4222, and the CI-step vs justfile-recipe distinction.
+
+---
+
 ## v1.1.0 — 2026-06-19
 
 **Changed by:** Odysseus session 2026-06-19 — SECOND `/learn` for the same topic. The

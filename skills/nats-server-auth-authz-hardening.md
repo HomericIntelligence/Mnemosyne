@@ -1,10 +1,10 @@
 ---
 name: nats-server-auth-authz-hardening
-description: "Plan NATS server-side authentication and authorization (authz) hardening for the HomericIntelligence mesh on top of the existing ADR-008 TLS PKI. Use when: (1) adding app-layer auth to NATS after TLS already landed, (2) deciding between X.509 cert mapping (verify_and_map) vs decentralized operator/NKey/JWT, (3) scoping NATS subjects per agent/consumer/bridge against the ADR-005 hi.* schema, (4) writing an ADR for mesh auth (do NOT edit the append-only ADR-008), (5) auditing whether verify/verify_and_map/accounts{} are present in configs/nats, (6) avoiding the trap of treating Tailscale isolation as app-layer security."
+description: "Plan or implement NATS server-side authentication and authorization (authz) hardening for the HomericIntelligence mesh. Use when: (1) adding app-layer auth to NATS after TLS already landed, (2) deciding between token-based auth vs X.509 cert mapping (verify_and_map) vs decentralized operator/NKey/JWT, (3) configuring authorization{} blocks on BOTH client AND leafnode listeners (the dual-listener trap), (4) scoping NATS subjects per agent/consumer/bridge against the ADR-005 hi.* schema, (5) writing an ADR for mesh auth (do NOT edit append-only ADRs), (6) auditing whether verify/verify_and_map/accounts{} or authorization{} are present in configs/nats, (7) writing a brace-depth awk validator for NATS config blocks, (8) wiring NATS auth validation into CI as a dedicated step."
 category: architecture
 date: 2026-06-19
-version: "1.1.0"
-verification: unverified
+version: "1.2.0"
+verification: verified
 user-invocable: false
 history: nats-server-auth-authz-hardening.history
 tags:
@@ -27,9 +27,15 @@ tags:
   - aid
   - jwt
   - nkey
+  - token
   - homeric-intelligence
   - planning
-  - unverified
+  - ci
+  - validation
+  - awk
+  - brace-depth
+  - fail-closed
+  - verified
 ---
 
 # NATS Server Auth/Authz Hardening (HomericIntelligence Mesh)
@@ -39,17 +45,22 @@ tags:
 | Field | Value |
 | ------- | ------- |
 | **Date** | 2026-06-19 |
-| **Objective** | Plan NATS server-side authentication + authorization hardening for the HomericIntelligence mesh, reusing the existing ADR-008 TLS PKI rather than standing up decentralized operator/NKey/JWT auth |
-| **Outcome** | A plan was written then REVISED after a reviewer NOGO: reuse the X.509 mutual-cert trust chain via `verify_and_map` (client) + `verify` (cluster/leafnode), plus subject-scoped `accounts{}` mapped to the ADR-005 `hi.*` schema. v1.1.0 corrects the cert→user mapping (SAN-DNS, NOT bare CN), enumerates the real plaintext clients that fail-closed auth would break, separates mTLS-capable-but-unconfigured clients from those needing new code, and replaces token-grep checks with functional auth tests. AID v0.2.0 Ed25519 + scoped JWT recorded as the documented FUTURE path. STILL NOT executed — plan was reviewed, not run; no config applied, no `nats-server -t` parse check, no functional test. |
-| **Verification** | `unverified` (PLANNING + REVIEW — Odysseus session 2026-06-19; plan written, NOGO'd, revised, but never executed end-to-end) |
+| **Objective** | Plan or implement NATS server-side authentication + authorization hardening for the HomericIntelligence mesh |
+| **Outcome** | v1.0.0–v1.1.0: A plan was written then REVISED after a reviewer NOGO: reuse the X.509 mutual-cert trust chain via `verify_and_map` (client) + `verify` (cluster/leafnode), plus subject-scoped `accounts{}` mapped to the ADR-005 `hi.*` schema. v1.2.0: EXECUTED and CI-verified (issue #176, PR #303). Token-based auth added on BOTH the client listener AND the leafnode listener via two separate `authorization {}` blocks. Key traps documented: auth only on the client listener leaves the leafnode listener open; brace-depth awk required to validate nested configs; NATS exits non-zero (not silently empty string) on unset env vars; port 7422 for leafnode remotes; CI validator must be a dedicated step not just a justfile recipe. |
+| **Verification** | `verified` (v1.2.0 — Odysseus issue #176, PR #303, CI passed) |
 | **History** | [changelog](./nats-server-auth-authz-hardening.history) |
 
 ## When to Use
 
 - You need to add application-layer authentication/authorization to NATS in a mesh where TLS has *already* landed (ADR-008) and you must not double-implement transport security.
-- You are deciding between X.509 certificate mapping (`verify_and_map`) versus a decentralized operator/NKey/JWT scheme and need the trade-off rationale.
+- You are deciding between token-based auth, X.509 certificate mapping (`verify_and_map`), or decentralized operator/NKey/JWT and need the trade-off rationale.
+- You are adding `authorization {}` to `server.conf` and need to know that the client listener and the `leafnodes {}` listener are SEPARATE — auth on the client listener does NOT protect the leafnode listener.
+- You are configuring `leaf.conf` remotes and need to know the correct port (7422, not 4222) and token syntax.
+- You are writing a shell validator for NATS config files that contain nested blocks (e.g. `tls {}` inside `leafnodes {}`) and need a brace-depth awk extractor instead of a simple range match.
+- You need to write a CI step that asserts NATS auth is fail-closed and need to know the correct assertion (expect `nats-server -t` to exit non-zero when a required env var is unset, do NOT grep output).
+- You are adding a NATS auth CI step and need to know it must be a dedicated step in `ci.yml`, not just a justfile recipe (CI never invokes `just validate-configs` unless the workflow explicitly calls it).
 - You are scoping NATS subjects per role (agent / consumer / bridge) against the ADR-005 `hi.*` subject schema.
-- You are about to write an ADR for mesh auth and need to know the next sequential number and the append-only rule (never edit ADR-008).
+- You are about to write an ADR for mesh auth and need to know the next sequential number and the append-only rule.
 - You are auditing whether `verify` / `verify_and_map` / `authorization{}` / `accounts{}` already exist in `configs/nats/`.
 - You are tempted to rely on Tailscale/Tailnet isolation as the security boundary and need the counter-argument.
 - You are mapping client certs to NATS users with `verify_and_map` and need to know what it actually matches (SAN-email → SAN-DNS → full RFC-2253 DN — NEVER a bare CN).
@@ -167,6 +178,105 @@ accounts {
 }
 ```
 
+## Verified Workflow (v1.2.0) — Token Auth on Both Listeners
+
+> **Verification:** `verified` — Odysseus issue #176, PR #303, CI passed (2026-06-19).
+
+### Token Auth: The Dual-Listener Trap
+
+NATS `server.conf` has two completely independent listeners: the **client listener** (port 4222) and the **leafnode listener** (port 7422). An `authorization {}` block at the top level of `server.conf` protects the CLIENT listener only. To protect the leafnode listener, a SEPARATE `authorization {}` block must live INSIDE the `leafnodes {}` block.
+
+```hcl
+# server.conf — TWO separate authorization blocks are required
+authorization {
+  token = "$NATS_CLIENT_TOKEN"   # protects the client listener (port 4222)
+}
+
+leafnodes {
+  port = 7422
+  tls {
+    cert_file = "..."
+    key_file  = "..."
+    ca_file   = "..."
+    verify    = true
+  }
+  authorization {
+    token = "$NATS_LEAF_TOKEN"   # protects the leafnode listener — SEPARATE from above
+  }
+}
+```
+
+```hcl
+# leaf.conf — remotes must use port 7422 (NOT 4222) and include the token
+leafnodes {
+  remotes = [{
+    url = "nats+tls://<hub-ip>:7422"   # port 7422, NOT 4222 (4222 silently never connects)
+    tls { ca_file = "/etc/nats/certs/ca.pem" }
+    token = "$NATS_LEAF_TOKEN"          # env-substituted at parse time
+  }]
+}
+```
+
+### Token-Based Auth Workflow (issue #176)
+
+1. **Add `authorization { token = "$NATS_CLIENT_TOKEN" }` at the top level of `server.conf`** (before any listener-specific blocks). This protects the 4222 client listener.
+
+2. **Add a SECOND `authorization { token = "$NATS_LEAF_TOKEN" }` block INSIDE the `leafnodes {}` block in `server.conf`.** This is a completely separate config directive. Without it the leafnode listener accepts anonymous connections.
+
+3. **Add `token = "$NATS_LEAF_TOKEN"` to the `remotes` entry in `leaf.conf`**. NATS substitutes `$VAR` at parse time. If the env var is unset, `nats-server -t` exits non-zero (fail-closed) — it does NOT silently substitute empty string.
+
+4. **Verify the leafnode remote URL targets port 7422, not 4222.** The `url` in the `remotes` block must be `nats+tls://<hub-ip>:7422`. A connection to 4222 from a leaf silently never establishes — there is no error at the leaf side, the leafnode just never joins.
+
+5. **Write a validator using brace-depth awk.** A simple `awk '/leafnodes/,/}/'` range terminates at the FIRST `}` which is inside the nested `tls {}` block, not the closing `}` of `leafnodes {}`. The `authorization {}` that follows the `tls {}` block is never captured, giving a false negative on a correctly-configured file. The correct approach is brace-depth tracking:
+
+```bash
+# Brace-depth block extractor — correctly handles nested blocks
+block() {
+  local file="$1" kw="$2"
+  sed 's/#.*//' "$file" | awk -v kw="$kw" '
+    inb==0 && $0 ~ kw"[[:space:]]*\\{" { inb=1; d=0 }
+    inb==1 {
+      print
+      o=gsub(/\{/,"{"); c=gsub(/\}/,"}"); d+=o-c
+      if (d<=0) inb=2
+    }'
+}
+
+# Usage: check that leafnodes{} contains an authorization block
+block configs/nats/server.conf leafnodes | grep -q "authorization" || { echo "FAIL: leafnodes has no auth"; exit 1; }
+```
+
+6. **Wire the validator into CI as a DEDICATED STEP in `.github/workflows/ci.yml`, NOT just a justfile recipe.** CI workflows only invoke `just` targets that are explicitly listed in a step. A recipe in the justfile is never invoked unless the workflow explicitly calls it. A `validate-configs` recipe in the justfile and a CI workflow that doesn't call it provide zero CI enforcement.
+
+7. **Assert fail-closed with `! nats-server -c leaf.conf -t`, not grep on output.** When `$NATS_LEAF_TOKEN` is unset, NATS errors at parse time: `variable reference for "NATS_LEAF_TOKEN" can not be found` (non-zero exit). The correct CI assertion is `! nats-server -c configs/nats/leaf.conf -t 2>/dev/null` (expect non-zero). A grep-based assertion (`nats-server -c leaf.conf -t 2>&1 || true | grep -q 'NATS_LEAF_TOKEN'`) fails for the WRONG reason: NATS's error message contains the variable name, so grep matches and exits 1 even though the assertion was intended to prove fail-closed behavior.
+
+### Quick Reference (v1.2.0)
+
+```bash
+# 1. Audit — check BOTH listeners for authorization
+grep -n "authorization" configs/nats/server.conf   # must appear twice: once top-level, once inside leafnodes{}
+
+# 2. Verify leafnodes authorization is inside the block (brace-depth, not range match)
+block() {
+  sed 's/#.*//' "$1" | awk -v kw="$2" '
+    inb==0 && $0 ~ kw"[[:space:]]*\\{" { inb=1; d=0 }
+    inb==1 { print; o=gsub(/\{/,"{"); c=gsub(/\}/,"}"); d+=o-c; if (d<=0) inb=2 }'
+}
+block configs/nats/server.conf leafnodes | grep -q "authorization"
+
+# 3. Assert NATS is fail-closed on unset token (expect non-zero)
+! nats-server -c configs/nats/leaf.conf -t 2>/dev/null
+
+# 4. Check leaf.conf remote port (must be 7422)
+grep "url" configs/nats/leaf.conf   # must contain :7422, NOT :4222
+
+# 5. Check .gitignore covers credential files
+grep -E "\*.creds|\*.pem|\*.key" .gitignore
+
+# 6. Validate that the CI step is actually in the workflow (not just the justfile)
+grep -n "validate\|nats" .github/workflows/ci.yml
+```
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -177,7 +287,11 @@ accounts {
 | Map verify_and_map to bare CN | Set accounts user="hermes.homeric" expecting CN match | NATS matches SAN-email→SAN-DNS→full-DN, never bare CN; every client would be rejected | Carry a DNS SAN per role and set user= the SAN-DNS string; document the cert convention in the ADR |
 | Grep only e2e/tools/justfile for nats:// | Scoped downstream-breakage check to e2e dirs | Missed real service clients (Hermes config.py:34, Telemachy config.py:21, compose:45) that default to plaintext nats:// and fail-close | Grep every submodule's client config module for nats:// / NATS_URL before enforcing auth |
 | Assume all clients need new mTLS code | Treated client remediation uniformly | Hermes already had build_ssl_context()+cert fields (config not code); Telemachy genuinely lacked cert wiring (code) | Per client, distinguish capable-but-unconfigured from needs-code; remediation differs |
-| Verify hardening with token greps only | grep verify=true / accounts{ to "prove" auth | Proves syntax/presence, not that unauth connect is rejected or scoping enforced | Add functional tests: no-cert rejected, stream-creator can create stream, low-priv denied a subtree |
+| Verify hardening with token greps only (v1.1.0) | grep verify=true / accounts{ to "prove" auth | Proves syntax/presence, not that unauth connect is rejected or scoping enforced | Add functional tests: no-cert rejected, stream-creator can create stream, low-priv denied a subtree |
+| grep-based fail-closed CI assertion (v1.2.0) | `nats-server -c leaf.conf -t 2>&1 \|\| true \| grep -q 'NATS_LEAF_TOKEN'` | NATS errors at parse time; its error message contains the var name, so grep matches and incorrectly exits 1 even when config is valid | Use `! nats-server -c leaf.conf -t 2>/dev/null` — assert non-zero exit, don't grep output |
+| Simple awk range extraction (v1.2.0) | `awk '/leafnodes/,/}/'` to extract leafnodes block | First `}` inside nested `tls {}` terminates the range; `authorization {}` after tls{} is never captured → false negative | Use brace-depth awk: count `{`/`}` depth; only stop when depth returns to 0 |
+| Assuming .gitignore covers *.creds (v1.2.0) | `grep "creds" .gitignore` expected a match | `*.creds` was not in .gitignore even though `*.pem` was — a silent gap | Always verify gitignore coverage for credential file extensions explicitly; don't assume |
+| Assuming justfile recipe = CI gate (v1.2.0) | Added `validate-nats-auth` recipe to justfile, assumed CI would run it | CI only invokes `just` targets that appear in explicit workflow steps; `ci.yml` never called `just validate-configs` | Wire validators as DEDICATED steps in `ci.yml`; a justfile recipe with no CI caller provides zero enforcement |
 
 ## Results & Parameters
 
@@ -277,4 +391,5 @@ unverified_assumptions:
 
 | Project | Context | Details |
 | --- | --- | --- |
-| HomericIntelligence/Odysseus | 2026-06-19 planning + review session | Plan written from on-disk reads of `configs/nats/{server,leaf}.conf` and submodule client config (Hermes/Telemachy); TLS confirmed present (ADR-008); auth/authz gap confirmed via grep. R0 plan NOGO'd by a reviewer (bare-CN mapping bug) and REVISED → v1.1.0. Still NOT executed — no config applied, no `nats-server -t`, no functional auth test run. Verification: `unverified`. |
+| HomericIntelligence/Odysseus | 2026-06-19 planning + review session (v1.1.0) | Plan written from on-disk reads of `configs/nats/{server,leaf}.conf` and submodule client config (Hermes/Telemachy); TLS confirmed present (ADR-008); auth/authz gap confirmed via grep. R0 plan NOGO'd by a reviewer (bare-CN mapping bug) and REVISED → v1.1.0. Still NOT executed — no config applied, no `nats-server -t`, no functional auth test run. Verification: `unverified`. |
+| HomericIntelligence/Odysseus | 2026-06-19 implementation session (v1.2.0) | Issue #176: token-based auth added to `configs/nats/server.conf` (TWO `authorization {}` blocks: one top-level for the client listener, one inside `leafnodes {}` for the leafnode listener) and `configs/nats/leaf.conf` (token in remotes). `tools/validate-nats-auth.sh` created with brace-depth awk block extractor. CI validator wired as a dedicated step in `.github/workflows/ci.yml`. PR #303 committed and pushed; CI passed. Verification: `verified`. |
