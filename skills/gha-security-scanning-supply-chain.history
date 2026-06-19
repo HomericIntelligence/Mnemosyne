@@ -2,6 +2,25 @@
 
 # History: gha-security-scanning-supply-chain
 
+## v1.2.0 (2026-06-19)
+
+Bandit SAST integration for Python/pixi projects (ProjectTelemachy issue #157)
+
+- Added `#### I. Add Bandit SAST as a required CI check (Python/pixi projects)` to Verified Workflow
+  covering: single-invocation pattern (`-f json -o bandit.json`), correct `if: always() &&
+  hashFiles('bandit.json') != ''` upload condition, `pixi run python -m bandit` vs `pixi run bandit`
+  distinction, `actions/upload-artifact@v5.0.0` SHA pin, `.bandit` INI start-clean approach, and
+  inline `# nosec B<ID>  # <rationale>` for site-specific false-positive suppression.
+- Added `### Bandit configuration reference` table to Results & Parameters.
+- Added `actions/upload-artifact v5.0.0` SHA to Action SHA reference table.
+- Added 4 Failed Attempts rows: pixi task with embedded args + extra CLI args (arg doubling),
+  pre-emptive B101 skip (YAGNI), `@v7` upload-artifact tag (non-existent), global `.bandit` skip
+  for a site-specific false positive.
+- Added `bandit` trigger to `description` field and `When to Use`.
+- Added tags: `bandit`, `python-sast`, `nosec`.
+- Added ProjectTelemachy issue #157 to Verified On.
+- Bumped `version` to 1.2.0, `date` to 2026-06-19, `Verification` to `verified-local`.
+
 ## v1.1.0 (2026-06-07)
 
 restore version-bump test-constant + pin-discovery (nuance audit pass 2)
