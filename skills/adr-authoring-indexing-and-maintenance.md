@@ -1,9 +1,9 @@
 ---
 name: adr-authoring-indexing-and-maintenance
-description: "Use when: (1) generating a new Architecture Decision Record (ADR) to document a significant architectural decision; (2) an ADR file exists but is not listed in the index table (docs/adr/README.md); (3) updating ADR status to Accepted (Deferred) when implementation is bypassed pending platform support; (4) two or more functions have nearly identical limitation comments and need consolidating into a single ADR with cross-references replacing duplicates; (5) updating ADR directory tree listings to reflect actual filesystem contents after file deletions or additions."
+description: "Use when: (1) generating a new Architecture Decision Record (ADR) to document a significant architectural decision; (2) an ADR file exists but is not listed in the index table (docs/adr/README.md); (3) updating ADR status to Accepted (Deferred) when implementation is bypassed pending platform support; (4) two or more functions have nearly identical limitation comments and need consolidating into a single ADR with cross-references replacing duplicates; (5) updating ADR directory tree listings to reflect actual filesystem contents after file deletions or additions; (6) writing an ADR on an epic branch where some child PRs have not yet merged to main — use pending-tense language for open PRs, past-tense only for work already on main."
 category: documentation
-date: 2026-06-07
-version: "1.0.0"
+date: 2026-06-20
+version: "1.1.0"
 user-invocable: false
 history: adr-authoring-indexing-and-maintenance.history
 tags:
@@ -14,6 +14,9 @@ tags:
   - markdownlint
   - consolidation
   - directory-tree
+  - pending-pr
+  - epic-branch
+  - in-flight-work
 ---
 # ADR Authoring, Indexing, and Maintenance
 
@@ -203,6 +206,53 @@ Why not chosen.
    gh pr merge --auto --rebase
    ```
 
+#### G. Pending-PR accuracy on epic branches
+
+When writing an ADR on an **epic branch** that pulls together work from multiple child PRs,
+some of those child PRs may not yet be merged to `main`. Use the correct tense for each item:
+
+| Work state | Language to use | Example |
+| ------------ | ----------------- | --------- |
+| Already on `main` (merged PR or direct commit) | Past tense — "was split", "now has", "reduced to" | "Split of `any_tensor.mojo` is now ≤3,000 lines (PR #5503 / commit abc1234)." |
+| Open child PR, not yet merged | Pending tense — "pending split", "will reach", "once PR #N merges" | "Pending split of `any_tensor.mojo` (4,106 lines) into 6 focused sibling modules (PR #5503 — pending merge to main)." |
+
+**Rule**: Only use completion language for work that is already on `main` at the time the ADR
+is written. If a child PR is still open, describe the work as pending/in-flight and include
+the PR number so readers can check the merge status themselves.
+
+**Template — pending entry (Remediation section)**:
+
+```markdown
+- **#NNNN**: Pending <description>. (<implementation detail>) (PR #XXXX — pending merge to main)
+```
+
+**Template — completed entry (Remediation section)**:
+
+```markdown
+- **#NNNN**: <Past-tense description>. (PR #XXXX / commit <hash>)
+```
+
+**Template — Consequences section, pending work**:
+
+```markdown
+- `file.mojo` will reach <target> once PR #XXXX merges, with <benefit>.
+```
+
+**Verification**: Before finalising the ADR, run:
+
+```bash
+# Confirm which child PRs are actually merged
+for pr in <list of PR numbers>; do
+  gh pr view "$pr" --json state,mergedAt --jq '"\(.state) mergedAt=\(.mergedAt)"'
+done
+# merged + mergedAt set → use past tense
+# OPEN / mergedAt null  → use pending tense
+```
+
+Reviewers will flag any past-tense claim on an epic branch if the underlying PR is still open
+(the file on the branch will contradict the claim). Fix before requesting re-review.
+
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -213,6 +263,8 @@ Why not chosen.
 | Long URL list item on one line | Put `[Issue #NNN](https://...): description` on one line | MD013 fired (line > 120 chars) | Wrap after the closing `)` of the URL onto the next line |
 | Referencing sibling function in comment | Left "see sibling_fn() for details" instead of pointing to the ADR | Still requires navigating to another function — defeats consolidation | Update ALL cross-references to point directly at the new ADR path |
 | Trusting issue-body line numbers | Edited the line number an issue cited for a stale entry | Line number referenced an earlier state of the file | Don't trust line numbers from issue descriptions; grep for the actual pattern |
+| Past-tense claim for open child PR | ADR said "#5182: Split of `any_tensor.mojo` is now ≤3,000 lines" | On the epic branch `any_tensor.mojo` was still 4,106 lines because PR #5503 had not merged; reviewer flagged two threads (line 24 and line 55) — factually false | Use pending tense for open PRs: "Pending split … (PR #XXXX — pending merge to main)"; past tense only for work already on main |
+| "is now" in Consequences for pending PR | Consequences said "`any_tensor.mojo` is now ≤3,000 lines" when PR #5503 was unmerged | False on the branch; same code review thread flagged it as a second major finding | Write "will reach ≤3,000 lines once PR #XXXX merges" for pending outcomes; "is now" only after the PR lands |
 | Assuming the deletion was pending | Searched for an allegedly-stale deleted-file reference | No matches — the file was already removed by a prior PR | Always check both the filesystem AND the ADR independently before editing |
 
 ## Results & Parameters
@@ -271,3 +323,4 @@ pixi run pre-commit run markdownlint-cli2 --files docs/adr/<file>.md
 | ProjectOdyssey | Issue #3151, PR #3339 — ADR-003 memory pool Accepted (Deferred) | [history](adr-authoring-indexing-and-maintenance.history) |
 | ProjectOdyssey | Issue #3291, PR #3886 — consolidate FP16 SIMD limitation into ADR-010 | [history](adr-authoring-indexing-and-maintenance.history) |
 | ProjectOdyssey | Issue #3252, PR #3820 — ADR-004 helpers directory tree accuracy | [history](adr-authoring-indexing-and-maintenance.history) |
+| ProjectOdyssey | Issue #5191, PR #5504 — ADR-014 pending-PR accuracy: corrected past-tense claim for open child PR #5503 (commit 20b0d7c7) | [history](adr-authoring-indexing-and-maintenance.history) |
