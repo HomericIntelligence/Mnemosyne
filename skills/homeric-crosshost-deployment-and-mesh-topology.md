@@ -1,9 +1,9 @@
 ---
 name: homeric-crosshost-deployment-and-mesh-topology
-description: "Deploy and operate the HomericIntelligence mesh across multiple Tailscale hosts using NATS JetStream, compose overlays, and justfile launchers. Use when: (1) splitting the E2E stack across multiple physical hosts via compose overlay or per-component launchers, (2) bringing up Agamemnon/Nestor/Hermes natively or via containers on any new Tailnet host from cold state, (3) running hub+remote-worker topology for cross-host myrmidon dispatch, (4) configuring NATS connections (direct or leafnode) over Tailscale, (5) implementing NATS JetStream publish retry with exponential backoff, (6) debugging Hermes webhook event types, compose healthchecks, or podman rootlessport/DNS quirks, (7) PLANNING credential-based authentication for a NATS leaf/server config and scrutinizing the uncertain assumptions a reviewer must verify in such a plan, (8) PLANNING Grafana anonymous-access hardening in the e2e compose stack (disable anonymous, fall back to admin login) and scrutinizing the unverified health-probe/provisioning assumptions a reviewer must confirm, (9) PLANNING a NATS TLS security runbook (cert provisioning via step-ca, zero-downtime cert rotation via SIGHUP, key-compromise response) for the canonical configs that now carry TLS per ADR-008, and scrutinizing the unverified step/nats-server/monitoring-API claims a reviewer must confirm."
+description: "Deploy and operate the HomericIntelligence mesh across multiple Tailscale hosts using NATS JetStream, compose overlays, and justfile launchers. Use when: (1) splitting the E2E stack across multiple physical hosts via compose overlay or per-component launchers, (2) bringing up Agamemnon/Nestor/Hermes natively or via containers on any new Tailnet host from cold state, (3) running hub+remote-worker topology for cross-host myrmidon dispatch, (4) configuring NATS connections (direct or leafnode) over Tailscale, (5) implementing NATS JetStream publish retry with exponential backoff, (6) debugging Hermes webhook event types, compose healthchecks, or podman rootlessport/DNS quirks, (7) PLANNING credential-based authentication for a NATS leaf/server config and scrutinizing the uncertain assumptions a reviewer must verify in such a plan, (8) PLANNING Grafana anonymous-access hardening in the e2e compose stack (disable anonymous, fall back to admin login) and scrutinizing the unverified health-probe/provisioning assumptions a reviewer must confirm, (9) PLANNING a NATS TLS security runbook (cert provisioning via step-ca, zero-downtime cert rotation via SIGHUP, key-compromise response) for the canonical configs that now carry TLS per ADR-008, and scrutinizing the unverified step/nats-server/monitoring-API claims a reviewer must confirm, (10) PLANNING authentication for the NATS cluster{} route listener (port 6222) — the third listener after client + leafnode — by adding authorization{token=\"$NATS_CLUSTER_TOKEN\"}, creating a brace-depth config validator, wiring it into just validate-configs + CI, and reconciling stale issue coordinates against the live config."
 category: architecture
 date: 2026-06-20
-version: "1.5.0"
+version: "1.6.0"
 user-invocable: false
 verification: unverified
 history: homeric-crosshost-deployment-and-mesh-topology.history
@@ -54,6 +54,9 @@ tags:
   - sighup
   - key-compromise
   - runbook
+  - cluster-route
+  - route-listener
+  - validate-nats-auth
 ---
 
 # HomericIntelligence Cross-Host Deployment and Mesh Topology
@@ -64,8 +67,8 @@ tags:
 | ------- | ------- |
 | **Date** | 2026-06-20 |
 | **Objective** | Deploy and operate the HomericIntelligence mesh across multiple Tailscale hosts using NATS JetStream, compose overlays, justfile launchers, and resilient publish patterns; and plan credential-based authentication for the credential-less NATS leaf/server config |
-| **Outcome** | Deployment patterns verified-local (two-host + 6-host). The NATS leaf/server auth fix is still an UNVERIFIED PLAN for issue #176 (R1, post-NOGO) — the full plan was not run end-to-end and no CI passed. BUT the config-block-presence validator was PROTOTYPED this session (verified-local: exit 0 on the fixed fixture, exit 1 on the repo's current configs). The Grafana anonymous-access hardening (issue #206) is an UNVERIFIED PLAN — no container was run; the load-bearing untested assumption is that Grafana's `/api/health` stays unauthenticated when anonymous access is disabled (so e2e health probes survive). The NATS TLS security RUNBOOK (issue #208 — cert provisioning, rotation, compromise response) is an UNVERIFIED PLAN — no commands run, no CI. **IMPORTANT premise correction:** the #176-era claim that `configs/nats/*.conf` ship with NO TLS is now STALE — ADR-008 (Status: Proposed) is already merged into the configs, so both `server.conf` and `leaf.conf` now carry top-level `tls {}`, `leafnodes { port=7422; tls{} }`, and cluster TLS referencing `/etc/nats/certs/{server-cert.pem,server-key.pem,ca.pem}`, and leaf.conf's remote is now `nats+tls://<ip>:7422`. The plan's highest-value content remains its catalogue of uncertain assumptions a reviewer must verify, now sharpened by concrete NOGO causes and the stale-premise correction. |
-| **Verification** | unverified OVERALL for the NATS auth-planning section (the full plan was not exercised end-to-end); the brace-depth config-block validator specifically is verified-local (prototyped 2026-06-19 against fixed + current fixtures). The Grafana anonymous-access hardening subsection is unverified (no container run; `/api/health`-unaffected claim untested). The NATS TLS security-runbook section (issue #208) is unverified (no commands run; `step` CLI flags, NATS SIGHUP cert hot-reload, and the `/varz` `tls_required` field name were all written from memory). The exception: the `.gitignore` cert-key coverage claim (`*.pem`/`*.key`/`*.crt`/`secrets/`/`*.secret`) was actually grepped from the file this session and is TRUE. Verified-local for all prior deployment content (Odysseus sessions 2026-04-03 to 2026-05-03). |
+| **Outcome** | Deployment patterns verified-local (two-host + 6-host). The NATS leaf/server auth fix is still an UNVERIFIED PLAN for issue #176 (R1, post-NOGO) — the full plan was not run end-to-end and no CI passed. BUT the config-block-presence validator was PROTOTYPED this session (verified-local: exit 0 on the fixed fixture, exit 1 on the repo's current configs). The Grafana anonymous-access hardening (issue #206) is an UNVERIFIED PLAN — no container was run; the load-bearing untested assumption is that Grafana's `/api/health` stays unauthenticated when anonymous access is disabled (so e2e health probes survive). The NATS TLS security RUNBOOK (issue #208 — cert provisioning, rotation, compromise response) is an UNVERIFIED PLAN — no commands run, no CI. The NATS cluster-route-listener auth (issue #306 — the `cluster{}` route listener on port 6222 has TLS per ADR-008 but no `authorization{}`) is an UNVERIFIED PLAN — no code run, no CI; the plan adds `authorization { token = "$NATS_CLUSTER_TOKEN" }`, creates the brace-depth validator `tools/validate-nats-auth.sh` FRESH (it does NOT exist), wires it into `just validate-configs` + an explicit CI step, writes ADR-009, and documents the env token in deployment.md. **IMPORTANT premise correction:** the #176-era claim that `configs/nats/*.conf` ship with NO TLS is now STALE — ADR-008 (Status: Proposed) is already merged into the configs, so both `server.conf` and `leaf.conf` now carry top-level `tls {}`, `leafnodes { port=7422; tls{} }`, and cluster TLS referencing `/etc/nats/certs/{server-cert.pem,server-key.pem,ca.pem}`, and leaf.conf's remote is now `nats+tls://<ip>:7422`. **#306 stale-coordinates correction (verified against the live config this session):** issue #306 cited `server.conf:54-64`, a pre-existing `tools/validate-nats-auth.sh`, and "client/leafnode hardened in this PR" — ALL stale: the real `cluster{}` block is at `server.conf:36-46`, lines 52-55 are the commented-out `monitoring_authorization`, the validator does NOT exist (`ls tools/` → only `github/` + `odysseus-console.py`), and NEITHER client nor leafnode listener actually carries `authorization{}` (TLS only per ADR-008; the #176 leaf-auth was never merged). The plan's highest-value content remains its catalogue of uncertain assumptions a reviewer must verify, now sharpened by concrete NOGO causes and the stale-premise corrections. |
+| **Verification** | unverified OVERALL for the NATS auth-planning section (the full plan was not exercised end-to-end); the brace-depth config-block validator specifically is verified-local (prototyped 2026-06-19 against fixed + current fixtures). The Grafana anonymous-access hardening subsection is unverified (no container run; `/api/health`-unaffected claim untested). The NATS TLS security-runbook section (issue #208) is unverified (no commands run; `step` CLI flags, NATS SIGHUP cert hot-reload, and the `/varz` `tls_required` field name were all written from memory). The NATS cluster-route-listener auth section (issue #306) is unverified — the cluster-route authentication MECHANISM (`authorization{token=...}` inside `cluster{}`, `$NATS_CLUSTER_TOKEN` resolving inside the cluster block, token gating route peers) was written from memory and NOT confirmed against NATS docs or a running nats-server; the brace-depth awk validator and the CI-integration claims were not executed this session (exception: the stale-coordinate reconciliation — cluster{} at 36-46, validator absent, neither client nor leaf authed — WAS grepped against the live `configs/nats/server.conf` + `tools/` and is TRUE). The exception: the `.gitignore` cert-key coverage claim (`*.pem`/`*.key`/`*.crt`/`secrets/`/`*.secret`) was actually grepped from the file this session and is TRUE. Verified-local for all prior deployment content (Odysseus sessions 2026-04-03 to 2026-05-03). |
 | **History** | [changelog](./homeric-crosshost-deployment-and-mesh-topology.history) |
 
 ## When to Use
@@ -81,6 +84,7 @@ tags:
 - Planning credential-based authentication for the canonical credential-less `configs/nats/leaf.conf` + `server.conf` (issue #176) and reviewing such a plan for unverified assumptions
 - Planning Grafana anonymous-access hardening in `docker-compose.e2e.yml` (issue #206) — disabling `GF_AUTH_ANONYMOUS_ENABLED`, falling back to admin login, and reviewing the unverified `/api/health` / provisioning assumptions
 - Planning a NATS TLS security runbook (issue #208) — cert provisioning (step-ca), zero-downtime cert rotation (SIGHUP), and key-compromise response — against the canonical configs that NOW carry TLS per ADR-008, and reviewing the unverified `step`/`nats-server`/`/varz` claims
+- Planning authentication for the NATS `cluster{}` route listener (issue #306, port 6222) — the THIRD listener after client + leafnode — adding `authorization { token = "$NATS_CLUSTER_TOKEN" }`, creating the brace-depth validator FRESH (`tools/validate-nats-auth.sh` does not exist), wiring it into `just validate-configs` + an explicit CI step, writing ADR-009, and reconciling the issue's STALE coordinates/tooling/"already-done" claims against the live `configs/nats/server.conf`
 
 ## Verified Workflow
 
@@ -600,6 +604,107 @@ TLS config; it does not introduce it.
   runbooks `branch-protection-rollout.md` and `no-silent-failures.md`. The index drifts;
   don't trust it as a complete inventory.
 
+## Proposed Workflow — NATS Cluster-Route Listener Auth (UNVERIFIED, issue #306)
+
+> **Warning:** This section is an UNVERIFIED PLAN. No code was run, no CI passed.
+> The NATS cluster-route authentication MECHANISM below (`authorization { token = ... }`
+> inside `cluster{}`, `$NATS_CLUSTER_TOKEN` env substitution resolving inside the cluster
+> block, the token actually gating route peers) was written from MEMORY and NOT confirmed
+> against NATS docs or a running nats-server. The brace-depth awk validator and the
+> CI-integration claims were not executed this session. Treat every step as a
+> reviewer-must-verify hypothesis. The highest-value content is the reviewer-risk catalogue
+> in **Results & Parameters** — read it before trusting any step.
+
+The `cluster{}` route listener (port 6222) is the THIRD NATS listener after the client
+(4222) and leafnode (7422) listeners. Per ADR-008 it carries `tls{}` but has NO
+`authorization{}` — so any peer that completes the TLS handshake could join cluster routing.
+This plan closes that gap. It is a DIRECT continuation of the #176 leaf-auth plan: it reuses
+the exact same brace-depth validator + env-token + per-block-assertion patterns, applied to a
+third listener.
+
+### Stale issue coordinates — reconcile against the LIVE config FIRST (verified this session)
+
+Issue #306's coordinates were ALL stale and had to be reconciled against the real repo:
+
+| Issue #306 claimed | Live config (grepped this session) |
+| -------------------- | ------------------------------------ |
+| `cluster{}` at `server.conf:54-64` | real `cluster{}` is at `server.conf:36-46`; lines 52-55 are the commented-out `monitoring_authorization` block |
+| extend a pre-existing `tools/validate-nats-auth.sh` (4th check) | the validator does NOT exist (`ls tools/` → only `github/` + `odysseus-console.py`); this is the FIRST check, created FRESH |
+| "client/leafnode listeners hardened in this PR" | NEITHER client nor leafnode listener actually carries `authorization{}` — TLS only per ADR-008; the #176 "hardened in this PR" leaf-auth was NEVER merged |
+
+**LESSON:** re-read the canonical config every session. An issue's line numbers, referenced
+tooling, and "already-done in a prior PR" claims can ALL be stale. The validator-to-extend
+may not exist; the "Nth check" may actually be the 1st.
+
+### Proposed Steps
+
+1. **Add `authorization { token = "$NATS_CLUSTER_TOKEN" }` INSIDE the `cluster{}` block**
+   (not top-level, not in a sibling block). The cluster route listener authenticates
+   independently of the client + leafnode listeners — each listener needs its OWN
+   `authorization{}`. **The mechanism is the highest reviewer risk — see catalogue.**
+
+   ```hcl
+   # server.conf cluster{} — PROPOSED (route listener authed; mechanism UNVERIFIED)
+   cluster {
+     name   = "homeric-intelligence"
+     listen = "0.0.0.0:6222"
+     authorization {                     # NEW — gates route peers (mechanism reviewer-must-verify)
+       token = "$NATS_CLUSTER_TOKEN"     # env-substituted; mirrors $NATS_MONITORING_PASSWORD pattern
+     }
+     tls { cert_file = "..."; key_file = "..."; ca_file = "..." }   # nested — brace-depth parser must not stop here
+     # routes = ["nats://nats-2:6222", ...]
+   }
+   ```
+
+2. **SCOPE to ONLY the cluster listener — do NOT silently retrofit the absent client/leaf
+   auth.** Neither client nor leaf listener is authed; adding their auth here belongs to the
+   un-landed parent issue (#176). A file-wide "every listener must be authed" gate would
+   fail-closed on the legitimately auth-less client + leaf listeners and break the build for
+   a scope the issue never named.
+
+3. **Create the validator FRESH at `tools/validate-nats-auth.sh`** (it does not exist). It
+   reuses the brace-depth `block()` extractor from the #176 plan — strip comments, track
+   `{`/`}` depth so the nested `tls{}` does not close `cluster{}` early — and asserts the
+   `cluster{}` block carries its own `authorization`. Make it executable (`chmod +x`).
+
+   ```bash
+   #!/usr/bin/env bash
+   # tools/validate-nats-auth.sh — assert the cluster{} route listener is authenticated.
+   set -euo pipefail
+   # block() (brace-depth extractor) — identical pattern to the #176 leafnodes check above.
+   if ! block configs/nats/server.conf cluster | grep -q 'authorization'; then
+     echo "FAIL: server.conf cluster{} route listener has no authorization{} block" >&2
+     exit 1
+   fi
+   echo "OK: cluster route listener is authenticated"
+   ```
+
+4. **Wire it into `just validate-configs` AND an EXPLICIT CI step.** This repo is `just`/`pixi`,
+   NOT pytest. The CI `validate` job inlines yamllint and does NOT call `just validate-configs`
+   today — adding the recipe alone does NOT make it run. Add `bash tools/validate-nats-auth.sh`
+   (resolving from repo root) as an explicit CI step in the right job. Root `just lint`
+   shellcheck-gates new `*.sh` via `git ls-files` — the new script must pass shellcheck.
+
+5. **Auth on a new listener is a NEW architectural decision → write append-only ADR-009.**
+   Never edit an accepted ADR.
+
+6. **Document `$NATS_CLUSTER_TOKEN` in `deployment.md`** alongside the other `$NATS_*` env
+   tokens, so a fresh control host knows to export it.
+
+### Verification discipline (specified, NOT run this session)
+
+```bash
+chmod +x tools/validate-nats-auth.sh
+# Assert BOTH directions — a validator that always exits 1 "passes" the bad case for the wrong reason.
+bash tools/validate-nats-auth.sh                 # MUST exit 0 on the fixed (cluster-authed) config
+git stash && ! bash tools/validate-nats-auth.sh  # MUST exit 1 on the current (unauthed) config
+git stash pop
+# Fail-closed must be TESTED: render with the token UNSET and grep for the leaked literal.
+NATS_CLUSTER_TOKEN= nats-server -t -c configs/nats/server.conf 2>&1 \
+  | grep -q '\$NATS_CLUSTER_TOKEN' && { echo "FAIL: unset token leaked as literal"; exit 1; }
+# Reviewer must ACTUALLY run the validator + its both-directions test — do not trust the code by reading it.
+```
+
 ### Compose Healthchecks (Dual-Runtime: podman-compose 1.5.0 + Docker Compose v2/v5)
 
 ```yaml
@@ -721,6 +826,9 @@ pkill -f ProjectNestor_server    || kill $(pgrep -f ProjectNestor_server)
 | Editing an append-only ADR for a back-link | Plan proposed adding a References line to ADR-008 | CLAUDE.md principle 3: ADRs are append-only / never edited once accepted | Link one-directionally (runbook→ADR); satisfy discoverability via the docs/README index row, not by editing the ADR |
 | Trusting docs/README runbook table as complete | Used the README table as the runbook inventory | Table already omits `branch-protection-rollout.md` and `no-silent-failures.md` | The hand-maintained README table drifts; enumerate runbooks with `ls docs/runbooks/`, not the index |
 | Trusting `/varz` `tls_required` field name from memory | Plan greps `curl :8222/varz \| ... d.get('tls_required')` to confirm TLS-on-client | The exact JSON key for "TLS required on client port" in the running NATS monitoring API was not confirmed | Don't assert monitoring-API JSON key names from memory; curl `/varz` against the running version and read the actual keys |
+| Trusting issue #306's line numbers / tooling / "already-done" verbatim | Took the issue's `server.conf:54-64`, a pre-existing `tools/validate-nats-auth.sh`, and "client/leaf hardened in this PR" as fact | Real `cluster{}` is at 36-46 (52-55 is the commented `monitoring_authorization`); the validator does NOT exist; neither client nor leaf is actually authed (TLS only per ADR-008; the #176 leaf-auth never merged) | Re-read the canonical config every session. An issue's line numbers, referenced tooling, and "already-done in a prior PR" claims can ALL be stale — reconcile against the live repo before planning |
+| Assuming the validator-to-extend exists when "extend tool X with check N" is asked | Planned a "4th check" added to a pre-existing `tools/validate-nats-auth.sh` | `ls tools/` → only `github/` + `odysseus-console.py`; the validator does not exist, so there is no check 1..3 to extend — this is the FIRST check | When an issue says "extend tool X with check N", FIRST verify X exists and that checks 1..N-1 exist. If absent, create X fresh and scope to ONLY the invariant the issue names |
+| Asserting the NATS cluster-route auth mechanism from memory | Plan claims `authorization{token=...}` inside `cluster{}` gates route peers and `$NATS_CLUSTER_TOKEN` resolves inside the cluster block | Never confirmed against NATS docs or a running nats-server; cluster-route auth may use a different block/mechanism than leafnodes — if the mechanism is wrong, the whole fix is wrong | Treat the auth MECHANISM of a NATS listener as an unverified-assumption class; confirm the block, the token form, and env-substitution against docs/a running server before trusting the fix |
 
 ## Results & Parameters
 
@@ -929,6 +1037,58 @@ Durable PLANNING lessons that generalize beyond NATS:
   not, the claim inverts into a downtime + manual-restart procedure. Always tie the reload mechanism
   to a verified signal/behavior before claiming zero downtime.
 
+### Uncertain Assumptions a Reviewer MUST Verify (NATS cluster-route auth plan, issue #306 — unverified)
+
+No code was run this session; these are blocking questions, not settled facts. This is the
+highest-value content of the #306 learning.
+
+1. **HIGHEST RISK — the NATS cluster-route AUTHENTICATION MECHANISM.** The plan asserts cluster
+   routes authenticate via a shared `authorization { token = ... }` block INSIDE `cluster{}`, and
+   that per-route NKey/JWT is NOT supported for routes the way it is for leafnodes. This was written
+   from memory and NOT verified against NATS docs or a running nats-server. A reviewer/implementer
+   MUST confirm: (a) `authorization{}` inside `cluster{}` is the correct block (vs a top-level or
+   account-level mechanism), (b) the token form actually gates route peers, (c) `$NATS_CLUSTER_TOKEN`
+   env substitution resolves inside the cluster block. **If the mechanism is wrong, the whole fix is
+   wrong.**
+2. **Brace-depth awk parser is UNTESTED.** The `extract_block`/`block()` parser tracking brace depth
+   was written but NOT executed this session. Known fragility: it assumes `{`/`}` appear ONLY as block
+   delimiters — a brace inside a quoted string, or a same-line `cluster { ... }` one-liner, could
+   miscount depth. The both-directions test (exit 0 on fixed, exit 1 on current) is specified but not
+   run. The reviewer should ACTUALLY run the validator + its test, not trust the code by reading it.
+3. **CI integration assumptions may have drifted.** The plan claims the CI `validate` job
+   (`.github/workflows/ci.yml`) does NOT call `just validate-configs` (it inlines yamllint), that
+   `just` is installed at `ci.yml:40-44`, and that root `just lint` shellcheck-gates new `*.sh` via
+   `git ls-files`. These were read once; the line refs drift. Confirm the new explicit CI step lands
+   in the right job and that `bash tools/...` paths resolve from repo root in CI.
+4. **Stale issue coordinates were reconciled — but re-confirm before editing.** Verified this session:
+   `cluster{}` at `server.conf:36-46`, the validator absent, neither client nor leaf authed. Line
+   numbers still drift between sessions; re-grep before applying the diff.
+5. **Scope boundary — cluster ONLY, no sibling-auth retrofit.** The plan deliberately does NOT add
+   client/leaf `authorization{}` (that belongs to the un-landed #176). Confirm the gate asserts ONLY
+   the cluster block and does not fail-closed on the legitimately auth-less client/leaf listeners.
+
+**Reusable planning pattern (generalizes beyond NATS):** when an issue says "extend existing tool X
+with check N", FIRST verify X exists and that checks 1..N-1 exist. If they don't, the honest plan
+creates X fresh and scopes to ONLY the invariant the issue names — explicitly NOT retrofitting the
+absent sibling invariants (silently adding them would fail-closed on legitimately exempt cases and
+expand scope past what the issue asked).
+
+```yaml
+# PROPOSED NATS cluster-route auth (server.conf cluster{} block) — issue #306
+nats_cluster_route_auth:
+  listener: "cluster{} route listener, port 6222 — THIRD listener after client (4222) + leafnode (7422)"
+  current_state: "TLS only per ADR-008; NO authorization{} (grepped live: cluster{} at server.conf:36-46)"
+  fix: 'add authorization { token = "$NATS_CLUSTER_TOKEN" } INSIDE cluster{} (not top-level)'
+  validator: "tools/validate-nats-auth.sh — created FRESH (does NOT exist); brace-depth block() extractor"
+  ci_integration: "ci.yml validate job inlines yamllint, does NOT call just validate-configs — add explicit `bash tools/validate-nats-auth.sh` step"
+  shellcheck: "root just lint shellcheck-gates new *.sh via git ls-files — script must pass shellcheck + be chmod +x"
+  adr: "new append-only ADR-009; never edit accepted ADRs"
+  deployment_doc: "document $NATS_CLUSTER_TOKEN in deployment.md alongside other $NATS_* tokens"
+  scope: "cluster listener ONLY — do NOT retrofit absent client/leaf auth (belongs to un-landed #176)"
+  highest_reviewer_risk: "the cluster-route auth MECHANISM (authorization{} inside cluster{}, token gates routes, $NATS_CLUSTER_TOKEN resolves) — written from memory, NOT confirmed against NATS docs/running server"
+  verification: "unverified — no code run, no CI; brace-depth parser + both-directions test specified but not executed"
+```
+
 ```yaml
 # PROPOSED Grafana anon-hardening env (docker-compose.e2e.yml grafana service) — issue #206
 grafana_anon_hardening_env:
@@ -995,3 +1155,4 @@ config_auth_gate:
 | Odysseus | Plan R2 for issue #154 (Argus distroless dashboard healthcheck, post-NOGO) | unverified planning learning — distroless `static` images have no shell/wget; use binary self-probe `["CMD","/<binary>","-healthcheck"]`; `docker compose config` validates structure only. No container built or observed healthy |
 | Odysseus | Plan for issue #206 (Grafana anonymous-access hardening, docker-compose.e2e.yml) | unverified planning learning — disable `GF_AUTH_ANONYMOUS_ENABLED`, remove dead `GF_AUTH_ANONYMOUS_ORG_ROLE`, add env-overridable admin creds. Load-bearing untested assumption: `/api/health` stays unauthenticated with anon off so e2e probes survive. No container run |
 | Odysseus | Plan for issue #208 (NATS TLS security runbook — cert provisioning, rotation, compromise) | unverified planning learning — adds `docs/runbooks/nats-security.md` + README row. KEY correction: ADR-008 already added TLS to the configs (the #176-era "credential-less" premise is stale). `step` flags, SIGHUP cert hot-reload, and `/varz` `tls_required` key all written from memory (reviewer-must-verify). `.gitignore` cert-key coverage VERIFIED grepped. No commands run |
+| Odysseus | Plan for issue #306 (NATS cluster{} route-listener auth, port 6222) | unverified planning learning — adds `authorization { token = "$NATS_CLUSTER_TOKEN" }` INSIDE cluster{} (the THIRD listener after client + leafnode), creates `tools/validate-nats-auth.sh` FRESH (brace-depth block() extractor; does NOT exist), wires it into `just validate-configs` + an explicit CI step, writes ADR-009, documents the env token in deployment.md. KEY reconciliation: issue's coordinates ALL stale — real cluster{} at server.conf:36-46 (not 54-64), the validator does not exist, neither client nor leaf is actually authed (TLS only per ADR-008; #176 leaf-auth never merged). HIGHEST reviewer risk: the cluster-route auth MECHANISM written from memory (unverified vs NATS docs/running server). No code run, no CI |

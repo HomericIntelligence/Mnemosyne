@@ -5,6 +5,25 @@ This file preserves the full content of every skill absorbed into the canonical
 
 ---
 
+## v1.6.0 (2026-06-20)
+
+**Changed by:** Planning learning from issue #306 (harden the NATS `cluster{}` route listener on port 6222 — it has TLS per ADR-008 but no `authorization{}`) — Odysseus session
+**Verification:** unverified (planning learning only; no code run, no CI). The NATS cluster-route authentication MECHANISM (`authorization { token = ... }` inside `cluster{}`, `$NATS_CLUSTER_TOKEN` env substitution resolving inside the cluster block, token gating route peers) was written from memory and NOT verified against NATS docs or a running nats-server. The brace-depth awk validator and the CI-integration claims were NOT executed this session. The single exception: the stale-coordinate reconciliation (cluster{} at server.conf:36-46, validator absent, neither client nor leaf authed) WAS grepped against the live `configs/nats/server.conf` + `tools/` this session and is TRUE.
+
+### What changed
+- Bumped version 1.5.0 → 1.6.0 (MINOR — new findings + Failed-Attempts rows + a new clearly-flagged unverified section + new reviewer-risk catalogue; no breaking removals)
+- Kept `date` 2026-06-20; retained `history` frontmatter field and `verification: unverified` (overall)
+- Extended `description` with a (10) trigger for the NATS cluster-route-listener auth planning (#306); added When-to-Use bullet; added tags cluster-route/route-listener/validate-nats-auth
+- Updated Overview Outcome + Verification rows to record the unverified #306 cluster-auth plan AND the stale-issue-coordinates reconciliation (issue cited server.conf:54-64 + a pre-existing validate-nats-auth.sh + "client/leaf hardened in this PR" — ALL stale: real cluster{} is at 36-46, 52-55 is the commented monitoring_authorization, the validator does NOT exist, and NEITHER client nor leaf listener actually has authorization{} — TLS only per ADR-008; the #176 leaf-auth was never merged)
+- Added a new section **"Proposed Workflow — NATS Cluster-Route Listener Auth (UNVERIFIED, issue #306)"**: the cluster{} block is the THIRD NATS listener after client + leafnode, reusing the exact same brace-depth validator + env-token + per-block-assertion patterns; the plan adds `authorization { token = "$NATS_CLUSTER_TOKEN" }` to cluster{}, creates the validator FRESH (it does not exist), wires it into `just validate-configs` + an EXPLICIT CI step, writes ADR-009, documents the env token in deployment.md
+- Added the reviewer-risk catalogue for #306 (cluster-auth mechanism is the highest-risk unverified claim; brace-depth awk parser untested; CI-integration line refs may drift; scope-to-cluster-only)
+- Added 3 Failed-Attempts rows: trusting issue line numbers / referenced tooling / "already-done in prior PR" claims verbatim (all stale); assuming the validator-to-extend exists when "extend tool X with check N" is requested; asserting the NATS cluster-route auth mechanism from memory
+- Added the reusable planning pattern: when an issue says "extend tool X with check N", FIRST verify X exists and checks 1..N-1 exist; if absent, create X fresh and scope to ONLY the named invariant — do NOT silently retrofit absent sibling auth (it belongs to the un-landed parent #176 and would fail-closed on legitimately auth-less listeners)
+
+(v1.5.0 full snapshot preserved below.)
+
+---
+
 ## v1.5.0 (2026-06-20)
 
 **Changed by:** Planning learning from issue #208 (§9: no runbook for NATS authentication setup or certificate rotation) — Odysseus session
