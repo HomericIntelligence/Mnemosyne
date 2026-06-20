@@ -3,7 +3,8 @@ name: cpp-httplib-prerouting-audit-event-planning
 description: "Use when planning (not yet implementing) a feature that emits an audit/log event to NATS from a cpp-httplib pre-routing handler in a C++ service: (1) injecting a long-lived dependency (rate limiter, publisher) into set_pre_routing_handler, (2) rate-limiting events per client IP, (3) reusing a high-level publish_log/NATS envelope wrapper, (4) adding client IP (remote_addr) to a payload that triggers PII-audit-doc maintenance, (5) deciding test doubles for a fire-and-forget publisher."
 category: architecture
 date: 2026-06-19
-version: "1.0.0"
+version: "1.1.0"
+history: cpp-httplib-prerouting-audit-event-planning.history
 user-invocable: false
 verification: unverified
 tags: [cpp, cpp-httplib, pre-routing, nats, audit, rate-limiter, pii, planning, lambda-capture, agamemnon]
@@ -131,6 +132,84 @@ These assumptions were relied upon during planning but were NOT verified against
 - `FakeNatsPublisher::publish_log` was read and records subject only (true at read time). Substituting the fixture's real `NatsClient` with `FakeNatsPublisher` should be compatible with `Orchestrator`'s constructor (it takes a `NatsPublisher&`), but the substitution was not compiled.
 - `validate_plugins.py`'s exact required section names were not known at plan time — run it and adapt the section headings to whatever it enforces.
 
+### Step 8 — Caller fan-out has a glob blind spot: enumerate by file:line, never pattern-match (NOGO remediation)
+
+When a shared registrar (e.g. `register_routes`) gains a parameter, EVERY call site must be updated or the build breaks. A NOGO occurred because v1.0.0's plan described the fan-out as "update `test_routes*.cpp` callers (mechanical/glob)" — but:
+
+- one file (`test_routes.cpp`) had **TWO** call sites, and
+- a caller named `test_validation.cpp` did **NOT** match the `test_routes*` glob and would have been silently missed.
+
+**Lesson:** run the literal grep and ENUMERATE every hit by `file:line` in the plan — never describe the fan-out by a narrowing filename glob.
+
+```bash
+grep -rn "register_routes(" src/ test/ include/
+```
+
+Finish the implementation step with a **confirming re-grep** that returns zero remaining old-arity sites.
+
+### Step 9 — Test fixtures have heterogeneous ownership patterns: bespoke edit per fixture, not copy-paste (NOGO remediation)
+
+Across the caller files the dependency lifetime style varies. Some declare it as a stack member:
+
+```cpp
+RateLimiter rate_limiter_{1e9, 1e9};   // stack member
+```
+
+while the integration fixture uses heap-allocated inline-static pointers:
+
+```cpp
+inline static RateLimiter* rate_limiter_ = nullptr;   // declaration
+// SetUpTestSuite:  rate_limiter_ = new RateLimiter(...);
+// TearDownTestSuite: delete rate_limiter_; rate_limiter_ = nullptr;
+```
+
+Adding a new injected dependency requires matching **EACH** fixture's existing lifetime style, citing the exact member-declaration line (and the alloc/free/decl lines for the heap case). A blanket "add a `RateLimiter` member" instruction will **not compile** in the heap fixture.
+
+### Step 10 — Subject-only assertions do not verify field-level acceptance criteria: capture the payload (NOGO remediation)
+
+A NOGO finding: the recording fake (`FakeNatsPublisher`) stored only the publish **subject** for log calls, so the test proved "an event fired" but NOT that the required fields (`remote_addr` / `path` / `method`) were present and correct — and those fields are **literal acceptance criteria**.
+
+**Fix pattern:** extend the fake with a struct that captures the full call (subject + level + message + metadata json), mirroring the struct it already uses for its other publish method, then assert exact field values:
+
+```cpp
+struct LogCall { std::string subject, level, message; nlohmann::json metadata; };
+std::vector<LogCall> log_calls;
+```
+
+```cpp
+ASSERT_EQ(fake.log_calls.size(), 1);
+EXPECT_EQ(fake.log_calls[0].metadata["remote_addr"], "127.0.0.1");
+EXPECT_EQ(fake.log_calls[0].metadata["path"], "/v1/...");
+EXPECT_EQ(fake.log_calls[0].metadata["method"], "GET");
+// Negative assertion: the envelope wrapper stamps timestamp, so it must be ABSENT here.
+EXPECT_FALSE(fake.log_calls[0].metadata.contains("timestamp"));
+```
+
+**General lesson:** map every literal field in the acceptance criteria to an automated assertion, not code inspection.
+
+### Step 11 — Extending a shared test double is a mini fan-out of its own (NOGO remediation)
+
+Changing `FakeNatsPublisher::log_calls` from `vector<string>` (subjects) to `vector<LogCall>` (structs) can break any existing reader that iterates it as strings. Before changing a widely-included test header:
+
+```bash
+grep -rn "log_calls" test/
+```
+
+Migrate every reader to `.subject`. Provide a `has_log_subject()` convenience to minimize churn.
+
+### Step 12 — Self-disclose unverified assumptions to earn reviewer trust (NOGO remediation)
+
+The reviewer explicitly credited the plan for flagging "the caller fan-out grep was not run" and "line numbers are approximate," which downgraded two would-be **majors** into recoverable **minors**. **Lesson:** state your unverified reliances explicitly — it lowers the severity of any gap the reviewer finds and earns trust, versus silent assumptions that read as errors.
+
+### Risks (re-plan v1.1.0 — uncertain/unverified reliances)
+
+These reliances were carried into the re-plan but NOT build-verified; confirm against HEAD during implementation:
+
+- All file:line numbers (`routes.cpp`, `nats_client.cpp`, the 9 caller sites, PII-audit lines 124/144/151/173) were read once but NOT re-verified against HEAD at plan-finalization — line drift possible.
+- The plan was NOT compiled. The `FakeNatsPublisher` struct change, the `LogCall` field types, and substituting `FakeNatsPublisher` for the real `NatsClient` in fixtures (relying on `Orchestrator` taking a `NatsPublisher&`) are inferred-correct, not build-verified.
+- `req.method` / `req.path` / `req.remote_addr` field names on cpp-httplib's `Request` are assumed — spot-check against the httplib version vendored in the repo.
+- `validate_plugins.py`'s exact required section names were not re-verified for the amend path — run it and obey it.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -140,6 +219,9 @@ These assumptions were relied upon during planning but were NOT verified against
 | Construct the limiter as a stack local inside the registrar | `RateLimiter audit_limiter(1.0,1.0);` declared inside `register_routes` then captured | The handler lambda outlives the registrar, so the local is destroyed while the lambda copy still references it | Make the dependency long-lived (owned by `main()`), pass by reference through the registrar signature |
 | Assert the emit via the down-broker integration fixture | Real `NatsClient` against a DOWN broker, then assert the event was published | The fire-and-forget publisher swallows broker failures, so nothing observable proves the emit | Use the recording `FakeNatsPublisher` (records subjects); flag that it does not capture payload/metadata |
 | Add `remote_addr` to the payload without touching the PII audit doc | Serialize client IP into metadata and ship | An existing PII audit doc asserting "no IPs serialized" becomes silently false | Treat updating the PII/security audit doc as a required deliverable and acceptance criterion |
+| Describe caller fan-out by filename glob (`test_routes*.cpp`) | Planned "update `test_routes*.cpp` callers (mechanical/glob)" | Glob missed `test_validation.cpp` and the 2nd call site inside `test_routes.cpp` — both would have broken the build | NOGO — enumerate every `grep -rn "register_routes(" src/ test/ include/` hit by file:line; never narrow the fan-out by a filename glob |
+| Assert only the NATS subject in the test | Count published subjects on `FakeNatsPublisher` to prove the emit | Subject count proves the event fired but NOT that required fields (`remote_addr`/`path`/`method`) are correct — they are literal acceptance criteria | NOGO — extend the fake to record payload metadata; assert each field value plus a negative timestamp-absence assertion |
+| Assume all fixtures share the same DI lifetime style | Plan a single "add a `RateLimiter` member" edit for every caller | The integration fixture used heap inline-static pointers (`new`/`delete`/`nullptr`), not a stack member; a stack-member edit would not compile there | Match each fixture's existing ownership pattern individually, citing its member-declaration (and alloc/free) lines |
 
 ## Results & Parameters
 
