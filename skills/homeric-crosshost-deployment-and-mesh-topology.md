@@ -1,9 +1,9 @@
 ---
 name: homeric-crosshost-deployment-and-mesh-topology
-description: "Deploy and operate the HomericIntelligence mesh across multiple Tailscale hosts using NATS JetStream, compose overlays, and justfile launchers. Use when: (1) splitting the E2E stack across multiple physical hosts via compose overlay or per-component launchers, (2) bringing up Agamemnon/Nestor/Hermes natively or via containers on any new Tailnet host from cold state, (3) running hub+remote-worker topology for cross-host myrmidon dispatch, (4) configuring NATS connections (direct or leafnode) over Tailscale, (5) implementing NATS JetStream publish retry with exponential backoff, (6) debugging Hermes webhook event types, compose healthchecks, or podman rootlessport/DNS quirks, (7) PLANNING credential-based authentication for a credential-less NATS leaf/server config and scrutinizing the uncertain assumptions a reviewer must verify in such a plan."
+description: "Deploy and operate the HomericIntelligence mesh across multiple Tailscale hosts using NATS JetStream, compose overlays, and justfile launchers. Use when: (1) splitting the E2E stack across multiple physical hosts via compose overlay or per-component launchers, (2) bringing up Agamemnon/Nestor/Hermes natively or via containers on any new Tailnet host from cold state, (3) running hub+remote-worker topology for cross-host myrmidon dispatch, (4) configuring NATS connections (direct or leafnode) over Tailscale, (5) implementing NATS JetStream publish retry with exponential backoff, (6) debugging Hermes webhook event types, compose healthchecks, or podman rootlessport/DNS quirks, (7) PLANNING credential-based authentication for a credential-less NATS leaf/server config and scrutinizing the uncertain assumptions a reviewer must verify in such a plan, (8) PLANNING Grafana anonymous-access hardening in the e2e compose stack (disable anonymous, fall back to admin login) and scrutinizing the unverified health-probe/provisioning assumptions a reviewer must confirm."
 category: architecture
 date: 2026-06-20
-version: "1.3.0"
+version: "1.4.0"
 user-invocable: false
 verification: unverified
 history: homeric-crosshost-deployment-and-mesh-topology.history
@@ -43,6 +43,10 @@ tags:
   - planning
   - reviewer-risks
   - adr
+  - grafana
+  - anonymous-access
+  - observability
+  - hardening
 ---
 
 # HomericIntelligence Cross-Host Deployment and Mesh Topology
@@ -53,8 +57,8 @@ tags:
 | ------- | ------- |
 | **Date** | 2026-06-20 |
 | **Objective** | Deploy and operate the HomericIntelligence mesh across multiple Tailscale hosts using NATS JetStream, compose overlays, justfile launchers, and resilient publish patterns; and plan credential-based authentication for the credential-less NATS leaf/server config |
-| **Outcome** | Deployment patterns verified-local (two-host + 6-host). The NATS leaf/server auth fix is still an UNVERIFIED PLAN for issue #176 (R1, post-NOGO) — the full plan was not run end-to-end and no CI passed. BUT the config-block-presence validator was PROTOTYPED this session (verified-local: exit 0 on the fixed fixture, exit 1 on the repo's current configs). The plan's highest-value content remains its catalogue of uncertain assumptions a reviewer must verify, now sharpened by concrete NOGO causes. |
-| **Verification** | unverified OVERALL for the NATS auth-planning section (the full plan was not exercised end-to-end); the brace-depth config-block validator specifically is verified-local (prototyped 2026-06-19 against fixed + current fixtures). Verified-local for all prior deployment content (Odysseus sessions 2026-04-03 to 2026-05-03). |
+| **Outcome** | Deployment patterns verified-local (two-host + 6-host). The NATS leaf/server auth fix is still an UNVERIFIED PLAN for issue #176 (R1, post-NOGO) — the full plan was not run end-to-end and no CI passed. BUT the config-block-presence validator was PROTOTYPED this session (verified-local: exit 0 on the fixed fixture, exit 1 on the repo's current configs). The Grafana anonymous-access hardening (issue #206) is an UNVERIFIED PLAN — no container was run; the load-bearing untested assumption is that Grafana's `/api/health` stays unauthenticated when anonymous access is disabled (so e2e health probes survive). The plan's highest-value content remains its catalogue of uncertain assumptions a reviewer must verify, now sharpened by concrete NOGO causes. |
+| **Verification** | unverified OVERALL for the NATS auth-planning section (the full plan was not exercised end-to-end); the brace-depth config-block validator specifically is verified-local (prototyped 2026-06-19 against fixed + current fixtures). The Grafana anonymous-access hardening subsection is unverified (no container run; `/api/health`-unaffected claim untested). Verified-local for all prior deployment content (Odysseus sessions 2026-04-03 to 2026-05-03). |
 | **History** | [changelog](./homeric-crosshost-deployment-and-mesh-topology.history) |
 
 ## When to Use
@@ -68,6 +72,7 @@ tags:
 - Implementing NATS JetStream publish retry with exponential backoff and jitter in Python
 - Debugging cross-host service communication, NATS leafnode config, or podman networking issues
 - Planning credential-based authentication for the canonical credential-less `configs/nats/leaf.conf` + `server.conf` (issue #176) and reviewing such a plan for unverified assumptions
+- Planning Grafana anonymous-access hardening in `docker-compose.e2e.yml` (issue #206) — disabling `GF_AUTH_ANONYMOUS_ENABLED`, falling back to admin login, and reviewing the unverified `/api/health` / provisioning assumptions
 
 ## Verified Workflow
 
@@ -422,6 +427,74 @@ environment:
   - GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES=false
 ```
 
+#### Grafana anonymous-access hardening (planning learning, UNVERIFIED, issue #206)
+
+> **Warning:** This subsection is an UNVERIFIED PLAN. No container was run this
+> session. The load-bearing untested assumption is that Grafana's `/api/health`
+> endpoint stays unauthenticated when anonymous access is disabled — so the e2e
+> health probes keep working. Treat every claim as a hypothesis until a runtime
+> `up -d grafana` + curl confirms it. Re-grep all cited line numbers before
+> editing; they drift.
+
+The Odysseus e2e compose stack ships Grafana with anonymous viewer access enabled.
+To CLOSE that (issue #206 asks to *disable*, not downgrade to a lower role):
+
+```yaml
+# docker-compose.e2e.yml — grafana service environment (PROPOSED)
+environment:
+  - GF_AUTH_ANONYMOUS_ENABLED=false                     # disable anonymous access
+  # REMOVE GF_AUTH_ANONYMOUS_ORG_ROLE entirely — it is DEAD config once anon is off
+  # With anon off, Grafana falls back to login → MUST supply an admin credential:
+  - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+  - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+```
+
+**Pattern rules (reusable across HomericIntelligence compose stacks):**
+
+1. To disable anonymous access set `GF_AUTH_ANONYMOUS_ENABLED: "false"` AND **remove**
+   `GF_AUTH_ANONYMOUS_ORG_ROLE` — once anonymous is off the role var is dead config and
+   leaving it invites a reviewer to think anonymous is merely downgraded, not disabled.
+2. With anonymous off Grafana falls back to its login screen, so the stack MUST provide an
+   admin credential. Use env-overridable defaults
+   (`${GRAFANA_ADMIN_USER:-admin}` / `${GRAFANA_ADMIN_PASSWORD:-admin}`) to keep the e2e
+   stack one-command. The `admin/admin` default is a DELIBERATE trade-off — name it
+   explicitly so a reviewer can object; it is overridable via env, but the bootstrap default
+   can silently become the permanent posture (same shape as the NATS shared-token risk above).
+3. **KEY UNVERIFIED ASSUMPTION (highest reviewer risk):** Grafana's `/api/health` is
+   unauthenticated REGARDLESS of anonymous-access settings, so disabling anon does NOT break
+   the e2e health probes (`e2e/run-hello-world.sh`, `run-crosshost-e2e.sh`,
+   `run-hermes-hub-e2e.sh`, `e2e/doctor.sh` all curl `:3001/api/health`). This was asserted
+   from Grafana docs knowledge, NOT verified in-session. A reviewer/implementer MUST confirm
+   at runtime that `/api/health` still returns `database=ok` with anon disabled.
+4. **SECOND UNVERIFIED ASSUMPTION:** dashboards/datasources are file-provisioned via read-only
+   volume mounts (`/etc/grafana/provisioning`), so they do NOT depend on the anonymous API and
+   survive the change. Confirm provisioning still loads after login is required.
+
+**Scoping (and its risk):** the plan changes ONLY `docker-compose.e2e.yml` at the Odysseus
+root. Evidence: the overlays (`docker-compose.crosshost.yml`, `e2e/docker-compose.*.yml`)
+define no grafana service; `build/.worktrees/*` are throwaway; ProjectArgus/ProjectKeystone are
+separate submodules out of scope (sibling `provisioning/ProjectKeystone/k8s/grafana.yaml` is a
+different deployment surface). The issue names `docker-compose.e2e.yml` at the Odysseus root.
+**Reviewer risk:** confirm no other CANONICAL compose file in the Odysseus root re-enables
+anonymous Grafana, and that the per-issue submodule boundary is correct.
+
+**Verification discipline — structural compose validation is NOT runtime validation:**
+
+```bash
+# compose config passing proves SYNTAX ONLY — it never starts Grafana or probes health.
+podman compose -f docker-compose.e2e.yml config >/dev/null   # syntax only — NOT proof
+
+# The load-bearing claim (health probe still green with anon off) needs an ACTUAL run:
+podman compose -f docker-compose.e2e.yml up -d grafana
+curl -s http://localhost:3001/api/health    # MUST still return {"database":"ok",...}
+# And confirm provisioning survived login-required mode (datasources/dashboards present).
+```
+
+Cited line numbers seen once this session (may have drifted — re-grep before editing):
+`docker-compose.e2e.yml:154-155` (`GF_AUTH_ANONYMOUS_ENABLED`), `:153-159` (anon block),
+`:160-162` (admin creds region), sibling `provisioning/ProjectKeystone/k8s/grafana.yaml:95,100-101`,
+`docs/e2e-walkthrough-report.md:290`.
+
 ### Compose Healthchecks (Dual-Runtime: podman-compose 1.5.0 + Docker Compose v2/v5)
 
 ```yaml
@@ -533,6 +606,10 @@ pkill -f ProjectNestor_server    || kill $(pgrep -f ProjectNestor_server)
 | `wget` healthcheck against a distroless app image | Used `["CMD","wget","-qO-","http://localhost:PORT/healthz"]` (matching sibling services that use slim/alpine images) on a service whose runtime is `gcr.io/distroless/static-debian12:nonroot` | Distroless `static` images have NO shell, wget, busybox, or any external tool — the healthcheck command does not exist in the container, so it fails permanently and the container never reports `healthy` | A wget/curl/sh healthcheck is unusable on a distroless runtime. Use a binary self-probe `["CMD","/<binary>","-healthcheck"]`; the app binary must expose a healthcheck flag that does a localhost GET and exits 0/1. Compose healthchecks always run INSIDE the container — there is no shell-free external option |
 | Trusting `docker compose config` as proof the healthcheck works | Plan's verification ran `docker compose config` and passed, treated as evidence the service would be healthy | `docker compose config` only validates STRUCTURE/syntax — it never executes the healthcheck command, so a healthcheck pointing at a nonexistent binary (wget in distroless) passes config but fails at runtime | Structural compose validation is NOT runtime validation. For a healthcheck on a distroless image, separately assert the probe does not shell out to wget/sh AND (post-build) assert the container actually reaches `healthy` |
 | "matches every existing service" reasoning for healthcheck form | Justified the wget array healthcheck because 4 sibling services use the identical form | The siblings run slim/alpine images (wget present); the new service runs distroless (wget absent) — the convention does not transfer across base-image families | Convention-matching is only valid when the BASE IMAGE family matches. Check the target service's runtime image before copying a sibling's healthcheck |
+| Downgrade Grafana anon to Viewer instead of disabling | Kept `GF_AUTH_ANONYMOUS_ENABLED` on and set `GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer` | Issue #206 asks to DISABLE anonymous access, not downgrade the anonymous role — anonymous read access still exists | To disable anonymous access set `GF_AUTH_ANONYMOUS_ENABLED: "false"`; downgrading the org role still leaves anonymous access open |
+| Left `GF_AUTH_ANONYMOUS_ORG_ROLE` after disabling anon | Set `GF_AUTH_ANONYMOUS_ENABLED=false` but kept the org-role var | Once anonymous is off the role var is dead config; it misleads a reviewer into thinking anonymous is only downgraded | REMOVE `GF_AUTH_ANONYMOUS_ORG_ROLE` when disabling anonymous — it has no effect and obscures intent |
+| Disabling Grafana anon without an admin credential | Set `GF_AUTH_ANONYMOUS_ENABLED=false` with no `GF_SECURITY_ADMIN_*` | With anon off Grafana falls back to the login screen; no usable credential means a locked-out e2e stack | Supply env-overridable admin creds (`${GRAFANA_ADMIN_USER:-admin}`/`${GRAFANA_ADMIN_PASSWORD:-admin}`) so the one-command e2e stack still logs in |
+| Assuming `compose config` proves the Grafana health probe still works | Ran `compose config` (syntax OK) and treated it as proof `:3001/api/health` survives anon disable | `compose config` validates structure only — it never starts Grafana or curls health; the `/api/health`-unaffected claim is untested | Structural compose validation is NOT runtime validation. Actually `up -d grafana` + curl `/api/health` (expect `database=ok`) before claiming probes survive |
 
 ## Results & Parameters
 
@@ -663,6 +740,45 @@ These are the durable PLANNING lessons the NOGO cycle taught — independent of 
   correctness from the actual base image, don't copy blindly. (This generalizes the prior "issue
   snippet ≠ literal diff" lesson already in the skill from the duplicate-recipe learning.)
 
+### Uncertain Assumptions a Reviewer MUST Verify (Grafana anon-access plan, issue #206 — unverified)
+
+No container was run this session; these are blocking questions, not settled facts.
+
+1. **HIGHEST RISK — `/api/health` is unauthenticated regardless of anon settings.** The plan claims
+   disabling `GF_AUTH_ANONYMOUS_ENABLED` does NOT break the e2e health probes (`e2e/run-hello-world.sh`,
+   `run-crosshost-e2e.sh`, `run-hermes-hub-e2e.sh`, `e2e/doctor.sh` all curl `:3001/api/health`). This
+   was asserted from Grafana docs knowledge, NOT verified. Confirm at runtime that `/api/health` still
+   returns `database=ok` with anon disabled. If false, every health-check-gated e2e phase fails.
+2. **Provisioning survives login-required mode.** Dashboards/datasources are assumed file-provisioned
+   via read-only `/etc/grafana/provisioning` mounts that do not depend on the anonymous API. Confirm
+   provisioning still loads after login is required.
+3. **`admin/admin` default posture.** Env-overridable defaults keep the e2e stack one-command, but the
+   bootstrap default can silently become the permanent posture (same shape as the NATS shared-token
+   risk). Name the trade-off so a reviewer can object.
+4. **Scope boundary is correct.** Only `docker-compose.e2e.yml` at the Odysseus root changes. Confirm
+   no other CANONICAL root compose file re-enables anonymous Grafana, that the overlays
+   (`docker-compose.crosshost.yml`, `e2e/docker-compose.*.yml`) define no grafana service, and that
+   ProjectArgus/ProjectKeystone (separate submodules) are correctly out of scope.
+5. **`compose config` ≠ runtime proof.** Structural validation passing proves syntax only — it never
+   starts Grafana or probes health. The health-probe-still-green claim needs an actual `up -d grafana`
+   + curl, not config validation.
+6. **Cited line numbers may have drifted.** `docker-compose.e2e.yml:154-155`, `:153-159`, `:160-162`,
+   sibling `provisioning/ProjectKeystone/k8s/grafana.yaml:95,100-101`, `docs/e2e-walkthrough-report.md:290`
+   were read once. Re-grep before editing.
+
+```yaml
+# PROPOSED Grafana anon-hardening env (docker-compose.e2e.yml grafana service) — issue #206
+grafana_anon_hardening_env:
+  GF_AUTH_ANONYMOUS_ENABLED:    "false"                          # disable anonymous access
+  # REMOVE GF_AUTH_ANONYMOUS_ORG_ROLE — dead config once anon is off
+  GF_SECURITY_ADMIN_USER:       "${GRAFANA_ADMIN_USER:-admin}"   # login fallback; env-overridable
+  GF_SECURITY_ADMIN_PASSWORD:   "${GRAFANA_ADMIN_PASSWORD:-admin}"  # deliberate default trade-off
+  scope:           "docker-compose.e2e.yml at Odysseus root ONLY (overlays/submodules out of scope)"
+  load_bearing_assumption: "/api/health stays unauthenticated with anon off — UNTESTED, confirm at runtime"
+  runtime_check:   "podman compose -f docker-compose.e2e.yml up -d grafana && curl :3001/api/health  # expect database=ok"
+  verification:    "unverified — no container run; compose config validates syntax only, not health"
+```
+
 ```yaml
 # PROPOSED NATS auth env vars (mirror existing $NATS_MONITORING_PASSWORD pattern)
 nats_auth_env_vars:
@@ -698,3 +814,4 @@ config_auth_gate:
 | Odysseus | Plan for issue #176 (NATS leaf auth) | unverified plan — no code run, no CI; value is the reviewer-risk catalogue of uncertain assumptions |
 | Odysseus | Plan R1 for issue #176 (NATS leaf auth, post-NOGO) | validator prototyped verified-local (brace-depth `block()`: exit 0 on fixed fixture, exit 1 on current configs); full plan still unverified |
 | Odysseus | Plan R2 for issue #154 (Argus distroless dashboard healthcheck, post-NOGO) | unverified planning learning — distroless `static` images have no shell/wget; use binary self-probe `["CMD","/<binary>","-healthcheck"]`; `docker compose config` validates structure only. No container built or observed healthy |
+| Odysseus | Plan for issue #206 (Grafana anonymous-access hardening, docker-compose.e2e.yml) | unverified planning learning — disable `GF_AUTH_ANONYMOUS_ENABLED`, remove dead `GF_AUTH_ANONYMOUS_ORG_ROLE`, add env-overridable admin creds. Load-bearing untested assumption: `/api/health` stays unauthenticated with anon off so e2e probes survive. No container run |
