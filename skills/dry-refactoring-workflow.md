@@ -1,9 +1,9 @@
 ---
 name: dry-refactoring-workflow
-description: "Complete TDD-driven workflow for identifying and eliminating code duplication by extracting reusable helper methods. Use when: (1) extracting duplicated helper methods into a shared module using TDD (write a failing test against the canonical, delete the duplicate, run green); (2) creating a private leaf module with leading-underscore naming to centralize a repeated internal call (e.g. importlib.metadata version resolution, path construction) and prevent re-introduction across modules; (3) centralizing hardcoded path constants into a single module to prevent drift when directory structure changes (incl. phase-routed in_progress/completed splits); (4) deduplicating LLM JSON extraction, parser logic, or any call-site pattern copy-pasted across several files; (5) test structure must mirror source structure when extracting helpers; (6) running a full DRY consolidation pass (discovery via grep, classifying true duplicates vs intentional variants, dict-structure consolidation) and refactoring to a single canonical source; (7) extract-method / SRP decomposition of over-long functions (50-LOC) and methods (100-LOC), including converting a mutating closure into a method via a small mutable box; (8) extracting repeated cached lookups into an @lru_cache helper (and clearing the cache so unittest.mock.patch works); (9) removing stale scripts / deprecated stubs (grep callers first) and replacing hardcoded file lists with dynamic Path.rglob discovery; (10) PLANNING a consolidation of two OVERLAPPING but not-identical constant collections (frozensets / keyword lists / error-pattern tuples) — classify true-duplicate vs intentional-variant first, then extract only the shared CORE into one canonical immutable constant and have each consumer compose CORE | its-own-extras, proving anti-drift with CORE.issubset(consumer) parity tests, instead of a flat merge that would violate a deliberate behavioral contract. (11) behavior-preserving duplicate cleanup across test fakes, tiny strategy/kernel modules, and validation wrappers: keep public module exports stable, centralize only identical mechanics, preserve local wrapper names/error messages, and verify with focused + full suites before opening a PR. Also covers cryptographic commit signing requirements in PR workflows. (12) stale issue body in dedup/consolidation tasks: issue 'Evidence:' sections go stale as prior PRs partially resolve them — grep the CURRENT state first; choose inlining over fixtures for pure bytes→str helpers; resolve remote branch divergence by pushing to a new branch rather than force-pushing or rebasing 84 conflicting commits."
+description: "Complete TDD-driven workflow for identifying and eliminating code duplication by extracting reusable helper methods. Use when: (1) extracting duplicated helper methods into a shared module using TDD (write a failing test against the canonical, delete the duplicate, run green); (2) creating a private leaf module with leading-underscore naming to centralize a repeated internal call (e.g. importlib.metadata version resolution, path construction) and prevent re-introduction across modules; (3) centralizing hardcoded path constants into a single module to prevent drift when directory structure changes (incl. phase-routed in_progress/completed splits); (4) deduplicating LLM JSON extraction, parser logic, or any call-site pattern copy-pasted across several files; (5) test structure must mirror source structure when extracting helpers; (6) running a full DRY consolidation pass (discovery via grep, classifying true duplicates vs intentional variants, dict-structure consolidation) and refactoring to a single canonical source; (7) extract-method / SRP decomposition of over-long functions (50-LOC) and methods (100-LOC), including converting a mutating closure into a method via a small mutable box; (8) extracting repeated cached lookups into an @lru_cache helper (and clearing the cache so unittest.mock.patch works); (9) removing stale scripts / deprecated stubs (grep callers first) and replacing hardcoded file lists with dynamic Path.rglob discovery; (10) PLANNING a consolidation of two OVERLAPPING but not-identical constant collections (frozensets / keyword lists / error-pattern tuples) — classify true-duplicate vs intentional-variant first, then extract only the shared CORE into one canonical immutable constant and have each consumer compose CORE | its-own-extras, proving anti-drift with CORE.issubset(consumer) parity tests, instead of a flat merge that would violate a deliberate behavioral contract. (11) behavior-preserving duplicate cleanup across test fakes, tiny strategy/kernel modules, and validation wrappers: keep public module exports stable, centralize only identical mechanics, preserve local wrapper names/error messages, and verify with focused + full suites before opening a PR. Also covers cryptographic commit signing requirements in PR workflows. (12) stale issue body in dedup/consolidation tasks: issue 'Evidence:' sections go stale as prior PRs partially resolve them — grep the CURRENT state first; choose inlining over fixtures for pure bytes→str helpers; resolve remote branch divergence by pushing to a new branch rather than force-pushing or rebasing 84 conflicting commits. (13) PLANNING a behavior-preserving method→free-function extraction when the duplicated method is a patched test seam — grep patch.object(.*\"_method\") BEFORE planning any deletion (a method patched at many call sites must be KEPT as a one-line thin wrapper delegating to the new free function, never deleted, or every patch target breaks); read the actual test bodies to confirm which 'near-identical' differences (log level, an extra debug line, exception-message wording) are behavior-bearing vs incidental before collapsing copies (only safe to collapse logging when no test asserts log level/message); match the target module's established convention (free function taking explicit args, not a mixin/base-class method); hedge unverified import assumptions a planner did not execute (is pathlib.Path already imported? is there a 'from ._review_utils import ...' line to extend? is a cross-layer runtime import safe within the automation→library boundary AND absent from the base 'import hephaestus' surface?); and prove a pure extraction with a single-canonical-source grep that must return exactly one hit PLUS the PRE-EXISTING per-class behavioral suites staying green (the real acceptance gate, not the new structural tests)."
 category: architecture
-date: 2026-06-19
-version: "1.7.0"
+date: 2026-06-20
+version: "1.8.0"
 user-invocable: false
 verification: verified-ci
 history: dry-refactoring-workflow.history
@@ -16,9 +16,9 @@ Complete TDD-driven workflow for identifying and eliminating code duplication by
 
 | Attribute | Details |
 | ----------- | --------- |
-| **Date** | 2026-06-19 |
+| **Date** | 2026-06-20 |
 | **Objective** | TDD-driven extraction of duplicated code into reusable helper modules, with emphasis on private module placement, test structure mirroring, and cryptographic commit signing |
-| **Outcome** | ✅ v1.0.0 (Feb 2026): Eliminated token aggregation duplication. v1.1.0 (Jun 2026): Extended with private module patterns, test mirroring enforcement, signing requirements. v1.3.0 (Jun 2026): Absorbed centralized path constants, LLM JSON extraction dedup, full DRY consolidation discovery/classify pass, and canonical-source refactor patterns (Pydantic type hierarchy, dict-structure consolidation, orphan relocation). v1.4.0 (Jun 2026): Restored SRP/extract-method (mutable-box closure), @lru_cache detection util (mock.patch/cache_clear gotcha), stale-script/stub cleanup, and dynamic Path.rglob discovery patterns from the nuance audit. ⚠️ v1.5.0 (Jun 2026, **planning-only / unverified**): Added Phase 10 — planning a consolidation of OVERLAPPING constant collections via the core/extras split (CORE \| consumer-extras) with subset parity anti-drift tests, classifying intentional-variant-with-overlap separately from "do not consolidate". v1.6.0 (Jun 2026): Added Radiance behavior-preserving duplicate cleanup pattern for route-test fakes, layout-only metric kernels, validation field wrappers, and stale tool deletion; verified locally with Ruff, full pytest, compileall, diff check, and pre-push pytest; PR CI pending. v1.7.0 (Jun 2026): Added Phase 12 — stale issue body in dedup tasks (grep current state, don't trust 'Evidence:' section); inline vs fixture decision for pure bytes→str helpers; remote branch divergence resolution (new branch vs force-push). Verified CI via ProjectHermes PR #652. |
+| **Outcome** | ✅ v1.0.0 (Feb 2026): Eliminated token aggregation duplication. v1.1.0 (Jun 2026): Extended with private module patterns, test mirroring enforcement, signing requirements. v1.3.0 (Jun 2026): Absorbed centralized path constants, LLM JSON extraction dedup, full DRY consolidation discovery/classify pass, and canonical-source refactor patterns (Pydantic type hierarchy, dict-structure consolidation, orphan relocation). v1.4.0 (Jun 2026): Restored SRP/extract-method (mutable-box closure), @lru_cache detection util (mock.patch/cache_clear gotcha), stale-script/stub cleanup, and dynamic Path.rglob discovery patterns from the nuance audit. ⚠️ v1.5.0 (Jun 2026, **planning-only / unverified**): Added Phase 10 — planning a consolidation of OVERLAPPING constant collections via the core/extras split (CORE \| consumer-extras) with subset parity anti-drift tests, classifying intentional-variant-with-overlap separately from "do not consolidate". v1.6.0 (Jun 2026): Added Radiance behavior-preserving duplicate cleanup pattern for route-test fakes, layout-only metric kernels, validation field wrappers, and stale tool deletion; verified locally with Ruff, full pytest, compileall, diff check, and pre-push pytest; PR CI pending. v1.7.0 (Jun 2026): Added Phase 12 — stale issue body in dedup tasks (grep current state, don't trust 'Evidence:' section); inline vs fixture decision for pure bytes→str helpers; remote branch divergence resolution (new branch vs force-push). Verified CI via ProjectHermes PR #652. ⚠️ v1.8.0 (Jun 2026, **planning-only / unverified for the new phase**): Added Phase 13 — planning a behavior-preserving method→free-function extraction when the duplicated method is a patched test seam: grep `patch.object` before any deletion and keep each method as a thin wrapper; read tests to separate behavior-bearing diffs (log level/message) from incidental ones before collapsing; match the target module's free-function convention; hedge unverified import/boundary assumptions; verify by single-hit canonical grep + EXISTING behavioral suites green. Captured from ProjectHephaestus #1383 planning; NOT executed end-to-end. |
 | **Primary Issues** | #642 (original), #739 (private module extraction), #917 (pr-policy signing), #503 (LLM JSON dedup) |
 | **Primary PRs** | #714 (original), #900+ (refactoring), #137/#1738 (path constants), #505 (JSON dedup), #201 (DRY consolidation) |
 | **History** | [changelog](./dry-refactoring-workflow.history) |
@@ -64,6 +64,10 @@ Use this workflow when you encounter:
 - "The issue says 4 files have the duplicate but only one actually does — how to discover the current state?"
 - "Should I add a pytest fixture or just inline the shared helper call at each call site?"
 - "Remote rejected my push with non-fast-forward — the remote branch has a different solution; what now?"
+- "Extract a duplicated method into a shared free function, but the method is patched in tests — can I delete it?"
+- "Two near-identical methods differ only in log level / an extra debug line — safe to collapse into one helper?"
+- "Where should a shared cross-reviewer helper live — new leaf module, base class, or the existing `_review_utils.py`?"
+- "I'm planning a refactor but haven't run anything — which import/boundary assumptions must the reviewer double-check?"
 
 ## Verified Workflow
 
@@ -810,6 +814,92 @@ The remote branch's competing solution becomes a sibling PR. The project maintai
 whichever approach is preferred. This is safer than force-pushing because it preserves both
 solutions for review.
 
+### Phase 13: Planning a behavior-preserving method→free-function extraction when the method is a patched test seam (NEW in v1.8.0, PLANNING-ONLY)
+
+> **Warning:** This phase is a **proposed workflow** captured from PLANNING ProjectHephaestus
+> issue #1383. It was **NOT validated end-to-end** — no code was written, no tests were run,
+> and no CI confirmed it. Treat every step below as a hypothesis until CI confirms it on a
+> real PR. The rest of this skill is `verified-ci`; this phase alone is unverified.
+
+The #1383 plan extracts a duplicated `_load_impl_session_id` method (present on both `CIDriver`
+and `AddressReviewer`) into a shared free function
+`load_impl_session_id(state_dir, issue_number, agent)` in
+`hephaestus/automation/_review_utils.py`, with both classes delegating to it. The durable
+lessons below are about **planning** such an extraction safely, not the mechanics of writing it.
+
+#### 13a. Patch-by-name test seams force you to KEEP the method, not delete it
+
+When a duplicated method is patched via `patch.object(obj, "_method", ...)` at many call sites,
+deleting it during extraction breaks **every** patch target. In #1383 the method was patched at
+`test_ci_driver.py:789,830,848,884,2344,2358` and `test_address_review.py:680,714`. The correct
+move is to keep each method as a **one-line thin wrapper** that delegates to the new free
+function, preserving the seam:
+
+```python
+class CIDriver:
+    def _load_impl_session_id(self, issue_number: int, agent: str) -> str | None:
+        # Thin wrapper preserves the patch.object(...) test seam; logic lives in the free fn.
+        return load_impl_session_id(self.state_dir, issue_number, agent)
+```
+
+**Grep for `patch.object(.*"_method_name"` BEFORE planning the deletion.** This is the single
+most uncertain, highest-leverage assumption in such a plan — if any test patches the method by
+name, deletion is off the table.
+
+#### 13b. "Near-identical" methods usually differ in non-asserted ways — verify the test contract before collapsing
+
+The two #1383 copies were *not* byte-for-byte identical: they differed in the **log level** on
+the no-file branch (`logger.debug` vs `logger.warning`), one had an extra truncated-session debug
+line, and the exception-message wording differed. The plan chose to collapse to **one** logging
+style in the shared helper. That is only safe because **no unit test asserts log level or
+message** — verified by reading the actual test bodies (`test_ci_driver.py:126-132`,
+`test_address_review.py:103-111` assert only the `None` return value).
+
+**Lesson:** when consolidating "near-identical" code, *the differences are the risk*. Read the
+tests to confirm which differences are behavior-bearing vs incidental, and state explicitly in
+the plan what you collapsed and why it is safe.
+
+#### 13c. Reuse the target module's established convention
+
+`_review_utils.py` already houses cross-reviewer helpers as **free functions taking explicit
+args** (`find_pr_for_issue`, `instance_log`, `parse_json_block`). Matching that convention (a
+free function, not a new mixin or base-class method) is lower-risk than introducing a new sharing
+mechanism. **Grep the target module's existing helpers before choosing the extraction shape** —
+the module already tells you the idiom.
+
+#### 13d. Hedge the unverified external assumptions a planner did not execute
+
+A planning-only plan must flag the assumptions it relied on **without running anything**, so the
+reviewer/implementer double-checks them:
+
+- **Imports:** `_review_utils.py` may not already import `pathlib.Path` — say "add if not
+  present" rather than asserting it exists.
+- **Existing import lines:** both `ci_driver.py` and `address_review.py` are assumed to already
+  have a `from ._review_utils import ...` line to extend — say "verify and extend, else add".
+- **Cross-layer import safety:** the helper uses `session_agent_matches` from
+  `hephaestus.agents.runtime`. `_review_utils.py` is in the **automation** layer, so importing
+  from the **library** (`hephaestus.agents.runtime`) is the *allowed* direction
+  (automation → library). Confirm it does not create a circular import.
+- **Import-surface boundary:** `test_import_surface.py` / `test_automation_boundary.py` enforce
+  that base `import hephaestus` stays clean. Adding a runtime import to an automation-layer module
+  is fine, but the planner must confirm the new helper is **not** pulled into the base import
+  surface.
+
+#### 13e. Verification-by-criterion for a pure extraction
+
+Prove the two acceptance criteria explicitly:
+
+- **Single canonical source** — a grep that must return exactly **one** hit:
+
+  ```bash
+  grep -rn 'state_dir / f"issue-{issue_number}.json"' hephaestus/automation/   # expect: 1
+  ```
+
+- **Zero behavioral change** — run the **PRE-EXISTING per-class test suites unchanged**
+  (`test_ci_driver.py`, `test_address_review.py`), not just the new helper tests. The real
+  acceptance gate for a behavior-preserving refactor is the EXISTING behavioral tests staying
+  green; new structural tests for the free function are necessary but insufficient.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -841,6 +931,11 @@ solutions for review.
 | Trusting the issue body's "Evidence:" file list for a dedup scope | Assumed 4 files had `_sign()` per the issue; started planning a 4-file refactor | Prior PRs had partially resolved the issue — 3 of the 4 files had already migrated to the canonical `sign_body()`. Only 1 file had the wrapper remaining | **Grep first.** `grep -rn "def _sign"` shows current truth; the issue Evidence section reflects creation-time state, not current HEAD. |
 | Added a pytest fixture to conftest.py for a pure `bytes→str` HMAC helper | Wrapped `sign_body(body, INTEGRATION_TEST_SECRET)` as a pytest fixture so tests could receive it via DI | Introduced unnecessary indirection — the helper takes two args, one of which is a module-local constant, making the fixture callers less readable than just calling the function directly | For a pure `bytes→str` function closing over a local constant, **inline** the call (`sign_body(body_bytes, LOCAL_SECRET)`) at each call site; save fixtures for stateful or async setup |
 | Rebased onto the diverged remote branch that had a competing solution | `git pull origin 329-auto-impl` triggered a rebase with 84 commits and multiple conflicts | The remote had taken a different architectural approach; rebasing imported 84 unrelated commits and produced conflicts at every differing point | `git rebase --abort`; create a fresh local branch from current state; push as a new branch; open a new PR. The remote's competing solution becomes a sibling PR for maintainer review — don't overwrite it |
+| (PLANNING #1383) Delete the duplicated method after extracting it to a free function | Planned to remove `_load_impl_session_id` from both `CIDriver` and `AddressReviewer` once `load_impl_session_id` existed | The method is a **patched test seam** — `patch.object(obj, "_load_impl_session_id", ...)` at `test_ci_driver.py:789,830,848,884,2344,2358` and `test_address_review.py:680,714`. Deleting it breaks every patch target | Grep `patch.object(.*"_method"` BEFORE planning deletion. Keep each method as a one-line thin wrapper delegating to the new free function so the seam survives |
+| (PLANNING #1383) Collapse two "near-identical" methods' logging without checking the tests | The copies differed in log level (`logger.debug` vs `logger.warning`), an extra truncated-session debug line, and exception wording; plan collapsed to one logging style | "Near-identical" hides behavior-bearing diffs; collapsing logging is only safe if no test asserts log level/message | Read the actual test bodies (`test_ci_driver.py:126-132`, `test_address_review.py:103-111` assert only the `None` return) to confirm which diffs are incidental; state explicitly in the plan what you collapsed and why it's safe |
+| (PLANNING #1383) Invent a new sharing mechanism for the shared helper | Considered a mixin / base class for `load_impl_session_id` | The target module `_review_utils.py` already houses cross-reviewer helpers as free functions with explicit args (`find_pr_for_issue`, `instance_log`, `parse_json_block`); a new mechanism is higher-risk | Grep the target module's existing helpers and match its established convention (free function, explicit args) rather than introducing a mixin/base-class method |
+| (PLANNING #1383) Assert un-run imports/boundary facts as true in the plan | Wrote "Path is imported", "the `from ._review_utils import ...` line exists", "no boundary violation" without executing | A planning-only plan ran nothing; stating unverified facts as certain misleads the implementer/reviewer | Hedge: "add `pathlib.Path` if not present"; "verify-and-extend the existing import line, else add"; confirm the automation→library import (`hephaestus.agents.runtime`) is the allowed direction with no cycle and that the new helper stays out of the base `import hephaestus` surface (`test_import_surface.py` / `test_automation_boundary.py`) |
+| (PLANNING #1383) Accept new structural helper tests alone as proof of a behavior-preserving refactor | Planned to add tests for `load_impl_session_id` and call the refactor done | New structural tests prove the helper exists, not that behavior is unchanged | The real acceptance gate is the PRE-EXISTING per-class suites (`test_ci_driver.py`, `test_address_review.py`) staying green, plus a single-canonical-source grep that returns exactly one hit (`grep -rn 'state_dir / f"issue-{issue_number}.json"' hephaestus/automation/`) |
 
 ## Results & Parameters
 
@@ -927,6 +1022,7 @@ def _aggregate_token_stats(self, tier_results: dict[TierID, TierResult]) -> Toke
 | ProjectHephaestus | #1205 | Phase 10 core/extras split for overlapping `TRANSIENT_ERROR_PATTERNS` / `NETWORK_ERROR_KEYWORDS` | ⚠️ **unverified — planning only, NOT executed** (no code, no tests, no CI) |
 | LLM360/Radiance | PR #908 | Consolidated route-test fakes, layout-only metric kernels, validation field checks, and removed stale `hf_checkpoint_architecture_html.py` | verified-local — full local/pre-push test suite passed; PR CI pending at capture time |
 | ProjectHermes | #329 / PR #652 | Phase 12 — stale issue body (3 of 4 files already migrated), inline over fixture for pure HMAC helper, new-branch resolution for diverged remote | verified-ci — all pytest passed, signed commit, PR opened |
+| ProjectHephaestus | #1383 | Phase 13 — planning a method→free-function extraction (`_load_impl_session_id` → `load_impl_session_id` in `_review_utils.py`) where the method is a patched test seam | ⚠️ **unverified — planning only, NOT executed** (no code, no tests, no CI) |
 
 ## Related Skills
 
@@ -936,10 +1032,11 @@ def _aggregate_token_stats(self, tier_results: dict[TierID, TierResult]) -> Toke
 
 ## Tags
 
-`refactoring`, `dry-principle`, `helper-methods`, `radiance`, `test-fakes`, `validation-wrappers`, `layout-kernels`, `tdd`, `code-quality`, `python`, `pytest`, `private-modules`, `test-structure`, `git-signing`, `importlib-metadata`, `srp`, `extract-method`, `lru-cache`, `mock-patch`, `rglob`, `dead-code-removal`, `constants`, `frozenset`, `drift`, `intentional-variant`, `core-extras-split`, `planning`, `stale-issue-body`, `inline-vs-fixture`, `remote-branch-divergence`, `hmac`, `test-helper-dedup`
+`refactoring`, `dry-principle`, `helper-methods`, `radiance`, `test-fakes`, `validation-wrappers`, `layout-kernels`, `tdd`, `code-quality`, `python`, `pytest`, `private-modules`, `test-structure`, `git-signing`, `importlib-metadata`, `srp`, `extract-method`, `lru-cache`, `mock-patch`, `rglob`, `dead-code-removal`, `constants`, `frozenset`, `drift`, `intentional-variant`, `core-extras-split`, `planning`, `stale-issue-body`, `inline-vs-fixture`, `remote-branch-divergence`, `hmac`, `test-helper-dedup`, `patched-test-seam`, `thin-wrapper`, `free-function-extraction`, `automation-library-boundary`
 
 ## Version History
 
+- **v1.8.0** (2026-06-20, **planning-only for the new phase / unverified**): Added Phase 13 — planning a behavior-preserving method→free-function extraction when the duplicated method is a patched test seam, captured from ProjectHephaestus #1383 (extract `_load_impl_session_id` → `load_impl_session_id(state_dir, issue_number, agent)` in `hephaestus/automation/_review_utils.py`). Five sub-sections: (13a) grep `patch.object` before deletion — keep each method as a thin wrapper to preserve the seam; (13b) read tests to separate behavior-bearing diffs (log level/message) from incidental ones before collapsing "near-identical" copies; (13c) match the target module's free-function convention rather than a mixin/base class; (13d) hedge unverified import/boundary assumptions (Path import, existing import line, automation→library direction, base-import-surface cleanliness); (13e) prove a pure extraction via a single-hit canonical grep + EXISTING per-class behavioral suites staying green. Added 5 Failed Attempts rows, a Verified On entry, new trigger phrases, and tags. NOT executed end-to-end (no code, no tests, no CI). The rest of the skill stays `verified-ci`; Phase 13 carries its own unverified warning. Prior v1.7.0 snapshot archived to history.
 - **v1.7.0** (2026-06-19): Added Phase 12 — three concrete lessons from ProjectHermes #329 (HMAC `_sign()` dedup): (1) grep the CURRENT state before trusting issue body "Evidence:" sections (prior PRs may have partially resolved it); (2) inline a pure `bytes→str` helper over adding a pytest fixture or conftest entry when the function closes over a module-local constant; (3) when a remote branch has diverged with a competing solution, push as a new branch rather than force-pushing or rebasing 84 conflicting commits. Added 3 Failed Attempts rows. Updated Verified On table. Verification: verified-ci via ProjectHermes PR #652. Prior v1.6.0 snapshot archived to history.
 - **v1.6.0** (2026-06-18): Added Phase 11, a locally verified Radiance behavior-preserving duplicate cleanup workflow. Captures shared server route test fakes, parameterized layout-only metric kernels via `LayoutReindexKernel`, shared primitive validation field checks with local wrappers preserving exception/message contracts, stale script deletion after caller audit, and the fresh-branch PR workflow when the current branch's old PR is already merged. Verification was local/pre-push only; PR #908 CI was pending at capture time. Prior v1.5.0 snapshot archived to history.
 - **v1.5.0** (2026-06-12): Added Phase 10 (PLANNING-ONLY, **unverified**) — the core/extras split for consolidating OVERLAPPING constant collections that are intentional-variants-with-overlap, not pure duplicates. Refines the Phase 8c classification table with a third middle path: extract only the shared CORE into one immutable frozenset, compose each consumer as `CORE | extras`, and prove anti-drift with `CORE.issubset(consumer)` parity tests while keeping public names/types. Added 3 Failed Attempts rows (flat-merge-violates-contract, drop-phrases-because-broad-substring-covers-them, recompose-changes-order/type) and a `## Verified On` table. Captured from planning ProjectHephaestus issue #1205; NOT executed end-to-end (no code, no tests, no CI). Prior v1.4.0 snapshot archived to history.

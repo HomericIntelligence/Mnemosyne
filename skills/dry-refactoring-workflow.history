@@ -1,6 +1,66 @@
 <!-- markdownlint-disable MD024 -->
 # dry-refactoring-workflow — History
 
+## v1.8.0 (2026-06-20)
+
+**Changed by:** ProjectHephaestus issue #1383 planning — /learn
+**Verification:** unverified (for the new Phase 13; the rest of the skill remains verified-ci)
+
+### What changed
+
+- Added Phase 13 (PLANNING-ONLY, **unverified**) — planning a behavior-preserving
+  method→free-function extraction when the duplicated method is a patched test seam.
+  Five sub-sections:
+  - 13a: Patch-by-name test seams force you to KEEP the method as a thin wrapper, not delete
+    it. Grep `patch.object(.*"_method"` before planning the deletion.
+  - 13b: "Near-identical" methods differ in non-asserted ways (log level, extra debug line,
+    exception wording) — read the actual test bodies to confirm which diffs are
+    behavior-bearing vs incidental before collapsing.
+  - 13c: Reuse the target module's established convention (free function with explicit args,
+    not a mixin/base-class method) — grep its existing helpers first.
+  - 13d: Hedge unverified import/boundary assumptions a planner did not execute (Path import
+    present?, existing `from ._review_utils import ...` line to extend?, automation→library
+    runtime import safe with no cycle?, new helper absent from base `import hephaestus`
+    surface?).
+  - 13e: Verification-by-criterion for a pure extraction — single-canonical-source grep that
+    must return exactly one hit, plus the PRE-EXISTING per-class behavioral suites staying
+    green as the real acceptance gate.
+- Added 5 Failed Attempts rows (delete-the-patched-seam, collapse-logging-without-checking-tests,
+  invent-new-sharing-mechanism, assert-un-run-imports-as-true, accept-structural-tests-as-proof).
+- Added a Verified On entry for ProjectHephaestus #1383 (planning only, unverified).
+- Added trigger phrases and tags (`patched-test-seam`, `thin-wrapper`,
+  `free-function-extraction`, `automation-library-boundary`).
+- Bumped frontmatter `version` to 1.8.0 and `date`/Overview Date to 2026-06-20; frontmatter
+  `verification` stays `verified-ci` because the bulk of the skill is still CI-verified, but
+  Phase 13 carries its own inline unverified warning (like Phase 10).
+
+### Why
+
+ProjectHephaestus issue #1383 produced an IMPLEMENTATION PLAN (no code written, no tests run,
+no CI) to DRY-extract a duplicated `_load_impl_session_id` method (on `CIDriver` and
+`AddressReviewer`) into a shared free function
+`load_impl_session_id(state_dir, issue_number, agent)` in `hephaestus/automation/_review_utils.py`.
+The durable, reusable PLANNING insights — preserve patched test seams via thin wrappers,
+distinguish behavior-bearing from incidental "near-identical" diffs by reading the tests, match
+the target module's free-function convention, hedge un-run import/boundary assumptions, and prove
+a pure extraction with a single-hit grep plus the EXISTING behavioral suites — were not yet
+captured in this skill. Because the session was planning-only, Phase 13 is marked unverified.
+
+### Previous version (v1.7.0) snapshot
+
+````markdown
+---
+name: dry-refactoring-workflow
+description: "Complete TDD-driven workflow for identifying and eliminating code duplication by extracting reusable helper methods. Use when: (1) ... (12) stale issue body in dedup/consolidation tasks: issue 'Evidence:' sections go stale as prior PRs partially resolve them — grep the CURRENT state first; choose inlining over fixtures for pure bytes→str helpers; resolve remote branch divergence by pushing to a new branch rather than force-pushing or rebasing 84 conflicting commits."
+category: architecture
+date: 2026-06-19
+version: "1.7.0"
+user-invocable: false
+verification: verified-ci
+history: dry-refactoring-workflow.history
+---
+````
+
 ## v1.7.0 (2026-06-19)
 
 **Changed by:** ProjectHermes #329 / PR #652 — HMAC `_sign()` dedup
