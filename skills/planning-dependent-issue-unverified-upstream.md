@@ -1,85 +1,99 @@
 ---
 name: planning-dependent-issue-unverified-upstream
-description: "Plan an issue whose dependency has not yet shipped, so the upstream's real interface is unknown. Use when: (1) writing an implementation plan for issue B that builds on a not-yet-merged issue A (e.g. B adds a Dockerfile on top of A's server skeleton), (2) you are tempted to hardcode the upstream's module path / function signature / directory layout into your plan, (3) the repo on disk does not yet contain the dependency's output and you must avoid baking unverified assumptions into 'Files to Modify'."
+description: "Plan an issue whose dependency it builds on is unconfirmed locally — and AVOID the trap of writing 'if the dependency did X else Y' conditional fallbacks. A dependent issue's upstream is almost always ALREADY MERGED and READABLE; reading it collapses every fork into one verified fact. Use when: (1) planning an issue that depends on / blocks another issue (e.g. B adds a Dockerfile on top of A's server skeleton), (2) you are tempted to write conditional fallbacks or hardcode the upstream's module path / function signature / directory layout into your plan, (3) an issue body's code snippets reference a base image / module path / file layout created by a not-yet-read dependency, (4) the local submodule is pinned to an older SHA on a detached HEAD so the dependency's output is not in the working tree."
 category: architecture
 date: 2026-06-20
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: unverified
+history: planning-dependent-issue-unverified-upstream.history
 tags:
   - planning
   - dependent-issue
-  - unverified-dependency
+  - merged-dependency
   - upstream-interface
   - verify-before-planning
-  - fallbacks
+  - eliminate-fallbacks
+  - no-conditional-forks
   - assumptions
   - milestone
 ---
 
-# Planning a Dependent Issue When the Upstream Output Is Unverified
+# Planning a Dependent Issue: Read the Merged Dependency, Eliminate the Forks
 
 ## Overview
 
 | Field | Value |
 |-------|-------|
 | **Date** | 2026-06-20 |
-| **Objective** | Plan ProjectArgus issue #153 (atlas M1 Dockerfile/embed) which DEPENDS on #152 (creates the Go module + chi server skeleton) — but #152's actual output was not yet on disk at plan time |
-| **Outcome** | PLAN ONLY — never executed. The methodology (front-load dependency verification + inline fallbacks) is the durable learning. |
-| **Verification** | unverified (plan only — never executed or CI-confirmed) |
+| **Objective** | Re-plan ProjectArgus issue #153 (atlas M1 Dockerfile/embed) which DEPENDS on #152 (the Go module + chi server skeleton), after the first plan got a NOGO (grade C) for forking on unverified dependency output and contingently planning cross-boundary files |
+| **Outcome** | PLAN ONLY — never executed. The durable learning is a CORRECTION of prior advice: do NOT write conditional fallbacks; READ the merged dependency code (it is almost always already merged) and replace every fork with one verified path. |
+| **Verification** | unverified (plan only — no docker build or CI ran; the gh/git inspection commands below WERE run and are real) |
+
+> **Correction of prior guidance.** v1.0.0 of this skill (and the related `atlas-dashboard-dockerfile-embed-distroless` skill, ProjectMnemosyne PR #2685) advised "front-load dependency verification AND provide inline fallbacks." This session proved the *second half is a trap*: conditional fallbacks look concrete to a reviewer but encode WRONG assumptions (wrong module path, wrong base image, illegal embed location) that pass review and then fail at implementation time. The dependency is almost always already merged and readable — read it and DELETE the forks.
 
 ## When to Use
 
-- You are writing an implementation plan for an issue that explicitly depends on another, not-yet-merged issue.
-- The dependency's concrete output (module path, exported function signatures, directory layout, helper packages) is described in prose but not yet present on disk.
-- You catch yourself about to write the upstream's interface (e.g. `server.New(...)`, a module path, a `web/` location) into your plan as fact.
-- The repo today is a different shape than your plan assumes (e.g. config-only, no `go.mod`, `find . -name '*.go'` is empty).
+- You are planning an issue that explicitly depends on (or blocks) another issue, and the dependency's concrete output (module path, exported signatures, directory layout, existing handlers/assets) is not in your local working tree.
+- You catch yourself about to write "if the dependency created X, do A; otherwise do B" — a conditional fallback — into a plan.
+- The issue body's own code snippets reference a base image tag, a module path, a `//go:embed` location, or a file layout that the dependency was supposed to create. (These snippets are EXAMPLES written before the dependency merged — verify them, don't transcribe them.)
+- The local submodule is pinned to an older SHA on a detached HEAD, so `find . -name '*.go'` is empty or stale — making it tempting (and wrong) to treat the dependency's interface as unknowable.
 
-## Proposed Workflow
+## Verified Workflow
 
-> **Warning:** This workflow has not been validated end-to-end. Treat as a hypothesis until CI confirms.
+> **Warning:** This is a planning-discipline workflow derived from a plan that was not executed end-to-end. The verification COMMANDS (gh/git inspection) were run and are real; the downstream build was not.
 
 ### Quick Reference
 
 ```bash
-# STEP 1 of the implementation order is ALWAYS "verify the dependency's real output":
-head -1 dashboard/go.mod                 # actual module path (don't hardcode it)
-find dashboard -type d -name web         # where the embed source actually lives
-ls dashboard/internal/version 2>&1       # does a version package exist?
-grep -rn 'func New' dashboard/...        # real server.New signature, if any
-ls dashboard/.../atlas.css 2>&1          # does the asset the issue assumes exist?
+# 1. The dependency is almost always ALREADY MERGED. Find its PR and head branch:
+gh pr list --repo HomericIntelligence/ProjectArgus --state merged \
+  --search "152 in:body OR 152 in:title" \
+  --json number,title,headRefName
+# -> PR #160, headRefName feat/issue-152-atlas-bootstrap
 
-# Then state a FALLBACK inline next to every assumption:
-#   - no version package -> drop `-ldflags -X version.Version=...`
-#   - no atlas.css       -> create a minimal one
-#   - no /healthz        -> add the handler in this issue
+# 2. Read the merged file tree DIRECTLY from the remote branch, even if the
+#    local submodule is pinned to an older SHA on a detached HEAD:
+cd infrastructure/ProjectArgus && git fetch origin
+git ls-tree -r --name-only origin/feat/issue-152-atlas-bootstrap | grep '^dashboard/'
+
+# 3. Read the actual files that decide your plan — do NOT guess:
+git show origin/feat/issue-152-atlas-bootstrap:dashboard/go.mod        # real module path + go/toolchain version
+git show origin/feat/issue-152-atlas-bootstrap:dashboard/internal/server/routes.go   # existing routes / healthz body
+git show origin/feat/issue-152-atlas-bootstrap:dashboard/cmd/argus-dashboard/main.go # real server.New signature
+
+# 4. Replace EVERY "if the dependency did X else Y" fork with ONE verified fact + ONE concrete path.
+#    NO inline fallbacks. If something already exists (atlas.css, /healthz), it is OUT OF SCOPE — do not recreate it.
 ```
 
 ### Detailed Steps
 
-1. **Make Step 1 of the implementation order "verify the dependency's actual output."** Do not begin with your own changes. Front-load concrete verification commands that read the upstream's real interface from disk: `head -1 <module>/go.mod` for the module path, `find <dir> -type d -name web` for the embed source location, `ls`/`grep` for any package or asset the issue assumes. At plan time for #153 the repo was config-only — `find . -name '*.go'` was empty and there was no `go.mod` — so EVERY interface detail was a hypothesis, not a fact.
-2. **Never hardcode the upstream's interface into the plan.** Treat `server.New(...)`'s signature, the module path, and the `web/` directory location as values to be discovered, not constants to be typed. Write the plan so the implementer fills them in from Step 1's output, e.g. "use the module path from `head -1 go.mod`" rather than "the module is `github.com/.../argus`".
-3. **State a conditional fallback inline next to every assumption.** For each thing the upstream might not have produced, write the if/then directly in the step: if no `version` package, drop the `-ldflags -X version.Version=...` flag; if `atlas.css` is missing, add a minimal one in this issue; if `/healthz` was not wired by the dependency, add the handler here. This keeps the plan executable even when the dependency's output differs from prose.
-4. **Label the plan's verification level honestly as `unverified`.** Because the dependency was never confirmed and nothing was built, the plan is a hypothesis. Mark it `unverified` and use a "Proposed Workflow" framing — do not claim a verified workflow for a plan that could not even compile against a non-existent upstream.
-5. **Separate the dependency-verification risk as the top stated risk.** The single largest risk in a dependent-issue plan is that the upstream shipped a different interface than assumed. Call this out explicitly as the #1 risk so reviewers and implementers re-check it first.
+1. **Find the merged dependency PR first.** Run `gh pr list --repo <repo> --state merged --search "<dep#> in:body OR <dep#> in:title" --json number,title,headRefName`. A dependent issue's upstream is almost always already merged; this gives you the PR number and the head branch to read.
+2. **Read the merged tree from the remote branch, not the local checkout.** `git fetch origin` then `git ls-tree -r --name-only origin/<headRefName>` shows the dependency's real file layout even when the local submodule is pinned to an older SHA on a detached HEAD. The on-disk working tree is NOT evidence of what merged.
+3. **Read every file your plan depends on with `git show origin/<branch>:path`.** Module path and Go/toolchain version come from `:go.mod`; existing routes/handlers from `:internal/server/routes.go`; constructor signatures from `:cmd/.../main.go`. These are facts, not the issue's prose.
+4. **Replace every conditional fork with one verified path — write NO inline fallbacks.** A fallback ("create atlas.css if missing", "add /healthz if absent") looks concrete but is a guess. Reading the merged code told us atlas.css already exists (62 lines → out of scope, do NOT recreate) and /healthz already exists but returns the WRONG body (plain `"ok"` vs the required `{"status":"ok"}` JSON — a "create if missing" fallback would have missed the exists-but-wrong case entirely). One fact, one path.
+5. **Verify the issue body's own code snippets against the merged code.** Issue prose is written before the dependency merges, so its base image tag, module path, and embed location are EXAMPLES. Here: the issue said `golang:1.22-alpine`, but go.mod declares `go 1.23.0` + `toolchain go1.24.2` (1.22 fails the build → must be `golang:1.24-alpine`); the issue said `//go:embed web` in `main.go`, but `web/` lives at `dashboard/web/` and main.go at `dashboard/cmd/argus-dashboard/`, and Go's `//go:embed` cannot reference parent dirs (`../../web` is illegal) — the embed file must be co-located: `dashboard/web/embed.go` (package `web`, exporting `web.Static`).
+6. **Keep cross-boundary scope out.** Anything the dependency already produced (atlas.css, /healthz, a server `Assets` field) belongs to the dependency. Contingently planning to create it is P2/YAGNI scope bleed and was a MAJOR NOGO finding. The merged tree is the authority on what is already done.
+7. **Label the plan `unverified` and keep the honesty gate.** The git/gh inspection commands were run and are real, but no docker build or CI ran. Mark the plan `unverified`; do not claim a build passed.
 
-## Verified Workflow
-
-_Not applicable._ This skill was captured from a planning session and is `unverified`: the dependent-issue plan was never executed and the upstream dependency (#152) was never confirmed, so there is no verified workflow. The actionable, hypothesis-level methodology lives under **Proposed Workflow** above and must be treated as unvalidated until CI confirms it. (This placeholder section exists only because `scripts/validate_plugins.py` requires the literal `## Verified Workflow` heading; it intentionally makes no verification claim.)
+> **Heading note:** the repository validator (`scripts/validate_plugins.py`) hard-requires the literal `## Verified Workflow` heading. The COMMANDS above were genuinely run; the downstream build was not, per the warning under the heading.
 
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 |---------|----------------|---------------|----------------|
-| 1 | Wrote the upstream #152's `server.New(...)` signature directly into the #153 plan's "Files to Modify". | #152 was not merged and its real signature was unknown; the repo on disk had no `go.mod` and no `.go` files, so the hardcoded interface was a guess. | Never hardcode an unverified upstream interface; make "discover it from disk" Step 1 and reference the discovered value. |
-| 2 | Assumed the embed source `web/` already existed at a known path from #152. | The directory layout #152 would produce was unconfirmed, and `//go:embed` is path-sensitive — a wrong assumed path makes the plan uncompilable. | Add `find <dir> -type d -name web` as a verification step before writing the embed path into the plan. |
-| 3 | Assumed `atlas.css` and a `version` package existed because the issue mentioned them. | The issue described intended end-state, not guaranteed upstream output; either could be absent, breaking the `-ldflags -X` build or the static route. | State inline fallbacks: drop `-X version.Version` if no version package; create a minimal `atlas.css`/`/healthz` if absent. |
-| 4 | Labeled the plan as a confident, ready-to-execute workflow. | Nothing was built and the dependency was unverified — the plan could not compile against a non-existent upstream. | Mark dependent-issue plans `unverified` and frame them as a "Proposed Workflow" hypothesis until CI confirms the dependency's real shape. |
+| 1 | Fallback: hardcode module path `github.com/HomericIntelligence/ProjectArgus/dashboard` and the `-X version.Version=` ldflags path from it. | The REAL module (from `git show <branch>:dashboard/go.mod`) is `github.com/HomericIntelligence/atlas`; the ldflags `-X` path was wrong and the build would set nothing. | Read `:go.mod` for the module path; never derive it from the repo name or the issue prose. |
+| 2 | Fallback: use builder `golang:1.22-alpine` (the issue's literal text). | go.mod declares `go 1.23.0` + `toolchain go1.24.2`; `golang:1.22` FAILS the build. | The builder base image MUST satisfy go.mod's `go`/`toolchain` directives — verify against `:go.mod`, not the issue snippet (`golang:1.24-alpine`). |
+| 3 | Fallback: `//go:embed web` in `main.go` (per the issue prose). | `web/` is at `dashboard/web/` and main.go at `dashboard/cmd/argus-dashboard/`; Go's `//go:embed` cannot reference parent dirs, so `../../web` is illegal and uncompilable. | The embed file must be CO-LOCATED with the embedded dir: `dashboard/web/embed.go` (package `web`, exporting `web.Static`). Verify the layout from `git ls-tree -r <branch>`. |
+| 4 | Fallback: "add the /healthz handler if it is missing." | `/healthz` already existed but returned plain text `"ok"`; the acceptance criterion required `{"status":"ok"}` JSON. The "if missing" fallback misses the exists-but-WRONG case. | Read `:routes.go`; plan to FIX the existing handler's body, not conditionally add a handler. |
+| 5 | Fallback: "create a minimal atlas.css if it is missing." | `atlas.css` already existed (62 lines, produced by the dependency). Recreating it is cross-boundary scope bleed (a MAJOR NOGO finding). | What the dependency already shipped is OUT OF SCOPE; the merged tree (`git ls-tree`) is the authority — do not recreate it. |
 
 ## Results & Parameters
 
-- **Status:** Methodology distilled from the implementation plan for ProjectArgus issue #153 (depends on #152); plan never executed.
-- **Repo state at plan time:** config-only — `find . -name '*.go'` empty, no `go.mod`; every upstream interface detail was a hypothesis.
-- **Verification-first commands:** `head -1 <module>/go.mod`, `find <dir> -type d -name web`, `ls internal/version`, `grep -rn 'func New'`, `ls .../atlas.css`.
-- **Top stated risk:** the dependency (#152) ships a different interface than assumed — re-verify before implementing.
+- **Status:** Planning-discipline methodology distilled from RE-PLANNING ProjectArgus issue #153 after a NOGO (grade C). Plan never executed; gh/git inspection commands were run and are real.
+- **The trap corrected:** conditional "if the dependency did X else Y" fallbacks. They look concrete to a reviewer but encode wrong assumptions (module path, base image, embed location) that pass review and fail at implementation time.
+- **The fix:** the dependency is almost always already merged — read it (`gh pr list --search`; `git ls-tree -r origin/<branch>`; `git show origin/<branch>:path`) and replace every fork with one verified fact + one concrete path. Verify the issue body's own snippets against the merged code; they are pre-merge examples.
+- **Concrete commands that worked this session:** `gh pr list --repo HomericIntelligence/ProjectArgus --state merged --search "152 in:body OR 152 in:title" --json number,title,headRefName` (→ PR #160, branch `feat/issue-152-atlas-bootstrap`); `git fetch origin && git ls-tree -r --name-only origin/<branch> | grep '^dashboard/'`; `git show origin/<branch>:dashboard/go.mod` / `:routes.go` / `:main.go`.
+- **NOGO findings the re-plan fixed:** (1) "stage handoff" — steps conditional on unverified dependency output handed the implementer a decision tree of forks; (2) "P2/YAGNI cross-boundary scope" — contingently planning files (atlas.css, /healthz, server Assets) that belong to the dependency.
+- **Reinforced (secondary):** builder image must satisfy go.mod `go`/`toolchain`; `//go:embed` parent-path restriction; `git describe` in a Dockerfile fails when `.dockerignore` excludes `.git` (use `--build-arg VERSION`).
 - **Companion skill:** `atlas-dashboard-dockerfile-embed-distroless` covers the concrete Dockerfile/embed/distroless mechanics of the same issue.
