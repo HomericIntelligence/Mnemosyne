@@ -1,5 +1,57 @@
 # planning-backward-compat-config-primitive-extension — History
 
+## v1.2.0 (2026-06-20)
+
+**Changed by:** A second, self-correcting verification pass on the ProjectAgamemnon
+issue #275 implementation plan ("Expose input length limits as configurable server
+settings"). The FIRST draft asserted two load-bearing facts WITHOUT verifying them; the
+SECOND pass caught both as wrong/unverified and confirmed the ground truth.
+**Verification:** unverified (planning methodology) — but two specific facts were
+SOURCE-VERIFIED in this pass and are now recorded as ground truth, not hypotheses.
+
+### What changed
+- **Corrected a stale/wrong claim baked into v1.1.0:** the skill (and the first plan
+  draft) pointed readers at `src/CMakeLists.txt`. The second pass verified there is NO
+  `src/CMakeLists.txt`; the `ProjectAgamemnon_core` STATIC library is defined in the
+  ROOT `CMakeLists.txt:84-99`. Quick Reference, detailed step 10, the Failed Attempts
+  build-target row, and the issue #275 Results checklist now reflect the verified root
+  location and call out the invented-file pitfall.
+- **Recorded the VERIFIED caller census** for `register_routes()`: exactly 9 call sites
+  (1 in `src/server_main.cpp` + 8 in test files), with NO integration/benchmark callers.
+  Previously the skill only warned to "do a census"; it now states the verified result
+  and the worktree/build-excluded grep that produced it.
+- **Added the exclude-worktrees grep** (`--exclude-dir=.claude --exclude-dir=build`) to
+  Quick Reference, step 11, and Results — stray copies under `.claude/worktrees/` and
+  `build/.worktrees/` pollute a naive caller grep.
+- **Added the `grep kMax -> 0` post-edit invariant** (proves no hardcoded limit constant
+  remains) to Quick Reference, step 12, and Results.
+- **Recorded the brittle-comment payoff:** two test files carried "If `register_routes()`
+  gains an 8th parameter, ALL THREE files must be updated"; a trailing defaulted parameter
+  sidesteps that maintenance trap. Added to step 11.
+- **Made the knob precedence + unit rule explicit** in Results: `AGAMEMNON_MAX_BODY_BYTES`
+  (BYTES) wins; legacy `SERVER_REQUEST_SIZE_LIMIT_MB` (MEGABYTES) falls back as
+  `mb * 1024 * 1024`; test both knobs and the precedence.
+- Updated two Failed Attempts rows (build-target structure; defaulted-param census) from
+  "asserted but unverified" to "asserted, then VERIFIED/corrected on second pass."
+- Bumped version 1.1.0 -> 1.2.0; updated date to 2026-06-20.
+
+### Why
+The DURABLE planning lesson of this session is the verification discipline itself: the
+plan caught its OWN wrong first-draft assumptions on a second pass. v1.1.0 captured the
+first-draft risks but still propagated one of the wrong assumptions (`src/CMakeLists.txt`)
+into its own guidance. Folding the verified ground truth (root `CMakeLists.txt:84-99`, the
+9-site census, the exclude-worktrees grep, the `kMax` invariant) back into the skill turns
+hypotheses into checked facts and fixes the skill's own stale pointer.
+
+### Previous version (v1.1.0) snapshot
+Full v1.1.0 content (the auth-case + make-constant-configurable merge, 11 Failed Attempts
+rows, both concrete instances) is preserved in git history at this branch's parent tree
+(the v1.1.0 commit on `skills/planning-backward-compat-config-primitive-extension.md`).
+The v1.2.0 diff only corrects the `src/CMakeLists.txt` claim and promotes two assumptions
+to verified facts; no rows were removed.
+
+---
+
 ## v1.1.0 (2026-06-19)
 
 **Changed by:** Implementation-plan review for ProjectAgamemnon issue #275 ("Expose
