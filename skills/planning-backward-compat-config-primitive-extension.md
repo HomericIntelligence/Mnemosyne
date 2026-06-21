@@ -2,8 +2,8 @@
 name: planning-backward-compat-config-primitive-extension
 description: "Reusable checklist for writing TRUSTWORTHY implementation plans that make a hardcoded constant configurable via an env var, or extend a config-driven auth/config primitive, in a C++ service WITHOUT breaking old behavior. Covers both the auth case (add comma-separated AGAMEMNON_API_KEYS unioned with single AGAMEMNON_API_KEY) and the general 'make constant env-configurable' case (e.g. a RouteLimits struct read from AGAMEMNON_* and threaded through register_routes()). Use when: (1) planning to add a new env var / config knob (single OR multi-value) that must coexist with existing behavior, (2) a plan adds a source file to a build target but did not READ the build file that DEFINES the target, (3) a plan claims a trailing defaulted-parameter signature change is non-breaking, (4) a plan cites exact file:line locations as ground truth, (5) a plan opportunistically fixes an adjacent bug or deprecates an existing env knob, (6) a plan consolidates two env knobs that use different units, (7) a plan changes a security-critical == compare into set membership or RELAXES a fail-secure startup invariant, (8) a plan proposes DELETING a file it calls dead code based on a source grep alone."
 category: architecture
-date: 2026-06-19
-version: "1.1.0"
+date: 2026-06-20
+version: "1.2.0"
 user-invocable: false
 verification: unverified
 history: planning-backward-compat-config-primitive-extension.history
@@ -26,9 +26,9 @@ tags:
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-06-19 |
+| **Date** | 2026-06-20 |
 | **Objective** | Make implementation plans for "make a hardcoded constant configurable via env var" and "extend a config-driven config/auth primitive" tasks in a C++ service trustworthy, by codifying the assumptions a reviewer MUST re-verify before approving. |
-| **Outcome** | Planning methodology only — distilled from two ProjectAgamemnon plans: issue #260 (add comma-separated `AGAMEMNON_API_KEYS`, unioned with the single `AGAMEMNON_API_KEY` in the C++ `AuthMiddleware`) and issue #275 (expose input-length limits as an `AGAMEMNON_*`-driven `RouteLimits` struct threaded through `register_routes()`). Neither plan was executed end-to-end. |
+| **Outcome** | Planning methodology only — distilled from two ProjectAgamemnon plans: issue #260 (add comma-separated `AGAMEMNON_API_KEYS`, unioned with the single `AGAMEMNON_API_KEY` in the C++ `AuthMiddleware`) and issue #275 (expose input-length limits as an `AGAMEMNON_*`-driven `RouteLimits` struct threaded through `register_routes()`). Neither plan was executed end-to-end. The v1.2.0 amendment captures the issue #275 session's *self-correcting* second pass, which verified two first-draft assumptions were WRONG: there is NO `src/CMakeLists.txt` (the `ProjectAgamemnon_core` STATIC lib is defined in the ROOT `CMakeLists.txt:84-99`), and a full caller census found exactly 9 `register_routes` call sites (1 in `server_main.cpp` + 8 in test files), with NO integration/benchmark callers. |
 | **Verification** | unverified |
 | **History** | [changelog](./planning-backward-compat-config-primitive-extension.history) |
 
@@ -80,16 +80,25 @@ sed -n '1,30p' docs/api/openapi.yaml   # read the block, not just the cited rang
 # === MAKE-CONSTANT-CONFIGURABLE: read the build file that DEFINES the target ===
 # A plan that adds a new .cpp to a build target MUST read the file that DECLARES the target,
 # not a file that merely references it (e.g. test/CMakeLists.txt mentioning ProjectAgamemnon_core).
+# VERIFIED on Agamemnon (issue #275): there is NO src/CMakeLists.txt. The first draft INVENTED it.
+# The ProjectAgamemnon_core STATIC library is defined in the ROOT CMakeLists.txt:84-99.
 grep -rn 'add_library(ProjectAgamemnon_core' $(git ls-files '*CMakeLists.txt' '*.cmake')  # find the DEFINING block
-sed -n '1,200p' src/CMakeLists.txt   # READ it — confirm add_library/target_sources shape before planning the insert
+sed -n '84,99p' CMakeLists.txt       # READ the ACTUAL add_library block (root, NOT src/) before planning the insert
 
 # === Complete CALLER CENSUS before claiming a defaulted-arg change is non-breaking ===
 # Listing "the test files" is NOT a census. Grep the WHOLE repo for the symbol.
-git grep -n 'register_routes'        # enumerate EVERY call site: src, tests, integration tests, benchmarks, other binaries
+# EXCLUDE stray copies under worktree/build dirs or they pollute the count.
+git grep -n 'register_routes'        # enumerate EVERY call site, then subtract worktree/build copies
+grep -rn 'register_routes' src/ test/ \
+  --exclude-dir=.claude --exclude-dir=build  # skip .claude/worktrees/ and build/.worktrees/ copies
+# VERIFIED census (issue #275): exactly 9 call sites = 1 in src/server_main.cpp + 8 in test files;
+# NO integration/benchmark callers. Only THEN is a trailing-defaulted-arg "non-breaking" claim sound.
 
 # === Anchor find-replace on SYMBOLS/STRINGS, not absolute line numbers ===
 # routes.cpp line numbers (312/315/.../633) drift once step 5 edits earlier lines first.
 git grep -n 'check_field_length' src/routes.cpp   # re-find by string at edit time, never trust the cited offset
+# Post-edit INVARIANT: once every hardcoded constant is removed, this MUST return 0 (zero hits):
+grep -rn 'kMax' src/routes.cpp   # expect: 0 results -> proves no hardcoded limit constant remains
 
 # === Unit-conversion consolidation: the fallback line is high-risk ===
 # SERVER_REQUEST_SIZE_LIMIT_MB is MEGABYTES; AGAMEMNON_MAX_BODY_BYTES is BYTES.
@@ -153,23 +162,35 @@ git grep -n 'check_field_length' src/routes.cpp   # re-find by string at edit ti
 ### Make-a-constant-env-configurable checklist (issue #275 class)
 
 10. **Read the build file that DEFINES the target, not one that references it.** When a plan adds
-    a new source file to a build target (e.g. `add_library(ProjectAgamemnon_core ...)`), READ the
-    actual `src/CMakeLists.txt` (or wherever the target is declared). Inferring the `add_library`
+    a new source file to a build target (e.g. `add_library(ProjectAgamemnon_core ...)`), open and
+    confirm the `add_library(...)`/`add_executable(...)` block ITSELF. Inferring the `add_library`
     shape from `test/CMakeLists.txt` lines that merely *link against* the target is not
     verification — the defining file may use `target_sources`, a glob, or a different layout than
-    assumed. An "add the file here" instruction grounded in the wrong file is a build break.
+    assumed. **Verified counter-example (issue #275):** the first draft asserted the target lived
+    in `src/CMakeLists.txt`; the second pass found there is NO `src/CMakeLists.txt` at all — the
+    `ProjectAgamemnon_core` STATIC library is defined in the **ROOT `CMakeLists.txt:84-99`**. An
+    "add the file here" instruction grounded in an *invented* file is a guaranteed build break.
 
 11. **Run a complete caller census before claiming a defaulted-arg change is non-breaking.** A
     trailing defaulted parameter only preserves backward compatibility if EVERY call site is
     accounted for. `git grep` the function name across the WHOLE repo — source, unit tests,
-    integration tests, benchmarks, other binaries — and enumerate each. A defaulted-param
-    "keeps everything compiling" claim backed by a partial (test-only) list is unverified.
+    integration tests, benchmarks, other binaries — and enumerate each. **Exclude stray copies
+    under `.claude/worktrees/` and `build/.worktrees/`** (e.g.
+    `grep -rn register_routes src/ test/ --exclude-dir=.claude --exclude-dir=build`) or the count
+    is polluted. **Verified census (issue #275):** exactly **9** `register_routes` call sites — 1
+    in `src/server_main.cpp` + 8 in test files, with **NO** integration or benchmark callers. A
+    defaulted-param "keeps everything compiling" claim backed by a partial (test-only) list is
+    unverified until that whole-repo, worktree-excluded census is done.
+    *Bonus payoff:* two test files carried a brittle comment — *"If `register_routes()` gains an
+    8th parameter, ALL THREE files must be updated."* A trailing defaulted parameter sidesteps
+    that maintenance trap entirely, because old call sites keep compiling unchanged.
 
 12. **Anchor find-replace on symbols/strings, not absolute line numbers.** Cite the searchable
     string (e.g. each `check_field_length(...)` call) rather than `routes.cpp:312/315/.../633`.
     Line numbers from a single read drift the moment earlier edits land — and these plans often
     edit earlier lines first, invalidating every later offset. Instruct the implementer to
-    re-find by symbol/string at edit time.
+    re-find by symbol/string at edit time, and add a post-edit invariant that grep can check
+    (e.g. once all hardcoded limits are removed, `grep -rn 'kMax' src/routes.cpp` MUST return 0).
 
 13. **Flag adjacent-bug fixes and deprecations as SCOPE EXPANSION for sign-off.** If the plan
     goes beyond the issue's ask — e.g. also fixing a latent body-cap override bug, or silently
@@ -201,8 +222,8 @@ git grep -n 'check_field_length' src/routes.cpp   # re-find by string at edit ti
 | Relaxed fail-secure with no abort test | Allowed startup with only the new `AGAMEMNON_API_KEYS` (relaxing "abort unless `AGAMEMNON_API_KEY` set") and added no negative test | An all-empty/whitespace `AGAMEMNON_API_KEYS` yields an empty accepted set and could let the server start insecurely | When relaxing a fail-secure rule, always add the negative/abort test for the degenerate (all-empty) input |
 | Independent dead-code-removal commit | Split into core / docs / dead-code-removal so the deletion could merge on its own | If a hidden build reference exists, the deletion commit breaks the build independently of the rest | Order/scope multi-commit splits so no single commit can break the build; gate deletion on the build-grep being empty |
 | Applied skills/APIs by description only | Used team-KB skills (`config-env-double-underscore-nesting`, `backward-compat-removal`) from their summary, and assumed `std::getline`/`std::isspace`/httplib header API behavior without compiling | Description-level use and uncompiled stdlib/library assumptions are unverified; behavior may differ | Read skill bodies and compile/verify stdlib + library assumptions, or explicitly flag each as unverified in the plan body |
-| Assumed build-target structure (issue #275) | Asserted `src/CMakeLists.txt` contains an `add_library(ProjectAgamemnon_core ...)` block and named where to insert the new source — but inferred it ONLY from `test/CMakeLists.txt:62,100` referencing the target; the actual `src/CMakeLists.txt` was never read | A file that *references* a target does not reveal how the target is *defined* (`target_sources`, glob, different layout); an "add the file here" step grounded in the wrong file breaks the build | When a plan adds a source to a build target, READ the build file that DEFINES the target, not just files that reference it |
-| Defaulted-param "non-breaking" without full census (issue #275) | Claimed a trailing defaulted parameter on `register_routes()` "keeps every existing caller compiling," listing a few test files | The list was not a complete caller census — integration tests, benchmarks, and other binaries were never grepped; a defaulted-arg backward-compat claim is only as good as a COMPLETE caller enumeration | Before claiming a defaulted-arg signature change is non-breaking, `git grep` the function name across the WHOLE repo and enumerate every call site |
+| Assumed build-target structure — proven WRONG on second pass (issue #275) | First draft asserted `src/CMakeLists.txt` contains the `add_library(ProjectAgamemnon_core ...)` block and named where to insert the new source — inferred ONLY from `test/CMakeLists.txt` referencing the target | The second verification pass found there is NO `src/CMakeLists.txt` at all; the `ProjectAgamemnon_core` STATIC library is defined in the ROOT `CMakeLists.txt:84-99`. The "add the file here" step pointed at an invented file — a guaranteed build break | Open and confirm the `add_library(...)`/`add_executable(...)` block ITSELF; a file that merely *references* a target never reveals where it is *defined*. Verified target location: root `CMakeLists.txt:84-99` |
+| Defaulted-param "non-breaking" without full census — later VERIFIED (issue #275) | First draft claimed a trailing defaulted parameter on `register_routes()` "keeps every existing caller compiling," listing only a few test files | The list was not a complete caller census; a defaulted-arg backward-compat claim is only as good as a COMPLETE caller enumeration. (Worktree/build copies also pollute a naive grep) | Second pass did the census excluding `.claude/worktrees/` + `build/`: exactly 9 call sites (1 `server_main.cpp` + 8 tests), NO integration/benchmark callers — only THEN is the claim sound. Always grep the WHOLE repo, exclude worktree/build copies, enumerate every site |
 | Absolute line numbers that the plan itself shifts (issue #275) | Cited exact `routes.cpp` line numbers (312/315/318/.../633) for `check_field_length` calls from a single read | The plan's own step 5 edits earlier lines first, shifting every later offset; an implementer trusting the cited line edits the wrong place | Anchor find-replace on searchable symbols/strings, not absolute line numbers, when later edits shift the file |
 | Scope-creep with prose/code divergence (issue #275) | Expanded beyond "make limits configurable" to also fix a body-cap override bug AND silently deprecate `SERVER_REQUEST_SIZE_LIMIT_MB` for `AGAMEMNON_MAX_BODY_BYTES`; described a back-compat fallback in prose but the `from_env()` code sample read ONLY `AGAMEMNON_MAX_BODY_BYTES` | Unflagged scope expansion inflates blast radius; the prose-vs-sample divergence is a classic defined-but-not-implemented bug — the fallback would likely never ship | (a) Flag adjacent-bug fixes / deprecations as scope expansion for reviewer sign-off; (b) make the code sample match the prose EXACTLY |
 | Unit mismatch on consolidated knobs (issue #275) | Folded `SERVER_REQUEST_SIZE_LIMIT_MB` (MEGABYTES) into `AGAMEMNON_MAX_BODY_BYTES` (BYTES) with a fallback, without highlighting the unit difference | A fallback that copies the MB value as bytes is off by 1,048,576x; the conversion line is silent and easy to get wrong | When consolidating two env knobs with different units, treat the conversion (`mb * 1024 * 1024`) as a high-risk line: state it explicitly and test both knobs |
@@ -247,12 +268,24 @@ if (valid_keys.empty()) abort_startup();               // fail-secure: all-empty
 > hardcoded `check_field_length` constants. The plan also claimed to fix a latent body-cap override
 > bug and to deprecate `SERVER_REQUEST_SIZE_LIMIT_MB`.
 
-Top unverified assumptions a reviewer MUST re-check for this class:
+**VERIFIED facts from the issue #275 second pass (the session caught its own first-draft errors):**
 
-- [ ] `src/CMakeLists.txt` was actually READ — the `add_library`/`target_sources` shape was confirmed,
-      not inferred from `test/CMakeLists.txt:62,100` references to `ProjectAgamemnon_core`.
-- [ ] COMPLETE caller census for `register_routes()` (`git grep`), not just the listed test files,
-      before accepting the defaulted-parameter "non-breaking" claim.
+- The build target is defined in the **ROOT `CMakeLists.txt:84-99`** (`add_library(ProjectAgamemnon_core ...)`,
+  STATIC). There is **NO `src/CMakeLists.txt`** — the first draft invented it from `test/CMakeLists.txt` references.
+- `register_routes()` caller census = **exactly 9 call sites**: 1 in `src/server_main.cpp` + 8 in test files;
+  **NO** integration/benchmark callers. Census run with worktree/build copies excluded.
+- **Caller-census grep that excludes pollution:**
+  `grep -rn 'register_routes' src/ test/ --exclude-dir=.claude --exclude-dir=build`
+  (the bare repo carries stray copies under `.claude/worktrees/` and `build/.worktrees/`).
+- **Post-edit invariant:** after removing every hardcoded limit, `grep -rn 'kMax' src/routes.cpp` MUST return 0.
+- **Knob precedence + unit rule:** `AGAMEMNON_MAX_BODY_BYTES` (BYTES) takes precedence; when only the legacy
+  `SERVER_REQUEST_SIZE_LIMIT_MB` (MEGABYTES) is set, fall back as `mb * 1024 * 1024`. Test BOTH knobs AND the
+  precedence between them.
+
+Top assumptions a reviewer MUST re-check for this class (some now resolved above):
+
+- [x] Build target location — RESOLVED: root `CMakeLists.txt:84-99`, NOT `src/CMakeLists.txt` (which does not exist).
+- [x] COMPLETE caller census for `register_routes()` — RESOLVED: 9 sites (1 src + 8 tests), no integration/benchmark.
 - [ ] All `routes.cpp` line citations (312/315/.../633) re-resolved by string at edit time — the
       plan edits earlier lines first, so the offsets drift.
 - [ ] The body-cap "bug fix" and the `SERVER_REQUEST_SIZE_LIMIT_MB` → `AGAMEMNON_MAX_BODY_BYTES`
@@ -268,4 +301,4 @@ Top unverified assumptions a reviewer MUST re-check for this class:
 | Project | Context | Details |
 |---------|---------|---------|
 | ProjectAgamemnon | Implementation-plan review for issue #260 (multi-key `AGAMEMNON_API_KEYS` in C++ `AuthMiddleware`); plan only, not executed end-to-end | unverified |
-| ProjectAgamemnon | Implementation-plan review for issue #275 (make input-length limits configurable via an `AGAMEMNON_*` `RouteLimits` struct threaded through `register_routes()`); plan only, not executed end-to-end | unverified |
+| ProjectAgamemnon | Implementation-plan review for issue #275 (make input-length limits configurable via an `AGAMEMNON_*` `RouteLimits` struct threaded through `register_routes()`); plan only, not executed end-to-end. v1.2.0 records the session's self-correcting second pass: build target VERIFIED in root `CMakeLists.txt:84-99` (no `src/CMakeLists.txt`), caller census VERIFIED at 9 sites | unverified (plan); two facts source-verified |
