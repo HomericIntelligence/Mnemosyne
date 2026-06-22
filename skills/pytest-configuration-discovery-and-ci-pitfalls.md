@@ -3,7 +3,7 @@ name: pytest-configuration-discovery-and-ci-pitfalls
 description: "Use when: (1) CI Python test job hangs until timeout with no explicit failure — hang signature from asyncio daemon tasks blocking epoll; (2) pytest warns 'ignoring pytest config in pyproject.toml!' or pytest.ini coexists with pyproject.toml causing dual-config conflicts; (3) test collection count is suspiciously low or ImportError on a scripts/ module — conftest.py missing sys.path guard; (4) slim 'pip install pytest' CI jobs silently inherit addopts from pyproject.toml and fail because pytest-cov or other plugins in addopts are not installed; (5) developers run bare pytest and only unit tests are discovered because tests/integration/ is not in testpaths; (6) CI test counts differ from local collection counts — marker-based selection (-m unit, -m integration) inconsistency; (7) a CI matrix has patterns referencing renamed or deleted test files — stale pattern detection; (8) pytest-watch dependency must be replaced with an alternative watcher dependency; (9) test is flaky only in the full suite due to class-level patch.object or hardcoded calendar dates/Unix timestamps; (10) coverage gate fires for a partial test run (e.g. pytest -m integration) but full-suite coverage is fine; (11) a ModuleNotFoundError fires when patching a scripts/ module not on sys.path during single-file pytest runs — add sys.path guard to conftest.py; (12) a test file PASSES when run via explicit path but contributes ZERO coverage in CI because it lives OUTSIDE testpaths and is never collected by the default run — verify COLLECTION with --collect-only, not just that the file passes; (13) deciding whether a sys.path.insert hack in a test is redundant given pythonpath already makes the dir importable as a namespace package."
 category: testing
 date: 2026-06-21
-version: "1.2.0"
+version: "1.3.0"
 user-invocable: false
 history: pytest-configuration-discovery-and-ci-pitfalls.history
 tags: [pytest, configuration, test-discovery, testpaths, markers, pytest-ini, pyproject-toml, addopts, pythonpath, conftest, sys-path, ci-matrix, stale-patterns, pytest-watcher, coverage, isolation, mock, collect-only, uncollected-tests, namespace-package]
@@ -18,7 +18,7 @@ tags: [pytest, configuration, test-discovery, testpaths, markers, pytest-ini, py
 | **Date** | 2026-06-21 |
 | **Objective** | Canonical reference for pytest configuration, test-discovery, and CI pitfalls — dual-config conflicts, testpaths/marker discovery gaps, uncollected stray test files outside testpaths, addopts inheritance in slim CI jobs, stale matrix patterns, watcher dependency replacement, sys.path conftest fixes, and redundant sys.path.insert under pythonpath namespace packages |
 | **Outcome** | Synthesised from 6 absorbed skills + uncollected-test-file detection; one general workflow for diagnosing config-shadowing, low collection counts, files silently never collected, partial-run coverage misfires, mock leakage, date bombs, and CI matrix hygiene |
-| **Verification** | verified-ci (multiple projects); Step 11 (uncollected stray file) is **verified locally only — CI validation pending** for the ProjectHephaestus #1547 finding |
+| **Verification** | verified-ci (multiple projects); Step 11 (uncollected stray file) is **verified-ci** — ProjectHephaestus #1547 PR passed full CI (4532 tests passed) |
 
 ## When to Use
 
@@ -349,11 +349,12 @@ def test_parses_date():
     assert abs(parsed - future.timestamp()) < 86400
 ```
 
-#### Step 11 — Stray Test File OUTSIDE testpaths Is Silently Never Collected (verified-local)
+#### Step 11 — Stray Test File OUTSIDE testpaths Is Silently Never Collected (verified-ci)
 
-> **Verification:** This step is **verified locally only — CI validation pending**. The
-> `--collect-only` count (0) and the explicit-path run (43 passed) were both observed in a
-> ProjectHephaestus issue #1547 planning session; CI for the relocation fix has not yet run.
+> **Verification:** This step is **verified-ci**. The `--collect-only` count (0) and the
+> explicit-path run (43 passed) were both observed in ProjectHephaestus issue #1547; the
+> relocation fix (`git mv tests/test_show_prompt.py tests/unit/scripts/test_show_prompt.py`)
+> passed full CI with 4532 tests passing.
 
 **Root cause**: `pyproject.toml` sets `testpaths = ["tests/unit", "tests/integration"]`. A
 test file that sits at the top-level `tests/` dir (e.g. `tests/test_show_prompt.py`, 43
@@ -559,4 +560,4 @@ Formula: `timeout_seconds = max(180, ceil(actual_duration * 3 / 60) * 60)`
 | ProjectArgus | CI "Test exporter" matrix — PRs #273, #289 | slim `pip install pytest pytest-cov` missing `pyyaml`; addopts `--cov` inherited |
 | ProjectHermes | PR #475 — `fail_under = 80` in pyproject.toml | integration-only CI job failed at 78.52%; gate moved to full-suite step |
 | ProjectOdyssey | Issue #3357, PR #4001 — stale CI pattern detection/removal | `check_stale_patterns()` added (13 tests pass); dangling matrix tokens removed |
-| ProjectHephaestus | Issue #1547 (planning) — `tests/test_show_prompt.py` outside testpaths | **verified-local**: `--collect-only` count `0`; explicit-path run `43 passed`; fix = `git mv` into `tests/unit/scripts/`; redundant `sys.path.insert` removable because import is package-prefix + `pythonpath=["."]`. CI for the fix not yet run |
+| ProjectHephaestus | Issue #1547 — `tests/test_show_prompt.py` outside testpaths | **verified-ci**: `--collect-only` count `0`; explicit-path run `43 passed`; fix = `git mv` into `tests/unit/scripts/`; redundant `sys.path.insert` removed (import was package-prefix + `pythonpath=["."]`); PR passed full CI with 4532 tests |
