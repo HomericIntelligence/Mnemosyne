@@ -2,6 +2,31 @@
 
 # History: python-import-patterns-and-compatibility-guards
 
+## v1.7.0 (2026-06-24)
+
+**Changed by:** ProjectHephaestus issue #1511 — a SECOND planning instance of the section G pattern (POLA/ISP `[S14 API Design]` audit finding that symbols in `hephaestus/cli/utils.__all__` are absent from the package-level `hephaestus/cli/__init__.__all__`). This MINOR bump extends section G (as a new §G′ subsection) with three additional planning learnings drawn from that plan, without altering the v1.5.0 issue-#1513 §G material or the v1.6.0 issue-#1512 §H material. (Lands on top of v1.6.0, which a concurrent PR (#2820, issue #1512 / section H) merged first; rebased onto it and renumbered to 1.7.0 to avoid the version collision.)
+**Verification:** **unverified** for ALL new material — issue #1511 is an implementation PLAN that was not executed in CI. Section G keeps its existing `unverified` framing. All pre-existing verification levels are unchanged (verified-ci for function-local / version-guard / Windows-guard / lazy-exports; verified-local for the surface-pin-stale fix and the access-time deprecation-warning implementation; unverified planning-guidance for sections G and H).
+
+### What changed
+
+- Added subsection **§G′. Second instance of the §G pattern — `hephaestus.cli` package-vs-submodule `__all__` gap (UNVERIFIED, issue #1511)** under section G, with three numbered learnings (all `unverified`):
+  1. **Diff the two `__all__` lists yourself — the audit's named symbols can be INCOMPLETE.** Issue #1511 named only `add_dry_run_arg` and `DRY_RUN_HELP_CAVEAT`, but `set(utils.__all__) - set(cli.__all__)` on disk revealed FOUR missing symbols (also `add_github_throttle_args`, `configure_github_throttle_from_args`). Fixing only the cited subset leaves the same defect and re-triggers the audit.
+  2. **The target package may have NO COMPATIBILITY.md per-package symbol table — so the §G step-1 version-stamp can be entirely N/A.** `hephaestus.cli` is listed as Stable in the tier list (`COMPATIBILITY.md:53`) but has no per-package symbol table (those exist only for `logging`/`config`/`io`/`utils`); grep `### \`hephaestus.<pkg>\`` to confirm a table exists before agonizing over the "Added" version.
+  3. **A green existing surface test may be a WEAK membership spot-check that does not catch the gap — strengthen it to a full set-difference pin.** `tests/unit/cli/test_utils.py::test_cli_all_lists_framework` only asserted 5 named symbols were `in cli.__all__`, so it passed despite the gap; convert it to a `set(utils.__all__) - set(cli.__all__)` empty-assertion plus a re-export IDENTITY check.
+- Added two reviewer risk callouts to §G′: (a) the most uncertain assumption is that re-exporting the two throttle symbols is in-scope (defensible as the same defect class, but a reviewer could call it scope-creep; justified as "fixing the named subset re-triggers the audit"); (b) the claim that widening `cli/__init__.py` does not regress `test_import_surface.py`/`test_automation_boundary.py` was reasoned from `utils.py` importing only stdlib + `hephaestus._version_lookup`, but NOT run (verification commands listed, unexecuted).
+- Lightly extended the frontmatter `description`'s §G clause (8) to mention: diff the two `__all__` lists yourself (the audit's named symbols may be incomplete); the target package may have no COMPATIBILITY.md symbol table (skip the version-stamp); strengthen weak membership spot-checks to a full set-difference pin plus a re-export identity check.
+- Updated the Overview verification row's §G clause to cite both issue #1513 and #1511 (§G′ second instance).
+- Added a Verified On row for issue #1511 marked **PLAN ONLY / unverified**.
+- Bumped version 1.6.0 → 1.7.0; date stays 2026-06-24.
+
+### Why
+
+Section G (added in v1.5.0 from issue #1513) taught the audit-finding surface-promotion checklist. Issue #1511 produced a second, independent instance of the SAME pattern in a different package (`hephaestus.cli`) and surfaced three durable, transferable refinements the first instance did not: (1) the audit's symbol list can under-count the gap, so the implementer must compute the full `set` difference rather than trust the issue's named symbols; (2) the COMPATIBILITY.md version-stamp step can be entirely N/A when the package has no per-package symbol table (covered instead by the package-level Stable guarantee via `__all__`); and (3) an EXISTING surface test can be green yet useless if it only spot-checks membership of a hand-picked few, so it must be converted to a full module-vs-package set-difference pin. A second instance of the same pattern is exactly the kind of corroborating evidence that justifies a MINOR amend. The plan was not executed in CI, so all new material is `unverified`.
+
+### Previous version (v1.6.0) snapshot
+
+The v1.6.0 entry below is the prior recorded snapshot (issue #1512 / section H, merged concurrently via PR #2820). Key difference from v1.7.0: v1.6.0 had no §G′ subsection — no "diff the two `__all__` lists yourself", no "package may have no COMPATIBILITY.md symbol table", no "strengthen weak membership spot-check to a set-difference pin", and no issue-#1511 reviewer risk callouts or Verified On row. (Section H and all earlier sections are unchanged by v1.7.0.)
+
 ## v1.6.0 (2026-06-24)
 
 **Changed by:** ProjectHephaestus issue #1512 — implementation PLAN for an `[S14 API Design]` audit finding that `hephaestus/__init__.py` implements the PEP 562 `__getattr__` lazy loader but omits the companion module-level `__dir__()`, so `dir(hephaestus)` shows only ~4 eagerly-bound names and the entire lazily-loaded public API is invisible to introspection tools (IPython tab-completion, IDEs, doc generators).
