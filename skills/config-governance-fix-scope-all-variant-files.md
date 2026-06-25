@@ -42,7 +42,7 @@ tags:
 
 ## Verified Workflow
 
-### Quick Reference
+### Enforcement Guard Quick Reference
 
 ```bash
 # 1. Grep the ENTIRE config dir for the cited field — not just the files the issue named.

@@ -176,7 +176,6 @@ tags:
 
 1. **PR-merged / CI green.** Verification is `verified-local`. The PR for ProjectHephaestus #1544 must still pass CI and merge before this reaches `verified-ci`. Track via PR state.
 
-
 ## Results & Parameters
 
 Copy-paste pre-implementation checklist for a doc-systematization + onboarding nitpick:
