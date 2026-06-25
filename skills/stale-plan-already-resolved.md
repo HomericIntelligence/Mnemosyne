@@ -112,8 +112,8 @@ gh api graphql -f query='query{...inlined ${owner}...}'   # → reproduces the U
 ```
 
 Only the findings that still reproduce on current main warrant a fix. In the 2026-06-14
-session, 2 of 4 log-found bugs were already fixed (the `UNKNOWN_CHAR` GraphQL crash by PR
-#1148; the planner-learnings 120s timeout replaced by `learn_claude_timeout()` = 7200s), so
+session, 2 of 4 log-found bugs were already fixed (the `UNKNOWN_CHAR` GraphQL crash by
+PR #1148; the planner-learnings 120s timeout replaced by `learn_claude_timeout()` = 7200s), so
 their fixes were scoped down to the durable hardening only. The other 2 (armed-DIRTY
 swallowed, green-BLOCKED threads not addressed) were confirmed still present before implementing.
 
