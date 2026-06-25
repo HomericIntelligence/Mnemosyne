@@ -2,6 +2,29 @@
 
 # History: python-import-patterns-and-compatibility-guards
 
+## v1.6.0 (2026-06-24)
+
+**Changed by:** ProjectHephaestus issue #1512 — implementation PLAN for an `[S14 API Design]` audit finding that `hephaestus/__init__.py` implements the PEP 562 `__getattr__` lazy loader but omits the companion module-level `__dir__()`, so `dir(hephaestus)` shows only ~4 eagerly-bound names and the entire lazily-loaded public API is invisible to introspection tools (IPython tab-completion, IDEs, doc generators).
+**Verification:** **unverified** for ALL new material (section H + the new "Use when"/"When to Use" trigger + 3 new Failed Attempts rows + the new Verified On row). The plan's `__dir__()` edit and `TestDirDiscoverability` tests were never executed in CI. All pre-existing sections retain their prior verification levels (verified-ci for function-local / version-guard / Windows-guard / lazy-exports; verified-local for the surface-pin-stale fix and the access-time deprecation-warning implementation; unverified planning-guidance for section G).
+
+### What changed
+
+- Added a 9th "Use when" trigger to the frontmatter description and a 9th "When to Use" bullet: PLANNING the companion module-level `__dir__()` for a PEP 562 lazy-loader package whose `dir(pkg)` shows only eagerly-bound names.
+- Added detailed-steps subsection **H. Adding the companion `__dir__()` to a PEP 562 lazy-loader package — UNVERIFIED planning-guidance**, with an `unverified` banner and five points: (1) a custom `__dir__` REPLACES (does not merge with) the default listing, so `set(globals())` MUST be folded into the return or `dir()` silently SHRINKS (drops `__version__`/`__author__`/dunders/already-cached lazy names); (2) `__dir__` returns names only and performs NO attribute access, so a deprecated lazy shim can be listed without firing its `DeprecationWarning` (cross-referenced to section F); (3) pin by SUBSET invariant (`set(_LAZY_IMPORTS) <= set(dir(pkg))`), never a hardcoded count; (4) regression-test that `dir()` does not SHRINK the visible set; (5) audit-snapshot counts drift (the audit's "35 symbols" was already stale at 40 on disk) — verify the live surface before quoting any count.
+- Added 3 Failed Attempts rows (all `unverified`): returned only `sorted(set(_LAZY_IMPORTS) | set(__all__))` from `__dir__` (dropped `globals()` → `dir()` shrank); trusted the audit's "35 symbols" count (live = 40, a hardcoded-count test would be born stale); worried that listing a deprecated shim in `__dir__` would fire its `DeprecationWarning` (it doesn't — names only, no access).
+- Added a Verified On row for issue #1512 marked **PLAN ONLY / unverified**.
+- Updated the Overview verification row to append the section H `unverified` planning-guidance clause (without downgrading any existing verified section).
+- Added tags: `dir`, `__dir__`, `discoverability`, `introspection`.
+- Bumped version 1.5.0 → 1.6.0; date stays 2026-06-24.
+
+### Why
+
+The skill already taught the PEP 562 `__getattr__` lazy-loader seam (section B for widening the surface, section F for the access-time `DeprecationWarning`). Section F covers `__getattr__` (the resolve/access half of PEP 562); issue #1512's planning surfaced the natural sibling — the `__dir__` (discoverability/listing) half — which the prior sections did not cover and which shares this skill's exact search surface (`__getattr__`, lazy loader, PEP 562). Five durable, transferable lessons emerged: a custom module `__dir__` REPLACES the default listing rather than merging, so `set(globals())` must be folded in or the visible surface silently shrinks (the single most easily-missed point); `__dir__` returns names only and triggers no attribute access, so a deprecated lazy shim is listed without firing its access-time warning (directly connecting to section F); the contract must be pinned by a subset invariant, not a hardcoded count (the audit's "35 symbols" was already stale at 40 — the same staleness failure mode as the strict-equality `__all__` pins in sections B/B′); the primary failure mode is shrinkage, so a dedicated "does not shrink" regression test is warranted; and audit-snapshot counts drift between finding-time and fix-time. The plan was not executed, so all new material is `unverified` and section H carries an explicit unverified banner.
+
+### Previous version (v1.5.0) snapshot
+
+The v1.5.0 entry below is the prior recorded snapshot (this history file follows a delta-journal convention — each version records what changed plus a pointer to the prior entry rather than re-pasting the full `.md` body). Key difference from v1.6.0: v1.5.0 had no section H, no `__dir__`-companion "Use when" trigger, no `__dir__`/`globals()`-merge / subset-invariant / no-warning-on-listing Failed Attempts rows, no `dir`/`__dir__`/`discoverability`/`introspection` tags, and the Overview verification row had no section H `unverified` clause.
+
 ## v1.5.0 (2026-06-24)
 
 **Changed by:** ProjectHephaestus issue #1513 — implementation PLAN for an `[S14 API Design]` audit finding that promotes three existing public-looking correlation-ID functions (`set_correlation_id`, `get_current_correlation_id`, `correlation_id_scope` in `hephaestus/logging/utils.py`) into `hephaestus.logging.__all__` + the `COMPATIBILITY.md` stable-symbol table.
