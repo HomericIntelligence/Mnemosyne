@@ -2,6 +2,28 @@
 
 # History: python-import-patterns-and-compatibility-guards
 
+## v1.3.0 (2026-06-24)
+
+**Changed by:** ProjectHephaestus issue #1545 — implementation PLAN for an access-time `DeprecationWarning` on the deprecated `retry_with_jitter` lazy shim exposed via the PEP 562 `__getattr__` loader in `hephaestus/__init__.py`.
+**Verification:** **unverified** for ALL new material — the plan's edits and regression test were never executed (line numbers read, not run). The pre-existing function-local / version-guard / Windows-guard / lazy-exports sections remain verified-ci; the surface-pin-stale material remains verified-local.
+
+### What changed
+
+- Added a 7th "Use when" trigger to the frontmatter description and a 7th "When to Use" bullet: planning a DeprecationWarning at ACCESS time (not just call time) for a deprecated lazy shim behind a PEP 562 `__getattr__` loader.
+- Added a new detailed-steps subsection **F. Proposed Workflow — planning an access-time DeprecationWarning across the PEP 562 lazy-loader seam (UNVERIFIED)** with a warning banner and 7 steps: grep the symbol before trusting the issue's structural claim (issue said `__all__`, reality is `_LAZY_IMPORTS`); keep access-time and call-time warnings as complementary layers; `module.__dict__.pop(name)` to defeat PEP 562 globals caching in the regression test; grep + rewrite stale-tolerant tests that document the silent resolve; update `COMPATIBILITY.md` prose in the same PR; re-confirm the import-surface boundary tests; validate `stacklevel` for an attribute-lookup indirection.
+- Added 6 Failed Attempts rows (all tagged `unverified` / PLANNING): trusting the issue's `__all__` claim, deduping the two warning layers, one-shot test without cache reset, treating the change as additive, skipping the prose doc, and reusing `stacklevel=2` blindly.
+- Added Results & Parameters subsection "Access-time DeprecationWarning across the lazy-loader seam — PROPOSED pattern (UNVERIFIED)" with the `__getattr__` warning snippet and the `__dict__.pop` regression test.
+- Added a Verified On row for issue #1545 marked PLAN ONLY / unverified.
+- Updated Overview (date → 2026-06-24, objective, outcome, three-level verification note including the new unverified material), added tags (deprecation-warning, access-time-warning, pep-562, getattr, stale-tolerant-test, doc-drift, planning), bumped version 1.2.0 → 1.3.0.
+
+### Why
+
+The lazy-exports section already taught the `__getattr__` / `_LAZY_IMPORTS` seam, but covered widening a surface, not retrofitting a deprecation warning onto a shim resolved by that seam. Issue #1545's planning surfaced five durable, non-obvious traps that share this skill's exact search surface (`__getattr__`, lazy loader, deprecation): the issue can misname *where* the symbol lives (`_LAZY_IMPORTS` vs `__all__`); access-time and call-time warnings are complementary layers that must both be kept; PEP 562 caches the resolved name into module globals so the access warning fires once per process unless the test pops it; an existing regression test may document and tolerate the current silent resolve and must be rewritten (a change is not additive if a green test encodes the old contract); and a prose doc (`COMPATIBILITY.md`) describing the warning as firing "when called" drifts unless updated in the same PR. The plan was never executed, so all material is `unverified` and the new workflow is titled "Proposed Workflow" with a warning banner.
+
+### Previous version (v1.2.0) snapshot
+
+See the v1.1.0 / v1.0.0 entries below for the prior recorded snapshots. (The v1.2.0 bump was not separately journaled in this history file; the v1.3.0 amendment is applied on top of the v1.2.0 `.md` content.)
+
 ## v1.1.0 (2026-06-11)
 
 **Changed by:** ProjectHephaestus PR #968 / issue #775 CI fix — stale surface-pin test repair (`AuditReviewer` landed on main via independent PR #1067)

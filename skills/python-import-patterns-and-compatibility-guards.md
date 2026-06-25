@@ -1,9 +1,9 @@
 ---
 name: python-import-patterns-and-compatibility-guards
-description: "Use when: (1) a child module would create circular dependencies by importing the parent at module level — use function-local imports to defer the lookup and keep the import graph acyclic; (2) extending a public SDK surface with peer classes using lazy-loading __init__.py infrastructure (lazy exports pattern via __getattr__) to prevent eager-load regressions when adding new peers to __all__; (3) code uses a stdlib module added in a later Python version (tomllib in 3.11+, ExceptionGroup in 3.11+) and the CI matrix includes older Python — add a version-gated try/except import guard so the module remains importable; (4) adding cross-OS CI matrix and Windows jobs fail with ModuleNotFoundError for POSIX-only stdlib modules (curses, fcntl, grp, tzdata) — add conditional import guards and ensure tzdata is listed as an optional Windows dependency; (5) a hardcoded surface-pinning test (set(__all__) == literal) fails on CI with 'Extra items in the left set' because a peer export landed on main via an independent PR while your branch was open — fix the stale test literal, not the (correct) source, and use env -i / git stash / grep-the-CI-log to separate real failures from live-session environment noise; (6) a branch widening a lazy SDK surface (_LAZY_EXPORTS/__all__/__getattr__ in __init__.py) goes DIRTY/CONFLICTING on rebase because a sibling PR already landed the identical export — resolve by keeping ONE copy of the shared entry, and FIRST check mergeStateStatus=DIRTY when a PR reads as CI-failing but no test actually failed."
+description: "Use when: (1) a child module would create circular dependencies by importing the parent at module level — use function-local imports to defer the lookup and keep the import graph acyclic; (2) extending a public SDK surface with peer classes using lazy-loading __init__.py infrastructure (lazy exports pattern via __getattr__) to prevent eager-load regressions when adding new peers to __all__; (3) code uses a stdlib module added in a later Python version (tomllib in 3.11+, ExceptionGroup in 3.11+) and the CI matrix includes older Python — add a version-gated try/except import guard so the module remains importable; (4) adding cross-OS CI matrix and Windows jobs fail with ModuleNotFoundError for POSIX-only stdlib modules (curses, fcntl, grp, tzdata) — add conditional import guards and ensure tzdata is listed as an optional Windows dependency; (5) a hardcoded surface-pinning test (set(__all__) == literal) fails on CI with 'Extra items in the left set' because a peer export landed on main via an independent PR while your branch was open — fix the stale test literal, not the (correct) source, and use env -i / git stash / grep-the-CI-log to separate real failures from live-session environment noise; (6) a branch widening a lazy SDK surface (_LAZY_EXPORTS/__all__/__getattr__ in __init__.py) goes DIRTY/CONFLICTING on rebase because a sibling PR already landed the identical export — resolve by keeping ONE copy of the shared entry, and FIRST check mergeStateStatus=DIRTY when a PR reads as CI-failing but no test actually failed; (7) PLANNING a DeprecationWarning at ACCESS time (not just call time) for a deprecated lazy shim exposed via a PEP 562 package __getattr__ loader — grep the named symbol against the source first because the issue may misname the mechanism (in _LAZY_IMPORTS vs __all__), keep access-time and call-time warnings as complementary layers, force a fresh resolve in the regression test via module.__dict__.pop(name) because PEP 562 caches into globals, rewrite any stale-tolerant test that documents the current silent behavior, and update the prose deprecation doc (COMPATIBILITY.md) in the same PR."
 category: architecture
-date: 2026-06-11
-version: "1.2.0"
+date: 2026-06-24
+version: "1.3.0"
 user-invocable: false
 history: python-import-patterns-and-compatibility-guards.history
 tags:
@@ -29,6 +29,13 @@ tags:
   - merge-conflict
   - rebase
   - mergestate-dirty
+  - deprecation-warning
+  - access-time-warning
+  - pep-562
+  - getattr
+  - stale-tolerant-test
+  - doc-drift
+  - planning
 ---
 
 # Python Import Patterns and Compatibility Guards
@@ -37,10 +44,10 @@ tags:
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-06-11 |
-| **Objective** | Manage the Python import graph and import compatibility across versions and platforms: avoid circular dependencies with function-local imports, extend public SDK surfaces via lazy exports without eager-load regressions, guard stdlib imports that vary by Python version or OS, and keep hardcoded surface-pinning tests from going stale when peers land via parallel PRs |
-| **Outcome** | Acyclic import graphs, Windows-importable packages, CI matrices green on older Python and POSIX-only stdlib, lazy SDK surfaces that scale to new peer classes, and a decision procedure for fixing stale pinned-`__all__` tests (test vs source) without chasing live-session environment noise |
-| **Verification** | verified-ci (function-local / version-guard / Windows-guard / lazy-exports); verified-local (surface-pin-stale fix — CI re-run confirmation pending) |
+| **Date** | 2026-06-24 |
+| **Objective** | Manage the Python import graph and import compatibility across versions and platforms: avoid circular dependencies with function-local imports, extend public SDK surfaces via lazy exports without eager-load regressions, guard stdlib imports that vary by Python version or OS, keep hardcoded surface-pinning tests from going stale when peers land via parallel PRs, and plan an access-time `DeprecationWarning` across the PEP 562 lazy-loader seam |
+| **Outcome** | Acyclic import graphs, Windows-importable packages, CI matrices green on older Python and POSIX-only stdlib, lazy SDK surfaces that scale to new peer classes, a decision procedure for fixing stale pinned-`__all__` tests (test vs source) without chasing live-session environment noise, and a planning checklist for emitting a deprecation warning at `__getattr__` access time without breaking caching, stale-tolerant tests, or prose docs |
+| **Verification** | verified-ci (function-local / version-guard / Windows-guard / lazy-exports); verified-local (surface-pin-stale fix — CI re-run confirmation pending); **unverified** (access-time deprecation-warning planning — section F is a PLAN that was never executed) |
 
 ## When to Use
 
@@ -50,6 +57,7 @@ tags:
 - **Windows / POSIX-only stdlib guard**: Adding a cross-OS CI matrix where Windows jobs fail with `ModuleNotFoundError` for `curses`/`fcntl`/`termios`/`grp`/`pwd`, or `zoneinfo.ZoneInfo` raises `ZoneInfoNotFoundError` on Windows (needs `tzdata`).
 - **Lazy-export add/add rebase conflict**: A branch widens the lazy SDK surface (`_LAZY_EXPORTS` + `__all__` + `__getattr__`) and goes `DIRTY`/`CONFLICTING` because a *sibling PR already landed the identical export* on main. The PR reads as "CI failing" but the logs show only runner/setup steps and **no test actually failed** — the merge conflict itself is the blocker. Resolve by keeping ONE copy of the shared entry.
 - **Stale surface-pin test (branch-divergence / merge-skew)**: A hardcoded surface-pinning test (`assert set(__all__) == {literal}`) fails on CI with `Extra items in the left set: '<Symbol>'`, where `<Symbol>` is a *legitimate* peer export that landed on `main` via an independent PR while your feature branch was open. The production `__init__.py` is correct; the test literal went stale. You need to decide whether the test or the source is wrong, then fix only the stale party — and to do that you must separate the real CI failure from environment noise that only appears when the local suite runs inside a live automation session.
+- **Access-time deprecation warning across the lazy-loader seam (PLANNING, unverified)**: You are planning to make a deprecated lazy shim (e.g. `retry_with_jitter`) warn at *attribute-access* time, not only when called, by adding a `warnings.warn(...)` inside the package `__getattr__` / `_LAZY_IMPORTS` resolver. The plan must reconcile: the issue may misname *where* the symbol lives (`_LAZY_IMPORTS` vs `__all__`); the existing call-time warning is a *different* layer (keep both); PEP 562 caches the resolved name into module globals so the access path runs once per process (the test must `__dict__.pop` to re-trigger); an existing regression test may *document and tolerate* the current silent resolve and must be rewritten; and a prose doc (`COMPATIBILITY.md`) may describe the warning as firing "when called" and must be updated in the same PR.
 
 ## Verified Workflow
 
@@ -248,10 +256,45 @@ General pattern + known backports:
 6. **Scope tests honestly**: runtime guards make the package *importable* on Windows, not the POSIX-only CLIs *functional*. Skip those tests on Windows via `pytest.skip(...)` rather than scattering inline `if sys.platform == "win32"` assertions.
 7. **Track the full cross-OS port as a separate issue** (file-mode bits, path encoding, coredump handlers). Keep the matrix ubuntu-only until that lands; keep the import guards so downstream consumers stay Windows-importable.
 
+#### F. Proposed Workflow — planning an access-time DeprecationWarning across the PEP 562 lazy-loader seam (UNVERIFIED)
+
+> **Warning:** This workflow has not been validated end-to-end. It is a PLAN produced for ProjectHephaestus issue #1545 (warn at *access* time, not only call time, for the deprecated `retry_with_jitter` shim exposed via `hephaestus/__init__.py`'s PEP 562 `__getattr__` loader). The edits and the regression test were **never executed** — line numbers were read, not run. Verification level = `unverified`. Treat every step as a hypothesis until CI confirms it.
+
+1. **Grep the named symbol against the source BEFORE trusting the issue's structural claim.** Issue #1545 said the shim was "in `__all__`", but `retry_with_jitter` is actually only in `_LAZY_IMPORTS` (the lazy resolver map), not `__all__`. The fix location — the `__getattr__` lazy-loader seam — is the same either way, but the plan MUST call out the discrepancy or a reviewer flags the plan as wrong.
+   ```bash
+   grep -n "retry_with_jitter" hephaestus/__init__.py   # is it in _LAZY_IMPORTS or __all__? (here: _LAZY_IMPORTS only)
+   grep -rn "def retry_with_jitter" hephaestus/         # where the real impl + any call-time warning lives
+   ```
+2. **Treat access-time and call-time warnings as COMPLEMENTARY layers, not duplicates — keep both.** A deprecated shim may already warn *inside its function body* (fires on `hephaestus.utils.X` direct call). Adding a warning in the package `__getattr__` covers a *different* access path — binding `hephaestus.X` via attribute lookup, even if the symbol is never called. Different users hit different paths; do NOT "dedup" them.
+3. **Force a fresh resolve in the regression test — PEP 562 `__getattr__` caches into module globals.** After the first `hephaestus.retry_with_jitter` access, the resolved name is written into the module's `__dict__`, so `__getattr__` (and the access warning) never runs again that process. A prior test that already touched the symbol makes the warning assertion a flaky false-negative. Pop it first:
+   ```python
+   import hephaestus, warnings
+
+   def test_access_emits_deprecation_warning():
+       hephaestus.__dict__.pop("retry_with_jitter", None)   # force __getattr__ to re-run
+       with warnings.catch_warnings(record=True) as caught:
+           warnings.simplefilter("always")
+           _ = hephaestus.retry_with_jitter             # ACCESS, do not call
+       assert any(issubclass(w.category, DeprecationWarning) for w in caught)
+   ```
+4. **Grep for stale-tolerant tests that ASSERT the about-to-change behavior, then REWRITE them — a change is not "additive" if a passing test documents the old contract.** An existing test (`test_deprecation_warnings.py:49-66`) explicitly documented and tolerated the silent lazy resolve ("the lazy resolve itself is silent; only CALLING warns"). The plan had to find and rewrite that test, not merely add a new one — otherwise the change contradicts a green test's documented contract.
+   ```bash
+   grep -rn "silent\|lazy resolve\|only CALLING\|does not warn" tests/ | grep -i deprecat
+   ```
+5. **Update the prose deprecation doc in the SAME PR — behavior/doc drift is a review trap.** `COMPATIBILITY.md` had a bullet stating the warning fires "when called". A doc-cross-check test (e.g. `test_compatibility_doc_mentions_*`) or a reviewer will catch the drift if the prose still says "when called" after the behavior now also fires on access.
+6. **Re-confirm the import-surface boundary still holds.** Adding `warnings.warn` inside `__getattr__` is low-risk (`warnings` is stdlib), but verify it does not trip `test_import_surface.py` / `test_automation_boundary.py` — *unverified* in this plan.
+7. **Validate the `stacklevel`.** A direct-call warning uses `stacklevel=2` to point at the caller. In a `__getattr__` indirection the access is an *attribute lookup*, not a call, so the correct `stacklevel` for the access warning may differ — this is an UNVERIFIED assumption; check the rendered warning location against a real access line before committing.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 |---------|----------------|---------------|----------------|
+| Trust the issue's "in `__all__`" claim about the deprecated shim (PLANNING) | Issue #1545 stated `retry_with_jitter` was exposed via `__all__`; planned the fix from that structural claim | The symbol is actually only in `_LAZY_IMPORTS`, not `__all__`. A reviewer comparing the plan to source would flag it as wrong even though the fix seam (`__getattr__`) is identical | Grep the named symbol against the source before trusting an issue's structural claim; call out any discrepancy in the plan. `unverified` |
+| Assume the access-time warning duplicates the existing call-time warning (PLANNING) | Considered "deduping" by relying on the function-body warning alone | Access-time (`hephaestus.X` binding) and call-time (`hephaestus.utils.X(...)`) are DIFFERENT access paths firing for different users; dropping either silently loses coverage | Keep both warnings — they are complementary layers, not duplicates. `unverified` |
+| Write a one-shot warning-assertion test without resetting the cache (PLANNING) | `with pytest.warns(DeprecationWarning): _ = hephaestus.retry_with_jitter` | PEP 562 caches the resolved name into module globals on first access; a prior test that touched the symbol means `__getattr__` never re-runs → false-negative / flaky | Call `module.__dict__.pop(name, None)` before asserting, to force a fresh `__getattr__` resolve. `unverified` |
+| Treat the change as purely additive (new test only) (PLANNING) | Planned to add a new warning-assertion test and leave existing tests alone | An existing regression test (`test_deprecation_warnings.py:49-66`) explicitly documented and tolerated the silent lazy resolve; the new behavior contradicts that green test | Grep for tests asserting the CURRENT (about-to-change) behavior; rewrite the stale-tolerant one, don't just append. `unverified` |
+| Change the behavior without touching the prose doc (PLANNING) | Planned source + test edits only | `COMPATIBILITY.md` said the warning fires "when called"; a doc-cross-check test or reviewer catches the drift after access-time firing is added | Update the prose deprecation doc that describes the deprecation in the same PR. `unverified` |
+| Reuse `stacklevel=2` from the call-time warning for the access-time warning (PLANNING, UNVERIFIED) | Assumed `stacklevel=2` points at the user's access line inside `__getattr__` | Attribute-lookup indirection differs from a direct function call; the correct stacklevel for an access may not be 2. Never validated against a rendered warning | Validate `stacklevel` against a real access line before committing; do not copy the call-time value blindly. `unverified` |
 | Module-level child→parent import | `from hephaestus.logging.utils import get_current_correlation_id` at top of `helpers.py` | `CircularImportError`/`ImportError` at startup because `logging.utils` already imports `utils.helpers` | Any child-to-parent import at module level creates a cycle if the parent imports the child; use a function-local import |
 | Thread correlation ID as a parameter | `run_subprocess(cmd, cid=None)` plumbed through the call chain | Intermediate functions must accept a param they never use; refactor becomes painful | Reserve parameters for true call-level args; use ambient context (contextvars) for ambient state |
 | Move the helper function to dodge the edge | Relocate `get_current_correlation_id()` into `utils` | Creates a god-module, couples `utils.helpers` to logging concerns, violates SRP | Move the import, not the function — keep it where it semantically belongs |
@@ -401,6 +444,49 @@ def test_entry_point_importable(module_path: str) -> None:
     importlib.import_module(module_path)
 ```
 
+### Access-time DeprecationWarning across the lazy-loader seam — PROPOSED pattern (UNVERIFIED)
+
+> **Warning:** The snippets below are from a plan that was never executed. Line numbers were read, not run. Treat as a hypothesis.
+
+```python
+# hephaestus/__init__.py — add an access-time warning inside the PEP 562 loader.
+# retry_with_jitter lives in _LAZY_IMPORTS (NOT __all__ — the issue misnamed this).
+import warnings
+
+_DEPRECATED_LAZY = {"retry_with_jitter"}  # access-time-deprecated shims
+
+def __getattr__(name: str):
+    if name in _LAZY_IMPORTS:
+        if name in _DEPRECATED_LAZY:
+            warnings.warn(
+                f"hephaestus.{name} is a deprecated shim; import from its "
+                "canonical module instead.",
+                DeprecationWarning,
+                stacklevel=2,   # UNVERIFIED for an attribute-lookup indirection
+            )
+        module = importlib.import_module(_LAZY_IMPORTS[name])
+        value = getattr(module, name)
+        globals()[name] = value   # PEP 562 caches → __getattr__ won't re-run for `name`
+        return value
+    raise AttributeError(name)
+```
+
+```python
+# Regression test MUST pop the cached name to force a fresh resolve.
+def test_access_time_deprecation_warning():
+    import hephaestus, warnings
+    hephaestus.__dict__.pop("retry_with_jitter", None)   # without this → false-negative
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        _ = hephaestus.retry_with_jitter                 # ACCESS only, no call
+    assert any(issubclass(w.category, DeprecationWarning) for w in caught)
+```
+
+Companion edits the plan identified but did NOT execute: rewrite the stale-tolerant
+`tests/test_deprecation_warnings.py:49-66` (it documented the silent resolve), and update
+the `COMPATIBILITY.md` bullet that says the warning fires "when called". Keep the existing
+call-time warning in the shim body — the two layers are complementary.
+
 ## Verified On
 
 | Project | Context | Details |
@@ -411,3 +497,4 @@ def test_entry_point_importable(module_path: str) -> None:
 | ProjectHephaestus | Issue #775 / PR #968 vs #1067 — stale surface-pin repair | `test_public_surface_pins_expected_symbols` failed on every Py leg with `Extra items in the left set: 'AuditReviewer'`; `AuditReviewer` was a legitimate peer added on `main` by independent PR #1067. Fixed the stale test literal (one-line add, alphabetised), zero source change. `verified-local` — CI re-run confirmation pending. 2 sibling local failures (`HEPH_*_MODEL` env leak; live `gh` auth past a mock) proven environmental via `env -i` + `git stash` + grep-the-CI-log |
 | ProjectHephaestus | PR #657 — fix broken main CI | `sys.version_info` guard for `tomllib`/`tomli` in `tests/unit/ci/test_bandit_config.py`; conditional deps in `pyproject.toml`/`pixi.toml`; 2590 tests pass |
 | ProjectHephaestus | PRs #534, #536, #538 (issue #539 tracks full port) — Windows-importability | curses guard in `CursesUI`, fcntl guard in `planner.py`, `tzdata` for `hephaestus.github.rate_limit` |
+| ProjectHephaestus | Issue #1545 — access-time DeprecationWarning for `retry_with_jitter` (PLAN ONLY) | Produced an implementation PLAN to warn at `__getattr__` access time (`hephaestus/__init__.py:88/97`, `retry.py:240`, `config/utils.py:334`) in addition to the existing call-time warning; rewrite stale-tolerant `test_deprecation_warnings.py:49-66`; update `COMPATIBILITY.md`. Symbol is in `_LAZY_IMPORTS`, not `__all__` (issue misnamed it). **unverified** — edits + regression test were never executed; `stacklevel`, import-surface-boundary, and warning-filter UX assumptions all unvalidated |
