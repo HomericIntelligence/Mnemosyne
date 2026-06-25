@@ -1,5 +1,20 @@
 # architecture-executable-convention-guard-pattern — History
 
+## v1.2.0 (2026-06-24)
+
+**Changed by:** ProjectHephaestus issue #1543 re-plan (after a reviewer NOGO on the bidirectional mirror-guard plan — a TEST-COVERAGE lesson from the review iteration).
+**Verification:** unverified (PLAN only — code not executed, CI not run)
+
+### What changed
+- Added step 8 to the bidirectional sub-pattern's "Proposed Workflow": **test the orchestrator branch, not just the helper.** A pure low-level predicate (`check_no_unsanctioned_test_dirs()`) is easy to unit-test directly, but wiring it into a higher-level orchestrator (`check_test_structure()`) leaves the orchestrator's failure branch — its `for name in sorted(unsanctioned): print(..., file=sys.stderr)` loop + remediation hint — UNEXECUTED under helper-only tests, which can drop coverage below the 83% line-coverage gate. Fix: a SEPARATE orchestrator-altitude test using `capsys` asserting both the offending dir name AND the remediation hint, mirroring sibling failure tests (`test_missing_src_root` / `test_missing_test_root`) at the same altitude.
+- Added two supporting sub-points under step 8: (a) tree-mutating manual negative tests (`mkdir tests/unit/rogue ... rmdir`) are a hygiene risk — demote below the unit test and wrap in a `trap '... rmdir' EXIT` subshell; (b) a new allowlist/skip set sharing names with an existing one on a DIFFERENT axis (`docs`/`scripts` in both `_detect_src_package`'s `skip` set and `SANCTIONED_EXTRA_TEST_DIRS`) needs an inline comment naming the distinct axis (POLA).
+- Added 2 Failed Attempts rows: "tested only the new low-level helper" (orchestrator stderr loop uncovered → can fail the 83% gate; add a `capsys` orchestrator-altitude test); "manual negative test mutated the real tree" (stray dir on mid-run abort → `trap ... EXIT` subshell + make secondary to a unit test).
+- Added a "Coverage-altitude generalization (v1.2.0, unverified)" note to Results & Parameters and a row to the Verified On table.
+- Updated the sub-pattern warning to read "added in v1.1.0, extended in v1.2.0". Bumped frontmatter version 1.1.0 → 1.2.0.
+
+### Why
+The bidirectional mirror-guard plan (v1.1.0) got a reviewer NOGO whose durable lesson is a coverage-altitude gap: unit-testing the new pure helper in isolation does not execute the orchestrator's failure-reporting branch that consumes it, so under a line-coverage gate the uncovered `sys.stderr` print loop can fail CI even though the logic is "tested." The general rule — when you add Check N, add a Check-N-failure test at the SAME altitude as the existing Check-1/Check-2 tests, not just at the helper altitude — plus the tree-mutation hygiene and cross-axis allowlist POLA points, belong in the same skill as the v1.1.0 bidirectional sub-pattern. Still unverified (plan-only).
+
 ## v1.1.0 (2026-06-24)
 
 **Changed by:** ProjectHephaestus issue #1543 (PLANNING learning — tests/unit/ dirs breaking the hephaestus/ mirror invariant).
