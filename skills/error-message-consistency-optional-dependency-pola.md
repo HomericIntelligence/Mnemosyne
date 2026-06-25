@@ -1,22 +1,27 @@
 ---
 name: error-message-consistency-optional-dependency-pola
-description: "Plan a POLA fix that aligns one public entry point's missing-optional-dependency error to an existing sibling's actionable error instead of inventing a new exception. Use when: (1) two public functions reach the same missing-dependency failure by different code paths and one already raises the right error; (2) a catch-all branch collapses 'unsupported format' and 'dependency missing' into one misleading message; (3) you are tempted to add a discriminator enum or custom exception class for a one-line consistency fix; (4) the absent-dependency branch is only ever exercised via monkeypatch and could pass vacuously."
+description: "Fix a POLA violation where a config loader collapses format-detection and dependency-availability into one branch, causing a missing-dependency failure to masquerade as 'Unsupported format'. Use when: (1) two public functions reach the same missing-dependency failure by different code paths and one already raises the right error; (2) a catch-all branch collapses 'unsupported format' and 'dependency missing' into one misleading message; (3) you are tempted to add a discriminator enum or custom exception class for a one-line consistency fix; (4) the absent-dependency branch is only ever exercised via monkeypatch and could pass vacuously; (5) flipping an exception type (ValueError→RuntimeError) requires grepping callers for type-specific except handlers and potentially collapsing identical-body arms to a tuple."
 category: architecture
 date: 2026-06-25
-version: "1.0.0"
+version: "2.0.0"
 user-invocable: false
-verification: unverified
+verification: verified-local
 tags:
   - pola
   - error-message
   - optional-dependency
   - exception-consistency
+  - exception-type-flip
+  - caller-reconciliation
+  - dry
   - planning
   - yaml
   - monkeypatch
   - vacuous-test
   - yagni
   - kiss
+  - runtime-error
+  - value-error
 ---
 
 # Error-Message Consistency for Optional-Dependency Failures (POLA)
@@ -26,10 +31,10 @@ tags:
 | Field | Value |
 |-------|-------|
 | **Date** | 2026-06-25 |
-| **Objective** | Plan ProjectHephaestus issue #1510 — `load_config()` raised a misleading `ValueError("Unsupported config format")` when PyYAML was absent for a `.yaml`/`.yml` file, instead of the actionable `RuntimeError("PyYAML is required for YAML config support")` that the sibling `load_yaml_config()` already raises. |
-| **Outcome** | Plan written: split the collapsed `suffix in {...} and YAML_AVAILABLE` condition into (detect format) THEN (check dependency), and reuse the existing sibling error verbatim. NOT a discriminator-enum case. Plan unverified — never executed in CI. |
-| **Verification** | unverified — planning session only; the one-liner and its tests were reasoned about but never run. |
-| **History** | n/a (initial version) |
+| **Objective** | Fix ProjectHephaestus issue #1510 — `load_config()` raised a misleading `ValueError("Unsupported config format")` when PyYAML was absent for a `.yaml`/`.yml` file, instead of the actionable `RuntimeError("PyYAML is required for YAML config support")` that the sibling `load_yaml_config()` already raises. |
+| **Outcome** | Implemented and verified locally: split the collapsed `suffix in {...} and YAML_AVAILABLE` condition into (detect format) THEN (check dependency); updated the one `except ValueError` caller (`fleet_sync.py:_load_fleet_config`) to also catch `RuntimeError`; collapsed three identical-body `except` arms to a tuple. 140 tests passing locally; CI pending (PR #1608). |
+| **Verification** | verified-local — 140 tests passing locally; CI pending |
+| **History** | v1.0.0 (2026-06-25): planning session only, unverified. v2.0.0 (2026-06-25): implementation verified locally; adds caller-reconciliation and DRY tuple-collapse patterns. |
 
 ## When to Use
 
@@ -37,6 +42,8 @@ tags:
 - A single boolean condition collapses two distinct concerns — e.g. `if suffix in {".yaml", ".yml"} and YAML_AVAILABLE:` — so a missing dependency falls through to an "unsupported format" branch and reports the wrong cause.
 - You are about to "fix" the inconsistency by inventing a **new exception class** or **discriminator enum** for what is a one-line consistency fix. (Reach for this skill to talk yourself out of that — see also `exception-discriminator-enums-state-machine-pola` for the *opposite* case where an enum IS warranted.)
 - The missing-dependency branch is almost never exercised because the dependency is installed in every normal test/CI env, so the only coverage is a `monkeypatch.setattr(..., AVAILABLE_FLAG, False)`.
+- You are about to flip an exception type (e.g. `ValueError` → `RuntimeError`) in a public function and need to find all callers that had type-specific `except` handlers to update them.
+- After adding a new `except` arm to a caller, you notice multiple arms now have byte-identical bodies and can be collapsed to a tuple for DRY.
 
 ## Proposed Workflow
 
@@ -101,7 +108,113 @@ def load_config(config_path):
 
 ## Verified Workflow
 
-_Not applicable._ This skill was captured from a planning session and is `unverified`: the one-line fix and its tests were reasoned about but never executed and no CI ran, so there is no verified workflow. The actionable, hypothesis-level methodology lives under **Proposed Workflow** above and must be treated as unvalidated until CI confirms it. (This placeholder section exists only because `scripts/validate_plugins.py` requires the literal `## Verified Workflow` heading; it intentionally makes no verification claim.)
+This section documents the implementation as actually executed for issue #1510 / PR #1608 (verified-local: 140 tests passing).
+
+### Step 1 — Split the collapsed branch
+
+```python
+# BEFORE — collapsed: missing PyYAML falls through to ValueError("Unsupported config format")
+with open(config_path) as f:
+    if config_path.suffix.lower() in [".yml", ".yaml"] and YAML_AVAILABLE:
+        return cast(dict[str, Any], yaml.safe_load(f) or {})
+    elif config_path.suffix.lower() == ".json":
+        return cast(dict[str, Any], json.load(f))
+    else:
+        raise ValueError(f"Unsupported config format: {config_path.suffix}")
+
+# AFTER — split: detect format first, check availability inside the branch
+suffix = config_path.suffix.lower()
+with open(config_path) as f:
+    if suffix in (".yml", ".yaml"):
+        if not YAML_AVAILABLE:
+            raise RuntimeError("PyYAML is required for YAML config support")
+        return cast(dict[str, Any], yaml.safe_load(f) or {})
+    elif suffix == ".json":
+        return cast(dict[str, Any], json.load(f))
+    else:
+        raise ValueError(f"Unsupported config format: {config_path.suffix}")
+```
+
+Key decisions:
+- Extract `suffix = config_path.suffix.lower()` to avoid computing it twice.
+- Keep `config_path.suffix` (original case) in the `ValueError` message — existing tests assert the original-case extension.
+- The `RuntimeError` message is verbatim from `load_yaml_config()` — cross-entry-point consistency.
+
+### Step 2 — Grep callers for type-specific except handlers
+
+```bash
+# Find all call sites (before the type flip)
+grep -rn "load_config(" hephaestus/ tests/ | grep -v "def load_config\|#"
+# Find all type-specific except handlers around those call sites
+grep -n "except ValueError\|except FileNotFoundError\|except RuntimeError" hephaestus/github/fleet_sync.py
+```
+
+In this case `fleet_sync.py:_load_fleet_config` had:
+
+```python
+# BEFORE — two separate arms, no RuntimeError arm
+except FileNotFoundError as e:
+    raise RuntimeError(f"Failed to load fleet config from {config_path}: {e}") from e
+except ValueError as e:
+    raise RuntimeError(f"Failed to load fleet config from {config_path}: {e}") from e
+```
+
+### Step 3 — Add the missing arm, then collapse identical-body arms to a tuple (DRY)
+
+```python
+# AFTER — add RuntimeError arm, then observe all three bodies are identical → collapse
+except (FileNotFoundError, ValueError, RuntimeError) as e:
+    raise RuntimeError(f"Failed to load fleet config from {config_path}: {e}") from e
+```
+
+Do this in ONE commit: adding the new arm and collapsing to a tuple is a single atomic DRY fix.
+
+### Step 4 — Update the docstring Raises: section
+
+```python
+def load_config(config_path: Path, ...) -> dict[str, Any]:
+    """...
+    Raises:
+        FileNotFoundError: If the config file does not exist.
+        ValueError: If the file extension is not a supported format.
+        RuntimeError: If the file is YAML but PyYAML is not installed.
+    """
+```
+
+### Step 5 — Add tests for both the fix and regression
+
+```python
+# New test: missing-dependency path raises RuntimeError (not ValueError)
+def test_load_yaml_without_pyyaml_raises_runtime_error(self, tmp_path, monkeypatch):
+    monkeypatch.setattr("hephaestus.config.utils.YAML_AVAILABLE", False)
+    yaml_file = tmp_path / "config.yaml"
+    yaml_file.write_text("key: value\n")
+    with pytest.raises(RuntimeError, match="PyYAML is required for YAML config support"):
+        load_config(yaml_file)
+
+# New test: .yml variant also raises RuntimeError (not just .yaml)
+def test_load_yml_without_pyyaml_raises_runtime_error(self, tmp_path, monkeypatch):
+    monkeypatch.setattr("hephaestus.config.utils.YAML_AVAILABLE", False)
+    yml_file = tmp_path / "config.yml"
+    yml_file.write_text("key: value\n")
+    with pytest.raises(RuntimeError, match="PyYAML is required for YAML config support"):
+        load_config(yml_file)
+
+# Regression: unsupported format still raises ValueError
+def test_load_unsupported_format_raises(self, tmp_path):
+    toml_file = tmp_path / "config.toml"
+    toml_file.write_text("[section]\nkey = 'value'\n")
+    with pytest.raises(ValueError, match="Unsupported config format"):
+        load_config(toml_file)
+
+# Caller test: context wrapper preserved for YAML-missing case
+def test_load_fleet_config_yaml_missing_dep_raises_with_context(self, tmp_path, monkeypatch):
+    monkeypatch.setattr("hephaestus.config.utils.YAML_AVAILABLE", False)
+    fleet_file = tmp_path / "fleet.yml"
+    fleet_file.write_text("repos: []\n")
+    with pytest.raises(RuntimeError, match=r"Failed to load fleet config from .*fleet\.yml"):
+        _load_fleet_config(fleet_file)
+```
 
 ## Failed Attempts
 
@@ -113,6 +226,8 @@ _Not applicable._ This skill was captured from a planning session and is `unveri
 | 4 | Changed `ValueError` -> `RuntimeError` without grepping callers. | Any existing `except ValueError:` around `load_config()` for the YAML-missing case silently breaks — a public-contract change shipped unverified. | TOP RISK: grep `load_config` callers and `except ValueError` before changing the raised type. |
 | 5 | Shipped a malformed intermediate test in the plan: `with pytest.warns(None) if False else contextlib_nullcontext():` referencing an undefined `contextlib_nullcontext`, then "simplified" it. | A plan that contains a broken-then-corrected code block invites a reviewer to copy the wrong version; `contextlib_nullcontext` is undefined and the `pytest.warns(None)` form is deprecated. | Plans must emit only the FINAL form of code. Reviewers: ignore discarded drafts; check only the final test. |
 | 6 | Assumed `monkeypatch.setattr(..., "YAML_AVAILABLE", False)` exercises the branch without confirming the flag is read at call time. | If the function captured the flag into a local or another module import-bound the value, the patch silently no-ops and the test passes vacuously without entering the missing-PyYAML branch. | Verify the flag is read module-level at call time; assert the exact error AND that the real branch was taken; remember the branch is only ever reachable via the patch. |
+| 7 | Added `except RuntimeError` as a third separate arm alongside existing `FileNotFoundError` and `ValueError` arms in the caller. | Technically correct but left three arms with byte-identical bodies — DRY violation flagged in review. | Collapse all three to a tuple in the same commit as adding the new arm. |
+| 8 | Used `except Exception` to catch all load errors in the caller. | Too broad — catches programmer errors unrelated to `load_config`. | Only catch the specific exception types that `load_config` can actually raise; use the tuple form. |
 
 ## Results & Parameters
 
@@ -152,6 +267,25 @@ def test_load_unsupported_format_preserves_original_case(tmp_path):
         load_config(cfg)
 ```
 
+### Exception contract after fix
+
+| Input | `YAML_AVAILABLE` | Exception Type | Message |
+|-------|-----------------|----------------|---------|
+| `.yaml` / `.yml` | `True` | — (success) | — |
+| `.yaml` / `.yml` | `False` | `RuntimeError` | `"PyYAML is required for YAML config support"` |
+| `.json` | any | — (success) | — |
+| `.toml` / other | any | `ValueError` | `"Unsupported config format: .toml"` (original-case suffix) |
+| missing file | any | `FileNotFoundError` | `"Configuration file not found: ..."` |
+
+### Caller tuple pattern (verified DRY collapse)
+
+```python
+# Any call site that had separate arms for each exception type
+# and all arms had the same body → collapse to a tuple
+except (FileNotFoundError, ValueError, RuntimeError) as e:
+    raise RuntimeError(f"Failed to load config from {path}: {e}") from e
+```
+
 ### Reviewer checklist (most-uncertain assumptions, ranked)
 
 | # | Assumption to verify | How to check |
@@ -161,14 +295,15 @@ def test_load_unsupported_format_preserves_original_case(tmp_path):
 | 3 | `monkeypatch.setattr(..., "YAML_AVAILABLE", False)` actually flips the branch. | Confirm `load_config` reads the module-level flag at call time, not a captured local. |
 | 4 | The new tests are not vacuous. | PyYAML is always installed; branch reachable only via patch — assert exact message/type and that the loader was not called. |
 
-### Expected outcome
+### Outcome (verified locally)
 
 - `load_config("x.yaml")` with PyYAML absent → `RuntimeError("PyYAML is required for YAML config support")` (was: misleading `ValueError`).
 - `load_config("x.toml")` → `ValueError("Unsupported config format: .toml")` unchanged.
 - Zero new public types; the two existing exception types encode the distinction.
+- One caller updated: `fleet_sync.py:_load_fleet_config` — three separate `except` arms collapsed to a tuple.
 
 ## Verified On
 
 | Project | Context | Details |
 |---------|---------|---------|
-| ProjectHephaestus | Issue #1510 — `load_config()` misleading missing-PyYAML error | Planning session only; plan unverified, not executed in CI. Sibling `load_yaml_config()` already raised the target `RuntimeError`. |
+| ProjectHephaestus | Issue #1510 / PR #1608 — `load_config()` misleading missing-PyYAML error | v1.0.0: Planning session only; plan unverified, not executed in CI. v2.0.0: Implementation complete; 140 tests passing locally; CI pending. Sibling `load_yaml_config()` already raised the target `RuntimeError`; caller `fleet_sync.py:_load_fleet_config` had `except ValueError` updated to `except (FileNotFoundError, ValueError, RuntimeError)` tuple. |
