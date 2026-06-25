@@ -1,13 +1,35 @@
-# automation-ci-driver-blocked-poll-early-exit — History
+<!-- markdownlint-disable MD024 -->
+# History: automation-ci-driver-blocked-poll-early-exit
 
-## v1.1.0 (2026-06-14)
+This file preserves previous versions of the skill before amendments.
 
-**Changed by:** ProjectHephaestus PR #1356 (issue #1348) — drive-green BLOCKED PRs now address+resolve unresolved review threads instead of yielding an unmergeable armed success.
-**Verification:** verified-local (all 177 tests in tests/unit/automation/test_ci_driver.py pass; ruff + mypy (391 files, no issues) + pre-commit all green; CI validation pending on the PR)
+## v1.1.0 (2026-06-15)
+
+**Changed by:** ProjectHephaestus thread-blocked PR diagnosis session
+**Verification:** verified-ci
+**What changed:** Extended the skill with operator/agent diagnostic and resolution guidance
+for green+armed PRs that are BLOCKED purely by unresolved review threads (not a human
+approval gate). Added: branch-protection API diagnosis technique, GraphQL thread enumeration,
+per-thread triage (genuine fix vs. false-positive bot reply+resolve), and two new Failed
+Attempts rows for mis-diagnosing threads as a human gate and for incorrectly inlining a DIP
+lambda. "Use when" extended to include the green+armed-BLOCKED-by-threads trigger. Verified On
+row added citing PRs #1283/#1358 (ProjectHephaestus) which merged once threads were cleared.
+**Why:** The v1.0.0 skill covered only the ci_driver polling fix. Two separate mis-diagnoses
+in a real PR queue confirmed the need for an agent-facing resolution playbook:
+(1) a green+armed BLOCKED PR was twice assumed to need human approval — incorrect, the
+protection had `required_review_thread_resolution: true` but no approving-review count; (2) a
+`github-code-quality` bot false-positive thread about an "unnecessary lambda" was nearly
+"fixed" by inlining the lambda, which would have broken `patch.object` tests.
+
+### Supplemental v1.1.0 amendment (ProjectHephaestus PR #1356 / issue #1348)
+
+**Verification:** verified-local (all 177 tests in `tests/unit/automation/test_ci_driver.py`
+passed; ruff + mypy across 391 files passed; pre-commit passed; CI validation was pending on
+the source PR at capture time).
 
 ### What changed
 
-- Added the second half of the BLOCKED story: v1.0.0 made `_wait_for_pr_terminal` exit
+- Added the drive-green half of the BLOCKED story: v1.0.0 made `_wait_for_pr_terminal` exit
   early and return `"BLOCKED"` (treated as "armed success"), but with branch protection
   `required_review_thread_resolution: true`, a green PR BLOCKED *solely* by unresolved
   review threads was armed yet UNMERGEABLE FOREVER — "Found N unresolved thread(s)"
@@ -37,7 +59,16 @@ ever acting on them. The amendment closes the loop by actually addressing and re
 threads, reusing the address-and-resolve engine already wired into the fresh-implementation
 loop (`_review_phase.py`).
 
-### Previous version (v1.0.0) snapshot
+---
+
+## v1.0.0 (2026-06-07)
+
+Initial version. Covered `_wait_for_pr_terminal` early-exit for BLOCKED PRs caused by
+branch-protection gates (unresolved conversations, required review) vs. in-flight CI checks.
+Documented the two-condition guard (`not failing AND not pending`), `_pending_required_check_names`
+helper, caller updates, and three test patterns. Verified locally (PR #1090 filed).
+
+### v1.0.0 full content
 
 ```markdown
 ---
@@ -84,17 +115,13 @@ The fix requires distinguishing these: only fire the early-exit when ALL require
 
 ### Quick Reference
 
-(see v1.0.0 in git history — two helpers _failing_required_check_names / _pending_required_check_names, two-condition BLOCKED guard in _wait_for_pr_terminal returning "BLOCKED", caller handling in _drive_issue / _check_arming_on_drive_start, and three test patterns)
+def _pending_required_check_names(self, pr_number: int) -> list[str]:
+    ...
 
-### Detailed Steps
-
-1. Locate the DIRTY/CONFLICTING guard in _wait_for_pr_terminal — the new BLOCKED guard goes right after it.
-2. Add _pending_required_check_names immediately after _failing_required_check_names. status != "completed" identifies in-flight checks; fall back to all checks if none flagged required.
-3. Two-condition guard — BOTH not failing AND not pending before firing early-exit.
-4. Return "BLOCKED" (not None, not "TIMEOUT").
-5. Update two callers: _drive_issue and _check_arming_on_drive_start.
-6. Control max_wait in tests via HEPH_PR_MERGE_MAX_WAIT.
-7. Run pytest + ruff.
+if merge_status == "BLOCKED" and not failing:
+    pending = self._pending_required_check_names(pr_number)
+    if not pending:
+        return "BLOCKED"
 
 ## Failed Attempts
 
@@ -104,26 +131,18 @@ The fix requires distinguishing these: only fire the early-exit when ALL require
 
 ## Results & Parameters
 
-| Condition | mergeStateStatus | _failing_* | _pending_* | Early-exit fires? |
-|-----------|-------------------|--------------|--------------|-------------------|
-| CI in-flight | BLOCKED | [] | ["ci/build"] | No — keeps polling |
-| CI failed | BLOCKED | ["ci/build"] | [] | No — returns "FAILING" |
-| Branch-protection gate | BLOCKED | [] | [] | Yes — returns "BLOCKED" |
-| Conflict | CONFLICTING | any | any | Yes — returns "CONFLICTING" (pre-existing) |
+### Key Behavioral Invariants
 
-HEPH_PR_MERGE_MAX_WAIT overrides max_wait (default 1800). Net change PR #1090: ci_driver.py +~35 LOC, test_ci_driver.py +3 tests.
+| Condition | `mergeStateStatus` | `_failing_*` | `_pending_*` | Early-exit fires? |
+|-----------|-------------------|--------------|--------------|-------------------|
+| CI in-flight | `BLOCKED` | `[]` | `["ci/build"]` | No — keeps polling |
+| CI failed | `BLOCKED` | `["ci/build"]` | `[]` | No — returns `"FAILING"` |
+| Branch-protection gate | `BLOCKED` | `[]` | `[]` | Yes — returns `"BLOCKED"` |
+| Conflict | `CONFLICTING` | any | any | Yes — returns `"CONFLICTING"` (pre-existing) |
 
 ## Verified On
 
 | Project | Context | Details |
 |---------|---------|---------|
-| ProjectHephaestus | Issue — _wait_for_pr_terminal polls indefinitely on BLOCKED PRs with unresolved review threads | PR #1090; all unit tests pass locally; all pre-commit hooks pass |
+| ProjectHephaestus | Issue — `_wait_for_pr_terminal` polls indefinitely on BLOCKED PRs with unresolved review threads | PR #1090; all unit tests pass locally; all pre-commit hooks pass |
 ```
-
----
-
-## v1.0.0 (2026-06-07)
-
-**Initial version.** Added the two-condition BLOCKED early-exit guard to
-`_wait_for_pr_terminal` (returns `"BLOCKED"`, treated by callers as armed success) plus the
-`_pending_required_check_names` helper. Delivered as ProjectHephaestus PR #1090.
