@@ -1,0 +1,141 @@
+---
+name: hephaestus-automation-loop-branch-sync-drive-green
+description: "Diagnose and fix ProjectHephaestus automation-loop completion failures by enforcing fresh branch/worktree sync before implementation, limiting each worker's drive-green scope to its owned issue/PR, and running a final catch-all drive-green pass. Use when: (1) automation loops leave planned issues or PRs unfinished, (2) existing issue worktrees or branches are reused across runs, (3) drive-green acts on unrelated PRs, (4) Codex-authored commits must satisfy signed and Signed-off-by policy gates."
+category: tooling
+date: 2026-06-26
+version: "1.0.0"
+user-invocable: false
+verification: verified-ci
+tags:
+  - projecthephaestus
+  - automation-loop
+  - drive-green
+  - git-worktree
+  - branch-sync
+  - codex
+  - signed-commits
+  - dco
+  - pr-scope
+---
+
+# Hephaestus Automation Loop Branch Sync and Drive-Green Scope
+
+## Overview
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-06-26 |
+| **Objective** | Make automation-loop workers finish their owned issue/PR reliably instead of reusing stale branches, ignoring review/comment state, or letting broad drive-green phases act on unrelated PRs. |
+| **Outcome** | Fixed in ProjectHephaestus PR #1646 for issue #1645. The PR merged on 2026-06-26 after required CI passed. |
+| **Verification** | verified-ci |
+
+## When to Use
+
+- A ProjectHephaestus automation loop reports progress but leaves issues, implementation PRs, or review-thread work unfinished.
+- An implementation worker reuses an existing issue branch or worktree from a previous run.
+- A branch/worktree appears to contain the intended work, but it was not rebased against current `origin/main` before the worker resumed.
+- A drive-green phase is scoped by intent to one issue/PR but logs or touches unrelated open PRs.
+- A final status sweep shows green-but-unarmed, stale, or review-blocked PRs after per-worker phases finish.
+- Codex is the selected agent and commits must satisfy both signed-commit and `Signed-off-by` policy checks.
+
+## Verified Workflow
+
+### Quick Reference
+
+```bash
+# 1. Before each implementation worker resumes or reuses an issue branch/worktree:
+git fetch origin
+git -C <issue-worktree> status --short --branch
+git -C <issue-worktree> rebase origin/main
+git -C <issue-worktree> status --short --branch
+
+# 2. Verify the worker owns exactly one issue/PR scope before drive-green:
+gh issue view <issue> --json state,labels
+gh pr list --state open --search "<issue> in:body" --json number,headRefName,state
+hephaestus-automation-loop --issues <issue> --agent <agent>
+
+# 3. Keep drive-green scoped to the owned issue/PR inside the worker:
+hephaestus-merge-prs --issues <issue> --agent <agent>
+
+# 4. After all per-worker runs, run one explicit catch-all pass:
+hephaestus-merge-prs --agent <agent>
+
+# 5. Verify commit policy before pushing or arming auto-merge:
+git log origin/main..HEAD --pretty=format:'%h %G? %s'
+git log origin/main..HEAD --format=%B | grep -q '^Signed-off-by: '
+```
+
+### Detailed Steps
+
+1. **Refresh the base before doing anything else.** Run `git fetch origin` and ensure the worker branch/worktree is rebased onto current `origin/main` before implementation starts. Treat a reused branch as suspect until it has been rebased and its diff is re-inspected.
+
+2. **Do not preserve stale local commits just because the branch name matches the issue.** If a local issue branch/worktree was created before the current `origin/main`, inspect `git log HEAD..origin/main`, `git diff --stat origin/main...HEAD`, and the PR/issue state. Rebase first, then apply or rerun the implementation. A stale branch can contain revert-shaped or incomplete work that looks plausible by commit subject.
+
+3. **Make worktree ownership explicit.** Each implementation worker should own one issue and the PR that closes it. If the worker discovers an existing PR, sync to that PR head and account for comments, reviews, and thread state before deciding the implementation is done.
+
+4. **Scope drive-green inside a worker to the owned issue/PR.** A per-issue worker should not run a broad repo-wide drive-green phase that can fail because of unrelated PRs, arm unrelated PRs, or attribute unrelated CI failures back to the worker's issue. Pass the issue/PR scope through all worker-local drive-green calls.
+
+5. **Run a final catch-all drive-green pass after all workers finish.** The catch-all pass belongs at the end of the orchestration, not inside every worker. It catches repo-level stragglers, newly green PRs that still need arming, and state that legitimately requires a broad sweep after all per-issue work has settled.
+
+6. **Handle Codex commit policy explicitly.** When Codex is the selected agent, ensure commits satisfy the repo policy for both signed commits and `Signed-off-by` trailers. Verify the commit range before pushing or enabling auto-merge, and repair the commit history if either policy gate would fail.
+
+7. **Use live GitHub state as the completion gate.** Before reporting the loop complete, check the issue state, PR state, required checks, review/thread state, and auto-merge state live from GitHub. Local success logs are not enough.
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+|---------|----------------|---------------|----------------|
+| Rerunning issues after stale merged-PR close detection | The loop detected that a closing PR had merged or that the issue looked stale, then reran the issue without first ensuring the branch/worktree was on current `origin/main`. | The worker could resume against stale local state and miss the actual current mainline or review/comment context. | Treat every reused issue branch/worktree as untrusted until fetched, rebased, and rechecked against live GitHub state. |
+| Broad drive-green over multiple PRs from inside workers | Worker-local drive-green ran over the broader repository instead of the owned issue/PR. | Unrelated PRs could be armed, fail, or affect the worker's return code, making one issue's worker responsible for repo-wide state. | Keep worker-local drive-green scoped to the issue/PR; reserve broad drive-green for a final catch-all pass. |
+| Preserving stale local commits instead of rebasing | Existing local branch commits were treated as work to preserve because their subjects looked relevant. | Stale branches can be based on old main, miss required files or comments, or carry partial/revert-shaped changes. | Rebase onto `origin/main` before implementation; inspect the post-rebase diff and live PR state before deciding what to keep. |
+| Fake or local-only substitutes for externally required tools | Local stand-ins were used for checks that the real external workflow or policy gate would enforce. | The local result did not prove the automation path would pass required CI, signing, review, or GitHub policy gates. | Use the real tool path for required external gates, or mark the result unverified. For this workflow, rely on required CI and live PR evidence. |
+| Codex commits without explicit policy verification | Codex-generated commits were allowed to proceed without checking both cryptographic signature state and `Signed-off-by` trailers. | Required policy checks can reject commits even when the code and tests are correct. | Verify `git log origin/main..HEAD --pretty=format:'%h %G? %s'` and scan commit bodies for `Signed-off-by:` before push/auto-merge. |
+
+## Results & Parameters
+
+### Public Evidence
+
+- ProjectHephaestus issue: #1645.
+- ProjectHephaestus fix PR: #1646.
+- Merge date: 2026-06-26.
+- Required Checks run: 28256238895 succeeded.
+- Test workflow run: 28256151963 succeeded.
+- Squash merge commit: `2a0cd2adc2570264c1bd2c45df96c75246bac433`.
+
+### Completion Checklist
+
+```bash
+# Branch/worktree freshness
+git fetch origin
+git -C <issue-worktree> rebase origin/main
+git -C <issue-worktree> diff --stat origin/main...HEAD
+
+# Live issue/PR ownership
+gh issue view <issue> --json state,labels
+gh pr list --state all --search "<issue> in:body" --json number,state,headRefName,mergeStateStatus
+
+# Worker-local convergence
+hephaestus-automation-loop --issues <issue> --agent <agent>
+hephaestus-merge-prs --issues <issue> --agent <agent>
+
+# Final repo-level sweep after all workers finish
+hephaestus-merge-prs --agent <agent>
+
+# Commit-policy guard for Codex or any agent path
+git log origin/main..HEAD --pretty=format:'%h %G? %s'
+git log origin/main..HEAD --format=%B | grep -q '^Signed-off-by: '
+```
+
+### Expected Result
+
+- Each worker starts from a current branch/worktree.
+- Each worker implements, reviews, addresses review state, and drives only the PR it owns.
+- Unrelated PR state cannot make one worker appear failed or complete.
+- The final broad drive-green pass is explicit and intentionally repo-level.
+- The PR can satisfy required CI plus signed and signed-off commit policy gates.
+
+## Verified On
+
+| Project | Context | Details |
+|---------|---------|---------|
+| ProjectHephaestus | Issue #1645 / PR #1646 | verified-ci; Required Checks run 28256238895 succeeded; Test workflow run 28256151963 succeeded; merged 2026-06-26 as `2a0cd2adc2570264c1bd2c45df96c75246bac433` |
