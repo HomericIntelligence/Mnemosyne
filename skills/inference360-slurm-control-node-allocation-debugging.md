@@ -160,7 +160,7 @@ Use sanitized summaries in durable docs, issues, and PRs. Keep raw endpoint addr
 
 | Evidence | Purpose |
 |----------|---------|
-| `squeue -j "$JOB_ID" -o '%i|%T|%R|%P|%q|%b|%D|%C|%m|%l|%S|%u|%j'` | Confirms state, reason, partition, QOS, GRES, node count, CPU count, and job name |
+| `squeue -j "$JOB_ID" -o '%i\|%T\|%R\|%P\|%q\|%b\|%D\|%C\|%m\|%l\|%S\|%u\|%j'` | Confirms state, reason, partition, QOS, GRES, node count, CPU count, and job name |
 | `scontrol show job "$JOB_ID"` | Confirms full job attributes where available |
 | `scontrol show partition cpuonly` and `scontrol show partition main` | Confirms partition policy differences directly |
 | Resolved manifest state | Shows which partition, account, QOS, and CPU count Inference360 intended to submit |

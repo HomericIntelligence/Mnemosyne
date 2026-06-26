@@ -126,4 +126,3 @@ engine_command+=(--cuda-graph-bs 1 2 4 8)
 | Project | Context | Details |
 |---------|---------|---------|
 | LLM360/Inference360 | PR #286 for issue #285, merged 2026-06-26 | CI passed validate, secrets, sast, python-sca, and CodeQL before auto-merge; local host fallback validation passed with 852 passed and 8 skipped |
-
