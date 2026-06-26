@@ -1,5 +1,44 @@
 # Changelog: audit-remediation-verify-evidence-before-planning
 
+## v1.2.0 -> v1.3.0 (2026-06-26)
+
+- **Version:** 1.2.0 -> 1.3.0 (MINOR — adds new findings/failed-attempts for a new audit shape, not a rewrite)
+- **Date:** 2026-06-26
+- **Changed by:** ProjectHephaestus issue #1506 ("Stable subpackages `hephaestus.cli`/`hephaestus.system`/`hephaestus.version` lack per-symbol API tables in COMPATIBILITY.md") planning
+- **Verification level:** UNVERIFIED — this addition is a PLAN ONLY. No code was executed, no tests run, no CI. The new Proposed Workflow section carries a warning banner; the new v1.3.0 Overview note is explicitly labeled `unverified`. The skill's frontmatter `verification` field is left at `verified-local` because the pre-existing (v1.0.0–v1.2.0) evidence-verification content remains genuinely verified-local; only the v1.3.0 additions are unverified and are labeled as such inline.
+- **What changed:**
+  - Generalized the description with the inferred-version-anchor case: when a doc-table column is genuinely un-recoverable (a semantic-version "Added" anchor), INFER it but label provenance honestly, and guard ONLY the verifiable invariant (membership vs live `__all__`), never the inferred value. Added trigger (5).
+  - Added a `v1.3.0 note (UNVERIFIED — plan only)` to the Overview banner documenting #1506: stale/under-counted audit count (claimed 12, live 16 for `hephaestus.cli`), inferred "Added" anchors, and the membership-only drift guard.
+  - Added two "When to Use" triggers (authoring a doc table mixing a verifiable + unverifiable column; re-deriving any cited symbol/item COUNT from live source).
+  - Added a new "Proposed Workflow (v1.3.0 — UNVERIFIED, plan only)" section with a warning banner and steps 12-16 (re-derive count from live `__all__`; infer + label the version anchor; guard only the recoverable invariant; mirror the nearest existing guard; account for the second-order cost where a new gate trips an older gate).
+  - Added an inferred-version-anchor block to Quick Reference (live `__all__` count, `git log -S` archaeology, membership-only guard, mirror existing guard, reciprocal tiers row).
+  - Added five Failed Attempts rows (transcribing the audit count; treating inferred "Added" as fact; guarding the inferred version; inventing a bespoke CI job; forgetting the new console script trips the sibling guard) — all tagged `(v1.3.0, UNVERIFIED)`.
+  - Added a ProjectHephaestus #1506 block to Results & Parameters (targets, stale count, inference method, drift-guard design mirroring `cli_tier_docs.py`, reciprocal edit, reviewer risk areas).
+- **Why:**
+  - Planning #1506, the audit asked for per-symbol API tables whose "Added" semantic-version column is genuinely un-recoverable (the subpackages predate the existing tables). The durable insight is honest provenance labeling of inferred data and the guard-design discipline of validating only the recoverable invariant — a natural extension of the skill's existing "added-version anchors are inferred, not verified" family. Re-reading the live `__all__` also caught the audit's symbol count as both stale and under-counted (12 claimed vs 16 live), reinforcing the skill's core "re-derive, never transcribe" lesson.
+
+---
+
+## Snapshot: v1.2.0 (previous version)
+
+```markdown
+---
+name: audit-remediation-verify-evidence-before-planning
+description: "Before planning a fix for an audit/remediation issue, verify the audit's cited evidence (file:line) against the live tree — audit findings go stale once the target is independently remediated, and an audit that names SEVERAL targets can have a SUBSET already fixed. Re-read EVERY cited file:line before planning, fix ONLY the issue-named targets (a repo-wide survey will surface more non-compliant siblings — note them out-of-scope, do not expand the PR), and do not invent a unit test for a doc/UX field that has no test contract. Use when: (1) planning a fix for an audit-filed issue with file:line evidence, (2) the issue spans multiple repos or submodules, (3) the issue recommends doc/field-name/frontmatter changes that may already be done, (4) the audit names multiple targets and any subset may already be remediated."
+category: architecture
+date: 2026-06-21
+version: "1.2.0"
+user-invocable: false
+verification: verified-local
+history: audit-remediation-verify-evidence-before-planning.history
+tags: []
+---
+```
+
+(Full v1.2.0 body preserved in git history; this snapshot records the frontmatter. The v1.2.0 Verified Workflow had 11 steps; Failed Attempts had 11 rows; Results & Parameters covered the two-layer canonical mapping, submodule exclusion dirs, and the #1553 `argument-hint` case.)
+
+---
+
 ## v1.1.0 -> v1.2.0 (2026-06-21)
 
 - **Version:** 1.1.0 -> 1.2.0 (MINOR — adds new findings/failed-attempts, not a rewrite)
