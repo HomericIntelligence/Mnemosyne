@@ -23,7 +23,7 @@ tags: [dco-signoff, pr-policy, merge-conflict, ci-fix, dcosignoff, pr-compliance
 
 ## When to Use
 
-- **Trigger 1**: pr-policy check fails with "missing Signed-off-by: Name <email> trailer" even though commit appears signed
+- **Trigger 1**: pr-policy check fails with "missing Signed-off-by: Name `<email>` trailer" even though commit appears signed
 - **Trigger 2**: Merge conflict appears after `git rebase origin/main` on a PR branch
 - **Trigger 3**: Need to amend last commit to add BOTH `-s` (DCO trailer) AND `-S` (GPG signature)
 - **Trigger 4**: PR combines auto-impl changes (which often lack DCO) with rebase-onto-updated-main (which creates conflicts)
@@ -208,7 +208,7 @@ git log --pretty=fuller -1
 # Commit: <hash>
 #     gpg: Signature made <timestamp> with key <key-id>
 #     gpg: Good signature from "<name>"
-# Signed-off-by: Your Name <email@example.com>
+# Signed-off-by: Your Name <you@users.noreply.github.com>
 
 # 2. All pre-commit hooks pass (ProjectHephaestus has 39/39)
 pre-commit run --all-files
