@@ -1,11 +1,12 @@
 ---
 name: github-ruleset-required-status-checks-management
-description: "Add a required status check to a GitHub repo branch-protection RULESET (rulesets API, not the legacy branch-protection API) and avoid the 'require-before-it-exists' ordering hazard. The rulesets PUT REPLACES the rule wholesale, so you must GET->append->PUT the full required_status_checks array (deriving integration_id from an existing Actions check, here 15368) or you DROP the existing checks. THE LOAD-BEARING HAZARD: a required context for a job that does NOT yet exist on the DEFAULT branch never reports, so it permanently BLOCKS every open PR — requiring a check must be sequenced AFTER the PR that adds the job merges to main. SEPARATELY, a follow-up issue can assert a FALSE premise (e.g. #282 said the SAST job 'was added in PR #264' but `gh pr view 264` showed PR #264 was still OPEN, not merged, and the `security/sast-scan` job lived only on the unmerged branch) — verify 'already done' premises against live state. Use when: (1) adding a new CI job's check context to a GitHub ruleset as a required status check; (2) a follow-up issue says 'add X to required checks' and you must verify the job exists on the default branch first; (3) diagnosing why adding a required status check could permanently block all PRs; (4) needing the correct integration_id for a GitHub Actions check context in a ruleset. Cross-link: gha-required-checks-branch-protection (the YAML/aggregator + legacy branch-protection PUT mechanics), github-ruleset-enforcement-drift (bare-name + integration_id context form), planning-verify-issue-claims-and-required-check-gating (runs-vs-gates + grep-the-claim discipline)."
+description: "Add a required status check to a GitHub repo branch-protection RULESET (rulesets API, not the legacy branch-protection API) and avoid the TWO sibling deadlock hazards: 'require-before-it-exists' (the job is absent on main) AND 'emitted-name-vs-required-name mismatch' (the job EXISTS, RUNS, and is GREEN on main but emits its check-run under a DIFFERENT name than the required context, so the required name never posts and every PR is BLOCKED-all-green forever). The rulesets PUT REPLACES the rule wholesale, so you must GET->append->PUT the full required_status_checks array (deriving integration_id from an existing Actions check, here 15368) or you DROP the existing checks. THE LOAD-BEARING HAZARD: a required context that never reports permanently BLOCKS every open PR — diagnose by diffing the ruleset's required_status_checks[].context against the check-run NAMES actually emitted on main (gh api repos/<o>/<r>/commits/$sha/check-runs --jq '[.check_runs[].name]|unique'); any required name NOT in the emitted set is a deadlock. THE FIX: a 'keystone' rename-PR that makes the workflow jobs emit the canonical required names (its own branch emits the corrected names so it is itself mergeable — merge it FIRST, then main posts the names and the other PRs unblock after re-rebase). SEPARATELY, a follow-up issue can assert a FALSE premise (e.g. #282 said the SAST job 'was added in PR #264' but `gh pr view 264` showed PR #264 was still OPEN, not merged) — verify 'already done' premises against live state. Use when: (1) adding a new CI job's check context to a GitHub ruleset as a required status check; (2) a required context is BLOCKED-all-green and you suspect the job emits under a different name than the required context; (3) a follow-up issue says 'add X to required checks' and you must verify the job exists on the default branch first; (4) diagnosing why adding/keeping a required status check could permanently block all PRs; (5) needing the correct integration_id for a GitHub Actions check context in a ruleset. Cross-link: gha-required-checks-branch-protection (the YAML/aggregator + legacy branch-protection PUT mechanics), github-ruleset-enforcement-drift (bare-name + integration_id context form), planning-verify-issue-claims-and-required-check-gating (runs-vs-gates + grep-the-claim discipline), github-auto-merge-ci-gating-merge-method (auto-merge gating + merge method), multi-repo-pr-automation-loop-orchestration (the multi-repo rebase sweep that surfaced this)."
 category: ci-cd
-date: 2026-06-20
-version: "1.0.0"
+date: 2026-06-28
+version: "1.1.0"
+history: github-ruleset-required-status-checks-management.history
 user-invocable: false
-verification: verified-local
+verification: verified-ci
 tags:
   - github
   - rulesets
@@ -16,6 +17,9 @@ tags:
   - get-append-put
   - issue-premise-verification
   - default-branch
+  - emitted-name-vs-required-name
+  - blocked-all-green
+  - keystone-rename-pr
   - ci-cd
 ---
 
@@ -25,10 +29,25 @@ tags:
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-06-20 |
+| **Date** | 2026-06-28 (v1.1.0); 2026-06-20 (v1.0.0) |
 | **Objective** | Capture how to add a new CI job's check context to a GitHub branch-protection RULESET (rulesets API) as a required status check — the GET->append->PUT mechanics that avoid dropping existing checks, the correct integration_id derivation — and the load-bearing ORDERING HAZARD: requiring a check whose job does not yet exist on the default branch permanently blocks every open PR. Plus the planning lesson that a follow-up issue's "already done" premise can be FALSE and must be verified against live state. |
 | **Outcome** | Plan written for ProjectTelemachy issue #282 (follow-up from #157). The issue claimed the `security/sast-scan` SAST job "was added in PR #264", but `gh pr view 264` showed PR #264 was OPEN (not merged) and the job existed only on the unmerged branch `157-auto-impl` (commit `39a509a`), NOT on `main`. Conclusion: the required check must NOT be added until the job-adding PR lands on `main`; the GET->append->PUT mechanics were drafted from the live ruleset (8 existing checks, all `integration_id: 15368`). |
-| **Verification** | **verified-local** — the live ruleset state was read directly via `gh api repos/HomericIntelligence/ProjectTelemachy/rulesets/15556487` and PR #264's merge state via `gh pr view 264 --json state,mergedAt`. The READ/diagnosis steps are verified. The actual PUT mutation was NOT executed (admin-only, out of scope for a planning agent), so the WRITE half (PUT/jq append step) is **proposed**, not verified. |
+| **Verification** | **verified-ci (v1.1.0 name-mismatch deadlock)** / **verified-local (v1.0.0 add-a-check mechanics)** — v1.1.0: the emitted-name-vs-required-name deadlock was diagnosed and FIXED live on HomericIntelligence/ProjectScylla; the keystone rename-PR merged as Scylla #2017 and the previously BLOCKED-all-green PRs unblocked after re-rebase onto the post-keystone main. v1.0.0: the live ruleset state was read directly via `gh api repos/HomericIntelligence/ProjectTelemachy/rulesets/15556487` and PR #264's merge state via `gh pr view 264 --json state,mergedAt`. The READ/diagnosis steps are verified; the v1.0.0 PUT mutation was NOT executed (admin-only), so that WRITE half (PUT/jq append step) is **proposed**, not verified. |
+
+> **v1.1.0 addition — the emitted-name-vs-required-name deadlock (sibling of require-before-it-exists).**
+> A required status context can permanently BLOCK every PR even when the corresponding job EXISTS,
+> RUNS, and is GREEN on the default branch — IF the job emits its check-run under a DIFFERENT NAME
+> than the required context. On HomericIntelligence/ProjectScylla the `homeric-main-baseline` ruleset
+> required `lint`, `unit-tests`, `integration-tests`, `security/dependency-scan`,
+> `security/secrets-scan`, but Scylla's workflows emitted those as `Analyze (python)`,
+> `test (unit, tests/unit)`, `test (integration, tests/integration)`, `Dependency vulnerability scan`,
+> `Secrets scan (gitleaks)`. The 5 required contexts NEVER posted → all PRs **BLOCKED-all-green**
+> forever. This is distinct from require-before-it-exists (there the job is absent entirely); here
+> the job runs green under the wrong name. THE FIX: a **keystone rename-PR** that renames the
+> workflow jobs to emit the canonical required names. Because that PR's own workflow change runs on
+> its own PR branch, the corrected names post on the keystone PR itself → it is mergeable; merge it
+> FIRST, then `main` emits the canonical names and the other PRs unblock after a re-rebase onto the
+> post-keystone main.
 
 This skill is the **rulesets-API "add a required check"** counterpart to three related skills:
 
@@ -50,7 +69,9 @@ This skill is the **rulesets-API "add a required check"** counterpart to three r
   the legacy branch-protection API) as a required status check.
 - A follow-up issue says "add X to required checks" — before doing so you must verify the job
   actually exists on the **default** branch (`main`), not just on an open PR's feature branch.
-- Diagnosing why adding a required status check could permanently block all PRs.
+- A required context is **BLOCKED-all-green** and you suspect the job emits under a different name
+  than the required context (the emitted-name-vs-required-name mismatch).
+- Diagnosing why adding (or keeping) a required status check could permanently block all PRs.
 - Needing the correct `integration_id` for a GitHub Actions check context in a ruleset.
 
 ## Verified Workflow
@@ -76,6 +97,17 @@ gh api repos/$ORG/$REPO/rulesets/$RS_ID \
 #    If the context never reports, every open PR blocks forever.
 gh api repos/$ORG/$REPO/contents/.github/workflows/_required.yml --jq '.content' | base64 -d \
   | grep -q 'name: security/sast-scan' && echo PASS || echo "BLOCK: job not on main"
+
+# 2b. NAME-MATCH GUARD (load-bearing, v1.1.0) — the job may EXIST and be GREEN on main yet emit its
+#     check-run under a DIFFERENT name than the required context => BLOCKED-all-green forever.
+#     Diff the ruleset's required NAMES against the check-run NAMES actually emitted on main:
+sha=$(gh api repos/$ORG/$REPO/commits/main --jq .sha)
+emitted=$(gh api "repos/$ORG/$REPO/commits/$sha/check-runs?per_page=100" \
+  --jq '[.check_runs[].name]|unique|sort|.[]')
+required=$(gh api repos/$ORG/$REPO/rulesets/$RS_ID \
+  --jq '.rules[] | select(.type=="required_status_checks") | .parameters.required_status_checks[].context')
+# any REQUIRED name NOT in the EMITTED set is a deadlock (fix via a keystone rename-PR, merged first):
+comm -23 <(echo "$required" | sort) <(echo "$emitted" | sort)
 
 # 3. VERIFY the follow-up issue's 'already added in PR #N' premise against LIVE state.
 gh pr view 264 --repo $ORG/$REPO --json state,mergedAt,headRefName
@@ -112,7 +144,32 @@ gh api -X PUT repos/$ORG/$REPO/rulesets/$RS_ID --input /tmp/rs-updated.json   # 
    and matching the job's `name:` line). Requiring a check MUST be sequenced AFTER the PR that adds
    the job merges to the default branch.
 
-4. **Verify the issue's "already done" premise against live state.** A follow-up issue body can
+4. **Gate on the NAME-MATCH HAZARD (sibling deadlock, v1.1.0).** Even when the job EXISTS, RUNS,
+   and is GREEN on the default branch, a required context can permanently block every PR if the job
+   emits its check-run under a DIFFERENT NAME than the required context — the required name never
+   posts, so PRs are **BLOCKED-all-green** forever. DIAGNOSE by diffing the ruleset's required
+   context NAMES against the check-run NAMES actually emitted on `main` (Quick Reference #2b):
+   `sha=$(gh api repos/<o>/<r>/commits/main --jq .sha)` then
+   `gh api "repos/<o>/<r>/commits/$sha/check-runs?per_page=100" --jq '[.check_runs[].name]|unique|sort|.[]'`,
+   and `comm -23` against `required_status_checks[].context`. Any required name NOT in the emitted
+   set is a deadlock. On ProjectScylla the ruleset required `lint`, `unit-tests`,
+   `integration-tests`, `security/dependency-scan`, `security/secrets-scan` but the workflows emitted
+   `Analyze (python)`, `test (unit, tests/unit)`, `test (integration, tests/integration)`,
+   `Dependency vulnerability scan`, `Secrets scan (gitleaks)` — all 5 required names were missing.
+   **THE FIX is a keystone rename-PR** that renames the workflow jobs to emit the canonical required
+   names. Because that PR's workflow change runs on its own PR branch, the corrected names post on
+   the keystone PR itself, so it is itself mergeable — merge it FIRST, then `main` emits the names
+   and the other PRs unblock after a re-rebase onto the post-keystone main (Scylla #2017).
+
+5. **Watch for the stale-extras-ruleset blocking the keystone (v1.1.0).** When migrating per-repo
+   "extras" checks into a separate ruleset, a keystone rename-PR can make the OLD extra-check names
+   (e.g. `pre-commit`, `test (unit, tests/unit)`) obsolete — the extras ruleset then BLOCKS the
+   keystone by requiring names the keystone removes. Resolution: remove/empty the stale extras
+   ruleset (the renamed baseline jobs now cover the same tests under the canonical names). **NOTE:**
+   disabling or deleting a ruleset to force a merge through is correctly blocked by safety
+   classifiers — get explicit human approval before doing so.
+
+6. **Verify the issue's "already done" premise against live state.** A follow-up issue body can
    assert a premise that is FALSE at planning time. Issue #282 stated the SAST job "was added in
    PR #264" — but `gh pr view 264 --json state` showed PR #264 was **OPEN, not merged**, and
    `git log --all -S 'security/sast-scan'` / grep confirmed the job lived only on the unmerged
@@ -120,16 +177,16 @@ gh api -X PUT repos/$ORG/$REPO/rulesets/$RS_ID --input /tmp/rs-updated.json   # 
    premise of a follow-up issue with `gh pr view <n> --json state,mergedAt` + a grep on the default
    branch — do not trust the issue's claim.
 
-5. **GET -> append -> PUT the FULL array (proposed, admin-only).** The ruleset UPDATE endpoint
+7. **GET -> append -> PUT the FULL array (proposed, admin-only).** The ruleset UPDATE endpoint
    (`PUT /repos/.../rulesets/<id>`) REPLACES the rule wholesale. A payload that omits the existing
    checks DROPS them. Never hand-author the array; derive it from the live GET with jq
    (Quick Reference #4). The PUT payload accepts `name`, `enforcement`, `conditions`, `rules`,
    `bypass_actors` — strip server-managed fields (`id`, `node_id`, `created_at`, `updated_at`,
    `_links`, `source`, `source_type`, `current_user_can_bypass`) or the PUT may error.
 
-6. **Match the context string to the job's `name:` field EXACTLY.** The required context is the
+8. **Match the context string to the job's `name:` field EXACTLY.** The required context is the
    job's `name:` value (`security/sast-scan`), NOT the YAML job key (`security-sast-scan`). A
-   mismatch registers a context that never reports — re-creating the ordering-hazard deadlock.
+   mismatch registers a context that never reports — re-creating the name-mismatch deadlock above.
 
 ## Failed Attempts
 
@@ -140,6 +197,8 @@ gh api -X PUT repos/$ORG/$REPO/rulesets/$RS_ID --input /tmp/rs-updated.json   # 
 | Blind PATCH/PUT of just the new check | Sending only the new context in the update payload | Ruleset PUT replaces the rule wholesale -> drops the existing 8 checks | GET->append->PUT the full array via jq; never hand-author it |
 | Hardcoding/guessing integration_id | Guessing the GitHub Actions app id | Wrong id silently mis-binds the check | Copy integration_id from an existing Actions check in the same ruleset (here 15368) |
 | Using the job YAML key as the context | Would register `security-sast-scan` (the job key) | The required context is the job's `name:` field (`security/sast-scan`), not the key; a wrong context never reports | Match the context string to the job's `name:` field exactly |
+| Trusting "green on main" means the required checks pass (emitted-name-vs-required-name mismatch) | Assumed Scylla's PRs would merge because the jobs ran green on `main` | The ruleset required `lint`/`unit-tests`/`integration-tests`/`security/dependency-scan`/`security/secrets-scan` but the jobs emitted `Analyze (python)`/`test (unit, tests/unit)`/`test (integration, tests/integration)`/`Dependency vulnerability scan`/`Secrets scan (gitleaks)`; the required names NEVER posted -> all PRs BLOCKED-all-green forever | Diff the ruleset's required NAMES against the check-run NAMES actually emitted on `main` (`commits/$sha/check-runs --jq '[.check_runs[].name]|unique'`); fix via a keystone rename-PR (emits the canonical names on its own branch -> mergeable first), then re-rebase the rest (Scylla #2017) |
+| Keystone rename-PR blocked by a stale extras ruleset | Tried to merge the keystone, but the per-repo "extras" ruleset still required the OLD names the keystone removes (`pre-commit`, `test (unit, tests/unit)`) | The extras ruleset required check names the rename-PR deletes, so it blocked the very PR that fixes the baseline | Remove/empty the stale extras ruleset once the renamed baseline jobs cover the same tests under canonical names; disabling/deleting a ruleset to force a merge is correctly blocked by safety classifiers — get explicit human approval first |
 
 ## Results & Parameters
 
@@ -168,9 +227,14 @@ gh api -X PUT repos/$ORG/$REPO/rulesets/$RS_ID --input /tmp/rs-updated.json   # 
 - `gha-required-checks-branch-protection` — YAML/aggregator wiring + legacy branch-protection PUT.
 - `github-ruleset-enforcement-drift` — bare-name + integration_id context form, evaluate/active drift.
 - `planning-verify-issue-claims-and-required-check-gating` — runs-vs-gates + grep-the-claim discipline.
+- `github-auto-merge-ci-gating-merge-method` — auto-merge gating + merge-method mechanics that the
+  keystone rename-PR relies on once the canonical names start posting.
+- `multi-repo-pr-automation-loop-orchestration` — the broader multi-repo rebase sweep that
+  surfaced the emitted-name-vs-required-name deadlock (and the re-rebase-after-keystone step).
 
 ## Verified On
 
 | Project | Context | Details |
 |---------|---------|---------|
 | ProjectTelemachy | Issue #282 (follow-up from #157) — plan only | verified-local; ruleset `homeric-main-baseline` (id `15556487`) read via `gh api`, 8 existing checks confirmed (all `integration_id: 15368`), `security/sast-scan` absent; PR #264 confirmed OPEN/unmerged via `gh pr view 264 --json state,mergedAt` (branch `157-auto-impl`). PUT mutation NOT executed (admin-only) — WRITE step proposed. |
+| ProjectScylla | Emitted-name-vs-required-name deadlock — keystone rename-PR (#2017) | **verified-ci**; the `homeric-main-baseline` ruleset required `lint`, `unit-tests`, `integration-tests`, `security/dependency-scan`, `security/secrets-scan` but the workflows emitted `Analyze (python)`, `test (unit, tests/unit)`, `test (integration, tests/integration)`, `Dependency vulnerability scan`, `Secrets scan (gitleaks)` — all 5 required names never posted -> PRs BLOCKED-all-green. Fixed by a keystone rename-PR (Scylla #2017) that renamed the jobs to emit the canonical required names; it was itself mergeable (its branch emitted the corrected names), merged FIRST, then the other PRs unblocked after re-rebase onto the post-keystone main. Also surfaced: a stale extras ruleset requiring the OLD names blocked the keystone — resolved by emptying it (with human approval, since safety classifiers block ruleset disable/delete). |
