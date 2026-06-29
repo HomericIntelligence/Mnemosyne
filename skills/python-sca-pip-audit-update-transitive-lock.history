@@ -1,0 +1,54 @@
+## v1.0.0 — 2026-06-19
+
+**Snapshot of skill at v1.0.0 before first amendment.**
+
+Documented how to resolve a GitHub Actions Python SCA / pip-audit failure caused by a vulnerable **transitive** dev dependency in a **uv.lock** file, without weakening or bypassing pip-audit.
+
+Key outcomes documented:
+- The failing `python-sca` / pip-audit job log often shows only a terse summary (`Found 1 known vulnerability in 1 package`); the full details (package, advisory, fixed version) are in the uploaded `pip-audit-report` artifact (`pip-audit.json`).
+- Reproduce locally with the EXACT CI command (`uv run --locked --extra dev python -m pip_audit --local --format=json --output=...`); in a restricted sandbox, redirect both `UV_CACHE_DIR` and `XDG_CACHE_HOME` to writable `/tmp` paths.
+- Trace transitivity with `pip show <pkg> <parent> pip-audit` (`Required-by`) before changing any manifest.
+- Prefer a minimal targeted refresh: `uv lock --upgrade-package <vulnerable-package>`; confirm only the intended package/version changed via `git diff -- uv.lock`.
+- Keep the SCA job fail-closed when a fixed version exists — update the lock, never suppress.
+
+Failed attempts documented:
+1. Weaken/bypass SCA — hides a real, remediable advisory.
+2. Rely on the job-log summary only — lacks package/advisory/fixed-version detail; download the artifact.
+3. Assume the package is direct — it was transitive through a dev tool; use `pip show` metadata.
+4. Run pip-audit with default cache paths in a restricted sandbox — `OSError: [Errno 30] Read-only file system`; redirect caches to `/tmp`.
+5. Broad dependency refresh — increases review risk; use `uv lock --upgrade-package`.
+
+Verified on: Inference360 PR #254 (head `4086627`, 2026-06-19) — `python-sca`, `validate`, `sast`, `secrets`, CodeQL all passed after the targeted `uv.lock` update.
+
+Vulnerability remediated in the verified case:
+- Package `msgpack` `1.1.2` → `1.2.1`, advisory `GHSA-6v7p-g79w-8964`, transitive via `CacheControl` ← `pip-audit`.
+
+Frontmatter at v1.0.0: `category: ci-cd`, `date: 2026-06-19`, `version: "1.0.0"`, `verification: verified-ci` (no `history:` field), tags: github-actions, python-sca, pip-audit, uv, uv-lock, lockfile, dependency-scanning, transitive-dependency, cachecontrol, msgpack.
+
+---
+
+## v1.1.0 — 2026-06-28
+
+**Amendment: generalize from uv.lock to pixi.lock and add two fleet-scale lock-propagation / read-block dimensions (both verified-ci across multiple HomericIntelligence repos).**
+
+The core principle is unchanged — *clear a transitive CVE by regenerating the lock to pick up the patched version, never by weakening pip-audit* — but it now applies to **pixi.lock** as well as uv.lock. `pixi update <pkg>` is the pixi analogue of `uv lock --upgrade-package <pkg>`. The pip-audit advisory table goes to `$GITHUB_STEP_SUMMARY`, NOT stdout — reproduce locally to read `Found N known vulnerability… <pkg> <ver> <GHSA> <fixed-ver>`.
+
+New content added:
+- **Dimension 1 — Stale-lock-after-main-fix propagation (the fleet dimension).** After a red `main` is fixed by a dep-bump PR that regenerates the lock, every OTHER open PR branched before it still carries the OLD vulnerable lock and keeps failing the required `security/dependency-scan` (pip-audit). A plain `git rebase onto main` does NOT regenerate the lock. Two sub-cases:
+  - Constraint already allows the patch (e.g. `pydantic-settings >=2.0` but lock pins `2.13.1`, `GHSA-4xgf-cpjx-pc3j`): plain `pixi lock` re-solves with locked content and does NOT bump → use `pixi update <pkg>` (→ `2.14.2`) for a minimal targeted bump.
+  - Fix added an explicit `pixi.toml` pin (e.g. `msgpack >= 1.2.1`, `GHSA-6v7p-g79w-8964`, transitive via cachecontrol): rebase onto fixed `main` brings the pin, then `pixi install`/`pixi lock` picks it up. Batch as one lock-regen sub-agent per repo.
+- **Dimension 2 — Pixi lock-format v7 that CI's pinned pixi cannot read.** A PR shipping a v7 `pixi.lock` fails the ENTIRE pipeline at `pixi install` (`× Lock-file version 7 is newer than supported … Maximum supported version: 6 (pixi v0.67.2)`) when CI pins an older pixi. This is a READ incompatibility (distinct from the v6/v7 churn issue). Fix: bump the CI `pixi-version` (e.g. `v0.67.2` → `v0.70.2`). Verified safe on main: a newer pixi reads a v6 lock via `pixi install --locked` (exit 0, warn-only, no rewrite), so it won't red a v6 main.
+
+New failed-attempts rows:
+1. Plain `pixi lock` to clear a transitive CVE when the constraint already allows the patch → does NOT bump (re-solves with locked content) → use `pixi update <pkg>`.
+2. Plain rebase-onto-fixed-main to propagate a lock fix → does NOT regenerate the lock; old vulnerable pin persists → explicitly regenerate per PR and `git diff -- pixi.lock` to confirm.
+3. Shipped a v7 `pixi.lock` against CI's older pinned pixi → whole pipeline dies at `pixi install` → bump CI `pixi-version`, verifying a newer pixi reads v6 locks via `--locked`.
+
+Frontmatter changes: `date` `2026-06-19` → `2026-06-28`; `version` `1.0.0` → `1.1.0`; added `history:` field; broadened `description` (uv.lock OR pixi.lock + propagation + v7 read-block triggers); added tags: security-dependency-scan, pixi-lock, pixi-update, lockfile-propagation, lock-format-v7, ci-pixi-version, pydantic-settings.
+
+Cross-links added (References section): tooling-pixi-lockfile-churn-self-reference (v6/v7 churn/format angle), dependabot-lockfile-rebase-regenerate-resign, automation-multi-repo-pr-sweep-rebase-resolve.
+
+Verification: verified-ci —
+- Telemachy: 23 PRs, `pydantic-settings 2.13.1 → 2.14.2` via `pixi update` (Dimension 1, sub-case A).
+- Agamemnon: 7 PRs, `msgpack 1.1.2 → 1.2.1` via rebase onto main after PR #434 pinned it (Dimension 1, sub-case B).
+- Telemachy PR #288: CI `pixi-version` `v0.67.2 → v0.70.2` to read a v7 `pixi.lock` (Dimension 2).
