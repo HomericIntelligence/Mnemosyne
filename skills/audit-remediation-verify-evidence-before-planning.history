@@ -1,5 +1,25 @@
 # Changelog: audit-remediation-verify-evidence-before-planning
 
+## v1.9.0 (2026-06-30)
+
+**Changed by:** ProjectHephaestus issue #1468 — strict-audit finding "[S5 Testing] `hephaestus/git/` subpackage has zero test coverage and no test directory; `tests/unit/git/` contains only `__pycache__`; a stale `changelog.cpython-314.pyc` and empty `tests/unit/git/` skeleton remain after #357 deleted `hephaestus/git/changelog.py`". The evidence-verification commands were RUN against the live tree; the downstream documentary close PR was plan-only (no CI).
+**Verification:** verified-local
+
+### What changed
+- Added the FULLY-STALE case to the staleness spectrum: not "a subset of targets already fixed" (the prior #1465/#1553 partial-stale cases) but EVERY cited artifact already gone, INCLUDING a specifically-named build artifact (a `.pyc`).
+- Verified absences this session: `ls -la hephaestus/git/` → No such file or directory (whole subpackage gone); `ls -la tests/unit/git/` → No such file or directory (the "empty vestigial test dir" the audit cites does not exist at all); `git ls-files | grep -E '(^|/)git/|changelog'` → nothing tracked; `find . -name 'changelog*.pyc'` and `find . -name '*.pyc' | grep 'git/'` → no output (the cited `changelog.cpython-314.pyc` is not on disk — the audit's pyc evidence was stale too).
+- New SUB-LESSON (prefix-substring grep): a naive `grep -rln "hephaestus.git" hephaestus/ tests/` returned MANY hits, ALL `hephaestus/github` — `git` is a substring of `github`. The anchored `grep -rnE "hephaestus\.git[^h]|from hephaestus import git\b|import hephaestus\.git\b" ... | grep -v github` → zero hits. Anchor with a non-`h` lookahead / word boundary and exclude the sibling when a package name prefixes a sibling.
+- Reinforced the step-5 / #1456 search-for-an-existing-guard pivot: the correct outcome for a fully-stale audit is a documentary close (`Closes #1468`), NOT a new drift-guard — the "a test dir can't silently return without a matching source package" invariant is ALREADY enforced by `hephaestus/validation/test_structure.py::check_no_unsanctioned_test_dirs` (≈line 105; `pixi run pytest tests/unit/validation/test_test_structure.py -q` → `31 passed`). A new guard would duplicate it (DRY/YAGNI).
+- Recorded the coverage-gate caveat reconfirmed live: the scoped run printed `FAIL Required test coverage of 83.0% not reached. Total coverage: 5.29%` — the GLOBAL coverage gate on a single-file run, NOT a test failure; real result `31 passed`.
+- New zero-diff PR scoping rule: when the audit is fully stale and the invariant is already guarded there is no source line to change — the implementing PR is a zero-diff documentary close, OR (if repo policy forbids empty-diff closing PRs) close the issue directly with the evidence comment. Do NOT manufacture an artificial diff.
+- Added a leading v1.9.0 Overview note, one When-to-Use trigger, two Failed-Attempts rows (stale-`.pyc` artifact; prefix-substring grep), and a #1468 Results & Parameters subsection.
+
+### Why
+ProjectHephaestus issue #1468 is the fully-stale extreme of the staleness spectrum this skill already documents: the entire `hephaestus/git/` subpackage, its `tests/unit/git/` skeleton, AND the specifically-named `changelog.cpython-314.pyc` were all already removed (#357 plus later cleanup). The durable additions: `ls`/`find` the cited build artifact itself (never assume an audit's concrete-looking evidence is current); anchor and sibling-exclude any reference grep for a package name that prefixes a sibling (`git`⊂`github`); and before inventing a non-recurrence guard, grep `tests/` for an existing validator that already enforces the invariant — here `check_no_unsanctioned_test_dirs` already does, so the correct action is a documentary close, not a new artifact. Verification = `verified-local`: the evidence commands were run against the live ProjectHephaestus tree; the close PR (zero-diff or direct issue close) was planned only and had not hit CI at capture time, so NOT `verified-ci`.
+
+### Snapshot pointer
+The v1.8.0 baseline entry below preserves the prior framing and its v1.7.0/v1.6.0 fenced snapshots; the live skill file at this version (1.9.0) carries the new #1468 note as the leading note in the Overview block.
+
 ## v1.8.0 (2026-06-30)
 
 **Changed by:** ProjectHephaestus issue #1465 — executed the plan-only #1465 entry end-to-end locally (the v1.7.0 note's hoist edit, existing-test run, and ruff check were finally RUN)
