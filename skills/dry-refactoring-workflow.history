@@ -1,6 +1,55 @@
 <!-- markdownlint-disable MD024 -->
 # dry-refactoring-workflow — History
 
+## v1.12.0 (2026-06-30)
+
+**Changed by:** ProjectHephaestus #1427 — consolidate two coexisting log-format strings into named constants — /learn
+**Verification:** verified-local (for the new Phase 12d; the rest of the skill is unchanged — `verified-ci` except the planning-only Phases 10/13/14/15 and the verified-local Phase 16)
+
+### What changed
+
+- Added Phase 12d (**VERIFIED-LOCAL** — EXECUTED end-to-end, not planning-only) — "A stale anchor
+  can be a wrong FILENAME — and a strict-reviewed 'verified against disk' plan is NOT exempt." This
+  extends Phase 12a (issue `Evidence:` sections go stale) from issue bodies to APPROVED
+  implementation plans, and sharpens the failure mode: the rot is not only a wrong line number or a
+  stale count, but a wrong FILENAME — because the named file may merely CALL the indirection root
+  (a shared helper) where the literal actually lives.
+- Captured from an EXECUTED ProjectHephaestus #1427 session: consolidate two coexisting log-format
+  strings (`LOG_FORMAT` and the automation `[LEVEL] name:` format) into named constants
+  `AUTOMATION_LOG_FORMAT` / `LOG_DATEFMT` in `hephaestus/constants.py`, routing all call sites
+  through them.
+- The concrete miss: the approved plan — graded "A / GO" with a strict review explicitly claiming
+  "Verified accurate against disk" — said the drifted no-brackets variant lived at
+  `hephaestus/automation/ensure_state_labels.py:189`. On disk that file had NO `format=` line at
+  all; the real drifted literal lived at the indirection root `hephaestus/cli/utils.py:222` inside
+  `configure_cli_logging()`, which `ensure_state_labels.main()` calls indirectly. Both the line
+  number AND the filename were stale; only the symptom ("a no-brackets drift variant exists
+  somewhere") was real. The plan also under-counted the per-module literals.
+- Lesson: before editing, grep the CURRENT tree for the literal pattern the plan DESCRIBES
+  (`grep -rn '<the literal>' src/`) — not the file it names — map the plan's INTENT onto the real
+  call sites, and re-count every occurrence yourself (the count drifts like the `Evidence:`
+  section). Fixing the indirection root (`configure_cli_logging`) transitively fixed the
+  `ensure_state_labels` concern the plan was pointing at.
+- Verification (verified-local): a single-source grep returning only the ONE canonical definition
+  in `constants.py` (zero remaining literals in consumer modules); anti-drift parity tests asserting
+  each consumer reads `constants.AUTOMATION_LOG_FORMAT`/`LOG_DATEFMT` rather than a literal; and the
+  PRE-EXISTING behavioral suites staying green — full unit suite 5203 passed / 23 skipped, 87.22%
+  coverage ≥ 83% gate, ruff clean, import-surface + automation-boundary guards green. Verified
+  locally only; PR CI not yet merged at capture time.
+- Added one Failed Attempts row (#1427 — trusted the plan's `ensure_state_labels.py:189` anchor), a
+  Verified On entry (#1427), an Outcome bullet, a description item (17), and tags
+  (`stale-plan-anchor`, `wrong-filename-anchor`, `indirection-root`, `grep-current-state`,
+  `verified-against-disk-not-exempt`, `log-format-constants`, `configure-cli-logging`). Bumped
+  frontmatter `version` 1.11.0 → 1.12.0; `date` stays 2026-06-30; frontmatter `verification` stays
+  `unverified` (Phase 12d carries its own inline `verified-local` label, matching the v1.10.0+
+  convention).
+
+### Snapshot of the prior version
+
+The complete v1.11.0 skill body is preserved in this history below (next entry). v1.12.0 is a
+purely additive amendment: it adds Phase 12d, one Failed Attempts row, a Verified On row, an
+Outcome entry, a description item, and tags. No prior content was removed or altered.
+
 ## v1.11.0 (2026-06-30)
 
 **Changed by:** ProjectHephaestus #1420 — deprecated `get_config_value()`/`retry_with_jitter()` removal — /learn
