@@ -1,9 +1,9 @@
 ---
 name: pytest-coverage-threshold-and-enforcement
-description: "Use when: (1) establishing [tool.coverage.report].fail_under as the single source of truth by removing redundant --cov-fail-under from CI and pyproject.toml addopts; (2) configuring multiple coverage report formats (xml, html, lcov) for CI and local use; (3) CI coverage % is lower than local because GitHub computes coverage against the merge-preview tree (PR HEAD merged with main HEAD) — adding entries to coverage.run.omit for files not on the branch IS the correct fix; (4) aggregate coverage gates hide under-tested critical modules — enforce per-file floors via parse_module_coverage() + coverage.toml + CI step; (5) some modules are intentionally omitted from measurement (live CLI/TTY) and need an integration backstop to catch import-time regressions; (6) pytest.importorskip() guards hide easy coverage wins — install optional deps and write targeted branch tests; (7) tuning coverage thresholds to match actual baselines and avoid false CI failures; (8) generate_coverage.sh fails in CI with wrong paths, cmake source dir errors, lcov gcov version mismatch on Ubuntu 24.04, or geninfo 'unable to create link .gcda'; (9) coverage is raised by adding targeted tests for uncovered branches plus unlocking skipped optional-dependency test groups; (10) planning a coverage threshold consolidation — verify actual coverage %, confirm consistency-checker accepts addopts absence, check whether CI uses --override-ini=addopts= before deciding where the real gate lives; (11) setting per-module branch-rate floor values in coverage.toml — choose margin 3-4pp below actual to avoid brittle thresholds that fail CI on unrelated PRs."
+description: "Use when: (1) establishing [tool.coverage.report].fail_under as the single source of truth by removing redundant --cov-fail-under from CI and pyproject.toml addopts; (2) configuring multiple coverage report formats (xml, html, lcov) for CI and local use; (3) CI coverage % is lower than local because GitHub computes coverage against the merge-preview tree (PR HEAD merged with main HEAD) — adding entries to coverage.run.omit for files not on the branch IS the correct fix; (4) aggregate coverage gates hide under-tested critical modules — enforce per-file floors via parse_module_coverage() + coverage.toml + CI step; (5) some modules are intentionally omitted from measurement (live CLI/TTY) and need an integration backstop to catch import-time regressions; (6) pytest.importorskip() guards hide easy coverage wins — install optional deps and write targeted branch tests; (7) tuning coverage thresholds to match actual baselines and avoid false CI failures; (8) generate_coverage.sh fails in CI with wrong paths, cmake source dir errors, lcov gcov version mismatch on Ubuntu 24.04, or geninfo 'unable to create link .gcda'; (9) coverage is raised by adding targeted tests for uncovered branches plus unlocking skipped optional-dependency test groups; (10) planning a coverage threshold consolidation — verify actual coverage %, confirm consistency-checker accepts addopts absence, check whether CI uses --override-ini=addopts= before deciding where the real gate lives; (11) setting per-module branch-rate floor values in coverage.toml — choose margin 3-4pp below actual to avoid brittle thresholds that fail CI on unrelated PRs; (12) RAISING an existing per-module coverage floor by ADDING tests — measure the RIGHT number first (the floor is compared against branch_rate when > 0, else line_rate; the term-missing combined % and line_rate diverge from branch_rate and will mislead you), use `-o addopts=\"\"` to strip the global aggregate gate and read the true per-file number, read branch-rate authoritatively from the Cobertura XML `<class branch-rate>` attribute, and interpret `NN->exit` term-missing markers as the FALSE side of an uncovered branch."
 category: testing
-date: 2026-06-13
-version: "1.3.0"
+date: 2026-06-30
+version: "1.4.0"
 user-invocable: false
 history: pytest-coverage-threshold-and-enforcement.history
 tags:
@@ -19,6 +19,9 @@ tags:
   - lcov
   - gcov
   - ci-cd
+  - branch-rate
+  - addopts-override
+  - term-missing-markers
 ---
 
 # Pytest Coverage Threshold and Enforcement
@@ -27,10 +30,10 @@ tags:
 
 | Field | Value |
 | ------- | ------- |
-| **Date** | 2026-06-13 |
-| **Objective** | Configure, tune, and enforce pytest/coverage thresholds — single source of truth, per-module floors, merge-preview reconciliation, integration backstops for omitted modules, optional-dep unlocks, and lcov/geninfo CI fixes; planning pattern for threshold consolidation |
-| **Outcome** | Success — consolidated knowledge for establishing `fail_under` as canonical, raising real coverage, and keeping CI gates green and honest; v1.1.0 adds planning-phase pre-conditions and the --override-ini=addopts= CI pattern; v1.2.0 adds per-module floor margin rule (3-4pp below actual); v1.3.0 promotes Issue #1198 from unverified to verified-ci and adds test_doc_config.py fixture isolation finding |
-| **Verification** | verified-ci (existing); unverified (v1.1.0 planning additions from ProjectHephaestus issue #1198); verified-ci (v1.2.0 floor margin rule from ProjectHephaestus issue #1197, PR #1288); verified-ci (v1.3.0 — #1198 implementation confirmed via PR #1293) |
+| **Date** | 2026-06-30 |
+| **Objective** | Configure, tune, and enforce pytest/coverage thresholds — single source of truth, per-module floors, merge-preview reconciliation, integration backstops for omitted modules, optional-dep unlocks, and lcov/geninfo CI fixes; planning pattern for threshold consolidation; measuring the RIGHT coverage number (branch_rate vs line_rate vs combined display) before raising a per-module floor |
+| **Outcome** | Success — consolidated knowledge for establishing `fail_under` as canonical, raising real coverage, and keeping CI gates green and honest; v1.1.0 adds planning-phase pre-conditions and the --override-ini=addopts= CI pattern; v1.2.0 adds per-module floor margin rule (3-4pp below actual); v1.3.0 promotes Issue #1198 from unverified to verified-ci and adds test_doc_config.py fixture isolation finding; v1.4.0 adds the branch_rate measurement procedure for RAISING a per-module floor by adding tests (`-o addopts=""` to read the true per-file number, Cobertura `<class branch-rate>` is authoritative, `NN->exit` markers = false side of a branch) |
+| **Verification** | verified-ci (existing); unverified (v1.1.0 planning additions from ProjectHephaestus issue #1198); verified-ci (v1.2.0 floor margin rule from ProjectHephaestus issue #1197, PR #1288); verified-ci (v1.3.0 — #1198 implementation confirmed via PR #1293); verified-local (v1.4.0 — ProjectHephaestus issue #1471 floor raise 65→90; tests + coverage measured locally end-to-end RED→GREEN and full validation suite green; PR/CI had NOT merged at capture time) |
 | **History** | [changelog](./pytest-coverage-threshold-and-enforcement.history) |
 
 ## When to Use
@@ -50,6 +53,10 @@ tags:
 - **Determining the real CI gate**: CI uses `--override-ini="addopts="` (clears ALL addopts including `--cov=` and `--cov-report=`) — addopts removal has zero effect on CI; the explicit `--cov-fail-under` flag in the CI workflow is the actual gate
 - **Verifying addopts removal is safe**: check that the project's consistency-checker (`check_addopts_cov_fail_under()`) accepts addopts absence before removing the flag
 - **Setting per-module floor values in coverage.toml**: use `floor = floor(actual_branch_rate - 3)` to `floor(actual_branch_rate - 4)` — never within 1-2pp of the measured value; a too-tight margin causes CI failures for unrelated PRs that add any uncovered branch
+- **RAISING an existing per-module floor by adding tests** (e.g. an audit-remediation issue that says "raise `automation/models.py` floor 65→90"): you need to know whether the floor is compared against `line_rate` or `branch_rate` BEFORE writing tests, or you raise the floor above the real branch_rate and break CI
+- A single-file `pytest --cov` run prints `FAIL Required test coverage of N% not reached` and you need to know if it's a real per-file failure — it is **not**; it's the GLOBAL aggregate gate firing. Re-run with `-o addopts=""` to strip the repo default addopts and read the true per-file summary (`N passed`); do not pattern-match on the word `FAIL`
+- The line/combined coverage % looks high (e.g. 96-98%) but you suspect uncovered branches — read `branch_rate` from the Cobertura XML, which can be far lower (e.g. 68.75%)
+- You see `NN->exit` markers in `--cov-report=term-missing` output and need to know what they mean (the FALSE side of a branch — the guard condition not taken to its body) and how to cover them
 
 ## Verified Workflow
 
@@ -97,6 +104,23 @@ git ls-tree -r HEAD <src-dir>/   # any CI file NOT here is a main-only/merge-pre
 # parse_module_coverage() reads Cobertura XML <class> elements -> {file: {branch_rate, line_rate}}
 # coverage.toml lists per-file minimums; CI step fails if module missing or below floor.
 hephaestus-check-coverage --config coverage.toml
+
+# --- 5b. RAISE a per-module floor by adding tests: measure branch_rate FIRST ---
+# (a) Isolated per-module coverage + the EXACT uncovered items (NN->exit = false side of branch).
+#     -o addopts="" strips the repo's global --cov-fail-under aggregate gate so the
+#     `FAIL Required test coverage of 83.0% not reached` aggregate line does NOT mislead you;
+#     read the `N passed` summary line, NOT the word FAIL.
+PYTHONPATH="" pixi run pytest tests/unit/automation/test_models.py \
+  --cov=hephaestus.automation.models --cov-report=term-missing \
+  --cov-report=xml:build/cov_models.xml -o addopts="" -q
+# (b) branch_rate is AUTHORITATIVE from the Cobertura XML (term-missing's combined % is NOT branch_rate):
+python -c "import defusedxml.ElementTree as ET; \
+c=[x for x in ET.parse('build/cov_models.xml').iter('class') if 'automation/models.py' in x.get('filename','')][0]; \
+print('line-rate', c.get('line-rate'), 'branch-rate', c.get('branch-rate'))"
+# (c) Add targeted tests for the EXACT uncovered set, re-measure, THEN set the floor to <= branch_rate*100.
+#     Never set the floor ABOVE the measured branch_rate.
+# (d) Validate the edited coverage.toml is still valid TOML and reads back the new floor:
+python -c "import tomllib; print(tomllib.load(open('coverage.toml','rb'))['coverage']['modules']['automation/models.py'])"
 
 # --- 6. Integration backstop for omitted modules ---
 pytest tests/integration/test_orchestration_smoke.py -v   # import + `--help` smoke
@@ -243,6 +267,59 @@ Aggregate gates (e.g., 85%) hide individual under-tested files (e.g., `schema.py
 
 The check **must run after the full test suite** — a unit-only subset can falsely pass per-module floors.
 
+#### E2. RAISE a per-module floor by adding tests — measure branch_rate, not line_rate (v1.4.0, verified-local)
+
+> **Verified-local:** ProjectHephaestus issue #1471 — raised `automation/models.py` floor 65→90 by adding tests (no production code change). Tests + coverage measured locally end-to-end RED→GREEN and the full validation suite was green. The PR/CI had NOT merged at capture time, so this is verified-local, not verified-ci.
+
+When an audit-remediation issue asks you to **raise** a per-module floor in `coverage.toml`, the floor is enforced against **`branch_rate` when > 0, else `line_rate`** — per the comment at `coverage.toml:7` and the CI enforcer at `hephaestus/validation/coverage.py:262`. Three coverage numbers DIVERGE; raise the floor against the wrong one and you break CI:
+
+| Number | Example (`models.py` before tests) | What it is |
+| ------ | ---------------------------------- | ---------- |
+| `line_rate` (statement coverage) | 98.51% | fraction of statements executed |
+| term-missing combined display % | 96.31% | pytest-cov's blended display number |
+| **`branch_rate`** | **68.75%** | **← what the floor is compared against** |
+
+A naive raise to 90 here would have FAILED CI (0.6875 < 0.90) even though the line/combined numbers looked ~96-98%. The fix is to **add targeted tests for the EXACT uncovered set first, re-measure, then set the floor ≤ the measured branch_rate** (with margin — see the v1.2.0 rule; never set the floor ABOVE measured). After 5 targeted tests `models.py` reached `line_rate=1.0, branch_rate=1.0`; the floor was set to 90 (leaving margin).
+
+**Procedure:**
+
+1. **Measure isolated per-module coverage with the global gate stripped.** A single-file `pytest --cov` run prints `FAIL Required test coverage of 83.0% not reached` — that is the **GLOBAL aggregate gate firing, NOT a per-file failure**. Pass `-o addopts=""` to strip the repo's default addopts (which carry the global `--cov-fail-under`/aggregate config), then read the pytest summary line (`N passed`) — do not pattern-match on the word `FAIL`.
+
+   ```bash
+   PYTHONPATH="" pixi run pytest tests/unit/automation/test_models.py \
+     --cov=hephaestus.automation.models --cov-report=term-missing \
+     --cov-report=xml:build/cov_models.xml -o addopts="" -q
+   ```
+
+   The term-missing column shows the exact uncovered items, including branch markers like `327->exit` and `350->exit`.
+
+2. **Read `branch_rate` authoritatively from the Cobertura XML** — term-missing's combined % is NOT branch_rate. Parse the `<class filename="...">` element's `branch-rate` (and `line-rate`) attribute. The floor in `coverage.toml` must be `≤` this `branch_rate × 100`.
+
+   ```bash
+   python -c "import defusedxml.ElementTree as ET; \
+   c=[x for x in ET.parse('build/cov_models.xml').iter('class') if 'automation/models.py' in x.get('filename','')][0]; \
+   print(c.get('line-rate'), c.get('branch-rate'))"
+   ```
+
+3. **Interpret term-missing markers correctly when writing the targeted tests:**
+   - **`NN->exit` is the FALSE side of a branch** — the branch condition not taken to its body. Cover it by exercising the path where the guard is false (e.g. re-adding an already-present key so an `if x not in d:` guard takes its false side and skips re-init).
+   - **A bare line number (e.g. `346`) is an unexecuted statement** (often a `raise`). Cover it by triggering that exact path.
+
+4. **The `coverage.toml` `<class filename>` key must match the Cobertura XML `filename` attribute EXACTLY** — e.g. `automation/models.py` (the repo-relative path under the package root, **no** `hephaestus/` prefix). This is the key in `[coverage.modules]`.
+
+5. **No production code change** — raise the floor by TESTING branches, never by weakening the model. The diff is test additions + one config value.
+
+6. **Validate the edited `coverage.toml` is still valid TOML and reads back the new floor:**
+
+   ```bash
+   python -c "import tomllib; print(tomllib.load(open('coverage.toml','rb'))['coverage']['modules']['automation/models.py'])"
+   # -> {'minimum': 90}
+   ```
+
+7. **Watch ruff E501 (line length 100)** on long docstrings in the new tests — a one-line docstring citing `models.py:NN` can exceed 100 chars; shorten it.
+
+8. **The audit's cited line can be stale.** Issue #1471 cited `coverage.toml:8` but the actual floor line was 10 (line 8 was the `[coverage.modules]` header). Re-read the live file: the finding was genuine, the line number was off. (See the related planning skill `audit-remediation-verify-evidence-before-planning` for the planning-phase analogue; this section is the implementation/measurement analogue.)
+
 #### F. Integration backstop for intentionally-omitted modules
 
 Modules omitted because they need live CLI/TTY/process spawning still need proof they import and their entry points work, plus a guard against silent omit-list growth:
@@ -307,6 +384,12 @@ lcov --capture --directory . --output-file "$COVERAGE_INFO" \
 | Per-module floor set within 0.75pp of actual | Set `automation/models.py` floor to 68% when measured branch-rate was 68.75% — only 0.75pp margin | PR reviewer rejected immediately: any new uncovered branch in models.py would fail CI for unrelated PRs | Rule: `floor = floor(actual_branch_rate - 3)` to `floor(actual_branch_rate - 4)`; never set a per-module floor within 1-2pp of the measured value |
 | Raising floor without updating CLAUDE.md | Assumed no doc update was needed when consolidating thresholds | `check_claude_md_threshold()` errors when no `<N>%+ test coverage` pattern exists in CLAUDE.md — hidden CI dependency | Always grep CLAUDE.md for a coverage pattern before concluding the doc change is optional; the doc-config checker runs as part of `hephaestus-check-doc-config` in CI |
 | Assuming test_doc_config.py fixtures assert real config | Interpreted `_minimal_pyproject(fail_under=80)` calls as repo invariants that needed updating when raising the floor | Those calls create isolated tmp_path repos to test checker logic — completely decoupled from the actual pyproject.toml | Read the test file; fixture calls with numeric values are parameterized test inputs, not snapshot tests of the live config |
+| Raising the floor against line_rate | Saw `models.py` line_rate 98.51% / combined 96.31% and planned to set the floor to 90 | The CI enforcer compares against branch_rate (68.75% here) when > 0; 90 > 68.75 would FAIL CI even though line/combined looked ~96-98% | The floor is compared against `branch_rate if > 0 else line_rate` (coverage.py:262); ALWAYS read branch_rate from the Cobertura `<class branch-rate>` before raising a floor |
+| Reading the FAIL line as a per-file failure | A single-file `pytest --cov` run printed `FAIL Required test coverage of 83.0% not reached`; treated it as the module failing | That line is the GLOBAL aggregate `--cov-fail-under` gate carried in the repo's default addopts, not a per-file result | Re-run with `-o addopts=""` to strip the aggregate gate; read the `N passed` summary line, never pattern-match the word FAIL |
+| Trusting term-missing's combined % as branch_rate | Used the term-missing display % (96.31%) as the branch_rate to set the floor | term-missing's combined number is a blend of statement+branch, NOT branch_rate; only the Cobertura XML `<class branch-rate>` attribute is authoritative | Parse `branch-rate` from `--cov-report=xml:...` Cobertura output; the floor must be ≤ that value × 100 |
+| Misreading `NN->exit` markers | Treated `327->exit` term-missing markers as unreachable noise and skipped them | `NN->exit` is the FALSE side of a branch (guard not taken to its body) — a coverable, real gap | Cover `NN->exit` by exercising the false-guard path (e.g. re-add an existing key so `if x not in d:` takes its false side); a bare line number is an unexecuted statement |
+| Trusting the audit's cited line number | Audit said the floor was at `coverage.toml:8`; edited that line | Line 8 was the `[coverage.modules]` header; the actual floor was line 10 — the audit's location was stale though the finding was genuine | Re-read the live file to locate the exact key; verify the finding's substance separately from its cited line number |
+| Long docstring tripping E501 in new tests | Wrote a one-line test docstring citing `models.py:NN` and the uncovered set | The docstring exceeded ruff's 100-char line limit (E501) | Keep test docstrings ≤ 100 chars; shorten or split the citation |
 | Relative BUILD_DIR in lcov script | Used `BUILD_DIR=build/x86.coverage.debug` directly | After `cd`, all derived coverage paths were wrong | Canonicalize BUILD_DIR to absolute at script startup |
 | `cmake ... ..` after cd | Used `..` as the cmake source dir inside BUILD_DIR | `..` resolved to BUILD_DIR's parent, not PROJECT_ROOT | Pass `"$PROJECT_ROOT"` explicitly |
 | `--ignore-errors negative,mismatch` only | Added `mismatch` to suppress the gcov format error | `B33*` vs `4.8*` still fatal with lcov 2.0 | Add `version` to the ignore list |
@@ -361,6 +444,33 @@ lcov --capture --directory . --output-file "$COVERAGE_INFO" \
 Note: `automation/models.py` was initially set to 68% (0.75pp margin) — rejected by reviewer; lowered to 65%.
 
 **Apparent inconsistency**: `validation/schema.py` floor is 80% in `coverage.toml` but the module hits 94%+ in CI because CI installs `[dev,schema]` extras (unlocking jsonschema-guarded tests). A local XML without those extras shows ~52%. The floor must be calibrated against the CI measurement, not the local no-extras run.
+
+### Raising a per-module floor by adding tests (v1.4.0, verified-local)
+
+ProjectHephaestus issue #1471 — raised the `automation/models.py` floor 65→90 by ADDING tests (no production change). This is the same module as the #1197 row above, now driven up by covering branches rather than calibrating the floor down.
+
+**The three diverging numbers (measure the right one):**
+
+| Number | `models.py` before tests | Use? |
+| ------ | ------------------------ | ---- |
+| `line_rate` (statement) | 98.51% | NO — not what the floor compares against |
+| term-missing combined display % | 96.31% | NO — blended display, not branch_rate |
+| **`branch_rate`** | **68.75%** | **YES — floor is compared against this when > 0** |
+
+| Stage | `line_rate` | `branch_rate` | Floor |
+| ----- | ----------- | ------------- | ----- |
+| Before adding tests | 0.9851 | 0.6875 | (still 65) |
+| After 5 targeted tests | 1.0 | 1.0 | 90 (set ≤ measured, with margin) |
+
+**Key facts:**
+
+- The floor is compared against `branch_rate if branch_rate > 0 else line_rate` — comment at `coverage.toml:7`, enforcer at `hephaestus/validation/coverage.py:262`.
+- A single-file `pytest --cov` printing `FAIL Required test coverage of 83.0% not reached` is the **global aggregate gate**, not a per-file failure. Strip it with `-o addopts=""` and read the `N passed` summary line.
+- `branch_rate` is authoritative only from the Cobertura XML `<class branch-rate>` attribute — NOT from term-missing's combined %.
+- `NN->exit` term-missing markers = the FALSE side of an uncovered branch; a bare line number = an unexecuted statement (often a `raise`).
+- `coverage.toml` `[coverage.modules]` key must match the XML `filename` exactly: `automation/models.py` (no `hephaestus/` prefix).
+- TOML round-trip check after editing: `tomllib.load(...)['coverage']['modules']['automation/models.py']` → `{'minimum': 90}`.
+- Watch ruff E501 (100-char) on long test docstrings citing `models.py:NN`.
 
 ### Per-module floor config & expected output
 
@@ -420,3 +530,4 @@ Diagnostic order (each bug masks the next): (1) BUILD_DIR absolute vs relative; 
 | ProjectKeystone | PR #340 (2026-04-24) | Fixed all 4 sequential lcov/geninfo CI bugs; coverage script ran to completion |
 | ProjectHephaestus | Issue #1198, PR #1293 (2026-06-13) | **verified-ci** — raised enforced floor from 80% to 83% (measured baseline 85.76%, 2pp buffer); consolidated `--cov-fail-under` to single source of truth via `[tool.coverage.report].fail_under`; confirmed `--override-ini="addopts="` makes addopts removal a CI no-op (only the `_required.yml` flag is load-bearing); confirmed `check_addopts_cov_fail_under()` accepts absence (test_doc_config.py:176); added `83%+ test coverage enforced; target 90%` to CLAUDE.md to satisfy `check_claude_md_threshold()`; CI run #27458373439: 4054 passed, 21 skipped, TOTAL 85.57% ≥ 83% gate |
 | ProjectHephaestus | Issue #1197, PR #1288 (2026-06-13) | **verified-ci** — per-module floor margin rule: set 3-4pp below actual; `automation/models.py` floor initially 68% (0.75pp margin, reviewer rejected); lowered to 65% (3.75pp margin, merged); three new floors added: `automation/arming_state.py@98`, `automation/dependency_resolver.py@74`, `automation/models.py@65`; confirmed Cobertura XML paths have no `hephaestus/` prefix |
+| ProjectHephaestus | Issue #1471 (2026-06-30) | **verified-local** — raised `automation/models.py` floor 65→90 by ADDING 5 targeted tests (no production change). Measured branch_rate (68.75%) vs line_rate (98.51%) vs combined display (96.31%) and confirmed the floor compares against branch_rate (coverage.py:262). Used `-o addopts=""` to strip the global aggregate gate and read the true per-file number; read branch-rate from the Cobertura `<class branch-rate>` attribute; covered `327->exit`/`350->exit` false-branch sides + statement misses to reach branch_rate=1.0; floor set to 90. Audit cited stale `coverage.toml:8` (actual line 10). verified-local because tests + coverage measured end-to-end RED→GREEN and full validation suite green, but PR/CI had NOT merged at capture time |
