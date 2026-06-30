@@ -1,6 +1,103 @@
 <!-- markdownlint-disable MD024 -->
 # dry-refactoring-workflow — History
 
+## v1.11.0 (2026-06-30)
+
+**Changed by:** ProjectHephaestus #1420 — deprecated `get_config_value()`/`retry_with_jitter()` removal — /learn
+**Verification:** verified-local (for the new Phase 16; the rest of the skill is unchanged — `verified-ci` except the planning-only Phases 10/13/14/15)
+
+### What changed
+
+- Added Phase 16 (**VERIFIED-LOCAL** — EXECUTED end-to-end, not planning-only) — deprecated
+  public-API symbol removal across ALL surfaces. Eight sub-sections:
+  - 16a: Enumerate ALL surfaces before claiming removal — a deprecated public symbol lives on far
+    MORE surfaces than its definition: (a) impl in the module, (b) subpackage `__init__.py` import
+    line AND `__all__`, (c) top-level package lazy-loader map (`hephaestus/__init__.py`'s
+    `_LAZY_IMPORTS`) + `__all__`, (d) deprecation-warning INFRASTRUCTURE (a `_DEPRECATED_LAZY` dict
+    + the `__getattr__` branch that emits the access-time warning — and SIMPLIFY `__getattr__` once
+    the last deprecated lazy symbol is gone), (e) tests, (f) docs. A module-source-only grep finds
+    surface (a) and misses the other five.
+  - 16b: Discovery-first repo-wide grep; classify every hit (def / re-export / lazy-map /
+    deprecation-infra / test / doc); confirm ZERO runtime callers before treating it as a pure
+    removal.
+  - 16c: TDD absence-guard tests FIRST (the inversion to watch) — assert `not hasattr(module,
+    symbol)`, `symbol not in pkg.__all__`, `symbol not in hephaestus._LAZY_IMPORTS`, `symbol not in
+    dir(pkg)`. These FAIL first (symbol still present) → real RED. For the top-level guard, bust the
+    PEP 562 cache with `pkg.__dict__.pop(symbol, None)` and wrap the `hasattr`/`dir` checks in
+    `warnings.catch_warnings()` + `simplefilter("ignore", DeprecationWarning)`.
+  - 16d: DELETE deprecation-GUARD test files outright (`test_deprecation_warnings.py`,
+    `test_docs_deprecation_sync.py`) — a trimmed version asserts nothing and rots. Delete the
+    per-symbol deprecated test CLASS (`TestGetConfigValue`, `TestRetryWithJitter`) in mixed files
+    and prune the symbol from those files' imports — but RE-GREP first to confirm `patch`/
+    `MagicMock` are still used elsewhere (they usually are).
+  - 16e: Repoint integration fixtures that USE the symbol (e.g. a `test_dir_does_not_import_or_warn`
+    that pops the symbol from `__dict__`) onto a NON-deprecated lazy symbol (`retry_with_backoff`)
+    so the cache-bust path is still exercised; add a parametrized `REMOVED_DEPRECATED_SYMBOLS`
+    absence guard alongside `TOP_LEVEL_SYMBOLS` and remove the symbol from the positive lists.
+  - 16f: Docs are multi-location — COMPATIBILITY.md (flat lazy-symbol prose list + "Deprecated
+    lazy-loaded symbols" callout + per-subpackage table ROW with `**(deprecated)**` + per-subpackage
+    "Deprecated symbols" callout), MIGRATION.md (convert "Deprecated symbols" → "Removed deprecated
+    symbols" table noting the BREAKING `ImportError`/`AttributeError`), ROADMAP.md (scrub stale
+    examples).
+  - 16g: Three-tier grep gauntlet — (1) package source clean; (2) docs clean EXCEPT
+    `docs/MIGRATION.md`; (3) repo-wide excluding tests + MIGRATION.md (the reviewer's repo-wide
+    stale-reference check) — then focused tests → `ruff check` → full suite green above the gate.
+  - 16h: Treat as a BREAKING public-API removal — name the exact broken import forms in the PR body
+    (`from pkg.config import get_config_value`, `from pkg.utils import retry_with_jitter`,
+    `pkg.get_config_value`, `pkg.retry_with_jitter`) and record the rollback path (restore shims,
+    re-add `__init__` exports + lazy map + deprecation infra, restore guard tests, revert docs).
+- Added 3 Failed Attempts rows (removed-only-def-and-__all__, edited-instead-of-deleted-the-guard,
+  ran-only-the-module-source-grep).
+- Added a Verified On entry for ProjectHephaestus #1420 marked `verified-local`.
+- Added trigger phrases and tags (`deprecated-api-removal`, `breaking-change`, `lazy-loader`,
+  `lazy-imports`, `deprecation-guard-test`, `pep-562`, `all-surfaces`, `absence-guard-test`,
+  `repo-wide-grep-gauntlet`, `compatibility-doc`, `migration-doc`).
+- Bumped frontmatter `version` to 1.11.0 and `date` to 2026-06-30. Frontmatter `verification` stays
+  `unverified` (per the v1.10.0 convention of marking per-phase verification inline); Phase 16
+  carries its own `verified-local` label inline.
+
+### Why
+
+ProjectHephaestus issue #1420 was an EXECUTED (not planning-only) session that removed two deprecated
+public functions — `get_config_value()` (`hephaestus/config`) and `retry_with_jitter()`
+(`hephaestus/utils`) — that already emitted `DeprecationWarning`. The durable, reusable insight is
+that a deprecated public symbol lives on far MORE surfaces than its definition (subpackage re-exports,
+the top-level `_LAZY_IMPORTS` lazy-loader, the `_DEPRECATED_LAZY`/`__getattr__` deprecation
+infrastructure, dedicated deprecation-guard test files, and multi-location docs), so a
+module-source-only grep leaves half of them behind; the TDD shape inverts to absence guards (assert
+the symbol is GONE, real RED), with a PEP 562 cache-bust required for the top-level guard;
+deprecation-guard test files must be DELETED not trimmed; and the removal is a BREAKING public-API
+change that must be declared. Verification was the full LOCAL suite (5535 passed / 24 skipped,
+87.18% coverage ≥ the 83% gate), `ruff check` clean, and the three-tier repo-wide stale-reference
+grep gauntlet empty; the PR's CI had not merged at capture time, so this phase is `verified-local`,
+not `verified-ci`.
+
+### Previous version (v1.10.0) snapshot
+
+The v1.10.0 frontmatter (immediately prior to this amendment):
+
+````markdown
+---
+name: dry-refactoring-workflow
+description: "Complete TDD-driven workflow for identifying and eliminating code duplication by extracting reusable helper methods. Use when: (1) ... (15) PLANNING a duplicate-bearing standalone SCRIPT → library-shim consolidation ... and note the TDD INVERSION gotcha — a library test written AFTER copying the function body is GREEN-first, not RED, so don't claim a RED phase you didn't have."
+category: architecture
+date: 2026-06-26
+version: "1.10.0"
+user-invocable: false
+verification: unverified
+history: dry-refactoring-workflow.history
+---
+````
+
+v1.10.0 added Phase 15 (planning-only/unverified) — planning a duplicate-bearing standalone script →
+library-shim consolidation with output-contract preservation, captured from ProjectHephaestus #1504
+(`scripts/check_unit_test_structure.py` duplicates `get_subpackages()`/subpackage-mirror logic in
+`hephaestus/validation/test_structure.py` but uniquely owns `check_scripts_coverage()`): SHIM over
+DELETE, byte-for-byte stdout/stderr preservation via the granular functions (not `main()`), a
+data-derived fallback for the reviewer-contentious private cross-boundary import, honest recording of
+un-run reliances as risks, and the TDD GREEN-first inversion. Full v1.10.0 body is in the snapshot
+under the `## v1.10.0` entry below.
+
 ## v1.10.0 (2026-06-26)
 
 **Changed by:** ProjectHephaestus issue #1504 planning — /learn
