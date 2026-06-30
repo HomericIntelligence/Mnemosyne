@@ -8,11 +8,16 @@ description: "Debugging and fixing concurrency bugs and process-level reliabilit
   shell with no traceback, (7) pytest hangs due to unmocked Monte Carlo simulations,
   (8) nats-py optional import guard fires silently due to an enum import inside the try block,
   (9) nats-py printing stack traces instead of clean connection state, (10) subprocess git
-  clone fails with transient network errors."
+  clone fails with transient network errors, (11) a multi-agent fan-out (e.g. a Myrmidon swarm)
+  OOM-hangs a WSL host because concurrent Claude agent sessions are unthrottled, (12) a
+  ThreadPoolExecutor max_workers cap fails to limit concurrent agent sessions and you need an
+  asyncio.Semaphore agent cap, (13) you need a ulimit -v wrapper around pixi/cmake/podman so an
+  over-budget process dies as a recoverable MemoryError instead of an uncatchable OOM-SIGKILL."
 category: debugging
-date: 2026-05-19
-version: "1.0.0"
+date: 2026-06-29
+version: "1.1.0"
 user-invocable: false
+verification: verified-local
 history: concurrency-and-process-reliability-patterns.history
 tags:
   - subprocess
@@ -30,6 +35,11 @@ tags:
   - retry
   - transient-errors
   - threading
+  - agent
+  - fan-out
+  - wsl
+  - host-exhaustion
+  - swap
 ---
 
 # Concurrency and Process Reliability Patterns
@@ -55,6 +65,13 @@ tags:
 - nats subscriber tests show `mock_js.subscribe.call_count == 0` after adding a new argument
 - nats-py prints full stack traces on connection failure instead of clean status
 - git clone fails intermittently with "curl 56", "Connection reset by peer", or "early EOF"
+- a multi-agent fan-out (Myrmidon swarm, `claude-myrmidon-multi.py`) hangs the whole WSL VM —
+  syslog shows `Free swap = 0kB`, high `pgmajfault`, and many "Time jumped backwards" lines
+- a ThreadPoolExecutor `max_workers=N` does NOT limit the number of concurrent Claude **agent**
+  sessions and you need a real per-agent `asyncio.Semaphore` cap
+- per-agent `cmake --build -j$(nproc)` × N agents oversubscribes all cores N times
+- you want pixi/cmake/podman to die as a recoverable `MemoryError` (via `ulimit -v`) instead of
+  an uncatchable OOM-SIGKILL that hangs the host
 
 ## Verified Workflow
 
@@ -314,6 +331,74 @@ for attempt in range(max_retries):
     time.sleep(delay)
 ```
 
+### Pattern 10 — Multi-Agent Host Exhaustion on WSL
+
+**Symptom**: A multi-repo agent fan-out (e.g. a 16-repo Myrmidon swarm via
+`e2e/claude-myrmidon-multi.py`) hangs the **entire WSL VM**, not just one process. `journalctl`/syslog
+shows `Free swap = 0kB`, a high `pgmajfault` count (e.g. `pgmajfault: 13255`), dozens of
+`Time jumped backwards` lines (scheduler starvation), and journal corruption. The host only recovers
+after the OOM-killer reaps the agent processes.
+
+**Root Cause**: On a WSL2 host with no `[wsl2] memory=` cap in `.wslconfig`, the VM gets ~50% of host
+RAM (on a 16 GB / 8-core box → ~8 GB usable + 16 GB swap). A fan-out dispatches ~16 **concurrent**
+Claude agent sessions with no spawn throttle. Each agent runs heavy work — `pixi install`/`pixi lock`
+(a conda+pypi SAT solve, ~0.5–1 GB each) plus a C++ build (`cmake --build -j$(nproc)` → all 8 cores,
+1.5–3 GB each). Peak demand (~18–40 GB) far exceeds RAM+swap → swap hits 0 → the scheduler starves →
+the whole VM locks up.
+
+**Critical misconception**: A `ThreadPoolExecutor(max_workers=N)` inside ONE Python process does
+**not** cap the number of concurrent agent **sessions** — each agent is its own process tree. Setting
+hephaestus's `max_workers=3` did nothing to stop 16 agents from running at once. `max_workers` is a
+red herring for host-exhaustion.
+
+**Fix** — four independent controls, all needed together:
+
+1. **Cap concurrent agents with a real `asyncio.Semaphore(N)`** around the heavy per-agent invocation.
+   Wrap the blocking call in `asyncio.to_thread` *under* the semaphore — otherwise a blocking sync call
+   serializes the loop and the semaphore becomes a no-op. Lazy-create the semaphore so it binds the
+   *running* loop (constructing at import time has no loop yet).
+
+   ```python
+   import asyncio
+
+   _agent_sem: asyncio.Semaphore | None = None
+   MAX_CONCURRENT_AGENTS = 3   # ~one heavy ~3 GB op per slot + headroom on a 16 GB/8-core box
+
+   def _get_agent_sem() -> asyncio.Semaphore:
+       global _agent_sem
+       if _agent_sem is None:          # lazy: bind the running loop, not import-time (no loop)
+           _agent_sem = asyncio.Semaphore(MAX_CONCURRENT_AGENTS)
+       return _agent_sem
+
+   async def bounded_invoke_claude(*args, **kwargs):
+       async with _get_agent_sem():
+           # to_thread matters: a blocking sync call here would serialize the loop
+           # and the semaphore would never actually throttle anything.
+           return await asyncio.to_thread(invoke_claude, *args, **kwargs)
+   ```
+
+   Verified: 10 agents fired, peak in-flight capped at exactly 3.
+
+2. **Cap build parallelism per agent.** `-j$(nproc)` × N agents = N×cores oversubscription. Use `-j2`
+   or export `CMAKE_BUILD_PARALLEL_LEVEL=2` so N agents stay within the core budget.
+
+3. **Memory-bound each heavy op with `ulimit -v`** via a wrapper script, generalizing the pytest
+   Pattern 5 to pixi/cmake/podman and to the multi-agent case. The subshell makes the cap local to
+   that one process; an over-budget process then dies as a recoverable `MemoryError` rather than an
+   uncatchable OOM-SIGKILL that hangs the VM (verified: the parent shell survives).
+
+   ```bash
+   #!/usr/bin/env bash
+   # run-bounded.sh — cap virtual memory for one heavy command
+   ( ulimit -v 5242880; exec "$@" )   # 5 GiB (5*1024*1024 KiB); subshell keeps the cap local
+   # usage: ./run-bounded.sh pixi install
+   #        ./run-bounded.sh cmake --build build -j2
+   ```
+
+4. **Operational rule**: on this host keep **≤3 concurrent heavy (pixi/cmake/podman) agents**. Prefer
+   a concurrency-capped Workflow/wave over fire-and-forget parallel agent spawns, and check `free -h`
+   *before* launching a swarm.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -333,6 +418,11 @@ for attempt in range(max_retries):
 | `connect_timeout` alone to cap nats connect | Set `connect_timeout=3` expecting it to limit overall connect duration | `connect_timeout` only applies to the TCP socket; internal reconnection logic adds additional time | Wrap `connect()` with `asyncio.wait_for()` for a hard overall timeout guarantee |
 | Pattern matching too narrow for transient errors | Matched `"network unreachable"` | Actual error was `"Network is unreachable"` (with "is"); case-sensitive miss | Use `stderr.lower()` and include common phrase variations in the pattern list |
 | Debug hangs with piped output | Used `command 2>&1 \| tail -30` to filter output | Pipe buffering made the process appear hung when it was running fine | Use `PYTHONUNBUFFERED=1` or redirect to a file when debugging hangs |
+| Rely on ThreadPoolExecutor `max_workers` to cap agents | Set hephaestus `max_workers=3` expecting it to limit concurrent agent sessions in a 16-repo fan-out | `max_workers` bounds threads inside ONE process; each Claude agent is its own process tree, so 16 agents still ran at once and exhausted the WSL host | A ThreadPoolExecutor `max_workers=N` is a red herring for host-exhaustion — it does NOT cap concurrent AGENT sessions; throttle the per-agent invocation itself |
+| `asyncio.Semaphore` around a blocking sync call | Wrapped `invoke_claude(...)` directly in `async with sem:` without `asyncio.to_thread` | The blocking sync call serialized the event loop; only one ran at a time so the semaphore never gated anything (no-op) | Put the heavy call in `asyncio.to_thread(...)` *inside* the `async with sem:` so the slots are real concurrency, not loop-serialized |
+| Construct the Semaphore at import time | `_agent_sem = asyncio.Semaphore(3)` at module top level | No running event loop exists at import; the semaphore binds the wrong/absent loop and fails or silently mis-throttles | Lazy-create the Semaphore on first use so it binds the running loop |
+| Leave `-j$(nproc)` per agent | Each agent built with `cmake --build -j$(nproc)` | N agents × all cores = N×core oversubscription → scheduler starvation, "Time jumped backwards", VM lockup | Cap build parallelism per agent (`-j2` / `CMAKE_BUILD_PARALLEL_LEVEL=2`) so N agents fit the core budget |
+| Let pixi/cmake run uncapped and rely on the OOM-killer | Ran heavy ops with no `ulimit -v`, assuming the OOM-killer would reap just the offender | The uncatchable OOM-SIGKILL fired only after swap hit 0 kB and the whole WSL VM had already hung; recovery required the kernel to reap agents | Wrap each heavy op in `( ulimit -v <N>GiB; exec "$@" )` so it dies as a recoverable `MemoryError` first; the shell/host survive (generalizes pytest Pattern 5 to pixi/cmake/podman) |
 
 ## Results & Parameters
 
@@ -365,6 +455,25 @@ logging.getLogger("nats").setLevel(logging.CRITICAL)
 # Retry (transient subprocess errors)
 max_retries, base_delay = 3, 1.0
 delay = base_delay * (2 ** attempt)   # 1 s, 2 s, 4 s
+
+# Multi-agent cap (NOT ThreadPoolExecutor max_workers — that does not gate agent sessions)
+_agent_sem = None                                    # lazy: bind the running loop
+def _get_agent_sem():
+    global _agent_sem
+    if _agent_sem is None:
+        _agent_sem = asyncio.Semaphore(3)            # <=3 heavy agents on a 16 GB/8-core box
+    return _agent_sem
+async def bounded_invoke_claude(*a, **k):
+    async with _get_agent_sem():
+        return await asyncio.to_thread(invoke_claude, *a, **k)   # to_thread -> real concurrency
+```
+
+```bash
+# Cap per-agent build parallelism (N agents * nproc oversubscribes cores)
+export CMAKE_BUILD_PARALLEL_LEVEL=2        # or: cmake --build build -j2
+
+# run-bounded.sh — memory-bound any heavy op so it dies as MemoryError, not OOM-SIGKILL
+( ulimit -v 5242880; exec "$@" )           # 5 GiB; usage: ./run-bounded.sh pixi install
 ```
 
 ### Transient Error Patterns (for subprocess retry)
@@ -405,3 +514,4 @@ TRANSIENT_PATTERNS = [
 | Odysseus | odysseus-console.py NATS event viewer resilience | 2026-04-05 |
 | ProjectHephaestus | PR #412 — ulimit bisection pinpointed OOM test | 2026-05-15 |
 | ProjectScylla | PR #146 — git clone transient retry logic | 2026-01-04 |
+| Odysseus | `e2e/claude-myrmidon-multi.py` 16-repo fan-out hung WSL host `hermes` (16 GB/8-core, `Free swap = 0kB`); fixed with `asyncio.Semaphore(3)` agent cap + `-j2` builds + `ulimit -v` wrapper — verified 10 fired, peak in-flight capped at 3 | verified-local 2026-06-29 |

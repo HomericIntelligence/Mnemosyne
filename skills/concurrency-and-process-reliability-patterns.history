@@ -1,3 +1,66 @@
+## Amended v1.0.0 -> v1.1.0 (2026-06-29)
+
+**What changed**: Added a NEW dimension — **multi-AGENT host exhaustion on WSL** — distinct from the
+existing single-process OOM patterns. Added 5 Failed Attempts rows, a new "Pattern 10 — Multi-Agent
+Host Exhaustion on WSL" section under Verified Workflow, new tags (`agent`, `fan-out`, `wsl`,
+`host-exhaustion`, `swap`), extended `description` with new triggers, added a Verified-On row, and bumped
+`version` 1.0.0 -> 1.1.0 / `date` -> 2026-06-29 / `verification: verified-local`.
+
+**Why**: On a WSL2 host (`hermes`, 16 GB RAM / 8 cores, no `.wslconfig memory=` cap), a 16-repo Myrmidon
+fan-out (`e2e/claude-myrmidon-multi.py`) dispatched ~16 concurrent agent sessions with no spawn throttle.
+Each ran `pixi install`/`pixi lock` (conda+pypi SAT solve ~0.5-1 GB) + a C++ build
+(`cmake --build -j$(nproc)` → all 8 cores, 1.5-3 GB). Peak ~18-40 GB vs 16 GB → all 16 GB swap exhausted
+(syslog: `Free swap = 0kB`, `pgmajfault: 13255`, 28x "Time jumped backwards" = scheduler starvation,
+journal corruption) → the whole WSL VM hung, recovering only after the OOM-killer reaped agents. Key
+findings: a ThreadPoolExecutor `max_workers=N` inside one Python process does NOT cap concurrent Claude
+agent sessions (red herring); the fix is a real `asyncio.Semaphore(N)` around the heavy per-agent
+invocation (wrapped in `asyncio.to_thread`, lazily created so it binds the running loop); cap per-agent
+build parallelism (`-j2` / `CMAKE_BUILD_PARALLEL_LEVEL=2`); and a `ulimit -v` wrapper generalizes the
+pytest Pattern 5 to pixi/cmake/podman so an over-budget process dies as a recoverable `MemoryError`
+instead of an uncatchable OOM-SIGKILL.
+
+### Previous version snapshot (v1.0.0 frontmatter, 2026-05-19)
+
+```yaml
+name: concurrency-and-process-reliability-patterns
+description: "Debugging and fixing concurrency bugs and process-level reliability failures in
+  Python. Use when: (1) batch/parallel workers hang on exit or ignore Ctrl+C, (2) subprocess
+  stdin blocks because DEVNULL is missing, (3) os.setpgrp() or os.setsid() breaks terminal
+  signal delivery, (4) stty called from a worker thread blocks the main thread, (5) global
+  parallelism control needed across multiple ProcessPoolExecutors, (6) pytest OOM-kills the
+  shell with no traceback, (7) pytest hangs due to unmocked Monte Carlo simulations,
+  (8) nats-py optional import guard fires silently due to an enum import inside the try block,
+  (9) nats-py printing stack traces instead of clean connection state, (10) subprocess git
+  clone fails with transient network errors."
+category: debugging
+date: 2026-05-19
+version: "1.0.0"
+user-invocable: false
+history: concurrency-and-process-reliability-patterns.history
+tags:
+  - subprocess
+  - signal
+  - process-group
+  - semaphore
+  - multiprocessing
+  - pytest
+  - oom
+  - ulimit
+  - monte-carlo
+  - mock
+  - nats
+  - asyncio
+  - retry
+  - transient-errors
+  - threading
+```
+
+v1.0.0 documented Patterns 1-9 (subprocess stdin blocking, os.setpgrp Ctrl+C break, stty-from-worker
+hang, `Manager().Semaphore()` global cross-process parallelism, ulimit-v pytest OOM bisection, mock
+expensive simulations, nats optional-import-guard enum pitfall, nats-py connection resilience, retry
+transient errors). v1.1.0 keeps all of these unchanged and appends the multi-agent host-exhaustion
+dimension on top.
+
 ## Superseded from batch-subprocess-signal-hang
 
 ---
