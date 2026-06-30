@@ -1,10 +1,22 @@
----
+<!-- markdownlint-disable MD024 -->
+# History: testing-deterministic-clock-vs-thread-sleep-classification
+
+This file preserves prior versions of the canonical skill body.
+
+## v1.1.0 (2026-06-30)
+
+Added a PLAN-PROCESS failure mode observed across the issue #1469 re-planning rounds: in a TASK/PLAN/REVIEW pipeline where the plan reviewer only sees the latest emitted artifact, the plan author MUST output the COMPLETE plan inline every round. Pointing to "the full plan in my prior message" or emitting a `/learn`-completion / status report in the plan slot makes the reviewed artifact contain NO plan → automatic NOGO/F regardless of how correct the off-artifact plan was (R1 went F purely for this). Re-confirmed the mechanically-derived-count rule (6 sleeps across 5 methods; assert `pytest -m slow --collect-only -q | grep -c "::"` == 5) as the substantive fix that converged the plan after the "3 vs 4 vs 5" oscillation. Added two Failed Attempts rows and a "Plan-artifact discipline" note to the workflow.
+
+## v1.0.0 (2026-06-30)
+
+Original skill created from ProjectHephaestus issue #1469 (plan only, unverified).
+
+```yaml
 name: testing-deterministic-clock-vs-thread-sleep-classification
 description: "Planning checklist for eliminating real time.sleep() from a test suite: classify EVERY sleep by WHAT IT WAITS ON before choosing a fix, because the fix differs per class. A timer-boundary sleep (waits only for a monotonic/wall clock to cross a timeout like recovery_timeout) is fixed by patching the EXACT clock name the production code reads (@patch('<module>.time.monotonic')) and advancing the return value past the threshold — NOT by constructor-injecting a clock (YAGNI when the code already calls time.monotonic() at module scope). A thread-coordination sleep (orders real OS threads against a threading.Condition/Event/Barrier) has NO clock to mock; removing it introduces a notify-before-wait race, so the low-risk fix is @pytest.mark.slow to deselect it on the fast path. Use when: (1) a refactor wants to remove real sleeps from unit tests for speed/determinism; (2) you see time.sleep near recovery_timeout/circuit-breaker/backoff logic; (3) you see time.sleep near threading.Barrier/Condition/Event 'give threads time to start' comments; (4) you are tempted to inject a clock into a constructor that already calls time.monotonic() directly."
 category: testing
 date: 2026-06-30
-version: "1.1.0"
-history: testing-deterministic-clock-vs-thread-sleep-classification.history
+version: "1.0.0"
 user-invocable: false
 verification: unverified
 tags:
@@ -22,10 +34,7 @@ tags:
   - yagni
   - dry
   - ruff-unused-import
-  - plan-review-pipeline
-  - plan-artifact-discipline
-  - mechanically-derived-count
----
+```
 
 # Deterministic Clock vs Thread-Sleep: Classify Before You Fix (Planning)
 
@@ -116,29 +125,6 @@ grep -rn "time.sleep" tests/unit/
 8. **Re-verify the coverage gate** (the single biggest risk): confirm whether the default
    CI invocation deselects `slow` (`-m "not slow"`); if so, the marked tests stop
    contributing coverage and the module under test could fall below the 83% gate.
-9. **Make every cited count mechanically derived and self-consistent.** A verification
-   criterion that contradicts the plan body is an automatic NOGO. Pin counts to a
-   grep-derived ground truth (issue #1469: 6 sleeps across 5 methods) and assert them with
-   a runnable check — `pytest -m slow --collect-only -q | grep -c "::"` == 5 — never a
-   hand-written prose number. Issue #1469 oscillated "3 vs 4 vs 5" marked-`slow` tests
-   across re-planning rounds until the count was pinned this way; the design was already
-   sound, the prose number was the only thing wrong.
-
-### Plan-artifact discipline (TASK/PLAN/REVIEW pipelines)
-
-In a pipeline where the plan reviewer ONLY sees the latest emitted artifact, the plan
-author MUST output the COMPLETE plan inline every round. The reviewer cannot follow a
-pointer to a prior message — it grades the visible block. Two concrete rules:
-
-1. **Never let a `/learn` (knowledge-capture) completion report occupy the plan slot.** A
-   `/learn` status summary and the implementation-plan artifact are DIFFERENT outputs to
-   DIFFERENT consumers. If the status summary lands where the plan goes, the reviewed
-   artifact contains zero plan steps → graded "not a plan", F/NOGO even though the
-   off-artifact plan was sound. (Issue #1469 R1 went F purely for this.)
-2. **When re-planning after ANY NOGO, re-emit the FULL plan** — every section (Objective,
-   Approach, Files to Modify with fenced snippets, Implementation Order, Verification,
-   Changes-from-review) — not a diff or a summary of edits. Pointing to "the full plan in
-   my prior message" makes the artifact-under-review contain no plan.
 
 ## Failed Attempts
 
@@ -150,8 +136,6 @@ pointer to a prior message — it grades the visible block. Two concrete rules:
 | Single fixed mock value across the whole `call()` path | Setting one constant `monotonic.return_value` and assuming all reads are equivalent | The mocked value is read multiple times within one `call()` (`_effective_state` AND the `time_until` ETA at `circuit_breaker.py:179`); a value that makes the boundary cross can make an ETA assertion read `0.0`/negative | When the same mocked clock feeds an ETA assertion (`time_until_recovery > 0`), choose the value so `recovery_timeout - elapsed > 0` still holds |
 | Advance relative to construction time | Computing the post-timeout advance from the construction-time mocked value | `_record_failure` (`circuit_breaker.py:228`) sets `_last_failure_time = time.monotonic()` — the baseline is the value LIVE at the moment of failure, not at construction | Advance relative to the mocked value live when `_record_failure` runs; off-by-one on which value is live is the easiest bug here |
 | Trusting cited line numbers | Planning edits against `:96, :111, … :639`, `pyproject.toml:216` from a single read | Line numbers drift between reads as files change | Re-grep `time.sleep` and the markers at implementation time; never trust a prior read's offsets |
-| Emitted a /learn completion report in the plan-output slot | Returned a knowledge-capture status summary ("skill merged… full plan in my prior message") where the pipeline expected the implementation plan | Reviewer only sees the latest artifact; it contained zero plan steps → graded "not a plan", F/NOGO even though the off-artifact plan was sound | In a TASK/PLAN/REVIEW loop, the plan author must output the COMPLETE plan inline every round; never point to a prior message and never let a /learn status report occupy the plan slot |
-| Cited a marked-test count as a prose number | Wrote "exactly 3 slow tests" in verification while the plan body marked 4, and a later capture said 5 | The verification criterion contradicted the plan body (3 vs 4 vs 5) — a self-inconsistent acceptance check is an automatic NOGO | Derive counts mechanically from ground truth (grep) and assert them with a runnable check (`pytest -m slow --collect-only -q \| grep -c "::"`), never a hand-written number |
 
 ## Results & Parameters
 
