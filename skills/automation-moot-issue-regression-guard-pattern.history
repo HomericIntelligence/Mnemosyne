@@ -1,0 +1,116 @@
+# automation-moot-issue-regression-guard-pattern — History
+
+## v1.1.0 (2026-06-30)
+
+**Changed by:** ProjectHephaestus session investigating audit issue #1460 (strict
+full-coverage audit citing a late `import re` inside `CIDriver._parse_json_block` at
+`ci_driver.py:2125`).
+**Verification:** verified-local (CI validation of the proposed regression test is PENDING)
+
+### What changed (minor bump — new finding, same pattern)
+
+- Added a new finding sibling to the original "moot issue / never-existed" case: the case
+  where an audit finding is **ALREADY REMEDIATED by an earlier refactor that MOVED a symbol**
+  into a shared helper — distinct from "the code never existed." The original v1.0.0 case is
+  about premises that are wholly false; this v1.1.0 finding is about a premise that **was once
+  true and has since been fixed**, with the cited **line number having drifted**.
+- New core lesson: **re-locate the cited symbol by NAME (grep), never by the audit's
+  `file:line`** — line numbers drift when the file changes after the audit snapshot. For #1460
+  the cited `ci_driver.py:2125` had drifted to a different function (`_enable_auto_merge`);
+  `_parse_json_block` had moved to line 2207, and the `import re` it allegedly contained was
+  gone entirely — JSON parsing had been extracted into the shared helper
+  `parse_json_block` in `hephaestus/automation/_review_utils.py` (extraction PR #1357), with
+  `re` now imported correctly at module top-level in `_review_utils.py:36`. `ci_driver.py` no
+  longer contained `import re` OR any `re.` usage.
+- New lesson: **do NOT naively "move the import to the top"** when applying the literal
+  remediation. Here that would have added an UNUSED `import re` to `ci_driver.py` and failed
+  `ruff F401`. Verify the symbol is still REFERENCED before relocating its import; an audit
+  finding can be obsolete.
+- New regression-guard variant: a **static source-text assertion** test (read the module
+  source, assert no in-body `import re`), mirroring the repo's existing static-analysis test
+  style (`tests/unit/test_automation_boundary.py` greps source). This complements — does not
+  replace — the AST-parse guard from v1.0.0; choose the source-text variant when the invariant
+  is "no in-function/late import of X" rather than "exactly one definition of X."
+- Added two Failed Attempts rows (trust-the-audit-line; apply-the-literal-import-move),
+  a "When to Use" trigger, a v1.1.0 section, and tags
+  (`already-remediated`, `line-number-drift`, `symbol-moved`, `ruff-f401`,
+  `source-text-guard`, `verified-local`).
+- Added `history:` frontmatter field. Bumped `version` 1.0.0 → 1.1.0. Date 2026-06-30.
+- Verification of the v1.0.0 body remains `verified-ci`; the v1.1.0 additions are
+  `verified-local` (grep/read evidence gathered directly from the source tree this session;
+  no CI run validated the proposed regression test). The Overview table notes the pending CI
+  validation honestly.
+
+### Why
+
+A strict full-coverage audit cites exact `file:line` coordinates that grow stale the moment the
+file changes. Trusting the line blindly leads to editing the wrong function; applying the literal
+fix when the finding is already remediated reintroduces dead code that fails lint. The durable
+response is the same third path the v1.0.0 finding established — confirm the invariant is already
+satisfied, then add a machine-checkable regression guard so the anti-pattern cannot silently
+return — generalized here to the "symbol moved / line drifted / literal fix would reintroduce a
+lint failure" shape, with a source-text guard variant.
+
+### Risks / unverified assumptions carried forward
+
+- Assumes `tests/unit/automation/test_ci_driver.py` already exists with a CIDriver construction
+  fixture (`_make_ci_driver`) — NOT directly verified this session. The pure source-text guard
+  test stands alone and does not depend on that fixture.
+- Assumes ruff F401 is enforced on `ci_driver.py` (the stated reason not to add a top-level
+  import) — inferred from repo lint config, not re-confirmed this session.
+- The regression-guard test was NOT executed in CI — verification is local-evidence-only.
+
+---
+
+## v1.0.0 (2026-06-14) — full snapshot of the prior version
+
+> The text below is the complete content of the skill `.md` as it stood at v1.0.0, before the
+> v1.1.0 amendment.
+
+```markdown
+---
+name: automation-moot-issue-regression-guard-pattern
+description: "Use when a follow-up or auto-generated issue's concrete premises (file names, class names, function names, PR references) do not match the actual codebase state — i.e. the code described never existed or was never merged. Instead of fabricating the missing modules (YAGNI/KISS violation) or closing with no artifact, convert the already-satisfied invariant into a machine-checkable regression-guard test using ast.parse. Use when: (1) every grep for issue-cited symbols returns zero hits; (2) the upstream PR the issue references does not exist (gh pr view → 'Could not resolve'); (3) the issue describes a refactor across modules that a grep confirms live in only one place already; (4) implementing the literal request would create dead code or phantom modules."
+category: testing
+date: 2026-06-14
+version: "1.0.0"
+user-invocable: false
+verification: verified-ci
+tags:
+  - moot-issue
+  - false-premise
+  - auto-generated
+  - follow-up-issue
+  - regression-guard
+  - ast-parse
+  - dry-invariant
+  - yagni
+  - dead-code
+  - premise-verification
+---
+
+# Moot Issue → AST Regression-Guard Pattern
+
+## Overview
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-06-14 |
+| **Objective** | Handle auto-generated follow-up issues whose every concrete premise (class names, file names, PR numbers, duplication claims) is false against the actual codebase — without fabricating dead code or closing with no CI artifact |
+| **Outcome** | Successful — PR #1346 shipped 2 regression-guard tests that assert the already-satisfied DRY invariant is preserved permanently |
+| **Verification** | verified-ci |
+
+Auto-generated follow-up issues (e.g., issues spawned from PR review threads of PRs that were
+never merged) describe code that does not exist. A planner that trusts the issue body will either:
+
+1. **Fabricate the missing modules** — creating dead code that the codebase never needed (YAGNI/KISS violation).
+2. **Close with no artifact** — leaving the "already-satisfied" invariant unchecked; a future PR can re-introduce the duplication with zero CI gate.
+
+The correct response is a third path: **verify premises first, then convert the already-satisfied
+invariant into an AST-level regression guard** that fails CI if the invariant is ever violated.
+
+(... full v1.0.0 body: "When to Use", "Verified Workflow" with AST pattern, "Failed Attempts",
+"Results & Parameters" decision tree + AST scanning parameters + key commands + related skills,
+and "Verified On" table for Issue #1345 / PR #1346. Retrieve via
+`git show <pre-amend-sha>:skills/automation-moot-issue-regression-guard-pattern.md`.)
+```

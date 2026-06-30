@@ -1,11 +1,12 @@
 ---
 name: automation-moot-issue-regression-guard-pattern
-description: "Use when a follow-up or auto-generated issue's concrete premises (file names, class names, function names, PR references) do not match the actual codebase state — i.e. the code described never existed or was never merged. Instead of fabricating the missing modules (YAGNI/KISS violation) or closing with no artifact, convert the already-satisfied invariant into a machine-checkable regression-guard test using ast.parse. Use when: (1) every grep for issue-cited symbols returns zero hits; (2) the upstream PR the issue references does not exist (gh pr view → 'Could not resolve'); (3) the issue describes a refactor across modules that a grep confirms live in only one place already; (4) implementing the literal request would create dead code or phantom modules."
+description: "Use when a follow-up or auto-generated issue's concrete premises (file names, class names, function names, PR references) do not match the actual codebase state — i.e. the code described never existed, was never merged, OR was already remediated by an earlier refactor that MOVED the symbol (so the cited file:line has drifted). Instead of fabricating the missing modules (YAGNI/KISS violation), naively applying the literal fix (which can reintroduce a lint failure like ruff F401), or closing with no artifact, convert the already-satisfied invariant into a machine-checkable regression-guard test (ast.parse for definition-count invariants, or a static source-text assertion for 'no late/in-body import of X'). Use when: (1) every grep for issue-cited symbols returns zero hits; (2) the upstream PR the issue references does not exist (gh pr view → 'Could not resolve'); (3) the issue describes a refactor across modules that a grep confirms live in only one place already; (4) implementing the literal request would create dead code or phantom modules; (5) an audit cites an exact file:line for an anti-pattern that has since been refactored away — re-locate the symbol by NAME, confirm the finding is already fixed, and add a regression guard rather than re-editing code."
 category: testing
-date: 2026-06-14
-version: "1.0.0"
+date: 2026-06-30
+version: "1.1.0"
 user-invocable: false
 verification: verified-ci
+history: automation-moot-issue-regression-guard-pattern.history
 tags:
   - moot-issue
   - false-premise
@@ -17,18 +18,35 @@ tags:
   - yagni
   - dead-code
   - premise-verification
+  - already-remediated
+  - line-number-drift
+  - symbol-moved
+  - ruff-f401
+  - source-text-guard
+  - verified-local
 ---
 
-# Moot Issue → AST Regression-Guard Pattern
+# Moot / Already-Remediated Issue → Regression-Guard Pattern
+
+**History:** [changelog](./automation-moot-issue-regression-guard-pattern.history)
 
 ## Overview
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-06-14 |
-| **Objective** | Handle auto-generated follow-up issues whose every concrete premise (class names, file names, PR numbers, duplication claims) is false against the actual codebase — without fabricating dead code or closing with no CI artifact |
-| **Outcome** | Successful — PR #1346 shipped 2 regression-guard tests that assert the already-satisfied DRY invariant is preserved permanently |
-| **Verification** | verified-ci |
+| **Date** | 2026-06-30 (v1.1.0); 2026-06-14 (v1.0.0) |
+| **Objective** | Handle follow-up / audit issues whose concrete premises are false OR already remediated — premises wholly fabricated (v1.0.0), or a once-true anti-pattern already refactored away with the cited `file:line` drifted (v1.1.0) — without fabricating dead code, re-editing already-fixed code, or closing with no CI artifact |
+| **Outcome (v1.0.0)** | Successful — PR #1346 shipped 2 AST regression-guard tests that assert the already-satisfied DRY invariant is preserved permanently |
+| **Outcome (v1.1.0)** | Plan-stage — for ProjectHephaestus audit issue #1460 the cited `import re` inside `CIDriver._parse_json_block` (`ci_driver.py:2125`) was already remediated by extraction PR #1357 (parsing moved to `parse_json_block` in `_review_utils.py`); plan = confirm-already-fixed + add a static source-text regression guard, NOT re-edit code |
+| **Verification** | verified-ci (v1.0.0 body) / verified-local (v1.1.0 additions) |
+
+> **v1.1.0 (2026-06-30) — verified-local, CI validation PENDING.** The v1.0.0 AST-guard
+> workflow below is `verified-ci`. The v1.1.0 generalization (the **already-remediated /
+> line-number-drift** case and the **static source-text guard** variant, drawn from
+> ProjectHephaestus audit issue #1460) is `verified-local`: the grep/read evidence was gathered
+> directly from the source tree this session, but **no CI run validated the proposed regression
+> test**. Treat the new test as a hypothesis until CI confirms. The new material is marked
+> inline where it appears.
 
 Auto-generated follow-up issues (e.g., issues spawned from PR review threads of PRs that were
 never merged) describe code that does not exist. A planner that trusts the issue body will either:
@@ -52,6 +70,97 @@ invariant into an AST-level regression guard** that fails CI if the invariant is
   would introduce modules with no callers — dead code by construction.
 - The issue describes a DRY refactor (consolidate N definitions into 1), but there is already
   exactly 1 definition.
+- **(v1.1.0, verified-local)** An audit (especially a strict full-coverage audit) cites an exact
+  `file:line` for an anti-pattern (e.g. a late `import re` inside a function), but the line has
+  **drifted** because the file changed after the audit snapshot — and re-locating the symbol by
+  NAME shows the anti-pattern was **already removed** by an earlier extraction/refactor.
+- **(v1.1.0, verified-local)** Applying the literal remediation would **reintroduce a lint
+  failure** — e.g. "move the import to the top of the module" when that symbol is no longer
+  referenced anywhere in the file, producing an unused import that fails `ruff F401`.
+
+## Already-Remediated / Line-Number-Drift Case (v1.1.0, verified-local)
+
+This case is a sibling of the wholly-fabricated case above: the audit premise **was once true**
+and has since been **fixed by a refactor that moved the symbol**, while the audit's `file:line`
+coordinate has gone stale. The response is the same third path — confirm, then guard — but the
+verification steps differ.
+
+### Quick Reference (already-remediated)
+
+```bash
+# 1. Re-locate the cited symbol by NAME, never by the audit's line number.
+grep -rn "_parse_json_block" hephaestus/automation/   # the cited line 2125 had drifted to a
+                                                       # DIFFERENT function; the symbol moved to 2207
+
+# 2. Verify the anti-pattern still exists in that file. Here: is there a late `import re`?
+grep -n "import re\|re\." hephaestus/automation/ci_driver.py   # → 0 hits: no `import re`, no `re.` usage
+
+# 3. Find where the behavior actually lives now (the refactor target).
+grep -rn "def parse_json_block\|^import re" hephaestus/automation/_review_utils.py
+# → parsing extracted to parse_json_block (PR #1357); `re` imported at module top (_review_utils.py:36)
+
+# 4. Finding is ALREADY REMEDIATED. Do NOT re-edit / re-introduce code.
+#    In particular do NOT "move the import to the top" of ci_driver.py — `re` is unused there now,
+#    so a top-level import would fail ruff F401.
+
+# 5. Add a durable static source-text regression guard so the anti-pattern cannot silently return.
+```
+
+### Detailed steps (already-remediated)
+
+#### Step A — Re-locate by symbol name, not by the audit's line number
+
+Audit `file:line` coordinates are snapshots; the file changes after the audit and the line drifts.
+For issue #1460 the audit cited `ci_driver.py:2125` for a late `import re` inside
+`CIDriver._parse_json_block`. By line 2125 the file now held `_enable_auto_merge`;
+`_parse_json_block` had moved to line 2207. **Always grep for the function/symbol, never trust the
+cited line.**
+
+#### Step B — Verify the anti-pattern still exists
+
+`grep -n "import re\|re\." hephaestus/automation/ci_driver.py` returned **zero** hits — the module
+contained neither `import re` nor any `re.` usage. The JSON parsing had been extracted into a shared
+helper `parse_json_block` in `hephaestus/automation/_review_utils.py` (extraction PR #1357), where
+`re` is correctly imported at module top-level (`_review_utils.py:36`). The finding was **already
+remediated**.
+
+#### Step C — Do NOT naively apply the literal fix
+
+The literal audit remediation ("move `import re` to the top of the module") would have **added an
+unused `import re` to `ci_driver.py`** — `re` is no longer referenced there — failing `ruff F401`.
+A finding can be obsolete; verify the symbol is still referenced before relocating its import.
+
+#### Step D — Add a static source-text regression guard
+
+When the invariant is "this module must never contain an in-body / late import of X" (rather than
+"exactly one definition of X"), a **static source-text assertion** is the right guard — read the
+module source and assert the anti-pattern string is absent. This mirrors the repo's existing
+static-analysis test style (`tests/unit/test_automation_boundary.py`, which greps source text):
+
+```python
+import re as _re
+from pathlib import Path
+
+
+def test_ci_driver_has_no_in_body_re_import() -> None:
+    """Regression guard for audit #1460: ci_driver.py must not reintroduce a late/in-body
+    `import re`. JSON parsing was extracted to parse_json_block in _review_utils.py (PR #1357),
+    so ci_driver.py uses neither `import re` nor `re.` — and adding a top-level `import re` would
+    be an unused import (ruff F401). This guard fails if the anti-pattern silently returns."""
+    src = (
+        Path(__file__).parents[3] / "hephaestus" / "automation" / "ci_driver.py"
+    ).read_text(encoding="utf-8")
+    # No `import re` statement anywhere in the module (top-level OR in-body).
+    assert not _re.search(r"^\s*import re\b", src, _re.MULTILINE), (
+        "ci_driver.py must not import `re` — parsing lives in _review_utils.parse_json_block"
+    )
+```
+
+This makes the audit issue concretely closeable with an acceptance check rather than trusting the
+stale audit snapshot. (If a behavior/delegation test is also wanted — asserting `_parse_json_block`
+delegates to `parse_json_block` — it depends on a CIDriver construction fixture such as
+`_make_ci_driver` in `tests/unit/automation/test_ci_driver.py`; the source-text guard above stands
+alone with no such dependency.)
 
 ## Verified Workflow
 
@@ -242,6 +351,8 @@ EOF
 | Trust the issue body and create `pr_predicates.py` | Started outlining a new leaf module that re-exports `FAILING_CHECK_CONCLUSIONS` and `_pr_is_failing` | `grep -rln` returned 0 hits for all cited files and classes; `gh pr view 1289` → "Could not resolve" — the entire issue premise was fabricated | Always verify every concrete named entity (files, classes, functions, PRs) before writing a line of code. A moot issue takes 2 minutes to detect and 30 minutes to guard; it takes hours to undo fabricated modules |
 | Close the issue with no artifact | Considered closing as "issue premises false, nothing to implement" | Leaves the already-satisfied invariant unchecked; a future PR can re-introduce duplication with no CI gate | "Already satisfied" is not the same as "permanently enforced". Convert satisfaction into a regression guard |
 | Use string grep instead of ast.parse for the guard | Initially considered `grep -rn "FAILING_CHECK_CONCLUSIONS"` in a shell-based test | Grep matches comments, docstrings, and import lines — not just assignments. A future `from ci_driver import FAILING_CHECK_CONCLUSIONS` line would produce a false positive | `ast.parse` + `ast.walk` distinguishes assignments from imports/references; it is definition-aware, not string-aware |
+| **(v1.1.0)** Trust the audit's `file:line` (`ci_driver.py:2125`) | Was about to inspect `_parse_json_block` at the cited line 2125 | The line had drifted to a different function (`_enable_auto_merge`) after the file changed post-audit; `_parse_json_block` had moved to line 2207 | Re-locate by symbol NAME with grep, never by the audit's line number — audit coordinates are stale snapshots |
+| **(v1.1.0)** Apply the literal fix: move `import re` to module top of `ci_driver.py` | Considered the audit's literal remediation | `re` is no longer used anywhere in `ci_driver.py` (parsing was extracted to `parse_json_block` in `_review_utils.py`, PR #1357), so a top-level import would be unused and fail `ruff F401` | Verify the symbol is still referenced before relocating its import; a finding can be obsolete. Confirm-already-fixed + add a regression guard instead of re-editing code |
 
 ## Results & Parameters
 
@@ -302,9 +413,24 @@ Received a follow-up or auto-generated issue:
   this skill covers the case where the files themselves do not exist
 - `gitignored-scratch-dir-regression-guard` — another regression-guard pattern (pre-commit
   hook via git ls-files); this skill uses AST-level pytest tests instead
+- `planning-follow-up-issue-line-number-drift` / `verify-audit-issue-reproduces-before-fixing` —
+  closely related triggers (cited line drifted; content absent now). This skill's v1.1.0 finding
+  is the case where the anti-pattern was **refactored away** (symbol moved) and the response is a
+  static source-text regression guard
+
+### Risks / unverified assumptions (v1.1.0)
+
+- Assumes `tests/unit/automation/test_ci_driver.py` already exists with a CIDriver construction
+  fixture (`_make_ci_driver`) — NOT directly verified this session. The pure source-text guard
+  test stands alone and does not depend on that fixture.
+- Assumes `ruff F401` is enforced on `ci_driver.py` (the stated reason not to add a top-level
+  import) — inferred from repo lint config, not re-confirmed this session.
+- The proposed regression-guard test was **NOT executed in CI** — verification is
+  local-evidence-only.
 
 ## Verified On
 
 | Project | Context | Details |
 |---------|---------|---------|
 | ProjectHephaestus | Issue #1345 — "Follow-up from #1289: 2 item(s) (core, safety)" | PR #1346: 2 AST regression-guard tests added to `tests/unit/automation/test_ci_gate.py`; all 1659 automation tests pass; verified-ci |
+| ProjectHephaestus | Issue #1460 — strict audit citing late `import re` in `CIDriver._parse_json_block` (`ci_driver.py:2125`) | Cited line had drifted (now `_enable_auto_merge`; `_parse_json_block` at 2207); finding already remediated by extraction PR #1357 (`parse_json_block` in `_review_utils.py`, `re` at module top `_review_utils.py:36`); plan = confirm-already-fixed + static source-text regression guard; verified-local, CI validation pending |
