@@ -1,9 +1,9 @@
 ---
 name: adr-authoring-indexing-and-maintenance
-description: "Use when: (1) generating a new Architecture Decision Record (ADR) to document a significant architectural decision; (2) an ADR file exists but is not listed in the index table (docs/adr/README.md); (3) updating ADR status to Accepted (Deferred) when implementation is bypassed pending platform support; (4) two or more functions have nearly identical limitation comments and need consolidating into a single ADR with cross-references replacing duplicates; (5) updating ADR directory tree listings to reflect actual filesystem contents after file deletions or additions; (6) writing an ADR on an epic branch where some child PRs have not yet merged to main — use pending-tense language for open PRs, past-tense only for work already on main; (7) writing an ADR that references decisions from other repos or external docs — verify every ADR number on disk before asserting it exists, use commit SHAs for cross-repo work, cite file:line for cross-repo CLAUDE.md claims."
+description: "Use when: (1) generating a new Architecture Decision Record (ADR) to document a significant architectural decision; (2) an ADR file exists but is not listed in the index table (docs/adr/README.md); (3) updating ADR status to Accepted (Deferred) when implementation is bypassed pending platform support; (4) two or more functions have nearly identical limitation comments and need consolidating into a single ADR with cross-references replacing duplicates; (5) updating ADR directory tree listings to reflect actual filesystem contents after file deletions or additions; (6) writing an ADR on an epic branch where some child PRs have not yet merged to main — use pending-tense language for open PRs, past-tense only for work already on main; (7) writing an ADR that references decisions from other repos or external docs — verify every ADR number on disk before asserting it exists, use commit SHAs for cross-repo work, cite file:line for cross-repo CLAUDE.md claims; (8) writing an ADR whose Decision section names a code artifact — verify it is git-tracked before citing it as canonical; (9) adding a structural guard test that keeps the ADR index enumerable and in sync with on-disk files."
 category: documentation
-date: 2026-06-20
-version: "1.2.0"
+date: 2026-06-30
+version: "1.3.0"
 user-invocable: false
 history: adr-authoring-indexing-and-maintenance.history
 tags:
@@ -21,6 +21,9 @@ tags:
   - citation-discipline
   - provenance
   - append-only
+  - tracked-symbols
+  - membership-guard
+  - nygard-format
 ---
 # ADR Authoring, Indexing, and Maintenance
 
@@ -38,7 +41,7 @@ directory-tree listings accurate against the real filesystem.
 | Objective | Author and maintain ADRs and their index, status, cross-references, and embedded directory trees |
 | Outcome | Consistent, traceable ADRs; index always reflects on-disk ADRs; status reflects code reality; no duplicate limitation comments |
 | Category | documentation |
-| Verification | verified-ci |
+| Verification | verified-ci (core); v1.3.0 additions (section I) are verified-local, CI pending |
 
 ## When to Use
 
@@ -323,6 +326,69 @@ git -C <submodule-path> log --oneline | grep -i '<keyword>'
 grep -n 'ADR-[0-9]\+\|<keyword>' <submodule-path>/CLAUDE.md
 ```
 
+#### I. Tracked-symbol anchoring, index membership guard, and the Nygard 4-digit variant (Proposed — verified-local, CI pending)
+
+> The additions in this subsection were captured from ProjectHephaestus issue #1452
+> (2026-06-30). The structural guard test was run and passed locally (4 passed;
+> `markdownlint-cli2` passed); CI had not yet run when this was recorded. Treat as
+> **verified-local** until confirmed in CI.
+
+**Rule 1 — Anchor an ADR that documents code on *tracked* symbols, never on untracked
+working-tree files.** Before writing a Decision section that names a code artifact as the
+canonical implementation, confirm the file is git-tracked:
+
+```bash
+git ls-files hephaestus/agents/invoker.py   # empty output → UNTRACKED → do not cite as canonical
+```
+
+In #1452, ADR-0005 originally cited `hephaestus/agents/invoker.py` / `AgentInvoker` as the
+canonical artifact, but `git ls-files` returned empty — the file was untracked and
+out-of-scope for the PR. If merged, the ADR would document a decision whose primary artifact
+does not exist on `main`, a latent staleness/POLA risk. Fix: anchor on **tracked** symbols
+(`AgentName = Literal["claude","codex","pi"]` at `hephaestus/agents/runtime.py:23`; `is_codex`
+at `runtime.py:205`) and demote the untracked `AgentInvoker` to "illustrative of the direction,
+not the canonical anchor."
+
+**Rule 2 — Verify the audit's *characterization* against the live tree, not just its
+file:line evidence.** Issue #1452 described a "dual-agent" runtime; reading
+`hephaestus/agents/runtime.py:23` showed `Literal["claude","codex","pi"]` — **three** agents.
+The ADR documented the true tri-agent reality and explicitly noted the audit's framing was
+wrong. The count or description in an audit can be wrong, not merely stale — read the live code
+before transcribing the audit's claim into a frozen ADR.
+
+**Rule 3 — Add a bidirectional README↔disk membership-guard test so the ADR index stays
+enumerable.** Mirror the `api_table_docs` membership-guard pattern: assert SET EQUALITY between
+the ADR files linked in the README index and the ADR files on disk, so a stale link OR a
+missing link both fail. In ProjectHephaestus this lives at `tests/unit/docs/test_adr_records.py`
+(a sanctioned extra test dir). The full guard asserts: (a) every `docs/adr/NNNN-*.md` filename
+matches `^\d{4}-[a-z0-9-]+\.md$`; (b) numeric prefixes are contiguous from 1 with no gaps or
+dupes; (c) each ADR has the required Nygard sections (`## Context`, `## Decision`,
+`## Alternatives considered`, `## Consequences`) plus `- Status:` / `- Date:` and a
+`# ADR-NNNN:` title; (d) the README index links **exactly** the set of ADR files on disk.
+
+```python
+def test_readme_index_lists_every_adr() -> None:
+    readme = (ADR_DIR / "README.md").read_text(encoding="utf-8")
+    linked = set(re.findall(r"\(([0-9]{4}-[a-z0-9-]+\.md)\)", readme))
+    on_disk = {p.name for p in _adr_files()}  # *.md excluding README.md
+    assert linked == on_disk, f"index out of sync: missing={on_disk-linked}, stale={linked-on_disk}"
+```
+
+Test the README↔disk SET EQUALITY (`linked == on_disk`), not just one direction — a
+one-directional "every ADR file is linked" check passes silently when README links a deleted ADR.
+
+**Rule 4 — Match the repo's local ADR format; ProjectHephaestus uses the Nygard 4-digit
+variant.** This skill's default is the `ADR-NNN-<slug>.md` / `**Status**:` format. Hephaestus is
+different — document the variant so future ADR work there matches the local convention:
+
+| Aspect | This skill's default | ProjectHephaestus (Nygard 4-digit) |
+| ------ | -------------------- | ---------------------------------- |
+| Filename | `docs/adr/ADR-NNN-<slug>.md` | `docs/adr/NNNN-<kebab>.md` (4-digit zero-padded) |
+| Title | `# ADR-NNN: …` | `# ADR-NNNN: …` |
+| Metadata | `**Status**: …` / `**Date**: …` | list-style `- Status: Accepted` / `- Date: YYYY-MM-DD` / `- Tracks: #NNNN` |
+| Sections | Context / Decision / Rationale / Consequences / Alternatives Considered | `## Context` / `## Decision` / `## Alternatives considered` (lowercase 'c') / `## Consequences` |
+| Markdown gate | `pixi run pre-commit run markdownlint-cli2 --files <paths>` | `pre-commit run markdownlint-cli2 --files <paths>` (hook id `markdownlint-cli2`, NOT `markdownlint`) |
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -339,6 +405,9 @@ grep -n 'ADR-[0-9]\+\|<keyword>' <submodule-path>/CLAUDE.md
 | Asserting cross-repo ADR number without on-disk verification | ADR-009 draft said "ADR-015 subsequently extracted the C++ HMAS hierarchy" | `ls docs/adr/` shows only 001–009; ADR-015 does not exist in Odysseus; reviewer caught permanently-baked false claim in an append-only document | Run `ls docs/adr/` before asserting any ADR number; if the file isn't listed, reframe as "external docs cite ADR-NNN" + commit SHA evidence |
 | Asserting CLAUDE.md content without file:line citation | ADR-009 draft said "Keystone's internal documentation refers to this decision as 'ADR-016'" | No file:line was cited; reviewer blocked as unverifiable in a frozen document | Run `grep -n 'ADR-016' submodule/CLAUDE.md` first; cite the exact lines (e.g., `CLAUDE.md:144,156`) in the ADR |
 | Trusting implementation plan ADR numbers | Used ADR numbers from a planning doc without verifying on disk | Planning docs can reference ADRs from other repos or future ADRs not yet merged | Always independently verify every ADR number reference with `ls docs/adr/` in the target repo |
+| Citing an untracked working-tree file as an ADR's canonical artifact | ADR-0005 named `hephaestus/agents/invoker.py`/`AgentInvoker` as the implemented abstraction | `git ls-files` showed `invoker.py` was untracked; the ADR would reference a symbol absent from `main` | Run `git ls-files <path>` before citing a code artifact in an ADR; anchor on tracked symbols, mark untracked ones illustrative |
+| One-directional ADR-index check | Considered asserting only "every ADR file is linked in README" | A stale link to a deleted ADR would pass silently | Assert SET EQUALITY (`linked == on_disk`) so stale AND missing links both fail |
+| Trusting the audit's "dual-agent" description | Nearly wrote the ADR for two agents | `runtime.py:23` had `Literal["claude","codex","pi"]` — three | Verify the audit's CHARACTERIZATION against live code, not just its file:line evidence |
 
 ## Results & Parameters
 
@@ -398,3 +467,4 @@ pixi run pre-commit run markdownlint-cli2 --files docs/adr/<file>.md
 | ProjectOdyssey | Issue #3252, PR #3820 — ADR-004 helpers directory tree accuracy | [history](adr-authoring-indexing-and-maintenance.history) |
 | ProjectOdyssey | Issue #5191, PR #5504 — ADR-014 pending-PR accuracy: corrected past-tense claim for open child PR #5503 (commit 20b0d7c7) | [history](adr-authoring-indexing-and-maintenance.history) |
 | Odysseus | Issue #143, branch 143-auto-impl — ADR-009 cross-repo citation discipline: removed unverifiable ADR-015/016 claims; replaced with `ls docs/adr/` verification, commit SHA citations, and `CLAUDE.md:line` references | [history](adr-authoring-indexing-and-maintenance.history) |
+| ProjectHephaestus | Issue #1452 (2026-06-30) — author 4 ADRs (0002–0005) + `docs/adr/README.md` index + structural guard; tracked-symbol anchoring (ADR-0005), bidirectional README↔disk membership guard, tri-agent audit-characterization fix, Nygard 4-digit format variant (verified-local; CI pending) | [history](adr-authoring-indexing-and-maintenance.history) |

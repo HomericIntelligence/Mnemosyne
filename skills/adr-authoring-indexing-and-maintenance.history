@@ -1,6 +1,52 @@
 <!-- markdownlint-disable MD024 -->
 # adr-authoring-indexing-and-maintenance — History
 
+## v1.3.0 (2026-06-30)
+
+**Changed by:** ProjectHephaestus issue #1452 — author 4 ADRs (0002–0005) + index +
+structural guard.
+
+**Verification:** verified-local (the 1.3.0 additions only; CI pending). The new
+structural guard test was run and passed locally (4 passed) and `markdownlint-cli2`
+passed; CI had not yet run when this entry was recorded. The skill's prior core content
+remains verified-ci.
+
+**What changed (minor bump 1.2.0 → 1.3.0 — additive, core workflow unchanged):**
+
+- Added section I "Tracked-symbol anchoring, index membership guard, and the Nygard
+  4-digit variant (Proposed — verified-local, CI pending)" to the Verified Workflow,
+  covering:
+  - The tracked-symbol anchoring rule: run `git ls-files <path>` before citing a code
+    artifact as an ADR's canonical implementation; anchor on tracked symbols and demote
+    untracked ones to illustrative.
+  - The bidirectional README↔disk membership-guard test (asserts `linked == on_disk`
+    set equality, plus filename regex, contiguous numbering, and required Nygard
+    sections), with the `test_readme_index_lists_every_adr` pytest snippet.
+  - The ProjectHephaestus Nygard 4-digit format variant (`docs/adr/NNNN-<kebab>.md`,
+    `# ADR-NNNN:` title, list-style `- Status:` / `- Date:` / `- Tracks:` metadata,
+    `## Alternatives considered` lowercase 'c', hook id `markdownlint-cli2`).
+- Added 3 rows to the `## Failed Attempts` table: citing an untracked file as an ADR's
+  canonical artifact; the one-directional ADR-index check; and trusting the audit's
+  "dual-agent" characterization.
+- Extended `description:` with triggers (8) tracked-artifact verification and (9)
+  structural index guard.
+- Bumped `version:` 1.2.0 → 1.3.0; `date:` → 2026-06-30; added tags `tracked-symbols`,
+  `membership-guard`, `nygard-format`.
+
+**Why:** In #1452 an ADR (0005) cited an untracked working-tree file
+(`hephaestus/agents/invoker.py` / `AgentInvoker`) as its canonical artifact; `git ls-files`
+returned empty and plan-review caught that the ADR would document a decision whose primary
+artifact does not exist on `main`. This captures the tracked-vs-untracked anchoring rule,
+the bidirectional index-sync guard pattern, the verify-the-audit's-characterization lesson
+(audit said "dual-agent" but `runtime.py:23` had three), and the local Nygard 4-digit
+format variant.
+
+**Prior version:** v1.2.0 (2026-06-20). This history file retains the v1.0.0 entry and the
+five original per-skill snapshots (doc-generate-adr, adr-index-entry,
+adr-status-deferred-update, consolidate-duplicate-adr-references,
+adr-directory-tree-accuracy) below; the v1.1.0/v1.2.0 increments were additive edits to the
+canonical skill body rather than full snapshots.
+
 ## v1.0.0 (2026-06-07)
 
 Merged the following 5 skills into this canonical:
