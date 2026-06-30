@@ -1,0 +1,24 @@
+<!-- markdownlint-disable MD024 -->
+# History: ci-cd-github-code-quality-findings-no-api
+
+This file preserves prior versions of the canonical skill.
+
+## v1.1.0 (2026-06-30)
+
+Added the **re-export backward-compat shim** case to the per-rule fix patterns,
+Failed Attempts table, and Results & Parameters. When consolidating/moving modules
+and leaving a thin re-export shim, the `name as name` redundant-alias idiom
+(PEP 484 re-export) satisfies Ruff but a CodeQL-style analyzer still flags the
+re-exported names as dead/unused imports. Fix: add an explicit `__all__` listing
+every re-exported symbol as a string. Belt-and-suspenders: use BOTH the redundant
+alias AND `__all__`. Verified on ProjectHephaestus PR #1697 (issue #1441),
+commit b11ffafe — all 35 CI checks green including CodeQL/Analyze.
+
+## v1.0.0 (2026-05-21)
+
+Original skill. Established that GitHub Code Quality (`/security/quality`) is a
+separate product from CodeQL code-scanning with no public REST API; reconstruct
+findings from the UI list or via ruff; per-rule fix patterns for
+`py/import-and-import-from`, `py/repeated-import`, `py/empty-except`,
+`py/undefined-export`, `py/unused-local-variable`, `py/unused-global-variable`.
+Verified-ci via PRs #428, #430, #423.
