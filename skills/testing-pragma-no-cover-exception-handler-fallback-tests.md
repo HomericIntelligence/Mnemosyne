@@ -1,0 +1,111 @@
+---
+name: testing-pragma-no-cover-exception-handler-fallback-tests
+description: "Replace prose-justified `# pragma: no cover` on exception/guard handlers with real fallback tests. Use when: (1) a coverage pragma sits on an except/guard branch with a prose justification, (2) reducing a coverage omit/pragma list, (3) you need to prove an exception fallback (returns [] / False / empty map) actually behaves as documented."
+category: testing
+date: 2026-06-30
+version: "1.0.0"
+user-invocable: false
+verification: verified-local
+tags: []
+---
+
+# Pragma No-Cover Exception-Handler Fallback Tests
+
+## Overview
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-06-30 |
+| **Objective** | Convert prose-justified `# pragma: no cover` on exception/guard handlers into tested branches; ProjectHephaestus issue #1426 |
+| **Outcome** | 4 pragmas removed + backed by error-path tests; 1 genuinely-unreachable guard kept with an honest issue-referenced justification + invariant test; 252 tests pass |
+| **Verification** | verified-local |
+
+## When to Use
+
+- A `# pragma: no cover` carries a **prose justification** sitting on an `except` or guard (`if x is None:`) handler.
+- You are **reducing a coverage omit/pragma list** and need to retire inline pragmas one by one.
+- You need to **prove a fail-safe fallback value** (returns `[]`, `False`, or an empty map) actually behaves as documented when the wrapped call blows up.
+- You must **distinguish a testable except branch from a genuinely-dead mypy type-narrowing guard** before deciding to delete vs. keep the pragma.
+
+## Verified Workflow
+
+Classify every pragma-decorated handler into one of two buckets, then act:
+
+### Bucket 1 — Testable exception fallback (the common case)
+
+The pragma sits on an `except` that runs when a real call inside the `try` fails.
+
+1. **REMOVE** the pragma.
+2. Add a unit test that drives the except branch by mocking the in-`try` call to raise:
+   `patch("<module>.<dependency>", side_effect=RuntimeError("..."))`.
+3. Assert the documented fallback: `== []`, `is False`, `== {1: [], 2: []}`.
+4. **Keep the original justification text as a plain comment** — drop only the
+   `# pragma: no cover -` prefix, so the *why* survives but coverage now measures it.
+
+**MOCK-TARGET RULE (read this twice):** patch the name where it is **IMPORTED INTO**,
+not where it is defined. `_gh_call` is *defined* in `github_api` but the code under
+test lives in `review_state` (`from .github_api import _gh_call`), so patch
+`hephaestus.automation.review_state._gh_call` — patching `github_api._gh_call` would
+leave the already-rebound `review_state` name untouched and the except branch unreached.
+
+### Bucket 2 — Genuinely unreachable guard (mypy type-narrowing only)
+
+The guard line can never execute at runtime; it exists only so mypy can narrow a type.
+
+1. **KEEP** the pragma but make it **honest**: append the reason + an issue ref, e.g.
+   `# pragma: no cover - mypy type-narrowing; unreachable, see #1426`.
+2. Back it with an **INVARIANT test** proving *why* it's unreachable (e.g. asserting
+   `__post_init__` always sets the field non-None) instead of trying to execute the
+   dead line.
+
+### Quick Reference
+
+```python
+# bucket 1: drive + assert the fallback
+with patch("pkg.module_under_test.dependency", side_effect=RuntimeError("down")):
+    assert function_under_test(...) == []   # documented fallback
+
+# bucket 2: prove the guard is unreachable
+obj = Dataclass()              # __post_init__ sets the field
+assert obj.field is not None   # so the `if field is None:` guard can't run
+```
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+|---------|----------------|---------------|----------------|
+| Hoist import to module scope | Added the dependency to the test module's top-level import block | An existing test already re-imported the same name locally → ruff F811 (redefinition) + F401 (unused at module level) | Don't hoist an import that sibling tests import locally; match surrounding test style. |
+| Trust the global coverage number | Read the final "9% coverage FAIL" as a real regression | It was an artifact of running pytest on only 3 touched files without `--cov` module scoping, so the gate measured GLOBAL coverage | Scope coverage to the module under test (`--cov=hephaestus.automation.review_state`) when verifying a single-module change. |
+| Add a test for an already-covered branch | Wrote a new error-path test for the labels-batch failure at review_state.py:421 | An existing test already exercised it (asserting `{10: [], 11: []}`) | Before writing an error-path test, grep existing tests / check `term-missing` to confirm the branch isn't already covered (DRY). |
+
+## Results & Parameters
+
+**Source edits (4 pragmas removed, 1 documented):**
+
+- `hephaestus/automation/review_state.py:243,340,421` — removed `# pragma: no cover`
+  from three `except Exception as exc:` handlers (kept justification text as plain comments).
+- `hephaestus/automation/github_api.py:629` — removed pragma from
+  `_gh_commit_is_verified` fail-safe (returns `False` on lookup failure).
+- `hephaestus/automation/audit_reviewer.py:214` — kept pragma, now
+  `# pragma: no cover - mypy type-narrowing; unreachable, see #1426`.
+
+**Tests added:**
+
+- `test_fetch_issue_comments_returns_empty_on_gh_failure` — patch
+  `review_state.get_repo_info` + `review_state._gh_call` `side_effect=RuntimeError`
+  → `_fetch_issue_comments_graphql(...) == []`.
+- `test_fetch_all_comments_returns_empty_map_on_gh_failure` —
+  `fetch_all_issue_comments_graphql([1,2]) == {1: [], 2: []}`.
+- `TestGhCommitIsVerified` — a verified-true case `Mock(stdout="true\n")` +
+  `test_returns_false_on_lookup_failure` `side_effect=RuntimeError` → `is False`.
+- `test_post_init_always_sets_state_dir` — proves `audit_reviewer.py:214` guard unreachable.
+
+**Verification commands:**
+
+```bash
+pixi run ruff check hephaestus/automation tests/unit/automation   # All checks passed!
+pixi run mypy                                                       # Success: no issues in 447 files
+pixi run pytest .../test_review_state.py .../test_github_api.py .../test_audit_reviewer.py -q  # 252 passed
+```
+
+`review_state.py` module coverage rose to 83.2%, above the 83% gate. CI pending.
