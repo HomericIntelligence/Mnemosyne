@@ -1,5 +1,26 @@
 # Changelog: audit-remediation-verify-evidence-before-planning
 
+## v1.8.0 (2026-06-30)
+
+**Changed by:** ProjectHephaestus issue #1465 — executed the plan-only #1465 entry end-to-end locally (the v1.7.0 note's hoist edit, existing-test run, and ruff check were finally RUN)
+**Verification:** verified-local
+
+### What changed
+- UPGRADED the #1465 entry from PLAN-ONLY (v1.7.0) to `verified-local` (v1.8.0): a later session actually executed the v1.7.0 plan locally.
+- Confirmed the `ci_driver.py` half is genuinely already-fixed by EXECUTION (not just prediction): `grep -nE '^\s*import re$'` and `\bre\.` both returned no match → NO edit made. Matches the v1.7.0 prediction.
+- Applied the `loop_runner.py` hoist: added top-level `import tempfile` at line 46 (alphabetically between `import sys` at :45 and `import threading`); removed the deferred `import tempfile` (and its trailing blank line) from inside `_make_work_report_path`.
+- Verified via the EXISTING behavioral test exactly as the v1.7.0 note prescribed (no new bespoke test): `pixi run pytest tests/unit/automation/test_loop_runner_early_exit.py -k MakeWorkReportPath -q` → `1 passed` (45 deselected).
+- `pixi run ruff check hephaestus/automation/loop_runner.py` → "All checks passed!" — RESOLVING the v1.7.0 reviewer risk (repo-exact ruff/isort acceptance of the alphabetical `tempfile` slot is now CONFIRMED for this repo).
+- Both v1.7.0 prior-plan assumptions confirmed: (a) the existing `TestMakeWorkReportPath` fully guards the function (a pure relocation left it green); (b) this repo's ruff accepted the alphabetical slot with no separate format pass.
+- Added one Failed-Attempts row capturing the meta-lesson and updated the #1465 Results & Parameters verification bullet.
+- Recorded the live coverage-gate caveat: the scoped run printed `FAIL Required test coverage of 83.0% not reached. Total coverage: 8.63%` — the GLOBAL coverage gate on a single-file run, NOT a test failure; real result `1 passed`. Reinforces the skill's existing "read the pytest summary line, not the word FAIL" lesson, now hit live.
+
+### Why
+The v1.7.0 #1465 note recorded the evidence verification as `verified-local` but EXPLICITLY flagged the hoist edit, the existing-test run, and CI as NOT executed, leaving two assumptions as open reviewer risks. This session actually ran the plan locally end-to-end, confirming both assumptions and resolving both risks. The durable meta-lesson: a plan-only skill note's flagged-uncertain assumption should be UPGRADED to confirmed — with the verification level bumped (plan-only → verified-local) — the moment a session executes it; don't leave a now-confirmed assumption sitting at the old uncertainty level. Still NOT `verified-ci`: the #1465 PR had not merged at capture time, and the orchestrator owns its commit/push/PR separately from this ProjectMnemosyne skill PR.
+
+### Snapshot pointer
+The v1.7.0 baseline entry below preserves the prior plan-only framing and its v1.6.0 fenced snapshot; the live skill file at this version (1.8.0) carries the upgraded #1465 note as the leading note in the Overview block.
+
 ## v1.7.0 (2026-06-30)
 
 **Changed by:** ProjectHephaestus issue #1465 (audit: "[S4 Source Code Quality] Deferred inline `import re` and `import tempfile` inside function bodies") — evidence verification verified-local; the import-hoist edit, the existing-test run, and CI were plan-only
