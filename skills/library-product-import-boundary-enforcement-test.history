@@ -1,12 +1,35 @@
+<!-- markdownlint-disable MD024 -->
+
+# History: library-product-import-boundary-enforcement-test
+
+## v1.1.0 (2026-07-01)
+
+**Changed by:** ProjectHephaestus PR #1730 / issue #1728 automation-extra CI failure
+**Verification:** verified-ci
+
+### What changed
+- Added the CI install-string half of the library/product boundary contract.
+- Documented that pip-based jobs collecting automation tests must install the `[automation]` extra once `pydantic` moves out of base dependencies.
+- Added workflow, failed-attempt, and results entries for the `ModuleNotFoundError: No module named 'pydantic'` failure.
+- Added regression-test guidance for workflow install strings.
+
+### Why
+The original skill covered the source/test boundary for keeping the base package lean.
+ProjectHephaestus PR #1730 showed the matching CI requirement: once automation-only
+dependencies are no longer base dependencies, every pip-based CI job that imports
+`hephaestus.automation.*` during pytest collection must include the automation extra.
+
+### Previous version (v1.0.0) snapshot
+
+````markdown
 ---
 name: library-product-import-boundary-enforcement-test
-description: "Enforce a library-vs-product import boundary with regression tests and CI install-string guards. Use when: (1) gating a heavy product subpackage (curses/pydantic/fcntl) behind an optional extra so base `import pkg` stays lean, (2) writing a test that asserts `import pkg` does not pull forbidden modules, (3) a CI import-surface test gives false failures because pytest itself preloads the forbidden dependency, (4) pip-based CI jobs collect product-layer tests and must install the product extra after moving deps out of base."
+description: "Enforce a library-vs-product import boundary with two regression tests: a subprocess-isolated import-surface check and a static import grep. Use when: (1) gating a heavy product subpackage (curses/pydantic/fcntl) behind an optional extra so base `import pkg` stays lean, (2) writing a test that asserts `import pkg` does not pull forbidden modules, (3) a CI import-surface test gives false failures because pytest itself preloads the forbidden dependency."
 category: testing
-date: 2026-07-01
-version: "1.1.0"
+date: 2026-06-11
+version: "1.0.0"
 user-invocable: false
 verification: verified-ci
-history: library-product-import-boundary-enforcement-test.history
 tags: []
 ---
 
@@ -20,15 +43,11 @@ loading the product's dependency tree, and the dependency arrow that an ADR
 declares (product → library, never the reverse) silently rots.
 
 This skill captures two complementary regression tests that enforce the
-boundary mechanically, the CI install-string guard needed once product
-dependencies move out of the base dependency set, plus the hard-won gotchas
-that make them correct rather than flaky. It was learned driving
-**ProjectHephaestus PR #997 (issue #711)** to green CI — documenting and
-gating `hephaestus.automation` as an opt-in product layer behind a
-`[automation]` optional extra, with the contract written in
-`docs/adr/0001-automation-library-boundary.md` — then amended after
-**ProjectHephaestus PR #1730 (issue #1728)** fixed CI collection failures from
-pip jobs that did not install that extra.
+boundary mechanically, plus the hard-won gotchas that make them correct rather
+than flaky. It was learned driving **ProjectHephaestus PR #997 (issue #711)**
+to green CI — documenting and gating `hephaestus.automation` as an opt-in
+product layer behind a `[automation]` optional extra, with the contract written
+in `docs/adr/0001-automation-library-boundary.md`.
 
 The two tests:
 
@@ -50,12 +69,6 @@ Use this skill when:
 - A CI import-surface test gives false failures because **pytest itself**
   preloads the forbidden dependency (e.g. `pydantic`) before your assertion
   runs.
-- A dependency such as `pydantic` was intentionally moved from base
-  dependencies into a product optional extra, and pip-based CI jobs now fail
-  during pytest collection with `ModuleNotFoundError`.
-- Workflow tests need to lock down `pip install -e ".[dev,...,automation]"`
-  strings so future CI edits do not accidentally test product modules without
-  product dependencies.
 - You want to enforce a one-way dependency arrow declared in an ADR (product →
   library, never library → product) with a mechanical regression test rather
   than code review vigilance.
@@ -75,7 +88,6 @@ test-tree-mirrors-package convention.
 | Forbidden modules list | `curses`, `pydantic`/`pydantic.*`, `pkg.product.*` | NEVER include `fcntl` — stdlib `pathlib` loads it transitively on POSIX |
 | One-way dependency arrow | Static grep over `LIB_ROOT.rglob("*.py")` | Skip paths whose parts contain the product package name |
 | Gate heavy deps | `[project.optional-dependencies] automation = [...]` | Don't duplicate base deps (e.g. `tzdata`) into the extra |
-| CI collectors for product tests | `pip install -e ".[dev,schema,automation]"` / `pip install -e ".[dev,automation]"` | Add the product extra to pip jobs that import product modules; do not re-add the dep to base |
 | Keep docs honest | ADR / test-docstring / pyproject must agree | Verify enumerated facts (script counts) against the actual codebase |
 
 **1. Subprocess-isolated import-surface test.** Run the import in a fresh
@@ -159,32 +171,6 @@ Keep the ADR Consequences section and the test docstring consistent — remove
 - Place the new tests under the mirrored path `tests/unit/validation/`, not
   `tests/unit/` root, per the test-structure-mirrors-package requirement.
 
-**6. Keep pip-based CI collectors in sync with the optional extra.** If pytest
-collects product-layer tests, importing those modules during collection is
-enough to require the product dependencies. Once a dependency like `pydantic`
-has intentionally moved from base into `[automation]`, the fix is to add the
-extra to those CI install commands, not to put the dependency back in base.
-
-ProjectHephaestus PR #1730 used these exact workflow strings:
-
-```yaml
-# .github/workflows/test.yml unit/matrix jobs
-pip install -e ".[dev,schema,automation]"
-
-# .github/workflows/_required.yml unit-tests job
-pip install -e ".[dev,schema,automation]"
-
-# .github/workflows/_required.yml integration job
-pip install -e ".[dev,automation]"
-```
-
-Guard the strings with workflow regression tests so the install contract fails
-locally before CI collection fails:
-
-```bash
-pixi run pytest tests/unit/ci/test_workflows.py::TestAutomationExtraInstall -v --override-ini=addopts=
-```
-
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -194,10 +180,6 @@ pixi run pytest tests/unit/ci/test_workflows.py::TestAutomationExtraInstall -v -
 | `tzdata` in `[automation]` extra | Listed `tzdata` under the optional automation extra | `tzdata` was already a base dependency for library code → redundant | Don't duplicate base deps into optional extras; audit the base list first |
 | Tests at `tests/unit/` root | Placed new boundary tests in `tests/unit/` directly | Project requires the test tree to mirror package structure (`validation/`) | Place enforcement tests under the mirrored subdir, e.g. `tests/unit/validation/` |
 | ADR listed seven scripts | ADR enumerated console scripts including non-existent `hephaestus-audit-prs` | Drifted from reality (six scripts) → review caught it | Verify enumerated facts in ADRs against the actual codebase before claiming them |
-| CI jobs kept installing only `.[dev,schema]` / `.[dev]` | Main moved `pydantic` out of base into `[automation]`, but unit/matrix jobs still installed `pip install -e ".[dev,schema]"` and integration installed `pip install -e ".[dev]"` | Pytest collection imported `hephaestus.automation.*` and failed with `ModuleNotFoundError: No module named 'pydantic'` | Add the product extra to every pip-based CI job that collects product-layer tests |
-| Re-adding `pydantic` to base | Considered treating CI failure as a missing base dependency | That would undo the intentional library/product boundary and make lean base installs pull product deps again | Preserve the boundary; fix the CI environment that exercises product modules |
-| Targeted pytest without clearing repo addopts | Ran a partial pytest command without `--override-ini=addopts=` | The repo coverage gate tripped even though the focused workflow test was the intended verification | For focused local verification in this repo, use `--override-ini=addopts=` |
-| First pixi run under sandbox DNS limits | `pixi run pytest ...` failed with `curl: (6) Could not resolve host: github.com` | Dependency resolution needed network access outside the sandbox | Re-run the same verification with network approval; do not treat DNS failure as test failure |
 
 ## Results & Parameters
 
@@ -205,10 +187,7 @@ pixi run pytest tests/unit/ci/test_workflows.py::TestAutomationExtraInstall -v -
 The `hephaestus.automation` product layer is now documented in
 `docs/adr/0001-automation-library-boundary.md`, gated behind the
 `[automation]` optional extra, and enforced by two regression tests under
-`tests/unit/validation/`. ProjectHephaestus PR #1730 (issue #1728) later
-extended the same boundary to CI: pip-based workflow jobs that collect
-automation tests install `[automation]`, and workflow regression tests lock the
-install strings down.
+`tests/unit/validation/`.
 
 **Parameters / knobs:**
 
@@ -220,22 +199,6 @@ install strings down.
 | Grep skip rule | `"automation" in py.relative_to(LIB_ROOT).parts` | Product layer may import library; skip it |
 | Optional extra | `[project.optional-dependencies] automation = [...]` | Heavy deps install only via `pkg[automation]` |
 | Test location | `tests/unit/validation/` | Mirror the package structure, not `tests/unit/` root |
-| Unit/matrix CI install | `pip install -e ".[dev,schema,automation]"` | Required when unit collection imports automation modules and schema tests still need schema deps |
-| Required unit install | `pip install -e ".[dev,schema,automation]"` | Same collection boundary in `_required.yml` |
-| Required integration install | `pip install -e ".[dev,automation]"` | Integration jobs import automation but do not need schema extra |
-
-**ProjectHephaestus PR #1730 verification:**
-
-```text
-pixi run pytest tests/unit/ci/test_workflows.py::TestAutomationExtraInstall -v --override-ini=addopts=
-# 2 passed
-
-pixi run pytest tests/unit/ci/test_workflows.py tests/unit/automation/test_claude_timeouts.py tests/unit/automation/test_timeout_cli_threading.py tests/unit/automation/test_package_imports.py -v --override-ini=addopts=
-# 168 passed
-
-gh pr checks 1730
-# all checks passed
-```
 
 **Two short test bodies (verbatim).** Import-surface check:
 
@@ -267,3 +230,5 @@ for py in LIB_ROOT.rglob("*.py"):
             violations.append(...)
 assert not violations
 ```
+
+````
