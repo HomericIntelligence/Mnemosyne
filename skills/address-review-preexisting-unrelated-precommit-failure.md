@@ -1,0 +1,219 @@
+---
+name: address-review-preexisting-unrelated-precommit-failure
+description: "During an in-loop address-review / pre-merge gate, `pre-commit run --all-files` fails on a hook you never touched (here `hephaestus-check-api-table-docs` with 4 `hephaestus.cli`/`hephaestus.config`/`hephaestus.utils` COMPATIBILITY.md row violations) while your PR is tightly scoped to unrelated files. The correct action is NOT to fix the hook (that is out-of-scope scope creep belonging to separate issues) — it is to PROVE the failure is pre-existing debt on base HEAD and commit only the in-scope change. The durable technique: `git stash push <your-changed-file>` then re-run just the failing hook `pre-commit run <hook-id> --all-files`; identical failure with your change stashed = already red on base ⇒ not introduced by you ⇒ out-of-scope (`git stash pop` to restore). If the failure DISAPPEARS when stashed, it IS yours and you must fix it. Use when: (1) an address-review / pre-merge gate runs `pre-commit run --all-files` and a hook you did not touch fails; (2) you must decide fix-vs-out-of-scope for a failing gate on a tightly-scoped PR; (3) a scoped `pytest` run prints `FAIL Required test coverage of N% not reached` (that is the GLOBAL coverage gate firing on a partial run, NOT a test failure — read the `N passed` summary line); (4) a repo-wide hook is red for everyone and you suspect pre-existing debt (trust the CI log / the stash-verify, not a bare local red). Do NOT conflate the three noise traps. Before committing the in-scope change you STILL must run the scoped target test (`pixi run pytest <test> -k <class> -q` → passes) plus `ruff check` + `ruff format --check` on the edited file (clean), then commit ONLY the in-scope file(s) signed + DCO (`git -c user.email=<key-email> commit -S -s`; committer email MUST match the GPG key or pr-policy silently treats it unsigned — verify via `gh api .../commits/<sha> .commit.verification`, `git log --show-signature` can lie). Do NOT push if an orchestrator owns push."
+category: tooling
+date: 2026-07-01
+version: "1.0.0"
+user-invocable: false
+verification: verified-local
+tags:
+  - pre-commit
+  - address-review
+  - out-of-scope
+  - preexisting-debt
+  - stash-verify
+  - scope-creep
+  - coverage-gate-partial-run
+  - repo-wide-debt
+  - signed-commit
+  - pr-policy
+---
+
+# Address-Review: Pre-Existing / Unrelated Pre-commit Failure
+
+When an in-loop address-review or pre-merge gate runs `pre-commit run --all-files`
+and a hook you never touched fails, the reflex to "fix the red" is a trap. On a
+tightly-scoped PR the right move is to **prove the failure is pre-existing debt on
+base HEAD** — via a stash-verify — and commit only the in-scope change, NOT to
+expand scope into unrelated hook territory.
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2026-07-01 |
+| **Objective** | Land a tightly-scoped ProjectHephaestus fix (PR #1743 / issue #1498 — a packaging-doc DRY/POLA change editing only a `pyproject.toml` comment, a `README.md` bullet, and a drift-guard test in `tests/unit/scripts/test_dependency_floor_consistency.py`) when the in-loop `pre-commit run --all-files` gate failed on an unrelated hook |
+| **Outcome** | The 4 failing `hephaestus-check-api-table-docs` violations were PROVEN pre-existing base-branch debt (stash-verify: identical failure with the change stashed) and belong to separate API-table issues (#1506/#1507). Committed ONLY the in-scope files after the scoped target test passed and `ruff check`/`ruff format --check` were clean. Full suite `pixi run pytest tests/` → `5718 passed, 24 skipped`, coverage 87.62% ≥ 83% gate |
+| **Verification** | verified-local |
+
+## When to Use
+
+- An in-loop address-review / pre-merge gate runs `pre-commit run --all-files` and a
+  hook you did **not** touch fails (your PR diff is unrelated to the hook's subject).
+- You need to decide **fix-vs-out-of-scope** for a failing gate on a tightly-scoped PR.
+- A scoped `pytest` run prints `FAIL Required test coverage of N% not reached` — that
+  is the GLOBAL coverage gate firing on a partial run, NOT a test failure. Read the
+  `N passed` summary line, not the coverage FAIL.
+- A repo-wide hook is red for everyone and you suspect pre-existing debt from ONE
+  unrelated stale/malformed file — trust the CI log / the stash-verify, not a bare
+  local red.
+
+Do NOT conflate the three noise traps: (1) an unrelated hook you didn't touch
+failing (this skill's core — stash-verify), (2) a coverage-gate `FAIL` on a partial
+pytest run (read `N passed`), (3) repo-wide debt from one stale file (trust CI/stash,
+not a bare local red). See cross-links below.
+
+## Verified Workflow
+
+### Quick Reference
+
+```bash
+# --- STASH-VERIFY: is the failing hook pre-existing on base HEAD, or did I cause it? ---
+# Stash ONLY your working-tree change, then re-run JUST the failing hook.
+git stash push tests/unit/scripts/test_dependency_floor_consistency.py
+pre-commit run hephaestus-check-api-table-docs --all-files   # observe the SAME failure
+git stash pop
+# Identical failure with your change stashed  => already red on base HEAD
+#                                              => NOT introduced by you => OUT-OF-SCOPE (do NOT fix).
+# Failure DISAPPEARS when stashed             => it IS yours => you MUST fix it.
+
+# --- STILL REQUIRED before committing the in-scope change ---
+pixi run pytest tests/unit/scripts/test_dependency_floor_consistency.py \
+  -k TestDependencyFloorConsistency -q          # scoped target test -> passes
+ruff check tests/unit/scripts/test_dependency_floor_consistency.py         # clean
+ruff format --check tests/unit/scripts/test_dependency_floor_consistency.py # clean
+
+# --- Commit ONLY the in-scope file(s): signed (-S) + DCO (-s), committer email == GPG key ---
+git add pyproject.toml README.md tests/unit/scripts/test_dependency_floor_consistency.py
+git -c user.email="4211002+mvillmow@users.noreply.github.com" commit -S -s \
+  -m "docs(packaging): document automation extra in [all] declaration"
+# Verify signing via GitHub, NOT `git log --show-signature` (which can lie):
+gh api repos/<owner>/<repo>/commits/<sha> --jq '.commit.verification'   # .verified == true
+# Do NOT push if an orchestrator owns push in the loop.
+```
+
+### Detailed Steps
+
+1. **Recognize the signature.** The pre-merge gate runs `pre-commit run --all-files`
+   (whole-tree, every hook) and a hook fails whose subject is NOT in your diff. Here
+   the hook was `hephaestus-check-api-table-docs`, complaining about
+   `hephaestus.cli` / `hephaestus.config` / `hephaestus.utils` symbols missing/extra
+   rows in `COMPATIBILITY.md` — a file and subpackages the PR touches nowhere.
+
+2. **Do the stash-verify (the durable technique).** Stash ONLY your working-tree
+   change, then re-run JUST the failing hook against committed base HEAD:
+
+   ```bash
+   git stash push <your-changed-file>
+   pre-commit run <hook-id> --all-files
+   git stash pop
+   ```
+
+   - **Identical failure with your change stashed** = the hook was already red on
+     base HEAD ⇒ not introduced by you ⇒ **out-of-scope**. Do NOT fix it; fixing it
+     would be scope creep belonging to separate issues (here the API-table work in
+     #1506/#1507).
+   - **Failure DISAPPEARS when stashed** = it IS yours ⇒ you MUST fix it.
+
+3. **Do NOT expand scope.** Fixing an unrelated failing hook on a tightly-scoped PR
+   is scope creep: it bloats the diff, blurs review, and steals work from the issue
+   that actually owns that hook's subject. Prove pre-existing, then commit only the
+   in-scope change.
+
+4. **Still run the in-scope verification you owe.** Being out-of-scope on the noise
+   does not excuse verifying YOUR change. Run the scoped target test and lint/format
+   on the edited file(s):
+
+   ```bash
+   pixi run pytest <your test> -k <class> -q     # passes
+   ruff check <edited-file>                        # clean
+   ruff format --check <edited-file>               # clean
+   ```
+
+5. **Commit ONLY the in-scope file(s), signed + DCO.** In ProjectHephaestus the
+   committer email MUST match the GPG key or pr-policy silently treats the commit as
+   unsigned:
+
+   ```bash
+   git -c user.email="4211002+mvillmow@users.noreply.github.com" commit -S -s -m "<msg>"
+   ```
+
+   Verify signing via GitHub, not local git (`git log --show-signature` can lie):
+
+   ```bash
+   gh api repos/<owner>/<repo>/commits/<sha> --jq '.commit.verification'   # .verified == true
+   ```
+
+   Do NOT push if an orchestrator owns push in the loop.
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| ------- | -------------- | ------------- | -------------- |
+| Fix the failing `hephaestus-check-api-table-docs` hook inside the PR | Started editing `COMPATIBILITY.md` to add/remove the 4 `hephaestus.cli`/`config`/`utils` rows so the gate would go green | The PR touches none of those subpackages or `COMPATIBILITY.md`; the API-table work is owned by separate issues #1506/#1507. Fixing it is scope creep that bloats and blurs a tightly-scoped packaging-doc PR | Prove the failure is pre-existing (stash-verify), then commit ONLY the in-scope change; unrelated hook debt belongs to its own issue, not your PR |
+| Assume the red hook was introduced by my change | Saw the gate go red right after my edit and prepared to inspect/blame my diff | The 4 violations were already committed on base HEAD; my diff never touched their subject | Stash ONLY your change and re-run just the hook (`git stash push <file>; pre-commit run <hook-id> --all-files`); identical failure with it stashed = pre-existing, not yours |
+| Read a scoped pytest `FAIL Required test coverage of N% not reached` as a test failure | Ran `pixi run pytest <one test file>` and treated the coverage-gate FAIL as the test failing | That FAIL is the GLOBAL coverage gate firing on a PARTIAL run (a single file can't hit the whole-repo threshold); the tests themselves passed — the `N passed` line was green | Read the `N passed` summary line, not the coverage FAIL; a partial-run coverage FAIL is not a test failure. The FULL `pixi run pytest tests/` reported `5718 passed, 24 skipped`, 87.62% ≥ 83% |
+| Trust a bare local red on a repo-wide hook | Saw a whole-tree hook red locally and assumed my branch was broken | A repo-wide `--all-files` hook can be red for EVERYONE because of one unrelated stale/malformed file already on base — a bare local red does not mean your change caused it | Trust the CI log / the stash-verify, not a bare local red; confirm the failure pre-exists on base HEAD before touching anything |
+| Trust `git log --show-signature` to confirm the commit is signed | Ran `git log --show-signature -1` locally, saw it look signed, and moved on | Local git can report a commit as signed while pr-policy treats it as unsigned when the committer email does not match the GPG key | Set `-c user.email=<key-email>` on the commit and verify via `gh api .../commits/<sha> .commit.verification` (`.verified == true`), not local git |
+
+## Results & Parameters
+
+**Context:** ProjectHephaestus, in-loop address-review gate on a tightly-scoped PR
+(#1743 / issue #1498 — a packaging-doc DRY/POLA fix editing ONLY a `pyproject.toml`
+comment, a `README.md` bullet, and the drift-guard test
+`tests/unit/scripts/test_dependency_floor_consistency.py`).
+
+**The failing hook (verified pre-existing on base HEAD):**
+
+- Hook id: `hephaestus-check-api-table-docs`
+- 4 violations, none in the PR's diff:
+  - `hephaestus.cli` symbols missing/extra rows in `COMPATIBILITY.md`
+  - `hephaestus.config` symbols missing/extra rows in `COMPATIBILITY.md`
+  - `hephaestus.utils` symbols missing/extra rows in `COMPATIBILITY.md`
+  - (4th of the same class across those subpackages' API tables)
+- Owned by separate API-table issues #1506/#1507 — out-of-scope for #1743.
+
+**Stash-verify command (the durable technique):**
+
+```bash
+git stash push tests/unit/scripts/test_dependency_floor_consistency.py
+pre-commit run hephaestus-check-api-table-docs --all-files   # identical failure => pre-existing
+git stash pop
+```
+
+**In-scope verification that STILL had to pass:**
+
+```bash
+pixi run pytest tests/unit/scripts/test_dependency_floor_consistency.py \
+  -k TestDependencyFloorConsistency -q            # passes
+ruff check tests/unit/scripts/test_dependency_floor_consistency.py          # clean
+ruff format --check tests/unit/scripts/test_dependency_floor_consistency.py # clean
+```
+
+**Full-suite green numbers (this session):**
+
+```text
+pixi run pytest tests/
+# 5718 passed, 24 skipped
+# coverage 87.62% (>= 83% gate)  -> green
+```
+
+**Signed + DCO commit invocation (committer email == GPG key):**
+
+```bash
+git -c user.email="4211002+mvillmow@users.noreply.github.com" commit -S -s \
+  -m "docs(packaging): document automation extra in [all] declaration"
+gh api repos/<owner>/<repo>/commits/<sha> --jq '.commit.verification'   # .verified == true
+```
+
+Do NOT push — the orchestrator owned push in this loop.
+
+**Cross-links (do NOT conflate these distinct traps):**
+
+- `ci-precommit-whole-dir-format-drift-blocks-unrelated-commits` — a whole-dir
+  (`pass_filenames: false`) ruff/mypy hook re-hitting a pre-existing violation on
+  main. That skill's resolution is "land a separate one-file fix PR first / fold the
+  unblock in" (i.e. FIX main); THIS skill's resolution is the opposite — PROVE
+  pre-existing and do NOT fix, because the failing hook's subject is out-of-scope for
+  a tightly-scoped PR.
+- `ci-markdownlint-all-files-repo-wide-blocks-prs` — a repo-wide `--all-files`
+  markdownlint gate failing every PR on one pre-existing malformed file (the
+  repo-wide-debt trap).
+- `pr-ci-failure-triage-preexisting-vs-introduced` — the CI-side analogue
+  (`gh api .../check-runs` on main HEAD) for a failing required CHECK; this skill is
+  the LOCAL pre-commit analogue (stash-verify) for a failing HOOK.
+
+**Verification:** verified-local. The stash-verify and the scoped test / ruff checks
+were actually run this session; the full `pixi run pytest tests/` reported
+`5718 passed, 24 skipped` at 87.62% coverage. The PR/CI had NOT merged at capture
+time, so this is honestly verified-local, not verified-ci.
