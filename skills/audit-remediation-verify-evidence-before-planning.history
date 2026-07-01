@@ -1,5 +1,24 @@
 # Changelog: audit-remediation-verify-evidence-before-planning
 
+## v1.10.0 (2026-07-01)
+
+**Changed by:** ProjectHephaestus issue #1501 — audit finding: `.github/workflows/release.yml` PyPI publish step lacks `generate_attestations: true` (PEP 740 / Sigstore build provenance). The evidence-verification (reading the live `release.yml`, confirming the audit's cited coordinates were stale) WAS run this session; the downstream plan (the YAML edit + a new text-assertion test class) was plan-only (no code executed, no tests, no CI).
+**Verification:** verified-local (evidence verification); the YAML edit + test class are plan-only / UNVERIFIED
+
+### What changed
+- Added a NEW flavor of the stale-audit pattern: **stale line numbers AND a stale action-pin SHA on the SAME finding**, yet the substantive finding still held. The audit cited `release.yml:138-141` and a specific `pypa/gh-action-pypi-publish` commit SHA; live, the step was at `release.yml:146-149` pinned to `cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1` (a DIFFERENT SHA) — but `generate_attestations` was genuinely absent and `id-token: write` was present at `:16`.
+- New RULE for workflow-file audits: re-locate the cited step by CONTENT (grep the `uses:` action name), never by the audit's line numbers or SHA — CI/workflow files churn faster than most (steps added → line drift; pins bumped → SHA drift), so stale coordinates are the norm. Run THREE independent checks: step exists, flag genuinely absent, prerequisite present.
+- New enforcement-altitude rule: for a single workflow-file / single-flag invariant, match the repo's EXISTING workflow-content check idiom — a text-assertion class in `tests/unit/ci/test_workflows.py` (`TestPiCliSetup` :263-284, `TestEnableAutoMergeOnImplementationGoWorkflow` :196-260) — NOT a new reusable `hephaestus/validation/*` convention-guard module (over-engineering per `architecture-executable-convention-guard-pattern`). Make the assertion belt-and-suspenders: a coarse `in text` grep PLUS a YAML parse asserting the flag lands under the CORRECT step's `with`.
+- Called out the MOST-UNCERTAIN assumptions explicitly: (1) the UNVERIFIED external claim that `generate_attestations` is a valid input of `pypa/gh-action-pypi-publish` at `release/v1` and that `id-token: write` + `environment: pypi` is a sufficient prerequisite — not verified against the action's live `action.yml` at `cef2210…` or PyPI docs; a wrong input name would FAIL AT RELEASE TIME (only on a `v*` tag push) and the text-grep test would NOT catch it. (2) the coarse `assert "...in text"` passes even if the flag is under the wrong step or commented out — the YAML-parse check mitigates but was proposed only.
+- Added a leading v1.10.0 Overview note, four When-to-Use triggers, three Failed-Attempts rows (stale line+SHA; convention-guard over-engineering; unverified external action input), and a #1501 Results & Parameters subsection.
+- Bumped version 1.9.0 → 1.10.0 (MINOR: new findings + new Failed-Attempts rows, no rewrite of the core workflow). Top-level frontmatter `verification` stays `verified-local` (the evidence-verification steps were genuinely run this session); the v1.10.0 note is labeled explicitly plan-only/UNVERIFIED for the downstream implementation, matching the v1.3.0/v1.4.0 precedent.
+
+### Why
+ProjectHephaestus issue #1501 planning surfaced a workflow-file audit whose cited line numbers AND action-pin SHA were both stale while the substantive finding (missing PEP 740 attestations) still held. The durable additions: re-locate workflow steps by content not coordinates (workflow files churn fastest); enforce a single-flag workflow invariant with the repo's existing text-assertion idiom, not a new framework; and flag any external third-party contract (an action input name) as a reviewer risk because a text-grep test cannot validate it — a wrong input name surfaces only at release time. Verification = `verified-local` for the evidence (the live `release.yml` was read and the stale coordinates confirmed); the YAML edit and the new test class were planned only and had not hit CI, so NOT `verified-ci`.
+
+### Snapshot pointer
+The v1.9.0 baseline entry below preserves the prior framing and its earlier fenced snapshots; the live skill file at this version (1.10.0) carries the new #1501 note as the leading note in the Overview block.
+
 ## v1.9.0 (2026-06-30)
 
 **Changed by:** ProjectHephaestus issue #1468 — strict-audit finding "[S5 Testing] `hephaestus/git/` subpackage has zero test coverage and no test directory; `tests/unit/git/` contains only `__pycache__`; a stale `changelog.cpython-314.pyc` and empty `tests/unit/git/` skeleton remain after #357 deleted `hephaestus/git/changelog.py`". The evidence-verification commands were RUN against the live tree; the downstream documentary close PR was plan-only (no CI).
