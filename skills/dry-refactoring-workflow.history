@@ -1,10 +1,76 @@
 <!-- markdownlint-disable MD024 -->
 # dry-refactoring-workflow — History
 
+## v1.19.0 (2026-06-30)
+
+**Changed by:** ProjectHephaestus #1461 — an audit-snapshot DRY issue ("`_print_summary` duplicated 4–5× across `ci_driver`/`pr_reviewer`/`address_review`/`plan_reviewer`, consolidate to BaseReviewer") that was ALREADY FULLY RESOLVED by a PR merged after the snapshot (#1612 landed `print_worker_summary()` in `_review_utils.py` + four delegators); deliver a VERIFICATION-ONLY anti-drift guard test, NOT a refactor — /learn
+**Verification:** verified-local (for the new Phase 23; the rest of the skill is unchanged — `verified-ci` except the planning-only Phases 10/13/14/15 and the verified-local Phases 16/12d/17/18/19/20/21/22)
+
+### What changed
+
+- Added Phase 23 (**VERIFIED-LOCAL** — EXECUTED end-to-end, not planning-only) — "Audit DRY issue ALREADY
+  fully resolved by a post-snapshot merged PR — ship a verification-only anti-drift guard, NOT a refactor."
+  Captured from an EXECUTED ProjectHephaestus #1461 session. The audit said "`_print_summary` is duplicated
+  4–5× across the four automation classes; consolidate to BaseReviewer," but a prior merged PR (**#1612**)
+  had already landed the canonical `print_worker_summary()` FREE FUNCTION in `_review_utils.py` and
+  converted all four classes (`ci_driver`, `pr_reviewer`, `address_review`, `plan_reviewer`) into thin
+  delegates. This is the **terminal state of the Phase 12/13/17/21 "stale issue anchor" family**: not just a
+  stale line number, but the ENTIRE remediation already implemented upstream.
+- **23a — confirm the consolidation is DONE before writing anything (re-grep the CURRENT tree).** Zero
+  inline `"=" * 60` separators remain in the four named modules, exactly one `def print_worker_summary`
+  exists (in `_review_utils.py`), and all four classes already delegate to it with their own args. When all
+  three invariants hold, the deliverable is a GUARD test, not a refactor.
+- **23b — the placement DIVERGED from the issue's literal suggestion and that was CORRECT.** The issue said
+  "BaseReviewer is the natural home," but `CIDriver` is NOT a `BaseReviewer` subclass, so a base-class
+  method could not reach all four call sites; #1612 used a FREE FUNCTION in `_review_utils.py`. Classify the
+  issue's suggested home as ADVISORY, not binding; pick the home that actually reaches every consumer.
+- **23c — TDD INVERSION (reinforces Phase 15).** A guard test written AFTER the consolidation already landed
+  is GREEN-first, not RED. State "GREEN-first, expected"; do NOT claim or fabricate a RED phase.
+- **23d — the guard test had two complementary checks.** (1) An anti-drift grep gate that `read_text()`s
+  each of the four module paths and asserts the source contains zero `"=" * 60` literals. (2) A per-class
+  delegation assertion via `patch("hephaestus.automation.<module>.print_worker_summary")`, then
+  `Cls._print_summary(object.__new__(Cls), results)` + `mock.assert_called_once_with(...)` the EXACT
+  byte-for-byte `title` / `count_noun` / `failed_header` args each delegator passes. The
+  `object.__new__(Cls)` trick invokes the unbound `_print_summary` without running `__init__` (the four
+  delegators only touch `self` trivially) — a clean seam avoiding fragile fixture construction. Patch at
+  each CONSUMER module path because all four import the helper from `_review_utils` into their own namespace.
+- **23e — classify the SURVIVING inline summaries as intentional variants, untouched.**
+  `ImplementationSummaryPrinter` (the issue itself cited it as the already-good pattern) and
+  `planner._print_summary(self)` (a DIFFERENT signature — no `results` param, operates on `self.results`,
+  prints a distinct `already_planned` / `Successfully planned` breakdown; folding it in would change
+  behavior).
+- **23f — two repo-specific tooling gotchas (each a Failed-Attempts row).** (i) ruff D205 fires on a
+  multi-line module docstring whose physical line 1 is not a standalone one-sentence summary — fix with a
+  one-line summary + blank line + detail paragraph; run `ruff format` (it reformats long `with patch(...)`
+  lines to single line) THEN `ruff check`. (ii) Discover real test filenames before running them: the
+  obvious `test_pr_reviewer.py` did NOT exist — the PR-reviewer tests are split `test_pr_reviewer_main.py` +
+  `test_pr_reviewer_posting.py`; a wrong path makes pytest exit 4 ("file or directory not found"), a SILENT
+  false-negative that looks like "no output." `ls tests/unit/automation/ | grep -iE '<module>'` first; and
+  `--no-cov`/`-p no:cov` do NOT work because `--cov` lives in `addopts` — run pytest normally and read the
+  `N passed` line (the trailing "Required test coverage of 83.0% not reached" on a PARTIAL selection is
+  EXPECTED, not a failure).
+- **23g — acceptance gate is verification-only (no source change).** A single net-new test file in the
+  working tree.
+- Added Phase 23 (7 sub-sections 23a–23g), 6 Failed Attempts rows, a Verified On entry, an Outcome entry, a
+  description item (24), tags, and this Version History entry. Bumped frontmatter `version` to `1.19.0`;
+  `date` stays `2026-06-30`; frontmatter `verification` stays `unverified` (per the v1.10.0+ convention),
+  with Phase 23 carrying its own inline `verified-local` label.
+
+### Verification evidence (verified-local)
+
+EXECUTED end-to-end in a worktree. The audited consolidation had ALREADY landed in a post-snapshot merged
+PR (#1612), so the deliverable was a single net-new GUARD test file with NO source change. The new
+`tests/unit/automation/test_print_summary_consolidation.py` (5 tests: a grep-gate + 4 per-class delegation
+asserts) passed **GREEN-first, as expected**. **364 tests passed / 0 failed** (~4m45s) across
+`test_ci_driver.py` / `test_pr_reviewer_main.py` / `test_pr_reviewer_posting.py` / `test_address_review.py` /
+`test_plan_reviewer.py` / `test_review_utils.py` / `tests/unit/validation/test_import_surface.py` /
+`test_automation_boundary.py`. `ruff check` + `ruff format --check` clean after a D205 module-docstring fix.
+No source change required. PR CI not yet merged at capture time → `verified-local`, NOT `verified-ci`.
+
 ## v1.18.0 (2026-06-30)
 
 **Changed by:** ProjectHephaestus #1463 — duplicate concurrent-futures DRAIN-LOOP → shared generator-helper consolidation: extract a 4×-duplicated `while futures: try: done,_pending = wait(futures.keys(), timeout=1.0, return_when=FIRST_COMPLETED) except …:` scaffold into one generator `drain_completed_futures(...)` in `_review_utils.py`, unifying three silent `time.sleep(0.1)` busy-loops onto the one good exponential-backoff+WARNING path while keeping each caller's per-future body VERBATIM — /learn
-**Verification:** verified-local (for the new Phase 22; the rest of the skill is unchanged — `verified-ci` except the planning-only Phases 10/13/14/15 and the verified-local Phases 16/12d/17/18/19/20/21)
+**Verification:** verified-local (for the new Phase 22; the rest of the skill is unchanged — `verified-ci` except the planning-only Phases 10/13/14/15 and the verified-local Phases 16/12d/17/18/19/20/21/22)
 
 ### What changed
 

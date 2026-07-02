@@ -1,12 +1,12 @@
 ---
 name: ci-cd-github-code-quality-findings-no-api
-description: "Fixing GitHub Code Quality (/security/quality) findings — a product distinct from CodeQL code-scanning, with NO public REST API. Use when: (1) a /security/quality/rules/py%2F... URL reports open findings, (2) deciding how to locate Code Quality violations when the code-scanning alerts API returns them empty, (3) reconciling ruff vs CodeQL semantic differences for py/unused-local-variable, py/unused-global-variable, py/repeated-import, py/import-and-import-from, py/empty-except, py/undefined-export, (4) a Copilot/AI-findings autofix PR fails to merge, (5) a Code Quality finding is a false positive and you must refactor working code to satisfy the analyser without changing behaviour."
+description: "Fixing GitHub Code Quality (/security/quality) findings — a product distinct from CodeQL code-scanning, with NO public REST API. Use when: (1) a /security/quality/rules/py%2F... URL reports open findings, (2) deciding how to locate Code Quality violations when the code-scanning alerts API returns them empty, (3) reconciling ruff vs CodeQL semantic differences for py/unused-local-variable, py/unused-global-variable, py/repeated-import, py/import-and-import-from, py/empty-except, py/undefined-export, (4) a Copilot/AI-findings autofix PR fails to merge, (5) a Code Quality finding is a false positive and you must refactor working code to satisfy the analyser without changing behaviour, (6) consolidating or moving Python modules and leaving a thin re-export backward-compat shim, (7) a CodeQL/static-analyzer flags re-exported names as unused/dead imports even though the shim uses the `name as name` redundant-alias idiom that Ruff already accepts."
 category: ci-cd
-date: 2026-05-21
-version: "1.0.0"
+date: 2026-06-30
+version: "1.1.0"
 user-invocable: false
 verification: verified-ci
-tags: [github-code-quality, codeql, ruff, code-quality, static-analysis]
+tags: [github-code-quality, codeql, ruff, code-quality, static-analysis, re-export, shim, __all__, backward-compat]
 ---
 
 # GitHub Code Quality Findings — No Public API
@@ -17,8 +17,8 @@ tags: [github-code-quality, codeql, ruff, code-quality, static-analysis]
 | ------- | ------- |
 | **Date** | 2026-05-21 |
 | **Objective** | Locate and fix open GitHub Code Quality (`/security/quality`) findings when the code-scanning REST API reports them empty, distinguish real violations from false positives, and refactor code to satisfy the analyser without changing behaviour |
-| **Outcome** | Confirmed Code Quality is a separate product from CodeQL code-scanning with no public REST API; established a reliable workflow (UI findings list + `ruff` reconstruction) and per-rule fix patterns; merged fixes for `py/import-and-import-from`, `py/repeated-import`, `py/empty-except`, `py/undefined-export`, `py/unused-local-variable`, and `py/unused-global-variable` |
-| **Verification** | verified-ci — all fixes merged to `HomericIntelligence/ProjectHephaestus` `main` in PRs #428, #430, #423; CI green, 2320 unit tests pass |
+| **Outcome** | Confirmed Code Quality is a separate product from CodeQL code-scanning with no public REST API; established a reliable workflow (UI findings list + `ruff` reconstruction) and per-rule fix patterns; merged fixes for `py/import-and-import-from`, `py/repeated-import`, `py/empty-except`, `py/undefined-export`, `py/unused-local-variable`, and `py/unused-global-variable`. v1.1.0 adds the re-export backward-compat shim case: `name as name` aliasing satisfies Ruff but not CodeQL — add an explicit `__all__` to the shim |
+| **Verification** | verified-ci — all fixes merged to `HomericIntelligence/ProjectHephaestus` `main` in PRs #428, #430, #423; CI green, 2320 unit tests pass. v1.1.0 shim-`__all__` fix verified on PR #1697 (issue #1441), commit `b11ffafe` — all 35 CI checks green including CodeQL/Analyze |
 
 ## When to Use
 
@@ -27,6 +27,7 @@ tags: [github-code-quality, codeql, ruff, code-quality, static-analysis]
 3. You must reconcile `ruff` vs CodeQL semantic differences for `py/unused-local-variable`, `py/unused-global-variable`, `py/repeated-import`, `py/import-and-import-from`, `py/empty-except`, or `py/undefined-export`.
 4. A Copilot / AI-findings autofix PR (branch `ai-findings-autofix/...`) fails to merge.
 5. A Code Quality finding is a false positive and you must refactor working code to satisfy the analyser without changing behaviour — never delete code that is genuinely used.
+6. You are consolidating or moving Python modules and leaving the original module paths as thin **re-export backward-compat shims**, and a CodeQL-style analyzer flags the re-exported names as unused/dead imports even though the shim already uses the `from canonical import (X as X, ...)` redundant-alias idiom that Ruff accepts.
 
 ## Verified Workflow
 
@@ -66,6 +67,7 @@ gh api repos/OWNER/REPO/pulls/N/update-branch -X PUT
 - **`py/empty-except`** — replace `try: <body> except X: pass` with `with contextlib.suppress(X): <body>` — behaviour-identical, idiomatic, clears the finding. Verify the try-body's control flow (early `return` inside the body, fallthrough after) is preserved.
 - **`py/undefined-export`** — `__all__` lists names with no static definition (common with PEP 562 `__getattr__` lazy loading). Fix **without** breaking laziness: add module-level annotation-only declarations (see snippet in Results & Parameters).
 - **`py/unused-local-variable` from tuple-unpacking of a side-effect call** — if the function is called only to validate (raises on bad input), call it **without** binding the result. If it is a test that discards a return whose value the test's own comment claims to check, fix the test to actually `assert` on the return — a genuine test-quality improvement, not just silencing.
+- **Re-export backward-compat shim flagged as dead/unused import** — when consolidating or moving modules you leave the original path as a thin shim that re-exports the now-canonical symbols. The PEP 484 redundant-alias idiom `from canonical import (X as X, Y as Y, ...)` is enough for **Ruff** to treat the names as intentional re-exports (it does *not* flag them), but a **CodeQL-style analyzer still flags them as unused/dead imports** because, without an explicit `__all__`, it cannot tell the aliasing is an intentional public re-export rather than dead code. Fix: add an explicit `__all__` listing **every** re-exported public symbol as a **string**. This is the canonical, analyzer-agnostic "these are the module's public re-exports" signal — it satisfies CodeQL while Ruff was already happy. **Belt-and-suspenders: keep BOTH the `name as name` alias AND the `__all__`.** See the shim snippet in Results & Parameters.
 - **`py/unused-global-variable` false positives** — CodeQL flagged `_shutdown_requested` (genuinely read inside a nested signal-handler closure via `global`) and `_CLAUDE_IMPL_TIMEOUT` (genuinely imported + asserted by another module's tests). Deleting either breaks working code/tests. Refactor to satisfy the analyser **without** behaviour change:
   - (a) Wrap the closure-mutated flag in a single-element list so the closure mutates `flag[0]` instead of rebinding a `global` — CodeQL's flow analysis then tracks it.
   - (b) Add a module `__all__` declaring the constant as public API — a legitimate "this is exported" signal CodeQL respects.
@@ -84,6 +86,7 @@ gh api repos/OWNER/REPO/pulls/N/update-branch -X PUT
 | 3 | An Explore agent listed 35 py/repeated-import "violations" by flagging every function-local and docstring-example import | py/repeated-import only flags re-importing within the same/overlapping scope, not once-per-function imports | Verify suspected violations against the actual UI finding; do not guess CodeQL scoping |
 | 4 | Considered deleting `_shutdown_requested` / `_CLAUDE_IMPL_TIMEOUT` flagged as unused-global | Both are genuinely used (closure read; cross-module test assertion) — deletion breaks behaviour/tests | Some unused-global findings are false positives; refactor to satisfy the analyser, never delete used code |
 | 5 | First instinct on an unfixable transitive CVE was `--ignore-vuln` | User rejected silent suppression | Suppression is a last resort; fix the root cause or document explicitly why no fix exists |
+| 6 | A re-export shim used only the `from canonical import (X as X, ...)` redundant-alias idiom, no `__all__` | Ruff accepted it as an intentional re-export, but the CodeQL-style analyzer flagged every re-exported name as unused/dead import | The redundant-alias idiom satisfies Ruff/PEP 484 but not every analyzer; add an explicit `__all__` (names as strings) to the shim — belt-and-suspenders, keep both |
 
 ## Results & Parameters
 
@@ -97,6 +100,7 @@ gh api repos/OWNER/REPO/pulls/N/update-branch -X PUT
 | `py/unused-global-variable` | *(no ruff rule)* | Must rely on the UI findings list |
 | `py/undefined-export` | `F822` | `__all__` entry with no static definition |
 | `py/empty-except` | `S110` / `SIM105` | `except: pass` — fix with `contextlib.suppress` |
+| unused/dead re-export import (shim) | `F401` | **Semantic gap:** Ruff accepts the `name as name` redundant-alias re-export and does not flag it; CodeQL still flags it as dead until the shim adds an explicit `__all__` |
 
 A clean `ruff` run is **not** authoritative for Code Quality — always cross-check the `/security/quality` UI.
 
@@ -153,6 +157,45 @@ For a constant genuinely consumed by another module's tests, the simpler fix is 
 ```python
 __all__ = ["_CLAUDE_IMPL_TIMEOUT"]   # legitimate "this is exported" signal CodeQL respects
 ```
+
+### Re-export backward-compat shim (`name as name` + explicit `__all__`)
+
+When consolidating a cluster of small modules into ONE canonical module (issue
+ProjectHephaestus#1441 merged `claude_models.py`, `claude_timeouts.py`,
+`session_naming.py` into `agent_config.py`), keep the original module paths as
+thin re-export shims. The `name as name` redundant alias makes Ruff treat the
+imports as intentional re-exports, but a CodeQL-style analyzer still flags them
+as dead imports until an explicit `__all__` declares the public surface.
+**Use BOTH** — the alias for Ruff/PEP 484, the `__all__` for every other analyzer:
+
+```python
+"""Backward-compatibility shim. Canonical impl: agent_config (#1441)."""
+
+from hephaestus.automation.agent_config import (
+    OPUS as OPUS,
+    SONNET as SONNET,
+    advise_model as advise_model,
+    # ... every re-exported symbol with `name as name`
+)
+
+__all__ = [
+    "OPUS",
+    "SONNET",
+    "advise_model",
+    # ... the SAME set of names, as STRINGS, matching the re-exports exactly
+]
+```
+
+Rules of thumb:
+
+- `__all__` must list the names as **strings**, matching the re-exported symbols exactly.
+- The `name as name` redundant-alias idiom alone is sufficient for **Ruff / PEP 484**
+  re-export recognition but is **NOT** sufficient for all static analyzers in a
+  multi-analyzer CI. Belt-and-suspenders: use **both** the redundant alias **and** `__all__`.
+- This generalizes to **any** backward-compat shim created when consolidating or
+  moving modules — always add `__all__` so the re-exports survive every dead-code analyzer.
+- Verified at the highest level: **verified-ci** — all 35 CI checks (including the
+  CodeQL/Analyze jobs) passed on ProjectHephaestus PR #1697, fix landed in commit `b11ffafe`.
 
 ### Update a stale AI-autofix PR branch
 

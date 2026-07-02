@@ -1,6 +1,33 @@
 <!-- markdownlint-disable MD024 -->
 # pytest-coverage-threshold-and-enforcement — History
 
+## v1.4.0 (2026-06-30)
+
+**Amendment**: Added the branch_rate measurement procedure for RAISING an existing per-module coverage floor by ADDING tests, from ProjectHephaestus issue #1471 (raised `automation/models.py` floor 65→90). MINOR bump — new findings, backward-compatible. Verification: verified-local (tests + coverage measured locally end-to-end RED→GREEN and full validation suite green; PR/CI had NOT merged at capture time).
+
+### New content added
+
+- Description clause (12): RAISING a per-module floor by adding tests — measure the RIGHT number first (branch_rate vs line_rate vs combined display), `-o addopts=""` to strip the global aggregate gate, Cobertura `<class branch-rate>` is authoritative, `NN->exit` = false side of a branch
+- Frontmatter: date 2026-06-13 → 2026-06-30; version 1.3.0 → 1.4.0; new tags `branch-rate`, `addopts-override`, `term-missing-markers`
+- Overview table: Date/Objective/Outcome/Verification updated for v1.4.0
+- "When to Use": 5 new bullets (raising an existing floor by adding tests; the `FAIL Required test coverage of N%` line is the global aggregate gate not a per-file failure; high line/combined % masking low branch_rate; `NN->exit` marker meaning)
+- Quick Reference: new step 5b — measure branch_rate first (`-o addopts=""`, Cobertura XML parse, TOML round-trip check)
+- New detailed subsection "E2. RAISE a per-module floor by adding tests — measure branch_rate, not line_rate" (3-number divergence table, 8-step procedure)
+- Failed Attempts: 7 new rows — raising the floor against line_rate; reading the FAIL line as a per-file failure; trusting term-missing combined % as branch_rate; misreading `NN->exit` markers; trusting the audit's stale cited line; E501 on long test docstrings
+- Results & Parameters: new subsection "Raising a per-module floor by adding tests (v1.4.0, verified-local)" with the three-number table and before/after branch_rate progression
+- Verified On: new ProjectHephaestus issue #1471 row (verified-local)
+
+### Verification level
+
+`verified-local` — tests + coverage measured locally end-to-end RED→GREEN and the full validation suite was green; the PR/CI had NOT merged at capture time, so NOT verified-ci.
+
+### Source
+
+- Issue: ProjectHephaestus #1471
+- Session date: 2026-06-30
+
+---
+
 ## v1.3.0 (2026-06-13)
 
 **Amendment**: Promoted Issue #1198 planning content from unverified to verified-ci (PR #1293), and added test_doc_config.py fixture isolation finding.

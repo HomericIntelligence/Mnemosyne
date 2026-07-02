@@ -1,10 +1,7 @@
-<!-- markdownlint-disable MD024 -->
-# History: architecture-god-function-decomposition-planning-risks
+<!-- markdownlint-disable -->
+# architecture-god-function-decomposition-planning-risks — History
 
-This file records amendments to the canonical skill. Each entry is newest-first.
-
-## v1.3.0 (2026-06-30)
-
+## v1.3.0 (2026-06-30) — function-level #1464
 **Changed by**: ProjectHephaestus #1464 plan R0→R1 NOGO recovery (function-level).
 
 **Verification**: unverified (planning-phase learning; no code ran).
@@ -37,3 +34,719 @@ the god-CLASS section (added in v1.3.0 lineage attempts) is unaffected.
 PR #2423 (ProjectHephaestus #1180 R2 planning cycle). See git history of
 `skills/architecture-god-function-decomposition-planning-risks.md` for the full
 v1.2.0 body.
+
+---
+
+## v1.3.0 (2026-06-30) — class-level #1462
+**Changed by:** ProjectHephaestus issue #1462 — produce (and REVISE after a NOGO) an
+implementation plan to decompose the 2103-line `CIDriver` god **CLASS** (6 methods over the
+80-line cap).
+
+**Verification:** unverified (planning-phase learnings; no code ran end-to-end). The honesty
+gate is honored — the class-level workflow is titled "Proposed Workflow" with the UNVERIFIED
+warning banner.
+
+**What changed (minor bump 1.2.0 → 1.3.0 — additive; the function-level core v1.0.0–v1.2.0
+workflow is unchanged):**
+
+- Extended scope from god-FUNCTION extraction to god-CLASS / collaborator extraction. Added
+  two new "When to Use" triggers (5, 6) for class decomposition and the intra-helper-vs-
+  collaborator decision.
+- Added a "God-CLASS Decomposition" section with a **Proposed Workflow** decision tree
+  (STEP 0 seam-count → STEP 1 AST-measure/RED cap-test → STEP 2 helper-vs-collaborator →
+  STEP 3 delegation-stub + injected providers → **STEP 3a circular-import check** → STEP 4
+  whole-test-tree seam sweep).
+- **Risk 10a (the #1 learning — earned the NOGO): "Circular import when extracting a
+  collaborator — relocate shared helpers to a cycle-free leaf + re-export."** When the moved
+  method body uses a module-level helper defined in the god module (here
+  `_without_auto_merge_policy` + `_AUTO_MERGE_POLICY_CHECK` in `ci_driver.py`), a top-level
+  back-import from the collaborator creates a genuine `god → collaborator → god` cycle. Fix:
+  relocate the stateless helper to a cycle-free leaf (`ci_check_inspector.py`, verified leaf
+  via `grep "from .ci_driver"` → no match), re-export from the god module via the
+  `name as name` alias idiom (no `# ruff: noqa: F401`; RUF100 guard), and import it into the
+  collaborator FROM THE LEAF — mirroring the `FAILING_CHECK_CONCLUSIONS` #1357 precedent.
+  Detection rule: enumerate every MODULE-LEVEL symbol the moved body references (not just
+  `self._` calls) and verify with
+  `python -c "import god_module; import new_module; print('no cycle')"`.
+- **Risk 10: patch.object seam preservation is the dominant class-decomposition constraint**
+  (296 `patch.object(driver, ...)` sites in `test_ci_driver.py`); every extracted method keeps
+  a 3-line delegation stub on the original class with lambda providers injected in `__init__`
+  so each seam still intercepts at call time.
+- **Risk 11: intra-class helper vs injected-provider collaborator — decide by sibling
+  `self._` call count.** Many sibling calls → intra-class private helper (small provider
+  surface; KISS/YAGNI). Few external sibling calls + cohesive sub-responsibility (e.g. an
+  "arming state machine") → new injected-provider collaborator.
+- **Risk 12: unverified class-decomposition reliances the reviewer must re-check** (eyeballed
+  helper line counts; whole-test-tree internal-name patch sweep; injected-lambda signature
+  re-read on disk; import-boundary tests; verbatim control-flow body diff; RED cap-test
+  enumerating the TRUE over-cap set; extracted poll loop must RETURN the data the caller
+  recomputes — `_poll_post_fix_ci` returns the `checks` list, not a bool, preserving the
+  caller's pass/fail evaluation at `ci_driver.py:888`).
+- Added 4 `## Failed Attempts` rows: (a) the naive top-level back-import that creates the
+  cycle (the NOGO); (b) extracting every over-cap method into a collaborator (wide provider
+  surface, KISS/YAGNI); (c) writing an injected-lambda signature without re-reading the real
+  method; (d) eyeballing helper line counts from block boundaries.
+- Added god-class items to the planning checklist (including the circular-import check).
+- Extended `description:` and added tags `god-class`, `collaborator-extraction`,
+  `patch-object-seams`, `delegation-stub`, `injected-provider`, `srp`, `circular-import`,
+  `import-cycle`, `leaf-module`, `re-export`.
+- Bumped `version:` 1.2.0 → 1.3.0; `date:` → 2026-06-30.
+
+**Why:** Producing the #1462 plan surfaced a failure mode neither
+`architecture-god-function-decomposition-planning-risks` (function-scoped) nor
+`automation-god-package-shim-first-decomposition` captured: the circular import when a
+collaborator extracted from a god class back-imports a module-level helper from that class.
+The plan took a NOGO until the helper was relocated to a cycle-free leaf and re-exported. The
+class-vs-function decomposition decision criterion (sibling-`self._`-call count) and the
+patch-seam-count-as-risk-metric are likewise new to this skill.
+
+---
+
+### Full snapshot of the PREVIOUS skill content (v1.2.0)
+
+The complete v1.2.0 skill file, preserved verbatim before the v1.3.0 amendment:
+
+````````markdown
+---
+name: architecture-god-function-decomposition-planning-risks
+description: >-
+  Use when: planning an extraction pass on over-long functions (god functions)
+  in hephaestus/automation/ or similar large Python codebases, especially when
+  working from an issue that cites specific line numbers, function sizes, or
+  file locations — before finalizing an extraction plan that waives work on a
+  function, verify on disk that the cited size matches reality; apply the
+  sentinel return pattern for extracted poll loops; verify test file existence
+  before writing stubs; and audit plan documents for helper-defined-but-never-called
+  inconsistencies.
+category: architecture
+date: 2026-06-13
+version: "1.2.0"
+user-invocable: false
+history: architecture-god-function-decomposition-planning-risks.history
+verification: unverified
+tags:
+  - python
+  - refactoring
+  - god-function
+  - planning
+  - extraction
+  - risk-management
+  - line-number-validation
+  - poll-loop
+  - sentinel-pattern
+  - test-stubs
+  - planning-risks
+  - arithmetic-verification
+  - control-flow-signals
+  - scope-validation
+  - pipeline-stages
+  - loop-body-measurement
+  - docstring-budget
+  - return-type-tracing
+---
+
+# Architecture: God-Function Decomposition — Planning Risks
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2026-06-13 |
+| **Source issue** | ProjectHephaestus #1180 — decompose 5 god-functions in `hephaestus/automation/` |
+| **Verification** | unverified (planning-phase learnings; no code ran) |
+| **Objective** | Document recurring planning-phase failure modes when working from issue-cited metadata rather than disk reality |
+
+These risks surface whenever an engineer or agent plans god-function extractions from
+an issue description that cites line numbers, function sizes, or file paths. The
+issue body may be weeks or months old; the code on disk is authoritative.
+
+---
+
+## When to Use
+
+Use this skill when:
+
+1. Planning an extraction pass on over-long (god) functions in any Python codebase, especially when the task originates from a GitHub issue that cites specific line numbers, function sizes, or file locations.
+2. Reviewing a decomposition plan before approving it — check that each cited function size was measured from disk, not from the issue body.
+3. Implementing a decomposition plan produced by another agent or engineer — verify all arithmetic, helper call sites, and test file assumptions before writing code.
+4. Authoring decomposition plans for ProjectHephaestus `hephaestus/automation/` modules (where the 80-line orchestrator cap is enforced).
+
+---
+
+## Verified Workflow
+
+### Quick Reference
+
+| Step | Action |
+| ------ | ------- |
+| 1 | Run AST measurement on each named function — never trust issue-cited sizes |
+| 2 | For functions that must reach ≤N lines, write the explicit subtraction chain |
+| 3 | For each new helper, confirm at least one call site appears in the plan |
+| 4 | For control-flow sentinel returns, enumerate ALL signal states in docstring |
+| 5 | Verify test file existence before writing stubs |
+| 6 | Check empty/sentinel values passed to downstream functions |
+
+### Step 1: Measure Functions from Disk
+
+Before writing any extraction plan, measure every named function via AST:
+
+```python
+python3 -c "
+import ast
+src = open('<project-root>/path/to/file.py').read()
+tree = ast.parse(src)
+for node in ast.walk(tree):
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        size = node.end_lineno - node.lineno + 1
+        if size > 80:
+            print(f'{node.name}: {node.lineno}–{node.end_lineno} ({size}L)')
+" | sort -t'(' -k2 -rn
+```
+
+If the issue cites a file+line, grep for the function name first — it may have moved:
+
+```bash
+grep -rn "def _target_function" <project-root>/src/
+```
+
+### Step 2: Plan Extractions with Arithmetic Proof
+
+For each function that must reach ≤N lines, write the subtraction chain before claiming the target is met:
+
+```text
+_example_function: 250L
+  − _helper_1: 30L
+  − _helper_2: 45L
+  = 175L (still over 80L cap — plan additional extractions)
+```
+
+### Step 3: Audit Helper Call Sites
+
+After writing the plan, for each helper defined in "New helpers" / "Extracted functions":
+
+```text
+grep the replacement code blocks for `helper_name(`
+- Zero matches → either delete the helper or add the call site
+- Never ship a plan where a defined helper has no shown call site
+```
+
+### Step 4: Document Sentinel Return Contracts
+
+When a helper encodes control-flow signals in its return value, enumerate all states in the docstring and show all branches in the caller's replacement block.
+
+---
+
+## Risk 1: Issue-Cited Line Numbers May Be Stale — Always Re-read Before Planning
+
+**What happened**: Issue #1180 cited `_implement_issue` as 354 lines (at line 255).
+Direct `Read` of `implementer_phase_runner.py` showed the function spans lines 180–307:
+127 lines, not 354. The plan correctly waived extraction for this function — but only
+because the planner read the file first.
+
+**The failure mode**: If the planner trusts the issue's cited size and plans extraction
+for a 354-line function, it designs helpers that don't exist, splits non-existent blocks,
+and writes a plan that is wrong from line 1.
+
+**Rule**: Before deciding to extract *or* waive extraction for any named function, run:
+
+```python
+python3 -c "
+import ast, sys
+src = open('path/to/file.py').read()
+tree = ast.parse(src)
+for node in ast.walk(tree):
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        if node.name == '_target_function':
+            print(f'Lines {node.lineno}–{node.end_lineno}: {node.end_lineno - node.lineno + 1} lines')
+"
+```
+
+Or use the Read tool and count from the `def` line to the last line of the body.
+**Never trust the issue's line count as the decision input.**
+
+**Corollary**: If the plan says "waive extraction — function is only 127 lines", cite
+the disk evidence (`file.py:180-307, 127 lines`) so the reviewer can verify without
+re-reading the whole file.
+
+---
+
+## Risk 2: Cited File/Line Reference May Point to a Refactored Location
+
+**What happened**: Issue #1180 cited `_run_impl_review_loop` at line 1513 of
+`ci_driver.py`. After a prior refactor the function was moved to `_review_phase.py`
+at lines 374–503. The plan found it only because a subagent searched by name
+rather than by file+line.
+
+**The failure mode**: An agent that opens `ci_driver.py:1513` sees a completely
+different function or a blank line and either (a) extracts the wrong function, or
+(b) panics with a "function not found" error.
+
+**Rule**: When an issue cites `file.py:N`, grep for the function name across the
+package first:
+
+```bash
+grep -rn "def _run_impl_review_loop" hephaestus/automation/
+```
+
+Accept the grep result as the authoritative location; treat the issue's file+line
+citation as a hint, not a fact.
+
+---
+
+## Risk 3: The Helper-Defined-But-Not-Called Inconsistency
+
+**What happened**: The decomposition plan for `_address_issue` defined a
+`_finalize_address_state` helper in the "New helpers" section, but the replacement
+code block shown for lines 561–635 inlined the state finalization directly rather
+than calling the helper. The helper was defined but its call site was never shown.
+
+**The failure mode**: An implementer writes both the helper and the inlined version,
+leaving dead code. Or the reviewer approves a plan that has an unreachable function.
+Either path wastes review cycles or introduces a dead-code lint failure.
+
+**Rule**: Before finalizing a decomposition plan, audit every helper defined in the
+plan document:
+
+```text
+For each helper H defined in "New helpers" / "Extracted functions":
+  - grep the replacement code blocks for `H(`
+  - if zero matches: either (a) delete H from the plan, or (b) add the call site
+  - NEVER ship a plan where a defined helper has no shown call site
+```
+
+**Detection heuristic**: After writing the plan, search the plan document itself for
+each helper name. If it appears only in its own definition section and nowhere else,
+flag it as inconsistent.
+
+---
+
+## Risk 4: Sentinel Return Pattern for Extracted Poll Loops
+
+**What happened**: The plan extracted a `_poll_ci_until_concluded` helper from
+`_drive_issue`. The helper's return contract was:
+- `None` — timeout; CI still pending after deadline
+- `[]` (empty list) — no CI checks found at all
+- `list[CheckResult]` (non-empty) — CI concluded with results
+
+The caller must handle both `None` and `[]` as "treat as success=True / proceed".
+
+**The failure mode**: If the caller treats `[]` as "no checks ran → failure" (a natural
+intuition), it will abort the issue drive unnecessarily on repos with no required CI checks.
+If the caller treats `None` as "timed out → hard failure", it will never retry a
+transiently-slow CI.
+
+**Rule**: When extracting any polling loop into a helper, document the full sentinel
+contract in a docstring before merging:
+
+```python
+def _poll_ci_until_concluded(
+    pr_number: int,
+    deadline: float,
+    gh_fn: Callable,
+) -> list[CheckResult] | None:
+    """Poll CI checks until all conclude or deadline is reached.
+
+    Returns:
+        list[CheckResult]: All checks concluded (may be empty if no checks exist).
+            An empty list means no CI checks are configured — treat as success.
+        None: Deadline reached before checks concluded — caller should
+            treat as "still pending" (not a hard failure).
+    """
+```
+
+And add a unit test asserting the `[]` vs `None` distinction explicitly:
+
+```python
+def test_poll_returns_empty_list_when_no_checks(mock_gh):
+    mock_gh.return_value = []
+    result = _poll_ci_until_concluded(pr=42, deadline=time.time() + 60, gh_fn=mock_gh)
+    assert result == []           # not None
+    assert result is not None     # caller must not treat as timeout
+```
+
+---
+
+## Risk 5: Verify Test File Existence Before Writing Test Stubs
+
+**What happened**: The plan added tests to `tests/unit/automation/test_ci_driver.py`
+and `tests/unit/automation/test_address_review.py`. Neither file was verified to exist
+or inspected for fixture patterns before the plan was finalized.
+
+**The failure mode**: The implementer discovers the file does not exist and must invent
+a fixture structure from scratch, or the file exists but uses a project-wide fixture
+(`autouse` conftest, class-based test structure, `@pytest.fixture(scope="module")`) that
+the new tests must follow to avoid import errors or fixture-collision failures.
+
+**Rule**: Before writing any test stubs in a plan, run:
+
+```bash
+# Verify file exists
+ls tests/unit/automation/test_ci_driver.py 2>/dev/null || echo "FILE DOES NOT EXIST"
+
+# If it exists, read the first 60 lines to identify fixture patterns
+head -60 tests/unit/automation/test_ci_driver.py
+```
+
+If the file does not exist, the plan must include a "Create test file" step that
+describes the required imports and any fixture scaffolding to match the conftest.
+
+If the file exists, the plan must note the dominant fixture pattern (e.g.,
+`class TestCIDriver: ...` vs module-level functions, `@pytest.fixture(autouse=True)` vs
+per-test setup) so the new tests are consistent.
+
+---
+
+## Risk 6: The Empty-Replies-Dict Edge Case in Extracted State Helpers
+
+**What happened**: The plan's `_finalize_address_state` helper passed `replies={}`
+(empty dict) to `_resolve_addressed_threads`. This is correct when the replies are
+already handled by the caller before the helper is invoked — but the plan did not
+verify whether `_resolve_addressed_threads` accepts an empty dict or requires a
+non-empty one.
+
+**The failure mode**: If `_resolve_addressed_threads` has a guard like
+`if not replies: raise ValueError(...)` or iterates `replies` with an assumption that
+at least one entry exists, passing `{}` silently skips the resolution logic and leaves
+threads unresolved.
+
+**Rule**: When an extracted helper passes a sentinel/empty value to a downstream
+function, read the downstream function's signature and body before finalizing the call:
+
+```bash
+grep -n "def _resolve_addressed_threads" hephaestus/automation/*.py
+# then read the first 20 lines of that function to check for empty-input guards
+```
+
+Document the expected behavior explicitly in the plan:
+
+> `_resolve_addressed_threads(addressed, replies={}, thread_ids)` — passing `replies={}`
+> is safe because the function iterates `thread_ids` (not `replies`) as the primary
+> driver. Verified at `address_review.py:312-335`.
+
+---
+
+## Risk 7: Arithmetic Verification Before Claiming Line-Count Targets (R1 Learning)
+
+**What happened**: R0 plan claimed `_run_ci_fix_session` would reach "~190 lines" after
+extracting a sync helper, yet also claimed AC1 (≤80L orchestrator) would pass. The numbers
+were contradictory. R1 explicitly counted the subtractions:
+
+```
+250L  (starting length)
+− 30L (extract sync helper)
+− 25L (extract prompt helper)
+− 27L (remove duplicate push tail)
+= 168L remaining → still over the 80L cap
+```
+
+Two more extractions were required: `_invoke_codex_ci_fix` (45L) + `_invoke_claude_ci_fix`
+(72L). Only after all 5 helpers does the orchestrator reach ~55L.
+
+**The failure mode**: Claiming a target line count without performing the subtraction chain
+leads the reviewer to approve a plan that provably cannot meet its acceptance criterion.
+The reviewer is expected to verify the arithmetic; a wrong number fails the NOGO gate.
+
+**Rule**: For each function that must reach ≤N lines, write the subtraction chain explicitly
+in the plan before stating the result:
+
+```
+<function>: <current>L
+  − <helper_1>: <extracted_lines>L
+  − <helper_2>: <extracted_lines>L
+  = <remaining>L (target ≤ <cap>L)
+```
+
+**Only claim the target is met after the subtraction proves it.** If the remaining count
+is still over the cap, plan additional extractions before finalizing.
+
+---
+
+## Risk 8: Control-Flow Sentinel Return Values — Enumerate All Signal States
+
+**What happened**: R1's `_run_address_step_if_needed` helper encodes three distinct
+control-flow signals in its return value:
+
+- `None` — continue the loop (nothing needed this iteration)
+- `([], False)` — break out of the loop (final iteration, no prior addressed)
+- `(prior_addressed, addressed)` — normal result (caller processes and continues)
+
+The caller must handle all three. In R0, only the "normal" and "break" cases were
+documented; the `None`-continue path was implicit. A reviewer reading the plan could
+not safely verify the caller handled all three paths correctly.
+
+**The failure mode**: If the caller has `if result is None: continue` but the function
+only documents two return values, any future refactor that adds a fourth sentinel will
+silently fall through to the wrong branch.
+
+**Rule**: When a helper encodes control-flow signals in return values (not just data),
+enumerate **all signal states** in the docstring — not just the happy path:
+
+```python
+def _run_address_step_if_needed(
+    iteration: int,
+    max_iterations: int,
+    ...
+) -> tuple[list, bool] | None:
+    """Run one address step if the loop should continue.
+
+    Returns:
+        None: This iteration requires no action — caller should continue the loop.
+        ([], False): Final iteration reached — caller should break the loop.
+        (prior_addressed, addressed): Normal result — caller updates state and continues.
+
+    All three cases MUST be handled by the caller. Missing a case silently
+    falls through to the wrong branch.
+    """
+```
+
+And in the plan's caller replacement block, show all three `if/elif/else` branches
+explicitly — not just the common case.
+
+---
+
+## Risk 9: Scope Against Actual Disk State, Not Issue-Cited State (R1 Learning)
+
+**What happened**: Issue #1180 verified "functions exist at cited line numbers with stated
+lengths". R1 found via AST measurement:
+
+- `_implement_issue`: issue said 354L → AST showed 128L (in `implementer_phase_runner.py`)
+- `_run_impl_review_loop`: issue said `implementer_phase_runner.py:1513` → AST showed it
+  lives at `_review_phase.py:374`, 130L
+
+R0 treated the issue's AST evidence as authoritative. R1 re-measured and discovered
+significant drift.
+
+**The failure mode**: A plan scoped to issue-cited sizes will extract helpers from the
+wrong locations (if the function moved) or waive functions that are actually over the cap
+(if the function shrank) or plan too few extractions (if the function grew).
+
+**Rule**: **Always run the AST measurement yourself before planning**, even if the issue
+includes a measurement:
+
+```python
+python3 -c "
+import ast
+src = open('hephaestus/automation/implementer_phase_runner.py').read()
+tree = ast.parse(src)
+for node in ast.walk(tree):
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        size = node.end_lineno - node.lineno + 1
+        if size > 80:
+            print(f'{node.name}: {node.lineno}–{node.end_lineno} ({size}L)')
+" | sort -t'(' -k2 -rn
+```
+
+Treat the issue's line numbers as **starting hints** — confirm or correct them before
+writing a single extraction step. If your measurement contradicts the issue, note the
+discrepancy in the plan and proceed from disk reality.
+
+---
+
+## Failed Attempts
+
+### R1: Single Helper Insufficient for `_run_implementation_and_review` (130L)
+
+**What was tried**: R1 plan extracted only `_run_advise_and_implement` (37L), leaving 98L.
+Claimed the target (≤80L) was met.
+
+**Why it failed**: 98L > 80L. The function has 2 distinct pipeline stages (implement + review).
+A second extraction `_run_review_loop_and_label` (43L) was needed to reach 58L.
+
+**Lesson**: When a function has 2+ distinct pipeline stages, count them all before choosing
+helpers. One extraction rarely suffices for functions > 120L.
+
+---
+
+### R1: `_run_impl_review_loop` Needed 2 Helpers, Not 1
+
+**What was tried**: R1 extracted only `_run_address_step_if_needed` (22L), leaving 118L
+(target 80L).
+
+**Why it failed**: 118L still over the cap. The for-loop body itself (53L) needed extraction
+as `_process_review_iteration` to reach 68L.
+
+**Lesson**: Measure the loop body separately from its header + finalize block. A for-loop
+whose body exceeds 40L is itself a god-pattern. Use:
+`loop_body_lines = (loop_end - loop_start + 1)`.
+
+---
+
+### R1: `_address_issue` Arithmetic Was Wildly Off
+
+**What was tried**: R1 initially claimed 2 extractions leaving 74L. Actual subtraction gave 136L.
+
+**Why it failed**: The docstring (27L) was not counted in the function's line total.
+A 27L docstring contributes 17% of a 159L function's span. Required 3 extractions + docstring trim.
+
+**Lesson**: Count the docstring as part of the function span. Subtract it from budget or
+plan to trim it before allocating extraction budget.
+
+---
+
+### R1: `_prepare_worktree_for_existing_pr` Return Type Changed Mid-Plan
+
+**What was tried**: Plan initially specified return type `tuple[Path, str]`. Mid-planning,
+discovered `issue.title`/`issue.body` were also needed by the caller for the review loop.
+
+**Why it failed**: The helper absorbed the only call to `fetch_issue_info`. The caller now
+needed those fields back but the return type did not include them.
+
+**Lesson**: Before specifying a helper's return type, trace every variable the caller uses
+after the call. If the helper consumed the only call to a data-fetching function, the
+return tuple must include those fields.
+
+---
+
+### R0: Waiving Functions at 128–130L as "Marginal"
+
+**What was tried**: R0 plan waived `_implement_issue` (128L) and `_run_impl_review_loop`
+(130L) as "marginal" overages, arguing YAGNI applied since these were close to the 80L cap.
+
+**Why it failed**: The reviewer rejected this. 128L is 60% over the 80L cap. YAGNI does
+not excuse under-scoping when a function is explicitly named in the issue and is over the
+stated threshold. Functions named in the issue + over 80L must all be addressed; "marginal"
+is not a valid waiver ground unless the function is already below the cap.
+
+**Lesson**: **Do not waive on "marginal" grounds.** If a function is named in the issue
+and measured over 80L, it is in scope. The only valid waiver is: measured size ≤ cap on disk.
+
+---
+
+### R0: Wrong Signature in `_finalize_address_state` (Sentinel vs Real Argument)
+
+**What was tried**: R0's `_finalize_address_state` helper was defined with `replies={}`
+(empty dict sentinel) where the original code passed the actual `replies` dict collected
+during the address loop.
+
+**Why it failed**: A helper that silently drops data (the real `replies`) is worse than no
+extraction. The extracted helper would pass `{}` to `_resolve_addressed_threads`, causing
+all reply-based thread resolution to be skipped silently. The reviewer caught this because
+the replacement block showed `replies={}` hardcoded, not the variable.
+
+**Lesson**: Before extracting, read every argument the extracted code passes to its
+callees. **Never substitute a sentinel for a real argument** unless you have verified the
+downstream function treats the sentinel identically to the real value. Show the argument
+mapping explicitly in the plan:
+
+```text
+Original: _resolve_addressed_threads(addressed, replies=replies, ...)
+Extracted helper call: _finalize_address_state(addressed, replies, ...)
+  → helper passes: _resolve_addressed_threads(addressed, replies=replies, ...)
+```
+
+---
+
+### R0: New Helpers Defined but Call Sites Not Shown in Replacement Blocks
+
+**What was tried**: R0 defined `_finalize_address_state` in the "New helpers" section but
+the replacement code block for the address loop inlined the same state-finalization logic
+directly, never calling the helper.
+
+**Why it failed**: The inconsistency meant either (a) the helper is dead code, or (b) the
+replacement block is wrong and should call the helper. In either case, an implementer
+following the plan would produce incorrect code. The reviewer rejected this as "plan is
+internally inconsistent."
+
+**Lesson**: For each new helper defined in the plan, **explicitly show its call site in
+the same plan section**. Run a self-check: search the plan document for each helper name.
+If it appears only in its own definition and nowhere else, flag it. Ship only plans where
+every defined helper has at least one shown call site.
+
+---
+
+## Planning Checklist for God-Function Decomposition
+
+Before submitting or approving a god-function decomposition plan:
+
+```text
+[ ] For each function named in the issue:
+    [ ] Run AST measurement yourself — do NOT trust the issue's cited size
+    [ ] Cite file:start-end and actual LOC from your own measurement
+    [ ] If waiving extraction: cite the disk evidence (measured size ≤ cap)
+    [ ] "Marginal" overage is NOT a valid waiver — if over cap, it is in scope
+    [ ] If the issue's file+line doesn't match disk: note the discrepancy
+
+[ ] For each function that must reach ≤N lines:
+    [ ] Write the explicit subtraction chain (current − helper1 − helper2 = remaining)
+    [ ] Only claim the target is met if the arithmetic proves it
+    [ ] If remaining > cap after planned extractions: plan additional helpers
+
+[ ] For each new helper defined in the plan:
+    [ ] Confirm at least one call site appears in the plan's replacement blocks
+    [ ] If no call site shown: delete the helper or add the call
+    [ ] Show the argument mapping explicitly (original arg → helper arg → downstream)
+    [ ] Never substitute a sentinel for a real argument without verifying equivalence
+
+[ ] For each helper that encodes control-flow signals in its return value:
+    [ ] Enumerate ALL signal states in the docstring (not just the happy path)
+    [ ] Show all branches (if/elif/else) in the caller's replacement block
+
+[ ] For each extracted poll/retry loop:
+    [ ] Document the full sentinel return contract (what each return value means)
+    [ ] Add a unit test distinguishing the empty-list vs None sentinels
+
+[ ] For each test stub added by the plan:
+    [ ] Verify the target test file exists (ls command)
+    [ ] If it exists, read its fixture pattern (first 60 lines)
+    [ ] If it doesn't exist, include a "Create test file" step in the plan
+
+[ ] For each helper that passes an empty/sentinel value downstream:
+    [ ] Read the downstream function's first 20 lines
+    [ ] Confirm it handles the empty value correctly
+    [ ] Cite the verification in the plan (file:line range)
+```
+
+---
+
+## Results & Parameters
+
+### Successful Patterns
+
+| Pattern | Context | Outcome |
+| --------- | --------- | --------- |
+| AST re-measurement before planning | ProjectHephaestus #1180 R1 | Caught 354L→128L drift; prevented planning extractions on wrong function size |
+| grep-by-name before grep-by-line | ProjectHephaestus #1180 R1 | Found `_run_impl_review_loop` moved from `ci_driver.py:1513` to `_review_phase.py:374` |
+| Subtraction arithmetic chain | ProjectHephaestus #1180 R1 | Revealed 5 extractions needed (not 3) for `_run_ci_fix_session` to reach ≤80L |
+| Sentinel return contract docstring | ProjectHephaestus #1180 R1 | Made all 3 control-flow states explicit; prevented silent fall-through bugs |
+
+### Key Thresholds (ProjectHephaestus)
+
+- Orchestrator line cap: **80 lines** (enforced via unit tests)
+- "Marginal" overage is NOT a valid waiver — any function named in the issue and over the cap is in scope
+- Valid waiver only when: measured disk size ≤ cap
+
+### Copy-Paste: AST Measurement Command
+
+```python
+python3 -c "
+import ast
+src = open('path/to/file.py').read()
+tree = ast.parse(src)
+for node in ast.walk(tree):
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        size = node.end_lineno - node.lineno + 1
+        if size > 80:
+            print(f'{node.name}: lines {node.lineno}–{node.end_lineno} ({size}L)')
+" | sort -t'(' -k2 -rn
+```
+
+### Copy-Paste: Subtraction Chain Template
+
+```text
+<function_name>: <current>L
+  − <helper_1>: <extracted>L  (extracted: <description>)
+  − <helper_2>: <extracted>L  (extracted: <description>)
+  = <remaining>L (target ≤ <cap>L) ✓/✗
+```
+
+---
+
+## Verified On
+
+| Project | Context |
+| --------- | --------- |
+| ProjectHephaestus (R0) | Planning session for issue #1180 — decompose 5 god-functions in `hephaestus/automation/`; `_implement_issue` cited as 354 lines in issue, found as 127 lines on disk; `_run_impl_review_loop` cited at `ci_driver.py:1513`, found at `_review_phase.py:374-503`; `_finalize_address_state` defined in plan but not called in replacement block; test file existence unverified; `_poll_ci_until_concluded` sentinel contract risk identified |
+| ProjectHephaestus (R1) | Second planning iteration for issue #1180 after R0 NOGO review; AST re-measurement confirmed `_implement_issue` is 128L not 354L and `_run_impl_review_loop` is at `_review_phase.py:374`; arithmetic subtraction chain revealed `_run_ci_fix_session` needs 5 helpers (not 3) to reach ≤80L; `_run_address_step_if_needed` sentinel return pattern documented with all 3 control-flow states; R0 waiver-on-"marginal" grounds rejected — 128L = 60% over cap and is in scope |
+| ProjectHephaestus | Issue #1180 R2 plan (2026-06-13) — 3rd TASK/PLAN/REVIEW cycle; all 7 target functions scoped to ≤80L |
+
+````````
