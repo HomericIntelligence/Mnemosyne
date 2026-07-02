@@ -9,14 +9,14 @@ description: >-
   (5) a squash-merged branch looks unmerged because git cherry/ahead counts lie,
   (6) an auto-merge PR already merged, its remote head ref is gone or stale, and a
   validated local amended commit must be converted into a clean follow-up branch from
-  current trunk using git diff --binary plus git apply --index, (7) the current branch has an already-merged PR but contains uncommitted follow-up work, so stash it, create a fresh branch from current trunk, pop the stash, re-verify, sign, push, and open a new linked PR, or (8) an issue has a closed unmerged PR whose branch can be rebased and force-with-lease updated, but GitHub refuses `gh pr reopen`, so you need a replacement PR from the same recovered branch.
+  current trunk using git diff --binary plus git apply --index, (7) the current branch has an already-merged PR but contains uncommitted follow-up work, so stash it, create a fresh branch from current trunk, pop the stash, re-verify, sign, push, and open a new linked PR, (8) an issue has a closed unmerged PR whose branch can be rebased and force-with-lease updated, but GitHub refuses `gh pr reopen`, so you need a replacement PR from the same recovered branch, or (9) a user asks you to create a PR from the current branch but that branch's existing PR is already MERGED and a squash/rebase-style merge rewrote SHAs, making triple-dot diff look noisy even though the work is already on trunk.
 category: tooling
-date: 2026-07-01
-version: "1.5.0"
+date: 2026-07-02
+version: "1.6.0"
 user-invocable: false
 verification: verified-local
 history: git-branch-state-triage-and-recovery.history
-tags: [git, branch, triage, recovery, stale, superseded, orphan, diverged, merge-base, cherry-pick, fork-point, diff-filter, unrelated-histories, non-fast-forward, consolidation, three-way-diff, count-diff, hard-reset, stash, auto-merge, follow-up-branch, force-with-lease, git-apply, current-branch, merged-pr, closed-pr, replacement-pr, uncommitted-follow-up, signed-commit]
+tags: [git, branch, triage, recovery, stale, superseded, orphan, diverged, merge-base, cherry-pick, fork-point, diff-filter, unrelated-histories, non-fast-forward, consolidation, three-way-diff, count-diff, hard-reset, stash, auto-merge, follow-up-branch, force-with-lease, git-apply, current-branch, merged-pr, closed-pr, replacement-pr, duplicate-pr, rewritten-sha, two-dot, triple-dot, uncommitted-follow-up, signed-commit]
 ---
 
 # Git Branch State Triage and Recovery
@@ -25,15 +25,15 @@ tags: [git, branch, triage, recovery, stale, superseded, orphan, diverged, merge
 
 | Field | Value |
 | ------- | ------- |
-| **Date** | 2026-07-01 |
+| **Date** | 2026-07-02 |
 | **Objective** | Diagnose what state a branch is in (stale/superseded, orphaned/unrelated history, or diverged from remote) and recover it cleanly |
-| **Outcome** | Success — unified triage tree: confirm-and-discard superseded branches, extract+recreate orphan branches, reset+cherry-pick diverged branches, convert validated local amended commits from already-merged PRs into clean follow-up branches, move uncommitted follow-up work off a branch whose prior PR is already merged, and recover closed unmerged PR branches into replacement PRs when GitHub refuses reopen |
+| **Outcome** | Success — unified triage tree: confirm-and-discard superseded branches, extract+recreate orphan branches, reset+cherry-pick diverged branches, convert validated local amended commits from already-merged PRs into clean follow-up branches, move uncommitted follow-up work off a branch whose prior PR is already merged, recover closed unmerged PR branches into replacement PRs when GitHub refuses reopen, and avoid duplicate PRs from already-merged branches whose SHAs were rewritten by merge strategy |
 | **Verification** | verified-local |
 
 ## When to Use
 
 Use this skill whenever a branch is in an unexpected or unmergeable state. The root question
-is always: **what state is this branch in, and how do I recover it?** Six distinct states:
+is always: **what state is this branch in, and how do I recover it?** Seven distinct states:
 
 **State A — Stale / superseded by main:**
 - A branch is many commits behind main **and** its remote tracking ref is gone (`[gone]` in `git branch -vv`)
@@ -74,6 +74,14 @@ is always: **what state is this branch in, and how do I recover it?** Six distin
 - `gh pr view` / `gh pr list --head` can keep showing stale closed-PR `headRefOid` metadata, while `git ls-remote --heads origin <branch>` proves the branch ref moved.
 - The correct recovery is: create a detached `/tmp` worktree from the remote branch, rebase onto current `origin/main`, resolve conflicts semantically against current main, push `HEAD:<branch>` with `--force-with-lease`, try reopen once, then create a replacement PR from the same updated branch and link the old closed PR in the body if reopen is refused.
 
+**State G — Current branch's PR already merged; rewritten SHAs make triple-dot diff misleading:**
+- The user asks you to create a PR while you are already on a named feature/repro branch.
+- `gh pr view` for the current branch resolves to an existing PR whose `state` is `MERGED`.
+- After `git fetch origin <trunk>`, `git diff origin/<trunk>...HEAD` shows a large apparent
+  diff, but the PR was merged through a squash/rebase-style strategy that rewrote commit SHAs.
+- The branch is stale historical state. Do not create a duplicate PR from it. Advise branching
+  from fresh `origin/<trunk>` for any follow-up.
+
 ## Verified Workflow
 
 ### Quick Reference
@@ -83,6 +91,7 @@ is always: **what state is this branch in, and how do I recover it?** Six distin
 git branch -vv | grep "$(git rev-parse --abbrev-ref HEAD)"   # [gone] = remote ref deleted
 git merge-base HEAD origin/main || echo "ORPHAN: no common ancestor"  # empty = State B
 git status                                                    # "diverged" = State C
+gh pr view --json number,title,state,url,headRefName,baseRefName,statusCheckRollup
 
 # === State A: stale / superseded by main ===
 gh pr list --state open                          # check premise FIRST
@@ -191,6 +200,18 @@ gh pr create --repo OWNER/REPO --base main --head "$BRANCH" \
 git log origin/main..HEAD --format='%h %G? %GS'     # signatures
 python3 scripts/check_conventional_commit.py -
 python3 scripts/check_dco_signoff.py -
+
+# === State G: before creating a PR from the current branch, check branch/PR ownership ===
+BRANCH=$(git branch --show-current)
+TRUNK=origin/master                                  # or origin/main; use the repo's default branch
+gh pr view --json number,title,state,url,headRefName,baseRefName,statusCheckRollup
+git fetch origin master
+git diff --stat "$TRUNK"..HEAD                      # tree/content delta, not merge-base noise
+git diff --quiet "$TRUNK"..HEAD || echo "tree differs from trunk"
+git log --oneline HEAD.."$TRUNK"                    # trunk-only commits; branch is behind if non-empty
+git log --oneline "$TRUNK"..HEAD                    # branch-only commits; may be stale pre-merge SHAs
+# If gh reports MERGED and two-dot diff is empty/trivial, do not open a duplicate PR.
+# If follow-up work is needed, create a fresh branch from "$TRUNK" and carry only the new delta.
 ```
 
 ### Detailed Steps
@@ -536,6 +557,45 @@ remote branch ref as authoritative.
    Focused tests still matter, but PRs can remain red for unrelated current-main CI problems. Keep
    the verification label at `verified-local` until full CI passes for the replacement PR itself.
 
+#### State G — Already-merged current branch; avoid duplicate PR after SHA rewrite
+
+Use this before creating a PR from whatever branch happens to be checked out. The branch name may
+still point at an old PR even after that PR merged. In squash/rebase-style repos, the work can be on
+trunk under different commit SHAs, so commit-identity checks and three-dot diffs can make the branch
+look unmerged.
+
+1. **Check PR ownership before creating anything.**
+   ```bash
+   git status --short --branch
+   gh pr view --json number,title,state,url,headRefName,baseRefName,statusCheckRollup
+   ```
+   If `state` is `MERGED`, the branch already has a completed PR identity. Stop before running
+   `gh pr create`.
+2. **Refresh the actual trunk.** Use the repo's default branch, not a generic assumption:
+   ```bash
+   git fetch origin master   # or: git fetch origin main
+   TRUNK=origin/master
+   ```
+3. **Do not trust triple-dot as the duplicate-PR decision.** `git diff "$TRUNK"...HEAD` answers
+   "what changed since the merge-base." After a squash/rebase-style merge, the merge-base may be
+   old and the branch commits are not reachable from trunk, so the triple-dot diff can show a huge
+   apparent delta for work already merged under rewritten SHAs.
+4. **Use tree/current-ref comparison plus both log directions.**
+   ```bash
+   git diff --stat "$TRUNK"..HEAD
+   git diff --quiet "$TRUNK"..HEAD
+   git log --oneline HEAD.."$TRUNK"
+   git log --oneline "$TRUNK"..HEAD
+   ```
+   Interpret the results together:
+   - `gh pr view` says `MERGED` and two-dot diff is empty/trivial: no duplicate PR; branch is stale.
+   - `HEAD..TRUNK` has commits and `TRUNK..HEAD` has old branch commits: trunk advanced and commit
+     identity differs; do not assume unique work.
+   - two-dot diff shows real follow-up content: create a fresh branch from trunk and carry only that
+     delta, instead of reusing the merged branch.
+5. **Report the outcome clearly.** For a stale merged branch, say no new PR was created because the
+   branch's PR already merged; tell the user to branch from fresh trunk for follow-up work.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -563,8 +623,26 @@ remote branch ref as authoritative.
 | Carried an obsolete class from the stale branch | The stale #1432 branch added an extra `StateStore` class | Current main already had the broader `StateStoreProtocol` union, so the stale class was no longer the right abstraction | Skip obsolete commits and carry only the still-valid persistence behavior change |
 | Used `Closes #N.` with a trailing period | PR body contained a sentence-like closing line | `pr-policy` required an exact `Closes #N` line and rejected the body | Put `Closes #N` on its own line with no trailing punctuation |
 | Added unrelated CI workflow fixes to recovered feature PRs | Considered stacking the pydantic CI install fix into replacement PRs whose code was otherwise locally verified | That would mix independent concerns and make the recovered feature PRs depend on unrelated workflow churn | Keep replacement feature PRs scoped; let the dedicated CI workflow PR merge first unless the user explicitly wants stacking |
+| Created or considered creating a PR from a branch before checking its PR mapping | User asked for a PR while current branch was `codex/issue257-repro-case`; the correct first check was `gh pr view --json number,title,state,url,headRefName,baseRefName,statusCheckRollup` | GitHub already mapped the branch to PR #326 with `state: MERGED`; opening another PR from the same stale branch would duplicate completed work | Always check branch ownership and PR state before `gh pr create`; a merged branch's PR identity is spent |
+| Trusted triple-dot diff after fetching trunk | `git diff origin/master...HEAD` showed a large apparent delta after PR #326 had merged | The PR had merged with rewritten SHAs, so the old branch commits were not reachable from trunk even though their content had landed; triple-dot was merge-base noise | Use two-dot/tree comparison (`git diff --stat origin/master..HEAD`, `git diff --quiet origin/master..HEAD`) plus both log directions before deciding work remains |
 
 ## Results & Parameters
+
+### State G — Already-merged branch with rewritten SHAs; no duplicate PR
+
+| Parameter | Value |
+| --------- | ----- |
+| Branch under review | `codex/issue257-repro-case` |
+| PR ownership check | `gh pr view --json number,title,state,url,headRefName,baseRefName,statusCheckRollup` |
+| Existing PR result | PR #326 already existed and was `MERGED` |
+| Misleading command | `git diff origin/master...HEAD` after fetching trunk |
+| Why misleading | Merge strategy rewrote SHAs, so branch commits were not reachable from trunk even though content had landed |
+| Required comparison | `git diff --stat origin/master..HEAD`, `git diff --quiet origin/master..HEAD`, `git log HEAD..origin/master`, `git log origin/master..HEAD` |
+| Outcome | No new PR created; branch from fresh `origin/master` for any follow-up PR |
+| Verification level | `verified-local` via local git checks and GitHub API state |
+
+This state is about PR creation hygiene, not code validation. It prevents a noisy duplicate PR whose
+apparent diff is an artifact of stale branch identity and rewritten merge SHAs.
 
 ### State F — Closed unmerged PR branch recovery with replacement PR
 
