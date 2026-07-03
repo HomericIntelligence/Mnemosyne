@@ -39,6 +39,14 @@ def test_get_version_missing_raises(tmp_path: Path) -> None:
         build_package.get_version(pyproject)
 
 
+def test_get_version_no_project_table_raises(tmp_path: Path) -> None:
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text('[tool.other]\nversion = "9.9.9"\n')
+
+    with pytest.raises(ValueError, match=r"No \[project\] table"):
+        build_package.get_version(pyproject)
+
+
 def test_build_package_creates_versioned_tarball(tmp_path: Path) -> None:
     repo = make_fixture_repo(tmp_path / "repo")
     out = tmp_path / "out"

@@ -22,7 +22,10 @@ VERSION_RE = re.compile(r'^version\s*=\s*"([^"]+)"', re.MULTILINE)
 
 def get_version(pyproject: Path) -> str:
     """Extract the project version string from a pyproject.toml file."""
-    match = VERSION_RE.search(pyproject.read_text(encoding="utf-8"))
+    text = pyproject.read_text(encoding="utf-8")
+    if re.search(r"^\[project\]\s*$", text, re.MULTILINE) is None:
+        raise ValueError(f"No [project] table found in {pyproject}")
+    match = VERSION_RE.search(text)
     if match is None:
         raise ValueError(f"No version field found in {pyproject}")
     return match.group(1)
