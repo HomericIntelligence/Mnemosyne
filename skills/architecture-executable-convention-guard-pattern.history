@@ -1,5 +1,73 @@
 # architecture-executable-convention-guard-pattern — History
 
+## v1.8.0 (2026-07-02)
+
+**Changed by:** ProjectKeystone issue #596 / PR #600 install smoke-test check (IMPLEMENTATION learning — a NEW verified-local instance of the executable-convention-guard pattern applied to a C++ library's install/package-consumability contract, including a reviewer-demanded ALWAYS-ON self-test that exercises the guard's own failure branches on every CI run).
+**Verification:** verified-local for THIS instance (the guard ran end-to-end inside the dev container: layout verification OK on the real prefix, the self-test's failure branches confirmed firing against a mutated throwaway copy, and the throwaway `find_package` consumer configured + compiled; BOTH negative paths were exercised deliberately). CI on ProjectKeystone PR #600 was still pending at capture time, so NOT verified-ci. The frontmatter `verification` field stays `unverified` because the weakest sub-patterns (#1506/#1507/#1516 and the #1543 allowlist reverse-check) remain plan-only; the new #596 material is clearly marked `verified-local` inline.
+
+### What changed
+- Added a new sub-pattern section, "Sub-Pattern: Install Smoke-Test Guard with Always-On Self-Test (verified-local instance: ProjectKeystone #596 / PR #600)." Documents the canonical `install` CI check for a pure C++ library as three stages in one reusable `scripts/check-install.sh` (mirroring the repo's check-*.sh gate convention): (a) `cmake --install <release-tree> --prefix <clean staging dir>`; (b) layout verification — required static archives, CMake package config files, and a BIDIRECTIONAL `diff` of source `include/` vs installed `include/keystone` header sets; (c) a throwaway consumer doing `find_package(Keystone CONFIG REQUIRED)` + compiling one TU including a self-contained public header, linked as a STATIC library because the prefix ships only the project's archives (PUBLIC third-party deps are not installed, so an executable link is impossible by design).
+- Captured the central NEW lesson: an ALWAYS-ON self-test INSIDE the guard (reviewer-demanded, stronger than one-shot local mutation testing) — refactor layout checks into `verify_layout(prefix, label)`; after the real prefix passes, `cp -a` it to a throwaway dir, delete one installed header AND one archive, rerun `verify_layout` in a subshell and assert non-zero; delete the throwaway on success. Under `set -euo pipefail` with a forbid-`|| true` CI gate, capture the expected failure with `rc=0; ( verify_layout ... ) || rc=$?` — `|| rc=$?` is allowed where `|| true` is not.
+- Captured the vacuous-green guard on mirror diffs (an empty-vs-empty `diff <(find A) <(find B)` passes — explicitly fail first if the installed header dir is missing or has no headers; generalizes the prefiltered-population-fixture lesson to the mirror check ITSELF), the IMPORTED_LOCATION gap (a STATIC find_package consumer never dereferences IMPORTED_LOCATION, so add a configure-time `foreach` over imported targets asserting `EXISTS "${_loc}"`, negative-verified by deleting an archive from a copied prefix), the failure-artifact enumeration rule (upload EVERY diagnostic dir the guard can leave behind — staging prefix, self-test throwaway, consumer build dir with CMakeError.log — with `if-no-files-found: ignore`), the .gitignore-swallow hazard (a repo-wide `install/` pattern silently hid the new `tests/install/` consumer dir from `git status`; fix with a `!tests/install/` negation and CONFIRM new guard files show as untracked), and the container-path coupling (`cmake_install.cmake` embeds container-absolute `/workspace/...` paths, so `cmake --install` and the consumer configure MUST run in the same container; the staging prefix under bind-mounted `build/` stays host-visible for artifact upload).
+- Added a Failed Attempts row: local pre-commit fixers with a version-skewed clang-format reformatted UNTOUCHED files during guard verification — check the lint gate is green on main before accepting local hook verdicts on files you didn't change, and revert out-of-scope fixer churn (`git diff -- <files> | git apply -R`).
+- Added an "Install-smoke-test generalization (v1.8.0, verified-local for the #596 instance)" note to Results & Parameters and a Verified On row (ProjectKeystone issue #596 / PR #600, verified-local).
+- Extended the frontmatter description with trigger (9): adding an install/package-consumability CI gate (cmake --install layout check + find_package consumer compile) for a library, or needing a guard to exercise its own failure branches on every CI run via an always-on self-test against a mutated throwaway copy of its input.
+- Added tags `install-smoke-test`, `self-test-in-guard`, `imported-location`, `find-package` (frontmatter + footer). Bumped frontmatter version 1.7.0 → 1.8.0 (MINOR — new verified-local sub-pattern + a new Failed-Attempts row) and `date` 2026-06-30 → 2026-07-02.
+
+### Why
+ProjectKeystone issue #596 / PR #600 is the first instance of this skill's pattern applied to a C++ install/package-consumability contract ("the installed package is consumable via find_package" previously lived only in prose/CI hope), and it surfaces genuinely new durable lessons: the always-on in-guard self-test against a mutated throwaway copy (which converts one-shot mutation testing into a permanent per-run property of the guard), the `|| rc=$?` idiom compatible with forbid-`|| true` gates, the vacuous-green hazard of empty-vs-empty mirror diffs, the STATIC-consumer IMPORTED_LOCATION blind spot and its configure-time closure, exhaustive failure-artifact enumeration, the .gitignore-swallow trap for new guard files, and container-path coupling of `cmake_install.cmake`. All were EXECUTED and verified locally in the dev container with both negative paths deliberately exercised; CI on PR #600 pending at capture time, so verified-local, not verified-ci.
+
+### Previous version (v1.7.0) snapshot — changed sections
+The full v1.7.0 rendered `.md` content prior to this amendment is preserved in git history at the parent commit of this amendment. This amendment is append-only outside the frontmatter: it appends one sub-pattern section (before "## Failed Attempts"), one Failed Attempts row, one Results & Parameters note, one Verified On row, and four footer tags. The only REWRITTEN section is the frontmatter; its v1.7.0 state was:
+
+```yaml
+---
+name: architecture-executable-convention-guard-pattern
+description: "Turn an un-guarded documented invariant (a prose convention) into a tested, blocking, reusable executable check that CI or any consumer can call. Use when: (1) a contract like 'absence of artifact X means stage Y never ran' lives only in docstrings/comments and nothing asserts it, (2) you are adding an enforcement gate whose whole purpose is signal fidelity and must pick a collision-free exit code distinct from argparse's usage-error 2 and sibling CLIs, (3) a verification step must resolve its inputs strictly read-only and must NOT fabricate the very signal whose absence it checks (e.g. a resolver that mkdir()s the directory), (4) you classify a log/marker line and must anchor on the line prefix instead of a free substring scan vulnerable to user-controlled tokens, (5) you relax argparse requirements (nargs='?') for a new mode and must re-guard the original mode so it does not silently no-op, (6) the same convention is documented in two places (module docstring + sibling shell comment) and must be kept in sync when made executable, (7) you are planning a fix for any 'X mirrors Y' / parity / directory-structure invariant audit finding and must determine WHICH direction(s) the existing guard asserts — the defect is usually the un-asserted reverse direction (test_packages - src_packages), and the fix is an allowlist-with-rationale plus the reverse check, NOT deletion of flagged items, (8) you are adding an executable membership/coverage guard that ITERATES a population (all packages / dirs / files of a kind) — you MUST scope its iteration set AND its CI/pre-commit files: trigger to the issue's NAMED targets only when sibling members are partially compliant, or the guard fails its OWN acceptance test on the shipped tree."
+category: architecture
+date: 2026-06-30
+version: "1.7.0"
+user-invocable: false
+verification: unverified
+history: architecture-executable-convention-guard-pattern.history
+tags:
+  - executable-convention
+  - invariant-guard
+  - exit-code-collision
+  - fail-safe
+  - read-only-verification
+  - log-line-anchoring
+  - observability
+  - cli-verify-mode
+  - ci-gate
+  - bidirectional-invariant
+  - mirror-parity
+  - allowlist-with-rationale
+  - test-structure
+  - commit-trailer
+  - dco-signoff
+  - precommit-hook
+  - sibling-checker-mirror
+  - coverage-altitude
+  - negative-branch-test
+  - argparse-default-branch
+  - nogo-tightening
+  - inferred-data-honesty
+  - doc-table-code-parity
+  - membership-only-guard
+  - guard-scope-population
+  - partial-compliance
+  - scope-lock-test
+  - ghost-directory-guard
+  - prefiltered-population-fixture
+  - hephaestus
+---
+```
+
+The v1.7.0 file carried `verification: unverified`, the coredump `verify_crash_bundle` v1.0.0 material (verified-local), the v1.1.0 bidirectional mirror/parity sub-pattern (plan-only) with its v1.7.0 verified-local ghost-directory (#1448 / PR #1703) instance subsection, the v1.2.0 coverage-altitude step 8, the v1.3.0 commit-trailer (DCO) sub-pattern, the v1.4.0 NOGO→GO-tightening (#1506 R1) sub-pattern, the v1.5.0 doc-table↔code membership-guard (#1507) sub-pattern, and the v1.6.0 scope-a-membership-guard (#1506 R2) sub-pattern — but did NOT yet contain the install smoke-test / always-on self-test (ProjectKeystone #596 / PR #600) sub-pattern.
+
+---
+
 ## v1.7.0 (2026-06-30)
 
 **Changed by:** ProjectHephaestus issue #1448 / PR #1703 (IMPLEMENTATION learning — the FIRST end-to-end execution of the bidirectional-mirror sub-pattern, specifically its ghost-directory / name-only-mirror variant, which the skill had previously described as PLAN-ONLY).
