@@ -1,5 +1,24 @@
 # architecture-executable-convention-guard-pattern — History
 
+## v1.9.0 (2026-07-03)
+
+**Changed by:** ProjectMnemosyne issue #2912 planning session (canonical `install` CI check blocked on a missing `package` job — PLANNING learning with a verified-local packaging prototype).
+**Verification:** mixed — the flat-layout packaging prototype (pyproject `[build-system]` + `package-dir={"": "scripts"}`/`py-modules=["skill_utils"]`, `python -m build` wheel+sdist, clean-venv `pip install`, site-packages import + `parse_frontmatter` round-trip) was EXECUTED locally end-to-end (**verified-local**); the planned CI YAML (`package`/`install` jobs) is **unverified** until the implementation PR's first CI run. The frontmatter `verification` field stays `unverified` (the weakest sub-patterns remain plan-only).
+
+### What changed
+- Added a new sub-pattern section, "Sub-Pattern: Canonical Python `install` Check Blocked on a Missing `package` Job (planning instance: ProjectMnemosyne #2912)," with six lessons: (1) grep-prove the predecessor gate is absent, then bundle the minimal prerequisite in the SAME PR with an explicit re-grep + rebase-and-drop contingency for the sibling-PR race (a standalone `needs: package` job is unmergeable; a self-building install job fabricates the package→install artifact contract); (2) prototype a flat-layout `package-dir`/`py-modules` packaging config end-to-end in a throwaway dir BEFORE the plan promises it (testability-precondition rule applied to packaging configs); (3) run the install smoke with NO checkout step plus an `inspect.getsourcefile` site-packages provenance assertion; (4) a cross-repo action-pin pairing (download-artifact v6 ↔ upload-artifact v7, taken from ProjectHermes) is evidence, not verification — name it in the risk list; (5) "no local caller" for a `workflow_call` file is in-repo evidence only (externally callable) — record the mirror-gap decision explicitly; (6) a wheel-vs-bundle route choice inherits the sibling issue's intent — state the evidence, expect the objection.
+- Added three Failed Attempts rows (install-only scoping with an unsatisfiable `needs:`; nearly promising the packaging config unexecuted; presenting a sibling repo's action pin as settled).
+- Added a "Canonical-install-blocked-on-package note" to Results & Parameters (copy-paste pyproject packaging config + provenance-asserting smoke snippet) and a ProjectMnemosyne #2912 row to Verified On.
+- Extended the frontmatter description with trigger (10) and added tags `canonical-install-check`, `package-prerequisite`, `flat-layout-packaging`, `no-checkout-install-smoke`, `cross-repo-action-pin` (frontmatter + footer). Bumped version 1.8.0 → 1.9.0 (MINOR — new sub-pattern + new Failed-Attempts rows) and `date` 2026-07-02 → 2026-07-03.
+
+### Why
+The #2912 session is the first instance of planning the ecosystem's canonical `install` check when its `package` predecessor does not exist yet — the exact "blocked on package" state the CI-naming board issues describe. The durable value is the missing-predecessor protocol (prove absence, bundle the minimal prerequisite, plan the race contingency) and the honesty discipline around what was actually verified: the packaging prototype ran end-to-end locally, while the CI YAML, the cross-repo action-pin pairing, and the `_checks.yml` dead-file inference remain assumptions the reviewer must watch.
+
+### Previous version (v1.8.0) snapshot — changed sections
+The full v1.8.0 rendered `.md` content prior to this amendment is preserved in git history at the parent commit of this amendment. This amendment is append-only outside the frontmatter: it appends one sub-pattern section (before "## Failed Attempts"), three Failed Attempts rows, one Results & Parameters note, one Verified On row, and five footer tags. The only REWRITTEN section is the frontmatter (description trigger (10) appended, version/date bumped, five tags added); its v1.8.0 values were `date: 2026-07-02`, `version: "1.8.0"`, description ending at trigger (9) "...against a mutated throwaway copy of its input.", and the tag list ending at `hephaestus`.
+
+---
+
 ## v1.8.0 (2026-07-02)
 
 **Changed by:** ProjectKeystone issue #596 / PR #600 install smoke-test check (IMPLEMENTATION learning — a NEW verified-local instance of the executable-convention-guard pattern applied to a C++ library's install/package-consumability contract, including a reviewer-demanded ALWAYS-ON self-test that exercises the guard's own failure branches on every CI run).
