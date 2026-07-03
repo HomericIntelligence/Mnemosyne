@@ -1,6 +1,78 @@
 <!-- markdownlint-disable MD024 -->
 # History: planning-unmerged-parent-contract-compile-smoke-gate
 
+## v1.2.0 (2026-07-02)
+
+Amended after authoring the plan for ProjectOdyssey issue #5526 — a
+**validation-only** child issue that runs a CIFAR-10 one-epoch training
+script (produced by unmerged parent #5525), captures a log, and asserts a
+loss-decrease criterion. The plan was authored without running
+`gh issue view 5525 --comments` and without grep-verifying paths in the
+current tree; every entrypoint path, CLI flag, batch log format, smoke-test
+path, container invocation form, and wall-clock budget was inferred from
+the issue's title/body prose.
+
+The v1.1.0 skill already covered "unmerged parent + approved-plan
+contract + compile-smoke gate" for CODE-CHANGE child issues. v1.2.0
+extends the same discipline to the **validation-only** sub-case, where
+the child does not modify code but runs a script produced by the parent
+and asserts a scalar criterion. Six sub-patterns added:
+
+1. **Log-parser sanity check** — a bash wrapper that runs `mojo run
+   <script>` and pipes into a Python (or Mojo) summarizer can exit 0
+   (script succeeded) while the summarizer produces a garbage result on
+   a format mismatch. Mandate a `parsed N > 0` sanity check with `raise
+   SystemExit(1)` on failure and `PARSED n=<N> expected=<E> format=<pattern>`
+   diagnostic. Without this: false-negative NOGO (or false-positive GO
+   if `nan < nan` masks the empty-list case).
+
+2. **Smoothed-trend loss-decrease criterion** — a "mean of first 10% of
+   batches vs mean of last 10%" comparison is pathological on short/noisy
+   runs: a legitimately monotonically-decreasing epoch can still fail if
+   the last decile plateaus above the first decile due to noise. Prefer a
+   linear-fit slope `b < 0` as the primary criterion; widen the comparison
+   window (first third vs last third) as a fallback. Cite the number of
+   samples the criterion is asserted on.
+
+3. **Assumption Mapping for Mechanical Re-Plan** — for validation-only
+   child issues, include a dedicated table (`Assumption | Cited As |
+   File/line to fix once parent merges | Verify With`) so re-planning
+   after the parent PR merges is a mechanical find-and-replace, not a
+   re-read of the whole plan. Every row is either sourced from the
+   parent's approved-plan comment line-anchored, or flagged unverified.
+
+4. **Container-network preflight** — a validation script that runs inside
+   a container (`podman`, `just shell`, `docker`) inherits the container's
+   network namespace. Dataset auto-download may be blocked by the container's
+   egress policy. Either verify the network policy, pre-stage data on the
+   host and bind-mount, or add a preflight: `if [ ! -d "$DATA_DIR" ]; then
+   echo "PLAN: data not present" >&2; exit 2; fi`. Also verify the
+   `just shell -c '<cmd>'` invocation form before planning on it.
+
+5. **Gitignored-artifact attachment** — `logs/`, `runs/`, `checkpoints/` are
+   commonly gitignored. `git add logs/<file>.log` silently no-ops and the PR
+   ships without evidence. Plan artifact attachment up front: (a)
+   `git add -f logs/<specific-file>`, (b) copy to `docs/evidence/`, or (c)
+   attach via `gh pr comment --body-file`. Specify which of the three,
+   with the exact command, in the plan.
+
+6. **Wall-clock heuristic without benchmark evidence** — a "60-minute
+   wall-clock threshold, `MAX_BATCHES=200` fallback" pair is not a fact.
+   Either cite a benchmark (prior epoch on target hardware, parent PR's
+   smoke test seconds/batch) or explicitly label the numbers as
+   "heuristic, no benchmark data — reviewer should override if their
+   hardware differs." Both paths are valid; hiding the guess is not.
+
+Failed-attempts table grew from 13 rows to 21 (added attempts 14-21
+capturing the validation-only sub-case patterns as concrete plan-time
+misses on the ProjectOdyssey #5526 R0 plan).
+
+Also added: (a) an "Assumption Mapping for Mechanical Re-Plan"
+copy-paste template; (b) a Python log-parser sanity check snippet;
+(c) a smoothed-trend (linear-fit slope) loss-decrease criterion snippet;
+(d) container preflight + gitignored-artifact attachment copy-paste
+covering the three attachment options.
+
 ## v1.1.0 (2026-07-02)
 
 Amended after a NOGO→R1 revision on ProjectOdyssey #5516 revealed that

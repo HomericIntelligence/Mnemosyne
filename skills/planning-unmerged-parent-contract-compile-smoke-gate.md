@@ -1,11 +1,12 @@
 ---
 name: planning-unmerged-parent-contract-compile-smoke-gate
-description: "Plan an issue whose dependency parent issue is NOT yet merged (verified via `gh pr list --search '<N>' --state all` returning `[]`) but has an APPROVED plan on file. Consume the parent's approved-plan contract (function signatures, struct field names, return types) instead of re-implementing or hedging — but mandate a compile-smoke-test (`pixi run mojo build --Werror`) as the FIRST verification step immediately after the parent PR merges to catch contract drift. When a reviewer NOGOs the plan for unverified APIs, Read each flagged API's on-disk source line NOW and revise every assumption that was wrong — empirically 4-of-4 flagged assumptions were wrong (2 would not have compiled, 1 would silently have produced wrong loss). Assume a 100% wrong-rate on any cited-but-unread API. Grep-verify every numeric count claim (parameter counts, field counts) against the current tree AND flag same-line coordination hazards when multiple planned PRs touch identical stale comments. List every external API you cite but did NOT `Read` in a dedicated 'Unverified API Assumptions' section so reviewers can target verification. For random-init deep-network convergence thresholds, use a two-tier assertion (hard floor `loss[final] < loss[0]` + issue-prescribed `loss[final] < 0.95 * loss[0]`) — never weaken the issue's threshold; mitigate on data/hyperparams (more samples, larger bias amplitude, warm-up epoch). Grep for cross-file callers (`grep -rn 'fname(' --include='*.mojo'`) before changing a per-example function's signature. Smoke-run the example's `main()` itself, not just an importing test file. Use when: (1) planning issue B where B depends on unmerged issue A but A has an approved plan comment, (2) a reviewer NOGOed a plan for cited-but-unread APIs and you're revising, (3) about to cite an API signature (`randn`, `AnyTensor.store`, `cross_entropy`) you have not `Read`, (4) writing a numeric count into a plan that another planned PR also touches, (5) asserting a loss-decrease threshold on random-init deep networks, (6) changing a per-example function's signature and unsure whether other files call it."
+description: "Plan an issue whose dependency parent issue is NOT yet merged (verified via `gh pr list --search '<N>' --state all` returning `[]`) but has an APPROVED plan on file. Consume the parent's approved-plan contract (function signatures, struct field names, return types) instead of re-implementing or hedging — but mandate a compile-smoke-test (`pixi run mojo build --Werror`) as the FIRST verification step immediately after the parent PR merges to catch contract drift. When a reviewer NOGOs the plan for unverified APIs, Read each flagged API's on-disk source line NOW and revise every assumption that was wrong — empirically 4-of-4 flagged assumptions were wrong (2 would not have compiled, 1 would silently have produced wrong loss). Assume a 100% wrong-rate on any cited-but-unread API. Grep-verify every numeric count claim (parameter counts, field counts) against the current tree AND flag same-line coordination hazards when multiple planned PRs touch identical stale comments. List every external API you cite but did NOT `Read` in a dedicated 'Unverified API Assumptions' section so reviewers can target verification. For random-init deep-network convergence thresholds, use a two-tier assertion (hard floor `loss[final] < loss[0]` + issue-prescribed `loss[final] < 0.95 * loss[0]`) — never weaken the issue's threshold; mitigate on data/hyperparams (more samples, larger bias amplitude, warm-up epoch). Grep for cross-file callers (`grep -rn 'fname(' --include='*.mojo'`) before changing a per-example function's signature. Smoke-run the example's `main()` itself, not just an importing test file. **Validation-only sub-case (v1.2.0):** when the child issue is validation-only (run a script, capture a log, assert a criterion — no code corrections in this task), the SAME plan-authoring discipline applies to the entrypoint path, CLI flag names, batch log format, data-loader defaults, container invocation form (`just shell -c '<cmd>'`), and wall-clock budget — every one is a cited-but-unread assumption unless the parent PR has merged. For log-parsers, mandate a `parsed N > 0` sanity check so a format mismatch fails LOUDLY instead of producing a garbage summary next to an exit-0 wrapper. For loss-decrease criteria on short/noisy runs, prefer a smoothed trend (linear fit slope) over first-decile-vs-last-decile means; a monotonically-decreasing epoch can still fail a decile comparison if the last decile plateaus above the first decile due to noise. Include an 'Assumption Mapping for Mechanical Re-Plan' table (Assumption → File/line to fix once parent merges) so re-planning after dep merge is line-anchored and mechanical. Flag container-network assumptions (dataset auto-download inside the podman network namespace) and gitignored-artifact-attachment (attach via `gh pr comment --body-file` when `logs/` is gitignored). Use when: (1) planning issue B where B depends on unmerged issue A but A has an approved plan comment, (2) a reviewer NOGOed a plan for cited-but-unread APIs and you're revising, (3) about to cite an API signature (`randn`, `AnyTensor.store`, `cross_entropy`) you have not `Read`, (4) writing a numeric count into a plan that another planned PR also touches, (5) asserting a loss-decrease threshold on random-init deep networks, (6) changing a per-example function's signature and unsure whether other files call it, (7) authoring a validation-only issue that runs a script produced by an unmerged parent, (8) writing a bash wrapper + Python log-parser pair without a `parsed N > 0` sanity check, (9) picking a wall-clock budget or fallback batch count by heuristic with no benchmark data."
 category: architecture
 date: 2026-07-02
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: unverified
+history: planning-unmerged-parent-contract-compile-smoke-gate.history
 tags:
   - planning
   - nogo-revision
@@ -21,6 +22,13 @@ tags:
   - random-init-convergence-hypothesis
   - cross-file-caller-grep
   - smoke-run-example-main
+  - validation-only-task
+  - log-parser-sanity-check
+  - smoothed-trend-vs-decile-means
+  - container-network-assumption
+  - gitignored-artifact-attachment
+  - wall-clock-heuristic-without-benchmark
+  - assumption-mapping-for-mechanical-replan
 ---
 
 # Planning against an Unmerged Parent — Contract + Compile-Smoke Gate
@@ -33,7 +41,7 @@ tags:
 | **Objective** | Capture the planning meta-discipline for authoring issue B whose dependency parent issue A is NOT yet merged (`gh pr list --search "<A>" --state all` returns `[]`) but has an APPROVED plan comment on file. Consume the parent's approved-plan contract instead of re-implementing or hedging, and gate the whole downstream plan on a compile-smoke-test the moment A's PR merges. When a reviewer NOGOs the plan for unverified APIs, treat that as a 100%-wrong-rate signal on every cited-but-unread symbol: Read each flagged API's on-disk source NOW and revise every assumption. Add same-line coordination-hazard scans, an Unverified-API-Assumptions section for every cited-but-unread symbol, a two-tier loss threshold that preserves the issue-prescribed target, a cross-file-caller grep before changing a per-example function signature, and a smoke-run of the example's `main()` in addition to any test-file compile. |
 | **Outcome** | Planning artifact produced; the training epoch this plan targets has NOT been executed. Learnings are from an adversarial plan review + a NOGO'd R0 → verified R1 revision, not from a green CI run. |
 | **Verification** | unverified — planning meta-skill; the ProjectOdyssey plan itself was reviewed but the resulting training epoch has not been executed. |
-| **History** | v1.0.0 (2026-07-02): initial capture from ProjectOdyssey issue #5516 plan review (parent issue #5515 unmerged; only an approved-plan comment existed). Seven learnings distilled from six unverified-API assumptions plus a same-line-coordination hazard. v1.1.0 (2026-07-02): amended after a NOGO→R1 revision on the same #5516 plan revealed that 4-of-4 reviewer-flagged unverified APIs were WRONG (2 would not compile, 1 would silently produce wrong loss). Added the NOGO-verify-each-flagged-API-on-disk pattern as the primary revision anchor, plus four sub-patterns: hard-floor-before-percent-threshold, cross-file-caller-grep, smoke-run-example-main, and the "name-collision with overload family" trap (`.set` has 12 dtype overloads and would confuse search — `.store[dtype]` was correct but was a coin flip in R0). |
+| **History** | v1.0.0 (2026-07-02): initial capture from ProjectOdyssey issue #5516 plan review (parent issue #5515 unmerged; only an approved-plan comment existed). Seven learnings distilled from six unverified-API assumptions plus a same-line-coordination hazard. v1.1.0 (2026-07-02): amended after a NOGO→R1 revision on the same #5516 plan revealed that 4-of-4 reviewer-flagged unverified APIs were WRONG (2 would not compile, 1 would silently produce wrong loss). Added the NOGO-verify-each-flagged-API-on-disk pattern as the primary revision anchor, plus four sub-patterns: hard-floor-before-percent-threshold, cross-file-caller-grep, smoke-run-example-main, and the "name-collision with overload family" trap (`.set` has 12 dtype overloads and would confuse search — `.store[dtype]` was correct but was a coin flip in R0). v1.2.0 (2026-07-02): amended after authoring the plan for ProjectOdyssey #5526 (CIFAR-10 one-epoch loss-decrease validation, depends on unmerged #5525). Extended the meta-discipline to the **validation-only** sub-case where the child issue does not modify code but runs a script produced by the parent and asserts a criterion. Added six sub-patterns: (a) log-parser sanity check (`parsed N > 0`) so a batch-log format mismatch fails loudly instead of a wrapper-exits-0-with-garbage-summary false-negative; (b) smoothed-trend loss-decrease criterion (linear fit slope) over first-decile-vs-last-decile means for short/noisy runs; (c) an explicit "Assumption Mapping for Mechanical Re-Plan" table (Assumption → File/line to fix once parent merges); (d) container-network assumption flag (CIFAR-10 auto-download inside podman namespace may be restricted); (e) gitignored-artifact attachment via `gh pr comment --body-file` when `logs/` is `.gitignore`d and cannot be committed; (f) wall-clock budget/fallback heuristics (60-min threshold, `MAX_BATCHES=200` fallback) must either cite benchmark evidence or be flagged as heuristic-without-data. |
 
 > This skill is about the **PLAN-AUTHORING** angle when the dependency parent is still just a plan on paper.
 > For the case where the parent is ALREADY MERGED and just needs to be read from `main`, see
@@ -51,6 +59,12 @@ tags:
 - Writing a numeric count into a plan (e.g. `"total trainable parameters: 81"`, `"6 conv layers"`, `"20 BN gammas"`) that another planned PR also touches on the same line.
 - Asserting a loss-decrease threshold (e.g. `"loss drops 5% in 10 batches"`) on a random-init deep network after only a handful of batches — especially when the issue prescribes the threshold and you cannot weaken it.
 - Changing a per-example function's signature (`train_epoch`, `evaluate`, `build_batch`) and unsure whether other files call it — the search for callers must run before the plan lands.
+- **(v1.2.0)** Authoring a **validation-only** child issue whose entire job is to run a script the parent PR will produce, capture a log, and assert a criterion (loss decrease, accuracy floor, runtime under budget). Every path/flag/log-format/data-loader-default/container-invocation is a cited-but-unread assumption unless the parent has merged.
+- **(v1.2.0)** Writing a bash wrapper + Python (or Mojo) log parser pair that gates PR readiness on a scalar criterion (loss decreased, accuracy above threshold). Missing a `parsed N > 0` sanity check means a format mismatch makes the wrapper exit 0 (script ran) while the summarizer produces garbage — a false-negative NOGO or, worse, a false-positive GO.
+- **(v1.2.0)** Picking a wall-clock budget (e.g. "60 minutes"), a fallback batch count (e.g. `MAX_BATCHES=200`), or any convergence-window heuristic by intuition with no benchmark data cited.
+- **(v1.2.0)** Asserting a loss-decrease criterion on a SHORT (< 100 batch) or noisy run using first-decile-vs-last-decile means; a legitimately monotonically-decreasing run can still fail this if the last decile plateaus above the first decile due to noise on a small subset.
+- **(v1.2.0)** Planning to attach a run artifact (log, CSV, image) to a PR when the output directory (e.g. `logs/`) is gitignored — `git add` will silently fail, so the plan must either whitelist the exact file (`git add -f`) or attach via `gh pr comment --body-file` instead.
+- **(v1.2.0)** Planning any command that runs inside a container (`podman`, `docker`, `just shell -c '<cmd>'`) where dataset auto-download depends on egress out of the container's network namespace.
 
 ## Verified Workflow
 
@@ -182,6 +196,64 @@ pixi run mojo run examples/<arch>/train.mojo --epochs 1 --batch-size <small>
     file and quoted a line-anchored range. A filename in a plan without a line-anchored quote is an
     unverified claim; either read it and cite the actual pattern, or drop the reference.
 
+11. **(v1.2.0) For validation-only child issues: build an "Assumption Mapping for Mechanical Re-Plan" table.**
+    When the child issue does not modify code but runs a script produced by an unmerged parent, every
+    cited path (`examples/<arch>/train_<data>.mojo`), CLI flag (`--epochs`, `--max-batches`,
+    `--data-dir`), batch log format (`step=<i> loss=<f> lr=<f>`), data-loader default (auto-download
+    location, cache directory), container invocation form (`just shell -c '<cmd>'` vs
+    `podman exec dev bash -c '<cmd>'`), and companion path (e.g. smoke test from the parent) is
+    an assumption. List them in a dedicated table with columns:
+    `Assumption | Cited As | File/line to fix once parent merges | Verify with`.
+    This makes re-planning after the parent PR merges a **mechanical** find-and-replace instead of
+    a re-read of the whole plan. Example rows: `entrypoint path | examples/mobilenetv1/train_cifar10.mojo |
+    scripts/run_mobilenetv1_cifar10_epoch.sh L12 | grep -l 'train_cifar10' examples/`; `CLI flag names
+    | --epochs / --max-batches / --data-dir | scripts/run_*.sh L24-30 | mojo run <entrypoint> --help`.
+
+12. **(v1.2.0) Design log parsers with a `parsed N > 0` sanity check that fails LOUDLY on format mismatch.**
+    A bash wrapper that runs `mojo run <script>` and pipes into a Python summarizer can exit 0 (the
+    Mojo run succeeded) while the summarizer emits garbage (regex matched nothing). The wrapper's
+    exit code is a lie about criterion satisfaction. Mandate that the summarizer:
+    (a) `raise SystemExit(1)` if fewer than K loss values are parsed (K = 20 or 10% of expected batches,
+    whichever is smaller); (b) print `PARSED n=<N> expected=<E> format=<pattern>` on both success and
+    failure; (c) the wrapper propagates the summarizer's exit code. Without this, a batch-log format
+    change in the parent script (e.g. `loss=` becomes `train_loss=`) silently produces a false-negative
+    NOGO (or worse, a false-positive GO if the empty-list mean is masked by a default).
+
+13. **(v1.2.0) Prefer a smoothed trend (linear fit slope) over first-decile-vs-last-decile means for
+    short/noisy runs.** A "mean of first 10% of batches vs mean of last 10% of batches" comparison is
+    intuitive but pathological: a legitimately monotonically-decreasing epoch can still fail if the
+    last decile plateaus above the first decile due to noise on a small subset. For short (< 200 batch)
+    runs, fit a linear regression `loss[i] = a + b * i`, assert `b < 0` (slope negative) alongside
+    the issue-prescribed absolute-decrease criterion. Combine with the two-tier hard-floor pattern from
+    step 9. Cite the actual number of samples the criterion is asserted on so a reviewer can sanity-check
+    the statistical power.
+
+14. **(v1.2.0) Flag container-network assumptions explicitly.**
+    A validation script that runs inside a container (`just shell`, `podman exec`) inherits the
+    container's network namespace, which may block egress to arbitrary hosts (dataset mirrors,
+    package registries). If the plan assumes a first-run auto-download (CIFAR-10, EMNIST, ImageNet
+    subset), either (a) verify the container's egress policy against the mirror host, or (b) pre-stage
+    the data on the host and bind-mount it into the container. Never plan "the script will download
+    on first run" without one of those two, and add a fallback: `if [ ! -d "$DATA_DIR" ]; then echo
+    "PLAN.md L<N>: data not present and container egress unverified" >&2; exit 2; fi`.
+
+15. **(v1.2.0) Plan artifact attachment against `.gitignore` up front.**
+    If the artifact directory is gitignored (very common for `logs/`, `runs/`, `checkpoints/`),
+    `git add` silently no-ops on it and the PR ships without the evidence. Either (a) whitelist the
+    specific artifact with `git add -f logs/<specific-file>.log`, (b) copy the artifact into a
+    non-gitignored location (`docs/evidence/`) before staging, or (c) attach it via
+    `gh pr comment --body-file` after opening the PR. The plan must specify which of the three, and
+    include the exact command. A generic "attach the log to the PR" instruction leaves the implementer
+    to discover the gitignore silently.
+
+16. **(v1.2.0) Never pick a wall-clock budget or fallback batch count without benchmark evidence — or flag it.**
+    A "60-minute wall-clock threshold, fallback to `MAX_BATCHES=200`" pair is not a fact — it is a
+    guess. Either cite a benchmark (`prior epoch on <hardware> ran in X minutes for N batches`,
+    `parent PR's smoke test on same runner takes Y seconds/batch`) or explicitly label the numbers as
+    "heuristic, no benchmark data — reviewer should override if their hardware differs." The
+    heuristic path is fine when speed matters more than precision, but the label matters because a
+    reviewer cannot distinguish "cited number" from "guessed number" from the plan text.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -199,6 +271,14 @@ pixi run mojo run examples/<arch>/train.mojo --epochs 1 --batch-size <small>
 | 11 | Cited `extract_batch_pair` in the plan as returning "a batch pair" without checking the return type. | On-disk (`src/projectodyssey/data/batch_utils.mojo:76-78`) it returns `Tuple[AnyTensor, AnyTensor]`, which is compatible with the plan's tuple-unpack usage. But at plan-time this was a lucky guess — the same signature space includes `Tuple[AnyTensor, AnyTensor, Int]` or a named struct. | Return-type of every function whose result you tuple-unpack MUST be `Read`. "It returns a pair" is not a signature. `Tuple[T, U]` vs `struct BatchPair { data: T; labels: U }` unpack differently. |
 | 12 | Planned to change `train_epoch`'s signature in a per-example file without a `grep -rn 'train_epoch(' --include='*.mojo'` for cross-file callers. Assumed it was local because "every example has its own `train_epoch`". | The convention held here (every hit was inside another example's own `train_epoch` local definition), so the signature change was safe. But the plan authored the change without evidence. If a sibling example or shared helper HAD called it, the change would have broken unrelated examples silently. | Before changing a per-example function's signature, `grep -rn 'fname(' --include='*.mojo'` and inspect each hit. If every hit is inside its own example's local definition, the change is safe. If any hit crosses example boundaries, plan a coordinated multi-file edit. |
 | 13 | Ran a Mojo compile of a test file that imports `train_epoch` from the example, treated the successful compile as proof that "the example still runs." | Test-file compile only proves `train_epoch` itself compiles. It does NOT prove the example's `main()` still runs — argument parsing, dataset loading, checkpoint save-path resolution can all break independently of the function under test. | Smoke-run the example's own `main()` end-to-end: `pixi run mojo run examples/<arch>/train.mojo --epochs 1 --batch-size <small>`. This is cheap for small architectures and is the only step that catches wiring bugs at the top level (arg parser, dataset loader, checkpoint path). |
+| 14 | **(v1.2.0)** Wrote paths `examples/mobilenetv1/train_cifar10.mojo`, `examples/mobilenetv1/smoke_overfit_one_batch.mojo` into the ProjectOdyssey #5526 plan by inferring from the issue-title pattern, without `grep -r 'MobileNetV1' examples/` or a `gh issue view 5525 --comments` fetch of the parent's approved deliverables. | The parent PR #5525 has not merged, so no file exists to read. The inference from issue-title pattern is a guess — the real path could be under `src/projectodyssey/models/mobilenetv1/`, or be a `pixi run train` recipe, or use `train_cifar.mojo` (no `10`). Reviewer must flag every path in the plan as unverified. | For validation-only issues whose parent is unmerged, every path/flag/entrypoint MUST be either (a) sourced from the parent's approved-plan comment quoted line-anchored, or (b) placed in an "Assumption Mapping for Mechanical Re-Plan" table so the implementer knows exactly what to sweep after the parent PR merges. Inference from title patterns is NOT evidence. |
+| 15 | **(v1.2.0)** Designed a bash wrapper (`scripts/run_mobilenetv1_cifar10_epoch.sh`) + Python parser (`scripts/summarize_epoch_log.py`) pair without a `parsed N > 0` sanity check in the Python side. The wrapper propagates `mojo run`'s exit code and pipes into the summarizer for the loss-decrease criterion. | If the parent's actual batch log format is `train_loss=<f>` instead of `loss=<f>`, the regex `loss=([\d.]+)` matches zero lines. The Python parser's `mean(first_10pct) < mean(last_10pct)` comparison on two empty lists produces `nan < nan == False` (or a ZeroDivisionError silently caught elsewhere), so the wrapper exits 0 (Mojo run succeeded) with a garbage summary. A reviewer looking at the log artifact would see a decreasing loss trend and the criterion NOGO'd — false-negative NOGO. Or worse, a default `float('inf')` fallback makes `inf < inf` false but exits 0 masked — false-positive GO. | Every log parser MUST emit `PARSED n=<N> expected=<E> format=<pattern>` and `raise SystemExit(1)` if `N < K` where K is a sanity floor (e.g. 20 loss values or 10% of expected). The wrapper must propagate the summarizer's exit code, not just the Mojo run's. |
+| 16 | **(v1.2.0)** Chose "mean of first 10% of batches vs mean of last 10% of batches" as the loss-decrease criterion for a one-epoch CIFAR-10 run with `MAX_BATCHES=200` fallback. | On 200 batches, the first decile is 20 samples and the last decile is 20 samples. A legitimately monotonically-decreasing loss trace can still fail this criterion if the last decile plateaus above the first decile due to noise on the tail (learning rate not yet decayed, batch-norm still adjusting). A reviewer would see a clearly-decreasing loss and the criterion NOGO'd. | For short/noisy runs, use a smoothed trend (linear fit slope `b < 0`) as the primary criterion, or widen the comparison window (first third vs last third; or first quintile vs last quintile). Cite the sample count the criterion is asserted on so a reviewer can sanity-check the statistical power. Combine with the two-tier hard-floor pattern from Attempt 5's lesson. |
+| 17 | **(v1.2.0)** Planned to `git add logs/mobilenetv1-cifar10-epoch-<date>.log` and commit the artifact to the PR without checking whether `logs/` is in `.gitignore`. | The ProjectOdyssey repo has `logs/` gitignored (matches the `Logs` note in CLAUDE.md). `git add logs/<file>.log` silently no-ops (or requires `-f`), and the PR ships without the evidence artifact. The reviewer cannot verify the criterion. | Plan artifact attachment against `.gitignore` up front: either (a) `git add -f logs/<specific-file>.log` with a note in the plan, (b) copy the artifact to a non-gitignored location (`docs/evidence/`) before staging, or (c) attach via `gh pr comment --body-file logs/<file>.log` after opening the PR. Specify which of the three, with the exact command, in the plan. |
+| 18 | **(v1.2.0)** Planned to run `pixi run mojo run examples/mobilenetv1/train_cifar10.mojo --data-dir /tmp/cifar10` inside `just shell -c '<cmd>'` and rely on the trainer's first-run auto-download of CIFAR-10. | The container's network namespace may block egress to arbitrary mirror hosts. Also, `just shell -c '<cmd>'` is itself an unverified invocation form — the justfile recipe may not accept `-c` and instead requires an interactive shell followed by a manual command. Both assumptions could break the plan on first execution. | For container-run steps: verify the justfile recipe's invocation form (`grep -A5 '^shell:' justfile`) and verify container egress to the dataset mirror, OR pre-stage data on the host and bind-mount it in. Add a fallback preflight: `if [ ! -d "$DATA_DIR" ]; then echo "PLAN: data not present and container egress unverified" >&2; exit 2; fi`. Never plan "the script will download on first run" without confirming the network policy. |
+| 19 | **(v1.2.0)** Picked "60-minute wall-clock threshold" and "`MAX_BATCHES=200` fallback if projected epoch > 60 min" by intuition, with no benchmark citation for MobileNetV1-on-CIFAR-10 throughput on the target hardware. | The threshold is neither too aggressive nor too lax by any measured standard — it's a guess. A slower runner blows the budget and the plan looks broken; a faster runner completes so fast the fallback never triggers and the threshold is inert. Reviewer cannot tell "guessed" from "cited" from the plan text. | Either cite a benchmark (`prior epoch on <hardware> ran in X minutes for N batches`, `parent PR's smoke test on same runner takes Y seconds/batch`) or explicitly label the numbers as "heuristic, no benchmark data — reviewer should override if their hardware differs." Both paths are valid; hiding the guess is not. |
+| 20 | **(v1.2.0)** Referenced CLAUDE.md sections ("Troubleshooting: Mojo Test Execution and GLIBC Compatibility", "Common Commands", "Language Preference") from the in-context project instructions without re-reading CLAUDE.md from disk in the current turn to confirm the section headings and content still match. | CLAUDE.md may have changed since it was loaded into context (another agent's commit, a PR merged mid-session). The in-context copy is a snapshot, not the current file. Citing a section by name from the snapshot can be stale by seconds. | For plan text that cites configuration/documentation sections, either re-`Read` the file in the current turn or explicitly flag the citation as "from in-context copy, current file may differ." The distinction matters when the plan is reviewed hours later against `main`. |
+| 21 | **(v1.2.0)** Wrote the ProjectOdyssey #5526 plan without running `gh issue view 5525 --comments` first, then transcribed inferred deliverables of #5525 (the entrypoint script + smoke test) into the plan as if they were known contract elements. | The dependent-issue premise ("run the script #5525 produces") is the whole plan. If #5525's approved plan (or the merged code, if any) uses different filenames, flags, or a different smoke-test path, every command in the #5526 plan needs revision. Not fetching #5525's plan comment is the exact trap `planning-dependent-issue-unverified-upstream` warns against — but for the plan-only, parent-still-unmerged case. | Before authoring ANY validation-only plan against an unmerged parent, run `gh issue view <parent#> --comments` and `gh pr list --search "<parent#>" --state all --json number,state,headRefName`. If the parent has a merged PR, read the merged tree (see companion skill). If not, quote the approved-plan comment verbatim and mark every transcribed element as "parent-plan contract, verify via compile-smoke-test post-merge." |
 
 ## Results & Parameters
 
@@ -207,6 +287,7 @@ pixi run mojo run examples/<arch>/train.mojo --epochs 1 --batch-size <small>
 | Repository | Session | Notes |
 |------------|---------|-------|
 | ProjectOdyssey | GitHub issue #5516 plan (dependency #5515 unmerged) | Session 2026-07-02 — R0 plan reviewed adversarially and NOGO'd (Grade C) for 4 unverified APIs; R1 revision verified each flagged API on disk and found 4-of-4 R0 assumptions wrong. Neither R0 nor R1 has been executed. |
+| ProjectOdyssey | GitHub issue #5526 plan (dependency #5525 unmerged) | Session 2026-07-02 — validation-only child issue (run one CIFAR-10 epoch, assert loss decreases). Plan authored without `gh issue view 5525 --comments` and without grep-verifying paths in the current tree, then flagged as v1.2.0 evidence for the validation-only-child-issue sub-case. Plan never executed. |
 
 ### Copy-Paste: NOGO revision loop — Read each flagged API on disk
 
@@ -322,4 +403,116 @@ step. Empirical rate: 4-of-4 flagged rows on ProjectOdyssey #5516 R0 were wrong.
 # trigger to consume the parent's plan as a CONTRACT and gate downstream work
 # on a compile-smoke-test after the parent PR merges.
 gh pr list --repo <org>/<repo> --search "<PARENT_ISSUE_N>" --state all --json number,state
+```
+
+### Copy-Paste (v1.2.0): Assumption Mapping for Mechanical Re-Plan
+
+For **validation-only** child issues whose parent is unmerged, include this table in the plan so
+re-planning after the parent PR merges is a mechanical find-and-replace, not a re-read of the
+whole plan. Every row is either sourced from the parent's approved-plan comment (quote it
+line-anchored) OR flagged as unverified.
+
+```markdown
+## Assumption Mapping for Mechanical Re-Plan
+
+Once the parent PR merges, sweep every row: `Read` the merged file, confirm or correct the
+assumption, and update the "File/line to fix" cell's target line.
+
+| Assumption | Cited As (in this plan) | File/line to fix once parent merges | Verify With |
+|------------|-------------------------|-------------------------------------|-------------|
+| Entrypoint path | `examples/mobilenetv1/train_cifar10.mojo` | `scripts/run_mobilenetv1_cifar10_epoch.sh` L12 | `grep -l 'MobileNetV1' examples/` after parent merges |
+| CLI flag names | `--epochs`, `--max-batches`, `--data-dir` | `scripts/run_*.sh` L24-30 | `pixi run mojo run <entrypoint> --help` |
+| Batch log format | `step=<i> loss=<f> lr=<f>` | `scripts/summarize_epoch_log.py` regex L18 | run entrypoint once, `head -50 logs/<file>.log` |
+| Smoke test path | `examples/mobilenetv1/smoke_overfit_one_batch.mojo` | plan step "on failure" section | `ls examples/mobilenetv1/*smoke*.mojo` |
+| Data loader default | CIFAR-10 auto-download to `~/.cache/cifar10/` | bash wrapper `DATA_DIR` default | Read the loader source for cache-dir literal |
+| Container invocation | `just shell -c '<cmd>'` | bash wrapper invocation form | `grep -A5 '^shell:' justfile` |
+| Wall-clock budget | 60 min threshold, `MAX_BATCHES=200` fallback | bash wrapper env-var defaults | benchmark actual epoch on target hardware |
+```
+
+### Copy-Paste (v1.2.0): Log parser sanity check (Python)
+
+```python
+# Every log parser MUST refuse to summarize on a format mismatch. A wrapper that
+# propagates `mojo run`'s exit code but pipes into a summarizer that silently
+# produces a garbage result is a false-negative NOGO waiting to happen.
+import re
+import sys
+
+PATTERN = re.compile(r"step=(\d+) loss=([\d.eE+-]+) lr=([\d.eE+-]+)")
+SANITY_MIN = 20  # or 10% of expected batches, whichever is smaller
+
+losses = []
+with open(sys.argv[1]) as f:
+    for line in f:
+        m = PATTERN.search(line)
+        if m:
+            losses.append(float(m.group(2)))
+
+# LOUD failure on format mismatch. Emit N even on success so the reviewer can
+# see how many samples the criterion is asserted on.
+expected = int(sys.argv[2]) if len(sys.argv) > 2 else -1
+print(f"PARSED n={len(losses)} expected={expected} pattern={PATTERN.pattern!r}", file=sys.stderr)
+if len(losses) < SANITY_MIN:
+    print(f"ERROR: parser matched {len(losses)} < {SANITY_MIN} loss values — "
+          f"log format may have changed. Refusing to summarize.", file=sys.stderr)
+    sys.exit(1)
+```
+
+### Copy-Paste (v1.2.0): Smoothed-trend loss-decrease criterion (Python)
+
+Prefer this over "mean of first 10% vs mean of last 10%" for short/noisy runs.
+
+```python
+# Linear fit slope as the primary decrease criterion. A monotonically-decreasing
+# loss with a noisy tail passes this even when first-decile vs last-decile fails.
+import numpy as np
+
+def loss_decreasing(losses: list[float], min_slope_magnitude: float = 1e-4) -> tuple[bool, float]:
+    """Return (decreased, slope). Slope < -min_slope_magnitude passes."""
+    if len(losses) < 20:
+        raise ValueError(f"need >= 20 samples for slope fit, got {len(losses)}")
+    xs = np.arange(len(losses))
+    ys = np.asarray(losses)
+    # Guard against NaN/inf that would corrupt the fit
+    if not np.isfinite(ys).all():
+        return (False, float("nan"))
+    slope, _intercept = np.polyfit(xs, ys, 1)
+    return (bool(slope < -min_slope_magnitude), float(slope))
+
+# Combine with the two-tier hard-floor pattern (Attempt 5's lesson):
+# hard floor: losses[-1] < losses[0]   (must hold, else training regressed)
+# issue DoD:  losses[-1] < 0.95 * losses[0]   (issue-prescribed target)
+# trend:      slope < 0                (robust to tail noise on short runs)
+```
+
+### Copy-Paste (v1.2.0): Container preflight and gitignored-artifact attachment
+
+```bash
+# 1. Verify the `just shell -c` invocation form actually works before planning
+#    on it. Some justfile shell recipes require an interactive shell.
+grep -A5 '^shell:' justfile
+just shell -c 'echo ok'   # if this errors, use `podman exec dev bash -c` instead
+
+# 2. Container-network preflight for dataset auto-download. If the container's
+#    network namespace blocks egress, the trainer's "auto-download on first run"
+#    fails deep inside the loader with a stack trace, wasting a full launch.
+if [ ! -d "$DATA_DIR" ]; then
+  echo "PLAN.md L<N>: data not present and container egress unverified" >&2
+  echo "Either bind-mount host-side data or verify egress to the mirror host" >&2
+  exit 2
+fi
+
+# 3. Attach an artifact whose directory is gitignored. `git add` silently
+#    no-ops on gitignored paths. Pick ONE of the three options and document it.
+
+# Option (a): force-add the specific artifact
+git add -f logs/mobilenetv1-cifar10-epoch-2026-07-02.log
+
+# Option (b): copy to a non-gitignored evidence directory
+mkdir -p docs/evidence
+cp logs/mobilenetv1-cifar10-epoch-2026-07-02.log docs/evidence/
+git add docs/evidence/mobilenetv1-cifar10-epoch-2026-07-02.log
+
+# Option (c): attach via PR comment after opening
+gh pr comment <PR_NUM> --body-file logs/mobilenetv1-cifar10-epoch-2026-07-02.log
 ```
