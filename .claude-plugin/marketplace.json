@@ -6,9 +6,9 @@
   },
   "description": "Skills marketplace for the HomericIntelligence agentic ecosystem",
   "version": "2.1.0",
-  "total_plugins": 602,
+  "total_plugins": 603,
   "categories": {
-    "architecture": 115,
+    "architecture": 116,
     "ci-cd": 120,
     "debugging": 54,
     "documentation": 42,
@@ -18,7 +18,7 @@
     "tooling": 167,
     "training": 7
   },
-  "last_updated": "2026-07-04T08:15:20Z",
+  "last_updated": "2026-07-04T08:19:01Z",
   "plugins": [
     {
       "name": "agent-config-validation-and-integrity",
@@ -1571,6 +1571,33 @@
         "github-issues",
         "design-docs",
         "rubric"
+      ]
+    },
+    {
+      "name": "planning-against-unmerged-dependency-chain",
+      "description": "Write a correct, reviewable implementation plan for an issue whose ENTIRE dependency chain is still OPEN \u2014 you are planning against a code surface that does not exist yet because it will be created by unmerged predecessor issues, so you CANNOT read the real code (contrast planning-dependent-issue-unverified-upstream, where the dependency is almost always already merged and readable). Verify the dependency state first (`gh issue view` each predecessor is OPEN; `ls <package-dir>` exits non-zero \u2014 the surface is absent), then anchor every claim about the not-yet-written surface on an EXISTING sibling convention in-tree (the module's real env-bool idiom, its CLI-over-env precedence pattern), never a guess. Separate the tiny CODE deliverable (default-flag flip + a re-guard escape-hatch flag + docs) from the MERGE-GATE EVIDENCE (operator/CI runs attached as issue comments), and make a default-flip ADD a re-guard (`--legacy-*` store_false sharing dest + mirrored env var) rather than silently no-op the old mode. Use when: (1) planning an issue whose `Depends on #N` predecessor is still OPEN and its package/module is absent from the tree, (2) writing a feature-flag default-flip / cutover / flag-flip plan, (3) anchoring assumptions about not-yet-written code on an existing sibling convention instead of inventing signatures, (4) separating a code deliverable from merge-gate evidence (dry-run, shadow-diff, scoped live drive, interrupt drill) for a cutover issue, (5) about to cite a predecessor's attribute name / dispatch shape / log-marker string / doc banner wording that you have not read from merged code.",
+      "version": "1.0.0",
+      "source": "./skills/planning-against-unmerged-dependency-chain.md",
+      "category": "architecture",
+      "tags": [
+        "planning",
+        "unmerged-dependency-chain",
+        "open-predecessor",
+        "surface-does-not-exist-yet",
+        "conditional-plan",
+        "feature-flag-default-flip",
+        "cutover",
+        "flag-flip",
+        "anchor-on-sibling-convention",
+        "verified-in-tree-anchors",
+        "assumed-from-predecessor-surface",
+        "code-deliverable-vs-merge-gate-evidence",
+        "re-guard-relaxed-argparse-path",
+        "unverified-api-assumptions",
+        "verify-before-planning",
+        "hephaestus",
+        "loop-runner",
+        "pipeline-epic-1809"
       ]
     },
     {
