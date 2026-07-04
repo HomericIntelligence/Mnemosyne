@@ -1,14 +1,70 @@
----
+<!-- markdownlint-disable MD024 -->
+# History: refactor-extraction-plan-unverified-assumptions
+
+This file preserves the version history and prior-version snapshots of the
+`refactor-extraction-plan-unverified-assumptions` skill.
+
+## v1.1.0 (2026-07-04)
+
+**Changed by**: issue #1814 planning session (pipeline planning/plan-review stage extraction), ProjectHephaestus.
+
+**Verification**: unverified — this session was ALSO a planning artifact; no code was written or run for issue #1814.
+
+**What changed and why**: Extended the skill to a NEW assumption class it did not previously cover —
+**planning an extraction/refactor against DEPENDENCY-ISSUE APIs that have not landed yet**. The #1814
+plan re-houses control flow out of legacy orchestrators (`planner.py::Planner._plan_issue`,
+`planner_review_loop.py::PlanReviewLoop.run`) into a new queue-based pipeline
+(`pipeline/stages/planning.py`, `plan_review.py`), promotes `_apply_state_label`
+(`planner_review_loop.py:441`) into a shared `state_labels.apply_plan_verdict` with a shim-first
+re-import, and writes table-driven stage tests. Because #1814 `Depends on #1813 → #1812 → #1811` (a
+strictly-serialized epic chain, none merged at plan time), every base type the plan builds on
+(`WorkItem`, `StageOutcome`, `Disposition`, `StageName`, the `ROUTES` table + budgets, the `AgentJob`
+shape, the `Stage` protocol, `JobResult`, plus `FakeGitHub`/`FakeWorkerPool` test fakes) is an
+ASSUMPTION read from the epic #1809 body's prose, not a fact grepped from landed source. The plan even
+hedges ("authors `stages/base.py` … if #1813 has not"), an admission it cannot know the state of its
+own foundation.
+
+Concrete edits (minor bump — adds a new assumption class + failed-attempt rows + a new "When to Use"
+trigger; does NOT rewrite the core workflow):
+
+- Frontmatter: `version` 1.0.0 → 1.1.0, `date` → 2026-07-04, added `history:` pointer, added a 6th
+  `Use when` clause, added tags `dependency-chain`, `unmerged-dependency`, `epic-prose-api`,
+  `assumed-not-grepped`, `stage-extraction`, `test-fake-assumption`, `pipeline`.
+- Overview: History row now notes the v1.1.0 extension to the unmerged-dependency assumption class.
+- When to Use: added a bullet for planning against unmerged `Depends on` dependencies / epic-prose APIs.
+- Detailed Steps: added steps 6–9 (label borrowed symbols assumed-until-merged; re-verify against the
+  merged dep at implement time; treat sibling test fakes as a double assumption; recognize a
+  `Depends on` chain as a hypothesis layered on hypotheses).
+- Failed Attempts: added 3 rows (presenting epic-prose API shapes as if grepped; assuming sibling test
+  fakes exist; building imports on an unmerged `AgentJob`/`Stage`/`ROUTES` shape).
+- Results & Parameters: added an "Issue #1814 specific findings" table (per-symbol
+  VERIFIED-against-main vs ASSUMED-from-#NNNN status + reviewer action), a reviewer-checklist row, and
+  a "got RIGHT too" subsection (prompt-builder reuse + `_apply_state_label` source were verified).
+- Verified On: added a ProjectHephaestus / issue #1814 row.
+
+## v1.0.0 (2026-06-15)
+
+**Changed by**: issue #1360 planning session (extract 12-function repo-management cluster from
+`hephaestus/automation/loop_runner.py` into `loop_repo_manager.py` with backward-compat re-exports),
+ProjectHephaestus.
+
+**Verification**: unverified — planning artifact only; no code was written or run.
+
+Initial capture of 5 uncertain assumptions + a reviewer-focus checklist for a verbatim-move
+cluster-extraction-with-re-export plan.
+
+### v1.0.0 snapshot (full previous body)
+
+```yaml
 name: refactor-extraction-plan-unverified-assumptions
-description: "The uncertain assumptions and reviewer risks baked into a verbatim-move cluster-extraction PLAN that extracts a group of functions from a large module into a new sibling module with backward-compat `import X as X` re-exports in the parent. Use when: (1) reviewing or authoring a plan that moves a function cluster out of a god-module and re-exports the moved names from the original module to preserve mock patch paths, (2) the plan claims `patch(\"...old_module._fn\")` keeps working after the move, (3) the plan cites exact line numbers for a multi-step sequential edit, (4) the plan depends on a 'frozen' allowlist/magic-number invariant, (5) the plan asserts 'no circular import' or 'unused import removable' by static reasoning rather than execution, (6) the plan borrows type/function/field names from an UNMERGED dependency issue or an epic body's prose design (not from landed source) — every such symbol is an assumption until the dependency merges."
+description: "The uncertain assumptions and reviewer risks baked into a verbatim-move cluster-extraction PLAN that extracts a group of functions from a large module into a new sibling module with backward-compat `import X as X` re-exports in the parent. Use when: (1) reviewing or authoring a plan that moves a function cluster out of a god-module and re-exports the moved names from the original module to preserve mock patch paths, (2) the plan claims `patch(\"...old_module._fn\")` keeps working after the move, (3) the plan cites exact line numbers for a multi-step sequential edit, (4) the plan depends on a 'frozen' allowlist/magic-number invariant, (5) the plan asserts 'no circular import' or 'unused import removable' by static reasoning rather than execution."
 category: architecture
-date: 2026-07-04
-version: "1.1.0"
+date: 2026-06-15
+version: "1.0.0"
 user-invocable: false
 verification: unverified
-history: refactor-extraction-plan-unverified-assumptions.history
-tags: [refactoring, extraction, cluster-extraction, backward-compat, re-export, mock-patch-path, planning, reviewer-risks, line-number-drift, circular-import, assumptions, dependency-chain, unmerged-dependency, epic-prose-api, assumed-not-grepped, stage-extraction, test-fake-assumption, pipeline]
----
+tags: [refactoring, extraction, cluster-extraction, backward-compat, re-export, mock-patch-path, planning, reviewer-risks, line-number-drift, circular-import, assumptions]
+```
 
 # Refactor Extraction Plan — Unverified Assumptions & Reviewer Risks
 
@@ -20,7 +76,7 @@ tags: [refactoring, extraction, cluster-extraction, backward-compat, re-export, 
 | **Objective** | Capture the uncertain assumptions a verbatim-move cluster-extraction PLAN makes — extracting a 12-function repo-management cluster from `hephaestus/automation/loop_runner.py` into a new `loop_repo_manager.py` with backward-compat `import X as X` re-exports (issue #1360) — so a reviewer knows exactly what to check before approving. |
 | **Outcome** | Plan produced; NOT executed. These are the assumptions a reviewer must verify and an implementer must not take on faith. |
 | **Verification** | unverified — planning artifact only; no code was written or run |
-| **History** | v1.1.0 (2026-07-04): extends the skill to the **unmerged-dependency assumption class** from issue #1814 (planning a stage extraction whose base types come from an unmerged `Depends on` chain / epic-body prose, not landed source). v1.0.0: initial capture of 5 uncertain assumptions + reviewer focus checklist from issue #1360 extraction plan. See `refactor-extraction-plan-unverified-assumptions.history`. |
+| **History** | v1.0.0: initial capture of 5 uncertain assumptions + reviewer focus checklist from issue #1360 extraction plan. |
 
 > This skill is about the **PLANNING-RISK** angle, not the mechanics of *how* to extract a cluster.
 > For the how-to mechanics see `python-module-decomposition-and-refactor-patterns` and
@@ -35,7 +91,6 @@ tags: [refactoring, extraction, cluster-extraction, backward-compat, re-export, 
 - The plan cites exact line numbers (`module.py:566-942`, `pyproject.toml:263`) for a sequence of edits that delete/insert large blocks.
 - The plan depends on a "frozen" list or magic number (e.g. an omit/coverage allowlist "frozen at N modules") that must be bumped in multiple places.
 - The plan asserts "introduces no circular import" or "this import is now unused and can be removed" by static reasoning rather than by actually importing/linting.
-- The plan re-houses control flow into a new module whose base types/functions/constants come from an **unmerged `Depends on #NNNN` dependency** (a strictly-serialized epic chain) or from an **epic body's prose API design** — the imports, constructor shapes, routing tables, and test fakes it builds on cannot be grepped from landed source because that source does not exist yet.
 
 ## Verified Workflow
 
@@ -123,47 +178,6 @@ grep -n "# Repo discovery\|^def _gh_list_repos\|^def _gh_" ${OLD_PATH}
    deletion, grep each symbol in the file and let `ruff check --select F401` (then `--fix`) be the source
    of truth instead of eyeballing it.
 
-### Extra steps for planning against UNMERGED dependencies (issue #1814 assumption class)
-
-When the extraction target is a new module whose foundation lives in an unmerged `Depends on #NNNN`
-chain, or in an epic body's prose "core types" section, add these steps on top of 1–5.
-
-6. **Label every symbol borrowed from an unmerged dependency as "assumed from #NNNN, unverified until merged."**
-   If the plan cites a type/function/field/constant that comes from an UNMERGED dependency issue or an
-   epic body's prose design (e.g. `WorkItem`, `StageOutcome`, `Disposition`, `StageName`, the `ROUTES`
-   table + its budget values like `plan_review_iter 3` / `plan_cycles 2`, the `AgentJob` shape, the
-   `Stage` protocol signature in `pipeline/stages/base.py`, `JobResult`), mark it EXPLICITLY as
-   assumed-until-merged. Never present epic-prose API shapes as if they were grepped from source — the
-   epic body describes intended contracts, not landed code. The plan may even have to hedge ("authors
-   `stages/base.py` … if #1813 has not"), which is an admission it cannot know the state of its own
-   foundation; keep those hedges visible instead of smoothing them over.
-
-7. **At implement time, re-verify every borrowed symbol against the ACTUAL merged dependency.**
-   The dependency author may rename or reshape symbols during their own review cycle, so a symbol that
-   matched the epic prose at plan time can be wrong by merge time. Before writing the extraction, grep
-   the real merged code:
-
-   ```bash
-   grep -rn "class AgentJob\|def parse\|ROUTES\|class StageOutcome\|class WorkItem\|class Stage" \
-     hephaestus/automation/pipeline/
-   ```
-
-   Confirm names, signatures, field names, and where constants actually live (e.g. is the budget in
-   `routing.py` or somewhere else?) before importing them.
-
-8. **Treat "test fakes that don't exist yet" as a DOUBLE assumption — interface AND existence.**
-   `FakeGitHub` / `FakeWorkerPool` assumed to arrive from a sibling issue are two bets at once: that the
-   fake exists, and that its interface matches. `grep -rn "class FakeGitHub\|class FakeWorkerPool"` may
-   return ZERO matches at plan time. Confirm with grep at implement time; be ready to author the fakes
-   locally if the sibling issue did not ship them.
-
-9. **Recognize a `Depends on #NNNN` chain as a hypothesis layered on hypotheses, and split verified from assumed.**
-   In a strictly-serialized chain (#1814 depends on #1813 → #1812 → #1811, none merged at plan time),
-   every base type is an assumption, not a fact. The reviewer's job is to separate what was verified
-   against CURRENT main (e.g. `prompts/planning.py:223 get_plan_prompt` — real and grep-confirmed) from
-   what was assumed against FUTURE code (the `pipeline/` types from the unmerged chain). A plan that
-   blurs the two is unreviewable; a plan that labels each symbol's provenance is checkable.
-
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -173,9 +187,6 @@ chain, or in an epic body's prose "core types" section, add these steps on top o
 | Trust the "frozen at 16 modules" comment | Plan asserted the omit allowlist is frozen at 16 and only the comment + one test need bumping to 17, without running the test or reading its assertion body | The "16" figure and the assertion mechanism (count literal vs set membership) were read, not verified; a hardcoded `len(...) == 16` elsewhere, or a third copy of the count, would be missed and fail CI | When a plan depends on a frozen-list/magic-number invariant, READ the actual assertion body (don't trust the comment) and grep the literal to enumerate EVERY place it appears |
 | Reason about circular imports statically | Plan claimed `loop_repo_manager → ci_driver` adds no cycle because ci_driver references loop_runner only in comments | Static reasoning; ci_driver could import another automation module that transitively imports loop_runner at module load, creating a cycle the comment-scan never sees | The import-graph claim is only proven by the smoke-test step actually executing — label it "verify by execution," not "verified by reading" |
 | Hand-judge conditional unused-import removal | Plan said to drop `urlparse` and `gh_cli_timeout` from loop_runner "only if no other references remain," left to manual judgement | Removing a still-used import breaks the module; leaving a genuinely-unused one fails ruff F401 — both directions of hand-judgement are wrong | Gate each import removal on a per-symbol grep AFTER the deletion and make `ruff check --select F401` / `--fix` the source of truth, not eyeballing |
-| Present epic-prose API shapes as if grepped from source (issue #1814) | Plan read `WorkItem`, `StageOutcome`, `Disposition`, `StageName`, `ROUTES` + budgets (`plan_review_iter 3`, `plan_cycles 2`), the `AgentJob`/`Stage`/`JobResult` shapes from the epic #1809 body's "Core types" prose and wrote imports + `JobRequest`/`Continue` usage as if those were landed facts | Those types come from unmerged deps (#1811–#1813); the epic body describes intended contracts, not code. If a dep lands with a different name/signature/field, every import and test fake is wrong — and nothing can be verified until the deps merge | Label every symbol borrowed from an unmerged dependency or epic prose as "assumed from #NNNN, unverified until merged"; re-grep the actual merged dep (`grep -rn "class AgentJob\|def parse\|ROUTES\|class StageOutcome" hephaestus/automation/pipeline/`) at implement time |
-| Assume sibling-issue test fakes already exist (issue #1814) | Plan wrote table-driven stage tests against `FakeGitHub` / `FakeWorkerPool` assumed to arrive from a sibling issue | `grep -rn "class FakeGitHub\|class FakeWorkerPool"` returned ZERO matches — the fakes don't exist yet; this is a double assumption (interface AND existence) | Confirm fake existence + interface with grep at implement time; be ready to author the fakes locally if the sibling issue did not ship them |
-| Build imports on an unmerged `AgentJob`/`Stage`/`ROUTES` shape (issue #1814) | Plan hedged "authors `stages/base.py` … if #1813 has not" yet still committed to the `Stage` protocol signature, the `AgentJob(prompt_builder=…, parse=…)` constructor, and `ROUTES` budget values from the epic prose | The hedge itself admits the plan cannot know the state of its own foundation; a strictly-serialized `Depends on` chain (#1814 → #1813 → #1812 → #1811, none merged) is a hypothesis layered on hypotheses | Treat a `Depends on #NNNN` chain as unverified until each dep merges; separate what was grep-confirmed against CURRENT main from what was assumed against FUTURE code, and re-verify signatures after the deps land |
 
 ## Results & Parameters
 
@@ -185,12 +196,6 @@ chain, or in an epic body's prose "core types" section, add these steps on top o
 - **Enumerated call sites and patch sites with grep before asserting re-exports are safe** — correct instinct; the only defect was incomplete scope (see assumption #1).
 - **Added an identity smoke test** (`assert loop_runner.X is loop_repo_manager.X`) to prove the re-export wiring binds the same object.
 - **Mapped a per-criterion verification command to each acceptance criterion** so the plan is checkable rather than narrative.
-
-**Issue #1814 (pipeline planning/plan-review stage extraction) got these RIGHT too:**
-
-- **The prompt-builder reuse claims WERE verified against current main** — `get_plan_prompt`, `get_plan_loop_review_prompt`, `get_advise_prompt_builder`, and `build_learn_prompt` were all grep-confirmed to exist with the cited signatures, not merely asserted from prose.
-- **The `_apply_state_label` promotion source was read directly** (`planner_review_loop.py:441-483`), along with the state-label constants (`state_labels.py:39-41`), rather than assumed.
-- **A per-acceptance-criterion verification command was provided**, keeping the plan checkable — the same strength as the #1360 plan, and the discipline that lets a reviewer separate verified from assumed symbols.
 
 ### Reviewer focus (the 5 things to check hardest in such a plan)
 
@@ -206,8 +211,6 @@ chain, or in an epic body's prose "core types" section, add these steps on top o
 - [ ] Is the "no circular import" claim validated by an EXECUTED import smoke test,
       not just a comment scan / static reasoning?
 - [ ] Are conditional import removals deferred to ruff (F401), not hand-judged?
-- [ ] Is every symbol borrowed from a `Depends on` dependency labeled
-      assumed-until-merged, and separated from symbols verified against current main?
 ```
 
 ### Issue #1360 specific findings
@@ -220,28 +223,8 @@ chain, or in an epic body's prose "core types" section, add these steps on top o
 | `loop_repo_manager → ci_driver` adds no cycle | REASONED, NOT RUN | Run `python -c "import ...loop_runner; from ...automation import loop_repo_manager"` |
 | `urlparse` / `gh_cli_timeout` are safely removable | CONDITIONAL | Per-symbol grep after deletion; let `ruff --select F401` decide |
 
-### Issue #1814 specific findings
-
-Plan re-houses control flow out of legacy orchestrators (`planner.py::Planner._plan_issue`,
-`planner_review_loop.py::PlanReviewLoop.run`) into a new queue-based pipeline
-(`pipeline/stages/planning.py`, `plan_review.py`), promotes `_apply_state_label`
-(`planner_review_loop.py:441`) into a shared `state_labels.apply_plan_verdict` with a shim-first
-re-import, and adds table-driven stage tests. #1814 `Depends on #1813 → #1812 → #1811`, none merged
-at plan time.
-
-| Symbol / claim in the plan | Status | What a reviewer must do |
-|----------------------------|--------|-------------------------|
-| `get_plan_prompt`, `get_plan_loop_review_prompt`, `get_advise_prompt_builder`, `build_learn_prompt` (prompt-builder reuse) | VERIFIED-against-main (grep-confirmed with cited signatures) | Trust as-is; these are the plan's real foundation on current main |
-| `_apply_state_label` promotion source (`planner_review_loop.py:441-483`) + state-label constants (`state_labels.py:39-41`) | VERIFIED-against-main (read directly) | Trust as-is; confirm the shim-first re-import preserves existing import paths |
-| `WorkItem`, `StageOutcome`, `Disposition`, `StageName` | ASSUMED-from-#1811/#1812/#1813 (from epic #1809 prose, not landed source) | Re-grep the merged deps; names/spelling may differ (`StageOutcome` may be spelled differently) |
-| `ROUTES` table + budgets (`plan_review_iter 3`, `plan_cycles 2`) | ASSUMED-from-epic-prose | Confirm the table exists and lives where assumed (`routing.py`?) and that the budget values match after the dep merges |
-| `AgentJob` shape (carries `prompt_builder` + optional in-worker `parse`?) | ASSUMED-from-epic-prose | Grep `class AgentJob` / `def parse` in merged `pipeline/`; the constructor may have no `parse` param |
-| `Stage` protocol signature in `pipeline/stages/base.py`, `JobResult`, `JobRequest`/`Continue` | ASSUMED-from-#1813 (plan hedges "authors `stages/base.py` … if #1813 has not") | Verify the protocol signature against merged #1813; author `base.py` locally only if the dep did not ship it |
-| `FakeGitHub` / `FakeWorkerPool` test fakes | ASSUMED-to-exist-from-sibling (grep returned ZERO matches) | Confirm existence AND interface with grep at implement time; author locally if the sibling did not ship them |
-
 ## Verified On
 
 | Project | Context | Details |
 |---------|---------|---------|
 | ProjectHephaestus | Planning phase for issue #1360 (extract 12-function repo-management cluster from `automation/loop_runner.py` into `loop_repo_manager.py` with backward-compat re-exports) | Plan produced, NOT executed; this skill records the unverified assumptions and reviewer risks. Implementation pending. |
-| ProjectHephaestus | Planning phase for issue #1814 (pipeline planning + plan-review stages, epic #1809) — re-house control flow out of `planner.py` / `planner_review_loop.py` into `pipeline/stages/planning.py` + `plan_review.py`, promote `_apply_state_label` to shared `state_labels.apply_plan_verdict` | Plan produced, NOT executed. Novel finding: the extraction builds on an UNMERGED `Depends on #1813 → #1812 → #1811` chain, so every base type (`WorkItem`, `StageOutcome`, `AgentJob`, `Stage`, `ROUTES`, test fakes) is an assumption from epic-#1809 prose until the deps merge; prompt-builder reuse + `_apply_state_label` source were verified against current main. |
