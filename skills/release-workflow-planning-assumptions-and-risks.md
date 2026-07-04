@@ -1,9 +1,9 @@
 ---
 name: release-workflow-planning-assumptions-and-risks
-description: "Planning-phase risk checklist for designing an automated release workflow in a repo (especially a meta-repo) that has NEVER shipped a versioned release. The implementation mechanics live in `gha-release-package-workflow-patterns` and `lockfile-and-release-pipeline-management`; this skill is the DIFFERENT search surface a plan REVIEWER reaches for — 'are the plan's release assumptions verified?' not 'how do I write release.yml'. Core thesis: a first-release plan is full of assertions that look like decisions but are actually unverified guesses — the target version, the CHANGELOG link-footer tags, the TOML table name, the runner Python version, and signing-key availability. Each must be VERIFIED during implementation, not asserted in the plan. Use when: (1) reviewing or writing a plan that bumps a manifest version to 'match' the CHANGELOG without reconciling against real git tags + GitHub Releases, (2) a plan hard-codes keepachangelog compare-URLs (.../compare/vA...vB) that assume those tags exist as real refs, (3) a reused consistency script hard-indexes pixi['workspace']['version'] (or assumes [project]) without reading the target file's actual table name, (4) scripts `import tomllib` with no `tomli` fallback and the CI runner Python version is unconfirmed, (5) a justfile/release recipe uses `git tag -s` but signing-key availability in CI/local was never confirmed, (6) the issue body cites commit SHAs or file states that do not match the live repo and the plan does not flag the mismatch, (7) a third-party action SHA was copied from a skill/template rather than re-looked-up at plan time."
+description: "Planning-phase risk checklist for designing an automated release workflow in a repo (especially a meta-repo) that has NEVER shipped a versioned release. The implementation mechanics live in `gha-release-package-workflow-patterns` and `lockfile-and-release-pipeline-management`; this skill is the DIFFERENT search surface a plan REVIEWER reaches for — 'are the plan's release assumptions verified?' not 'how do I write release.yml'. Core thesis: a first-release plan is full of assertions that look like decisions but are actually unverified guesses — the target version, the CHANGELOG link-footer tags, the TOML table name, the runner Python version, and signing-key availability. Each must be VERIFIED during implementation, not asserted in the plan. Use when: (1) reviewing or writing a plan that bumps a manifest version to 'match' the CHANGELOG without reconciling against real git tags + GitHub Releases, (2) a plan hard-codes keepachangelog compare-URLs (.../compare/vA...vB) that assume those tags exist as real refs, (3) a reused consistency script hard-indexes pixi['workspace']['version'] (or assumes [project]) without reading the target file's actual table name, (4) scripts `import tomllib` with no `tomli` fallback and the CI runner Python version is unconfirmed, (5) a justfile/release recipe uses `git tag -s` but signing-key availability in CI/local was never confirmed, (6) the issue body cites commit SHAs or file states that do not match the live repo and the plan does not flag the mismatch, (7) a third-party action SHA was copied from a skill/template rather than re-looked-up at plan time, (8) an ecosystem CI-naming convention demands a canonical `release` check-run in a repo with NO release wiring at all — the plan must BOOTSTRAP the release contract (CHANGELOG, version-parity invariant, validator script) in the SAME PR as the gate, because a bare always-green job is exactly the fabricated check the convention forbids."
 category: ci-cd
-date: 2026-06-20
-version: "1.2.1"
+date: 2026-07-02
+version: "1.3.0"
 user-invocable: false
 verification: unverified
 history: release-workflow-planning-assumptions-and-risks.history
@@ -39,6 +39,12 @@ tags:
   - cross-artifact-consistency
   - test-artifact-parity
   - tomllib
+  - canonical-release-check
+  - ci-naming-convention
+  - never-tagged-repo
+  - release-contract-bootstrap
+  - orphan-workflow-call
+  - json-version-regex-ordering
 ---
 
 # Release Workflow Planning: Assumptions & Risks (First-Release / Meta-Repo)
@@ -177,6 +183,34 @@ Generate the footer FROM the verified tag set; never hard-code compare-URLs whos
 
 **7. Make the signed-tag flow degrade gracefully — detect the key, don't assume it.** A `.pre-commit-config.yaml` that signs *commits* does not make signed *tags* work, and no signing key is known in CI. Branch on capability: `git tag -s -a` when `git config --get user.signingkey` is set, else annotated `git tag -a`. Signing is a capability to detect, not assume. See the pre-flight snippet in *Results & Parameters*.
 
+## Sub-Pattern: Bootstrapping a Canonical release Check in a Repo With No Release Model (ProjectMnemosyne #2913)
+
+**Status: plan-only / unverified.**
+
+> **Warning:** This sub-pattern is a PLAN (issue #2913); no code was executed beyond read-only ground-truth commands. Treat as hypothesis until CI confirms.
+
+**Central insight:** when an ecosystem convention (here the Odysseus ci-naming convention) requires a canonical `release` check-run but the repo has NO release artifact or contract (no tags, no releases, no CHANGELOG), do NOT wire a trivially-green job — a bare always-green `release` job is exactly the fabricated check the convention forbids. Define the release model FIRST (here: a tagged marketplace snapshot at a repo-level semver already present in 4 files: `pixi.toml`, `pyproject.toml`, `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json` — all `2.1.0`), then ship contract + validator + dry-run gate in ONE PR. The dry-run job lives in the already-required workflow (`_required.yml`, alongside the canonical aggregate `test` job); the publish path lives in a separate tag-triggered `release.yml`; BOTH jobs carry `name: release`.
+
+**Ground truth VERIFIED this instance (second real application of this skill's checklist):**
+
+- `git tag --list` empty → never tagged → root-SHA compare footer (`git rev-list --max-parents=0 HEAD` = `3c5616d…`).
+- Producer/validator cross-grep EXECUTED and pasted, per Quick Reference row #7: footer matches `compare/[0-9a-fv.]+\.\.\.HEAD`; the root SHA rev-parses.
+- Version parity `2.1.0` across all four files confirmed by reading each file directly.
+- Existing validator script exit codes enumerated: all existing paths exit `1`, argparse errors exit `2` → picked collision-free exit code `3` for the new failure class.
+- pixi python floor is `>=3.9` → rejected `tomllib` (stdlib only on 3.11+), chose anchored-regex TOML parsing instead.
+- `_checks.yml` is `workflow_call`-only with ZERO callers (verified by grep) → NEW lesson: **grep for callers of every `workflow_call` workflow before assuming it emits checks — an orphan reusable workflow LOOKS canonical but never runs; the canonical home is the workflow actually triggered on PR/push.**
+
+**UNVERIFIED assumptions carried by the plan (the reviewer-focus list for this instance):**
+
+| # | Assumption | Why it is a risk |
+| - | ---------- | ---------------- |
+| 1 | Canonical-name semantics ("dry-run on main, publish on tag", no fabricated checks) taken from the issue body + prior skills | The Odysseus `ci-naming-convention.md` doc itself was never fetched — the plan may misstate the convention |
+| 2 | Empty `git tag --list` treated as proof of never-released | `gh release list` was NOT run — a tagless draft GitHub Release would evade the tag check |
+| 3 | `gh` CLI presence + `${{ github.token }}` release-create permission on ubuntu-24.04 runners | Assumed from memory, not verified in this repo's CI |
+| 4 | Job `name: release` inside workflow "Required Checks" emits check-run `release`, but the ruleset context string is "Required Checks / release" | Bare-name vs prefixed-context mismatch is a known ruleset-pass trap; not re-verified against the ecosystem ruleset JSON |
+| 5 | Proposed `_JSON_VERSION_RE` first-match regex on `marketplace.json` | ORDERING-DEPENDENT: the file also contains hundreds of per-plugin `"version"` keys; the top-level key happens to precede `plugins` today. Reviewer should demand `json.load` for JSON files instead of regex |
+| 6 | markdownlint interaction with FUTURE CHANGELOG growth | e.g. MD024 duplicate `### Added` headings across versions — untested |
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -197,6 +231,9 @@ The rows above are plan assertions that looked like decisions but were unverifie
 | Copying a third-party action SHA from a skill | Pinned `softprops/action-gh-release@de2c0eb…` (v0.1.15) straight from the team skill | The SHA came from a stored skill, not a fresh lookup — skill-carried SHAs go stale (outdated or yanked) | RESOLUTION: re-verify at plan time against the published tag — `gh api repos/<owner>/<repo>/git/ref/tags/<vX.Y.Z>` |
 | Cross-artifact self-contradiction: the plan shipped a file AND a test that disagreed | R1 told the implementer to write the CHANGELOG footer as `[Unreleased]: …/commits/main`, but the SAME plan's `release.test.sh` test #3 asserted the footer matched `compare/…HEAD` | The prescribed footer FAILS the prescribed test — the plan literally cannot execute as written; the implementer is forced to pick between two stated "facts". This is a NOGO even with ZERO external/factual errors, because the artifact is internally inconsistent (plan-vs-plan, not plan-vs-repo) | RESOLUTION/LESSON: whenever a plan authors BOTH a producer (file/edit) and its validator (test/grep/regex), state them in ONE canonical form and cross-check in the plan — show the exact string and the exact regex side by side and confirm a verbatim match. A reviewer will grep one against the other. Add a planning self-check: "for every assertion in a generated test, does the generated artifact it checks satisfy it verbatim?" |
 | Phantom v-tag compare footer vs bare commits-URL for a never-tagged repo | Iterations oscillated between `compare/v0.1.0...HEAD` (404 — no such tag) and `…/commits/main` (valid but didn't match the `compare/…HEAD` convention the test/skill expected) | "Valid URL" and "matches the team-convention regex" are TWO separate requirements — the phantom v-tag link satisfies neither (404s); the bare commits-URL satisfies validity but not the convention | RESOLUTION: use the repo ROOT commit as the compare base — `git rev-list --max-parents=0 HEAD` (Odysseus root = `b10bfdd`). `…/compare/<root-sha>...HEAD` is a valid non-404 URL for any reachable ref, needs no tag, AND fits a `compare/…HEAD` regex. Make the regex tolerant of both the SHA base now and a `vX.Y.Z` base later: `compare/[0-9a-fv.]+\.\.\.HEAD`. Pair with a SEPARATE assertion that rejects phantom v-tag links (`releases/tag/v[0-9]\|compare/v[0-9]` must be absent) — the root-SHA base (no `v` prefix) does not trip it. Design the positive-form and negative-phantom assertions so they cannot conflict |
+| `tomllib` for TOML version parsing (ProjectMnemosyne #2913, plan-time rejection) | The plan initially reached for `tomllib` to parse `pixi.toml`/`pyproject.toml` versions | pixi env floor is python >=3.9; `tomllib` is stdlib only on 3.11+ → local `pixi run` would `ModuleNotFoundError` | On a py<3.11 floor, use an anchored `[project]`-table regex (or add `tomli`) — decide from the target repo's floor, not the CI runner's version |
+| Requiring a `## [<manifest-version>]` CHANGELOG section in DRY-RUN mode (ProjectMnemosyne #2913, plan-time rejection) | The dry-run guard would have asserted a `## [2.1.0]` section exists in the bootstrapped CHANGELOG | manifest version 2.1.0 was never shipped; the guard's own live-tree acceptance test would fail on day one | Dry-run asserts only `[Unreleased]` + resolvable footer refs; the version-section requirement belongs to publish (`--tag`) mode only (guard-scope-on-shipped-tree) |
+| Third-party release action (softprops etc.) for the publish step (ProjectMnemosyne #2913, plan-time rejection) | Considered pinning a third-party GitHub-release action for the tag-triggered publish job | Stale/copied action SHAs are a known planning trap and add an unpinned trust surface | `gh release create` with `${{ github.token }}` — no new pinned action needed |
 
 ## Results & Parameters
 
@@ -414,6 +451,13 @@ jobs:
 Proof the wiring is correct: `grep -nE 'name: (deps/version-sync|unit-tests)' .github/workflows/_required.yml` (contexts unchanged) and `grep -n 'check_version_consistency' .github/workflows/_required.yml` (step present in a required job). Required-check status is conferred by the job `name:` being pinned in `configs/github/*ruleset*.json`, not by the test existing somewhere in CI.
 
 **Reviewer focus list (the risks, condensed):** (1) target version reconciled against real tags + Releases — never-released repo => no historical-CHANGELOG bump; (2) every compare-URL/tag footer ref is a real ref — never-tagged repo uses the root-SHA compare base (`compare/<root-sha>...HEAD`), no phantom v-tag; (3) two-mode consistency guard (strict three-way only at tag push); (4) `[workspace]` vs `[project]` table + Python 3.11+/`tomllib` availability; (5) new gates wired into existing `_required.yml` jobs (contexts unchanged), not a standalone job in a non-required workflow; (6) signing-key detected and degraded gracefully, never hard-called; (7) producer/validator cross-check — every prescribed file satisfies the prescribed test that checks it verbatim (plan-vs-plan consistency, distinct from plan-vs-repo).
+
+## Verified On
+
+| Project | Context | Details |
+|---------|---------|---------|
+| ProjectOdyssey | Issue #189 R0→R3 planning cycle (plan-only) | this file |
+| ProjectMnemosyne | Issue #2913 plan — canonical release check bootstrap (plan-only) | this file |
 
 ## Related Skills
 

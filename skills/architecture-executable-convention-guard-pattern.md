@@ -1,11 +1,11 @@
 ---
 name: architecture-executable-convention-guard-pattern
-description: "Turn an un-guarded documented invariant (a prose convention) into a tested, blocking, reusable executable check that CI or any consumer can call. Use when: (1) a contract like 'absence of artifact X means stage Y never ran' lives only in docstrings/comments and nothing asserts it, (2) you are adding an enforcement gate whose whole purpose is signal fidelity and must pick a collision-free exit code distinct from argparse's usage-error 2 and sibling CLIs, (3) a verification step must resolve its inputs strictly read-only and must NOT fabricate the very signal whose absence it checks (e.g. a resolver that mkdir()s the directory), (4) you classify a log/marker line and must anchor on the line prefix instead of a free substring scan vulnerable to user-controlled tokens, (5) you relax argparse requirements (nargs='?') for a new mode and must re-guard the original mode so it does not silently no-op, (6) the same convention is documented in two places (module docstring + sibling shell comment) and must be kept in sync when made executable, (7) you are planning a fix for any 'X mirrors Y' / parity / directory-structure invariant audit finding and must determine WHICH direction(s) the existing guard asserts — the defect is usually the un-asserted reverse direction (test_packages - src_packages), and the fix is an allowlist-with-rationale plus the reverse check, NOT deletion of flagged items, (8) you are adding an executable membership/coverage guard that ITERATES a population (all packages / dirs / files of a kind) — you MUST scope its iteration set AND its CI/pre-commit files: trigger to the issue's NAMED targets only when sibling members are partially compliant, or the guard fails its OWN acceptance test on the shipped tree."
+description: "Turn an un-guarded documented invariant (a prose convention) into a tested, blocking, reusable executable check that CI or any consumer can call. Use when: (1) a contract like 'absence of artifact X means stage Y never ran' lives only in docstrings/comments and nothing asserts it, (2) you are adding an enforcement gate whose whole purpose is signal fidelity and must pick a collision-free exit code distinct from argparse's usage-error 2 and sibling CLIs, (3) a verification step must resolve its inputs strictly read-only and must NOT fabricate the very signal whose absence it checks (e.g. a resolver that mkdir()s the directory), (4) you classify a log/marker line and must anchor on the line prefix instead of a free substring scan vulnerable to user-controlled tokens, (5) you relax argparse requirements (nargs='?') for a new mode and must re-guard the original mode so it does not silently no-op, (6) the same convention is documented in two places (module docstring + sibling shell comment) and must be kept in sync when made executable, (7) you are planning a fix for any 'X mirrors Y' / parity / directory-structure invariant audit finding and must determine WHICH direction(s) the existing guard asserts — the defect is usually the un-asserted reverse direction (test_packages - src_packages), and the fix is an allowlist-with-rationale plus the reverse check, NOT deletion of flagged items, (8) you are adding an executable membership/coverage guard that ITERATES a population (all packages / dirs / files of a kind) — you MUST scope its iteration set AND its CI/pre-commit files: trigger to the issue's NAMED targets only when sibling members are partially compliant, or the guard fails its OWN acceptance test on the shipped tree, (9) you are adding an install/package-consumability CI gate (cmake --install layout check + find_package consumer compile) for a library, or need a guard to exercise its own failure branches on every CI run via an always-on self-test against a mutated throwaway copy of its input, (10) a repo missing a canonical ecosystem CI check name (install/package/release) must choose between adding a REAL check vs documenting N/A — prefer a real check when the repo's documented quick-start install path IS an install surface (dependency-manager env + hook install), and verify the board's badge mechanism (check-runs on main) before picking the workflow/trigger, (11) you are adding a canonical `release`/packaging CI check-run for an ecosystem CI board to a manifest/dataset repo — the check must do REAL packaging work (archive the dataset with a deterministic manifest, refuse an empty dataset) rather than fabricate a pass with a no-op job, split write permissions into a separate tag-gated publish job, and verify third-party action pins against the tag before use, (12) a repo with a REAL tag-only OIDC PyPI publish pipeline needs a canonical `release` check-run on PR/main — implement a dry-run pipeline VALIDATOR (tag gating, id-token permission, action SHA pin, dist-filename↔pyproject version match) that rides the consolidated required-checks workflow's build artifact, rather than a no-op stub, a republish, or a duplicate packaging job."
 category: architecture
-date: 2026-06-30
-version: "1.7.0"
+date: 2026-07-03
+version: "1.11.0"
 user-invocable: false
-verification: unverified
+verification: verified-local
 history: architecture-executable-convention-guard-pattern.history
 tags:
   - executable-convention
@@ -37,6 +37,25 @@ tags:
   - scope-lock-test
   - ghost-directory-guard
   - prefiltered-population-fixture
+  - install-smoke-test
+  - self-test-in-guard
+  - imported-location
+  - find-package
+  - canonical-check-name
+  - ecosystem-ci-board
+  - manifest-repo-install
+  - check-run-on-main
+  - real-check-vs-na
+  - canonical-check-run
+  - release-packaging
+  - least-privilege-workflow
+  - sigpipe-safe
+  - action-pin-verification
+  - dry-run-release-check
+  - trusted-publishing-oidc
+  - pipeline-validator
+  - projectscylla
+  - myrmidons
   - hephaestus
 ---
 
@@ -336,6 +355,131 @@ A documented **commit-message-trailer convention** (DCO `Signed-off-by:`, `Co-Au
 
 7. **Beware the self-application bootstrap.** Once the `commit-msg` hook lands, the implementing commit ITSELF must carry a `Signed-off-by` trailer or the hook blocks its own creation. The plan's commit step MUST use `git commit -s -S` (sign-off AND cryptographic signature) — easy to forget, and the failure is circular (the commit that adds the rule can't be made).
 
+## Sub-Pattern: Install Smoke-Test Guard with Always-On Self-Test (verified-local instance: ProjectKeystone #596 / PR #600)
+
+> Verification level: **verified-local** for THIS instance. The guard ran end-to-end inside the dev container — layout verification OK on the real prefix, the self-test's failure branches confirmed firing, and the throwaway `find_package` consumer configured and compiled — and BOTH negative paths (deleted header/archive for the layout self-test; deleted archive for the `IMPORTED_LOCATION` configure-time check) were exercised deliberately. CI on ProjectKeystone PR #600 was still pending at capture time — do NOT claim `verified-ci`.
+
+This applies the executable-convention-guard pattern to a **C++ library's install/package-consumability contract** ("the installed package is complete and consumable via `find_package`" — previously enforced by nothing). It also contributes a genuinely NEW mechanism to the skill: an **always-on self-test inside the guard** that proves the guard's own failure branches fire on EVERY CI run, not just once during development.
+
+1. **Canonical `install` CI check for a pure C++ library = three stages in ONE reusable script** (`scripts/check-install.sh`, mirroring the repo's existing `check-*.sh` gate convention — sibling-checker-mirror rule again):
+   - (a) `cmake --install <release-tree> --prefix <clean staging dir>`;
+   - (b) **layout verification** — required static archives, CMake package config files, and a **BIDIRECTIONAL `diff`** of the source `include/` header set vs the installed `include/keystone` set (the mirror/parity rule applied to headers: both directions, not just "everything in source got installed");
+   - (c) a **throwaway consumer project** doing `find_package(Keystone CONFIG REQUIRED)` + compiling one TU that includes a self-contained public header — linked as a **STATIC library**, because the prefix ships only the project's own archives (PUBLIC third-party deps are not installed, so an executable link is impossible **by design**, not an oversight).
+
+2. **Always-on self-test INSIDE the guard (reviewer-demanded; stronger than one-shot local mutation testing).** Refactor the layout checks into `verify_layout(prefix, label)`. After the REAL prefix passes, `cp -a` it to a throwaway dir, delete one installed header AND one archive, rerun `verify_layout` in a subshell, and assert it returns non-zero; delete the throwaway on success. This exercises the guard's failure branches on EVERY CI run — a mutation test performed once on a developer's machine proves nothing about the guard six months later. Shell nuance: under `set -euo pipefail` with a CI gate that FORBIDS `|| true`, capture the expected failure with `rc=0; ( verify_layout ... ) || rc=$?` — **`|| rc=$?` is allowed where `|| true` is not** (it preserves the exit code instead of discarding it).
+
+3. **Vacuous-green guard on mirror diffs.** An empty-vs-empty `diff <(find A) <(find B)` PASSES — if the install produced no header dir at all, the bidirectional diff is silently green. Before the diff, explicitly fail if the installed header dir is missing or contains no headers. This generalizes the skill's existing prefiltered-population-fixture lesson: it is not only the test FIXTURE that can be vacuously green — **the mirror check itself can be**, whenever both sides of the comparison can be simultaneously empty.
+
+4. **A STATIC `find_package` consumer never dereferences `IMPORTED_LOCATION`** — archiving/static-linking does not touch the dependency archives at consumer compile time, so the smoke test PASSES even if the package config points imported targets at nonexistent archives. Close the gap at configure time in the consumer's CMakeLists:
+
+   ```cmake
+   foreach(_tgt IN LISTS _keystone_imported_targets)
+     get_target_property(_loc ${_tgt} IMPORTED_LOCATION)
+     if(NOT EXISTS "${_loc}")
+       message(FATAL_ERROR "Imported target ${_tgt} points at missing archive: ${_loc}")
+     endif()
+   endforeach()
+   ```
+
+   Negative-verified by deleting one archive from a copied prefix and asserting the consumer configure FAILS with the expected diagnostic.
+
+5. **Failure-artifact upload must enumerate EVERY diagnostic dir the guard can leave behind** — the staging prefix, the self-test throwaway (left on disk when the self-test itself fails), and the consumer build dir (with `CMakeError.log`) — with `if-no-files-found: ignore`, since later-stage dirs do not exist for earlier-stage failures. A reviewer caught that only the staging dir was uploaded; a stage-(c) failure would have shipped no `CMakeError.log`.
+
+6. **New guard files can be silently swallowed by a broad `.gitignore` pattern.** A repo-wide `install/` ignore matched the new `tests/install/` consumer dir — the files existed on disk but never appeared in `git status`, so the guard would have merged incomplete. After creating guard files, CONFIRM they show as untracked; fix with a `!tests/install/` negation placed directly below the broad pattern.
+
+7. **Container-path coupling.** When the build runs inside a dev container, `cmake_install.cmake` embeds container-absolute paths (`/workspace/...`), so `cmake --install` and the consumer configure MUST run inside the SAME container as the build; the staging prefix under the bind-mounted `build/` stays host-visible for artifact upload.
+
+(An eighth lesson — local pre-commit fixers with a version-skewed clang-format reformatting UNTOUCHED files during guard verification — is captured as a Failed Attempts row below.)
+
+## Sub-Pattern: Canonical `install` Check for a Manifest/Dataset Repo (Real Check vs N/A)
+
+> **Warning:** The #750 `install` material in this sub-pattern is **unverified** — it is a PLAN (HomericIntelligence/Myrmidons issue #750, ecosystem CI-naming rollout), no code was executed and no CI run validated it. Treat as a hypothesis until CI confirms. The v1.0.0 coredump material and the #1448/#596 instances above remain `verified-local`; the #751 canonical-`release` instance BELOW is **verified-local** (executed end-to-end, CI pending at capture time).
+
+This applies the pattern's canonical-`install`-check thinking (see the ProjectKeystone #596 sub-pattern above) to a **manifest/dataset repo** — a GitOps-style repo that ships zero build artifacts — and to the decision every canonical-CI-naming rollout forces: **add a REAL check, or document the category as N/A on the ecosystem board.**
+
+1. **"Manifest repo → install N/A" is usually wrong.** A GitOps/dataset repo with zero build artifacts still has a real install surface if its documented Quick-start is an install path (Myrmidons: `pixi install` + `just install-hooks`). The ecosystem convention explicitly forbids fabricating a passing job, but a smoke test of the documented developer install path is a real check: install every locked environment (`pixi install --locked --environment lint`), smoke-execute EVERY pinned tool (`<tool> --version` for just/jq/yq/bats/shellcheck/yamllint/pre-commit), and run the documented hook-install recipe end-to-end. Choose N/A only when no such surface exists.
+
+2. **Fetch the ecosystem convention doc itself — do not plan from the issue's paraphrase.** `gh api repos/<org>/<repo>/contents/docs/ci-naming-convention.md --jq .content | base64 -d` worked on a private repo where raw WebFetch would not. The doc's grouping rule explained facts the issue omitted: the existing `unit-tests` job already maps to canonical `test`; the board badge mechanism is shields.io `check-runs/<repo>/main?nameFilter=<name>` — so the new job MUST run on `push: branches: [main]`, not just PRs, and the job `name:` field (not the YAML key) is the check-run name.
+
+3. **When an existing job overlaps the new canonical check, differentiate scope instead of renaming.** `deps/version-sync` already ran `pixi install --locked`; renaming it to `install` would repurpose a lock-freshness gate and break the documented required-check registry. The plan instead added a distinct `install` job with a superset scope (second env + tool execution + hook install) and left `deps/version-sync` mapping to the board's `custom` cell.
+
+4. **A canonical-check plan has a three-file blast radius: workflow + required-check registry doc + repo-doc job list.** Adding the job alone leaves `docs/branch-protection.md` (the required-check registry with its idempotent `jq '.contexts += [...] | .contexts |= unique'` add snippet) and the CLAUDE.md CI job list stale. Required-check registration is a POST-merge admin `gh api PATCH` step — sequence it explicitly or the plan silently drops it.
+
+5. **Uncertain assumptions to verify at implementation time (reviewer focus):** (a) `pixi run -- <cmd> --version` arbitrary-command syntax on the repo's pinned pixi version — only pixi *task* invocations were verified in existing workflows; (b) `just install-hooks` in CI: the recipe copies a legacy hook then runs `pre-commit install` over it in a fresh checkout — untested in CI; (c) the composite setup-pixi action restores a `.pixi` cache, so the job is NOT a truly clean install — cache-restored envs may mask a broken lockfile resolve; decide whether clean-ness matters enough to skip the cache; (d) nested `pixi run` inside a just recipe invoked via `pixi run -- just ...` relies on pixi being on PATH from the composite.
+
+### Verified-local instance: canonical `release` check for a GitOps dataset repo (Myrmidons #751)
+
+> Verification level: **verified-local** for THIS instance. Full local gates passed — 106/106 bats tests (4 new), doc-drift 0 errors, actionlint clean on the new workflow, and `just package` on the real tree produced a 51-agent/6-fleet archive. CI on the Myrmidons PR was still pending at capture time — do NOT claim `verified-ci`.
+
+This is the EXECUTED follow-on to the #750 install plan above, applied to the `release` board cell of the same Odysseus ecosystem CI-naming rollout (HomericIntelligence/Myrmidons issue #751 / branch `751-auto-impl`, executed 2026-07-03). Where #750 remains plan-only, this instance shipped end-to-end. The durable, EXECUTED lessons:
+
+1. **"Don't fabricate the signal" confirmed for the `release` board cell.** Instead of a no-op job emitting check-run name `release`, ship a real packaging script (`scripts/package-dataset.sh`) that archives the dataset (`agents/`, `fleets/`, `schemas/`) into `dist/myrmidons-dataset-<version>.tar.gz` with a `RELEASE_INFO` manifest (version, commit SHA, commit-date via `git log -1 --format=%cI` for per-commit determinism, agent/fleet counts), refuses an empty dataset (exit 1 negative branch), and removes stale archives before building so exactly one archive exists per run.
+
+2. **SIGPIPE-safe archive verification.** Never `tar -tzf archive | grep -q pattern` under `set -o pipefail` — `grep -q` exits at first match and SIGPIPEs tar (exit 141 flake). Capture the listing ONCE into a variable and grep herestrings: `contents="$(tar -tzf "$archive")"; grep -q '^agents/' <<< "$contents"`.
+
+3. **Least-privilege two-job split for a release workflow.** Job `release` (`name: release` — the canonical check-run) runs on `pull_request` + push `main` + push tags `v*`, holds only `contents: read`, and uploads the artifact; a separate tag-gated `publish-release` job (`if: startsWith(github.ref, 'refs/tags/v')`, `needs: release`) is the ONLY holder of `contents: write` and runs `gh release create`. PR-triggered runs executing PR-head script code never see a write token. The publish job RE-RUNS the packaging script instead of downloading the artifact: output is deterministic per commit (manifest date = commit date, not wall clock) and it avoids a second third-party action pin.
+
+4. **Version derivation on shallow checkouts.** `git describe` is unusable (shallow checkout has no tags); use `GITHUB_REF_NAME` on tag events, else `snapshot-$(git rev-parse --short HEAD)`.
+
+5. **Test the script at the sibling altitude with a root-override env var.** `PACKAGE_DATASET_ROOT` lets 4 bats cases (happy path, explicit version arg, empty-dataset exit-1 negative branch, stale-archive-cleanup re-run) drive the script against `mktemp -d` git-initialized fixtures instead of mutating the working tree; the test file rides the already-wired gate (`pixi test-unit` = `bats tests/unit/`) with zero new CI plumbing — confirming the "add the predicate to the already-wired gate, no new CI job" rule... except here the check-run itself IS the deliverable, so exactly one new workflow is justified and it is the check being demanded.
+
+6. **Verify third-party action pins against the tag BEFORE use.** `gh api repos/actions/upload-artifact/git/ref/tags/v4.6.2 --jq '.object.sha'` confirmed `ea165f8d65b6e75b540449e92b4886f43607fa02` matched the SHA about to be pinned.
+
+7. **Environmental lint-gap honesty.** The repo's actionlint pre-commit hook uses a system binary that was absent locally, so `pre-commit run --all-files` had exactly one environmental failure. Do NOT claim the gate green and do NOT skip the lint: download the pinned actionlint release binary to `/tmp`, lint the new workflow file directly (it passed), remove the binary, and REPORT the gap explicitly. A missing linter binary is an environment defect, not a pass.
+
+8. **Doc sync across all homes.** README badge row, CLAUDE.md CI/CD bullet, and a `docs/branch-protection.md` design note recording that `release` is deliberately NOT a required check because publishing is post-merge — the same "sync the documented contract in all its homes" rule as the core pattern; the deliberate-omission note prevents the missing required-check from being read as drift.
+
+Local verification evidence: 106/106 bats tests (4 new), doc-drift 0 errors, actionlint clean on the new workflow, `just package` on the real tree produced a 51-agent/6-fleet archive. CI pending at capture time → **verified-local**, not verified-ci.
+
+## Sub-Pattern: Canonical `release` Check as a Dry-Run Validator of a Real Tag-Only Publish Pipeline
+
+> **Warning:** This sub-pattern (added in v1.11.0, from ProjectScylla issue #2027) is **unverified** — it is a PLAN; no code was executed or CI-validated. Treat as a hypothesis until CI confirms. Earlier verified-local material retains its stated levels.
+
+This applies the canonical-check-run thinking (see the Myrmidons #751 instance above) to the OPPOSITE starting point: the repo already HAS a real release pipeline, but it is tag-only, so nothing emits the canonical `release` check-run on PR/main.
+
+### Context
+
+ProjectScylla's `release.yml` is a REAL publish pipeline that runs ONLY on tag push / `workflow_dispatch`: bump-version → GitHub Release → build → publish-pypi via `pypa/gh-action-pypi-publish` (OIDC Trusted Publishing). The canonical ecosystem CI board needs a check-run named exactly `release` on PR/main. The issue offered two options: (1) a dry-run check, or (2) document the category as tag-only-scoped and exclude it. The plan chose (1).
+
+### Central insight: validate the pipeline — don't stub, republish, or re-package
+
+When the repo already HAS a real tag-gated publish pipeline, the canonical `release` check should be a dry-run VALIDATOR that makes the "publishing is tag-only" convention executable:
+
+- **NOT a no-op stub** — a fabricated pass (the anti-fabrication rule from the #751 instance).
+- **NOT a republish** — side effects on every PR/main run.
+- **NOT duplicate packaging work** — the sibling canonical `package`/`install` jobs already twine-check and install the artifact.
+
+The validator (`scripts/check_release_pipeline.py`, mirroring the repo's sibling check-script shape: argparse `--repo-root`/`--verbose`, library functions, `main() -> int`, exit 0/1) asserts:
+
+1. **Tag trigger present:** `on.push.tags` includes `v*`. Handle PyYAML parsing `on:` as boolean `True`: `workflow.get("on") or workflow.get(True)`.
+2. **Publish jobs are tag-gated:** each publishing job's `if:` contains `startsWith(github.ref, 'refs/tags/v')`; the TestPyPI job is gated on `workflow_dispatch`.
+3. **OIDC contract:** publish jobs declare `permissions.id-token: write` plus the correct `environment` (`pypi`/`testpypi`) — the Trusted Publishing contract.
+4. **Action pinned:** `pypa/gh-action-pypi-publish` pinned to a full 40-hex SHA (regex `^pypa/gh-action-pypi-publish@[0-9a-f]{40}$`).
+5. **Dist↔version match (with `--dist-dir`):** dist is non-empty (refuse an empty dist — no vacuous pass), contains ≥1 wheel and ≥1 sdist, and every dist filename version equals pyproject `[project].version` — replaying the pipeline's tag↔version check without a tag.
+
+### Wiring
+
+Wire the validator as a `release` job (job `name: release`) in the consolidated `_required.yml` (runs on `pull_request` + push to `main`) with `needs: [build]`, downloading the `python-package` artifact — the same shape as the canonical `test`/`package`/`install` jobs added by the naming-unification PR. Emit-before-require: the ruleset is untouched. One extra CI step smoke-tests the dispatch path: `python scripts/bump_version.py patch --dry-run`.
+
+### Policy-conflict rule: encode the REPO's convention, not the issue's illustrative list
+
+Drop issue-suggested example checks that conflict with repo policy. The issue suggested a "changelog presence" check, but the repo's CLAUDE.md forbids CHANGELOG.md (release notes are generated via `gh release create --generate-notes`). The guard encodes the REPO'S convention, not the issue's illustrative list — and the plan must state the omission explicitly so the reviewer doesn't flag it.
+
+### Uncertain assumptions the implementer/reviewer MUST verify
+
+These were NOT verified in the planning session:
+
+- The PyYAML `on:` → `True` key quirk was assumed from prior knowledge, not tested here — a dedicated fixture test is required.
+- `bump_version.py --dry-run` was verified only by grepping its argparse (line ~302), never executed — it may still require git state/a clean tree in CI.
+- `yamllint` lives in the repo's lint pixi env, not necessarily the default env — the verification command may need `pixi run --environment lint yamllint`.
+- Action SHA pins were copied from sibling jobs on origin/main without re-verifying the SHAs against upstream release tags (the skill's own action-pin-verification rule was NOT re-executed).
+- String-containment matching of `if:` expressions is brittle: a semantically equivalent rewrite (`github.ref_type == 'tag'`) fails the guard — intentional strictness, but failure messages must tell the editor to update guard + workflow together.
+- Line numbers were cited from origin/main while the working checkout sat on a stale feature branch — implementation must branch off fresh main or every cited line drifts.
+
+### Structural-duplication risk
+
+The guard structurally duplicates `release.yml` (job names, gate strings) — renaming a `release.yml` job breaks the `release` check BY DESIGN. The two homes (a workflow comment + the guard) must reference each other so an editor changing one knows to change the other (the "sync the documented contract in all its homes" rule).
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -369,6 +513,9 @@ A documented **commit-message-trailer convention** (DCO `Signed-off-by:`, `Co-Au
 | Assumed "table exists" meant "table is aligned" (issue #1506 R2 — critical D/NOGO) | R0's module docstring claimed config/io/logging/utils "already have tables," so they were assumed safe to fold into the guard | Presence ≠ completeness: the pre-existing tables do NOT cover their full `__all__`, so the guard's global `find_violations()==[]` assertion is red for them on the shipped tree | Verify completeness (row-count vs `__all__`), never assume presence implies alignment; fix any docstring/plan prose that conflates "exists" with "complete/aligned" |
 | Re-confirmed alignment for only the named subset (issue #1506 R2 — process meta-lesson) | Across R0 and R1, alignment was re-checked ONLY for cli/system/version, never for the other members the guard folded in | A guard whose acceptance test asserts a GLOBAL property (`find_violations()==[]`) over a SET cannot be validated by re-confirming a subset — the partially-compliant siblings stay an unmeasured blind spot through two review rounds | Run/measure the global assertion over the ENTIRE iteration set before claiming it passes; MEASURE compliance of every member, not just the issue's targets, BEFORE the guard iterates the population |
 | Left the guard's scope unlocked by any test (issue #1506 R2 — critical D/NOGO) | R0/R1 had no test pinning `DOCUMENTED_PACKAGES` to the named subset | An innocent future "just add the rest" widening would silently re-red CI for unrelated PRs with no guardrail | Add an explicit equality test (`test_scope_is_three_named_packages` asserting `DOCUMENTED_PACKAGES == {"cli","system","version"}`) that LOCKS the iteration set so a scope-widening fails LOUDLY at test time, converting an implicit scope decision into a reviewed one |
+| Trusted local pre-commit fixer verdicts on files the change never touched (ProjectKeystone #596 / PR #600, **verified-local**) | Ran local pre-commit fixers during guard verification; a version-skewed local clang-format reformatted UNTOUCHED files, and the churn was almost committed as part of the guard PR | The local clang-format version differed from CI's; its reformatting of files outside the change's scope was formatter skew, not real violations — committing it would bloat the PR and could even make CI's formatter red | Check that the lint gate is green on main BEFORE accepting local hook verdicts on files you didn't change; revert out-of-scope fixer churn surgically (`git diff -- <files> \| git apply -R`) so the PR contains only the guard's own files |
+| Treat install as N/A for a dataset repo (Myrmidons #750, UNVERIFIED plan) | Marking the board cell N/A because the repo ships no built artifact | The documented quick-start IS an install surface; N/A would hide a real, cheap smoke test | Check the quick-start docs for an install path before declaring a canonical category N/A |
+| Wire release.yml itself to PR/main (ProjectScylla #2027, UNVERIFIED plan) | Considered wiring release.yml itself to PR/main to emit the canonical `release` check-run | Would publish on non-release commits or require a no-op stub misrepresenting the category | Validate the pipeline from the required-checks workflow instead; keep publishing tag-only |
 
 ## Results & Parameters
 
@@ -429,6 +576,8 @@ target = next((Path(c) for c in cleaned if Path(c).is_dir()), Path(cleaned[-1]))
 
 **Scope-a-membership-guard generalization (v1.6.0, unverified):** An executable membership/coverage guard that ITERATES a population (all packages / dirs / files of a kind) and asserts a GLOBAL property (`find_violations()==[]`) over the whole set MUST be scoped to the issue's NAMED targets — never the whole population — when sibling members are only PARTIALLY compliant; otherwise the guard fails its OWN acceptance test on the shipped tree (the #1506 R2 critical D/NOGO: folding all seven Stable subpackages in made ~17 `missing-from-docs` findings fire because config/io/logging/utils have pre-existing PARTIAL tables, so `test_live_tree_is_aligned` fails, `hephaestus-check-api-table-docs` exits 1, and the pre-commit `files:` regex would block unrelated config/utils PRs). The durable rules: (1) BEFORE the guard iterates, MEASURE compliance of EVERY member (`ast` for `__all__`, row-count for tables), not just the issue's targets; (2) scope BOTH the iteration set AND the CI/pre-commit `files:` trigger to the named targets (`{cli, system, version}`) — widening is YAGNI scope-creep AND breaks the acceptance test; (3) LOCK the scope with an explicit equality test (`DOCUMENTED_PACKAGES == {…}`) so a future "just add the rest" widening fails LOUDLY; (4) this is the EXECUTABLE-GUARD corollary of the audit-survey rule (a survey notes non-compliant siblings out-of-scope; an executable guard must literally NOT iterate over them); (5) "artifact EXISTS" ≠ "artifact is COMPLETE/aligned" — verify completeness (row-count vs `__all__`), fix any docstring/plan prose that conflates presence with alignment. **Process meta-lesson:** the defect survived R0 and R1 because alignment was re-confirmed ONLY for the named subset — when an acceptance test asserts a global property over a SET, you must run/measure it over the ENTIRE set before claiming it passes; re-confirming a subset is not sufficient.
 
+**Install-smoke-test generalization (v1.8.0, verified-local for the #596 instance):** A library's install/package-consumability contract is an executable-convention-guard target like any other: one reusable `check-install.sh` gate with three stages — `cmake --install` to a clean staging prefix; layout verification (required archives + package config files + a BIDIRECTIONAL header-set `diff` guarded against the empty-vs-empty vacuous green by failing first if the installed header dir is missing/empty); and a throwaway `find_package(… CONFIG REQUIRED)` consumer compiling one self-contained-header TU as a STATIC library (the prefix ships only the project's archives; PUBLIC third-party deps are absent by design, so no executable link). The NEW durable mechanism: an **always-on self-test inside the guard** — `verify_layout(prefix, label)` refactored out, then `cp -a` the passing prefix to a throwaway, delete one header AND one archive, assert `verify_layout` fails in a subshell (`rc=0; ( … ) || rc=$?`, the forbid-`|| true`-compatible idiom), delete the throwaway — so the guard's failure branches are proven to fire on EVERY CI run. Close the STATIC-consumer blind spot at configure time (`foreach` imported target → `get_target_property(… IMPORTED_LOCATION)` → `FATAL_ERROR` if not `EXISTS`), negative-verified by deleting an archive from a copied prefix. Enumerate EVERY diagnostic dir in the failure-artifact upload (staging prefix, self-test throwaway, consumer build dir with `CMakeError.log`; `if-no-files-found: ignore`). Confirm new guard files actually show as untracked (a broad `install/` gitignore silently swallowed `tests/install/`; fix with a `!tests/install/` negation). And keep `cmake --install` + the consumer configure inside the SAME container as the build (`cmake_install.cmake` embeds container-absolute paths); a staging prefix under the bind-mounted `build/` stays host-visible for upload. Verified-local (dev container end-to-end, both negative paths exercised); CI on PR #600 pending at capture time.
+
 ## Verified On
 
 | Repository | Issue / PR | What was applied |
@@ -441,7 +590,10 @@ target = next((Path(c) for c in cleaned if Path(c).is_dir()), Path(cleaned[-1]))
 | ProjectHephaestus | issue #1506 R2 (PLAN — **unverified**, critical D/NOGO on R1) | scope-a-membership-guard sub-pattern: R1 set `DOCUMENTED_PACKAGES` to all SEVEN Stable subpackages; R2 found config/io/logging/utils have pre-existing PARTIAL tables (config 13-in-`__all__` vs ~6 rows, utils 14 vs ~6 — measured via `ast`+`awk`), so `find_violations()` returns ~17 findings on the shipped tree, `test_live_tree_is_aligned` (asserts `== []`) FAILS and the pre-commit `files:` regex would block unrelated config/utils PRs; fix scopes the iteration set + `files:` regex to `{cli, system, version}`, adds a `test_scope_is_three_named_packages` scope-lock, and corrects the docstring's false "already have tables" claim (they have PARTIAL tables) |
 | ProjectHephaestus | issue #1516 (PLAN — **unverified**) | commit-trailer sub-pattern: stdlib `scripts/check_dco_signoff.py` (mirrors `check_conventional_commit.py`) enforcing DCO `Signed-off-by` via a dual gate (pr-policy Check 4 + `commit-msg` hook); consume FULL `.commit.message` (reuse `commits.json`, NUL-joined); prefix+structure-anchored `^Signed-off-by: .+ <…@…>$`; strip `#`-comment lines in file-path mode; exempt `dependabot[bot]`; `git commit -s -S` to survive self-application |
 | ProjectHephaestus | issue #1507 (PLAN — **unverified**) | doc-table↔code membership-guard sub-pattern: FIRST issue to actually create `hephaestus/validation/api_table_docs.py` (after #1506's plan never merged — `test -f` confirmed absent); bidirectional membership check of each ``### `hephaestus.<pkg>` `` COMPATIBILITY.md table vs live `__all__` (`missing-from-docs` incl. deprecated members like `retry_with_jitter` + `missing-from-all`); mirrors `cli_tier_docs.py` exactly (dataclass + parse fn + `find_violations` + `main()→0/1` + `add_json_arg`/`add_version_arg`); guards MEMBERSHIP ONLY (never the inferred "Added" column); defensive `parser-found-no-rows`; `--environment default` pin; reciprocal Console-Script Stability Tiers row for `hephaestus-check-api-table-docs` |
+| ProjectKeystone | issue #596 / PR #600 (**verified-local** — guard ran end-to-end in the dev container, both negative paths exercised deliberately; CI pending at capture time) | install smoke-test guard with always-on self-test: `scripts/check-install.sh` (mirrors the `check-*.sh` gate convention) — `cmake --install` to a clean staging prefix; layout verification (archives + CMake package config files + BIDIRECTIONAL source-vs-installed header `diff`, with an explicit missing/empty-header-dir fail before the diff to kill the empty-vs-empty vacuous green); throwaway `find_package(Keystone CONFIG REQUIRED)` STATIC-library consumer compiling one self-contained public header. Always-on self-test: `verify_layout(prefix, label)` rerun against a `cp -a` throwaway with one header AND one archive deleted, asserting non-zero via `rc=0; ( … ) || rc=$?` (forbid-`|| true`-compatible). Configure-time `IMPORTED_LOCATION` existence check closes the STATIC-consumer blind spot (negative-verified by deleting an archive). Failure-artifact upload enumerates staging prefix + self-test throwaway + consumer build dir (`if-no-files-found: ignore`). A broad `install/` gitignore silently swallowed `tests/install/` (fixed with `!tests/install/` negation); `cmake --install` + consumer configure run in the SAME container because `cmake_install.cmake` embeds container-absolute paths |
+| Myrmidons | issue #751 / branch `751-auto-impl` (**verified-local** — full local gates passed: 106/106 bats tests incl. 4 new, doc-drift 0 errors, actionlint clean on the new workflow, `just package` produced a 51-agent/6-fleet archive; CI pending on the PR at capture time) | canonical `release` check for a GitOps dataset repo (Odysseus ecosystem CI board): real packaging script `scripts/package-dataset.sh` (dataset tarball + `RELEASE_INFO` manifest with commit-date determinism, empty-dataset exit-1 refusal, stale-archive cleanup) instead of a fabricated no-op check-run; SIGPIPE-safe archive verification (capture `tar -tzf` once, grep herestrings — never pipe into `grep -q` under `pipefail`); least-privilege two-job split (`release` = `contents: read` on PR/main/tags, tag-gated `publish-release` = sole `contents: write`, re-runs the deterministic script instead of downloading the artifact); `GITHUB_REF_NAME`-or-`snapshot-<sha>` version derivation for shallow checkouts; `PACKAGE_DATASET_ROOT` root-override for 4 bats fixture cases riding the already-wired `pixi test-unit` gate; action-pin SHA verified against the tag via `gh api .../git/ref/tags/v4.6.2` before pinning; environmental actionlint gap linted directly and reported honestly; doc sync in README/CLAUDE.md/branch-protection.md incl. a deliberate-omission note that `release` is NOT a required check |
+| ProjectScylla | Issue #2027 canonical release check plan (plan-only) | — |
 
 ## Tags
 
-`#executable-convention` `#invariant-guard` `#exit-code-collision` `#fail-safe` `#read-only-verification` `#log-line-anchoring` `#observability` `#cli-verify-mode` `#ci-gate` `#bidirectional-invariant` `#mirror-parity` `#allowlist-with-rationale` `#test-structure` `#commit-trailer` `#dco-signoff` `#precommit-hook` `#sibling-checker-mirror` `#coverage-altitude` `#negative-branch-test` `#argparse-default-branch` `#nogo-tightening` `#inferred-data-honesty` `#doc-table-code-parity` `#membership-only-guard` `#guard-scope-population` `#partial-compliance` `#scope-lock-test` `#ghost-directory-guard` `#prefiltered-population-fixture` `#hephaestus`
+`#executable-convention` `#invariant-guard` `#exit-code-collision` `#fail-safe` `#read-only-verification` `#log-line-anchoring` `#observability` `#cli-verify-mode` `#ci-gate` `#bidirectional-invariant` `#mirror-parity` `#allowlist-with-rationale` `#test-structure` `#commit-trailer` `#dco-signoff` `#precommit-hook` `#sibling-checker-mirror` `#coverage-altitude` `#negative-branch-test` `#argparse-default-branch` `#nogo-tightening` `#inferred-data-honesty` `#doc-table-code-parity` `#membership-only-guard` `#guard-scope-population` `#partial-compliance` `#scope-lock-test` `#ghost-directory-guard` `#prefiltered-population-fixture` `#install-smoke-test` `#self-test-in-guard` `#imported-location` `#find-package` `#canonical-check-name` `#ecosystem-ci-board` `#manifest-repo-install` `#check-run-on-main` `#real-check-vs-na` `#canonical-check-run` `#release-packaging` `#least-privilege-workflow` `#sigpipe-safe` `#action-pin-verification` `#dry-run-release-check` `#trusted-publishing-oidc` `#pipeline-validator` `#projectscylla` `#myrmidons` `#hephaestus`
