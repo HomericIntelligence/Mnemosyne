@@ -15,8 +15,8 @@ description: >-
   module while keeping the original paths as explicit re-export shims (the inverse
   direction — merge, not split — but the same shim discipline applies).
 category: architecture
-date: 2026-06-30
-version: "2.1.0"
+date: 2026-07-04
+version: "2.2.0"
 user-invocable: false
 verification: verified-local
 history: automation-god-package-shim-first-decomposition.history
@@ -44,9 +44,9 @@ tags:
 
 | Field | Value |
 | ------- | ------- |
-| **Date** | 2026-06-30 (v2.1.0) |
-| **Objective** | (v1.0.0) Decompose a 52-file flat god-package into 8 domain sub-packages via shim files. (v2.0.0) ALSO covers the inverse: consolidate a small cluster of always-co-imported config modules into ONE canonical module, keeping the originals as explicit re-export shims — executed for real in ProjectHephaestus #1441. (v2.1.0) ALSO records a verified-local SPLIT/move execution (#1443) and the **whole-test-tree patch-seam sweep** it surfaced |
-| **Outcome** | v1.0.0 plan for #1177 was never executed. v2.0.0 records a verified-local execution of the shim consolidation for #1441 ("Merge 4 Claude agent modules"): merge confirmed with ruff + mypy clean and a 145-test focused suite green. v2.1.0 records a verified-local SPLIT of 3 `*_state.py` modules into `state/` (#1443): full `tests/unit/automation` suite **2284 passed**, ruff + mypy clean — after a whole-test-tree patch-seam sweep fixed 4 failures the approved plan missed |
+| **Date** | 2026-07-04 (v2.2.0) |
+| **Objective** | (v1.0.0) Decompose a 52-file flat god-package into 8 domain sub-packages via shim files. (v2.0.0) ALSO covers the inverse: consolidate a small cluster of always-co-imported config modules into ONE canonical module, keeping the originals as explicit re-export shims — executed for real in ProjectHephaestus #1441. (v2.1.0) ALSO records a verified-local SPLIT/move execution (#1443) and the **whole-test-tree patch-seam sweep** it surfaced. (v2.2.0) ALSO records the **private co-dependency corollary** to that sweep (#1813): a private helper called by a moved symbol but omitted from the move list breaks patch seams the `dir()`-parity test can't see |
+| **Outcome** | v1.0.0 plan for #1177 was never executed. v2.0.0 records a verified-local execution of the shim consolidation for #1441 ("Merge 4 Claude agent modules"): merge confirmed with ruff + mypy clean and a 145-test focused suite green. v2.1.0 records a verified-local SPLIT of 3 `*_state.py` modules into `state/` (#1443): full `tests/unit/automation` suite **2284 passed**, ruff + mypy clean — after a whole-test-tree patch-seam sweep fixed 4 failures the approved plan missed. v2.2.0 adds the co-dependency corollary surfaced during #1813 plan-review (planning phase): `_select_non_overlapping` calls `_fetch_planned_files` (not in the stated move list) — move the callee alongside its caller OR retarget every patch seam |
 | **Trigger** | Either direction: a flat package with 40+ .py files (split), OR a cluster of 3-4 tiny always-co-imported modules (merge). Both keep original module paths as explicit re-export shims |
 | **Verification** | verified-local (MERGE #1441: ruff + mypy + 145-test focused suite green. SPLIT #1443: ruff + mypy clean, full `tests/unit/automation` suite 2284 passed, 0 failed) |
 | **History** | [changelog](./automation-god-package-shim-first-decomposition.history) |
@@ -66,6 +66,7 @@ Apply this skill when any of the following is true:
 - You are writing an **explicit `from X import (name as name, ...)` re-export shim** and need to know whether `# ruff: noqa: F401` is required (it is NOT — and adding it triggers RUF100)
 - A test reads a **private symbol** (`_KNOWN_MODELS`), calls `importlib.reload`, or pins a **logger name** (`caplog.at_level(..., logger="...")`) of a module you are about to turn into a shim — these tests CANNOT stay on the shim and must be repointed at the canonical module
 - **(Split direction, v2.1.0)** A test anywhere in the tree `mock.patch("...<flat_path>.<name>")` or `monkeypatch.setattr`s a name that the module you are moving **imported from elsewhere** (not one of the module's OWN public symbols) — after the move that bound name lives in the canonical sub-package and the flat shim no longer carries it, so the patch target vanishes. These seams hide in OTHER test files, not just the moved module's own test file, and require a whole-test-tree grep sweep (Step 8b below) — the `dir(shim)` parity test cannot catch them
+- **(Split direction, v2.2.0 — private co-dependency)** A **private helper** (e.g. `_fetch_planned_files`) that is **called by a symbol you are moving** but is **omitted from the stated move list** — decide *move-alongside vs retarget-patch before finalizing the move set*. After the move, the caller resolves that co-dependency in the NEW module namespace, so a test that `patch.object(<flat_module>, "<co_dependency>")` then calls the moved symbol silently no-ops and hits the real (network) implementation. Enumerate each moved symbol's module-level callees first; any such callee a test patches on the source module must be either (a) moved alongside its caller OR (b) have its patch target retargeted in the same PR — the `dir(shim)` parity test cannot see internal name resolution
 
 ## Verified Workflow
 
@@ -458,6 +459,19 @@ failures that surfaced only on the first FULL-suite run.** Fix: repoint to
 `hephaestus.automation.state.planner.*`. This is the split-direction analogue of Step C3
 (which covers private-symbol / reload / caplog repoints in the MERGE direction).
 
+**Co-dependency corollary (#1813):** the sweep also applies to a PRIVATE helper that is
+*not in the stated move list* but is **called by a symbol that IS moving** — e.g. moving
+`_select_non_overlapping` (which calls `_fetch_planned_files`) or `_filter_open_issues`
+(which calls `prefetch_issue_states` / `is_issue_closed`) out of `loop_runner.py`. After the
+move, the caller resolves that callee in its NEW module namespace, so a test that does
+`patch.object(loop_runner, "_fetch_planned_files", ...)` then calls the moved
+`loop_runner._select_non_overlapping([...])` silently no-ops and exercises the REAL
+(network/GraphQL) fetcher instead of the fake — the shim keeps the CALL working but NOT the
+PATCH TARGET, and `dir()`-parity is blind to internal name resolution. Before finalizing a
+move list, for each moved symbol S enumerate the module-level names S calls; any such name a
+test patches on the source module is either (a) moved alongside S or (b) has its patch target
+retargeted in the same PR — neither is optional.
+
 ### Step 9: Final Structural Verification
 
 ```bash
@@ -500,6 +514,7 @@ A reviewer or implementer should check each one before executing the migration.
 | Leave a private-symbol / reload / caplog-logger test pointed at the shim | Kept `test_claude_models.py` importing the original (now-shim) module path | The shim deliberately omits privates (`_KNOWN_MODELS`), and the merged module's logger name changed to `hephaestus.automation.agent_config` (uses `getLogger(__name__)`), so `caplog.at_level(..., logger="...claude_models")` captured nothing | Repoint such tests via a local alias `from ... import agent_config as claude_models` AND retarget every caplog logger-name string to the canonical module's logger |
 | Rely only on focused per-module tests to catch shim drift | Assumed the focused suites covered every re-exported symbol | A missing re-export surfaces only as an `AttributeError` at a future call site — focused tests that don't touch that symbol stay green | Add a parametrized full-surface parity test asserting every public name `is` the same object in the canonical module (filter module objects out of `dir()`) |
 | Repoint patch seams only in the moved module's own test file | Followed a plan that listed patch-string repoints for the three moved test files + one known coupling | `test_planner_loop.py` / `test_planner_main.py` patched `planner_state.prefetch_issue_states` / `.fetch_all_issue_labels_graphql` (names imported INTO the module, NOT re-exported by the shim); 4 failures surfaced only on the first full-suite run | Grep the WHOLE test tree for `patch("<flat_path>.<anyname>")`; repoint every imported-into name to the canonical module — the shim carries only the module's OWN symbols |
+| Moved only the symbols the issue named; a private co-dependency (`_fetch_planned_files`) called by a moved symbol (`_select_non_overlapping`) was left behind | shim re-export of the caller; assumed `patch.object(loop_runner, ...)` seams still work | the moved caller resolves the co-dependency in the NEW module namespace; the flat-module patch no-ops and the test silently hits the real (network) fetcher; `dir()`-parity can't catch it | enumerate each moved symbol's module-level callees; move the co-dependency alongside its caller OR retarget every patch seam in the whole test tree — the shim keeps the CALL working, not the PATCH TARGET |
 
 ## Results & Parameters
 

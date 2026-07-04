@@ -1,5 +1,67 @@
 # automation-god-package-shim-first-decomposition — History
 
+## v2.2.0 (2026-07-04)
+
+**Changed by:** ProjectHephaestus #1813 plan-review (planning phase) — pipeline decomposition,
+review of the move set for `loop_runner.py` → `pipeline/admission.py`.
+**Verification:** verified-local
+
+### What changed
+
+- Added the **private co-dependency corollary** to the whole-test-tree patch-seam sweep
+  (Step 8b). The existing sweep covers names a moved module *imported from elsewhere*; the
+  corollary covers a PRIVATE helper that is **not in the stated move list** but is **called by
+  a symbol that IS moving**. After the move, the caller resolves that co-dependency in the NEW
+  module namespace, so a test that `patch.object(<flat_module>, "<co_dependency>")` then calls
+  the moved symbol silently no-ops and exercises the REAL (network) implementation. The shim
+  re-export keeps the CALL working; it does NOT keep the PATCH TARGET working.
+- Extended the Step 8b prose with one paragraph naming the #1813 case: moving
+  `_select_non_overlapping` (calls `_fetch_planned_files`) and `_filter_open_issues` (resolves
+  `prefetch_issue_states` / `is_issue_closed`) out of `loop_runner.py`; existing tests
+  (`test_loop_runner_file_overlap.py`, `test_loop_runner.py:315-316,324`) patch those callees on
+  `loop_runner` and would silently hit the real fetcher after the move.
+- Added one new **When to Use** trigger: a private helper called by a moved symbol but omitted
+  from the stated move list — decide move-alongside vs retarget-patch before finalizing the
+  move set; enumerate each moved symbol's module-level callees first.
+- Added one new **Failed Attempts** row: "Moved only the symbols the issue named; a private
+  co-dependency (`_fetch_planned_files`) called by a moved symbol (`_select_non_overlapping`)
+  was left behind."
+- Updated the Overview table (Date/Objective/Outcome) to v2.2.0.
+- Bumped version 2.1.0 → 2.2.0 (MINOR — one new corollary + one new trigger + one new Failed
+  Attempts row; the core split/merge workflow is unchanged).
+
+### Why
+
+A private callee omitted from the stated move list breaks `patch.object` seams the
+`dir()`-parity test can't see. #1813 stated the move set as exactly `_select_non_overlapping`,
+`_parse_planned_files`, `_filter_open_issues` (out of `loop_runner.py` into
+`pipeline/admission.py`), but `_select_non_overlapping` CALLS `_fetch_planned_files`, which was
+not listed. Existing tests do `patch.object(loop_runner, "_fetch_planned_files", side_effect=...)`
+then call `loop_runner._select_non_overlapping([...])`; after the move the caller lives in
+`admission` and resolves `_fetch_planned_files` in admission's namespace, so patching it on
+`loop_runner` no longer intercepts — the test silently exercises the REAL fetcher
+(network/GraphQL). Same seam class for `_filter_open_issues` (`prefetch_issue_states`,
+`is_issue_closed`). The two resolutions: (1) move the private co-dependency alongside its caller
+(chosen for #1813 — `_fetch_planned_files` moves too, even though the issue didn't list it), AND
+(2) update every `patch.object(<flat_module>, "<name>")` seam in the WHOLE test tree to target
+the new module. Rule of thumb: before finalizing a move list, for each moved symbol S enumerate
+the module-level names S calls; any such name a test patches on the source module is either (a)
+also moved, or (b) has its patch target retargeted in the same PR — neither is optional.
+
+### Snapshot reference
+
+Previous version was **v2.1.0** (2026-06-30, verified-local, ProjectHephaestus #1443): the
+first real SPLIT/move execution of the shim discipline. Its scope: 3 `*_state.py` modules moved
+into `state/` with explicit `name as name` shims; it introduced **Step 8b (whole-test-tree
+patch-seam sweep)** — a name imported INTO a moved module must be patched on the canonical
+sub-package, not the flat shim — plus a Split-Direction Parameters table and the #1443 Verified
+On row. The full v2.1.0 body (which itself snapshots v2.0.0's merge-direction execution for
+#1441 and v1.0.0's unexecuted 52-file split plan for #1177) is preserved in the v2.1.0 entry
+below. v2.2.0 is a strict superset: it adds the co-dependency corollary paragraph to Step 8b,
+one When-to-Use trigger, and one Failed Attempts row without rewriting any v2.1.0 content.
+
+---
+
 ## v2.1.0 (2026-06-30)
 
 **Changed by:** ProjectHephaestus issue #1443 "Move `*_state.py` into `state/`" — first
