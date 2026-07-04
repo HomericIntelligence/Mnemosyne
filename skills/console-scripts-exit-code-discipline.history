@@ -1,0 +1,708 @@
+# console-scripts-exit-code-discipline - History
+
+## v2.0.0 (2026-07-04)
+
+**Changed by:** ProjectMnemosyne high-confidence skill-cluster consolidation wave.
+**Verification:** unverified for the merge mechanics until this PR passes repository checks; source workflows retain their recorded verification levels.
+
+### What changed
+
+- **MAJOR bump (1.0.0 -> 2.0.0): merged 1 similar skill(s) into `console-scripts-exit-code-discipline` and generalized the canonical body while preserving issue-specific examples.
+- Added `history:` frontmatter and moved exact source snapshots into this history file.
+- Deleted absorbed standalone skill files after preserving their complete content below.
+
+### Why
+
+The absorbed skills share the same search surface and reader action as the canonical. Keeping them separate causes `/advise` duplication; keeping the issue-specific details as examples and full history preserves recoverability without fragmenting search results.
+
+### Previous canonical snapshot (1.0.0, 2026-05-28)
+
+````markdown
+---
+name: console-scripts-exit-code-discipline
+description: "Enforce exit-code discipline for Python console-script main() functions using instance state for error tracking. Use when: (1) a console-script main() exits 0 unconditionally despite errors, (2) updating error signaling for methods with existing tuple-return callers, (3) preventing pre-commit pipelines from masking failures."
+category: architecture
+date: 2026-05-28
+version: "1.0.0"
+user-invocable: false
+verification: verified-ci
+tags: [python, console-scripts, exit-codes, error-tracking, tuple-contracts, architecture]
+---
+
+# Console Scripts Exit-Code Discipline
+
+## Overview
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-05-28 |
+| **Objective** | Enforce proper exit-code signaling in Python console-script main() functions without breaking tuple-return contracts on existing callsites |
+| **Outcome** | Successfully applied pattern to 3 console scripts; all 119 unit tests pass; pre-commit pipelines now catch real failures |
+| **Verification** | verified-ci (all 119 tests pass in CI; commits signed and PR auto-merged) |
+
+## When to Use
+
+- A console-script `main()` calls `sys.exit(0)` unconditionally, masking read/write errors
+- Updating error signaling for methods that existing callers unpack as tuples (changing tuple shape breaks all callsites)
+- Pre-commit pipelines are failing silently because scripts exit 0 despite errors
+- A utility class has multiple public methods returning tuples, and you need to track cumulative errors without changing signatures
+- Normalizing exit-code behavior across multiple console scripts in a package
+
+## Verified Workflow
+
+### Quick Reference
+
+**The pattern**: When a class's public methods return tuples that callers unpack, use instance state (`self.had_error: bool`) to track failures instead of modifying the tuple shape.
+
+```python
+# In __init__:
+def __init__(self):
+    self.had_error = False
+
+# At error sites (catch exceptions, set flag):
+except OSError as e:
+    self.had_error = True
+    # Continue processing, don't raise
+
+# In main(), compute exit code from flag and return it:
+def main(self) -> int:
+    # ... do work that may set self.had_error = True ...
+    exit_code = 1 if self.had_error else 0
+    return exit_code
+
+# In the entrypoint (console_script):
+if __name__ == "__main__":
+    sys.exit(main())
+```
+
+### Detailed Steps
+
+**Step 1: Identify methods with tuple-return callers**
+
+Search for existing callers that unpack the return value as a tuple:
+
+```bash
+# Find the method signature (e.g., fix_file())
+grep -n "def fix_file" hephaestus/markdown/fixer.py
+
+# Find all unpacking callsites
+grep -rn "fix_file.*=" tests/ | grep -v "==" | head -5
+# Look for patterns like: (result, count) = obj.fix_file(...)
+```
+
+**Step 2: Add instance state in `__init__`**
+
+```python
+class MyProcessor:
+    def __init__(self):
+        # ... other init ...
+        self.had_error: bool = False
+```
+
+**Step 3: Set the flag at every error site**
+
+Identify all places where the method should signal failure:
+
+```python
+def process_path(self, path: str):
+    try:
+        with open(path) as f:
+            # ... process ...
+    except OSError as e:
+        self.had_error = True
+        logger.error(f"Failed to read {path}: {e}")
+        # DO NOT raise — let main() decide exit code
+        return  # or return existing tuple
+```
+
+**Step 4: Compute exit code in main() and return it**
+
+Change `main()` from `-> None` to `-> int`:
+
+```python
+def main(self) -> int:
+    # ... do work; errors set self.had_error = True ...
+    exit_code = 1 if self.had_error else 0
+    return exit_code
+```
+
+**Step 5: Update the entrypoint to sys.exit(main())**
+
+Change from:
+
+```python
+if __name__ == "__main__":
+    main()
+    sys.exit(0)  # unconditional — masks errors
+```
+
+To:
+
+```python
+if __name__ == "__main__":
+    sys.exit(main())
+```
+
+And update `[project.scripts]` in pyproject.toml:
+
+```toml
+[project.scripts]
+my-tool = "my_module:main"
+```
+
+**Step 6: Test the exit codes**
+
+Write integration tests that verify exit behavior:
+
+```python
+def test_main_exits_zero_on_success(tmp_path):
+    """Verify exit code 0 for successful processing."""
+    processor = Processor()
+    exit_code = processor.main()
+    assert exit_code == 0
+
+def test_main_exits_nonzero_on_error(tmp_path):
+    """Verify exit code 1 when errors occur."""
+    processor = Processor()
+    # Create condition that triggers error
+    exit_code = processor.main()
+    assert exit_code == 1
+```
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+|---------|----------------|---------------|----------------|
+| Change tuple shape to include error flag | Modify `fix_file()` to return 3-tuple: `(was_modified: bool, num_errors: int, had_error: bool)` | Breaks 8+ existing test callsites that unpack 2-tuples; forces edits to all callers (pure churn) | Don't modify public method signatures to track internal state; use instance attributes instead |
+| Use exception chain for error tracking | Catch errors, append to list, re-raise at end | Makes main() harder to invoke from tests; forces try/except at every callsite; error propagation obscures which phase failed | Use instance flags for cumulative error tracking; main() consumes and decides exit code |
+| Create a new wrapper class just for exit code | Separate `Processor` (returns tuples) from `ProcessorCLI` (returns int) | Doubles the class count; duplicates all process methods; maintenance burden | Instance state is simpler; one class, two calling contexts (test unpacks tuples, main() unpacks exit code) |
+| Use sentinel return value instead of exception | Return `None` on error instead of raising | Silent failure; callers don't know if processing succeeded; no exception traceback for debugging | Use exception + instance flag combination: catch at error site, set flag, log + continue |
+| Store exit code only in main(), not in instance state | Compute `had_error` locally at the end of main() | Can't detect errors that occur outside main() call (e.g., __init__); if main() is called multiple times, state is lost | Instance flag persists across the object lifecycle; main() merely consumes and returns it |
+| Restore sys.exit(0) in entrypoint after setting return value | Return exit code from main() but also call sys.exit(0) | Unconditional exit masks the computed code; exit code is never visible to parent process | Return from main(), let the entrypoint `sys.exit()` consume it; one decision point only |
+
+## Results & Parameters
+
+### Files modified (ProjectHephaestus issue #632)
+
+**1. hephaestus/markdown/fixer.py**
+
+```python
+# Line 43: add instance state
+class Fixer:
+    def __init__(self):
+        self.had_error: bool = False  # ← new
+
+# Lines 59, 99, 437: set flag at error sites
+except OSError:
+    self.had_error = True  # ← new at each site
+    # continue processing
+
+# Lines 492–516: compute exit code
+def main(self) -> int:
+    # ... do processing (may set self.had_error = True) ...
+    exit_code = 1 if self.had_error else 0
+    return exit_code  # ← return instead of sys.exit(0)
+```
+
+**2. hephaestus/system/info.py**
+
+```python
+# Changed signature
+def main(self) -> int:  # was -> None
+    # ... do work ...
+    return 0  # was implicit None
+```
+
+**3. hephaestus/datasets/downloader.py**
+
+```python
+# Changed exit behavior
+return exit_code  # was sys.exit(exit_code)
+```
+
+**4. All three: normalized entrypoint**
+
+```python
+if __name__ == "__main__":
+    sys.exit(main())  # was main(); sys.exit(0)
+```
+
+### Test coverage
+
+- 119 unit tests pass (all 3 modules tested)
+- No changes to existing test callsites (tuple contracts preserved)
+- Integration tests verify exit codes: `test_main_exits_zero_on_success()`, `test_main_exits_nonzero_on_*`
+
+### Exit code outcomes
+
+| Scenario | Before | After |
+|----------|--------|-------|
+| Read OSError on input | exit 0 | exit 1 |
+| Write OSError on output | exit 0 | exit 1 |
+| All processing succeeds | exit 0 | exit 0 |
+| Multiple errors occur | exit 0 | exit 1 (first error sets flag) |
+
+### Key architectural insight
+
+**Instance state vs. tuple shape**: Instance attributes (`self.had_error`) capture *cumulative state* across multiple method calls without breaking *public contracts* (tuple shapes callers unpack). This pattern generalizes to any class with:
+- Public methods returning fixed-shape tuples
+- Callers that unpack those tuples
+- Need to signal cumulative success/failure
+
+## Verified On
+
+| Project | Context | Details |
+|---------|---------|---------|
+| ProjectHephaestus | Issue #632 — PR #650 | Enforced exit-code discipline on 3 console-script main() functions. Modified fixer.py (instance state), info.py (signature change), downloader.py (return instead of sys.exit). All 119 tests pass; CI green; PR auto-merged. |
+````
+
+---
+
+## Superseded from `console-scripts-instance-state-error-tracking`
+
+**Original date:** 2026-05-28
+**Original version:** 1.0.0
+
+````markdown
+---
+name: console-scripts-instance-state-error-tracking
+description: "How to add exit-code discipline to CLI main() functions without breaking existing return-value callsites. Use when: (1) main() must return int for exit-code discipline, (2) existing code unpacks tuples from helper methods, (3) you need to track error state without changing method signatures."
+category: architecture
+date: 2026-05-28
+version: "1.0.0"
+user-invocable: false
+verification: verified-ci
+tags: []
+---
+
+# Console Scripts: Instance-State Error Tracking
+
+## Overview
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-05-28 |
+| **Objective** | Add exit-code discipline to CLI main() functions without breaking existing return-value callsites or requiring test modifications |
+| **Outcome** | Successfully implemented instance-state error tracking pattern — all 119 tests pass, zero test modifications, fully resolves masked failures |
+| **Verification** | verified-ci (PR #653 CI passed, auto-merge enabled) |
+
+## When to Use
+
+- CLI main() function needs to return `int` for proper exit-code discipline (signal success/failure to OS)
+- Existing helper methods return tuples unpacked by test callsites (changing tuple shape breaks tests)
+- You need to track error state across multiple method calls without changing function signatures
+- Refactoring must be backward-compatible with existing test suite
+
+## Verified Workflow
+
+### Problem Statement
+
+Three main() functions in ProjectHephaestus had exit-code discipline violations:
+
+```python
+def main() -> None:  # BAD: No exit code on failure
+    fixer = MarkdownLinkFixer(...)
+    fixer.process_file(...)  # May fail silently
+    sys.exit(0)  # Always exit 0, even on errors
+```
+
+Initial approaches failed:
+
+1. **Tuple-shape change** (rejected): Changing `fix_file()` return from `(status, data)` 2-tuple to `(status, data, error_code)` 3-tuple broke 8 test callsites unpacking the tuples
+2. **Method signature change** (rejected): Adding error tracking parameter would require changes across 20+ callsites
+
+### Solution: Instance-State Error Tracking
+
+**Pattern**: Track error state via a `had_error: bool` instance attribute, set it at error sites, compute exit code in main().
+
+#### Step 1: Add had_error attribute to class
+
+```python
+class MarkdownLinkFixer:
+    def __init__(self, ...):
+        self.had_error: bool = False
+        # ... rest of init
+```
+
+#### Step 2: Set had_error at error sites (no signature changes)
+
+```python
+def fix_file(self, file_path: str) -> Tuple[bool, Optional[Dict]]:
+    """Fix markdown links in a file.
+    
+    Returns:
+        Tuple of (success: bool, data: Optional[Dict])
+    """
+    try:
+        content = self._read_file(file_path)
+    except OSError as e:
+        self.had_error = True  # Track error in instance state
+        logger.error(f"Failed to read {file_path}: {e}")
+        return False, None
+    
+    try:
+        self._write_file(file_path, fixed_content)
+    except OSError as e:
+        self.had_error = True  # Track error in instance state
+        logger.error(f"Failed to write {file_path}: {e}")
+        return False, None
+    
+    return True, result_data
+```
+
+#### Step 3: Compute exit code in main()
+
+```python
+def main() -> int:
+    """Main entry point with proper exit-code discipline."""
+    fixer = MarkdownLinkFixer(...)
+    
+    # Process files (errors tracked in fixer.had_error)
+    for file_path in file_list:
+        fixer.fix_file(file_path)
+    
+    # Return proper exit code
+    return 1 if fixer.had_error else 0
+```
+
+#### Step 4: Update sys.exit() call
+
+```python
+if __name__ == "__main__":
+    sys.exit(main())
+```
+
+### Key Properties of This Pattern
+
+| Property | Value | Why It Works |
+|----------|-------|--------------|
+| **Signature compatibility** | Zero changes to fix_file/process_path signatures | All test callsites remain valid |
+| **Return value contracts** | Tuples unchanged (still 2-tuples) | Tests unpack `success, data` as before |
+| **Error propagation** | Via instance attribute + main() return | Main() exit code reflects accumulated errors |
+| **Test modifications** | Zero required | Existing tests pass unchanged |
+| **Blast radius** | Limited to class implementation | No impact on public API |
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+|---------|----------------|---------------|----------------|
+| Tuple-shape expansion | Change `fix_file()` return from `(bool, dict)` 2-tuple to `(bool, dict, int)` 3-tuple to carry error codes | 8 test callsites unpack tuples: `success, data = fixer.fix_file()` would become `success, data, _ = ...` requiring test edits; breaks KISS principle | Instance state avoids signature changes; preserve tuple contracts when possible |
+| Method signature addition | Add optional `error_tracker: ErrorTracker` parameter to fix_file/process_path | Would require 20+ callsite updates across tests and main; violates backward-compatibility | Use instance attributes to share state across methods without changing signatures |
+
+## Results & Parameters
+
+### Code Pattern Reference
+
+```python
+# Class-level error tracking
+class MarkdownLinkFixer:
+    def __init__(self, ...):
+        self.had_error: bool = False
+    
+    # No signature changes to existing methods
+    def fix_file(self, file_path: str) -> Tuple[bool, Optional[Dict]]:
+        try:
+            # ... file operations
+            pass
+        except OSError as e:
+            self.had_error = True  # Set error flag
+            logger.error(f"Error: {e}")
+            return False, None  # Still return same tuple shape
+    
+    # main() returns exit code
+    def main(self) -> int:
+        for path in self.files:
+            self.fix_file(path)  # Errors tracked in self.had_error
+        return 1 if self.had_error else 0
+
+# Entry point
+if __name__ == "__main__":
+    fixer = MarkdownLinkFixer(...)
+    sys.exit(fixer.main())
+```
+
+### Error Tracking Sites
+
+For each main() function, identify all error sites where operations can fail:
+
+1. **File read failures**: `OSError` from `_read_file()` → set `self.had_error = True`
+2. **File write failures**: `OSError` from `_write_file()` → set `self.had_error = True`
+3. **Missing file path**: Path validation failures → set `self.had_error = True`
+4. **Processing errors**: Any recoverable failures that should not halt execution → set `self.had_error = True`
+
+### Exit Code Return Convention
+
+```python
+# Consistent exit code computation across all main() functions
+return 1 if self.had_error else 0
+```
+
+This signals:
+- Exit code 0: All files processed successfully (or no errors encountered)
+- Exit code 1: At least one file processing error occurred
+
+### Test Compatibility
+
+**Zero test modifications required.** Existing tests that unpack tuples continue to work:
+
+```python
+# Before and after — same contract
+success, data = fixer.fix_file("path/to/file.md")
+assert success == True or success == False
+```
+
+The instance state (`self.had_error`) does not interfere with tuple unpacking or existing assertions.
+
+## Verified On
+
+| Project | Context | PR |
+|---------|---------|-----|
+| ProjectHephaestus | issue #632: console-scripts exit-code discipline (3 main functions) | #653 |
+
+### CI Verification
+
+- **All 119 unit tests pass** (tests/unit suite)
+- **Linting passes** (ruff check)
+- **Formatting passes** (ruff format)
+- **Type checking passes** (mypy)
+- **No test breakage** despite significant changes to error handling
+- **All commits cryptographically signed** (git commit -S)
+- **PR auto-merge enabled** via CI (squash merge policy)
+````
+
+### Original companion notes for `console-scripts-instance-state-error-tracking`
+
+````markdown
+# console-scripts-instance-state-error-tracking.notes.md
+
+Session notes and implementation details for issue #632.
+
+## Implementation Context
+
+**Repository**: ProjectHephaestus
+**Issue**: #632 — console-scripts: enforce exit-code discipline for 3 main() functions
+**PR**: #653 (auto-merge enabled, SQUASH merge)
+**Date**: 2026-05-28
+
+## Problem Analysis
+
+The three CLI scripts had exit-code discipline violations:
+
+1. `hephaestus/cli/markdown_link_fixer.py::main()` — Always exited 0
+2. `hephaestus/cli/validate_readme.py::main()` — No exit code propagation
+3. `hephaestus/cli/fix_links.py::main()` — Masked failures with sys.exit(0)
+
+### Root Cause
+
+All three used pattern:
+
+```python
+def main() -> None:
+    fixer = MarkdownLinkFixer(...)
+    fixer.fix_file(...)  # May fail internally
+    sys.exit(0)  # Unconditional success exit
+```
+
+This violates:
+- POSIX exit-code conventions (success=0, failure=nonzero)
+- CI/CD assumptions (CI assumes exit 0 = success)
+- Error detection in shell scripts (pipes, && chains, || fallbacks)
+
+## Design Decision Rationale
+
+### Why Instance State Over Tuple Extension
+
+**Option A: Extend tuple return (REJECTED)**
+
+```python
+# Old: (success: bool, data: dict)
+# New: (success: bool, data: dict, error_code: int)
+success, data, _ = fixer.fix_file(path)  # Tests break here
+```
+
+**Breakage**: 8 test callsites unpack 2-tuples, would require edits:
+- `tests/unit/cli/test_markdown_link_fixer.py` (4 tests)
+- `tests/unit/cli/test_validate_readme.py` (3 tests)
+- `tests/integration/cli/test_cli_integration.py` (1 test)
+
+**Why rejected**: Violates KISS and YAGNI — adds complexity and requires test edits for minimal benefit.
+
+**Option B: Instance State (SELECTED)**
+
+```python
+class MarkdownLinkFixer:
+    def __init__(self):
+        self.had_error: bool = False  # Track state
+
+def main() -> int:
+    fixer = MarkdownLinkFixer(...)
+    fixer.fix_file(path)  # Sets self.had_error on error
+    return 1 if fixer.had_error else 0
+```
+
+**Why selected**:
+- Zero changes to tuple contracts
+- Zero test modifications
+- Minimal, KISS-compliant pattern
+- Instance state is scoped to class (no global state)
+- Clear semantics: `had_error` is explicit and self-documenting
+
+## Implementation Details
+
+### Error Tracking Sites Identified
+
+For `MarkdownLinkFixer.fix_file()`:
+
+```python
+def fix_file(self, file_path: str) -> Tuple[bool, Optional[Dict]]:
+    try:
+        content = self._read_file(file_path)
+    except OSError as e:
+        self.had_error = True  # ERROR SITE 1: Read failure
+        logger.error(f"Cannot read {file_path}: {e}")
+        return False, None
+    
+    # ... processing ...
+    
+    try:
+        self._write_file(file_path, fixed_content)
+    except OSError as e:
+        self.had_error = True  # ERROR SITE 2: Write failure
+        logger.error(f"Cannot write {file_path}: {e}")
+        return False, None
+    
+    # Path validation error
+    if not self._validate_path(file_path):
+        self.had_error = True  # ERROR SITE 3: Validation failure
+        logger.error(f"Invalid path: {file_path}")
+        return False, None
+    
+    return True, result_data
+```
+
+### Test Preservation
+
+All existing tests pass unchanged because:
+
+1. Tests call `fixer.fix_file(path)` → still returns `(bool, dict)` 2-tuple
+2. Tests unpack: `success, data = fixer.fix_file(path)` → still valid
+3. Tests assert on `success` value → still works
+4. No test inspects `fixer.had_error` → instance state is transparent to tests
+
+Example test (unchanged):
+
+```python
+def test_fix_file_success():
+    fixer = MarkdownLinkFixer(...)
+    success, data = fixer.fix_file("test.md")
+    assert success is True
+    assert data is not None
+```
+
+## Test Results
+
+```
+=== Full Test Suite ===
+tests/unit/cli/test_markdown_link_fixer.py  ✓ 35 passed
+tests/unit/cli/test_validate_readme.py      ✓ 42 passed
+tests/unit/cli/test_fix_links.py            ✓ 25 passed
+tests/integration/cli/test_cli_integration.py ✓ 17 passed
+
+=== Quality Checks ===
+ruff check hephaestus/ tests/  ✓ PASS
+ruff format hephaestus/ tests/ ✓ PASS (no changes needed)
+mypy hephaestus/ tests/        ✓ PASS (all types correct)
+pre-commit --all-files         ✓ PASS
+
+=== Total: 119 tests PASS, 0 FAIL, 0 SKIP ===
+```
+
+## Comparison with Alternatives
+
+### Alternative A: Global error flag
+
+```python
+_had_error = False  # Module-level global
+
+def fix_file(path):
+    global _had_error
+    try:
+        ...
+    except OSError:
+        _had_error = True
+```
+
+**Pros**: Minimal changes
+**Cons**: Global state, hard to test isolation, breaks thread safety
+
+### Alternative B: Return value change
+
+```python
+def fix_file(path) -> int:  # 0=success, 1=error
+    ...
+    return 1 if error else 0
+```
+
+**Pros**: No instance state needed
+**Cons**: Changes return contract, breaks 8 test callsites, YAGNI violation
+
+### Alternative C: Exception on error
+
+```python
+def fix_file(path):
+    if error:
+        raise FixError(...)  # Propagate errors as exceptions
+```
+
+**Pros**: Pythonic error handling
+**Cons**: Alters control flow, requires try/except in main(), more ceremony
+
+**Selected approach (instance state) wins** because:
+- Minimal blast radius (class-scoped)
+- No test breakage
+- Clear semantics
+- Backward-compatible
+- KISS principle
+
+## Commits and PR Details
+
+**Commit 1**: `fix(console-scripts): add exit-code discipline to markdown_link_fixer.py`
+- Add `self.had_error: bool` to `MarkdownLinkFixer.__init__`
+- Set flag at 3 error sites
+- Change `main() -> None` to `main() -> int`
+- Return `1 if self.had_error else 0`
+
+**Commit 2**: `fix(console-scripts): add exit-code discipline to validate_readme.py`
+- Same pattern applied to second script
+
+**Commit 3**: `fix(console-scripts): add exit-code discipline to fix_links.py`
+- Same pattern applied to third script
+
+**All commits**: Cryptographically signed (`git commit -S`)
+
+**PR #653**:
+- Title: `fix(console-scripts): enforce exit-code discipline for 3 main() functions`
+- Body: Closes #632
+- Auto-merge enabled: `gh pr merge --auto --squash`
+- All CI checks pass
+
+## Key Learnings
+
+1. **Instance state preserves backward compatibility** — When existing test callsites unpack return values, instance state is a minimal-blast-radius approach
+2. **KISS wins over clever** — Expanding tuple shapes or changing signatures seemed simpler at first but created cascading test modifications
+3. **Error tracking is orthogonal to return contracts** — The 2-tuple contract (success, data) can be preserved while tracking errors in instance state
+4. **Scoped state (instance) is better than global state** — Instance attributes avoid concurrency and testing issues
+5. **Exit codes matter for CI/CD** — Proper exit codes enable shell scripts, CI pipelines, and error detection chains
+
+## Verification Checklist
+
+- [x] All 119 tests pass
+- [x] No test modifications required
+- [x] Linting passes (ruff check)
+- [x] Formatting correct (ruff format)
+- [x] Type checking passes (mypy)
+- [x] All commits cryptographically signed
+- [x] PR auto-merge enabled
+- [x] Zero test breakage
+- [x] CI all checks green
+````
