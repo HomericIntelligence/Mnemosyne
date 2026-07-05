@@ -76,7 +76,7 @@ def test_zero_io_imports():
         module = import_module(module_name)
         module_path = Path(module.__file__)
         source = module_path.read_text()
-        
+
         for line in source.splitlines():
             s = line.strip()
             # Check for direct imports of forbidden modules
@@ -116,20 +116,20 @@ Create a test that asserts:
 ```python
 def test_plan_review_exemption_is_symbol_scoped():
     """Assert that claude_invoke exemption permits ONLY parse_review_verdict."""
-    
+
     # (A) The allowed symbol should parse without error
     from hephaestus.automation.planner_review_loop import parse_review_verdict  # noqa: F401
-    
+
     # (B) Other symbols from claude_invoke should be rejected
     # Import the guarded module and verify it does NOT import other symbols
     source = Path(hephaestus.automation.planner_review_loop.__file__).read_text()
-    
+
     forbidden_imports = {
         "from claude_invoke import ReviewVerdict",  # Example: ReviewVerdict is NOT parse_review_verdict
         "from claude_invoke import invoke",
         "import claude_invoke",
     }
-    
+
     for forbidden in forbidden_imports:
         assert forbidden not in source, (
             f"planner_review_loop.py must not import {forbidden}; "
