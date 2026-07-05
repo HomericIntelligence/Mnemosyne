@@ -1,106 +1,108 @@
 ---
 name: testing-env-leak-local-fail-ci-pass
-description: "Use when: (1) a pytest test for an env-building helper that does os.environ.copy() then conditionally adds keys FAILS locally but PASSES in CI, (2) an assertion like `assert 'HEPH_X' not in env` fails only on your machine, (3) you are running tests from inside the automation loop (or any wrapper) that exports the very variables the test asserts are absent, (4) deciding whether a local-only test failure is a real bug or ambient shell environment pollution — re-run with `env -u <VAR>...` before changing any code or weakening an assertion."
+description: "Diagnose tests that fail locally but pass in CI because the local environment differs: inherited variables copied by os.environ.copy(), stale console scripts resolved by PATH or shutil.which(), or sibling checkout artifacts. Use when local pytest is red, CI is green, and the failure could be ambient shell/PATH pollution rather than a code regression."
 category: testing
 date: 2026-06-11
-version: "1.0.0"
+version: "2.0.0"
 user-invocable: false
-verification: verified-ci
-tags:
-  - pytest
-  - test-isolation
-  - environment-variables
-  - os-environ-copy
-  - local-fail-ci-pass
-  - HEPH_
-  - automation-loop
-  - monkeypatch-delenv
+verification: verified-local
+history: testing-env-leak-local-fail-ci-pass.history
+tags: [pytest, local-vs-ci, env-pollution, os-environ-copy, path-pollution, stale-console-script, heph-env-vars, shutil-which, false-failure, test-isolation]
 ---
 
-# Skill: testing-env-leak-local-fail-ci-pass
+# Testing: Local-Fail CI-Pass Environment Pollution
 
 ## Overview
 
+Local red tests are not automatically code regressions when the same checks are green in CI. First verify whether the local process inherited state CI does not have: exported env vars, stale console-script binaries, sibling checkout packages, or a polluted PATH.
+
+This skill consolidates the previous canonical memory plus three ProjectHephaestus local-fail/CI-pass memories. The durable rule is: prove the exact executable, import path, and inherited environment before editing production code or weakening tests.
+
 | Field | Value |
-| ------- | ------- |
-| Date | 2026-06-11 |
-| Objective | Diagnose pytest "absent env var" assertions that fail LOCALLY but pass in CI |
-| Outcome | Success — identified as ambient shell pollution; code and tests left untouched |
-| Verification | verified-ci — PR unit-test checks green; local pass confirmed after `env -u` strip |
-| Category | testing |
-| Repo / PR | ProjectHephaestus — issue #814 / PR #1058 |
-
-### What Happened
-
-Two tests in `tests/unit/automation/test_loop_runner.py` failed locally but were green in CI:
-
-- `test_phase_env_loop_index_only_for_drive_green` — asserts `HEPH_LOOP_INDEX` / `HEPH_TOTAL_LOOPS` are NOT present in `loop_runner._phase_env(...)` output for the `plan` and `implement` phases (only `drive-green` should set them).
-- `test_phase_env_model_vars_only_when_non_empty` — asserts `HEPH_PLANNER_MODEL` / `HEPH_REVIEWER_MODEL` / `HEPH_IMPLEMENTER_MODEL` are absent when the `LoopConfig` model fields are empty.
-
-`loop_runner._phase_env()` (in `hephaestus/automation/loop_runner.py`) builds its result with `env = os.environ.copy()` and then only *adds* `HEPH_*` keys conditionally. The function is correct. The failure was an artifact: the test process was launched from INSIDE the automation loop, which exports `HEPH_LOOP_INDEX=1`, `HEPH_TOTAL_LOOPS=1`, `HEPH_PLANNER_MODEL`, `HEPH_REVIEWER_MODEL`, `HEPH_IMPLEMENTER_MODEL`, `HEPH_ADVISE_MODEL`, etc. Those inherited vars survive `os.environ.copy()` and appear in the returned dict, so the "not in env" assertions fired. CI passes because its shell has no `HEPH_*` exported.
-
-The correct resolution was to change NOTHING — no code edit, no assertion weakening — and verify locally by stripping the leaking vars.
+|-------|-------|
+| Date | 2026-07-04 |
+| Objective | Generalize local-only pytest failure triage for env/PATH pollution while preserving issue-specific examples. |
+| Outcome | Canonical skill replaces three narrower duplicate memories; source snapshots are preserved in history. |
+| Verification | verified-local for this consolidation; source examples preserve their original verified-ci/local status in history. |
 
 ## When to Use
 
-Trigger this skill when:
-
-- A pytest test for a function that does `os.environ.copy()` (then conditionally sets keys) fails only locally and passes in CI.
-- An `assert '<VAR>' not in env` style assertion fails on your machine but the same job is green in GitHub Actions.
-- You are running the suite from inside the automation loop or any wrapper that exports `HEPH_*` (or any project-prefixed) variables.
-- You are tempted to "fix" an env-helper or relax an assertion to make a local failure go away — stop and check for ambient pollution first.
+- A pytest failure is red locally but the same CI job is green.
+- A test asserts `VAR not in env`, and the env dict is based on `os.environ.copy()`.
+- Tests are run from inside an automation loop, shell wrapper, or long-lived terminal that may export project-prefixed variables.
+- A `shutil.which()` or console-script test resolves a binary from a sibling checkout or stale virtual environment.
+- You are tempted to edit code or relax assertions solely to satisfy a dirty local run.
+- You need a decision rule for whether a local failure is environment divergence or a real regression.
 
 ## Verified Workflow
 
 ### Quick Reference
 
 ```bash
-# Re-run the failing env-helper tests with the leaking vars stripped.
-# If they now pass, the code/tests are fine — the failure was shell pollution.
+# 1. Compare local failure against CI before editing code.
+gh pr checks <number>
+
+# 2. Inspect inherited project vars that could pollute os.environ.copy().
+env | grep -E '^(HEPH_|PROJECT_|APP_)'
+
+# 3. Re-run failing node ids with suspect vars stripped.
 env -u HEPH_LOOP_INDEX -u HEPH_TOTAL_LOOPS -u HEPH_PLANNER_MODEL \
     -u HEPH_REVIEWER_MODEL -u HEPH_IMPLEMENTER_MODEL -u HEPH_ADVISE_MODEL \
-    pixi run python -m pytest tests/unit/automation/test_loop_runner.py -q --no-cov
+  pixi run python -m pytest <nodeid> -v --no-cov
 
-# Confirm which project-prefixed vars your shell is leaking:
-env | grep '^HEPH_'
+# 4. Verify the executable/import path used by subprocess tests.
+which <console-script>
+cd /tmp && <venv-or-pixi-python> -c 'import pkg.module as m; print(m.__file__)'
+
+# 5. Force current worktree binaries first when PATH is stale.
+export PATH="$PWD/.pixi/envs/default/bin:$PATH"
+hash -r
 ```
 
-### Diagnostic Steps
+1. Confirm the asymmetry. If CI is green and only the local shell is red, classify the failure as environmental until proven otherwise.
+2. Read the failing assertion. For `assert "X" not in env`, check whether the function starts with `os.environ.copy()` and only conditionally adds keys.
+3. Inspect the ambient environment with `env | grep`. If the asserted-absent key is exported, re-run with `env -u` before changing anything.
+4. For console-script or subprocess tests, verify both `which <binary>` and the module `__file__` from a neutral cwd. The current Python import path can differ from the console-script wrapper's import path.
+5. If cleaned-env or worktree-first PATH makes the failure pass, leave production code and tests untouched. Record the local environment issue instead.
+6. If the failure remains after env/PATH cleanup and CI is also red, then investigate as a genuine regression.
+7. Future hardening is separate scope: use `monkeypatch.delenv(..., raising=False)` or `mock.patch.dict(os.environ, clear=True)` only when the task is to harden tests against ambient state.
 
-1. Read the failing assertion. If it is `assert '<VAR>' not in env` (or similar "key absent") on the result of a function that does `os.environ.copy()`, suspect ambient pollution immediately.
-2. Confirm the variable is exported in your shell: `env | grep '^HEPH_'` (or the relevant prefix). If the asserted-absent var is listed, that is your root cause.
-3. Re-run the exact failing test with `env -u <VAR> ...` for each leaking var. If it now passes, the diagnosis is confirmed: local environment pollution, not a code or test bug.
-4. Confirm CI is green for the same checks (`unit-tests`, `test (…, unit)`). Green CI + local-pass-after-unset = leave code and tests untouched.
-5. Do NOT commit a "fix." There is nothing to fix in the helper or the tests.
+### Worked Examples
 
-### Key Rules
-
-- `os.environ.copy()` copies the WHOLE ambient environment, including whatever the parent shell exported. A test asserting a key is absent will fail if that key is exported around the test process.
-- Local-fail / CI-pass for an "absent var" assertion almost always means the developer shell is leaking the variable. CI runs clean.
-- The fix is diagnostic, not code: re-run with `env -u`. Never weaken `assert X not in env` to make a polluted-shell failure disappear — that hides a real future regression.
-- Running tests from inside the automation loop is the classic trigger: the loop exports `HEPH_LOOP_INDEX`, `HEPH_TOTAL_LOOPS`, and the per-agent `HEPH_*_MODEL` vars.
-- RECOMMENDATION (not done in this session): to make such tests immune to ambient state, isolate the environment at test time with `monkeypatch.delenv("HEPH_LOOP_INDEX", raising=False)` (and siblings) or `mock.patch.dict(os.environ, {...}, clear=True)`. This is a future hardening, framed as advice — the session did not modify the tests.
+| Example | Local Symptom | Authority Check | Correct Action |
+|---|---|---|---|
+| ProjectHephaestus #814 / PR #1058 | `_phase_env` tests asserted `HEPH_*` keys absent but local shell exported them. | `env -u HEPH_* pixi run python -m pytest ...` passed; CI unit tests were green. | Do not edit `_phase_env` or tests; classify as ambient env pollution. |
+| ProjectHephaestus #723 / PR #1016 | `shutil.which()` found an older console script from a sibling checkout. | `which hephaestus-automation-loop` and neutral-cwd `__file__` showed stale root checkout code. | Put current worktree `.pixi/envs/default/bin` first on PATH and `hash -r`. |
+| Long-lived automation-loop shell | Local tests inherited `HEPH_LOOP_INDEX`, model vars, and loop metadata. | `env | grep '^HEPH_'` exposed the pollution. | Strip vars for validation; keep code scoped to the actual CI failure. |
 
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
-| --------- | --------------- | --------------- | ---------------- |
-| 1 | Assumed the two local test failures were real and considered editing `_phase_env()` to drop the `HEPH_*` keys | `_phase_env()` is correct; it only ADDS keys conditionally. The unwanted keys came from `os.environ.copy()` copying the polluted parent shell, not from the function | Read the function before "fixing" it — a copy-then-add helper cannot be blamed for keys it never set |
-| 2 | Considered weakening the assertion (e.g. only checking keys the function explicitly sets) to make the local run green | That would mask a genuine future regression where the helper wrongly sets the var; CI was already green, proving the assertion is correct | Never relax a passing-in-CI assertion to silence a local-only failure |
-| 3 | Re-ran the suite normally, expecting the failure to be deterministic | It reproduced every time locally because the leaking vars were exported by the surrounding automation loop, but never reproduced in CI | Determinism within a polluted shell is not evidence of a code bug; compare against a clean environment |
-| 4 | (Resolution) Re-ran with `env -u HEPH_LOOP_INDEX … HEPH_ADVISE_MODEL` | Both tests passed with the vars stripped | Confirms ambient pollution; the correct action is to change nothing |
+|---|---|---|---|
+| Treat local-only red as a code regression | Started inspecting or editing production code because local pytest failed. | CI was green and the failing process inherited local-only state. | Compare CI first and prove env/PATH cleanliness before editing code. |
+| Weaken absent-var assertions | Considered relaxing `assert VAR not in env` to satisfy a polluted shell. | The assertion describes the clean-env contract CI verifies. | Fix the local environment, not the test, unless the task is explicit test hardening. |
+| Trust `python -c import` from cwd only | Imported the module from the worktree and assumed console scripts used the same code. | Console-script wrappers can load site-packages from another checkout. | Inspect the wrapper's interpreter/import path from a neutral cwd. |
+| Re-run without scrubbing env | Repeated pytest in the same polluted shell. | The failure was deterministic only because the shell was consistently polluted. | Determinism in a dirty environment is not regression evidence. |
+| Bundle future hardening into an unrelated CI fix | Considered adding `monkeypatch.delenv` while fixing unrelated formatting/CI drift. | That contaminates scope and hides the actual cause. | Record hardening separately unless it is the requested fix. |
 
 ## Results & Parameters
 
-| Parameter | Value |
-| ----------- | ------- |
-| Test file | `tests/unit/automation/test_loop_runner.py` |
-| Tests affected | `test_phase_env_loop_index_only_for_drive_green`, `test_phase_env_model_vars_only_when_non_empty` |
-| Function under test | `hephaestus/automation/loop_runner.py::_phase_env()` |
-| Root-cause construct | `env = os.environ.copy()` inheriting exported `HEPH_*` vars |
-| Leaking vars | `HEPH_LOOP_INDEX`, `HEPH_TOTAL_LOOPS`, `HEPH_PLANNER_MODEL`, `HEPH_REVIEWER_MODEL`, `HEPH_IMPLEMENTER_MODEL`, `HEPH_ADVISE_MODEL` |
-| Trigger context | Running pytest from inside the automation loop that exports those vars |
-| Verify command | `env -u HEPH_LOOP_INDEX -u HEPH_TOTAL_LOOPS -u HEPH_PLANNER_MODEL -u HEPH_REVIEWER_MODEL -u HEPH_IMPLEMENTER_MODEL -u HEPH_ADVISE_MODEL pixi run python -m pytest tests/unit/automation/test_loop_runner.py -q --no-cov` |
-| Code/test change made | None — diagnosed as local environment pollution |
-| CI status | Green (`unit-tests`, `test (ubuntu-latest, 3.10/3.11/3.12/3.13, unit)`) |
-| Future hardening (advice) | `monkeypatch.delenv(..., raising=False)` or `mock.patch.dict(os.environ, clear=True)` to isolate from ambient env |
+Use these parameters in PR notes when classifying a local failure:
+
+```yaml
+local_failure_classification:
+  ci_status: green | red | unknown
+  env_copy_detected: true | false
+  suspect_vars: [HEPH_LOOP_INDEX, HEPH_TOTAL_LOOPS, HEPH_PLANNER_MODEL]
+  scrub_command: env -u VAR ... pixi run python -m pytest <nodeid>
+  executable_check: which <console-script>
+  import_path_check: cd /tmp && <python> -c 'import module; print(module.__file__)'
+  disposition: env_pollution | stale_path | genuine_regression
+```
+
+Canonical decision rule:
+
+```text
+local red + CI green + passes after env/PATH cleanup -> leave code and tests untouched
+local red + CI red, or still red after cleanup -> investigate as a real regression
+```

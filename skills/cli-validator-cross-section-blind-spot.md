@@ -1,53 +1,56 @@
 ---
 name: cli-validator-cross-section-blind-spot
-description: "Markdown-section validators that break on the first non-matching H2 silently miss duplicate sections later in the document. Use when: (1) a tier/table validator parses a markdown section and stops early, (2) a CI gate passes despite a doc contradiction, (3) a 'break' at a section-end guard is the only early-exit in a line-by-line parser."
+description: "Fix markdown-section validators that silently miss duplicate or contradictory sections because a section parser breaks on the first non-matching H2. Use when a CLI/doc validator parses only the first matching section, a duplicate section later in the document passes CI, or a parser return shape must expose section_count without losing per-item duplicate checks."
 category: debugging
 date: 2026-06-13
-version: "2.0.0"
+version: "3.0.0"
 user-invocable: false
-verification: verified-ci
-tags: [validation, markdown-parser, state-machine, cli-tier-docs, duplicate-section, break-vs-continue]
+verification: verified-local
+history: cli-validator-cross-section-blind-spot.history
+tags: [validation, markdown-parser, state-machine, cli-tier-docs, duplicate-section, cross-section, break-vs-continue, return-shape]
 ---
 
 # CLI Validator Cross-Section Blind Spot
 
 ## Overview
 
+Markdown section parsers often carry a hidden single-section assumption: once they enter the target section, a later unrelated H2 triggers `break`, so the parser never sees a second matching section. That makes validators pass duplicate sections and cross-section contradictions.
+
+This skill consolidates three CLI tier-doc validator memories. The general fix is to reset parser state and continue scanning, count matching sections, and surface section-level findings alongside per-item duplicate/conflict findings.
+
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-06-13 |
-| **Objective** | Detect contradictory CLI tier documentation across two `## Console-Script Stability Tiers` sections in COMPATIBILITY.md |
-| **Outcome** | Implemented and verified — PR #1301 merged, 22 tests pass, CI green |
-| **Verification** | verified-ci — PR #1301 merged |
-| **Issue** | ProjectHephaestus #1255 |
-| **See also** | `validation-cli-tier-docs-duplicate-section-detection` (issue #1255) — detailed step-by-step fix workflow |
+| Date | 2026-07-04 |
+| Objective | Generalize duplicate-section validator repair while preserving ProjectHephaestus issue-specific implementation details. |
+| Outcome | Canonical v3 replaces two duplicate memories and keeps exact source snapshots in history. |
+| Verification | verified-local for this consolidation; source examples preserve their original verified-ci status in history. |
 
 ## When to Use
 
-- A markdown-section validator uses `break` to exit parsing when it sees any non-matching H2
-- A doc with two same-name H2 sections passes a validator that should have flagged them
-- `find_duplicate_tiers()` returns empty despite a CLI appearing with different tiers in two separate table sections
-- A PR reviewer manually deleted a duplicate section that the validator never caught
+- A markdown validator parses a named H2 section and stops at the first non-matching H2.
+- A document can contain two same-name sections, but the validator only sees the first.
+- A cross-section contradiction is possible, such as the same CLI documented with different tiers.
+- A parser currently returns per-item data but not section metadata.
+- You need to add a document-level finding such as `duplicate-section` without corrupting per-item duplicate logic.
+- A test name still says "stops at next section" after behavior changes to "exits this section but keeps scanning".
 
 ## Verified Workflow
-
-> **Status**: Verified — implemented in PR #1301, 22 tests pass, CI green.
 
 ### Quick Reference
 
 ```python
-# Before: break exits on first non-matching H2, missing second tier section
-if in_section and line.startswith("## ") and not _SECTION_HEADER_RE.match(line):
-    break  # BUG: second ## Console-Script Stability Tiers is never seen
+# Old: exits the whole parser on the first unrelated H2.
+if in_section and line.startswith("## ") and not SECTION_RE.match(line):
+    break
 
-# After: continue scanning; re-enter section if a second matching H2 appears
-if in_section and line.startswith("## ") and not _SECTION_HEADER_RE.match(line):
+# New: exits this section, resets table state, and keeps scanning.
+if in_section and line.startswith("## ") and not SECTION_RE.match(line):
     in_section = False
     in_table = False
-    continue  # keep scanning for another tier section
+    continue
 
-# Track how many times the section header appeared
-if _SECTION_HEADER_RE.match(line):
+# Re-enter and count every matching section.
+if SECTION_RE.match(line):
     in_section = True
     in_table = False
     section_count += 1
@@ -55,74 +58,71 @@ if _SECTION_HEADER_RE.match(line):
 ```
 
 ```python
-# Return section_count as 3rd element of the tuple
+# Return section metadata with the existing parsed data.
 return tiers, occurrences, section_count
 
-# In main(): emit duplicate-section finding when section_count > 1
-tiers, occurrences, section_count = load_documented_tiers(repo_root / "COMPATIBILITY.md")
-duplicates = find_duplicate_tiers(occurrences)
-if section_count > 1:
-    duplicates.append(
-        TierDocFinding(
-            cli="<section>",
-            kind="duplicate-section",
-            detail=(
-                f"COMPATIBILITY.md contains {section_count} "
-                "'## Console-Script Stability Tiers' sections; "
-                "merge them into one to prevent cross-section contradictions"
-            ),
-        )
-    )
+# Aggregate section-level and per-item findings together.
+findings = (
+    find_duplicate_sections(section_count)
+    + find_duplicate_tiers(occurrences)
+    + find_violations(tiers, registered)
+)
 ```
 
-### Detailed Steps
+1. Grep all callers before changing a parser return shape: `grep -rn "load_documented_tiers" hephaestus/ tests/ scripts/`.
+2. Replace parser-wide `break` with a section-exit reset plus `continue`.
+3. Reset all state-machine flags on both exit and re-entry. At minimum, reset `in_section` and `in_table`; reset `header_seen` or equivalent if the parser tracks table headers.
+4. Add `section_count` or equivalent metadata at the parser boundary.
+5. Emit document-level findings outside per-item duplicate functions unless those functions already receive section metadata.
+6. Add tests for: zero sections, one section, duplicate section, cross-section conflict, same item/same value across sections, and unrelated H2 content exclusion.
+7. Rename tests whose names encode the old hard-stop behavior.
 
-1. In `load_documented_tiers` (`hephaestus/validation/cli_tier_docs.py:89-90`): replace `break` with `in_section = False; in_table = False; continue`
-2. Add `section_count = 0` before the loop; increment when `_SECTION_HEADER_RE.match(line)` is true; reset `in_table = False` on re-entry
-3. Change return type annotation: `tuple[dict[str, str], dict[str, list[str]]]` → `tuple[dict[str, str], dict[str, list[str]], int]`
-4. In `main()`: unpack 3-tuple; if `section_count > 1`, append a `duplicate-section` TierDocFinding to `duplicates` before calling `find_violations`
-5. Update existing test unpacking: `tiers, _ =` → `tiers, _, _ =`; `tiers, occ =` → `tiers, occ, _ =` (4 test sites)
-6. Add `TestCrossSectionDetection` class with 4 new tests covering: two-section contradiction, single-section count, main() exit code, non-tier H2 still ends section
+### Worked Example
 
-## Resolved Uncertainties
-
-### 1. 3-tuple return is a clean API extension (resolved)
-
-`load_documented_tiers` previously returned a 2-tuple; it now returns `(tiers, occurrences, section_count)`. `grep -rn "load_documented_tiers" hephaestus/ tests/ scripts/` confirmed only two callers: `main()` and the test file. Both were updated atomically in PR #1301.
-
-### 2. `section_count > 1` emitted in `main`, not in `find_violations` (resolved, acceptable design)
-
-The `duplicate-section` finding is placed in `main()` rather than in `find_duplicate_tiers()` or `find_violations()`, since those functions do not have access to `section_count`. This is a clean design — callers invoking `find_violations` directly without `main()` will not see this finding, but no such callers exist.
-
-### 3. `test_load_tiers_stops_at_next_section` renamed (resolved)
-
-Renamed to `test_load_tiers_excludes_content_under_other_sections` in PR #1301. The new behavior is a soft state reset, not a hard stop, and the test name now reflects that correctly.
+| ProjectHephaestus Issue | Failure | Fix | Verification |
+|---|---|---|---|
+| #1255 / PR #1301 | `break` skipped a second `## Console-Script Stability Tiers` section, hiding duplicate/conflicting tiers. | Added `section_count`, `find_duplicate_sections`, 3-tuple return, and six duplicate-section tests. | 22 tests passed; CI green. |
+| #1257 / PR #1302 | Follow-up variant needed the same duplicate-section detection with a sentinel finding. | Reset parser state on section exit/re-entry and emitted `cli="<section>"` duplicate-section finding. | 20 tests passed; CI green. |
 
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
-|---------|----------------|---------------|----------------|
-| Original `break` guard (PR #1248) | Added within-section duplicate detection; `break` on first non-matching H2 | Second `## Console-Script Stability Tiers` after an intervening H2 is never parsed | `break` in a section parser is a single-section assumption; use `continue` to keep scanning |
-| Dedup within single section only | `occurrences` dict accumulated rows within one section | Cross-section contradiction (Stable in section 1, Internal in section 2) produces no `occurrences` conflict since both sections are never read together | Parser must accumulate all matching sections into a single `occurrences` dict |
+|---|---|---|---|
+| `break` on first non-matching H2 | Treated the first unrelated H2 as the end of all relevant parsing. | A later matching H2 was never reached. | Use state reset plus `continue` for section-scoped parsers. |
+| Replace `break` without resetting table state | Continued scanning but left `in_table` true from the previous section. | The new section's table header could be skipped or misclassified. | Reset every state flag needed for fresh re-entry. |
+| Only fix within-section duplicates | Improved duplicate detection inside one parsed section. | Cross-section contradictions still never reached the duplicate checker. | Parser reachability must be fixed before duplicate logic can work. |
+| Change return shape without caller audit | Assumed only one caller unpacked the parser return. | Any un-audited unpack would break at runtime. | Grep all callers and update unpack sites atomically. |
+| Put section finding inside per-item duplicate logic | Tried to thread document-level metadata through item keyed helpers. | It coupled orthogonal concerns and complicated API shape. | Emit document-level findings at the aggregation layer. |
 
 ## Results & Parameters
 
-**Root cause**: `cli_tier_docs.py:89-90` — `break` on non-matching H2 means:
-- Section 1 parsed: `hephaestus-foo → Stable`
-- `## Public API` H2 triggers `break`
-- Section 2 (`hephaestus-foo → Internal`) never reached
-- `find_duplicate_tiers({"hephaestus-foo": ["Stable"]}) == []` → validator reports OK
+Use these implementation parameters for similar validators:
 
-**Root cause**: `cli_tier_docs.py:89-90` — `break` on non-matching H2 means:
-- Section 1 parsed: `hephaestus-foo -> Stable`
-- `## Public API` H2 triggers `break`
-- Section 2 (`hephaestus-foo -> Internal`) never reached
-- `find_duplicate_tiers({"hephaestus-foo": ["Stable"]}) == []` -> validator reports OK
+```yaml
+parser_state:
+  section_count: int
+  in_section: bool
+  in_table: bool
+  header_seen: bool
+finding_kinds:
+  document_level: duplicate-section
+  item_level: [duplicate-tier, conflicting-tier]
+sentinel_values:
+  section: "<section>"
+  table: "<table>"
+validation_tests:
+  - zero target sections
+  - one target section
+  - two target sections same item same value
+  - two target sections same item conflicting value
+  - unrelated h2 content excluded
+  - main exits nonzero when duplicate-section is emitted
+```
 
-**Resolved**: Both callers updated atomically in PR #1301; only `main()` and the test file called `load_documented_tiers`. `test_duplicate_section_finding_emitted_by_main` uses a minimal pyproject and tomllib parsed it without error.
+Commands:
 
-## Verified On
-
-| Project | Context | Details |
-|---------|---------|---------|
-| ProjectHephaestus | Issue #1255, PR #1301 | 22 tests pass, CI green, verified-ci |
+```bash
+grep -rn "load_documented_tiers" hephaestus/ tests/ scripts/ 2>/dev/null
+grep -c '^## Console-Script Stability Tiers' COMPATIBILITY.md
+pixi run pytest tests/unit/validation/test_cli_tier_docs.py -v
+```
