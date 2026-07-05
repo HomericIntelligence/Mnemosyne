@@ -75,7 +75,7 @@ tags:
 ```bash
 # 1. CONFIRM THE DEPENDENCY IS ACTUALLY OPEN — do not assume. If any predecessor
 #    is merged, STOP and use planning-dependent-issue-unverified-upstream instead.
-for n in 1810 1811 1812 1813 1814 1815 1816 1817; do
+for n in {1810..1817}; do
   gh issue view "$n" --repo HomericIntelligence/ProjectHephaestus --json state -q .state
 done                                            # all -> OPEN
 
