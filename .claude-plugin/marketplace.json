@@ -6,9 +6,9 @@
   },
   "description": "Skills marketplace for the HomericIntelligence agentic ecosystem",
   "version": "2.1.0",
-  "total_plugins": 604,
+  "total_plugins": 605,
   "categories": {
-    "architecture": 116,
+    "architecture": 117,
     "ci-cd": 119,
     "debugging": 58,
     "documentation": 39,
@@ -18,7 +18,7 @@
     "tooling": 166,
     "training": 7
   },
-  "last_updated": "2026-07-05T06:28:42Z",
+  "last_updated": "2026-07-05T06:32:07Z",
   "plugins": [
     {
       "name": "agent-config-validation-and-integrity",
@@ -604,6 +604,32 @@
         "rate-limit",
         "python",
         "hephaestus"
+      ]
+    },
+    {
+      "name": "blocked-deletion-issue-unbuilt-prerequisites",
+      "description": "When PLANNING a cleanup/deletion/refactor issue that is part of a multi-PR epic and is gated on prior sub-issues (`Depends on #NNNN`, `Do not start until X has soaked >=1 release`, a `feat!:` cutover), the deletion issue body describes a FUTURE tree that LATER PRs were supposed to create \u2014 not the current one. Verify the prerequisite chain against the CURRENT tree BEFORE writing a deletion plan; when the premise is false the correct deliverable is a BLOCKED plan documenting the blocker with concrete resume gates, NOT a fabricated deletion plan against code that does not exist. Use when: (1) planning a `remove/delete/cutover/collapse` issue that names a dependency issue or a soak precondition, (2) the issue tells you to 'remove the shims left in PR-N' or 'delete everything in list X' and you have not yet grepped whether those symbols are shims or the live implementation, (3) the issue enumerates test files (test_seeding.py/test_admission.py/test_coordinator.py) or config symbols (a `--legacy-loop` flag, a `PipelineConfig`) that do not exist on `main` yet, (4) you are tempted to satisfy the plan output-contract by inventing edits to code that is not in the tree, (5) you need to decide whether a BLOCKED plan (blocker + runnable evidence + resume gates, no branch/PR) is an acceptable deliverable.",
+      "version": "1.0.0",
+      "source": "./skills/blocked-deletion-issue-unbuilt-prerequisites.md",
+      "category": "architecture",
+      "tags": [
+        "planning",
+        "blocked-issue",
+        "premature-deletion",
+        "unbuilt-prerequisites",
+        "depends-on",
+        "epic-serialized-issues",
+        "cutover-issue",
+        "soak-precondition",
+        "shim-vs-live-implementation",
+        "deletion-safety",
+        "future-tree",
+        "grep-callers",
+        "orphan-importer",
+        "blocked-plan-deliverable",
+        "verify-before-planning",
+        "assumptions",
+        "nogo-lessons"
       ]
     },
     {
