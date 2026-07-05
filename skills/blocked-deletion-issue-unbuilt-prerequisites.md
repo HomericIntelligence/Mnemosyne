@@ -70,7 +70,7 @@ Before writing a single deletion edit, verify the prerequisite state against the
 git -C <repo> log --oneline -1     # e.g. "main @ 8143380"
 
 # 1. Check the dependency-issue chain STATE FIRST. OPEN across the chain => soak not even started.
-for n in 1810 1811 1812 1813 1814 1815 1816 1817 1818; do
+for n in {1810..1818}; do
   gh issue view "$n" --repo <ORG/REPO> --json number,state \
     -q '"#\(.number) [\(.state)]"'
 done
