@@ -6,19 +6,19 @@
   },
   "description": "Skills marketplace for the HomericIntelligence agentic ecosystem",
   "version": "2.1.0",
-  "total_plugins": 591,
+  "total_plugins": 595,
   "categories": {
-    "architecture": 114,
+    "architecture": 115,
     "ci-cd": 119,
     "debugging": 53,
     "documentation": 39,
     "evaluation": 12,
-    "optimization": 4,
-    "testing": 79,
+    "optimization": 5,
+    "testing": 81,
     "tooling": 164,
     "training": 7
   },
-  "last_updated": "2026-07-04T21:12:29Z",
+  "last_updated": "2026-07-05T00:37:07Z",
   "plugins": [
     {
       "name": "agent-config-validation-and-integrity",
@@ -1528,6 +1528,22 @@
         "rc-semantics",
         "multi-phase",
         "automation"
+      ]
+    },
+    {
+      "name": "pipeline-budget-tracking-fail-back-exits",
+      "description": "Use when: (1) building routing tables with retry budgets for an automation pipeline (e.g., review loops, implementation loops); (2) distinguishing between retry failures that consume budget (re-enter the same stage) and terminal/fail-back exits that don't (leave the stage or terminate); (3) writing property tests to assert that unbudgeted exits guarantee termination to FINISHED; (4) debugging property test assertions that incorrectly assume all state transitions preserve budget semantics.",
+      "version": "1.0.0",
+      "source": "./skills/pipeline-budget-tracking-fail-back-exits.md",
+      "category": "architecture",
+      "tags": [
+        "routing-table",
+        "retry-budget",
+        "state-machine",
+        "fail-back-exit",
+        "property-test",
+        "automation-pipeline",
+        "work-items"
       ]
     },
     {
@@ -6913,6 +6929,28 @@
       ]
     },
     {
+      "name": "googlenet-backward-pass-inception-gradients",
+      "description": "Use when: (1) implementing neural network backward passes through Inception modules with multiple branches; (2) splitting gradients across parallel branches using split_with_indices with channel tables; (3) implementing SGD-momentum parameter updates for large numbers of parameters (100+); (4) debugging Batch Normalization backward pass tuple indexing ([0]/[1]/[2] for grad_input/gamma/beta); (5) generating highly repetitive gradient computation code via Python helpers to avoid copy-paste errors; (6) handling merge conflicts when rebasing backward-pass PRs with fine-tuned imports.",
+      "version": "1.0.0",
+      "source": "./skills/googlenet-backward-pass-inception-gradients.md",
+      "category": "optimization",
+      "tags": [
+        "googlenet",
+        "inception",
+        "backward-pass",
+        "gradient-splitting",
+        "split_with_indices",
+        "channel-tables",
+        "sgd-momentum",
+        "batch-norm-gradients",
+        "python-code-generation",
+        "gradient-combining",
+        "merge-conflict-resolution",
+        "parameter-updates",
+        "mojo"
+      ]
+    },
+    {
       "name": "mobilenetv1-epoch-training-validation",
       "description": "Verified workflow for running long-duration ML training validation (35+ minutes on CPU) in CI-constrained environments with timeout limits. Captures real training-loop behavior by executing full epoch with detached nohup process, polling log output, and committing authentic loss-progression evidence. Use when: (1) training runs exceed 2-minute foreground timeout and require background execution, (2) validating backward-pass implementations by confirming monotone-decreasing loss over full epoch, (3) capturing verification evidence for PR closure without re-running in CI, (4) handling download/data-prep as pre-training subprocess tasks, (5) need to validate loss values fall monotonically to gate PR approval.",
       "version": "1.0.0",
@@ -7273,6 +7311,24 @@
         "bats",
         "graphql",
         "shell-testing"
+      ]
+    },
+    {
+      "name": "pipeline-routing-budget-terminal-vs-retry-paths",
+      "description": "Use when: (1) modeling budget attribution in queue-based automation pipelines where some failure reasons loop back for retry while others are terminal paths; (2) the routing table incorrectly maps a terminal reason (routes to FINISHED) to a budget key as if it consumes per-item budget; (3) distinguishing which failure modes consume retry-loop budgets (looping back to same/earlier stage) vs which are one-shot terminal outcomes (no retry, routes directly to FINISHED); (4) writing property-based tests to verify budget exhaustion invariants across all failure modes; (5) validating that terminal paths (terminal work-item states, no-op reasons) consume NO budget while retry paths (requeue, recirculate) consume budgets per item.",
+      "version": "1.0.0",
+      "source": "./skills/pipeline-routing-budget-terminal-vs-retry-paths.md",
+      "category": "testing",
+      "tags": [
+        "pipeline",
+        "routing",
+        "budget",
+        "terminal-paths",
+        "retry-loops",
+        "property-based-testing",
+        "hypothesis",
+        "queue-automation",
+        "budget-attribution"
       ]
     },
     {
@@ -7697,6 +7753,24 @@
       "source": "./skills/test-diff-analyzer.md",
       "category": "testing",
       "tags": []
+    },
+    {
+      "name": "test-fixtures-tz-aware-datetime-production-invariant",
+      "description": "Use when: (1) production code guarantees all timestamps are tz-aware UTC (coordination layer convention); (2) test fixtures use naive datetime.now() instead of tz-aware datetime.now(timezone.utc); (3) timezone-aware invariants are enforced at runtime (TypeError, ValueError, or silent logical bugs when comparing aware/naive); (4) fixtures should mirror production constraints to catch timezone bugs at authoring time, not at CI time; (5) refactoring fixtures to use tz-aware UTC across history events, event timestamps, or any temporal data that flows through coordination layers; (6) coordinating timestamps across multiple subsystems (agents, events, work items) where some use naive and others use aware, causing comparison failures.",
+      "version": "1.0.0",
+      "source": "./skills/test-fixtures-tz-aware-datetime-production-invariant.md",
+      "category": "testing",
+      "tags": [
+        "testing",
+        "datetime",
+        "timezone",
+        "fixtures",
+        "tz-aware",
+        "UTC",
+        "python-datetime",
+        "production-invariants",
+        "coordination-layer"
+      ]
     },
     {
       "name": "test-implementation-gap-analysis",
