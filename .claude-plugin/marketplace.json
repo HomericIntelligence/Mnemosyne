@@ -6,19 +6,19 @@
   },
   "description": "Skills marketplace for the HomericIntelligence agentic ecosystem",
   "version": "2.1.0",
-  "total_plugins": 623,
+  "total_plugins": 628,
   "categories": {
-    "architecture": 124,
+    "architecture": 127,
     "ci-cd": 121,
     "debugging": 60,
-    "documentation": 39,
+    "documentation": 40,
     "evaluation": 12,
     "optimization": 7,
     "testing": 82,
-    "tooling": 171,
+    "tooling": 172,
     "training": 7
   },
-  "last_updated": "2026-07-06T20:01:31Z",
+  "last_updated": "2026-07-06T20:08:32Z",
   "plugins": [
     {
       "name": "agent-config-validation-and-integrity",
@@ -243,7 +243,7 @@
     {
       "name": "architecture-github-labels-as-state-vocabulary",
       "description": "Use mutually-exclusive `state:*` GitHub labels as the single source of truth for per-issue pipeline state instead of parsing free-text comment bodies. Use when: (1) an automated pipeline gates work on a verdict regex-parsed from the latest comment, (2) free-text comment-based state machine is fragile because pre-contract or off-format comments are unparseable and leave issues permanently stuck, (3) you need a gh issue label state vocabulary that the planner, reviewer, and implementer all read identically, (4) a plan-review GO/NOGO gate needs to short-circuit cheaply across 100s of issues without re-parsing every comment every loop iteration, (5) you need to self-heal stuck issues without manual cleanup \u2014 backfill a state label from an existing parseable comment on a one-time fallback, (6) two pipeline components share a gate but read it via different signals causing infinite-loop drift (planner skips because plan exists, implementer defers because review unparseable), (7) you want to harden the state-tagging GitHub Action against the Actions injection class while still tagging issues:opened with `state:needs-plan`, (8) you need to provision the 3 labels across an org without races against the first reviewer write.",
-      "version": "1.0.0",
+      "version": "1.2.0",
       "source": "./skills/architecture-github-labels-as-state-vocabulary.md",
       "category": "architecture",
       "tags": [
@@ -260,7 +260,15 @@
         "gh-issue-edit",
         "mutually-exclusive-labels",
         "source-of-truth",
-        "shared-gate-divergence"
+        "shared-gate-divergence",
+        "replan-transition",
+        "unexecuted-edge",
+        "stuck-closed-gate",
+        "state-transition-audit",
+        "atomic-label-swap",
+        "swap-not-bare-add",
+        "combined-edit-primitive",
+        "mutually-exclusive-invariant"
       ]
     },
     {
@@ -354,14 +362,28 @@
     },
     {
       "name": "architecture-metaclass-threadlocal-thread-safety",
-      "description": "Pattern for making class-level attribute access thread-safe using a metaclass with __getattr__ and threading.local(). Use when: (1) a class uses mutable class attributes shared across threads, (2) you need per-thread enable/disable state, (3) you want to preserve the Class.ATTR access pattern while eliminating shared mutable state.",
-      "version": "1.0.0",
+      "description": "Two complementary thread-safety shapes for shared Python state. (A) VERIFIED: make class-level attribute access thread-safe with a metaclass __getattr__ + threading.local() so each thread gets isolated state. (B) PROPOSED/plan-only: retrofit a module-global shared cache (set/dict) for a ThreadPoolExecutor by replacing it with a threading.Lock-guarded, repo-keyed dict \u2014 with the R1 (post-NOGO) resolution of its deepest risks. Use when: (1) a class uses mutable class attributes shared across threads, (2) you need per-thread enable/disable state while preserving the Class.ATTR access pattern, (3) a process-global cache (e.g. a gh label cache) is read/written unguarded from a multi-threaded coordinator and one thread's cache masks another's, (4) you are planning to key a shared cache per-repo and must decide between threading.local() and a lock-guarded keyed dict, (5) you need to reason about whether a per-key cache is a NO-OP under a shared-CWD thread pool where the real isolation comes from the lock, (6) a plan reviewer NOGO'd your shared-cache fix and you must RESOLVE the deepest risk (grep chdir, read the resolver's actual signature) instead of re-flagging it, (7) you must decide whether to fix the library vs the one multi-repo caller and want to avoid churning single-repo-per-process legacy callers that were never broken.",
+      "version": "1.2.0",
       "source": "./skills/architecture-metaclass-threadlocal-thread-safety.md",
       "category": "architecture",
       "tags": [
         "thread-safety",
         "metaclass",
         "threading-local",
+        "threading-lock",
+        "shared-cache",
+        "repo-keyed-cache",
+        "module-global-state",
+        "thread-pool-executor",
+        "gil-not-atomic",
+        "load-bearing-lock",
+        "planning-risks",
+        "nogo-recovery",
+        "resolve-risk-not-reflag",
+        "verify-resolver-signature",
+        "dont-overscope-safe-callers",
+        "defensive-copy",
+        "concurrency-boundary",
         "python",
         "immutable-state"
       ]
@@ -572,7 +594,7 @@
     {
       "name": "automation-god-package-shim-first-decomposition",
       "description": "Use when: (1) a flat Python sub-package has grown to 40+ co-located .py files (god-package) and needs reorganization into domain sub-packages without breaking any existing import sites, (2) planning a shim-first migration where the original module paths remain as thin re-export shims after symbols are moved to new sub-packages, (3) determining migration ordering for a package with an internal import graph (adapters first, orchestrators last), (4) verifying that every moved module defines __all__ before relying on wildcard re-exports in shims, (5) auditing for circular import risk when shims and moved modules both reference each other, (6) decomposing a flat package that is gated behind an optional install extra (e.g. [automation]) so the library/product boundary is preserved, (7) consolidating a small cluster of always-co-imported modules into ONE canonical module while keeping the original paths as explicit re-export shims (the inverse direction \u2014 merge, not split \u2014 but the same shim discipline applies).",
-      "version": "2.1.0",
+      "version": "2.2.0",
       "source": "./skills/automation-god-package-shim-first-decomposition.md",
       "category": "architecture",
       "tags": [
@@ -1020,6 +1042,25 @@
         "scope-honesty",
         "planning-learning",
         "rendered-body-format"
+      ]
+    },
+    {
+      "name": "github-issue-state-label-rank-at-or-past",
+      "description": "Use when: (1) classifying issues by mutually-exclusive state labels into a pipeline queue (e.g. state:needs-plan, state:plan-go, state:implementation-go), (2) routing work based on label progression through a fixed rank sequence where some transitions are allowed but others must skip stages, (3) preventing re-queueing of issues that have already reached or passed a given state rank (e.g. prevent re-planning an issue already at state:plan-go), (4) building a dispatcher that uses RANK COMPARISON (>=) not label equality (==) to route issues, (5) debugging \"issue keeps re-entering phase X despite already being past it\" failures in an automated pipeline.",
+      "version": "1.0.0",
+      "source": "./skills/github-issue-state-label-rank-at-or-past.md",
+      "category": "architecture",
+      "tags": [
+        "github-labels",
+        "state-machine",
+        "rank-comparison",
+        "pipeline-queue",
+        "admission-control",
+        "classifier",
+        "at-or-past",
+        "re-queueing",
+        "state-label-vocabulary",
+        "automation"
       ]
     },
     {
@@ -1723,6 +1764,34 @@
       ]
     },
     {
+      "name": "planning-absorb-existing-module-into-unmerged-stage",
+      "description": "Planning discipline for a MID-CHAIN sub-issue of a strictly-serialized epic whose job is to ABSORB / MIGRATE an EXISTING covered module into a pipeline stage FILE that does not exist yet because it is PRODUCED by an EARLIER, UNMERGED sibling issue. The acceptance criteria name symbols (`PipelineConfig`, `PipelineScope`, `run_pipeline`) and destination paths (`.../pipeline/stages/plan_review.py`, `tests/unit/.../pipeline/test_stage_plan_review.py`) that are ABSENT on the current tree \u2014 the tell is the issue's OWN wording 'absorbed into stages/plan_review.py IN THE EPIC', which reveals the target is created by a prior sub-issue, not by this one. The load-bearing move is a SPLIT-ANCHOR plan: SOURCE-side facts (the existing module's patch-seam sweep surface, `main()` line, `class X` line, the shared arg-parser home, and every `patch.object`/`mock` seam a test suite pins) are VERIFIED against the current tree and DO NOT drift while the dep is unmerged, so they anchor the plan usefully NOW; DESTINATION-side pipeline symbol names DO drift and must be marked 'match whatever the merged API exports \u2014 verify before writing'. State BLOCKED up front with the evidence greps, still deliver the full executable spec, make implementation Step 1 an explicit 'GATE \u2014 confirm dependency merged; if not, STOP', and warn that all destination `file:line` anchors re-grep after the dep lands. A structural assertion in an existing test (e.g. an agent-wiring assertion) that guards behavior the migration preserves must be RE-HOMED to the new test module, NOT deleted. Use when: (1) planning a sub-issue of a serialized epic whose `Depends on #N` chain is not yet merged and whose ACCEPTANCE CRITERIA reference symbols/files/modules that do not exist on the current tree; (2) the issue asks you to MOVE/ABSORB an existing (often coverage-COVERED) module into a not-yet-existing stage file; (3) you must decide implement-now vs. write a forward-referencing 'execute after #N merges' plan; (4) you must avoid hallucinating an entire dependency's API surface while STILL anchoring the plan to real current-tree facts on the source side; (5) an existing structural/wiring test assertion would be orphaned by the migration and must be re-homed rather than dropped.",
+      "version": "1.0.0",
+      "source": "./skills/planning-absorb-existing-module-into-unmerged-stage.md",
+      "category": "architecture",
+      "tags": [
+        "planning",
+        "serialized-epic",
+        "dependency-gated",
+        "blocked-issue",
+        "unmerged-dependency",
+        "absorb-existing-module",
+        "module-migration",
+        "split-anchor",
+        "source-vs-destination-anchors",
+        "forward-referencing-plan",
+        "gate-confirm-dep-merged",
+        "re-home-structural-assertion",
+        "patch-seam-sweep",
+        "covered-module",
+        "coverage-omit-list",
+        "verify-before-planning",
+        "grep-ls-every-named-symbol",
+        "anchor-drift",
+        "honest-blocked-plan"
+      ]
+    },
+    {
       "name": "planning-against-unmerged-dependency-chain",
       "description": "Write a correct, reviewable implementation plan for an issue whose ENTIRE dependency chain is still OPEN \u2014 you are planning against a code surface that does not exist yet because it will be created by unmerged predecessor issues, so you CANNOT read the real code (contrast planning-dependent-issue-unverified-upstream, where the dependency is almost always already merged and readable). Verify the dependency state first (`gh issue view` each predecessor is OPEN; `ls <package-dir>` exits non-zero \u2014 the surface is absent), then anchor every claim about the not-yet-written surface on an EXISTING sibling convention in-tree (the module's real env-bool idiom, its CLI-over-env precedence pattern), never a guess. Separate the tiny CODE deliverable (default-flag flip + a re-guard escape-hatch flag + docs) from the MERGE-GATE EVIDENCE (operator/CI runs attached as issue comments), and make a default-flip ADD a re-guard (`--legacy-*` store_false sharing dest + mirrored env var) rather than silently no-op the old mode. Use when: (1) planning an issue whose `Depends on #N` predecessor is still OPEN and its package/module is absent from the tree, (2) writing a feature-flag default-flip / cutover / flag-flip plan, (3) anchoring assumptions about not-yet-written code on an existing sibling convention instead of inventing signatures, (4) separating a code deliverable from merge-gate evidence (dry-run, shadow-diff, scoped live drive, interrupt drill) for a cutover issue, (5) about to cite a predecessor's attribute name / dispatch shape / log-marker string / doc banner wording that you have not read from merged code.",
       "version": "1.0.0",
@@ -2069,6 +2138,29 @@
       ]
     },
     {
+      "name": "planning-pr-review-go-gate-severity-round-trip",
+      "description": "Planning discipline for making a blocking gate severity-aware when the severity attribute must survive a multi-stage pipeline round-trip (reviewer JSON -> coordinator seed -> item.payload -> GitHub post -> GraphQL read-back). Before designing around a per-item field, GREP THE FIELD NAME producer-to-consumer across the whole package: a field emitted in a prompt is NOT the same as a field present in the parsed/consumed data structure. Choose the fail-safe default so the field-absent case reproduces CURRENT (safe) behavior exactly, making the change a no-op until the enabling data is wired. Anchor severity readers on a marker-LINE prefix, not a free substring scan. Cite the DEFINITION site of any helper a plan says to reuse, not the call/import site. Use when: (1) planning a fix that filters a blocking gate (a GO/merge gate) by a per-item severity/attribute that must survive a GitHub review post->read-back round-trip, (2) planning a fix whose core mechanism depends on a data field flowing through several pipeline stages, (3) re-introducing a previously-fixed deadlock in a rewritten subsystem (the #1554 minor-thread deadlock re-appearing in the queue-based pipeline pr_review stage, ProjectHephaestus #1856 / epic #1809), (4) a plan reads `t.get(\"severity\")` off a thread dict \u2014 confirm severity is actually seeded there and not just present in the reviewer prompt, (5) a plan says 'reuse the local classifier/helper' \u2014 confirm the helper is defined locally versus imported from a sibling module, (6) weighing a single-int blocking-count gate against a by-severity tuple that also RESOLVES the waved threads (required_review_thread_resolution branch-protection can re-deadlock at merge if minor threads stay unresolved).",
+      "version": "1.0.0",
+      "source": "./skills/planning-pr-review-go-gate-severity-round-trip.md",
+      "category": "architecture",
+      "tags": [
+        "planning-methodology",
+        "severity-aware-gate",
+        "go-gate",
+        "minor-thread-deadlock",
+        "1554",
+        "1856",
+        "automation-pipeline",
+        "pr-review-stage",
+        "field-round-trip",
+        "grep-producer-to-consumer",
+        "fail-safe-default",
+        "marker-line-anchoring",
+        "cite-definition-site",
+        "required-review-thread-resolution"
+      ]
+    },
+    {
       "name": "planning-reuse-existing-public-env-reader",
       "description": "When a TASK/issue says to PROMOTE or EXPORT a private helper (e.g. `make _read_int_env public`), FIRST grep the whole package for an ALREADY-PUBLIC function that does the same job and reuse THAT as the canonical source \u2014 the issue's suggested fix may be superseded by repo reality. Then collapse the private duplicate to a 1-line delegate (do NOT delete it if it has in-module callers), and prioritize any MODULE-TOP-LEVEL env coercion as the real bug (fatal-at-import beats function-body reads). Use when: (1) an issue proposes exporting/renaming a private `_helper` to public, (2) you suspect an already-public equivalent exists in a library-layer module like constants.py, (3) a base-layer module reads `int(os.environ.get(...))` at import time, (4) routing a base-layer module through another module risks pulling forbidden transitive imports into the base import surface, (5) swapping `int(os.environ.get(NAME, \"1800\"))` for a typed reader and the string default must become an int default.",
       "version": "1.0.0",
@@ -2165,8 +2257,8 @@
     },
     {
       "name": "planning-unmerged-parent-contract-compile-smoke-gate",
-      "description": "Plan an issue whose dependency parent issue is NOT yet merged (verified via `gh pr list --search '<N>' --state all` returning `[]`) but has an APPROVED plan on file. Consume the parent's approved-plan contract (function signatures, struct field names, return types) instead of re-implementing or hedging \u2014 but mandate a compile-smoke-test (`pixi run mojo build --Werror`) as the FIRST verification step immediately after the parent PR merges to catch contract drift. When a reviewer NOGOs the plan for unverified APIs, Read each flagged API's on-disk source line NOW and revise every assumption that was wrong \u2014 empirically 4-of-4 flagged assumptions were wrong (2 would not have compiled, 1 would silently have produced wrong loss). Assume a 100% wrong-rate on any cited-but-unread API. Grep-verify every numeric count claim (parameter counts, field counts) against the current tree AND flag same-line coordination hazards when multiple planned PRs touch identical stale comments. List every external API you cite but did NOT `Read` in a dedicated 'Unverified API Assumptions' section so reviewers can target verification. For random-init deep-network convergence thresholds, use a two-tier assertion (hard floor `loss[final] < loss[0]` + issue-prescribed `loss[final] < 0.95 * loss[0]`) \u2014 never weaken the issue's threshold; mitigate on data/hyperparams (more samples, larger bias amplitude, warm-up epoch). Grep for cross-file callers (`grep -rn 'fname(' --include='*.mojo'`) before changing a per-example function's signature. Smoke-run the example's `main()` itself, not just an importing test file. **Validation-only sub-case (v1.2.0):** when the child issue is validation-only (run a script, capture a log, assert a criterion \u2014 no code corrections in this task), the SAME plan-authoring discipline applies to the entrypoint path, CLI flag names, batch log format, data-loader defaults, container invocation form (`just shell -c '<cmd>'`), and wall-clock budget \u2014 every one is a cited-but-unread assumption unless the parent PR has merged. For log-parsers, mandate a `parsed N > 0` sanity check so a format mismatch fails LOUDLY instead of producing a garbage summary next to an exit-0 wrapper. For loss-decrease criteria on short/noisy runs, prefer a smoothed trend (linear fit slope) over first-decile-vs-last-decile means; a monotonically-decreasing epoch can still fail a decile comparison if the last decile plateaus above the first decile due to noise. Include an 'Assumption Mapping for Mechanical Re-Plan' table (Assumption \u2192 File/line to fix once parent merges) so re-planning after dep merge is line-anchored and mechanical. Flag container-network assumptions (dataset auto-download inside the podman network namespace) and gitignored-artifact-attachment (attach via `gh pr comment --body-file` when `logs/` is gitignored). Use when: (1) planning issue B where B depends on unmerged issue A but A has an approved plan comment, (2) a reviewer NOGOed a plan for cited-but-unread APIs and you're revising, (3) about to cite an API signature (`randn`, `AnyTensor.store`, `cross_entropy`) you have not `Read`, (4) writing a numeric count into a plan that another planned PR also touches, (5) asserting a loss-decrease threshold on random-init deep networks, (6) changing a per-example function's signature and unsure whether other files call it, (7) authoring a validation-only issue that runs a script produced by an unmerged parent, (8) writing a bash wrapper + Python log-parser pair without a `parsed N > 0` sanity check, (9) picking a wall-clock budget or fallback batch count by heuristic with no benchmark data.",
-      "version": "1.2.0",
+      "description": "Plan an issue whose dependency parent issue is NOT yet merged (verified via `gh pr list --search '<N>' --state all` returning `[]`) but has an APPROVED plan on file. Consume the parent's approved-plan contract (function signatures, struct field names, return types) instead of re-implementing or hedging \u2014 but mandate a compile-smoke-test (`pixi run mojo build --Werror`) as the FIRST verification step immediately after the parent PR merges to catch contract drift. When a reviewer NOGOs the plan for unverified APIs, Read each flagged API's on-disk source line NOW and revise every assumption that was wrong \u2014 empirically 4-of-4 flagged assumptions were wrong (2 would not have compiled, 1 would silently have produced wrong loss). Assume a 100% wrong-rate on any cited-but-unread API. Grep-verify every numeric count claim (parameter counts, field counts) against the current tree AND flag same-line coordination hazards when multiple planned PRs touch identical stale comments. List every external API you cite but did NOT `Read` in a dedicated 'Unverified API Assumptions' section so reviewers can target verification. For random-init deep-network convergence thresholds, use a two-tier assertion (hard floor `loss[final] < loss[0]` + issue-prescribed `loss[final] < 0.95 * loss[0]`) \u2014 never weaken the issue's threshold; mitigate on data/hyperparams (more samples, larger bias amplitude, warm-up epoch). Grep for cross-file callers (`grep -rn 'fname(' --include='*.mojo'`) before changing a per-example function's signature. Smoke-run the example's `main()` itself, not just an importing test file. **Validation-only sub-case (v1.2.0):** when the child issue is validation-only (run a script, capture a log, assert a criterion \u2014 no code corrections in this task), the SAME plan-authoring discipline applies to the entrypoint path, CLI flag names, batch log format, data-loader defaults, container invocation form (`just shell -c '<cmd>'`), and wall-clock budget \u2014 every one is a cited-but-unread assumption unless the parent PR has merged. For log-parsers, mandate a `parsed N > 0` sanity check so a format mismatch fails LOUDLY instead of producing a garbage summary next to an exit-0 wrapper. For loss-decrease criteria on short/noisy runs, prefer a smoothed trend (linear fit slope) over first-decile-vs-last-decile means; a monotonically-decreasing epoch can still fail a decile comparison if the last decile plateaus above the first decile due to noise. Include an 'Assumption Mapping for Mechanical Re-Plan' table (Assumption \u2192 File/line to fix once parent merges) so re-planning after dep merge is line-anchored and mechanical. Flag container-network assumptions (dataset auto-download inside the podman network namespace) and gitignored-artifact-attachment (attach via `gh pr comment --body-file` when `logs/` is gitignored). **Prerequisite-gate + dispatch-table sub-case (v1.3.0):** when the child plan IMPORTS symbols the unmerged sibling introduces (e.g. `CompletionQueue`, `StageName` from a package that does NOT yet exist on `origin/main`), the plan's FIRST implementation step must be a concrete PREREQUISITE GATE that STOPS if the package directory is absent \u2014 not a prose 'Depends on #NNNN' note. Verify empirically before planning: `git fetch origin && git log --oneline origin/main | grep '(#<dep>)'` and `test -d <path/the/dep/creates>`. Any op/route/dispatch table in a plan must resolve EVERY enumerated case to a concrete named callable with a re-grepped `file:line` \u2014 never 'dispatch job.op to module X'; when NO clean public seam exists for a case, say so explicitly and pick the minimal one rather than silently leaving the gap. Re-grep every cited `file:line` right before emitting the plan; a `~` or an un-verified line number is a reviewer ding (and a signal you never opened the file there). When a test double stands in for a real interface used by all later tests, enumerate its FULL mutator surface \u2014 never 'etc.'. Anticipate the MINOR-tightening cluster a reviewer demands even on a sound design: catch `BaseException` (not `Exception`) in a worker whose result is read via `future.result()` in a callback thread; specify unspecified helper paths (lock-file path); derive an invariant's target set from `__all__` rather than hardcoding private names AND add a non-empty guard so the invariant cannot pass vacuously. Use when: (1) planning issue B where B depends on unmerged issue A but A has an approved plan comment, (2) a reviewer NOGOed a plan for cited-but-unread APIs and you're revising, (3) about to cite an API signature (`randn`, `AnyTensor.store`, `cross_entropy`) you have not `Read`, (4) writing a numeric count into a plan that another planned PR also touches, (5) asserting a loss-decrease threshold on random-init deep networks, (6) changing a per-example function's signature and unsure whether other files call it, (7) authoring a validation-only issue that runs a script produced by an unmerged parent, (8) writing a bash wrapper + Python log-parser pair without a `parsed N > 0` sanity check, (9) picking a wall-clock budget or fallback batch count by heuristic with no benchmark data, (10) planning any issue in a stacked/serialized epic where the issue 'Depends on #NNNN', (11) writing a plan that imports symbols a sibling PR introduces, (12) any plan containing an op/route/dispatch table, (13) re-planning after a plan-review NOGO whose findings are 'hand-waved dispatch' or 'unverified prerequisite'.",
+      "version": "1.3.0",
       "source": "./skills/planning-unmerged-parent-contract-compile-smoke-gate.md",
       "category": "architecture",
       "tags": [
@@ -2190,7 +2282,17 @@
         "container-network-assumption",
         "gitignored-artifact-attachment",
         "wall-clock-heuristic-without-benchmark",
-        "assumption-mapping-for-mechanical-replan"
+        "assumption-mapping-for-mechanical-replan",
+        "prerequisite-gate-step-zero",
+        "imports-from-unmerged-sibling",
+        "dispatch-table-named-callable",
+        "resolve-every-op-to-file-line",
+        "document-missing-public-seam",
+        "reverify-line-numbers-before-emit",
+        "test-double-full-surface",
+        "stacked-serialized-epic",
+        "baseexception-in-worker-future",
+        "invariant-from-dunder-all-nonempty-guard"
       ]
     },
     {
@@ -2450,8 +2552,8 @@
     },
     {
       "name": "refactor-extraction-plan-unverified-assumptions",
-      "description": "The uncertain assumptions and reviewer risks baked into a verbatim-move cluster-extraction PLAN that extracts a group of functions from a large module into a new sibling module with backward-compat `import X as X` re-exports in the parent. Use when: (1) reviewing or authoring a plan that moves a function cluster out of a god-module and re-exports the moved names from the original module to preserve mock patch paths, (2) the plan claims `patch(\"...old_module._fn\")` keeps working after the move, (3) the plan cites exact line numbers for a multi-step sequential edit, (4) the plan depends on a 'frozen' allowlist/magic-number invariant, (5) the plan asserts 'no circular import' or 'unused import removable' by static reasoning rather than execution.",
-      "version": "1.0.0",
+      "description": "The uncertain assumptions and reviewer risks baked into a verbatim-move cluster-extraction PLAN that extracts a group of functions from a large module into a new sibling module with backward-compat `import X as X` re-exports in the parent. Use when: (1) reviewing or authoring a plan that moves a function cluster out of a god-module and re-exports the moved names from the original module to preserve mock patch paths, (2) the plan claims `patch(\"...old_module._fn\")` keeps working after the move, (3) the plan cites exact line numbers for a multi-step sequential edit, (4) the plan depends on a 'frozen' allowlist/magic-number invariant, (5) the plan asserts 'no circular import' or 'unused import removable' by static reasoning rather than execution, (6) the plan borrows type/function/field names from an UNMERGED dependency issue or an epic body's prose design (not from landed source) \u2014 every such symbol is an assumption until the dependency merges, (7) reviewing/authoring a plan that PROMOTES a shared helper (extract-and-reuse) and must decide pure-return vs impure-executor-callable, whether a boundary/import-surface test even applies, and whether a cited verification test actually exercises the promoted symbol.",
+      "version": "1.2.0",
       "source": "./skills/refactor-extraction-plan-unverified-assumptions.md",
       "category": "architecture",
       "tags": [
@@ -2465,7 +2567,21 @@
         "reviewer-risks",
         "line-number-drift",
         "circular-import",
-        "assumptions"
+        "assumptions",
+        "dependency-chain",
+        "unmerged-dependency",
+        "epic-prose-api",
+        "assumed-not-grepped",
+        "stage-extraction",
+        "test-fake-assumption",
+        "pipeline",
+        "promote-shared-helper",
+        "pure-vs-impure-helper",
+        "fully-mocked-method",
+        "false-verification-command",
+        "boundary-test-applicability",
+        "import-surface-preservation",
+        "nogo-revision"
       ]
     },
     {
@@ -6587,6 +6703,29 @@
       ]
     },
     {
+      "name": "planning-code-block-is-the-contract",
+      "description": "In a TASK/PLAN/REVIEW pipeline the plan reviewer and the downstream implementer both treat the plan's fenced code blocks as the CONTRACT \u2014 more authoritative than the surrounding prose \u2014 so any prose/code contradiction, self-contradictory/placeholder example code, mis-specified import (TYPE_CHECKING vs runtime), under-specified hardest artifact, or false 'mirrors sibling X' parity claim is a first-class defect that draws a NOGO even when the DESIGN is sound. Use when: (1) you are writing an implementation plan whose fenced code blocks will be graded by a plan reviewer and handed verbatim to an implementer, (2) your prose describes an import as TYPE_CHECKING-only but you have not confirmed the name is used only in annotations (a name used as a default field value / base class / decorator / isinstance target must be a RUNTIME import), (3) one test or artifact in the plan is materially harder (graph traversal, hypothesis property strategies, non-trivial algorithm) than the others and you are tempted to specify it at a LOWER altitude (prose-only) than the trivial ones, (4) you wrote 'mirrors sibling X' / 'like Y' / 'AST-based as in Z' without reading X's ACTUAL mechanism, (5) you left a placeholder or known-broken snippet with a 'the linter will catch this / replace if mypy flags it' fix-it note, (6) the target repo has a pr-policy gate and your plan omits the exact `Closes #<n>` close line and the `git commit -S -s` (GPG + DCO) signing requirement from the Implementation Order.",
+      "version": "1.1.0",
+      "source": "./skills/planning-code-block-is-the-contract.md",
+      "category": "documentation",
+      "tags": [
+        "planning",
+        "plan-review",
+        "code-block-contract",
+        "prose-code-parity",
+        "type-checking-vs-runtime-import",
+        "hypothesis-property-test",
+        "nogo-tightening",
+        "self-consistency",
+        "handoff-altitude",
+        "mirror-parity-claim",
+        "placeholder-snippet",
+        "pr-policy-compliance",
+        "hephaestus",
+        "myrmidons"
+      ]
+    },
+    {
       "name": "planning-defer-tracking-via-append-only-adr",
       "description": "Prefer an append-only ADR over a closeable GitHub issue as the canonical tracker when documentation marks work 'planned/future' and a reviewer flags it as untracked \u2014 because issues get auto-closed and go stale. Use when: (1) a reviewer/audit flags documented 'planned'/'future phase'/'not yet implemented' work as having no tracking issue or ADR; (2) you're tempted to open a GitHub issue to track a deferral but issues get auto-closed and go stale; (3) you need a durable canonical tracker for an architectural-state decision in a repo that already uses append-only ADRs; (4) an existing inline doc reference points at a CLOSED or wrong-scope issue and must be replaced; (5) you're planning a docs-only change to a read-mostly meta-repo and must respect ADR append-only conventions.",
       "version": "1.1.0",
@@ -7740,7 +7879,7 @@
     {
       "name": "planning-frozen-registry-guard-co-update",
       "description": "When a planned change removes or edits an entry in a list/registry/manifest that is ENFORCED by a frozen 'exact-set' guard test, the edit silently breaks the guard unless the guard's hard-coded copy is co-updated \u2014 or you prove the edit is unnecessary via sibling precedent and drop it. Use when: (1) planning to remove/add/edit an entry in a coverage omit-allowlist, `__all__`, a plugin/skill registry, or any hard-coded enumerated set, (2) an issue suggests a side cleanup like 'also de-list X', (3) you are about to edit pyproject.toml/setup.cfg/a config list and are unsure whether a test pins its contents, (4) adding tests to a coverage-omitted module, (5) a reviewer or CI surfaces a `*_frozen`/exact-set assertion failure after a list edit.",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "source": "./skills/planning-frozen-registry-guard-co-update.md",
       "category": "testing",
       "tags": [
@@ -7755,7 +7894,11 @@
         "guard-test",
         "sibling-precedent",
         "dry",
-        "orthogonality"
+        "orthogonality",
+        "prose-count-drift",
+        "multi-home-invariant",
+        "stale-list-entry",
+        "re-derive-ground-state"
       ]
     },
     {
@@ -11125,6 +11268,24 @@
         "ci-pin-completeness",
         "composite-action",
         "requires-pixi"
+      ]
+    },
+    {
+      "name": "tooling-plan-artifact-delivery-nogo",
+      "description": "A plan-producing turn followed by a /learn-or-summary step can post the WRONG artifact to the reviewer: the harness pipes your post-work reviewer-bullet SUMMARY into the issue AS THE PLAN BODY, the reviewer sees only bullets, grades it F ('risk memo, not a plan'), and NOGOs \u2014 a false NOGO caused by artifact-delivery, not design. Use when: (1) a planning step is chained with a /learn, /retrospective, or summary step and the plan lands in the wrong channel, (2) a reviewer NOGO'd a plan that reads as 3-5 bullets / a risk register with no full sections, (3) you are re-planning after a NOGO and must decide whether to emit a diff or the whole plan, (4) you see the #693 R0/R1 NOGO-exhaustion failure mode where the plan body is empty/bulletized, (5) you need to reason about which OUTPUT goes to which CHANNEL when one turn produces both a plan artifact and a reviewer summary.",
+      "version": "1.0.0",
+      "source": "./skills/tooling-plan-artifact-delivery-nogo.md",
+      "category": "tooling",
+      "tags": [
+        "plan-artifact-delivery",
+        "nogo-recovery",
+        "summary-vs-plan-channel",
+        "reviewer-bullets",
+        "false-nogo",
+        "re-plan-full-not-diff",
+        "harness-pipeline",
+        "planning",
+        "693-nogo-exhaustion"
       ]
     },
     {
