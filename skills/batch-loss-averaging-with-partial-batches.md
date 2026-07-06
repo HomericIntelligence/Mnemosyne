@@ -232,7 +232,7 @@ If the loss function returns the **sum** (common for accumulation patterns):
 | Method | Calculation | Result | Error |
 |--------|-------------|--------|-------|
 | Naive | 102.12 / 79 | 1.292 | 129.2% of true (way off) |
-| Correct | 102.12 / 10000 | 0.01021 | ≈ true | ✓
+| Correct | 102.12 / 10000 | 0.01021 | ≈ true | ✓ |
 
 ## Verified On
 
