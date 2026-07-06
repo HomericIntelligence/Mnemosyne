@@ -6,11 +6,11 @@
   },
   "description": "Skills marketplace for the HomericIntelligence agentic ecosystem",
   "version": "2.1.0",
-  "total_plugins": 631,
+  "total_plugins": 632,
   "categories": {
     "architecture": 129,
     "ci-cd": 122,
-    "debugging": 60,
+    "debugging": 61,
     "documentation": 40,
     "evaluation": 12,
     "optimization": 7,
@@ -18,7 +18,7 @@
     "tooling": 172,
     "training": 7
   },
-  "last_updated": "2026-07-06T20:53:32Z",
+  "last_updated": "2026-07-06T21:13:26Z",
   "plugins": [
     {
       "name": "agent-config-validation-and-integrity",
@@ -5961,6 +5961,20 @@
         "multi-agent",
         "resource-exhaustion",
         "post-mortem"
+      ]
+    },
+    {
+      "name": "docker-compose-v1-v2-naming-cascading-recreate",
+      "description": "Diagnose unexpected container recreates when switching from docker-compose v1 (Python binary) to docker compose v2 (Go CLI plugin) on a project with existing containers. Use when: (1) running `docker compose up -d <single-service>` unexpectedly reports Recreate for OTHER services you did not target, (2) container names change from underscore (`project_service_1`) to hyphen (`project-service-1`) after an update, (3) a service without an explicit `container_name:` gets swept into a naming migration triggered by a sibling service's update, (4) you see a transient `No such container: <hex-id>` error mid-operation on a project with mixed v1/v2 history.",
+      "version": "1.0.0",
+      "source": "./skills/docker-compose-v1-v2-naming-cascading-recreate.md",
+      "category": "debugging",
+      "tags": [
+        "docker",
+        "docker-compose",
+        "container-naming",
+        "recreate",
+        "cascading-recreate"
       ]
     },
     {
