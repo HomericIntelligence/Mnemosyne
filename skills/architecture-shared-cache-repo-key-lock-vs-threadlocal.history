@@ -1,0 +1,77 @@
+<!-- markdownlint-disable MD024 -->
+
+# History: architecture-shared-cache-repo-key-lock-vs-threadlocal
+
+This file preserves the amendment history and superseded snapshots of the
+`architecture-shared-cache-repo-key-lock-vs-threadlocal` skill.
+
+## v1.1.0 (2026-07-05)
+
+**Changed by:** ProjectHephaestus issue #1858 R1 re-plan (R0 plan NOGO'd, re-planned).
+**Verification:** unverified — still a PLANNING learning; the R1 plan was produced but NOT
+executed, no code ran, no tests, no CI.
+
+**Why:** R0 NOGO → R1 re-plan corrected two wrong assumptions and adopted the existing
+`ThreadSafeCache` primitive instead of hand-rolling a `dict` + `threading.Lock`.
+
+**What changed and why:**
+
+- **New CORE sub-pattern (adopt the existing primitive):** Before hand-rolling `dict` + `Lock`
+  for a shared-mutable-state/TOCTOU fix, GREP THE REPO for an existing thread-safe cache/lock
+  primitive AND for a sibling that already solved the same bug class. The codebase already had
+  `hephaestus/utils/cache.py::ThreadSafeCache` — a lock-protected, per-key, TTL cache whose
+  docstring literally says it exists to "replace ad-hoc module-level dict caches that have a
+  TOCTOU race between the membership check and the assignment." `git_utils` already used it for
+  the IDENTICAL bug shape (`_repo_info_cache`, `_repo_slug_cache`). The KISS fix reuses the
+  primitive keyed by repo slug; the sibling's usage is both the pattern and the proof it is the
+  sanctioned approach. This SUPERSEDES the R0 "hand-roll a repo-keyed dict + threading.Lock" plan.
+- **CORRECTION 1 (R0 "unverified .owner/.name key" was WRONG — the API is verifiable):**
+  `git_utils.get_repo_info()` returns `tuple[str, str]` `(owner, repo)` accessed by TUPLE UNPACK,
+  NOT an object with `.owner`/`.name`. It RAISES `RuntimeError` on an unresolvable remote (it does
+  not return `None`). R0 shipped `getattr(info, "owner", None)`, which would have silently produced
+  a wrong/None key → a single shared bucket (silent regression). A "load-bearing unverified
+  assumption" about a helper's return SHAPE is almost always cheaply verifiable by reading the 3
+  lines of its signature/return — resolve it in the plan, don't ship it as a caveat.
+- **CORRECTION 2 (R0 per-call-cost risk RESOLVED, not open):** `get_repo_info()` is itself
+  memoized behind a `ThreadSafeCache` (`_repo_info_cache`), so calling it per
+  `gh_list_labels`/`gh_create_label` is a locked dict lookup after the first call, not a git
+  subprocess. The R0 "unvalidated per-call cost" risk was answerable by reading the resolver.
+- **New Encapsulation lesson:** To mutate one cached set entry without reaching into
+  `ThreadSafeCache` internals (`_cache`/`_lock`) from `labels.py`, ADD a small public method to the
+  primitive (`add_to_entry(key, item)`: augment an existing set entry under the lock, preserve TTL,
+  no-op if absent) with its own unit tests — rather than poking privates from the caller.
+- **Test-seam migration updated:** Changing a module global's TYPE (`set | None` →
+  `ThreadSafeCache`) forces migrating every reset/seed site from `= None` to `.clear()`/keyed-seed
+  (enumerated: `test_github_api.py:1115,1167,1172,1179,1235`), plus helper-altitude tests for the
+  new `add_to_entry` (augment + no-op branches).
+
+Motivation: The R0 plan was topically right (shared-coherent state needs a lock + key, not
+`threading.local()`) but re-invented locking the repo already provides and shipped two verifiable
+assumptions as open caveats. The R1 plan reuses `ThreadSafeCache`, keys on the verified
+`(owner, repo)` tuple from `get_repo_info()`, and encapsulates the set-augment mutation as a new
+primitive method.
+
+### Snapshot of v1.0.0 body
+
+```yaml
+---
+name: architecture-shared-cache-repo-key-lock-vs-threadlocal
+description: "Planning discipline for making a module-global cache thread-safe when the cache must be SHARED and COHERENT (not per-thread) under a newly-multithreaded coordinator: the correct fix is a repo-keyed dict guarded by a threading.Lock, NOT threading.local(). Captures four durable lessons from planning a fix for an unguarded module-global label cache: a pre-selected thread-safety skill can prescribe the WRONG variant (per-thread isolation) for genuinely shared state; an audit that names a line may point at an unreachable path while the real hazard sits one layer down in a shared library helper; migrating a module-global's type breaks every test reset/seed seam; and a cached getter must return a defensive copy so callers cannot corrupt the cache. Use when: (1) a pre-selected skill (e.g. metaclass + threading.local) prescribes the wrong thread-safety variant because state must be shared-coherent not per-thread, (2) an audit names a specific line but the truly-shared-state hazard is a layer down in a library helper, (3) migrating a module-global's type (set|None -> repo-keyed dict) will break the test reset seam, (4) a cached getter returns the live cached object and callers mutate it concurrently so it must return a defensive copy."
+category: architecture
+date: 2026-07-05
+version: "1.0.0"
+verification: unverified
+---
+```
+
+**Superseded R0 claims (now corrected in v1.1.0):**
+
+- R0: "hand-roll a repo-keyed `dict` + `threading.Lock`." → CORRECTED: reuse the existing
+  `ThreadSafeCache` primitive (`hephaestus/utils/cache.py`); `git_utils` already uses it for the
+  identical bug shape.
+- R0: "key the cache on `getattr(info, 'owner')`/`.name` — UNVERIFIED attrs, risk of a silent
+  None-key regression." → CORRECTED: `get_repo_info()` returns `tuple[str, str]` `(owner, repo)`
+  by tuple unpack (verified), and RAISES `RuntimeError` on failure; the assumption was cheaply
+  verifiable and is now resolved, not a standing caveat.
+- R0: "`get_repo_info()` may shell out to git on every access — unvalidated per-call cost." →
+  CORRECTED: it is memoized behind a `ThreadSafeCache`, so per-access cost is a locked dict lookup.
