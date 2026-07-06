@@ -1,12 +1,70 @@
+# architecture-github-labels-as-state-vocabulary — History
+
+## v1.1.0 (2026-07-05)
+
+**Changed by:** Planning-only session for ProjectHephaestus issue #1857 — a
+convergence bug in the queue-based automation pipeline (`hephaestus/automation/pipeline/`).
+**Verification:** unverified (new content only) — this session produced an
+implementation PLAN, not code. No implementation was written and no tests were
+executed. The pre-existing v1.0.0 core pattern retains its `verified-local` level.
+
+### What changed
+
+- Added 2 new Failed Attempts rows (#9, #10), both tagged *(v1.1.0, unverified —
+  issue #1857)*:
+  - #9: reusing a plan-APPROVAL gate (`is_plan_review_go`, `no-go ⇒ not-approved`)
+    as a plan-EXISTENCE gate in a different stage → the re-plan cycle can never
+    converge because `state:plan-no-go` suppresses the gate even after a fresh
+    plan is posted.
+  - #10: "fix it by scanning the plan-comment marker directly in VERIFY" would
+    fork the gate onto a second signal and re-introduce the shared-gate
+    divergence this skill exists to prevent; complete the label transition
+    instead.
+- Added 2 new "When to Use" triggers: (a) a FAIL_BACK/re-plan edge that returns
+  an item to an earlier stage MUST clear the label the later stage set; both
+  directions of a label transition need an owner; (b) don't reuse an approval
+  gate to answer an existence question.
+- Added a new Results & Parameters subsection "Re-Plan Cycle Convergence —
+  Clearing `state:plan-no-go` on Re-Entry (v1.1.0)" titled with the mandatory
+  **Warning** banner (plan-only, unverified), documenting the #1857 bug, the
+  proposed `on_enter` fix, the ordering contract (after terminal fast-forwards,
+  before the has_existing_plan fast-forward), and 3 explicitly-flagged unverified
+  assumptions (inferred by reading `pipeline_github.py:466-492`, the base-protocol
+  docstring/ROUTES table, and conftest delegation — none executed).
+- Added a "Verified On" row for issue #1857 marked unverified/plan-only.
+- Frontmatter: version 1.0.0 → 1.1.0, date → 2026-07-05, added
+  `history` field and 3 new tags (approval-gate-vs-existence-gate,
+  replan-cycle-convergence, fail-back-transition-ownership).
+
+### Why
+
+Issue #1857 is a NEW, concrete instance of exactly this skill's subject (the
+shared-gate divergence documented in Failed Attempt #2). The non-obvious
+refinement: in the pipeline re-plan cycle, `plan_review` applies
+`state:plan-no-go` and FAIL_BACKs to `planning`, but the planning stage's VERIFY
+gate (`has_existing_plan` → `is_plan_review_go`) returns False whenever
+`state:plan-no-go` is present, so the re-planned plan can never be verified and
+the item FINISH_FAILs — the second plan cycle is dead. The fix that aligns with
+this skill's own philosophy is NOT to fork VERIFY onto the comment marker (which
+re-introduces the divergence) but to complete the documented state transition:
+the re-planner's `on_enter` must clear `state:plan-no-go`→`needs-plan`. The
+reviewer sets no-go; the planner clearing it on re-entry is the missing half of
+that edge.
+
+This is a MINOR bump (1.0.0 → 1.1.0): it adds new findings, new failed attempts,
+and extends the "When to Use" triggers without changing the core recommendation
+or rewriting the verified workflow.
+
+### Previous version (v1.0.0) snapshot
+
 ---
 name: architecture-github-labels-as-state-vocabulary
 description: "Use mutually-exclusive `state:*` GitHub labels as the single source of truth for per-issue pipeline state instead of parsing free-text comment bodies. Use when: (1) an automated pipeline gates work on a verdict regex-parsed from the latest comment, (2) free-text comment-based state machine is fragile because pre-contract or off-format comments are unparseable and leave issues permanently stuck, (3) you need a gh issue label state vocabulary that the planner, reviewer, and implementer all read identically, (4) a plan-review GO/NOGO gate needs to short-circuit cheaply across 100s of issues without re-parsing every comment every loop iteration, (5) you need to self-heal stuck issues without manual cleanup — backfill a state label from an existing parseable comment on a one-time fallback, (6) two pipeline components share a gate but read it via different signals causing infinite-loop drift (planner skips because plan exists, implementer defers because review unparseable), (7) you want to harden the state-tagging GitHub Action against the Actions injection class while still tagging issues:opened with `state:needs-plan`, (8) you need to provision the 3 labels across an org without races against the first reviewer write."
 category: architecture
-date: 2026-07-05
-version: "1.1.0"
+date: 2026-05-29
+version: "1.0.0"
 user-invocable: false
 verification: verified-local
-history: architecture-github-labels-as-state-vocabulary.history
 tags:
   - github-labels
   - state-vocabulary
@@ -22,9 +80,6 @@ tags:
   - mutually-exclusive-labels
   - source-of-truth
   - shared-gate-divergence
-  - approval-gate-vs-existence-gate
-  - replan-cycle-convergence
-  - fail-back-transition-ownership
 ---
 
 # Architecture: GitHub Labels as State Vocabulary (Not Free-Text Comments)
@@ -36,8 +91,7 @@ tags:
 | **Date** | 2026-05-29 |
 | **Objective** | Replace fragile regex-parsing of free-text comment bodies (e.g. `Verdict: GO/NOGO`) with mutually-exclusive `state:*` GitHub labels as the single source of truth for per-issue pipeline state — eliminates "comment unparseable → issue permanently stuck" and "planner and implementer disagree → infinite loop" failure modes |
 | **Outcome** | Pattern executed end-to-end on 2026-05-29 in HomericIntelligence/ProjectHephaestus PR #707; 911 automation tests pass locally, ruff + mypy clean. Three labels (`state:needs-plan`, `state:plan-no-go`, `state:plan-go`) defined, idempotent provisioner CLI shipped, `issues:opened` workflow auto-tags new issues, reviewer applies-and-removes opposites, implementer trusts the terminal label absolutely. One-time comment-scan backfill self-heals legacy issues. |
-| **Verification** | verified-local for the v1.0.0 core pattern — full automation suite (911 tests) + ruff + mypy clean on the local worktree; CI validation pending on PR #707 ([ProjectHephaestus PR #707](https://github.com/HomericIntelligence/ProjectHephaestus/pull/707)). Updates to be backfilled here once CI is green. **The v1.1.0 re-plan-cycle refinement (issue #1857) is `unverified` — plan-only, pending PR implementation & CI.** |
-| **History** | [changelog](./architecture-github-labels-as-state-vocabulary.history) |
+| **Verification** | verified-local — full automation suite (911 tests) + ruff + mypy clean on the local worktree; CI validation pending on PR #707 ([ProjectHephaestus PR #707](https://github.com/HomericIntelligence/ProjectHephaestus/pull/707)). Updates to be backfilled here once CI is green. |
 | **Live observation that motivated this** | 320 "no parseable Verdict" WARNINGs across an org-wide automation run, plus wasteful re-planning of already-approved issues because the latest comment's verdict line had drifted from the regex contract |
 
 ## When to Use
@@ -51,8 +105,6 @@ tags:
 - You suspect a **shared-gate divergence bug** where two pipeline components read different signals: e.g. the planner sees "plan comment exists → skip" while the implementer sees "review unparseable → defer" → the issue cycles forever
 - You are wiring an `on: issues: opened` Action that tags new issues with `state:needs-plan` and need to harden it against the GitHub Actions script-injection class
 - You need to provision the labels across an org so the first reviewer write doesn't race against a missing label name
-- **A FAIL_BACK / re-plan edge returns an item to an earlier pipeline stage, and that earlier stage's gate reads a label the later stage set** — the earlier stage's `on_enter` MUST clear the opposing label or the gate stays suppressed and the cycle can never converge (see issue #1857, v1.1.0). Both directions of a label transition need an owner: the reviewer *sets* `state:plan-no-go`; the re-planner *clears* it back to `state:needs-plan`.
-- You are tempted to reuse a plan-**approval** gate (which treats `no-go` as not-approved) to answer a plan-**existence** question ("did the planner post a fresh comment?") in a *different* stage — these are different questions and reusing one for the other deadlocks the re-plan cycle (v1.1.0)
 
 **Don't use when:**
 
@@ -165,8 +217,6 @@ done
 | 6 | Building the state-tagging workflow to consume `github.event.issue.title` to derive the label | Opened a GitHub Actions injection vector — attacker-controlled title could break out of the shell command. Even with quoting it's fragile. | Only consume server-controlled integers (`issue.number`); validate numeric before use; call `gh api` against typed endpoints rather than shelling commands built from event data. |
 | 7 | Manual provisioning of labels per repo via the web UI | Race: the first reviewer write hits "label does not exist" → 404 → reviewer comment-only fallback → the very bug the labels were meant to fix. | Ship the labels via an idempotent `gh label create --force` CLI; provision before the first write. |
 | 8 | Skipping the backfill — "we'll just relabel old issues by hand" | Hand-relabeling 100+ org-wide issues is the kind of toil that never finishes; meanwhile the pipeline burns compute re-planning already-approved work. | A one-time, self-healing backfill is essential for migration. It deletes itself a release or two later. |
-| 9 *(v1.1.0, unverified — issue #1857)* | Reused the plan-**approval** gate (`is_plan_review_go`, where `no-go ⇒ not-approved`) as a plan-**existence** gate in a different stage: the pipeline's re-plan `plan_review` applies `state:plan-no-go` and FAIL_BACKs to `planning`, whose VERIFY step then calls `has_existing_plan()` — but that contract mandates the labels-first `is_plan_review_go` semantics, which returns **False whenever `state:plan-no-go` is present**, regardless of a fresh plan comment. | The re-planned plan can never be verified: VERIFY RETRYs until the `plan` budget (2) exhausts and the item FINISH_FAILs; the second `plan_cycles=2` cycle is dead/unreachable. An **approval** gate and an **existence** gate answer different questions — "is this plan accepted?" vs "did the planner post a fresh comment?". Don't reuse one gate for the other. |
-| 10 *(v1.1.0, unverified — issue #1857)* | Considered fixing #1857 by scanning the plan-comment marker directly inside the VERIFY step (bypass the label, read the comment) | Forks the gate onto a *second* signal and re-introduces the exact shared-gate divergence Attempt #2 warns against — VERIFY would now read the comment while every other stage reads the label. | Complete the label **transition** instead: the re-planner's `on_enter` must clear `state:plan-no-go` → `state:needs-plan` (the state machine's own documented edge). The reviewer sets no-go; the re-planner clearing it on re-entry is the missing half of that transition. |
 
 ## Results & Parameters
 
@@ -349,76 +399,17 @@ def should_implement(issue) -> bool:
 | Self-heal of existing issues | Manual relabeling of every legacy issue | One-time backfill on startup |
 | GitHub Actions injection surface | Tempting to consume `event.title` | Labels are server-side; no shell interpolation |
 
-### Re-Plan Cycle Convergence — Clearing `state:plan-no-go` on Re-Entry (v1.1.0)
-
-> **Warning:** This workflow has not been validated end-to-end. Treat as a hypothesis until CI confirms. It was derived by *reading* the pipeline code for ProjectHephaestus issue #1857 during a planning-only session — no implementation was written and no tests were executed.
-
-**The bug (issue #1857).** In the queue-based automation pipeline
-(`hephaestus/automation/pipeline/`), the re-plan cycle deadlocks:
-
-1. `plan_review` rejects a plan → applies `state:plan-no-go` and FAIL_BACKs the
-   item to the `planning` stage.
-2. The `planning` stage's VERIFY gate calls `has_existing_plan()`, whose contract
-   mandates the labels-first `is_plan_review_go` semantics.
-3. `is_plan_review_go` returns **False whenever `state:plan-no-go` is present** —
-   regardless of whether the planner just posted a fresh plan comment.
-4. VERIFY therefore RETRYs on every re-plan, exhausts the `plan` budget (2), and
-   the item FINISH_FAILs. The nominal second cycle (`plan_cycles=2`) is
-   dead/unreachable.
-
-Root cause: a plan-**approval** gate (`is_plan_review_go`, `no-go ⇒ not-approved`)
-was reused as a plan-**existence** gate ("did the planner post a fresh comment?").
-Those are different questions.
-
-**Proposed fix (aligns with this skill's own philosophy — do NOT fork the gate).**
-Complete the documented label transition. The state machine's own diagram already
-has the edge `state:plan-no-go ──re-plan──▶ needs-plan`; the reviewer owns the
-*set*, and the re-planner must own the *clear*:
-
-```python
-# planning stage on_enter (pseudocode — Proposed, unverified)
-def on_enter(item, gh):
-    # ... AFTER the terminal fast-forwards:
-    #     plan-go / state:skip / merged-PR / open-PR
-    if "state:plan-no-go" in gh.get_labels(item.issue):
-        # Missing half of the reviewer's transition: restore needs-plan.
-        # Guarded by presence for idempotency.
-        gh.remove_labels(item.issue, ("state:plan-no-go",))
-        gh.add_labels(item.issue, ("state:needs-plan",))
-    # ... BEFORE the has_existing_plan fast-forward, so a stale prior-cycle
-    #     plan comment cannot trigger a premature fast-forward to VERIFY.
-```
-
-**Ordering contract (critical):** the no-go clear must run **after** the terminal
-`plan-go` / `state:skip` / merged-PR / open-PR fast-forwards (so we never clobber
-a terminal state) and **before** the `has_existing_plan` fast-forward (so a stale
-prior-cycle plan comment doesn't fast-forward the item to VERIFY over an
-unreviewed plan).
-
-**Explicit unverified assumptions (this was plan-only — inferred by reading, not running):**
-
-- ASSUMPTION: removing `state:plan-no-go` in `on_enter` will not cause
-  `has_existing_plan` to prematurely fast-forward to VERIFY over a stale plan
-  comment. Inferred from *reading* `pipeline_github.py:466-492` (backfill returns
-  False when the latest plan-review verdict is NOGO), **not** by executing it.
-- ASSUMPTION: on a FAIL_BACK the coordinator re-runs `on_enter` and resets
-  `item.state` to ENTER. Inferred from the base-protocol docstring and the ROUTES
-  table, **not** observed at runtime.
-- ASSUMPTION: `FakeStageGitHub.remove_labels` records
-  `("gh_issue_remove_labels", (issue, (label,)))` in `mutation_log` in that exact
-  tuple shape. Inferred from conftest delegation; the precise recorded format was
-  **not** run.
-
-**General lesson (verified-adjacent — this is the reusable principle):** every
-FAIL_BACK / re-plan edge that returns an item to an earlier stage MUST clear the
-label the later stage set, or the earlier stage's gate stays suppressed. Both
-directions of a label transition need an explicit owner — a "set" without a
-matching "clear" is a latent convergence deadlock.
-
 ## Verified On
 
 | Project | Context | Details |
 |---------|---------|---------|
 | ProjectHephaestus | PR #707 — `architecture-github-labels-as-state-vocabulary` end-to-end pattern | 911 automation tests pass locally; ruff + mypy clean; auto-merge SQUASH armed. CI in flight at time of writing — flip `verification` to `verified-ci` once green. [PR link](https://github.com/HomericIntelligence/ProjectHephaestus/pull/707) |
 | ProjectHephaestus | Live observation that motivated the pattern | 320 "no parseable Verdict" WARNINGs across an org-wide automation run; multiple re-plans of already-approved issues because the latest comment had drifted from the regex contract |
-| ProjectHephaestus | Issue #1857 — re-plan-cycle convergence deadlock (v1.1.0, **unverified/plan-only**) | Planning-only session: identified that reusing `is_plan_review_go` (approval gate) as a plan-existence gate deadlocks the re-plan cycle; proposed fix = re-planner `on_enter` clears `state:plan-no-go`→`needs-plan`. No code written, no tests run. Pending PR implementation & CI. |
+
+---
+
+## v1.0.0 (2026-05-29)
+
+**Initial version.** Introduced `state:*` GitHub labels as the single source of
+truth for per-issue pipeline state (replacing free-text comment regex parsing),
+verified-local via ProjectHephaestus PR #707.
