@@ -1,5 +1,69 @@
 # architecture-metaclass-threadlocal-thread-safety — History
 
+## v1.2.0 (2026-07-05)
+
+**Changed by:** ProjectHephaestus issue #1858 — SECOND, sharper planning iteration.
+The R0 plan (captured in v1.1.0 as the "Proposed Workflow" + its five risks) was graded
+**F / NOGO** and RE-PLANNED to GO. This entry records how the R1 re-plan RESOLVED the R0
+risks with ground-truth evidence rather than merely re-flagging them (still plan-only —
+no code applied, no tests run, CI not confirmed).
+**Verification:** unverified (planning session; the R1 resolutions cite source `file:line`
+read this session, but no code was applied and CI was not run)
+
+### What changed
+
+- Promoted the shared-cache section from a bare risk register to a **resolved R1 design**:
+  each of the R0 risks that v1.1.0 left as "verify whether…" is now converted into a
+  DECISION backed by a grep/read result, per the "resolve the reviewer's deepest risk,
+  don't re-flag it" rule.
+  - **Risk 1 (per-repo key may be a no-op under shared CWD) RESOLVED.**
+    `grep -n chdir hephaestus/automation/pipeline/**` → ZERO hits; every subprocess is
+    launched with an explicit `cwd=` (`worker_pool.py:246,303,419,451`; stages pass
+    `cwd=_worktree_path(item, ctx)`). Decision: a CWD-derived key WOULD collide across
+    threads, so the pipeline's real isolation is (a) the org-path `refresh=True` +
+    (b) the lock — the key is NOT load-bearing under shared CWD; it stays meaningful only
+    because legacy callers are single-repo-per-process.
+  - **Risk 4 (resolver attribute shape unverified) RESOLVED.** Ground truth
+    `git_utils.py:76`: `get_repo_info(repo_root: Path | None = None) -> tuple[str, str]`
+    returning `(owner, repo_name)` — a TUPLE, not an object with `.owner`/`.name`. It is
+    memoized per resolved root (`_repo_info_cache.get_or_compute`, `git_utils.py:124`) and
+    accepts an explicit `repo_root`, so it need not read CWD and per-call cost is a dict
+    lookup after warmup. The R0 `getattr(info, "owner")` slug was WRONG; use tuple unpack
+    `owner, name = get_repo_info(repo_root)`.
+- Added the **"don't over-scope the fix to callers that were never broken"** lesson:
+  `gh_list_labels`/`gh_create_label` have many single-repo-per-process legacy callers
+  (loop_runner, pr_manager, _review_phase, implementer_phase_runner, planner_review_loop)
+  that were fine with the un-keyed cache; the multi-repo hazard is ONLY the pipeline
+  coordinator. Minimal correct fix = repo-keyed dict + lock + defensive copy (backward
+  compatible) AND the structural org-path `refresh=True` — do NOT churn the safe callers
+  onto a new API.
+- Corrected the misleading GIL aside into a hardened contract: `entry.add()` and
+  get-then-set are read-modify-write and NOT atomic; the lock is load-bearing. Added the
+  `test_returned_set_is_a_defensive_copy` contract and made create's add atomic-under-lock.
+- Bumped `version` 1.1.0 → 1.2.0 (minor — resolves prior risks with evidence, adds the
+  over-scope lesson and defensive-copy contract; no rewrite of the verified pattern (A)).
+  `date` stays 2026-07-05; `verification` stays `unverified` (newest material plan-only).
+
+### Why
+
+v1.1.0 shipped the #1858 fix as a design + a five-item risk register. That register was the
+R0 plan, and it was graded **F / NOGO** — a re-plan was required. The durable lesson (also
+cross-linked from the new `tooling-plan-artifact-delivery-nogo` skill and the
+`architecture-executable-convention-guard-pattern` NOGO→GO sub-pattern) is that a re-plan
+which merely REPEATS the reviewer's open questions ("verify whether…") re-earns the NOGO.
+The R1 pass RESOLVED them: it ran the `chdir` grep, read `get_repo_info`'s actual signature,
+and converted each risk into a design decision the implementer can act on without
+re-deriving. Capturing the resolved form (not just the questions) is what makes the skill
+actionable on the next shared-cache retrofit.
+
+### Previous version (v1.1.0) snapshot
+
+See the v1.1.0 entry below for the full changelog; the v1.1.0 body is the file as it stood
+before this amendment (shared-cache section as a bare risk register with five open
+"verify whether…" risks).
+
+---
+
 ## v1.1.0 (2026-07-05)
 
 **Changed by:** ProjectHephaestus issue #1858 planning session — "Cross-repo unlocked module-level label cache corrupts durable journal writes under the multithreaded coordinator" (plan-only, no code applied)
