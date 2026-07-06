@@ -108,7 +108,7 @@ $ git -c core.excludesFile=/dev/null check-ignore -v .claude/settings.local.json
 rc=1                                 # repo .gitignore does NOT ignore it
 
 $ git check-ignore -v .claude/settings.local.json ; echo rc=$?
-/home/USER/.config/git/ignore:1:**/.claude/settings.local.json	.claude/settings.local.json
+/home/USER/.config/git/ignore:1:**/.claude/settings.local.json  .claude/settings.local.json
 rc=0                                 # ignored ONLY by the developer's GLOBAL ignore
 ```
 

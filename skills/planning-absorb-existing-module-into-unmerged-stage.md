@@ -64,7 +64,7 @@ tags:
   destination path (`.../pipeline/stages/<stage>.py`) and its test (`.../pipeline/test_stage_<stage>.py`)
   do not exist yet.
 - The issue's own wording betrays the dependency: phrasing like "absorbed into `stages/<stage>.py`
-  **in the epic**" or "the pipeline package **from #<earlier>**" means the target is PRODUCED by an
+  **in the epic**" or "the pipeline package **from #N**" means the target is PRODUCED by an
   earlier unmerged sub-issue, not by this one. Read that phrasing as a BLOCKED signal, not an
   instruction to create the destination yourself.
 - You must decide: implement now vs. write a forward-referencing "execute after #N merges" plan. (If
@@ -134,7 +134,7 @@ grep -rn "build_automation_parser" hephaestus/automation/_review_utils.py
    sub-issue and this issue is BLOCKED. Do not skip this because the issue "reads implementable."
 
 2. **Read the issue's own wording as the tell.** Phrasing like "absorbed into `stages/<stage>.py`
-   **in the epic**", "the pipeline package **from #<earlier>**", or "once the coordinator exists"
+   **in the epic**", "the pipeline package **from #N**", or "once the coordinator exists"
    reveals that the destination is another sibling's deliverable. This is the cheapest BLOCKED signal —
    it is right there in the AC. Read it as "not my file to create," not as license to scaffold the
    whole pipeline yourself.
