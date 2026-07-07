@@ -5,14 +5,13 @@ category: architecture
 date: 2026-07-07
 version: "1.0.0"
 user-invocable: false
-verification: verified-local
+verification: verified-ci
 tags:
-  - pipeline
-  - stage-order
-  - enum
+  - pipeline-order
+  - stage-enum
   - routing
+  - ci
   - invariant
-  - regression-guard
 ---
 
 # Pipeline Stage Order Is Semantic
@@ -23,8 +22,8 @@ tags:
 |-------|-------|
 | **Date** | 2026-07-07 |
 | **Objective** | Preserve pipeline semantics when stage order is derived from `tuple(StageName)` and consumed by routing/contiguity logic. |
-| **Outcome** | Success — stage order is now documented as a contract and pinned by a regression test. |
-| **Verification** | verified-local |
+| **Outcome** | Success — the enum-order invariant is now explicit in the docstring and pinned by a unit test. |
+| **Verification** | verified-ci |
 
 ## When to Use
 
@@ -88,6 +87,7 @@ def test_stage_order_is_pinned() -> None:
 ### Expected Output
 
 - `tuple(StageName)` matches the documented pipeline order.
+- Canonical order: `REPO -> PLANNING -> PLAN_REVIEW -> IMPLEMENTATION -> PR_REVIEW -> CI -> MERGE_WAIT -> FINISHED`.
 - Scope-contiguity checks continue to accept contiguous subsets and reject gaps.
 - A future reorder fails fast in tests instead of silently changing routing behavior.
 
@@ -95,5 +95,4 @@ def test_stage_order_is_pinned() -> None:
 
 | Project | Context | Details |
 |---------|---------|---------|
-| ProjectHephaestus | Issue #1903 / PR #1987 | Stage order is semantic because `PIPELINE_ORDER = tuple(StageName)` and `PipelineScope` depends on declaration order. |
-
+| ProjectHephaestus | Issue #1903 / PR #1987 | `routing.py` documents the order invariant and `test_routing.py` pins it with a regression test. |
