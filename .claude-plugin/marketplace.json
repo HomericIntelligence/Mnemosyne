@@ -6,19 +6,19 @@
   },
   "description": "Skills marketplace for the HomericIntelligence agentic ecosystem",
   "version": "2.1.0",
-  "total_plugins": 639,
+  "total_plugins": 640,
   "categories": {
     "architecture": 132,
     "ci-cd": 122,
     "debugging": 62,
-    "documentation": 40,
+    "documentation": 41,
     "evaluation": 12,
     "optimization": 7,
     "testing": 83,
     "tooling": 174,
     "training": 7
   },
-  "last_updated": "2026-07-09T04:58:32Z",
+  "last_updated": "2026-07-09T21:53:21Z",
   "plugins": [
     {
       "name": "agent-config-validation-and-integrity",
@@ -5950,13 +5950,14 @@
     },
     {
       "name": "debugging-prefix-cache-nsight-kernel-evidence",
-      "description": "Capture and interpret Nsight kernel-name evidence for vLLM or SGLang prefix-cache nondeterminism. Use when: (1) cache hits change output despite temperature=0, (2) warm prefix-cache paths may select different GEMM tiling, (3) you need actual GPU kernel names rather than profiler-free hypotheses, (4) batch-invariant or deterministic kernels are being considered as a replay control instead of a production fix.",
-      "version": "1.0.0",
+      "description": "Capture and interpret Nsight and active-row evidence for vLLM, XLLM, or SGLang prefix-cache nondeterminism. Use when: (1) cache hits change output despite deterministic settings, (2) warm prefix-cache paths may select different GEMM tiling, (3) bit-exact cache replay still leaves garbled text, (4) sampling or token selection may be the real corruption source.",
+      "version": "1.1.0",
       "source": "./skills/debugging-prefix-cache-nsight-kernel-evidence.md",
       "category": "debugging",
       "tags": [
         "inference",
         "vllm",
+        "xllm",
         "sglang",
         "prefix-cache",
         "nsight",
@@ -5964,7 +5965,8 @@
         "ncu",
         "h200",
         "slurm",
-        "determinism"
+        "determinism",
+        "sampling"
       ]
     },
     {
@@ -6790,6 +6792,24 @@
         "review",
         "definition-of-done",
         "pr-size"
+      ]
+    },
+    {
+      "name": "inference360-pr-review-model-rename-scope-safety",
+      "description": "Strict review workflow for Inference360 model inventory and model-size rename PRs. Use when: (1) a PR changes H200 Slurm model inventory docs, manifests, generated asset mirrors, scripts, tests, examples, or provider configs, (2) a size/name rename such as 8B to 7B may cross runtime-facing surfaces, (3) green CI must be checked against issue scope, compatibility, source-of-truth parity, and redaction risk.",
+      "version": "1.0.0",
+      "source": "./skills/inference360-pr-review-model-rename-scope-safety.md",
+      "category": "documentation",
+      "tags": [
+        "inference360",
+        "pr-review",
+        "model-inventory",
+        "model-rename",
+        "h200-slurm",
+        "manifests",
+        "generated-assets",
+        "redaction",
+        "compatibility"
       ]
     },
     {
