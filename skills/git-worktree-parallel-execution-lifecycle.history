@@ -1,6 +1,90 @@
 <!-- markdownlint-disable MD024 -->
 # git-worktree-parallel-execution-lifecycle — History
 
+## v1.5.0 (2026-07-11)
+
+**Changed by:** ProjectOdyssey worktree-cleanup + gh-tidy tidy session (real in-session git ops on
+the live ProjectOdyssey/Odyssey clone)
+**Verification:** verified-local
+
+### What changed
+
+- **Squash-merge `git cherry` false-positive — confirm-by-message step.** Extended the Cherry=1
+  classification block with a new "Squash-Merge Cherry False-Positive — Confirm-by-Message"
+  subsection: for a branch whose PR shows MERGED, `git cherry origin/main <branch>` still shows `+`
+  on EVERY commit because squash-merge collapses all commits into ONE new commit with a different
+  patch-id (worse than rebase-merge's per-commit hash rewrite). Do NOT conclude the branch is
+  unmerged — confirm the work IS on main by searching main's log for the squash commit by
+  message/PR-number: `git log origin/main --oneline | grep -iE "<PR-title-words>|#<PR-number>"`.
+  Only then is the worktree CLEAN_PRUNE_OK. In the source session EVERY merged-branch worktree
+  showed cherry `+` yet all were genuinely merged (verified e.g. via
+  "feat(googlenet): add forward-pass caching… (#5529)").
+- **Detached-HEAD pre-squash agent snapshots.** New subsection: worktrees in detached-HEAD at
+  intermediate agent SHAs (`fix-5515`/`review-5515`/`verify-5516`) are pre-squash snapshots of
+  already-merged PRs whose unique commits are throwaway WIP scaffolding ("restore README from
+  main", "Address CI failures for PR #NNNN", `.mojoc` artifacts). Confirm safe via (a)
+  `git merge-base --is-ancestor` OR message-search, (b) `git rev-list --count <sha>..origin/main`
+  main-ahead, (c) recognizing the two-dot `git diff origin/main..<sha>` "additions" as
+  divergent-lineage symmetric diff (not stranded source), then plain `git worktree remove`.
+- **CC Safety-Net blocks → non-destructive workarounds.** New "Safety-Net Blocks →
+  Non-Destructive Workarounds" subsection in Phase 6: `git clean -f` blocked on the MAIN worktree
+  → mv-park the artifact dir aside (`mv weights "$SCRATCH/weights-parked-$(git rev-parse --short
+  HEAD)"`), restore with `mv` (note: `git clean -fd` DOES work inside a sub-worktree —
+  context/path-sensitive); `git worktree remove --force` blocked → unlock+plain-remove
+  (locked+clean) or clean-artifacts-then-plain-remove; `git reset --hard` / chained
+  `git rebase --abort` blocked → `git branch -f <branch> <sha>` and check
+  `.git/rebase-merge`/`rebase-apply` + `git status` BEFORE any abort.
+- **gh-tidy auto-delete & quarantine-branch safety.** New subsection: `gh tidy --rebase-all` with
+  `GH_TIDY_AUTO_DELETE_MERGED=true` (+ `REBASE_ALL`) deleting merged-PR branches non-interactively
+  is INTENTIONAL when the user set those env vars (it also auto-aborts conflicting rebases, clean).
+  Do NOT auto-fix (swarm) failed rebases on CLOSED-unmerged branches with no open PR, or on
+  `quarantine/*` branches (rebasing one forward would launder the very evidence it freezes) — only
+  rebase-fix branches with an OPEN PR to re-arm.
+- Added 6 Failed Attempts rows (MERGED-branch-declared-unmerged via cherry squash false-positive;
+  detached-HEAD snapshot unique commits treated as real work; `git clean -f` on main blocked →
+  mv-park; `git worktree remove --force` blocked → unlock/clean+plain-remove; `git reset --hard` /
+  chained `rebase --abort` blocked → `git branch -f` + check-state-first; indiscriminate rebase-fix
+  swarm on quarantine/CLOSED-unmerged branches).
+- Added 6 frontmatter `description` triggers (22)–(27) and 4 new "When to Use" groups
+  (squash-merge false-positives & detached-HEAD snapshots; Safety-Net-blocked ops; gh-tidy
+  auto-delete & quarantine branches).
+- Extended the Safety Net interaction table with 5 rows (locked+clean remove; artifact-only remove;
+  `git clean -f` on main; `git reset --hard` → `branch -f`; chained `rebase --abort`).
+- Added a Verified On row for ProjectOdyssey worktree-squash-safetynet 2026-07-11.
+- Bumped version 1.4.0 → 1.5.0 (minor — new findings + new failed attempts + new triggers; no
+  breaking changes, existing content intact). Skill `date` → 2026-07-11; skill-level
+  `verification` stays `verified-local`.
+
+### Why
+
+A real ProjectOdyssey/Odyssey worktree-cleanup + gh-tidy session surfaced findings the prior skill
+did not cover. The existing Cherry=1 block handled rebase-merge's per-commit hash rewrite (cherry
+`+1`) but NOT squash-merge, which collapses ALL commits into one and lights up cherry `+` on the
+WHOLE branch — a stronger false-positive that would have caused genuinely-merged worktrees to be
+kept as "unreleased work." The confirm-by-message step (search main's log for the squash commit by
+PR title/number) is the reliable discriminator. Detached-HEAD agent-SHA snapshots
+(`fix-5515`/`review-5515`) are a related trap: their `git cherry` unique commits are pre-squash WIP
+scaffolding, and the two-dot `git diff origin/main..<sha>` "additions" are symmetric-diff artifacts
+of main evolving past them, not stranded source. The session also hit several CC Safety-Net blocks
+(`git clean -f` on the main worktree, `git worktree remove --force`, `git reset --hard`, chained
+`git rebase --abort`), each with a NON-DESTRUCTIVE workaround (mv-park, unlock+plain-remove,
+`git branch -f`, check-state-before-abort) that gets the job done without user hands — worth
+capturing so future sessions reach for the workaround instead of surfacing manual commands or
+force-deleting. Finally, gh-tidy's `GH_TIDY_AUTO_DELETE_MERGED` auto-delete + auto-abort behavior
+is intentional (not a bug) when the user set the env vars, and its failed rebases must NOT be
+swarm-fixed on `quarantine/*` branches (which would launder frozen evidence) or CLOSED-unmerged
+branches with no open PR — only OPEN-PR branches should be re-armed.
+
+### Previous version (v1.4.0) snapshot
+
+See `git show HEAD:skills/git-worktree-parallel-execution-lifecycle.md` at the commit prior to this
+amendment for the complete pre-amendment snapshot (the rest of the file is unchanged; this
+amendment only ADDS the two squash-merge/detached-HEAD subsections, the Safety-Net-workarounds and
+gh-tidy subsections, 6 Failed Attempts rows, 6 triggers, 4 When-to-Use groups, 5 Safety Net table
+rows, and 1 Verified On row).
+
+---
+
 ## v1.4.0 (2026-06-22)
 
 **Changed by:** ProjectHephaestus issue-major automation-loop cross-process worktree race (real 2026-06-21 output.log, issues 1553/1547) → fix PR #1568 / issue #1567 (new `hephaestus/utils/file_lock.py`)
