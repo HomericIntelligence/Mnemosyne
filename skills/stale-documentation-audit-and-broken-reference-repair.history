@@ -2,6 +2,43 @@
 
 # stale-documentation-audit-and-broken-reference-repair — History
 
+## v1.12.0 (2026-07-10)
+
+Added full-file claim-audit, architecture-drift, and version-agnostic compose-image drift-test
+learnings from ProjectArgus Issue #235 (planning session; follow-up to Argus #103).
+
+**Verification:** unverified (audit greps executed locally; the drift test was authored but never
+run end-to-end)
+
+Previous version snapshot: v1.11.0 (2026-06-19)
+
+Changes:
+
+- **Learning — One stale doc value predicts siblings** (from Argus #235): Issue #103 had fixed
+  only the Stack Components table; a full audit of CLAUDE.md against `docker-compose.yml`,
+  `configs/prometheus.yml`, and `configs/loki.yml` found 3 stale claim groups (all-`:latest`
+  image tags vs pinned versions; a scrape-targets table describing a retired architecture; a
+  repo tree missing 6+ entries) and 4 clean claims. Audit EVERY claim category in one pass with
+  a claim / actual / verdict table citing `file:line` on both sides; record OK verdicts too.
+- **Learning — Architecture drift beats value drift** (from Argus #235): the doc's scrape table
+  listed per-service direct scrape jobs (agamemnon/nestor/nats) that no longer existed as
+  Prometheus jobs — the system had moved to an exporter sidecar with upstream URLs in compose
+  env vars. Confirm the documented architecture still exists before patching its ports/hosts;
+  rewrite the table to the current architecture instead of row-by-row corrections.
+- **Learning — Version-agnostic compose-image drift test** (from Argus #235): never hardcode
+  image versions in the drift test (Dependabot bumps would re-break it); parse the doc table
+  with regex and compose/config YAML with `yaml.safe_load`, assert containment, and exclude
+  locally-built (`"image" not in spec`) and profile-gated dev services.
+- **Learning — Parameterized just recipes escape `grep '^[a-z-]*:'`** (from Argus #235):
+  `logs SERVICE:` has a space before the colon; grep the recipe name itself when cross-checking
+  documented commands.
+- Added When-to-Use bullets 27–29, four Failed-Attempts rows, a FULL-FILE CLAIM AUDIT
+  Quick-Reference block, a Results drift-test snippet, and a ProjectArgus Verified-On row.
+- Updated `description:` with trigger conditions 27–29 and added five new tags:
+  `full-file-claim-audit`, `claim-actual-verdict-table`, `architecture-drift`,
+  `compose-image-drift`, `version-agnostic-drift-test`.
+- Bumped `version:` to `1.12.0`, updated `date:` to 2026-07-10.
+
 ## v1.11.0 (2026-06-19)
 
 Added phantom-recipe / stale-issue-description learnings from Odysseus Issue #182 (PR #312).
