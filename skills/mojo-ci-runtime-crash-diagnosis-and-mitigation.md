@@ -1,9 +1,9 @@
 ---
 name: mojo-ci-runtime-crash-diagnosis-and-mitigation
-description: "Use when: (1) CI fails non-deterministically with 'JIT session error: Cannot allocate memory' or SIGSEGV in libKGENCompilerRTShared.so on GHA free-tier runners (VMA exhaustion from ~3.6 GB per mojo invocation), (2) auditing GHA workflows for unprotected bare 'pixi run mojo' calls and applying retry logic for JIT crash resilience, (3) validating that an upstream Mojo fix (runtime crash, codegen flag, compiler-driver bug) actually landed in a bumped nightly before removing downstream workarounds, (4) diagnosing a 'SIGILL on this host but works on others' crash using 4-layer CPU feature detection (kernel /proc/cpuinfo, raw cpuid, compiler-rt __builtin_cpu_supports, compiler driver target resolution), (5) fixing a deterministic Mojo runtime crash (exit 134) when container image UID differs from host runner UID causing Permission denied on ~/.modular, (6) understanding historically documented JIT retry patterns that are now obsolete after modular/modular#6413."
+description: "Use when: (1) CI fails non-deterministically with 'JIT session error: Cannot allocate memory' or SIGSEGV in libKGENCompilerRTShared.so on GHA free-tier runners (VMA exhaustion from ~3.6 GB per mojo invocation), (2) auditing GHA workflows for unprotected bare 'pixi run mojo' calls and applying retry logic for JIT crash resilience, (3) validating that an upstream Mojo fix (runtime crash, codegen flag, compiler-driver bug) actually landed in a bumped nightly before removing downstream workarounds, (4) diagnosing a 'SIGILL on this host but works on others' crash using 4-layer CPU feature detection (kernel /proc/cpuinfo, raw cpuid, compiler-rt __builtin_cpu_supports, compiler driver target resolution), (5) fixing a deterministic Mojo runtime crash (exit 134) when container image UID differs from host runner UID causing Permission denied on ~/.modular, (6) understanding historically documented JIT retry patterns that are now obsolete after modular/modular#6413, (7) reproducing a #6413 AVX-512 JIT crash 100%-deterministically on a NON-AVX-512 dev host by FORCE-ENABLING AVX-512 via 'mojo run --target-features +avx512f,...' (instead of trying to reproduce hypervisor masking), (8) mitigating an unprotected 'mojo run' (in-process JIT) recipe whose codegen still emits AVX-512 because the #6413 driver fix covers compile paths but NOT the JIT run path — apply a per-recipe '--target-features -avx512*' strip."
 category: ci-cd
-date: 2026-06-07
-version: "1.1.0"
+date: 2026-07-10
+version: "1.2.0"
 user-invocable: false
 history: mojo-ci-runtime-crash-diagnosis-and-mitigation.history
 tags:
@@ -25,6 +25,9 @@ tags:
   - retry
   - avx512
   - modular-6413
+  - target-features
+  - deterministic-repro
+  - mojo-run
 ---
 
 # Mojo CI Runtime Crash Diagnosis and Mitigation
@@ -33,10 +36,10 @@ tags:
 
 | Field | Value |
 | --- | --- |
-| **Date** | 2026-06-07 |
-| **Objective** | One canonical reference for diagnosing and mitigating Mojo JIT/runtime crashes in CI: VMA (virtual address space) exhaustion on GHA free-tier runners, workflow retry auditing, upstream-fix validation before removing workarounds, multi-layer CPU feature-detection (SIGILL) probing, and container UID-mismatch crashes. |
-| **Outcome** | Consolidated from 6 overlapping skills. Live root-cause and mitigation patterns retained; obsolete retry posture is documented as historical context only (see modular/modular#6413). |
-| **Verification** | verified-ci |
+| **Date** | 2026-07-10 |
+| **Objective** | One canonical reference for diagnosing and mitigating Mojo JIT/runtime crashes in CI: VMA (virtual address space) exhaustion on GHA free-tier runners, workflow retry auditing, upstream-fix validation before removing workarounds, multi-layer CPU feature-detection (SIGILL) probing, container UID-mismatch crashes, and the #6413 AVX-512 JIT crash (deterministic force-on repro + per-recipe `mojo run` strip). |
+| **Outcome** | Consolidated from 6 overlapping skills. Live root-cause and mitigation patterns retained; obsolete retry posture is documented as historical context only (see modular/modular#6413). v1.2.0 corrects the #6413 framing: the upstream driver fix covers COMPILE paths only; the in-process JIT `mojo run` path still emits AVX-512 and needs an explicit `--target-features -avx512*` strip per recipe. |
+| **Verification** | verified-local (v1.2.0 force-on repro + per-recipe strip run in-container 100%; full CI flake-elimination via PR #5570 not yet confirmed over many main runs). Earlier VMA/UID/4-gate sections remain verified-ci. |
 
 ## When to Use
 
@@ -46,6 +49,8 @@ tags:
 4. Diagnosing a "SIGILL on this host but works on others" crash using 4-layer CPU feature detection.
 5. Fixing a deterministic Mojo runtime crash (exit 134) when container image UID differs from host runner UID, causing `Permission denied [/home/.../.modular]`.
 6. Understanding historically documented JIT retry patterns that are now obsolete after modular/modular#6413.
+7. Reproducing a #6413 AVX-512 JIT crash **100%-deterministically on a NON-AVX-512 dev host** by FORCE-ENABLING AVX-512 (`mojo run --target-features +avx512f,+avx512vl,+avx512bw,+avx512dq,+avx512cd <probe>`) instead of trying to reproduce the hypervisor CPUID masking that only occurs on AVX-512-masked GHA Azure runners.
+8. Mitigating an unprotected `mojo run` (in-process JIT) recipe: the #6413 driver fix covers compile paths (`mojo <file>` / `mojo build`), but the JIT `mojo run` path still emits AVX-512 and must get an explicit per-recipe `--target-features -avx512*` strip.
 
 ### Crash Classification — Start Here
 
@@ -55,7 +60,7 @@ Misidentifying the crash type wastes investigation time. Check the stack offsets
 | --- | --- | --- |
 | `JIT session error: Cannot allocate memory` / SIGSEGV, non-deterministic on 7 GB GHA runners | VMA exhaustion (modular#6433) | Sequential single-job workflow (one mojo process at a time) |
 | `execution crashed` + `filesystem error: Permission denied [.../.modular]`, exit 134, 100% reproducible at CI UID | UID mismatch (modular#6412) | Dockerfile `chmod 755 $HOME` + cache key UID + entrypoint HOME-fixup |
-| SIGILL at JIT execution on some CPUs but not others; driver emits AVX-512 on masked-AVX-512 host | CPU feature mismatch (modular#6413) | Upstream-fixed; validate via 4-layer probe + `--print-effective-target` |
+| SIGILL / `error: execution crashed` in `libKGENCompilerRTShared.so` at JIT execution on some CPUs but not others; driver emits AVX-512 on masked-AVX-512 host | CPU feature mismatch (modular#6413) | Driver fix covers COMPILE paths (`mojo <file>`/`mojo build`); the in-process JIT `mojo run` path is NOT covered and still emits AVX-512 → add per-recipe `--target-features -avx512*` strip. Repro it deterministically off-CI by FORCE-ON (see section G). Validate via 4-layer probe + `--print-effective-target` |
 | `execution crashed` before output, variable offsets | JIT volume / VMA — see above | Sequential job; import audit is a red herring for pure VMA |
 
 ## Verified Workflow
@@ -77,6 +82,14 @@ podman compose exec -T myservice bash -c "mojo run test.mojo"; echo "Exit: $?"  
 
 # --- CPU feature mismatch: driver-resolved target ---
 pixi run mojo build --print-effective-target some.mojo   # compare against /proc/cpuinfo & cpuid
+
+# --- #6413 AVX-512 JIT crash: DETERMINISTIC force-on repro on a NON-AVX-512 host (section G) ---
+pixi run mojo run probe.mojo                                                          # baseline → OK
+pixi run mojo run --target-features +avx512f,+avx512vl,+avx512bw,+avx512dq,+avx512cd probe.mojo  # → CRASHES 100%
+pixi run mojo run --target-features -avx512f,-avx512vl,-avx512bw,-avx512dq,-avx512cd probe.mojo  # → OK (strip = mitigation)
+
+# --- #6413 mitigation scope: find unprotected `mojo run` (JIT) recipes the driver fix doesn't cover ---
+grep -n "mojo run" justfile   # each of these needs the -avx512* strip; MOJO_ASAN/MOJO_TSAN alone is insufficient
 
 # --- Upstream fix validation: Gate 0 (verify the premise) ---
 grep '^mojo' pixi.toml && git log --oneline -- pixi.toml | head -5
@@ -384,10 +397,92 @@ for f in $(find . -name "test_*_part*.mojo"); do
 done
 ```
 
+#### G. #6413 AVX-512 JIT Crash — Deterministic Force-On Repro + Per-Recipe `mojo run` Strip
+
+> **Verification: verified-local.** The repro below and the strip fix were run in-container on
+> ProjectOdyssey this session and reproduce **100%** (baseline passes, force-on crashes every
+> time, strip passes every time). The CI-side flake-elimination via PR #5570 was green on the
+> branch but is NOT yet confirmed over many `main` runs — so the full "flake eliminated" claim
+> is **not** verified-ci. Treat the repro as solid; treat CI-flake-elimination as pending.
+
+**The problem this solves.** A #6413 crash reproduces only on AVX-512-*masked* GHA Azure runners
+(Zen 4 / EPYC under Hyper-V, which masks AVX-512 CPUID leaves). On a normal dev host it is
+~0% reproducible, so it looks like an untriageable flake. **You cannot easily reproduce the
+masking.** THE TRICK: don't reproduce the masking — force AVX-512 *ON* on a host that LACKS
+AVX-512. The compiler then emits AVX-512 codegen the silicon can't run, exactly as the masked
+runner does, and it crashes **every time**.
+
+**The probe program.** A tiny pure-SIMD Mojo program (repo dialect gotchas: use `def main`
+NOT `fn`; `from std.sys.info import simd_width_of` NOT `simdwidthof`; `UnsafePointer[T].alloc()`
+is NOT a method — avoid pointers, use pure-SIMD register math):
+
+```mojo
+from std.sys.info import simd_width_of
+def main():
+    alias W = simd_width_of[DType.float32]()
+    var acc = SIMD[DType.float32, W](0.0)
+    var va = SIMD[DType.float32, W](1.5)
+    var vb = SIMD[DType.float32, W](2.25)
+    for i in range(100000):
+        va = va + SIMD[DType.float32, W](Float32(i) * 1e-6)
+        acc = va * vb + acc
+    print("simd_width=", W, " acc0=", acc[0])
+    print("OK")
+```
+
+**Run it three ways** on a non-AVX-512 host:
+
+```bash
+# 1. Baseline — no flag → PASSES ("OK")
+pixi run mojo run probe.mojo
+
+# 2. FORCE AVX-512 ON → CRASHES 100% with the exact #6413 backtrace
+pixi run mojo run --target-features +avx512f,+avx512vl,+avx512bw,+avx512dq,+avx512cd probe.mojo
+#   → error: execution crashed
+#   → libKGENCompilerRTShared.so +0x7251b / +0x6f686 / +0x73307 (on the pinned Mojo)
+
+# 3. STRIP AVX-512 → PASSES ("OK") — this is the mitigation
+pixi run mojo run --target-features -avx512f,-avx512vl,-avx512bw,-avx512dq,-avx512cd probe.mojo
+```
+
+This gives a deterministic bench for validating ANY #6413 mitigation without needing an
+AVX-512-masked runner.
+
+**Correction — `mojo run`'s in-process JIT DOES honor `--target-features` (not AOT-only).**
+It is widely claimed (and stated in ProjectOdyssey's `notes/mojo-cpu-detection-source-review.md`)
+that `--target-features` "only helps for AOT builds, not the in-process JIT that crashes in
+`libKGENCompilerRTShared.so`." The force-on repro **disproves** this: forcing `+avx512f` via
+`mojo run` changes JIT codegen (it crashes), so the JIT path inherits the driver-derived target
+and honors the flag. Therefore stripping AVX-512 via `--target-features -avx512*` on a
+`mojo run` invocation is an **effective mitigation for the JIT crash**, not just for AOT.
+
+**The gap — the #6413 driver fix does NOT cover the `mojo run` JIT path; strip per recipe.**
+ProjectOdyssey's justfile defines a `MOJO_TARGET_CPU` avx512-strip but wires it ONLY into
+`MOJO_ASAN`/`MOJO_TSAN`, on the assumption that `mojo build --print-effective-target`'s driver
+downgrade protects non-sanitizer paths. That downgrade covers COMPILE paths (`mojo <file>` /
+`mojo build`), so `just test-group` (compile-and-run) doesn't flake — but plain `mojo run` (JIT)
+recipes are **unprotected and DO flake** (the "Example Backward Tests" job). Fix: add the
+`-avx512*` strip to EACH `mojo run` recipe.
+
+```bash
+# Diagnostic — enumerate the unprotected JIT recipes:
+grep -n "mojo run" justfile
+# Confirm scope — show whether avx512* is still in the effective feature set:
+pixi run mojo build --print-effective-target [--target-features -avx512f,...] probe.mojo
+```
+
+> **Do NOT reach for a retry wrapper here.** Repo policy forbids `continue-on-error`/retry-masking
+> (Odysseus#280). A bare retry is NOT the fix — remove the faulty codegen by stripping AVX-512
+> from the recipe.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 | --- | --- | --- | --- |
+| Reproduce #6413 by running the crashing test normally on a dev host | Ran the "Example Backward Tests" `mojo run` recipe repeatedly on a non-masked host | 0% repro — the host is not AVX-512-*masked*, so the driver never mis-emits AVX-512 the silicon can't run | Don't chase the masking. FORCE AVX-512 **ON** (`mojo run --target-features +avx512f,...`) on a host that LACKS it → 100% deterministic #6413 crash (section G) |
+| Assume `--target-features` is AOT-only (per the in-repo `notes/mojo-cpu-detection-source-review.md`) | Believed the in-process JIT ignores `--target-features`, so stripping AVX-512 on `mojo run` "can't help" | The force-ON probe crashes *via `mojo run`* → the JIT path honors the flag and inherits the driver-derived target | `mojo run`'s JIT DOES honor `--target-features`; a `-avx512*` strip on a `mojo run` invocation is an effective JIT-crash mitigation, not just AOT |
+| Assume the #6413 driver downgrade protects all non-sanitizer paths | Wired the `MOJO_TARGET_CPU` avx512-strip only into `MOJO_ASAN`/`MOJO_TSAN` | The driver `--print-effective-target` downgrade covers COMPILE paths (`mojo <file>`/`mojo build`) but not the `mojo run` JIT path, which still flakes | Strip AVX-512 per-recipe on every `mojo run` (grep `mojo run` justfile); sanitizer-only wiring is insufficient |
+| Consider a retry wrapper for the "Example Backward Tests" flake | Weighed wrapping the `mojo run` recipe in a retry loop | Forbidden by repo policy (Odysseus#280) and masks rather than fixes — the faulty AVX-512 codegen is still emitted | Remove the codegen (strip `-avx512*`); never retry-mask a deterministic-once-forced miscompile |
 | `max-parallel: 1` on the matrix to serialize Mojo jobs | Set matrix `max-parallel: 1` | GHA jobs are separate processes; setup/teardown of adjacent jobs overlap on the same physical machine, so two `mojo` processes co-exist transiently and exceed 7 GB | `max-parallel` controls scheduling concurrency, not machine exclusivity. Use a single sequential job (steps, not matrix) to guarantee one mojo process at a time |
 | `ulimit -v unlimited` in the test recipe | Added `ulimit -v unlimited` to raise the VMA cap | Shell `ulimit` cannot override cgroup memory limits enforced by the GHA VM/hypervisor | Hard cgroup limits are infra-set and not overridable from inside the job |
 | Convert package imports to targeted submodule imports (assumed JIT volume) | Changed `from shared.core import X` to submodule imports | 40/40 local runs passed but root cause was per-process VmPeak, not compilation footprint — import volume was a red herring | The `ulimit -v` reproducer reveals the true root cause; don't chase import-volume theories for pure VMA crashes |
@@ -435,7 +530,22 @@ done
 LLVM `getHostCPUName()` returns `"znver4"` from family/model (which Hyper-V does not mask),
 then `X86TargetParser.cpp::Processors[]` applies a static AVX-512 feature list without
 intersecting against the masked CPUID leaves → SIGILL at JIT execution. Confirmed on GHA
-Azure AMD EPYC 9V74 (Zen 4) under Hyper-V, CI runs 25778579617 + 25778580407. Fixed upstream.
+Azure AMD EPYC 9V74 (Zen 4) under Hyper-V, CI runs 25778579617 + 25778580407. Upstream driver
+fix covers COMPILE paths only; the in-process JIT `mojo run` path is still affected.
+
+### #6413 Deterministic Force-On Repro (verified-local, section G)
+
+| Item | Value |
+| --- | --- |
+| Force-ON feature list (CRASHES 100%) | `--target-features +avx512f,+avx512vl,+avx512bw,+avx512dq,+avx512cd` |
+| Strip feature list (mitigation, PASSES) | `--target-features -avx512f,-avx512vl,-avx512bw,-avx512dq,-avx512cd` |
+| Subcommand | `mojo run` (in-process JIT — honors `--target-features`) |
+| Baseline (no flag) | PASSES ("OK") on a non-AVX-512 host |
+| Crash signature | `error: execution crashed` + `libKGENCompilerRTShared.so` |
+| Backtrace offsets (on the pinned Mojo) | `+0x7251b` / `+0x6f686` / `+0x73307` |
+| Repro determinism | 100% (force-on crashes every run; baseline & strip pass every run) |
+| Scope of #6413 driver fix | COMPILE paths (`mojo <file>` / `mojo build`) only; `mojo run` JIT NOT covered |
+| Fix wiring | Per-recipe `-avx512*` strip on every `mojo run` (grep `mojo run` justfile) |
 
 ### UID Crash Signature (modular/modular#6412)
 
@@ -462,3 +572,4 @@ libKGENCompilerRTShared.so+0x6d4ab / +0x6a686 / +0x6e157 ; libc.so.6+0x45330 (__
 | ProjectOdyssey | modular/modular#6413 root-cause | 4-layer CPU feature probe on GHA EPYC 9V74; CI runs 25778579617 + 25778580407 |
 | ProjectOdyssey | PRs #5217, #5252, #5351 — UID mismatch crash | Dockerfile `chmod 755 $HOME`, UID cache key, entrypoint `_ensure_writable` (recursive, `sudo -n`) |
 | ProjectOdyssey | Historical retry/forensics context (modular#6413 demolition PRs #5458–#5460) | Retry/coredump/gdb infra removed after upstream fix landed; see history file |
+| ProjectOdyssey | PR #5570 — "Example Backward Tests" #6413 flake RCA (v1.2.0) | verified-local: force-ON `mojo run --target-features +avx512f,...` repro crashes 100% (offsets +0x7251b/+0x6f686/+0x73307); baseline & `-avx512*` strip pass; per-recipe strip on each `mojo run` recipe. `mojo run` JIT honors `--target-features` (corrects the AOT-only note). CI flake-elimination pending confirmation on main |

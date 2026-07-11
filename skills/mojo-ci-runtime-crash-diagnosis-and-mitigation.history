@@ -2,6 +2,53 @@
 
 # Changelog: mojo-ci-runtime-crash-diagnosis-and-mitigation
 
+## v1.2.0 (2026-07-10)
+
+- **Version**: 1.2.0 (MINOR bump — additive learnings + a framing correction)
+- **Date**: 2026-07-10
+- **Changed-by**: ProjectOdyssey PR #5570 — "Example Backward Tests" #6413 flake RCA
+- **Verification**: verified-local (repro + strip fix run in-container this session, reproduce
+  100%; CI-side flake-elimination via PR #5570 was green on the branch but NOT yet confirmed
+  over many `main` runs — so the full flake-elimination claim is NOT verified-ci)
+
+### What changed
+
+Amended the #6413 AVX-512 material. v1.1.0 framed #6413 as "upstream-fixed; validate via
+`--print-effective-target`" and oriented the mitigation at `mojo build` + retry-posture. This
+session found that INCOMPLETE and added three verified-local learnings:
+
+1. **Deterministic LOCAL repro by FORCE-ENABLING AVX-512.** A #6413 crash normally reproduces
+   only on AVX-512-*masked* GHA Azure runners (Zen4 under Hyper-V), so it is ~0% reproducible on
+   a normal dev host and looks like an untriageable flake. The trick: don't reproduce the
+   masking — force AVX-512 *ON* on a host that LACKS it. A tiny pure-SIMD Mojo probe run via
+   `mojo run --target-features +avx512f,+avx512vl,+avx512bw,+avx512dq,+avx512cd <file>` crashes
+   EVERY time (100%) with the exact `libKGENCompilerRTShared.so` backtrace (offsets
+   `+0x7251b`/`+0x6f686`/`+0x73307` on the pinned Mojo) + `error: execution crashed`. Baseline
+   passes; `-avx512*` strip passes. New section G + Results table capture this.
+2. **`mojo run`'s in-process JIT DOES honor `--target-features` (correction).** The in-repo note
+   `notes/mojo-cpu-detection-source-review.md` claims `--target-features` is AOT-only and cannot
+   help the JIT. Learning 1 disproves it: forcing `+avx512f` via `mojo run` changes JIT codegen
+   (it crashes), so the strip is an effective JIT-crash mitigation, not just AOT. Corrected the
+   Crash Classification row and the #6413 root-cause section.
+3. **The #6413 driver fix does NOT cover the `mojo run` JIT path; strip per recipe.**
+   ProjectOdyssey's justfile wires the `MOJO_TARGET_CPU` avx512-strip only into
+   `MOJO_ASAN`/`MOJO_TSAN`. The driver `--print-effective-target` downgrade covers COMPILE paths
+   (`mojo <file>`/`mojo build`) so `just test-group` doesn't flake, but plain `mojo run` (JIT)
+   recipes are unprotected and DO flake (the "Example Backward Tests" job). Fix: add the
+   `-avx512*` strip to each `mojo run` recipe. Repo policy forbids `continue-on-error`/retry —
+   remove the codegen, don't mask it (Odysseus#280).
+
+Also updated: frontmatter (version 1.1.0→1.2.0, date, +3 When-to-Use triggers, +tags
+`target-features`/`deterministic-repro`/`mojo-run`), Overview verification line
+(verified-ci → verified-local for the new material, honest about pending CI confirmation),
+4 new Failed Attempts rows, and a Verified On row for PR #5570.
+
+### Snapshot pointer
+
+The v1.1.0 body archived below (this section prepended above it) is the pre-amendment state:
+#6413 framed as "upstream-fixed; validate via `--print-effective-target`", mitigation oriented
+at `mojo build` + retry-posture, no force-on repro, no `mojo run` JIT-path strip.
+
 ## v1.1.0 (2026-06-07)
 
 Restore source-code-bug-knowledge block (nuance audit pass 2). Added section F
