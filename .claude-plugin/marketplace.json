@@ -18,7 +18,7 @@
     "tooling": 174,
     "training": 7
   },
-  "last_updated": "2026-07-09T21:53:21Z",
+  "last_updated": "2026-07-12T01:29:27Z",
   "plugins": [
     {
       "name": "agent-config-validation-and-integrity",
