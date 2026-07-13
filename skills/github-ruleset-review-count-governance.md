@@ -5,7 +5,7 @@ category: ci-cd
 date: 2026-07-12
 version: "1.1.0"
 user-invocable: false
-verification: verified-ci
+verification: verified-local
 history: github-ruleset-review-count-governance.history
 tags:
   - github-actions
@@ -26,7 +26,7 @@ tags:
 | **Date** | 2026-07-12 |
 | **Objective** | Govern `required_approving_review_count` on GitHub `main` protection. TWO regimes: (a) human-reviewed repos — close the zero-review gap (0 → 1) across ALL canonical ruleset JSON variants; (b) automation-authored repos — when an automation authors PRs AS the operator, the count MUST be `0` (nonzero is a permanent self-approval deadlock), flipped on BOTH the classic protection AND the ruleset layer |
 | **Outcome** | v1.0.0: four Odysseus ruleset files set to count=1 + CI guard. v1.1.0: on the HomericIntelligence org (17 active repos) the count was set to `0` on `main` for every repo because the automation authors PRs as the operator; 3 green auto-merge-armed PRs merged the instant the gate dropped; `required_review_thread_resolution` preserved |
-| **Verification** | verified-ci — v1.1.0 applied org-wide to all 17 active repos; 3 PRs merged immediately; thread-resolution preserved |
+| **Verification** | verified-local — the v1.1.0 learning was applied org-wide to all 17 active HomericIntelligence repos in the field and 3 PRs merged immediately (real-world verified), but THIS skill PR's own gate is red for a pre-existing fork-drift reason (`marketplace.json` `total_plugins` stale on the fork's `main`, unrelated to this amendment), so the skill is labeled `verified-local` per the /learn honesty gate. `validate_plugins.py` (641/641) + markdownlint pass locally |
 | **History** | [changelog](./github-ruleset-review-count-governance.history) |
 
 ## When to Use

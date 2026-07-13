@@ -3,7 +3,7 @@
 ## v1.1.0 (2026-07-12)
 
 **Changed by:** HomericIntelligence org-wide self-approval-deadlock remediation session (17 active repos, 3 PRs unblocked immediately)
-**Verification:** verified-ci — applied to all 17 active org repos; 3 green auto-merge-armed PRs merged the instant the gate dropped; `required_review_thread_resolution` preserved
+**Verification:** verified-local — the learning was applied in the field to all 17 active org repos and 3 green auto-merge-armed PRs merged the instant the gate dropped (real-world verified), but this skill PR's own gate is red for a pre-existing fork-drift reason (`marketplace.json` stale on the fork's `main`), so the skill is labeled `verified-local` per the /learn honesty gate; `required_review_thread_resolution` was preserved during the org-wide apply
 
 ### What changed
 
@@ -24,8 +24,10 @@
   layer; rely on the automation's `state:implementation-go` LABEL as an
   approval).
 - Added a new "When to Use" trigger for the self-approval deadlock symptom.
-- Bumped verification from `verified-local` to `verified-ci` (org-wide apply
-  observed; 3 PRs merged).
+- Kept verification at `verified-local`: the learning is real-world verified
+  (org-wide apply; 3 PRs merged), but this skill PR's own CI gate is red due to
+  pre-existing fork-drift (`marketplace.json` stale on the fork's `main`), so
+  the /learn honesty gate forbids the `verified-ci` label here.
 
 ### Why
 
