@@ -10210,8 +10210,8 @@
     },
     {
       "name": "logical-model-family-rename-with-storage-exceptions",
-      "description": "Rename repository logical model-family surfaces without breaking physical checkpoint or benchmark storage paths. Use when: (1) replacing old model-family names in manifests, docs, tests, scripts, and routes, (2) preserving real external paths that still contain the old name, (3) adding a guard that blocks old logical names while allowing storage references.",
-      "version": "1.0.1",
+      "description": "Rename logical reference surfaces (model-family names, or org/repo names when dropping a prefix) without breaking physical storage paths or package identity, AND execute the deferred breaking package rename correctly. Use when: (1) replacing old names in manifests, docs, tests, scripts, routes, and repo/URL references, (2) preserving real external paths or package names that still contain the old name, (3) splitting a safe reference-only sweep now from a breaking package/source rename deferred to a tracked issue, (4) adding a guard that blocks old logical names while allowing storage references, (5) a rename PR fails coverage/build because refs were renamed but package DIRECTORIES were not git mv'd, (6) completing a projectX->X package rename (git mv dirs + fix post-branch-merged files), (7) rebasing a stale whole-tree rename onto current main.",
+      "version": "1.2.0",
       "source": "./skills/logical-model-family-rename-with-storage-exceptions.md",
       "category": "tooling",
       "tags": [
@@ -10220,7 +10220,16 @@
         "manifests",
         "h200-slurm",
         "storage-exceptions",
-        "ruff"
+        "ruff",
+        "repo-rename",
+        "url-sweep",
+        "package-rename",
+        "deferred-breaking-change",
+        "git-mv",
+        "whole-tree-rename",
+        "rebase",
+        "coverage-validator",
+        "mojo"
       ]
     },
     {
