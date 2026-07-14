@@ -1,24 +1,24 @@
 {
-  "name": "ProjectMnemosyne",
+  "name": "Mnemosyne",
   "owner": {
     "name": "HomericIntelligence",
     "url": "https://github.com/HomericIntelligence"
   },
   "description": "Skills marketplace for the HomericIntelligence agentic ecosystem",
   "version": "2.1.0",
-  "total_plugins": 640,
+  "total_plugins": 645,
   "categories": {
-    "architecture": 132,
+    "architecture": 133,
     "ci-cd": 122,
-    "debugging": 62,
+    "debugging": 63,
     "documentation": 41,
     "evaluation": 12,
-    "optimization": 7,
-    "testing": 83,
-    "tooling": 174,
+    "optimization": 8,
+    "testing": 84,
+    "tooling": 175,
     "training": 7
   },
-  "last_updated": "2026-07-09T21:53:21Z",
+  "last_updated": "2026-07-13T21:46:32Z",
   "plugins": [
     {
       "name": "agent-config-validation-and-integrity",
@@ -892,6 +892,21 @@
         "competing-mechanism",
         "triage",
         "refactor-hazard"
+      ]
+    },
+    {
+      "name": "depthwise-separable-forward-backward",
+      "description": "Use when: (1) implementing depthwise separable convolution blocks (MobileNetV1-style: depthwise + pointwise), (2) you hit gradient mismatches between forward and backward passes in per-channel convolution, (3) building efficient architectures and need forward/backward shape+math consistency across the separable block.",
+      "version": "1.0.0",
+      "source": "./skills/depthwise-separable-forward-backward.md",
+      "category": "architecture",
+      "tags": [
+        "depthwise-separable",
+        "convolution",
+        "mobilenetv1",
+        "backward-pass",
+        "gradients",
+        "mojo"
       ]
     },
     {
@@ -6253,6 +6268,21 @@
       ]
     },
     {
+      "name": "mojo-tensor-ownership-training-loops",
+      "description": "Use when: (1) implementing Mojo training loops where functions take AnyTensor by value (moving ownership), (2) you hit 'use after move' compile errors across compute_gradients()/model.forward() calls in an iteration, (3) you must reuse tensor data between training and a post-training forward pass and need separate batch objects / borrow-vs-transfer discipline.",
+      "version": "1.0.0",
+      "source": "./skills/mojo-tensor-ownership-training-loops.md",
+      "category": "debugging",
+      "tags": [
+        "mojo",
+        "ownership",
+        "value-semantics",
+        "use-after-move",
+        "training-loop",
+        "anytensor"
+      ]
+    },
+    {
       "name": "nas-nfs-write-throughput-diagnosis",
       "description": "Diagnose slow NFS write throughput to a NAS by separating the bottleneck by LAYER (network / CPU / disk-array), because 'slow NFS writes' is ambiguous and may have multiple independent root causes. Use when: (1) NFS writes to a NAS are far slower than the link can carry (e.g. ~8 MB/s on 1GbE), (2) you see intermittent 'nfs: server not responding, timed out' errors mixed in with slowness, (3) you must decide whether the floor is network, CPU (parity/checksum), or disk before recommending any tuning.",
       "version": "1.0.0",
@@ -7682,6 +7712,21 @@
       ]
     },
     {
+      "name": "sgd-momentum-initialization-convergence",
+      "description": "Use when: (1) implementing SGD-with-momentum and setting up per-parameter velocity buffers, (2) training loss diverges or oscillates and you suspect momentum/init, (3) you must initialize the velocity buffer count/order to exactly match the parameter-update order for stable monotone convergence.",
+      "version": "1.0.0",
+      "source": "./skills/sgd-momentum-initialization-convergence.md",
+      "category": "optimization",
+      "tags": [
+        "sgd",
+        "momentum",
+        "velocity-buffers",
+        "convergence",
+        "optimizer",
+        "training"
+      ]
+    },
+    {
       "name": "audit-orphan-source-sweep-to-find-omissions",
       "description": "Audit a structured dataset built from a larger source corpus for OMISSIONS by sweeping every uncited (orphan) source file and classifying it against an included-item index. Use when: (1) a curated index/schedule/inventory is derived from many underlying source documents and an item could be silently dropped, (2) prior validation only re-checked already-cited sources and so cannot detect a missing item, (3) you need defensible 100% source coverage rather than a sampled spot-check.",
       "version": "1.0.0",
@@ -7789,6 +7834,21 @@
         "docker-entrypoint",
         "pixi",
         "ci"
+      ]
+    },
+    {
+      "name": "cifar10-one-hot-label-encoding",
+      "description": "Use when: (1) loading CIFAR-10 and preparing integer labels (0-9) for cross-entropy that expects one-hot (B,10) float32 targets, (2) debugging NaN losses or shape mismatches in loss computation from raw-index labels, (3) implementing training loops where cross_entropy multiplies logits by targets and raw indices silently produce a meaningless loss.",
+      "version": "1.0.0",
+      "source": "./skills/cifar10-one-hot-label-encoding.md",
+      "category": "testing",
+      "tags": [
+        "cifar10",
+        "one-hot",
+        "cross-entropy",
+        "labels",
+        "training",
+        "mojo"
       ]
     },
     {
@@ -10197,7 +10257,7 @@
     },
     {
       "name": "mnemosyne-skill-pr-ci-gate-first-pass-green",
-      "description": "Use when authoring a ProjectMnemosyne /learn skill PR and you want it to pass CI on the FIRST push instead of bouncing on a red gate: (1) before committing a new or amended skills/*.md so you run the SAME two checks the Mnemosyne branch-protection requires \u2014 validate (ruff + scripts/validate_plugins.py over the WHOLE skills/ dir + mypy + pytest) and markdownlint (markdownlint-cli2 with .markdownlint.yaml); (2) when a markdown table in your skill has an inline pipe (regex, shell pipe, a|b) that markdownlint MD056/table-column-count rejects but validate_plugins.py silently passes; (3) when /learn emits a skill missing one of the five required ## sections and validate fails on your own new file; (4) when parallel /learn runs fork fresh origin/main against the SAME skill and become mutually DIRTY, so you need the open-PR amend-lock; (5) when a pre-existing broken file already on main reddens validate for files you never touched; (6) before claiming verified-ci, to confirm the gate is actually green and not just your local run.",
+      "description": "Use when authoring a Mnemosyne /learn skill PR and you want it to pass CI on the FIRST push instead of bouncing on a red gate: (1) before committing a new or amended skills/*.md so you run the SAME two checks the Mnemosyne branch-protection requires \u2014 validate (ruff + scripts/validate_plugins.py over the WHOLE skills/ dir + mypy + pytest) and markdownlint (markdownlint-cli2 with .markdownlint.yaml); (2) when a markdown table in your skill has an inline pipe (regex, shell pipe, a|b) that markdownlint MD056/table-column-count rejects but validate_plugins.py silently passes; (3) when /learn emits a skill missing one of the five required ## sections and validate fails on your own new file; (4) when parallel /learn runs fork fresh origin/main against the SAME skill and become mutually DIRTY, so you need the open-PR amend-lock; (5) when a pre-existing broken file already on main reddens validate for files you never touched; (6) before claiming verified-ci, to confirm the gate is actually green and not just your local run.",
       "version": "1.0.0",
       "source": "./skills/mnemosyne-skill-pr-ci-gate-first-pass-green.md",
       "category": "tooling",
@@ -11107,6 +11167,21 @@
       ]
     },
     {
+      "name": "systemd-docker-compose-restart-storm-fix",
+      "description": "Fix systemd units supervising docker-compose-managed stacks that get stuck in activating (auto-restart) restart-storm loops, caused by combining systemd Restart=always with an attached (foreground) `docker compose up` on services that already carry their own container-level restart: policy. Use when: (1) `systemctl status` shows `Active: activating (auto-restart)` indefinitely for a docker compose unit even though `docker ps` shows the container running fine, (2) unit logs show `Error response from daemon: Conflict. The container name ... is already in use by container ...`, (3) after switching a unit to detached `docker compose up -d` you instead see `Error response from daemon: endpoint with name ... already exists in network ...` with zero matching containers in `docker ps -a`, (4) designing a systemd unit to supervise a docker-compose project and deciding who should own restart responsibility.",
+      "version": "1.0.0",
+      "source": "./skills/systemd-docker-compose-restart-storm-fix.md",
+      "category": "tooling",
+      "tags": [
+        "systemd",
+        "docker-compose",
+        "docker",
+        "restart-storm",
+        "RemainAfterExit",
+        "libnetwork"
+      ]
+    },
+    {
       "name": "tailscale-maestro-setup",
       "description": "Set up Tailscale on Linux and configure cross-host AI Maestro connectivity. Use when: (1) enabling Tailscale on Debian/Linux, (2) connecting multiple AI Maestro instances across machines, (3) diagnosing network connectivity issues between hosts.",
       "version": "1.0.0",
@@ -11544,7 +11619,7 @@
     },
     {
       "name": "tooling-portable-shared-repo-fork-resolution",
-      "description": "Make a hardcoded shared-knowledge-base repo reference (e.g. HomericIntelligence/ProjectMnemosyne) org-aware/portable via a clone-or-fork resolution ladder, so any GitHub user can read and contribute to it instead of only the canonical org. Use when: (1) a script/skill hardcodes an `owner/repo` slug everywhere and only that org can use it, (2) /learn or /advise-style automation always targets the canonical upstream and you want it to target the caller's own fork, (3) you need a single resolver returning the correct owner/slug across env-override > gh-login-fork > upstream-fallback, (4) you must mirror the same resolution logic across a Python source-of-truth and a bash SKILL.md (cannot import Python), (5) you are about to call `gh repo fork` programmatically and need to handle the can't-fork-into-own-org case.",
+      "description": "Make a hardcoded shared-knowledge-base repo reference (e.g. HomericIntelligence/Mnemosyne) org-aware/portable via a clone-or-fork resolution ladder, so any GitHub user can read and contribute to it instead of only the canonical org. Use when: (1) a script/skill hardcodes an `owner/repo` slug everywhere and only that org can use it, (2) /learn or /advise-style automation always targets the canonical upstream and you want it to target the caller's own fork, (3) you need a single resolver returning the correct owner/slug across env-override > gh-login-fork > upstream-fallback, (4) you must mirror the same resolution logic across a Python source-of-truth and a bash SKILL.md (cannot import Python), (5) you are about to call `gh repo fork` programmatically and need to handle the can't-fork-into-own-org case.",
       "version": "1.0.0",
       "source": "./skills/tooling-portable-shared-repo-fork-resolution.md",
       "category": "tooling",
