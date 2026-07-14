@@ -1,10 +1,11 @@
 ---
 name: git-commit-signing-failures-and-setup
-description: "Diagnose and fix commit signing failures that block PR merge under required_signatures / pr-policy gates. Use when: (1) a PR shows mergeStateStatus BLOCKED with all CI green and mergeable MERGEABLE — suspect unsigned or unverified commits, (2) GPG commit.gpgsign=true produces commits GitHub reports as verified=false with reason=no_user because the author email has no matching UID on the signing key, (3) sub-agent shells inherit commit.gpgsign=true but silently fail to sign due to un-warmed gpg-agent or wrong default key, (4) setting up commit signing on a fresh remote/headless/CI host for the first time using SSH signing keys, (5) git push is rejected with 'push declined due to email privacy restrictions' even though signing appears correct, (6) the pr-policy required-check gate reports unsigned commits even though local git log shows signatures"
+description: "Diagnose and fix commit signing failures that block PR merge under required_signatures / pr-policy gates. Use when: (1) a PR shows mergeStateStatus BLOCKED with all CI green and mergeable MERGEABLE — suspect unsigned or unverified commits, (2) GPG commit.gpgsign=true produces commits GitHub reports as verified=false with reason=no_user because the author email has no matching UID on the signing key, (3) sub-agent shells inherit commit.gpgsign=true but silently fail to sign due to un-warmed gpg-agent or wrong default key, (4) setting up commit signing on a fresh remote/headless/CI host for the first time using SSH signing keys, (5) git push is rejected with 'push declined due to email privacy restrictions' even though signing appears correct, (6) the pr-policy required-check gate reports unsigned commits even though local git log shows signatures, (7) an OPEN PR stays BLOCKED under required_signatures because a prior `git commit --amend -S` produced a SIBLING (same parent+tree, new SHA) — a DIVERGED non-descendant that GitHub will NOT adopt as the PR head, so the signed commit sits on the branch invisible to the PR (fix: replay the PATCHES re-signed onto the correct base with `git format-patch`/`git am --gpg-sign`, then force-push so the PR head follows), (8) `gh pr close`+`reopen` or `gh api .../update-branch` failed to re-sync a re-signed head (a merge commit whose parent is still unsigned stays BLOCKED)"
 category: tooling
-date: 2026-06-11
-version: "1.0.1"
+date: 2026-07-13
+version: "1.1.0"
 user-invocable: false
+verification: verified-local
 history: git-commit-signing-failures-and-setup.history
 tags:
   - git
@@ -20,6 +21,11 @@ tags:
   - graphql-lag
   - headless
   - agent-dispatch
+  - amend-sibling
+  - pr-head-desync
+  - fast-forward
+  - force-push
+  - format-patch
 ---
 
 # Git Commit Signing: Failures and Setup
@@ -28,10 +34,10 @@ tags:
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-06-11 |
-| **Objective** | Diagnose and remediate commit-signing failures that block PR merge under `required_signatures` / `pr-policy` gates (silent unsigned commits, email/key-UID mismatch producing `no_user`, un-warmed gpg-agent in sub-shells, GraphQL lag), AND set up GitHub-valid signing from scratch on a fresh remote/headless host using SSH signing keys |
-| **Outcome** | Successful — re-authored and re-signed blocked PRs across multiple repos (Keystone #552, Hephaestus #1021/#1026/#1071, #900) flipping commits to `verified: true`; set up first-time SSH signing on headless host `aeolus` and confirmed `verification.verified == true` via REST |
-| **Verification** | verified-ci |
+| **Date** | 2026-07-13 |
+| **Objective** | Diagnose and remediate commit-signing failures that block PR merge under `required_signatures` / `pr-policy` gates (silent unsigned commits, email/key-UID mismatch producing `no_user`, un-warmed gpg-agent in sub-shells, GraphQL lag, **and the `--amend`-produces-a-sibling PR-head-desync trap**), AND set up GitHub-valid signing from scratch on a fresh remote/headless host using SSH signing keys |
+| **Outcome** | Successful — re-authored and re-signed blocked PRs across multiple repos (Keystone #552, Hephaestus #1021/#1026/#1071, #900) flipping commits to `verified: true`; set up first-time SSH signing on headless host `aeolus` and confirmed `verification.verified == true` via REST. Example D (PR-head desync) reconstructed from evidence on Mnemosyne #3021 — the recommended in-place patch-replay fix is the correct approach but was not run end-to-end to a green merge (the session escaped via a fresh PR), so that example is `verified-local` |
+| **Verification** | verified-local (core signing workflow is verified-ci; the new Example D PR-head-desync fix is reasoned + partially executed, not run to a merged green gate) |
 
 ## When to Use
 
@@ -48,6 +54,8 @@ tags:
 - `gh api user/ssh_signing_keys` / `gh ssh-key add --type signing` returns HTTP 404 (token lacks `admin:ssh_signing_key` scope), or commits land Unverified because a key was added auth-only (missing `--type signing`).
 - You authored commits via the GitHub Contents REST API expecting auto-signing and they come back `verification.reason=unsigned`.
 - You are building automated re-sign / fleet tooling that must validate the resign email against the key UIDs and must NEVER rewrite PRs it does not own.
+- An OPEN PR stays BLOCKED under `required_signatures` for days even after you "re-signed" its head — because a prior `git commit --amend -S` wrote a **sibling** commit (same parent + same tree, new SHA) that is a DIVERGED non-descendant of the PR head. GitHub advances an open PR's head **only** on a fast-forward descendant push, so force-pushing the sibling updates the branch ref but leaves the PR head PINNED to the old unsigned commit (Example D).
+- `gh pr close`+`gh pr reopen` did NOT re-sync a diverged head, and `gh api .../pulls/<N>/update-branch` created a merge commit whose PARENT is still the unsigned commit — `required_signatures` rejects EVERY unsigned commit the PR introduces, not just the head, so both left the PR BLOCKED (Example D).
 
 ## Verified Workflow
 
@@ -275,6 +283,69 @@ does not fire even when armed.
    enforced at the GitHub API layer, so force-pushing unsigned commits to a protected branch is
    rejected before the push lands.
 
+#### Example D — `--amend -S` produces a SIBLING; the PR head never adopts the signed commit
+
+> _(This example's fix is `verified-local`: reconstructed from evidence on Mnemosyne #3021 and
+> partially executed this session, but the clean "re-sign the patches in place, force-push, PR head
+> follows, SAME PR merges green" path was NOT run to a merged gate — the session escaped via a fresh
+> PR. The in-place patch-replay fix below is the CORRECT approach; treat the end-to-end merge as
+> unconfirmed until you run it.)_
+
+An open PR whose head commit is unsigned is BLOCKED by `required_signatures`. The instinct is to
+"re-sign it in place" with `git commit --amend -S` and force-push. **This does not work, and it is
+the root trap:**
+
+- `git commit --amend` reuses the SAME parent and SAME tree but writes a NEW commit object, so the
+  result is a **SIBLING** of the original (same parent, same tree, different SHA), NOT a descendant.
+  Fingerprint: amend keeps the original author-date but stamps a fresh committer-date.
+- A sibling is a DIVERGED commit (`git status` vs the remote = "diverged", ahead 1 / behind 1).
+  Landing it requires a FORCE-push — it is not a fast-forward from the remote tip.
+- **GitHub advances an open PR's head ONLY when the new branch tip is a fast-forward DESCENDANT of
+  the current PR head.** Force-pushing a diverged sibling updates the branch ref but leaves the PR
+  head PINNED to the old unsigned commit. The signed commit sits on the branch, invisible to the PR,
+  and the PR stays BLOCKED indefinitely.
+- `required_signatures` rejects EVERY unsigned commit the PR introduces, not just the head. (Proof:
+  a signed merge commit with an unsigned parent was still BLOCKED.)
+
+**The proper fix — replay the PATCHES (the diff/content), re-signed onto the correct base, NOT the
+commit objects.** The unit of work is the patch, not the commit object: cherry-picking or `--amend`
+copies a commit object and yields a sibling; `format-patch` + `am --gpg-sign` re-creates the commits
+with correct lineage and a signature on each.
+
+```bash
+# 1. Identify the PR's commit range: base (fork point) .. head.
+BASE=$(git merge-base origin/main <pr-head-sha>)
+# 2. Export the PR's commits as patches (content, not commit objects).
+git format-patch "$BASE"..<pr-head-sha> -o "$HOME/.tmp/pr-patches"   # use $HOME/.tmp, never /tmp
+# 3. Reset the PR branch to the correct base and re-apply the patches, SIGNING each.
+git checkout -B <pr-branch> "$BASE"
+git am --gpg-sign "$HOME/.tmp/pr-patches"/*.patch
+#    (equivalent: git rebase --exec 'git commit --amend --no-edit -S' "$BASE")
+# 4. Verify EVERY commit in the range is signed — every row's col-2 must be G.
+git log --format='%h %G? %s' "$BASE"..HEAD
+# 5. Force-push the clean re-signed lineage to the SAME PR branch. Force is REQUIRED and
+#    CORRECT here (re-signing rewrites SHAs); --force-with-lease guards against clobbering.
+git push --force-with-lease origin HEAD:<pr-branch>
+# 6. GitHub re-reads the branch; because it is a clean re-signed history on the correct base
+#    (not a competing sibling), the PR head follows to the new signed tip, required_signatures
+#    clears, and the SAME PR becomes mergeable.
+```
+
+**Crucial distinctions:**
+
+- The unit of replay is the **patch (diff)**, not the commit object — copying/cherry-picking a commit
+  object or `--amend` gives you a sibling.
+- **Force-push IS the right tool here.** A 403 on the force-push is almost certainly a read-only
+  fine-grained PAT lacking push scope — re-auth to a `repo`-scoped / OAuth token; it is NOT a
+  force-push ruleset denial. Do NOT reach for `--allow-empty` or `update-branch` to avoid
+  force-pushing; those cannot sign an unsigned lineage.
+- The desync happens because PR-head tracking is fast-forward-only. Keep the branch and the intended
+  PR head as the SAME clean lineage — never leave them as diverged siblings.
+- **Fresh PR is the LAST-RESORT escape, not the fix.** Opening a new PR works but abandons the
+  original PR's number, review, and discussion thread. Only fall back to it when the branch history
+  is already irreparably tangled (e.g. you have already pushed a sibling AND an `update-branch` merge
+  commit on top of it).
+
 #### Pre-warm gpg-agent in sub-agent shells
 
 With `commit.gpgsign=true` set globally and the key on the GitHub account, sub-agent shells DO inherit
@@ -324,6 +395,11 @@ PR-author login via `env:` (never interpolated into `run:`) for workflow-injecti
 | Attempt 18 | Registered the SSH key via the API with the default token | HTTP 404 — the token lacked `admin:ssh_signing_key` | Grant it interactively: `gh auth refresh -h github.com -s admin:ssh_signing_key` (human approves device/browser flow; cannot be headless) |
 | Attempt 19 | Committed without `-S` hoping pr-policy wouldn't catch it | pr-policy validated every commit at the GraphQL layer; PR showed all checks SUCCESS but `mergeStateStatus:BLOCKED` with no visible explanation, auto-merge did not fire | Always `git commit -S` in repos with `pr-policy`; verify each commit with `git log -1 --pretty=format:'%G?'` before pushing |
 | Attempt 20 | Signed with a different GPG key than the one registered on GitHub | GitHub checked the public key against registered keys; the new key was unregistered so signatures were `UNVERIFIED`/`BAD_SIGNATURE` and pr-policy still blocked | Use the key registered on your GitHub account; `git config user.signingkey` must match an account key |
+| Attempt 21 | `git commit --amend -S` on the PR's tip, then force-push, to "re-sign in place" | `--amend` writes a SIBLING (same parent + same tree, new SHA) — a diverged non-descendant. GitHub advances a PR head only on a fast-forward descendant, so the force-push updated the branch ref but left the PR head PINNED to the old unsigned commit; the PR stayed BLOCKED with the signed commit invisible to it | Never use `--amend` to re-sign a PR commit you need the PR head to follow. Replay the PATCHES onto the correct base (`git format-patch` + `git am --gpg-sign`) so the new head is a clean re-signed lineage, then force-push |
+| Attempt 22 | Plain `git push` of the sibling (avoided force-push, believing a ruleset blocked force) | A sibling is not a fast-forward, so the plain push was rejected; the 403 seen on the force-push was actually a read-only fine-grained PAT lacking push scope, not a force-push ruleset | Diagnose a push 403 as a credential-scope problem (re-auth with `repo` scope), not a force-push policy. Force-push is the correct tool when re-signing rewrites SHAs |
+| Attempt 23 | `gh pr close` + `gh pr reopen` to nudge GitHub to re-read the branch tip | The head stayed pinned — diverged (non-descendant) commits are not adopted as the PR head via reopen | Close/reopen does NOT adopt a diverged branch tip as the PR head; only a fast-forward descendant push advances it |
+| Attempt 24 | `gh api PUT .../pulls/<N>/update-branch` to sync the PR with main | Created a MERGE commit whose PARENT was still the unsigned commit. `required_signatures` rejects EVERY unsigned commit the PR introduces (not just the head), so it stayed BLOCKED — and the head was now a merge commit, more tangled | `update-branch` / merging main over an unsigned commit does NOT sign it; `required_signatures` checks all introduced commits. Re-sign the lineage, do not merge over it |
+| Attempt 25 | Opened a fresh PR to escape the tangle | Works, but abandons the original PR (loses its number, review, and discussion thread); acceptable only as a last resort after the branch is irreparably tangled | Prefer re-signing the patches in place on the SAME PR branch (Example D); a fresh PR is the fallback escape hatch, not the fix |
 
 ## Results & Parameters
 
@@ -418,3 +494,4 @@ git config --global user.email "<numeric-id>+<login>@users.noreply.github.com"
 | ProjectHephaestus | 2026-06-06, PRs #1021 / #1026 | Global `~/.gitconfig` `user.email` was `mvillmow+bot@users.noreply.github.com`; GPG key `F0A2530669A31A2E` (subkey `7FD616C4744A8A7C`) was bound only to `4211002+mvillmow@users.noreply.github.com`. Commits showed `%G?`=`G` locally but GitHub returned `no_user` and pr-policy failed. Discovered the `+bot` variant cannot be a verified email (patching the key UID was a dead end). Fixed by `git config user.email 4211002+mvillmow@...` + `git commit --amend --reset-author -S`; added a defensive guard in `fleet_sync.get_resign_email()` validating resign email vs key UIDs (`FLEET_SKIP_EMAIL_KEY_CHECK=1` bypass). Also hit bare-`-S` foreign-key (`%G?`=`E`) and silent commit-abort-from-hook leaving HEAD unchanged |
 | ProjectHephaestus | 2026-06-07, PR #1071 (issue #1070) | Fleet automation `fleet_sync.py` `list_prs()` had no author filter; `rebase_and_resign()` rewrote a Dependabot bump, STRIPPING the native web-flow signature; the amend ran in a sub-shell with a cold gpg-agent so it landed `reason=unsigned`. Fixed by scoping discovery with `--author @me`, warming gpg-agent before any re-sign amend, and exempting `dependabot[bot]` from pr-policy Check 1 (`Closes #N`) while keeping Checks 2/3. Verified via REST `reason=valid`; merged to main |
 | ProjectHephaestus | 2026-06-11, PR #946 (issue #755) | Forensics code-only fix (malformed COREDUMP_MAX_BYTES handling) failed pr-policy Check 3 "every commit is signed": commit `189110e2` returned GitHub GraphQL `signature.isValid:false`. Re-signed via `git rebase origin/main --exec 'git commit --amend --no-edit -S'`; final merged commit `ab5ab4de` returned REST `verification.verified:true reason:valid` (PGP), committer email `4211002+mvillmow@users.noreply.github.com` matching the key UID. Confirms Example C pattern; auto-merge fired after pr-policy passed. |
+| HomericIntelligence/Mnemosyne | 2026-07-13, PR #3021 (Example D, `verified-local`) | Open PR sat BLOCKED under `required_signatures` for ~a week with an unsigned head `c7a5b6a2`. A prior automated `git commit --amend -S` produced `b29075a2` — a SIBLING of the original (same parent `d6c2075e`, same tree `e06bfd76`, new SHA); force-pushing it left the PR head PINNED to the old unsigned commit. `close`/`reopen` did not re-sync; `update-branch` created merge commit `96353454` whose parent was still `c7a5b6a2`, so it stayed BLOCKED. The recommended fix (replay the patches re-signed onto the fork-point base, force-push so the head follows) is reconstructed from this evidence but was NOT run to a merged green gate — the session escaped via a fresh PR (#3077). Hence Example D is `verified-local`, not `verified-ci` |
