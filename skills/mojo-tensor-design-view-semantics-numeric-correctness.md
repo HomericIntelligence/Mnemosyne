@@ -2,8 +2,8 @@
 name: mojo-tensor-design-view-semantics-numeric-correctness
 description: "Use when: (1) designing ExTensor/AnyTensor types with parametric dtypes, view semantics, and stride-aware slices, (2) implementing or debugging zero-copy view operations (transpose, slice, ravel) for stride-aware tensor access, (3) diagnosing silent correctness bugs in tensor numeric operations (strided layout, dtype mismatch, bitcast corruption, NaN hashing), (4) adding NumPy-style truncation to Mojo tensor __str__ methods, (5) fixing DataLoader N-D batch slicing or shape assumptions, (6) SIMD-vectorizing element-wise tensor ops in Mojo for throughput gains, (7) adding Apple Silicon BF16 runtime guards to dtype/precision factory methods, (8) implementing or testing __hash__ on Mojo tensors with float/int fields and empty-tensor edge cases."
 category: architecture
-date: 2026-06-07
-version: "1.1.0"
+date: 2026-07-11
+version: "1.2.0"
 user-invocable: false
 history: mojo-tensor-design-view-semantics-numeric-correctness.history
 tags:
@@ -55,6 +55,7 @@ wiring), SIMD-vectorizing element-wise ops, and adding hardware/precision guards
 - Fixing `DataLoader.next()` N-D batch slicing (replacing a hardcoded 2D shape assumption)
 - SIMD-vectorizing element-wise scans (NaN/Inf detection, gradient clipping, L2 norm) for 4-16x throughput
 - Adding Apple Silicon BF16 runtime guards to dtype/precision factory methods
+- Resolving a Mojo dtype-conversion that accepts a dtype in its outer guard but whose inner dispatch raises for it (accept-then-raise asymmetry) — e.g. block-quant `to_mxfp4()`/`to_nvfp4()` accepting bf16 then raising "Invalid dtype for MXFP4 quantization"
 
 ## Verified Workflow
 
@@ -334,6 +335,9 @@ Confirm the stdlib symbol via `strings .pixi/envs/default/lib/mojo/std.mojopkg |
 | `BFloat16` scalar alias | Used `BFloat16` like `Float32` | No such alias in stdlib | Use `SIMD[DType.bfloat16, 1]` |
 | Direct BFloat16<->Float64 cast | `ptr[].cast[DType.float64]()` from bf16 | Wrong values in Mojo 0.26.1 | Cast through Float32 as intermediary |
 | Fix only bf16 I/O branches | Skipped `_get_dtype_size_static` | 4-byte default -> wrong byte offsets | Fix size + read + write branches together for any new dtype |
+| Add a bf16 support branch to block-quant | Widen bf16->Float32 (like float16) in the inner MXFP4/NVFP4 dispatch to resolve the accept-then-raise | Inconsistent with sibling `to_fp8`/`to_bf8` which REJECT bf16 for the same reason; relies on the exact distrusted Float32-intermediate path | REJECT bf16 at the outer guard to match the sibling conversion family's established policy — don't invent a support path the codebase already rejected elsewhere |
+| `bitcast[BFloat16]()` a bf16 scalar | Used `BFloat16` as the bitcast target for `tensor._data.bitcast[...]()[i]` | No `BFloat16` scalar alias exists (unlike `Float16`, which IS a stdlib alias) | Use `bitcast[Scalar[DType.bfloat16]]()` |
+| Overclaim the rejection comment | Wrote the bf16 reject comment stating bf16->Float32 "doesn't round-trip" as fact | The widening cast bf16->Float32 is mathematically exact; the real cause is a distrusted Mojo-version-specific bf16 READ path | Word it as matched-from-precedent (copied from the FP8 family's rationale), don't independently re-derive or overclaim |
 | `Int(val * 1e6)` float hash | Multiply then truncate to int | Overflows large values; collides small (`0.1` -> 0) | Bitcast to UInt64 to preserve all 64 IEEE bits |
 | Address-of return value | `UnsafePointer.address_of(self._get_float64(i))` | Temporary has no stable address (dangling) | Assign to a named local before taking its address |
 | `UnsafePointer.address_of()` static | Called as a static method | Not a static method in 0.26.1 | Use `UnsafePointer[T](to=val)` constructor |
@@ -364,9 +368,25 @@ Confirm the stdlib symbol via `strings .pixi/envs/default/lib/mojo/std.mojopkg |
 - No implicit conversion between Float16/32/64
 - FloatLiteral/IntLiteral implicitly convert to any Scalar[dtype]
 - Float32 -> Float64 -> Float32 round-trip is NOT lossless
-- No BFloat16 scalar alias; use SIMD[DType.bfloat16, 1]; cast bf16 via Float32
+- No BFloat16 scalar alias; use SIMD[DType.bfloat16, 1] / Scalar[DType.bfloat16]; cast bf16 via Float32 (Float16 IS a stdlib alias, BFloat16 is NOT)
 - Scalar conversion: .cast[DType.float64]() (constructor does not implicitly convert)
 ```
+
+### Accept-Then-Raise Dtype Guard (block-quant bf16 reject)
+
+When an outer floating-point guard accepts a dtype the inner dispatch cannot handle,
+make the outer guard reject it — matching the sibling conversion family's policy — and
+delete the now-dead inner branch.
+
+| Aspect | Pattern |
+| ------ | ------- |
+| Symptom | Outer guard accepts bf16; inner MXFP4/NVFP4 `else` raises "Invalid dtype for MXFP4 quantization" |
+| Precedent | Sibling `_convert_to_fp8_family_impl` (same file) already REJECTS bf16 with a documented reason |
+| Fix | Reject bf16 at the OUTER guard with a message identical to the FP8 family; remove the dead inner branch |
+| Test discriminator | Raised error CONTAINS `"bfloat16"` (outer-guard message) AND does NOT contain `"Invalid dtype for MXFP4/NVFP4 quantization"` (inner message) — distinguishes clean-reject from old accept-then-raise |
+| Non-vacuous proof | Removing the outer guard makes bf16 fall through to the inner `else` and the test fails |
+| bf16 scalar bitcast | `tensor._data.bitcast[Scalar[DType.bfloat16]]()[i]` — no `BFloat16` alias (`Float16` IS an alias) |
+| Comment honesty | bf16->Float32 is an exact widening cast; the "doesn't round-trip" wording is matched-from-precedent (distrusted Mojo bf16 read path), not independently re-derived |
 
 ### Safe load/store API Design
 
@@ -452,3 +472,4 @@ strings .pixi/envs/default/lib/mojo/std.mojopkg | grep is_apple   # confirm guar
 | ProjectOdyssey | Issue #3375, PR #4037 | ExTensor `__str__` NumPy-style truncation |
 | ProjectOdyssey | Issue #3277, PR #3846 | DataLoader N-D batch slicing |
 | ProjectOdyssey | Issue #3203, follow-up #3088 | Apple Silicon BF16 runtime guard |
+| ProjectOdyssey | Issue #5564, PR #5577 | Block-quant bf16 accept-then-raise → clean outer-guard reject (verified-local) |

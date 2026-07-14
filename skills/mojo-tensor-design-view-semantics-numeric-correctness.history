@@ -2,6 +2,43 @@
 
 # History: mojo-tensor-design-view-semantics-numeric-correctness
 
+## v1.2.0 (2026-07-11)
+
+**MINOR bump.** Changed-by: ProjectOdyssey #5564 bf16 block-quant reject (PR #5577).
+Verification: verified-local (fix + tests run in-container, all pass, proven
+non-vacuous; strict-review GO; PR #5577 CI settling — not confirmed merged, so
+verified-local not verified-ci).
+
+**What changed:** Added a new dtype-conversion POLICY learning distinct from the
+existing bf16-cast pitfalls. `_convert_to_block_quant_impl` (backing
+`to_mxfp4()`/`to_nvfp4()`) accepted `bfloat16` in its OUTER floating-point guard, but
+the INNER MXFP4/NVFP4 dispatch had no bf16 branch, so bf16 fell through to
+`else: raise Error("Invalid dtype for MXFP4 quantization")` — an **accept-then-raise
+asymmetry** (outer says yes, inner says no). The design decision was to REJECT bf16 at
+the outer guard (not add a support branch), matching the sibling
+`_convert_to_fp8_family_impl` in the same file which already rejects bfloat16 with a
+documented reason ("the bfloat16 conversion path does not correctly round-trip through
+the Float32 intermediate representation"). Adding a widen-bf16→Float32 support branch
+would be inconsistent with the FP8/BF8 family and would rely on the exact
+Float32-intermediate path the codebase distrusts. Removed the dead inner branch.
+
+**Why:** When a dtype-conversion has an accept-then-raise asymmetry, resolve it by
+making the guard consistent with the SIBLING conversion family's established policy —
+don't invent a new support path the codebase already rejected elsewhere.
+
+- Added a When-to-Use trigger (accept-then-raise asymmetry).
+- Added 3 Failed-Attempts rows (bf16 support branch → reject to match sibling;
+  `bitcast[BFloat16]()` → no alias, use `Scalar[DType.bfloat16]`; overclaiming the
+  "doesn't round-trip" comment → word it as matched-from-precedent).
+- Added a Results row: reject-message pattern + outer-vs-inner test discriminator.
+- Honesty note: bf16→Float32 is mathematically an exact widening cast; the
+  "doesn't round-trip" justification is really about a Mojo-version-specific bf16 READ
+  path being unreliable, not the cast itself. Copy such justifications as
+  matched-from-precedent, not independently re-derived.
+
+**Previous version snapshot:** v1.1.0 (2026-06-07), verification verified-ci — the
+canonical before this amendment is preserved in the v1.1.0 entry below.
+
 ## v1.1.0 (2026-06-07)
 
 Restore concatenate non-zero-axis caveat (nuance audit pass 2): document that
