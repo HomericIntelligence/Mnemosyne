@@ -4,6 +4,32 @@
 
 Supersession history for the merged canonical skill `git-commit-signing-failures-and-setup`.
 
+## v1.1.0 (2026-07-13)
+
+**Changed by:** HomericIntelligence/Mnemosyne PR #3021 — a signed-commit re-sign left an open PR BLOCKED for a week (PR-head desync)
+**Verification:** verified-local (core signing workflow remains verified-ci; the new Example D fix is reasoned + partially executed, not run to a merged green gate)
+
+### What changed
+
+- Added **Example D — `--amend -S` produces a SIBLING; the PR head never adopts the signed commit** to the Verified Workflow. Documents that `git commit --amend` writes a sibling (same parent + tree, new SHA), that GitHub advances an open PR's head only on a fast-forward DESCENDANT push, and the proper fix: replay the PATCHES re-signed onto the correct base (`git format-patch` + `git am --gpg-sign`), then force-push so the PR head follows.
+- Added the fact that `required_signatures` rejects EVERY unsigned commit a PR introduces, not just the head (proven by a signed merge commit with an unsigned parent still BLOCKING).
+- Added Failed Attempts 21–25: `--amend`→sibling+pinned-head; plain-push-of-sibling / 403-is-a-PAT-scope-not-a-ruleset; `close`+`reopen` does not re-sync; `update-branch` merges over the unsigned commit (still BLOCKED); fresh-PR is the last-resort escape not the fix.
+- Added two "When to Use" triggers and one "Verified On" row (Mnemosyne #3021, `verified-local`).
+- Added the frontmatter `verification` field (was absent) and tags: amend-sibling, pr-head-desync, fast-forward, force-push, format-patch.
+- Bumped version 1.0.1 → 1.1.0, updated date to 2026-07-13. Minor bump per /learn semver: adds a new workflow example, new failed attempts, and new triggers without changing the existing recommendation.
+
+### Why
+
+The existing skill covered re-signing a whole commit range via `rebase --exec` and even noted (Attempt 4) that a single-commit `--amend -S` leaves other commits unsigned — but it did NOT capture the distinct and costly mechanic that `--amend` yields a DIVERGED SIBLING and that GitHub's fast-forward-only PR-head tracking then leaves the PR head pinned to the old unsigned commit, so the "re-signed" commit is invisible to the PR and it stays BLOCKED. Mnemosyne #3021 sat blocked for a week on exactly this, and the subsequent `close`/`reopen` and `update-branch` attempts made it worse. The fix is to re-create the PR's commits from their PATCHES (content) onto the correct base and force-push the clean re-signed lineage to the SAME branch.
+
+### Verification honesty
+
+The recommended in-place patch-replay fix is the CORRECT approach but was reconstructed from evidence and only partially executed this session — the clean "re-sign in place, force-push, PR head follows, SAME PR merges green" path was not run to completion (the session escaped via a fresh PR #3077). Hence this amendment is labeled `verified-local`. The pre-existing Examples A–C remain `verified-ci`.
+
+### Previous version (v1.0.1) snapshot
+
+See git history at the parent commit; content unchanged except the additions above.
+
 ## v1.0.1 (2026-06-11)
 
 **Changed by:** ProjectHephaestus PR #946 (issue #755) — pr-policy signing gate recurrence
@@ -55,7 +81,6 @@ tags:
   - graphql-lag
   - gpg-agent
 ```
-
 
 # Git GPG Signing: Email Mismatch Silently Produces Unsigned Commits, Blocks PR Merge
 
@@ -526,7 +551,6 @@ tags:
   - admin-ssh-signing-key
 ```
 
-
 # Signed Commits From a Remote Host: SSH Signing Key + noreply Email
 
 ## Overview
@@ -724,7 +748,6 @@ tags:
   - branch-protection
   - auto-merge
 ```
-
 
 # Cryptographic Signed Commits and pr-policy CI Gate Validation
 
