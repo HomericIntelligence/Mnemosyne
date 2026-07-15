@@ -1,10 +1,11 @@
 ---
 name: pixi-env-task-config
-description: "Use when: (1) setting up a new Mojo/MAX/Python project with pixi.toml and choosing between nightly/stable channels, (2) wrapping pixi tasks with a justfile for cross-repo convention alignment, (3) eliminating DRY violations by using pixi feature composition (environments = {features = [shared, dev]}) to share dev tools across environments, (4) adding justfile delegation recipes to a meta-repo, (5) auditing pixi task definitions for consistency with CI workflows, (6) a pixi [tasks] entry whose command body is itself `pixi run ...` (nested/recursive pixi invocation smell) — relocate it into the target environment's [feature.<env>.tasks] with a depends-on alias."
+description: "Use when: (1) setting up a new Mojo/MAX/Python project with pixi.toml and choosing between nightly/stable channels, (2) wrapping pixi tasks with a justfile for cross-repo convention alignment, (3) eliminating DRY violations by using pixi feature composition (environments = {features = [shared, dev]}) to share dev tools across environments, (4) adding justfile delegation recipes to a meta-repo, (5) auditing pixi task definitions for consistency with CI workflows, (6) a pixi [tasks] entry whose command body is itself `pixi run ...` (nested/recursive pixi invocation smell) — relocate it into the target environment's [feature.<env>.tasks] with a depends-on alias, (7) invoking a named pixi task with extra paths or flags — inspect the task body first because trailing arguments are forwarded and may duplicate task-owned targets."
 category: tooling
-date: 2026-07-18
-version: "1.3.0"
+date: 2026-08-07
+version: "1.4.0"
 user-invocable: false
+verification: verified-local
 history: pixi-env-task-config.history
 tags:
   - pixi
@@ -25,6 +26,8 @@ tags:
   - adr-018
   - mojo-uv
   - migration
+  - task-arguments
+  - mypy
 ---
 
 # Pixi Environment and Task Configuration
@@ -41,10 +44,10 @@ tags:
 
 | Field | Value |
 | ------- | ------- |
-| **Date** | 2026-07-18 |
+| **Date** | 2026-08-07 |
 | **Objective** | Author pixi.toml for Mojo/MAX/Python projects, wrap pixi tasks with a justfile for ecosystem convention alignment, and de-duplicate dev tools via pixi feature composition. **For HomericIntelligence: superseded by uv per ADR-018 (see uv migration mapping below).** |
-| **Outcome** | Single source covering project scaffolding (pixi/uv/pip/conda), justfile wrapping/delegation, feature-composition DRY elimination, and the verified pixi→uv supersession (ADR-018) |
-| **Verification** | verified-ci |
+| **Outcome** | Single source covering project scaffolding (pixi/uv/pip/conda), justfile wrapping/delegation, feature-composition DRY elimination, the verified pixi→uv supersession (ADR-018), and task-defined command arguments |
+| **Verification** | verified-ci for the uv migration; verified-local for the task-argument rule, with CI validation pending |
 
 ## uv Migration Mapping (ADR-018)
 
@@ -96,6 +99,7 @@ delegation pattern (`cd <submodule> && just <recipe>`) is unchanged.
 - Auditing pixi task definitions for consistency with CI workflows
 - A `[tasks]` entry in `pixi.toml` has a command body that is itself `pixi run --environment <env> <name>` (a nested/recursive pixi invocation) — relocate it into `[feature.<env>.tasks]` with a `depends-on` alias instead
 - Before moving or deleting any pixi task, to confirm no real consumer (CI workflows, justfile, docs, code) invokes the bare top-level task name
+- Before adding paths or flags to `pixi run <task>`, especially for type checking: inspect the task body in `pixi.toml` first, because positional paths may already be part of that task
 
 ## Verified Workflow
 
@@ -117,6 +121,11 @@ just --list
 # Create [feature.shared] with common tools, compose via features = ["shared", "dev"]
 pixi install --locked
 pixi run pytest tests/unit/test_pixi_shared_feature.py -v
+
+# --- Existing task arguments ---
+# Inspect first. If `[tasks].mypy` already defines its paths, do not add another.
+rg -n '^mypy\\s*=' pixi.toml
+pixi run mypy
 ```
 
 ### Detailed Steps
@@ -200,6 +209,30 @@ pixi run mojo --version           # Must match major.minor
 ```
 
 Mismatched versions cause kernel compilation failures. Use the same channel for both.
+
+#### 1a. Run a named task without duplicating its positional arguments
+
+Before appending paths to `pixi run <task>`, inspect the corresponding
+`[tasks]` definition. Pixi passes trailing command-line arguments through to
+the task command; adding a path which the task body already supplies can make
+the underlying tool load the same modules twice.
+
+For example, ProjectHephaestus defines its `mypy` task as:
+
+```toml
+[tasks]
+mypy = "mypy hephaestus/ scripts/ tests/"
+```
+
+The correct full type-check command is therefore:
+
+```bash
+pixi run mypy
+```
+
+Do **not** run `pixi run mypy hephaestus/`: that adds `hephaestus/` a second
+time and mypy reports duplicate-module errors. Add a positional target only
+when the task definition intentionally leaves targets to the caller.
 
 #### 2. Justfile wrapping pixi tasks
 
@@ -479,6 +512,7 @@ python3 -c "import tomllib;d=tomllib.load(open('pixi.toml','rb'));t=d['feature']
 | NATS-based containerized pipeline for meta-repo delegation | claude-myrmidon-multi.py with 18 NATS consumers, fan-out/fan-in coordination | Massively overengineered for what is fundamentally "edit justfiles in N repos" | Use a simple myrmidon swarm with worktrees for file-edit-and-PR work |
 | All agents modify Odysseus justfile in the same wave | Submodule + Odysseus agents ran in parallel | Concurrent writes to the same file caused conflicts; delegation referenced recipes not yet merged | Serialize writes to shared files; submodule PRs merge first (Wave 1), Odysseus delegation second (Wave 2) |
 | pixi `[tasks]` entry that shells out to `pixi run` | `audit = "pixi run --environment lint pip-audit"` in `[tasks]` | Spawns a nested pixi process (task → `pixi run` → re-resolve env+task); wasteful indirection. `pixi run <name>` resolves TASKS-first then binaries, so it's easy to misread which thing runs | Define the task in `[feature.<env>.tasks]` and use `audit = { depends-on = ["pip-audit"] }` — native resolution, no nested process |
+| Appending a source path to a task that already owns its paths | `pixi run mypy hephaestus/` while `[tasks].mypy` is `mypy hephaestus/ scripts/ tests/` | Pixi forwards the extra positional path, so mypy sees `hephaestus/` twice and raises duplicate-module errors | Read `pixi.toml` before running a named task; use `pixi run mypy` when the task body already lists all targets |
 | Deleting/moving a task because "it exists" without a consumer grep | Assumed the top-level `audit` task was load-bearing | "The task exists" ≠ "anyone invokes it" — CI and justfile actually called `pixi run --environment lint pip-audit` directly, so the top-level alias had zero real consumers | Grep `.github/ justfile *.md *.py` for the **bare** task name first (exclude `.pixi/` and `build/` worktrees → false positives); relocate freely only when the grep is empty |
 | Trusting an issue-body file path | Issue said "MIGRATION.md not linked from README" implying a root file | The file actually lived at `docs/MIGRATION.md`; issue-body paths are frequently approximate | `grep -rni "migration.md"` to find the real path before writing the link |
 | Assuming a documented-gap is uniformly absent | Audit item "document macOS/Windows CI absence" was already DONE in `.github/workflows/test.yml` but missing in the sibling gate `_required.yml` | A doc/gap can be present in one of two authoritative files and absent in the other | Read BOTH sibling files before planning the change; don't assume a gap is uniform across mirrored configs |
@@ -555,6 +589,18 @@ solve-group = "lint"
 | `audit` | `pixi run --environment lint pip-audit` | pip-audit in lint env |
 | `check` | `just lint && just typecheck && just test` | Composite CI recipe |
 
+### Named task argument rule (ProjectHephaestus)
+
+```toml
+[tasks]
+mypy = "mypy hephaestus/ scripts/ tests/"
+```
+
+| Command | Result |
+| ------- | ------ |
+| `pixi run mypy` | Correct: executes the task's complete target list once |
+| `pixi run mypy hephaestus/` | Incorrect: forwards a duplicate target and causes duplicate-module errors |
+
 ### Optional pixi.toml addition for justfile
 
 ```toml
@@ -580,6 +626,7 @@ just = ">=1.25.0,<2"
 | ProjectHephaestus | Issue #1554 (4-item packaging/DX nitpick bundle) — PLANNING only, 2026-06-22 | Observed nested `pixi run` task smell (`audit = "pixi run --environment lint pip-audit"`); confirmed TASKS-first resolution via `pixi run audit --help`; consumer grep showed top-level `audit` had ZERO real consumers. Proposed `depends-on` relocation NOT yet executed/CI-confirmed |
 | ProjectOdyssey | ADR-018 pixi→uv migration — uv installs Mojo compiler, 2026-07-18 | `uv add mojo` (PyPI `mojo==1.0.0b2`, same build id as conda pin) compiled real Mojo code in CI — verified-ci |
 | ProjectAgamemnon / ProjectNestor / ProjectCharybdis / ProjectKeystone | ADR-018 pixi→uv migration — uv installs C++ toolchain (cmake/ninja/conan/gcovr wheels) | C++ built green under uv: Agamemnon 178/178, Nestor 115/115, Charybdis 15/15, Keystone 223 gtest targets — verified-ci |
+| ProjectHephaestus | Local type-check command validation, 2026-07-15 | Verified that `[tasks].mypy` already runs `mypy hephaestus/ scripts/ tests/`; `pixi run mypy hephaestus/` duplicates the package target and produces mypy duplicate-module errors. Use `pixi run mypy` with no added target; CI validation pending. |
 
 ---
 *Project setup content adapted from [modular/skills](https://github.com/modular/skills) under Apache License 2.0. Copyright (c) Modular Inc.*
