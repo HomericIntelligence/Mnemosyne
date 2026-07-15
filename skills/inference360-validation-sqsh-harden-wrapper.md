@@ -1,12 +1,12 @@
 ---
 name: inference360-validation-sqsh-harden-wrapper
-description: "Harden Inference360 local validation around digest-verified Enroot/SquashFS wrappers. Use when: (1) replacing a removed Podman dev-container validation path, (2) resolving validation images from WardenRuntime manifests, (3) strict review requires fail-closed shell wrapper and CI/local validation separation."
+description: "Harden Inference360 WardenRuntime SquashFS resolution, validation, and cross-machine materialization. Use when diagnosing missing runtime artifacts or digest-verified Enroot wrappers."
 category: ci-cd
-date: 2026-07-04
-version: "1.0.0"
+date: 2026-07-15
+version: "1.1.0"
 user-invocable: false
 verification: verified-ci
-tags: [inference360, validation, enroot, squashfs, wardenruntime, ci, shell, strict-review]
+tags: [inference360, validation, enroot, squashfs, wardenruntime, warden, runtime-artifact, materialization, ci, shell, strict-review]
 ---
 
 # Inference360 Validation SquashFS Wrapper Hardening
@@ -17,7 +17,7 @@ tags: [inference360, validation, enroot, squashfs, wardenruntime, ci, shell, str
 |-------|-------|
 | **Date** | 2026-07-04 |
 | **Objective** | Fix strict PR review findings for an Inference360 validation change that moved public local `just validate` from a removed Podman dev-container path to a digest-verified local Enroot/SquashFS wrapper. |
-| **Outcome** | Successful: unrelated scope was removed, the wrapper resolved image provenance from reviewed WardenRuntime manifests, stale Enroot rootfs reuse was eliminated, and local plus GitHub PR checks passed. |
+| **Outcome** | Successful: unrelated scope was removed, the wrapper resolved image provenance from reviewed WardenRuntime manifests, stale Enroot rootfs reuse was eliminated, and local plus GitHub PR checks passed. A later operator diagnosis also established that Warden runtime images are machine-local reviewed artifacts: they must be materialized separately on each target environment and are not built or downloaded by `uv run`. |
 | **Verification** | verified-ci |
 
 ## When to Use
@@ -26,6 +26,8 @@ tags: [inference360, validation, enroot, squashfs, wardenruntime, ci, shell, str
 - A shell wrapper must bootstrap validation before the normal Python/private helpers can be trusted or installed.
 - Strict review flags stale container rootfs reuse, regex interpolation in shell parsers, missing cluster fail-closed behavior, or digest checks that only validate manifest text.
 - A PR bundles unrelated Warden lifecycle, progress logging, or issue-range evidence changes with validation wrapper work and needs scope reduction before merge.
+- `uv run inference360 warden up` reports that its WardenRuntime `runtime.container_squashfs` is missing on one machine but succeeds on another.
+- An operator needs to distinguish a missing reviewed runtime artifact from a Python, Slurm, or Warden lifecycle failure.
 
 ## Verified Workflow
 
@@ -102,6 +104,24 @@ just --dry-run _validate-host
 
 10. Verify locally and in CI before enabling merge.
 
+### Warden Runtime Artifact Materialization
+
+1. Treat the WardenRuntime image as an external, reviewed input. Inference360 records the local SquashFS path and its SHA-256 in `manifests/services/warden-runtime.yaml`; the repository does not build that image and `uv run inference360 warden up` does not download it.
+
+2. Resolve portable paths before diagnosing the host. `$CONTAINERDIR` is an Inference360 path placeholder that resolves to the current operator's `$HOME/containers`. Therefore the same manifest intentionally points to a different absolute path on a different machine or for a different user.
+
+3. Expect `warden up` to fail before Slurm submission when the selected `runtime.container_squashfs` is absent. This preflight protects Warden from submitting a control-plane allocation whose reviewed runtime image cannot be started.
+
+4. Materialize the reviewed image through the approved image pipeline and registry process, then import or copy the exact SquashFS bytes to the resolved manifest path on each target environment. Do not attempt to substitute a model-serving image, add an ad hoc host dependency, or expect `uv` to rebuild the control-plane image.
+
+5. Verify the bytes before use and keep the manifest pin in sync:
+
+   ```bash
+   sha256sum "$HOME/containers/inference360/<reviewed-warden-runtime>.sqsh"
+   ```
+
+   The computed value must equal `runtime.container_digest`. If the approved artifact needs a different path or digest, use a reviewed `WardenRuntime` manifest via `warden up --runtime-manifest`; do not edit an operator-local copy of the default manifest.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -111,6 +131,7 @@ just --dry-run _validate-host
 | Custom AWK parser silently fell back | Unknown cluster names used top-level defaults | This diverged from the Python resolver and could launch with the wrong runtime path | Missing `clusters.<name>` must fail closed with a narrow, non-leaking error |
 | Reused existing Enroot rootfs | Started a same-named rootfs after verifying only current `.sqsh` bytes | The verified bytes were not necessarily the bytes used to create the stale rootfs | Remove any same-named rootfs, recreate it from the verified `.sqsh`, then start |
 | Bundled unrelated lifecycle work | Mixed Warden progress logging and issue-range evidence changes into the validation wrapper PR | Strict review flagged major scope blockers unrelated to the target issue | Restore unrelated hunks to `origin/master` or split them into separate PRs |
+| Expected `uv run` to provision the Warden image | Ran `uv run inference360 warden up` on a second machine with no local SquashFS | `uv` provides the Python command environment; Warden preflights a separately reviewed machine-local runtime artifact before Slurm submission | Materialize the manifest-pinned SquashFS and verify its digest, or use a reviewed alternate WardenRuntime manifest |
 
 ## Results & Parameters
 
@@ -149,6 +170,7 @@ scripts/run_validation_container.sh --help
 | Ruff check and format check | passed |
 | Shell syntax, dry-run, help, and diff checks | passed |
 | GitHub PR checks | all passed |
+| Warden missing-artifact diagnosis | verified-local against the checked-in runtime manifest and Warden preflight implementation on 2026-07-15 |
 
 ### PR Evidence
 
@@ -165,3 +187,10 @@ Do not include private endpoint addresses, absolute infrastructure paths, checkp
 | Project | Context | Details |
 |---------|---------|---------|
 | LLM360/Inference360 | PR #339, verified-ci | Local host/container wrapper checks and GitHub PR checks passed for digest-verified Enroot/SquashFS validation wrapper hardening. |
+| LLM360/Inference360 | 2026-07-15 operator diagnosis, verified-local | Confirmed `$CONTAINERDIR` expansion, missing-artifact preflight before Slurm submission, and the absence of a tracked Warden image-build recipe. |
+
+## References
+
+- [WardenRuntime manifest](https://github.com/LLM360/Inference360/blob/master/manifests/services/warden-runtime.yaml)
+- [Warden lifecycle artifact preflight](https://github.com/LLM360/Inference360/blob/master/inference360/warden.py)
+- [Container contracts](https://github.com/LLM360/Inference360/blob/master/scripts/containers/README.md)
