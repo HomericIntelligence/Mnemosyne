@@ -2,7 +2,7 @@
 
 ## v1.1.0 (2026-07-02)
 
-**Changed by:** LLM360/Inference360 PR #327 strict review fix session for an issue #257 H200 Slurm profiler helper.
+**Changed by:** example-org/inference-service PR #327 strict review fix session for an issue #257 H200 Slurm profiler helper.
 **Verification:** verified-ci
 
 ### What changed
@@ -131,9 +131,9 @@ gh pr view <pr-number> --repo <owner>/<repo> --json mergeStateStatus,mergeable,s
 
 ### Verification Evidence
 
-Verified in LLM360/Inference360 PR #262 on 2026-06-25 at commit `48c2e1f` with sanitized context only:
+Verified in example-org/inference-service PR #262 on 2026-06-25 at commit `48c2e1f` with sanitized context only:
 
-- Local validation passed with the repo's explicit virtualenv command: `PYTHON=.venv/bin/python INFERENCE360=.venv/bin/inference360 scripts/validate.sh`.
+- Local validation passed with the repo's explicit virtualenv command: `PYTHON=.venv/bin/python INFERENCE_SERVICE=.venv/bin/inference_service scripts/validate.sh`.
 - Test result: 791 passed, 8 skipped, coverage 82.22%.
 - Pre-commit on staged files passed.
 - Direct mypy passed for the touched endpoint/status and incident-trial Python helpers.

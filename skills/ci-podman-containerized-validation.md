@@ -90,4 +90,4 @@ fi
 
 | Project | Context | Details |
 |---------|---------|-------|
-| LLM360/Inference360 | PR #82 — Move inference360 module to package path | CI validate job passes with Podman on ubuntu-latest. Container image tag: inference360-dev:uv-0.11.18 |
+| example-org/inference-service | PR #82 — Move inference_service module to package path | CI validate job passes with Podman on ubuntu-latest. Container image tag: inference_service-dev:uv-0.11.18 |

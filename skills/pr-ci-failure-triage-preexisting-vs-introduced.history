@@ -1529,12 +1529,12 @@ npm install --no-save playwright
 npx playwright install --with-deps chromium
 
 chrome_bin=$(node -e "console.log(require('playwright').chromium.executablePath())")
-cat > "$RUNNER_TEMP/chrome-headless-radiance" <<'EOF'
+cat > "$RUNNER_TEMP/chrome-headless-metrics_service" <<'EOF'
 #!/usr/bin/env bash
 exec "$chrome_bin" --no-sandbox --disable-dev-shm-usage "$@"
 EOF
-chmod +x "$RUNNER_TEMP/chrome-headless-radiance"
-echo "CHROME_BIN=$RUNNER_TEMP/chrome-headless-radiance" >> "$GITHUB_ENV"
+chmod +x "$RUNNER_TEMP/chrome-headless-metrics_service"
+echo "CHROME_BIN=$RUNNER_TEMP/chrome-headless-metrics_service" >> "$GITHUB_ENV"
 
 npm test -- --watch=false --browsers=PlaywrightChromiumHeadless
 ```
@@ -1543,8 +1543,8 @@ Useful validation commands:
 
 ```bash
 npm test -- --watch=false --browsers=PlaywrightChromiumHeadless \
-  --include src/services/radiance_run_service.spec.ts \
-  --include src/components/radiance_source_input/radiance_source_input.spec.ts \
+  --include src/services/metrics_service_run_service.spec.ts \
+  --include src/components/metrics_service_source_input/metrics_service_source_input.spec.ts \
   --include src/components/visualizer/worker/graph_processor.spec.ts \
   --include src/components/visualizer/worker/graph_layout.spec.ts
 
@@ -1605,7 +1605,7 @@ Observed useful command sequence:
 ```bash
 npm run deploy
 python3 scripts/checks/validate_packaged_frontend.py
-bandit -q -r radiance scripts --severity-level medium --confidence-level medium
+bandit -q -r metrics_service scripts --severity-level medium --confidence-level medium
 ```
 
 ---
@@ -1981,8 +1981,8 @@ Failure conditions:
 | ProjectOdyssey | Branch rename master→main (org-wide) | CI fixed across multiple repos; self-hosted runner issues resolved |
 | Mnemosyne | 6 Dependabot PRs (pytest, PyYAML, certifi, etc.), Issues #909/#916/#924, 2026-04-14 | PRs #1278/#1279 merged with CI passing; PR #1238 (pytest 9.0.3) applied to main directly |
 | Mnemosyne | CodeQL alert #2 on `validate-plugins.yml` | Added `permissions: contents: read` between `on:` and `jobs:` blocks |
-| Radiance | PR #110 rebase + frontend CI browser change | Rebased against `origin/master`, resolved workflow conflict in favor of Playwright Chromium, and updated the CI contract to match |
-| Radiance | PR #110 CI remediation | Replaced the packaged frontend `git diff` gate with a runtime asset validator and confirmed it locally before pushing |
+| Metrics Service | PR #110 rebase + frontend CI browser change | Rebased against `origin/master`, resolved workflow conflict in favor of Playwright Chromium, and updated the CI contract to match |
+| Metrics Service | PR #110 CI remediation | Replaced the packaged frontend `git diff` gate with a runtime asset validator and confirmed it locally before pushing |
 
 ---
 

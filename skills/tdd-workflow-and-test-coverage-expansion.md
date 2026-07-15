@@ -369,7 +369,7 @@ Iterate with `python3 -m pytest <file> -v` (fast), validate the full suite with 
 | ProjectScylla #850 | ~73% | 74.93% | 106 | 5 |
 | ProjectScylla #1113 | 114 tests | 119 tests | 5 | 1 (extended) |
 | ProjectHephaestus #51 (readme_commands.py) | ~0% | 99% | 65 (all mocked) | 1 |
-| Eval360-V2 coverage swarm | 60% baseline | 7 focused PRs (#290-#296) | 518+ | per-file, verified locally |
+| EvaluationService coverage swarm | 60% baseline | 7 focused PRs (#290-#296) | 518+ | per-file, verified locally |
 
 ### pyproject.toml pytest configuration
 
@@ -455,11 +455,11 @@ def _run(code: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
 ```
 
-### Coverage swarm parameters (Eval360-V2)
+### Coverage swarm parameters (EvaluationService)
 
 | Parameter | Value |
 | --------- | ----- |
-| Worker isolation | One git worktree per branch under `/private/tmp/eval360-<module>` |
+| Worker isolation | One git worktree per branch under `/private/tmp/evaluation_service-<module>` |
 | Branch naming | `codex/coverage-<module-slug>` |
 | CI quirk | `.github/workflows/tests.yml` manually enumerates test files |
 | Documentation gate | New `Test*`/`test_*` carry `What:`/`Executes:`/`Why:`; existing tests keep base docstrings |
@@ -481,4 +481,4 @@ def _run(code: str) -> subprocess.CompletedProcess[str]:
 | ProjectHephaestus | Issue #1362, PR #1363 — `PostMergeProcessor.run_drive_green_learnings` + `run_drive_green_compact` (11 tests, verified-ci) | srp-collaborator-session-driver-coverage |
 | Mnemosyne | Issue #3309, PR #3927 — migrate_odyssey_skills.py | add-unit-tests-for-existing-script |
 | ProjectOdyssey | Issue #4051, PR #4859 — hash coverage audit | test-coverage-audit |
-| Eval360-V2 | PRs #290-#296 — coverage swarm (518+ tests) | coverage-swarm |
+| EvaluationService | PRs #290-#296 — coverage swarm (518+ tests) | coverage-swarm |

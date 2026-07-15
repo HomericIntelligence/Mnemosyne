@@ -115,7 +115,7 @@ git push --force-with-lease origin <branch>
 | Project | Context | Details |
 |---------|---------|-------|
 | HomericIntelligence/ProjectHephaestus | PR #1171 — show-prompt CLI | 4 commits rebased and signed, pr-policy passes |
-| LLM360/Inference360 | PR #82 — Move inference360 module | Commits signed for pr-policy compliance |
+| example-org/inference-service | PR #82 — Move inference_service module | Commits signed for pr-policy compliance |
 ```
 
 ---

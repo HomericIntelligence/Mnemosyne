@@ -18,7 +18,7 @@ tags: [llm, corruption, reproducibility, artifacts, manual-review, logits, token
 | **Date** | 2026-07-09 |
 | **Objective** | Make LLM corruption investigations durable, rerunnable, and reviewable by standardizing per-seed run artifacts and manual-review tooling. |
 | **Outcome** | Store issue-specific scripts, docs, summaries, and review state under a durable repro directory; keep each run self-contained; report corruption rates by seed totals; keep private artifacts out of git or redacted. |
-| **Verification** | verified-local from local Inference360 issue 257 scripts, tests, and PR work. ProjectMnemosyne PR CI is separate and must not be claimed until checks prove it. |
+| **Verification** | verified-local from local Inference Service issue 257 scripts, tests, and PR work. ProjectMnemosyne PR CI is separate and must not be claimed until checks prove it. |
 
 ## When to Use
 
@@ -30,7 +30,7 @@ tags: [llm, corruption, reproducibility, artifacts, manual-review, logits, token
 
 ## Verified Workflow
 
-Verification status: `verified-local`. The workflow was validated through local Inference360 issue 257 repro scripts/tests and PR work. Do not mark this skill `verified-ci` unless the ProjectMnemosyne PR checks are observed green.
+Verification status: `verified-local`. The workflow was validated through local Inference Service issue 257 repro scripts/tests and PR work. Do not mark this skill `verified-ci` unless the ProjectMnemosyne PR checks are observed green.
 
 ### Quick Reference
 
@@ -162,4 +162,4 @@ State file shape:
 
 | Project | Context | Details |
 |---------|---------|---------|
-| LLM360/Inference360 | Issue 257 local corruption investigation scripts/tests and PR work | Durable per-run repro layout, raw token/logit capture, review-state tooling, seed-level rate reporting, and redaction rules were validated locally. Verification is `verified-local`, not `verified-ci`, until the ProjectMnemosyne PR checks prove this skill file. |
+| example-org/inference-service | Issue 257 local corruption investigation scripts/tests and PR work | Durable per-run repro layout, raw token/logit capture, review-state tooling, seed-level rate reporting, and redaction rules were validated locally. Verification is `verified-local`, not `verified-ci`, until the ProjectMnemosyne PR checks prove this skill file. |

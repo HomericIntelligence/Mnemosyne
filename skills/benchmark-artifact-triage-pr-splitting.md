@@ -191,4 +191,4 @@ PY
 
 | Project | Context | Details |
 |---------|---------|---------|
-| PerfHC | After benchmark artifact ignore-rule PR #31 merged, remaining result artifacts were triaged into five follow-up PRs | Produced PRs #32 through #36 locally: endpoint reports/assets, Qwen 9B baseline, Qwen 27B baseline with interrupted-row caveat, K2-family complete InferenceX JSON records, and Gemma/Qwen complete InferenceX JSON records. |
+| PerformanceHarness | After benchmark artifact ignore-rule PR #31 merged, remaining result artifacts were triaged into five follow-up PRs | Produced PRs #32 through #36 locally: endpoint reports/assets, Qwen 9B baseline, Qwen 27B baseline with interrupted-row caveat, K2-family complete InferenceX JSON records, and Gemma/Qwen complete InferenceX JSON records. |

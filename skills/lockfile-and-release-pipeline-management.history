@@ -2,17 +2,17 @@
 
 ## v1.2.0 (2026-06-17)
 
-**Changed by:** Radiance Dependabot CI stabilization session (#896/#897, #903/#904)
+**Changed by:** Metrics Service Dependabot CI stabilization session (#896/#897, #903/#904)
 **Verification:** verified-ci
 
 ### What changed
-- Added lockfile-backed Dependabot CI contract guidance from Radiance.
+- Added lockfile-backed Dependabot CI contract guidance from Metrics Service.
 - Added grouped Angular exact-peer dependency update workflow.
 - Added narrow expiring pip-audit allowlist guidance for no-fixed-version advisories.
 - Added failed-attempt lessons against deleting or weakening tests for deterministic dependency contract failures.
 
 ### Why
-Radiance had 10 open failing Dependabot PRs. The root causes were deterministic: hardcoded dependency-version contract tests, exact-peer Angular package updates opened as separate PRs, and a torch advisory with no fixed version. Keeping the tests and making them lockfile-aware produced green CI; blindly deleting flaky-looking tests would have hidden real dependency-contract drift.
+Metrics Service had 10 open failing Dependabot PRs. The root causes were deterministic: hardcoded dependency-version contract tests, exact-peer Angular package updates opened as separate PRs, and a torch advisory with no fixed version. Keeping the tests and making them lockfile-aware produced green CI; blindly deleting flaky-looking tests would have hidden real dependency-contract drift.
 
 ### Previous version snapshot
 

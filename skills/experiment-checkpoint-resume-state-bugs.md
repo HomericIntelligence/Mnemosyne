@@ -347,4 +347,4 @@ checkpoint.get_run_status(tier_id, subtest_id, run_num)
 | Project | Context |
 | --------- | --------- |
 | ProjectScylla | PRs #1480, #1474, #1490, #1109 — dryrun3 experiment (47 tests, 1196 runs) |
-| liza-mas/liza | PR #70 — planning handoff fix; Radiance workspace recovery |
+| liza-mas/liza | PR #70 — planning handoff fix; Metrics Service workspace recovery |

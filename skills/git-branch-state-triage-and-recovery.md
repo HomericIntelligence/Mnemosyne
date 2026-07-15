@@ -162,7 +162,7 @@ git reset --hard origin/<branch>                  # absorb remote, AFTER confirm
 git cherry-pick <fix-sha>                         # apply only the targeted fix
 
 # === State D: old PR merged; remote branch deleted; preserve validated local delta ===
-# Use the repository's real trunk: origin/main for most repos, origin/master for Inference360.
+# Use the repository's real trunk: origin/main for most repos, origin/master for Inference Service.
 TRUNK=origin/master
 VALIDATED_SHA=<validated-local-amended-sha>
 PATCH=/tmp/<topic>-followup.patch
@@ -184,7 +184,7 @@ git stash push -u -m <topic>-before-fresh-pr
 git fetch origin <trunk>
 git checkout -b <fresh-branch> origin/<trunk>
 git stash pop
-./.venv/bin/python -m ruff check radiance scripts tests --no-cache
+./.venv/bin/python -m ruff check metrics_service scripts tests --no-cache
 ./.venv/bin/pytest -q
 git add -A
 git commit -S -m "<message>"
@@ -441,7 +441,7 @@ try to keep force-pushing the old branch; after merge, the correct target is cur
    If `state` is `MERGED`, stop targeting `<old-branch>`. The PR content is already on trunk,
    usually as a new squash/rebase commit SHA that does not equal the old PR head SHA.
 2. **Refresh trunk and compare the validated local tree to trunk.** Use the repo's real trunk
-   branch (`origin/master` for Inference360, `origin/main` for most HomericIntelligence repos):
+   branch (`origin/master` for Inference Service, `origin/main` for most HomericIntelligence repos):
    ```bash
    git fetch origin master
    TRUNK=origin/master
@@ -496,7 +496,7 @@ patch.
    git stash push -u -m <topic>-before-fresh-pr
    ```
 3. **Refresh the real trunk and create a fresh branch from it.** Use the repo's actual default
-   branch (`master` for Radiance in June 2026; `main` for most repos).
+   branch (`master` for Metrics Service in June 2026; `main` for most repos).
    ```bash
    git fetch origin <trunk>
    git checkout -b <fresh-branch> origin/<trunk>
@@ -510,7 +510,7 @@ patch.
    cleanly, still re-run the relevant focused tests because the base changed.
 5. **Re-run local verification on the fresh branch, then sign the commit.**
    ```bash
-   ./.venv/bin/python -m ruff check radiance scripts tests --no-cache
+   ./.venv/bin/python -m ruff check metrics_service scripts tests --no-cache
    ./.venv/bin/pytest -q
    git add -A
    git commit -S -m "refactor: reduce duplicate code"
@@ -752,7 +752,7 @@ the commits that belong to the child PR.
 | Publication | Explicit `--force-with-lease=refs/heads/<child>:<old-head>` push |
 | Review-thread timing | Inspect and resolve only after the replacement child head is visible on GitHub |
 | Completion gate | All current-head CI statuses, including CodeQL where configured, are successful or intentionally skipped |
-| Verification level | `verified-local` for this skill record; the procedure was exercised locally and through GitHub CI on Inference360 PRs #399 and #400 |
+| Verification level | `verified-local` for this skill record; the procedure was exercised locally and through GitHub CI on Inference Service PRs #399 and #400 |
 
 The dependency remains intentional: the child base is the parent branch. Rebuilding the child avoids
 turning a review-scoping failure into an accidental change of merge order.
@@ -822,7 +822,7 @@ workflow install fix, so this State F addition is `verified-local`, not `verifie
 | PR requirement | New issue-linked PR; include `Closes #<issue>` when repo policy requires it |
 | Verification level | `verified-local` until GitHub checks pass |
 
-Radiance example commands used:
+Metrics Service example commands used:
 
 ```bash
 gh pr view --json number,url,state,title,headRefName,baseRefName
@@ -830,13 +830,13 @@ git stash push -u -m codex-duplicate-cleanup-before-pr
 git fetch origin master
 git checkout -b codex/reduce-duplicate-code origin/master
 git stash pop
-./.venv/bin/python -m ruff check radiance scripts tests --no-cache
+./.venv/bin/python -m ruff check metrics_service scripts tests --no-cache
 ./.venv/bin/pytest -q
 git add -A
 git commit -S -m "refactor: reduce duplicate code"
 git log --show-signature -1 --oneline
 git push -u origin codex/reduce-duplicate-code
-gh issue create --title "Reduce duplicate code in Radiance helpers" --body "..."
+gh issue create --title "Reduce duplicate code in Metrics Service helpers" --body "..."
 gh pr create --base master --head codex/reduce-duplicate-code --title "refactor: reduce duplicate helper code" --body "Closes #907"
 ```
 
@@ -967,9 +967,9 @@ git push -u origin "$FOLLOWUP_BRANCH"
 | ProjectOdyssey | PR #3197, issue #3088 — BF16 test skip; reset to remote (13 remote-only commits) + cherry-pick fix | State C |
 | ProjectHephaestus | 7 local branches all failed auto-rebase with conflicts; `git cherry` showed every commit `+`. Message-search proved all subsumed: `999-fix-pr-thread-reply-mutation`→`187720a … (#1041)`, `fix-1282-work`→`22fc435 … (#1282)`, `rc2-conflict-gate`→`d3701b8 … (#1335)`. Reported subsumed; no swarm, no delete | State A — squash-merge false positive |
 | ProjectHephaestus | Worktree `agent-a7fe2df2b7f6e658b` — 3 "uncommitted modified" files all 0 unique lines vs main (`log_on_error` changes already merged via PR #1372); safe to discard | State A — worktree 0-unique-lines |
-| LLM360/Inference360 | An auto-merged PR merged before follow-up changes could be force-pushed; the old remote branch was gone, and a validated local amended commit was converted into a clean follow-up branch from current trunk; the follow-up PR auto-merged after CI passed | State D — already-merged PR follow-up branch |
-| LLM360/Radiance | Current branch `codex/test-architecture-layout` had merged PR #906 but contained uncommitted duplicate-code cleanup work. Stashed, fetched `origin/master`, created `codex/reduce-duplicate-code`, popped, re-verified locally, signed commit `e772d982`, pushed, created issue #907 and PR #908. GitHub checks were pending at capture time. | State E — merged current branch with uncommitted follow-up work, verified-local |
-| LLM360/Inference360 | PR #399 was rebuilt from the current default branch to remove unrelated stacked commits; PR #400 was rebuilt on the rebased #399 parent. Old remote heads were preserved under dated backup refs, both rewritten branches used explicit leases, review threads were resolved after matching code was pushed, and local suites plus GitHub CI/CodeQL passed. | State H — contaminated stacked child rebuild, verified by local checks and GitHub CI |
+| example-org/inference-service | An auto-merged PR merged before follow-up changes could be force-pushed; the old remote branch was gone, and a validated local amended commit was converted into a clean follow-up branch from current trunk; the follow-up PR auto-merged after CI passed | State D — already-merged PR follow-up branch |
+| example-org/metrics-service | Current branch `codex/test-architecture-layout` had merged PR #906 but contained uncommitted duplicate-code cleanup work. Stashed, fetched `origin/master`, created `codex/reduce-duplicate-code`, popped, re-verified locally, signed commit `e772d982`, pushed, created issue #907 and PR #908. GitHub checks were pending at capture time. | State E — merged current branch with uncommitted follow-up work, verified-local |
+| example-org/inference-service | PR #399 was rebuilt from the current default branch to remove unrelated stacked commits; PR #400 was rebuilt on the rebased #399 parent. Old remote heads were preserved under dated backup refs, both rewritten branches used explicit leases, review threads were resolved after matching code was pushed, and local suites plus GitHub CI/CodeQL passed. | State H — contaminated stacked child rebuild, verified by local checks and GitHub CI |
 
 ## References
 

@@ -129,9 +129,9 @@ gh pr view <pr-number> --repo <owner>/<repo> --json mergeStateStatus,mergeable,s
 
 ### Verification Evidence
 
-Verified in LLM360/Inference360 PR #262 on 2026-06-25 at commit `48c2e1f` with sanitized context only:
+Verified in example-org/inference-service PR #262 on 2026-06-25 at commit `48c2e1f` with sanitized context only:
 
-- Local validation passed with the repo's explicit virtualenv command: `PYTHON=.venv/bin/python INFERENCE360=.venv/bin/inference360 scripts/validate.sh`.
+- Local validation passed with the repo's explicit virtualenv command: `PYTHON=.venv/bin/python INFERENCE_SERVICE=.venv/bin/inference_service scripts/validate.sh`.
 - Test result: 791 passed, 8 skipped, coverage 82.22%.
 - Pre-commit on staged files passed.
 - Direct mypy passed for the touched endpoint/status and incident-trial Python helpers.
@@ -139,7 +139,7 @@ Verified in LLM360/Inference360 PR #262 on 2026-06-25 at commit `48c2e1f` with s
 
 Do not copy raw prompts, responses, model/checkpoint names, internal hostnames, tokens, or corrupted output snippets into a durable skill or shared PR body. Keep this skill generic; cite the PR only as the verified workflow context.
 
-Verified again in LLM360/Inference360 PR #327 on 2026-07-02 with sanitized context only:
+Verified again in example-org/inference-service PR #327 on 2026-07-02 with sanitized context only:
 
 - Strict review findings on an issue-local H200 Slurm profiler helper were fixed with CLI flags, `--print`, early enum/numeric validation, shell quoting for nested `bash -lc`, operator contract docs, and shell syntax coverage.
 - Local focused tests passed: `tests/test_issue257_profile_prefix_cache_kernels.py`, `tests/test_issue257_nsys_kernel_extractor.py`, and `tests/test_quality_gate_scripts.py` reported 75 passed.

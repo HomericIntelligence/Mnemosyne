@@ -40,7 +40,7 @@ tags:
 |-------|-------|
 | **Date** | 2026-06-17 |
 | **Objective** | Diagnose and resolve CI failures that are transient network flakes, environment-only, developer-local health checks, or dependency-install hangs before tests start - without reaching for banned suppressions. |
-| **Outcome** | Verified across ProjectAgamemnon (#368), ProjectOdyssey (#5347), ProjectOdyssey local repro, ProjectMyrmidons (#350), and Radiance (#897/#904). |
+| **Outcome** | Verified across ProjectAgamemnon (#368), ProjectOdyssey (#5347), ProjectOdyssey local repro, ProjectMyrmidons (#350), and Metrics Service (#897/#904). |
 | **Verification** | verified-ci |
 | **History** | Previous v1.0.0 snapshot archived in `ci-transient-flake-and-environment-failures.history` |
 
@@ -328,7 +328,7 @@ if [[ "${CI:-}" == "true" ]]; then ...  # skip developer-local checks
 
 `.git/hooks/` is absent on: GitHub Actions runners (all OS), GitLab shallow clones, any `git clone --depth=1` / `actions/checkout`, Docker-copied repos. It IS present after `pre-commit install`, on full clones, or in CI jobs that explicitly run `pre-commit install`.
 
-### Dependency-install hang - Radiance facts
+### Dependency-install hang - Metrics Service facts
 
 | Fact | Detail |
 |------|--------|
@@ -346,4 +346,4 @@ if [[ "${CI:-}" == "true" ]]; then ...  # skip developer-local checks
 | ProjectOdyssey | 2026-05-03 — PR #5347/#5348 link-check session | `claude.ai` (403) and `contributor-covenant.org` (os error 104) fixed by `.lycheeignore` entries |
 | ProjectOdyssey | Reproducing `fortify_fail_abort` crash declared non-reproducible in `jit-fortify-buffer-overflow.md` | Cold cache + UID 1001 + `-T` flag combined triggered the crash 100% deterministically |
 | ProjectMyrmidons | PR #350 | `scripts/doctor.sh` Check 4 failed `just doctor --skip-connectivity` in CI; `${CI:-}` guard fixed it |
-| Radiance | PRs #897/#904, 2026-06-17 | Playwright `--with-deps` install hang resolved by browser-only install; Python dependency-install hangs cleared by cancel/rerun after API step-state polling showed tests had not started |
+| Metrics Service | PRs #897/#904, 2026-06-17 | Playwright `--with-deps` install hang resolved by browser-only install; Python dependency-install hangs cleared by cancel/rerun after API step-state polling showed tests had not started |

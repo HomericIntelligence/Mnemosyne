@@ -79,12 +79,12 @@ https://github.com/<OWNER>/<REPO>/pull/<PR_NUMBER>
 
 ### Verified session
 
-In `LLM360/Inference360` PR `#339`:
+In `example-org/inference-service` PR `#339`:
 
 - `gh pr edit 339 --body-file .tmp/pr-339-body.md` failed with missing `read:project` scope.
 - `gh auth refresh -s read:project` failed because `--hostname` was required.
 - `gh auth refresh -h github.com -s read:project` produced a browser/device-code flow and was cancelled because it was non-interactive.
-- `gh api repos/LLM360/Inference360/pulls/339 -X PATCH -F body=@.tmp/pr-339-body.md --jq .html_url` succeeded and printed `https://github.com/LLM360/Inference360/pull/339`.
+- `gh api repos/example-org/inference-service/pulls/339 -X PATCH -F body=@.tmp/pr-339-body.md --jq .html_url` succeeded and printed `https://github.com/example-org/inference-service/pull/339`.
 - The temporary body file was deleted afterwards.
 
 ### Safety notes
@@ -97,4 +97,4 @@ In `LLM360/Inference360` PR `#339`:
 
 | Project | Context | Details |
 |---------|---------|---------|
-| LLM360/Inference360 | 2026-07-04, PR #339 body update from a Codex agent session | Verified locally with existing repo auth; CI validation was not involved because this is an operator CLI workflow |
+| example-org/inference-service | 2026-07-04, PR #339 body update from a Codex agent session | Verified locally with existing repo auth; CI validation was not involved because this is an operator CLI workflow |

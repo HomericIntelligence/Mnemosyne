@@ -2,20 +2,20 @@
 
 ## v1.1.0 (2026-07-09)
 
-**Changed by:** Inference360 issue #257 local cache-shape replay and sampling pivot
+**Changed by:** Inference Service issue #257 local cache-shape replay and sampling pivot
 **Verification:** verified-local
 
 ### What changed
 
 - Added the active-row distinction between logical context length, attention KV context, and non-attention linear-layer `M` shapes on prefix-cache hits.
 - Added the block-aligned cold replay rule using `aligned_m = (m // block_size) * block_size`, `tail_m = m % block_size`, and `[m]` fallback cases.
-- Added the red-herring lesson that bit-exact cache-shape replay proved drift but did not fix garbled output, which still reproduced under direct XLLM/HF sampling.
+- Added the red-herring lesson that bit-exact cache-shape replay proved drift but did not fix garbled output, which still reproduced under direct AltLLM/HF sampling.
 - Added failed attempts for over-trusting `--no-enable-prefix-caching`, over-claiming bit-exact cache replay, and generalizing from a model with non-comparable prefix-cache hit rate.
 - Downgraded the current skill verification to `verified-local` for this amendment until the Mnemosyne PR checks prove the documentation change in CI.
 
 ### Why
 
-The previous skill captured endpoint-level Nsight kernel evidence that warm prefix-cache paths entered different GEMM regimes. It did not yet capture the tested cold-prefill replay method that made cache-hit active-row computation bit-exact, nor the investigation pivot after direct XLLM/HF sampling reproduced the same output class. Without that nuance, future debugging could keep chasing a real but non-root-cause prefix-cache drift after the evidence has moved downstream.
+The previous skill captured endpoint-level Nsight kernel evidence that warm prefix-cache paths entered different GEMM regimes. It did not yet capture the tested cold-prefill replay method that made cache-hit active-row computation bit-exact, nor the investigation pivot after direct AltLLM/HF sampling reproduced the same output class. Without that nuance, future debugging could keep chasing a real but non-root-cause prefix-cache drift after the evidence has moved downstream.
 
 ### Previous version (v1.0.0) snapshot
 
@@ -155,7 +155,7 @@ Supporting kernels in the same evidence set included `cublasLt::splitKreduce_ker
 
 ### Verification Commands
 
-The Inference360 PR that captured this learning used:
+The Inference Service PR that captured this learning used:
 
 ```bash
 uv run pytest tests/test_issue257_profile_prefix_cache_kernels.py \
@@ -178,7 +178,7 @@ Observed sanitized results:
 
 | Project | Context | Details |
 |---------|---------|---------|
-| LLM360/Inference360 | PR #327, issue #257 prefix-cache nondeterminism blog/runbook/profiler work, 2026-07-02 | H200 Slurm Nsight Systems run completed for good/no-prefix and bad/warm-prefix-cache cases. Helper/extractor/docs changes passed local full validation, pre-push pytest, and GitHub checks. |
+| example-org/inference-service | PR #327, issue #257 prefix-cache nondeterminism blog/runbook/profiler work, 2026-07-02 | H200 Slurm Nsight Systems run completed for good/no-prefix and bad/warm-prefix-cache cases. Helper/extractor/docs changes passed local full validation, pre-push pytest, and GitHub checks. |
 ```
 
 ---

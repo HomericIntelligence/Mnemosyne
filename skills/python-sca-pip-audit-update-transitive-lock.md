@@ -206,7 +206,7 @@ No known vulnerabilities found
 
 | Project | Context | Details |
 |---------|---------|---------|
-| Inference360 | PR #254, head `4086627`, 2026-06-19 | `python-sca`, `validate`, `sast`, `secrets`, and CodeQL passed after the targeted `uv.lock` update |
+| Inference Service | PR #254, head `4086627`, 2026-06-19 | `python-sca`, `validate`, `sast`, `secrets`, and CodeQL passed after the targeted `uv.lock` update |
 | Telemachy | 23 PRs (lock-propagation sweep), 2026-06-28 | `pydantic-settings 2.13.1 → 2.14.2` via `pixi update pydantic-settings` (constraint `>=2.0` already allowed the patch; plain `pixi lock` would not bump). Cleared `GHSA-4xgf-cpjx-pc3j` on `security/dependency-scan` across all sibling PRs after the red-main dep-fix merged |
 | Telemachy | PR #288, 2026-06-28 | v7-lock read block: bumped CI `pixi-version` `v0.67.2 → v0.70.2` so the pinned pixi could read the v7 `pixi.lock`; verified safe on main (`pixi install --locked` against a v6 lock exits 0, warn-only, no rewrite); sibling-repo precedent already ran v0.70.2 with v7 locks |
 | Agamemnon | 7 PRs (lock-propagation sweep), 2026-06-28 | `msgpack 1.1.2 → 1.2.1` (`GHSA-6v7p-g79w-8964`, transitive via `cachecontrol`) via rebase onto `main` after PR #434 added the explicit `msgpack >= 1.2.1` pin; `pixi install` re-solve picked it up; `security/dependency-scan` green across siblings |

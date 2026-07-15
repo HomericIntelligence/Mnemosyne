@@ -1,6 +1,6 @@
 ---
 name: debugging-prefix-cache-nsight-kernel-evidence
-description: "Capture and interpret Nsight and active-row evidence for vLLM, XLLM, or SGLang prefix-cache nondeterminism. Use when: (1) cache hits change output despite deterministic settings, (2) warm prefix-cache paths may select different GEMM tiling, (3) bit-exact cache replay still leaves garbled text, (4) sampling or token selection may be the real corruption source."
+description: "Capture and interpret Nsight and active-row evidence for vLLM, AltLLM, or SGLang prefix-cache nondeterminism. Use when: (1) cache hits change output despite deterministic settings, (2) warm prefix-cache paths may select different GEMM tiling, (3) bit-exact cache replay still leaves garbled text, (4) sampling or token selection may be the real corruption source."
 category: debugging
 date: 2026-07-09
 version: "1.1.0"
@@ -10,7 +10,7 @@ history: debugging-prefix-cache-nsight-kernel-evidence.history
 tags:
   - inference
   - vllm
-  - xllm
+  - alt_llm
   - sglang
   - prefix-cache
   - nsight
@@ -30,7 +30,7 @@ tags:
 |-------|-------|
 | **Date** | 2026-07-09 |
 | **Objective** | Prove whether a warm prefix-cache path changes the executed GPU kernel regime, then separate real cache-shape numerical drift from downstream sampling or token-selection corruption. |
-| **Outcome** | Successful as a diagnostic. Nsight evidence showed different GEMM families on warm cache paths, and local cache-shape replay made the tested cold and cache-hit computation bit-exact. The same output class still appeared under direct XLLM/HF sampling, so the garbled-text investigation pivoted to sampling/token selection. |
+| **Outcome** | Successful as a diagnostic. Nsight evidence showed different GEMM families on warm cache paths, and local cache-shape replay made the tested cold and cache-hit computation bit-exact. The same output class still appeared under direct AltLLM/HF sampling, so the garbled-text investigation pivoted to sampling/token selection. |
 | **Verification** | verified-local for the 2026-07-09 cache-shape replay and sampling pivot; earlier helper/extractor work was verified-ci. |
 | **History** | [changelog](./debugging-prefix-cache-nsight-kernel-evidence.history) |
 
@@ -38,7 +38,7 @@ tags:
 
 - A vLLM or SGLang endpoint returns different text for a matched request only when prefix caching is enabled.
 - A temperature-0 or otherwise deterministic request appears nondeterministic and the suspected difference is cache hit shape, active prefill rows, block/page alignment, or GEMM tiling.
-- A vLLM or XLLM prefix-cache hit changes the active row dimension seen by non-attention linear layers while attention still sees the full logical context through KV cache.
+- A vLLM or AltLLM prefix-cache hit changes the active row dimension seen by non-attention linear layers while attention still sees the full logical context through KV cache.
 - You made a cache-hit replay path bit-exact and need to decide whether the remaining corruption belongs to sampling, token selection, or model code instead of prefix-cache numerics.
 - A reviewer asks for actual GPU kernel names instead of a prose hypothesis about prefix-cache behavior.
 - You need to distinguish production fixes from replay controls such as slower batch-invariant or deterministic kernels.
@@ -82,7 +82,7 @@ python docs/runbooks/<incident>/extract_nsys_kernel_names.py \
 5. **Compare kernel families by case.** Start with the filtered GEMM-like set, then inspect the all-kernel summary for supporting kernels such as FlashAttention and KV-cache write kernels.
 6. **Decode names conservatively.** Treat `nvjet_tst_<M>x<N>_<K>x<...>_...` names as evidence of tile-shape families, not as a complete cuBLASLt algorithm contract. `splitK`, `coopA`, and `coopB` suffixes are useful clues, but a per-layer claim still needs launch correlation or NVTX ranges.
 7. **Separate active compute rows from logical context length.** A cache hit can keep the same logical context length while reducing the number of newly computed prefill rows. Kernel selection usually responds to the active compute shape, not just the total prompt length.
-8. **Map cache reuse to non-attention row shapes.** In vLLM/XLLM-style prefix-cache reuse, attention can still attend to the full logical context through cached KV, while qkv, o_proj, and MLP linear layers only process newly active tail rows. For a logical prompt length of 108 and block size 16, a warm hit can reuse 96 rows and compute a 12-row tail.
+8. **Map cache reuse to non-attention row shapes.** In vLLM/AltLLM-style prefix-cache reuse, attention can still attend to the full logical context through cached KV, while qkv, o_proj, and MLP linear layers only process newly active tail rows. For a logical prompt length of 108 and block size 16, a warm hit can reuse 96 rows and compute a 12-row tail.
 9. **Replay cache-hit shapes inside cold prefill.** To test whether the shape transition itself explains numerical drift, split cold prefill dynamically into block-aligned and tail segments:
 
    ```python
@@ -108,7 +108,7 @@ python docs/runbooks/<incident>/extract_nsys_kernel_names.py \
 | Assert layer-level causality from endpoint names | Interpreted endpoint-level kernel symbols as proof of a specific layer failure | Kernel names alone lack per-layer launch correlation | Phrase the result as endpoint-level evidence unless NVTX/per-layer hashes bind launches to layers |
 | Markdown table emitted raw kernel names | Wrote kernel names with `|`, backticks, or newlines directly into Markdown | Special characters can corrupt tables or render misleading rows | Escape `\`, `|`, backticks, carriage returns, and newlines before writing Markdown summaries |
 | Assume `--no-enable-prefix-caching` guarantees correctness | Disabled prefix caching and treated the cold path as a correctness oracle | The cache path can be a real numerical difference but not the only corruption source | Use no-cache runs as one control, then verify model and sampling paths independently |
-| Treat bit-exact cache replay as the final fix | Split cold prefill into block-aligned and tail rows until it matched the warm cache-hit path bit-exactly | The same garbled output class still appeared under direct XLLM/HF sampling | Bit-exact cache replay proves the cache-shape drift is real, not that output corruption is solved |
+| Treat bit-exact cache replay as the final fix | Split cold prefill into block-aligned and tail rows until it matched the warm cache-hit path bit-exactly | The same garbled output class still appeared under direct AltLLM/HF sampling | Bit-exact cache replay proves the cache-shape drift is real, not that output corruption is solved |
 | Generalize from a low-hit-rate model | Used a model that did not reproduce failures to argue the serving bug was absent | Its prefix-cache hit rate and active-row shape exposure were not comparable to the failing case | Compare cache hit rate, block alignment, active tail rows, and sampling path before clearing a serving bug |
 
 ## Results & Parameters
@@ -173,7 +173,7 @@ Use `[m]` when `tail_m == 0` or `aligned_m == 0`, because there is no meaningful
 
 ### Red-Herring Decision Rule
 
-Bit-exact cache-shape replay is a diagnostic milestone, not a root-cause verdict. After the cache path matched bit-exactly, the same output class still appeared under direct XLLM/HF sampling in the local investigation. That changed the next question from "is the prefix cache corrupting math?" to "which sampling or token-selection path is choosing the bad token?"
+Bit-exact cache-shape replay is a diagnostic milestone, not a root-cause verdict. After the cache path matched bit-exactly, the same output class still appeared under direct AltLLM/HF sampling in the local investigation. That changed the next question from "is the prefix cache corrupting math?" to "which sampling or token-selection path is choosing the bad token?"
 
 ### Interpretation Rules
 
@@ -185,11 +185,11 @@ Bit-exact cache-shape replay is a diagnostic milestone, not a root-cause verdict
 | FlashAttention kernels present | Attention backend participated in the request | That attention caused the bad token |
 | KV-cache write kernel present | Cache write/reshape path ran | That cache storage is corrupt |
 | Bit-exact split cold replay | Cache-hit active-row drift was reproduced and isolated for the tested path | That garbled text is fixed, or that sampling/token selection is correct |
-| Direct XLLM/HF sampling reproduces the same output class | The investigation should pivot downstream of prefix-cache math | That every serving path is innocent without comparable sampling controls |
+| Direct AltLLM/HF sampling reproduces the same output class | The investigation should pivot downstream of prefix-cache math | That every serving path is innocent without comparable sampling controls |
 
 ### Verification Commands
 
-The Inference360 PR that captured this learning used:
+The Inference Service PR that captured this learning used:
 
 ```bash
 uv run pytest tests/test_issue257_profile_prefix_cache_kernels.py \
@@ -207,11 +207,11 @@ Observed sanitized results:
 - Local full validation: 1051 passed, 9 skipped.
 - Pre-push hook: 1059 passed, 1 skipped.
 - GitHub checks: `validate`, `pre-commit`, `sast`, `secrets`, `python-sca`, CodeQL, and action/python analysis passed.
-- 2026-07-09 local issue #257 follow-up: cache-shape replay made the tested cold/cache-hit path bit-exact; direct XLLM/HF sampling still showed the same output class, so the current amendment is verified-local pending this Mnemosyne PR's checks.
+- 2026-07-09 local issue #257 follow-up: cache-shape replay made the tested cold/cache-hit path bit-exact; direct AltLLM/HF sampling still showed the same output class, so the current amendment is verified-local pending this Mnemosyne PR's checks.
 
 ## Verified On
 
 | Project | Context | Details |
 |---------|---------|---------|
-| LLM360/Inference360 | PR #327, issue #257 prefix-cache nondeterminism blog/runbook/profiler work, 2026-07-02 | H200 Slurm Nsight Systems run completed for good/no-prefix and bad/warm-prefix-cache cases. Helper/extractor/docs changes passed local full validation, pre-push pytest, and GitHub checks. |
-| LLM360/Inference360 | Issue #257 local cache-shape replay and sampling pivot, 2026-07-09 | Local H200 Slurm/XLLM investigation verified that splitting cold prefill into block-aligned and tail rows made the tested cache-hit path bit-exact. Comparable garbled outputs still appeared under direct XLLM/HF sampling, so root-cause work pivoted to sampling/token selection. |
+| example-org/inference-service | PR #327, issue #257 prefix-cache nondeterminism blog/runbook/profiler work, 2026-07-02 | H200 Slurm Nsight Systems run completed for good/no-prefix and bad/warm-prefix-cache cases. Helper/extractor/docs changes passed local full validation, pre-push pytest, and GitHub checks. |
+| example-org/inference-service | Issue #257 local cache-shape replay and sampling pivot, 2026-07-09 | Local H200 Slurm/AltLLM investigation verified that splitting cold prefill into block-aligned and tail rows made the tested cache-hit path bit-exact. Comparable garbled outputs still appeared under direct AltLLM/HF sampling, so root-cause work pivoted to sampling/token selection. |

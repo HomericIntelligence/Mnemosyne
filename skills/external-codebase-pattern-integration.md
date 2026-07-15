@@ -6,7 +6,7 @@ date: 2026-06-11
 version: "1.0.0"
 user-invocable: false
 verification: verified-local
-tags: [integration, codebase-reuse, slurm, design-docs, eval360]
+tags: [integration, codebase-reuse, slurm, design-docs, evaluation_service]
 ---
 
 # External Codebase Pattern Integration
@@ -16,8 +16,8 @@ tags: [integration, codebase-reuse, slurm, design-docs, eval360]
 | Field | Value |
 |-------|-------|
 | **Date** | 2026-06-11 |
-| **Objective** | Integrate proven patterns from an existing codebase (Eval360-V2) into new design plans for a related project (Inference360) |
-| **Outcome** | Successfully identified and adapted 7 key patterns from Eval360-V2’s SlurmManager into the Inference360 #86 plan, including instance isolation, health checks, graceful shutdown, and reconciliation loops |
+| **Objective** | Integrate proven patterns from an existing codebase (EvaluationService) into new design plans for a related project (Inference Service) |
+| **Outcome** | Successfully identified and adapted 7 key patterns from EvaluationService’s SlurmManager into the Inference Service #86 plan, including instance isolation, health checks, graceful shutdown, and reconciliation loops |
 | **Verification** | verified-local |
 
 ## When to Use
@@ -70,15 +70,15 @@ gh api repos/{owner}/{repo} --jq '.default_branch'
 #### Phase 3: Adapt to Target Project
 
 1. Map source concepts to target concepts:
-   - Eval360-V2 `instance_id` → Inference360 `endpoint_id`
-   - Eval360-V2 `get_model_state` → Inference360 endpoint status lifecycle
-   - Eval360-V2 `check_live` → Inference360 health check polling
+   - EvaluationService `instance_id` → Inference Service `endpoint_id`
+   - EvaluationService `get_model_state` → Inference Service endpoint status lifecycle
+   - EvaluationService `check_live` → Inference Service health check polling
 2. Note what to KEEP:
    - Proven patterns (instance isolation, health checks)
    - Defensive measures (graceful shutdown, cache isolation)
 3. Note what to CHANGE:
-   - Eval360-V2 is async; Inference360 is synchronous
-   - Eval360-V2 uses asyncio; Inference360 uses threading
+   - EvaluationService is async; Inference Service is synchronous
+   - EvaluationService uses asyncio; Inference Service uses threading
    - Job naming convention changes
 4. Note what to ADD:
    - Integration points with existing target project modules
@@ -106,7 +106,7 @@ gh api repos/{owner}/{repo} --jq '.default_branch'
 |---------|----------------|---------------|----------------|
 | Web fetch of private repo URLs | `read_url` on github.com/blob URLs | 404 Not Found on private repos | Always use `gh api` for private repos — web fetches only work for public repos |
 | Including source code inline in plan | Pasted large source files into plan comments | Plans became too long and noisy | Reference patterns by name with adaptation notes, not full source dumps |
-| Assuming source code conventions match target | Copied Eval360-V2 patterns directly | Target project uses different conventions (sync vs async, different naming) | Always map conventions explicitly: async→sync, different naming, different state machines |
+| Assuming source code conventions match target | Copied EvaluationService patterns directly | Target project uses different conventions (sync vs async, different naming) | Always map conventions explicitly: async→sync, different naming, different state machines |
 | Missing dependency files | Fetched only the main module | Caller code and data models were needed for context | Always fetch the main module AND its direct dependencies and consumers |
 
 ## Results & Parameters
@@ -117,7 +117,7 @@ For each pattern from the source codebase:
 
 | Pattern | Source Location | Problem Solved | Adaptation Needed | Target Location |
 |---------|----------------|----------------|-------------------|----------------|
-| Instance isolation | `SlurmManager.__init__` | Prevent multiple managers from interfering | Use `inference360-{instance_id}-{model}` naming | `SlurmJobManager` |
+| Instance isolation | `SlurmManager.__init__` | Prevent multiple managers from interfering | Use `inference_service-{instance_id}-{model}` naming | `SlurmJobManager` |
 | Health checks | `SlurmManager.check_live` | Verify server is responding | Convert async to sync urllib | `SlurmJobManager._check_live` |
 | Graceful shutdown | `SlurmManager.cancel_all_owned_jobs` | Clean up on exit | Filter squeue by prefix | `SlurmJobManager.cancel_all` |
 
@@ -125,21 +125,21 @@ For each pattern from the source codebase:
 
 ```bash
 # Fetch a file
-gh api repos/LLM360/Eval360-V2/contents/scheduler/slurm_manager.py --jq '.content' | base64 -d
+gh api repos/example-org/evaluation-service/contents/scheduler/slurm_manager.py --jq '.content' | base64 -d
 
 # List a directory
-gh api repos/LLM360/Eval360-V2/contents/scheduler/slurm --jq '.[].name'
+gh api repos/example-org/evaluation-service/contents/scheduler/slurm --jq '.[].name'
 
 # Read first N lines of a file
-gh api repos/LLM360/Eval360-V2/contents/scheduler/slurm_manager.py --jq '.content' | base64 -d | head -100
+gh api repos/example-org/evaluation-service/contents/scheduler/slurm_manager.py --jq '.content' | base64 -d | head -100
 ```
 
-### Key Adaptation: Eval360-V2 → Inference360
+### Key Adaptation: EvaluationService → Inference Service
 
-| Eval360-V2 Pattern | Inference360 Adaptation |
+| EvaluationService Pattern | Inference Service Adaptation |
 |--------------------|-----------------------|
 | Async `asyncio` loops | `threading.Timer` for auto-kill |
-| `instance_id` in job names | `inference360-{instance_id}-{model_id}-{engine}` |
+| `instance_id` in job names | `inference_service-{instance_id}-{model_id}-{engine}` |
 | `get_model_state` (pending/deploying/live/dead) | Endpoint status (pending/running/released/expired/dead) |
 | `check_live` HTTP health probe | `_check_live` with `urllib.request.urlopen` |
 | `cancel_all_owned_jobs` | `cancel_all` filtering squeue by prefix |
@@ -150,4 +150,4 @@ gh api repos/LLM360/Eval360-V2/contents/scheduler/slurm_manager.py --jq '.conten
 
 | Project | Context | Details |
 |---------|---------|--------|
-| LLM360/Inference360 | Issue #86 Slurm Lifecycle | Integrated 7 patterns from Eval360-V2’s SlurmManager into the Inference360 SlurmJobManager plan |
+| example-org/inference-service | Issue #86 Slurm Lifecycle | Integrated 7 patterns from EvaluationService’s SlurmManager into the Inference Service SlurmJobManager plan |

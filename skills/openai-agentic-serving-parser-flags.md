@@ -117,4 +117,4 @@ Verification level: verified-ci.
 
 | Project | Context | Details |
 |---------|---------|---------|
-| LLM360/Inference360 | Agentic parser flags for H200 Slurm model-family serving surfaces | OpenAI-compatible client failure fixed by vLLM/SGLang parser flags, focused tests passed, full local validation passed, CI passed |
+| example-org/inference-service | Agentic parser flags for H200 Slurm model-family serving surfaces | OpenAI-compatible client failure fixed by vLLM/SGLang parser flags, focused tests passed, full local validation passed, CI passed |

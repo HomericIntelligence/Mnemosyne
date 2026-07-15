@@ -43,7 +43,7 @@ tags: [audit, triage, remediation, github-issues, dead-code, ci, requirements, p
 | ------- | ------- |
 | **Date** | 2026-04-29 |
 | **Objective** | Run a strict repo audit, triage findings by complexity, batch-fix scoped items, and reconcile complex work against the existing GitHub issue backlog before creating focused gaps. |
-| **Outcome** | Successful across Mnemosyne and Radiance: one audit cleanup PR pattern, existing issues updated/commented/labeled first, and only missing focused gaps filed as new issues. |
+| **Outcome** | Successful across Mnemosyne and Metrics Service: one audit cleanup PR pattern, existing issues updated/commented/labeled first, and only missing focused gaps filed as new issues. |
 | **Verification** | verified-local |
 | **History** | [changelog](./repo-audit-triage-fix-and-issue-workflow.history) |
 
@@ -322,9 +322,9 @@ git commit -m "fix: apply audit remediation (dead code, CI, docs, requirements)"
 | #1109 | Add ADR directory and document key decisions | documentation |
 | #1110 | Enforce test coverage threshold in CI | testing, ci-cd |
 
-### Existing Backlog Mapping Example (Radiance, 2026-04-28)
+### Existing Backlog Mapping Example (Metrics Service, 2026-04-28)
 
-After a strict Radiance audit, most findings already had issue coverage:
+After a strict Metrics Service audit, most findings already had issue coverage:
 
 | Audit finding | Existing or New Issue | Action |
 | --------------- | ----------------------- | -------- |
@@ -346,7 +346,7 @@ This produced four new focused issues instead of duplicating the entire audit as
 | Project | Context | Details |
 | --------- | --------- | --------- |
 | Mnemosyne | Strict audit + triage + 10-item cleanup PR (March 2026) | 9/9 tests passing, 6 issues filed (#1105–#1110) |
-| Radiance | Strict audit issue-backlog reconciliation (April 2026) | Existing open issues were updated/commented/labeled first; only four missing focused issues were created (#181–#184) |
+| Metrics Service | Strict audit issue-backlog reconciliation (April 2026) | Existing open issues were updated/commented/labeled first; only four missing focused issues were created (#181–#184) |
 
 ## References
 
@@ -358,7 +358,7 @@ This produced four new focused issues instead of duplicating the entire audit as
 
 ## v1.1.0 (2026-04-29)
 
-**Changed by:** Radiance strict audit issue-backlog reconciliation and focused issue creation
+**Changed by:** Metrics Service strict audit issue-backlog reconciliation and focused issue creation
 **Verification:** verified-local
 
 ### What changed
@@ -367,12 +367,12 @@ This produced four new focused issues instead of duplicating the entire audit as
 - Added guidance for commenting on existing open issues, commenting on closed regression issues, and opening only focused gap issues.
 - Added label normalization and readback checks after issue updates.
 - Added failed-attempt rows for duplicate issue creation and broad closed-issue reopening.
-- Added Radiance issue mapping results for #167, #168, #171, #172, #173, #175, #181, #182, #183, and #184.
+- Added Metrics Service issue mapping results for #167, #168, #171, #172, #173, #175, #181, #182, #183, and #184.
 - Added `verification` and `history` frontmatter fields.
 
 ### Why
 
-The original workflow handled audit triage into direct fixes versus newly filed issues, but did not stress deduplicating against an existing issue backlog. In the Radiance audit follow-up, most audit findings were already represented by open issues. The reliable pattern was to inspect open/all issues first, add evidence comments and labels where coverage already existed, and create only narrow new issues for uncovered gaps or regressions.
+The original workflow handled audit triage into direct fixes versus newly filed issues, but did not stress deduplicating against an existing issue backlog. In the Metrics Service audit follow-up, most audit findings were already represented by open issues. The reliable pattern was to inspect open/all issues first, add evidence comments and labels where coverage already existed, and create only narrow new issues for uncovered gaps or regressions.
 
 ### Previous version (v1.0.0) snapshot
 

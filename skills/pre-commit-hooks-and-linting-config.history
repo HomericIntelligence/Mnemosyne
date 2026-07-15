@@ -149,9 +149,9 @@ ProjectTelemachy issue #157 added a Bandit SAST pre-commit hook. During plan rev
 
 (see v2.3.0 entry below)
 
-## v2.3.0 (2026-06-17) -- Add TOML validity and locked Ruff hook parity pattern (Inference360 PR #157)
+## v2.3.0 (2026-06-17) -- Add TOML validity and locked Ruff hook parity pattern (Inference Service PR #157)
 
-**Changed by:** Inference360 PR #157 TOML/pre-commit quality-gate fix
+**Changed by:** Inference Service PR #157 TOML/pre-commit quality-gate fix
 **Verification:** verified-ci
 
 ### What changed
@@ -161,11 +161,11 @@ ProjectTelemachy issue #157 added a Bandit SAST pre-commit hook. During plan rev
 - Documented that both `ruff` and `ruff-format` hook IDs are required because linting and formatting are separate gates.
 - Added a regression-test pattern that parses `.pre-commit-config.yaml` and `uv.lock` to assert `check-toml`, `ruff`, `ruff-format`, and locked Ruff `rev:` parity.
 - Documented the `install-hooks` recipe pattern using `${PYTHON:-python3} -m pre_commit install` and `PYTHON=.venv/bin/python just install-hooks` for hosts with broken default Python resolution.
-- Added 4 Failed Attempts rows and an Inference360 verification row.
+- Added 4 Failed Attempts rows and an Inference Service verification row.
 
 ### Why
 
-Inference360 PR #157 fixed a CI setup failure caused by a duplicate `[tool.coverage.paths]` table in `pyproject.toml`. Ruff did not catch the TOML structural error, and keeping only the `ruff` hook would still miss `ruff-format` drift. The durable pattern is to gate TOML syntax with `check-toml`, keep Ruff hook `rev:` synchronized with the lockfile, keep both Ruff hook IDs, and backstop the hook contract with a regression test.
+Inference Service PR #157 fixed a CI setup failure caused by a duplicate `[tool.coverage.paths]` table in `pyproject.toml`. Ruff did not catch the TOML structural error, and keeping only the `ruff` hook would still miss `ruff-format` drift. The durable pattern is to gate TOML syntax with `check-toml`, keep Ruff hook `rev:` synchronized with the lockfile, keep both Ruff hook IDs, and backstop the hook contract with a regression test.
 
 ### Previous version (v2.2.0) snapshot
 

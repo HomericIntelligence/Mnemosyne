@@ -213,7 +213,7 @@ git commit --amend --no-edit  # if not yet pushed
    Ruff does not validate duplicate TOML table structure.
 2. Keep `astral-sh/ruff-pre-commit` pinned to the exact locked Ruff version. For
    uv projects, parse `uv.lock` and require `rev: v<locked ruff version>`; in the
-   Inference360 PR #157 fix this was `v0.15.17`.
+   Inference Service PR #157 fix this was `v0.15.17`.
 3. Keep both hook IDs:
    - `ruff` catches lint/import/unused-code failures.
    - `ruff-format` catches formatter drift. It is not covered by `ruff`.
@@ -640,7 +640,7 @@ pre-commit run mypy-check-python --all-files
 
 #### `check-toml` is required for duplicate TOML tables
 
-TOML parse failures can abort CI before tests or lint even start. In Inference360
+TOML parse failures can abort CI before tests or lint even start. In Inference Service
 PR #157, dependency setup failed because `pyproject.toml` had a duplicate
 `[tool.coverage.paths]` table. Ruff did not catch this because it operates on Python
 lint/format surfaces, not TOML table semantics. The correct pre-commit surface is
@@ -1623,7 +1623,7 @@ def test_pre_commit_guards_toml_and_locked_ruff_version() -> None:
     assert ruff_pre_commit_rev(config) == f"v{locked_ruff_version(Path('uv.lock'))}"
 ```
 
-Verification commands from Inference360 PR #157:
+Verification commands from Inference Service PR #157:
 
 ```bash
 .venv/bin/python -m pytest -q tests/test_quality_gate_scripts.py::test_pre_commit_guards_toml_and_locked_ruff_version
@@ -1728,7 +1728,7 @@ indent_style = tab                 # Make syntax requires tabs
 | --------- | --------- | --------- |
 | Multiple HI repos | Synthesized from 53 skills across ProjectOdyssey, ProjectHephaestus, ProjectArgus, ProjectKeystone, AchaeanFleet, Myrmidons | [history file](pre-commit-hooks-and-linting-config.history) |
 | ProjectHephaestus | PRs #707, #913 (ruff-format trap), #1019 closes #1017 (review-rubric toolchain-churn carve-out) | [history file](pre-commit-hooks-and-linting-config.history) |
-| Inference360 | PR #157 (TOML duplicate-key guard, Ruff hook lockfile parity, hook install docs; checks passed and PR merged) | [history file](pre-commit-hooks-and-linting-config.history) |
+| Inference Service | PR #157 (TOML duplicate-key guard, Ruff hook lockfile parity, hook install docs; checks passed and PR merged) | [history file](pre-commit-hooks-and-linting-config.history) |
 | ProjectOdyssey | PR #5453 (full-PR-diff pre-commit scope fixed CI mojo-format on sub-agent files) | [history file](pre-commit-hooks-and-linting-config.history) |
 | ProjectScylla | PR #1556, audit finding S13 (.editorconfig cross-editor consistency) | [history file](pre-commit-hooks-and-linting-config.history) |
 | Mnemosyne | Closed PR #2353 (commit-msg-stage hooks + `default_install_hook_types` learning) | [history file](pre-commit-hooks-and-linting-config.history) |

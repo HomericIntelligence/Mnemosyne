@@ -47,8 +47,8 @@ tags:
 |-------|-------|
 | **Date** | 2026-06-17 |
 | **Objective** | Canonical skill covering the full gap between "dependency declared" and "lockfile/version consistent in CI": verbatim lockfile restoration from main, npm lockfile resync, release recipe no-op diagnosis, version single-source-of-truth enforcement, Renovate setup for heterogeneous C++ repos, recovery from pinned nightly/dev-build artifact GC, and lockfile-backed Dependabot CI contract stabilization |
-| **Outcome** | Merged from 5 verified skills; patterns confirmed across ProjectAgamemnon, ProjectProteus, ProjectScylla; v1.1.0 added the GC'd-nightly failure mode; v1.2.0 adds the Radiance Dependabot contract case |
-| **Verification** | verified-ci (lockfile restore, npm resync, Radiance Dependabot contract stabilization); verified-local (release recipe, versioning, GC'd-nightly recovery); unverified (Renovate - app install in progress) |
+| **Outcome** | Merged from 5 verified skills; patterns confirmed across ProjectAgamemnon, ProjectProteus, ProjectScylla; v1.1.0 added the GC'd-nightly failure mode; v1.2.0 adds the Metrics Service Dependabot contract case |
+| **Verification** | verified-ci (lockfile restore, npm resync, Metrics Service Dependabot contract stabilization); verified-local (release recipe, versioning, GC'd-nightly recovery); unverified (Renovate - app install in progress) |
 | **History** | Previous v1.1.0 snapshot archived in `lockfile-and-release-pipeline-management.history` |
 
 ## When to Use
@@ -522,7 +522,7 @@ of the resolved artifact; once the nightly is GC'd, "lock it later" is no longer
 possible. Prefer pinning a release build over a dated nightly when reproducibility
 matters.
 
-### G. Radiance Dependabot Contract Stabilization - Verified Facts
+### G. Metrics Service Dependabot Contract Stabilization - Verified Facts
 
 | Fact | Detail |
 |------|--------|
@@ -544,4 +544,4 @@ matters.
 | ProjectScylla | Issue #1535 (PR #1562) — reconcile CHANGELOG aspirational versions; 4808 total tests passing | Phantom version refs replaced with `[Unreleased]` convention |
 | Odysseus / ProjectAgamemnon / ProjectNestor / ProjectCharybdis | Renovate multi-ecosystem C++20 config — Conan + FetchContent regex + pixi + GHA + Dockerfile | Unverified: app installation in progress |
 | predictive-coding research project | Mojo nightly `1.0.0b2.dev2026050805` GC'd from `conda.modular.com/max`; repinned to `1.0.0b1` and locked, 2026-05-19 | First `pixi install` failed with `No candidates were found`; no `pixi.lock` had ever been committed. Upstream dep (pinned git SHA) also pinned the GC'd nightly — repin was a documented deliberate divergence |
-| Radiance | Issues #896/#903, PRs #897/#904, 2026-06-17 | Generalized lockfile-backed Dependabot contract tests, grouped exact-peer Angular updates, added a narrow no-fixed-version `pip-audit` allowlist, and updated original bot PRs until CI passed |
+| Metrics Service | Issues #896/#903, PRs #897/#904, 2026-06-17 | Generalized lockfile-backed Dependabot contract tests, grouped exact-peer Angular updates, added a narrow no-fixed-version `pip-audit` allowlist, and updated original bot PRs until CI passed |

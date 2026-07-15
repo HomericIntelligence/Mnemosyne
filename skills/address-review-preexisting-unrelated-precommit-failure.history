@@ -2,17 +2,17 @@
 
 ## v1.1.0 (2026-07-04)
 
-**Changed by:** Inference360 PR #327 rebase and push session
+**Changed by:** Inference Service PR #327 rebase and push session
 **Verification:** verified-local
 
 ### What changed
 - Added a pre-push/full-pytest variant for unrelated local host failures after a clean PR rebase.
-- Documented Inference360's default PR base as `master`, not `main`, for PR #327.
+- Documented Inference Service's default PR base as `master`, not `main`, for PR #327.
 - Added the targeted-validation-first rule and the documented `--no-verify` exception when the local hook fails on unrelated macOS Bash assumptions.
 
 ### Why
 The previous skill covered local `pre-commit run --all-files` failures proven unrelated by stash-verify.
-Inference360 PR #327 exposed a related but distinct local gate: the pre-push hook ran full `pytest -q` and failed on existing macOS host-portability assumptions (`/usr/bin/bash` missing, Bash 4-only constructs under `/bin/bash` 3.2) while the PR-specific post-rebase target passed. The correct response was to record the hook failure, run focused validation against the PR diff, and push the rebased PR branch with `--force-with-lease --no-verify` only after documenting why the full local hook failure was unrelated.
+Inference Service PR #327 exposed a related but distinct local gate: the pre-push hook ran full `pytest -q` and failed on existing macOS host-portability assumptions (`/usr/bin/bash` missing, Bash 4-only constructs under `/bin/bash` 3.2) while the PR-specific post-rebase target passed. The correct response was to record the hook failure, run focused validation against the PR diff, and push the rebased PR branch with `--force-with-lease --no-verify` only after documenting why the full local hook failure was unrelated.
 
 ### Previous version (v1.0.0) snapshot
 

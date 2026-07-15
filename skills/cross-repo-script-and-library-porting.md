@@ -692,4 +692,4 @@ PR 5 (Source Cleanup):   remove old library from origin repo — only after PR 1
 | ProjectHephaestus | CircuitBreaker.success_threshold ported from Scylla orphaned worktree — 29/29 tests | 2026-04-12 session |
 | Mnemosyne | Modular skills integration (Apache 2.0), PR #1213 — 4 skills ported (3 new, 1 merged) | 2026-04-09 session |
 | ProjectHephaestus | obra/superpowers integration (MIT), PR #206 — 8 skills ported | 2026-03-28 session |
-| Radiance | Codex local setup — 5 skills installed, metadata generated, AGENTS.md updated | 2026-04-02 session |
+| Metrics Service | Codex local setup — 5 skills installed, metadata generated, AGENTS.md updated | 2026-04-02 session |

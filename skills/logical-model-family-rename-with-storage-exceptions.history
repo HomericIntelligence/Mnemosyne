@@ -45,8 +45,8 @@ verification: verified-ci
 tags: [model-family, rename, manifests, h200-slurm, storage-exceptions, ruff]
 ~~~
 
-The v1.0.1 skill covered renaming logical model-family surfaces (manifests, docs, scripts, routes, tests) to a new family name while preserving physical checkpoint/benchmark storage paths that still contained the old name, plus a Ruff-proof stale-token guard test. Verified on LLM360/Inference360.
+The v1.0.1 skill covered renaming logical model-family surfaces (manifests, docs, scripts, routes, tests) to a new family name while preserving physical checkpoint/benchmark storage paths that still contained the old name, plus a Ruff-proof stale-token guard test. Verified on example-org/inference-service.
 
 ## v1.0.1 (2026-06-18)
 
-Initial captured version (patch of 1.0.0). Logical model-family rename across H200 Slurm manifests, docs, scripts, examples, and tests while preserving physical checkpoint/benchmark storage paths; git-mv tracked files, separate logical identifiers from physical storage, Ruff-proof stale-token guard, neutral placeholder tokens. Verified on LLM360/Inference360 with clean diff, no stale tracked filenames, stale-name grep guard, and passing CI.
+Initial captured version (patch of 1.0.0). Logical model-family rename across H200 Slurm manifests, docs, scripts, examples, and tests while preserving physical checkpoint/benchmark storage paths; git-mv tracked files, separate logical identifiers from physical storage, Ruff-proof stale-token guard, neutral placeholder tokens. Verified on example-org/inference-service with clean diff, no stale tracked filenames, stale-name grep guard, and passing CI.

@@ -14,7 +14,7 @@ tags:
   - top-k
   - top-p
   - degeneration
-  - xllm
+  - alt_llm
   - issue-257
 ---
 
@@ -27,7 +27,7 @@ tags:
 | **Date** | 2026-07-09 |
 | **Objective** | Diagnose LLM garbled output when matched runs differ only by seed, and separate bad random draws from prompt, weight, tokenizer, backend, or deterministic-forward differences. |
 | **Outcome** | Successful locally. The useful pivot was asking why seed mattered: seed changes the random draw from the next-token distribution, not the prompt, weights, tokenizer, or deterministic forward pass. That moved the investigation from whole-trace comparison to the first bad sampled token in one trace. |
-| **Verification** | verified-local. Evidence came from redacted Inference360 issue #257 scripts, dense-model sweeps, direct XLLM checks, and manual review. ProjectMnemosyne CI validation is pending for this skill PR. |
+| **Verification** | verified-local. Evidence came from redacted Inference Service issue #257 scripts, dense-model sweeps, direct AltLLM checks, and manual review. ProjectMnemosyne CI validation is pending for this skill PR. |
 
 ## When to Use
 
@@ -39,7 +39,7 @@ tags:
 
 ## Verified Workflow
 
-Verified locally only through redacted Inference360 issue #257 scripts and manual review. Do not claim verified-ci until this skill PR's `validate` and `markdownlint` checks pass.
+Verified locally only through redacted Inference Service issue #257 scripts and manual review. Do not claim verified-ci until this skill PR's `validate` and `markdownlint` checks pass.
 
 ### Quick Reference
 
@@ -97,7 +97,7 @@ python <force-token-script>.py \
 
 A redacted 4B dense-model run with temperature explicitly set to 1, top-k=20, and seed 116 selected an ellipsis-family token around step 90. The selected token was rank 4 at about 0.01% probability while rank 1 was about 75%. After that draw, the next-token distribution flattened into ellipsis and newline variants and the text degenerated. Replaying the divergence while forcing rank-1, rank-2, or rank-3 alternatives kept the continuation readable.
 
-Direct XLLM sweeps showed greedy/top-k=1 removed the observed failures. Top-k=5, top-k=20, and no top-k still had failures. Top-p 0.9 and 0.95 mostly or entirely removed true ellipsis degeneration in the reviewed dense sweep.
+Direct AltLLM sweeps showed greedy/top-k=1 removed the observed failures. Top-k=5, top-k=20, and no top-k still had failures. Top-p 0.9 and 0.95 mostly or entirely removed true ellipsis degeneration in the reviewed dense sweep.
 
 ### Top-p Sweep Evidence
 
@@ -138,4 +138,4 @@ Comma-adjacent ellipsis fragments in numeric arrays, including `,...`, `...,`, `
 
 | Project | Context | Details |
 |---------|---------|---------|
-| LLM360/Inference360 | Redacted issue #257 local scripts and manual review, 2026-07-09 | Dense-model traces and sweeps supported the first-bad-token workflow, forced-alternative replay, top-k/top-p findings, and the sampler-vs-dump caution. MoE partial data remains revalidation-needed. |
+| example-org/inference-service | Redacted issue #257 local scripts and manual review, 2026-07-09 | Dense-model traces and sweeps supported the first-bad-token workflow, forced-alternative replay, top-k/top-p findings, and the sampler-vs-dump caution. MoE partial data remains revalidation-needed. |

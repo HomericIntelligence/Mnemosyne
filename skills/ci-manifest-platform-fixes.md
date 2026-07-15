@@ -16,7 +16,7 @@ tags: [ci-cd, python, testing, manifests, slurm]
 | Field | Value |
 |-------|-------|
 | **Date** | 2026-06-15 |
-| **Objective** | Fix CI/CD failures in the Inference360 manifest-driven H200 Slurm inference platform |
+| **Objective** | Fix CI/CD failures in the Inference Service manifest-driven H200 Slurm inference platform |
 | **Outcome** | All 580 tests passing, 85.57% coverage, all 12 validation steps pass |
 | **Verification** | verified-local |
 
@@ -65,7 +65,7 @@ def test_dry_run(monkeypatch):
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 |---------|----------------|---------------|----------------|
-| Hardcoded .venv/bin/python | Used default=".venv/bin/python" in argparse | CI uses /opt/inference360-venv/bin/python; Mac uses different path | Always use sys.executable for Python binary defaults |
+| Hardcoded .venv/bin/python | Used default=".venv/bin/python" in argparse | CI uses /opt/inference_service-venv/bin/python; Mac uses different path | Always use sys.executable for Python binary defaults |
 | Skip git mock | Ran tests without mocking validate_inferencex_pin | CI environment may not have git on PATH | Always mock git-dependent functions in tests |
 | Ignore docs routing | Added docs/ files without updating AGENTS.md | test_agents_doc_routes_every_docs_markdown_file checks all docs are routed | Add routing entry when adding any docs/*.md file |
 | Run full CI script only | Ran validate.sh as a single command | Could not identify which of the 12 steps failed | Run each validation step individually to find the exact failure |
@@ -84,4 +84,4 @@ def test_dry_run(monkeypatch):
 
 | Project | Context | Details |
 |---------|---------|---------|
-| Inference360 | PR 116 CI fixes on fix/issue-82-rebase branch | 580 tests passing, all 12 validation steps pass |
+| Inference Service | PR 116 CI fixes on fix/issue-82-rebase branch | 580 tests passing, all 12 validation steps pass |

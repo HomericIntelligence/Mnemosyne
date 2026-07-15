@@ -397,7 +397,7 @@ tags:
 | Theme | Systematically adding mock-based unit tests to previously untested Python scripts and source modules |
 | Language | Python / pytest |
 | Patterns | Class-grouped tests, sys.path.insert import, tmp_path fixtures, mock-only subprocess/filesystem |
-| Proven Result | Raised scripts/ test coverage from 29% to 65% (10/34 → 22/34 scripts) across multiple sessions; coordinated Eval360-V2 coverage swarm across seven PRs |
+| Proven Result | Raised scripts/ test coverage from 29% to 65% (10/34 → 22/34 scripts) across multiple sessions; coordinated EvaluationService coverage swarm across seven PRs |
 | Verification | verified-local |
 | History | [changelog](./python-script-unit-test-coverage-expansion.history) |
 
@@ -800,13 +800,13 @@ Use this pattern when coverage work is too broad for one PR but still needs cons
 | ProjectScylla #1358 | 22/34 (65%) | 34/34 (100%) | 130 | 12 |
 | ProjectScylla #850 | ~73% | 74.93% | 106 | 5 |
 | ProjectScylla #1113 | 114 tests | 119 tests | 5 | 1 (extended) |
-| Eval360-V2 coverage swarm | 60% total baseline | 7 focused coverage PRs opened | 518+ | PRs #290-#296, verified locally |
+| EvaluationService coverage swarm | 60% total baseline | 7 focused coverage PRs opened | 518+ | PRs #290-#296, verified locally |
 
-### Eval360-V2 Coverage Swarm Parameters (2026-05-29)
+### EvaluationService Coverage Swarm Parameters (2026-05-29)
 
 | Parameter | Value |
 | --------- | ----- |
-| Worker isolation | One git worktree per branch under `/private/tmp/eval360-<module>` |
+| Worker isolation | One git worktree per branch under `/private/tmp/evaluation_service-<module>` |
 | Branch naming | `codex/coverage-<module-slug>` |
 | CI quirk | `.github/workflows/tests.yml` manually enumerates test files |
 | Python environment | Python 3.14 venv with test extras installed |
@@ -1785,17 +1785,17 @@ def _run(code: str) -> subprocess.CompletedProcess[str]:
 
 ## v1.1.0 (2026-05-29)
 
-**Changed by:** Eval360-V2 coverage swarm and PR #291 cleanup session
+**Changed by:** EvaluationService coverage swarm and PR #291 cleanup session
 **Verification:** verified-local
 
 ### What changed
 - Added coverage-swarm workflow for per-file PRs in dedicated worktrees.
 - Added CI manual test enumeration reminder for repositories whose workflows list test files explicitly.
 - Added documentation-quality gate requiring What/Executes/Why docstrings for newly introduced tests and base classes for shared test helpers.
-- Added Eval360-V2 local validation results from PRs #290-#296.
+- Added EvaluationService local validation results from PRs #290-#296.
 
 ### Why
-Eval360-V2 coverage work showed that broad test-expansion swarms need stronger preflight and post-hoc quality gates: stale coverage reports can mention absent files, CI can omit new tests when workflows enumerate files manually, and new test docstrings/helper functions need a structural audit before PRs are ready.
+EvaluationService coverage work showed that broad test-expansion swarms need stronger preflight and post-hoc quality gates: stale coverage reports can mention absent files, CI can omit new tests when workflows enumerate files manually, and new test docstrings/helper functions need a structural audit before PRs are ready.
 
 ### Previous version (v1.0.0) snapshot
 ```markdown

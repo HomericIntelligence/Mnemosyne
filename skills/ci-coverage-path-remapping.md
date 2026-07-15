@@ -33,7 +33,7 @@ tags: [coverage, ci, container, pyproject, pytest]
 ```toml
 # pyproject.toml
 [tool.coverage.run]
-source = ["scripts", "inference360"]
+source = ["scripts", "inference_service"]
 
 [tool.coverage.paths]
 source = [
@@ -75,10 +75,10 @@ source = [
 - **coverage.py version**: 7.x (reads pyproject.toml automatically)
 - **Container mount point**: `/workspace`
 - **Host working directory**: `$GITHUB_WORKSPACE` (repo root)
-- **Path remapping**: `/workspace/inference360/__init__.py` → `inference360/__init__.py`
+- **Path remapping**: `/workspace/inference_service/__init__.py` → `inference_service/__init__.py`
 
 ## Verified On
 
 | Project | Context | Details |
 |---------|---------|-------|
-| LLM360/Inference360 | PR #82 — Move inference360 module to package path | CI validate job coverage XML export succeeds |
+| example-org/inference-service | PR #82 — Move inference_service module to package path | CI validate job coverage XML export succeeds |

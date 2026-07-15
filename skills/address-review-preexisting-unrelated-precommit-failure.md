@@ -37,8 +37,8 @@ and avoid expanding scope into unrelated local gate debt.
 | Field | Value |
 | ------- | ------- |
 | **Date** | 2026-07-04 |
-| **Objective** | Land tightly-scoped PR work when broad local gates fail for unrelated reasons: ProjectHephaestus PR #1743 hit an unrelated `pre-commit run --all-files` hook; Inference360 PR #327 hit a local pre-push `pytest -q` failure caused by macOS/Bash host assumptions after a clean rebase |
-| **Outcome** | Verified-local. ProjectHephaestus: stash-verified the hook failure as pre-existing/out-of-scope, then committed only the in-scope files after focused tests and ruff checks passed. Inference360: rebased PR #327 onto its real base `origin/master` (the repo has no `origin/main`), resolved `AGENTS.md`, passed `git diff --check` and 14 PR-specific tests, documented the unrelated full pre-push failure (`1108 passed, 1 skipped, 30 failed` from `/usr/bin/bash` missing and Bash-4-only constructs under macOS `/bin/bash` 3.2), then updated the PR branch with `git push --force-with-lease --no-verify` |
+| **Objective** | Land tightly-scoped PR work when broad local gates fail for unrelated reasons: ProjectHephaestus PR #1743 hit an unrelated `pre-commit run --all-files` hook; Inference Service PR #327 hit a local pre-push `pytest -q` failure caused by macOS/Bash host assumptions after a clean rebase |
+| **Outcome** | Verified-local. ProjectHephaestus: stash-verified the hook failure as pre-existing/out-of-scope, then committed only the in-scope files after focused tests and ruff checks passed. Inference Service: rebased PR #327 onto its real base `origin/master` (the repo has no `origin/main`), resolved `AGENTS.md`, passed `git diff --check` and 14 PR-specific tests, documented the unrelated full pre-push failure (`1108 passed, 1 skipped, 30 failed` from `/usr/bin/bash` missing and Bash-4-only constructs under macOS `/bin/bash` 3.2), then updated the PR branch with `git push --force-with-lease --no-verify` |
 | **Verification** | verified-local |
 | **History** | [changelog](./address-review-preexisting-unrelated-precommit-failure.history) |
 
@@ -56,7 +56,7 @@ and avoid expanding scope into unrelated local gate debt.
 - A rebased PR branch needs a force-with-lease push, but the local pre-push hook
   runs a broad suite and fails on unrelated host-portability assumptions after the
   PR-specific post-rebase tests passed.
-- A repository's GitHub base branch is not named `main` (for Inference360 PR #327 it
+- A repository's GitHub base branch is not named `main` (for Inference Service PR #327 it
   was `master`); verify the PR `baseRefName` and `origin/HEAD` before rebasing.
 
 Do NOT conflate the four noise traps: (1) an unrelated hook you didn't touch
@@ -175,7 +175,7 @@ git push --force-with-lease --no-verify origin <branch>
    Do NOT push if an orchestrator owns push in the loop.
 
 6. **For a pre-push hook full-suite failure, classify before bypassing.** The
-   Inference360 PR #327 rebase showed a local pre-push hook running full
+   Inference Service PR #327 rebase showed a local pre-push hook running full
    `pytest -q` can fail for reasons outside the rebased PR:
 
    - the PR-specific targeted selection passed (`14 passed, 73 deselected`);
@@ -191,7 +191,7 @@ git push --force-with-lease --no-verify origin <branch>
    exception. This is not a blanket bypass rule: if the failure overlaps the PR diff
    or the focused test fails, fix the PR instead.
 
-7. **Verify the base branch before rebasing.** Do not assume `main`. Inference360
+7. **Verify the base branch before rebasing.** Do not assume `main`. Inference Service
    PR #327's GitHub metadata said `baseRefName=master`, `origin/HEAD` pointed to
    `origin/master`, and `git ls-remote --heads origin main master` returned only
    `refs/heads/master`. Rebasing against a guessed `origin/main` would have been
@@ -206,7 +206,7 @@ git push --force-with-lease --no-verify origin <branch>
 | Read a scoped pytest `FAIL Required test coverage of N% not reached` as a test failure | Ran `pixi run pytest <one test file>` and treated the coverage-gate FAIL as the test failing | That FAIL is the GLOBAL coverage gate firing on a PARTIAL run (a single file can't hit the whole-repo threshold); the tests themselves passed — the `N passed` line was green | Read the `N passed` summary line, not the coverage FAIL; a partial-run coverage FAIL is not a test failure. The FULL `pixi run pytest tests/` reported `5718 passed, 24 skipped`, 87.62% ≥ 83% |
 | Trust a bare local red on a repo-wide hook | Saw a whole-tree hook red locally and assumed my branch was broken | A repo-wide `--all-files` hook can be red for EVERYONE because of one unrelated stale/malformed file already on base — a bare local red does not mean your change caused it | Trust the CI log / the stash-verify, not a bare local red; confirm the failure pre-exists on base HEAD before touching anything |
 | Trust `git log --show-signature` to confirm the commit is signed | Ran `git log --show-signature -1` locally, saw it look signed, and moved on | Local git can report a commit as signed while pr-policy treats it as unsigned when the committer email does not match the GPG key | Set `-c user.email=<key-email>` on the commit and verify via `gh api .../commits/<sha> .commit.verification` (`.verified == true`), not local git |
-| Rebase against a guessed `origin/main` | User asked to rebase a PR "against main", so the branch name looked obvious | Inference360 has no `origin/main`; PR #327's `baseRefName` and `origin/HEAD` were both `master`. Rebasing against a non-existent or stale guessed branch would produce the wrong base | Query `gh pr view <n> --json baseRefName`, `git symbolic-ref refs/remotes/origin/HEAD`, and `git ls-remote --heads origin main master` before rebasing |
+| Rebase against a guessed `origin/main` | User asked to rebase a PR "against main", so the branch name looked obvious | Inference Service has no `origin/main`; PR #327's `baseRefName` and `origin/HEAD` were both `master`. Rebasing against a non-existent or stale guessed branch would produce the wrong base | Query `gh pr view <n> --json baseRefName`, `git symbolic-ref refs/remotes/origin/HEAD`, and `git ls-remote --heads origin main master` before rebasing |
 | Treat a full local pre-push failure as proof the PR is bad | `git push --force-with-lease` launched the pre-push hook (`pytest -q`) and failed with 30 tests red | The failures were unrelated macOS Bash assumptions (`/usr/bin/bash` missing; `mapfile`, `${var,,}`, namerefs under Bash 3.2), while the PR-specific post-rebase target passed and `git diff --check` was clean | Run and record focused validation against the PR diff first. If it passes, document the full-hook failure signature and use `--no-verify` only as an explicit local-hook exception |
 | Use `--no-verify` before classifying the failure | Considered skipping the pre-push hook immediately to get the force-push through | A failed broad hook can still reveal a real PR-introduced regression. Bypassing before classification hides a real defect | First classify file overlap and failure signatures, run focused tests, and only then bypass if the failure is unrelated local environment debt |
 
@@ -262,9 +262,9 @@ gh api repos/<owner>/<repo>/commits/<sha> --jq '.commit.verification'   # .verif
 
 Do NOT push — the orchestrator owned push in this loop.
 
-**Inference360 PR #327 post-rebase pre-push variant:**
+**Inference Service PR #327 post-rebase pre-push variant:**
 
-Context: `LLM360/Inference360` PR #327 (`codex-add-cache-determinism-blog`) after
+Context: `example-org/inference-service` PR #327 (`codex-add-cache-determinism-blog`) after
 `origin/master` advanced. The user asked to rebase against "main", but the repo's
 actual default/base branch was `master`.
 
@@ -347,7 +347,7 @@ not a general permission to bypass hooks.
 
 **Verification:** verified-local. The ProjectHephaestus stash-verify and scoped
 test / ruff checks were actually run; the full `pixi run pytest tests/` reported
-`5718 passed, 24 skipped` at 87.62% coverage. The Inference360 PR #327 workflow
+`5718 passed, 24 skipped` at 87.62% coverage. The Inference Service PR #327 workflow
 was also executed locally: rebase completed, `git diff --check` passed, the
 PR-specific pytest selection reported `14 passed`, and the full pre-push hook
 failure was observed before the documented `--no-verify` force-with-lease push.

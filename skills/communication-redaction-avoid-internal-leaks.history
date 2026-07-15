@@ -2,21 +2,21 @@
 
 ## v1.1.0 (2026-07-01)
 
-**Changed by:** Session context from LLM360/Inference360 issue 257 and PR 326 reproducibility packaging.
+**Changed by:** Session context from example-org/inference-service issue 257 and PR 326 reproducibility packaging.
 **Verification:** verified-local
 
 ### What changed
 
 - Added repro-artifact and golden-file redaction guidance.
 - Added explicit internal artifact classes: endpoint addresses, absolute infrastructure paths, checkpoint/tokenizer paths, user-specific locations, private prompts, tokens, cookies, and raw cluster/debug artifact paths.
-- Added placeholder examples such as `<REDACTED_ENDPOINT>`, `<REDACTED_CHECKPOINT_PATH>`, `<REDACTED_INFRA_PATH>`, `<HF_CHECKPOINT_PATH>`, and `<XLLM_REPO>`.
+- Added placeholder examples such as `<REDACTED_ENDPOINT>`, `<REDACTED_CHECKPOINT_PATH>`, `<REDACTED_INFRA_PATH>`, `<HF_CHECKPOINT_PATH>`, and `<AltLLM_REPO>`.
 - Added a practical `rg` scan example for docs, repro packages, tests, and golden artifacts.
 - Added the requirement to run scans and pre-commit over the full PR diff or repro package, not only the latest changed files.
 - Added Failed Attempts rows covering partial scans and sanitizing docs while leaving raw artifacts unchecked.
 
 ### Why
 
-The Inference360 issue 257 repro package needed durable docs, scripts, golden files, and investigation notes while keeping private cluster details out of committed artifacts and GitHub surfaces. The core lesson is that raw reproducibility files are durable documentation too: redact them before committing, copying into PRs/issues, or packaging for another machine.
+The Inference Service issue 257 repro package needed durable docs, scripts, golden files, and investigation notes while keeping private cluster details out of committed artifacts and GitHub surfaces. The core lesson is that raw reproducibility files are durable documentation too: redact them before committing, copying into PRs/issues, or packaging for another machine.
 
 ### Previous version (v1.0.0) snapshot
 

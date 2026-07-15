@@ -1,16 +1,16 @@
 ## v1.1.0 (2026-06-17)
 
-**Changed by:** Radiance GitHub Actions dependency-install hang session (#897/#904)
+**Changed by:** Metrics Service GitHub Actions dependency-install hang session (#897/#904)
 **Verification:** verified-ci
 
 ### What changed
 - Added dependency-install hang triage for jobs stuck before tests run.
 - Documented Playwright --with-deps hanging in CI and the durable browser-install simplification.
 - Documented cancel-and-rerun handling for Python dependency install hangs after proving the same path passes elsewhere.
-- Added Radiance verification rows and failed-attempt lessons.
+- Added Metrics Service verification rows and failed-attempt lessons.
 
 ### Why
-Radiance CI had jobs stuck in dependency installation with no live logs: Playwright Chromium installation with --with-deps, and later Python backend dependency installs. API step-state polling showed tests had not run. The Playwright path needed a small workflow fix; the Python install hangs cleared on a fresh runner attempt. The transferable lesson is to distinguish pre-test runner/install hangs from code failures before editing tests.
+Metrics Service CI had jobs stuck in dependency installation with no live logs: Playwright Chromium installation with --with-deps, and later Python backend dependency installs. API step-state polling showed tests had not run. The Playwright path needed a small workflow fix; the Python install hangs cleared on a fresh runner attempt. The transferable lesson is to distinguish pre-test runner/install hangs from code failures before editing tests.
 
 ### Previous version snapshot
 

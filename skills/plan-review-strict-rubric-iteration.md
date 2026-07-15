@@ -159,4 +159,4 @@ Verdict: NOGO — Plan needs changes before implementation (explain what in the 
 
 | Project | Context | Details |
 |---------|---------|--------|
-| LLM360/Inference360 | Epic #81 — 6 interrelated GitHub issues for CPU endpoint manager | Reviewed 6 plans across 4 rounds; 3 plans needed 1 revision cycle; all plans eventually passed |
+| example-org/inference-service | Epic #81 — 6 interrelated GitHub issues for CPU endpoint manager | Reviewed 6 plans across 4 rounds; 3 plans needed 1 revision cycle; all plans eventually passed |

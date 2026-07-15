@@ -119,5 +119,5 @@ chain conflicts.
 | Project | Context | Details |
 |---------|---------|-------|
 | HomericIntelligence/ProjectHephaestus | PR #1171 — show-prompt CLI | 4 commits rebased and signed, pr-policy passes |
-| LLM360/Inference360 | PR #82 — Move inference360 module | Commits signed for pr-policy compliance |
+| example-org/inference-service | PR #82 — Move inference_service module | Commits signed for pr-policy compliance |
 | HomericIntelligence/ProjectHephaestus | PR #2099 — branch `2053-auto-impl`, rebase onto ~38 new commits with one real conflict; `--exec` hand-invocation corrupted a commit by merging in an unrelated upstream commit's diff; recovered via `reset --keep` + `rebase --quit`, redone as plain rebase + standalone amend | verified-local (not yet confirmed in this skill PR's own CI) |

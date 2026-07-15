@@ -4383,7 +4383,7 @@ jobs:
 | ProjectOdyssey | Various PRs 2026-03–04 | Checkout-order validator, workflow consolidation, pixi caching |
 | ProjectHermes | PR #291 | Force-push after rebase triggered path-filtered required checks |
 | AchaeanFleet | PR #549 | SHA-pinning with annotated-tag resolution |
-| Radiance | PR #33 | Ruleset mismatch diagnosis (code_quality/code_scanning rules) |
+| Metrics Service | PR #33 | Ruleset mismatch diagnosis (code_quality/code_scanning rules) |
 | Myrmidons | fix/ci-precommit-parity | `secrets` context in job `if:` — switched to `vars` |
 
 ## References

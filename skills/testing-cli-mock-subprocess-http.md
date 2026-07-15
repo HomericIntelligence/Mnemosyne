@@ -101,4 +101,4 @@ assert result == 0
 
 | Project | Context | Details |
 |---------|---------|---------|
-| Inference360 | PR 116 CI fixes, test coverage improvement | 580 tests passing, 85.57% coverage |
+| Inference Service | PR 116 CI fixes, test coverage improvement | 580 tests passing, 85.57% coverage |

@@ -19,7 +19,7 @@ tags: [communication, redaction, documentation, reporting, reproducibility, arti
 | **Date** | 2026-07-01 |
 | **Objective** | Keep operational reporting and reproducibility artifacts useful while preventing internal infrastructure identifiers from appearing in user-facing or durable artifacts unless explicitly requested. |
 | **Outcome** | Use neutral placeholders for commands, endpoints, logs, checkpoints, prompts, golden files, cluster debug paths, and launch details by default. |
-| **Verification** | verified-local - Inference360 repro artifacts were redaction-scanned locally and passed their PR CI; this skill amendment has local validation only until its own PR CI passes. |
+| **Verification** | verified-local - Inference Service repro artifacts were redaction-scanned locally and passed their PR CI; this skill amendment has local validation only until its own PR CI passes. |
 | **History** | [changelog](./communication-redaction-avoid-internal-leaks.history) |
 
 ## When to Use
@@ -56,7 +56,7 @@ rg -n "(/(home|mnt|scratch|data|users)/[^[:space:]]+|https?://[0-9]|[0-9]{1,3}(\
 1. **Classify the target surface.** Treat final answers, PR bodies, issue comments, notes, skills, runbooks, report files, examples, repro packages, and golden artifacts as user-facing or durable unless the user says otherwise.
 2. **Inventory raw sources.** List every copied input: logs, endpoint responses, token files, logits, benchmark outputs, run scripts, `repro.sh` files, debug traces, screenshots, issue comments, and Slack/chat excerpts.
 3. **Scan for internal identifiers.** Look for endpoint addresses, hostnames, IPs, absolute infrastructure paths, checkpoint paths, tokenizer paths, user-specific locations, usernames, account names, partition names, private prompts, tokens, cookies, job IDs, allocation IDs, ports, internal service names, and raw cluster/debug artifact paths.
-4. **Replace identifiers with placeholders.** Prefer explicit neutral terms such as `<REDACTED_ENDPOINT>`, `<REDACTED_CHECKPOINT_PATH>`, `<REDACTED_INFRA_PATH>`, `<REDACTED_PATH>`, `<TOKENIZER_OR_HF_CHECKPOINT_PATH>`, `<HF_CHECKPOINT_PATH>`, `<XLLM_REPO>`, `<job-id>`, and `<account>`.
+4. **Replace identifiers with placeholders.** Prefer explicit neutral terms such as `<REDACTED_ENDPOINT>`, `<REDACTED_CHECKPOINT_PATH>`, `<REDACTED_INFRA_PATH>`, `<REDACTED_PATH>`, `<TOKENIZER_OR_HF_CHECKPOINT_PATH>`, `<HF_CHECKPOINT_PATH>`, `<AltLLM_REPO>`, `<job-id>`, and `<account>`.
 5. **Preserve operational meaning.** Keep the command category, request shape, model family or public alias, token counts, failure mode, validation result, sequence of steps, and decision logic. Remove only the identifying values.
 6. **Check golden files directly.** Do not assume generated artifacts are safe because the docs are sanitized. Open or scan raw `output.txt`, `tokens.jsonl`, `logits.jsonl`, `request.json`, `response.json`, `server.log`, and `repro.sh` files before committing.
 7. **Run a package-wide scan.** Scan the whole repro/doc/test package or the full PR diff, not just the file changed in the latest commit. Older committed files can still fail hooks or leak stale details.
@@ -91,7 +91,7 @@ rg -n "(/(home|mnt|scratch|data|users)/[^[:space:]]+|https?://[0-9]|[0-9]{1,3}(\
 | Exact endpoint address from a private cluster | `<REDACTED_ENDPOINT>` |
 | Exact infrastructure or debug artifact path | `<REDACTED_INFRA_PATH>` |
 | Exact checkpoint or tokenizer path | `<REDACTED_CHECKPOINT_PATH>` or `<TOKENIZER_OR_HF_CHECKPOINT_PATH>` |
-| Source repository path needed only for local loading | `<XLLM_REPO>` or `<REDACTED_PATH>` |
+| Source repository path needed only for local loading | `<AltLLM_REPO>` or `<REDACTED_PATH>` |
 
 ### Safe Reporting Template
 
@@ -116,4 +116,4 @@ Next step: <sanitized action>
 
 | Project | Context | Details |
 |---------|---------|---------|
-| LLM360/Inference360 | Issue 257 repro package and PR 326 | Sanitized `repro/257` documentation, scripts, golden outputs, and investigation notes before committing; local redaction scans and PR CI passed. |
+| example-org/inference-service | Issue 257 repro package and PR 326 | Sanitized `repro/257` documentation, scripts, golden outputs, and investigation notes before committing; local redaction scans and PR CI passed. |

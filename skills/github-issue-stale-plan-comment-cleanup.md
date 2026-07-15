@@ -15,7 +15,7 @@ tags:
   - gh-cli
   - issue-disposition
   - viewerDidAuthor
-  - inference360
+  - inference_service
 ---
 
 # GitHub Issue Stale Plan Comment Cleanup
@@ -26,7 +26,7 @@ tags:
 |-------|-------|
 | **Date** | 2026-07-09 |
 | **Objective** | Reconcile GitHub issues whose body still matches the current architecture but whose older plan/review/task comments describe stale work, then remove only obsolete authored comments after posting a current canonical disposition. |
-| **Outcome** | Successful against live LLM360/Inference360 issues #83 through #89: #83 and #85-#88 kept architecture-aligned issue bodies but obsolete June plan/review/task comments were removed; #84 was already closed and aligned; #89 was closed as superseded by the current digest-verified Enroot/SquashFS WardenRuntime validation path. |
+| **Outcome** | Successful against live example-org/inference-service issues #83 through #89: #83 and #85-#88 kept architecture-aligned issue bodies but obsolete June plan/review/task comments were removed; #84 was already closed and aligned; #89 was closed as superseded by the current digest-verified Enroot/SquashFS WardenRuntime validation path. |
 | **Verification** | verified-local - live GitHub issue workflow was executed and read back; no CI was involved. |
 
 ## When to Use
@@ -42,7 +42,7 @@ tags:
 ### Quick Reference
 
 ```bash
-REPO=LLM360/Inference360
+REPO=example-org/inference-service
 
 # 1. Read current issue state before changing anything.
 gh issue view 83 --repo "$REPO" \
@@ -73,9 +73,9 @@ gh issue view 83 --repo "$REPO" --json number,title,state,comments \
 
 ### Detailed Steps
 
-1. **Read the repo contract and live issue state first.** In Inference360, the safe order was `AGENTS.md`, `README.md`, `docs/inference360-design.md`, then live `gh issue view` readback for each issue. Treat both the architecture doc and the current GitHub issue state as live inputs; do not modify comments from an old local snapshot.
+1. **Read the repo contract and live issue state first.** In Inference Service, the safe order was `AGENTS.md`, `README.md`, `docs/inference_service-design.md`, then live `gh issue view` readback for each issue. Treat both the architecture doc and the current GitHub issue state as live inputs; do not modify comments from an old local snapshot.
 
-2. **Classify each issue before touching comments.** Decide whether the issue body is still architecture-aligned, already closed and aligned, or superseded by the current architecture. In the verified Inference360 run, #83 and #85-#88 were aligned but had stale June plan/review/task comments; #84 was closed and aligned; #89 was superseded by the digest-verified Enroot/SquashFS WardenRuntime validation path.
+2. **Classify each issue before touching comments.** Decide whether the issue body is still architecture-aligned, already closed and aligned, or superseded by the current architecture. In the verified Inference Service run, #83 and #85-#88 were aligned but had stale June plan/review/task comments; #84 was closed and aligned; #89 was superseded by the digest-verified Enroot/SquashFS WardenRuntime validation path.
 
 3. **Post one canonical current comment before deletion.** If the issue remains open, add a concise architecture-aligned disposition comment first. If the issue should close, post the rationale in the close comment. This preserves an audit trail before removing obsolete planning artifacts.
 
@@ -117,25 +117,25 @@ Keep the comment when any of these are true:
 
 ```bash
 # Readback before and after cleanup.
-gh issue view <n> --repo LLM360/Inference360 \
+gh issue view <n> --repo example-org/inference-service \
   --json number,title,state,url,comments --jq '<simple per-issue jq>'
 
 # Post superseding/current comment.
-gh issue comment <n> --repo LLM360/Inference360 --body-file /tmp/<issue-comment>.md
+gh issue comment <n> --repo example-org/inference-service --body-file /tmp/<issue-comment>.md
 
 # Delete reviewed obsolete comment by numeric issuecomment id.
-gh api -X DELETE repos/LLM360/Inference360/issues/comments/<id>
+gh api -X DELETE repos/example-org/inference-service/issues/comments/<id>
 
 # Close the superseded issue with rationale.
-gh issue close 89 --repo LLM360/Inference360 --comment "<reasoning comment>"
+gh issue close 89 --repo example-org/inference-service --comment "<reasoning comment>"
 ```
 
-### Verified Inference360 Disposition
+### Verified Inference Service Disposition
 
 - #83 and #85-#88: issue bodies were architecture-aligned; obsolete June plan/review/task comments were removed after posting a current architecture-aligned comment.
 - #84: already closed and architecture-aligned; cleanup readback confirmed the remaining comment state.
 - #89: Podman development-image cache plan was superseded by the digest-verified Enroot/SquashFS WardenRuntime validation path; closed with rationale.
-- Verification readback: comment count was 1 for issues #83-#89 after cleanup; #89 state was `CLOSED`; the Inference360 worktree had clean `git status`.
+- Verification readback: comment count was 1 for issues #83-#89 after cleanup; #89 state was `CLOSED`; the Inference Service worktree had clean `git status`.
 
 ### Related Skills
 
@@ -148,4 +148,4 @@ gh issue close 89 --repo LLM360/Inference360 --comment "<reasoning comment>"
 
 | Project | Context | Details |
 |---------|---------|---------|
-| Inference360 | Issues #83-#89 architecture cleanup | Verified-local/live GitHub workflow. Used current AGENTS/README/design-doc context plus live `gh issue view`; posted canonical comments, deleted only obsolete authored plan artifacts, closed #89 as superseded, and confirmed comment counts/state by readback. |
+| Inference Service | Issues #83-#89 architecture cleanup | Verified-local/live GitHub workflow. Used current AGENTS/README/design-doc context plus live `gh issue view`; posted canonical comments, deleted only obsolete authored plan artifacts, closed #89 as superseded, and confirmed comment counts/state by readback. |

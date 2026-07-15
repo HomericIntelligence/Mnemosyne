@@ -425,7 +425,7 @@ GateSkip (with calibration):
 | ArchIdeas | 31 AI architecture ideas (sections 1–5 plus 4.7) | Qwen3.5-27B Hybrid, Qwen3-32B Dense, Qwen3.5-397B-A17B MoE baselines |
 | ArchIdeas | 4 new ideas (N1–N4) added to 31-idea corpus | research_6_1–6_4 produced by parallel Myrmidon swarms |
 | ArchIdeas | 39-idea corpus merge (Phase B) | 195 merged verification files; synthesis docs regenerated |
-| ArchIdeas | 39-idea corpus accuracy fix (Phase C) | In-place surgical fixes; Baseline C (K2 Family / LLM360): L=80, d=8192, d_ff=28672 |
+| ArchIdeas | 39-idea corpus accuracy fix (Phase C) | In-place surgical fixes; Baseline C (K2 Family / ExampleOrg): L=80, d=8192, d_ff=28672 |
 | ArchIdeas | 39-idea corpus verdict removal (Phase D) | All PURSUE/INVESTIGATE/DEPRIORITIZE tokens removed; two-wave (17+22) |
 | ArchIdeas corpus | 34 ideas, 68 files, 5 artifacts — 10-dimension audit | All 10 dimensions graded with file:line evidence; grade raised B→A |
 | ArchIdeas idea 5.1 (TurboQuant) | Per-idea review with 5-agent swarm | Context length mislabel (68.7 GB at 262K labeled "32K"), A1 head_dim error, TPOT overstatement found |

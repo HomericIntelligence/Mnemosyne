@@ -530,5 +530,5 @@ git clone --depth 1 https://github.com/HomericIntelligence/Mnemosyne ~/.agent-br
 
 | Project | Context | Details |
 | --------- | --------- | --------- |
-| Radiance | Local Codex setup using ProjectHephaestus skills | Installed 5 skills, added Codex metadata, patched advise/learn, seeded Mnemosyne, updated AGENTS.md |
+| Metrics Service | Local Codex setup using ProjectHephaestus skills | Installed 5 skills, added Codex metadata, patched advise/learn, seeded Mnemosyne, updated AGENTS.md |
 ```

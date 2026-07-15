@@ -18,7 +18,7 @@ Failed attempts documented:
 4. Run pip-audit with default cache paths in a restricted sandbox — `OSError: [Errno 30] Read-only file system`; redirect caches to `/tmp`.
 5. Broad dependency refresh — increases review risk; use `uv lock --upgrade-package`.
 
-Verified on: Inference360 PR #254 (head `4086627`, 2026-06-19) — `python-sca`, `validate`, `sast`, `secrets`, CodeQL all passed after the targeted `uv.lock` update.
+Verified on: Inference Service PR #254 (head `4086627`, 2026-06-19) — `python-sca`, `validate`, `sast`, `secrets`, CodeQL all passed after the targeted `uv.lock` update.
 
 Vulnerability remediated in the verified case:
 - Package `msgpack` `1.1.2` → `1.2.1`, advisory `GHSA-6v7p-g79w-8964`, transitive via `CacheControl` ← `pip-audit`.

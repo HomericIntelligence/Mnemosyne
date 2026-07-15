@@ -1196,7 +1196,7 @@ tags:
 
 Objective: unblock Liza when completed planning tasks do not hand off to implementation because `PLANNING_COMPLETE` is gated behind the whole planned sprint becoming terminal.
 
-Outcome verified locally: a patched Liza binary created 13 implementation children from previously merged planning outputs in Radiance after `liza sprint-checkpoint` and `liza resume`; `liza validate --json` then passed.
+Outcome verified locally: a patched Liza binary created 13 implementation children from previously merged planning outputs in Metrics Service after `liza sprint-checkpoint` and `liza resume`; `liza validate --json` then passed.
 
 ## When to Use
 
@@ -1291,7 +1291,7 @@ Expected result: implementation children appear for every ready planning output 
 
 ## Results & Parameters
 
-Observed downstream state after applying the fix in Radiance:
+Observed downstream state after applying the fix in Metrics Service:
 
 - Liza binary installed from commit `7649c45`; previous binary saved at `~/.local/bin/liza.backup-before-partial-handoff-fix`.
 - `liza resume` after `liza sprint-checkpoint` created 13 implementation children.
@@ -1310,7 +1310,7 @@ Liza source changes that fixed the behavior:
 | Project | Evidence |
 | --- | --- |
 | `liza-mas/liza` | Fix published as PR `https://github.com/liza-mas/liza/pull/70`; bug tracked as `https://github.com/liza-mas/liza/issues/69` |
-| `LLM360/Radiance` | Patched local binary unblocked stalled planning handoff and created implementation children; `liza validate --json` passed |
+| `example-org/metrics-service` | Patched local binary unblocked stalled planning handoff and created implementation children; `liza validate --json` passed |
 
 ---
 
@@ -1459,4 +1459,4 @@ r'(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}(?:\.\d+)?)(Z|[+-]\d{2}:\d{2})'
 
 | Project | Context | Details |
 | --------- | --------- | --------- |
-| Radiance | Live Liza workspace recovery after direct state edits | Restored a broken `.liza/state.yaml` that had 281 timestamps rewritten into space-separated form |
+| Metrics Service | Live Liza workspace recovery after direct state edits | Restored a broken `.liza/state.yaml` that had 281 timestamps rewritten into space-separated form |
