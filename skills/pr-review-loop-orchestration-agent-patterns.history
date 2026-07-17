@@ -4,6 +4,28 @@
 
 This file preserves the full original content of the skills merged into this canonical.
 
+## v1.6.0 (2026-07-17)
+
+**Changed by:** Session monitoring a restarted automation loop that parked 5/5 pr_review items in
+10 minutes (3x zero-thread NOGO cap, 2x round exhaustion with unresolved 0->0), initially
+hypothesized as a reviewer-model/verdict-parsing failure.
+**Verification:** evidence-refuted hypothesis — PR #2199's `hephaestus-pr-review-zero-thread-nogo`
+anomaly comment carried the reviewer's real summary ("NOGO: resolver design + tests solid, but
+head unchanged (4th round)"), proving by-design #2079 stale-PR triage; reviewer and parsing
+confirmed working.
+
+### What changed
+- Added trigger (15): a 100%-park wave via zero-thread NOGO / unresolved-0->0 is diagnosed from the
+  PR's anomaly artifact comment, not the log shape; "head unchanged (Nth round)" = by-design triage
+  of stale PRs; only a freshly-implemented PR parked this way is a real defect.
+- Bumped 1.5.0 -> 1.6.0.
+
+### Why
+The park-wave log shape (five PRs, identical failure, zero GO anywhere) pattern-matches a systemic
+reviewer contract failure and invites wrong remediations (stopping the loop, switching reviewer
+model). The anomaly artifact each park writes onto the PR contains the reviewer's actual summary
+and settles attribution in one read.
+
 ## v1.5.0 (2026-06-12)
 
 **Changed by:** ProjectHephaestus PR #1245 / issue #1216 address-review session
