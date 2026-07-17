@@ -1,0 +1,48 @@
+{
+  "repository": "HomericIntelligence/Mnemosyne",
+  "target_branch": "main",
+  "activation_authority": "HomericIntelligence/Odysseus#386",
+  "readiness_issue": "HomericIntelligence/Mnemosyne#3115",
+  "required_contexts": [
+    "build",
+    "deps/version-sync",
+    "integration-tests",
+    "lint",
+    "pixi-check",
+    "schema-validation",
+    "security/dependency-scan",
+    "security/secrets-scan",
+    "symlink-check",
+    "test",
+    "unit-tests"
+  ],
+  "required_contexts_by_ruleset": {
+    "homeric-main-baseline": [
+      "build",
+      "deps/version-sync",
+      "integration-tests",
+      "lint",
+      "schema-validation",
+      "security/dependency-scan",
+      "security/secrets-scan",
+      "test",
+      "unit-tests"
+    ],
+    "homeric-main-extras": [
+      "pixi-check",
+      "symlink-check"
+    ]
+  },
+  "merge_queue_rule": {
+    "type": "merge_queue",
+    "parameters": {
+      "check_response_timeout_minutes": 60,
+      "grouping_strategy": "ALLGREEN",
+      "max_entries_to_build": 10,
+      "max_entries_to_merge": 5,
+      "merge_method": "SQUASH",
+      "min_entries_to_merge": 1,
+      "min_entries_to_merge_wait_minutes": 5
+    }
+  }
+}
