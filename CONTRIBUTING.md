@@ -163,6 +163,15 @@ docs: update migration status - 100% complete
    - Category is valid.
 6. Once CI passes and the PR is approved, it will be merged.
 
+### Merge queue readiness
+
+The required-check workflow supports GitHub merge groups, but queue activation
+is a separate Odysseus-owned operation. See
+[`docs/ci/merge-queue.md`](docs/ci/merge-queue.md) for the policy artifact,
+trigger boundaries, and post-merge evidence required by issue #3115. Until that
+evidence is recorded, enabling auto-merge does not prove a pull request entered
+the queue.
+
 ## Validation
 
 All PRs are validated by CI. Run validation locally before submitting:
