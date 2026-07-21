@@ -1,9 +1,9 @@
 ---
 name: python-packaging-pyproject-editable-install
-description: "Use when: (1) migrating a Python project from hardcoded version in pyproject.toml to hatch-vcs dynamic versioning from git tags, (2) a newly-merged [project.scripts] entry yields 'command not found' after git pull because the editable install is stale — re-run 'pixi run dev-install' or 'pip install -e .', (3) a console-script sweep needs to enumerate [project.scripts] in pyproject.toml rather than grep for 'def main' (misses *_main-suffixed callables), (4) migrating from pytest-watch to pytest-watcher to drop the unmaintained docopt transitive dependency, (5) shipping a Python package to PyPI with hatchling/hatch-vcs/pixi.lock and configuring trusted-publishing, (6) code imports a package that loads NON-.py DATA FILES at runtime (Jinja templates, JSON/YAML resources) via importlib.resources / jinja2.PackageLoader and it raises 'could not find a <dir> directory in the <pkg> package' / FileNotFoundError because the data tree is present in the repo but MISSING from the checkout/build the code runs against, (7) a long automation/agent run does a large amount of no-op work because a required runtime resource was absent and nothing failed fast — add a startup preflight, (8) the SAME 'PackageLoader could not find <dir>' / importlib.resources error fires even though the data files ARE on disk and the checkout is on main — a transient race right after an editable-install rebuild (uv sync / pip install -e .) that spawns workers before importlib metadata settles; fix by resolving data via a __file__-relative FileSystemLoader instead of PackageLoader."
+description: "Use when: (1) migrating a Python project from hardcoded version in pyproject.toml to hatch-vcs dynamic versioning from git tags, (2) a newly-merged [project.scripts] entry yields 'command not found' after git pull because the editable install is stale — re-run 'pixi run dev-install' or 'pip install -e .', (3) a console-script sweep needs to enumerate [project.scripts] in pyproject.toml rather than grep for 'def main' (misses *_main-suffixed callables), (4) migrating from pytest-watch to pytest-watcher to drop the unmaintained docopt transitive dependency, (5) shipping a Python package to PyPI with hatchling/hatch-vcs/pixi.lock and configuring trusted-publishing, (6) code imports a package that loads NON-.py DATA FILES at runtime (Jinja templates, JSON/YAML resources) via importlib.resources / jinja2.PackageLoader and it raises 'could not find a <dir> directory in the <pkg> package' / FileNotFoundError because the data tree is present in the repo but MISSING from the checkout/build the code runs against, (7) a long automation/agent run does a large amount of no-op work because a required runtime resource was absent and nothing failed fast — add a startup preflight, (8) the SAME 'PackageLoader could not find <dir>' / importlib.resources error fires even though the data files ARE on disk and the checkout is on main — a transient race right after an editable-install rebuild (uv sync / pip install -e .) that spawns workers before importlib metadata settles; fix by resolving data via a __file__-relative FileSystemLoader instead of PackageLoader, (9) a coordinator-level resource preflight must run before GitHub access or worker construction, preserve template syntax/rendering diagnostics, and prove exact source-to-wheel/sdist asset equality."
 category: tooling
-date: 2026-07-18
-version: "1.2.0"
+date: 2026-07-20
+version: "1.3.0"
 user-invocable: false
 history: python-packaging-pyproject-editable-install.history
 tags:
@@ -35,6 +35,12 @@ tags:
   - rebuild-race
   - filesystemloader
   - file-relative-path
+  - coordinator-preflight
+  - template-not-found
+  - template-syntax-error
+  - wheel-contents
+  - sdist-contents
+  - artifact-parity
 ---
 
 # Python Packaging: pyproject.toml, hatch-vcs, and Editable Installs
@@ -46,7 +52,7 @@ tags:
 | **Date** | 2026-06-07 |
 | **Objective** | One canonical reference for pyproject.toml-centric packaging: hatch-vcs dynamic versioning from git tags, recovering from a stale editable install after a merge adds `[project.scripts]`, enumerating console scripts from `[project.scripts]` (not `grep '^def main'`), replacing the unmaintained `pytest-watch` with `pytest-watcher`, and shipping to PyPI via trusted-publishing with hatchling. |
 | **Outcome** | hatch-vcs generates `<pkg>/_version.py` at install time from `git describe`; `__init__.py` looks up the version by **distribution name**; a stale console-script after `git pull` is fixed by re-running the editable install; the full CLI surface is enumerated from `[project.scripts]`; PyPI publishing uses OIDC trusted-publishing on a `v*` tag push. |
-| **Verification** | verified-ci |
+| **Verification** | verified-ci for the established workflow; the v1.3.0 coordinator-preflight and exact artifact-parity refinement is unverified pending implementation and CI. |
 | **History** | [changelog](./python-packaging-pyproject-editable-install.history) |
 
 ## When to Use
@@ -58,6 +64,9 @@ tags:
 - You are sweeping a change across every console script (add `--json`, refactor shared CLI infra, write a parametrized integration test) and need the full CLI inventory
 - You want to drop the unmaintained `pytest-watch` (pulls in abandoned `docopt`) in favor of `pytest-watcher`
 - You are shipping a Python package to PyPI for the first time with hatchling + hatch-vcs + pixi.lock and want OIDC trusted-publishing (no API token)
+- A long-running command must reject a missing Jinja/resource catalog before opening a GitHub client, constructing workers, or dispatching jobs.
+- A missing-resource remediation must translate `TemplateNotFound`, `OSError`, or the observed `PackageLoader` `ValueError` without hiding `TemplateSyntaxError` or other rendering defects.
+- Wheel and sdist tests need to prove every live source asset ships, without freezing a revision-dependent file count or checking only one representative template.
 
 ## Verified Workflow
 
@@ -92,6 +101,13 @@ tomllib.loads(open('pyproject.toml','rb').read())['project']['scripts'].items())
 git tag v1.0.0 && git push origin v1.0.0   # release.yml + pypa/gh-action-pypi-publish@release/v1
 # pyproject.toml [project].name MUST exactly match the PyPI project name;
 # requires id-token: write + environment: pypi + a pending publisher for NEW projects
+
+# ── Runtime package data: fail fast and prove both artifacts ────────────────
+# Invoke one context-free catalog render as the FIRST operation in the shared
+# coordinator entry point. Then build both artifacts and compare every source
+# asset path with the wheel/sdist member sets; do not freeze the asset count.
+python -m build
+pytest -q tests/integration/test_sdist_contents.py tests/integration/test_wheel_contents.py
 ```
 
 ### Detailed Steps
@@ -291,39 +307,88 @@ A byte-hash render test proves the swap is behavior-preserving (same output);
 add a test asserting the templates resolve by the `__file__` path so nobody
 reintroduces `PackageLoader`.
 
-**Two independent guards for the missing-DATA case — do BOTH:**
+**Two independent guards for the missing-DATA case — do BOTH.** The refinements
+below come from a reviewed implementation plan and remain **unverified pending
+implementation and CI**; they narrow and strengthen the already-verified guard
+strategy without changing the root-cause diagnosis.
 
 1. **Declare the data as package data** so an installed/built artifact can never
    be resource-less. With hatchling, `[tool.hatch.build.targets.wheel]
-   packages = ["<pkg>"]` includes non-`.py` files under the package, but ADD an
-   sdist/wheel content test that asserts the data ships:
+   packages = ["<pkg>"]` includes non-`.py` files under the package, but add
+   wheel **and** sdist content tests that compare the complete, current source
+   set with the complete archive set. A representative-file assertion misses
+   partial omissions; a fixed count becomes stale when templates are added or
+   removed.
 
 ```python
-# tests/integration/test_sdist_contents.py style — fail if templates are dropped
-import tarfile, subprocess, glob
-subprocess.run(["python", "-m", "build", "--sdist", "--no-isolation"], check=True)
-sdist = sorted(glob.glob("dist/*.tar.gz"))[-1]
-names = tarfile.open(sdist).getnames()
-assert any(n.endswith("prompts/templates/default/implementation/implementation.j2")
-           for n in names), "prompt templates missing from sdist"
+from pathlib import Path
+
+ASSET_PREFIX = "mypkg/prompts/templates/default/"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def source_assets() -> set[str]:
+    root = REPO_ROOT / ASSET_PREFIX
+    return {
+        path.relative_to(REPO_ROOT).as_posix()
+        for path in root.rglob("*.j2")
+    }
+
+
+expected = source_assets()
+assert expected, "source runtime-asset catalog is empty"
+
+# Normalize the sdist's distribution-root prefix before comparison. Wheel
+# members are already package-relative; obtain both member sets from one build.
+assert wheel_asset_members == expected
+assert normalized_sdist_asset_members == expected
 ```
 
 2. **Fail fast with a startup preflight** — a long agent/automation run must NOT
-   dispatch work when a required runtime resource is absent. Render one prompt (or
-   probe the resource) BEFORE the first job; abort with a clear remediation:
+   dispatch work when a required runtime resource is absent. Put one
+   context-free render at the single coordinator choke point as the **first
+   operation**, before imports or constructors that create GitHub access,
+   workers, or jobs. Translate only known resource/load failures and keep real
+   template defects distinguishable:
 
 ```python
+from jinja2 import TemplateNotFound
+
+PREFLIGHT_TEMPLATE = "shared/untrusted_notice.j2"
+
+
 def preflight_prompt_catalog() -> None:
     """Abort fast if the prompt templates are missing (packaging regression)."""
     try:
-        from mypkg.prompts.catalog import current
-        current()  # constructs the PackageLoader -> raises here if templates absent
-    except Exception as exc:
+        PromptCatalog.current().render(PREFLIGHT_TEMPLATE)
+    except (OSError, TemplateNotFound, ValueError) as exc:
         raise SystemExit(
-            f"prompt templates unavailable ({exc}); the checkout/install is "
-            f"missing package data - run `uv sync` (or reinstall) and retry"
+            "ERROR: Prompt templates missing or unreadable — "
+            f"reinstall: `uv sync`.\nCause: {exc}"
         ) from exc
+
+
+def run_pipeline(config: PipelineConfig) -> int:
+    preflight_prompt_catalog()  # first operation: no side effects before this
+    ...
 ```
+
+The `ValueError` branch is intentional: it covers the observed
+`PackageLoader could not find a 'templates/default' directory ...` failure.
+Keep the `try` block limited to catalog acquisition and the context-free render;
+do **not** catch `TemplateError` or `Exception`. In particular,
+`TemplateSyntaxError`, `UndefinedError`, and other rendering defects should
+retain their original traceback instead of being mislabeled as missing package
+data.
+
+Regression tests should prove all ordering and classification properties:
+
+- an actually empty default-template directory raises nonzero `SystemExit`,
+  contains the `uv sync` remediation, and chains `TemplateNotFound`;
+- the observed `PackageLoader` `ValueError` receives the same remediation;
+- `TemplateSyntaxError` passes through unchanged;
+- the GitHub accessor, coordinator/worker factory, and job dispatch are never
+  called after a preflight failure.
 
 **Detect it after the fact:** grep the run log for a single repeated
 resource-loader error (`PackageLoader could not find`, `FileNotFoundError`,
@@ -416,6 +481,9 @@ Wheel-only build: add `[tool.hatch.build] targets = ["wheel"]` ABOVE the `[tool.
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 | --------- | --------------- | --------------- | ---------------- |
+| Catch every Jinja or Python exception in the resource preflight | Used `except TemplateError` or `except Exception` to ensure a friendly startup message | Syntax, undefined-variable, and unrelated programming errors were falsely classified as missing package data and lost their real diagnostics | Limit the `try` block to one context-free load/render and catch only `TemplateNotFound`, `OSError`, and the observed `PackageLoader` `ValueError` |
+| Check one representative template or freeze the archive count | Asserted one known `.j2` member existed, or expected the historical count of 55 forever | A partially incomplete artifact still passed, while legitimate catalog revisions changed the count (53 in a later checkout) | Discover the non-empty source set at test time and require exact source-to-wheel and source-to-sdist path equality |
+| Run the resource probe after startup objects exist | Performed the preflight after GitHub access, worker construction, or entry-point-specific setup | Startup could still perform external access or allocate workers before discovering the fatal package defect | Put the probe as the first operation at the shared coordinator choke point and assert all side-effect factories remain uncalled on failure |
 | Kept PackageLoader after templates were confirmed on disk | Verified the checkout was on main with all 55 `.j2` files present, assumed the crash was fixed | The SAME `PackageLoader could not find 'templates/default'` still fired transiently — 12 reviewer jobs in a 5-min burst right after the launch-time `uv sync` rebuild, then never again. PackageLoader consults importlib package metadata, inconsistent for seconds post-rebuild | Resolve packaged data by a `__file__`-relative `FileSystemLoader`, not `PackageLoader`; a byte-hash render test proves it is behavior-preserving (Hephaestus PR #2310) |
 | Ran the loop against an importable-but-resource-less package | Launched `hephaestus-automation-loop` from a checkout whose `prompts` package had `catalog.py` but no committed `templates/*.j2` (only `__pycache__`) | `jinja2.PackageLoader(..., "templates/default")` raised on every prompt render — 172x — so 0 commits/PRs across a 2.25h run; symptoms ("no commits->skip", "poisoned") masked the cause | Declare runtime data as package data + ship-test it; add a startup preflight that renders one prompt and aborts fast; verify the running checkout has the data tree (and is an on-`main` commit) before launching |
 | Use the **import name** with `importlib.metadata.version()` | `__version__ = _pkg_version("hephaestus")` when the distribution is `HomericIntelligence-Hephaestus` | `PackageNotFoundError`: the lookup is a PEP 503 normalized match against installed `*.dist-info`; there is no `hephaestus-*.dist-info`. `__version__` silently becomes `"unknown"` | `importlib.metadata.version()` requires the **distribution name** (literal `[project].name`), not the import package directory name |
@@ -446,6 +514,18 @@ Wheel-only build: add `[tool.hatch.build] targets = ["wheel"]` ABOVE the `[tool.
 | Canonical version source (post-migration) | `git describe --tags --abbrev=0 --match 'v[0-9]*'` | `v0.7.1` → `0.7.1` |
 | `dev-install` (pixi) | Targeted editable reinstall | `pip install -e . --no-deps` |
 | Runtime version string (hatch-vcs) | `<base>.devN+g<sha>` — the SHA moves on re-install | `0.9.3.dev46+g240788441` |
+
+### Runtime-Asset Preflight Contract (v1.3.0 Proposal)
+
+| Contract | Required evidence |
+| -------- | ----------------- |
+| Choke point | One shared coordinator entry protects every queue/pipeline CLI |
+| Ordering | Preflight is the first operation, before GitHub access, worker/coordinator construction, or dispatch |
+| Probe | Render one known context-free template through the production catalog API |
+| Classified failures | `TemplateNotFound`, `OSError`, observed `PackageLoader` `ValueError` become nonzero `SystemExit` with `uv sync` remediation |
+| Preserved failures | `TemplateSyntaxError`, `UndefinedError`, and unrelated exceptions propagate unchanged |
+| Artifact completeness | Non-empty live source set equals wheel members and normalized sdist members exactly |
+| Revision handling | Do not freeze a template count; additions and removals are valid only when both artifacts mirror source |
 
 ### Diff-trigger heuristic (re-run `dev-install` after pull)
 
@@ -493,3 +573,4 @@ Wheel-only build: add `[tool.hatch.build] targets = ["wheel"]` ABOVE the `[tool.
 | ProjectHephaestus | 2026-05-29 — PR #707 (`2407884`) added `hephaestus-ensure-state-labels` to `[project.scripts]` | After `git pull --ff-only`, the new binary was `command not found` despite the module being importable; `pixi run dev-install` regenerated `entry_points.txt`; version moved `0.9.3.dev39+g4f63a5643` → `0.9.3.dev46+g240788441`; `which` then found the binary |
 | ProjectHephaestus | 2026-05-26 — `--json` sweep across 41 console_scripts (PR #603) | `grep '^def main'` found 33; a parametrized `TestCLIJsonFlag` test caught 10 missing CLIs from `*_main`-suffixed callables; final pass reached 41/41 |
 | HomericIntelligence/ProjectScylla | PRs #1905, #1741–1744 | hatchling wheel/sdist build, cross-repo dep publish, PyPI trusted-publishing |
+| ProjectHephaestus | Issue #2283 coordinator-preflight implementation plan, 2026-07-20 | Proposed narrow failure classification, pre-side-effect ordering tests, and exact source-to-wheel/sdist template parity. Unverified until implementation and CI complete. |
