@@ -1,9 +1,9 @@
 ---
 name: automation-review-authorization-ci-boundary
-description: "Keep automation-loop source-review authorization independent of CI/CD. Use when: (1) a strict PR review is mistakenly implemented as a required CI check, (2) an agent loop cannot observe or control the external workflow that is supposed to authorize it, (3) loop approval must survive restart using only loop-owned PR state, (4) a direct `--prs` review run must prove its closing-issue requirements before consuming a reviewer-model job, or (5) a downstream rerun must short-circuit on a merged PR because GitHub clears autoMergeRequest after merge."
+description: "Keep automation-loop source-review authorization independent of CI/CD. Use when: (1) a strict PR review is mistakenly implemented as a required CI check, (2) an agent loop cannot observe or control the external workflow that is supposed to authorize it, (3) loop approval must survive restart using only loop-owned PR state, (4) a direct `--prs` review run must prove its closing-issue requirements before consuming a reviewer-model job, (5) a downstream rerun must short-circuit on a merged PR because GitHub clears autoMergeRequest after merge, or (6) merge_wait treats an externally armed open PR as success or lets pending auto-merge polling run without distinguishing the current run's arm from an external one."
 category: architecture
-date: 2026-07-21
-version: "1.5.0"
+date: 2026-07-24
+version: "1.6.0"
 user-invocable: false
 verification: verified-ci
 history: automation-review-authorization-ci-boundary.history
@@ -16,6 +16,10 @@ tags:
   - restart-safety
   - state-label
   - source-review
+  - merge-wait
+  - external-auto-merge
+  - pending-poll-budget
+  - blocked-open-pr
 ---
 
 # Automation Review Authorization: CI Boundary
@@ -24,10 +28,10 @@ tags:
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-07-20 |
+| **Date** | 2026-07-24 |
 | **Objective** | Keep a code-automation loop's strict source-review decision inside that loop rather than delegating its authorization to CI/CD, and enforce it at the auto-merge boundary. |
-| **Outcome** | ProjectHephaestus moved strict-review proof, workflow triggers, artifacts, leases, and CI-status contracts out of the authorization path. The loop's own CI-free PR review applies `state:implementation-go` after a GO verdict; its review-local payload is then reduced to a fixed non-authorizing context before `merge_wait` can consume the label. PR #2347 showed the complete path: a B/GO review reported its own sandbox verification gap, applied the label, and merged after the repository's independent required checks passed. PR #2357 confirmed the complementary admission behavior: a direct `--prs 2357` run with `reviewer-model=sol` and medium effort produced zero agent jobs because the PR had no standalone `Closes #N` requirement link. |
-| **Verification** | verified-ci — PR #2347's full CI suite and required-checks gate passed before merge; the review decision itself remained source-review-only. |
+| **Outcome** | ProjectHephaestus moved strict-review proof, workflow triggers, artifacts, leases, and CI-status contracts out of the authorization path. The loop's own CI-free PR review applies `state:implementation-go` after a GO verdict; its review-local payload is then reduced to a fixed non-authorizing context before `merge_wait` can consume the label. PR #2347 showed the complete path: a B/GO review reported its own sandbox verification gap, applied the label, and merged after the repository's independent required checks passed. PR #2357 confirmed the complementary admission behavior: a direct `--prs 2357` run with `reviewer-model=sol` and medium effort produced zero agent jobs because the PR had no standalone `Closes #N` requirement link. PR #2418 / issue #2386 closed the merge-wait gap: an externally armed open PR is blocked, while only the current run's own pending arm consumes a bounded poll budget. |
+| **Verification** | verified-ci — PR #2418's non-skipped checks, including `pr-policy`, `auto-merge-policy`, and `required-checks-gate`, passed before merge; the review decision itself remained source-review-only. |
 
 ## When to Use
 
@@ -40,6 +44,7 @@ tags:
 - A process-local strict-review mutex is released at a stage handoff even though the successor has not yet confirmed the live head and armed auto-merge.
 - Review-local head, verdict, or evidence data remains in a work item after the label has been applied, where a later stage could accidentally turn it into a second authorization requirement.
 - A downstream rerun evaluates a PR after merge and must short-circuit on PR state instead of expecting `autoMergeRequest` to still be present; GitHub clears `autoMergeRequest` on merged PRs.
+- `merge_wait` returns success merely because an open PR already has an external auto-merge request, or a pending arm can retry forever without distinguishing the current run's arm from an externally owned one.
 
 ## Verified Workflow
 
@@ -57,6 +62,12 @@ merge-wait is also the authorization boundary of last resort
   2. durably defer any existing auto-merge request and re-read its state
   3. only then terminally fail the orphaned item
   4. retain the strict-review guard until the first successful arm confirmation
+
+merge-wait terminal-state contract
+  1. an externally armed OPEN PR is BLOCKED, not FINISH_PASS; do not mutate it
+  2. a CLOSED or unavailable PR fails before consuming the merge budget
+  3. only pending polls of the current run's own arm consume `merge`
+  4. positive-budget exhaustion returns `merge_wait_exhausted` without changing labels
 
 CI/CD is outside this decision:
   - do not query checks, workflow runs, artifacts, or deployments
@@ -117,6 +128,8 @@ reviewable one.
 
 12. Short-circuit downstream reruns on terminal PR state. If a later workflow or review pass reruns after the PR has merged, fetch PR `state` first and exit 0 when it is not `OPEN`. GitHub clears `autoMergeRequest` on merged PRs, so a null arm is expected and not a blocker.
 
+13. Bound the merge-wait poll contract. Treat an `autoMergeRequest` observed before or outside the current run as operator-owned: return `BLOCKED`, do not arm, retry, consume the `merge` budget, or change labels. For the arm created by this run, increment the `merge` attempt only while the PR remains open and pending; retry until the strictly positive budget is exhausted, then return `FINISH_FAIL` with `merge_wait_exhausted` and leave labels unchanged. Terminal `CLOSED` or unavailable PR state must fail before arm handling and before budget consumption.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -129,6 +142,8 @@ reviewable one.
 | Trust strict review as the only orphan check | An unlinked direct PR with a stale `state:implementation-go` label was routed around strict review and into merge-wait. | The strict-stage check never ran on that path, so merge-wait could otherwise arm auto-merge without requirements context. | Repeat the invariant at the irreversible side-effect boundary: defer, confirm deferral, and fail before merge-wait reads labels or arms. |
 | Release strict guard at the stage transition | The guard was released as soon as strict review routed to merge-wait. | A competing strict reviewer could enter while the first item was between review approval and confirmed arming. | Retain ownership through merge-wait's first successful arm and release on its `POLL` continuation; all finish/park/exception paths remain idempotent releases. |
 | Treat `autoMergeRequest` as a post-merge signal | A rerun checked `autoMergeRequest` after the PR had already merged. | GitHub clears `autoMergeRequest` on merged PRs, so the rerun misread a terminal PR as still pending. | Post-merge consumers must check `state` and short-circuit on non-`OPEN` instead of treating `autoMergeRequest` as durable. |
+| Treat an externally armed open PR as successful merge-wait completion | `merge_wait` returned `FINISH_PASS` for an auto-merge request created before or outside the current run. | The PR remained open, so the loop reported completion without owning or observing the arm; it also made an operator-owned setting look like loop progress. | External arms are `BLOCKED` and untouched. Only a current-run arm may enter bounded pending polling. |
+| Reuse the old drive-green retry budget for merge-wait | The option and route treated the budget as generic per-issue attempts, allowing invalid values and conflating review/implementation retries with merge polls. | A merge-wait poll could be unbounded or consume budget on an external arm; a zero budget could also make the contract meaningless. | Name the budget for current-run pending merge polls, validate it as strictly positive, and consume it only in the own-arm `POLL` state. |
 | Rewrite accepted ADRs to remove obsolete instructions | Historical ADR text was modified in place. | It obscured the decision record and broke the repository's ADR immutability convention. | Preserve accepted ADRs verbatim; add a superseding ADR and make the index point to the active policy. |
 
 ## Results & Parameters
@@ -142,6 +157,7 @@ reviewable one.
 | Direct-PR admission | Before launching reviewer work, require one exact standalone `Closes #N` line and a usable linked requirement. `Addresses #N` is not a substitute; failed admission means zero agent jobs by design. |
 | Defense in depth | `merge_wait.on_enter` rejects `issue=None` before consuming labels or arming; deferral is confirmed by a fresh PR-state read. |
 | Guard lifetime | Strict-review ownership covers the strict-to-merge-wait handoff and first successful arm; it is released only after that arm confirms continuation to polling. |
+| Merge-wait ownership and budget | PR #2418 / issue #2386: an external open arm returns `BLOCKED` with zero mutation and zero `merge` attempts; a current-run pending arm retries only until the positive `merge` budget, then returns `FINISH_FAIL` / `merge_wait_exhausted` without changing labels. |
 | Post-merge terminality | PR #2306 / issue #2177 merged at `2026-07-21T01:53:35Z` with `state=MERGED`; `autoMergeRequest` is `null` and `mergeStateStatus` was `UNKNOWN` after merge. Downstream reruns must key off PR state and treat terminal PRs as complete. |
 | Review evidence boundary | PR #2347's reviewer passed `diff --check`, Ruff, formatting, mypy, and direct probes but could not rerun pytest or artifact builds in its sandbox. It reported a B/GO without overclaiming those tests; source review authorized the label, while the independent required-checks gate completed before merge. |
 | Local validation example | `uv run pytest` over pipeline stage/coordinator and active-documentation/ADR tests: 85 passed; `git diff --check` passed. |
@@ -155,3 +171,4 @@ reviewable one.
 | ProjectHephaestus | PR #2306 / issue #2177 | Docs PR that reached merged state through the normal review-to-merge path: review GO, loop-owned `state:implementation-go`, and merge_wait. Post-merge `gh pr view` showed `state=MERGED` with `autoMergeRequest=null`, confirming reruns must short-circuit on terminal PR state. |
 | ProjectHephaestus | PR #2347 / issue #2283 | The review posted B/GO at `ecba01d9`, explicitly recorded that its sandbox could not rerun pytest or artifact builds, and applied `state:implementation-go` at `2026-07-21T04:35:08Z`. `merge_wait` completed the merge at `2026-07-21T04:44:01Z` as `fde855ad`, after the independent required-checks gate succeeded. |
 | ProjectHephaestus | PR #2357 | A scoped direct-PR run selected Sol at medium reasoning effort, but the deterministic admission gate found no exact `Closes #N` link and completed with `agent jobs: 0`. The independent strict review could still inspect the source, but the in-loop reviewer was correctly not invoked. Verified locally; no CI conclusion follows from this admission result. |
+| ProjectHephaestus | PR #2418 / issue #2386 | The review/merge path reached `state:implementation-go`; one code-quality bot comment was non-blocking, all non-skipped CI checks passed (including `pr-policy`, `auto-merge-policy`, and `required-checks-gate`), and the PR merged at `2026-07-24T15:25:15Z`. The PR's three signed commits and merge-wait regression suite verified the bounded current-run poll behavior in CI. |
