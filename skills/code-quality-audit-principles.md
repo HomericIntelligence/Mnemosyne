@@ -1,9 +1,9 @@
 ---
 name: code-quality-audit-principles
-description: "Use when reviewing, planning, or implementing repository changes that must apply KISS, YAGNI, TDD, DRY, SOLID, modularity, and POLA without creating brittle prose tests or maintenance-only artifacts."
+description: "Use when reviewing, planning, or implementing repository changes that must apply KISS, YAGNI, TDD, DRY, SOLID, modularity, and POLA without creating brittle prose tests or maintenance-only artifacts, including CLI help tests that distinguish public argument grammar from editorial explanation."
 category: tooling
-date: 2026-07-15
-version: "2.0.0"
+date: 2026-07-25
+version: "2.1.0"
 user-invocable: false
 verification: verified-ci
 tags:
@@ -18,6 +18,7 @@ tags:
   - modularity
   - pola
   - behavior-testing
+  - cli-contracts
   - durable-artifacts
 ---
 
@@ -27,7 +28,7 @@ tags:
 
 | Field | Value |
 | ------- | ------- |
-| **Date** | 2026-07-15 |
+| **Date** | 2026-07-25 |
 | **Objective** | Apply seven development principles to both product changes and the review process, while adding only behavior-changing or directly useful repository artifacts. |
 | **Outcome** | Replaced a report-generating audit recipe with an evidence-first decision method. Athena PR #9 implemented the policy, passed 110 tests with 92% branch coverage, passed every required CI check, and merged. |
 | **Verification** | verified-ci |
@@ -44,6 +45,8 @@ Use this guidance when:
   cost more to maintain than the product change;
 - evaluating a test that asserts prose, headings, counts, snapshots, timing, network state, or an
   implementation detail instead of the behavior that failed.
+- reviewing a CLI `--help` regression test that must preserve argument grammar without freezing the
+  surrounding explanatory prose.
 
 Use the repository's `repo-review` or `pr-review` workflow for audit coverage, evidence collection,
 grading, and verdicts. This lesson supplies decision rules; it does not duplicate those review
@@ -115,6 +118,12 @@ For a code or automation defect, the regression test must fail for the reported 
 fix and pass after it. Assert computable outcomes such as return values, state transitions, parsed
 data, exit status, security boundaries, archive membership, schema validity, or filesystem effects.
 
+For CLI help, distinguish public argument grammar from editorial explanation. A stable, copyable
+grammar token that a user must supply, such as `--package NAME=VERSION`, is part of the executable
+interface. Exercise the real command with `--help`, assert a successful exit, and assert that token.
+Do not also pin its rationale or descriptive sentence; rephrasing it does not change the accepted
+input contract.
+
 Do not add tests that freeze:
 
 - documentation sentences, headings, paragraphs, word counts, or snapshots;
@@ -144,6 +153,7 @@ Do not create a separate audit document merely to restate the review.
 | ------- | -------------- | ------------- | -------------- |
 | Mandatory audit artifacts | Required every audit to generate a dated report, inline known-issue comments, many issues, and recurring rating updates | The artifacts had no guaranteed consumer, duplicated live evidence, created maintenance work, and violated KISS and YAGNI | Keep findings in the review or PR unless an existing workflow explicitly requires another durable artifact |
 | Prose-string regression tests | Tested documentation wording, headings, counts, and snapshots to prevent drift | Editorial changes broke tests without changing executable behavior, while the tests still could not prove the product contract | Test computable behavior or a real parser/schema contract; lint prose with existing documentation checks |
+| CLI help test asserted explanatory copy | Checked both a required argument grammar token and its descriptive sentence | An editorial rewording would fail the test even though the accepted CLI input remained unchanged | Assert successful `--help` execution and only the grammar token users must supply |
 | Universal numeric thresholds | Treated file length, function length, nesting, and coverage percentages as correctness grades | Context-free thresholds produced false positives and encouraged metric gaming | Use metrics to locate risk, then require repository-specific impact and evidence |
 | Speculative infrastructure | Added generators, registries, compatibility layers, and abstraction seams for hypothetical consumers | The extra machinery increased coupling and update burden before any requirement existed | Add the simplest current solution and extend only when a real consumer appears |
 | Issue per observation | Filed external work items for every review note | This created noise, fragmented ownership, and expanded scope without authority | Fix in scope, report non-actionable context, and track only explicitly authorized deferrals |
@@ -155,6 +165,7 @@ Do not create a separate audit document merely to restate the review.
 | Proposed change | Default decision | Evidence that can justify it |
 | --------------- | ---------------- | ---------------------------- |
 | Focused behavior test | Add for an executable defect | Demonstrated RED before the fix and GREEN after it |
+| CLI `--help` regression | Assert successful help and copyable argument grammar only | The grammar token is part of the public input contract; explanatory copy is not |
 | Documentation edit | Edit the existing canonical page | Current user or contributor need; existing lint/link checks pass |
 | New documentation test | Reject | Only justified when a real parser consumes structured data; test its schema, not prose |
 | Audit report file | Reject | Existing repository policy names a consumer, owner, location, and update lifecycle |
@@ -172,14 +183,17 @@ Do not create a separate audit document merely to restate the review.
 | Static and distribution gates | Ruff, formatting, strict mypy, plugin validation, packaging, workflow schema, and Markdown lint passed |
 | Required CI | All jobs and the aggregate required-check gate passed on Athena PR #9 head `69e806f` |
 | Delivery | Athena PR #9 merged as `9a03d9f` |
+| CLI help contract clarification | Inference360 PR #463 retained `--package NAME=VERSION`, removed editorial-copy assertion, and passed focused checks plus all required CI on head `6caab24` |
 
 ## Verified On
 
 | Project | Context | Details |
 | ------- | ------- | ------- |
 | Athena | PR #9, merged 2026-07-15 | Review skills and development policy adopted the seven principles, prohibited brittle prose tests and maintenance-only artifacts, and passed the complete local and required CI gates. |
+| Inference360 | PR #463, reviewed 2026-07-25 | The SGLang builder's help contract retained the exact package grammar while its test stopped freezing explanatory wording; focused checks and required CI passed on the reviewed head. |
 
 ## References
 
 - [Athena PR #9](https://github.com/HomericIntelligence/Athena/pull/9)
 - [Athena development policy](https://github.com/HomericIntelligence/Athena/blob/main/docs/policies/development.md)
+- [Inference360 PR #463](https://github.com/LLM360/Inference360/pull/463)
