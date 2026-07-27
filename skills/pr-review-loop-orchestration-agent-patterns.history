@@ -4,6 +4,33 @@
 
 This file preserves the full original content of the skills merged into this canonical.
 
+## v1.7.0 (2026-07-27)
+
+**Changed by:** ProjectHephaestus issue #2496 cross-run review-thread remediation.
+**Verification:** verified-local — targeted transition test plus complete unit suite: 6,515 passed,
+24 skipped, 84.91% coverage. CI pending.
+
+### What changed
+- Added a restart-safe review-thread receipt trigger and detailed workflow.
+- Distinguished a verified prior-loop receipt from a changed, replied-to, malformed, ambiguous, or
+  wont-fix thread.
+- Recorded the failure mode where only external-bot receipts returned to remediation while normal
+  prior-loop receipts terminalized as human handoffs.
+- Bumped 1.6.0 -> 1.7.0.
+
+### Why
+The GitHub adapter already reconstructed canonical prior-loop receipts, but a later reconciliation
+branch applied the remediation transition only to receipts marked external-bot. The resulting
+terminal handoff was retry-invariant despite the validator providing an actionable finding.
+
+### Previous version (v1.6.0) snapshot
+
+The exact v1.6.0 source is preserved by the immutable ProjectMnemosyne parent commit
+`825aefe177e552107bf281ecf8b24921b9f46acb` at
+`skills/pr-review-loop-orchestration-agent-patterns.md`.
+
+---
+
 ## v1.6.0 (2026-07-17)
 
 **Changed by:** Session monitoring a restarted automation loop that parked 5/5 pr_review items in
