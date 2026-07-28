@@ -1,9 +1,9 @@
 ---
 name: automation-review-authorization-ci-boundary
-description: "Keep automation-loop source-review authorization independent of CI/CD, bind it to an exact PR head, and conditionally merge only that reviewed head. Use when: (1) review authorization is mistakenly delegated to CI, (2) a review can race with a changed head or dirty checkout, (3) unresolved review threads block advancement, (4) a label advances implementation or merge state, (5) an external actor may own auto-merge, or (6) a downstream rerun sees a merged PR."
+description: "Keep automation-loop source-review authorization independent of CI/CD, bind it to an exact PR head, and conditionally merge only that reviewed head. Use when: (1) review authorization is mistakenly delegated to CI, (2) a review can race with a changed head or dirty checkout, (3) unresolved review threads block advancement, (4) a label advances implementation or merge state, (5) an external actor may own auto-merge, (6) a downstream rerun sees a merged PR, or (7) a completed run needs a live event-order audit."
 category: architecture
 date: 2026-07-28
-version: "3.0.0"
+version: "3.1.0"
 user-invocable: false
 verification: verified-ci
 history: automation-review-authorization-ci-boundary.history
@@ -21,6 +21,7 @@ tags:
   - auto-merge-ownership
   - fail-closed
   - review-thread-completeness
+  - github-event-audit
 ---
 
 # Automation Review Authorization: CI Boundary
@@ -31,8 +32,8 @@ tags:
 |-------|-------|
 | **Date** | 2026-07-28 |
 | **Objective** | Keep a code-automation loop's strict source-review decision inside that loop rather than delegating its authorization to CI/CD, bind the decision to the exact GitHub head SHA, and prevent the queue from mutating externally owned auto-merge. |
-| **Outcome** | ProjectHephaestus PR #2345 demonstrated the active fail-closed path: the loop retained NOGO while automation-created threads were unresolved, then reviewed the fixed immutable head, transitioned labels exclusively, and conditionally squash-merged exactly that reviewed head without arming native auto-merge. |
-| **Verification** | verified-ci on ProjectHephaestus PR #2345: all 12 review threads were resolved, the final review was bound to head `c6c59048`, required checks passed, and merge commit `7b8dc730` landed that reviewed head. |
+| **Outcome** | ProjectHephaestus PR #2345 demonstrated the active fail-closed path. PR #2506 then supplied a compact happy-path audit: an informational review bound to the PR head, followed by the loop-owned GO label and merge 12 seconds later. |
+| **Verification** | verified-ci on ProjectHephaestus PRs #2345 and #2506. For #2506, required checks completed, the review targeted head `92f790df`, `state:implementation-go` followed five seconds later, and merge commit `784fc58b` landed 12 seconds after the label. |
 
 ## When to Use
 
@@ -49,6 +50,7 @@ tags:
 - A label write would advance the pipeline without fresh proof that the PR is `OPEN` and explicitly unarmed, or an approving/GO label would advance without also proving the reviewed head still matches.
 - The queue sees `autoMergeRequest` populated and is tempted to defer, disable, adopt, or replace it. GitHub does not expose a conditional disable operation that can prove ownership of that request.
 - Repeated review runs encounter unresolved automation-created threads and must distinguish a safe stand-down from authorization to advance.
+- You need to audit a completed automation-loop run from durable GitHub facts without treating review prose or CI results as authorization.
 
 ## Verified Workflow
 
@@ -76,6 +78,32 @@ CI/CD is outside this decision:
   - do not create review-proof workflows or triggers on review/implementation-go
   - do not make an external CI result a prerequisite for loop progress
 ```
+
+### Completed-run event audit
+
+```bash
+REPO=HomericIntelligence/Hephaestus
+PR=2506
+
+# Confirm the review's commit binding and informational record.
+gh api "repos/$REPO/pulls/$PR/reviews" \
+  --jq '.[] | {submitted_at, commit_id, state, body}'
+
+# Confirm the durable authorization and terminal transition order.
+gh api "repos/$REPO/issues/$PR/events" --paginate \
+  --jq '.[] | select(.event == "labeled" or .event == "merged")
+    | {created_at, event, label: (.label.name // null), commit_id}'
+
+gh pr view "$PR" --repo "$REPO" \
+  --json state,mergedAt,mergeCommit,commits \
+  --jq '{state, mergedAt, mergeCommit: .mergeCommit.oid,
+         head: .commits[-1].oid}'
+```
+
+Read the result as three distinct facts: the review record identifies what head was inspected,
+the `state:implementation-go` event is the loop's durable authorization, and the merge event is
+the terminal mutation. Check runs may be inspected separately as repository-health context, but
+their completion time does not replace any of those facts.
 
 ### Direct-PR admission preflight
 
@@ -138,6 +166,12 @@ reviewable one.
 
 13. Short-circuit downstream reruns on terminal PR state. If a later workflow or review pass reruns after the PR has merged, fetch PR `state` first and exit 0 when it is not `OPEN`. GitHub clears `autoMergeRequest` on merged PRs, so a null arm is expected and not a blocker.
 
+14. Audit a completed run from live GitHub events rather than from summary prose alone. Confirm
+    that the review record is bound to the expected head, the loop-owned GO label was applied
+    after that review, and the merge event followed the label. Treat a review grade or `LGTM`
+    comment as informational even when it immediately precedes the label; only the label records
+    the loop decision, and only the merge event proves terminal completion.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -155,6 +189,7 @@ reviewable one.
 | Try to disable a request that looked queue-owned | The design compared a later request's visible fields to an earlier queue arm before disabling it. | GitHub has no conditional disable mutation or persisted client nonce; another actor can replace an indistinguishable request between reads. | Never enable, defer, disable, adopt, create, or poll auto-merge from a shared queue; stand down on every populated request. |
 | Rewrite accepted ADRs to remove obsolete instructions | Historical ADR text was modified in place. | It obscured the decision record and broke the repository's ADR immutability convention. | Preserve accepted ADRs verbatim; add a superseding ADR and make the index point to the active policy. |
 | Re-run review against unchanged unresolved threads | PR #2345 repeatedly re-entered review while seven automation-created threads remained unresolved. | The loop could not prove that automated reply/resolution would preserve human activity, so each run correctly stood down with NOGO and could not advance. | Treat unchanged unresolved-thread state as a fail-closed wait condition; obtain concrete dispositions and resolutions, then run a fresh exact-head review. |
+| Treat an automated review comment as authorization | A completed run's `A`, `LGTM`, or decision-shaped review prose was used as the apparent GO signal. | Review prose is audit evidence and can exist without the fresh live-state guards required for a label transition. | Audit the exact-head review, GO-label event, and merge event separately; the comment never substitutes for the loop-owned label. |
 
 ## Results & Parameters
 
@@ -175,6 +210,7 @@ reviewable one.
 | Review evidence boundary | PR #2347's reviewer passed `diff --check`, Ruff, formatting, mypy, and direct probes but could not rerun pytest or artifact builds in its sandbox. It reported a B/GO without overclaiming those tests; source review authorized the label, while the independent required-checks gate completed before merge. |
 | Local validation example | `uv run pytest` over pipeline stage/coordinator and active-documentation/ADR tests: 85 passed; `git diff --check` passed. |
 | Historical-policy migration | Preserve accepted ADRs; record the new label-only rule in a superseding ADR and its index entry. |
+| Completed-run audit | PR #2506 review targeted head `92f790df` at `17:49:49Z`; `state:implementation-go` was added at `17:49:54Z`; merge commit `784fc58b` followed at `17:50:06Z`. The required-checks gate had already succeeded at `17:45:01Z`, independently of review authorization. |
 
 ## Verified On
 
@@ -186,3 +222,4 @@ reviewable one.
 | ProjectHephaestus | PR #2347 / issue #2283 | The review posted B/GO at `ecba01d9`, explicitly recorded that its sandbox could not rerun pytest or artifact builds, and applied `state:implementation-go` at `2026-07-21T04:35:08Z`. `merge_wait` completed the merge at `2026-07-21T04:44:01Z` as `fde855ad`, after the independent required-checks gate succeeded. |
 | ProjectHephaestus | PR #2357 | A scoped direct-PR run selected Sol at medium reasoning effort, but the deterministic admission gate found no exact `Closes #N` link and completed with `agent jobs: 0`. The independent strict review could still inspect the source, but the in-loop reviewer was correctly not invoked. Verified locally; no CI conclusion follows from this admission result. |
 | ProjectHephaestus | PR #2345 / issue #2233 | Verified-ci thread-completeness and merge path. The loop repeatedly stood down with NOGO while automation-created review threads were unresolved. After the implementation preserved accepted ADR-0005, added superseding ADR-0017, and resolved all 12 threads, the final review bound to head `c6c59048` returned A/GO. GitHub recorded GO-label addition at `16:58:06Z`, NOGO-label removal at `16:58:08Z`, and merge as `7b8dc730` at `16:58:20Z`; all required checks passed and `autoMergeRequest` remained null. |
+| ProjectHephaestus | PR #2506 / issue #2505 | Verified-ci compact happy path. The informational A/LGTM review was bound to head `92f790df`; the loop added `state:implementation-go` five seconds later and merged as `784fc58b` after another 12 seconds. Required checks were independently green before review. |
