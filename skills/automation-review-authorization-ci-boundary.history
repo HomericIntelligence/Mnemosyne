@@ -1,5 +1,33 @@
 # automation-review-authorization-ci-boundary — History
 
+## v3.2.0 (2026-07-28)
+
+**Changed by:** ProjectHephaestus issue #2509 / PR #2510 automation-loop review and merge.
+**Verification:** verified-ci.
+
+### What changed
+
+- Added explicit scope retractions as a blocking pre-publication review condition.
+- Required adopted-PR address sessions to receive linked issue context, the verified current
+  diff, and a complete host-validated path manifest.
+- Added a commit/push guard that compares every declared retraction path to the immutable
+  reviewed base and fails closed on incomplete or unsafe metadata.
+- Recorded PR #2510's exact-head review, GO-label, required-check, and merge evidence.
+
+### Why
+
+PR #2510 showed that review authorization must protect the remediation publication step as
+well as the later GO/merge transition. Natural-language requests to remove unrelated paths are
+not sufficient enforcement: the host must carry a complete safe manifest and prove each path
+matches the reviewed base before any address commit is pushed.
+
+### Previous version (v3.1.0) snapshot
+
+The exact v3.1.0 source is retained in main-branch commit
+[`c3d841b5`](https://github.com/HomericIntelligence/Mnemosyne/blob/c3d841b5/skills/automation-review-authorization-ci-boundary.md).
+
+---
+
 ## v3.1.0 (2026-07-28)
 
 **Changed by:** ProjectHephaestus issue #2505 / PR #2506 automation-loop review and merge.
