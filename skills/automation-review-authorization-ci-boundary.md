@@ -1,11 +1,11 @@
 ---
 name: automation-review-authorization-ci-boundary
-description: "Keep automation-loop source-review authorization independent of CI/CD and bind it to an exact PR head. Use when: (1) a strict PR review is mistakenly implemented as a required CI check, (2) a review can race with a changed PR head or dirty checkout, (3) a label advances implementation or merge state, (4) an external actor may own auto-merge, (5) a direct `--prs` review run must prove its closing-issue requirements before consuming a reviewer-model job, or (6) a downstream rerun sees a merged PR."
+description: "Keep automation-loop source-review authorization independent of CI/CD, bind it to an exact PR head, and conditionally merge only that reviewed head. Use when: (1) review authorization is mistakenly delegated to CI, (2) a review can race with a changed head or dirty checkout, (3) unresolved review threads block advancement, (4) a label advances implementation or merge state, (5) an external actor may own auto-merge, or (6) a downstream rerun sees a merged PR."
 category: architecture
-date: 2026-07-24
-version: "2.0.0"
+date: 2026-07-28
+version: "3.0.0"
 user-invocable: false
-verification: verified-local
+verification: verified-ci
 history: automation-review-authorization-ci-boundary.history
 tags:
   - automation-loop
@@ -20,6 +20,7 @@ tags:
   - checkout-verification
   - auto-merge-ownership
   - fail-closed
+  - review-thread-completeness
 ---
 
 # Automation Review Authorization: CI Boundary
@@ -28,10 +29,10 @@ tags:
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-07-24 |
+| **Date** | 2026-07-28 |
 | **Objective** | Keep a code-automation loop's strict source-review decision inside that loop rather than delegating its authorization to CI/CD, bind the decision to the exact GitHub head SHA, and prevent the queue from mutating externally owned auto-merge. |
-| **Outcome** | The pending ProjectHephaestus #2423 worktree design snapshots stable GitHub metadata and proves the exact head in a clean checkout through a dedicated Git job, which derives the review diff locally from the verified base/head pair. Every label write requires fresh open/unarmed state; approving/GO labels additionally require the matching reviewed head. Queue stages stand down on any populated auto-merge request; the conditional normal merge replacement remains separately tracked in issue #2419. |
-| **Verification** | verified-local for the v2.0.0 head-proof and no-auto-merge interlock: live GitHub schema inspection plus local ProjectHephaestus tests, Ruff, format, and mypy. The #2423 implementation has not yet reached a PR or CI; do not treat this as the behavior of the published `main` branch. Earlier CI-free authorization observations remain historical evidence, not evidence for the new interlock. |
+| **Outcome** | ProjectHephaestus PR #2345 demonstrated the active fail-closed path: the loop retained NOGO while automation-created threads were unresolved, then reviewed the fixed immutable head, transitioned labels exclusively, and conditionally squash-merged exactly that reviewed head without arming native auto-merge. |
+| **Verification** | verified-ci on ProjectHephaestus PR #2345: all 12 review threads were resolved, the final review was bound to head `c6c59048`, required checks passed, and merge commit `7b8dc730` landed that reviewed head. |
 
 ## When to Use
 
@@ -47,16 +48,9 @@ tags:
 - A PR body/diff is fetched while a push may occur, or the reviewer can inspect a dirty/stale checkout rather than the GitHub head it is supposed to approve.
 - A label write would advance the pipeline without fresh proof that the PR is `OPEN` and explicitly unarmed, or an approving/GO label would advance without also proving the reviewed head still matches.
 - The queue sees `autoMergeRequest` populated and is tempted to defer, disable, adopt, or replace it. GitHub does not expose a conditional disable operation that can prove ownership of that request.
+- Repeated review runs encounter unresolved automation-created threads and must distinguish a safe stand-down from authorization to advance.
 
 ## Verified Workflow
-
-> **Availability precondition:** The reviewed-head/no-auto-merge interlock is pending
-> in ProjectHephaestus issue #2423 and is not yet merged or CI-validated. Do not rely
-> on this workflow to describe the current published `main` behavior until that PR
-> lands green; the earlier merge-wait behavior remains active in the meantime. The
-> temporary interlock intentionally cannot merge its own PR, so its normal
-> non-bypass landing path requires explicit operator/process authority before #2419
-> can supersede it with a conditional normal merge.
 
 ### Quick Reference
 
@@ -65,15 +59,17 @@ automation loop owns source-review authorization
   1. snapshot GitHub PR metadata and its head; reject it if the head moves
   2. verify a clean checkout at that exact head in a dedicated Git job, then derive its diff locally from the verified base/head pair
   3. run the strict PR review in the loop (CI-free) against that metadata and derived diff
-  4. before every state-changing label, re-read OPEN + explicit autoMergeRequest:null
-  5. require the exact reviewed head only for an approving/GO label; drift revokes proof and re-reviews
-  6. merge_wait consumes the label and exact-head proof but only stands by; it never mutates auto-merge
+  4. stand down while any relevant review thread remains unresolved; rerun only after thread state or head changes
+  5. before every state-changing label, re-read OPEN + explicit autoMergeRequest:null
+  6. require the exact reviewed head only for an approving/GO label; drift revokes proof and re-reviews
+  7. merge_wait revalidates the proof and conditionally squash-merges only that exact head; it never mutates native auto-merge
 
 merge-wait is also the authorization boundary of last resort
   1. reject an item without required issue/requirements context before consuming a label
   2. route missing or drifted reviewed-head proof back to PR review
   3. stand down without mutation when external auto-merge is present or state is partial
-  4. retain the strict-review guard until the terminal or reviewed-head-safe continuation
+  4. after repository merge requirements pass, use a SHA-conditional normal squash merge
+  5. retain the strict-review guard until the terminal or reviewed-head-safe continuation
 
 CI/CD is outside this decision:
   - do not query checks, workflow runs, artifacts, or deployments
@@ -118,27 +114,29 @@ reviewable one.
 
 3. Report review evidence precisely. A reviewer may issue GO from sufficient source and local evidence even when its sandbox cannot independently rerun every claimed test, but it must name the gap, avoid claiming those tests passed, and grade the evidence accordingly. Do not turn that disclosure into a CI dependency for the loop decision.
 
-4. Record the completed loop decision with one loop-owned state marker such as `state:implementation-go`, but only after a fresh authorization read proves all three conditions: PR state is `OPEN`, the response explicitly includes `autoMergeRequest` with value `null`, and the live head equals the reviewed head. A missing auto-merge field is partial data, not proof that the request is absent. Verify the exclusive label state by a post-write readback.
+4. Require complete review-thread state before approval. If automation-created threads remain unresolved and the loop cannot prove that replying or resolving them preserves human activity, retain NOGO and stand down without arming merge. Repeated runs against the same unresolved state are not progress. Resume with a fresh review only after the threads have concrete dispositions and resolutions or the head changes.
+
+5. Record the completed loop decision with one loop-owned state marker such as `state:implementation-go`, but only after a fresh authorization read proves all three conditions: PR state is `OPEN`, the response explicitly includes `autoMergeRequest` with value `null`, and the live head equals the reviewed head. A missing auto-merge field is partial data, not proof that the request is absent. Verify the exclusive label state by a post-write readback.
 
    Apply the fresh `OPEN`/explicitly-unarmed guard to every state-changing label path, including exhaustion and skip paths, but do **not** require an old reviewed head to write a no-go/recovery result. A head drift revokes approval and routes to review precisely so the system may record that safe negative outcome.
 
-   `merge_wait` may consume the label only with an in-memory reviewed-head proof. On restart, refresh, checkout mismatch, or head drift, clear the proof and route back to PR review. It must not require a workflow artifact, lease, status context, or an external proof document.
+   `merge_wait` may consume the label only with an in-memory reviewed-head proof. On restart, refresh, checkout mismatch, or head drift, clear the proof and route back to PR review. After repository merge requirements pass, conditionally squash-merge only if the live head still equals that proof. It must not require a workflow artifact, lease, status context, or external proof document for review authorization, and it must never arm native auto-merge.
 
-5. Keep the reviewed head proof only in active-run memory and clear it on refresh, restart, failure, checkout mismatch, or head drift. Discard other review-local state after the label's post-write current-head confirmation and before transition to `merge_wait`. Use a fixed allowlist of ordinary issue/implementation context, the cleanup worktree path, and the process-local handoff mutex. A denylist cannot anticipate aliases; a dynamic ingress list can preserve a forged or stale proof after a retry.
+6. Keep the reviewed head proof only in active-run memory and clear it on refresh, restart, failure, checkout mismatch, or head drift. Discard other review-local state after the label's post-write current-head confirmation and before transition to `merge_wait`. Use a fixed allowlist of ordinary issue/implementation context, the cleanup worktree path, and the process-local handoff mutex. A denylist cannot anticipate aliases; a dynamic ingress list can preserve a forged or stale proof after a retry.
 
-6. Enforce the requirements-context invariant at `merge_wait.on_enter`, not only at strict review. An unlinked direct PR may have an externally retained GO label, and a stage-routing regression can otherwise bypass the strict-stage orphan check. Before recovery or label consumption, return a terminal blocked result for the orphaned item. Do not defer, disable, adopt, create, or poll auto-merge as cleanup.
+7. Enforce the requirements-context invariant at `merge_wait.on_enter`, not only at strict review. An unlinked direct PR may have an externally retained GO label, and a stage-routing regression can otherwise bypass the strict-stage orphan check. Before recovery or label consumption, return a terminal blocked result for the orphaned item. Do not defer, disable, adopt, create, or poll auto-merge as cleanup.
 
-7. Treat the strict-review guard as a handoff mutex, not merely a strict-stage mutex. Keep it held after strict review advances to merge-wait. Preserve ownership through fail-back/retry to strict review; release idempotently on terminal finish, shutdown parking, or exception handling. The no-auto-merge interlock has no first-arm continuation; queue work stands by after exact-head verification until a separately reviewed normal conditional merge mechanism is available.
+8. Treat the strict-review guard as a handoff mutex, not merely a strict-stage mutex. Keep it held after strict review advances to merge-wait. Preserve ownership through fail-back/retry to strict review; release idempotently on terminal finish, shutdown parking, or exception handling. The continuation is a SHA-conditional normal squash merge of the reviewed head, never a native auto-merge arm.
 
-8. Keep the boundary mechanically enforceable. Delete CI workflows and automatic tasks that trigger from review or implementation-go solely to produce authorization proof. Remove their references from active documentation, agent directions, prompt contracts, and tests.
+9. Keep the boundary mechanically enforceable. Delete CI workflows and automatic tasks that trigger from review or implementation-go solely to produce authorization proof. Remove their references from active documentation, agent directions, prompt contracts, and tests.
 
-9. Cover direct PR discovery as well as issue-driven discovery. First distinguish a PR with a valid closing requirement from an orphan: only the former may reach strict review. For that valid PR, if the strict stage needs issue/comment context, pass the PR number as its work-item context rather than `None`. Passing `None` converts a valid PR into a terminal strict-review failure. If direct PRs deliberately remain issue-less, they must stop at admission/merge-wait under step 6; never treat a label alone, the `--prs` selector, or reviewer-model configuration as enough to compensate for missing requirements context.
+10. Cover direct PR discovery as well as issue-driven discovery. First distinguish a PR with a valid closing requirement from an orphan: only the former may reach strict review. For that valid PR, if the strict stage needs issue/comment context, pass the PR number as its work-item context rather than `None`. Passing `None` converts a valid PR into a terminal strict-review failure. If direct PRs deliberately remain issue-less, they must stop at admission/merge-wait under step 7; never treat a label alone, the `--prs` selector, or reviewer-model configuration as enough to compensate for missing requirements context.
 
-10. Preserve ADR history. Do not rewrite accepted historical decisions just to erase obsolete policy. Add a new superseding ADR and update the ADR index so active readers find the current contract while audits retain the original record.
+11. Preserve ADR history. Do not rewrite accepted historical decisions just to erase obsolete policy. Add a new superseding ADR and update the ADR index so active readers find the current contract while audits retain the original record.
 
-11. Validate the source-only behavior locally: resolve the PR identity and exact head, inspect the source diff and active contracts, run targeted stage/documentation tests, and run `git diff --check`. Tests must cover (a) a moving head revokes review context, (b) a dirty or mismatched checkout never dispatches review, (c) every advancing label path blocks a populated or partial auto-merge state, (d) absent or drifted reviewed-head proof routes to review, and (e) no queue stage calls an auto-merge mutator. State clearly that this is not CI evidence.
+12. Validate the source-only behavior locally: resolve the PR identity and exact head, inspect the source diff and active contracts, run targeted stage/documentation tests, and run `git diff --check`. Tests must cover (a) a moving head revokes review context, (b) a dirty or mismatched checkout never dispatches review, (c) every advancing label path blocks a populated or partial auto-merge state, (d) absent or drifted reviewed-head proof routes to review, and (e) no queue stage calls an auto-merge mutator. State clearly that this is not CI evidence.
 
-12. Short-circuit downstream reruns on terminal PR state. If a later workflow or review pass reruns after the PR has merged, fetch PR `state` first and exit 0 when it is not `OPEN`. GitHub clears `autoMergeRequest` on merged PRs, so a null arm is expected and not a blocker.
+13. Short-circuit downstream reruns on terminal PR state. If a later workflow or review pass reruns after the PR has merged, fetch PR `state` first and exit 0 when it is not `OPEN`. GitHub clears `autoMergeRequest` on merged PRs, so a null arm is expected and not a blocker.
 
 ## Failed Attempts
 
@@ -156,6 +154,7 @@ reviewable one.
 | Treat a missing `autoMergeRequest` field as null | A partial PR response defaulted absent data to unarmed. | A failed or narrowed fetch became false safety evidence for a label mutation. | Require the field to be present with value `null`; otherwise fail closed. |
 | Try to disable a request that looked queue-owned | The design compared a later request's visible fields to an earlier queue arm before disabling it. | GitHub has no conditional disable mutation or persisted client nonce; another actor can replace an indistinguishable request between reads. | Never enable, defer, disable, adopt, create, or poll auto-merge from a shared queue; stand down on every populated request. |
 | Rewrite accepted ADRs to remove obsolete instructions | Historical ADR text was modified in place. | It obscured the decision record and broke the repository's ADR immutability convention. | Preserve accepted ADRs verbatim; add a superseding ADR and make the index point to the active policy. |
+| Re-run review against unchanged unresolved threads | PR #2345 repeatedly re-entered review while seven automation-created threads remained unresolved. | The loop could not prove that automated reply/resolution would preserve human activity, so each run correctly stood down with NOGO and could not advance. | Treat unchanged unresolved-thread state as a fail-closed wait condition; obtain concrete dispositions and resolutions, then run a fresh exact-head review. |
 
 ## Results & Parameters
 
@@ -167,9 +166,11 @@ reviewable one.
 | Direct-PR correction | Use the PR number as strict-review work-item context rather than `None`. |
 | Direct-PR admission | Before launching reviewer work, require one exact standalone `Closes #N` line and a usable linked requirement. `Addresses #N` is not a substitute; failed admission means zero agent jobs by design. |
 | Label mutation guard | Every mutation needs fresh `OPEN` plus explicitly present `autoMergeRequest: null`; an approving/GO label additionally needs live head equal to `reviewed_head_sha`. A post-write label read verifies exclusivity. |
+| Thread-completeness gate | PR #2345 retained NOGO while review threads were unresolved. After all 12 threads were resolved, a fresh review of head `c6c59048` returned GO; `state:implementation-go` was added, `state:implementation-no-go` was removed, and the PR merged 12 seconds later. |
 | External auto-merge | A populated request is unprovably externally owned. Queue stages stand down and never enable, defer, disable, adopt, create, or poll auto-merge. |
 | Defense in depth | `merge_wait.on_enter` rejects `issue=None` before consuming labels and routes absent/drifted head proof back to PR review. |
-| Guard lifetime | Strict-review ownership covers the strict-to-merge-wait handoff through a terminal or reviewed-head-safe continuation; no auto-merge arm continuation exists. |
+| Guard lifetime | Strict-review ownership covers the strict-to-merge-wait handoff through a terminal or SHA-conditional normal squash merge; no native auto-merge arm continuation exists. |
+| Merge mutation | Revalidate the process-local reviewed-head proof and conditionally squash-merge that exact SHA. Head drift routes back to review; it never inherits authorization from a prior GO label. |
 | Post-merge terminality | PR #2306 / issue #2177 merged at `2026-07-21T01:53:35Z` with `state=MERGED`; `autoMergeRequest` is `null` and `mergeStateStatus` was `UNKNOWN` after merge. Downstream reruns must key off PR state and treat terminal PRs as complete. |
 | Review evidence boundary | PR #2347's reviewer passed `diff --check`, Ruff, formatting, mypy, and direct probes but could not rerun pytest or artifact builds in its sandbox. It reported a B/GO without overclaiming those tests; source review authorized the label, while the independent required-checks gate completed before merge. |
 | Local validation example | `uv run pytest` over pipeline stage/coordinator and active-documentation/ADR tests: 85 passed; `git diff --check` passed. |
@@ -179,8 +180,9 @@ reviewable one.
 
 | Project | Context | Details |
 |---------|---------|---------|
-| ProjectHephaestus | Issue #2423 reviewed-head interlock | Verified locally: GitHub metadata/head is snapshotted and rechecked; a clean-checkout Git job proves the reviewed SHA, fetches the named base, and derives the review diff locally before dispatch. All label paths require fresh open/unarmed state, while GO additionally requires the matching reviewed head; merge-wait stands by. Live schema inspection established that auto-merge disable has no conditional ownership token. CI pending. |
+| ProjectHephaestus | Issue #2423 reviewed-head interlock | Local design evidence established the exact-head review proof and that auto-merge disable has no conditional ownership token. PR #2345 subsequently verified the production continuation: a conditional normal squash merge of the reviewed head. |
 | ProjectHephaestus | PR #2280 / issues #2053 and #2276 | CI-free source review and loop-owned `state:implementation-go` authorization. The direct repository-wide PR route now supplies PR context to strict review. Local swarm review then found that dynamic review-payload preservation could retain an aliased proof or survive a NOGO retry; a fixed allowlist removes those fields only after the label's current-head readback. Local verification only; no CI/CD state was queried. |
 | ProjectHephaestus | PR #2306 / issue #2177 | Docs PR that reached merged state through the normal review-to-merge path: review GO, loop-owned `state:implementation-go`, and merge_wait. Post-merge `gh pr view` showed `state=MERGED` with `autoMergeRequest=null`, confirming reruns must short-circuit on terminal PR state. |
 | ProjectHephaestus | PR #2347 / issue #2283 | The review posted B/GO at `ecba01d9`, explicitly recorded that its sandbox could not rerun pytest or artifact builds, and applied `state:implementation-go` at `2026-07-21T04:35:08Z`. `merge_wait` completed the merge at `2026-07-21T04:44:01Z` as `fde855ad`, after the independent required-checks gate succeeded. |
 | ProjectHephaestus | PR #2357 | A scoped direct-PR run selected Sol at medium reasoning effort, but the deterministic admission gate found no exact `Closes #N` link and completed with `agent jobs: 0`. The independent strict review could still inspect the source, but the in-loop reviewer was correctly not invoked. Verified locally; no CI conclusion follows from this admission result. |
+| ProjectHephaestus | PR #2345 / issue #2233 | Verified-ci thread-completeness and merge path. The loop repeatedly stood down with NOGO while automation-created review threads were unresolved. After the implementation preserved accepted ADR-0005, added superseding ADR-0017, and resolved all 12 threads, the final review bound to head `c6c59048` returned A/GO. GitHub recorded GO-label addition at `16:58:06Z`, NOGO-label removal at `16:58:08Z`, and merge as `7b8dc730` at `16:58:20Z`; all required checks passed and `autoMergeRequest` remained null. |

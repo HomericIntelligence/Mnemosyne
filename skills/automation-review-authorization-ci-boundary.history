@@ -1,5 +1,35 @@
 # automation-review-authorization-ci-boundary — History
 
+## v3.0.0 (2026-07-28)
+
+**Changed by:** ProjectHephaestus issue #2233 / PR #2345 automation-loop review and merge.
+**Verification:** verified-ci.
+
+### What changed
+
+- Added unresolved automation-created review threads as a fail-closed stand-down condition.
+- Recorded that repeated runs against unchanged unresolved thread state are not progress.
+- Captured the successful continuation: all 12 threads resolved, fresh review of exact head
+  `c6c59048` returned GO, labels transitioned exclusively, and the reviewed head merged.
+- Replaced the temporary stand-by-only merge guidance with the active contract:
+  `merge_wait` revalidates the process-local proof and conditionally squash-merges only the
+  exact reviewed head without arming native auto-merge.
+
+### Why
+
+PR #2345 demonstrated the complete thread-aware review-to-merge path. The loop correctly
+retained NOGO while it could not safely resolve automation-created threads. Once every thread
+had a concrete resolution, a fresh exact-head review—not the prior audit prose—authorized the
+GO label. The reviewed head then merged after required checks passed, proving the normal
+conditional merge continuation that supersedes the temporary stand-by-only interlock.
+
+### Previous version (v2.0.0) snapshot
+
+The exact v2.0.0 source is retained in main-branch commit
+[`825aefe`](https://github.com/HomericIntelligence/ProjectMnemosyne/blob/825aefe1/skills/automation-review-authorization-ci-boundary.md).
+
+---
+
 ## v2.0.0 (2026-07-24)
 
 **Changed by:** ProjectHephaestus issues #2419 and #2423 reviewed-head and
