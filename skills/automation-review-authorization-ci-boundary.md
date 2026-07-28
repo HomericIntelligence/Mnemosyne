@@ -1,9 +1,9 @@
 ---
 name: automation-review-authorization-ci-boundary
-description: "Keep automation-loop source-review authorization independent of CI/CD, bind it to an exact PR head, and conditionally merge only that reviewed head. Use when: (1) review authorization is mistakenly delegated to CI, (2) a review can race with a changed head or dirty checkout, (3) unresolved review threads block advancement, (4) a label advances implementation or merge state, (5) an external actor may own auto-merge, (6) a downstream rerun sees a merged PR, or (7) a completed run needs a live event-order audit."
+description: "Keep automation-loop source-review authorization independent of CI/CD, bind it to an exact PR head, and conditionally merge only that reviewed head. Use when: (1) review authorization is mistakenly delegated to CI, (2) a review can race with a changed head or dirty checkout, (3) unresolved review threads block advancement, (4) remediation must retract out-of-scope paths before publication, (5) a label advances implementation or merge state, (6) an external actor may own auto-merge, (7) a downstream rerun sees a merged PR, or (8) a completed run needs a live event-order audit."
 category: architecture
 date: 2026-07-28
-version: "3.1.0"
+version: "3.2.0"
 user-invocable: false
 verification: verified-ci
 history: automation-review-authorization-ci-boundary.history
@@ -22,6 +22,8 @@ tags:
   - fail-closed
   - review-thread-completeness
   - github-event-audit
+  - scope-retraction
+  - pre-publication-guard
 ---
 
 # Automation Review Authorization: CI Boundary
@@ -32,8 +34,8 @@ tags:
 |-------|-------|
 | **Date** | 2026-07-28 |
 | **Objective** | Keep a code-automation loop's strict source-review decision inside that loop rather than delegating its authorization to CI/CD, bind the decision to the exact GitHub head SHA, and prevent the queue from mutating externally owned auto-merge. |
-| **Outcome** | ProjectHephaestus PR #2345 demonstrated the active fail-closed path. PR #2506 then supplied a compact happy-path audit: an informational review bound to the PR head, followed by the loop-owned GO label and merge 12 seconds later. |
-| **Verification** | verified-ci on ProjectHephaestus PRs #2345 and #2506. For #2506, required checks completed, the review targeted head `92f790df`, `state:implementation-go` followed five seconds later, and merge commit `784fc58b` landed 12 seconds after the label. |
+| **Outcome** | ProjectHephaestus PR #2345 demonstrated the active fail-closed path. PR #2506 supplied a compact happy-path audit. PR #2510 added a pre-publication scope-retraction guard so remediation cannot push declared out-of-scope paths before the exact-head GO/merge continuation. |
+| **Verification** | verified-ci on ProjectHephaestus PRs #2345, #2506, and #2510. For #2510, the review targeted head `cacab13e`, `state:implementation-go` followed six seconds later, and merge commit `d5cad541` landed 12 seconds after the label with required checks green. |
 
 ## When to Use
 
@@ -50,6 +52,7 @@ tags:
 - A label write would advance the pipeline without fresh proof that the PR is `OPEN` and explicitly unarmed, or an approving/GO label would advance without also proving the reviewed head still matches.
 - The queue sees `autoMergeRequest` populated and is tempted to defer, disable, adopt, or replace it. GitHub does not expose a conditional disable operation that can prove ownership of that request.
 - Repeated review runs encounter unresolved automation-created threads and must distinguish a safe stand-down from authorization to advance.
+- A review finding says to drop, remove, or split unrelated/out-of-scope files, and the address agent must not publish a partial or malformed retraction.
 - You need to audit a completed automation-loop run from durable GitHub facts without treating review prose or CI results as authorization.
 
 ## Verified Workflow
@@ -62,9 +65,10 @@ automation loop owns source-review authorization
   2. verify a clean checkout at that exact head in a dedicated Git job, then derive its diff locally from the verified base/head pair
   3. run the strict PR review in the loop (CI-free) against that metadata and derived diff
   4. stand down while any relevant review thread remains unresolved; rerun only after thread state or head changes
-  5. before every state-changing label, re-read OPEN + explicit autoMergeRequest:null
-  6. require the exact reviewed head only for an approving/GO label; drift revokes proof and re-reviews
-  7. merge_wait revalidates the proof and conditionally squash-merges only that exact head; it never mutates native auto-merge
+  5. for a scope retraction, require a complete safe path manifest and compare every path to the reviewed base before push
+  6. before every state-changing label, re-read OPEN + explicit autoMergeRequest:null
+  7. require the exact reviewed head only for an approving/GO label; drift revokes proof and re-reviews
+  8. merge_wait revalidates the proof and conditionally squash-merges only that exact head; it never mutates native auto-merge
 
 merge-wait is also the authorization boundary of last resort
   1. reject an item without required issue/requirements context before consuming a label
@@ -144,6 +148,16 @@ reviewable one.
 
 4. Require complete review-thread state before approval. If automation-created threads remain unresolved and the loop cannot prove that replying or resolving them preserves human activity, retain NOGO and stand down without arming merge. Repeated runs against the same unresolved state are not progress. Resume with a fresh review only after the threads have concrete dispositions and resolutions or the head changes.
 
+   Treat an explicit request to drop, remove, or split unrelated/out-of-scope paths as a
+   publication-safety boundary, not advisory prose. Host-normalize it to blocking severity
+   before filtering, require one complete non-empty manifest of safe repository-relative paths,
+   and require the finding's own path to be present in that manifest. Give an adopted-PR address
+   session the linked issue context and the verified current diff, with the manifest in a
+   nonce-fenced data block. Immediately before commit/push, compare every declared path at the
+   post-address `HEAD` with the immutable base captured by the review checkout barrier, using
+   literal Git pathspecs. Missing/malformed metadata, unsafe paths, unavailable base proof, or
+   any remaining diff must stop publication and remain local-only.
+
 5. Record the completed loop decision with one loop-owned state marker such as `state:implementation-go`, but only after a fresh authorization read proves all three conditions: PR state is `OPEN`, the response explicitly includes `autoMergeRequest` with value `null`, and the live head equals the reviewed head. A missing auto-merge field is partial data, not proof that the request is absent. Verify the exclusive label state by a post-write readback.
 
    Apply the fresh `OPEN`/explicitly-unarmed guard to every state-changing label path, including exhaustion and skip paths, but do **not** require an old reviewed head to write a no-go/recovery result. A head drift revokes approval and routes to review precisely so the system may record that safe negative outcome.
@@ -190,6 +204,7 @@ reviewable one.
 | Rewrite accepted ADRs to remove obsolete instructions | Historical ADR text was modified in place. | It obscured the decision record and broke the repository's ADR immutability convention. | Preserve accepted ADRs verbatim; add a superseding ADR and make the index point to the active policy. |
 | Re-run review against unchanged unresolved threads | PR #2345 repeatedly re-entered review while seven automation-created threads remained unresolved. | The loop could not prove that automated reply/resolution would preserve human activity, so each run correctly stood down with NOGO and could not advance. | Treat unchanged unresolved-thread state as a fail-closed wait condition; obtain concrete dispositions and resolutions, then run a fresh exact-head review. |
 | Treat an automated review comment as authorization | A completed run's `A`, `LGTM`, or decision-shaped review prose was used as the apparent GO signal. | Review prose is audit evidence and can exist without the fresh live-state guards required for a label transition. | Audit the exact-head review, GO-label event, and merge event separately; the comment never substitutes for the loop-owned label. |
+| Let an address agent interpret “drop unrelated files” without a host-enforced manifest | Scope-control prose was passed to remediation like an ordinary finding. | The agent could omit a path, retain an out-of-scope change, or publish from stale task context while still self-reporting success. | Normalize scope retractions to blocking, carry a complete validated path manifest plus linked issue/current diff, and compare every path to the reviewed base before push. |
 
 ## Results & Parameters
 
@@ -208,6 +223,7 @@ reviewable one.
 | Merge mutation | Revalidate the process-local reviewed-head proof and conditionally squash-merge that exact SHA. Head drift routes back to review; it never inherits authorization from a prior GO label. |
 | Post-merge terminality | PR #2306 / issue #2177 merged at `2026-07-21T01:53:35Z` with `state=MERGED`; `autoMergeRequest` is `null` and `mergeStateStatus` was `UNKNOWN` after merge. Downstream reruns must key off PR state and treat terminal PRs as complete. |
 | Review evidence boundary | PR #2347's reviewer passed `diff --check`, Ruff, formatting, mypy, and direct probes but could not rerun pytest or artifact builds in its sandbox. It reported a B/GO without overclaiming those tests; source review authorized the label, while the independent required-checks gate completed before merge. |
+| Scope-retraction publication gate | Explicit remove/drop/split plus unrelated/out-of-scope wording requires a complete safe path manifest. The host normalizes the finding to blocking, fences the manifest as data, and refuses commit/push unless every declared path matches the reviewed base. |
 | Local validation example | `uv run pytest` over pipeline stage/coordinator and active-documentation/ADR tests: 85 passed; `git diff --check` passed. |
 | Historical-policy migration | Preserve accepted ADRs; record the new label-only rule in a superseding ADR and its index entry. |
 | Completed-run audit | PR #2506 review targeted head `92f790df` at `17:49:49Z`; `state:implementation-go` was added at `17:49:54Z`; merge commit `784fc58b` followed at `17:50:06Z`. The required-checks gate had already succeeded at `17:45:01Z`, independently of review authorization. |
@@ -223,3 +239,4 @@ reviewable one.
 | ProjectHephaestus | PR #2357 | A scoped direct-PR run selected Sol at medium reasoning effort, but the deterministic admission gate found no exact `Closes #N` link and completed with `agent jobs: 0`. The independent strict review could still inspect the source, but the in-loop reviewer was correctly not invoked. Verified locally; no CI conclusion follows from this admission result. |
 | ProjectHephaestus | PR #2345 / issue #2233 | Verified-ci thread-completeness and merge path. The loop repeatedly stood down with NOGO while automation-created review threads were unresolved. After the implementation preserved accepted ADR-0005, added superseding ADR-0017, and resolved all 12 threads, the final review bound to head `c6c59048` returned A/GO. GitHub recorded GO-label addition at `16:58:06Z`, NOGO-label removal at `16:58:08Z`, and merge as `7b8dc730` at `16:58:20Z`; all required checks passed and `autoMergeRequest` remained null. |
 | ProjectHephaestus | PR #2506 / issue #2505 | Verified-ci compact happy path. The informational A/LGTM review was bound to head `92f790df`; the loop added `state:implementation-go` five seconds later and merged as `784fc58b` after another 12 seconds. Required checks were independently green before review. |
+| ProjectHephaestus | PR #2510 / issue #2509 | Verified-ci scope-retraction path. Adopted-PR address sessions now receive linked issue context and the verified current diff; explicit scope-control findings require a host-validated complete path manifest and a pre-push comparison to the reviewed base. The informational B review targeted `cacab13e`; GO was labeled at `21:00:10Z`, and `d5cad541` merged that head 12 seconds later with required checks green. |
