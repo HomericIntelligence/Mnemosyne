@@ -1,9 +1,9 @@
 ---
 name: github-auto-merge-ci-gating-merge-method
-description: "Use when: (1) a PR has mergeStateStatus CLEAN or MERGEABLE but auto-merge never fires despite all checks passing, (2) gh pr merge --auto --rebase or --squash returns an error or silently fails on a squash-only repo, (3) a PR is BLOCKED because required CI status contexts never post (workflow never triggered, paths filter excluded PR, required check name mismatch), (4) GPG-signing failures or mismatched committer emails cause commits to be unsigned and block the pr-policy gate, (5) branch protection rulesets and classic branch protection disagree and their union blocks merge, (6) a CI ruleset chicken-and-egg deadlock blocks a PR that introduces a new workflow, (7) an advisory check should not block merge but currently does because it lives in the required gate, (8) deciding which merge method a sole-owner workflow supports before arming auto-merge, (9) auditing required-check names after adding or removing CI jobs, (10) state:implementation-go label or pr-policy gates auto-merge arming, (11) per-issue arming-state machine is triggered on the wrong event (optimistic point vs detected merge), (12) mergeStateStatus=BLOCKED with all CI green and auto-merge armed - unresolved review threads are the PRIMARY blocker to check FIRST before assuming CI failure, (13) stale failed status-rollup entries must be distinguished from current-head required checks before deciding a PR is blocked or complete, (14) you applied state:implementation-go with `gh issue edit` and the auto-merge-policy gate stays FAILURE - the label must be on the PR (`gh pr edit`) not the issue, (15) required-checks-gate shows FAILURE alongside a later SUCCESS of the same check - the newer run is current, the FAILURE is stale, (16) your isolated-clean PR's lint job fails because CI runs pre-commit on the merge-result (pull/N/merge) and main drifted since you branched (e.g. ruff-format), (17) hephaestus-review-prs first run truncates at worktree-setup and posts zero threads - an empty thread list is NOT a clean pass unless the log reached 'Analysis complete for PR #N', (18) a sub-agent's disk-direct file writes leaked into the MAIN checkout, breaking editable-installed console scripts with ModuleNotFoundError for all later runs, (19) a repository-owned merge queue receives HTTP 405 from the REST merge API and may enqueue via its documented native path, or (20) a shared queue must coexist with an externally owned auto-merge request without adopting, disabling, or replacing it"
+description: "Use when: (1) a PR has mergeStateStatus CLEAN or MERGEABLE but auto-merge never fires despite all checks passing, (2) gh pr merge --auto --rebase or --squash returns an error or silently fails on a squash-only repo, (3) a PR is BLOCKED because required CI status contexts never post (workflow never triggered, paths filter excluded PR, required check name mismatch), (4) GPG-signing failures or mismatched committer emails cause commits to be unsigned and block the pr-policy gate, (5) branch protection rulesets and classic branch protection disagree and their union blocks merge, (6) a CI ruleset chicken-and-egg deadlock blocks a PR that introduces a new workflow, (7) an advisory check should not block merge but currently does because it lives in the required gate, (8) deciding which merge method a sole-owner workflow supports before arming auto-merge, (9) auditing required-check names after adding or removing CI jobs, (10) state:implementation-go label or pr-policy gates auto-merge arming, (11) per-issue arming-state machine is triggered on the wrong event (optimistic point vs detected merge), (12) mergeStateStatus=BLOCKED with all CI green and auto-merge armed - unresolved review threads are the PRIMARY blocker to check FIRST before assuming CI failure, (13) stale failed status-rollup entries must be distinguished from current-head required checks before deciding a PR is blocked or complete, (14) you applied state:implementation-go with `gh issue edit` and the auto-merge-policy gate stays FAILURE - the label must be on the PR (`gh pr edit`) not the issue, (15) required-checks-gate shows FAILURE alongside a later SUCCESS of the same check - the newer run is current, the FAILURE is stale, (16) your isolated-clean PR's lint job fails because CI runs pre-commit on the merge-result (pull/N/merge) and main drifted since you branched (e.g. ruff-format), (17) hephaestus-review-prs first run truncates at worktree-setup and posts zero threads - an empty thread list is NOT a clean pass unless the log reached 'Analysis complete for PR #N', (18) a sub-agent's disk-direct file writes leaked into the MAIN checkout, breaking editable-installed console scripts with ModuleNotFoundError for all later runs, (19) a repository-owned merge queue receives HTTP 405 from the REST merge API and may enqueue via its documented native path, (20) a shared queue must coexist with an externally owned auto-merge request without adopting, disabling, or replacing it, or (21) a directly user-authorized PR review receives an exact GO and must decide whether native auto-merge or a merge-queue admission can proceed without treating the verdict as merge authority"
 category: ci-cd
-date: 2026-07-24
-version: "1.8.0"
+date: 2026-07-30
+version: "1.9.0"
 user-invocable: false
 history: github-auto-merge-ci-gating-merge-method.history
 tags:
@@ -37,6 +37,11 @@ tags:
   - ruff-format-drift
   - hephaestus-review-prs
   - sub-agent-disk-direct-leak
+  - direct-review-handoff
+  - review-go
+  - explicit-auto-merge-opt-in
+  - reviewed-head-integrity
+  - queue-admission
 ---
 
 # GitHub Auto-Merge: CI Gating, Branch Protection, and Merge Method
@@ -45,6 +50,7 @@ tags:
 
 | Date | Objective | Outcome |
 | ------ | ----------- | --------- |
+| 2026-07-30 | Define the boundary between a directly user-authorized PR-review GO and merge-state authority, including protected review threads and merge queues. | verified-local: Athena PR #60 implementation at `160a028ce87f590d7a18df7c049e69be26ac27dc`; full `just all` passed (218 tests, 93 subtests). Remote PR checks were not yet a completion signal at capture. |
 | 2026-07-21 | Historical repository-owned merge-queue guidance: direct REST merge returned HTTP 405 and the native queue enqueue path succeeded. | verified-ci: ProjectHephaestus then used `hephaestus-merge-prs` fallback to queue enqueue; this does not apply to the current reviewed-SHA shared queue. |
 | 2026-07-24 | Make an automation queue fail closed when it discovers an external auto-merge request. GitHub exposes `expectedHeadOid` to enable auto-merge but exposes no conditional disable mutation and does not persist an attributable client nonce. | verified-local: live schema inspection and local ProjectHephaestus tests. The conditional direct-merge replacement is pending CI in issue #2419; do not treat this row as an authorization to arm, adopt, or disable an existing request. |
 | 2026-06-07 | Consolidated canonical for why GitHub auto-merge does not fire and how to arm it correctly: wrong merge method, missing/required CI status contexts, two-layer branch protection, GPG-signing blockers, ruleset bootstrap deadlock, the `state:implementation-go` arming-state machine, and advisory-vs-required gate split | Each failure mode has a verified diagnosis + fix; verified across many HomericIntelligence repos in live CI |
@@ -57,6 +63,8 @@ tags:
 GitHub auto-merge is **stricter than branch protection** and fires only when EVERY check (required and non-required) reaches a clean terminal state, the chosen merge method is allowed, every required status context has actually posted, all commits are verified-signed, and BOTH protection layers (ruleset + classic) are satisfied. A PR that looks ready (`mergeStateStatus: CLEAN`/`MERGEABLE`) can sit forever when any one of those is silently unmet. This skill covers the merge-blocking mechanics; it does NOT cover general CI failure diagnosis, rebase-conflict resolution, review-loop orchestration, or PR enumeration.
 
 > **Queue ownership boundary (ProjectHephaestus, pending issue #2419):** a queue must not enable, defer, disable, adopt, or poll GitHub auto-merge. A later readback cannot safely prove that the request it sees is the request it created: `enablePullRequestAutoMerge` has an expected-head precondition, but `disablePullRequestAutoMerge` has no matching conditional ownership field and `AutoMergeRequest` does not expose a persistent client nonce. If an unarmed proof is required for a label transition, require a fresh explicit `autoMergeRequest: null`; otherwise stand down without mutation. The replacement merge action must be a normal conditional REST merge pinned to the reviewed SHA, not an auto-merge mutation. This newer queue rule overrides the historical arming examples below for that pipeline.
+
+> **Direct-review handoff boundary:** a GO review is evidence, not merge-state authority. It may request a native merge action only through a separately explicit user opt-in and a final rebind to the exact reviewed PR and head. This has a different actor and authority model from the shared automation queue above; it never loosens that queue's no-mutation interlock.
 
 > **Availability precondition:** the interlock itself is pending ProjectHephaestus
 > issue #2423 and has not reached a PR or CI. Until it lands green, use this section
@@ -92,6 +100,7 @@ as published-main behavior until those changes land green.
 - After a sub-agent that did "disk-direct" file writes (bypassing Read/Edit), the editable-installed console scripts break with `ModuleNotFoundError` — the sub-agent leaked worktree-only files into the MAIN checkout; `git -C <main-repo> status` and restore the leaked tracked files.
 - `hephaestus-merge-prs` hits HTTP 405 `Pull Request is in the merge queue` from the direct REST merge API and should enqueue instead of retrying the merge call.
 - Your automation sees `autoMergeRequest` already populated and needs to decide whether it may disable, defer, or replace it. It may not: treat the request as externally owned and stop queue mutations. Use a conditional merge by reviewed SHA only after a separately reviewed design has implemented it.
+- A directly user-authorized PR reviewer reaches an exact GO and needs to decide whether it may request native auto-merge or queue admission without turning the verdict itself into authority, widening scope, or racing a changed head.
 
 ## Verified Workflow
 
@@ -239,6 +248,45 @@ For a queue that must preserve external ownership:
 This is not a reason to bypass branch protection, use an administrator merge, or
 force-push. It narrows an automation queue to the authority GitHub can actually
 enforce.
+
+#### Direct reviewer handoff: explicit GO is necessary but insufficient
+
+This rule applies only when an interactive reviewer acts under a direct user request
+to enable auto-merge on GO. It is not a retry policy for a shared automation queue,
+and a review verdict never transfers merge authority to another actor.
+
+Before a merge-state mutation, the reviewer must:
+
+1. Require a separate, explicit opt-in for the merge action. `GO`, report-only mode,
+   CI-free mode, prevalidated mode, GitLab, `CONDITIONAL GO`, and `NO-GO` are all
+   non-authorizing outcomes.
+2. Establish an exact GO under the review contract: architecture alignment is
+   evidenced first; there are no required findings; and all applicable source,
+   scope, linked-requirement, language-practice, and validation evidence is complete
+   and clean at the reviewed head. A `GO` with an omitted applicable section is not
+   an exact GO.
+3. Rebind immediately before the mutation to the intended repository and PR node,
+   base and head identifiers, open/non-draft/non-conflicted state, reviewed scope and
+   requirements digest, policy gates, and independent reviewer/author identity. Any
+   mismatch, head drift, or incomplete read is a fail-closed re-review result.
+4. Account for the effect of review publication before deciding GO. If an intended
+   inline finding would create an unresolved thread under required-conversation
+   policy, the outcome is `CONDITIONAL GO` and no merge action is attempted. Never
+   publish a new blocker after declaring GO and arming merge.
+5. Use only the host-native, head-bound route. For ordinary GitHub auto-merge, bind
+   the mutation to the exact expected head and an allowed merge method; never replace
+   it with a direct merge, guessed CLI flags, an administrator bypass, or an
+   unconditional fallback. Verify the resulting state still names the same PR, head,
+   and method. An indeterminate or failed request is not retried against a newer head.
+6. Treat a required merge queue as a distinct route, not as ordinary auto-merge.
+   Admit only through a documented native path that binds the PR identity and reviewed
+   head and returns a verifiable queue entry. If that path is unavailable, ambiguous,
+   or cannot preserve reviewed-head integrity, withhold the action. Do not use this
+   direct-review exception to change the shared-queue ownership rule above.
+
+The durable outcome is one of `enabled`, `queue-enqueued`, `withheld`, or
+`not-eligible`, tied to the reviewed head—not a generic claim that a GO "merged" a
+PR. Branch protection and the platform remain the final merge authority.
 
 #### Required-check name management
 
@@ -640,6 +688,9 @@ Walk this in order; each step maps to one of the five gotchas above plus the pre
 | Ran `--auto --squash` right after create on a #899 repo | Old habit | `pr-policy` Check 2 fails `Auto-merge is enabled before implementation review GO` | This label/arm alignment is historical exclusive-owner behavior. The current shared queue never enables or disables auto-merge. |
 | Enabled auto-merge before the implementation GO label | `gh pr merge --auto --squash` before `state:implementation-go` existed on the PR | The auto-merge-policy/pr-policy gate saw auto-merge armed before review approval state and failed the earlier Required Checks run | The current shared queue does not use the historical arm order; it only writes labels under the reviewed-head guard and stands down on any populated request. |
 | Tried to attribute auto-merge ownership from a later `autoMergeRequest` readback | Planned to disable the request only if its enabled-at time, method, and user still matched the queue's earlier arm | Another actor can replace the request with the same observable identity; GitHub has no conditional disable mutation or persisted client nonce to close the final TOCTOU gap | Do not arm, adopt, defer, disable, or poll auto-merge from a shared queue. Treat every populated request as external and use a separately reviewed conditional merge by SHA instead. |
+| Let a review GO implicitly authorize auto-merge | Treated a positive review verdict as sufficient to mutate merge state | A verdict records review evidence; it does not prove an operator requested the action or that the PR/head is still the reviewed target | Require separately explicit opt-in and a final identity/head/policy rebind; otherwise report the GO without mutating merge state. |
+| Publish an optional inline finding after deciding GO on a protected PR | Sent the review and then attempted to arm merge | The new unresolved thread itself blocks a repository requiring conversation resolution, making the claimed GO internally inconsistent | Determine publication effects first; downgrade to `CONDITIONAL GO` and withhold the action whenever a proposed inline comment would create a required blocker. |
+| Use an ordinary auto-merge mutation as merge-queue admission | Fell back to an available auto-merge call after a protected queue rejected direct merge | A queue is a separate platform workflow; the fallback can lose the reviewed-head guarantee or conflict with queue ownership | Use only a documented native, head-bound admission that returns a verifiable queue entry; otherwise fail closed. |
 | Treated stale failed Required Checks rollup entries as current blockers | Read a failed Required Checks entry from before the GO label as if it described the current HEAD | A later Required Checks run passed after the label and did not block the merge | Check current-head `gh pr checks --watch` and the later Required Checks run before deciding the PR is blocked |
 | Claimed completion before the Test matrix reached a terminal state | Saw auto-merge armed and policy prerequisites in place, then stopped watching | Auto-merge only merges after the active required checks finish; queued or in-progress matrix jobs can still fail | Keep `gh pr checks --watch --interval 30` running until the current-head Test matrix is terminal, then confirm `state=MERGED` / `mergedAt` |
 | Added `{"type":"required_conversation_resolution"}` to a ruleset | PUT it into `rules[]` | `HTTP 422: data matches no possible input` — it is classic-only | Keep convo-resolution in classic; `required_linear_history`/`non_fast_forward` ARE valid ruleset types |
@@ -675,6 +726,17 @@ Walk this in order; each step maps to one of the five gotchas above plus the pre
 > explicit no-mutation interlock instead.
 
 ## Results & Parameters
+
+### Direct-review GO handoff
+
+| Parameter | Required condition | Safe outcome when unmet |
+| --------- | ------------------ | ----------------------- |
+| Merge authority | A separate direct user opt-in accompanies an exact `GO`; the verdict alone is not authority. | `not-eligible` or `withheld`; retain the review report without mutating merge state. |
+| Review proof | Architecture alignment, zero required findings, and all applicable review evidence are complete at the reviewed head. | `CONDITIONAL GO`/`NO-GO`; return to review or remediation. |
+| Final binding | Target PR/repository, head/base, state, scope/requirements digest, gates, and reviewer identity re-read immediately before mutation. | `withheld`; head drift or partial data requires re-review. |
+| Review publication | No intended inline comment would violate required-conversation resolution. | `CONDITIONAL GO`; do not arm merge after creating a blocker. |
+| Native action | Ordinary auto-merge has an exact-head precondition and allowed method, or the queue has a documented head-bound admission with verifiable receipt. | `withheld`; never direct-merge, guess flags, bypass, or retry against a new head. |
+| Recorded result | `enabled`, `queue-enqueued`, `withheld`, or `not-eligible`, bound to the reviewed head. | Do not report a generic "merged" result; platform protections decide the eventual merge. |
 
 ### Historical sole-owner auto-merge non-firing decision tree
 
@@ -878,3 +940,4 @@ later successful required run plus `state=MERGED`, `mergedAt`, and `mergeCommit`
 | ProjectHephaestus | 2026-06-14: PR #1282 (`1315-harden-ci-required-gate`) BLOCKED with all CI green and auto-merge armed; stated "lint failure" was stale; root cause was 2 unresolved review threads; resolved via `resolveReviewThread` GraphQL mutation | **verified-ci**: PR merged at 2026-06-15T03:05:38Z by `app/github-actions` auto-merge within seconds of thread resolution; `mergeStateStatus` transitioned BLOCKED → UNKNOWN → MERGED |
 | ProjectHephaestus | 2026-06-26: PR #1646 for issue #1645 completed with literal `Closes #1645`, signed DCO commit, `state:implementation-go`, `gh pr merge --auto --squash`, and current-head Test/Required Checks verification | **verified-ci**: PR merged after Test workflow run 28256151963 and Required Checks run 28256238895 succeeded; an earlier pre-label Required Checks failure was stale and did not block the merge |
 | ProjectHephaestus | 2026-07-06: manually drove 6 PRs to auto-merge in epic #1809; hit all five "armed but not merging" gotchas — `state:implementation-go` mislabeled on the issue (gate stayed FAILURE until re-applied to the PR via `gh pr edit`), a stale `required-checks-gate: FAILURE` shadowed by a newer SUCCESS, a `lint` failure from main's ruff-format drift surfacing on the `pull/N/merge` result, a truncated `hephaestus-review-prs` first run posting zero threads, and a sub-agent disk-direct write leaking a worktree-only module into the main checkout | **verified-ci**: all six PRs merged after applying the PR label, absorbing the merge-result drift, waiting out the stale gate re-run, and restoring the leaked main-tree files |
+| Athena | 2026-07-30: PR #60 made its direct `pr-review` auto-merge option require an exact GO, architecture-first evidence, final target/head revalidation, policy-aware inline review publication, and a separate reviewed-head queue-admission route | **verified-local**: implementation `160a028ce87f590d7a18df7c049e69be26ac27dc`; full `just all` passed (218 tests, 93 subtests). Remote PR checks were not treated as a completion signal at capture. |
