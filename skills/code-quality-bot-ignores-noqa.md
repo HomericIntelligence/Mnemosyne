@@ -1,25 +1,25 @@
 ---
 name: code-quality-bot-ignores-noqa
-description: "GitHub's `github-code-quality[bot]` static analyzer posts diff-scoped findings that its own AST engine cannot reconcile with runtime dynamics — it flags `# noqa: F401` re-exports as 'unused imports', PEP 562 lazy `__all__` names as 'exported but not defined', and PEP 544 Protocol `...` bodies as 'statement has no effect'. Under org rulesets with `required_review_thread_resolution` these unresolved threads block merge. TRIAGE each finding: confirmed false positives are resolved via `gh api graphql resolveReviewThread` with one explanatory comment (no code change); genuine findings (an `__all__` name with no lazy backing, a real dead store) must be FIXED in code. Use when: (1) bot flags deliberate test-patch-seam re-exports as 'unused imports', (2) bot flags `__all__` exports as 'not defined' on a PEP-562 lazy-export package, (3) bot flags Protocol `...` bodies as 'statement has no effect', (4) PR shows `MERGEABLE / BLOCKED` with all CI checks green under `required_review_thread_resolution`."
+description: "GitHub's `github-code-quality[bot]` static analyzer posts diff-scoped findings and suggested patches that its own AST engine cannot reconcile with runtime dynamics — it flags `# noqa: F401` re-exports as 'unused imports', PEP 562 lazy `__all__` names as 'exported but not defined', and PEP 544 Protocol `...` bodies as 'statement has no effect'. Under org rulesets with `required_review_thread_resolution` these unresolved threads block merge. TRIAGE each finding and its proposed patch separately: confirmed false positives are resolved via `gh api graphql resolveReviewThread` with one explanatory comment (no code change); genuine findings must be fixed and fully validated. Use when: (1) bot flags deliberate test-patch-seam re-exports as 'unused imports', (2) bot flags `__all__` exports as 'not defined' on a PEP-562 lazy-export package, (3) bot flags Protocol `...` bodies as 'statement has no effect', (4) PR shows `MERGEABLE / BLOCKED` with all CI checks green under `required_review_thread_resolution`, (5) an automated suggestion removes a still-used import alias or turns implicit string concatenation into an `E501` violation, (6) several suggestion commits turn a previously green PR red."
 category: tooling
-date: 2026-07-05
-version: "1.2.0"
+date: 2026-07-30
+version: "1.3.0"
 user-invocable: false
 verification: verified-ci
 history: code-quality-bot-ignores-noqa.history
-tags: [github, pull-request, code-quality, review-threads, noqa]
+tags: [github, pull-request, code-quality, review-threads, noqa, automated-suggestions, F821, E501, full-repo-lint, behavior-preservation]
 ---
 
-# Resolve github-code-quality Bot Threads Without Code Changes
+# Triage github-code-quality Bot Findings and Suggested Patches
 
 ## Overview
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-05-27 |
-| **Objective** | Unblock PRs that pass all CI checks but show `MERGEABLE / BLOCKED` because of unresolved bot review threads on deliberate test-patch-seam imports |
-| **Outcome** | Resolved 10 bot threads across two PRs with one explanatory comment per PR; both PRs flipped to `MERGEABLE / CLEAN` and merged via auto-merge |
-| **Verification** | verified-ci (observed unblocking ProjectHephaestus PRs #604 and #606 on 2026-05-27). The v1.2.0 triage material (PEP-562 `__all__` lazy-export + PEP-544 Protocol `...` shapes from PR #1851) is verified-local — the triage and code fixes were applied and gated locally this session; merge/CI-green confirmation was pending at capture time. |
+| **Date** | 2026-05-27; amended 2026-07-30 |
+| **Objective** | Triage GitHub Code Quality findings and proposed patches independently, preserve intentional runtime behavior, validate accepted suggestions, and unblock PRs held by unresolved bot threads |
+| **Outcome** | Resolved 10 false-positive bot threads across two PRs, established executable oracles for mixed real/false-positive findings, and added a validation workflow after five suggestions made a green PR fail with six `F821` and two `E501` errors |
+| **Verification** | verified-ci (ProjectHephaestus PRs #604 and #606 unblocked and merged; Inference360 PR #486 repaired at `2e26a71` with all exact-head checks green, 1,445 tests passed, and 85.22% coverage). The v1.2.0 PEP-562/PEP-544 triage material remains verified-local. |
 
 ## When to Use
 
@@ -27,6 +27,9 @@ tags: [github, pull-request, code-quality, review-threads, noqa]
 - The import has an explicit `# noqa: F401` comment but the bot still flags it
 - `gh pr view <N>` shows `mergeStateStatus: BLOCKED` even though `[.statusCheckRollup[] | select(.conclusion == "FAILURE")]` is empty
 - Your repo's org-level branch protection (or rulesets) has `required_review_thread_resolution: true`
+- An automated "unused import" suggestion removes a module alias that may still have executable consumers
+- An "implicit string concatenation" suggestion is semantically harmless but makes the Python source exceed the configured line limit
+- Several automated suggestion commits land together and the previously-green PR begins failing `F821`, `E501`, or the repository's aggregate validation gate
 
 **The "dynamic re-export" trigger (the most common cause).** This bites the `_impl_module`-style
 pattern where a symbol is imported with `# noqa: F401` and is ONLY referenced via dynamic module
@@ -70,6 +73,50 @@ for TID in PRRT_AAA PRRT_BBB PRRT_CCC; do
     }' -f tid="$TID" --jq '.data.resolveReviewThread.thread'
 done
 ```
+
+### Validate an automated suggested patch before accepting it
+
+A correct finding does not imply that the bot's proposed patch is correct. Treat every suggested
+patch as untrusted code, including apparently mechanical import and string-style edits.
+
+```bash
+# Before deleting or renaming a symbol, enumerate every consumer in the complete file or tree.
+rg -n '\b<symbol-or-alias>\b' <source-and-test-roots>
+
+# After one suggestion or a tightly-related batch, inspect the range and run both Ruff modes.
+git log --oneline <last-green-sha>..HEAD
+git diff <last-green-sha>..HEAD
+uv run ruff check <source-root> <test-root>
+uv run ruff format --check <source-root> <test-root>
+
+# Exercise affected behavior, then run the repository's complete required gate.
+uv run pytest -q <affected-test-paths>
+<repository-validation-command>
+```
+
+Apply these rules:
+
+1. Before deleting an import alias, classify every search hit. If executable references remain,
+   reject the deletion or migrate every consumer in the same validated change. `F821` is the direct
+   lint oracle for a removed-but-still-used alias.
+2. Explicit `+` does not exempt a source line from `E501`; indentation and the operator count toward
+   the configured limit. Split literal content at a stable boundary while preserving the rendered
+   value:
+
+   ```python
+   (
+       "profile cleanup refuses a "
+       + "non-owner-only directory"
+   )
+   ```
+
+   Do not insert a runtime newline merely to shorten Python source. Exercise the generated
+   script/string behavior after the split.
+3. Run both `ruff check` and `ruff format --check`. A formatter pass is not a lint pass: formatting
+   can be clean while `F821`, `E501`, or other semantic defects remain.
+4. Run the full repository gate after the combined suggestion batch. A set of individually
+   plausible edits can still be integration-red. If it fails, retain the valid suggestions and
+   repair or revert only the defective patches.
 
 ### Reply-then-resolve recipe (single thread)
 
@@ -181,8 +228,28 @@ false positive; triage each on its merits.
 | Force-push to dismiss the bot's review | Hope the bot reposts on the new SHA and the old threads get auto-resolved | Threads pinned to specific lines persist across force-pushes if the lines still exist. New review run posts NEW threads on top of the old unresolved ones. | Force-push doesn't resolve threads. It can multiply them. |
 | `gh pr view <N> --json reviewThreads` to enumerate threads | Pull the review-thread IDs via the convenient `gh pr view --json` interface | `gh` rejects it with `Unknown JSON field: "reviewThreads"` — review threads are not exposed on the REST-backed `gh pr view` JSON fields. | Use the GraphQL `reviewThreads(first:50)` query to enumerate thread IDs; `gh pr view --json` cannot do it. |
 | Blanket-resolve ALL bot threads as false positives | Treat every github-code-quality[bot] finding as a noqa-style false positive and resolve without reading | On PR #1851 two of the `__all__` names had NO lazy `__getattr__` backing → `from pkg import X` would `ImportError` at runtime; the `__all__` finding was REAL. | Triage each thread individually. The `__all__`-export-not-defined finding CAN be genuine; run `python -c "import pkg; [getattr(pkg,n) for n in pkg.__all__]"` as the oracle before deciding false-positive. |
+| Accepted an "unused import" deletion from import shape alone | The removed module alias still had six executable references, so the combined PR head failed with six `F821` errors. | Search actual symbol references before deleting an import; migrate every consumer or preserve the alias. |
+| Accepted explicit-concatenation suggestions as mechanical style fixes | Two rewritten expressions occupied 101 and 127 source columns under a 100-column Ruff limit, producing two `E501` errors. | Source indentation matters; split literal content with explicit `+` while preserving the rendered value. |
+| Trusted a passing formatter after accepting suggestions | `ruff format --check` accepted the source while `ruff check` still reported all eight defects. | Run both formatting and lint checks over the complete changed source/test surface. |
+| Applied five suggestions without restoring a green aggregate gate | The final five-commit suggestion batch reached CI with six `F821` and two `E501` errors. | Run the repository's complete gate after each suggestion or reviewed atomic batch. |
 
 ## Results & Parameters
+
+### Automated-suggestion validation incident
+
+Inference360 PR #486 was green at `67fa509`. Five GitHub Code Quality suggestion commits then
+changed two files. The final suggestion head `8162226` failed the aggregate validation gate with:
+
+- six `F821` errors after deleting a `manifest_v2` module alias that still had six direct consumers;
+- two `E501` errors after explicit-concatenation rewrites produced 101- and 127-column source lines.
+
+The repair at `2e26a71` restored the required alias and split the Python literal fragments without
+changing the generated shell strings. Local `just validate` passed with 1,436 tests, 9 skips, and
+85.20% coverage. Exact-head GitHub CI passed with 1,445 tests and 85.22% coverage; validate,
+pre-commit, SCA, SAST, secret scanning, and CodeQL were all green.
+
+This v1.3.0 addition is verified-ci for this one Inference360 incident. It has not yet been repeated
+across repositories, and no dedicated automated-suggestion ingestion harness was added.
 
 **Specific numbers (ProjectHephaestus 2026-05-27):**
 
@@ -225,6 +292,13 @@ gh pr view <N> --json mergeStateStatus,statusCheckRollup,reviews --jq '{
 
 If `state: BLOCKED` + `failingChecks: []` + all reviews are by bots → run the resolveReviewThread loop.
 
+## Related Skills
+
+- `ci-failure-triage-and-diagnosis` — exact-log-first diagnosis and PR-versus-main failure
+  classification.
+- `ruff-specific-rule-fixes` — repository-wide Ruff checks, `E501` behavior, and rule-specific
+  repair patterns.
+
 ## Verified On
 
 | Project | Context | Details |
@@ -233,3 +307,4 @@ If `state: BLOCKED` + `failingChecks: []` + all reviews are by bots → run the 
 | ProjectHephaestus | PR #606 (IssueImplementer phase-runner split) | 8 bot comments on `implementer.py` flagging re-exports of invoke_claude_with_session / get_repo_slug / is_plan_review_approved / AGENT_IMPLEMENTER. Same resolution: 1 explanatory comment + 4 mutations (4 already resolved from first bot run). PR auto-merged. |
 | ProjectHephaestus | PR #659 (find_pr_for_issue re-export) | A deliberate `from ._review_utils import find_pr_for_issue  # noqa: F401` re-export in `implementer.py` — added so tests can `patch("hephaestus.automation.implementer.find_pr_for_issue")` and the runtime call `self._impl_module.find_pr_for_issue(...)` resolves dynamically — was flagged "Import of 'find_pr_for_issue' is not used." PR showed `mergeStateStatus: BLOCKED`, `mergeable: MERGEABLE`, all CI green. Sibling re-exports (`invoke_claude_with_session`, `current_trunk_githash`) followed the identical pattern but were NOT flagged (only diff-changed lines get comments). Resolved 1 thread via `addPullRequestReviewThreadReply` (one explanatory reply) + `resolveReviewThread` → PR unblocked and MERGED within seconds. |
 | ProjectHephaestus | PR #1851 (epic #1809 `hephaestus/automation/pipeline/` package) | Three new finding shapes on one PR, each triaged individually (verified-local). (1) **`__all__` "not defined" on a PEP-562 lazy-export package** — the `__init__.py` declared `__all__ = ["PipelineConfig", "run_pipeline", ...]` with names bound lazily via `def __getattr__(name)` (PEP 562, per ADR-0002). Two of the listed names had NO lazy backing → GENUINE bug (`from pkg import X` → `ImportError`); FIXED by wiring the missing `__getattr__` branches. Acceptance oracle: `python -c "import pkg; [getattr(pkg,n) for n in pkg.__all__]"`. (2) **Protocol `...` bodies flagged "Statement has no effect"** on `stages/base.py` — PEP 544 interface-marker idiom, ALWAYS a false positive; refuted (see sibling skill `python-protocol-stub-ellipsis-not-pass`) + resolved via GraphQL, no code change. (3) **duplicate `exit_code` assignment "unnecessary as it is redefined before use"** — GENUINE dead store; FIXED by deleting the first assignment. Lesson: triage every bot thread; the resolve-via-GraphQL remedy is for confirmed false positives only. |
+| Inference360 | [PR #486](https://github.com/LLM360/Inference360/pull/486) (five automated suggestion commits) | The bot's import-removal patch left six live alias references (`F821`), and two explicit-concatenation patches exceeded the configured source limit (`E501`). The repair preserved the valid suggestions, restored the alias, split literal content without changing generated shell output, and passed all exact-head checks with 1,445 tests and 85.22% coverage. |
