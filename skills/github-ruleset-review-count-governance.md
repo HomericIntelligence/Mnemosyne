@@ -1,9 +1,9 @@
 ---
 name: github-ruleset-review-count-governance
-description: "Use when: (1) auditing GitHub org or repo branch-protection ruleset JSON files for a zero-review governance gap (`required_approving_review_count: 0`), (2) fixing `required_approving_review_count` in canonical ruleset JSON files and the issue only names a subset of the files, (3) adding a CI regression guard to assert the review count cannot regress silently, (4) checking whether existing `bypass_actors` already mitigate the self-merge deadlock that requiring >=1 review creates, (5) leaving `enforcement` untouched and treating activation as a separate operational step, (6) green auto-merge-armed PRs will not merge because an automation authors PRs AS the operator and self-approval is forbidden — the count MUST be 0 on BOTH the classic branch protection and the repository ruleset layer, (7) diagnosing whether a PR is 'blocked waiting on approval' — verify against the LIVE ruleset (`gh api repos/OWNER/REPO/rulesets/ID`), NOT the committed ruleset JSON, which can drift and cause a false 'needs review' misdiagnosis, (8) a CI schema-validation guard hardcodes `required_approving_review_count >= 1` for ALL ruleset files and fails when you sync a repo-scoped file to the live count of 0 — relax the guard to a per-scope expected-count map (repo=0, org=1)."
+description: "Use when: (1) auditing GitHub org or repo branch-protection ruleset JSON files for a zero-review governance gap (`required_approving_review_count: 0`), (2) fixing `required_approving_review_count` in canonical ruleset JSON files and the issue only names a subset of the files, (3) adding a CI regression guard to assert the review count cannot regress silently, (4) checking whether existing `bypass_actors` already mitigate the self-merge deadlock that requiring >=1 review creates, (5) leaving `enforcement` untouched and treating activation as a separate operational step, (6) green auto-merge-armed PRs will not merge because an automation authors PRs AS the operator and self-approval is forbidden — the count MUST be 0 on BOTH the classic branch protection and the repository ruleset layer, (7) diagnosing whether a PR is 'blocked waiting on approval' — verify against the LIVE ruleset (`gh api repos/OWNER/REPO/rulesets/ID`), NOT the committed ruleset JSON, which can drift and cause a false 'needs review' misdiagnosis, (8) a CI schema-validation guard hardcodes `required_approving_review_count >= 1` for ALL ruleset files and fails when you sync a repo-scoped file to the live count of 0 — relax the guard to a per-scope expected-count map (repo=0, org=1), or (9) canonical repository policy still describes human approval or human merge as required even though a single-maintainer repository intentionally uses zero required approvals — make required CI/CD checks the merge contract and keep human confirmations as agent-safety controls."
 category: ci-cd
 date: 2026-07-13
-version: "1.2.0"
+version: "1.3.0"
 user-invocable: false
 verification: verified-ci
 history: github-ruleset-review-count-governance.history
@@ -15,6 +15,9 @@ tags:
   - review-count
   - bypass-actors
   - jq
+  - merge-contract
+  - single-maintainer
+  - documentation-policy
 ---
 
 # GitHub Ruleset Required Approving Review Count Governance
@@ -23,10 +26,10 @@ tags:
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-07-13 |
+| **Date** | 2026-07-30 |
 | **Objective** | Govern `required_approving_review_count` on GitHub `main` protection, and diagnose merge-blockage against the LIVE ruleset rather than the committed JSON. THREE concerns: (a) human-reviewed repos — close the zero-review gap (0 → 1) across ALL canonical ruleset JSON variants; (b) automation-authored repos — when an automation authors PRs AS the operator, the count MUST be `0` (nonzero is a permanent self-approval deadlock), flipped on BOTH the classic protection AND the ruleset layer; (c) NEVER conclude a PR is "blocked on review" from the committed ruleset JSON — the committed file drifts from the live ruleset; verify against `gh api .../rulesets/<id>` |
-| **Outcome** | v1.0.0: four Odysseus ruleset files set to count=1 + CI guard. v1.1.0: on the HomericIntelligence org (17 active repos) the count was set to `0` on `main` for every repo because the automation authors PRs as the operator; 3 green auto-merge-armed PRs merged the instant the gate dropped; `required_review_thread_resolution` preserved. v1.2.0: caught a twice-repeated MISDIAGNOSIS — PRs read as "blocked on approval" because the COMMITTED `repo-ruleset-active.json` said count=1, but the LIVE `homeric-main-baseline` ruleset (the ONLY ruleset on the repo, `source_type: Repository`) requires **0**; the real blocker was a GitHub Actions runner backlog. Synced the committed file to live (0 reviews, 11 checks) and relaxed the CI guard from a blanket `>=1` to a per-scope expected-count map (repo=0, org=1) (Odysseus PR #394, MERGED) |
-| **Verification** | verified-ci — v1.1.0 applied org-wide (3 PRs merged); v1.2.0 diagnosis proven (PRs #388/#390 auto-merged mid-session with 0 reviews; live ruleset count=0 confirmed via `gh api`); the sync + per-scope guard fix shipped in Odysseus PR #394 which MERGED (2026-07-13T02:02:20Z), main now shows count=0 / 11 checks |
+| **Outcome** | v1.0.0: four Odysseus ruleset files set to count=1 + CI guard. v1.1.0: on the HomericIntelligence org (17 active repos) the count was set to `0` on `main` for every repo because the automation authors PRs as the operator; 3 green auto-merge-armed PRs merged the instant the gate dropped; `required_review_thread_resolution` preserved. v1.2.0: caught a twice-repeated MISDIAGNOSIS — PRs read as "blocked on approval" because the COMMITTED `repo-ruleset-active.json` said count=1, but the LIVE `homeric-main-baseline` ruleset (the ONLY ruleset on the repo, `source_type: Repository`) requires **0**; the real blocker was a GitHub Actions runner backlog. Synced the committed file to live (0 reviews, 11 checks) and relaxed the CI guard from a blanket `>=1` to a per-scope expected-count map (repo=0, org=1) (Odysseus PR #394, MERGED). v1.3.0: documented the zero-approval single-maintainer regime as a CI/CD-only merge contract in the canonical policy files (ProjectHephaestus PR #2533) |
+| **Verification** | verified-ci — v1.1.0 applied org-wide (3 PRs merged); v1.2.0 diagnosis proven (PRs #388/#390 auto-merged mid-session with 0 reviews; live ruleset count=0 confirmed via `gh api`); the sync + per-scope guard fix shipped in Odysseus PR #394 which MERGED (2026-07-13T02:02:20Z), main now shows count=0 / 11 checks. v1.3.0 verified-ci on ProjectHephaestus PR #2533: focused documentation checks and 6,874-test pre-push suite passed; required GitHub checks remain the merge gate |
 | **History** | [changelog](./github-ruleset-review-count-governance.history) |
 
 ## When to Use
@@ -39,6 +42,7 @@ tags:
 - **Green, auto-merge-armed PRs will NOT merge and `reviewDecision` is empty**, and `gh pr review --approve` fails with `GraphQL: Cannot approve your own pull request`. An automation authors PRs as the SAME account that would approve them (no second GitHub account). Then a nonzero `required_approving_review_count` is UNSATISFIABLE — set it to `0` on `main` (see the self-approval-deadlock regime below). This is the OPPOSITE of the 0 → 1 fix; apply it only when the automation-as-author model holds.
 - **You are about to conclude a PR is "blocked waiting on approval."** STOP and verify against the LIVE ruleset (`gh api repos/OWNER/REPO/rulesets/<id>`), NOT the committed `configs/github/*-ruleset*.json` — the committed file DRIFTS from live and reading it caused a repeated false "needs review" misdiagnosis (see "Diagnose against the live ruleset" below). `mergeStateStatus: BLOCKED` + `mergeable: MERGEABLE` + required checks still pending = waiting on **CI** (a runner backlog), NOT on a review gate.
 - **A CI `schema-validation` guard hardcodes `required_approving_review_count >= 1` for every ruleset file** and fails when you sync a repo-scoped file to the live count of `0`. Relax the guard from a blanket `>=1` to a per-scope expected-count map (repo=0, org=1) so drift is still caught in BOTH directions per scope.
+- **Canonical repository policy still describes human approval or human merge as required** even though a single-maintainer repository intentionally uses zero required approvals. Make required CI/CD checks the merge contract, and classify human confirmations for swarm deployment, tagging, or force-pushing as agent-safety controls rather than GitHub merge gates.
 
 ## Verified Workflow
 
@@ -380,6 +384,25 @@ gh api repos/OWNER/REPO/rulesets/<id> --jq '.rules[]|select(.type=="pull_request
 gh pr view N --json mergeable,mergeStateStatus,reviewDecision   # MERGEABLE+BLOCKED+empty = CI, not review
 gh pr checks N                                                  # pending REQUIRED contexts vs non-required (e.g. `Install (matrix)`)
 ```
+
+### v1.3.0 — CI/CD-only merge contract for a single-maintainer repository
+
+**Regime:** the repository intentionally keeps GitHub's
+`required_approving_review_count` at `0` because there is only one developer and
+the automation account cannot self-approve its own pull requests.
+
+**Applied:** canonical repository policy was updated to state that branch
+protection and required CI/CD checks define merge eligibility. Human
+confirmations required by agent workflows remain safety controls for actions
+such as swarm deployment, tagging, or force-pushing; they are not GitHub
+required approvals or merge gates. The same contract was aligned across
+`AGENTS.md`, `CONTRIBUTING.md`, `README.md`, and `docs/architecture.md`.
+
+**Verification:** ProjectHephaestus PR #2533 contains only those four
+documentation changes. Markdown lint, repository link validation (48 files,
+340 links), architecture-document tests, and the full pre-push suite (6,874
+passed, 6 skipped, 85.59% coverage) passed. The live PR has no auto-merge
+request; required GitHub checks are the remaining merge gate.
 
 ## Verified On
 
