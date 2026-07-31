@@ -61,6 +61,8 @@ tags:
   - stale-green-comment
   - workflow-inventory-property
   - negative-path-testing
+  - workflow-run-artifact-trust
+  - expression-injection
 ---
 
 # GitHub Actions Required Checks and Branch Protection
@@ -1057,6 +1059,10 @@ For a fleet, enumerate every accessible repository and all active repository-lev
 > `30499502544` proved the report stayed red while still publishing its diagnostic artifact.
 > Exact-main ordinary run `30566396623` and extended run `30566477564` then proved the green path,
 > including the event-specific SIMD rule.
+>
+> The verdict, exact-run/head binding, and red fallback are verified. The artifact-content trust
+> controls in Q4 are **security-derived and not yet deployed in the cited Odyssey workflow**; treat
+> them as required before granting a report consumer write permission.
 
 **Failure mode.** Result JSON and test counts are diagnostic artifacts, not proof that a workflow
 executed successfully. A setup failure can prevent tests from running while an always-run upload
@@ -1070,8 +1076,11 @@ Use two independent contracts. A green report requires both; neither can substit
 
 1. Run the report job with `if: always()` and make it directly depend on every upstream job whose
    outcome matters.
-2. Pass the complete `${{ toJSON(needs) }}` value to a standard-library-only Python validator. Do
-   not reconstruct results from artifact names, filenames, or human-readable summaries.
+2. Assign the complete `${{ toJSON(needs) }}` value through step-level `env:` (for example,
+   `NEEDS_JSON`), then parse only `os.environ["NEEDS_JSON"]` with the standard JSON library. Job
+   outputs are untrusted: never splice the expression into `run:` shell source or a heredoc, and do
+   not log the full object. Do not reconstruct results from artifact names, filenames, or
+   human-readable summaries.
 3. Require `success` by default. Treat `failure`, `cancelled`, and dependency-induced `skipped` as
    failures.
 4. Encode an allowed skip as an explicit tuple of job identity and dispatch/event mode. For example,
@@ -1086,8 +1095,9 @@ decision per job and event, not a default result class.
 
 ##### Q2. Evidence contract: one outcome manifest per expected producer
 
-Each result-producing job writes a minimal outcome manifest in an `always()` step after its real
-test step and uploads it with missing-file behavior set to error. The manifest contract contains:
+Each result-producing job writes a minimal outcome manifest in a dedicated `if: always()` step
+after its real test step, then uploads it in a separate `if: always()` step with
+`if-no-files-found: error`. The manifest contract contains:
 
 | Field | Meaning |
 | --- | --- |
@@ -1128,13 +1138,33 @@ Aggregation and enforcement are separate phases:
 This ordering preserves the evidence needed to debug a red gate. An aggregation crash or missing
 report is itself a gate failure; it must not silently fall back to green.
 
-##### Q4. Harden downstream comments against missing optional data
+##### Q4. Harden downstream comments across the artifact trust boundary
 
 Treat metrics and count summaries as optional. A PR-comment consumer must still post the
 comprehensive failure report when metrics are absent. If the report is unavailable, replace any
 stale green comment with a red fallback containing the current run URL and conclusion. Bind the
 consumer to the exact source run and conclusion so an older successful artifact cannot overwrite a
 new failure.
+
+`workflow_run` consumers may receive write tokens even when the source workflow was unprivileged.
+Treat every artifact produced by pull-request code as attacker-controlled: matching the exact
+run/head proves freshness, not content authenticity. Never relay downloaded Markdown verbatim from
+a write-scoped consumer.
+
+Prefer querying authoritative run/job data through the API and constructing the comment entirely in
+trusted default-branch code. If an artifact is necessary:
+
+1. Require exactly one non-expired artifact with the expected name from the bound run.
+2. Extract under `runner.temp`; enforce archive and file-size limits and reject unexpected files.
+3. Parse a strict, versioned data schema with closed field sets, enums, and length bounds. Never
+   execute, source, or deserialize executable objects from the artifact.
+4. Escape Markdown and HTML and neutralize mentions before trusted code renders the comment.
+5. Use an exact private marker and update only a comment whose author login or ID matches the
+   configured bot identity, not any `Bot` comment containing a human-readable heading.
+
+Any count, schema, size, identity, or escaping failure must produce a trusted red fallback using
+only the bound run URL and conclusion. The untrusted artifact must not contribute text to that
+fallback.
 
 ##### Q5. Regression contract
 
@@ -1153,6 +1183,10 @@ Cover at least:
 | One failed matrix shard | Red; shard and producer named |
 | Complete successful dependencies and all expected manifests | Green |
 | New top-level job omitted from report `needs`, or duplicate `needs` entry | Workflow-property test fails |
+| `toJSON(needs)` interpolated into shell source instead of step `env:` | Workflow-property test fails |
+| Manifest writer or upload lacks `if: always()`, or upload can ignore a missing file | Workflow-property test fails |
+| Duplicate, oversized, or schema-invalid comment artifact | Rejected; trusted red fallback contains no artifact text |
+| Markup or mention payload in an allowed artifact field | Escaped or neutralized by trusted rendering; never relayed raw |
 
 Legacy diagnostic group counts are not verdict inputs. If no group summaries exist, omit those
 metrics rather than deriving a green “zero groups” or “all tests passed” claim.
@@ -1220,6 +1254,7 @@ prove producer completeness; `needs` proves execution success; detailed JSON rem
 | Regression validation | 133 focused report/workflow/action-pin tests and 1,228 Python tests passed before publication; the final rebased head reran 69 focused tests and 1,248 Python tests with 228 expected skips |
 | Required context | Ruleset `18221116` requires the exact `Test Report` context after green default-branch emission |
 | Exact accepted main | `760aed20a2cacf84e1e83256e1de169ccee9f433` |
+| Comment trust boundary | Exact-run/head binding and red fallback are verified-ci; strict artifact validation and trusted rendering are required but not yet deployed in Odyssey |
 
 ### Coupled-context failure and fleet rollback evidence (v1.13.0 — Mnemosyne, verified-ci)
 
@@ -1403,7 +1438,7 @@ planning-only.
 
 | Project | Context | Details |
 | ------- | ------- | ------- |
-| Odyssey | Issue [#5731](https://github.com/HomericIntelligence/Odyssey/issues/5731), PR [#5738](https://github.com/HomericIntelligence/Odyssey/pull/5738), merged `d819888c503754195f84a079ffd6b3df18255468`; exact main `760aed20a2cacf84e1e83256e1de169ccee9f433` (2026-07-30) | Section Q — hosted red-path proof plus ordinary and extended exact-main green proofs; 19 authoritative upstream results, 12 unique producer manifests, event-aware SIMD handling, diagnostic-before-verdict reporting, hardened PR comments, and required `Test Report` ruleset context. **verified-ci** |
+| Odyssey | Issue [#5731](https://github.com/HomericIntelligence/Odyssey/issues/5731), PR [#5738](https://github.com/HomericIntelligence/Odyssey/pull/5738), merged `d819888c503754195f84a079ffd6b3df18255468`; exact main `760aed20a2cacf84e1e83256e1de169ccee9f433` (2026-07-30) | Section Q — hosted red-path proof plus ordinary and extended exact-main green proofs; 19 authoritative upstream results, 12 unique producer manifests, event-aware SIMD handling, diagnostic-before-verdict reporting, exact-head red-fallback comments, and required `Test Report` ruleset context. **verified-ci** for those behaviors; Q4 strict artifact validation/trusted rendering is security-derived and not yet deployed in Odyssey. |
 | ProjectOdyssey | PR [#5406](https://github.com/HomericIntelligence/ProjectOdyssey/pull/5406), merged `da1b3f7e` (2026-05-15) | Summary aggregator + branch-protection update; `container-publish.yml`; verified-ci |
 | ProjectNestor | Issue #54, PR #108 | Branch-protection API read-back + synthetic tests; verified-ci |
 | ProjectOdyssey | PR #4838, issue #3948 | Extended `workflow-smoke-test.yml` to cover 3 more workflows; 26 tests pass |
@@ -1429,6 +1464,7 @@ planning-only.
 - [Honest artifact checks for non-library repositories](ci-cd-canonical-check-nonlibrary-repo.md)
 - [GitHub Actions: Reusing workflows](https://docs.github.com/en/actions/using-workflows/reusing-workflows)
 - [GitHub Actions: `workflow_call` trigger](https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#workflow_call)
+- [GitHub Actions: `workflow_run` security warning](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#workflow_run)
 - [GitHub: Branch rulesets and required checks](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets)
 - [GitHub: Managing a merge queue](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue)
 - [GitHub REST: Update branch protection](https://docs.github.com/en/rest/branches/branch-protection?apiVersion=2022-11-28#update-branch-protection)
