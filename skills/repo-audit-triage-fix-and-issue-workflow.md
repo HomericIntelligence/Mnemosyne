@@ -1,13 +1,13 @@
 ---
 name: repo-audit-triage-fix-and-issue-workflow
-description: "Full workflow for strict repo audit triage: run audit, verify each finding is true before acting on it, classify findings by complexity, batch-fix simple items in one PR, file GitHub issues for complex work. Use when: (1) running a comprehensive repository quality audit and acting on all findings, (2) needing to triage audit results into immediate fixes vs tracked issues, (3) remediating dead code, stale docs, broken CI, or missing requirements files, (4) acting on a multi-agent swarm audit (`/repo-analyze-strict-full`) whose section reports may contain false positives that must be verified before triage."
+description: "Full workflow for strict repo audit triage: run audit, verify each finding is true before acting on it, classify findings by complexity, batch-fix simple items in one PR, file GitHub issues for complex work. Use when: (1) running a comprehensive repository quality audit and acting on all findings, (2) needing to triage audit results into immediate fixes vs tracked issues, (3) remediating dead code, stale docs, broken CI, or missing requirements files, (4) acting on a multi-agent swarm audit (`/repo-analyze-strict-full`) whose section reports may contain false positives that must be verified before triage, (5) reconciling declared runtime support with APIs used by the implementation, (6) checking security suppressions and live GitHub controls rather than trusting a green default-environment scan or committed policy file."
 category: tooling
-date: 2026-05-19
-version: "1.2.0"
+date: 2026-07-29
+version: "1.3.0"
 user-invocable: false
 verification: verified-local
 history: repo-audit-triage-fix-and-issue-workflow.history
-tags: [audit, triage, remediation, github-issues, dead-code, ci, requirements, parallel-execution, swarm-audit, false-positive, trust-but-verify]
+tags: [audit, triage, remediation, github-issues, dead-code, ci, requirements, parallel-execution, swarm-audit, false-positive, trust-but-verify, cross-version, runtime-compatibility, live-policy, security-scanning]
 ---
 
 # Repo Audit: Triage, Fix, and Issue Workflow
@@ -32,6 +32,12 @@ tags: [audit, triage, remediation, github-issues, dead-code, ci, requirements, p
 - You need to clear dead migration scripts, duplicate files, or stale changelog entries
 - CI tests are partially broken and you need to scope the test runner to the working subset
 - You suspect some test failures are pre-existing (not caused by your changes) and need to verify
+- The default test environment is green but the package declares a wider runtime matrix or uses
+  version-gated standard-library APIs
+- A security scanner is green while advisory suppressions appear in multiple CI, pre-commit, or
+  policy-file surfaces
+- A branch-protection or ruleset finding conflicts with the documented human/automation merge
+  model and must be classified against the live GitHub configuration
 
 ## Verified Workflow
 
@@ -114,6 +120,24 @@ first, always.
 This is the same **trust-but-verify** discipline that the Mnemosyne skill
 `tooling-sub-agent-pr-trust-but-verify` applies to sub-agent PR reports — here applied to
 sub-agent *audit findings*.
+
+#### Phase 1.75: Verify runtime contracts and live controls
+
+A green run on the host's default interpreter proves only the exercised environment. Before
+triaging a MAJOR finding, reconcile the repository's declared support contract with the runtime
+behavior and with the live enforcement controls:
+
+| Contract | Read | Verify |
+| -------- | ---- | ------ |
+| Runtime support | `requires-python`, classifiers, CI matrix | Run or inspect the affected API on the lowest supported interpreter; add a real version-specific behavior test when a static source check would pass while runtime behavior fails |
+| Security scan | Every `pip-audit`, `--ignore-vuln`, policy-file, and summary occurrence | Run the scanner in the locked environment, identify the exact affected package/version range, and ensure an ignore is scoped and reflected honestly in the summary |
+| GitHub governance | Workflow author identity, committed ruleset, classic protection, and live rulesets | Query the live API and classify the repository's regime before calling zero approvals a gap; automation-authored PRs and human-reviewed PRs have different valid review-count policies |
+| Documentation | Link syntax and the validator's path-resolution rules | Run the repository link checker and confirm it is wired into a required gate; a canonical source-grounded document with broken links is an actionable finding even when Markdown lint passes |
+
+Do not let a source-text assertion, a passing run on Python 3.13, a current "no known
+vulnerabilities" message, or a committed ruleset file substitute for the relevant runtime or
+live-control evidence. Use the specialized knowledge entries for the detailed ruleset and
+pip-audit policies, then preserve only the audit-specific evidence and decision in this entry.
 
 #### Phase 2: Triage Findings
 
@@ -291,6 +315,10 @@ git commit -m "fix: apply audit remediation (dead code, CI, docs, requirements)"
 | Reopen broad closed work for a narrow regression | A closed implementation issue may be related to a new failing behavior | Reopening the broad issue can obscure the exact regression and old acceptance criteria | Comment on the closed issue for traceability, then open a narrow regression follow-up |
 | Acted on a swarm-audit MAJOR finding without verifying it | A `/repo-analyze-strict-full` section agent reported `tests/__pycache__/` was committed to git; the plan was to `git rm -r --cached` it | `git ls-files` showed `__pycache__` was never tracked — it existed on disk but was correctly `.gitignore`-excluded. The finding was a false positive | Verify every CRITICAL/MAJOR swarm-audit finding with a single read-only command before triaging it. `git ls-files <path>` settles any "committed to git" claim in one second |
 | Trusted a swarm-audit CRITICAL "no CI exists" finding | A section agent reported `.github/workflows/` was empty and there was no CI; the plan was to author a CI workflow | The agent checked only the project-subdirectory `.github/`. The real CI workflow lived at the monorepo-root `.github/workflows/`, path-scoped to the project. CI existed and ran | In a monorepo, a "no CI" finding must be checked against the repo root, not just the subproject. More broadly: a swarm agent can miss context it was even given — verify |
+| Trusted a static extraction-source test | A test counted two `extractall(..., filter="data")` calls and the default Python 3.13 suite was green | The package declares Python 3.10 support, but `filter` is not available there; CIFAR extraction raises `TypeError` before the existing `TarError`/`OSError` handler | Compare every version-gated API with the declared support matrix and exercise the lowest supported runtime; source-shape tests cannot prove cross-version behavior |
+| Accepted a green pip-audit result while an advisory was ignored everywhere | `pip-audit` reported no vulnerabilities in the current lock, so the suppression was treated as harmless | The same advisory remained suppressed in required CI, scheduled CI, pre-commit, and `.pip-audit-ignore.txt`, so a future affected resolution could pass silently | Audit the full suppression surface and package/version range; a clean scan is not evidence that a broad ignore is safe |
+| Labeled a zero-review ruleset an unconditional governance defect | Read project prose requiring human review and saw live `required_approving_review_count: 0` | Existing guidance documents a separate automation-authored regime where zero is necessary to avoid GitHub self-approval deadlock | Query the live ruleset and PR author model together; classify policy drift only after determining which review regime the repository actually uses |
+| Trusted repo-relative links in a docs/ file | `docs/architecture.md` described `hephaestus/...` targets as repo-relative and Markdown lint passed | The link validator resolves relative Markdown targets from the source file's directory, producing 211 broken links; the validator was not a required CI gate | Run link resolution, inspect the resolver's semantics, and verify the check is enforced rather than assuming syntax lint covers navigation |
 
 ## Results & Parameters
 
@@ -370,6 +398,32 @@ After a strict Metrics Service audit, most findings already had issue coverage:
 
 This produced four new focused issues instead of duplicating the entire audit as new tickets.
 
+### Cross-version and live-control verification (Hephaestus, 2026-07-29)
+
+The strict review of `HomericIntelligence/Hephaestus` at commit `cc9e154c` found four material
+conditions after fresh verification:
+
+1. `pyproject.toml` declares Python `>=3.10` and CI tests 3.10–3.13, but the CIFAR-10 and
+   CIFAR-100 downloaders pass `filter="data"` to `tarfile.extractall()`. That keyword is not
+   available on Python 3.10, while the existing test only counts source occurrences. This is a
+   real compatibility failure, not a style concern.
+2. `PYSEC-2025-183` is suppressed in required CI, scheduled CI, pre-commit, and the policy file.
+   The current locked environment uses PyJWT 2.13.0 and the scanner is clean, but the broad
+   suppression still masks a future affected resolution. The existing
+   `pip-audit-policy-file-over-inline-ignores` entry remains the detailed policy reference.
+3. Live GitHub protection requires zero approving reviews. That fact must be reconciled with the
+   PR author identity and intended review regime; it is not safe to infer the correct policy from
+   documentation or a committed ruleset alone. The existing
+   `github-ruleset-review-count-governance` entry is the detailed reference.
+4. The canonical architecture document has 211 broken internal links out of 443, while the link
+   validator is not wired into the required CI gate. Markdown syntax success is therefore not
+   documentation-integrity evidence.
+
+Verification was fresh and local/live: 6,861 tests passed, 6 were skipped, coverage was 85.53%,
+Ruff, mypy, pre-commit, schema, license, Bandit, and pip-audit passed, and the link validator
+failed with the counts above. The review was verified-local because the full suite ran on the
+host's Python 3.13; the repository's CI matrix remains the authority for the other interpreters.
+
 ## Verified On
 
 | Project | Context | Details |
@@ -377,6 +431,7 @@ This produced four new focused issues instead of duplicating the entire audit as
 | Mnemosyne | Strict audit + triage + 10-item cleanup PR (March 2026) | 9/9 tests passing, 6 issues filed (#1105–#1110) |
 | Metrics Service | Strict audit issue-backlog reconciliation (April 2026) | Existing open issues were updated/commented/labeled first; only four missing focused issues were created (#181–#184) |
 | A predictive-coding research project | `/repo-analyze-strict-full` 15-section swarm audit, 2026-05-19 — 2 section false positives caught by finding-verification gate before triage | A phantom committed `__pycache__` (refuted by `git ls-files`) and a phantom "no CI" (refuted by `ls` of the monorepo root) were both caught before triage; one section grade corrected D+ → C- |
+| HomericIntelligence/Hephaestus | Strict full repository review at `cc9e154c` (2026-07-29) | Fresh local suite and live GitHub/security readbacks verified the cross-version extraction failure, broad scanner suppression, review-regime classification requirement, and canonical-document link failure; 6,861 passed, 6 skipped, 85.53% coverage |
 
 ## References
 
@@ -384,3 +439,7 @@ This produced four new focused issues instead of duplicating the entire audit as
 - Related skill: [issue-triage-wave-parallel-execution](./issue-triage-wave-parallel-execution.md) — parallel batching of independent fixes
 - Related skill: [pre-existing-ci-failure-triage](./pre-existing-ci-failure-triage.md) — diagnosing failures that existed before your changes
 - Related skill: [preexisting-ci-failure-triage](./preexisting-ci-failure-triage.md) — alternate entry for same pattern
+- Related skill: [github-ruleset-review-count-governance](./github-ruleset-review-count-governance.md) — classify review-count regimes against live GitHub rulesets
+- Related skill: [pip-audit-policy-file-over-inline-ignores](./pip-audit-policy-file-over-inline-ignores.md) — centralize and verify scanner suppression policy
+- Related skill: [verification-evidence-audit](./verification-evidence-audit.md) — require fresh runnable evidence for completion and CI claims
+- Related skill: [dependency-floor-near-tested-version](./dependency-floor-near-tested-version.md) — align declared dependency/runtime floors with tested behavior
