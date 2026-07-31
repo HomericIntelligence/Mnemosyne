@@ -1,9 +1,9 @@
 ---
 name: gha-required-checks-branch-protection
-description: "Use when: (1) PRs are permanently BLOCKED because a required status-check context is a job gated by if: github.event_name != 'pull_request' (skipped != satisfied), (2) consolidating duplicate CI jobs into a reusable workflow so _required.yml is a thin aggregator, (3) validating GitHub branch protection API responses and writing synthetic tests for bash enforcement scripts, (4) a summary aggregator job pattern is needed to replace N individual required contexts with one that handles skip semantics correctly, (5) adding a RESULTS-loop aggregator gate to _required.yml with a guard test asserting all non-excluded jobs are wired into needs, (6) guard test needs a provable negative path to catch silently-inverted conditions [verified-local: _unwired_jobs helper pattern, PR #1343], (7) job key vs context name disambiguation for branch protection contexts, (8) GET-before-PUT mitigation for destructive branch protection API, (9) requirements deviation must be disclosed explicitly in implementation plans, (10) you are placing a merge-blocking CI guard and must confirm its job is a pinned required status-check context, not an advisory job — enumerate the ruleset's required contexts and check your target job name is in that set, else the guard is green-but-non-blocking and a regression merges clean, (11) an issue claims a prerequisite PR already 'added'/'landed'/'introduced' a CI job that a new required-context depends on — verify that PR is actually merged to the default branch (gh pr view <n> --json state,mergedAt + grep the file on main) BEFORE adding the context, else the never-posted context bricks the merge queue, (12) you are writing a runbook for a destructive full-replacement API write (branch-protection/ruleset PUT) and must include an explicit ROLLBACK (re-PUT the snapshot on read-back failure), not just a read-back; and derive sibling foreign keys (integration_id) dynamically from the live object rather than hardcoding a literal, (13) verifying a job is a pinned required status-check context in a fleet that uses BOTH org-level and repo-level rulesets — enumerate both and normalize the org `Required Checks / <job>` prefix vs the bare repo form, because checking one ruleset or matching only the bare name yields a false negative/positive on the other, (14) an advisory or scheduled workflow contains a compliance or security check that project documentation claims is 'CI-enforced on every PR' — verify the job is actually wired into the branch-protection required context (e.g. required-checks-gate.needs), not just present in any workflow file; if not, promote it using the 5-step job-promotion pattern (Section M), (15) preparing a staged merge-queue rollout — store the exact required contexts and exact `merge_queue` rule in one committed JSON policy artifact, test it exactly, derive both live activation and a representative merge-group smoke check from it, and keep the readiness issue open until post-merge evidence exists, (16) live-enabling a merge queue across a repository fleet — snapshot and preserve each ruleset, verify the exact queue object, require repository auto-merge availability, and prove it with a completed merge-group run, (17) a PR is armed/queued with ALL required status-check contexts green yet silently never merges — a merge queue re-runs the whole gate WORKFLOW on the `gh-readonly-queue/...` merge-result, so a NON-required-context job (e.g. `markdownlint`) that lives INSIDE the Required-Checks workflow and fails on the merge-result makes the workflow report failure and EJECTS the PR from the queue; 'all required contexts green' is necessary but NOT sufficient — every JOB in the gate workflow must be green too, else silent queue ejection."
+description: "Use when: (1) PRs are permanently BLOCKED because a required status-check context is a job gated by if: github.event_name != 'pull_request' (skipped != satisfied), (2) consolidating duplicate CI jobs into a reusable workflow so _required.yml is a thin aggregator, (3) validating GitHub branch protection API responses and writing synthetic tests for bash enforcement scripts, (4) a summary aggregator job pattern is needed to replace N individual required contexts with one that handles skip semantics correctly, (5) adding a RESULTS-loop aggregator gate to _required.yml with a guard test asserting all non-excluded jobs are wired into needs, (6) guard test needs a provable negative path to catch silently-inverted conditions [verified-local: _unwired_jobs helper pattern, PR #1343], (7) job key vs context name disambiguation for branch protection contexts, (8) GET-before-PUT mitigation for destructive branch protection API, (9) requirements deviation must be disclosed explicitly in implementation plans, (10) you are placing a merge-blocking CI guard and must confirm its job is a pinned required status-check context, not an advisory job — enumerate the ruleset's required contexts and check your target job name is in that set, else the guard is green-but-non-blocking and a regression merges clean, (11) an issue claims a prerequisite PR already 'added'/'landed'/'introduced' a CI job that a new required-context depends on — verify that PR is actually merged to the default branch (gh pr view <n> --json state,mergedAt + grep the file on main) BEFORE adding the context, else the never-posted context bricks the merge queue, (12) you are writing a runbook for a destructive full-replacement API write (branch-protection/ruleset PUT) and must include an explicit ROLLBACK (re-PUT the snapshot on read-back failure), not just a read-back; and derive sibling foreign keys (integration_id) dynamically from the live object rather than hardcoding a literal, (13) verifying a job is a pinned required status-check context in a fleet that uses BOTH org-level and repo-level rulesets — enumerate both and normalize the org `Required Checks / <job>` prefix vs the bare repo form, because checking one ruleset or matching only the bare name yields a false negative/positive on the other, (14) an advisory or scheduled workflow contains a compliance or security check that project documentation claims is 'CI-enforced on every PR' — verify the job is actually wired into the branch-protection required context (e.g. required-checks-gate.needs), not just present in any workflow file; if not, promote it using the 5-step job-promotion pattern (Section M), (15) preparing a staged merge-queue rollout — store the exact required contexts and exact `merge_queue` rule in one committed JSON policy artifact, test it exactly, derive both live activation and a representative merge-group smoke check from it, and keep the readiness issue open until post-merge evidence exists, (16) live-enabling a merge queue across a repository fleet — snapshot and preserve each ruleset, verify the exact queue object, require repository auto-merge availability, and prove it with a completed merge-group run, (17) a PR is armed/queued with ALL required status-check contexts green yet silently never merges — a merge queue re-runs the whole gate WORKFLOW on the `gh-readonly-queue/...` merge-result, so a NON-required-context job (e.g. `markdownlint`) that lives INSIDE the Required-Checks workflow and fails on the merge-result makes the workflow report failure and EJECTS the PR from the queue; 'all required contexts green' is necessary but NOT sufficient — every JOB in the gate workflow must be green too, else silent queue ejection, (18) an aggregate Test Report can appear green when setup jobs fail or zero diagnostic groups are parsed — make the complete `needs` object authoritative, require complete unique producer-outcome manifests, allow skips only through an explicit event-aware allowlist, and preserve a red report and PR comment on every contract failure."
 category: ci-cd
-date: 2026-07-20
-version: "1.13.0"
+date: 2026-07-30
+version: "1.14.0"
 user-invocable: false
 verification: verified-ci
 history: gha-required-checks-branch-protection.history
@@ -50,6 +50,19 @@ tags:
   - coupled-required-contexts
   - merge-queue-timeout
   - fleet-disable
+  - fail-closed
+  - test-report
+  - outcome-manifest
+  - artifact-contract
+  - event-aware-skip
+  - authoritative-needs
+  - recursive-artifact-discovery
+  - diagnostic-before-verdict
+  - stale-green-comment
+  - workflow-inventory-property
+  - negative-path-testing
+  - workflow-run-artifact-trust
+  - expression-injection
 ---
 
 # GitHub Actions Required Checks and Branch Protection
@@ -58,11 +71,11 @@ tags:
 
 | Field | Value |
 | ------- | ------- |
-| **Date** | 2026-07-20 (v1.13.0) · 2026-07-18 (v1.12.0) · 2026-07-17 (v1.11.0) · 2026-07-16 (v1.10.0) · 2026-06-24 (v1.9.0) · 2026-06-20 (v1.5.0) · 2026-06-14 (v1.4.0) |
-| **Objective** | Make required status checks satisfiable and maintainable: handle skip-vs-success semantics with a `summary` aggregator, consolidate duplicate jobs into a reusable `workflow_call` workflow, validate branch-protection API writes with read-back, smoke-test workflow structure, add a RESULTS-loop gate with guard test, document guard-test negative-path, job-key vs context-name disambiguation, destructive PUT mitigation, requirements-deviation disclosure, required-status-check placement, advisory-to-gate promotion, a JSON policy-as-code contract for staged merge-queue activation, live fleet activation with representative merge-group evidence, and (v1.12.0) merge-queue ejection by a non-required-context job living inside the Required-Checks gate workflow |
-| **Outcome** | Consolidated guidance covering thirteen interacting concerns; v1.12.0 adds the merge-queue ejection trap — a non-required-context job (e.g. `markdownlint`) inside the gate WORKFLOW failing on the `gh-readonly-queue` merge-result silently ejects an armed PR, so "all required contexts green" is necessary but not sufficient to merge via a queue |
-| **Verification** | verified-ci (core patterns; Section N v1.11 live fleet activation: exact ruleset read-backs, Athena queue entry, `merge_group` run `29609074296`, and merge at its synthetic SHA; Section O v1.12 merge-queue ejection: live on Agamemnon #457 during the pixi→uv migration — armed with all 18 required contexts green, ejected because the Required-Checks workflow's `markdownlint` job failed MD024 on the merge-result, fixing the CHANGELOG re-admitted it; same class on Nestor #133 (MD013)); verified-local (section F: _unwired_jobs helper + 3-test pattern, PR #1343; section J: required-context enumeration `jq` query WAS run, returned the listed contexts — but the proposed guard placement itself is **unverified** / planning-only; section K: the prerequisite-PR premise-check technique WAS run — `gh pr view 264` returned OPEN/`mergedAt:null` and the `main` grep returned empty — but the proposed ruleset-edit runbook is **unverified** / planning-only; section L: the reviewer NOGO on issue #284 R0 that motivated the rollback/dynamic-integration_id learning is real and **verified-local**, but the proposed rollback runbook + dynamic-`integration_id` jq merge are **unverified** / planning-only — the ruleset PUT/rollback was NOT executed; section J2 (v1.8.0): the repo-ruleset enumeration leg is **verified-local** (8 bare contexts incl. `schema-validation` returned this session) but the org-ruleset `Required Checks / <job>` prefix parity is **unverified** — documentation-derived from `canonical-checks.md:58-62`, `org-ruleset.json` not opened/grepped this iteration; section M (v1.9.0): all 7 gate tests pass locally + yamllint clean — **verified-local** (issue #1514, ProjectHephaestus); section N (v1.10.0): Telemachy #308 / replacement PR #310 has TDD RED 3 failed/4 passed, GREEN 7 passed, full suite 290 passed/3 skipped at 88.86% coverage plus all stated static checks; GitHub verified commit signature and DCO, but PR #310 CI was still queued/in progress at capture)) |
-| **Latest update** | v1.13.0 is **verified-ci**: Mnemosyne PR #3189 removed the full gate's `merge_group` trigger but left its contexts required, producing three `checks_timed_out` queue removals. Restoring a same-context design is the durable fix; removing only the `merge_queue` rule from 15 active rulesets across 17 repositories safely disabled the queue while preserving every other baseline rule, and all signed Mnemosyne PRs then merged with GitHub-verified squash commits. |
+| **Date** | 2026-07-30 (v1.14.0) · 2026-07-20 (v1.13.0) · 2026-07-18 (v1.12.0) · 2026-07-17 (v1.11.0) · 2026-07-16 (v1.10.0) · 2026-06-24 (v1.9.0) · 2026-06-20 (v1.5.0) · 2026-06-14 (v1.4.0) |
+| **Objective** | Make required status checks satisfiable and maintainable: handle skip-vs-success semantics with a `summary` aggregator, consolidate duplicate jobs into a reusable `workflow_call` workflow, validate branch-protection API writes with read-back, smoke-test workflow structure, add a RESULTS-loop gate with guard test, document guard-test negative-path, job-key vs context-name disambiguation, destructive PUT mitigation, requirements-deviation disclosure, required-status-check placement, advisory-to-gate promotion, a JSON policy-as-code contract for staged merge-queue activation, live fleet activation with representative merge-group evidence, merge-queue ejection by a non-required-context job, and a fail-closed test-report contract that couples authoritative upstream outcomes to complete producer manifests |
+| **Outcome** | Consolidated required-check guidance; v1.14.0 replaces false-green report aggregation with two independent completeness contracts: every required upstream result must be acceptable, and every expected producer must provide exactly one valid outcome manifest consistent with that result |
+| **Verification** | verified-ci (Section Q v1.14: Odyssey issue #5731 / PR #5738, hosted negative run `30499502544` failed Test Report job `90741695665` after report artifact `8743636017` was generated, ordinary exact-main run `30566396623` passed with only its explicitly allowed SIMD skip, and extended exact-main run `30566477564` passed 38/38 including SIMD; both green reports were audited as exactly 19 upstream rows and 12 unique successful manifests; core patterns; Section N v1.11 live fleet activation: exact ruleset read-backs, Athena queue entry, `merge_group` run `29609074296`, and merge at its synthetic SHA; Section O v1.12 merge-queue ejection: live on Agamemnon #457 during the pixi→uv migration — armed with all 18 required contexts green, ejected because the Required-Checks workflow's `markdownlint` job failed MD024 on the merge-result, fixing the CHANGELOG re-admitted it; same class on Nestor #133 (MD013)); verified-local (section F: _unwired_jobs helper + 3-test pattern, PR #1343; section J: required-context enumeration `jq` query WAS run, returned the listed contexts — but the proposed guard placement itself is **unverified** / planning-only; section K: the prerequisite-PR premise-check technique WAS run — `gh pr view 264` returned OPEN/`mergedAt:null` and the `main` grep returned empty — but the proposed ruleset-edit runbook is **unverified** / planning-only; section L: the reviewer NOGO on issue #284 R0 that motivated the rollback/dynamic-integration_id learning is real and **verified-local**, but the proposed rollback runbook + dynamic-`integration_id` jq merge are **unverified** / planning-only — the ruleset PUT/rollback was NOT executed; section J2 (v1.8.0): the repo-ruleset enumeration leg is **verified-local** (8 bare contexts incl. `schema-validation` returned this session) but the org-ruleset `Required Checks / <job>` prefix parity is **unverified** — documentation-derived from `canonical-checks.md:58-62`, `org-ruleset.json` not opened/grepped this iteration; section M (v1.9.0): all 7 gate tests pass locally + yamllint clean — **verified-local** (issue #1514, ProjectHephaestus); section N (v1.10.0): Telemachy #308 / replacement PR #310 has TDD RED 3 failed/4 passed, GREEN 7 passed, full suite 290 passed/3 skipped at 88.86% coverage plus all stated static checks; GitHub verified commit signature and DCO, but PR #310 CI was still queued/in progress at capture)) |
+| **Latest update** | v1.14.0 is **verified-ci**: Odyssey replaced a green “0 groups / all tests passed” report with a standard-library-only Python validator that consumes the complete `needs` object, requires success except an explicit event-aware skip allowlist, validates exactly one manifest per expected producer, writes diagnostics before enforcing the verdict, uploads them in an always-run step, and is now a required `Test Report` context on `main`. |
 
 ## When to Use
 
@@ -82,10 +95,16 @@ tags:
 - **(v1.11.0)** You are live-enabling a merge queue in one or many repositories. Before the first write, snapshot every ruleset and reject an existing queue rule; append only the exact approved queue object, read it back, and immediately restore the snapshot on mismatch. Also verify `allow_auto_merge`: GitHub CLI submission to a merge queue can fail with `Auto merge is not allowed for this repository` even when the queue ruleset is active. Enabling that repository setting, re-checking it, and then observing a successful `merge_group` run and actual merge is the operational proof (Section N).
 - **(v1.12.0)** An armed/queued PR shows **ALL required status-check contexts green** yet silently never merges. When a merge queue forms a batch it creates a `gh-readonly-queue/...` merge-result branch and RE-RUNS the workflows on it. If the "Required Checks" WORKFLOW (the Actions workflow file, e.g. `_required.yml`) contains a job that is NOT a required status-check *context* in the ruleset (e.g. `markdownlint`) and that job FAILS on the merge-result, the whole workflow reports failure and GitHub EJECTS the PR from the queue — even though that job was never a required context and the PR head showed every *required* context green. The sharpened gate bar: "all REQUIRED contexts green" is necessary but **NOT sufficient** to merge via a queue; every JOB in the Required-Checks workflow (including non-required-context jobs) must be green, else silent queue ejection. Inspect the merge-result run and either fix the failing job's content or move it out of the gate workflow into a standalone advisory workflow (Section O).
 - **(v1.13.0)** A merge queue reports repeated `checks_timed_out` removals even though its new fast smoke workflow is green. Required status-check names are coupled across `pull_request` and `merge_group`; removing the full gate's `merge_group` trigger while its contexts remain required leaves those contexts unreported on the synthetic SHA. Keep each required context on both events, or emit one stable required aggregate context on both events (full PR suite versus targeted merge-group smoke). If an incident requires disabling queues fleet-wide, remove **only** `merge_queue` from complete GET-derived ruleset payloads and assert every other rule survives (Section P).
+- **(v1.14.0)** A green test-report or summary check claims “all tests passed” while showing zero groups, missing artifacts, failed setup jobs, cancelled jobs, or dependency-induced skips. Use the complete `needs` object as the authoritative execution contract, require exactly one valid outcome manifest per expected result producer, and allow `skipped` only for explicitly named job/event combinations (Section Q).
 
 ## Verified Workflow
 
 > **Verification level:** verified-ci — the aggregator + branch-protection pattern landed in HomericIntelligence/ProjectOdyssey PR #5406 (merged `da1b3f7e`, 2026-05-15); the API-validation pattern landed in HomericIntelligence/ProjectNestor PR #108. Some sub-patterns (reusable-workflow split, coverage-step fallback) are verified-precommit only — see Verified On.
+
+> **Skip-policy scope:** the legacy examples below accept `success|skipped` only for jobs that are
+> explicitly optional for that event. Do not generalize that to every dependency. For a
+> test-report gate, default to `success` and encode each allowed skip as a named job/event pair
+> (Section Q); a dependency-induced skip is a failure.
 
 ### Quick Reference
 
@@ -1032,10 +1051,166 @@ gh api "repos/$repo/rulesets/$ruleset_id" --jq \
 
 For a fleet, enumerate every accessible repository and all active repository-level rulesets first; make the same narrow change only to those whose rule types include `merge_queue`. Re-query the complete fleet afterwards and require an empty set. Re-enable a queue only after a real merge-group SHA emits every required context under the final ruleset.
 
+#### Q. Fail-closed Test Report: authoritative outcomes plus producer manifests (verified-ci — Odyssey #5731 / PR #5738)
+
+> **Verification:** **verified-ci** — Odyssey PR
+> [#5738](https://github.com/HomericIntelligence/Odyssey/pull/5738) replaced a report that could
+> claim “0 groups / all tests passed” while upstream setup jobs failed. Hosted negative run
+> `30499502544` proved the report stayed red while still publishing its diagnostic artifact.
+> Exact-main ordinary run `30566396623` and extended run `30566477564` then proved the green path,
+> including the event-specific SIMD rule.
+>
+> The verdict, exact-run/head binding, and red fallback are verified. The artifact-content trust
+> controls in Q4 are **security-derived and not yet deployed in the cited Odyssey workflow**; treat
+> them as required before granting a report consumer write permission.
+
+**Failure mode.** Result JSON and test counts are diagnostic artifacts, not proof that a workflow
+executed successfully. A setup failure can prevent tests from running while an always-run upload
+still publishes an empty or partial artifact. An aggregator that only sums discovered files can
+therefore see zero groups, divide nothing, and exit successfully while required jobs are failed,
+cancelled, or skipped.
+
+Use two independent contracts. A green report requires both; neither can substitute for the other.
+
+##### Q1. Execution contract: the complete `needs` object is authoritative
+
+1. Run the report job with `if: always()` and make it directly depend on every upstream job whose
+   outcome matters.
+2. Assign the complete `${{ toJSON(needs) }}` value through step-level `env:` (for example,
+   `NEEDS_JSON`), then parse only `os.environ["NEEDS_JSON"]` with the standard JSON library. Job
+   outputs are untrusted: never splice the expression into `run:` shell source or a heredoc, and do
+   not log the full object. Do not reconstruct results from artifact names, filenames, or
+   human-readable summaries.
+3. Require `success` by default. Treat `failure`, `cancelled`, and dependency-induced `skipped` as
+   failures.
+4. Encode an allowed skip as an explicit tuple of job identity and dispatch/event mode. For example,
+   an ordinary PR or push may allow one SIMD job to skip, while an extended dispatch requires that
+   same job to succeed.
+5. Add a workflow-property test requiring exact equality between all top-level jobs except the
+   report and the report job's `needs` set, and reject duplicate `needs` entries. Keep intentionally
+   advisory jobs in a separate workflow instead of silently excluding them from the trusted gate.
+
+This tightens the broad `success|skipped` examples in Sections A and E. Skip tolerance is a policy
+decision per job and event, not a default result class.
+
+##### Q2. Evidence contract: one outcome manifest per expected producer
+
+Each result-producing job writes a minimal outcome manifest in a dedicated `if: always()` step
+after its real test step, then uploads it in a separate `if: always()` step with
+`if-no-files-found: error`. The manifest contract contains:
+
+| Field | Meaning |
+| --- | --- |
+| `producer` | Stable producer identity from a closed expected set |
+| `job_id` | Workflow job key that produced the result |
+| `status` | Final producer or matrix-shard outcome |
+
+The report discovers manifests recursively because artifact download behavior differs: one artifact
+may extract directly into the download root, while multiple artifacts usually create
+subdirectories. Reject all of these conditions:
+
+- zero manifests or an empty artifact set;
+- a missing or duplicate expected producer;
+- an unexpected producer;
+- malformed JSON, an empty file, or a schema mismatch;
+- a producer-to-job mapping mismatch;
+- a manifest status that contradicts the authoritative upstream job result.
+
+For a non-matrix producer, the manifest status must agree with its owning job result. For a matrix,
+require every declared shard producer to report success and independently require the aggregate
+matrix job in `needs` to succeed. Do not compare one successful shard to the aggregate result when
+another shard can make that aggregate fail.
+
+Existing detailed test-result JSON remains useful for diagnosis. It is not a complete suite census,
+so do not publish a global test count, pass rate, or “all tests passed” claim derived from whatever
+files happened to download.
+
+##### Q3. Generate diagnostics before enforcing the verdict
+
+Aggregation and enforcement are separate phases:
+
+1. Generate Markdown that lists every upstream job and result, every expected producer and manifest
+   status, and every missing/invalid-artifact diagnostic.
+2. Write the report to its stable path even when the verdict is red.
+3. Enforce the verdict after report generation.
+4. Upload the report in an `always()` step and fail if the report file is absent.
+
+This ordering preserves the evidence needed to debug a red gate. An aggregation crash or missing
+report is itself a gate failure; it must not silently fall back to green.
+
+##### Q4. Harden downstream comments across the artifact trust boundary
+
+Treat metrics and count summaries as optional. A PR-comment consumer must still post the
+comprehensive failure report when metrics are absent. If the report is unavailable, replace any
+stale green comment with a red fallback containing the current run URL and conclusion. Bind the
+consumer to the exact source run and conclusion so an older successful artifact cannot overwrite a
+new failure.
+
+`workflow_run` consumers may receive write tokens even when the source workflow was unprivileged.
+Treat every artifact produced by pull-request code as attacker-controlled: matching the exact
+run/head proves freshness, not content authenticity. Never relay downloaded Markdown verbatim from
+a write-scoped consumer.
+
+Prefer querying authoritative run/job data through the API and constructing the comment entirely in
+trusted default-branch code. If an artifact is necessary:
+
+1. Require exactly one non-expired artifact with the expected name from the bound run.
+2. Extract under `runner.temp`; enforce archive and file-size limits and reject unexpected files.
+3. Parse a strict, versioned data schema with closed field sets, enums, and length bounds. Never
+   execute, source, or deserialize executable objects from the artifact.
+4. Escape Markdown and HTML and neutralize mentions before trusted code renders the comment.
+5. Use an exact private marker and update only a comment whose author login or ID matches the
+   configured bot identity, not any `Bot` comment containing a human-readable heading.
+
+Any count, schema, size, identity, or escaping failure must produce a trusted red fallback using
+only the bound run URL and conclusion. The untrusted artifact must not contribute text to that
+fallback.
+
+##### Q5. Regression contract
+
+Tests should exercise computable validator behavior and workflow structure, not freeze report prose.
+Cover at least:
+
+| Case | Required result |
+| --- | --- |
+| Upstream setup failure with otherwise passing artifacts | Red; failed job named |
+| Zero artifacts or zero discovered manifests | Red |
+| One artifact extracted directly at the download root | Correctly discovered |
+| Missing, duplicate, malformed, empty, unexpected, or contradictory manifest | Red with diagnostic |
+| Failed, cancelled, or non-allowlisted skipped dependency | Red |
+| Ordinary allowlisted skip | Accepted only for the named job/event |
+| Extended dispatch with that job skipped | Red |
+| One failed matrix shard | Red; shard and producer named |
+| Complete successful dependencies and all expected manifests | Green |
+| New top-level job omitted from report `needs`, or duplicate `needs` entry | Workflow-property test fails |
+| `toJSON(needs)` interpolated into shell source instead of step `env:` | Workflow-property test fails |
+| Manifest writer or upload lacks `if: always()`, or upload can ignore a missing file | Workflow-property test fails |
+| Duplicate, oversized, or schema-invalid comment artifact | Rejected; trusted red fallback contains no artifact text |
+| Markup or mention payload in an allowed artifact field | Escaped or neutralized by trusted rendering; never relayed raw |
+
+Legacy diagnostic group counts are not verdict inputs. If no group summaries exist, omit those
+metrics rather than deriving a green “zero groups” or “all tests passed” claim.
+
+Include a hosted negative proof before trusting the rollout: deliberately exercise a real upstream
+failure, confirm the report job is red, confirm the report artifact still uploads, and confirm the
+PR comment is red. After a full green default-branch run, add the stable report context to the
+ruleset and read it back. Requiring it before the context has emitted on the default branch risks
+the deadlock described in Sections A, G, and K.
+
+**Historical correction.** Earlier Odyssey guidance repaired empty artifact uploads by synthesizing
+JSON test counts. That made artifacts visible but did not make those counts complete or
+authoritative. Outcome manifests plus the full `needs` object supersede that approach: manifests
+prove producer completeness; `needs` proves execution success; detailed JSON remains diagnostic.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 | ------- | -------------- | ------------- | -------------- |
+| Derived a global pass count from downloaded result JSON | Summed whichever groups/files were present and treated zero discovered groups as success | The JSON set was diagnostic and incomplete; upstream setup failures could leave zero groups while the report stayed green | Do not claim global totals from partial diagnostics; require authoritative outcomes plus a complete producer set |
+| Treated artifact presence as proof that tests passed | Trusted always-run uploads even when setup or matrix jobs failed | A failure manifest can upload successfully; upload success says only that evidence exists | Gate on the full `needs` results and use manifests only as the independent completeness/consistency contract |
+| Accepted every `skipped` dependency | Reused a broad `success|skipped` aggregator rule | Dependency-induced skips and incorrectly skipped extended jobs could pass | Require success by default; allow only explicit job/event skip tuples |
+| Enforced the verdict before writing the report | Exited as soon as an invalid dependency or manifest was found | The red check discarded the evidence needed to diagnose it | Generate the complete report first, enforce second, and upload in an always-run step |
+| Required optional metrics in the PR-comment consumer | Commenting failed or retained a stale green result when metrics/report artifacts were absent | Missing optional data hid the authoritative failure | Metrics are optional; post the failure report, or replace stale green state with a red run-linked fallback |
 | Counted on `skipped` to satisfy a required check | Assumed a whole-job `if:` skip posts `success` because the job "didn't fail" | GitHub posts `conclusion=skipped`; branch protection requires `success` — `skipped` is not in the satisfying set for job-level skips | Verified empirically (ProjectOdyssey PR #5406 was BLOCKED until the branch-protection update landed); use an `if: always()` aggregator that tolerates `skipped` |
 | Pushed the aggregator workflow but forgot the protection edit | Expected BLOCKED to clear once the `summary` job existed | The per-job contexts are still required and still `skipped`; the new aggregator is a no-op for protection | Aggregator workflow + branch-protection edit are a single logical fix — apply both together |
 | Treated a BLOCKED PR as purely a path-filter problem | Broadened the `paths:` filter alone, expecting the required context to start passing | Fixing `paths:` only flips the failure mode from "context never posted" to "context posted as `skipped`" — both stay BLOCKED | When required contexts span both flavours, fix both (`paths:` AND the skip-tolerant aggregator); see related skill `ci-cd-required-context-never-posts-pr-blocked` |
@@ -1064,6 +1239,22 @@ For a fleet, enumerate every accessible repository and all active repository-lev
 | Replaced full `merge_group` checks with a differently named smoke job | PR #3189 removed the full gate's `merge_group` trigger and added a green `merge-queue-smoke` workflow, while the live ruleset still required the original full check names | The queue's synthetic SHA emitted only `merge-queue-smoke`; required contexts such as `lint` never posted, so GitHub removed the PR with `checks_timed_out` three times | Required contexts are coupled across PR and merge-group events. Keep each required context on both events, or have both events emit one identical aggregate required context. For an incident rollback, filter only `merge_queue` from a complete GET-derived ruleset payload and verify all non-queue protections remain (Section P) |
 
 ## Results & Parameters
+
+### Fail-closed Test Report evidence (v1.14.0 — Odyssey, verified-ci)
+
+| Parameter | Verified value |
+| --- | --- |
+| Execution fan-in | 19 authoritative upstream job families |
+| Evidence fan-in | 12 expected producers; exactly one schema-valid manifest per producer |
+| Negative hosted proof | Run `30499502544` failed; Test Report job `90741695665` stayed red, named failed upstream jobs/producers, and still uploaded report artifact `8743636017` |
+| Ordinary exact-main proof | Run `30566396623`: 37 job successes plus the single permitted ordinary SIMD skip; report contained 19 upstream rows and 12 successful producer rows |
+| Extended exact-main proof | Run `30566477564`: 38/38 jobs succeeded, including SIMD; report contained 19 successful upstream rows and 12 successful producer rows |
+| Ordinary report artifact | ID `8770150630`, digest `sha256:24b6c991e03a4ab233b2e261799fbefb468e006860102ca15581d1a6f124058c` |
+| Extended report artifact | ID `8771296615`, digest `sha256:156b7168bf6101a805122f633ebf06237948270213ca47f0f95ee3869abe478e` |
+| Regression validation | 133 focused report/workflow/action-pin tests and 1,228 Python tests passed before publication; the final rebased head reran 69 focused tests and 1,248 Python tests with 228 expected skips |
+| Required context | Ruleset `18221116` requires the exact `Test Report` context after green default-branch emission |
+| Exact accepted main | `760aed20a2cacf84e1e83256e1de169ccee9f433` |
+| Comment trust boundary | Exact-run/head binding and red fallback are verified-ci; strict artifact validation and trusted rendering are required but not yet deployed in Odyssey |
 
 ### Coupled-context failure and fleet rollback evidence (v1.13.0 — Mnemosyne, verified-ci)
 
@@ -1247,6 +1438,7 @@ planning-only.
 
 | Project | Context | Details |
 | ------- | ------- | ------- |
+| Odyssey | Issue [#5731](https://github.com/HomericIntelligence/Odyssey/issues/5731), PR [#5738](https://github.com/HomericIntelligence/Odyssey/pull/5738), merged `d819888c503754195f84a079ffd6b3df18255468`; exact main `760aed20a2cacf84e1e83256e1de169ccee9f433` (2026-07-30) | Section Q — hosted red-path proof plus ordinary and extended exact-main green proofs; 19 authoritative upstream results, 12 unique producer manifests, event-aware SIMD handling, diagnostic-before-verdict reporting, exact-head red-fallback comments, and required `Test Report` ruleset context. **verified-ci** for those behaviors; Q4 strict artifact validation/trusted rendering is security-derived and not yet deployed in Odyssey. |
 | ProjectOdyssey | PR [#5406](https://github.com/HomericIntelligence/ProjectOdyssey/pull/5406), merged `da1b3f7e` (2026-05-15) | Summary aggregator + branch-protection update; `container-publish.yml`; verified-ci |
 | ProjectNestor | Issue #54, PR #108 | Branch-protection API read-back + synthetic tests; verified-ci |
 | ProjectOdyssey | PR #4838, issue #3948 | Extended `workflow-smoke-test.yml` to cover 3 more workflows; 26 tests pass |
@@ -1268,8 +1460,11 @@ planning-only.
 
 ## References
 
+- [Zero-test false-pass guard](testing-verification-gate-zero-test-false-pass.md)
+- [Honest artifact checks for non-library repositories](ci-cd-canonical-check-nonlibrary-repo.md)
 - [GitHub Actions: Reusing workflows](https://docs.github.com/en/actions/using-workflows/reusing-workflows)
 - [GitHub Actions: `workflow_call` trigger](https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#workflow_call)
+- [GitHub Actions: `workflow_run` security warning](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#workflow_run)
 - [GitHub: Branch rulesets and required checks](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets)
 - [GitHub: Managing a merge queue](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue)
 - [GitHub REST: Update branch protection](https://docs.github.com/en/rest/branches/branch-protection?apiVersion=2022-11-28#update-branch-protection)
