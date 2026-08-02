@@ -1,24 +1,24 @@
 ---
 name: bf16-monokernel-sol-profiling
-description: "Build and interpret a reproducible BF16 CUDA RMSNorm monokernel benchmark. Use when: (1) model-derived normalization workloads may duplicate parameter counts, (2) a rootless H200 profile needs verified latency, correctness, and artifact provenance, (3) Nsight Compute counters are policy-restricted, or (4) a tiny one-row kernel reports unexpectedly low global speed-of-light."
+description: "Build, interpret, and iteratively optimize a reproducible BF16 CUDA monokernel benchmark. Use when: (1) model-derived workloads may duplicate parameter counts, (2) a rootless H200 profile needs verified latency, correctness, and artifact provenance, (3) Nsight Compute counters are policy-restricted, (4) a tiny one-row kernel reports unexpectedly low global speed-of-light, (5) several required sequence positions need one minimax acceptance decision, or (6) a previously rejected optimization may become useful after the bottleneck or resource state changes."
 category: optimization
-date: 2026-07-30
-version: "1.0.0"
+date: 2026-08-02
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
-tags: [cuda, bf16, rmsnorm, monokernel, nvidia-h200, roofline, sol, ncu, nsys, slurm, enroot, provenance]
+tags: [cuda, bf16, rmsnorm, monokernel, nvidia-h200, roofline, sol, minimax, optimization-campaign, reconsideration, occupancy, registers, ncu, nsys, slurm, enroot, provenance]
 ---
 
-# Reproducible BF16 CUDA Monokernel SOL Profiling
+# Reproducible BF16 CUDA Monokernel SOL Profiling and Optimization
 
 ## Overview
 
 | Field | Value |
 | --- | --- |
-| Date | 2026-07-30 |
-| Objective | Measure a latency-oriented BF16 weighted-RMSNorm CUDA monokernel without conflating model naming, correctness, profiler overhead, or global hardware roofline utilization. |
-| Outcome | A 14-case H200 matrix used one workload per unique normalization parameter count, passed exhaustive harness and host-oracle validation, and preserved rootless profiling provenance. |
-| Verification | verified-local: rootless image contracts and full host suite passed; H200 GPU validation and Compute Sanitizer passed; a 14-case Nsys matrix completed with artifact hashes verified. |
+| Date | 2026-08-02 |
+| Objective | Measure and iteratively optimize latency-oriented BF16 CUDA monokernels without conflating model naming, correctness, profiler overhead, isolated-position wins, or global hardware roofline utilization. |
+| Outcome | A 14-case RMSNorm H200 matrix established the reproducible profiling contract. A later full-decoder campaign added immutable attempt commits, five-position minimax acceptance, conditional reconsideration triggers, resource-state audits, and periodic durable-learning checkpoints. |
+| Verification | verified-local: rootless image contracts and full host suites passed; H200 GPU validation and Compute Sanitizer passed; the RMSNorm Nsys matrix and the full-decoder five-position screens retained artifact hashes, exact source bindings, and harness-owned correctness evidence. |
 
 ## When to Use
 
@@ -28,6 +28,9 @@ tags: [cuda, bf16, rmsnorm, monokernel, nvidia-h200, roofline, sol, ncu, nsys, s
 - A roofline report must distinguish an algorithmic lower bound from native Nsight Compute counters and Nsight Systems timing attribution.
 - Nsight Compute fails with a GPU-counter permission error, but a valid Nsight Systems trace can still be collected.
 - A one-row kernel has very low global SOL and an optimization decision must distinguish launch/grid underfill from poor HBM use.
+- A full monokernel has several required sequence positions and the slowest relative-to-roofline position, rather than one favorable position, must control acceptance.
+- An optimization lost under an earlier champion, but a later fusion, attention algorithm, register count, shared-memory layout, or phase balance may have removed the reason it lost.
+- A long optimization campaign needs permanent RED/GREEN/outcome evidence and a fixed cadence for consolidating reusable lessons.
 
 ## Verified Workflow
 
@@ -38,6 +41,8 @@ tags: [cuda, bf16, rmsnorm, monokernel, nvidia-h200, roofline, sol, ncu, nsys, s
 3. Verify the rootless image digest before creating the runtime, then record image, dependency-lock, source-tree, device, tool, and profiler artifact hashes.
 4. Measure verified uninstrumented p50 first. Capture a separate Nsys trace for kernel duration and launch attribution; collect NCU counters only when permitted.
 5. Report algorithmic, NCU, and Nsys SOL as separate fields. Interpret global SOL together with CTA-to-SM coverage.
+6. For multi-position kernels, accept against the minimum SOL across the required positions and preserve the exact candidate revision, screen, and confirmation separately.
+7. Treat rejection as conditional. Record why it lost and an objective trigger for reconsideration, then audit those triggers after every accepted champion.
 
 ### Detailed Steps
 
@@ -50,6 +55,10 @@ tags: [cuda, bf16, rmsnorm, monokernel, nvidia-h200, roofline, sol, ncu, nsys, s
 7. **Keep three profiling views distinct.** Report algorithmic/runtime SOL from the uninstrumented p50; report NCU counter SOL as the greater of DRAM and SM percent-of-peak only when counters were collected; and report Nsys average kernel duration, estimated launch gap, and a separately calculated kernel-only lower-bound SOL. The harness's implementation-specific traffic convention is not the ideal roofline byte count.
 8. **Fail closed on missing NCU access.** If NCU returns `ERR_NVGPUCTRPERM`, record counter SOL as unavailable and preserve the failure reason. Do not report zero utilization or bypass host policy. Use Nsys to preserve kernel duration and launch attribution, while clearly stating that it does not measure native bandwidth or SM utilization.
 9. **Interpret grid coverage before choosing an optimization.** Include `min(grid_blocks / SM_count, 1)` in every report. A one-CTA workload cannot saturate all SMs, so a low global SOL can primarily indicate launch overhead or underfill. To improve single-invocation latency, prioritize launch reduction or legal fusion; increasing concurrent work changes the workload and should be reported separately.
+10. **Use a minimax acceptance objective for required positions.** Define the legal position set before optimization and keep it fixed. Screen every immutable candidate with the same warmup, iteration count, grid, image, model pack, and fixtures; only promote a candidate that improves the minimum required-position SOL without an unacceptable regression elsewhere. Confirm a screen winner with a longer run before changing the champion. Never substitute a prototype result for the exact formal revision.
+11. **Make every rejection conditional and triggerable.** Store the mechanism, tested champion, controlling position, measured failure, resource state, and a measurable recheck trigger. After each accepted champion, audit position timing, phase attribution, registers, stack, spills, local memory, static and dynamic shared memory, occupancy, and legal grid ceiling. Recompose and rescreen a dormant mechanism when its trigger fires. A prior no-go is evidence about one composition and one bottleneck state, not a permanent property of the mechanism.
+12. **Keep an immutable campaign ledger.** Give each formal attempt permanent RED, GREEN, and outcome commits. Bind reports to Git revision plus every included CUDA/header blob that changes generated device code. Preserve raw results outside Git by immutable path, scheduler ID, and SHA-256. Record conditional prototypes separately so a recheck does not silently consume a formal iteration or rewrite history.
+13. **Checkpoint reusable knowledge at a fixed cadence.** Decide the cadence before the campaign; the verified full-decoder campaign used every five formal attempts. Do not mark the boundary attempt complete until the learning disposition and, for a write disposition, the resulting knowledge PR URL are recorded. This keeps the campaign ledger and the durable rule synchronized without treating every noisy prototype as a new skill.
 
 ## Failed Attempts
 
@@ -60,6 +69,9 @@ tags: [cuda, bf16, rmsnorm, monokernel, nvidia-h200, roofline, sol, ncu, nsys, s
 | Parse profiler stdout as CSV from its first line | Passed NCU/Nsys export text directly to a CSV reader | Both tools can prepend informational lines before the real CSV header | Locate and validate the expected header before parsing rows. |
 | Require NCU counters on a restricted host | Ran Nsight Compute despite `ERR_NVGPUCTRPERM` | GPU-counter access was denied by host policy, not by kernel behavior | Mark native counter SOL unavailable and use Nsys without attempting a privilege workaround. |
 | Reuse the generic eight-byte traffic figure as roofline traffic | Used two input reads, scale read, and output write for every SOL calculation | That is an implementation-specific effective-traffic convention, not the ideal RMSNorm model | Use six ideal BF16 bytes per element for the lower bound and keep effective bandwidth separate. |
+| Permanently discard a mechanism after one losing composition | A QKV/RoPE fusion family was rejected under an earlier attention champion | Later attention restructuring changed synchronization and phase balance; the recomposed fusion improved every required position | Record the measured reason and trigger. Reconsider after a champion changes the controlling bottleneck or resource state. |
+| Promote isolated short-position wins | Dense accumulation, global RoPE scratch, and load-pipeline variants improved some short or middle positions | The p8191 controller regressed, so the five-position minimum fell despite local wins | Accept on the predefined minimum SOL, not the most favorable row or average alone. |
+| Assume tensor-core instructions imply a faster attention path | A padded BF16 MMA prototype emitted real `HMMA.16816.F32.BF16` instructions | Padding four queries to sixteen plus producer/barrier overhead made p8191 slower | Count useful work per synchronization and include padding, producer, barrier, shared-memory, and register costs in the trigger. |
 
 ## Results & Parameters
 
@@ -97,6 +109,23 @@ Use stable workload identifiers and source provenance for each count. Equal-coun
 
 The low global SOL is expected for a one-CTA latency microkernel. In the representative 7,168-parameter case, Nsys attributed 5.344 microseconds to the GPU kernel and approximately 3.968 microseconds to launch/other elapsed work; optimize this attribution before claiming an HBM bottleneck.
 
+### Iterative Full-Monokernel Campaign Contract
+
+Use one row per formal attempt and a separate trigger queue for conditional prototypes:
+
+| Ledger field | Required value |
+| --- | --- |
+| Candidate identity | Immutable Git revision plus each device-code-affecting source/blob identity |
+| Comparison | Exact parent champion, fixed required positions, image, pack, fixtures, grid, warmup, and iterations |
+| Objective | Minimum required-position SOL; retain every individual latency/SOL value |
+| Correctness | Harness-owned exact decisions/prefixes, mismatch and nonfinite counts, and sealed numerical error statistics |
+| Resources | Registers, stack, spills, local memory, static/dynamic shared memory, occupancy, and legal grid ceiling |
+| Outcome | Accept, reject, or invalidate, with immutable raw artifact paths, job IDs, and digests |
+| Reconsideration | Mechanism, observed failure, controlling position/phase, tested resource state, trigger, and current state |
+| Learning boundary | Formal attempt number, lesson disposition, evidence range, and knowledge PR URL when mutated |
+
+The verified campaign demonstrated why the queue is necessary. After an attention restructuring, a recomposed sequential-pair QKV/RoPE fusion that had lost earlier improved all five required positions and raised confirmed minimum SOL from `19.2949%` to `20.1471%` (`+3.73%` relative). Later rechecks of dual accumulation, a global RoPE table, and a dense-load pipeline reversed direction at some short or middle positions but still lost p8191; they remained dormant with new measurable triggers. A padded tensor-core attention path emitted real HMMA instructions and retained two CTAs per SM, yet lost p8191 because useful work per synchronization was too low. These results are compatible: bottleneck changes can revive a mechanism, while the current minimax controller still decides whether the new composition is accepted.
+
 ### Required Artifact Contract
 
 Keep a dedicated profile root containing:
@@ -114,6 +143,7 @@ If a source revision is unavailable, the source-tree digest remains the binding 
 | Project | Context | Details |
 | --- | --- | --- |
 | CUDA monokernel benchmark | Rootless NVIDIA H200 BF16 weighted-RMSNorm profiling, 2026-07-30 | Full rootless host suite, H200 correctness/Compute Sanitizer, and a 14-case Nsys matrix passed; artifact hashes were independently recomputed. |
+| BF16 full-decoder monokernel campaign | Rootless NVIDIA H200, five required positions, attempts 21-24 and conditional rechecks, 2026-08-02 | Immutable candidate/outcome commits and exact harness evidence verified minimax acceptance, trigger-based reconsideration, static resource binding, and separate prototype lineage. |
 
 ## References
 
