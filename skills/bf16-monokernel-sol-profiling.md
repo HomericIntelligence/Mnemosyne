@@ -1,12 +1,12 @@
 ---
 name: bf16-monokernel-sol-profiling
-description: "Build, interpret, and iteratively optimize a reproducible BF16 CUDA monokernel benchmark. Use when: (1) model-derived workloads may duplicate parameter counts, (2) a rootless H200 profile needs verified latency, correctness, and artifact provenance, (3) Nsight Compute counters are policy-restricted, (4) a tiny one-row kernel reports unexpectedly low global speed-of-light, (5) several required sequence positions need one minimax acceptance decision, or (6) a previously rejected optimization may become useful after the bottleneck or resource state changes."
+description: "Build, interpret, and iteratively optimize a reproducible BF16 CUDA monokernel benchmark. Use when: (1) model-derived workloads may duplicate parameter counts, (2) a rootless H200 profile needs verified latency, correctness, and artifact provenance, (3) Nsight Compute counters are policy-restricted, (4) a tiny one-row kernel reports unexpectedly low global speed-of-light, (5) several required sequence positions need one minimax acceptance decision, (6) a previously rejected optimization may become useful after the bottleneck or resource state changes, or (7) static compiler metrics and isolated prototype gains disagree with the fully composed kernel."
 category: optimization
-date: 2026-08-02
-version: "1.1.0"
+date: 2026-08-03
+version: "1.2.0"
 user-invocable: false
 verification: verified-local
-tags: [cuda, bf16, rmsnorm, monokernel, nvidia-h200, roofline, sol, minimax, optimization-campaign, reconsideration, occupancy, registers, ncu, nsys, slurm, enroot, provenance]
+tags: [cuda, bf16, rmsnorm, monokernel, nvidia-h200, roofline, sol, minimax, optimization-campaign, reconsideration, composition, compiler, sass, occupancy, registers, ncu, nsys, slurm, enroot, provenance]
 ---
 
 # Reproducible BF16 CUDA Monokernel SOL Profiling and Optimization
@@ -15,10 +15,10 @@ tags: [cuda, bf16, rmsnorm, monokernel, nvidia-h200, roofline, sol, minimax, opt
 
 | Field | Value |
 | --- | --- |
-| Date | 2026-08-02 |
+| Date | 2026-08-03 |
 | Objective | Measure and iteratively optimize latency-oriented BF16 CUDA monokernels without conflating model naming, correctness, profiler overhead, isolated-position wins, or global hardware roofline utilization. |
-| Outcome | A 14-case RMSNorm H200 matrix established the reproducible profiling contract. A later full-decoder campaign added immutable attempt commits, five-position minimax acceptance, conditional reconsideration triggers, resource-state audits, and periodic durable-learning checkpoints. |
-| Verification | verified-local: rootless image contracts and full host suites passed; H200 GPU validation and Compute Sanitizer passed; the RMSNorm Nsys matrix and the full-decoder five-position screens retained artifact hashes, exact source bindings, and harness-owned correctness evidence. |
+| Outcome | A 14-case RMSNorm H200 matrix established the reproducible profiling contract. A later full-decoder campaign added immutable attempt commits, five-position minimax acceptance, conditional reconsideration triggers, resource-state audits, compiler-materialized composition decisions, and periodic durable-learning checkpoints. |
+| Verification | verified-local: rootless image contracts and full host suites passed; H200 GPU validation and Compute Sanitizer passed; the RMSNorm Nsys matrix and the full-decoder five-position screens and confirmations retained artifact hashes, exact source bindings, static-resource reports, and harness-owned correctness evidence. |
 
 ## When to Use
 
@@ -30,6 +30,7 @@ tags: [cuda, bf16, rmsnorm, monokernel, nvidia-h200, roofline, sol, minimax, opt
 - A one-row kernel has very low global SOL and an optimization decision must distinguish launch/grid underfill from poor HBM use.
 - A full monokernel has several required sequence positions and the slowest relative-to-roofline position, rather than one favorable position, must control acceptance.
 - An optimization lost under an earlier champion, but a later fusion, attention algorithm, register count, shared-memory layout, or phase balance may have removed the reason it lost.
+- A source-level optimization, isolated prototype, register count, or SASS instruction count predicts one outcome while the fully composed candidate measures another.
 - A long optimization campaign needs permanent RED/GREEN/outcome evidence and a fixed cadence for consolidating reusable lessons.
 
 ## Verified Workflow
@@ -43,6 +44,7 @@ tags: [cuda, bf16, rmsnorm, monokernel, nvidia-h200, roofline, sol, minimax, opt
 5. Report algorithmic, NCU, and Nsys SOL as separate fields. Interpret global SOL together with CTA-to-SM coverage.
 6. For multi-position kernels, accept against the minimum SOL across the required positions and preserve the exact candidate revision, screen, and confirmation separately.
 7. Treat rejection as conditional. Record why it lost and an objective trigger for reconsideration, then audit those triggers after every accepted champion.
+8. Rank evidence in this order: legal fully composed binary, matched short screen, then long confirmation. Static resources establish eligibility; they do not rank performance.
 
 ### Detailed Steps
 
@@ -59,6 +61,7 @@ tags: [cuda, bf16, rmsnorm, monokernel, nvidia-h200, roofline, sol, minimax, opt
 11. **Make every rejection conditional and triggerable.** Store the mechanism, tested champion, controlling position, measured failure, resource state, and a measurable recheck trigger. After each accepted champion, audit position timing, phase attribution, registers, stack, spills, local memory, static and dynamic shared memory, occupancy, and legal grid ceiling. Recompose and rescreen a dormant mechanism when its trigger fires. A prior no-go is evidence about one composition and one bottleneck state, not a permanent property of the mechanism.
 12. **Keep an immutable campaign ledger.** Give each formal attempt permanent RED, GREEN, and outcome commits. Bind reports to Git revision plus every included CUDA/header blob that changes generated device code. Preserve raw results outside Git by immutable path, scheduler ID, and SHA-256. Record conditional prototypes separately so a recheck does not silently consume a formal iteration or rewrite history.
 13. **Checkpoint reusable knowledge at a fixed cadence.** Decide the cadence before the campaign; the verified full-decoder campaign used every five formal attempts. Do not mark the boundary attempt complete until the learning disposition and, for a write disposition, the resulting knowledge PR URL are recorded. This keeps the campaign ledger and the durable rule synchronized without treating every noisy prototype as a new skill.
+14. **Judge the compiler-materialized full composition.** Build the exact candidate with every selected mechanism enabled and inspect its emitted resources and SASS. Registers, stack, spills, shared memory, legal residency, and launch ceiling are fail-closed eligibility gates; source-level instruction savings and static instruction counts are diagnostic evidence, not a performance ordering. A legal power-of-two geometry may win despite more registers or instructions when it removes tail work, branches, or synchronization. Run the fixed matched screen only after the static gate passes, and change the champion only after the same immutable candidate and materialized device-code identity pass long confirmation. Re-evaluate each mechanism after composition because independent or short-screen gains are not additive.
 
 ## Failed Attempts
 
@@ -72,6 +75,7 @@ tags: [cuda, bf16, rmsnorm, monokernel, nvidia-h200, roofline, sol, minimax, opt
 | Permanently discard a mechanism after one losing composition | A QKV/RoPE fusion family was rejected under an earlier attention champion | Later attention restructuring changed synchronization and phase balance; the recomposed fusion improved every required position | Record the measured reason and trigger. Reconsider after a champion changes the controlling bottleneck or resource state. |
 | Promote isolated short-position wins | Dense accumulation, global RoPE scratch, and load-pipeline variants improved some short or middle positions | The p8191 controller regressed, so the five-position minimum fell despite local wins | Accept on the predefined minimum SOL, not the most favorable row or average alone. |
 | Assume tensor-core instructions imply a faster attention path | A padded BF16 MMA prototype emitted real `HMMA.16816.F32.BF16` instructions | Padding four queries to sixteen plus producer/barrier overhead made p8191 slower | Count useful work per synchronization and include padding, producer, barrier, shared-memory, and register costs in the trigger. |
+| Rank legal candidates by static compiler metrics | A power-of-two attention geometry raised registers and SASS/IMAD counts, while an earlier fused-SwiGLU short-screen gain looked independently promising | Removing one logical tail chunk improved the confirmed p8191 floor, while the source-level and short-screen signals did not predict the composed result | Use resources and residency as eligibility gates, then let matched screen and long confirmation rank the exact fully composed binary. |
 
 ## Results & Parameters
 
@@ -126,6 +130,8 @@ Use one row per formal attempt and a separate trigger queue for conditional prot
 
 The verified campaign demonstrated why the queue is necessary. After an attention restructuring, a recomposed sequential-pair QKV/RoPE fusion that had lost earlier improved all five required positions and raised confirmed minimum SOL from `19.2949%` to `20.0140%` (`+3.73%` relative). Later rechecks of dual accumulation, a global RoPE table, and a dense-load pipeline reversed direction at some short or middle positions but still lost p8191; they remained dormant with new measurable triggers. A padded tensor-core attention path emitted real HMMA instructions and retained two CTAs per SM, yet lost p8191 because useful work per synchronization was too low. These results are compatible: bottleneck changes can revive a mechanism, while the current minimax controller still decides whether the new composition is accepted.
 
+Attempts 26 through 30 sharpened the evidence ordering. Changing 33 logical GQA chunks to 32 preserved the fixed physical 264-task/1,056-partial workspace ABI, the 264-CTA launch, and legal two-CTA residency, but raised the compiled kernel from 96 to 100 registers, increased SASS from 8,960 to 9,056 instructions, and increased IMAD sites from 1,438 to 1,472. Despite those worse static counts, removing the tail chunk raised confirmed p8191 SOL from `26.8088%` to `28.5024%` (`+1.6935` SOL percentage points, `+6.317%` relative), with exact greedy tokens, bit-exact input K/V prefixes, and unchanged harness tolerances. Conversely, a fused-SwiGLU layout that looked positive in a short screen had its apparent p8191/minimum gain reverse in confirmation, and its later composition with direct PTX exponential also regressed at p8191. Static inspection correctly established that the power-of-two candidate was legal; only matched runtime evidence established that it was faster.
+
 ### Required Artifact Contract
 
 Keep a dedicated profile root containing:
@@ -143,7 +149,7 @@ If a source revision is unavailable, the source-tree digest remains the binding 
 | Project | Context | Details |
 | --- | --- | --- |
 | CUDA monokernel benchmark | Rootless NVIDIA H200 BF16 weighted-RMSNorm profiling, 2026-07-30 | Full rootless host suite, H200 correctness/Compute Sanitizer, and a 14-case Nsys matrix passed; artifact hashes were independently recomputed. |
-| BF16 full-decoder monokernel campaign | Rootless NVIDIA H200, five required positions, attempts 21-24 and conditional rechecks, 2026-08-02 | Immutable candidate/outcome commits and exact harness evidence verified minimax acceptance, trigger-based reconsideration, static resource binding, and separate prototype lineage. |
+| BF16 full-decoder monokernel campaign | Rootless NVIDIA H200, five required positions, attempts 21-30 and conditional rechecks, 2026-08-03 | Immutable candidate/outcome commits and exact harness evidence verified minimax acceptance, trigger-based reconsideration, static eligibility versus runtime ranking, compiler-materialized composition decisions, and separate prototype lineage. |
 
 ## References
 
