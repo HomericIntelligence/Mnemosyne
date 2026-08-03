@@ -20,13 +20,9 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+import tomllib
 from pathlib import Path
 from typing import List, Optional
-
-try:
-    import tomllib  # Python 3.11+
-except ModuleNotFoundError:  # pragma: no cover - Python <3.11 fallback
-    import tomli as tomllib  # type: ignore[no-redef]
 
 SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+$")
 CHANGELOG_HEADING_RE = re.compile(r"^## \[(\d+\.\d+\.\d+)\]", re.MULTILINE)
