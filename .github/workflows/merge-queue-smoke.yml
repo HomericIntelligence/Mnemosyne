@@ -28,7 +28,7 @@ jobs:
       - name: Setup uv
         uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
         with:
-          python-version: '3.11'
+          python-version: '3.13'
       - name: Validate workflow YAML files against GitHub schema
         run: |
           # Same check as the schema-validation required job.

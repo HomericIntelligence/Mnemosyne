@@ -74,7 +74,7 @@ jobs:
       - name: Setup uv
         uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990  # v8.3.2
         with:
-          python-version: '3.11'
+          python-version: '3.13'
       - name: Install dev toolchain (locked)
         run: uv sync --locked --group dev
       - name: yamllint on workflow YAML
@@ -126,7 +126,7 @@ jobs:
       - name: Setup uv
         uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990  # v8.3.2
         with:
-          python-version: '3.11'
+          python-version: '3.13'
       - name: uv sync (locked)
         run: uv sync --locked --group dev
       - name: Verify locked environment runs the test suite
@@ -181,7 +181,7 @@ jobs:
       - name: Setup uv
         uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990  # v8.3.2
         with:
-          python-version: '3.11'
+          python-version: '3.13'
       - name: Install dependencies (locked)
         run: uv sync --locked --group dev
       - name: Run skill-file validation script
@@ -197,7 +197,7 @@ jobs:
       - name: Setup uv
         uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990  # v8.3.2
         with:
-          python-version: '3.11'
+          python-version: '3.13'
       - name: Install dependencies (locked)
         run: uv sync --locked --group dev
       - name: Validate every skill file across the corpus
@@ -228,7 +228,7 @@ jobs:
       - name: Setup uv
         uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990  # v8.3.2
         with:
-          python-version: '3.11'
+          python-version: '3.13'
       - name: Run pip-audit against the locked runtime dependencies
         run: |
           # Export the resolved runtime deps from uv.lock (the source of truth
@@ -304,7 +304,7 @@ jobs:
       - name: Setup uv
         uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990  # v8.3.2
         with:
-          python-version: '3.11'
+          python-version: '3.13'
       - name: Build sdist and wheel
         run: uv build
       - name: twine check
@@ -330,7 +330,7 @@ jobs:
       - name: Setup uv
         uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990  # v8.3.2
         with:
-          python-version: '3.11'
+          python-version: '3.13'
       - name: Download dist artifact
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
@@ -367,7 +367,7 @@ jobs:
       - name: Setup uv
         uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990  # v8.3.2
         with:
-          python-version: '3.11'
+          python-version: '3.13'
       - name: Validate workflow YAML files against GitHub schema
         run: |
           # Use the built-in GitHub Actions schema bundled with check-jsonschema
@@ -384,7 +384,7 @@ jobs:
       - name: Setup uv
         uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990  # v8.3.2
         with:
-          python-version: '3.11'
+          python-version: '3.13'
       - name: Install dependencies (locked)
         run: uv sync --locked --group dev
       - name: Assert every skill declares a valid semver version
@@ -414,6 +414,6 @@ jobs:
       - name: Setup uv
         uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990  # v8.3.2
         with:
-          python-version: '3.11'
+          python-version: '3.13'
       - name: Validate release contract (dry-run)
         run: uv run python scripts/validate_release_contract.py
