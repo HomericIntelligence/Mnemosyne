@@ -106,19 +106,19 @@ git diff --cached --check
 
 10. **Classify artifacts by information value.**
    Keep durable information:
-   - generated reports such as `PARETO.md`, backend reports, and README files that summarize results;
-   - `summary.csv` and `summary.md` files with non-empty result rows;
-   - Pareto or report images referenced by committed markdown;
-   - reproducibility scripts used to generate the committed results;
-   - complete structured benchmark JSON records.
+- generated reports such as `PARETO.md`, backend reports, and README files that summarize results;
+- `summary.csv` and `summary.md` files with non-empty result rows;
+- Pareto or report images referenced by committed markdown;
+- reproducibility scripts used to generate the committed results;
+- complete structured benchmark JSON records.
 
    Exclude transient or low-information artifacts:
-   - logs, process IDs, Slurm output, server output, progress traces, preflight scratch, and runtime directories;
-   - overlay/build residue and generated config overlays;
-   - zero-row backend placeholders for backends that did not run;
-   - orphan metadata-only raw files without adjacent rows or result data;
-   - empty failure logs;
-   - partial or zero-completion JSON benchmark records unless the PR is explicitly a failure-analysis archive.
+- logs, process IDs, Slurm output, server output, progress traces, preflight scratch, and runtime directories;
+- overlay/build residue and generated config overlays;
+- zero-row backend placeholders for backends that did not run;
+- orphan metadata-only raw files without adjacent rows or result data;
+- empty failure logs;
+- partial or zero-completion JSON benchmark records unless the PR is explicitly a failure-analysis archive.
 
 11. **Validate CSV report artifacts before staging.**
    For each summary, check row count, status values, profile/scenario coverage, and backend/model labels. A useful report PR should say exactly what it includes, such as "69 rows across short, medium, and long" or "TRT rows only, SGLang absent." If rows are marked interrupted but still plotted, put that caveat in the PR body.
