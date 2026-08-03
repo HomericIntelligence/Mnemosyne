@@ -1,9 +1,9 @@
 ---
 name: pr-ci-failure-triage-preexisting-vs-introduced
-description: "Use when: (1) a PR has unexpected CI failures and you need to determine if they are PR-introduced or pre-existing main-branch rot before bisecting, reverting, or retriggering, (2) CI fails after a force-push and cancelled runs from the old SHA appear as failures in the PR status rollup, (3) a required CI check fails on a PR whose diff is unrelated to the failing job, (4) CI failures look like flakes (Mojo JIT crash, SIGABRT) and need to be classified before a rerun, (5) stale CI warnings need to be surfaced in PR comments rather than stderr only, (6) CI coverage gate fails because it measures the merge-preview tree rather than the branch alone, (7) a stacked rebased PR has stale CI runs and needs fresh triggering without code changes, (8) sanitizer or compilation jobs fail identically on a PR because stale duplicate commits from another branch are present on the PR branch, (9) deciding whether to fix in-scope, admin-merge, or file a follow-up issue for a blocking failure, (10) a rebased PR has independent CodeQL and validate failures, (11) validate fails only in CI because tests depend on host-specific filesystem auto-detection."
+description: "Use when: (1) a PR has unexpected CI failures and you need to determine if they are PR-introduced or pre-existing main-branch rot before bisecting, reverting, or retriggering, (2) CI fails after a force-push and cancelled runs from the old SHA appear as failures in the PR status rollup, (3) a required CI check fails on a PR whose diff is unrelated to the failing job, (4) CI failures look like flakes (Mojo JIT crash, SIGABRT) and need to be classified before a rerun, (5) stale CI warnings need to be surfaced in PR comments rather than stderr only, (6) CI coverage gate fails because it measures the merge-preview tree rather than the branch alone, (7) a stacked rebased PR has stale CI runs and needs fresh triggering without code changes, (8) sanitizer or compilation jobs fail identically on a PR because stale duplicate commits from another branch are present on the PR branch, (9) deciding whether to fix in-scope, admin-merge, or file a follow-up issue for a blocking failure, (10) a rebased PR has independent CodeQL and validate failures, (11) validate fails only in CI because tests depend on host-specific filesystem auto-detection, (12) a generated JavaScript harness passed through node -e works locally but hosted Linux fails with E2BIG before Node starts."
 category: ci-cd
-date: 2026-06-19
-version: "1.1.0"
+date: 2026-07-31
+version: "1.2.0"
 user-invocable: false
 history: pr-ci-failure-triage-preexisting-vs-introduced.history
 verification: verified-ci
@@ -26,6 +26,11 @@ tags:
   - validate
   - ci-env-drift
   - codeql
+  - nodejs
+  - e2big
+  - arg-max
+  - execve
+  - stdin-harness
 ---
 
 # PR CI Failure Triage: Pre-Existing vs. PR-Introduced
@@ -38,9 +43,9 @@ bisecting, reverting, retriggering, or expanding scope.
 
 | Field | Value |
 | ------- | ------- |
-| **Date** | 2026-06-19 |
+| **Date** | 2026-07-31 |
 | **Objective** | Determine, per failing check, whether a red PR is the PR's fault or a systemic/flaky/artifact failure, then pick the right resolution (fix-in-scope, admin-merge, tracking issue, retrigger, or no-op) |
-| **Outcome** | Consolidated from 11 triage skills; authoritative classification via `gh api .../check-runs` on main HEAD; rollup-artifact detection for force-push/concurrency cancellations; flaky-vs-real signatures; stale duplicate-commit detection; post-rebase CodeQL plus validate recovery |
+| **Outcome** | Consolidated from 11 triage skills; authoritative classification via `gh api .../check-runs` on main HEAD; rollup-artifact detection for force-push/concurrency cancellations; flaky-vs-real signatures; stale duplicate-commit detection; post-rebase CodeQL plus validate recovery; v1.2 adds hosted-Linux `execve` argument-budget diagnosis for generated Node harnesses |
 | **Verification** | verified-ci |
 | **History** | [changelog](./pr-ci-failure-triage-preexisting-vs-introduced.history) |
 
@@ -59,6 +64,8 @@ bisecting, reverting, retriggering, or expanding scope.
 - A branch was rebased and now has both security/code-scanning failures and validate-job failures
 - Local tests pass but CI validate fails because a test depends on host-specific filesystem
   auto-detection or ambient cluster/container state
+- A generated JavaScript harness works locally through `node -e`, but hosted Linux raises
+  `OSError: [Errno 7] Argument list too long: 'node'` before Node emits output
 
 ## Verified Workflow
 
@@ -309,7 +316,46 @@ pass does not prove CI validate will pass if tests depend on CI-only filesystem 
 5. After each fix, push and poll `gh pr checks`. The final gate is: CodeQL green, validate green,
    security/SCA green, branch clean, and `gh pr view` reports mergeable/current `headRefOid`.
 
-#### 9. Resolve
+#### 9. Diagnose hosted-Linux `E2BIG` before Node starts
+
+`OSError: [Errno 7] Argument list too long: 'node'` raised by the parent process while
+launching `["node", "-e", harness]` is an `execve` failure, not a Node or test-runtime
+failure. Node never starts, so retrying the test or debugging JavaScript cannot resolve it.
+
+A generated harness is one argument after `-e`. Linux applies both a combined budget to `argv`
+plus the environment and a separate per-string limit; the effective ceilings vary with the
+operating system, architecture, page size, stack limit, and runner environment. Therefore, local
+success and `getconf ARG_MAX` are not portable proof that a generated command line will launch.
+See [`execve(2)`](https://man7.org/linux/man-pages/man2/execve.2.html).
+
+Stream generated program text through standard input and reserve `argv` for small flags and
+paths:
+
+```python
+completed = subprocess.run(
+    ["node"],
+    cwd=REPO_ROOT,
+    check=True,
+    capture_output=True,
+    text=True,
+    input=harness,
+)
+state = json.loads(completed.stdout)
+```
+
+Node executes piped source when no script argument is supplied; `["node", "-"]` is the explicit
+equivalent documented by the [Node CLI](https://nodejs.org/api/cli.html#-). Standard input is now
+dedicated to program source, so embed bounded fixture data in the generated source, keep only
+small metadata in environment variables, or provide additional runtime data through a temporary
+file or separate file descriptor. A large environment value can still cause `E2BIG`.
+
+Keep the overflow fixture intact. Verify on hosted Linux that:
+
+1. No generated source is present in the child `argv`.
+2. Node starts, returns zero, and its captured stdout parses as the expected result.
+3. The original high-cardinality tests pass without shrinking their fixtures.
+
+#### 10. Resolve
 
 - **PR-INTRODUCED** → fix in this PR (your responsibility).
 - **PRE-EXISTING** → ladder, in order: (A) quick fix only if ≤10 min and no scope creep;
@@ -344,6 +390,7 @@ pass does not prove CI validate will pass if tests depend on CI-only filesystem 
 | Treating local pytest pass as enough for validate | Fixed tests locally and assumed CI validate would match | CI had different filesystem auto-detection inputs, so the validate job still failed | Patch probes or pass explicit CLI config in tests so CI and local runs exercise deterministic inputs |
 | Using environment variables to hide auto-detection drift | Proposed env-based runtime configuration just for tests | The product contract forbade env-based runtime config, and envs would mask the real deterministic-test gap | Keep runtime config explicit; tests should patch filesystem probes or pass CLI options |
 | Treating CodeQL green as PR-ready | Fixed security alerts and stopped polling | Validate was an independent gate and still red | Poll all required gates after each push and confirm mergeability/head SHA before declaring ready |
+| Passing a large generated JavaScript harness through `node -e` | Embedded the complete test program and high-cardinality fixture in one argument; local tests passed | Hosted Linux rejected process creation with `E2BIG` / `Errno 7` before Node started | Stream generated source through stdin; keep `argv` and environment bounded, and use a file or separate descriptor for other large payloads |
 
 ## Results & Parameters
 
@@ -358,6 +405,17 @@ pass does not prove CI validate will pass if tests depend on CI-only filesystem 
 | Same check red on multiple unrelated branches, install≠report version | stale-cache | cache invalidation on main |
 | Test file outside diff, reproducible on main | systemic | link main run / tracking issue |
 | Test file inside diff, reproducible locally | pr-regression | fix the PR |
+| `OSError: [Errno 7] Argument list too long: 'node'` from `Popen` / `execve`, with no Node output | execve-e2big | remove generated source/data from `argv`; stream source through stdin |
+
+### Generated Node harness transport parameters
+
+| Channel | Use |
+| --- | --- |
+| stdin | Generated JavaScript source |
+| argv | Small, bounded flags and paths only |
+| environment | Small, bounded metadata only; it shares the `execve` budget |
+| temporary file or separate file descriptor | Additional large runtime data when stdin already carries source |
+| verification | Retained overflow fixture, no generated source in child `argv`, and a successful hosted-Linux smoke run |
 
 ### Decision rule (one-liner)
 
@@ -417,3 +475,4 @@ has no local changes, `mergeable` is clean, and `headRefOid` matches the pushed 
 | ProjectKeystone | PR #552 `coverage` truly pre-existing (`BackpressureConcurrentTrigger` aborts on main) | Admin-merged + tracking issue #553 (verified-ci) |
 | ProjectKeystone | PR #436 all 4 sanitizers failing `AsyncAgentsConcurrentProcessing` identically | Stale duplicate commit `984fef0` (fix already on main via #435); rebuilt with real payload only (verified-local) |
 | Sanitized PR session | Post-rebase CodeQL and validate remediation | CodeQL, validate, security/SCA, and analysis gates green; branch clean and mergeable (verified-ci, 2026-06-19) |
+| ProjectOdyssey | [PR #5762](https://github.com/HomericIntelligence/Odyssey/pull/5762) generated Node publisher harnesses exceeded hosted-Linux argument limits | [Run 30617193040](https://github.com/HomericIntelligence/Odyssey/actions/runs/30617193040) failed five overflow tests with `E2BIG` before Node started (`254 passed`); verified commit [`d4248f36`](https://github.com/HomericIntelligence/Odyssey/commit/d4248f3639ef0d1559d217d6458c8a6238f012ef) moved all three generated harnesses to stdin, and [run 30617456777](https://github.com/HomericIntelligence/Odyssey/actions/runs/30617456777) passed all `259` Other Workflow Property Checks on hosted Linux (verified-ci, 2026-07-31) |
