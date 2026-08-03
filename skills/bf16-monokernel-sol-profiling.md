@@ -3,7 +3,7 @@ name: bf16-monokernel-sol-profiling
 description: "Build, interpret, and iteratively optimize a reproducible BF16 CUDA monokernel benchmark. Use when: (1) model-derived workloads may duplicate parameter counts, (2) a rootless H200 profile needs verified latency, correctness, and artifact provenance, (3) Nsight Compute counters are policy-restricted, (4) a tiny one-row kernel reports unexpectedly low global speed-of-light, (5) several required sequence positions need one minimax acceptance decision, (6) a previously rejected optimization may become useful after the bottleneck or resource state changes, or (7) static compiler metrics and isolated prototype gains disagree with the fully composed kernel."
 category: optimization
 date: 2026-08-03
-version: "1.5.0"
+version: "1.6.0"
 user-invocable: false
 verification: verified-local
 tags: [cuda, bf16, rmsnorm, monokernel, nvidia-h200, roofline, sol, minimax, optimization-campaign, reconsideration, composition, compiler, sass, occupancy, registers, ncu, nsys, slurm, enroot, provenance]
@@ -81,6 +81,8 @@ tags: [cuda, bf16, rmsnorm, monokernel, nvidia-h200, roofline, sol, minimax, opt
 | Treat a lower-resource composition as likely faster | Register-reducing dispatch made fast RoPE power and dense two-chain compositions use 96 registers | Both fast-power screens regressed, and the first dense two-chain screen regressed despite zero local memory and unchanged two-CTA residency | Lower resource use does not predict performance. Decide from correctness and the declared matched screen, then retain a measurable reconsideration trigger. |
 | Reject a runnable candidate at a spill or register threshold | A grid-396 candidate retained three linked-SASS local loads and two stores and used 146 registers, so its first adjudication stopped before timing | Metric-only requalification passed every host-owned correctness check but measured p8191 at 2,457.408 microseconds versus the champion's 1,762.272 microseconds | The performance result, not the local instructions or register count, validly rejected it. Requalify every earlier runnable static-only rejection; limited spilling can win when its occupancy or scheduling trade is favorable. |
 | Assume a static-only rejection is probably invalid or probably fast | Dense two-chain and four-live-query candidates were never timed because they used 101 and 104 registers | Exact immutable requalification showed both were runnable and fully correct, but p8191 regressed by 8.887% and 5.625% respectively | Execute every legal historical candidate. Static limits can hide valid binaries, but only correctness and measured performance reveal whether they are useful. |
+| Treat a compiler semantic warning as a correctness verdict | A direct `__exp2f` spelling emitted a host/device warning and SASS suggested missing exponential work | The exact binary was still executed and the unchanged host harness failed correctness before timing | Static diagnostics may predict a failure and guide investigation, but host-owned validation must adjudicate every runnable binary. Never invent component errors when a fail-closed harness publishes only an aggregate failure. |
+| Assume replacing repeated transcendental work with a lookup must help | A 32-entry constant table removed model-fixed RoPE `powf` evaluation while preserving every correctness gate | Constant-memory lookup composition regressed matched p8191 latency by 0.508% | Removing source operations is not an end-to-end speedup proof. Screen the compiler-materialized full binary and retain the lookup only when matched performance improves. |
 
 ## Results & Parameters
 
@@ -143,6 +145,8 @@ Attempt 040 corrected the campaign's adjudication boundary. Its 128-thread grid-
 
 Attempts 044 and 045 completed that treatment for two older static-only prototypes. The exact 101-register dense intra-word ILP binary and 104-register four-live-query attention binary both launched legally at grid 264, preserved exact greedy token and input-prefix bits, and passed every host-owned numerical check. They nevertheless measured `1,918.880` and `1,861.408` microseconds at p8191, regressions of `8.887%` and `5.625%` against the matched attempt-032 screen. This separates two questions that static analysis had conflated: the resource ceiling incorrectly predicted whether the candidates could be evaluated, while runtime correctly established that neither was competitive. Archive resource data as explanation, rerun every legal static-only candidate, and reject only from correctness or measured performance.
 
+Attempts 046 through 050 closed the remaining static-only queue and tested the same evidence boundary on a new optimization. A 106-register staged quad-query candidate and two historical 102-register fast-RoPE candidates all passed unchanged correctness, then regressed matched p8191 by `7.058%`, `6.365%`, and `7.427%`. The warning-emitting direct-`__exp2f` candidate reached H200 execution but failed the host correctness gate before timing, confirming the static warning's prediction without promoting it to the decision metric. Finally, a correct 32-entry RoPE inverse-frequency table removed repeated `powf` source work but regressed p8191 by `0.508%`. Together these results complete the rule: execute every legal candidate; treat compiler and resource evidence as diagnostics; and let unchanged host correctness followed by matched performance decide the outcome of the exact linked binary.
+
 ### Required Artifact Contract
 
 Keep a dedicated profile root containing:
@@ -160,7 +164,7 @@ If a source revision is unavailable, the source-tree digest remains the binding 
 | Project | Context | Details |
 | --- | --- | --- |
 | CUDA monokernel benchmark | Rootless NVIDIA H200 BF16 weighted-RMSNorm profiling, 2026-07-30 | Full rootless host suite, H200 correctness/Compute Sanitizer, and a 14-case Nsys matrix passed; artifact hashes were independently recomputed. |
-| BF16 full-decoder monokernel campaign | Rootless NVIDIA H200, five required positions, attempts 21-40 and conditional rechecks, 2026-08-03 | Immutable candidate/outcome commits and exact harness evidence verified minimax acceptance, trigger-based reconsideration, staged noise gates, metric-only adjudication of runnable candidates, compiler-materialized composition decisions, and separate prototype lineage. |
+| BF16 full-decoder monokernel campaign | Rootless NVIDIA H200, five required positions, attempts 21-50 and conditional rechecks, 2026-08-03 | Immutable candidate/outcome commits and exact harness evidence verified minimax acceptance, trigger-based reconsideration, staged noise gates, metric-only adjudication of runnable candidates, compiler-materialized composition decisions, and complete requalification of the legal static-only queue. |
 
 ## References
 
