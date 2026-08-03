@@ -2,8 +2,8 @@
 name: automation-review-authorization-ci-boundary
 description: "Keep automation-loop source-review authorization independent of CI/CD, bind it to an exact PR head, and conditionally merge only that reviewed head. Use when: (1) review authorization is mistakenly delegated to CI, (2) a review can race with a changed head or dirty checkout, (3) unresolved review threads block advancement, (4) remediation must retract out-of-scope paths before publication, (5) a label advances implementation or merge state, (6) an external actor may own auto-merge, (7) a downstream rerun sees a merged PR, or (8) a completed run needs a live event-order audit."
 category: architecture
-date: 2026-07-28
-version: "3.2.0"
+date: 2026-08-03
+version: "3.3.0"
 user-invocable: false
 verification: verified-ci
 history: automation-review-authorization-ci-boundary.history
@@ -32,10 +32,10 @@ tags:
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-07-28 |
+| **Date** | 2026-08-03 |
 | **Objective** | Keep a code-automation loop's strict source-review decision inside that loop rather than delegating its authorization to CI/CD, bind the decision to the exact GitHub head SHA, and prevent the queue from mutating externally owned auto-merge. |
-| **Outcome** | ProjectHephaestus PR #2345 demonstrated the active fail-closed path. PR #2506 supplied a compact happy-path audit. PR #2510 added a pre-publication scope-retraction guard so remediation cannot push declared out-of-scope paths before the exact-head GO/merge continuation. |
-| **Verification** | verified-ci on ProjectHephaestus PRs #2345, #2506, and #2510. For #2510, the review targeted head `cacab13e`, `state:implementation-go` followed six seconds later, and merge commit `d5cad541` landed 12 seconds after the label with required checks green. |
+| **Outcome** | ProjectHephaestus PR #2345 demonstrated the active fail-closed path. PR #2506 supplied a compact happy-path audit. PR #2510 added a pre-publication scope-retraction guard. PR #2570 demonstrated how to audit several review/fix cycles without transferring authorization from an older reviewed head. |
+| **Verification** | verified-ci on ProjectHephaestus PRs #2345, #2506, #2510, and #2570. On #2570, earlier reviews targeted two superseded heads; only the final review matched head `219ec8ce`, after which GO replaced NOGO, the required-checks gate completed, and the PR merged. |
 
 ## When to Use
 
@@ -109,6 +109,12 @@ the `state:implementation-go` event is the loop's durable authorization, and the
 the terminal mutation. Check runs may be inspected separately as repository-health context, but
 their completion time does not replace any of those facts.
 
+When a PR has several review/fix cycles, compare every review's `commit_id` with the final PR
+head. Older reviews remain useful audit history but cannot authorize the newer revision. A
+`COMMENTED` review with an empty body can still prove commit binding; its prose and review state
+do not grant GO. Confirm that the matching final-head review precedes the exclusive GO/NOGO
+label transition, required checks finish before merge, and the merge event is last.
+
 ### Direct-PR admission preflight
 
 ```bash
@@ -180,11 +186,12 @@ reviewable one.
 
 13. Short-circuit downstream reruns on terminal PR state. If a later workflow or review pass reruns after the PR has merged, fetch PR `state` first and exit 0 when it is not `OPEN`. GitHub clears `autoMergeRequest` on merged PRs, so a null arm is expected and not a blocker.
 
-14. Audit a completed run from live GitHub events rather than from summary prose alone. Confirm
-    that the review record is bound to the expected head, the loop-owned GO label was applied
-    after that review, and the merge event followed the label. Treat a review grade or `LGTM`
-    comment as informational even when it immediately precedes the label; only the label records
-    the loop decision, and only the merge event proves terminal completion.
+14. Audit a completed run from live GitHub events rather than from summary prose alone. Match the
+    authorizing review's `commit_id` to the final PR head, especially when earlier reviews target
+    superseded revisions. Confirm the loop-owned GO label was applied after that matching review,
+    the incompatible NOGO label was removed, required checks completed before merge, and the merge
+    event followed. Treat review state, an empty review body, a grade, or `LGTM` as informational;
+    only the label records the loop decision, and only the merge event proves terminal completion.
 
 ## Failed Attempts
 
@@ -227,6 +234,7 @@ reviewable one.
 | Local validation example | `uv run pytest` over pipeline stage/coordinator and active-documentation/ADR tests: 85 passed; `git diff --check` passed. |
 | Historical-policy migration | Preserve accepted ADRs; record the new label-only rule in a superseding ADR and its index entry. |
 | Completed-run audit | PR #2506 review targeted head `92f790df` at `17:49:49Z`; `state:implementation-go` was added at `17:49:54Z`; merge commit `784fc58b` followed at `17:50:06Z`. The required-checks gate had already succeeded at `17:45:01Z`, independently of review authorization. |
+| Multi-cycle completed-run audit | PR #2570 had reviews on superseded heads `93706c99` and `8465ee72`. The final review targeted the live head `219ec8ce` at `15:56:12Z`; GO was added at `15:56:44Z`, NOGO removed at `15:56:46Z`, the required-checks gate succeeded at `15:56:56Z`, and merge followed at `15:57:07Z`. |
 
 ## Verified On
 
@@ -240,3 +248,4 @@ reviewable one.
 | ProjectHephaestus | PR #2345 / issue #2233 | Verified-ci thread-completeness and merge path. The loop repeatedly stood down with NOGO while automation-created review threads were unresolved. After the implementation preserved accepted ADR-0005, added superseding ADR-0017, and resolved all 12 threads, the final review bound to head `c6c59048` returned A/GO. GitHub recorded GO-label addition at `16:58:06Z`, NOGO-label removal at `16:58:08Z`, and merge as `7b8dc730` at `16:58:20Z`; all required checks passed and `autoMergeRequest` remained null. |
 | ProjectHephaestus | PR #2506 / issue #2505 | Verified-ci compact happy path. The informational A/LGTM review was bound to head `92f790df`; the loop added `state:implementation-go` five seconds later and merged as `784fc58b` after another 12 seconds. Required checks were independently green before review. |
 | ProjectHephaestus | PR #2510 / issue #2509 | Verified-ci scope-retraction path. Adopted-PR address sessions now receive linked issue context and the verified current diff; explicit scope-control findings require a host-validated complete path manifest and a pre-push comparison to the reviewed base. The informational B review targeted `cacab13e`; GO was labeled at `21:00:10Z`, and `d5cad541` merged that head 12 seconds later with required checks green. |
+| ProjectHephaestus | PR #2570 / issue #2385 | Verified-ci multi-cycle review and merge path. Reviews on `93706c99` and `8465ee72` remained historical only. The final review matched live head `219ec8ce`; GO replaced NOGO, the required-checks gate then succeeded, and the PR merged 55 seconds after the final review. |

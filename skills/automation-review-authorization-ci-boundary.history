@@ -1,5 +1,32 @@
 # automation-review-authorization-ci-boundary — History
 
+## v3.3.0 (2026-08-03)
+
+**Changed by:** ProjectHephaestus issue #2385 / PR #2570 automation-loop review and merge.
+**Verification:** verified-ci.
+
+### What changed
+
+- Added a multi-cycle audit rule: match the authorizing review's `commit_id` to the final PR head;
+  reviews of superseded heads are historical evidence only.
+- Clarified that review state and body content do not authorize advancement; the exact-head review,
+  exclusive GO/NOGO label transition, required-check completion, and merge are separate facts.
+- Recorded PR #2570's final-head review and NOGO-to-GO-to-required-checks-to-merge ordering.
+
+### Why
+
+PR #2570 accumulated five review records across three heads. The final path was trustworthy only
+after the review bound to `219ec8ce`, followed by the loop-owned GO transition and a merge after
+required checks completed. Reading the latest review prose or any prior review as transferable
+authorization would have approved a superseded revision.
+
+### Previous version (v3.2.0) snapshot
+
+The exact v3.2.0 source is retained in main-branch commit
+[`671a8278`](https://github.com/HomericIntelligence/ProjectMnemosyne/blob/671a8278/skills/automation-review-authorization-ci-boundary.md).
+
+---
+
 ## v3.2.0 (2026-07-28)
 
 **Changed by:** ProjectHephaestus issue #2509 / PR #2510 automation-loop review and merge.
