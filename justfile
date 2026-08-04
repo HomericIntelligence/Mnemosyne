@@ -37,3 +37,37 @@ test:
 
 # Run validate + test (full check)
 check: validate test
+
+# === Containerized CI (podman by default) ===
+
+# Build the CI container image (podman first, docker fallback)
+ci-build:
+    podman build -f ci/Containerfile -t mnemosyne-ci:local . || docker build -f ci/Containerfile -t mnemosyne-ci:local .
+
+# Run CI skill-file validation in container
+ci-validate:
+    ./scripts/run_ci_local.sh validate
+
+# Run CI tests in container
+ci-test:
+    ./scripts/run_ci_local.sh test
+
+# Run CI lint (yamllint, mypy, PII) in container
+ci-lint:
+    ./scripts/run_ci_local.sh lint
+
+# Run CI workflow schema validation in container
+ci-schema:
+    ./scripts/run_ci_local.sh schema
+
+# Run CI version-sync checks in container
+ci-version:
+    ./scripts/run_ci_local.sh version
+
+# Run CI release-contract dry-run in container
+ci-release:
+    ./scripts/run_ci_local.sh release
+
+# Run all CI checks in container
+ci-all:
+    ./scripts/run_ci_local.sh all
