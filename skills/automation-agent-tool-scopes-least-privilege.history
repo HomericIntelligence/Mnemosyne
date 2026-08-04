@@ -1,12 +1,26 @@
+# automation-agent-tool-scopes-least-privilege — History
+
+## v1.1.0 (2026-08-04)
+
+**Changed by:** ProjectHephaestus issue #2162 / PR #2607
+**Verification:** verified-ci
+
+### What changed
+- Extended the skill from legacy role scopes to explicit queue-pipeline `AgentJob` overrides.
+- Added provider-neutral Codex read-only sandbox guidance and regression coverage.
+- Added `/learn` capability guidance, recursive/duplicate-safe AST policy checks, and the exact-head NOGO/GO-to-merge evidence.
+
+### Why
+The merged PR exposed three failure modes that a role-only policy did not catch: explicit learning-job scopes omitted `Task,Skill`; Codex did not enforce Claude's `allowed_tools`; and a shallow AST map could miss nested or duplicate constructors. Each finding held the PR at NOGO until a new head was reviewed.
+
+### Previous version (v1.0.0) snapshot
 ---
 name: automation-agent-tool-scopes-least-privilege
-description: "Enforce least-privilege tool scopes for headless agent invocations across direct calls and queue-pipeline AgentJobs. Combine central role defaults with explicit per-job overrides, provider-neutral read-only sandboxes, recursive AST policy guards, and fail-closed defaults. Use when: (1) an automation pipeline invokes `claude -p` (or another agent CLI) without explicit `--allowedTools` / `--permission-mode`, (2) per-role scopes drift across call sites, (3) a job runs `/learn` or another skill/subagent workflow, (4) a Codex path must preserve read-only semantics, or (5) a pipeline-wide AST guard must prove every production AgentJob is scoped."
+description: "Enforce least-privilege tool scopes for headless agent invocations via a central per-role policy map resolved at the single invocation chokepoint, failing closed to read-only for unknown roles, with parametrized policy-lock tests. Use when: (1) an automation pipeline invokes `claude -p` (or another agent CLI) without explicit `--allowedTools` / `--permission-mode`, so every agent role inherits the default unrestricted tool surface; (2) per-role scopes exist but are copy-pasted string literals scattered across call sites and have started to drift; (3) adding a new agent role (planner, reviewer, implementer, CI driver) and deciding which tools it minimally needs; (4) a security review flags that read-only roles (reviewers, classifiers) can write or execute; (5) writing tests that lock a tool-scope policy so a permissive scope cannot be added silently."
 category: architecture
-date: 2026-08-04
-version: "1.1.0"
+date: 2026-07-17
+version: "1.0.0"
 user-invocable: false
-verification: verified-ci
-history: automation-agent-tool-scopes-least-privilege.history
 tags:
   - automation
   - least-privilege
@@ -21,11 +35,6 @@ tags:
   - worker-pool
   - agent-roles
   - policy-lock-tests
-  - pipeline
-  - ast-policy
-  - codex
-  - sandbox
-  - learn
 ---
 
 # Automation Agent Tool Scopes: Least Privilege via a Central Fail-Closed Policy Map
@@ -34,11 +43,10 @@ tags:
 
 | Field | Value |
 | ------- | ------- |
-| **Date** | 2026-08-04 |
+| **Date** | 2026-07-17 |
 | **Objective** | Stop headless pipeline agents from running with the CLI's default unrestricted tool surface: define one per-role scope policy, apply it at the single invocation chokepoint, and fail closed for unknown roles. |
-| **Outcome** | Success — legacy role scopes and queue-pipeline `AgentJob` scopes were verified by Hephaestus issue #2162 / PR #2607. The final reviewed head `402b09d` passed the required checks and was squash-merged as `4e58791` after two NOGO/GO correction cycles. |
-| **Verification** | verified-ci — PR #2607 reported 7,125 tests passed, 24 skipped, 84.58% coverage, with Ruff, mypy, and required checks green. |
-| **History** | [changelog](./automation-agent-tool-scopes-least-privilege.history) |
+| **Outcome** | Success — per-role scopes are production-verified in Hephaestus legacy phase modules; the central policy-map consolidation is the reviewed plan for Hephaestus issue #2160 (worker-pool chokepoint omitted both flags entirely). |
+| **Verification** | verified-production (per-role scope values run in the live Hephaestus automation loop); chokepoint consolidation verified by plan review for issue #2160 |
 
 ## When to Use
 
@@ -52,14 +60,6 @@ tags:
   answer requires grepping N call sites.
 - You need tests that make widening a scope a visible, reviewed diff instead of a silent
   string edit.
-- A queue-pipeline `AgentJob` has an explicit scope that can override the worker's
-  role-derived scope.
-- A job invokes `/learn`, `Skill`, `Task`, or another workflow that needs more than
-  read/write shell access.
-- The selected provider is Codex or another direct runner where `allowed_tools` alone
-  does not enforce a read-only sandbox.
-- A static policy test scans only top-level stage files, keys occurrences too coarsely,
-  or allows empty/non-literal scopes.
 
 ## Verified Workflow
 
@@ -78,12 +78,11 @@ Production-verified per-role scopes (Hephaestus automation loop):
 
 ### Detailed Steps
 
-1. **Find the chokepoint and the job-level overrides.** Count how many job/stage constructors
-   funnel into one CLI invocation. In Hephaestus, 17 `AgentJob` sites across 6 stage modules
-   reach one `invoke_claude_with_session` call in the worker pool, keyed by an existing role
-   constant (`session_agent`). Keep the central role map at that chokepoint, but audit every
-   explicit `AgentJob.allowed_tools` override: an override can narrow or accidentally replace
-   the role's required capability.
+1. **Find the chokepoint, not the call sites.** Count how many job/stage constructors funnel
+   into one CLI invocation. In Hephaestus, 17 `AgentJob` sites across 6 stage modules all
+   reach one `invoke_claude_with_session` call in the worker pool, keyed by an existing
+   role constant (`session_agent`). Add the policy at that one call; do not add two fields
+   to every job dataclass and edit every constructor.
 2. **Define the policy as data in its own module** (frozen dataclass + `MappingProxyType`)
    keyed by the role constants that already exist:
 
@@ -126,22 +125,6 @@ Production-verified per-role scopes (Hephaestus automation loop):
    - the map itself is immutable (`pytest.raises(TypeError)` on item assignment).
    Plus one mock-based test at the chokepoint asserting the CLI wrapper received the
    expected `allowed_tools` / `permission_mode` kwargs per role.
-7. **Make explicit pipeline scopes provider-neutral.** Claude consumes `allowed_tools`, but a
-   Codex/direct execution path may need an explicit `sandbox="read-only"` argument. Add a
-   provider-specific propagation test for every read-only job; do not infer Codex safety from
-   a Claude-only scope string.
-8. **Preserve workflow capabilities in explicit overrides.** A plan-review or merge-wait
-   learning job that renders `/learn` must use
-   `Read,Write,Edit,Glob,Grep,Bash,Task,Skill`. An explicit job scope takes precedence over
-   the worker role, so omitting `Task` or `Skill` makes the learning workflow unable to run.
-9. **Scan the complete production surface.** Walk pipeline modules recursively and key each
-   `AgentJob` occurrence by a stable relative path plus function/prompt context and source
-   line. Reject duplicate policy keys, empty scopes, and computed/non-literal scopes so one
-   constructor cannot overwrite another in the expected-scope map.
-10. **Treat review and merge as head-bound.** For each major scope finding, keep the PR at
-   NOGO, push the correction, and review the new head. Apply GO only after the final-head
-   policy and provider tests pass; `merge_wait` then conditionally merges that exact reviewed
-   head after required checks, without using CI or native auto-merge as review authorization.
 
 ## Failed Attempts
 
@@ -150,9 +133,6 @@ Production-verified per-role scopes (Hephaestus automation loop):
 | Attempt 1 | Rely on the agent CLI's defaults for headless pipeline calls | Every role — including read-only reviewers — ran with the full default tool surface; flagged as a MAJOR security finding (Hephaestus #2160) | Headless automation must pass explicit `--allowedTools` and `--permission-mode` on every call; defaults are for interactive use |
 | Attempt 2 | Copy-paste per-role scope strings at each call site (legacy pattern across 12+ modules) | Values drifted and new call sites (the pipeline worker pool) simply omitted them; nothing enforced coverage | Cross-cutting policy belongs in one data module resolved at the invocation chokepoint, with tests that fail when a role is unmapped |
 | Attempt 3 | Consider adding `allowed_tools`/`permission_mode` fields to the job dataclass with permissive defaults | 17 construction sites to edit; a defaulted field lets new sites silently inherit write scope | Key the policy on the existing role constant and fail closed to read-only instead of defaulting open |
-| Attempt 4 | Assume the worker's role-derived scope covers every explicit pipeline job | Explicit job scopes take precedence; plan-review and merge-wait `/learn` jobs lost `Task,Skill` and could not execute the workflow | Audit job-level overrides against the prompt's required tools, especially for skills and subagents |
-| Attempt 5 | Treat a Claude `allowed_tools` value as provider-neutral enforcement | Codex advise execution still used its default writable sandbox | Pass and test `sandbox="read-only"` on direct Codex read-only paths |
-| Attempt 6 | Scan only top-level stage files and key AST findings by file/function/prompt | Nested modules were omitted and duplicate occurrences could overwrite one another in the expected map | Recurse through production pipeline modules and reject duplicate/empty/non-literal scope declarations |
 
 ## Results & Parameters
 
@@ -166,11 +146,6 @@ _READ_EXPLORE = "Read,Glob,Grep,Bash"
 # Writer roles (implementer, CI fixer)
 _WRITE = "Read,Write,Edit,Glob,Grep,Bash"
 # Skill-running roles append ",Task,Skill" explicitly
-
-# Queue-pipeline job scopes verified by Hephaestus PR #2607
-PIPELINE_READ_ONLY = "Read,Glob,Grep"
-PIPELINE_WRITE = "Read,Write,Edit,Glob,Grep,Bash"
-PIPELINE_LEARN = "Read,Write,Edit,Glob,Grep,Bash,Task,Skill"
 ```
 
 ### Expected Output
@@ -183,21 +158,6 @@ PIPELINE_LEARN = "Read,Write,Edit,Glob,Grep,Bash,Task,Skill"
   subprocess layer per role.
 - Widening any scope requires editing the policy module and its test — a visible diff.
 
-### Review-to-merge evidence (Hephaestus issue #2162 / PR #2607)
-
-```text
-05:02 UTC  major review findings -> state:implementation-no-go
-06:09 UTC  fixes reviewed -> state:implementation-go
-09:56 UTC  new major findings on the new head -> state:implementation-no-go
-17:05 UTC  provider/recursive-guard fixes reviewed -> state:implementation-go
-17:14 UTC  required checks green -> squash merge of the exact final reviewed head
-```
-
-The final head was `402b09da51f9e08083950d83366523d24cdaed5d`; the merge commit was
-`4e58791b38d4a35a6b4dea16d6cadcb3dc4332ef`. The loop's review decision came from
-head-bound source review; CI was a merge requirement, not a substitute for review
-authorization.
-
 ## Verified On
 
 - Hephaestus automation loop (legacy per-phase modules `_implement_phase`,
@@ -205,6 +165,4 @@ authorization.
   `comment_difficulty`, `plan_reviewer`) — scope values in production.
 - Hephaestus issue #2160 — reviewed implementation plan consolidating the values into
   `hephaestus/automation/pipeline/tool_scopes.py` at the worker-pool chokepoint.
-- Hephaestus issue #2162 / PR #2607 — verified-ci; explicit pipeline scopes, Codex
-  read-only sandbox propagation, recursive/duplicate-safe AST coverage, and the
-  NOGO → correction → exact-head GO → required-checks → conditional squash-merge path.
+---
