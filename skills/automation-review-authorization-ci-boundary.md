@@ -1,11 +1,11 @@
 ---
 name: automation-review-authorization-ci-boundary
-description: "Keep automation-loop source-review authorization independent of CI/CD, bind it to an exact PR head, and conditionally merge only that reviewed head. Use when: (1) review authorization is mistakenly delegated to CI, (2) a review can race with a changed head or dirty checkout, (3) unresolved review threads block advancement, (4) remediation must retract out-of-scope paths before publication, (5) a label advances implementation or merge state, (6) an external actor may own auto-merge, (7) a downstream rerun sees a merged PR, (8) a completed run needs a live event-order audit, or (9) a read-only reviewer checkout performs redundant pre-barrier remote synchronization or emits an expected missing-branch error."
+description: "Keep automation-loop source-review authorization independent of CI/CD, bind it to an exact PR head, and conditionally merge only that reviewed head. Use when: (1) review authorization is mistakenly delegated to CI, (2) a review can race with a changed head or dirty checkout, (3) unresolved review threads block advancement, (4) remediation must retract out-of-scope paths before publication, (5) a label advances implementation or merge state, (6) an external actor may own auto-merge, (7) a downstream rerun sees a merged PR, (8) a completed run needs a live event-order audit, (9) a read-only reviewer checkout performs redundant pre-barrier remote synchronization or emits an expected missing-branch error, or (10) a successful remediation reply has no commit and must remain reviewable."
 category: architecture
 date: 2026-08-03
-version: "3.4.0"
+version: "3.5.0"
 user-invocable: false
-verification: verified-ci-and-local
+verification: verified-ci
 history: automation-review-authorization-ci-boundary.history
 tags:
   - automation-loop
@@ -24,6 +24,10 @@ tags:
   - github-event-audit
   - scope-retraction
   - pre-publication-guard
+  - no-commit-reply
+  - evidence-only-remediation
+  - exact-head-receipt
+  - stale-journal
 ---
 
 # Automation Review Authorization: CI Boundary
@@ -34,8 +38,8 @@ tags:
 |-------|-------|
 | **Date** | 2026-08-03 |
 | **Objective** | Keep a code-automation loop's strict source-review decision inside that loop rather than delegating its authorization to CI/CD, bind the decision to the exact GitHub head SHA, and prevent the queue from mutating externally owned auto-merge. |
-| **Outcome** | ProjectHephaestus PR #2345 demonstrated the active fail-closed path. PR #2506 supplied a compact happy-path audit. PR #2510 added a pre-publication scope-retraction guard. PR #2570 demonstrated how to audit several review/fix cycles without transferring authorization from an older reviewed head. Its completed-run log also identified a redundant pre-barrier sync and an expected absent-branch probe; the corrective design is a scratch checkout plus exactly one authoritative fetch-and-bind barrier. |
-| **Verification** | verified-ci on ProjectHephaestus PRs #2345, #2506, #2510, and #2570. On #2570, earlier reviews targeted two superseded heads; only the final review matched head `219ec8ce`, after which GO replaced NOGO, the required-checks gate completed, and the PR merged. The one-fetch corrective change is verified-local by focused, full-unit, type, lint, and pre-commit validation; it is not claimed as CI-verified until merged. |
+| **Outcome** | ProjectHephaestus PR #2345 demonstrated the active fail-closed path. PR #2506 supplied a compact happy-path audit. PR #2510 added a pre-publication scope-retraction guard. PR #2570 demonstrated how to audit several review/fix cycles without transferring authorization from an older reviewed head. PR #2592 added the evidence-only remediation rule: a successful no-commit reply is posted against the verified head and remains under reviewer-owned disposition. |
+| **Verification** | verified-ci on ProjectHephaestus PRs #2345, #2506, #2510, #2570, and #2592. PR #2592's final review matched head `051be9de`; GO replaced NOGO, required checks completed, and merge commit `04f268dd` followed. |
 
 ## When to Use
 
@@ -54,6 +58,8 @@ tags:
 - Repeated review runs encounter unresolved automation-created threads and must distinguish a safe stand-down from authorization to advance.
 - A review finding says to drop, remove, or split unrelated/out-of-scope files, and the address agent must not publish a partial or malformed retraction.
 - You need to audit a completed automation-loop run from durable GitHub facts without treating review prose or CI results as authorization.
+- A successful remediation reply produced no commit and must still be reviewed as evidence rather than rejected as a failed implementation.
+- A reply journal may have been created for an older PR head and must not be replayed after the head changes.
 
 ## Verified Workflow
 
@@ -65,10 +71,12 @@ automation loop owns source-review authorization
   2. verify a clean checkout at that exact head in a dedicated Git job, then derive its diff locally from the verified base/head pair
   3. run the strict PR review in the loop (CI-free) against that metadata and derived diff
   4. stand down while any relevant review thread remains unresolved; rerun only after thread state or head changes
-  5. for a scope retraction, require a complete safe path manifest and compare every path to the reviewed base before push
-  6. before every state-changing label, re-read OPEN + explicit autoMergeRequest:null
-  7. require the exact reviewed head only for an approving/GO label; drift revokes proof and re-reviews
-  8. merge_wait revalidates the proof and conditionally squash-merges only that exact head; it never mutates native auto-merge
+  5. for successful no-commit remediation, post `[auto-msg] reply has no corresponding commit, review thoroughly` against the verified current head; return an exact `{pushed:false, head_sha:<sha>}` receipt and leave reviewer disposition open
+  6. ignore reply journals whose recorded head differs from the verified current head
+  7. for a scope retraction, require a complete safe path manifest and compare every path to the reviewed base before push
+  8. before every state-changing label, re-read OPEN + explicit autoMergeRequest:null
+  9. require the exact reviewed head only for an approving/GO label; drift revokes proof and re-reviews
+  10. merge_wait revalidates the proof and conditionally squash-merges only that exact head; it never mutates native auto-merge
 
 merge-wait is also the authorization boundary of last resort
   1. reject an item without required issue/requirements context before consuming a label
@@ -156,6 +164,13 @@ reviewable one.
 
 4. Require complete review-thread state before approval. If automation-created threads remain unresolved and the loop cannot prove that replying or resolving them preserves human activity, retain NOGO and stand down without arming merge. Repeated runs against the same unresolved state are not progress. Resume with a fresh review only after the threads have concrete dispositions and resolutions or the head changes.
 
+   A successful remediation reply is still review input when it produces no commit. Post it only
+   against the verified current head, include the literal `[auto-msg] reply has no corresponding
+   commit, review thoroughly` warning, and leave acceptance, rejection, and resolution to the
+   reviewer. A clean pinned commit job must return the exact current `head_sha` receipt instead of
+   bare `False`, and a reply journal is replayable only when its recorded head matches that verified
+   head; stale journals are ignored.
+
    Treat an explicit request to drop, remove, or split unrelated/out-of-scope paths as a
    publication-safety boundary, not advisory prose. Host-normalize it to blocking severity
    before filtering, require one complete non-empty manifest of safe repository-relative paths,
@@ -212,6 +227,8 @@ reviewable one.
 | Add the review worktree directly at a remote or fork branch | The branch was not guaranteed to exist locally when the detached worktree was created. | Git logged a caught exit-128 missing-ref error and fell back to an auto-detected base branch, even though the later barrier fetched the real PR head. | Use local `HEAD` solely as scratch state. Do not resolve a PR branch until the one barrier that fetches and proves the captured head. |
 | Treat a missing `autoMergeRequest` field as null | A partial PR response defaulted absent data to unarmed. | A failed or narrowed fetch became false safety evidence for a label mutation. | Require the field to be present with value `null`; otherwise fail closed. |
 | Try to disable a request that looked queue-owned | The design compared a later request's visible fields to an earlier queue arm before disabling it. | GitHub has no conditional disable mutation or persisted client nonce; another actor can replace an indistinguishable request between reads. | Never enable, defer, disable, adopt, create, or poll auto-merge from a shared queue; stand down on every populated request. |
+| Reject a successful no-commit remediation reply | The implementation path treated the absence of a commit as proof that the remediation failed. | Evidence-only replies never reached the reviewer, so the reviewer could not evaluate the response or leave an evidence-specific thread disposition. | Publish a verified-head-bound reply with the explicit no-commit warning and keep reviewer-owned disposition intact. |
+| Replay a reply journal after the PR head changed | A prior head's handoff journal was treated as current because its text still looked complete. | The reply could describe a superseded revision and bypass the current-head review boundary. | Bind journals to `head_sha` and ignore any journal that does not match the verified current head. |
 | Rewrite accepted ADRs to remove obsolete instructions | Historical ADR text was modified in place. | It obscured the decision record and broke the repository's ADR immutability convention. | Preserve accepted ADRs verbatim; add a superseding ADR and make the index point to the active policy. |
 | Re-run review against unchanged unresolved threads | PR #2345 repeatedly re-entered review while seven automation-created threads remained unresolved. | The loop could not prove that automated reply/resolution would preserve human activity, so each run correctly stood down with NOGO and could not advance. | Treat unchanged unresolved-thread state as a fail-closed wait condition; obtain concrete dispositions and resolutions, then run a fresh exact-head review. |
 | Treat an automated review comment as authorization | A completed run's `A`, `LGTM`, or decision-shaped review prose was used as the apparent GO signal. | Review prose is audit evidence and can exist without the fresh live-state guards required for a label transition. | Audit the exact-head review, GO-label event, and merge event separately; the comment never substitutes for the loop-owned label. |
@@ -241,6 +258,10 @@ reviewable one.
 | Historical-policy migration | Preserve accepted ADRs; record the new label-only rule in a superseding ADR and its index entry. |
 | Completed-run audit | PR #2506 review targeted head `92f790df` at `17:49:49Z`; `state:implementation-go` was added at `17:49:54Z`; merge commit `784fc58b` followed at `17:50:06Z`. The required-checks gate had already succeeded at `17:45:01Z`, independently of review authorization. |
 | Multi-cycle completed-run audit | PR #2570 had reviews on superseded heads `93706c99` and `8465ee72`. The final review targeted the live head `219ec8ce` at `15:56:12Z`; GO was added at `15:56:44Z`, NOGO removed at `15:56:46Z`, the required-checks gate succeeded at `15:56:56Z`, and merge followed at `15:57:07Z`. |
+| Evidence-only remediation | Successful no-commit replies carry `[auto-msg] reply has no corresponding commit, review thoroughly`, are posted against the verified current head, and remain open for reviewer-owned accept/reject/resolve disposition. |
+| Exact no-push receipt | Clean pinned commit jobs release unused reservations, read verified `HEAD`, and return `{"pushed": false, "head_sha": <sha>}`; bare `False` is insufficient for current-head binding. |
+| Reply journal freshness | Replay only when the journal's `head_sha` equals the verified current PR head; ignore stale-head journals. |
+| PR #2592 / issue #2591 audit | Final review record targeted `051be9de` at `00:39:57Z`; GO replaced NOGO at `00:40:47Z`; required checks completed before merge; merge commit `04f268dd` landed at `00:50:56Z`. Earlier review records on superseded heads were historical only. |
 
 ## Verified On
 
@@ -256,3 +277,4 @@ reviewable one.
 | ProjectHephaestus | PR #2510 / issue #2509 | Verified-ci scope-retraction path. Adopted-PR address sessions now receive linked issue context and the verified current diff; explicit scope-control findings require a host-validated complete path manifest and a pre-push comparison to the reviewed base. The informational B review targeted `cacab13e`; GO was labeled at `21:00:10Z`, and `d5cad541` merged that head 12 seconds later with required checks green. |
 | ProjectHephaestus | PR #2570 / issue #2385 | Verified-ci multi-cycle review and merge path. Reviews on `93706c99` and `8465ee72` remained historical only. The final review matched live head `219ec8ce`; GO replaced NOGO, the required-checks gate then succeeded, and the PR merged 55 seconds after the final review. |
 | ProjectHephaestus | PR #2570 completed-run audit and read-only checkout correction | The completed log showed a caught missing-branch probe plus two review-worktree synchronizations per review round. The proposed corrective implementation creates a detached `HEAD` scratch checkout and defers the sole remote fetch-and-bind to the exact-head barrier. Three focused regressions, 300 relevant tests, the full 6,690-test unit suite (84.60% coverage), mypy, Ruff, and pre-commit passed locally. |
+| ProjectHephaestus | PR #2592 / issue #2591 | Verified-ci convergence path. Review records on superseded heads were not reused; the final review matched `051be9de`, GO replaced NOGO only after the current-head checks, required checks completed, and merge commit `04f268dd` followed. The issue's live validation also showed a no-commit remediation reply reaching review with the warning intact and the thread left open for evidence feedback. |
