@@ -1,5 +1,32 @@
 # automation-review-authorization-ci-boundary — History
 
+## v3.7.0 (2026-08-03)
+
+**Changed by:** ProjectHephaestus issue #2255 / PR #2598 automation-loop review and merge.
+**Verification:** verified-ci.
+
+### What changed
+
+- Added the scanner-remediation trigger and required a current-head fix plus regression
+  coverage before a review can return GO.
+- Recorded PR #2598's first-head NOGO, follow-up exact-head review, exclusive GO-label
+  transition, required-check completion, and conditional merge.
+
+### Why
+
+PR #2598 showed that a superficially related docstring/test-expectation change can leave a
+scanner-backed issue completely unresolved. The loop correctly kept the first head at NOGO;
+the next head added a regression for retired scanner inputs, after which the matching review
+authorized GO and `merge_wait` merged only that reviewed head. The independent required checks
+completed the repository merge contract but did not authorize review.
+
+### Previous version (v3.6.0 snapshot)
+
+The exact v3.6.0 source is retained in main-branch commit
+[`95c83c68`](https://github.com/HomericIntelligence/Mnemosyne/blob/95c83c68/skills/automation-review-authorization-ci-boundary.md).
+
+---
+
 ## v3.6.0 (2026-08-03)
 
 **Changed by:** ProjectHephaestus issue #2149 / PR #2594 automation-loop review and merge.
