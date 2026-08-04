@@ -1,9 +1,9 @@
 ---
 name: pr-review-loop-orchestration-agent-patterns
-description: "Use when: (1) building or debugging a Python implement-review loop where an LLM sub-agent reviews a PR and a fixer agent addresses inline comments, (2) a review loop resolves threads even though no commit was produced — resolution must be gated on a real commit not the model self-report, (3) a loop ends AMBIGUOUS or NO-GO too fast before ever earning an explicit GO verdict, (4) LLM or agent-generated inline PR review comments are rejected by GitHub (HTTP 422) because they do not lie on a changed diff hunk, (5) an agent-driven CI-fix session produces no commit and the PR stays red; the correct response is a single bounded retry with unresolved review threads injected verbatim, (6) a review fix plan file concludes no changes are needed and the automation should self-cancel without opening a new PR, (7) a feature-dev:code-reviewer sub-agent cannot execute shell commands and cannot post gh pr review — wrong agent type was chosen, (8) a GitHub GraphQL PR-review mutation field selection is wrong and the automation loop fails on every call with Field X does not exist, (9) pre-commit must cover the full PR diff from the merge-base not just the most-recent-edit files before pushing, (10) an existing-PR review handler short-circuits NO-GO PRs as if they were settled (idempotency `if has_go or has_no_go: skip`) so a failed-review PR never re-enters the loop — short-circuit on GO ONLY, (11) an existing-PR worktree sync fails `git fetch origin {issue}-auto-impl` with exit 128 because the PR head branch was ASSUMED from the issue number instead of read from the PR's real `headRefName`, (12) an in-loop LLM PR reviewer posts a FALSE policy violation (e.g. `POLICY VIOLATION: Closes, auto-merge-premature, signed-commits` on a PR that actually has `Closes #N`, auto-merge OFF, and a signed commit) because its policy fetch failed open to violation, or you are tempted to make the reviewer re-check `Closes #N` / signed commits / auto-merge that a CI gate (`pr-policy` required, `auto-merge-policy` advisory) already enforces, (13) an in-loop implementer review cycle (`_run_impl_review_loop`) converges/`break`s when the reviewer posts zero threads even though the verdict is AMBIGUOUS or NO-GO, or applies `state:skip` after a single iteration-0 non-GO instead of re-reviewing up to `MAX_REVIEW_ITERATIONS` and auto-skipping only on TRUE exhaustion, (14) the address-review coordinator is handed a review thread the reviewer itself labels non-blocking / pre-existing / out-of-scope / follow-up-worthy, or that asks for an edit the approved plan explicitly scoped out (e.g. behind a 'count must not increase' verification guard) — the correct disposition is to leave the thread UNADDRESSED (out of the `addressed` set) as a follow-up issue and make NO code change, because resolving a comment means giving it a disposition, not necessarily editing code, (15) a run parks EVERY pr_review item to state:skip via 'zero-thread NOGO retry cap exhausted' or 'exhausted at round N (automation unresolved 0 -> 0)' and you suspect the reviewer model or verdict parsing — check each PR's hephaestus-pr-review-zero-thread-nogo anomaly comment FIRST: a summary like 'NOGO: ... head unchanged (Nth round)' means by-design stale-PR triage (#2079: deterministic no-progress NOGOs escalate to skip instead of burning implement budget), NOT a reviewer failure; only a FRESHLY-implemented PR parked this way indicates a real defect"
+description: "Use when: (1) building or debugging a Python implement-review loop where an LLM sub-agent reviews a PR and a fixer agent addresses inline comments, (2) a review loop resolves threads even though no commit was produced — resolution must be gated on a real commit not the model self-report, (3) a loop ends AMBIGUOUS or NO-GO too fast before ever earning an explicit GO verdict, (4) LLM or agent-generated inline PR review comments are rejected by GitHub (HTTP 422) because they do not lie on a changed diff hunk, (5) an agent-driven CI-fix session produces no commit and the PR stays red; the correct response is a single bounded retry with unresolved review threads injected verbatim, (6) a review fix plan file concludes no changes are needed and the automation should self-cancel without opening a new PR, (7) a feature-dev:code-reviewer sub-agent cannot execute shell commands and cannot post gh pr review — wrong agent type was chosen, (8) a GitHub GraphQL PR-review mutation field selection is wrong and the automation loop fails on every call with Field X does not exist, (9) pre-commit must cover the full PR diff from the merge-base not just the most-recent-edit files before pushing, (10) an existing-PR review handler short-circuits NO-GO PRs as if they were settled (idempotency `if has_go or has_no_go: skip`) so a failed-review PR never re-enters the loop — short-circuit on GO ONLY, (11) an existing-PR worktree sync fails `git fetch origin {issue}-auto-impl` with exit 128 because the PR head branch was ASSUMED from the issue number instead of read from the PR's real `headRefName`, (12) an in-loop LLM PR reviewer posts a FALSE policy violation (e.g. `POLICY VIOLATION: Closes, auto-merge-premature, signed-commits` on a PR that actually has `Closes #N`, auto-merge OFF, and a signed commit) because its policy fetch failed open to violation, or you are tempted to make the reviewer re-check `Closes #N` / signed commits / auto-merge that a CI gate (`pr-policy` required, `auto-merge-policy` advisory) already enforces, (13) an in-loop implementer review cycle (`_run_impl_review_loop`) converges/`break`s when the reviewer posts zero threads even though the verdict is AMBIGUOUS or NO-GO, or applies `state:skip` after a single iteration-0 non-GO instead of re-reviewing up to `MAX_REVIEW_ITERATIONS` and auto-skipping only on TRUE exhaustion, (14) the address-review coordinator is handed a review thread the reviewer itself labels non-blocking / pre-existing / out-of-scope / follow-up-worthy, or that asks for an edit the approved plan explicitly scoped out (e.g. behind a 'count must not increase' verification guard) — the correct disposition is to leave the thread UNADDRESSED (out of the `addressed` set) as a follow-up issue and make NO code change, because resolving a comment means giving it a disposition, not necessarily editing code, (15) a run parks EVERY pr_review item to state:skip via 'zero-thread NOGO retry cap exhausted' or 'exhausted at round N (automation unresolved 0 -> 0)' and you suspect the reviewer model or verdict parsing — check each PR's hephaestus-pr-review-zero-thread-nogo anomaly comment FIRST: a summary like 'NOGO: ... head unchanged (Nth round)' means by-design stale-PR triage (#2079: deterministic no-progress NOGOs escalate to skip instead of burning implement budget), NOT a reviewer failure; only a FRESHLY-implemented PR parked this way indicates a real defect, (16) a remediation agent pushed a valid commit but its `addressed`/`replies` map fails exact thread-ID validation — post no replies, discard only the malformed agent output, and return the existing PR to fresh review; without a pushed commit keep the terminal fail-closed path"
 category: ci-cd
-date: 2026-07-30
-version: "1.8.0"
+date: 2026-08-04
+version: "1.9.0"
 user-invocable: false
 history: pr-review-loop-orchestration-agent-patterns.history
 tags:
@@ -56,6 +56,11 @@ tags:
   - one-review-per-pass
   - pending-review-ownership
   - preserve-review-conflicts
+  - malformed-reply-mapping
+  - exact-thread-id
+  - pushed-head-recovery
+  - fresh-review-routing
+  - no-commit-fail-closed
   - homericintelligence
 ---
 
@@ -65,11 +70,11 @@ tags:
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-07-30 |
-| **Objective** | Build and debug a Python implement-review loop that drives LLM sub-agents to review a PR and fix its inline comments, converging on an EVIDENCE-BASED `Verdict: GO`. Covers: commit-gated thread resolution, inline-comment diff-hunk (422) validation, one-shot no-commit retry with unresolved review threads injected, agent-type selection for review tasks, GraphQL field/input validation for PR-review mutations, self-cancelling review plans, full merge-base pre-commit scope, the existing-PR short-circuit being GO-ONLY (NO-GO PRs MUST re-enter the loop), using the PR's real `headRefName` for the worktree instead of an assumed `{issue}-auto-impl`, and the "zero threads != GO" rule applying to the LOOP's TERMINATION condition (a zero-thread non-GO pass RE-REVIEWS up to `MAX_REVIEW_ITERATIONS`; `state:skip` only on TRUE exhaustion). |
-| **Outcome** | Merged across multiple ProjectHephaestus PRs (commit-gate + verdict-GO convergence #1084; inline-comment 422 validation #1043; no-commit retry + thread injection #847; GraphQL field/input validation #906/#1006; existing-PR NO-GO re-review #1104; real PR head-branch resolution #1106; in-loop policy enforcement removed in favor of CI gates #1112; in-loop zero-thread non-GO re-reviews + `state:skip` only on exhaustion #1114) plus ProjectOdyssey and gh-tidy upstream review rounds. |
-| **Verification** | verified-ci |
-| **Version** | 1.8.0 |
+| **Date** | 2026-08-04 |
+| **Objective** | Build and debug a Python implement-review loop that drives LLM sub-agents to review a PR and fix its inline comments, converges only on evidence, and preserves an independently verified pushed remediation commit when its reply map is malformed without posting unverified replies. |
+| **Outcome** | The established review-loop workflow is merged and CI-verified across multiple projects. The v1.9 malformed-map recovery is an implementation-ready design with exact-ID regression cases; execution and CI remain pending. |
+| **Verification** | verified-ci for the established workflow; the v1.9 malformed-map recovery is unverified and explicitly marked proposed below. |
+| **Version** | 1.9.0 |
 
 ## When to Use
 
@@ -88,6 +93,7 @@ tags:
 - The address-review coordinator is handed a review thread the reviewer ITSELF labels non-blocking / pre-existing / out-of-scope for #N / follow-up-worthy, or a thread that asks for an edit the approved plan explicitly scoped out (often behind a "count must not increase" verification guard), and the per-comment loop pressure ("every comment MUST be resolved") tempts a fixer-dispatch + code edit.
 - A fresh loop invocation reconstructs a canonical prior-run automated review thread, the validator marks it unaddressed, and reconciliation still hands it off instead of returning it to the normal remediation path.
 - One implementation pass posts a separate empty GitHub review for every addressed thread, or a transport failure leaves a pending review draft and the recovery path is tempted to delete, reuse, or partially replay it.
+- A remediation agent produced a valid pushed head, but its `addressed` and `replies` keys differ from the immutable thread snapshot by even one character; the commit should receive fresh review without any reply mutation, while the same malformed output with no pushed commit must remain terminal.
 
 ## Verified Workflow
 
@@ -228,6 +234,41 @@ begin a fresh review after manual cleanup or changed state.
 A host-only retry must retain the entire immutable batch. Never retain a nonce while filtering its
 thread or reply set: that changes the derived review body, turns the original draft into a conflict,
 and defeats recovery. Treat a mixed stale/ambiguous result as stale, or retry the exact full batch.
+
+#### Proposed malformed-reply recovery after a verified push
+
+> **Warning:** This recovery branch has not been validated end-to-end. Treat it as a hypothesis
+> until the implementation regressions and CI confirm it.
+
+Parsing reply evidence and proving a pushed commit are separate trust domains. Keep exact set
+comparison for the snapshot thread IDs; never guess that `thread-l` means `thread-1`, and never
+construct a reply handoff from malformed output. A malformed map invalidates every proposed reply,
+but it does not invalidate a commit that the trusted push-result parser independently proved was
+pushed with a full SHA.
+
+Recovery is allowed only when all three facts are already trusted: `pushed=True`, a full head SHA,
+and an existing PR. In ProjectHephaestus, obtain the first two facts only from
+`_remediation_reply_head()`, which already rejects a non-full SHA. Clear only
+`implementation_remediation` and `remediation_output`, create no reply handoff or journal record,
+perform no GitHub reply mutation, and let the existing
+`PR_CREATE -> ADVANCE -> PR_REVIEW` route send the new head through a fresh reviewer. The fresh
+reviewer can reconstruct findings from the new diff instead of trusting the malformed map.
+
+When `pushed=False`, the presence of a SHA-shaped string is not recovery evidence. Set the existing
+reply error and retain the terminal `implementation_reply_failed` transition. A missing PR is also
+terminal because there is nowhere to route the independently proven head for review.
+
+```python
+pushed, head_sha = remediation_reply_head(push_result)
+replies = parse_exact_reply_mapping(remediation_output, thread_snapshots)
+if replies is None:
+    if pushed and existing_pr:
+        clear("implementation_remediation", "remediation_output")
+        route("PR_CREATE", "ADVANCE", "PR_REVIEW")
+    else:
+        remediation_reply_error = True
+        finish_fail("implementation_reply_failed")
+```
 
 Severity-tag every inline comment (`critical | major | minor | nitpick`) and SUPPRESS
 nitpick by default; a `--nitpick` flag opts back in. Per-comment dispatch: classify each
@@ -538,6 +579,9 @@ recurring traps:
 | Edit the redirect target's content because the anchor was correct | Saw a correct pointer to `CONTRIBUTING.md` / `README.md` and assumed the doc itself was THIS PR's defect to fix | A correct anchor to a doc whose downstream step is buggy is not a defect introduced by this PR; the reviewer themselves recommended a follow-up issue, not an in-PR fix | Distinguish the redirect/anchor (often correct) from the redirect target's content (the actual, out-of-scope complaint); honor the scope contract and emit `{"addressed": []}` (verified-local). |
 | Treat restart adoption as a terminal handoff | A later loop reconstructed a canonical prior automation receipt, but reconciliation allowed only external-bot receipts to reach remediation. | Validator-confirmed unaddressed normal receipts were labelled as requiring human resolution, so a fresh run could never make progress. | Provenance, head, reply, and readback checks protect the mutation; they do not justify an iteration boundary. Route all verified unaddressed automation receipts back to remediation. |
 | Retry a filtered subset of a nonce-bound implementation batch | A stale thread was removed while an ambiguous thread retained the original nonce. | The review body derives from the whole reply map, so the original full-batch draft no longer matches and is correctly preserved as a conflict instead of being retried. | Retry the exact immutable batch, or classify any mixed stale/ambiguous outcome as stale and start a fresh pass. Never use a nonce as a subset-retry token. |
+| Terminalize every malformed reply map | Set the reply-error flag even after a trusted push result proved that a new full head SHA exists on an existing PR. | The malformed reply evidence blocked an independently valid commit from ever receiving fresh review. | Split reply-evidence failure from push-evidence failure: discard all replies, preserve the pushed head, and route the existing PR to a fresh reviewer. |
+| Fuzzy-match a mistyped thread ID | Guessed that an unknown key such as `thread-l` meant snapshot ID `thread-1`, then prepared a reply mutation. | A one-character typo is not evidence of author intent and can post an unverified response to the wrong thread. | Require exact set equality. On any mismatch post nothing and create no handoff or journal entry. |
+| Recover from `pushed=False` because a SHA-shaped value exists | Treated a returned head string as proof that remediation reached the remote. | The push-result contract explicitly says no commit was pushed; accepting the string would bypass the terminal no-commit safety path. | Recovery requires both `pushed=True` and a full SHA from the trusted parser. Preserve `implementation_reply_failed` otherwise. |
 
 ## Results & Parameters
 
@@ -552,6 +596,32 @@ recurring traps:
 | Existing-PR short-circuit is GO-ONLY | `_review_existing_pr`: `if has_go: return` (NOT `has_go or has_no_go`) | a NO-GO label is NOT terminal; it must re-enter the loop (PR #1104) |
 | Existing-PR worktree uses the PR's real head branch | `get_pr_head_branch(pr)` → `headRefName`; fall back to `{issue}-auto-impl` only on `None` | the PR may have matched via `Closes #N`, so the head branch can differ from the issue number (PR #1106) |
 | Out-of-scope / non-blocking thread → resolve by NON-action | coordinator emits `{"addressed": []}`, dispatches ZERO sub-agents, commits nothing, leaves loop scratch file (`.claude-address-review-*.md`) UNTRACKED | "resolve" = give a disposition, not edit; editing a plan-scoped-out thread (e.g. behind a "count must not increase" guard) breaches the scope contract (verified-local, PR #1245 / #1216) |
+
+### Malformed reply-map recovery decision table (proposed, unverified)
+
+| Exact map | `pushed` | Full SHA | Existing PR | Host action | Reply mutation |
+|-----------|----------|----------|-------------|-------------|----------------|
+| yes | any | validated as required | yes | Build the normal immutable reply batch. | Only through the normal verified batch handoff. |
+| no | true | yes | yes | Clear stale remediation-agent output and return the PR to fresh review. | None. |
+| no | false | any | any | Set the reply error and finish with `implementation_reply_failed`. | None. |
+| no | true | no | any | Reject the push result, set the reply error, and fail closed. | None. |
+| no | true | yes | no | Set the reply error because no existing PR can receive fresh review. | None. |
+
+Use a one-character identifier typo to prove the safety boundary without relying on malformed JSON:
+
+```python
+snapshots = [{"id": "thread-1", "path": "a.py", "line": 3}]
+output = {
+    "addressed": ["thread-l"],
+    "replies": {"thread-l": "[Response] Fixed the missing guard."},
+}
+
+# Pushed case: ADVANCE to fresh review, no reply error/handoff/mutation.
+# No-commit case: FINISH_FAIL implementation_reply_failed, no mutation.
+```
+
+The paired stage regressions must assert both routing and absence of the reply-post mutation. Keep
+the exact-ID parser unchanged so this test also proves that no fuzzy matching was introduced.
 
 ### Cross-run receipt remediation (verified locally)
 
@@ -702,6 +772,7 @@ mutation {
 | ProjectHephaestus | PR #1245 (issue #1216) | Out-of-scope / non-blocking / pre-existing review-thread disposition: the sole address-review thread was reviewer-labelled "Non-blocking (pre-existing, out of scope for #1216)" and asked to edit `pixi shell -e dev` (`CONTRIBUTING.md:63` / `README.md:494`) — drift the approved plan explicitly scoped out behind a "count must not increase" guard. Coordinator dispatched zero sub-agents, changed no code, committed nothing, returned `{"addressed": []}`. verified-local (CI not yet confirming the disposition) |
 | ProjectHephaestus | Issue #2496 / prior-loop review-thread remediation | Verified locally: canonical restart receipt adoption already worked, but a later reconciliation branch incorrectly restricted remediation to external-bot receipts. A normal prior-loop receipt classified as unaddressed now returns to the difficulty/address workflow; malformed, changed, replied-to, ambiguous, and wont-fix paths remain fail-closed. |
 | ProjectHephaestus | PR #2525 (issue #2523) | One implementation response pass creates one pending review, associates every original-thread reply, verifies receipts, and submits one review. CSPRNG nonce-bound batches preserve incomplete, stale, duplicate, and competing drafts for diagnosis because GitHub lacks a write CAS; only a fresh reviewer can resolve threads. Required CI passed at the reviewed head; strict review identified a latent subset-retry correction. |
+| ProjectHephaestus | Malformed remediation reply-map design, 2026-08-04 | Unverified implementation design: exact-ID typo regressions distinguish a valid pushed head routed to fresh review from malformed no-commit output that remains terminal, with no reply-post mutation in either case. |
 | HomericIntelligence/AchaeanFleet | 11 Dependabot PRs, 2026-05-31 | `feature-dev:code-reviewer` read-only blocker discovered; agent-type selection rule |
 | ProjectOdyssey | PR #3343 (issue #3152) / PR #3109 (issue #3033) | Self-cancelling review plan no-op; comprehensive multi-specialist PR review orchestration |
 | gh-tidy (HaywardMorihara/gh-tidy) | PRs #63/#67/#68/#69 | Upstream bash PR review rounds; logic/safety traps (verified-local) |
