@@ -3,7 +3,7 @@ name: automation-review-authorization-ci-boundary
 description: "Keep automation-loop source-review authorization independent of CI/CD, bind it to an exact PR head, and conditionally merge only that reviewed head. Use when: (1) review authorization is mistakenly delegated to CI, (2) a review can race with a changed head or dirty checkout, (3) unresolved review threads block advancement, (4) remediation must retract out-of-scope paths before publication, (5) a label advances implementation or merge state, (6) an external actor may own auto-merge, (7) a downstream rerun sees a merged PR, (8) a completed run needs a live event-order audit, (9) a read-only reviewer checkout performs redundant pre-barrier remote synchronization or emits an expected missing-branch error, or (10) a successful remediation reply has no commit and must remain reviewable."
 category: architecture
 date: 2026-08-03
-version: "3.5.0"
+version: "3.6.0"
 user-invocable: false
 verification: verified-ci
 history: automation-review-authorization-ci-boundary.history
@@ -38,8 +38,8 @@ tags:
 |-------|-------|
 | **Date** | 2026-08-03 |
 | **Objective** | Keep a code-automation loop's strict source-review decision inside that loop rather than delegating its authorization to CI/CD, bind the decision to the exact GitHub head SHA, and prevent the queue from mutating externally owned auto-merge. |
-| **Outcome** | ProjectHephaestus PR #2345 demonstrated the active fail-closed path. PR #2506 supplied a compact happy-path audit. PR #2510 added a pre-publication scope-retraction guard. PR #2570 demonstrated how to audit several review/fix cycles without transferring authorization from an older reviewed head. PR #2592 added the evidence-only remediation rule: a successful no-commit reply is posted against the verified head and remains under reviewer-owned disposition. |
-| **Verification** | verified-ci on ProjectHephaestus PRs #2345, #2506, #2510, #2570, and #2592. PR #2592's final review matched head `051be9de`; GO replaced NOGO, required checks completed, and merge commit `04f268dd` followed. |
+| **Outcome** | ProjectHephaestus PR #2345 demonstrated the active fail-closed path. PR #2506 supplied a compact happy-path audit. PR #2510 added a pre-publication scope-retraction guard. PR #2570 demonstrated how to audit several review/fix cycles without transferring authorization from an older reviewed head. PR #2592 added the evidence-only remediation rule: a successful no-commit reply is posted against the verified head and remains under reviewer-owned disposition. PR #2594 showed the same reply handoff plus a review-to-merge path where GO preceded slow required checks. |
+| **Verification** | verified-ci on ProjectHephaestus PRs #2345, #2506, #2510, #2570, #2592, and #2594. PR #2594's final review matched head `ccd15161`; GO replaced NOGO before the final required-checks gate, and merge commit `3fd39fc3` followed only after that gate passed. |
 
 ## When to Use
 
@@ -58,6 +58,7 @@ tags:
 - Repeated review runs encounter unresolved automation-created threads and must distinguish a safe stand-down from authorization to advance.
 - A review finding says to drop, remove, or split unrelated/out-of-scope files, and the address agent must not publish a partial or malformed retraction.
 - You need to audit a completed automation-loop run from durable GitHub facts without treating review prose or CI results as authorization.
+- Review authorization appears before slow required checks finish, and `merge_wait` must preserve the exact-head decision while waiting for repository merge requirements.
 - A successful remediation reply produced no commit and must still be reviewed as evidence rather than rejected as a failed implementation.
 - A reply journal may have been created for an older PR head and must not be replayed after the head changes.
 
@@ -209,6 +210,8 @@ reviewable one.
     the incompatible NOGO label was removed, required checks completed before merge, and the merge
     event followed. Treat review state, an empty review body, a grade, or `LGTM` as informational;
     only the label records the loop decision, and only the merge event proves terminal completion.
+    A GO label may legitimately precede slow required checks: that timing demonstrates CI is not
+    review authorization, while `merge_wait` still waits for the repository's merge requirements.
 
 ## Failed Attempts
 
@@ -262,6 +265,7 @@ reviewable one.
 | Exact no-push receipt | Clean pinned commit jobs release unused reservations, read verified `HEAD`, and return `{"pushed": false, "head_sha": <sha>}`; bare `False` is insufficient for current-head binding. |
 | Reply journal freshness | Replay only when the journal's `head_sha` equals the verified current PR head; ignore stale-head journals. |
 | PR #2592 / issue #2591 audit | Final review record targeted `051be9de` at `00:39:57Z`; GO replaced NOGO at `00:40:47Z`; required checks completed before merge; merge commit `04f268dd` landed at `00:50:56Z`. Earlier review records on superseded heads were historical only. |
+| PR #2594 / issue #2149 audit | Evidence-only handoffs were accepted only on their bound heads (`e3251313` then `ccd15161`); the final review matched `ccd15161` at `01:19:29Z`, GO replaced NOGO at `01:23:40Z`, slow unit and required-check gates finished at `01:29:29Z` and `01:29:40Z`, and merge commit `3fd39fc3` landed at `01:30:39Z`. CI completed the merge contract but did not authorize review. |
 
 ## Verified On
 
@@ -278,3 +282,4 @@ reviewable one.
 | ProjectHephaestus | PR #2570 / issue #2385 | Verified-ci multi-cycle review and merge path. Reviews on `93706c99` and `8465ee72` remained historical only. The final review matched live head `219ec8ce`; GO replaced NOGO, the required-checks gate then succeeded, and the PR merged 55 seconds after the final review. |
 | ProjectHephaestus | PR #2570 completed-run audit and read-only checkout correction | The completed log showed a caught missing-branch probe plus two review-worktree synchronizations per review round. The proposed corrective implementation creates a detached `HEAD` scratch checkout and defers the sole remote fetch-and-bind to the exact-head barrier. Three focused regressions, 300 relevant tests, the full 6,690-test unit suite (84.60% coverage), mypy, Ruff, and pre-commit passed locally. |
 | ProjectHephaestus | PR #2592 / issue #2591 | Verified-ci convergence path. Review records on superseded heads were not reused; the final review matched `051be9de`, GO replaced NOGO only after the current-head checks, required checks completed, and merge commit `04f268dd` followed. The issue's live validation also showed a no-commit remediation reply reaching review with the warning intact and the thread left open for evidence feedback. |
+| ProjectHephaestus | PR #2594 / issue #2149 | Verified-ci evidence-only review and merge path. The no-commit handoff on `e3251313` was not treated as implementation failure; a later handoff and final review bound to `ccd15161`. GO replaced NOGO before the slow unit/required-check gates finished, then `merge_wait` waited and conditionally merged the reviewed head as `3fd39fc3`; `autoMergeRequest` was null. |
