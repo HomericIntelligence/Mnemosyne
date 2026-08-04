@@ -1,9 +1,9 @@
 ---
 name: automation-review-authorization-ci-boundary
-description: "Keep automation-loop source-review authorization independent of CI/CD, bind it to an exact PR head, and conditionally merge only that reviewed head. Use when: (1) review authorization is mistakenly delegated to CI, (2) a review can race with a changed head or dirty checkout, (3) unresolved review threads block advancement, (4) remediation must retract out-of-scope paths before publication, (5) a label advances implementation or merge state, (6) an external actor may own auto-merge, (7) a downstream rerun sees a merged PR, (8) a completed run needs a live event-order audit, (9) a read-only reviewer checkout performs redundant pre-barrier remote synchronization or emits an expected missing-branch error, or (10) a successful remediation reply has no commit and must remain reviewable."
+description: "Keep automation-loop source-review authorization independent of CI/CD, bind it to an exact PR head, and conditionally merge only that reviewed head. Use when: (1) review authorization is mistakenly delegated to CI, (2) a review can race with a changed head or dirty checkout, (3) unresolved review threads block advancement, (4) remediation must retract out-of-scope paths before publication, (5) a label advances implementation or merge state, (6) an external actor may own auto-merge, (7) a downstream rerun sees a merged PR, (8) a completed run needs a live event-order audit, (9) a read-only reviewer checkout performs redundant pre-barrier remote synchronization or emits an expected missing-branch error, (10) a successful remediation reply has no commit and must remain reviewable, or (11) an inline review leaves no GitHub review/comment object."
 category: architecture
-date: 2026-08-03
-version: "3.7.0"
+date: 2026-08-04
+version: "3.8.0"
 user-invocable: false
 verification: verified-ci
 history: automation-review-authorization-ci-boundary.history
@@ -36,10 +36,10 @@ tags:
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-08-03 |
+| **Date** | 2026-08-04 |
 | **Objective** | Keep a code-automation loop's strict source-review decision inside that loop rather than delegating its authorization to CI/CD, bind the decision to the exact GitHub head SHA, and prevent the queue from mutating externally owned auto-merge. |
-| **Outcome** | ProjectHephaestus PR #2345 demonstrated the active fail-closed path. PR #2506 supplied a compact happy-path audit. PR #2510 added a pre-publication scope-retraction guard. PR #2570 demonstrated how to audit several review/fix cycles without transferring authorization from an older reviewed head. PR #2592 added the evidence-only remediation rule: a successful no-commit reply is posted against the verified head and remains under reviewer-owned disposition. PR #2594 showed the same reply handoff plus a review-to-merge path where GO preceded slow required checks. PR #2598 showed that a scanner-backed issue remains NOGO until the current head adds remediation-specific regression coverage, then advances through exact-head review, GO-label replacement, and conditional merge. |
-| **Verification** | verified-ci on ProjectHephaestus PRs #2345, #2506, #2510, #2570, #2592, #2594, and #2598. PR #2598's final reviewed head was `c565b6f7`; `state:implementation-go` replaced NOGO before merge commit `d065fff2`, with required checks green and `autoMergeRequest` null. |
+| **Outcome** | ProjectHephaestus PR #2345 demonstrated the active fail-closed path. PR #2506 supplied a compact happy-path audit. PR #2510 added a pre-publication scope-retraction guard. PR #2570 demonstrated how to audit several review/fix cycles without transferring authorization from an older reviewed head. PR #2592 added the evidence-only remediation rule: a successful no-commit reply is posted against the verified head and remains under reviewer-owned disposition. PR #2594 showed the same reply handoff plus a review-to-merge path where GO preceded slow required checks. PR #2598 showed that a scanner-backed issue remains NOGO until the current head adds remediation-specific regression coverage, then advances through exact-head review, GO-label replacement, and conditional merge. PR #2616 demonstrated a compact inline-review path: initial NOGO, final GO, NOGO removal, and merge with no GitHub review or issue-comment object. |
+| **Verification** | verified-ci on ProjectHephaestus PRs #2345, #2506, #2510, #2570, #2592, #2594, #2598, and #2616. PR #2616's final head was `36322151`; GO was added at `13:14:12Z`, NOGO was removed at `13:14:15Z`, the required-checks gate completed at `13:14:26Z`, and merge commit `5dbfd3e6` followed at `13:14:35Z` with `autoMergeRequest` null. |
 
 ## When to Use
 
@@ -58,6 +58,7 @@ tags:
 - Repeated review runs encounter unresolved automation-created threads and must distinguish a safe stand-down from authorization to advance.
 - A review finding says to drop, remove, or split unrelated/out-of-scope files, and the address agent must not publish a partial or malformed retraction.
 - You need to audit a completed automation-loop run from durable GitHub facts without treating review prose or CI results as authorization.
+- A loop review is inline/local and GitHub exposes no review or issue-comment object; audit the exact head, state labels, required-check timing, and merge event without fabricating a review record.
 - A scanner-backed issue has a superficially related test or documentation change, but the current head must prove that the reported scanner input is addressed.
 - Review authorization appears before slow required checks finish, and `merge_wait` must preserve the exact-head decision while waiting for repository merge requirements.
 - A successful remediation reply produced no commit and must still be reviewed as evidence rather than rejected as a failed implementation.
@@ -118,6 +119,11 @@ Read the result as three distinct facts: the review record identifies what head 
 the `state:implementation-go` event is the loop's durable authorization, and the merge event is
 the terminal mutation. Check runs may be inspected separately as repository-health context, but
 their completion time does not replace any of those facts.
+
+Some inline review paths intentionally publish no GitHub review or issue-comment object. When
+both surfaces are empty, record that observability fact rather than treating it as a missing
+authorization or inventing a review record; use the exact-head and exclusive label/merge events
+as the durable audit, with CI still treated as merge-contract context only.
 
 When a PR has several review/fix cycles, compare every review's `commit_id` with the final PR
 head. Older reviews remain useful audit history but cannot authorize the newer revision. A
@@ -237,6 +243,7 @@ reviewable one.
 | Rewrite accepted ADRs to remove obsolete instructions | Historical ADR text was modified in place. | It obscured the decision record and broke the repository's ADR immutability convention. | Preserve accepted ADRs verbatim; add a superseding ADR and make the index point to the active policy. |
 | Re-run review against unchanged unresolved threads | PR #2345 repeatedly re-entered review while seven automation-created threads remained unresolved. | The loop could not prove that automated reply/resolution would preserve human activity, so each run correctly stood down with NOGO and could not advance. | Treat unchanged unresolved-thread state as a fail-closed wait condition; obtain concrete dispositions and resolutions, then run a fresh exact-head review. |
 | Treat an automated review comment as authorization | A completed run's `A`, `LGTM`, or decision-shaped review prose was used as the apparent GO signal. | Review prose is audit evidence and can exist without the fresh live-state guards required for a label transition. | Audit the exact-head review, GO-label event, and merge event separately; the comment never substitutes for the loop-owned label. |
+| Treat GitHub review/comment presence as the review audit | PR #2616's inline loop review left `reviews=[]` and no issue comments even though the state-label path completed successfully. | GitHub's review/comment APIs are not the durable authorization surface for every loop mode; requiring an object that the mode does not publish creates a false failure. | Record the empty review/comment surface and audit the exact head, exclusive GO/NOGO label transition, required-check timing, and merge event instead. |
 | Let an address agent interpret “drop unrelated files” without a host-enforced manifest | Scope-control prose was passed to remediation like an ordinary finding. | The agent could omit a path, retain an out-of-scope change, or publish from stale task context while still self-reporting success. | Normalize scope retractions to blocking, carry a complete validated path manifest plus linked issue/current diff, and compare every path to the reviewed base before push. |
 
 ## Results & Parameters
@@ -269,6 +276,7 @@ reviewable one.
 | PR #2592 / issue #2591 audit | Final review record targeted `051be9de` at `00:39:57Z`; GO replaced NOGO at `00:40:47Z`; required checks completed before merge; merge commit `04f268dd` landed at `00:50:56Z`. Earlier review records on superseded heads were historical only. |
 | PR #2594 / issue #2149 audit | Evidence-only handoffs were accepted only on their bound heads (`e3251313` then `ccd15161`); the final review matched `ccd15161` at `01:19:29Z`, GO replaced NOGO at `01:23:40Z`, slow unit and required-check gates finished at `01:29:29Z` and `01:29:40Z`, and merge commit `3fd39fc3` landed at `01:30:39Z`. CI completed the merge contract but did not authorize review. |
 | PR #2598 / issue #2255 audit | The first review flagged the docstring-only head and applied `state:implementation-no-go` at `01:55:37Z`. The follow-up head `c565b6f7` added `RETIRED_PLUGIN_SCANNER_INPUTS` regression coverage; the matching review at `02:08:24Z` was followed by `state:implementation-go` at `02:09:43Z`, NOGO removal two seconds later, and merge commit `d065fff2` at `02:21:10Z`. Required checks passed independently; `autoMergeRequest` remained null. |
+| PR #2616 / issue #2615 audit | The inline review path had no GitHub review or issue-comment object. GitHub recorded NOGO at `13:05:12Z`, GO at `13:14:12Z`, NOGO removal at `13:14:15Z`, required-checks completion at `13:14:26Z`, and merge commit `5dbfd3e6` at `13:14:35Z` for final head `36322151`; `autoMergeRequest` was null. |
 
 ## Verified On
 
@@ -287,3 +295,4 @@ reviewable one.
 | ProjectHephaestus | PR #2592 / issue #2591 | Verified-ci convergence path. Review records on superseded heads were not reused; the final review matched `051be9de`, GO replaced NOGO only after the current-head checks, required checks completed, and merge commit `04f268dd` followed. The issue's live validation also showed a no-commit remediation reply reaching review with the warning intact and the thread left open for evidence feedback. |
 | ProjectHephaestus | PR #2594 / issue #2149 | Verified-ci evidence-only review and merge path. The no-commit handoff on `e3251313` was not treated as implementation failure; a later handoff and final review bound to `ccd15161`. GO replaced NOGO before the slow unit/required-check gates finished, then `merge_wait` waited and conditionally merged the reviewed head as `3fd39fc3`; `autoMergeRequest` was null. |
 | ProjectHephaestus | PR #2598 / issue #2255 | Verified-ci scanner-remediation review path. The first head correctly remained NOGO because it changed only a docstring. A new head added a regression that rejects retired plugin-scanner inputs; exact-head review then authorized GO, the loop replaced NOGO, and `merge_wait` conditionally merged `d065fff2` after required checks. |
+| ProjectHephaestus | PR #2616 / issue #2615 | Verified-ci inline-review path. No GitHub review/comment object was emitted; the durable audit was the exact final head, NOGO→GO label replacement, required-check completion, and merge event. The GO label preceded the final required-check gate, so CI remained merge-contract context rather than review authorization. |
