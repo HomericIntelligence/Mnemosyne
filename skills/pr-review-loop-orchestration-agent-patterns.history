@@ -4,6 +4,34 @@
 
 This file preserves the full original content of the skills merged into this canonical.
 
+## v1.10.0 (2026-08-04)
+
+**Changed by:** ProjectHephaestus issue #2626 / PR #2627 automation-loop review and merge.
+**Verification:** verified-ci.
+
+### What changed
+
+- Promoted malformed reply-map recovery from proposed to verified-ci after the pushed-head and
+  no-commit regressions passed in the merged PR.
+- Recorded the exact inline-review audit: no GitHub review/comment object was required; the
+  trusted pushed head, loop-owned GO label, required checks, and conditional merge were the
+  durable evidence.
+- Recorded PR #2627's final head `fc7470ca` and merge commit `2e149eb6`.
+
+### Why
+
+The prior v1.9.0 entry described the correct safety split but had not been executed. PR #2627
+confirmed that exact thread-ID validation can reject a malformed map without posting a guessed
+reply, preserve a valid pushed head for fresh review, and retain the terminal no-commit path.
+The completed loop then authorized and conditionally merged the exact reviewed head.
+
+### Previous version (v1.9.0 snapshot)
+
+The exact v1.9.0 source is retained in main-branch commit
+[`cb4a2e15`](https://github.com/HomericIntelligence/ProjectMnemosyne/blob/cb4a2e15/skills/pr-review-loop-orchestration-agent-patterns.md).
+
+---
+
 ## v1.9.0 (2026-08-04)
 
 **Changed by:** ProjectHephaestus malformed remediation reply-map design.
