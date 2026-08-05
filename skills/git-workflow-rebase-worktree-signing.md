@@ -1,9 +1,9 @@
 ---
 name: git-workflow-rebase-worktree-signing
-description: "Canonical git-workflow guide covering rebase conflict resolution, worktree lifecycle, GPG signing pitfalls, submodule coordination, and branch-state recovery. Use when: (1) rebasing a feature branch with non-trivial conflicts, (2) creating/cleaning git worktrees, (3) a commit is rejected because GPG signing produced an unknown key, (4) reconciling submodule state across branches, (5) recovering a branch that's in a detached/dirty state, (6) batch-rebasing many sibling branches in parallel, (7) salvaging commits from a rejected PR via cherry-pick, (8) recovering commits accidentally made on local main, (9) resolving stash-pop conflicts blocked by Safety Net, (10) cleaning up stale worktrees/branches/stashes with a preservation bias, (11) dispatching agents into submodule worktrees that hit transient permission errors, (12) finding stale staged or unstaged changes in a worktree that has already been rebased onto main, (13) an approved implementation plan cites files / line ranges / job names that do not exist on the branch — suspect a stale base, not a wrong plan, and rebase onto origin/main before editing."
+description: "Canonical git-workflow guide covering rebase conflict resolution, worktree lifecycle, GPG signing pitfalls, submodule coordination, and branch-state recovery. Use when: (1) rebasing a feature branch with non-trivial conflicts, (2) creating/cleaning git worktrees, (3) a commit or annotated tag is rejected because GPG signing produced an unknown key or email mismatch, (4) a locally valid signature remains unverified after its public key is registered with GitHub, (5) reconciling submodule state across branches, (6) recovering a branch that's in a detached/dirty state, (7) batch-rebasing many sibling branches in parallel, (8) salvaging commits from a rejected PR via cherry-pick, (9) recovering commits accidentally made on local main, (10) resolving stash-pop conflicts blocked by Safety Net, (11) cleaning up stale worktrees/branches/stashes with a preservation bias, (12) dispatching agents into submodule worktrees that hit transient permission errors, (13) finding stale staged or unstaged changes in a worktree that has already been rebased onto main, (14) an approved implementation plan cites files / line ranges / job names that do not exist on the branch — suspect a stale base, not a wrong plan, and rebase onto origin/main before editing."
 category: tooling
-date: 2026-06-12
-version: "1.2.0"
+date: 2026-08-05
+version: "1.3.0"
 user-invocable: false
 verification: verified-local
 history: git-workflow-rebase-worktree-signing.history
@@ -26,6 +26,7 @@ tags: [merged, git, rebase, worktree, gpg-signing, submodule, branch-state, cher
 - Rebasing a feature branch that has non-trivial conflicts with main
 - Creating, switching, syncing, or cleaning git worktrees
 - A commit is rejected because GPG signing produced an unknown key or email mismatch
+- An annotated release tag has a locally valid GPG signature but remains unverified after its public key is registered with GitHub
 - Reconciling submodule state across branches in a meta-repo
 - Recovering a branch that is in a detached, dirty, or locally-committed-on-main state
 - Batch-rebasing many sibling PRs in parallel with one worktree per branch
@@ -87,6 +88,60 @@ gh pr list --head <branch> --state all --json number,state
 git log origin/main..HEAD --oneline        # empty = fully subsumed
 git -C <worktree-path> status --short      # empty = no real uncommitted work
 ```
+
+### Signature Verification Requires Four Aligned Identities
+
+A local `Good signature` proves only that the object matches a public key. A hosted
+`Verified` badge additionally requires all four gates below:
+
+1. The commit or annotated tag has a cryptographically valid signature.
+2. The exact signing public key is registered to a GitHub account.
+3. The commit's committer email or the tag's tagger email matches an identity on that key.
+4. That same email is verified on the GitHub account that owns the registered key.
+
+Treat the fingerprint as the binding identity. Do not register a convenient substitute key,
+and never expose or upload private key material. Export only the exact public half:
+
+```bash
+# Obtain the full fingerprint from the signature or local public-key listing.
+git verify-tag --raw <tag>
+gpg --batch --list-keys --with-colons --fingerprint --fingerprint
+
+# Export only the matching public key.
+gpg --batch --armor --output <public-key-file>.asc --export <full-fingerprint>
+```
+
+GitHub CLI needs account-level GPG-key administration scope before it can register a key:
+
+```bash
+gh auth refresh -h github.com -s admin:gpg_key
+gh gpg-key add <public-key-file>.asc --title "<descriptive-title>"
+
+# Read back the parsed key identity and email verification state.
+gh api user/gpg_keys \
+  --jq '.[] | select(.key_id == "<long-key-id>") | {key_id, emails, can_sign, revoked, expires_at}'
+```
+
+Then query GitHub's verification record rather than relying on local GPG output:
+
+```bash
+TAG_OBJECT_SHA=$(git rev-parse '<tag>^{tag}')
+gh api "repos/<owner>/<repo>/git/tags/${TAG_OBJECT_SHA}" \
+  --jq '.verification | {verified, reason, verified_at}'
+```
+
+If the key registers as signing-capable but its email is reported as unverified, key
+registration succeeded while identity binding failed. This commonly happens when automation
+creates a custom GPG signature as a hosted bot address and the key is uploaded to a human
+account: the human account cannot verify the bot's address. For future signatures, align the
+workflow's committer/tagger email, a UID on the signing key, and a verified email on the key-owning
+account. Use an operator-controlled no-reply address or a properly owned machine identity; do not
+rewrite an already published tag merely to change its verification badge.
+
+Public references:
+
+- [Adding a GPG key to your GitHub account](https://docs.github.com/en/authentication/managing-commit-signature-verification/adding-a-gpg-key-to-your-github-account)
+- [Using a verified email address in your GPG key](https://docs.github.com/en/authentication/troubleshooting-commit-signature-verification/using-a-verified-email-address-in-your-gpg-key)
 
 ### A. Rebase Conflict Resolution
 
@@ -615,6 +670,9 @@ Six-test checklist for any SKILL.md transformer: fixture exists, initial conditi
 | Calling `gh pr checkout <N>` on a branch already checked out in a worktree | `gh pr checkout 639` in the parent repo while the worktree at `.claude/worktrees/agent-*/` was already on that branch | `fatal: '620-auto-impl' is already used by worktree at ...` — `gh pr checkout` creates/updates local branches and conflicts with the existing worktree | When working inside a dedicated worktree for a branch, skip `gh pr checkout` — the worktree IS already on that branch. Just verify with `git branch --show-current`. |
 | Committing stale staged changes without inspecting `git diff --cached` first | Found staged changes in worktree, assumed they were the intended fix, committed without reading the diff | Staged diff was a partial REVERT (removed Protocol class, replaced with direct `Planner` reference) — the opposite of the PR's purpose | Always `git diff --cached` before staging more or committing in a worktree you didn't create fresh. A prior agent may have staged partial work. Unstage with `git restore --staged <file>` if the staged diff undoes the PR's intent. |
 | Concluding "the plan is wrong" when it cited a non-existent job | Plan said to add `if:` to jobs and preserve `license-scan` at `security.yml:97-137`, but the branch file was 96 lines, `grep -n license-scan` returned nothing, and `scripts/check_license_compatibility.py` was missing | The branch HEAD (`5e8fb2ee`, #1248) was exactly one commit behind `origin/main` (`dd2552e4`, #1252 — the PR that ADDED `license-scan` + the script). The plan was correct; the branch base was stale | When a plan cites files/line-ranges/job-names absent on the branch, run `git merge-base --is-ancestor <main-sha> HEAD`. "NOT ancestor" = stale base. `git fetch origin main && git rebase origin/main` brought the file to 137 lines and the job to `:97`; then implement and push `--force-with-lease`. This is NOT the already-resolved case (don't close the issue) |
+| Trust a local `Good signature` as hosted verification | The object verified cryptographically on the signing host | The hosting service could not bind the key and tagger/committer email to one verified account identity | Check the hosted verification API and independently prove key registration, key UID email, and account email verification |
+| Register a bot-identity key on a human account | The public key uploaded successfully and was parsed as signing-capable | The key's bot email was not a verified email on the human account, so the signed object remained unverified | Align the object email, key UID, and verified email of the account that owns the key before signing future objects |
+| Call the GPG-key API with the repository-only token scope | The authenticated CLI could otherwise read and write repository state | Account GPG-key endpoints rejected the request because key administration uses a separate OAuth scope | Refresh only the required `admin:gpg_key` scope, register the public key, and verify by API readback |
 
 ## Results & Parameters
 
@@ -671,3 +729,4 @@ rebase_time: ~2 minutes
 | Mnemosyne | 14 PRs auto-merged + worktree migration PR `#991` | Clone-to-worktree migration |
 | ProjectOdyssey | Wave D/E bulk issue fixing — 26 PRs, 2026-04-12 | Plan-mode avoidance; Haiku model |
 | ProjectHephaestus | Issue #1182 / PR #1259 — plan cited `license-scan` at `security.yml:97-137` but branch (`5e8fb2ee`, one commit behind `dd2552e4`/#1252) had a 96-line file with no such job; rebased onto origin/main, then implemented | Stale-base implementation branch detection (section D4) |
+| Public hosted-Git release | Annotated tag signed by automation with a custom GPG key | Live API readback confirmed that successful key registration is insufficient when the key UID email is not verified on the owning account |
