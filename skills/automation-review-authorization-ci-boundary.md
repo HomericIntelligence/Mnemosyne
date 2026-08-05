@@ -1,9 +1,9 @@
 ---
 name: automation-review-authorization-ci-boundary
-description: "Keep automation-loop source-review authorization independent of CI/CD, bind it to an exact PR head, and conditionally merge only that reviewed head. Use when: (1) review authorization is mistakenly delegated to CI, (2) a review can race with a changed head or dirty checkout, (3) unresolved review threads block advancement, (4) remediation must retract out-of-scope paths before publication, (5) a label advances implementation or merge state, (6) an external actor may own auto-merge, (7) a downstream rerun sees a merged PR, (8) a completed run needs a live event-order audit, (9) a read-only reviewer checkout performs redundant pre-barrier remote synchronization or emits an expected missing-branch error, (10) a successful remediation reply has no commit and must remain reviewable, (11) an inline review leaves no GitHub review/comment object, or (12) a no-commit remediation changes only PR title/body metadata."
+description: "Keep automation-loop source-review authorization independent of CI/CD, bind it to an exact PR head, and conditionally merge only that reviewed head. Use when: (1) review authorization is mistakenly delegated to CI, (2) a review can race with a changed head or dirty checkout, (3) unresolved review threads block advancement, (4) remediation must retract out-of-scope paths before publication, (5) a label advances implementation or merge state, (6) an external actor may own auto-merge, (7) a downstream rerun sees a merged PR, (8) a completed run needs a live event-order audit, (9) a read-only reviewer checkout performs redundant pre-barrier remote synchronization or emits an expected missing-branch error, (10) a successful remediation reply has no commit and must remain reviewable, (11) an inline review leaves no GitHub review/comment object, (12) a no-commit remediation changes only PR title/body metadata, or (13) review preparation force-rebases an already-current PR head and prevents convergence."
 category: architecture
 date: 2026-08-04
-version: "3.11.0"
+version: "3.12.0"
 user-invocable: false
 verification: verified-ci
 history: automation-review-authorization-ci-boundary.history
@@ -17,6 +17,9 @@ tags:
   - state-label
   - source-review
   - reviewed-head
+  - review-convergence
+  - noop-rebase
+  - remote-head-verification
   - checkout-verification
   - auto-merge-ownership
   - fail-closed
@@ -43,6 +46,7 @@ tags:
 | **Outcome** | ProjectHephaestus PR #2345 demonstrated the active fail-closed path. PR #2506 supplied a compact happy-path audit. PR #2510 added a pre-publication scope-retraction guard. PR #2570 demonstrated how to audit several review/fix cycles without transferring authorization from an older reviewed head. PR #2592 added the evidence-only remediation rule: a successful no-commit reply is posted against the verified head and remains under reviewer-owned disposition. PR #2594 showed the same reply handoff plus a review-to-merge path where GO preceded slow required checks. PR #2595 / issue #2137 showed that repeated validation can isolate a PR-metadata-only finding: source absence is not proof that the live PR body was corrected, and the correct remediation may remain a head-bound no-commit handoff. PR #2598 showed that a scanner-backed issue remains NOGO until the current head adds remediation-specific regression coverage, then advances through exact-head review, GO-label replacement, and conditional merge. PR #2616 demonstrated a compact inline-review path: initial NOGO, final GO, NOGO removal, and merge with no GitHub review or issue-comment object. PR #2622 demonstrated a substantive remediation path: the initial exact-head review found three major host-verification gaps, the loop stayed NOGO, and a fresh review of the corrected head authorized GO before a conditional merge. |
 | **Verification** | verified-ci on ProjectHephaestus PRs #2345, #2506, #2510, #2570, #2592, #2594, #2595, #2598, and #2616. PR #2595's final review matched head `d68e1d43`; GO was added at `16:35:56Z`, NOGO was removed at `16:35:58Z`, the required-checks gate completed at `16:41:02Z`, and conditional merge commit `da620c2f` followed at `16:41:54Z` with `autoMergeRequest` null. PR #2616's final head was `36322151`; GO was added at `13:14:12Z`, NOGO was removed at `13:14:15Z`, the required-checks gate completed at `13:14:26Z`, and merge commit `5dbfd3e6` followed at `13:14:35Z` with `autoMergeRequest` null. PR #2622's final head was `e418b3f0`; the first review's NOGO at `14:57:29Z` was replaced by GO at `15:18:07Z`, NOGO was removed at `15:18:09Z`, the required-checks gate completed at `15:27:43Z`, and merge commit `022e2ff2` followed at `15:28:21Z` with `autoMergeRequest` null. |
 | **Issue #2618 / PR #2619** | verified-ci. Initial NOGO was recorded at `13:32:41Z`; the final review matched head `a24ccf21` at `16:04:12Z`, GO replaced NOGO at `16:04:55Z`, the required-checks gate completed at `16:14:59Z`, and conditional merge commit `4631d91c` followed at `16:15:12Z` with `autoMergeRequest` null. Local validation reported 469 focused tests, Ruff, mypy, and the full pre-push suite (7,163 passed, 11 skipped, 5 deselected; 84.76% coverage). |
+| **Issue #2630 / PR #2631** | verified-ci. Review preparation preserved final head `692bc1fb` because current `origin/main` was already its ancestor, then verified the exact remote branch ref without rebasing or pushing. The matching review preceded GO replacement, the required-checks gate completed on that head, and conditional squash merge `baa59341` followed with native auto-merge null. |
 
 ## When to Use
 
@@ -56,6 +60,7 @@ tags:
 - Review-local head, verdict, or evidence data remains in a work item after the label has been applied, where a later stage could accidentally turn it into a second authorization requirement.
 - A downstream rerun evaluates a PR after merge and must short-circuit on PR state instead of expecting `autoMergeRequest` to still be present; GitHub clears `autoMergeRequest` on merged PRs.
 - A PR body/diff is fetched while a push may occur, or the reviewer can inspect a dirty/stale checkout rather than the GitHub head it is supposed to approve.
+- Review preparation rewrites and lease-pushes an already-current PR branch before every review pass, invalidating head-bound receipts and preventing convergence.
 - A label write would advance the pipeline without fresh proof that the PR is `OPEN` and explicitly unarmed, or an approving/GO label would advance without also proving the reviewed head still matches.
 - The queue sees `autoMergeRequest` populated and is tempted to defer, disable, adopt, or replace it. GitHub does not expose a conditional disable operation that can prove ownership of that request.
 - Repeated review runs encounter unresolved automation-created threads and must distinguish a safe stand-down from authorization to advance.
@@ -75,15 +80,16 @@ tags:
 ```text
 automation loop owns source-review authorization
   1. snapshot GitHub PR metadata and its head; reject it if the head moves
-  2. verify a clean checkout at that exact head in a dedicated Git job, then derive its diff locally from the verified base/head pair
-  3. run the strict PR review in the loop (CI-free) against that metadata and derived diff
-  4. stand down while any relevant review thread remains unresolved; rerun only after thread state or head changes
-  5. for successful no-commit remediation, re-read current PR title/body and head immediately before validation; require the metadata head to equal the verified current head, nonce-fence the fields, post `[auto-msg] reply has no corresponding commit, review thoroughly`, return an exact `{pushed:false, head_sha:<sha>}` receipt, and leave reviewer disposition open
-  6. ignore reply journals whose recorded head differs from the verified current head
-  7. for a scope retraction, require a complete safe path manifest and compare every path to the reviewed base before push
-  8. before every state-changing label, re-read OPEN + explicit autoMergeRequest:null
-  9. require the exact reviewed head only for an approving/GO label; drift revokes proof and re-reviews
-  10. merge_wait revalidates the proof and conditionally squash-merges only that exact head; it never mutates native auto-merge
+  2. if the writer already contains the current base, verify local HEAD and the exact remote branch ref, then return the unchanged head without rebasing or pushing
+  3. verify a clean checkout at that exact head in a dedicated Git job, then derive its diff locally from the verified base/head pair
+  4. run the strict PR review in the loop (CI-free) against that metadata and derived diff
+  5. stand down while any relevant review thread remains unresolved; rerun only after thread state or head changes
+  6. for successful no-commit remediation, re-read current PR title/body and head immediately before validation; require the metadata head to equal the verified current head, nonce-fence the fields, post `[auto-msg] reply has no corresponding commit, review thoroughly`, return an exact `{pushed:false, head_sha:<sha>}` receipt, and leave reviewer disposition open
+  7. ignore reply journals whose recorded head differs from the verified current head
+  8. for a scope retraction, require a complete safe path manifest and compare every path to the reviewed base before push
+  9. before every state-changing label, re-read OPEN + explicit autoMergeRequest:null
+  10. require the exact reviewed head only for an approving/GO label; drift revokes proof and re-reviews
+  11. merge_wait revalidates the proof and conditionally squash-merges only that exact head; it never mutates native auto-merge
 
 merge-wait is also the authorization boundary of last resort
   1. reject an item without required issue/requirements context before consuming a label
@@ -160,6 +166,14 @@ reviewable one.
 1. Establish a single decision owner. Source-review authorization belongs to the automation loop when that loop is responsible for planning, implementation, review, and advancement. CI/CD may validate a repository independently, but it is not evidence the loop can depend on for this decision.
 
 2. Capture stable GitHub metadata before dispatching the reviewer. Read the body, base branch, and head SHA, then read the head again. If the two heads differ, discard the context rather than reviewing a moving target. Run a dedicated Git job that proves the worktree was clean, synchronized to that exact head, has `HEAD` equal to it, and remained clean after synchronization. After that proof, fetch the named base branch and derive the diff locally from the verified base/head pair. Do not use a remotely fetched mutable diff as review evidence: an ABA head change can otherwise pair an intermediate diff with a restored head. An expected SHA embedded only in an agent prompt is not checkout evidence.
+
+   Prepare the writer branch without manufacturing head drift. After fetching the base, use
+   `git merge-base --is-ancestor <remote>/<base> HEAD`. When it succeeds, read local `HEAD`,
+   require it to equal the expected remote head, and query exactly `refs/heads/<branch>` with
+   `git ls-remote --refs` without updating local refs. Return `{rebased:false, published:false,
+   head_sha:<sha>}` only when the remote still matches. Perform no rebase or push on this no-op
+   path. A missing, malformed, or moved remote ref fails closed; a genuinely behind branch keeps
+   the signed policy-rebase and conditional lease-publish path.
 
    For a disposable read-only reviewer worktree, separate local scratch creation from that authoritative proof. Create it detached at the parent checkout's `HEAD`; do not attempt to add the remote/fork PR branch and do not synchronize it to the remote. Then capture the live review context and let the single checkout barrier fetch, bind, clean-check, and compare `HEAD` with the captured PR SHA. Only that barrier may give the worktree to the reviewer. A pre-barrier sync is a second mutable fetch with no authorization value; a pre-barrier remote-branch checkout can log an expected missing-ref error and fall back to trunk before the very same barrier replaces it. Both obscure the audit while adding no safety.
 
@@ -239,6 +253,7 @@ reviewable one.
 | Treat `autoMergeRequest` as a post-merge signal | A rerun checked `autoMergeRequest` after the PR had already merged. | GitHub clears `autoMergeRequest` on merged PRs, so the rerun misread a terminal PR as still pending. | Post-merge consumers must check `state` and short-circuit on non-`OPEN` instead of treating `autoMergeRequest` as durable. |
 | Review a PR without binding its head | The reviewer saw a remotely fetched diff while a push could occur, and the later label write reused the result. | Approval of one revision was treated as approval of a different revision; even a head-before/head-after check permits an ABA change that restores the original head while retaining an intermediate diff. | Snapshot metadata and head, verify a clean checkout at that SHA in a Git job, derive the diff locally from the verified base/head pair, and clear the proof on every drift or refresh. |
 | Synchronize the disposable review checkout before the checkout barrier | Creation synced the worktree to the PR branch, then the exact-head barrier synchronized it again. | The first fetch happened before the immutable expected-head proof existed; the second was still required, so the successful run did redundant network work and ambiguous log lines. | Bootstrap only from local `HEAD`; capture the GitHub context and perform exactly one fetch-and-bind in the exact-head checkout barrier. |
+| Force-rebase an already-current writer before review | Review preparation ran `git rebase --force-rebase` and a lease push even when the current base was already an ancestor of `HEAD`. | Every pass changed commit SHAs, invalidated head-bound receipts, reran pre-push work, and prevented convergence. | Preserve the head on the no-op path, verify the exact live remote ref, and reserve signed rebase plus conditional publication for genuinely behind branches. |
 | Add the review worktree directly at a remote or fork branch | The branch was not guaranteed to exist locally when the detached worktree was created. | Git logged a caught exit-128 missing-ref error and fell back to an auto-detected base branch, even though the later barrier fetched the real PR head. | Use local `HEAD` solely as scratch state. Do not resolve a PR branch until the one barrier that fetches and proves the captured head. |
 | Treat a missing `autoMergeRequest` field as null | A partial PR response defaulted absent data to unarmed. | A failed or narrowed fetch became false safety evidence for a label mutation. | Require the field to be present with value `null`; otherwise fail closed. |
 | Try to disable a request that looked queue-owned | The design compared a later request's visible fields to an earlier queue arm before disabling it. | GitHub has no conditional disable mutation or persisted client nonce; another actor can replace an indistinguishable request between reads. | Never enable, defer, disable, adopt, create, or poll auto-merge from a shared queue; stand down on every populated request. |
@@ -273,6 +288,7 @@ reviewable one.
 | Review evidence boundary | PR #2347's reviewer passed `diff --check`, Ruff, formatting, mypy, and direct probes but could not rerun pytest or artifact builds in its sandbox. It reported a B/GO without overclaiming those tests; source review authorized the label, while the independent required-checks gate completed before merge. |
 | Read-only reviewer checkout | Create a detached scratch checkout from local `HEAD`; it has no remote branch binding and performs no remote sync. |
 | Checkout barrier | After capturing GitHub PR context, perform the sole remote fetch, bind to the expected head, prove clean `HEAD == expected`, and derive the local base/head diff before reviewer dispatch. |
+| No-op writer preparation | If `<remote>/<base>` is already an ancestor of `HEAD`, require local `HEAD == expected_remote_sha` and `git ls-remote --refs <remote> refs/heads/<branch>` to return that same SHA. Return an unchanged-head receipt and perform no rebase or push; remote drift fails closed. |
 | Scope-retraction publication gate | Explicit remove/drop/split plus unrelated/out-of-scope wording requires a complete safe path manifest. The host normalizes the finding to blocking, fences the manifest as data, and refuses commit/push unless every declared path matches the reviewed base. |
 | Local validation example | `uv run pytest` over pipeline stage/coordinator and active-documentation/ADR tests: 85 passed; `git diff --check` passed. |
 | Historical-policy migration | Preserve accepted ADRs; record the new label-only rule in a superseding ADR and its index entry. |
@@ -309,3 +325,4 @@ reviewable one.
 | ProjectHephaestus | PR #2616 / issue #2615 | Verified-ci inline-review path. No GitHub review/comment object was emitted; the durable audit was the exact final head, NOGO→GO label replacement, required-check completion, and merge event. The GO label preceded the final required-check gate, so CI remained merge-contract context rather than review authorization. |
 | ProjectHephaestus | PR #2622 / issue #2621 | Verified-ci remediation path. The initial exact-head review remained NOGO until the implementation corrected conftest-directory target selection, shallowest-directory deduplication, nonhermetic exclusions, and the immutable WorkerPool receipt regression. The final head `e418b3f0` then passed the label and required-check gates before conditional merge commit `022e2ff2`. |
 | ProjectHephaestus | PR #2619 / issue #2618 | Verified-ci metadata-only remediation path. The final review matched `a24ccf2193f560b407f13049f306acfe1947af64`; GO replaced NOGO, required checks completed independently, and `merge_wait` conditionally merged `4631d91cc0a4f981f050f47bb1af1f20f4a4e1ab` with `autoMergeRequest` null. |
+| ProjectHephaestus | PR #2631 / issue #2630 | Verified-ci review-convergence path. The already-current writer preserved head `692bc1fb6e4a762ffaf672c12c5de1c4b0292a5c` without rebase or push and checked the exact remote ref for concurrent movement. The final review matched that head at `00:05:51Z`; GO replaced NOGO at `00:07:23Z` / `00:07:25Z`; the required-checks gate completed on the same head at `00:15:52Z`; and conditional squash merge `baa59341ae2d6ad0bbfc0e919fcd47cc1d57a33b` followed at `00:16:31Z` with native auto-merge null. |
