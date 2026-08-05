@@ -2,8 +2,8 @@
 name: automation-loop-early-exit-zero-work-convergence
 description: "How to wire and test early-exit in hephaestus-automation-loop when a full pass produces zero new work, and how to keep the human-facing per-loop summary consistent with the machine convergence signal. Use when: (1) implementing loop convergence detection in run_loop, (2) adding tests for early-exit stub placeholders, (3) diagnosing whether early-exit scaffold already exists before implementing, (4) auditing a per-loop/iteration summary that contradicts the early-exit message."
 category: tooling
-date: 2026-06-21
-version: "1.1.0"
+date: 2026-08-05
+version: "1.2.0"
 user-invocable: false
 verification: verified-local
 history: automation-loop-early-exit-zero-work-convergence.history
@@ -16,9 +16,9 @@ tags: [automation, loop-runner, early-exit, convergence, testing, summary, work-
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-06-21 (v1.1.0); 2026-05-28 (v1.0.0) |
+| **Date** | 2026-08-05 (v1.2.0); 2026-06-21 (v1.1.0); 2026-05-28 (v1.0.0) |
 | **Objective** | Break `run_loop` when a full pass produces 0 new work AND keep the human-facing per-loop summary (`_summarize_loop`) reading the same `work_units` signal the early-exit predicate reads, so the two never contradict each other |
-| **Outcome** | Successful — v1.0.0 early-exit (PR #669); v1.1.0 summary/convergence consistency fix (PR #1564 / issue #1563) |
+| **Outcome** | Successful — convergence, summary consistency, and discovery-only reseeding behavior verified locally. |
 | **Verification** | verified-local (pre-commit + pytest; CI pending for #1564) |
 | **History** | [changelog](./automation-loop-early-exit-zero-work-convergence.history) |
 
@@ -30,6 +30,7 @@ tags: [automation, loop-runner, early-exit, convergence, testing, summary, work-
 - Adding new loop-convergence phases (must add to `_CONVERGENCE_PHASES` AND call `write_work_report`)
 - **Auditing a human-facing per-loop / per-iteration summary** (e.g. `_summarize_loop`) that contradicts the early-exit / convergence message — grep for `+= 1` next to a phase-name check; it likely counts "phase ran" instead of "phase did work"
 - Deciding whether a fully-filtered issue set should warn or stay silent (explicit `--issues` vs auto-discovery)
+- Separating a finite, explicitly selected work set from a repository-discovery source that may admit newly found work on later passes
 
 ## Verified Workflow
 
@@ -88,6 +89,28 @@ def test_early_exit_fires(tmp_path):
    pixi run ruff check hephaestus/automation/loop_runner.py
    pixi run pytest tests/unit/automation/ -q --no-cov
    ```
+
+### Keep Reseeding Limited to Discovery Sources
+
+A configured loop budget is a discovery budget only when the input is a
+repository or organization source. Each later pass may discover work that did
+not exist when the prior pass started. An explicit list of issue or review
+identifiers is instead a finite operator selection: drain it once, and let the
+stage queues own every retry, amendment, and fail-back.
+
+At the coordinator's full-drain boundary:
+
+```text
+explicit selection present -> stop after its queues drain
+repository/organization discovery only -> re-seed until the loop budget or convergence stops it
+```
+
+Test the two selection classes independently. A regression test for an
+explicit list must prove the selected identifier is processed exactly once even
+when additional loop passes remain. A discovery-source test must prove a later
+pass can still admit newly discovered work. Do not infer scope from a list
+being non-empty after discovery has populated it; preserve whether the caller
+made an explicit selection at the command boundary.
 
 ## Keep the Human Summary Consistent with the Convergence Signal (v1.1.0)
 
@@ -161,6 +184,7 @@ NOT "phase did work". Any human-facing summary must read the same `work_units` /
 | Summary counted "phase ran" not "work done" | `_summarize_loop` did `total_planned += 1` for any non-skipped plan phase | Diverged from the convergence predicate, which reads `work_units` — produced `planned=4` directly above `Early exit ... produced 0 new plans` | Any human-facing loop summary must read the SAME signal (`work_units`/`produced_work`) the early-exit predicate reads; grep for `+= 1` next to a phase check when auditing |
 | Trusting `work_units` for the `implement` phase | Considered counting `implement` by `work_units` too | `implement` writes no work-report, so its `work_units` is always `None`; counting it by `work_units` would always fall to the conservative `else 1` and tell you nothing | `work_units` reliability is per-phase: only `plan` reports it. Trust `work_units` only for instrumented phases; fall back conservatively otherwise |
 | Warning on every empty pass | Considered warning whenever `filter()` returns nothing | A converged repo under AUTO-discovery legitimately empties every pass → re-introduces loop spam | Warn only when an EXPLICIT `--issues` set fully filters out. Capture the explicit-vs-discovered distinction at the CLI boundary (`planner.main`, before discovery overwrites `args.issues`), since by `filter()` time `options.issues` is always populated either way |
+| Re-seed every drained input | Treated the loop budget as permission to recreate both discovery and explicitly selected input cursors | A finite operator selection was processed again outside its stage-local retry routes | Re-seed only a repository or organization discovery source; explicit selections drain once and queue transitions own rework |
 
 ## Results & Parameters
 
@@ -222,6 +246,19 @@ def _unknown_work_result(repo, loop_idx):
   `pixi run hephaestus-automation-loop --dry-run --loops 1 --issues 123,456,789,101 -v`
   now logs `loop 1: planned=0 ...` plus the all-filtered WARNING per issue.
   CI for PR #1564 was still pending at capture time (NOT verified-ci).
+
+### Discovery-Only Reseeding (v1.2.0)
+
+- Preserve input provenance at the coordinator boundary: an explicit selection
+  is a finite queue source, while a repository or organization source is
+  eligible for later discovery passes.
+- Stop immediately after an explicit selection drains, regardless of remaining
+  loop budget. Stage queues—not coordinator reseeding—own its retries and
+  backward transitions.
+- Keep the existing convergence and loop-budget behavior for discovery-only
+  runs so a later pass can admit work discovered after the first pass.
+- **Verification (verified-local):** behavior tests covered explicit issue and
+  review selections; focused type, lint, and formatting checks passed.
 
 ### Related Skills
 
