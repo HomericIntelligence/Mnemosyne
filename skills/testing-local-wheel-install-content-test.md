@@ -1,122 +1,279 @@
 ---
 name: testing-local-wheel-install-content-test
-description: "Committed local integration test for built-wheel contents and install behavior, mirroring the CI wheel smoke step. Use when: (1) packaging tests cover the sdist and CI smoke-installs the wheel but no committed local test exercises wheel install/content, (2) a hatch-vcs project must prove the generated _version.py ships in the wheel and the installed __version__ matches the wheel filename, (3) entry_points.txt console_scripts must be asserted equal to [project.scripts] in pyproject.toml, (4) an optional-extra boundary (base import must not pull the product-layer package or its heavy deps) must be proven from the installed artifact rather than the editable install, (5) the wheel must be proven free of repo scaffolding (tests/, scripts/, docs/, .github/)."
+description: "Design a fail-closed Python artifact lane that proves deterministic wheel and sdist builds, exact safe archive inventories, complete wheel RECORD integrity, and isolated install/upgrade/uninstall behavior. Use when: (1) package CI only samples archive members or smoke-imports an installed wheel, (2) reproducibility must be checked under controlled build inputs, (3) wheel RECORD rows and archive path safety need complete validation, (4) current-wheel, current-sdist, upgrade, and uninstall contracts must run outside the checkout, (5) a required CI job and release workflow must select the same dedicated artifact suite."
 category: testing
-date: 2026-07-17
-version: "1.0.0"
+date: 2026-08-05
+version: "2.0.0"
 user-invocable: false
 verification: unverified
+history: testing-local-wheel-install-content-test.history
 tags:
   - python-packaging
   - wheel
-  - integration-test
+  - sdist
+  - reproducible-builds
+  - archive-integrity
+  - record-integrity
+  - lifecycle-testing
+  - clean-install
+  - upgrade
+  - uninstall
+  - pytest-markers
+  - ci-gating
   - hatch-vcs
-  - dist-info
-  - entry-points
-  - console-scripts
   - uv-venv
-  - smoke-install
-  - import-surface
-  - optional-extras
-  - build-no-isolation
-  - ci-parity
 ---
 
-# Local Wheel Install and Content Integration Test
+# Deterministic Python Artifact Integrity and Lifecycle Tests
 
 ## Overview
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-07-17 |
-| **Objective** | Close the packaging-test gap where sdist contents and CI wheel smoke-install are covered but no committed local test builds the wheel, inspects its contents, and installs it (Hephaestus issue #2165). |
-| **Outcome** | Reviewed implementation plan producing one new integration test module that mirrors two already-CI-proven patterns (sdist-contents test + CI wheel smoke step) as a single build-once pytest module. |
-| **Verification** | unverified — both source patterns (sdist test, CI smoke step) are green on the target repo's `main`, but the composed test module itself lands via the issue's PR; this entry records the design-stage pattern, not a measured local run. |
+| **Date** | 2026-08-05 |
+| **Objective** | Replace sampled wheel checks with a dedicated, fail-closed artifact lane covering reproducible wheel/sdist builds, complete safe manifests, every wheel `RECORD` row, and the installed package lifecycle. |
+| **Outcome** | A behavior-complete, reusable implementation contract was produced. It keeps packaging metadata authoritative, shares controlled builds across tests, and separates current-wheel, current-sdist, upgrade, and uninstall environments. |
+| **Verification** | `unverified` — the workflow is based on a reviewed implementation design; its end-to-end tests and CI run have not yet been observed. |
+| **History** | [changelog](./testing-local-wheel-install-content-test.history) |
 
 ## When to Use
 
-- A Python repo has `tests/integration/test_sdist_contents.py`-style sdist coverage and a CI job that smoke-installs the wheel, but nothing committed reproduces the wheel check locally.
-- The project uses hatch-vcs (`[tool.hatch.build.hooks.vcs]` `version-file`), so `_version.py` exists only in build output — its presence in the wheel and version parity with the wheel filename are wheel-unique failure modes no source-tree test can catch.
-- The project declares console scripts under `[project.scripts]` and drift between pyproject and the built `entry_points.txt` would ship silently.
-- The repo enforces a library/product-layer import boundary (base `import pkg` must not pull the heavy optional extra) and that boundary is only tested against the editable install today.
+- A required build job proves only that a wheel can be built or imported, but does not prove byte reproducibility or the full shipped inventory.
+- Packaging tests assert a few expected paths or forbidden prefixes, allowing unexpected files, missing files, duplicate members, or unsafe archive paths to escape.
+- A wheel's `RECORD` is trusted without checking that it covers every member exactly once and that every non-self digest and size matches the payload.
+- An editable checkout, repository working directory, or inherited `PYTHONPATH` could satisfy an install smoke test without using the artifact under test.
+- The release path should repeat the artifact contract before publication, while the ordinary integration lane should avoid rebuilding the same artifacts.
+- A dynamic-version build generates a package file such as `_version.py` that is absent from the source tree but required in both distribution formats.
+
+## Proposed Workflow
+
+> **Warning:** This workflow has not been validated end-to-end. Treat it as a hypothesis until
+> local execution or CI confirms the reproducible-build, integrity, and lifecycle contracts.
+
+### Quick Reference
+
+```bash
+# The dedicated suite owns all expensive build and installed-artifact checks.
+<runner> pytest <integration-tests> \
+  --override-ini="addopts=" \
+  --basetemp=build/pytest-artifacts \
+  -v --strict-markers -m artifact
+
+# Keep the ordinary integration lane from rebuilding the artifacts.
+<runner> pytest <integration-tests> \
+  --override-ini="addopts=" \
+  --basetemp=build/pytest-integration \
+  -v --strict-markers -m "not nightly and not artifact"
+```
+
+### 1. Keep packaging metadata authoritative
+
+Do not duplicate the build backend's package-selection rules in production code. Derive the test
+inventory from the configured source package tree, exclude only cache and bytecode artifacts, and
+add build-generated package files explicitly. Treat top-level sdist inclusions and wheel metadata
+files as small, exact test constants beside the corresponding archive tests.
+
+### 2. Build controlled artifacts once per pytest session
+
+Create a typed test helper and a session-scoped fixture that build:
+
+- two current-version wheel/sdist pairs in distinct output directories; and
+- one lower-version wheel for the upgrade contract.
+
+Before building, fail closed when the build frontend or environment runner is unavailable. Do not
+call `pytest.skip`: a required artifact gate that silently skips its tooling is not a gate.
+
+Remove `PYTHONPATH` and fix every practical build input:
+
+```python
+env.update(
+    {
+        "LC_ALL": "C.UTF-8",
+        "PYTHONHASHSEED": "0",
+        "SETUPTOOLS_SCM_PRETEND_VERSION": version,
+        "SOURCE_DATE_EPOCH": "<fixed-unix-epoch>",
+        "TZ": "UTC",
+    }
+)
+```
+
+Run the build from outside the repository working directory, send each build to its own output
+directory, and require exactly one requested artifact per format. Compare both the filenames and
+streaming SHA-256 digests of the two current wheels and the two current sdists.
+
+### 3. Derive the complete source-package inventory
+
+Enumerate every regular file below the configured package root. Exclude paths containing
+`__pycache__` and suffixes such as `.pyc` or `.pyo`, then add the build-generated version module.
+The inventory should be expressed in repository-relative POSIX paths so it compares directly with
+both archive formats.
+
+```python
+source_files = {
+    path.relative_to(repo_root).as_posix()
+    for path in package_root.rglob("*")
+    if path.is_file()
+    and "__pycache__" not in path.parts
+    and path.suffix not in {".pyc", ".pyo"}
+}
+source_files.add("<package>/_version.py")
+```
+
+### 4. Validate every sdist member before comparing the manifest
+
+Inspect every tar member before trusting its normalized name:
+
+1. Reject absolute names and any `..` path component.
+2. Require one common archive root and strip exactly that root.
+3. Reject duplicate stripped names.
+4. Reject symbolic links, hard links, devices, FIFOs, and unsupported member types.
+5. Ignore directory entries only; collect every regular file.
+6. Compare the resulting set for exact equality with:
+   `source package files + configured top-level files + PKG-INFO`.
+
+Exact equality is the important property: positive samples and forbidden-prefix checks cannot
+detect arbitrary extra files or omissions outside the sample.
+
+### 5. Validate the complete wheel manifest and `RECORD`
+
+Reject duplicate, absolute, and traversal ZIP member names before reading metadata. Derive exactly
+one `.dist-info` prefix, then require exact equality with:
+
+```text
+source package files
++ METADATA
++ WHEEL
++ entry_points.txt
++ configured license files
++ RECORD
+```
+
+Preserve the separate console-script parity check: the parsed `console_scripts` section in
+`entry_points.txt` must equal the build configuration's script table.
+
+Parse `RECORD` as CSV and validate the full bijection and payload integrity:
+
+- every row has exactly three fields;
+- row paths are unique;
+- the set of row paths equals the set of wheel members;
+- only the `RECORD` self-entry has empty digest and size fields;
+- every other digest uses `sha256` and URL-safe base64 without assuming padding is present;
+- each decoded digest equals `sha256(member_bytes).digest()`; and
+- each decimal size equals the member byte length.
+
+### 6. Test each installed-package lifecycle state in isolation
+
+Create a fresh virtual environment with the current interpreter for each contract. Give it a run
+directory outside the checkout, remove `PYTHONPATH`, and invoke Python and console scripts by their
+absolute virtual-environment paths.
+
+Before the first install in every environment, prove both the importable package and distribution
+metadata are absent. Then run three independent contracts:
+
+| Environment | Contract |
+|-------------|----------|
+| Current wheel | Install the current wheel directly, assert its exact version, and run representative base-layer scripts. |
+| Current sdist | Install the current sdist directly, assert its exact version, and run the same scripts. |
+| Upgrade/uninstall | Install the previous wheel, assert the old version, upgrade to the current wheel, assert only current distribution metadata remains, run scripts, uninstall, then prove package code, metadata, and scripts are absent. |
+
+Use scripts that belong to the base package rather than an optional product extra. Execute each
+with `--help`, require exit status zero, and assert recognizable usage output. The upgrade test does
+not replace the direct current-wheel test: it exercises a different installation path and can hide
+clean-install failures.
+
+### 7. Route one fail-closed CI lane
+
+Register an `artifact` pytest marker and route it through the existing required build job. Preserve
+the required job's identifier, checkout depth, locked environment setup, timeout, condition, and
+aggregate-gate membership. Change only its test command.
+
+Add workflow-structure tests that prove:
+
+- the required build job invokes `-m artifact` with a `build/` base temp directory;
+- the ordinary integration job selects `not nightly and not artifact`;
+- the aggregate required-check gate still needs the build job; and
+- the release integration command includes artifact tests before publication.
+
+Keep any existing installed-CLI lane that covers optional extras; the artifact lane has a separate
+purpose: reproducibility, complete archive integrity, direct sdist installation, upgrade, and
+uninstall.
+
+### 8. Verify in focused layers
+
+Run reproducibility, manifest/`RECORD`, clean-install, lifecycle, fail-closed/tooling, and workflow
+routing tests separately before running the complete artifact marker. Finish with focused lint and
+type checks for the test helpers. Store pytest base directories and virtual environments under the
+repository's build directory.
 
 ## Verified Workflow
 
-Structure: one module `tests/integration/test_wheel_contents.py`, marked `@pytest.mark.integration`, four tests sharing one module-scoped wheel build.
-
-1. **Build once per module.** A `scope="module"` fixture using `tmp_path_factory` runs
-   `[sys.executable, "-m", "build", str(REPO_ROOT), "--wheel", "--outdir", str(outdir), "--no-isolation"]`
-   with `cwd=REPO_ROOT.parent`. `--no-isolation` avoids network fetching; it is safe only because the
-   dev dependency group is asserted (by an existing test) to contain the build backend
-   (`hatchling`, `hatch-vcs`). Probe-and-skip first:
-   run `python -m build --help`; on `b"No module named build"` in stderr, `pytest.skip`, mirroring the
-   sdist test. Glob the normalized distribution name (`homericintelligence_hephaestus-*.whl` — PyPI
-   name lowercased, hyphens→underscores) and assert exactly one wheel.
-2. **Content assertions via `zipfile.ZipFile(...).namelist()`** — assert only what the wheel can
-   uniquely get wrong:
-   - package files present: `pkg/__init__.py`, sample subpackages, and the build-generated
-     `pkg/_version.py`;
-   - dist-info metadata present: `<dist_info>/METADATA`, `entry_points.txt`, `licenses/LICENSE`
-     (hatchling places license files under `licenses/`); derive `<dist_info>` by asserting exactly one
-     top-level `*.dist-info` prefix;
-   - scaffolding excluded: no member startswith `("tests/", "scripts/", "docs/", ".github/", ".claude/")` —
-     guards `[tool.hatch.build.targets.wheel] packages = [...]` regressions.
-3. **Entry-point parity:** read `entry_points.txt` from the zip, parse with
-   `configparser.ConfigParser().read_string(...)`, and assert
-   `dict(parser["console_scripts"]) == pyproject["project"]["scripts"]` (pyproject loaded with
-   `tomllib`/`tomli` under the `sys.version_info >= (3, 11)` guard).
-4. **Install smoke with CI parity:** skip when `shutil.which("uv")` is None; then
-   `uv venv <tmp>/venv`, `uv pip install --python <venv-python> <wheel>`, and one `-c` probe that
-   (a) imports the package and its public re-exports, (b) asserts the optional-extra boundary from the
-   installed artifact (`'pydantic' not in sys.modules` and `'pkg.automation' not in sys.modules` after
-   base import), and (c) prints `__version__`. Assert
-   `wheel_path.name.split("-")[1] == printed_version` — filename version and installed metadata
-   version must agree. Handle Windows venv layout (`Scripts/python.exe` vs `bin/python`).
-5. **Prove each assertion can fail** before committing: temporarily assert a bogus member and watch the
-   test fail, then restore (guards against vacuous zip-glob assertions).
-
-### Key decisions
-
-- Mirror, do not invent: copy the repo's existing sdist-contents test shape (probe-skip, `--no-isolation`
-  rationale comment, member-set assertions) and the CI smoke step commands verbatim so local and CI
-  checks cannot drift apart.
-- `uv` as the venv/install driver with a `which`-skip, because the CI step uses `uv venv` + `uv pip
-  install --python`; `python -m venv` + ensurepip would test a different code path.
-- Version parity via the wheel filename, not a second metadata parse — hatch-vcs stamps both from the
-  same build, so any mismatch means a corrupted build pipeline.
-- No new pytest markers or config when `integration` is already registered and `testpaths` already
-  includes `tests/integration`.
+No end-to-end workflow is verified yet. The executable procedure is intentionally documented under
+**Proposed Workflow** until the focused artifact suite and CI pass. This explicit placeholder is
+retained because Mnemosyne's current registry validator requires the `Verified Workflow` heading
+even for `verification: unverified` skills.
 
 ## Failed Attempts
 
-- None technical. One plan-review round NOGO'd solely because the plan artifact reached the reviewer
-  empty (pipeline delivery fault, grade F "empty artifact"); the remedy was re-emitting the full plan
-  inline as the final message rather than any content change.
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+|---------|----------------|---------------|----------------|
+| Sampled wheel assertions | Checked a handful of package and metadata paths plus forbidden repository prefixes | Samples do not prove complete membership and miss arbitrary unexpected or omitted files | Derive the package inventory and require exact manifest equality for both wheel and sdist |
+| Skip when build tooling is missing | Used `pytest.skip` when `python -m build` or the environment runner was unavailable | A required CI gate could pass without exercising any artifact behavior | Required tooling discovery must raise or fail, and its fail-closed behavior needs explicit tests |
+| Install smoke from the checkout | Ran import probes with the repository as the working directory or inherited `PYTHONPATH` | Source files or an editable install could satisfy the probe instead of the built artifact | Run absolute venv binaries from a non-checkout directory, strip `PYTHONPATH`, and prove pre-install absence |
+| Trust archive member names | Compared normalized member strings without rejecting links, duplicate names, absolute paths, or traversal | Malformed archives can overwrite, alias, or escape expected paths while still matching selected names | Validate every raw member and type before stripping the sdist root or reading wheel payloads |
+| Trust `RECORD` presence | Asserted only that `RECORD` existed | A present file can omit members, duplicate paths, or contain wrong hashes and sizes | Require a one-to-one row/member mapping and validate every non-self SHA-256 digest and byte size |
+| Use upgrade as the current-wheel smoke | Installed the old wheel and upgraded to current, then treated that as current-wheel install coverage | Upgrade state can retain files or metadata and does not prove installation into an empty environment | Keep direct current-wheel, direct current-sdist, and upgrade/uninstall contracts in separate venvs |
+| Run artifact tests in every integration lane | Left expensive build tests in the general integration selection and also added a dedicated build job | The same artifact matrix runs repeatedly and obscures which required job owns the contract | Give artifact tests a dedicated marker, exclude it from ordinary integration, and retain it in release validation |
 
 ## Results & Parameters
 
-- Result: a single new test module (four tests, one shared build) covers the issue's whole criterion;
-  zero changes to pytest config, CI workflows, or packaging metadata were needed.
-- Distribution glob: normalized (PEP 503 → wheel filename) project name, e.g.
-  `homericintelligence_hephaestus-*.whl` for PyPI name `HomericIntelligence-Hephaestus`.
-- Forbidden prefixes and expected package files are per-repo constants; keep them small and
-  wheel-unique (the sdist test owns sdist-only concerns like NOTICE/COMPATIBILITY files).
-- Boundary probe modules (`pydantic`, `pkg.automation`) come from the repo's documented
-  library/product-layer rule.
+### Controlled build parameters
 
-## Evidence
+| Parameter | Contract |
+|-----------|----------|
+| Current version | Fixed test-only version used for two wheel/sdist builds |
+| Previous version | Lower fixed version used for the upgrade wheel |
+| `SOURCE_DATE_EPOCH` | One fixed Unix timestamp shared by every controlled build |
+| `PYTHONHASHSEED` | `0` |
+| `SETUPTOOLS_SCM_PRETEND_VERSION` | Exact current or previous test version |
+| Locale / timezone | `LC_ALL=C.UTF-8`, `TZ=UTC` |
+| Build isolation | Repository-defined; with `--no-isolation`, assert required backends are already installed |
+| Artifact discovery | Exactly one `*.whl` and, when requested, one `*.tar.gz` per output directory |
 
-- Hephaestus issue #2165 (Section 12 MINOR audit finding) and its reviewed implementation plan.
-- Source patterns proven on Hephaestus `main`: `tests/integration/test_sdist_contents.py:54-96`
-  (sdist member assertions, probe-skip at lines 56-63, backend-in-dev-group guard at lines 39-50) and
-  `.github/workflows/_required.yml:622-629` (CI `uv venv` + `uv pip install` + import probes).
-- Packaging facts from `pyproject.toml`: `[tool.hatch.build.targets.wheel] packages`,
-  `[tool.hatch.build.hooks.vcs]` version-file, 15 `[project.scripts]` entries.
+### Exact inventory equations
+
+```text
+sdist regular files
+= source_package_files
++ configured_sdist_top_level_files
++ PKG-INFO
+
+wheel members
+= source_package_files
++ <dist-info>/METADATA
++ <dist-info>/WHEEL
++ <dist-info>/entry_points.txt
++ configured <dist-info>/licenses/*
++ <dist-info>/RECORD
+```
+
+### Verification promotion
+
+Keep this skill at `unverified` until the actual artifact lane executes end-to-end. Promote it to
+`verified-local` only after every focused test, the full `-m artifact` suite, lint, and type checks
+pass locally. Promote it to `verified-ci` only after observing the required build job and release
+path pass with these checks selected.
+
+## Verified On
+
+| Project | Context | Details |
+|---------|---------|---------|
+| ProjectHephaestus | Reviewed artifact-lane design; implementation and CI execution pending | [Session notes and proposed acceptance commands](./testing-local-wheel-install-content-test.notes.md) |
 
 ## Related
 
-- [[python-packaging-pyproject-editable-install]] — hatch-vcs setup, editable installs, console-script
-  enumeration; this entry covers the built-artifact test side.
-- [[testing-source-package-asset-contract-mirroring]] — source↔package asset drift for package data;
-  this entry covers wheel membership/metadata/install behavior.
-- [[git-dco-signoff-distinct-from-gpg-sign]] — the delivering PR still needs `-S` and `-s`.
+- [[python-packaging-pyproject-editable-install]] — dynamic versioning, editable installs, and
+  console-script configuration.
+- [[testing-source-package-asset-contract-mirroring]] — source/package-data equality when runtime
+  assets have separate source and packaged copies.
+- [[ci-release-pipeline-must-mirror-required-pr-gate]] — why release workflows must repeat checks
+  that can otherwise be bypassed by non-PR release paths.
