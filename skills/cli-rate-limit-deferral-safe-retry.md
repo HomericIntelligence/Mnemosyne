@@ -1,0 +1,263 @@
+---
+name: cli-rate-limit-deferral-safe-retry
+description: "Design a CLI discovery wrapper that reports external rate-limit deferrals as retryable EX_TEMPFAIL (75), preserves unknown affected scope without inventing identifiers, and safely resumes from durable completed work. Use when: (1) pre-dispatch API discovery is rate-limited, (2) a CLI currently returns success for deferred work, (3) JSON callers need reset and incomplete-scope metadata, or (4) retry must not replay already completed batch items."
+category: architecture
+date: 2026-08-06
+version: "1.0.0"
+user-invocable: false
+verification: unverified
+tags:
+  - cli
+  - rate-limit
+  - ex-tempfail
+  - exit-code-75
+  - retryable-deferral
+  - json-status
+  - idempotent-retry
+  - partial-batch
+  - github-api
+---
+
+# CLI Rate-Limit Deferral with Safe Retry
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2026-08-06 |
+| **Objective** | Give automation callers an honest, machine-readable temporary-failure contract when pre-dispatch API discovery is rate-limited, without losing or replaying completed batch work. |
+| **Outcome** | Proposed a wrapper-local `EX_TEMPFAIL` (`75`) result, structured reset/scope metadata, a no-dispatch guard, and an idempotent retry test. No implementation or CI run was completed in the source session. |
+| **Verification** | `unverified` — planning-only; validate the target CLI, state model, and CI behavior before treating this as operational. |
+
+This pattern applies when a CLI must discover work from an external API before calling a
+shared coordinator. A rate-limit response means the requested work remains incomplete. Returning
+`0` falsely reports success, while routing the deferral through the coordinator can force the
+caller to invent work identifiers that discovery never obtained.
+
+## When to Use
+
+- A CLI performs API-backed work discovery before dispatching to its normal coordinator.
+- Discovery can be rate-limited before the affected item identifiers are known.
+- Shell, CI, or scheduler callers need to distinguish temporary deferral from permanent failure.
+- A JSON status mode must expose a known reset time or an explicit unknown value.
+- A later retry must preserve items already completed during an earlier partial batch.
+- The shared coordinator has a deliberately narrow exit-code contract that should not be expanded
+  for a wrapper-only pre-dispatch condition.
+
+Do not use this pattern for an API client that can safely sleep and retry inside a bounded request.
+It is for returning control to an external scheduler or operator when the CLI cannot complete its
+requested discovery now.
+
+## Proposed Workflow
+
+> **Warning:** This workflow has not been validated end-to-end. Treat it as a hypothesis until
+> focused tests, the completed-work preservation test, and CI all pass.
+
+The repository validator currently requires the literal `## Verified Workflow` section. The
+steps below remain proposed despite that compatibility heading.
+
+## Verified Workflow
+
+> **Warning:** This workflow has not been validated end-to-end. Treat it as a hypothesis until CI
+> confirms the target implementation and retry semantics.
+
+### Quick Reference
+
+```python
+# Keep this local to the discovery wrapper when the shared coordinator does not emit it.
+# Defining the integer directly also avoids depending on platform-specific os.EX_TEMPFAIL support.
+RATE_LIMIT_DEFERRED_EXIT_CODE = 75
+
+
+def main() -> int:
+    scope = resolve_scope()
+    item_ids = parse_explicit_item_ids()
+
+    if not item_ids:
+        try:
+            item_ids = discover_open_item_ids(scope)
+        except ExternalRateLimitError as error:
+            reset_epoch = error.reset_epoch if error.reset_epoch > 0 else None
+            log.error(
+                "API rate-limited; work deferred for %s (reset %s); "
+                "affected item identifiers are unavailable until discovery succeeds",
+                scope,
+                reset_epoch if reset_epoch is not None else "time unknown",
+            )
+            if json_output_enabled():
+                emit_json_status(
+                    RATE_LIMIT_DEFERRED_EXIT_CODE,
+                    message="work deferred by API rate limit",
+                    deferred=True,
+                    retryable=True,
+                    reset_epoch=reset_epoch,
+                    affected_items=None,
+                    incomplete_item_scope={
+                        "namespace": scope.namespace,
+                        "project": scope.project,
+                        "selection": "all-open-items",
+                    },
+                )
+            return RATE_LIMIT_DEFERRED_EXIT_CODE
+
+    return run_coordinator(item_ids=item_ids, force=False)
+```
+
+```python
+@pytest.mark.parametrize(
+    ("reset_epoch", "expected_reset_epoch"),
+    [(1_800_000_000, 1_800_000_000), (0, None)],
+    ids=["known-reset", "unknown-reset"],
+)
+def test_discovery_rate_limit_is_retryable_deferral(
+    reset_epoch: int,
+    expected_reset_epoch: int | None,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with (
+        patch_discovery(
+            side_effect=ExternalRateLimitError("rate limit", reset_epoch=reset_epoch)
+        ),
+        patch_coordinator() as coordinator,
+    ):
+        exit_code = main()
+
+    assert exit_code == RATE_LIMIT_DEFERRED_EXIT_CODE
+    coordinator.assert_not_called()
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "error"
+    assert payload["exit_code"] == RATE_LIMIT_DEFERRED_EXIT_CODE
+    assert payload["deferred"] is True
+    assert payload["retryable"] is True
+    assert payload["reset_epoch"] == expected_reset_epoch
+    assert payload["affected_items"] is None
+    assert payload["incomplete_item_scope"]["selection"] == "all-open-items"
+```
+
+```python
+def test_retry_discovers_and_dispatches_without_force() -> None:
+    with (
+        patch_discovery(
+            side_effect=[
+                ExternalRateLimitError("rate limit", reset_epoch=1_800_000_000),
+                [41, 42],
+            ]
+        ),
+        patch_coordinator(return_value=0) as coordinator,
+    ):
+        deferred_exit = main()
+        retry_exit = main()
+
+    assert deferred_exit == RATE_LIMIT_DEFERRED_EXIT_CODE
+    assert retry_exit == 0
+    coordinator.assert_called_once()
+    assert coordinator.call_args.kwargs["item_ids"] == [41, 42]
+    assert coordinator.call_args.kwargs["force"] is False
+```
+
+### Detailed Steps
+
+1. **Locate the ownership boundary.** Confirm the rate-limit exception occurs before the shared
+   coordinator is called. A pre-dispatch condition belongs to the CLI wrapper; do not widen a
+   coordinator contract that cannot itself produce the condition.
+2. **Define a wrapper-local temporary-failure code.** Use the conventional `EX_TEMPFAIL` value
+   `75` and document it in the public CLI help or README. Keep success `0` reserved for completed
+   or intentionally empty work.
+3. **Normalize the reset sentinel.** If the API exception uses `0` to mean "rate-limited, reset
+   unknown," render it as JSON `null`. Reserve a positive integer for a known epoch. Do not
+   collapse unknown reset to "not rate-limited."
+4. **Report what is actually known.** Include `deferred: true`, `retryable: true`, the reset value,
+   and the incomplete discovery scope. If discovery never enumerated identifiers, set
+   `affected_items` to `null`; do not fabricate an empty list or guessed identifiers.
+5. **Stop before dispatch.** Return `75` directly from the exception branch and assert that the
+   coordinator was not called. This prevents partial or placeholder scope from entering the
+   pipeline.
+6. **Reuse the existing JSON status emitter if it already handles arbitrary nonzero codes.** Add
+   wrapper-specific fields at the call site instead of changing a global helper and broadening its
+   behavior for one CLI.
+7. **Make the retry idempotent.** Retry the same command without a force/replay flag. The
+   downstream state seeding or checkpoint logic must classify items already at or past the target
+   phase as completed and dispatch only remaining work.
+8. **Test both halves of the retry contract.** One test covers known and unknown reset metadata
+   plus non-dispatch. A second calls the entrypoint twice with discovery side effects
+   `[rate_limit, item_ids]` and asserts the coordinator runs exactly once with replay disabled.
+9. **Retain the existing completed-work regression.** Run the coordinator/state-model test that
+   proves an item at or past the target phase is clamped to the finished path. The entrypoint retry
+   test alone does not prove partial-batch preservation.
+10. **Document scheduler behavior.** State that `75` is retryable, explain JSON `null` fields, and
+    tell operators to retry without force after the reset.
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| ------- | -------------- | ------------- | -------------- |
+| Return `0` when discovery is rate-limited | Treated the deferral as a successful no-work result | Callers cannot distinguish complete work from work that was never enumerated, so CI or a scheduler may stop retrying | A deferred request is incomplete and must return a documented nonzero retryable code |
+| Report `affected_items: []` | Used an empty list after discovery failed before enumeration | An empty list falsely asserts that discovery succeeded and found no work | Use `null` for unknown identifiers and report the incomplete selection scope separately |
+| Emit reset epoch `0` literally | Passed the API client's unknown-reset sentinel through JSON | Consumers may interpret epoch zero as a real time rather than "unknown" | Normalize non-positive reset sentinels to JSON `null` while retaining `retryable: true` |
+| Send the deferral through the coordinator | Considered adding `75` to a shared `0/1/130` coordinator contract | The coordinator did not encounter the rate limit and cannot accept undiscovered item scope without placeholders | Keep pre-dispatch exit codes local to the wrapper that owns the condition |
+| Change the shared JSON emitter | Considered teaching a global helper about rate limits | The existing emitter already marks every nonzero code as an error and accepts extra fields | Add rate-limit metadata at the narrow call site |
+| Retry with a force flag | Used force to ensure the second invocation did work | Force can replay items already completed before a partial-batch deferral, undoing idempotent state seeding | Retry normally and rely on monotonic at-or-past state classification to skip completed items |
+| Test only the first deferred invocation | Asserted exit `75` and stopped | This proves reporting but not that a later retry dispatches successfully without replay | Add a two-invocation regression and keep the state-model preservation test |
+
+## Results & Parameters
+
+### Public contract
+
+```yaml
+rate_limit_deferral:
+  exit_code: 75
+  meaning: retryable temporary failure
+  dispatch_started: false
+  json_status: error
+  json_fields:
+    deferred: true
+    retryable: true
+    reset_epoch: positive-integer-or-null
+    affected_items: null-when-discovery-did-not-enumerate
+    incomplete_item_scope:
+      namespace: string
+      project: string
+      selection: all-open-items
+retry:
+  after: reset_epoch-when-known
+  force: false
+  completed_items: retain-and-skip
+```
+
+### Acceptance checks
+
+Adapt these placeholders to the target repository:
+
+```bash
+<package-runner> pytest '<entrypoint-test>::test_discovery_rate_limit_is_retryable_deferral[known-reset]' -v
+<package-runner> pytest '<entrypoint-test>::test_discovery_rate_limit_is_retryable_deferral' -v
+<package-runner> pytest '<entrypoint-test>::test_retry_discovers_and_dispatches_without_force' -v
+<package-runner> pytest '<entrypoint-test>::test_discovery_rate_limit_is_retryable_deferral' '<state-test>::test_at_or_past_target_clamps_to_finished' -v
+<package-runner> ruff check <entrypoint-module> <entrypoint-test>
+<package-runner> ruff format --check <entrypoint-module> <entrypoint-test>
+```
+
+Expected observations:
+
+- Known reset: `reset_epoch` is the positive API-provided epoch.
+- Unknown reset: `reset_epoch` is `null`, but the result remains retryable.
+- Discovery failure: affected identifiers are `null`, and repository/project selection is present.
+- Deferred invocation: coordinator call count is zero.
+- Later invocation: coordinator call count is one, discovered identifiers are passed, and force is
+  false.
+- Pre-completed item: state seeding routes it to finished rather than planning it again.
+
+## Verified On
+
+| Project | Context | Details |
+| ------- | ------- | ------- |
+| ProjectHephaestus | Planning-only design for `hephaestus-plan-issues` rate-limit discovery deferral | `unverified` — implementation, focused tests, and CI were not executed in the source session |
+
+## Related Skills
+
+- [Console Scripts Exit-Code Discipline](./console-scripts-exit-code-discipline.md) — generic
+  nonzero exit propagation once a CLI knows work failed.
+- [GitHub API Secondary Rate-Limit Backoff](./github-api-secondary-rate-limit-backoff.md) —
+  in-process detection and backoff when the client should wait rather than defer to its caller.
+- [Checkpoint State Machine Resume](./checkpoint-state-machine-resume.md) — durable state and
+  at-or-past guards for broader resumable workflows.
