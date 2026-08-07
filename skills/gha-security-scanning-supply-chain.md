@@ -1,9 +1,9 @@
 ---
 name: gha-security-scanning-supply-chain
-description: "Use when: (1) adding CodeQL SAST to TypeScript/JavaScript workflows or Semgrep/Gitleaks to any PR pipeline, (2) CI security scans only trigger on push to main — not PRs — and need promotion to PR gates, (3) Gitleaks SARIF parsing uses grep instead of jq causing always-fail required checks, (4) enforcing pinned SHA-based action versions instead of mutable tags, (5) auditing or porting curl|bash installers with SHA-256 verification, (6) a GHA job fails at 'Set up job' due to unresolved transitive action dependency, (7) adding Bandit SAST as a required CI check for Python/pixi projects, (8) triaging and remediating CodeQL PR alerts when gh reports a check-run id instead of a workflow run id, (9) planning a SARIF -> GitHub Code Scanning (Security tab) upload via upload-sarif (gitleaks/trivy/codeql) and need a planning-stage verification checklist."
+description: "Use when: (1) adding CodeQL SAST to TypeScript/JavaScript workflows or Semgrep/Gitleaks to any PR pipeline, (2) CI security scans only trigger on push to main — not PRs — and need promotion to PR gates, (3) Gitleaks SARIF parsing uses grep instead of jq causing always-fail required checks, (4) enforcing pinned SHA-based action versions instead of mutable tags, (5) auditing or porting curl|bash installers with SHA-256 verification, (6) a GHA job fails at 'Set up job' due to unresolved transitive action dependency, (7) a selected-action policy rejects a newly pinned action before any job starts, (8) adding Bandit SAST as a required CI check for Python/pixi projects, (9) triaging and remediating CodeQL PR alerts when gh reports a check-run id instead of a workflow run id, (10) planning a SARIF -> GitHub Code Scanning (Security tab) upload via upload-sarif (gitleaks/trivy/codeql) and need a planning-stage verification checklist."
 category: ci-cd
 date: 2026-06-19
-version: "1.4.0"
+version: "1.5.0"
 user-invocable: false
 history: gha-security-scanning-supply-chain.history
 verification: verified-local
@@ -49,7 +49,7 @@ tags:
 |-------|-------|
 | Date | 2026-06-19 |
 | Objective | Set up security scanning (CodeQL/Semgrep/Gitleaks SAST + secrets + Bandit Python SAST), harden CI supply-chain (action SHA pinning, dependency scanning), and pin/verify curl\|bash installers with SHA-256 |
-| Outcome | Consolidated guidance for security gate setup, scan-trigger gaps, SARIF parsing fixes, action SHA pinning, transitive-pin diagnosis, installer trust-model hardening, Bandit SAST integration for Python/pixi projects, CodeQL PR alert remediation, and planning-stage verification for SARIF -> GitHub Code Scanning (Security tab) uploads via `upload-sarif` |
+| Outcome | Consolidated guidance for security gate setup, scan-trigger gaps, SARIF parsing fixes, action SHA pinning and admission diagnosis, transitive-pin diagnosis, installer trust-model hardening, Bandit SAST integration for Python/pixi projects, CodeQL PR alert remediation, and planning-stage verification for SARIF -> GitHub Code Scanning (Security tab) uploads via `upload-sarif` |
 | Verification | verified-local |
 
 ## When to Use
@@ -62,6 +62,7 @@ tags:
 - GitHub Actions `uses:` references use mutable tags (`@v8`, `@v0.9.4`) instead of pinned commit SHAs
 - A Dockerfile/workflow installs tools via unverifiable `curl|sh`, npm, or pixi without a version pin
 - A GHA job fails at "Set up job" with `Unable to resolve action` for a transitive dependency you do not reference
+- A workflow reports `startup_failure` with zero jobs or step logs immediately after adding an immutable action pin
 - Adding `curl|bash` installers, or porting/hardening existing ones with SHA-256 verification and multi-platform support
 - Adding automated dependency vulnerability scanning (pip-audit/npm audit + Dependabot)
 - Isolating `security-events: write` permission from base required checks
@@ -407,7 +408,26 @@ curl -fsSL "https://raw.githubusercontent.com/aquasecurity/trivy-action/v0.30.0/
 `action.yml`; after 2 failures drop the step, open a tracking issue, move on. Do NOT mask with
 `continue-on-error: true`.
 
-#### F. Add dependency scanning (pip-audit + Dependabot, pixi projects)
+#### F. Diagnose selected-action admission failures
+
+When a workflow reports `startup_failure` before it creates any jobs or step logs, inspect action
+admission policy before debugging the workflow body. This commonly happens when a newly added,
+SHA-pinned action is not allowed by a selected-action policy.
+
+1. Read the repository action policy and determine whether it allows all actions, a curated set, or
+   only selected immutable references.
+2. If the policy is selected-only, verify that the exact immutable reference in the workflow is
+   already allowed. A matching tag, publisher, or major version is not equivalent.
+3. Treat a policy expansion as a security change: obtain explicit authorization, preserve every
+   existing entry, add only the audited exact reference, and read the policy back to verify the
+   resulting allowlist.
+4. Trigger a fresh run after the policy update. Pre-job admission failures often cannot be retried;
+   only after a new run starts should normal job-level diagnosis continue.
+
+Do not broaden the policy to all third-party actions, replace an immutable pin with a mutable tag,
+or weaken security scanning to make the workflow start.
+
+#### G. Add dependency scanning (pip-audit + Dependabot, pixi projects)
 
 ```yaml
 # .github/dependabot.yml  (zero CI-minutes; runs on GitHub infra)
@@ -426,7 +446,7 @@ pip-audit = ">=2.7"
 
 Use a `pixi-lint-*` cache key so lint and dev caches do not collide.
 
-#### G. Pin and verify curl|bash installers (SHA-256, multi-platform)
+#### H. Pin and verify curl|bash installers (SHA-256, multi-platform)
 
 Reference implementation — pin versions + verify SHA-256 + portable platform/sha detection:
 
@@ -532,7 +552,7 @@ Key decisions:
 When adding a new package under `src/<name>/`, also update the `-r` target in the `bandit` task in
 `pixi.toml` and the `files:` regex in `.pre-commit-config.yaml`.
 
-#### H. Security code review with false-positive filtering
+#### J. Security code review with false-positive filtering
 
 Two-phase agents: Phase 1 (single agent) lists candidates with confidence 1-10, surfacing only ≥7
 and excluding DoS/secrets-on-disk/rate-limiting/memory-safety/test-only/regex-injection. Phase 2
@@ -571,6 +591,7 @@ threshold.`
 | Pixi task with embedded args + extra CLI args | `bandit = "bandit -ll --ini .bandit -r src/telemachy"` invoked as `pixi run bandit -f json -o bandit.json` | Arg doubling: `bandit: error: unrecognized arguments: src/telemachy` | Use `pixi run python -m bandit -ll --ini .bandit -r src/<pkg>` for invocations that need extra flags; keep pixi task as a bare entry point or omit extra flags at call site |
 | Pre-emptive skip of B101 in `.bandit` | Added `skips = B101` before any asserts existed in `src/` | YAGNI — adds a suppression rule with zero benefit; flagged in review | Start `.bandit` with no `skips`; only add suppressions when an actual finding requires it |
 | `actions/upload-artifact@v7` | Pinned upload artifact action to `@v7` | Tag `v7` does not exist on GitHub.com (latest is v4/v5); workflow fails at "Set up job" | Pin to full SHA for v5.0.0: `actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0`; verify tags with `gh api repos/actions/upload-artifact/git/refs/tags/v5.0.0 -q '.object.sha'` |
+| Added a pinned action without checking the selected-action policy | Updated a workflow with a new immutable action reference | The platform rejected the workflow before creating jobs because the reference was not explicitly allowed | Read the action policy first; after explicit authorization, add only the exact audited reference, preserve existing entries, and read back the policy before triggering a fresh run |
 | Global `.bandit` skip for false positive | Widened `skips = B108` for a single hardcoded `/tmp` default | Suppresses B108 globally across all files; any future real hardcoded path would be silently missed | Use inline `# nosec B108 — ephemeral agent working directory` at the specific site only |
 | Treating a CodeQL check-run id as a workflow run id | Ran `gh run view <check_run_id>` from the value shown by `gh pr checks` | The id belonged to a check-run, so the workflow-run API did not expose the alert details | Use `gh api repos/<owner>/<repo>/check-runs/<check_run_id>` and the matching annotations/alerts APIs |
 | Hash replacement without data classification | Replaced MD5 mechanically without deciding whether the material was a tracking id or a password/secret | SHA-256 is acceptable for non-secret salted IDs under SHA-2 policy, but not for low-entropy secrets | Classify the data first: SHA-256 for salted non-secret identifiers, password hashing/KDF for secrets |
