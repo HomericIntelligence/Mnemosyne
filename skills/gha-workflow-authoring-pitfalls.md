@@ -1,10 +1,10 @@
 ---
 name: gha-workflow-authoring-pitfalls
-description: "Use when: (1) a workflow file is silently ignored or produces 0 jobs due to invalid YAML job IDs (forward slashes), (2) a composite-action input description contains ${{ }} expressions that get evaluated unexpectedly, (3) a security hook blocks editing a workflow run: block because of a ${{ }} injection sink — and you need the env-var-lift pattern, (4) documenting platform asymmetries (Linux-only, macOS-skipped) in workflow header comments, (5) a WorkflowDispatch or PreToolUse hook fires on an edit to .github/workflows/*.yml, (6) a workflow step fails with 'GitHub Actions is not permitted to create or approve pull requests' and you need to diagnose repo-vs-org policy and choose org-toggle vs PAT/App-token vs direct-commit, (7) adding labeled/unlabeled/auto_merge_* event types to a pull_request trigger re-runs ALL jobs (the trigger is workflow-wide) when you wanted only specific policy jobs to run on label events — and you need the changes-gate needs/if pattern, (8) an event-driven workflow (issues, schedule, workflow_dispatch, push:tags) lacks a concurrency: block — and you need to choose the right group key and cancel-in-progress semantics based on side-effect profile (idempotent label/scan = true; non-idempotent tag-push/publish = false)."
+description: "Use when: (1) a workflow file is silently ignored or produces 0 jobs due to invalid YAML job IDs (forward slashes), (2) a composite-action input description contains ${{ }} expressions that get evaluated unexpectedly, (3) a security hook blocks editing a workflow run: block because of a ${{ }} injection sink — and you need the env-var-lift pattern, (4) documenting platform asymmetries (Linux-only, macOS-skipped) in workflow header comments, (5) a WorkflowDispatch or PreToolUse hook fires on an edit to .github/workflows/*.yml, (6) a workflow step fails with 'GitHub Actions is not permitted to create or approve pull requests' and you need to diagnose repo-vs-org policy and choose org-toggle vs PAT/App-token vs direct-commit, (7) adding labeled/unlabeled/auto_merge_* event types to a pull_request trigger re-runs ALL jobs when you wanted only specific policy jobs to run, (8) an event-driven workflow lacks concurrency controls, (9) one workflow supports both a native entity event and workflow_call, so callers must supply the missing entity identifier through a required typed input and both paths must share one validated job."
 category: ci-cd
-date: 2026-06-23
-version: "1.3.0"
-verification: verified-ci
+date: 2026-08-07
+version: "1.4.0"
+verification: verified-local
 user-invocable: false
 history: gha-workflow-authoring-pitfalls.history
 tags:
@@ -36,6 +36,11 @@ tags:
   - event-driven
   - idempotent
   - publisher
+  - workflow-call
+  - reusable-workflow
+  - typed-input
+  - issue-number
+  - contract-testing
 ---
 
 # GitHub Actions: Workflow-Authoring Pitfalls
@@ -44,10 +49,10 @@ tags:
 
 | Field | Value |
 | ------- | ------- |
-| **Date** | 2026-06-23 |
-| **Objective** | Consolidate the recurring GitHub Actions workflow-authoring traps: invalid job IDs, expression evaluation in composite-action descriptions, the env-var-lift fix for injection hooks, platform-scope header documentation, editing path-blocked workflow files, the org create-PR policy block, the workflow-wide `pull_request` trigger re-running all jobs on label/auto-merge events, and choosing the right `concurrency:` group key and `cancel-in-progress` semantics for event-driven workflows |
+| **Date** | 2026-08-07 |
+| **Objective** | Consolidate recurring GitHub Actions workflow-authoring traps, including how dual-trigger native-event/`workflow_call` workflows carry a stable entity identifier through a required typed input, one shared job, concurrency, and a validated shell boundary |
 | **Outcome** | One reference covering the distinct gotchas, each with a copy-paste fix and the failed approaches that do NOT work |
-| **Verification** | verified-ci |
+| **Verification** | verified-local — prior pitfalls retain their cited CI evidence; pitfall #9's YAML contract and shell boundary were exercised locally, while hosted GitHub Actions validation is pending |
 
 ## When to Use
 
@@ -58,6 +63,7 @@ tags:
 - A `PreToolUse:Edit` hook blocks the `Edit` tool on `.github/workflows/*.yml` **by path alone** (no `${{` involved). → edit-tool-blocked workaround.
 - Adding `labeled`/`unlabeled`/`auto_merge_enabled`/`auto_merge_disabled` to a `pull_request` trigger (so a policy job converges on label/auto-merge state) re-runs **ALL** jobs because the trigger is workflow-wide — you wanted only specific jobs to run on label events. → changes-gate `needs:`/`if:` pattern.
 - An event-driven workflow (`issues:`, `push: tags:`, `schedule:`, `workflow_dispatch:`) currently lacks a `concurrency:` block and overlapping triggers are stacking redundant in-flight runs — you need to choose the right group key and `cancel-in-progress` value based on the workflow's side-effect profile. → concurrency controls.
+- A workflow supports both a native entity event (for example, `issues`) and `workflow_call`, but the reusable invocation has no native event payload, the job is gated to the native event, or concurrency falls back to `run_id`. → required typed entity input + one event-or-input expression.
 
 ## Verified Workflow
 
@@ -73,6 +79,7 @@ tags:
 | Actions blocked from creating PRs | `GitHub Actions is not permitted to create or approve pull requests` at the create-PR step | Org admin enables "Allow Actions to create and approve PRs"; or pass a fine-grained PAT/App token to checkout + create-PR step; or commit direct to main |
 | Label/auto-merge event re-runs ALL jobs | Added `labeled`/`unlabeled`/`auto_merge_*` to `pull_request` `types:` so a policy job converges, but every label toggle re-runs the full matrix | Add a `changes-gate` job that emits `code_event=false` for those actions; gate heavy jobs on `needs: changes-gate` + `if: …code_event == 'true'`; leave policy jobs ungated |
 | Missing concurrency block | Overlapping runs race or stack; publishers can double-publish or push duplicate tags | Add top-level `concurrency:` block with group key scoped to the event (issue number, ref, workflow) and cancel-in-progress matching side-effect profile |
+| Reusable path has no native event entity | `workflow_call` runs lack `github.event.issue.number`; an event-only job guard silently skips the reusable path, and a `run_id` fallback loses per-issue serialization | Declare a required numeric `workflow_call` input, resolve `${{ github.event.issue.number || inputs.issue_number }}` everywhere, remove the event-only job guard, and reject non-positive integers before the API call |
 
 ```bash
 # Detection one-liners
@@ -363,9 +370,9 @@ Event-driven workflows (triggered by `issues:`, `push: tags:`, `schedule:`, `wor
 **Group key patterns** (copy-paste ready):
 
 ```yaml
-# Per-issue idempotent label — run_id fallback for workflow_call path (no issue context)
+# Per-issue idempotent label — caller supplies the missing issue identity
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.issue.number || github.run_id }}
+  group: ${{ github.workflow }}-${{ github.event.issue.number || inputs.issue_number }}
   cancel-in-progress: true
 
 # Per-workflow serializer for single-writer dispatches (tag push)
@@ -384,7 +391,7 @@ concurrency:
   cancel-in-progress: true
 ```
 
-**Critical detail — workflow_call fallback**: When a workflow has both a direct trigger (e.g. `issues:`) and a `workflow_call:` trigger, `github.event.issue.number` is empty on the `workflow_call` path. Without `|| github.run_id`, ALL `workflow_call` invocations share one group and serialize globally — even unrelated calls from different repos. Always add `|| github.run_id` as the fallback for any per-entity key that may be absent on some trigger paths.
+**Critical detail — preserve the entity identity across `workflow_call`**: When a workflow has both a direct trigger (for example, `issues:`) and `workflow_call:`, `github.event.issue.number` is empty on the reusable path. If the operation is per entity, require the caller to pass that entity's stable identifier and use it as the fallback. `github.run_id` is unique per invocation, so it prevents an empty global bucket but also prevents two runs for the same issue from sharing a concurrency group. Use `run_id` only when there is no meaningful stable entity key and uniqueness—not per-entity serialization—is the intended behavior. See pitfall #9.
 
 **Placement**: Insert the `concurrency:` block after `permissions:` and before `jobs:` — it is a top-level workflow property, not a job property.
 
@@ -409,6 +416,90 @@ jobs:
 
 See also: `gha-workflow-concurrency-controls` skill for the full decision framework.
 
+#### 9. A dual-trigger reusable workflow must receive missing event context explicitly
+
+`workflow_call` does not recreate the caller's native event payload inside the called workflow. A
+callee triggered by both `issues` and `workflow_call` therefore cannot assume
+`github.event.issue.number` exists on both paths. The caller must pass the missing identity through
+the reusable interface. For an issue-label mutation, make the input required and numeric, then use
+one event-or-input expression in every place that depends on issue identity:
+
+```yaml
+on:
+  workflow_call:
+    inputs:
+      issue_number:
+        description: Positive issue number to label
+        required: true
+        type: number
+  issues:
+    types: [opened, reopened]
+
+concurrency:
+  group: auto-label-needs-plan-${{ github.event.issue.number || inputs.issue_number }}
+  cancel-in-progress: true
+
+jobs:
+  needs-plan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Add state:needs-plan label
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          case "$ISSUE_NUMBER" in
+            ''|0|0*|*[!0-9]*)
+              echo "::error::Unexpected ISSUE_NUMBER value (not a positive integer)"
+              exit 1
+              ;;
+          esac
+          gh api \
+            --method POST \
+            "repos/$REPO/issues/$ISSUE_NUMBER/labels" \
+            -f "labels[]=state:needs-plan"
+```
+
+The caller binds its own server-controlled event field explicitly:
+
+```yaml
+jobs:
+  call:
+    uses: OWNER/REPO/.github/workflows/auto-label-needs-plan.yml@main
+    with:
+      issue_number: ${{ github.event.issue.number }}
+```
+
+The interface and runtime checks do different jobs. `required: true` plus `type: number` rejects
+missing or non-numeric caller values during workflow validation. The shell guard rejects empty,
+zero, negative, fractional, leading-zero, or malformed values before `gh api` executes. Keep the
+expression in `env:` and quote `"$ISSUE_NUMBER"` in shell; do not splice caller data directly into
+`run:` source.
+
+Do not leave `if: github.event_name == 'issues'` on the job. With exactly the two declared
+triggers above, that condition disables the reusable path the interface claims to support. Both
+triggers should enter the same job so the API behavior and validation cannot drift.
+
+**Regression-contract pattern (verified locally only — hosted CI pending):**
+
+1. Parse workflow YAML with `yaml.BaseLoader`, because PyYAML's YAML 1.1 resolver otherwise
+   coerces the unquoted key `on` to boolean `True`.
+2. Assert `workflow_call.inputs.issue_number` is required and typed `number`; `issues` declares
+   the expected event types; there is one ungated label job; and both `concurrency.group` and the
+   step's `ISSUE_NUMBER` use the identical event-or-input expression.
+3. Extract and parse the documented caller's fenced YAML example, and assert its `with:` block
+   passes `${{ github.event.issue.number }}`. This keeps documentation executable as a contract.
+4. Execute the embedded shell body with a temporary fake `gh` earlier on `PATH`. Assert `42`
+   reaches exactly `repos/<owner>/<repo>/issues/42/labels`, while empty, `0`, negative,
+   fractional, leading-zero, and non-numeric inputs exit nonzero without invoking `gh`.
+
+This pattern was exercised locally against the proposed ProjectHephaestus
+`auto-label-needs-plan.yml` contract. The reusable workflow has not yet run in hosted GitHub
+Actions, so treat hosted behavior as pending until its implementation PR is green.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -425,7 +516,11 @@ See also: `gha-workflow-concurrency-controls` skill for the full decision framew
 | Raising repo create-PR permission via API | `gh api --method PUT repos/OWNER/REPO/actions/permissions/workflow -f default_workflow_permissions=write` | HTTP 409 `Conflict: "Write permissions for workflows are disabled by the organization"` | Repo can't exceed org policy; and `default_workflow_permissions` is a DIFFERENT toggle than create-PR — chasing it is a red herring |
 | Treating a green workflow run as proof the create-PR fix worked | Dispatched the workflow, saw a successful run | The create-PR step was skipped by its `if:` (no artifact change), so success was a no-op — no PR ever created | Force a real change so the step fires, then confirm a PR was actually created (`gh pr list --head <branch>` shows `app/github-actions`) |
 | Adding label/auto-merge event types to the `pull_request` trigger so policy jobs converge | Added `labeled, unlabeled, auto_merge_enabled, auto_merge_disabled` to `on.pull_request.types` so `pr-policy`/`auto-merge-policy` re-run on label/auto-merge changes | The trigger is workflow-wide → every label change re-ran all 18 jobs incl. the full test matrix (py3.10-3.13), security scans, build, lint; an automation loop toggling `state:*` labels made it very expensive | Gate heavy jobs on a `changes-gate` job that returns `code_event=false` for label/auto-merge actions (`needs:` + `if:`); leave policy jobs ungated; skipped required checks keep the SHA's prior status so branch protection stays satisfied |
-| Missing run_id fallback on workflow_call path | Used `group: label-${{ github.event.issue.number }}` without fallback | On `workflow_call`, `issue.number` is undefined → all callers share one group → global serialization of unrelated calls | Always add `|| github.run_id` fallback for per-entity keys that may be absent on some trigger paths |
+| No fallback for missing native event context | Used `github.event.issue.number` on both native and reusable paths | On `workflow_call`, the issue payload is absent, leaving concurrency and the API target without an issue identity | Define a required typed reusable input and use `github.event.issue.number || inputs.issue_number` consistently |
+| `github.run_id` as a universal reusable fallback | Used `group: label-${{ github.event.issue.number || github.run_id }}` for a per-issue mutation | Every call gets a distinct run ID, so concurrent runs for the same issue no longer share a group; it also does not supply the issue number needed by the API job | Pass the stable issue number from the caller; reserve `run_id` for workflows with no meaningful entity key |
+| Event-only job guard in a dual-trigger workflow | Kept `if: github.event_name == 'issues'` after declaring `workflow_call` | Reusable invocations validate and start but silently skip the only job | With exactly the supported triggers declared, route both through one ungated job |
+| Trusted numeric input without a shell domain check | Relied only on `workflow_call` input type `number` | Numeric still includes unusable values such as zero, negatives, and fractions | Fail closed on the operation's actual domain—positive decimal integers—before invoking `gh` |
+| `yaml.safe_load` for GitHub workflow contract tests | Indexed parsed data through `workflow["on"]` | PyYAML's YAML 1.1 resolver can coerce unquoted `on` to boolean `True`, making the test fail for the wrong reason | Load workflow contracts with `yaml.BaseLoader` so GitHub's `on` key remains a string |
 | Placed concurrency: inside a job | `jobs.my-job.concurrency:` instead of top-level | Only governs that single job; other jobs in the workflow can still overlap | `concurrency:` must be a top-level key, sibling of `jobs:`, not nested inside it |
 
 ## Results & Parameters
@@ -437,6 +532,7 @@ See also: `gha-workflow-concurrency-controls` skill for the full decision framew
 - **Edit-tool path block**: Workaround A (`python3 -c` replace) for targeted edits; Workaround B (`Read` + `Write`) for restructures; rename scanner-tripping identifiers if `Write` is also blocked.
 - **Actions-create-PR block**: TWO independent toggles — `can_approve_pull_request_reviews` (the create/approve-PR gate, the one you usually need) vs `default_workflow_permissions` (read/write default, overridden by a workflow's own `permissions:` block). A repo-level 409 means the ORG is the blocker. Fix order: org toggle (org-wide, also enables PR self-approval) → scoped PAT/App token on checkout + create-PR steps → direct commit to main (`contents: write` only). Validate by forcing a real artifact change so the create-PR step fires, then `gh pr list --head <branch> --json author` to confirm `app/github-actions` opened a PR — a green run alone is not proof (skipped step shows success).
 - **Workflow-wide trigger / changes-gate**: `on: pull_request: types:` applies to the ENTIRE workflow, so label/auto-merge event types added for one job re-run all jobs. Gate heavy jobs with a `changes-gate` job (`needs: changes-gate` + `if: needs.changes-gate.outputs.code_event == 'true'`); leave policy jobs (`pr-policy`, `auto-merge-policy`) ungated. Correctness invariants: a required job SKIPPED via `if:` reports neutral/success and GitHub keeps the SHA's prior real result → branch protection stays satisfied; `github.event.action` is empty on `push` → `case` default = `code_event=true` → push still runs everything; pass `github.event.action` via `env:`, never interpolate into `run:`. Validate by adding then removing a throwaway label and checking `gh run view <id> --json jobs` shows the heavy jobs `skipped` while `changes-gate`/policy jobs `success`, with the PR still CLEAN/MERGEABLE.
+- **Dual native/reusable trigger identity**: `workflow_call` lacks the caller's `github.event.issue` payload. For a per-issue side effect, declare `workflow_call.inputs.issue_number` with `required: true` and `type: number`; use `${{ github.event.issue.number || inputs.issue_number }}` in both concurrency and the step environment; remove event-only job gates; and reject `''|0|0*|*[!0-9]*` before the API boundary. A `run_id` fallback is unique per run, not stable per issue. Contract-test the workflow, documented caller, and embedded shell with `yaml.BaseLoader` plus a fake `gh` executable.
 - **Reference**: <https://github.blog/security/vulnerability-research/how-to-catch-github-actions-workflow-injections-before-attackers-do/>
 
 ## Verified On
@@ -452,3 +548,4 @@ See also: `gha-workflow-concurrency-controls` skill for the full decision framew
 | Mnemosyne | 2026-06-07: `update-marketplace.yml` create-PR step 403, diagnosed org block, validated org-toggle fix by live dispatch | PR #2261 |
 | ProjectHephaestus | PR #1108 (2026-06-08) — `_required.yml` label-event re-ran all 18 jobs; added a `changes-gate` job and gated the 16 heavy jobs on `needs: changes-gate` + `if: …code_event == 'true'`, left `pr-policy`/`auto-merge-policy` ungated | SELF-TESTED live: adding then removing a label re-ran only the gate + 2 policy jobs; the 16 heavy jobs showed `skipped`; PR stayed CLEAN/MERGEABLE |
 | ProjectHephaestus | Issue #1548 — added concurrency blocks to auto-label-needs-plan.yml, auto-tag.yml, release.yml, security.yml | verified-local (YAML parse + structural assertions; CI pending) |
+| ProjectHephaestus | Proposed `auto-label-needs-plan.yml` dual `issues`/`workflow_call` contract (2026-08-07) | Required numeric issue input, one ungated label job, shared event-or-input identity, positive-integer shell guard, documented caller, and fake-`gh` regression pattern exercised locally; hosted CI pending |
