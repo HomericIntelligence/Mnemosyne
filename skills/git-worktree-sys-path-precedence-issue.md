@@ -1,9 +1,9 @@
 ---
 name: git-worktree-sys-path-precedence-issue
-description: "Document the sys.path ordering issue in workspace-based git worktrees where the main project directory comes before the worktree in Python's module search path, causing subprocess-spawned entry points (console scripts) to import modules from the main repo instead of the worktree, even though the editable install (.pth file) correctly points to the worktree. Code changes work in direct Python imports but fail in subprocess invocations. Also covers the pixi console script stale-binary failure mode where the script shebang points to the main worktree's installed package. Use when: (1) running console scripts via subprocess that load stale code from the main repo, (2) debugging entry points that work in direct Python imports but fail via pixi run or subprocess.run(), (3) code changes in a git worktree work when imported directly but fail when invoked as a console script, (4) sys.path shows main project directory before worktree path, (5) VERIFYING a console-script fix from inside a worktree where the installed entry point emits empty/unpatched output and you might wrongly conclude 'the fix does not work' — re-verify via `python -m <module>` and probe `module.__file__` / `inspect.getsource(main)`."
+description: "Document Python path-order failures in git worktrees and spawned child phases. Use when: (1) console scripts load stale code from a main checkout, (2) direct imports work but subprocess entry points do not, (3) an editable install points to the worktree but `sys.path` does not, (4) a generated console-script shebang selects another environment, (5) verification must bind the loaded module file, or (6) a child phase must replace a hostile inherited `PYTHONPATH` with the intended checkout root."
 category: tooling
-date: 2026-06-13
-version: "1.2.0"
+date: 2026-08-07
+version: "1.3.0"
 history: git-worktree-sys-path-precedence-issue.history
 user-invocable: false
 verification: verified-local
@@ -40,6 +40,7 @@ tags:
 - Debugging why console scripts report old function behavior, old version strings, or missing recent code additions despite the worktree containing the updated files
 - Building automation tools or test suites that spawn console scripts as subprocess commands from within a git worktree
 - `pixi run hephaestus-*` returns old output after you edited Python source files in a git worktree
+- A spawned automation phase must import only from the selected checkout even when the parent has a hostile or stale `PYTHONPATH`
 
 Do NOT use this skill when:
 
@@ -259,6 +260,36 @@ result = subprocess.run(
 print(result.stdout)  # Loads from worktree
 ```
 
+### Reset `PYTHONPATH` at a Hermetic Child Boundary
+
+Prepending is appropriate for an interactive developer shell that intentionally preserves other
+search roots. It is not sufficient for a child phase whose contract is "run this checkout." Any
+ambient entry retained after the checkout can still affect imports, namespace packages, plugins,
+or subprocesses spawned by that child.
+
+Build the child environment once and pass it through every launch site:
+
+```python
+from pathlib import Path
+import os
+
+
+def child_env(repo_root: Path) -> dict[str, str]:
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(repo_root.resolve())
+    return env
+```
+
+The important distinction is policy:
+
+```text
+interactive troubleshooting -> prepend the selected checkout
+hermetic child phase         -> replace PYTHONPATH with the selected checkout
+```
+
+Test both the environment builder and every subprocess adapter that consumes it. A fix applied to
+only one spawn helper leaves sibling phases exposed to the inherited path.
+
 **Step 8 — Fix: Run dev-install in the worktree (if worktree has its own pixi env).**
 
 If the worktree has (or can have) its own pixi environment, refreshing the editable install fixes the console script shebang:
@@ -285,7 +316,8 @@ pixi run hephaestus-agent-stage --version
 | Reinstalling the package | Ran `pip uninstall hephaestus && pip install -e .` to refresh the editable install | sys.path still showed main project before worktree; the .pth file was refreshed but the path ordering was NOT reordered | Reinstalls don't fix path ordering; the issue is sys.path search precedence, not the editable install metadata. .pth file location is correct; the parent directory is also in the search path. |
 | Deleting .pyc and __pycache__ | Removed all Python bytecode cache to force a fresh import | Subprocess still loaded stale code from main repo; caching was never the issue | Root cause is sys.path ordering at the module resolution layer, not compilation artifacts. Python doesn't cache the module search path itself. |
 | Running console script directly without pixi | Executed `/path/to/.pixi/envs/default/bin/hephaestus-agent-stage` as a raw subprocess | Still loaded from main repo; the issue is that the Python interpreter inside that executable was started with a sys.path that included the main repo before the worktree | The problem is not the shell invocation; it's the Python process's environment and sys.path ordering. Pixi run context preserves the environment better. |
-| Setting PYTHONPATH in shell before invoking subprocess | Exported `PYTHONPATH=/path/to/worktree:$PYTHONPATH` in bash, then called subprocess | subprocess.run() did NOT inherit the shell's exported PYTHONPATH; only env passed explicitly to subprocess gets it | When using subprocess.run() in Python, env vars are NOT inherited from the parent shell unless explicitly passed via the `env=` parameter; `os.environ.copy()` is required. |
+| Relying on an exported path while a wrapper supplied its own environment | Exported `PYTHONPATH` in the shell, but the subprocess adapter replaced `env` | Passing an explicit environment overrides normal inheritance, so the exported value never reached the child | Inspect the actual `env=` argument; subprocesses inherit by default only when the caller does not replace the environment |
+| Append the checkout to a hostile child path | Preserved ambient site-package and checkout entries after the intended root | Child phases could still import plugins or namespace members from stale locations | Replace `PYTHONPATH` at hermetic child boundaries and pass the same environment through every spawn site |
 | Checking only the main .pth file | Examined `.pth` file in main repo's site-packages | Missed that the worktree was using the SAME `.pixi/envs/default` and the .pth file there was also pointing to the worktree (correctly) | Both the main repo and worktree share `.pixi/envs/default`; the .pth file is correct in both cases. The issue is NOT the .pth target but the sys.path ordering. |
 | Used `pixi run hephaestus-*` console script to test worktree changes | Ran `pixi run hephaestus-check-python-version --json` after modifying `validation/python_version.py` in a worktree; expected to see new `ci_checks` key in output | Console script shebang points to the MAIN worktree's installed Python; `pixi run python -c "import hephaestus.validation.python_version as m; import inspect; print(inspect.getfile(m))"` confirmed the file loaded was from the main repo, not the worktree | Use `pixi run python -c "from hephaestus.X import main; main()"` instead of console script binaries when testing changes inside a worktree. The console script binary itself is stale even when direct imports work. |
 | Trusting empty console-script run as proof fix is broken | Ran the installed console-script entry point after patching code in a worktree; observed empty/unpatched output and concluded the fix did not take effect | Empty output from the installed script is not evidence the fix failed; `module.__file__` revealed the OUTER repo was loaded — the installed entry point's shebang hardcodes the main repo's Python interpreter | Probe with `import inspect; print(m.__file__)` before concluding a fix is broken. Empty or unpatched output from a console-script means the outer copy is loaded, not that the patch is wrong. |
