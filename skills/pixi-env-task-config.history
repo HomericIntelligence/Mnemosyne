@@ -4,6 +4,14 @@
 
 Changelog and superseded-skill archive for the merged canonical skill.
 
+## v1.4.0 (2026-08-07)
+
+MINOR — add the verified-local ProjectHephaestus rule for named task arguments:
+inspect `pixi.toml` before appending positional paths. The `mypy` task already
+defines `mypy hephaestus/ scripts/ tests/`; `pixi run mypy hephaestus/` forwards
+the package path a second time and causes duplicate-module errors. The correct
+command is `pixi run mypy`. CI validation remains pending.
+
 ## v1.3.0 (2026-07-18)
 
 MINOR — record the VERIFIED HomericIntelligence pixi→uv supersession (Odysseus
