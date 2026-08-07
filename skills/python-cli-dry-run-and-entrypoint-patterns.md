@@ -1,10 +1,11 @@
 ---
 name: python-cli-dry-run-and-entrypoint-patterns
-description: "Use when: (1) adding a --dry-run flag to a CLI script that exits 1 on errors, letting developers preview all violations without blocking pre-commit or CI during bulk migrations; (2) standardizing --dry-run help text across multiple CLIs using a shared constant and testable _build_parser() entrypoint helper; (3) smoke-testing Python CLI entry points declared in [project.scripts] with --help subprocess calls and import verification to prevent regressions; (4) refactoring CLI parsers to extract testable _build_parser() functions and adding parametrized help-text tests across CLI modules."
+description: "Use when: (1) adding a --dry-run flag to a CLI script that exits 1 on errors, letting developers preview all violations without blocking pre-commit or CI during bulk migrations; (2) standardizing --dry-run help text across multiple CLIs using a shared constant and testable _build_parser() entrypoint helper; (3) smoke-testing Python CLI entry points declared in [project.scripts] with --help subprocess calls and import verification to prevent regressions; (4) refactoring CLI parsers to extract testable _build_parser() functions and adding parametrized help-text tests across CLI modules; (5) making a standalone analysis CLI report findings by default but fail only when an explicit --fail-on-* gate is supplied, with subprocess tests proving both exit-code modes."
 category: tooling
-date: 2026-06-07
-version: "1.1.0"
+date: 2026-08-06
+version: "1.2.0"
 user-invocable: false
+verification: unverified
 history: python-cli-dry-run-and-entrypoint-patterns.history
 tags:
   - python
@@ -17,18 +18,21 @@ tags:
   - parametrized-tests
   - DRY-principle
   - refactoring
+  - failure-gates
+  - standalone-scripts
+  - subprocess-testing
 ---
 
-# Python CLI Dry-Run and Entry-Point Patterns
+# Python CLI Advisory Modes and Entry-Point Patterns
 
 ## Overview
 
 | Field | Value |
 | ------- | ------- |
-| **Date** | 2026-06-07 |
-| **Objective** | Capture the shared Python CLI developer-tooling surface: the `--dry-run` flag idiom (non-blocking previews + standardized help text), the testable `_build_parser()` entrypoint refactor, and `--help` smoke tests for `[project.scripts]` entry points |
-| **Outcome** | SUCCESS — three verified patterns consolidated: non-blocking `--dry-run` validation, DRY help-text standardization across 7 CLIs, and 8-test entry-point smoke suite |
-| **Verification** | verified-ci |
+| **Date** | 2026-08-06 |
+| **Objective** | Capture the shared Python CLI developer-tooling surface: advisory output with explicit failure gates, the `--dry-run` flag idiom, testable parser construction, and realistic subprocess coverage |
+| **Outcome** | MIXED — the original dry-run and packaged-entry-point patterns are verified in CI; the standalone `--fail-on-*` extension is a reviewed implementation design awaiting execution |
+| **Verification** | unverified overall; Sections A–D retain their recorded `verified-ci` evidence, while Section E is unverified |
 | **History** | [changelog](./python-cli-dry-run-and-entrypoint-patterns.history) |
 
 ## When to Use
@@ -42,6 +46,10 @@ tags:
 - A package declares `[project.scripts]` entry points that need regression protection
   against import errors, missing dependencies, or broken `main()` signatures
 - An issue asks for CLI importability / entry-point integration tests
+- A standalone analysis script must always report detected problems, but a nonzero exit status
+  should be opt-in for callers that deliberately enable a `--fail-on-*` policy gate
+- A script-level contract needs executable tests for observable stdout/stderr and exit codes,
+  rather than tests that only inspect `argparse` internals
 
 Do NOT use when:
 
@@ -49,6 +57,8 @@ Do NOT use when:
 - The package doesn't use argparse/click (custom CLI parsing may not support `--help`)
 
 ## Verified Workflow
+
+Sections A–D preserve their earlier `verified-ci` evidence.
 
 ### Quick Reference
 
@@ -68,6 +78,7 @@ add_dry_run_arg(parser, prefix="Skip PR creation")
 # 3. Testable entrypoint: split parser construction from parsing
 def _build_parser() -> ArgumentParser: ...      # no side effects, inspectable
 def _parse_args(args=None): return _build_parser().parse_args(args)
+
 ```
 
 ```bash
@@ -321,6 +332,121 @@ def test_dry_run_help_text_consistent(cli_module: str) -> None:
      run: pixi run pytest tests/unit
    ```
 
+## Proposed Workflow
+
+> **Warning:** This workflow has not been validated end-to-end. Treat it as a hypothesis until
+> implementation and CI confirm it.
+
+### Quick Reference
+
+```python
+# Findings are always reported; only the explicit flag changes process status.
+parser.add_argument(
+    "--fail-on-regression",
+    action="store_true",
+    default=False,
+    help="Exit 1 for critical regressions (default: report only)",
+)
+```
+
+### Detailed Steps
+
+#### E. Make strict failure opt-in for a standalone analysis script
+
+This extension is **unverified**. It applies when a script should always render findings, but
+its default use is advisory and only explicitly strict callers should receive a nonzero status.
+
+1. **Keep the script a narrow adapter over the existing library.** Import loading,
+   comparison, threshold, and report-formatting functions instead of copying their algorithms.
+   If the command is intentionally standalone, restore only `scripts/<name>.py`; do not add a
+   packaged console entry point or widen the public library API without a separate requirement.
+
+2. **Make failure an explicit positive flag.** A `store_true` option with `default=False`
+   makes the policy legible in both code and `--help`:
+
+   ```python
+   parser.add_argument(
+       "--fail-on-regression",
+       action="store_true",
+       default=False,
+       help="Exit 1 for critical regressions (default: report only)",
+   )
+   ```
+
+   Avoid inverted names such as `--no-fail-on-regression` when advisory mode is the normal
+   contract. Avoid `BooleanOptionalAction` when the requirement calls for one explicit opt-in
+   switch; the generated negative spelling broadens the interface without adding value.
+
+3. **Separate detection and reporting from exit policy.** Load inputs, select thresholds,
+   detect changes, generate the report, and optionally write the output file exactly once.
+   Decide the process status only after all reporting is complete:
+
+   ```python
+   if critical_count > 0:
+       if args.fail_on_regression:
+           print(
+               f"\nFAIL: {critical_count} critical regressions detected",
+               file=sys.stderr,
+           )
+           return 1
+       print(
+           f"\nWARN: {critical_count} critical regressions detected "
+           "(failure disabled)",
+           file=sys.stderr,
+       )
+   else:
+       print("\nPASS: No critical regressions detected", file=sys.stderr)
+   return 0
+   ```
+
+   This produces three truthful outcomes: findings with failure enabled, findings with
+   failure disabled, and no critical findings. Never print `PASS: No critical regressions`
+   merely because the failure gate is disabled—the findings still exist.
+
+4. **Preserve existing input failure behavior.** If the historical adapter allowed
+   `FileNotFoundError` and malformed JSON to reach the normal Python error path, do not silently
+   translate or suppress them while changing only the regression-exit policy. The policy flag
+   governs detected regressions, not invalid inputs.
+
+5. **Exercise the real script as a subprocess.** Parser-unit tests can prove a default, but
+   they cannot prove the shell-visible contract. Write deterministic temporary inputs that
+   create the same critical finding in both modes, then assert the actual exit status and
+   status text:
+
+   ```python
+   REPO_ROOT = Path(__file__).resolve().parents[3]
+   SCRIPT = REPO_ROOT / "scripts" / "compare_benchmarks.py"
+
+   def _run_compare(tmp_path: Path, *extra_args: str) -> subprocess.CompletedProcess[str]:
+       baseline = tmp_path / "baseline.json"
+       current = tmp_path / "current.json"
+       baseline.write_text(
+           json.dumps({"benchmarks": [{"name": "example", "duration_ms": 100}]}),
+           encoding="utf-8",
+       )
+       current.write_text(
+           json.dumps({"benchmarks": [{"name": "example", "duration_ms": 130}]}),
+           encoding="utf-8",
+       )
+       return subprocess.run(
+           [sys.executable, str(SCRIPT), str(current), str(baseline), *extra_args],
+           cwd=REPO_ROOT,
+           env={**os.environ, "PYTHONPATH": str(REPO_ROOT)},
+           capture_output=True,
+           text=True,
+           check=False,
+       )
+   ```
+
+   Assert that the default invocation returns `0` and includes both `critical` and
+   `failure disabled` in stderr; assert that the otherwise-identical invocation with
+   `--fail-on-regression` returns `1` and prints the exact `FAIL` summary. Invoke `--help`
+   separately and assert that it says `default: report only`.
+
+6. **Update the maintained script catalog.** When repository policy requires every tracked
+   `scripts/` file to appear in `scripts/README.md`, document both default advisory behavior
+   and the explicit nonzero-exit flag. Run the catalog guard alongside the script smoke tests.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -335,6 +461,10 @@ def test_dry_run_help_text_consistent(cli_module: str) -> None:
 | Using a per-module config dict for help text | Moved help text into a config file keyed by module | Config drifted from code; modules could forget to register; no type checking | Keep the constant + helper in Python code with type hints; no separate config file |
 | Using installed script names in the smoke test | `subprocess.run(["hephaestus-changelog", "--help"])` | Requires pip-installed entry points; fails in pixi/dev environments | Use `sys.executable -m module.path` to exercise the same `main()` via the `__main__` block |
 | Relying on pytest `pythonpath` for the subprocess test | Release workflow ran `pixi run pytest` with no editable-install; package excluded from the pixi lockfile | 15 `ModuleNotFoundError` failures — the spawned `python --help` did not inherit `pythonpath`; in-process import test passed, masking it | Subprocess smoke tests need the package installed in the env they spawn into; add the editable-install step to EVERY CI workflow; do not weaken the test |
+| Defaulting `--fail-on-regression` to enabled | Reintroduced a restored analysis script with strict exit behavior even when callers omitted the option | The flag name promises opt-in strictness, but absence still failed CI and local callers | Use `action="store_true"` with `default=False`; only explicit presence returns 1 for detected regressions |
+| Printing an unconditional no-regression `PASS` line | Used the same success message whenever the process returned 0 | Advisory mode returned 0 despite real critical findings, so the message contradicted the report | Use distinct `FAIL`, `WARN ... (failure disabled)`, and genuinely clean `PASS` summaries |
+| Testing only parser defaults | Inspected the `argparse` action and namespace without launching the script | Did not prove the observable exit status, stderr wording, import path, or `__main__` wiring | Run the real script through `subprocess.run` with deterministic temporary input files |
+| Copying benchmark comparison logic into the wrapper | Reimplemented threshold and report calculations in `scripts/` while restoring the command | Created two algorithms that could drift and expanded the review surface | Keep standalone scripts as narrow adapters over existing library functions |
 
 ## Results & Parameters
 
@@ -375,6 +505,22 @@ def test_dry_run_help_text_consistent(cli_module: str) -> None:
 - CI parity: every workflow running the subprocess test must `pixi run dev-install`
   (`pip install -e . --no-deps`) before pytest
 
+### Opt-in failure gate for standalone analysis scripts
+
+- Parser contract: `action="store_true"`, `default=False`, and help text explicitly says
+  the default is report-only
+- Critical finding without the flag: report remains complete, stderr says failure is disabled,
+  exit status `0`
+- Same critical finding with `--fail-on-regression`: report remains complete, stderr uses a
+  `FAIL` summary, exit status `1`
+- No critical finding in either mode: stderr truthfully says no critical regressions, exit `0`
+- Test boundary: execute `sys.executable scripts/<name>.py ...`; do not substitute parser
+  introspection for the command's observable behavior
+- Architecture boundary: reuse existing library functions; no duplicate algorithm, packaged
+  console registration, dependency, ADR, migration, or public API is implied
+- Verification: `unverified` for this extension; the commands and expected outputs come from a
+  reviewed ProjectHephaestus issue plan, not an executed implementation or passing CI run
+
 ## Verified On
 
 | Project | Context | Details |
@@ -383,3 +529,4 @@ def test_dry_run_help_text_consistent(cli_module: str) -> None:
 | ProjectHephaestus | Issue #772, PR #974 | `--dry-run` help standardization: `DRY_RUN_HELP_CAVEAT` + `add_dry_run_arg(parser, *, prefix=None)` in `hephaestus/cli/utils.py`; `_build_parser()` extracted from `_parse_args()` in 7 CLI modules; 11-test parametrized suite; ruff/mypy/pre-commit all pass (verified-ci) |
 | ProjectHephaestus | Issue #52, PR #95 | 4 CLI entry points smoke-tested (changelog, merge-prs, system-info, download-dataset); 8 tests (v1.0.0 pattern, verified-local) |
 | ProjectHephaestus | PR #612 | Editable-install / workflow-parity fix: release.yml ran pytest without `pixi run dev-install`, causing 15 `ModuleNotFoundError` failures in subprocess `--help` tests (verified-ci) |
+| ProjectHephaestus | Issue #2569 implementation plan | Proposed restoration of `scripts/compare_benchmarks.py` as a thin adapter over `hephaestus.benchmarks.compare`, with report-only default, explicit `--fail-on-regression`, subprocess behavior tests using 100 ms versus 130 ms fixtures, help-contract coverage, and script-catalog documentation. Not executed in this session; CI validation pending. |
