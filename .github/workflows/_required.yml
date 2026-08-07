@@ -69,25 +69,36 @@ jobs:
   lint:
     name: lint
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-      - name: Setup uv
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
+      - name: Cache podman container storage
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
-          python-version: '3.13'
-      - name: Install dev toolchain (locked)
-        run: uv sync --locked --group dev
-      - name: yamllint on workflow YAML
-        run: uv run yamllint -c .yamllint.yaml .github/workflows/
-      - name: Run mypy
+          path: ~/.local/share/containers/storage
+          key: podman-mnemosyne-${{ runner.os }}-${{ hashFiles('uv.lock', '.pre-commit-config.yaml') }}
+          restore-keys: |
+            podman-mnemosyne-${{ runner.os }}-
+      - name: Build CI image (podman)
+        run: podman build -f ci/Containerfile -t mnemosyne-ci:local .
+      - name: yamllint on workflow YAML (in container)
+        run: >
+          podman run --rm -v "$PWD:/workspace:Z" --userns=keep-id:uid=1000,gid=1000
+          mnemosyne-ci:local uv run yamllint -c .yamllint.yaml .github/workflows/
+      - name: Run mypy (in container)
         run: |
-          if [ -d scripts ] || [ -d tests ]; then
-            uv run python -m mypy
-          else
-            echo "::notice::No scripts/ or tests/ directory — skipping mypy"
-          fi
-      - name: Run direct PII pattern check
-        run: uv run python scripts/check_pii.py
+          podman run --rm -v "$PWD:/workspace:Z" --userns=keep-id:uid=1000,gid=1000 \
+            mnemosyne-ci:local bash -c '
+            if [ -d scripts ] || [ -d tests ]; then
+              uv run python -m mypy
+            else
+              echo "No scripts/ or tests/ directory — skipping mypy"
+            fi
+          '
+      - name: Run direct PII pattern check (in container)
+        run: >
+          podman run --rm -v "$PWD:/workspace:Z" --userns=keep-id:uid=1000,gid=1000
+          mnemosyne-ci:local uv run python scripts/check_pii.py
 
   markdownlint:
     name: markdownlint
@@ -117,20 +128,25 @@ jobs:
   pixi-check:
     name: pixi-check
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 30
     needs: lint
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-      - name: Setup uv
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
+      - name: Cache podman container storage
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
-          python-version: '3.13'
-      - name: uv sync (locked)
-        run: uv sync --locked --group dev
-      - name: Verify locked environment runs the test suite
-        run: uv run python -m pytest tests/ -q
+          path: ~/.local/share/containers/storage
+          key: podman-mnemosyne-${{ runner.os }}-${{ hashFiles('uv.lock', '.pre-commit-config.yaml') }}
+          restore-keys: |
+            podman-mnemosyne-${{ runner.os }}-
+      - name: Build CI image (podman)
+        run: podman build -f ci/Containerfile -t mnemosyne-ci:local .
+      - name: Verify locked environment runs the test suite (in container)
+        run: >
+          podman run --rm -v "$PWD:/workspace:Z" --userns=keep-id:uid=1000,gid=1000
+          mnemosyne-ci:local uv run python -m pytest tests/ -q
 
   justfile-check:
     name: justfile-check
@@ -176,32 +192,46 @@ jobs:
   unit-tests:
     name: unit-tests
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-      - name: Setup uv
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
+      - name: Cache podman container storage
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
-          python-version: '3.13'
-      - name: Install dependencies (locked)
-        run: uv sync --locked --group dev
-      - name: Run skill-file validation script
-        run: uv run python scripts/validate_plugins.py
-      - name: Run test suite
-        run: uv run pytest tests/ -v
+          path: ~/.local/share/containers/storage
+          key: podman-mnemosyne-${{ runner.os }}-${{ hashFiles('uv.lock', '.pre-commit-config.yaml') }}
+          restore-keys: |
+            podman-mnemosyne-${{ runner.os }}-
+      - name: Build CI image (podman)
+        run: podman build -f ci/Containerfile -t mnemosyne-ci:local .
+      - name: Run skill-file validation script (in container)
+        run: >
+          podman run --rm -v "$PWD:/workspace:Z" --userns=keep-id:uid=1000,gid=1000
+          mnemosyne-ci:local uv run python scripts/validate_plugins.py
+      - name: Run test suite (in container)
+        run: >
+          podman run --rm -v "$PWD:/workspace:Z" --userns=keep-id:uid=1000,gid=1000
+          mnemosyne-ci:local uv run pytest tests/ -v
 
   integration-tests:
     name: integration-tests
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-      - name: Setup uv
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
+      - name: Cache podman container storage
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
-          python-version: '3.13'
-      - name: Install dependencies (locked)
-        run: uv sync --locked --group dev
-      - name: Validate every skill file across the corpus
-        run: uv run python scripts/validate_plugins.py
+          path: ~/.local/share/containers/storage
+          key: podman-mnemosyne-${{ runner.os }}-${{ hashFiles('uv.lock', '.pre-commit-config.yaml') }}
+          restore-keys: |
+            podman-mnemosyne-${{ runner.os }}-
+      - name: Build CI image (podman)
+        run: podman build -f ci/Containerfile -t mnemosyne-ci:local .
+      - name: Validate every skill file across the corpus (in container)
+        run: >
+          podman run --rm -v "$PWD:/workspace:Z" --userns=keep-id:uid=1000,gid=1000
+          mnemosyne-ci:local uv run python scripts/validate_plugins.py
       - name: Assert the skills corpus is non-empty
         run: |
           count=$(find skills -name "*.md" -not -name "*.notes.md" | wc -l)
@@ -223,46 +253,42 @@ jobs:
   security-dependency-scan:
     name: security/dependency-scan
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-      - name: Setup uv
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
+      - name: Cache podman container storage
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
-          python-version: '3.13'
-      - name: Run pip-audit against the locked runtime dependencies
+          path: ~/.local/share/containers/storage
+          key: podman-mnemosyne-${{ runner.os }}-${{ hashFiles('uv.lock', '.pre-commit-config.yaml') }}
+          restore-keys: |
+            podman-mnemosyne-${{ runner.os }}-
+      - name: Build CI image (podman)
+        run: podman build -f ci/Containerfile -t mnemosyne-ci:local .
+      - name: Run pip-audit against the locked runtime dependencies (in container)
         run: |
-          # Export the resolved runtime deps from uv.lock (the source of truth
-          # after the ADR-017 migration) and audit exactly what ships.
-          uv export --frozen --no-dev --no-emit-project --format requirements-txt > audit-requirements.txt
-          uvx pip-audit --requirement audit-requirements.txt
+          podman run --rm -v "$PWD:/workspace:Z" --userns=keep-id:uid=1000,gid=1000 \
+            mnemosyne-ci:local bash -c '
+            uv export --frozen --no-dev --no-emit-project --format requirements-txt > audit-requirements.txt
+            uvx pip-audit --requirement audit-requirements.txt
+          '
 
   security-secrets-scan:
     name: security/secrets-scan
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
+      # Full history checkout so gitleaks can scan all commits, not just HEAD.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           fetch-depth: 0
-      - name: Install Gitleaks
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release download v8.30.1 \
-            --repo gitleaks/gitleaks \
-            --pattern "gitleaks_8.30.1_linux_x64.tar.gz" \
-            --output /tmp/gitleaks.tar.gz
-          tar -xz -C /usr/local/bin -f /tmp/gitleaks.tar.gz gitleaks
-          gitleaks version
-
       - name: Run Gitleaks
-        run: |
-          if [ -f .gitleaks.toml ]; then
-            gitleaks detect --source . --config .gitleaks.toml \
-              --report-format sarif --report-path gitleaks.sarif --exit-code 1
-          else
-            gitleaks detect --source . \
-              --report-format sarif --report-path gitleaks.sarif --exit-code 1
-          fi
+        env:
+          GITLEAKS_IMAGE: >-
+            ghcr.io/gitleaks/gitleaks:v8.30.0@sha256:691af3c7c5a48b16f187ce3446d5f194838f91238f27270ed36eef6359a574d9
+        run: >-
+          podman run --rm -v "$PWD:/repo:ro" -w /repo "$GITLEAKS_IMAGE"
+          detect --source=. --verbose --exit-code=1
 
       - name: Upload Gitleaks SARIF
         if: always() && hashFiles('gitleaks.sarif') != ''
@@ -289,26 +315,31 @@ jobs:
           done
           echo "All JSON files valid"
 
-  # Canonical package gate (ci-naming-convention.md). Mnemosyne's distributable
-  # is the Python wheel (mnemosyne_skill_utils), built and smoke-tested here.
-  # Athena is the plugin distribution; Mnemosyne is a skills/memory store and no
-  # longer ships a plugin-marketplace bundle.
   package:
     name: package
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-      - name: Setup uv
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
+      - name: Cache podman container storage
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
-          python-version: '3.13'
-      - name: Build sdist and wheel
-        run: uv build
-      - name: twine check
-        run: uvx twine check dist/*
+          path: ~/.local/share/containers/storage
+          key: podman-mnemosyne-${{ runner.os }}-${{ hashFiles('uv.lock', '.pre-commit-config.yaml') }}
+          restore-keys: |
+            podman-mnemosyne-${{ runner.os }}-
+      - name: Build CI image (podman)
+        run: podman build -f ci/Containerfile -t mnemosyne-ci:local .
+      - name: Build sdist and wheel (in container)
+        run: >
+          podman run --rm -v "$PWD:/workspace:Z" --userns=keep-id:uid=1000,gid=1000
+          mnemosyne-ci:local uv build
+      - name: twine check (in container)
+        run: >
+          podman run --rm -v "$PWD:/workspace:Z" --userns=keep-id:uid=1000,gid=1000
+          mnemosyne-ci:local uvx twine check dist/*
       - name: Upload dist artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
@@ -362,58 +393,70 @@ jobs:
   schema-validation:
     name: schema-validation
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-      - name: Setup uv
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
+      - name: Cache podman container storage
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
-          python-version: '3.13'
-      - name: Validate workflow YAML files against GitHub schema
-        run: |
-          # Use the built-in GitHub Actions schema bundled with check-jsonschema
-          # to avoid transient 503 failures fetching from json.schemastore.org
-          uvx check-jsonschema \
-            --builtin-schema vendor.github-workflows \
-            .github/workflows/*.yml
+          path: ~/.local/share/containers/storage
+          key: podman-mnemosyne-${{ runner.os }}-${{ hashFiles('uv.lock', '.pre-commit-config.yaml') }}
+          restore-keys: |
+            podman-mnemosyne-${{ runner.os }}-
+      - name: Build CI image (podman)
+        run: podman build -f ci/Containerfile -t mnemosyne-ci:local .
+      - name: Validate workflow YAML files against GitHub schema (in container)
+        run: >
+          podman run --rm -v "$PWD:/workspace:Z" --userns=keep-id:uid=1000,gid=1000
+          mnemosyne-ci:local uvx check-jsonschema
+          --builtin-schema vendor.github-workflows
+          .github/workflows/*.yml
 
   deps-version-sync:
     name: deps/version-sync
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-      - name: Setup uv
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
+      - name: Cache podman container storage
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
-          python-version: '3.13'
-      - name: Install dependencies (locked)
-        run: uv sync --locked --group dev
-      - name: Assert every skill declares a valid semver version
-        run: uv run python scripts/validate_plugins.py
-      - name: Cross-check pyproject version is valid semver
+          path: ~/.local/share/containers/storage
+          key: podman-mnemosyne-${{ runner.os }}-${{ hashFiles('uv.lock', '.pre-commit-config.yaml') }}
+          restore-keys: |
+            podman-mnemosyne-${{ runner.os }}-
+      - name: Build CI image (podman)
+        run: podman build -f ci/Containerfile -t mnemosyne-ci:local .
+      - name: Assert every skill declares a valid semver version (in container)
+        run: >
+          podman run --rm -v "$PWD:/workspace:Z" --userns=keep-id:uid=1000,gid=1000
+          mnemosyne-ci:local uv run python scripts/validate_plugins.py
+      - name: Cross-check pyproject version is valid semver (in container)
         run: |
-          set -euo pipefail
-          ver=$(uv run python - <<'PY'
-          import tomllib
-          print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])
-          PY
-          )
-          echo "pyproject version: $ver"
-          printf '%s' "$ver" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$' \
-            || { echo "::error::pyproject version is not semver: $ver"; exit 1; }
+          podman run --rm -v "$PWD:/workspace:Z" --userns=keep-id:uid=1000,gid=1000 \
+            mnemosyne-ci:local bash -c '
+            ver=$(uv run python -c '\''import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])'\'')
+            echo "pyproject version: $ver"
+            printf "%s" "$ver" | grep -qE '\''^[0-9]+\.[0-9]+\.[0-9]+$'\'' \
+              || { echo "::error::pyproject version is not semver: $ver"; exit 1; }
+          '
 
-  # Canonical release gate (ci-naming-convention.md). Dry-run validates the
-  # release contract (version sync + changelog anchor) on every PR and main
-  # push; the actual publish happens in release.yml on v* tags and re-runs
-  # the same validator with --tag.
   release:
     name: release
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-      - name: Setup uv
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
+      - name: Cache podman container storage
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
-          python-version: '3.13'
-      - name: Validate release contract (dry-run)
-        run: uv run python scripts/validate_release_contract.py
+          path: ~/.local/share/containers/storage
+          key: podman-mnemosyne-${{ runner.os }}-${{ hashFiles('uv.lock', '.pre-commit-config.yaml') }}
+          restore-keys: |
+            podman-mnemosyne-${{ runner.os }}-
+      - name: Build CI image (podman)
+        run: podman build -f ci/Containerfile -t mnemosyne-ci:local .
+      - name: Validate release contract (dry-run, in container)
+        run: >
+          podman run --rm -v "$PWD:/workspace:Z" --userns=keep-id:uid=1000,gid=1000
+          mnemosyne-ci:local uv run python scripts/validate_release_contract.py

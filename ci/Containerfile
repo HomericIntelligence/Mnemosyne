@@ -1,0 +1,126 @@
+# Containerfile for mnemosyne-ci — CI image for the Mnemosyne skills/memory store.
+#
+# This image provides:
+# - Python 3.13 environment (matches requires-python ==3.13.*)
+# - uv with the locked project environment (dev group) pre-installed
+# - pre-commit hook environments baked in (largest speedup)
+# - Non-root user 'ci' for rootless Podman compatibility
+#
+# Toolchain: uv (Odysseus ADR-017). Pattern mirrors Scylla ci/Containerfile.
+#
+# Build (OCI-compliant — works with both podman and docker):
+#   podman build -f ci/Containerfile -t mnemosyne-ci:local .
+#   docker build -f ci/Containerfile -t mnemosyne-ci:local .
+#
+# Run:
+#   podman run --rm -v .:/workspace:Z mnemosyne-ci:local uv run python scripts/validate_plugins.py
+#   podman run --rm -v .:/workspace:Z mnemosyne-ci:local uv run python -m pytest tests/
+
+# ============================================================================
+# Stage 0: uv binary — installed from a pinned GitHub release so the checksum
+# is reproducible and the build resolves identically under both podman/buildah
+# and docker (no cross-registry COPY of a third-party image). The ghcr.io
+# astral-sh/uv image's version-tag scheme does not track uv CLI versions
+# (0.11.21 does not exist there), so we pin the release tarball instead.
+# ============================================================================
+FROM python:3.13-slim@sha256:6771159cd4fa5d9bba1258caf0b82e6b73458c694d178ad97c5e925c2d0e1a91 AS uv
+
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && curl -fsSL https://github.com/astral-sh/uv/releases/download/0.12.1/uv-x86_64-unknown-linux-gnu.tar.gz -o /tmp/uv.tar.gz \
+    && printf '%s%s  %s\n' "90b2f223fb69d19db49e117da601f64978" "593417988530aa733d456141b4bcbb" /tmp/uv.tar.gz | sha256sum --check \
+    && tar xzf /tmp/uv.tar.gz -C /usr/local/bin --strip-components=1 \
+    && rm /tmp/uv.tar.gz
+
+# ============================================================================
+# Stage 1: Builder — install uv and the locked project environment
+# ============================================================================
+FROM python:3.13-slim@sha256:6771159cd4fa5d9bba1258caf0b82e6b73458c694d178ad97c5e925c2d0e1a91 AS builder
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    # Build the project virtualenv in a fixed, copyable location.
+    UV_PROJECT_ENVIRONMENT=/opt/mnemosyne-venv \
+    # Bytecode-compile on install for faster cold starts.
+    UV_COMPILE_BYTECODE=1 \
+    # Copy (not hardlink) from the cache so the venv is self-contained for the
+    # runtime-stage COPY --from=builder.
+    UV_LINK_MODE=copy \
+    PATH="/opt/mnemosyne-venv/bin:$PATH"
+
+# Install build dependencies + git (required by pre-commit hooks)
+# apt-get upgrade picks up any security patches released after the base image was pinned
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
+    git \
+    curl \
+    ca-certificates \
+    gcc \
+    g++ \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv (pinned release — keep the version and sha256 in sync with
+# astral-sh/setup-uv in .github/workflows/*.yml when bumping).
+COPY --from=uv /usr/local/bin/uv /usr/local/bin/uvx /usr/local/bin/
+
+# Layer 1: Dependency files + the single-file package source the setuptools
+# build needs (package-dir "scripts", py-modules mnemosyne_skill_utils) — cache
+# layer invalidated only when deps or that source file change.
+WORKDIR /opt/mnemosyne-build
+COPY uv.lock pyproject.toml .pre-commit-config.yaml README.md ./
+COPY scripts/mnemosyne_skill_utils.py scripts/mnemosyne_skill_utils.py
+
+# Layer 2: Install the locked dependency set (dev group) plus the project itself
+# into the venv, mirroring `uv sync --group dev` in CI. The baked package means
+# scripts and tests import mnemosyne_skill_utils from the image, not the mount.
+# (No pre-commit bake: pre-commit is not a Mnemosyne dependency — its CI lint
+# job runs yamllint/mypy/PII directly.)
+RUN uv sync --locked --group dev
+
+# ============================================================================
+# Stage 2: Runtime — minimal image without build tools
+# ============================================================================
+FROM python:3.13-slim@sha256:6771159cd4fa5d9bba1258caf0b82e6b73458c694d178ad97c5e925c2d0e1a91
+
+LABEL org.opencontainers.image.title="mnemosyne-ci"
+LABEL org.opencontainers.image.description="CI container for Mnemosyne — validation, testing, linting"
+LABEL org.opencontainers.image.vendor="Mnemosyne"
+LABEL org.opencontainers.image.source="https://github.com/HomericIntelligence/Mnemosyne"
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    UV_PROJECT_ENVIRONMENT=/opt/mnemosyne-venv \
+    UV_LINK_MODE=copy \
+    PATH="/opt/mnemosyne-venv/bin:$PATH"
+
+# Runtime-only system packages (no build tools)
+# apt-get upgrade picks up any security patches released after the base image was pinned
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
+    git \
+    curl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy the uv binaries and the pre-installed project virtualenv from builder.
+COPY --from=uv /usr/local/bin/uv /usr/local/bin/uvx /usr/local/bin/
+COPY --from=builder /opt/mnemosyne-venv /opt/mnemosyne-venv
+
+# Create non-root user for rootless Podman compatibility
+# UID 1000 is the default first user on most Linux systems, matching typical
+# developer UIDs for smooth volume mount permissions without --userns=keep-id
+RUN groupadd -r ci && useradd -r -g ci -u 1000 -m -s /bin/bash ci
+
+# Make the baked venv writable by the ci user: when the repo is bind-mounted at
+# /workspace, uv detects the project path changed and re-points the editable
+# install at the mounted source, so scripts and tests exercise the working tree.
+RUN chown -R ci:ci /opt/mnemosyne-venv
+
+# Working directory is the mounted repo root at runtime
+WORKDIR /workspace
+
+# No ENTRYPOINT — commands are provided externally by CI or run_ci_local.sh
+# Example: podman run --rm -v .:/workspace:Z mnemosyne-ci:local uv run pytest
+
+USER ci
