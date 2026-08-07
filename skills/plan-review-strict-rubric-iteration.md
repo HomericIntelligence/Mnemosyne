@@ -3,7 +3,7 @@ name: plan-review-strict-rubric-iteration
 description: "Iterative multi-round plan review with strict rubric applying 7 software engineering principles (KISS, YAGNI, TDD, DRY, SOLID, Modularity, POLA). Use when: (1) reviewing implementation plans for GitHub issues, (2) design docs need GO/NOGO gating, (3) plans must evolve through multiple review rounds until all findings are resolved."
 category: architecture
 date: 2026-06-11
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [plan-review, architecture, github-issues, design-docs, rubric]
@@ -96,6 +96,31 @@ gh issue comment {issue_number} --repo {owner}/{repo} --body-file /tmp/plan{issu
    - Review history summary (how findings were resolved per round)
 2. Post as final issue comments
 
+### Plan Artifact Boundaries
+
+A plan must be complete enough to implement, but it must also remain reviewable.
+Maintain one canonical, standalone plan artifact and make all review rounds refer to
+that artifact rather than reproducing it.
+
+1. **Prefer precise prose to illustrative code.** Include a fenced snippet only
+   when prose cannot unambiguously express a public contract, a non-obvious
+   algorithm, or a test assertion. A snippet that merely restates a named edit or
+   repeats code already present in the canonical plan adds review surface without
+   adding evidence.
+2. **Do not post diffs in plan-review responses.** A review should state the
+   finding, why it blocks approval, and the required plan-level correction. The
+   next canonical plan revision incorporates the correction; it does not need a
+   second copy in the review comment.
+3. **Keep revision history out of the implementation handoff.** When a planning
+   thread becomes too large to review, preserve only the latest complete plan in
+   the durable issue description, remove superseded planner/reviewer discussion
+   according to repository policy, and reset the plan state to NOGO for a fresh
+   review. Never retain a partial amendment or a review as the canonical plan.
+4. **Review artifact quality explicitly.** Reject a plan that is difficult to
+   navigate because it contains repeated code, a pasted diff, or redundant
+   snippets. The remedy is to simplify the plan artifact, not to relax review
+   standards or approve an unreadable handoff.
+
 ### Orchestration Pattern
 
 ```
@@ -114,6 +139,7 @@ Round 4: Fix minor findings → post final task descriptions
 | Inheriting prior reviews as plans | Code-reviewer-mimo-pro confused prior review text as the plan | Agent treated the review verdict text as the plan artifact | Always clearly label the PLAN artifact and instruct agents to never treat review text as the plan |
 | Spawning all agents in single JSON string | Tool call with JSON string instead of parsed object | Invalid parameters error | Use proper spawn_agents format with agents array |
 | Single round review | Reviewing plans once without iteration | Plans had major findings that needed revision | Always plan for at least 2 review rounds |
+| Repeated code and review diffs | Reposted large snippets in the plan and then repeated them in review/amendment comments | The canonical handoff became hard to navigate and reviewers spent rounds comparing duplicate artifacts rather than the decision | Keep one canonical plan; use prose-first planning and reference corrections from reviews instead of reposting diffs |
 
 ## Results & Parameters
 
@@ -160,3 +186,4 @@ Verdict: NOGO — Plan needs changes before implementation (explain what in the 
 | Project | Context | Details |
 |---------|---------|--------|
 | example-org/inference-service | Epic #81 — 6 interrelated GitHub issues for CPU endpoint manager | Reviewed 6 plans across 4 rounds; 3 plans needed 1 revision cycle; all plans eventually passed |
+| isolated automation planning run | Oversized canonical plans and repeated review artifacts were compacted to one body-level plan before a clean NOGO re-review | Verified operational cleanup and plan-state reset |
