@@ -1,13 +1,13 @@
 ---
 name: architecture-cross-repo-migration-verify-issue-inventory
-description: "Cross-repo/submodule migrations: verify a GitHub issue's file inventory and ADR cross-references against disk BEFORE the move, and sweep every orphaned CONSUMER (validators, tests, entry points, hooks, workflows, docs, frozen-count guards) AFTER the move — a migration isn't done when the source moves, it's done when every consumer is reconciled. Use when: (1) planning a file/package move named in an issue, (2) the move crosses submodule or repo boundaries, (3) the issue cites ADRs or file/test counts, (4) the destination repo's language/packaging capability is assumed, (5) you just removed migrated source and need main to stay green."
+description: "Cross-repo/submodule migrations: verify the proposed inventory before a move, then sweep every orphaned consumer after it. Use when: (1) planning a file or package move, (2) crossing repository boundaries, (3) cited files or counts may be stale, (4) destination capabilities are assumed, (5) removed source leaves validators, tests, entry points, hooks, workflows, docs, package exports, or frozen guards behind, or (6) deleting a public symbol requires downstream and re-export-chain evidence."
 category: architecture
-date: 2026-07-11
-version: "1.1.0"
+date: 2026-08-07
+version: "1.2.0"
 user-invocable: false
 verification: verified-ci
 history: architecture-cross-repo-migration-verify-issue-inventory.history
-tags: [cross-repo, submodule, migration, planning, issue-inventory, stale-docs, adr, ground-truth, git-history, nats-contract, orphan-consumers, dangling-references, frozen-count-assertions, tree-wide-guards, entry-points, precommit-hooks, ci-workflows, incomplete-migration]
+tags: [cross-repo, submodule, migration, planning, issue-inventory, stale-docs, adr, ground-truth, git-history, nats-contract, orphan-consumers, dangling-references, frozen-count-assertions, tree-wide-guards, entry-points, precommit-hooks, ci-workflows, cmake, package-config, public-api, re-exports, incomplete-migration]
 ---
 
 # Cross-Repo Migration: Verify Issue Inventory Before Planning
@@ -32,6 +32,8 @@ tags: [cross-repo, submodule, migration, planning, issue-inventory, stale-docs, 
 - A public string-literal contract (NATS subject, wire field) sits inside code that is being moved or renamed.
 - **You just removed the migrated source directories and need `main` to stay green** — a migration is only done when every CONSUMER (validators, tests, entry points, pre-commit hooks, CI workflows, docs, frozen-count/membership guards, whole test dirs) is reconciled, not when the source moves.
 - A repo has "frozen" guards that assert a NUMBER (console-script count, symbol count) or a membership SET (sanctioned-dir allowlist, phantom-dir guard) — these silently encode the old surface and won't be caught by grepping for module names.
+- An installed package configuration still advertises a removed component, imported target, archive, dependency, or feature guard.
+- A shared public symbol appears unused locally, but downstream repositories or re-export chains may still consume it.
 
 ## Proposed Workflow
 
@@ -101,6 +103,13 @@ After deleting the migrated dirs, sweep for ALL of them:
    `tests/unit/validation/test_structure.py` still listed `"plugins"`; a
    *separate* phantom-test-dir guard then failed until that entry was removed.
 8. **The whole removed test dir** — `tests/unit/plugins/`.
+9. **Installed-package exports** — CMake package templates, imported targets,
+   component lists, library lists, dependency guards, pkg-config metadata, and
+   package-tree documentation can advertise binaries that no longer exist.
+10. **Downstream public-API consumers** — direct imports are only one surface.
+    Search dependent repositories, package `__init__` files, `__all__`, lazy
+    export maps, deprecation shims, wildcard imports, fixtures, and docs before
+    deleting a shared symbol.
 
 **Frozen-count / membership assertions are the sneaky ones.** They don't
 reference the moved surface *by name*, so a grep for module identifiers misses
@@ -137,7 +146,13 @@ grep -n -E "$MODS|$DIRS" .pre-commit-config.yaml
 grep -rln -E "$DIRS" .github/workflows/
 # 6. membership allowlists / phantom-dir guards
 grep -rn 'SANCTIONED_EXTRA_TEST_DIRS' tests/
-# 7. run the FULL suite (tree-wide guards fail far from the deletion)
+# 7. installed package exports and feature guards
+rg -n '<removed-target>|<removed-feature>' \
+  -g 'CMakeLists.txt' -g '*.cmake' -g '*.cmake.in' -g '*.pc.in' -g '*.md' .
+# 8. public API and re-export chains in every known consumer checkout
+rg -n '<removed-symbol>|__all__|_LAZY_IMPORTS|__getattr__' \
+  <source-root> <consumer-root-1> <consumer-root-2>
+# 9. run the FULL suite (tree-wide guards fail far from the deletion)
 pixi run mypy && pixi run pytest tests/unit
 ```
 
@@ -153,6 +168,8 @@ pixi run mypy && pixi run pytest tests/unit
 | 6 | (ADR-016) Removed the migrated source dirs (`skills/`, `plugins/`, validators) and considered the migration done. | `main` went RED — consumers still referenced the moved surface: validators importing deleted modules, tests importing deleted validators, pre-commit hooks invoking deleted scripts, a workflow scanning the deleted plugin surface, entry points pointing at deleted modules, docs counting the old surface. | A migration isn't done when the SOURCE moves; it's done when every CONSUMER is reconciled. Sweep modules, tests, entry points, hooks, workflows, docs, allowlists, and whole test dirs. |
 | 7 | Grepped only for the deleted module identifiers to find the fallout. | Missed the frozen COUNT/membership assertions: the console-script count a test freezes (53→51) and `SANCTIONED_EXTRA_TEST_DIRS` still listing `"plugins"` (which then tripped a separate phantom-test-dir guard). | Guards that assert a NUMBER or a SET, not a name, silently encode the old surface. Search for count/membership assertions explicitly, not just module names. |
 | 8 | Ran tests only on the edited files to confirm the removal. | Tree-wide guards (whole-tree `mypy`, structure tests, phantom-dir guard) failed elsewhere — the break was far from the deletion. | Run the FULL suite locally after a migration; tree-wide guards fail far from the change, so a changed-files-only run reports false-green. |
+| 9 | Removed a build target but left the installed package template unchanged. | Consumers could still request a phantom imported target or dependency guarded by a feature that no longer existed. | Treat package metadata and packaging docs as executable consumers of the removed surface. |
+| 10 | Declared a public helper unused after searching only its implementation repository. | Re-exports and downstream imports were outside the local search surface. | Enumerate known consumers and search direct imports, `__all__`, lazy exports, shims, tests, and docs before deletion. |
 
 ## Results & Parameters
 
@@ -201,6 +218,8 @@ grep -rln 'maestro\|Maestro' <src>/src <src>/tests --include='*.py'   # expect: 
 | Docs | `COMPATIBILITY.md` rows referenced removed surface | Removed the rows |
 | Test-infra allowlist | `SANCTIONED_EXTRA_TEST_DIRS` still listed `"plugins"`; a phantom-test-dir guard then failed | Removed the `"plugins"` entry |
 | Whole test dir | `tests/unit/plugins/` | Removed the directory |
+| Installed package metadata | Imported targets, component/library lists, dependency guards, and package-tree docs | Remove the complete target registration and re-run a multi-extension stale-reference sweep |
+| Public API surfaces | Direct imports, re-exports, lazy maps, shims, downstream callers, fixtures, and docs | Classify every hit before deletion; retain or migrate the symbol when any live consumer remains |
 
 ## Verified On
 
