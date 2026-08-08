@@ -1,10 +1,22 @@
 ---
 name: python-import-patterns-and-compatibility-guards
-description: "Use when: (1) a child module would create circular dependencies by importing the parent at module level — use function-local imports to defer the lookup and keep the import graph acyclic; (2) extending a public SDK surface with peer classes using lazy-loading __init__.py infrastructure (lazy exports pattern via __getattr__) to prevent eager-load regressions when adding new peers to __all__; (3) code uses a stdlib module added in a later Python version (tomllib in 3.11+, ExceptionGroup in 3.11+) and the CI matrix includes older Python — add a version-gated try/except import guard so the module remains importable; (4) adding cross-OS CI matrix and Windows jobs fail with ModuleNotFoundError for POSIX-only stdlib modules (curses, fcntl, grp, tzdata) — add conditional import guards and ensure tzdata is listed as an optional Windows dependency; (5) a hardcoded surface-pinning test (set(__all__) == literal) fails on CI with 'Extra items in the left set' because a peer export landed on main via an independent PR while your branch was open — fix the stale test literal, not the (correct) source, and use env -i / git stash / grep-the-CI-log to separate real failures from live-session environment noise; (6) a branch widening a lazy SDK surface (_LAZY_EXPORTS/__all__/__getattr__ in __init__.py) goes DIRTY/CONFLICTING on rebase because a sibling PR already landed the identical export — resolve by keeping ONE copy of the shared entry, and FIRST check mergeStateStatus=DIRTY when a PR reads as CI-failing but no test actually failed; (7) adding a DeprecationWarning at ACCESS time (not just call time) for a deprecated lazy shim exposed via a PEP 562 package __getattr__ loader — grep the named symbol against the source first because the issue may misname the mechanism (in _LAZY_IMPORTS vs __all__), keep access-time and call-time warnings as complementary layers (both needed for different access paths), force a fresh resolve in the regression test via module.__dict__.pop(name) because PEP 562 caches into globals, rewrite any stale-tolerant test that documents the current silent behavior, use stacklevel=2 inside __getattr__ (verified: user line → __getattr__ → warn, so stacklevel=2 attributes to user's access line), and update the prose deprecation doc (COMPATIBILITY.md) in the same PR (verified-local, ProjectHephaestus issue #1545); (8) EXECUTING an audit-finding fix that PROMOTES existing public-looking symbols into a package's declared __all__ — scope creep is intentional: when the issue names a subset of affected symbols but the same defect class applies to sibling symbols in the same module, fix ALL of them in one PR (e.g. issue #1511 named add_dry_run_arg + DRY_RUN_HELP_CAVEAT but add_github_throttle_args + configure_github_throttle_from_args had the identical gap; fixing all four so set(utils.__all__) == set(cli.__all__) prevents re-triggering the same audit finding); choose EAGER re-export (plain 'from … import (…)' in __init__.py) when the source module pulls only stdlib — no need for _LAZY_EXPORTS infrastructure; NO COMPATIBILITY.md change is needed when the package has no per-symbol table (only a tier entry); pin the test with a SUBSET ASSERTION (set(submodule.__all__) - set(pkg.__all__) must be empty, not strict equality) so parallel PRs adding new symbols cannot break the pin; do NOT guess the COMPATIBILITY.md 'Added' version from the latest git tag (check RELEASING.md/milestones/roadmap or flag for reviewer), grep the WHOLE test tree (not just the obvious file) for a strict-equality surface pin before widening __all__ because the breakage is non-local, verify the audit's stability-tier premise on disk (audit findings can be factually wrong), assert re-export IDENTITY (pkg.sym is submodule.sym) and grep for existing patch(\"pkg.submodule...\") usages, and include test_import_surface.py/test_automation_boundary.py in the verification set for any __init__.py widening (verified-local, executed end-to-end for ProjectHephaestus issue #1511; planning-guidance for COMPATIBILITY.md version-stamping derived from plan for issue #1513 remains unverified); (9) PLANNING the companion module-level __dir__() for a PEP 562 lazy-loader package whose __getattr__ lazily resolves symbols but whose dir(pkg) shows only eagerly-bound names — define __dir__() returning sorted(set(_LAZY_IMPORTS) | set(__all__) | set(globals())) so the entire lazy public API is discoverable to IPython tab-completion / IDEs / doc generators; CRITICAL: a custom __dir__ REPLACES (does not merge with) the default listing, so you MUST fold set(globals()) in or you silently REMOVE today-visible names (__version__, __author__, dunders, already-cached lazy names); __dir__ returns names only and performs NO attribute access, so a deprecated lazy shim can be listed without firing its DeprecationWarning; pin the contract by SUBSET INVARIANT (set(_LAZY_IMPORTS) <= set(dir(pkg))) not a hardcoded count (the audit's '35 symbols' was already stale at 40); regression-test that dir() does not SHRINK the visible set; extend the existing surface test file, do not create a parallel one (unverified planning-guidance, derived from a plan for ProjectHephaestus issue #1512); (10) EXECUTING a fix that adds a single public symbol to a package __all__ in a repo that has a per-symbol COMPATIBILITY.md API table guarded by a live-tree-scanning validation test (e.g. hephaestus tests/unit/validation/test_api_table_docs.py — TestLiveTreeAlignment::test_real_compatibility_md_is_aligned / TestMain::test_main_returns_zero_on_real_repo) — adding the name to __all__ (and re-exporting it from the package __init__.py __all__) WITHOUT adding a matching COMPATIBILITY.md row fails with '[missing-from-docs] <pkg>.<name> is in __all__ but has no row in COMPATIBILITY.md'; the FIX is to add an ALPHABETICAL row to the right '### <pkg>' section with a 'since' version column resolved from sibling helpers added in the same release cycle (NOT blindly from `git describe --tags --abbrev=0` — verify against siblings, e.g. configure_cli_logging took 0.9.8 because create_validation_parser/resolve_repo_root in the same cycle used 0.9.8 even though the latest tag was v0.9.7). CRITICAL FULL-SUITE-ONLY HAZARD: this live-tree alignment test scans the actual on-disk __all__ + COMPATIBILITY.md at scan time, so it can PASS when run in ISOLATION (`pytest …::test_real_compatibility_md_is_aligned` alone) yet reliably FAIL only when you run the WHOLE module / the broad tests/unit/validation suite WITH the change applied — an isolated green run is a FALSE NEGATIVE. After editing ANY package __all__ or [project.scripts]/public-export surface, run the full module that owns the live-tree alignment check (here `pixi run python -m pytest tests/unit/validation/test_api_table_docs.py -q --no-cov`) before claiming green; never trust an isolated test run for live-tree-scanning validation tests (verified-local, ProjectHephaestus issue #1419). This UPGRADES the previously-unverified COMPATIBILITY.md per-symbol version-stamping guidance from issue #1513 to verified-local: issue #1419 executed the per-symbol-row addition end-to-end and confirmed the version column is resolved from same-cycle siblings, not the latest tag. SECONDARY (cross-link, not its own skill): the issue #1419 body + approved plan predated sibling PR #1637 which had ALREADY merged most of the work with a WIDER create_validation_parser API (kept include_repo_root/prog/usage/epilog/formatter_class that the plan said to drop) — do NOT reverse merged code to satisfy a stale plan; grep the CURRENT state and implement only the genuinely-unimplemented slice (reinforces dry-refactoring-workflow's 'issue bodies/plans go stale')."
+description: >-
+  Use when: (1) enforcing an acyclic Python runtime module graph with an AST
+  regression that counts module-level, function-local, resolvable
+  from-package child, and lazy-export-map dependencies; (2) extracting shared
+  low-level behavior into a dependency-neutral leaf while preserving public
+  import identity and signatures through explicit re-exports; (3) using a
+  function-local import to defer import-time lookup without falsely claiming
+  that it removes the structural dependency edge; (4) extending a PEP 562
+  lazy public surface, repairing stale surface pins, or preserving package
+  patch facades; (5) guarding imports across Python versions or operating
+  systems; (6) aligning public exports with compatibility documentation and
+  import-boundary checks.
 category: architecture
-date: 2026-06-29
-version: "1.8.0"
+date: 2026-08-08
+version: "2.0.0"
 user-invocable: false
+verification: unverified
 history: python-import-patterns-and-compatibility-guards.history
 tags:
   - import-strategy
@@ -55,6 +67,13 @@ tags:
   - false-negative-isolation
   - version-column
   - same-cycle-siblings
+  - runtime-import-graph
+  - ast
+  - tarjan
+  - strongly-connected-components
+  - dependency-neutral-leaf
+  - type-checking
+  - lazy-export-map
 ---
 
 # Python Import Patterns and Compatibility Guards
@@ -63,14 +82,15 @@ tags:
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-06-29 |
-| **Objective** | Manage the Python import graph and import compatibility across versions and platforms: avoid circular dependencies with function-local imports, extend public SDK surfaces via lazy exports without eager-load regressions, guard stdlib imports that vary by Python version or OS, keep hardcoded surface-pinning tests from going stale when peers land via parallel PRs, emit an access-time `DeprecationWarning` across the PEP 562 lazy-loader seam, and — when adding a public symbol to a package `__all__` in a repo with a per-symbol `COMPATIBILITY.md` API table guarded by a live-tree-scanning validation test — add the matching alphabetical table row (with a version column resolved from same-cycle siblings) AND run the full validation module, because the live-tree alignment check is a FALSE NEGATIVE when run in isolation |
-| **Outcome** | Acyclic import graphs, Windows-importable packages, CI matrices green on older Python and POSIX-only stdlib, lazy SDK surfaces that scale to new peer classes, a decision procedure for fixing stale pinned-`__all__` tests (test vs source) without chasing live-session environment noise, a verified workflow for emitting a deprecation warning at `__getattr__` access time, and a verified workflow for keeping a per-symbol `COMPATIBILITY.md` API table aligned with a widened `__all__` — confirming the `missing-from-docs` failure surfaces only in the FULL validation module (isolated runs are false negatives), that the row goes alphabetically into the right `### <pkg>` section, and that the "since" version is read off same-cycle sibling helpers (not `git describe --tags`) |
-| **Verification** | verified-ci (function-local / version-guard / Windows-guard / lazy-exports); verified-local (surface-pin-stale fix, access-time deprecation-warning implementation — section F executed end-to-end with all tests passing locally; section G — __all__ alignment / eager re-export / subset-assertion pin executed end-to-end for ProjectHephaestus issue #1511, all tests passing locally; section G′ — per-symbol COMPATIBILITY.md API-table row alignment + the full-suite-only live-tree-scan false-negative hazard executed end-to-end for ProjectHephaestus issue #1419, all affected tests passing locally including `tests/unit/validation/test_api_table_docs.py`, ruff/mypy/markdownlint clean; this also UPGRADES the COMPATIBILITY.md per-symbol version-stamping guidance — previously `unverified` from issue #1513 — to `verified-local` (the version column is resolved from same-cycle siblings, confirmed on disk: `configure_cli_logging` = 0.9.8, matching `create_validation_parser`/`resolve_repo_root`, even though the latest tag was `v0.9.7`); CI pending after the ProjectHephaestus PR merges); **unverified** planning-guidance (section H — adding the companion `__dir__()` to a PEP 562 lazy-loader package; derived from a plan for ProjectHephaestus issue #1512, not yet executed in CI) |
+| **Date** | 2026-08-08 |
+| **Objective** | Manage Python import compatibility and enforce an acyclic runtime module graph: distinguish import-time deferral from structural dependency removal, extract shared low-level behavior into neutral leaf modules, preserve package facades with explicit identity re-exports, and guard the complete graph with AST-based strongly connected component detection. |
+| **Outcome** | Existing version/OS, lazy-export, public-surface, and compatibility-table workflows remain available. The new runtime-graph workflow is a proposed, project-independent pattern that counts hidden runtime edges and preserves adapter behavior while cycles are removed. |
+| **Verification** | Existing sections retain their recorded `verified-ci` / `verified-local` levels. Section I (runtime graph, neutral leaf extraction, facade normalization, and Tarjan regression) is **unverified** planning guidance derived from a reviewed ProjectHephaestus implementation plan; implementation and CI evidence are pending. |
 
 ## When to Use
 
-- **Function-local imports (coupling avoidance)**: A child module needs ambient state from a parent module (e.g., `logging.utils` already imports `utils.helpers`), and a module-level child-to-parent import would create a circular dependency or import-graph bloat. The import is used in only one or two functions.
+- **Acyclic runtime module graph (unverified planning guidance)**: A package imports successfully but still contains structural cycles through function-local imports, package-attribute imports, lazy-export dictionaries, or a package facade. You need an executable graph invariant rather than import smoke tests alone.
+- **Function-local imports (import-time deferral only)**: A child module needs ambient state from a parent module and a module-level import would fail during partial initialization. A local import can defer lookup, but it remains a runtime dependency edge and must not be treated as proof that the graph is acyclic.
 - **Lazy exports (SDK surface)**: Extending a public package `__all__` with peer classes from submodules, adding `TYPE_CHECKING` imports, preventing eager-load regressions, or avoiding architectural restructuring when widening the public surface.
 - **Version-gated stdlib guard**: A CI matrix includes Python 3.10 and code does a bare import of a 3.11+ stdlib module (`tomllib`, `ExceptionGroup`); `pytest` collection fails with `ModuleNotFoundError` on the lowest Python in the matrix.
 - **Windows / POSIX-only stdlib guard**: Adding a cross-OS CI matrix where Windows jobs fail with `ModuleNotFoundError` for `curses`/`fcntl`/`termios`/`grp`/`pwd`, or `zoneinfo.ZoneInfo` raises `ZoneInfoNotFoundError` on Windows (needs `tzdata`).
@@ -86,8 +106,8 @@ tags:
 ### Quick Reference
 
 ```python
-# (1) FUNCTION-LOCAL IMPORT — break a circular dep child→parent
-# child module (utils/helpers.py); parent (logging/utils.py) already imports this child
+# (1) FUNCTION-LOCAL IMPORT — defer import-time lookup only
+# Static runtime-graph checks must still record child -> parent.
 def run_subprocess(cmd):
     from hephaestus.logging.utils import get_current_correlation_id  # local, not top-level
     cid = get_current_correlation_id()
@@ -177,20 +197,20 @@ markdownlint-cli2 COMPATIBILITY.md
 
 ### Detailed Steps
 
-#### A. Function-local imports to avoid coupling / circular deps
+#### A. Function-local imports to defer import-time cycles, not erase graph edges
 
-1. **Diagnose the cycle.** Confirm the parent already imports the child:
+1. **Diagnose both contracts.** Confirm the parent already imports the child, then decide whether the requirement is merely "imports without partial-initialization failure" or the stronger "runtime module graph is acyclic":
    ```bash
    grep -r "^from hephaestus.utils" hephaestus/logging/   # parent imports child?
    grep -r "^from hephaestus.logging" hephaestus/utils/   # child imports parent at top-level? → cycle
    ```
-2. **Move the import into the function** that needs the ambient state:
+2. **For import-time deferral only, move the import into the function** that needs the ambient state:
    ```python
    def run_subprocess(cmd: list[str]) -> str:
        """Run subprocess, injecting correlation ID into environment.
 
-       Note: import is inside the function to avoid a circular dependency
-       with hephaestus.logging (which imports from hephaestus.utils).
+       Note: import is inside the function to defer lookup until both modules
+       initialize; the runtime graph still contains this dependency edge.
        """
        from hephaestus.logging.utils import get_current_correlation_id
        env = os.environ.copy()
@@ -200,7 +220,10 @@ markdownlint-cli2 COMPATIBILITY.md
    ```
 3. **Keep the function where it semantically belongs** — move the *import*, not the function. Do not relocate `get_current_correlation_id()` into `utils` just to dodge the edge (that creates a god-module / SRP violation).
 4. **Accept the cost.** First call pays an import lookup (~1–5µs); subsequent calls hit `sys.modules` (negligible). For subprocess spawning the import is ~1,000,000x cheaper than the spawn itself.
-5. **Prefer function-local imports over threading a parameter** through intermediate functions that don't use it — that is what ambient context (contextvars/logging/config) is for. Reserve parameters for true call-level arguments.
+5. **Do not call the graph acyclic.** A function-local import changes *when* Python resolves the dependency, not *whether* the importing module depends on the target. Any runtime graph guard must visit imports at every AST depth.
+6. **When structural acyclicity is required, redesign the seam.** Extract shared low-level behavior into a dependency-neutral leaf, invert the collaborator dependency, or pass a true call-level argument. Keep ambient context local only when the architecture explicitly permits the runtime edge.
+
+The earlier version of this skill treated function-local imports as structural cycle removal. That is too broad: the technique can repair import-time initialization order while leaving a runtime dependency cycle intact. Section I defines the stronger graph invariant.
 
 #### B. Lazy exports to widen an SDK surface safely
 
@@ -559,17 +582,158 @@ PEP 562 pairs `__dir__` with `__getattr__` for discoverability. A package that d
    python3 -c "import hephaestus; print(len(hephaestus._LAZY_IMPORTS), len(hephaestus.__all__))"
    ```
 
+#### I. Proposed Workflow — enforce an acyclic runtime module graph
+
+> **Warning:** This workflow has not been validated end-to-end. Treat it as a
+> hypothesis until the production refactor, focused suites, and CI all pass.
+> Verification level: `unverified`.
+
+Use this stronger workflow when the contract is architectural acyclicity, not
+merely successful import order. Ship the graph guard and the refactor in the
+same atomic change: a guard without the repair leaves main red, while a repair
+without the guard lets the cycle return.
+
+1. **Define the runtime graph precisely before editing production code.**
+   Include every Python module under the target package, including
+   `__init__.py`. Visit the complete AST so imports inside functions, methods,
+   classes, exception handlers, and runtime branches remain edges.
+
+2. **Treat `TYPE_CHECKING` guards according to runtime execution.** Imports
+   under a positive `if TYPE_CHECKING:` branch are runtime-inert, but its
+   `else` branch is live. For `if not TYPE_CHECKING:`, visit the body and skip
+   the `else`. Handle qualified spellings such as `typing.TYPE_CHECKING` if the
+   package uses them; synthetic tests should pin both polarities.
+
+3. **Resolve ordinary imports without losing package semantics.**
+   - Derive `pkg.subpkg` for `pkg/subpkg/__init__.py`, not
+     `pkg.subpkg.__init__`.
+   - Resolve `ImportFrom.level` relative to the importing module's package.
+   - For `from package import child`, keep the edge to `package` and, when
+     `package.child` exists in the scanned tree, also keep the child edge.
+   - Retain modules with no outgoing edges so the graph is complete and error
+     output is deterministic.
+
+4. **Model lazy exports as runtime dependencies.** Parse string-valued targets
+   from both assigned and annotated lazy-export dictionaries (for example,
+   `_LAZY_EXPORTS = {...}` and `_LAZY_EXPORTS: dict[str, str] = {...}`). Do not
+   mutate the production lazy map merely to simplify the checker.
+
+5. **Normalize only an intentional patch-facade component.** A package whose
+   `__init__.py` deliberately imports implementation children so callers can
+   patch package-level collaborators may be represented as one component.
+   Normalize every endpoint first, discard only edges that become internal to
+   that component, and retain all incoming and outgoing edges. Do not broadly
+   allowlist the package or delete its external dependencies.
+
+6. **Detect strongly connected components with an in-test Tarjan pass.** Avoid
+   adding a graph dependency for a small validation test. Report deterministic,
+   sorted multi-node components and singleton components only when they carry
+   a self-loop.
+
+   ```python
+   def runtime_cycles(graph: dict[str, set[str]]) -> list[tuple[str, ...]]:
+       """Return deterministic multi-node SCCs and singleton self-loops."""
+       # Standard Tarjan indices/lowlinks/stack implementation.
+       # Sort nodes and adjacency during traversal for stable failures.
+       ...
+   ```
+
+7. **Break cycles at the lowest shared behavior.** If several higher-level
+   modules need the same subprocess, repository-identity, cache, or reference
+   helpers, move only those low-level pieces into a dependency-neutral leaf.
+   Keep branch, commit, push, worktree, API, and policy behavior in their
+   existing higher-level owners. Add an AST leaf test that rejects any import
+   back into the product package, including relative imports.
+
+8. **Preserve compatibility with explicit identity re-exports.** The former
+   owner should import each moved helper explicitly and bind the same public
+   name. Pin both object identity and `inspect.signature`; wrapper functions
+   are not equivalent when downstream callers patch or introspect the original
+   object.
+
+   ```python
+   from .runtime_leaf import (
+       clear_caches as clear_caches,
+       get_repo_info as get_repo_info,
+       run as run,
+   )
+
+   assert compatibility_module.run is runtime_leaf.run
+   assert inspect.signature(compatibility_module.run) == inspect.signature(
+       runtime_leaf.run
+   )
+   ```
+
+9. **Make package-attribute dependencies explicit.** Replace imports such as
+   `from package import collaborator` or `from . import collaborator` with an
+   exact module import (`import package.collaborator as collaborator`). This
+   records the real edge, avoids relying on package initialization order, and
+   makes monkeypatch targets predictable.
+
+10. **Remove legacy fallbacks only after adapter parity is pinned.** Route the
+    behavior through the collaborator that already owns transport, scoping,
+    payload parsing, and mutations. Cover scoped and unscoped paths, exact
+    argument vectors, absence/presence of a repository selector, dry-run zero
+    I/O, malformed JSON, transport failures, wrong or conflicting state, and
+    exclusive readback failures. Patch the symbol where the adapter resolves
+    it, not an obsolete facade module that is no longer called.
+
+11. **Pin historical import-order repairs in subprocesses.** Test both module
+    orderings in fresh interpreters. Import smoke tests and the AST graph guard
+    protect different contracts: the former catches partially initialized
+    modules; the latter catches structural runtime cycles even when all import
+    orders currently happen to succeed.
+
+12. **Make synthetic tests prove the checker cannot miss hidden cycles.** At a
+    minimum, generate tiny temporary packages for:
+    - a function-local cycle;
+    - a child-to-ancestor cycle;
+    - a `from package import submodule` cycle;
+    - an assigned lazy-export-map cycle; and
+    - an annotated lazy-export-map cycle.
+
+13. **Isolate process-global caches in tests.** Clear repository-keyed caches
+    before and after every runtime-leaf test. Clearing only before a test lets a
+    failing test leak state into the next test during teardown or reruns.
+
+14. **Verify the change atomically.** Run the real graph and synthetic graph
+    tests first, then compatibility identity/signature tests, import-order
+    subprocesses, all direct consumers, adapter parity, architecture-boundary
+    suites, lint, and typing. If compatibility identity or scoped/unscoped
+    parity fails, restore the original import targets and fallback paths before
+    redesigning the seam; do not weaken the graph guard or add a cycle
+    allowlist.
+
+Proposed generic verification sequence:
+
+```bash
+<package-manager> pytest \
+  <runtime-graph-test> <runtime-leaf-tests> <compatibility-tests> \
+  <adapter-tests> <import-order-tests> <boundary-tests> --no-cov -q
+<package-manager> ruff check <changed-python-files>
+<package-manager> mypy <changed-python-files>
+```
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 |---------|----------------|---------------|----------------|
+| Treat a function-local import as structural cycle removal | Moved a child-to-parent import inside the calling function and declared the runtime graph acyclic | Python defers the lookup, so import order can succeed, but the child still depends on the parent whenever the function runs | Distinguish import-time initialization from runtime dependency structure; visit imports at every AST depth. `unverified` planning correction |
+| Scan only top-level imports | Built the graph from `tree.body` or a regex over module headers | Misses function-local, class-local, conditional, and exception-path edges, producing false acyclic results | Walk the complete AST, then suppress only branches proven runtime-inert. `unverified` |
+| Drop every `TYPE_CHECKING` conditional | Skipped the whole `if TYPE_CHECKING` node | Its `else` branch is live at runtime; negated guards invert which branch executes | Evaluate guard polarity and visit the runtime branch symmetrically. `unverified` |
+| Resolve `from package import child` only to the package | Added only the ancestor edge | Python may resolve a real child module, so a child cycle remains invisible | Keep the package edge and add the resolvable child edge. `unverified` |
+| Ignore lazy-export dictionaries | Modeled only `ast.Import` and `ast.ImportFrom` nodes | PEP 562 loaders turn string module targets into runtime dependencies; assigned and annotated maps can close a cycle | Parse both `Assign` and `AnnAssign` lazy-export maps without changing production maps. `unverified` |
+| Allowlist a facade package wholesale | Suppressed all edges touching an intentional package patch facade | This hides real incoming/outgoing cycles, not just intentional coupling among facade children | Normalize the facade and children to one component, then discard only normalized internal edges. `unverified` |
+| Move all Git behavior into the new leaf | Extracted branch, commit, push, worktree, and policy operations together with subprocess/identity helpers | The leaf stopped being dependency-neutral and accumulated higher-level reasons to change | Move only low-level execution, identity, caches, and formatting; leave orchestration with existing owners. `unverified` |
+| Preserve behavior with wrappers instead of re-exports | Reimplemented old public helpers as forwarding functions | Wrapper identity differs, signatures can drift, and existing patch targets may stop intercepting calls | Explicitly re-export the same objects and pin identity plus signature. `unverified` |
+| Patch the old fallback module in adapter tests | Monkeypatched the legacy facade after behavior moved into the transport owner | The adapter resolves a different symbol, so the test can pass without observing real calls or fail for the wrong reason | Patch at the lookup site and assert exact scoped/unscoped argument vectors. `unverified` |
 | Trust the issue's "in `__all__`" claim about the deprecated shim | Issue #1545 stated `retry_with_jitter` was exposed via `__all__`; planned the fix from that structural claim | The symbol is actually only in `_LAZY_IMPORTS`, not `__all__`. The fix seam (`__getattr__`) is the same either way, but the implementation differs slightly | Grep the named symbol against the source before trusting an issue's structural claim; don't assume `__all__` and `_LAZY_IMPORTS` always overlap. `verified-local` |
 | Assume the access-time warning duplicates the existing call-time warning | Considered "deduping" by relying on the function-body warning alone | Access-time (`hephaestus.X` binding) and call-time (`hephaestus.utils.X(...)`) are DIFFERENT access paths firing for different users; dropping either silently loses coverage | Keep both warnings — they are complementary layers, not duplicates. `verified-local` |
 | Write a one-shot warning-assertion test without resetting the cache | `with pytest.warns(DeprecationWarning): _ = hephaestus.retry_with_jitter` | PEP 562 caches the resolved name into module globals on first access; a prior test that touched the symbol means `__getattr__` never re-runs → false-negative / flaky | Call `module.__dict__.pop(name, None)` before asserting, to force a fresh `__getattr__` resolve. `verified-local` |
 | Treat the change as purely additive (new test only) | Planned to add a new warning-assertion test and leave existing tests alone | The existing test `test_retry_with_jitter_reachable_from_top_level_lazy_loader` explicitly documented and tolerated the silent lazy resolve; the new behavior contradicts that green test's documented contract | Grep for tests asserting the CURRENT (about-to-change) behavior; REWRITE the stale-tolerant one (don't just append a new test next to it). `verified-local` |
 | Change the behavior without touching the prose doc | Planned source + test edits only | `COMPATIBILITY.md` said the warning fires "when called"; a doc-cross-check test or reviewer catches the drift after access-time firing is added | Update the prose deprecation doc that describes the deprecation in the same PR. `verified-local` |
 | Assume `stacklevel=2` might be wrong for `__getattr__` indirection | Worried that attribute-lookup indirection might need a different stacklevel than the call-time warning | Not actually wrong — `stacklevel=2` IS correct. Call stack: user access line (frame 1) → `__getattr__` (frame 2) → `warnings.warn`. `stacklevel=2` skips `__getattr__` and correctly attributes the warning to the user's access line. Verified by `access_warnings[0].filename == __file__` assertion passing | `stacklevel=2` is correct for `__getattr__`. The attribute-lookup indirection has the same two-frame depth as a direct one-level helper call. `verified-local` |
-| Module-level child→parent import | `from hephaestus.logging.utils import get_current_correlation_id` at top of `helpers.py` | `CircularImportError`/`ImportError` at startup because `logging.utils` already imports `utils.helpers` | Any child-to-parent import at module level creates a cycle if the parent imports the child; use a function-local import |
+| Module-level child→parent import | `from hephaestus.logging.utils import get_current_correlation_id` at top of `helpers.py` | `CircularImportError`/`ImportError` at startup because `logging.utils` already imports `utils.helpers` | A function-local import can defer the import-time failure, but a structural acyclicity requirement needs a neutral leaf or inverted dependency. |
 | Thread correlation ID as a parameter | `run_subprocess(cmd, cid=None)` plumbed through the call chain | Intermediate functions must accept a param they never use; refactor becomes painful | Reserve parameters for true call-level args; use ambient context (contextvars) for ambient state |
 | Move the helper function to dodge the edge | Relocate `get_current_correlation_id()` into `utils` | Creates a god-module, couples `utils.helpers` to logging concerns, violates SRP | Move the import, not the function — keep it where it semantically belongs |
 | Eager-load new phase modules in `__init__.py` | `from .address_reviewer import AddressReviewer` directly | Defeats lazy loading, increases import time, breaks the established pattern | Use `_LAZY_EXPORTS` + `__getattr__` and add the module to `_PHASE_ENTRYPOINTS` |
@@ -606,10 +770,45 @@ PEP 562 pairs `__dir__` with `__getattr__` for discoverability. A package that d
 
 ## Results & Parameters
 
+### Runtime import-graph guard — proposed parameters
+
+| Parameter | Required behavior |
+|-----------|-------------------|
+| Module population | Every `**/*.py` under the target package, including `__init__.py` and modules with zero outgoing edges |
+| Runtime imports | `Import` and `ImportFrom` nodes at every AST depth |
+| Type-only branches | Skip positive `TYPE_CHECKING` bodies and negated-guard `else` branches; visit their runtime counterparts |
+| Imported children | Preserve the package edge and add the child edge when `package.child` resolves in the scanned population |
+| Lazy exports | Parse string module targets from assigned and annotated lazy-export dictionaries |
+| Facade normalization | Merge only named intentional facade components; preserve all external edges |
+| Cycle result | Sorted multi-node SCCs plus singleton self-loops |
+| Algorithm | In-test Tarjan implementation; no new runtime dependency |
+| Synthetic regressions | Function-local, child-to-ancestor, imported-submodule, assigned lazy export, annotated lazy export |
+| Compatibility pins | Re-export object identity and `inspect.signature` |
+| Import-order pins | Fresh subprocess for each historical ordering |
+| Cache isolation | Clear leaf-owned caches before and after each test |
+
+Expected failure shape before repair:
+
+```text
+runtime import graph contains cycles:
+- package.api -> package.manager -> package.runtime_helpers -> package.api
+```
+
+Expected state after repair:
+
+```text
+0 multi-node strongly connected components
+0 singleton self-loops
+```
+
+These values are proposed acceptance parameters, not observed results from the
+reviewed ProjectHephaestus plan.
+
 ### Function-local import — before/after and cost
 
 ```python
-# AFTER (acyclic): parent imports child at top-level (OK); child imports parent locally
+# AFTER (import-time deferred, but the runtime dependency remains):
+# parent imports child at top-level; child imports parent locally.
 # hephaestus/utils/helpers.py
 def run_subprocess(cmd):
     from hephaestus.logging.utils import get_current_correlation_id  # ✅ LOCAL
@@ -620,7 +819,7 @@ def run_subprocess(cmd):
 | Strategy | Circular Dep Risk | Startup Time | Per-Call Cost | Best For |
 |----------|------------------|--------------|---------------|----------|
 | Module-level | High (creates cycle) | Slower | O(1) cache | Non-circular dependencies |
-| Function-local | None | Faster | O(1) cache (after first ~3–5µs) | Ambient state, one-off imports |
+| Function-local | Structural edge remains; import-time failure may be avoided | Faster | O(1) cache (after first ~3–5µs) | Tactical import-time deferral when runtime cycles are permitted |
 | Parameter passing | None | Faster | O(1) | True call-level arguments |
 
 ### Lazy exports — expected test output
@@ -841,6 +1040,7 @@ Verified locally; CI confirmation pending on the originating PR.
 
 | Project | Context | Details |
 |---------|---------|---------|
+| ProjectHephaestus | Runtime module-graph acyclicity plan for `hephaestus.automation` | **PLAN ONLY / unverified** (section I). Reviewed design extracts shared Git execution/repository identity into a neutral leaf; retains explicit compatibility re-exports; removes adapter fallbacks only with scoped/unscoped parity and exclusive-readback tests; makes package-attribute imports explicit; and proposes an AST/Tarjan regression covering function-local, child-to-ancestor, imported-submodule, assigned lazy-export, and annotated lazy-export cycles. No implementation, local test, or CI evidence was produced in this `/learn` session. |
 | ProjectHephaestus | PR #633 — correlation_id propagation | Function-local import of `get_current_correlation_id` in `hephaestus/utils/helpers.py:170-172`; lint passes with no `noqa` |
 | ProjectHephaestus | Issue #799 / PR #988 — lazy-export add/add rebase conflict | Branch `799-auto-impl` widened `_LAZY_EXPORTS`/`__all__` in `hephaestus/automation/__init__.py`; main had already added the same `"PRReviewer"` entry via #968/#775 → PR read CI-failing but `mergeStateStatus=DIRTY` was the real blocker. Rebased onto origin/main (only `__init__.py` conflicted; `test_package_imports.py` rebased clean), kept ONE `"PRReviewer"` copy, set()-based surface tests ignored key order. Full suite 4136 passed / 19 skipped; pre-commit reflowed one f-string line; GPG-signed. **verified-local** |
 | ProjectHephaestus | Issue #775 / PR #968 — widen automation SDK surface | Exposed PlanReviewer, AddressReviewer, CIDriver (+Options) via `__all__`/`_LAZY_EXPORTS`/`_PHASE_ENTRYPOINTS`; surface-pinning test; 1081 automation tests pass |
