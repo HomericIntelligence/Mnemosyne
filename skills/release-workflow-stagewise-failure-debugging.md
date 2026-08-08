@@ -1,9 +1,9 @@
 ---
 name: release-workflow-stagewise-failure-debugging
-description: "A tag-triggered PyPI release workflow fails one job at a time — each fix only exposes the next latent bug, because a release is the first time the publish path actually runs end-to-end. Use when: (1) a release.yml / publish pipeline fails at type-check, test, publish-testpypi, or build-and-publish and you must fix stage-by-stage, (2) a fix you merged to main does NOT take effect in the release run — because resolve-release checks out the TAG's tree, not main's HEAD, so the fix must be AT the tagged commit (retag onto the fixed HEAD), (3) `uv run mypy` fails with 'Missing target module, package, files, or command' in the release but the required PR gate passes (the PR gate's pre-commit hook passes explicit targets), (4) tests fail on the release runner with 'No supported agent backend found on PATH' (claude/codex/pi) though they pass on dev/CI where an agent binary exists, (5) a PyPI/TestPyPI publish fails with `invalid-publisher: valid token, but no corresponding publisher` (a trusted-publisher config gap, not code), (6) deciding whether a TestPyPI staging gate earns its keep vs. having build-and-publish build its own dist."
+description: "A tag-triggered release workflow fails one job at a time — each fix only exposes the next latent bug, because a release is the first time the publish path actually runs end-to-end. Use when: (1) a release/publish pipeline fails at a verification or publish job and you must debug stage-by-stage, (2) a fix on the default branch does not take effect because the release checks out the tag's tree, (3) a release runner lacks a local-only dependency, (4) trusted publishing rejects a valid token, (5) deciding whether a staging gate earns its configuration cost, or (6) a tag-triggered deployment is rejected by an environment before any job step starts."
 category: ci-cd
-date: 2026-07-19
-version: "1.0.0"
+date: 2026-08-07
+version: "1.1.0"
 user-invocable: false
 verification: verified-ci
 tags:
@@ -20,6 +20,9 @@ tags:
   - agent-backend-on-path
   - conftest-stub
   - stagewise-failure
+  - environment-policy
+  - deployment-branch-policy
+  - tag-policy
   - homericintelligence
   - hephaestus
 ---
@@ -30,9 +33,9 @@ tags:
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-07-19 |
+| **Date** | 2026-08-07 |
 | **Objective** | Get a tag-triggered PyPI release (Hephaestus v0.10.0) to publish after it failed repeatedly, each time at a later job than the last. |
-| **Outcome** | Each stage-specific latent bug was fixed and verified by the release progressing to the next job: type-check → test → (removed) publish-testpypi → build-and-publish. The decisive insight was that the fixes had to be present AT THE TAGGED COMMIT, not merely on main. |
+| **Outcome** | Each stage-specific latent bug was fixed and verified by the release progressing to the next job. The decisive insight was that fixes must be present at the tagged commit, and environment authorization must match the ref type before a deployment can start. |
 | **Verification** | verified-ci (each fix was confirmed by the live release run clearing the previously-failing job; every fix was also reproduced/verified locally under the release's exact condition). |
 
 ## When to Use
@@ -115,6 +118,35 @@ Reusing a version is only safe if it was never published — confirm:
    the tag tree carries the fix.
 4. Re-run and watch the NEXT job — expect a new, later failure; repeat.
 
+### Pre-step environment-policy rejections
+
+A deployment job that fails before executing any step may have been rejected by
+the environment rather than the workflow code. Inspect the check-run annotations
+and the environment policy; job logs can be absent in this failure mode.
+
+Deployment patterns are typed: a branch rule with a matching glob does not
+authorize a tag-triggered workflow. Preserve existing restrictions, then add the
+smallest matching rule for the release tag convention and read it back before
+retrying.
+
+```bash
+OWNER_REPO="OWNER/REPO"
+ENVIRONMENT="environment-name"
+
+gh api "repos/$OWNER_REPO/environments/$ENVIRONMENT/deployment-branch-policies"
+gh api --method POST \
+  "repos/$OWNER_REPO/environments/$ENVIRONMENT/deployment-branch-policies" \
+  -f name='v*' \
+  -f type=tag
+gh api "repos/$OWNER_REPO/environments/$ENVIRONMENT/deployment-branch-policies" \
+  --jq '.branch_policies[] | {name, type}'
+gh run rerun <run-id> --failed --repo "$OWNER_REPO"
+```
+
+Only retry after readback proves that the intended `type: tag` policy exists.
+Do not disable selected deployment rules merely to make one release pass; retain
+the branch rules needed by ordinary or recovery workflows.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -124,6 +156,7 @@ Reusing a version is only safe if it was never published — confirm:
 | 3 | Assumed the repeated release failures were GitHub runner starvation (as an earlier phase genuinely was) | Runners had recovered; the failures were real latent bugs surfacing one stage at a time | Read the completed job log and reproduce locally before blaming infra. |
 | 4 | Tried to fix `invalid-publisher` in the workflow / retag | It is a PyPI ACCOUNT trusted-publisher config, not code or tag state — no repo change resolves it | Distinguish PyPI-side config gaps from code bugs; escalate account config to the project owner (or remove the gate that needs it). |
 | 5 | `git tag -d` / retag from the agent shell | Local safety nets block tag deletion | Hand the retag commands to the human; verify the target SHA carries every fix first. |
+| 6 | Added a version glob as a branch deployment rule, then retried a tag-triggered job | The pattern name matched, but the rule type did not match the workflow ref; the job was rejected before it started | Diagnose pre-step failures from annotations and add a least-privilege `type=tag` policy with readback before retrying. |
 
 ## Results & Parameters
 
@@ -139,6 +172,8 @@ Reusing a version is only safe if it was never published — confirm:
   (`pypi` / `testpypi`). `invalid-publisher` == no matching publisher.
 - **Job logs are only downloadable after the whole run completes**, not while a
   sibling job is still in progress.
+- **Environment deployment rules are ref-typed:** a release tag requires a
+  `type=tag` rule even when the same glob also appears in an allowed branch rule.
 
 ### Related skills (cross-links)
 
@@ -150,3 +185,4 @@ Reusing a version is only safe if it was never published — confirm:
   patterns (hatch-vcs versioning, PyPI publish steps).
 - `rebase-stale-automation-pr-onto-refactored-main` — the sibling "a fix must be
   present at the exact evaluated tree" theme for stale-base PR rebases.
+- [GitHub deployment environments](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments)
