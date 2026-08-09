@@ -1,13 +1,13 @@
 ---
 name: code-quality-enforcement-gates
-description: "Canonical guide to code-quality enforcement THRESHOLDS, remediation workflow, and post-audit verification: when to fail builds on complexity, when to enable mypy strict modes, when to promote warnings to errors, how to scope override subsets, deprecation removal policy, how to fix production asserts/hardcoded paths, how to run a post-remediation audit, how to verify audit/PR-reviewer findings against ground truth before acting, and how to verify a TRACKING/REMEDIATION DOC's checkbox state against live `gh issue view` before editing it, and how to keep human-facing DEPRECATION docs (COMPATIBILITY.md / MIGRATION.md) in sync with a function that emits a DeprecationWarning by mirroring an existing precedent symbol's annotation and guarding with a property-based offline regression test. Use when: (1) deciding fix-vs-suppress for a new lint rule, (2) enabling mypy check-untyped-defs or new ruff rules, (3) promoting CI warnings to exit-1, (4) tuning markdownlint MD024 / ruff C901 thresholds, (5) narrowing mypy module override globs to specific paths, (6) replacing production assert input-validation or hardcoded /tmp paths with safe equivalents, (7) executing a post-remediation audit to close remaining CI/classifier/release/docs gaps after an initial cleanup, (8) strict-mode repo audits or PR-reviewer sub-agents produce hallucinated findings (nonexistent files, phantom CI checks, red-on-main checks cited as PR blockers) — verify against live state before acting, (9) the task is 'fix stale checkboxes in a tracking/remediation markdown doc' — verify EVERY box against live `gh issue view` (the doc AND the bug report's own stale-list are not authoritative) before editing, and guard re-drift with a PROPERTY-based regression test, (10) a function is deprecated in CODE (emits DeprecationWarning) but COMPATIBILITY.md / docs/MIGRATION.md don't reflect it — mirror the ONE already-correctly-annotated precedent symbol's inline '(deprecated)' table annotation AND prose callout, copy its removal-timeline wording verbatim, and guard with a property-based OFFLINE regression test asserting 'emits DeprecationWarning ⇒ annotated in COMPATIBILITY.md AND listed in MIGRATION.md Deprecated-symbols section'; each insertion point (table row AND callout block) must be asserted INDEPENDENTLY by scoping to its own section — a global scan that returns on the first match leaves callout blocks unguarded, (11) writing a deprecation-doc-sync property test — scope EACH assertion to its own section of the markdown file (table row scope vs callout-block scope); a global scan + early return is silent green when any ONE section matches."
+description: "Canonical guide to code-quality enforcement THRESHOLDS, remediation workflow, and post-audit verification: when to fail builds on complexity, when to enable mypy strict modes, when to promote warnings to errors, how to scope override subsets, deprecation removal policy, how to fix production asserts/hardcoded paths, how to run a post-remediation audit, how to verify audit/PR-reviewer findings against ground truth before acting, how to verify tracking-doc checkboxes against live GitHub state, how to keep deprecation docs in sync with runtime warnings, and how to close mypy's omitted-`__init__`-return gap with targeted Ruff ANN204 plus an AST property guard. Use when: (1) deciding fix-vs-suppress for a new lint rule, (2) enabling mypy strictness or new Ruff rules, (3) promoting CI warnings to errors, (4) tuning lint thresholds, (5) narrowing mypy overrides, (6) fixing production asserts or hardcoded paths, (7) executing a post-remediation audit, (8) verifying audit/reviewer findings against live state, (9) correcting tracking-doc checkboxes, (10) synchronizing deprecation docs with code, (11) guarding multiple documentation insertion points independently, or (12) typed constructors still omit explicit `-> None` because mypy does not enforce that special-method return."
 category: ci-cd
-date: 2026-06-26
-version: "1.4.0"
+date: 2026-08-05
+version: "1.5.0"
 user-invocable: false
 verification: verified-local
 history: code-quality-enforcement-gates.history
-tags: [merged, code-quality, quality-gate, mypy, ruff, complexity-budget, deprecation, deprecation-doc-sync, compatibility-md, migration-md, property-based-test, offline-regression-guard, mirror-precedent-symbol, section-scoped-assertion, two-halves-test, post-remediation-audit, audit-verification, fact-checking, production-code-fixes, tracking-doc, remediation-plan, checkbox-drift]
+tags: [merged, code-quality, quality-gate, mypy, ruff, ann204, constructor-annotation, ast-regression-guard, targeted-lint-rule, complexity-budget, deprecation, deprecation-doc-sync, compatibility-md, migration-md, property-based-test, offline-regression-guard, mirror-precedent-symbol, section-scoped-assertion, two-halves-test, post-remediation-audit, audit-verification, fact-checking, production-code-fixes, tracking-doc, remediation-plan, checkbox-drift]
 ---
 
 # Code-Quality Enforcement Gates
@@ -16,9 +16,9 @@ tags: [merged, code-quality, quality-gate, mypy, ruff, complexity-budget, deprec
 
 | Field | Value |
 | ------- | ------- |
-| **Date** | 2026-06-07 |
-| **Objective** | Canonical reference for when and how to turn lint warnings into hard build failures, fix production code-quality issues, run a post-remediation audit, and verify audit/reviewer findings before acting |
-| **Outcome** | Merged from 11 skills — covers complexity thresholds, mypy strictness, deprecation enforcement, markdown rule tuning, override narrowing, regression-guard tests, production assert/path fixes, post-remediation auditing, and ground-truth verification of hallucinated findings |
+| **Date** | 2026-08-05 |
+| **Objective** | Canonical reference for turning code-quality policy into narrow, executable lint and regression-test gates, then verifying findings before acting |
+| **Outcome** | Covers complexity thresholds, mypy strictness and its constructor-return gap, targeted Ruff rules, deprecation enforcement, markdown rule tuning, regression guards, production fixes, post-remediation audits, and ground-truth verification |
 | **Scope** | ci-cd quality gates, remediation workflow, and audit verification — for hook wiring / pre-commit-config surface area see M1 (pre-commit-linting-hooks-config) |
 
 ## When to Use
@@ -37,6 +37,7 @@ tags: [merged, code-quality, quality-gate, mypy, ruff, complexity-budget, deprec
 12. **Planning a tracking/remediation-doc checkbox correction** — the task is "fix stale `- [ ]` / `- [x]` state in a remediation-plan / roadmap / status markdown doc": verify EVERY checkbox against live `gh issue view <n> --json state` before editing, then guard re-drift with a property-based regression test (see §11)
 13. **Annotating a code-deprecated symbol in human-facing deprecation docs** — a function emits `DeprecationWarning` but COMPATIBILITY.md / `docs/MIGRATION.md` don't reflect it: mirror the ONE precedent symbol already correctly annotated (inline `(deprecated)` table cell + a prose callout, removal-timeline wording copied verbatim), then guard with a property-based OFFLINE regression test (see §12)
 14. **Writing a doc-sync property test that guards multiple insertion points** — the task is "test that a deprecated symbol appears in BOTH the stable table AND the callout block of COMPATIBILITY.md": scope each assertion to its own section — never do a global scan and return early; a single `assert symbol in full_text and "(deprecated)" in full_text` silently passes even when the callout block is missing (see §12a)
+15. **Typed `__init__` methods still omit `-> None` under mypy** — inventory them with Ruff `ANN204`, add return annotations only, select that one rule instead of the whole `ANN` family, and guard both source and configuration with an AST regression test (see §2c)
 
 ---
 
@@ -49,6 +50,7 @@ tags: [merged, code-quality, quality-gate, mypy, ruff, complexity-budget, deprec
 | McCabe complexity | `ruff C901` + `max-complexity` in `pyproject.toml` | Accept ≤12; suppress >12 with rationale |
 | Mypy function bodies | `check_untyped_defs = true` in `[tool.mypy]` | Triage first: run flag manually, fix errors, then commit config |
 | Mypy strictness scope | `[[tool.mypy.overrides]]` module list | Replace broad glob with explicit list when subdir is clean |
+| Constructor returns | Ruff `ANN204` + AST property test | Add only `-> None`; select `ANN204`, not broad `ANN`, when unrelated annotation debt exists |
 | Deprecation warning → error | CI grep chain + `exit 1` | Count must be 0 before switching `::warning::` → `::error::` |
 | Markdown duplicate headings | `.markdownlint.yaml` `MD024.siblings_only: true` | Config-only; never rename Keep-a-Changelog headings |
 | Batch fix PR scope | 5–12 low-complexity issues, one PR | Read all files before editing; use Python scripts for 10+ bulk replacements |
@@ -179,6 +181,112 @@ disable_error_code = ["no-untyped-def"]
 ```
 
 Note: mypy `[[tool.mypy.overrides]]` accepts a `module` array as of mypy 0.930+.
+
+#### 2c. Close Mypy's `__init__` Return-Annotation Gap with Ruff ANN204
+
+> **Verification: unverified remediation.** ProjectHephaestus analysis on 2026-08-05 locally
+> confirmed exactly 10 missing constructor return annotations with both Ruff and AST. The proposed
+> annotations, configuration change, regression test, full lint/type checks, and CI were not run in
+> that session.
+
+`disallow_untyped_defs = true` does not guarantee an explicit return annotation on a typed
+`__init__`. Ruff's targeted `ANN204` rule covers this special-method gap without adopting the entire
+annotation family. Treat the cleanup as a no-runtime-behavior change: preserve every parameter and
+body, adding only `-> None`.
+
+1. **Inventory before editing.** Use the precise rule as the executable source of truth:
+
+   ```bash
+   <runner> ruff check --select ANN204 <package>/
+   ```
+
+   If an independent count is useful, parse source rather than regexing multi-line signatures:
+
+   ```python
+   import ast
+   from pathlib import Path
+
+   missing: list[str] = []
+   for path in sorted(Path("<package>").rglob("*.py")):
+       tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+       for node in ast.walk(tree):
+           if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+               if node.name == "__init__" and node.returns is None:
+                   missing.append(f"{path}:{node.lineno}")
+   ```
+
+2. **Add only explicit constructor returns.** Do not change parameters, initialization logic, or
+   public behavior:
+
+   ```python
+   class Example:
+       def __init__(self, value: str) -> None:
+           self.value = value
+   ```
+
+3. **Select only the rule that closes the observed gap.** First measure the broad family:
+
+   ```bash
+   <runner> ruff check --select ANN <package>/ --output-format concise
+   ```
+
+   If it reveals unrelated debt, add only `ANN204` to the existing selection:
+
+   ```toml
+   [tool.ruff.lint]
+   select = ["E", "F", "I", "ANN204", "RUF"]
+   ```
+
+   In the ProjectHephaestus baseline, broad `ANN` produced 10 `ANN204` findings plus 126 unrelated
+   `ANN401` findings. Selecting all of `ANN` would turn a focused constructor invariant into a large,
+   mixed-scope typing migration.
+
+4. **Reuse the existing lint path.** Confirm the repository's Ruff pre-commit hook already scans the
+   package and that required CI runs the hook suite. Rule selection in `pyproject.toml` then activates
+   enforcement without a duplicate hook or workflow job.
+
+5. **Guard both halves of the invariant.** Add a focused source-level AST test that fails when any
+   package constructor lacks the literal `-> None`, plus a configuration assertion that `ANN204`
+   remains selected:
+
+   ```python
+   import ast
+   import tomllib
+
+   def test_all_source_constructors_explicitly_return_none() -> None:
+       missing: list[str] = []
+       for path in sorted(SOURCE_ROOT.rglob("*.py")):
+           tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+           for node in ast.walk(tree):
+               if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                   continue
+               if node.name != "__init__":
+                   continue
+               returns_none = (
+                   isinstance(node.returns, ast.Constant)
+                   and node.returns.value is None
+               )
+               if not returns_none:
+                   missing.append(f"{path}:{node.lineno}")
+       assert missing == []
+
+   def test_ruff_enforces_special_method_return_annotations() -> None:
+       config = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
+       assert "ANN204" in config["tool"]["ruff"]["lint"]["select"]
+   ```
+
+   The AST assertion protects source even if hook wiring changes; the config assertion protects the
+   normal developer/CI lint path. Together they avoid a silent false green in either half.
+
+6. **Verify narrowly, then through the established gates:**
+
+   ```bash
+   <runner> pytest <constructor-annotation-test> -v
+   <runner> pre-commit run <ruff-hook-id> --all-files
+   <runner> mypy <package>/ scripts/ tests/
+   <runner> ruff check <package>/ scripts/ tests/
+   <runner> ruff format --check <package>/ scripts/ tests/
+   ```
 
 ---
 
@@ -843,6 +951,9 @@ a callout that is followed immediately by a table).
 | Testing for step property via `gh workflow run` | Live runtime check of step behavior | Too slow for pre-merge unit tests | Use static analysis: parse YAML structurally and check step text |
 | Enabling `check_untyped_defs` in config before triaging | Added flag to `pyproject.toml` first | Surprise failures in CI; no chance to fix before push | Always run the flag manually first, fix all errors, then commit config |
 | Broad `tests.unit.*` glob override as permanent state | One glob suppresses all unannotated test subdirs forever | Suppresses already-annotated subdirs; masks progress | Narrow to explicit list whenever a subdir is confirmed clean |
+| Relying on mypy alone for explicit constructor returns | Assumed `disallow_untyped_defs = true` rejects a typed `__init__` without `-> None` | Mypy permits the omitted special-method return, so constructors remain inconsistent while the type gate stays green | Add Ruff `ANN204` for this specific gap |
+| Selecting the entire Ruff `ANN` family for an ANN204 cleanup | Enabled broad `ANN` while trying to fix constructor returns only | Existing `ANN401` findings expanded a no-behavior-change cleanup into unrelated typing debt | Measure broad findings, then select only `ANN204` when that is the intended invariant |
+| Fixing current constructors without a two-part regression guard | Added `-> None` annotations but did not assert source coverage and Ruff configuration | Future omissions or removal of the rule could silently bypass one enforcement layer | Pair an AST property test with an `ANN204` configuration assertion |
 | Replacing production assert without updating tests | Swapped `assert` → `raise ValueError` and committed | A pre-existing test expecting `AssertionError` failed CI | After replacing asserts, `grep tests/ -rn AssertionError` and update each to `ValueError` |
 | `noqa: BLE001` on bare except | Added `# noqa: BLE001` to suppress the broad-except warning | `BLE001` was not in the project's ruff `select` → "unused noqa directive" error | Check `[tool.ruff.lint] select` before adding noqa codes; use a plain justifying comment when the rule isn't selected |
 | Relative `cd build/$$/...` in Bash | Used a relative path with shell PID `$$` | `$$` expanded to empty string in the tool invocation context | Always use absolute paths; capture `$$` into a variable first |
@@ -895,6 +1006,10 @@ disable_error_code = ["no-untyped-def"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 12                      # pragmatic threshold for orchestration code
+
+[tool.ruff.lint]
+# Add to the repository's existing selection; do not enable broad ANN unless its debt is in scope.
+select = ["E", "F", "I", "ANN204", "RUF"]
 ```
 
 ```yaml
@@ -934,3 +1049,4 @@ false-positive PR; post-remediation audit moved a repo 82% → 86% across 15 dim
 | HomericIntelligence (ecosystem) | ci-deprecation-enforcement (PR #834); testing-regression-guard sweep (PR #5385, #5387) |
 | ProjectProteus | verify-tracking-doc-checkboxes (§11, PLANNING-stage, unverified): remediation-plan checkbox correction — per-box `gh issue view` surfaced 2 extra stale entries (#92, #100) the issue body omitted; PR-group line semantics + property-regression-test plan. Test shape not yet implemented/CI-run |
 | ProjectHephaestus | deprecation-doc-sync (§12 + §12a, issue #1508, PR #1647, **verified-local**): annotated `get_config_value` as deprecated in COMPATIBILITY.md + `docs/MIGRATION.md` mirroring `retry_with_jitter`'s precedent (inline `(deprecated)` table annotation + prose callout). Property-based OFFLINE regression test implemented with TWO independently-scoped assertions (table row scope vs callout block scope) — each guarded separately after discovering the global-scan+early-return left the callout unguarded. Pre-commit (incl. markdownlint) + pytest green |
+| ProjectHephaestus | constructor-return annotations (§2c, planning-stage, **unverified remediation**): Ruff `ANN204` and an AST scan independently found exactly 10 missing `__init__ -> None` annotations; broad `ANN` also found 126 unrelated `ANN401` violations. The annotations, config activation, property test, full gates, and CI remain pending. |

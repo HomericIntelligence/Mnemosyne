@@ -1,9 +1,9 @@
 ---
 name: architecture-metaclass-threadlocal-thread-safety
-description: "Two complementary thread-safety shapes for shared Python state. (A) VERIFIED: make class-level attribute access thread-safe with a metaclass __getattr__ + threading.local() so each thread gets isolated state. (B) PROPOSED/plan-only: retrofit a module-global shared cache (set/dict) for a ThreadPoolExecutor by replacing it with a threading.Lock-guarded, repo-keyed dict — with the R1 (post-NOGO) resolution of its deepest risks. Use when: (1) a class uses mutable class attributes shared across threads, (2) you need per-thread enable/disable state while preserving the Class.ATTR access pattern, (3) a process-global cache (e.g. a gh label cache) is read/written unguarded from a multi-threaded coordinator and one thread's cache masks another's, (4) you are planning to key a shared cache per-repo and must decide between threading.local() and a lock-guarded keyed dict, (5) you need to reason about whether a per-key cache is a NO-OP under a shared-CWD thread pool where the real isolation comes from the lock, (6) a plan reviewer NOGO'd your shared-cache fix and you must RESOLVE the deepest risk (grep chdir, read the resolver's actual signature) instead of re-flagging it, (7) you must decide whether to fix the library vs the one multi-repo caller and want to avoid churning single-repo-per-process legacy callers that were never broken."
+description: "Thread-safe patterns for class-level access and shared caches, including a proposed terminal-color policy that layers process-wide NO_COLOR, force-color, CLICOLOR, and TTY detection beneath calling-thread overrides. Use when: (1) preserving Class.ATTR access, (2) adding accessible automatic CLI color, (3) testing TTY policy with PTYs, or (4) protecting shared caches under thread pools."
 category: architecture
-date: 2026-07-05
-version: "1.2.0"
+date: 2026-08-06
+version: "2.0.0"
 user-invocable: false
 verification: unverified
 history: architecture-metaclass-threadlocal-thread-safety.history
@@ -27,18 +27,27 @@ tags:
   - concurrency-boundary
   - python
   - immutable-state
+  - terminal-color
+  - no-color
+  - clicolor
+  - force-color
+  - tty
+  - pty
+  - curses
+  - ansi-accessibility
+  - shell-installer
 ---
 
-# Thread-Safe Shared State: Metaclass + threading.local() (verified) and Lock-Guarded Repo-Keyed Cache (proposed)
+# Thread-Safe Shared State and Automatic Terminal Color Policy
 
 ## Overview
 
 | Field | Value |
 | ------- | ------- |
-| **Date** | 2026-07-05 |
-| **Objective** | Capture two complementary thread-safety shapes: (A) per-thread isolated class state via metaclass + `threading.local()`; (B) shared-across-threads-but-keyed-per-repo cache via a `threading.Lock`-guarded dict |
-| **Outcome** | (A) Success — backward-compatible, thread-safe, 15 tests pass (verified-local). (B) Plan-only, now at its **R1 (post-NOGO) resolution** — the R0 design was graded **F / NOGO** and re-planned; the R1 pass RESOLVED the deepest risks with grep/read evidence rather than re-flagging them. Still NOT applied, NOT tested, CI NOT confirmed |
-| **Verification** | Mixed: pattern (A) is **verified-local** (see `## Verified Workflow`); pattern (B) is **unverified** / plan-only (see `## Proposed Workflow`). Top-level frontmatter is `unverified` because the newest material is unvalidated — do not treat pattern (B) as proven. The R1 risk RESOLUTIONS cite source `file:line` read this session, but the fix itself was never executed |
+| **Date** | 2026-08-06 |
+| **Objective** | Capture three related state-policy shapes: (A) verified per-thread class state via metaclass + `threading.local()`; (A2) proposed automatic terminal-color capability beneath explicit per-thread overrides; (B) proposed shared cache protection via a `threading.Lock`-guarded keyed dict |
+| **Outcome** | (A) Success — backward-compatible, thread-safe, 15 tests pass (verified-local). (A2) Architecture-first implementation plan completed with full Python, curses, Bash/PTY, and accessibility coverage specified, but no code or tests executed. (B) Plan-only R1 design with its deepest risks resolved from source evidence, but no implementation or tests. |
+| **Verification** | Mixed: only the original pattern (A) is **verified-local**. Patterns (A2) and (B) are **unverified** and live under `## Proposed Workflow`. Top-level frontmatter remains `unverified`; do not treat either proposed extension as proven until implementation and CI complete. |
 | **History** | [changelog](./architecture-metaclass-threadlocal-thread-safety.history) |
 
 ## When to Use
@@ -51,6 +60,17 @@ tags:
 - You want to preserve the **`Class.ATTR` access pattern** (no API change for consumers)
 - Python 3.10+ (no `__class_getattr__` available until 3.12)
 
+**Pattern (A2) — automatic terminal policy beneath explicit thread overrides (proposed):**
+
+- A public `Colors.ATTR` API already uses access-time metaclass lookup, but defaults to
+  color-on or requires every entry point to call an opt-in `auto()` method.
+- CLI output must honor `NO_COLOR`, `FORCE_COLOR`, `CLICOLOR_FORCE`, `CLICOLOR`, and
+  `stdout.isatty()` without losing calling-thread `enable()` / `disable()` isolation.
+- Python CLI output, a curses TUI, and a bootstrap shell installer must share one
+  documented precedence even though the installer runs before the Python package exists.
+- Tests must prove genuine TTY and non-TTY behavior and preserve status meaning after
+  ANSI codes are removed.
+
 **Pattern (B) — shared-but-repo-keyed cache under a thread pool (proposed / plan-only):**
 
 - A **module-global cache** (bare `set[str] | None`, or a `dict`) is read AND written **without a lock** and is now touched by a `ThreadPoolExecutor` (e.g. a pipeline coordinator running stages across repos)
@@ -61,7 +81,7 @@ tags:
 
 ## Verified Workflow
 
-> Pattern (A) below is **verified-local** (ProjectHephaestus issue #30 / PR #68, 15/15 tests, full suite 394/394). Pattern (B) is under `## Proposed Workflow` and is unverified.
+> Pattern (A) below is **verified-local** (ProjectHephaestus issue #30 / PR #68, 15/15 tests, full suite 394/394). Its original default-enabled behavior is historical. The recommended automatic terminal policy (A2) and shared-cache pattern (B) are under `## Proposed Workflow` and remain unverified.
 
 ### Quick Reference
 
@@ -100,7 +120,7 @@ class Colors(metaclass=_Meta):
 
 5. **Replace mutating methods**: `disable()` and `enable()` now just set `_state.enabled = False/True` instead of overwriting 9+ class attributes.
 
-6. **Default to enabled**: Use `getattr(_state, "enabled", True)` so new threads that haven't called `disable()` get colors by default.
+6. **Historical default**: The verified implementation used `getattr(_state, "enabled", True)` so new threads started enabled. For terminal styling, do not copy that default unchanged; use the proposed automatic environment/TTY policy below while keeping `_state` as the sole explicit-state owner.
 
 ### Why Metaclass (Not Other Approaches)
 
@@ -154,11 +174,113 @@ Use `threading.Barrier` to synchronize threads so the reader checks *after* the 
 
 ## Proposed Workflow
 
-> **Warning:** This workflow has not been validated end-to-end. It is a plan-only design
-> for a module-global shared-cache bug (ProjectHephaestus issue #1858). No code was
-> applied, no tests were run, and CI was not confirmed. Treat every step — and especially
-> the risks below — as a hypothesis until CI confirms it. Line numbers cited were read
-> once and will drift; **re-grep before relying on any coordinate.**
+> **Warning:** The workflows in this section have not been validated end-to-end. Pattern
+> (A2) is an implementation plan for automatic color policy, and pattern (B) is a design
+> for a module-global shared-cache bug. No proposed code was applied, no listed tests were
+> run, and CI was not confirmed. Treat each step as a hypothesis until CI confirms it.
+> Source coordinates were read once and will drift; **re-grep before relying on them.**
+
+### Pattern (A2): automatic terminal policy with thread-local explicit state
+
+The durable design is a **three-state per-thread override** layered over process-wide
+environment and stream capability. Keep `threading.local()` as the only owner of explicit
+state: `True` for `enable()`, `False` for `disable()`, and absence of the attribute for
+automatic mode. Evaluate the environment and `sys.stdout.isatty()` on every public color
+attribute access so all callers receive current policy without entry-point wiring.
+
+Use this precedence exactly:
+
+1. Calling-thread `enable()` or `disable()`.
+2. Non-empty `NO_COLOR` disables color (even the string `"0"`).
+3. Non-empty `FORCE_COLOR`, or non-empty/non-zero `CLICOLOR_FORCE`, forces color into a
+   non-TTY.
+4. `CLICOLOR=0` disables color.
+5. Otherwise use `sys.stdout.isatty()`; `CLICOLOR=1` permits normal TTY color but does not
+   force ANSI into a pipe.
+
+Empty values are ignored. `CLICOLOR_FORCE=0` does not force color. `auto()` deletes the
+calling thread's override instead of storing a third sentinel, restoring live evaluation.
+
+```python
+import os
+import sys
+import threading
+
+_state = threading.local()
+
+
+def _automatic_colors_enabled() -> bool:
+    if os.environ.get("NO_COLOR"):
+        return False
+    if os.environ.get("FORCE_COLOR"):
+        return True
+    clicolor_force = os.environ.get("CLICOLOR_FORCE")
+    if clicolor_force and clicolor_force != "0":
+        return True
+    if os.environ.get("CLICOLOR") == "0":
+        return False
+    return sys.stdout.isatty()
+
+
+class _ColorsMeta(type):
+    def __getattr__(cls, name: str) -> str:
+        if name in _CODES:
+            override = getattr(_state, "enabled", None)
+            enabled = _automatic_colors_enabled() if override is None else override
+            return _CODES[name] if enabled else ""
+        raise AttributeError(f"type object 'Colors' has no attribute {name!r}")
+
+
+class Colors(metaclass=_ColorsMeta):
+    @staticmethod
+    def disable() -> None:
+        _state.enabled = False
+
+    @staticmethod
+    def enable() -> None:
+        _state.enabled = True
+
+    @staticmethod
+    def auto() -> None:
+        if hasattr(_state, "enabled"):
+            del _state.enabled
+```
+
+#### Apply the policy at each real styling boundary
+
+1. **Discover emitters before editing.** Search literal ANSI escapes and curses color
+   pairs separately. In the ProjectHephaestus plan, `rg -n -F '\033[' hephaestus scripts`
+   found the Python `Colors` module and the bootstrap helper; curses pairs were confined
+   to `automation/curses_ui.py`. Unstyled entry points needed no edits.
+2. **Centralize Python behavior at access time.** This makes every existing `Colors.ATTR`
+   consumer automatic without changing each console script. Environment and TTY state are
+   process-wide inputs; only explicit overrides are thread-local.
+3. **Combine curses and shared policy once during initialization.** Cache
+   `curses.has_colors() and bool(Colors.ENDC)`, initialize pairs only when true, and use
+   the cached boolean during drawing. When disabled, use non-color attributes such as
+   `A_DIM`/`A_NORMAL` while retaining labels like `[idle]` and `failed`.
+4. **Mirror precedence in bootstrap Bash.** A shell installer sourced before package
+   installation cannot import Python policy. Evaluate the same environment/TTY order at
+   source time, assign ANSI variables only when enabled, and leave glyph/message helpers
+   structurally unchanged.
+5. **Document accessibility as a contract.** Styling may reinforce status, never encode
+   it. Tests should strip ANSI and assert the semantic text is identical.
+
+#### Test the policy without false seams
+
+- In Python tests, clear all four control variables and call `Colors.auto()` before and
+  after each test. Replace `sys.stdout` with a minimal object whose `isatty()` returns the
+  desired value; do not patch `isatty` on pytest's slotted capture wrapper.
+- Use `threading.Barrier` to prove one thread's explicit disable does not affect another
+  thread still following automatic TTY policy. Retain concurrent-read and mixed override
+  stress cases.
+- For Bash, run isolated subprocesses with ambient controls and the script's source guard
+  removed. Use a real POSIX PTY (`pty.openpty()`), not an `isatty` mock, for default TTY,
+  `CLICOLOR`, force precedence, and `NO_COLOR` precedence.
+- Assert semantic output after removing `\x1b\[[0-9;]*m`; JSON and other structured output
+  must remain independent of styling.
+
+### Pattern (B): lock-guarded shared cache under a thread pool
 
 ### The bug shape (module-global unguarded cache under a thread pool)
 
@@ -303,6 +425,12 @@ were never at risk untouched.**
 | --------- | ---------------- | --------------- | ---------------- |
 | `typing.Dict` import | Used `from typing import Dict` for type annotation | Ruff UP035/UP006 flags it as deprecated in 3.10+ | Use builtin `dict[str, str]` directly |
 | Import ordering | Put `from hephaestus... import Colors, _CODES, _state` | Ruff I001 wants underscore-prefixed names sorted first | Ruff sorts `_CODES` before `Colors` (leading underscore sorts before uppercase) |
+| Opt-in automatic color at selected entry points | Require each console script to call `Colors.auto()` before rendering | New and indirect `Colors` consumers can miss the call, leaving behavior inconsistent across CLI surfaces | Put environment/TTY evaluation in metaclass access so the public API enforces policy everywhere |
+| Treat `CLICOLOR=1` as a force switch | Emit ANSI whenever `CLICOLOR` is non-zero | This leaks control codes into pipes; `CLICOLOR=1` conventionally permits color but still follows terminal capability | Only `FORCE_COLOR` and non-zero `CLICOLOR_FORCE` bypass non-TTY detection |
+| Replace pytest capture's `isatty` method in place | Monkeypatch `sys.stdout.isatty` on pytest's slotted encoded stream | The capture object may reject attribute replacement, coupling the test to pytest internals | Replace `sys.stdout` itself with a minimal stream double |
+| Fix only the installed Python CLI | Apply automatic policy in `Colors` but leave the bootstrap shell helper unconditional | The installer executes before the Python package is available and remains a separate color emitter | Mirror the same precedence in the sourced Bash helper and cover it with subprocess + genuine PTY tests |
+| Re-check curses color capability on every draw | Call `curses.has_colors()` while rendering and ignore the shared CLI policy | `NO_COLOR` and force policy diverge from other CLI output, and repeated capability checks can change within one screen lifecycle | Cache `curses.has_colors() and bool(Colors.ENDC)` at curses initialization and render text meaningfully in both modes |
+| Encode status only through color | Remove styling without preserving labels, glyphs, or wording | Non-color terminals and users who cannot distinguish the colors lose the status meaning | Keep semantic text identical and test output with ANSI stripped |
 | `threading.local()` for a shared cache | (Plan-only, considered) Give each thread its own label cache to "avoid the lock" | `threading.local()` gives every thread an EMPTY cache — it defeats caching entirely and never shares a fetched label set across threads; wrong tool when the partition key is the repo, not the thread | If the partition key is anything other than "the thread," use a `threading.Lock`-guarded keyed `dict`, not `threading.local()` |
 | Repo-key a process-global cache under a shared-CWD pool | (Plan-only) Key `_label_cache` by `get_repo_info()` (current-dir repo) assuming it differs per worker thread | If all worker threads share one process CWD, the CWD-derived key does NOT vary per thread — the key is a no-op and only the lock isolates; the "per-repo cache" is illusory | Verify threads `chdir` per-repo before claiming the key isolates; if they share CWD, prefer making every path repo-SCOPED (`_gh --repo <slug>`) over keying a global cache |
 | Rely on the GIL for "mostly safe" bare dict writes | (Plan-only, tempting aside) Skip the lock because "CPython dict writes are atomic under the GIL" | Read-modify-write (`entry.add()`, get-then-set) is NOT atomic — a thread can be preempted between read and write, corrupting the shared dict | The `threading.Lock` is load-bearing; do mutation inside the lock and slow I/O outside it |
@@ -319,6 +447,18 @@ were never at risk untouched.**
   - `tests/unit/cli/test_colors.py`: Rewrote 5 existing tests, added 5 thread-safety tests (15 total)
 - **Test results**: 15/15 pass, 100% coverage on `colors.py`, full suite 394/394 pass
 - **PR**: HomericIntelligence/ProjectHephaestus#68
+
+**Pattern (A2) — unverified / plan-only (ProjectHephaestus loop-1950 context):**
+
+- **Proposed source scope**: `hephaestus/cli/colors.py`,
+  `hephaestus/automation/curses_ui.py`, `scripts/shell/lib/install_helpers.sh`, and
+  `COMPATIBILITY.md`.
+- **Proposed tests**: Python environment/TTY precedence and synchronized thread isolation;
+  curses policy initialization and color-independent worker labels; Bash subprocess and
+  genuine PTY coverage for the same precedence and accessible plain text.
+- **Static checks proposed**: focused pytest, Ruff, mypy, `bash -n`, and configured
+  ShellCheck validation.
+- **Status**: implementation was not applied, tests were not run, and CI was not observed.
 
 **Pattern (B) — unverified / plan-only (ProjectHephaestus issue #1858):**
 
@@ -337,4 +477,5 @@ were never at risk untouched.**
 | Project | Context | Details |
 | --------- | --------- | --------- |
 | ProjectHephaestus | Issue #30 — thread-safe Colors class (pattern A) | PR #68, all 394 tests pass (verified-local) |
+| ProjectHephaestus | loop-1950 — automatic terminal color policy (pattern A2) | Architecture-first plan only; no implementation, local test, or CI evidence yet |
 | ProjectHephaestus | Issue #1858 — module-global label-cache corruption under multithreaded coordinator (pattern B) | Plan-only; unverified, no PR yet. R0 plan graded F/NOGO → R1 re-plan resolved deepest risks with grep/read evidence (see `## Proposed Workflow` R1 resolution) |

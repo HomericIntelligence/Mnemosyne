@@ -1,11 +1,12 @@
 ---
 name: cli-json-flag-emitter-selection-status-vs-data
-description: "Planning heuristic for fixing a registered-but-ignored --json flag in a ProjectHephaestus hephaestus-* console script: classify the CLI as status-shaped vs data-shaped, then pick emit_json_status() for pass/fail CLIs or format_output(data, 'json') for data-returning CLIs. The deciding reference is add_json_arg's own docstring. Use when: (1) a hephaestus-* CLI registers --json via add_json_arg(parser) but main() never reads args.json (silent no-op / POLA violation), (2) planning which JSON emitter a CLI should call when honoring --json, (3) writing a behavioral test for a --json flag instead of a help-text-substring assertion."
+description: "Design safe JSON output for status- and data-shaped CLIs, including framework-owned envelope fields. Use when: (1) a registered --json flag is ignored, (2) choosing emit_json_status() versus format_output(data, 'json'), (3) preventing caller metadata from replacing status or exit_code, (4) writing behavioral JSON-output tests."
 category: tooling
-date: 2026-06-12
-version: "1.0.0"
+date: 2026-08-06
+version: "1.1.0"
 user-invocable: false
 verification: unverified
+history: cli-json-flag-emitter-selection-status-vs-data.history
 tags:
   - cli
   - json
@@ -15,6 +16,8 @@ tags:
   - silent-no-op
   - pola
   - planning-heuristic
+  - reserved-fields
+  - envelope-integrity
   - hephaestus
 ---
 
@@ -24,10 +27,11 @@ tags:
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-06-12 |
-| **Objective** | When planning a fix for a `--json` flag that is registered via `add_json_arg(parser)` but never read in `main()` (a silent no-op / POLA violation), choose the correct emitter by classifying the CLI as status-shaped vs data-shaped, and honor the flag at the terminal branch carrying the REAL exit code. |
-| **Outcome** | Planning heuristic captured for ProjectHephaestus issue #1217. This is a PLAN — no code was executed; CI has not run. |
+| **Date** | 2026-08-06 (v1.1.0; originally 2026-06-12) |
+| **Objective** | Choose the right JSON emitter, carry the real exit code, and keep framework-owned status-envelope fields authoritative while allowing non-reserved extensions. |
+| **Outcome** | Planning heuristics captured for ProjectHephaestus issues. The v1.1.0 reserved-field validation remains a plan; no implementation or CI was run in this session. |
 | **Verification** | unverified — proposed plan only; edits and tests not executed, CI not run |
+| **History** | [changelog](./cli-json-flag-emitter-selection-status-vs-data.history) |
 
 ## When to Use
 
@@ -36,6 +40,8 @@ tags:
 - Deciding whether a CLI's output is "status" (pass/fail) or "data" (a structured payload the caller consumes).
 - Writing a test for a newly honored `--json` flag — you want a behavioral test, not a help-text-substring assertion.
 - Reviewing a plan that proposes one emitter over the other and you need the deciding evidence rather than a guess.
+- A status emitter accepts arbitrary `**extra` metadata and those extensions must not overwrite framework-owned `status` or `exit_code` fields.
+- Tests need to prove invalid envelope metadata fails before anything is printed while ordinary extension fields remain supported.
 
 ## Verified Workflow
 
@@ -65,6 +71,27 @@ if args.json:
 # text path below stays byte-for-byte unchanged
 ```
 
+**Status-envelope ownership** — validate extensions before output:
+
+```python
+_JSON_STATUS_RESERVED_FIELDS = frozenset({"status", "exit_code"})
+
+def emit_json_status(exit_code: int, message: str | None = None, **extra: Any) -> None:
+    collisions = _JSON_STATUS_RESERVED_FIELDS.intersection(extra)
+    if collisions:
+        names = ", ".join(sorted(collisions))
+        raise ValueError(f"extra fields cannot replace reserved JSON fields: {names}")
+
+    envelope = {
+        "status": "ok" if exit_code == 0 else "error",
+        "exit_code": exit_code,
+    }
+    if message is not None:
+        envelope["message"] = message
+    envelope.update(extra)
+    print(json.dumps(envelope))
+```
+
 **Data-shaped CLI** (returns a structured payload the caller consumes) — use `format_output` (canonical sibling: `hephaestus/validation/stale_scripts.py:299-310`):
 
 ```python
@@ -84,6 +111,8 @@ if args.json:
 5. **Mind the output shape difference.** `emit_json_status` uses `json.dumps(envelope)` (compact); `format_output(data, "json")` uses `json.dumps(data, indent=2)` (pretty). Tests must match whichever emitter you chose.
 6. **Avoid serializing null-valued keys.** `emit_json_status` does `envelope.update(extra)`, so passing `remediation=None` serializes as `"remediation": null`. Prefer building `extra` conditionally (`{"remediation": r} if has_drift else {}`) and omit the key when absent.
 7. **Add a BEHAVIORAL unit test**, not a help-text assertion: call `main(["--json"])` and `json.loads(capsys.readouterr().out)`, then assert on `status` / `exit_code` / payload keys. A `--help` substring check does NOT prove the flag is honored.
+8. **Reserve framework-owned envelope keys before merging metadata.** Compute the intersection with `extra` before constructing or printing output. Reject `status` explicitly with `ValueError`; Python's signature already rejects a duplicate `exit_code` supplied through `**extra` with `TypeError`. Preserve arbitrary non-reserved fields.
+9. **Assert failure is output-atomic.** Both collision tests should confirm captured stdout is empty, and the compatibility test should still prove a field such as `details` is serialized.
 
 ## Failed Attempts
 
@@ -94,6 +123,7 @@ if args.json:
 | Assuming the `--write --json` interaction without checking | Plan assumed `has_drift = bool(drift) and not args.write` is correct because drift is never appended in write mode | The mutually-exclusive `--check`/`--write` group defaults `--check=True`, so `args.write` is the real signal. The "drift only appended in the `else` branch" claim was true *by reading lines 158-167*, not by running the code. | When a guard depends on control flow, state explicitly that it was verified by inspection, not execution, and flag it for the implementer to confirm at GREEN. |
 | Relying on exact line numbers as durable facts | Plan pinned line numbers (19 for `add_json_arg(parser)`, 152, 156-175, 168-175) read at plan time | Line numbers are the primary external facts the plan relies on; if the file changes before implementation they drift and the plan misleads. | Anchor on symbol names and docstring contracts (stable) rather than raw line numbers (volatile). Re-locate by symbol at implementation time. |
 | Writing a help-text-substring test | Considered asserting `"--json" in main(["--help"])` output to "test" the flag | A `--help` substring only proves the flag is *registered* (it already was — that's the bug). It does NOT prove `main()` honors it. The original bug had the flag registered and ignored. | Write a BEHAVIORAL test: `main(["--json"])` + `json.loads(capsys.readouterr().out)`, asserting on `status`/`exit_code`/payload. Match the emitter's output shape (compact vs indent=2). |
+| Merge caller metadata without reserving envelope keys | Called `envelope.update(extra)` after deriving `status` from the exit code | A reachable `status` extra can make a successful exit claim error or vice versa, so machine-readable status no longer reflects the framework-owned exit code | Reject reserved keys before output and keep non-reserved extensions compatible; test that collision failures print nothing |
 
 ## Results & Parameters
 
@@ -126,8 +156,27 @@ def test_main_json_emits_status_envelope(capsys):
 
 unverified — this is a plan for ProjectHephaestus issue #1217. No edits applied, no tests run, no CI. The line numbers and the `args.write`/drift control-flow assumption were established by reading the file at plan time, not by execution.
 
+### Proposed reserved-field regression tests
+
+```python
+def test_status_extra_cannot_replace_reserved_field(capsys) -> None:
+    with pytest.raises(ValueError, match="status"):
+        emit_json_status(0, **{"status": "error"})
+    assert capsys.readouterr().out == ""
+
+def test_exit_code_cannot_be_supplied_as_extra(capsys) -> None:
+    with pytest.raises(TypeError):
+        emit_json_status(0, **{"exit_code": 99})
+    assert capsys.readouterr().out == ""
+```
+
+Keep an existing extra-field test as the compatibility guard. The proposed
+reserved-field change was source-reviewed on 2026-08-06 but not implemented or
+executed.
+
 ## Verified On
 
 | Project | Context | Details |
 |---------|---------|---------|
 | ProjectHephaestus | Issue #1217 — implementation PLAN (not executed) | Planning heuristic for the registered-but-ignored `--json` flag fix: status-vs-data emitter selection (`emit_json_status` vs `format_output`), deciding reference `hephaestus/cli/utils.py:131-139`, sibling `hephaestus/validation/stale_scripts.py:299-310`, behavioral-test-over-help-text rule. Verification: unverified. |
+| ProjectHephaestus | CLI boundary-hardening plan — protect `status` and `exit_code` envelope ownership | unverified plan, 2026-08-06 |

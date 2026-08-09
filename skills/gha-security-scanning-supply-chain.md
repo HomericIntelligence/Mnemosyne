@@ -1,9 +1,9 @@
 ---
 name: gha-security-scanning-supply-chain
-description: "Use when: (1) adding CodeQL SAST to TypeScript/JavaScript workflows or Semgrep/Gitleaks to any PR pipeline, (2) CI security scans only trigger on push to main — not PRs — and need promotion to PR gates, (3) Gitleaks SARIF parsing uses grep instead of jq causing always-fail required checks, (4) enforcing pinned SHA-based action versions instead of mutable tags, (5) auditing or porting curl|bash installers with SHA-256 verification, (6) a GHA job fails at 'Set up job' due to unresolved transitive action dependency, (7) a selected-action policy rejects a newly pinned action before any job starts, (8) adding Bandit SAST as a required CI check for Python/pixi projects, (9) triaging and remediating CodeQL PR alerts when gh reports a check-run id instead of a workflow run id, (10) planning a SARIF -> GitHub Code Scanning (Security tab) upload via upload-sarif (gitleaks/trivy/codeql) and need a planning-stage verification checklist."
+description: "Use when: (1) adding CodeQL SAST to TypeScript/JavaScript workflows or Semgrep/Gitleaks to any PR pipeline, (2) CI security scans only trigger on push to main — not PRs — and need promotion to PR gates, (3) Gitleaks SARIF parsing uses grep instead of jq causing always-fail required checks, (4) enforcing pinned SHA-based action versions instead of mutable tags, (5) auditing or porting curl|bash installers with SHA-256 verification, (6) a GHA job fails at 'Set up job' due to unresolved transitive action dependency, (7) adding Bandit SAST as a required CI check for Python/pixi projects, (8) triaging and remediating CodeQL PR alerts when gh reports a check-run id instead of a workflow run id, (9) planning a SARIF -> GitHub Code Scanning (Security tab) upload via upload-sarif (gitleaks/trivy/codeql) and need a planning-stage verification checklist, (10) maintaining an allowlisted Bandit LOW-severity baseline that must fail closed on regressions, reductions, malformed JSON, or unreviewed updates, (11) extending zizmor coverage from workflows to tracked composite Actions without losing command parity, pinning, or least-privilege audits."
 category: ci-cd
-date: 2026-06-19
-version: "1.5.0"
+date: 2026-08-07
+version: "1.6.1"
 user-invocable: false
 history: gha-security-scanning-supply-chain.history
 verification: verified-local
@@ -39,6 +39,15 @@ tags:
   - if-always
   - least-privilege
   - planning
+  - bandit-baseline
+  - baseline-drift
+  - fail-closed
+  - duplicate-json-keys
+  - atomic-write
+  - review-reference
+  - zizmor
+  - composite-actions
+  - regression-testing
 ---
 
 # GitHub Actions Security Scanning and Supply-Chain Hardening
@@ -47,10 +56,10 @@ tags:
 
 | Field | Value |
 |-------|-------|
-| Date | 2026-06-19 |
-| Objective | Set up security scanning (CodeQL/Semgrep/Gitleaks SAST + secrets + Bandit Python SAST), harden CI supply-chain (action SHA pinning, dependency scanning), and pin/verify curl\|bash installers with SHA-256 |
-| Outcome | Consolidated guidance for security gate setup, scan-trigger gaps, SARIF parsing fixes, action SHA pinning and admission diagnosis, transitive-pin diagnosis, installer trust-model hardening, Bandit SAST integration for Python/pixi projects, CodeQL PR alert remediation, and planning-stage verification for SARIF -> GitHub Code Scanning (Security tab) uploads via `upload-sarif` |
-| Verification | verified-local |
+| Date | 2026-08-07 |
+| Objective | Set up security scanning (CodeQL/Semgrep/Gitleaks/zizmor SAST + secrets + Bandit Python SAST), harden CI supply-chain (action SHA pinning, dependency scanning), and pin/verify curl\|bash installers with SHA-256 |
+| Outcome | Consolidated guidance for security gate setup, scan-trigger gaps, SARIF parsing fixes, action SHA pinning, transitive-pin diagnosis, installer hardening, Bandit integration and LOW-baseline maintenance, CodeQL remediation, SARIF upload planning, and proposed deterministic zizmor coverage for workflows plus tracked composite Actions |
+| Verification | verified-local for established workflows; the Bandit LOW-baseline and zizmor composite-coverage amendments are unverified and explicitly proposed |
 
 ## When to Use
 
@@ -62,7 +71,6 @@ tags:
 - GitHub Actions `uses:` references use mutable tags (`@v8`, `@v0.9.4`) instead of pinned commit SHAs
 - A Dockerfile/workflow installs tools via unverifiable `curl|sh`, npm, or pixi without a version pin
 - A GHA job fails at "Set up job" with `Unable to resolve action` for a transitive dependency you do not reference
-- A workflow reports `startup_failure` with zero jobs or step logs immediately after adding an immutable action pin
 - Adding `curl|bash` installers, or porting/hardening existing ones with SHA-256 verification and multi-platform support
 - Adding automated dependency vulnerability scanning (pip-audit/npm audit + Dependabot)
 - Isolating `security-events: write` permission from base required checks
@@ -75,6 +83,13 @@ tags:
 - Planning a change that uploads a scanner's SARIF output (gitleaks/trivy/codeql) to the GitHub
   Code Scanning (Security) tab via `github/codeql-action/upload-sarif`, especially when the scan
   step fails the build on findings (`--exit-code 1`)
+- Maintaining a reviewed Bandit LOW-severity count baseline where increases are regressions,
+  reductions are stale entries, malformed data must fail closed, and updates require an issue or
+  pull-request reference
+- Extending a zizmor gate from `.github/workflows/` to composite Actions while keeping required CI,
+  local pre-commit, and scheduled security scans aligned
+- Adding regression tests that inventory every tracked composite Action repository-wide, detect
+  scan-root or trigger drift, and behaviorally prove pinning and least-privilege audits stay active
 
 ## Verified Workflow
 
@@ -83,6 +98,13 @@ tags:
 ```bash
 # Audit unpinned action refs (search ALL of .github/, not just workflows/)
 grep -rn "uses:.*@v[0-9]" .github/
+
+# Required CI and pre-commit: exact offline command parity after shlex.split()
+uv run zizmor --no-online-audits --min-severity medium \
+  .github/workflows/ .github/actions/
+
+# Scheduled security scan: preserve online audits while targeting the same roots
+uv run zizmor --min-severity medium .github/workflows/ .github/actions/
 
 # Resolve action tag to commit SHA (handle lightweight + annotated tags)
 RESULT=$(gh api repos/OWNER/REPO/git/ref/tags/vX.Y.Z --jq '.object | {sha,type}')
@@ -103,6 +125,12 @@ gh api "repos/<owner>/<repo>/check-runs/<check_run_id>" \
   --jq '{name,conclusion,details_url,html_url}'
 gh api "repos/<owner>/<repo>/check-runs/<check_run_id>/annotations" --paginate
 gh api "repos/<owner>/<repo>/code-scanning/alerts?pr=<pr>&tool_name=CodeQL" --paginate
+
+# Generate a LOW report without letting Bandit's finding status skip the custom policy checker
+uv run bandit -c pyproject.toml -r <targets> \
+  --severity-level low --exit-zero -f json -o build/bandit_low.json
+uv run python <baseline-checker>.py \
+  build/bandit_low.json <baseline>.json
 ```
 
 ### Detailed Steps
@@ -395,6 +423,75 @@ uses: prefix-dev/setup-pixi@a0af7a228712d6121d37aba47adf55c1332c9c2e  # v0.9.4
 Use `sed -i` (not the Edit tool) for workflow edits — pre-commit security hooks block interactive
 edits of `.github/workflows/*.yml`.
 
+### Proposed Workflow: Extend zizmor to tracked composite Actions
+
+> **Warning:** This workflow has not been validated end-to-end. Treat it as a hypothesis until the
+> configuration tests, real two-root scan, local hook, and CI all pass.
+
+Composite Actions are executable GitHub Actions definitions, so a workflow-only zizmor target
+leaves a real supply-chain surface unscanned. Extend the existing scanner entry points instead of
+adding another scanner or abstraction:
+
+1. Define the two production roots once in regression tests:
+   `(".github/workflows/", ".github/actions/")`.
+2. Require required CI and the local pre-commit hook to have identical tokenized commands after
+   `shlex.split()`: `uv run zizmor --no-online-audits --min-severity medium` followed by both roots.
+   Keep `pass_filenames: false`, so a change in either root runs the complete scan.
+3. Use a pre-commit trigger such as `^\.github/(workflows|actions)/.*\.ya?ml$` so Action manifests
+   trigger the same full scan as workflows.
+4. Give the weekly security job the same roots and severity but omit `--no-online-audits`; the
+   scheduled job preserves API-backed audits while the required PR gate stays deterministic and
+   network-free.
+5. Inventory canonical tracked Action manifests repository-wide using fixed-argv
+   `git ls-files`, select files named `action.yml` or `action.yaml`, parse YAML, and classify only
+   manifests with `runs.using: composite`. Do not inventory only configured roots: that would make
+   the regression test confirm the scanner's own blind spot.
+6. Subtract only deliberate non-production fixtures from the production inventory. Assert every
+   allowlisted path is tracked, parses as composite, and exactly equals the composite manifests in
+   the fixture directory; this prevents stale or misclassified exemptions.
+7. Assert each production composite manifest starts with a configured scan root and matches the
+   pre-commit `files` regex. These tests make a future Action outside the roots, or trigger drift,
+   fail deterministically.
+8. Behaviorally exercise the project-managed zizmor executable adjacent to `sys.executable` with
+   fixed trusted arguments, fixture YAML on stdin, a disposable working directory, and `env={}`:
+
+   ```python
+   completed = subprocess.run(
+       [
+           str(Path(sys.executable).with_name("zizmor")),
+           "--offline",
+           "--no-config",
+           "--no-ignores",
+           "--min-severity",
+           "medium",
+           "--format=json-v1",
+           "-",
+       ],
+       cwd=tmp_path,
+       env={},
+       input=fixture.read_text(encoding="utf-8"),
+       capture_output=True,
+       text=True,
+       check=False,
+   )
+   assert completed.returncode in {11, 12, 13, 14}
+   ```
+
+   An unsafe workflow fixture should report `unpinned-uses` and `excessive-permissions`; an unsafe
+   composite Action fixture should report `unpinned-uses`. Keep least-privilege permission checks at
+   the workflow boundary because composite Actions inherit token permissions from their callers.
+9. Preserve a separate full-SHA regression assertion for a real composite Action dependency. The
+   scanner fixture proves the rule is active; the production assertion proves the actual reference
+   remains immutable.
+10. Run the real two-root offline scan after changing configuration. Remediate valid findings without
+    narrowing roots, lowering severity, or disabling audits. Any necessary suppression should be
+    line-scoped, rule-specific, and justified.
+
+Do not set `ZIZMOR_OFFLINE=1` for isolated fixture scans. Use the explicit `--offline` flag; the
+environment variable value is rejected by zizmor 1.28's boolean parser. `--no-config`,
+`--no-ignores`, `env={}`, stdin input, and a disposable cwd also prevent ambient credentials or
+configuration from changing the observed audit IDs.
+
 #### E. Diagnose transitive action-pin failures
 
 When a job fails at "Set up job" with `Unable to resolve action <action>@<ver>` and that action is
@@ -408,26 +505,7 @@ curl -fsSL "https://raw.githubusercontent.com/aquasecurity/trivy-action/v0.30.0/
 `action.yml`; after 2 failures drop the step, open a tracking issue, move on. Do NOT mask with
 `continue-on-error: true`.
 
-#### F. Diagnose selected-action admission failures
-
-When a workflow reports `startup_failure` before it creates any jobs or step logs, inspect action
-admission policy before debugging the workflow body. This commonly happens when a newly added,
-SHA-pinned action is not allowed by a selected-action policy.
-
-1. Read the repository action policy and determine whether it allows all actions, a curated set, or
-   only selected immutable references.
-2. If the policy is selected-only, verify that the exact immutable reference in the workflow is
-   already allowed. A matching tag, publisher, or major version is not equivalent.
-3. Treat a policy expansion as a security change: obtain explicit authorization, preserve every
-   existing entry, add only the audited exact reference, and read the policy back to verify the
-   resulting allowlist.
-4. Trigger a fresh run after the policy update. Pre-job admission failures often cannot be retried;
-   only after a new run starts should normal job-level diagnosis continue.
-
-Do not broaden the policy to all third-party actions, replace an immutable pin with a mutable tag,
-or weaken security scanning to make the workflow start.
-
-#### G. Add dependency scanning (pip-audit + Dependabot, pixi projects)
+#### F. Add dependency scanning (pip-audit + Dependabot, pixi projects)
 
 ```yaml
 # .github/dependabot.yml  (zero CI-minutes; runs on GitHub infra)
@@ -446,7 +524,7 @@ pip-audit = ">=2.7"
 
 Use a `pixi-lint-*` cache key so lint and dev caches do not collide.
 
-#### H. Pin and verify curl|bash installers (SHA-256, multi-platform)
+#### G. Pin and verify curl|bash installers (SHA-256, multi-platform)
 
 Reference implementation — pin versions + verify SHA-256 + portable platform/sha detection:
 
@@ -552,13 +630,141 @@ Key decisions:
 When adding a new package under `src/<name>/`, also update the `-r` target in the `bandit` task in
 `pixi.toml` and the `files:` regex in `.pre-commit-config.yaml`.
 
-#### J. Security code review with false-positive filtering
+#### H. Security code review with false-positive filtering
 
 Two-phase agents: Phase 1 (single agent) lists candidates with confidence 1-10, surfacing only ≥7
 and excluding DoS/secrets-on-disk/rate-limiting/memory-safety/test-only/regex-injection. Phase 2
 (one agent per finding) validates real exploitability from untrusted input. Report only confidence
 ≥8 AND TRUE POSITIVE; otherwise output `No security vulnerabilities identified above the confidence
 threshold.`
+
+## Proposed Workflow: Fail-Closed Bandit LOW Baselines
+
+> **Warning:** This workflow has not been validated end-to-end. Treat it as a hypothesis until
+> focused tests, workflow validation, and CI confirm the implementation.
+
+Use this pattern only when a project deliberately tracks LOW-severity Bandit findings instead of
+gating directly on Bandit's generic finding exit status. The baseline is reviewed policy data, not
+a cache: normal comparison is read-only, every count mismatch fails, and updates are explicit.
+
+### Quick Reference
+
+```bash
+# Generate a complete report; ordinary findings must not stop the policy checker.
+mkdir -p build
+uv run bandit -c pyproject.toml -r <targets> \
+  --severity-level low --exit-zero -f json -o build/bandit_low.json
+
+# Read-only comparison: 0 synchronized, 1 regression/stale drift, 2 invalid input.
+uv run python <baseline-checker>.py \
+  build/bandit_low.json <baseline>.json
+
+# Deliberate update after security review, followed by confirmation.
+uv run python <baseline-checker>.py \
+  build/bandit_low.json <baseline>.json \
+  --update-baseline --review-reference "issue #NNNN"
+uv run python <baseline-checker>.py \
+  build/bandit_low.json <baseline>.json
+```
+
+### Detailed Steps
+
+1. **Keep one baseline owner and compare the union of IDs.** Aggregate LOW findings by Bandit
+   `test_id`, then iterate `sorted(current.keys() | baseline.keys())`. Comparing only observed IDs
+   detects additions and increases but silently misses reductions and removals. Classify
+   `current > baseline` as `REGRESSION:` and `current < baseline` as `STALE BASELINE:`; both are
+   policy drift and must return exit 1.
+
+   ```python
+   def diff_against_baseline(
+       current: dict[str, int], baseline: dict[str, int]
+   ) -> list[str]:
+       problems: list[str] = []
+       for test_id in sorted(current.keys() | baseline.keys()):
+           current_count = current.get(test_id, 0)
+           baseline_count = baseline.get(test_id, 0)
+           if current_count > baseline_count:
+               reason = "is new" if baseline_count == 0 else "count increased"
+               problems.append(
+                   f"REGRESSION: {test_id} {reason} "
+                   f"({baseline_count} -> {current_count})"
+               )
+           elif current_count < baseline_count:
+               reason = (
+                   "is no longer observed"
+                   if current_count == 0
+                   else "count decreased"
+               )
+               problems.append(
+                   f"STALE BASELINE: {test_id} {reason} "
+                   f"({baseline_count} -> {current_count})"
+               )
+       return problems
+   ```
+
+2. **Reject ambiguous JSON before schema validation.** Load with `object_pairs_hook` so duplicate
+   names in any JSON object raise an error instead of silently taking the last value. Duplicate
+   report *findings* remain valid list entries and are accumulated with `Counter`; duplicate object
+   keys are malformed input.
+
+   ```python
+   def reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+       result: dict[str, Any] = {}
+       for key, value in pairs:
+           if key in result:
+               raise ValueError(f"duplicate JSON key: {key}")
+           result[key] = value
+       return result
+
+   document = json.loads(text, object_pairs_hook=reject_duplicate_keys)
+   ```
+
+3. **Validate both documents strictly.** Require a top-level object. The Bandit report must have a
+   `results` list whose entries are objects with non-empty string `test_id` and
+   `issue_severity` fields. The baseline must retain its existing schema—a non-empty
+   `generated_by`, `severity: "LOW"`, and a `counts` object. Each baseline key must be a non-empty
+   string and each count a positive integer; explicitly reject `bool`, because Python treats it as
+   an `int` subclass.
+
+4. **Separate policy drift from untrustworthy input.** Use a stable CLI contract: exit 0 for a
+   synchronized comparison or successful deliberate update, exit 1 for any regression or stale
+   entry, and exit 2 for unreadable JSON, duplicate keys, or invalid report/baseline structure.
+   Keep the exported comparison function's `list[str]` return type if callers already depend on it;
+   classification prefixes add meaning without forcing a public API migration.
+
+5. **Make updates explicit, reviewed, canonical, and atomic.** Normal mode never writes. Require
+   `--update-baseline --review-reference "<issue-or-PR>"` as a pair; reject either flag alone.
+   Validate the report before touching the baseline, write the unchanged schema with sorted counts,
+   and use the project's atomic safe-write helper with backups disabled when version control is the
+   rollback mechanism. Never normalize a mismatch automatically in CI.
+
+   ```json
+   {
+     "generated_by": "issue #NNNN",
+     "severity": "LOW",
+     "counts": {
+       "B311": 1,
+       "B607": 2
+     }
+   }
+   ```
+
+6. **Let the custom checker own LOW-baseline policy.** Pass Bandit's supported `--exit-zero` flag
+   on this report-producing invocation so Bandit writes the JSON and the checker always runs. This
+   does not weaken the separate medium-or-higher scan. Give the LOW step an `id`, report both step
+   outcomes in the job summary, and add a workflow-structure test asserting `--exit-zero`, checker
+   invocation, and summary wiring remain together.
+
+7. **Test the state matrix, not only examples.** Cover equality; new, increased, decreased, and
+   missing IDs; duplicate LOW findings; duplicate JSON keys; missing and wrong-shaped report fields;
+   invalid baseline severity, provenance, keys, and counts; unreadable inputs; classified output;
+   all three exit-code classes; paired update flags; deterministic count order; and a successful
+   update followed by a clean comparison. Also assert normal comparison never rewrites the baseline.
+
+8. **Document review, update, confirmation, and rollback.** The runbook must tell maintainers to
+   generate the report, inspect every changed finding, record review in an issue or PR, run the
+   guarded update, and rerun comparison. Rollback is the reviewed JSON revert plus another
+   comparison; no workflow path owns an automatic update.
 
 ## Failed Attempts
 
@@ -591,7 +797,6 @@ threshold.`
 | Pixi task with embedded args + extra CLI args | `bandit = "bandit -ll --ini .bandit -r src/telemachy"` invoked as `pixi run bandit -f json -o bandit.json` | Arg doubling: `bandit: error: unrecognized arguments: src/telemachy` | Use `pixi run python -m bandit -ll --ini .bandit -r src/<pkg>` for invocations that need extra flags; keep pixi task as a bare entry point or omit extra flags at call site |
 | Pre-emptive skip of B101 in `.bandit` | Added `skips = B101` before any asserts existed in `src/` | YAGNI — adds a suppression rule with zero benefit; flagged in review | Start `.bandit` with no `skips`; only add suppressions when an actual finding requires it |
 | `actions/upload-artifact@v7` | Pinned upload artifact action to `@v7` | Tag `v7` does not exist on GitHub.com (latest is v4/v5); workflow fails at "Set up job" | Pin to full SHA for v5.0.0: `actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0`; verify tags with `gh api repos/actions/upload-artifact/git/refs/tags/v5.0.0 -q '.object.sha'` |
-| Added a pinned action without checking the selected-action policy | Updated a workflow with a new immutable action reference | The platform rejected the workflow before creating jobs because the reference was not explicitly allowed | Read the action policy first; after explicit authorization, add only the exact audited reference, preserve existing entries, and read back the policy before triggering a fresh run |
 | Global `.bandit` skip for false positive | Widened `skips = B108` for a single hardcoded `/tmp` default | Suppresses B108 globally across all files; any future real hardcoded path would be silently missed | Use inline `# nosec B108 — ephemeral agent working directory` at the specific site only |
 | Treating a CodeQL check-run id as a workflow run id | Ran `gh run view <check_run_id>` from the value shown by `gh pr checks` | The id belonged to a check-run, so the workflow-run API did not expose the alert details | Use `gh api repos/<owner>/<repo>/check-runs/<check_run_id>` and the matching annotations/alerts APIs |
 | Hash replacement without data classification | Replaced MD5 mechanically without deciding whether the material was a tracking id or a password/secret | SHA-256 is acceptable for non-secret salted IDs under SHA-2 policy, but not for low-entropy secrets | Classify the data first: SHA-256 for salted non-secret identifiers, password hashing/KDF for secrets |
@@ -599,8 +804,36 @@ threshold.`
 | Omitting `if: always()` on upload-sarif when scan uses `--exit-code 1` | Added an `upload-sarif` step after a gitleaks step that exits 1 on findings, with no `if:` guard | The scan step fails the job on findings, so the upload step is SKIPPED exactly when there ARE findings — the Security tab silently receives nothing | Always use `if: always() && hashFiles('<file>.sarif') != ''` on the upload-sarif step so findings reach the tab even when the scan fails the build |
 | Elevating `security-events: write` workflow-wide | Set `security-events: write` at the top-level workflow `permissions` instead of on the scan job | The scan job runs untrusted repo content, so workflow-wide elevation leaks the write scope to every other job | Scope `security-events: write` per-job on the scan job only; mirror an existing least-privilege job in the same repo as the pattern source |
 | Mutable `@v3` tag for codeql-action upload-sarif | Pinned `github/codeql-action/upload-sarif@v3` instead of reusing the repo's existing pinned SHA | Reintroduces a floating-version supply-chain risk and creates a second, divergent codeql-action reference in the same repo | Reuse the exact `codeql-action` SHA already pinned elsewhere in the repo (e.g. its `init`/`analyze` steps); verify with `gh api repos/github/codeql-action/git/refs/tags/<tag> -q '.object.sha'` |
+| Compared only observed Bandit IDs | Iterated `current.items()` and checked only new or increased counts | A removed finding disappears from `current`, so a stale baseline entry is invisible and can persist indefinitely | Compare the sorted union of current and baseline IDs; fail on both directions of drift |
+| Let Bandit's LOW finding exit status own the workflow step | Ran Bandit and the custom checker sequentially without `--exit-zero` | Bandit can stop the shell before the policy checker reads the completed report, so the generic scanner status bypasses the reviewed-baseline contract | Use Bandit's supported `--exit-zero` for this report-producing invocation and let the custom checker decide baseline acceptability |
+| Parsed baseline JSON with default duplicate-key behavior | Used plain `json.loads()` | Duplicate object keys silently overwrite earlier values, making malformed policy data appear valid | Use `object_pairs_hook` to reject duplicate keys before validating the schema |
+| Accepted any integer-like baseline count | Checked only `isinstance(count, int)` or allowed zero/negative counts | Booleans pass an ordinary integer check in Python, and non-positive entries encode findings that should instead be absent | Reject `bool` explicitly and require every stored count to be a positive integer |
+| Updated the baseline automatically on mismatch | Rewrote counts from the latest report during CI or ordinary comparison | A regression can normalize itself into future green runs without security review | Keep comparison read-only; require explicit update mode plus a non-empty issue/PR review reference |
+| Wrote the baseline directly | Truncated and rewrote the JSON file in place | An interrupted write can leave the security policy unreadable or partially updated | Validate first, serialize deterministically, then use an atomic safe-write helper |
+| Used one nonzero exit for drift and invalid input | Returned exit 1 for mismatches, missing files, and malformed JSON | CI and operators cannot distinguish a reviewed-policy mismatch from an untrustworthy scanner result | Reserve 1 for regression/stale drift and 2 for malformed or unreadable input |
+| Workflow-only zizmor target | Scanned only `.github/workflows/` | Tracked composite Actions can contain external `uses:` references and remain outside the SAST gate | Target both `.github/workflows/` and `.github/actions/` in required CI, pre-commit, and the weekly scan |
+| Inventory derived from configured roots | Enumerated Action manifests only under `.github/actions/` | A future tracked production Action outside that root is invisible to both the scanner and its regression test | Inventory canonical `action.yml`/`action.yaml` manifests repository-wide with fixed-argv `git ls-files`, then assert production composites fall under scan roots |
+| `ZIZMOR_OFFLINE=1` in fixture subprocesses | Tried to force offline mode through an environment value | zizmor 1.28 rejects the value during boolean parsing, and inherited environment/config can make results nondeterministic | Use explicit `--offline --no-config --no-ignores`, `env={}`, stdin, and a disposable cwd |
+| Unchecked fixture exemption | Allowlisted a deliberately unsafe composite Action by path only | The exemption can become stale, untracked, or cease to be composite without failing tests | Assert every allowlist entry is tracked and composite, and exactly matches composite manifests in the fixture directory |
+| Composite-level permission assertion | Expected a composite manifest to declare least-privilege token permissions | Composite Actions inherit permissions from callers; the declaration belongs to the workflow | Test `excessive-permissions` with a workflow fixture while testing `unpinned-uses` with both workflow and composite fixtures |
 
 ## Results & Parameters
+
+### Proposed zizmor workflow and composite-Action contract
+
+| Setting | Value | Reason |
+|---------|-------|--------|
+| Required/pre-commit flags | `--no-online-audits --min-severity medium` | Deterministic network-free PR gate |
+| Required/pre-commit targets | `.github/workflows/ .github/actions/` | Scan workflows and composite Actions with exact argv parity |
+| Scheduled flags | `--min-severity medium` | Preserve API-backed online audits weekly |
+| Pre-commit trigger | `^\.github/(workflows\|actions)/.*\.ya?ml$` | Either surface runs the complete scan |
+| Inventory source | Fixed-argv `git ls-files` | Detect tracked Action manifests anywhere in the repository |
+| Canonical manifests | Basename `action.yml` or `action.yaml` with `runs.using: composite` | Avoid extension/path assumptions while classifying only composites |
+| Fixture isolation | adjacent executable, stdin, `--offline --no-config --no-ignores`, `env={}`, temporary cwd | Exclude ambient credentials, config, ignores, and path inference |
+| Finding exit codes | `11`, `12`, `13`, or `14` | Findings are expected in deliberately unsafe fixtures |
+| Composite fixture audit | `unpinned-uses` | Proves external-action pinning stays active in composite manifests |
+| Workflow fixture audits | `unpinned-uses`, `excessive-permissions` | Proves pinning and workflow least privilege stay active |
+| Verification | unverified | Proposed from a reviewed implementation design; local execution and CI are pending |
 
 ### Gitleaks version reference
 
@@ -662,7 +895,7 @@ just   v1.36.0 linux-x86_64:   bc7c9f377944f8de9cd0418b11d2955adebfa25a488c0b5e3
 
 | Setting | Value | Reason |
 |---------|-------|--------|
-| Severity threshold | `-ll` (medium+) | Low-severity findings are noise in most projects |
+| Severity threshold | `-ll` (medium+) | Direct finding gate for actionable severity; use the reviewed-baseline pattern below if LOW findings are tracked |
 | Report format (CI) | `-f json -o bandit.json` | Machine-readable; upload as artifact; parseable on pass AND fail |
 | INI file | `--ini .bandit` | Centralizes config; scoped to project `targets` + `skips` |
 | Initial `skips` list | *(empty)* | YAGNI — only add when a real finding requires suppression |
@@ -671,6 +904,23 @@ just   v1.36.0 linux-x86_64:   bc7c9f377944f8de9cd0418b11d2955adebfa25a488c0b5e3
 | Pixi invocation (extra flags) | `pixi run python -m bandit -ll --ini .bandit -r src/<pkg>` | Use when adding `-f`, `-o`, or other flags beyond the task default |
 | Artifact upload condition | `if: always() && hashFiles('bandit.json') != ''` | Preserves triage data on both pass and fail |
 | Artifact retention | `retention-days: 90` | Sufficient for triage; keeps storage low |
+
+### Bandit LOW-baseline contract (proposed)
+
+| Concern | Contract |
+|---------|----------|
+| Comparison domain | Sorted union of observed and baseline `test_id` keys |
+| Regression | New ID or count increase; prefix `REGRESSION:`; exit 1 |
+| Stale baseline | Removed ID or count decrease; prefix `STALE BASELINE:`; exit 1 |
+| Clean comparison | Exact count equality; exit 0 |
+| Invalid input | Unreadable/malformed JSON, duplicate keys, or invalid schema; exit 2 |
+| Duplicate findings | Valid report list entries; accumulate with `Counter` |
+| Duplicate object keys | Invalid JSON policy input; reject via `object_pairs_hook` |
+| Baseline schema | Non-empty `generated_by`, `severity: "LOW"`, positive integer `counts` |
+| Update authorization | Explicit `--update-baseline` plus non-empty `--review-reference` |
+| Update write | Validate report first; sorted counts; atomic replacement; no CI auto-update |
+| Report generation | Bandit `--exit-zero` so the custom checker always decides baseline policy |
+| Rollback | Revert the reviewed baseline JSON change and rerun comparison |
 
 ### jq command reference (SARIF)
 
@@ -705,3 +955,5 @@ jq '[.runs[].results[].ruleId] | unique' results.sarif # rule IDs
 | ProjectTelemachy | Issue #157 — Bandit SAST as required CI check (pixi project, `_required.yml`) | verified-local (2026-06-19) |
 | Sanitized PR session | CodeQL weak hashing + command injection remediation after a rebase | verified-ci (2026-06-19): CodeQL and validate gates green |
 | ProjectAgamemnon | Issue #269 — plan to upload gitleaks SARIF to the Code Scanning tab in `_required.yml` | verified-local (2026-06-19): plan-only — workflow read directly, NOT run through actionlint/CI; planning-stage `upload-sarif` checklist captured |
+| ProjectHephaestus | Plan for strict Bandit LOW-baseline drift detection and review-referenced updates | unverified (2026-08-06): implementation and CI were not executed; proposed contract captured for future validation |
+| ProjectHephaestus | Proposed zizmor coverage for workflows plus tracked composite Actions | unverified (2026-08-07): reviewed design only; implementation, real scan, local hook, and CI pending |

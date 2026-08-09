@@ -1,0 +1,147 @@
+# comet-cli-offline-review-evidence-reporting — History
+
+## v1.1.0 (2026-08-05)
+
+**Changed by:** User-observed Comet dashboard incident reporting session.
+**Verification:** verified-local
+
+### What changed
+
+- Extended the skill from local CLI review evidence to bounded reporting of user-observed dashboard incidents.
+- Added the shared `from=now-24h&to=now&timezone=browser` failure across GPU, history, and gateway views as a single incident-reporting pattern.
+- Added an explicit distinction between user-supplied URLs/payloads and independently fetched or source-validated evidence.
+- Added the likely query-contract mismatch as a hypothesis only, with frontend timestamp conversion and backend relative-time parsing as alternative remediation paths.
+- Recorded the duplicate search, issue #540, and the follow-up gateway comment as verification evidence.
+
+### Why
+
+The prior skill covered confirmed CLI defects found through local source review and offline tests,
+but did not explain how to accurately turn a user-reported multi-view dashboard outage into one
+actionable issue when dashboard access and cluster commands are explicitly out of scope. Identical
+query parameters and validation failures across related views should be consolidated without
+overclaiming an unverified root cause or a direct production reproduction.
+
+### Previous version (v1.0.0) snapshot
+
+---
+name: comet-cli-offline-review-evidence-reporting
+description: "Review Comet CLI behavior without cluster access, validate only local/offline paths, and report confirmed defects with bounded evidence. Use when: (1) reviewing comet or comet-admin commands in a workstation-only environment, (2) a CLI issue must be filed without exercising Slurm, gateways, or databases, (3) local validation is complete but the full test suite has no reliable terminal result."
+category: testing
+date: 2026-08-05
+version: "1.0.0"
+user-invocable: false
+verification: verified-local
+tags: [comet, cli, offline, code-review, no-cluster, issue-reporting, pytest]
+---
+
+# Offline Comet CLI Review and Evidence Reporting
+
+## Overview
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-05 |
+| **Objective** | Review Comet's user and operator CLI surfaces without issuing cluster, database, or gateway operations. |
+| **Outcome** | Four confirmed defects were reported individually after local source review and offline validation. |
+| **Verification** | verified-local — local help, focused tests, lint, formatting, and type checks passed; CI and a completed full suite were not observed. |
+
+## When to Use
+
+- Reviewing `comet` or `comet-admin` while Slurm, a Comet gateway, or a production database is intentionally out of scope.
+- Validating the help tree and CLI handlers with `typer.testing.CliRunner` or tests explicitly labelled offline, no-DB, and no-Slurm.
+- Investigating command construction, backend-selection logic, transport-error presentation, or filesystem-derived identifiers without starting a service.
+- Filing a small set of independently actionable CLI bugs and needing each issue to contain reproducible local evidence and a concrete remedy.
+- A full test invocation starts or collects successfully but does not produce a reliable final result; partial evidence must not become a full-suite claim.
+
+## Verified Workflow
+
+> **Verification:** verified locally only; CI validation is pending. The review ran no cluster commands and did not start, submit to, or query Slurm, a gateway, or a database.
+
+### Quick Reference
+
+```bash
+# Work from the Comet checkout. These help paths were exercised locally.
+uv run comet --help
+uv run comet-admin --help
+uv run comet logs --help
+uv run comet-admin keys --help
+
+# The dedicated CLI test module documents its offline contract at its header.
+uv run pytest tests/test_cli.py -q
+
+# Local static quality gates.
+uv run ruff check .
+uv run ruff format --check .
+uv run ty check
+
+# Collection proves test discovery only; it does not prove the full suite passed.
+uv run pytest --collect-only -q
+```
+
+### Detailed Steps
+
+1. **Set an explicit non-live boundary.** Do not invoke lifecycle, allocation, submit, gateway, deployment, or operational subcommands. Restrict execution to help output, source inspection, and tests whose fixtures mock external effects. Keep database and gateway credentials out of the review environment.
+2. **Map the command surface before testing behavior.** Inspect the Typer application registrations and group callbacks in `src/comet/cli/main.py` and `src/comet/cli/admin.py`. Exercise root and relevant group `--help` paths so missing registrations and malformed option declarations are caught without making a live request.
+3. **Find the local contract.** Prefer `tests/test_cli.py`, whose module docstring explicitly identifies offline, no-DB, no-Slurm coverage. Inspect fixtures to confirm that filesystem roots, Slurm lookups, and HTTP calls are supplied by temporary paths or mocks before relying on a test as non-live.
+4. **Review side-effect boundaries statically.** Trace each suspect command from argument parsing through command construction and backend selection. Check subprocess argv lists, environment-variable branches, local snapshot fallbacks, HTTP exception boundaries, and record-file naming instead of executing the corresponding operational command.
+5. **Use deterministic local failures for error paths.** When a command should handle a transport failure, test it with a `CliRunner`, a mocked client, or an unreachable loopback endpoint. Assert the exit code and concise user-facing message. Never depend on a real gateway just to see an error path.
+6. **Run the focused CLI suite and record the exact result.** In this review, `tests/test_cli.py` passed with 41 tests. Preserve the command and count in the report; do not extrapolate this result to unrelated integration paths.
+7. **Run static gates separately.** Run Ruff lint, Ruff format-check, and Ty. In this review all three passed. A formatter check and a linter check answer different questions, so report both rather than shortening the result to “Ruff passed.”
+8. **Separate collection from execution.** The full test suite collected 831 tests, but its run did not yield a reliable final result. Report collection as discovery evidence only and label full-suite status unknown or incomplete. Do not write “all tests pass.”
+9. **Confirm each finding twice before filing.** Pair the responsible source path and exact faulty branch with a local behavioral reproduction or a collision pair. For a candidate issue, state the affected command, expected versus observed behavior, user impact, minimal safe reproduction, recommended fix, and a regression-test target.
+10. **Search for duplicates before creating issues.** Search the repository issue tracker by command name, source symbol, and symptom. If no existing issue owns the defect, create one issue per independent fix. Do not bundle unrelated commands merely because they were found in one review; separate ownership, tests, and closure criteria make remediation tractable.
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+|---------|----------------|---------------|----------------|
+| Treating help output as functional proof | Loaded the command help tree and assumed every handler was sound | Help validates registration and parsing, not downstream argv construction, state selection, or exception handling | Combine help smoke coverage with focused behavioral tests and source-level path tracing |
+| Calling the full suite passing after collection | The suite collected 831 tests, but no reliable final execution result returned | Collection does not execute assertions, and an interrupted or unreported run is not a pass | Report `831 collected` and leave full-suite status unknown or incomplete |
+| Using live infrastructure for integration confidence | Considered exercising gateway, database, and Slurm-backed commands directly | That would violate the no-cluster scope and make failures depend on external state | Use offline fixtures, mocks, temporary files, and deterministic loopback failures instead |
+| Assuming endpoint text makes a unique filename | Replaced URL punctuation with dashes for external-worker protection records | Distinct URLs such as `http://gpu-1:30000` and `http://gpu-1-30000` collapse to the same path | Include a stable digest of the complete endpoint in the filename and test collision pairs |
+| Letting raw HTTP client failures escape | Exercised a local unreachable endpoint through `smoke` and `whoami` | Users receive a library traceback rather than an actionable CLI error | Catch transport exceptions at the command boundary and print a concise nonzero failure message |
+
+## Results & Parameters
+
+### Local validation evidence
+
+| Check | Observed result | Interpretation |
+|-------|-----------------|----------------|
+| `comet` and `comet-admin` help tree | Loaded locally, including relevant command groups | CLI registration and help rendering work for the reviewed surface |
+| Focused offline CLI suite | `41 passed` | Strong local evidence for `tests/test_cli.py`; not a repository-wide pass |
+| Ruff lint and format check | Passed | Source linting and formatting were clean in the review environment |
+| Ty type check | Passed | Static type checking was clean in the review environment |
+| Full-suite collection | `831 collected` | Test discovery succeeded; execution outcome was not established |
+| Cluster operations | None run | Slurm, gateway, and database state were deliberately not touched |
+
+### Confirmed findings and recommended fixes
+
+| Issue | Evidence and impact | Recommended solution |
+|-------|---------------------|----------------------|
+| LLM360/comet#512 — `comet logs --follow` | The follow path builds `tail -f 100 <file>`, so `100` is interpreted as a filename rather than a line count. Follow mode is unusable. | Build argv with an explicit count option, for example `tail -n 100 -f <file>`, and add a regression test asserting the exact argv. |
+| LLM360/comet#513 — `comet-admin keys list` ignores DB mode | Listing always reads the local key snapshot, even when `COMET_DB_DSN` selects the database backend. Database-created or revoked keys can be absent or stale. | Choose the database-backed list path when the DSN is configured; retain the snapshot only as the explicit offline fallback and test both modes. |
+| LLM360/comet#514 — `smoke` and `whoami` leak transport tracebacks | A local connection failure lets raw `httpx` details reach the terminal rather than a CLI-level diagnostic. | Catch the appropriate HTTP transport exception at each command boundary, emit a concise actionable error, return nonzero, and test the unreachable-client path. |
+| LLM360/comet#515 — external-worker records can collide | URL sanitization maps distinct endpoints to the same record filename, allowing one worker's protection state to overwrite another's and making supervisor pruning unsafe. | Derive the record name from a readable prefix plus a stable full-URL digest; test known collision pairs and preserve or migrate existing records deliberately. |
+
+### Issue-reporting template
+
+Use this minimum structure for each independently actionable defect:
+
+1. **Scope:** command, source symbol, and source path.
+2. **Observed behavior:** a short local reproduction or static argv/state trace.
+3. **Expected behavior and impact:** why the current behavior breaks an operator or risks an unsafe action.
+4. **Recommended remediation:** the smallest coherent code change, including compatibility considerations.
+5. **Acceptance criteria:** a focused regression test plus the relevant offline quality checks.
+6. **Validation boundary:** name what was run and explicitly name omitted live systems and incomplete suites.
+
+## Verified On
+
+| Project | Context | Details |
+|---------|---------|---------|
+| LLM360/Comet | Local CLI review on 2026-08-05 | No cluster commands; 41 focused CLI tests passed; Ruff and Ty passed; 831 tests collected but no full-suite pass was claimed; issues #512 through #515 were filed separately. |
+
+---
+
+## v1.0.0 (2026-08-05)
+
+**Initial version.**

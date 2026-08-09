@@ -1,146 +1,144 @@
 ---
 name: pip-audit-policy-file-over-inline-ignores
-description: "Route a task-runner audit recipe (just/pixi/make 'audit') through the repo's configured suppression-policy mechanism — a severity-filter CLI reading a policy file (e.g. pip-audit --format json | hephaestus-filter-audit + .pip-audit-ignore.txt) — instead of raw pip-audit with inline --ignore-vuln flags. Use when: (1) an audit finding says 'just audit runs raw pip-audit rather than the configured/Pixi task carrying the suppression policy', (2) the same advisory ID is hardcoded as --ignore-vuln in multiple places (justfile + CI workflows), (3) an issue references tooling that no longer exists after a build-system migration (Pixi→uv) and you must map 'the configured policy' to the current mechanism via git log -S, (4) carrying an inline suppression into a policy file — first run the scanner live to check the advisory still fires (pip advisories stop firing under uv because uv envs omit pip), (5) deciding whether to widen the fix to CI — switching CI from fail-on-any-vuln raw pip-audit to a HIGH/CRITICAL-only filter WEAKENS the gate and needs its own issue, (6) adding a repo-root policy file — first grep unit tests for default-path lookups that could flip."
-category: tooling
-date: 2026-07-17
-version: "1.0.0"
-verification: verified-local
-tags: [pip-audit, suppression-policy, ignore-vuln, justfile, uv-migration, severity-filter, security-scanning, stale-tooling-reference]
+description: "Enforce one uv-only, fail-closed pip-audit path whose sole suppression authority is an exact repository-root ledger. Use when: (1) CI, hooks, or task runners invoke pip-audit differently, (2) native --ignore-vuln flags or alternate ledgers bypass review, (3) scanner status can contradict JSON evidence, or (4) stale suppressions must fail rather than disappear silently."
+category: ci-cd
+date: 2026-08-07
+version: "2.0.0"
+user-invocable: false
+verification: unverified
+history: pip-audit-policy-file-over-inline-ignores.history
+tags: [pip-audit, uv, suppression-ledger, fail-closed, dependency-scanning, ci-policy, structural-tests]
 ---
 
-# Route Task-Runner Audit Recipes Through the Policy-File Filter, Not Inline `--ignore-vuln`
+# Enforce One Fail-Closed pip-audit Path
 
 ## Overview
 
 | Field | Value |
-|-------|-------|
-| **Date** | 2026-07-17 |
-| **Objective** | Plan the fix for ProjectHephaestus issue #2167: `just audit` ran raw `uv run pip-audit --ignore-vuln PYSEC-2025-183` instead of the repository's configured audit policy (`hephaestus-filter-audit` + `.pip-audit-ignore.txt`) |
-| **Outcome** | Implementation plan posted to #2167: pipe `pip-audit --format json` into the filter CLI, move the suppression into a commented `.pip-audit-ignore.txt`, add bats recipe-wiring tests; CI workflows deliberately left out of scope |
-| **Verification** | verified-local — planning-stage evidence only: live `uv run pip-audit --format json` run (0 vulns, proving the carried suppression no longer fires), filter-CLI source inspection, unit-test default-path audit, and `git log -S` provenance trace. The justfile change itself had not merged when this was written |
+| ------- | ------- |
+| **Date** | 2026-08-07 |
+| **Objective** | Replace raw, piped, and caller-configurable dependency-audit paths with one uv command, one exact repository-root ledger, and one evidence-verifying wrapper. |
+| **Outcome** | Proposed policy contract for ProjectHephaestus issue #2566: canonical scan execution, structured suppression records, exact matching, operational exit code 2, and repository-wide drift guards. |
+| **Verification** | unverified — acceptance tests and implementation were specified but not executed in this learning session. |
+| **History** | [changelog](./pip-audit-policy-file-over-inline-ignores.history) |
 
 ## When to Use
 
-- An audit/repo-review finding reads like "`just audit` runs raw pip-audit rather than the
-  task that carries the project suppression policy."
-- The same advisory ID appears inline (`--ignore-vuln <ID>`) in several places — task runner
-  recipe plus one or more CI workflows — i.e. the suppression policy has no single source.
-- The issue names tooling the repo no longer uses (e.g. "the Pixi task" after a Pixi→uv
-  migration) and you must resolve what "the configured policy" means *today*.
-- You are about to copy an old inline suppression into a policy file and need to know whether
-  it still fires at all.
-- You are tempted to "finish the job" by also switching CI to the severity filter.
+- Required CI, scheduled CI, pre-commit, and task-runner recipes do not execute the same dependency-audit command.
+- A repository still pipes raw scanner JSON into a filter and relies on shell pipeline status.
+- Native scanner ignore flags, bare advisory IDs, caller-selected ignore files, or public suppression parameters can bypass the reviewed ledger.
+- The wrapper trusts only the subprocess return code or only the JSON body, allowing contradictory or incomplete evidence.
+- Suppression records can outlive the finding they approved, match several duplicate findings, or silently broaden across package versions.
+- A guard checks only known configuration files and could miss Python subprocesses, shell scripts, Dockerfiles, Makefiles, package scripts, or shebang-marked files.
+
+## Proposed Workflow
+
+> **Warning:** This workflow has not been validated end-to-end. Treat it as a proposed contract until implementation tests and CI confirm it.
 
 ## Verified Workflow
 
-### 1. Identify the repo's actual configured-policy mechanism (not the issue's stale name)
+> **Warning:** The repository validator requires this heading, but the workflow below is unverified. ProjectHephaestus issue #2566 supplied an acceptance-mapped design; no code or CI result was produced during this learn run.
 
-The issue said "the Pixi task", but the repo had migrated Pixi→uv. Resolve the current
-mechanism from the repo itself:
+### Quick Reference
 
-```bash
-# Who owns audit filtering today?
-grep -n "audit" pyproject.toml          # -> hephaestus-filter-audit = "hephaestus.validation.audit:main"
-sed -n '1,15p' hephaestus/validation/audit.py   # docstring documents the intended pipeline:
-# pip-audit --format json | hephaestus-filter-audit  (+ .pip-audit-ignore.txt at repo root)
+~~~bash
+# Every active audit surface invokes exactly this command.
+uv run hephaestus-filter-audit --scan
 
-# Where did the inline suppression come from?
-git log --all --oneline -S "PYSEC-2025-183"     # -> introduced #425 (pixi era), preserved by uv migration #2236
-```
+# Stdin remains an unsuppressed evidence-classification seam.
+pip-audit --format json | hephaestus-filter-audit
+~~~
 
-Key point: `git log -S <advisory-id>` is the fastest way to prove a stale-terminology issue
-maps to a real current defect rather than being obsolete.
+Canonical ledger record:
 
-### 2. Verify the carried-over suppression still fires BEFORE preserving it
+~~~text
+advisory=GHSA-abcd-2345-6789 | package=example-package | version=1.2.3 | owner=@security-owner | review=issue:#2566 | expires=2099-12-31 | rationale=Temporary upstream compatibility
+~~~
 
-```bash
-uv run pip-audit --format json > /tmp/audit.json; echo "exit=$?"
-# -> exit=0, "No known vulnerabilities found"
-```
+### Detailed Steps
 
-The suppressed advisory (PYSEC-2025-183, a `pip` advisory) no longer fired: uv-managed
-environments do not install `pip`, so pip advisories vanish after a Pixi/venv→uv migration.
-Record that in the policy file instead of silently keeping a dead flag:
+1. **Make the wrapper own scanner execution.** Add one explicit scan mode. Launch the fixed vector consisting of the current interpreter, module pip_audit, JSON format, and disabled progress spinner. Capture stdout/stderr, disable check-on-nonzero, and apply one fixed timeout. External callers still enter through uv, while the scanner runs in that uv-managed interpreter.
 
-```text
-# Carried over from the inline --ignore-vuln flag (introduced in #425,
-# preserved through the uv migration in #2236). No longer fires in the
-# uv-managed environment; retained for parity with the CI workflows'
-# inline suppression until those are migrated.
-PYSEC-2025-183
-```
+2. **Resolve one ledger internally.** Compute the repository root and require exactly its .pip-audit-ignore.txt. Before launching the scanner, require that path to exist, be a regular non-symlink file, and resolve strictly to the expected path. Do not accept an ignore-file option or environment override.
 
-### 3. Rewrite the recipe as the policy pipeline
+3. **Use a closed record grammar.** Split each nonblank, non-comment physical line on the literal delimiter space-pipe-space and require exactly these ordered fields: advisory, package, version, owner, review, expires, rationale. Reject inline comments, escaping, unknown or repeated fields, control characters, value whitespace, duplicate advisory/package/version triples, expired records, and noncanonical identifiers.
 
-```just
-audit:
-    uv run pip-audit --format json | uv run hephaestus-filter-audit
-```
+4. **Normalize evidence before policy.** Require a top-level object containing dependencies and fixes lists. Each dependency needs a canonicalizable nonempty name, a valid PEP 440 version, and a vulnerabilities list. Each vulnerability needs a canonical advisory ID and an optional list of severity objects. Allow unconsumed scanner fields; reject skipped or incomplete dependencies.
 
-Pipe-exit semantics are safe by design: `just` runs recipes via `sh -c` without `pipefail`,
-so the pipeline's exit code is the *filter's* — the filter is the policy decision point.
-Malformed/empty scanner output is handled by the filter's input parser returning non-zero.
+5. **Cross-check status and evidence.** Scanner status 0 is valid only with zero vulnerabilities; status 1 is valid only with one or more. Empty, malformed, or incomplete JSON, launch failure, timeout, contradictory status/evidence, and every other status are operational error 2.
 
-### 4. Audit blast radius of the new repo-root policy file
+6. **Apply suppressions only after validation.** Match normalized advisory/package/version triples. Each ledger record must consume exactly one current finding. An unmatched stale record or ambiguous duplicate evidence is operational error 2. Report matched approvals separately from below-threshold warnings.
 
-Before adding `.pip-audit-ignore.txt` at the repo root, grep the unit tests for the loader's
-default-path behavior: a test asserting "returns empty set when no file exists" against the
-repo root would flip. (Here `tests/unit/validation/test_audit.py` used only explicit
-`tmp_path` paths — safe.)
+7. **Keep the public filter unsuppressed.** The reusable filter API should accept evidence and a severity threshold only. Suppression loading belongs exclusively to the private canonical scan path. Stdin classification therefore cannot acquire a hidden caller-controlled bypass.
 
-### 5. Scope: do NOT silently migrate CI to the filter
+8. **Keep verdict semantics independent of rendering.** HIGH, CRITICAL, and UNKNOWN findings block with status 1; LOW and MEDIUM findings warn with status 0; approved exact matches are reported separately. Human and JSON modes must return identical 0, 1, or 2 statuses.
 
-CI ran raw `pip-audit --ignore-vuln <ID>` (fails on **any** vuln). The filter blocks only
-HIGH/CRITICAL (CVSS ≥ 7.0). Switching CI to the filter **weakens the required gate** — that
-is a policy-semantics change needing its own issue, not a rider on a MINOR recipe fix. Note
-the parity intent in the policy-file comment instead.
+9. **Replace every active surface atomically.** Required workflow, scheduled/manual workflow, manual pre-commit hook, and task-runner recipe each contain exactly one canonical command. Update summaries so an operational scanner failure is not reported as merely a vulnerability finding.
 
-### 6. Prove the policy file is actually read
+10. **Discover bypasses repository-wide.** Recursively inspect production Python, shell, YAML, TOML, JSON, INI/config, Dockerfile, Makefile, Just, and extensionless shebang files. Exclude only deliberate non-production trees such as .git, generated environments/caches, build, docs, and tests. Permit audit tokens only in the canonical module, package declaration/entry point, and approved configured surfaces.
 
-The filter prints `pip-audit: ignoring N advisory ID(s)` when it loads the ignore file — make
-that observable line part of the acceptance evidence, plus a direct loader check:
+11. **Test adversarial trees and boundaries.** Synthetic trees must prove discovery catches raw subprocess calls, underscore spellings, scanner Actions, native ignore flags, alternate wrapper or ledger paths, Docker/Make/Just/package/workflow commands, shell files, and extensionless scripts. Runtime tests must cover ledger grammar, expiry dates, exact matching, stale/ambiguous records, ledger path attacks, subprocess argv/timeout, malformed evidence, and output-mode parity.
 
-```bash
-uv run python -c "from hephaestus.validation.audit import load_ignore_list; assert 'PYSEC-2025-183' in load_ignore_list()"
-```
+## Failed Attempts
 
-Add task-runner tests in the repo's existing style (bats asserting the recipe exists via
-`just --list`, plus a recipe-body assertion that the pipeline is wired and no `--ignore-vuln`
-remains).
-
-## Failed Attempts / Traps
-
-| Attempt | Why it fails |
-|---------|--------------|
-| Reading the issue literally and looking for a Pixi task to call | The repo migrated Pixi→uv; the named mechanism no longer exists. Resolve the *intent* (configured suppression policy) against current tooling via `git log -S` |
-| Copying the inline advisory ID into the policy file without a live scanner run | Preserves a dead suppression with no provenance; nobody later knows whether removing it is safe |
-| Also switching CI workflows to the severity filter "for DRY" | Changes CI from fail-on-any-vuln to fail-on-HIGH/CRITICAL — a silent gate weakening; needs its own reviewed issue |
-| Assuming a repo-root config file is additive-only | Loader default-path lookups in unit tests can flip when the file appears; grep tests for the default path first |
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| ------- | -------------- | ------------- | -------------- |
+| Raw scanner piped into a policy filter | Shell pipeline behavior and scanner invocation were split between two processes and multiple call sites. | Scanner status, evidence completeness, and policy could drift or be lost through shell semantics. | Let one wrapper launch the fixed scanner command and validate both status and JSON. |
+| Bare advisory-ID ledger | One ID suppressed every matching package/version occurrence and carried no owner, review, expiry, or rationale. | The exception could silently broaden and persist after its justification expired. | Bind approval to an exact normalized triple plus lifecycle metadata. |
+| Caller-selected ignore file or public ignore_ids parameter | Tests and callers could choose a different ledger or inject suppressions directly. | The repository-root ledger was not the sole authority. | Keep suppression loading private to canonical scan mode and reject alternate CLI flags. |
+| Trust scanner exit code alone | Status 0 could accompany malformed, empty, skipped, or contradictory evidence. | An operational failure could be mistaken for a clean scan. | Require the expected JSON shape and status/evidence consistency. |
+| Trust JSON alone | Valid vulnerability evidence could arrive with an unexpected operational status. | The wrapper could normalize a scanner failure into a policy verdict. | Treat all status/evidence contradictions as operational error 2. |
+| Ignore stale ledger records | Removed or version-changed findings left approvals in place indefinitely. | Policy debt accumulated invisibly and could match a future unrelated recurrence. | Require every record to consume exactly one current finding. |
+| Guard only four known files | An alternate command could be added in Python, packaging metadata, Docker, or a shebang script. | The structural test froze current locations, not the repository invariant. | Discover all eligible production executable/configuration surfaces and test synthetic bypasses. |
 
 ## Results & Parameters
 
-- Result: implementation plan for #2167 delivered (recipe pipeline + commented policy file +
-  two bats tests); live-run evidence showed 0 current vulnerabilities, so the recipe change
-  is behavior-neutral today while centralizing the policy.
-- Advisory/scanner pair here: `pip-audit` + PYSEC advisory IDs; the pattern generalizes to any
-  scanner with inline ignore flags vs a policy-file-driven wrapper.
-- Severity threshold of the filter: CVSS ≥ 7.0 (HIGH/CRITICAL) blocking; below → warning.
+### Canonical Contract
 
-## Evidence
+| Parameter | Required value |
+| ------- | ------- |
+| External command | uv run hephaestus-filter-audit --scan |
+| Scanner vector | current Python interpreter, -m pip_audit, --format json, --progress-spinner off |
+| Timeout | 300 seconds |
+| Ledger | repository-root .pip-audit-ignore.txt only |
+| Match key | normalized advisory, package, version |
+| Blocking severities | HIGH, CRITICAL, UNKNOWN |
+| Operational failure | exit 2 |
+| Policy block | exit 1 |
+| Clean, warning-only, or fully approved evidence | exit 0 |
 
-- ProjectHephaestus issue #2167 (`[mino] Make just audit use the configured audit policy`).
-- Live run: `uv run pip-audit --format json` → exit 0, "No known vulnerabilities found"
-  (2026-07-17), proving PYSEC-2025-183 no longer fires under uv.
-- Provenance: `git log --all -S "PYSEC-2025-183"` → introduced in #425 (pixi-era
-  `security.yml`), carried through uv migration #2236 (commit a0d96ca6).
-- Filter contract: `hephaestus/validation/audit.py` (`load_ignore_list` default path
-  `<repo-root>/.pip-audit-ignore.txt`; `#` comments supported; non-zero on malformed input).
+### Ledger Validators
 
-## Related
+~~~text
+advisory: [A-Z][A-Z0-9]*(?:-[A-Z0-9][A-Z0-9._]*)+
+package:  PEP 503 canonical name
+version:  valid PEP 440 with canonical rendering
+owner:    @[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?
+review:   issue:#[1-9][0-9]* or pr:#[1-9][0-9]*
+expires:  ISO date active through current UTC date
+rationale: trimmed, control-free, 1-200 characters
+~~~
 
-- `tooling-precommit-check-convention-to-invariant` — enforcing that each suppression in a
-  ledger carries re-review metadata (complementary: that skill machine-checks the ledger this
-  skill creates).
-- `lockfile-and-release-pipeline-management` — scoping pip-audit allowlists to
-  package/version/advisory/expiry.
-- `pr-ci-failure-triage-preexisting-vs-introduced` — stale-cache pip-audit CI failures.
+### Acceptance-Mapped Verification
+
+~~~bash
+uv run pytest tests/unit/validation/test_audit.py tests/unit/ci/test_pip_audit_policy.py tests/unit/docs/test_security_policy.py -v
+just test-shell
+uv run ruff check hephaestus/ tests/
+uv run mypy hephaestus/ scripts/ tests/
+~~~
+
+Expected structural result: every configured surface contains exactly one canonical command, and no other production surface can invoke pip-audit, pip_audit, a pip-audit Action, native ignore options, or the wrapper.
+
+## Verified On
+
+| Project | Context | Details |
+| ------- | ------- | ------- |
+| ProjectHephaestus | Issue #2566 implementation design | Proposed only; implementation and CI verification remain pending. |
+
+## References
+
+- [Validate vulnerability-scanner evidence before filtering](vulnerability-scanner-evidence-fail-closed-validation.md)
+- [General vulnerability exception governance](scan-vulnerabilities.md)
+- ProjectHephaestus ADR-0007 (required dependency-scan gate)
+- ProjectHephaestus ADR-0008 (uv-only execution)

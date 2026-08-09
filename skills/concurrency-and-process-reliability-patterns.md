@@ -15,10 +15,12 @@ description: "Debugging and fixing concurrency bugs and process-level reliabilit
   over-budget process dies as a recoverable MemoryError instead of an uncatchable OOM-SIGKILL,
   (14) a worker pool leaks a runaway child subprocess after shutdown because
   ThreadPoolExecutor.shutdown(cancel_futures=True) does NOT kill an already-running subprocess and
-  you need a process-group registry + os.killpg to reap it."
+  you need a process-group registry + os.killpg to reap it, (15) a direct subprocess site needs a
+  finite execution bound, validated operator override, descendant cleanup, stable timeout
+  diagnostics, and a direct-child fallback on platforms without POSIX process groups."
 category: debugging
-date: 2026-07-12
-version: "1.2.0"
+date: 2026-08-06
+version: "1.3.0"
 user-invocable: false
 verification: verified-local
 history: concurrency-and-process-reliability-patterns.history
@@ -49,6 +51,11 @@ tags:
   - process-group-registry
   - subprocess-leak
   - worker-pool-shutdown
+  - timeout
+  - timeoutexpired
+  - bounded-reap
+  - stable-diagnostics
+  - cross-platform
 ---
 
 # Concurrency and Process Reliability Patterns
@@ -61,6 +68,8 @@ tags:
 | **Languages** | Python 3.10+ |
 | **Key Tools** | subprocess, threading, signal, multiprocessing, pytest, nats-py, asyncio |
 | **Absorbed Skills** | batch-subprocess-signal-hang, bisect-pytest-oom-with-ulimit, global-semaphore-parallelism, mock-expensive-simulations, nats-optional-import-guard-deliver-policy, nats-py-connection-resilience-patterns, retry-transient-errors |
+| **Latest amendment** | Pattern 12 is an unverified ProjectHephaestus #2398 plan; implementation and CI validation remain pending |
+| **History** | [changelog](./concurrency-and-process-reliability-patterns.history) |
 
 ## When to Use
 
@@ -85,6 +94,12 @@ tags:
   running for minutes afterward and holds the interpreter open — because
   `ThreadPoolExecutor.shutdown(wait=False, cancel_futures=True)` only cancels UN-started futures and
   never signals a subprocess already blocked inside `subprocess.run` on a non-daemon worker thread
+- a direct `subprocess.run(...)` call has no timeout, or a long-running wrapper such as gdb can
+  outlive its caller and leave an inferior process behind
+- timeout output must be fixed and bounded even when `TimeoutExpired` contains hostile command,
+  path, stdout, or stderr payloads
+- POSIX process groups should kill descendants on timeout, while platforms without `killpg` must
+  still execute normally and fall back to killing and boundedly reaping the direct child
 
 ## Verified Workflow
 
@@ -122,18 +137,32 @@ second-signal force-kill handler.
 
 **Symptom**: ThreadPoolExecutor workers hang on cleanup after all work completes.
 
-**Fix**: Guard terminal restoration to main thread only.
+**Fix**: Guard terminal restoration to the main thread, give the cleanup command a short fixed
+timeout, and emit only a fixed warning on `TimeoutExpired`. The two-second hardening extension came
+from the ProjectHephaestus #2398 plan and remains unverified until its acceptance suite passes.
 
 ```python
 import threading
 
 def restore_terminal() -> None:
-    import contextlib
-    with contextlib.suppress(Exception):
+    try:
         if threading.current_thread() is not threading.main_thread():
             return  # Only the main thread owns the controlling terminal
         if sys.stdin.isatty():
-            subprocess.run(["stty", "sane"], stdin=sys.stdin, check=False)
+            subprocess.run(
+                ["stty", "sane"],
+                stdin=sys.stdin,
+                check=False,
+                timeout=2,
+            )
+    except subprocess.TimeoutExpired:
+        with contextlib.suppress(Exception):
+            print(
+                "[tool] WARNING: terminal restoration timed out",
+                file=sys.stderr,
+            )
+    except Exception:
+        pass
 ```
 
 ### Pattern 4 — Global Semaphore for Cross-Process Parallelism
@@ -530,6 +559,128 @@ subprocess dies. The regression test MUST spawn a **real OS subprocess** (swap t
 **FAILS** (queue-timeout / hang) when the `terminate_all()` call is removed — that proves it actually
 exercises the kill path.
 
+### Proposed Pattern 12 — Finite Bounds, Tree Cleanup, and Stable Timeout Diagnostics
+
+> **Warning:** This pattern was derived from the reviewed ProjectHephaestus #2398 implementation
+> plan but was not executed end-to-end in this learning session. Treat it as unverified until the
+> focused timeout, real-descendant, compatibility, and CI suites pass.
+
+**Inventory before editing.** Re-run a scoped search immediately before implementation; plan-time
+line numbers and counts drift:
+
+```bash
+rg -n 'subprocess\.run\(' <library-package> <tests>
+```
+
+Classify every direct call by lifecycle rather than applying one wrapper everywhere:
+
+1. **Short probes and cleanup commands** can keep `subprocess.run(timeout=...)`. Use a small fixed
+   cleanup budget when operators cannot act on the value. Reuse an existing metadata/network
+   constant for probes when one already owns that latency class.
+2. **Long-running commands that spawn descendants** need `Popen`, a dedicated POSIX session, group
+   termination on timeout, a direct-child fallback, and a finite reap wait. Killing only the gdb or
+   shell wrapper can leave its inferior alive.
+3. **Operator overrides** need inclusive lower and upper bounds. Add optional keyword-only bounds to
+   a shared env reader so unrelated callers retain their prior behavior. CLI values should be
+   validated by `argparse` before execution.
+4. **Layering still applies.** Put a specialized lifecycle helper in the lowest legal package. A
+   library module must not import an automation-layer helper merely because its mechanics look
+   similar.
+
+For a long-running command with inherited streams, the local lifecycle seam is:
+
+```python
+import contextlib
+import os
+import signal
+import subprocess
+
+DEFAULT_TIMEOUT_SECONDS = 7_200
+MAX_TIMEOUT_SECONDS = 86_400
+REAP_TIMEOUT_SECONDS = 5
+PROCESS_GROUPS_SUPPORTED = hasattr(os, "killpg") and hasattr(signal, "SIGKILL")
+
+
+def validate_timeout(value: int) -> int:
+    if not 1 <= value <= MAX_TIMEOUT_SECONDS:
+        raise ValueError(
+            f"timeout must be between 1 and {MAX_TIMEOUT_SECONDS} seconds"
+        )
+    return value
+
+
+def terminate_process(process: subprocess.Popen[bytes]) -> None:
+    """Kill the dedicated POSIX group or fall back to the direct child."""
+    if PROCESS_GROUPS_SUPPORTED:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+            return
+        except (ProcessLookupError, OSError):
+            pass
+    with contextlib.suppress(ProcessLookupError, OSError):
+        process.kill()
+
+
+def run_bounded(command: list[str], timeout: int) -> int:
+    """Run with inherited streams and bounded timeout cleanup."""
+    process = subprocess.Popen(
+        command,
+        start_new_session=PROCESS_GROUPS_SUPPORTED,
+    )
+    try:
+        return process.wait(timeout=validate_timeout(timeout))
+    except subprocess.TimeoutExpired:
+        terminate_process(process)
+        try:
+            process.wait(timeout=REAP_TIMEOUT_SECONDS)
+        except subprocess.TimeoutExpired:
+            terminate_process(process)
+        raise
+```
+
+The portability contract is behavioral, not merely import compatibility:
+
+- POSIX: `start_new_session=True`, then `killpg(pid, SIGKILL)` on timeout.
+- No process groups, or group signaling fails: launch normally, call `process.kill()`, and use the
+  same finite reap wait.
+- Lack of `killpg` must not reject a valid invocation before execution. Normal success and nonzero
+  exits remain available on every supported platform.
+
+Keep timeout reporting independent of exception payloads and wrapper-owned paths:
+
+```python
+try:
+    return_code = run_bounded(command, timeout)
+except subprocess.TimeoutExpired:
+    print("[tool] ERROR: command timed out", file=sys.stderr)
+    if json_mode:
+        emit_json_status(124, message="command timed out")
+    return 124
+```
+
+Never print or serialize `TimeoutExpired`, `.cmd`, `.output`, `.stderr`, command arguments, generated
+script paths, core paths, or other dynamic diagnostics on the timeout path. Move those diagnostics
+after successful execution. Put transient-file deletion in `finally`, including side-channel exit
+files that may have been created immediately before the timeout.
+
+When a CLI positional uses `argparse.REMAINDER`, define and document `--timeout` before that
+positional and test that placing it afterward is consumed as a child argument. Preserve inherited
+stdout/stderr, normal exit-code mappings, prefix/argv order, metadata fallback, JSON envelopes, and
+existing public callers while adding the timeout path.
+
+**Regression matrix:**
+
+- inclusive override bounds (`1`, `86400`) and invalid values (`0`, negative, oversized,
+  non-integer), including a hostile 100,000-character value that must not appear in warnings
+- short-command timeout forwarding and fixed stderr that excludes hostile `TimeoutExpired` fields
+- mocked process-group kill + bounded reap and direct-child fallback + bounded reap
+- successful gdb and direct execution with process groups disabled, proving unsupported platforms
+  do not fail closed and do not call `kill()` on normal completion
+- both CLI timeout paths return `124` with identical fixed text/JSON
+- a POSIX-only real parent/descendant test with finite readiness and disappearance deadlines
+- existing success, nonzero, output, prefix order, cleanup, metadata fallback, and import-boundary
+  regressions
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -556,6 +707,11 @@ exercises the kill path.
 | Let pixi/cmake run uncapped and rely on the OOM-killer | Ran heavy ops with no `ulimit -v`, assuming the OOM-killer would reap just the offender | The uncatchable OOM-SIGKILL fired only after swap hit 0 kB and the whole WSL VM had already hung; recovery required the kernel to reap agents | Wrap each heavy op in `( ulimit -v <N>GiB; exec "$@" )` so it dies as a recoverable `MemoryError` first; the shell/host survive (generalizes pytest Pattern 5 to pixi/cmake/podman) |
 | `executor.shutdown(wait=False, cancel_futures=True)` alone to stop a runaway child | Called shutdown expecting `cancel_futures=True` to terminate an in-flight `subprocess.run` on a worker | It only cancels UN-started futures; a subprocess already blocked in `communicate()` is never signaled and keeps the non-daemon worker (and the `atexit` join) alive — a `claude` child ran ~19 min past shutdown | `cancel_futures` ≠ terminate running work; to reap an in-flight subprocess you must signal its process group yourself (`start_new_session=True` + registry + `os.killpg`) |
 | Assert `pool.shutdown()` was called via a fake-pool counter | Regression test used an inline fake worker pool with a `shutdown_calls` counter and asserted `== 1` | Proved the CALL, not the EFFECT; the fake ran jobs inline with no real thread/subprocess to leak, so it stayed green even when the kill path was broken | A leak-fix test must spawn a REAL OS subprocess (`sys.executable -c "time.sleep(60)"`) through the real spawn path and assert completion `< 15 s`; confirm it FAILS/hangs when `terminate_all()` is removed |
+| Use `subprocess.run(timeout=...)` for a wrapper that launches descendants | Added a timeout to gdb itself and assumed the inferior would stop too | `subprocess.run` can terminate the direct wrapper while its descendant keeps running | Use `Popen(start_new_session=True)` and kill the process group; fall back to direct-child kill only when group signaling is unavailable or fails |
+| Reject platforms without POSIX process groups | Treated missing `killpg` as an unsupported-platform error before launching | Broke previously valid normal execution even though only timeout cleanup needs a different mechanism | Preserve normal execution and use `process.kill()` plus the same bounded reap on the timeout path |
+| Print `TimeoutExpired` or pre-execution argv/path diagnostics | Included the exception, command, arguments, output, or generated paths in timeout errors | Diagnostics became unbounded, unstable, and capable of disclosing hostile or sensitive payloads | Emit fixed stderr/JSON only on timeout and defer dynamic diagnostics until successful execution |
+| Apply new min/max validation to every existing timeout reader | Tightened the shared reader globally while adding one bounded operator override | Changed unrelated callers whose legacy contract allowed zero, negative, or larger sentinel values | Make bounds optional keyword-only arguments and pass them only at the intended call site |
+| Put `--timeout` after a positional using `argparse.REMAINDER` | Documented the option without accounting for remainder parsing | `argparse` passed the token to the child command instead of parsing the override | Define/document the option before the remainder positional and test both placements |
 
 ## Results & Parameters
 
@@ -565,12 +721,12 @@ exercises the kill path.
 # Subprocess (non-interactive)
 subprocess.run(cmd, capture_output=True, text=True, timeout=30, stdin=subprocess.DEVNULL)
 
-# Terminal restoration (main thread only)
+# Terminal restoration (main thread only, fixed cleanup bound)
 def restore_terminal():
     if threading.current_thread() is not threading.main_thread():
         return
     if sys.stdin.isatty():
-        subprocess.run(["stty", "sane"], stdin=sys.stdin, check=False)
+        subprocess.run(["stty", "sane"], stdin=sys.stdin, check=False, timeout=2)
 
 # Global semaphore (cross-process)
 from multiprocessing import Manager
@@ -610,6 +766,16 @@ with registry.track_process_group(proc.pid):               # set[int] + threadin
 # WorkerPool.shutdown():
 registry.terminate_all()                                    # os.killpg(pgid, SIGTERM) for each
 executor.shutdown(wait=False, cancel_futures=True)
+
+# One-shot long-running command with descendant-aware timeout cleanup:
+PROCESS_GROUPS_SUPPORTED = hasattr(os, "killpg") and hasattr(signal, "SIGKILL")
+proc = subprocess.Popen(cmd, start_new_session=PROCESS_GROUPS_SUPPORTED)
+try:
+    rc = proc.wait(timeout=validated_timeout)            # e.g. default 7200, range 1..86400
+except subprocess.TimeoutExpired:
+    terminate_process(proc)                              # killpg, else direct proc.kill()
+    proc.wait(timeout=5)                                 # bounded reap
+    raise                                                # caller maps to fixed exit 124
 ```
 
 ```bash
@@ -660,3 +826,4 @@ TRANSIENT_PATTERNS = [
 | ProjectScylla | PR #146 — git clone transient retry logic | 2026-01-04 |
 | Odysseus | `e2e/claude-myrmidon-multi.py` 16-repo fan-out hung WSL host `hermes` (16 GB/8-core, `Free swap = 0kB`); fixed with `asyncio.Semaphore(3)` agent cap + `-j2` builds + `ulimit -v` wrapper — verified 10 fired, peak in-flight capped at 3 | verified-local 2026-06-29 |
 | ProjectHephaestus | PR #2061 — a `claude` CLI reviewer child leaked ~19 min past `WorkerPool.shutdown()` because `ThreadPoolExecutor.shutdown(cancel_futures=True)` never reaps an in-flight subprocess; fixed with `start_new_session=True` + thread-safe pgid registry + `os.killpg` in `terminate_all()`. Regression test spawns a REAL `sys.executable -c "time.sleep(60)"` child and asserts completion `< 15 s` (fails/hangs if `terminate_all()` removed). | verified-ci 2026-07-12 — GO strict review, all 137 affected tests pass |
+| ProjectHephaestus | Issue #2398 reviewed plan — four direct subprocess sites covering terminal restoration, git metadata lookup, gdb, and direct bypass; proposed finite bounds, validated `1..86400` overrides, process-group/direct-child cleanup, exit `124`, stable redacted diagnostics, and compatibility regressions. | unverified 2026-08-06 — plan supplied; implementation and acceptance commands were not executed in this learning session |

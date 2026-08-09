@@ -1,9 +1,9 @@
 ---
 name: error-message-consistency-optional-dependency-pola
-description: "Resolve a POLA audit finding about a function that silently mishandles input — either the wrong-exception-message arm (collapse format-detection and dependency-availability) or the silently-ignores-invalid-input arm (raise vs document the existing fallback). Use when: (1) two public functions reach the same missing-dependency failure by different code paths and one already raises the right error; (2) a catch-all branch collapses 'unsupported format' and 'dependency missing' into one misleading message; (3) an audit says 'function X silently ignores invalid input — raise an error OR document the fallback' and you must decide which; (4) a sibling/related function already documents and TESTS the silent fallback as intended behavior; (5) you are tempted to add a discriminator enum or custom exception class for a one-line consistency fix; (6) the absent-dependency branch is only ever exercised via monkeypatch and could pass vacuously; (7) flipping an exception type (ValueError→RuntimeError) requires grepping callers for type-specific except handlers and potentially collapsing identical-body arms to a tuple."
+description: "Resolve a POLA audit finding about a function that silently mishandles input — either the wrong-exception-message arm (collapse format-detection and dependency-availability) or the silently-ignores-invalid-input arm (raise vs document the existing fallback). Use when: (1) two public functions reach the same missing-dependency failure by different code paths and one already raises the right error; (2) a catch-all branch collapses 'unsupported format' and 'dependency missing' into one misleading message; (3) an audit says 'function X silently ignores invalid input — raise an error OR document the existing fallback' and you must decide which; (4) a sibling/related function already documents and TESTS the silent fallback as intended behavior; (5) you are tempted to add a discriminator enum or custom exception class for a one-line consistency fix; (6) the absent-dependency branch is only ever exercised via monkeypatch and could pass vacuously; (7) flipping an exception type (ValueError→RuntimeError) requires grepping callers for type-specific except handlers and potentially collapsing identical-body arms to a tuple; (8) multiple YAML entry points duplicate eager imports, availability flags, or raw ImportError behavior and should share one lazy capability resolver with one actionable RuntimeError contract."
 category: architecture
-date: 2026-06-27
-version: "2.2.0"
+date: 2026-08-05
+version: "3.0.0"
 user-invocable: false
 verification: verified-local
 history: error-message-consistency-optional-dependency-pola.history
@@ -27,12 +27,17 @@ tags:
   - kiss
   - runtime-error
   - value-error
+  - capability-resolver
+  - lazy-import
+  - importlib
+  - sys-modules
+  - generic-serialization
 ---
 
 # Resolving POLA Audit Findings on Functions That Silently Mishandle Input
 
-This skill covers **two arms of the same POLA either/or** that recurs in "silently
-mishandles input" audit findings:
+This skill covers **three related POLA decisions** that recur in "silently mishandles input"
+audit findings and optional-capability boundaries:
 
 - **Arm A — change the exception (verified-local, #1510):** a function reports the
   *wrong cause* for a failure (collapsed format/dependency condition); fix by raising
@@ -43,16 +48,21 @@ mishandles input" audit findings:
   AND grep existing tests first: a sibling may already document AND test the fallback as
   an intended contract, and every caller may pass only valid literals — in which case the
   non-breaking POLA fix is to **document the fallback + add a regression test**, not raise.
+- **Arm C — centralize the missing capability (unverified planning, v3.0.0):** when
+  multiple public YAML entry points duplicate eager imports, availability flags, or raw
+  `ImportError` behavior, replace those parallel policies with one lazy `import_yaml()`
+  resolver. The resolver owns the actionable `RuntimeError`, and every consumer calls it
+  before opening a save target so failure cannot leave an empty file behind.
 
 ## Overview
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-06-27 |
-| **Objective** | (Arm A, #1510) Fix `load_config()` raising a misleading `ValueError("Unsupported config format")` when PyYAML was absent, instead of the actionable `RuntimeError` the sibling `load_yaml_config()` already raises. (Arm B, #1509) Plan the fix for an `[audit][S14 API Design]` finding that `format_output()` (`hephaestus/cli/utils.py:368`) and `format_system_info()` (`hephaestus/system/info.py:237-239`) silently ignore an invalid `format_type` — "raise OR document the fallback". |
-| **Outcome** | (Arm A) Implemented and verified locally for #1510 — split condition, reconciled the one `except ValueError` caller, DRY tuple-collapse; 140 tests local, PR #1608. (Arm B) Executed and verified locally for #1509: do NOT raise — `format_system_info`'s text fallback is already documented AND asserted by an existing test (`tests/unit/system/test_info.py:167 test_invalid_format_falls_back_to_text`), so raising would break a tested contract; ~25 callers all pass `"json"`/`"text"` literals; resolution = document the fallback in the under-documented sibling + add regression tests for both the named fallback AND a secondary unnamed one (`"table"` on a dict). 77 tests passing locally; PR pending. |
-| **Verification** | **verified-local** for the #1509 (Arm B) content (v2.2.0) — docstring expanded, two regression tests added, all 77 tests passing locally; CI pending. The #1510 (Arm A) content remains **verified-local** (140 tests local; CI pending). |
-| **History** | [changelog](./error-message-consistency-optional-dependency-pola.history) — v1.0.0 (2026-06-25) planning only; v2.0.0 (2026-06-25) #1510 verified-local; v2.1.0 (2026-06-27) adds the #1509 "document the fallback, do NOT raise" arm (unverified planning); v2.2.0 (2026-06-27) upgrades Arm B to verified-local after executing the plan. |
+| **Date** | 2026-08-05 |
+| **Objective** | Preserve the verified POLA decision procedures from Arms A and B, and add Arm C: consolidate duplicate PyYAML capability handling behind one lazy shared resolver so configuration and generic serialization expose the same actionable failure. |
+| **Outcome** | Arms A and B remain verified locally. Arm C is an implementation-ready, unverified workflow derived from a ProjectHephaestus plan: one `import_yaml()` seam, no eager `yaml` import or `YAML_AVAILABLE` state, canonical `RuntimeError("PyYAML is required for YAML support. Install with: pip install PyYAML")`, deterministic `sys.modules` tests, and resolve-before-open ordering for saves. |
+| **Verification** | **verified-local** for Arms A and B. **unverified** for the new v3.0.0 shared-resolver workflow: the supplied implementation plan was not executed, no tests were run, and CI was not observed. |
+| **History** | [changelog](./error-message-consistency-optional-dependency-pola.history) — v3.0.0 adds the unverified shared lazy-resolver architecture and supersedes availability-flag guidance for multi-entry-point capability handling; earlier verified outcomes remain recorded below. |
 
 ## When to Use
 
@@ -62,6 +72,12 @@ mishandles input" audit findings:
 - The missing-dependency branch is almost never exercised because the dependency is installed in every normal test/CI env, so the only coverage is a `monkeypatch.setattr(..., AVAILABLE_FLAG, False)`.
 - You are about to flip an exception type (e.g. `ValueError` → `RuntimeError`) in a public function and need to find all callers that had type-specific `except` handlers to update them.
 - After adding a new `except` arm to a caller, you notice multiple arms now have byte-identical bodies and can be collapsed to a tuple for DRY.
+- Configuration and generic serialization each import the same optional dependency but expose
+  different exception types or messages when it is absent.
+- A module-level `YAML_AVAILABLE` boolean and an eager `yaml` import duplicate capability state;
+  consumers should ask one lazy resolver at call time instead.
+- A YAML save path opens its target before resolving PyYAML, so a missing dependency can create
+  an empty output file before failing.
 
 ### When to Use — Arm B (silently-ignores-invalid-input: raise vs document the fallback)
 
@@ -75,7 +91,60 @@ mishandles input" audit findings:
 
 > **Warning:** This workflow has not been validated end-to-end. Treat as a hypothesis until CI confirms.
 
+### Shared lazy PyYAML resolver (v3.0.0, unverified)
+
+Prefer one capability seam over a boolean availability flag when more than one public path
+needs the dependency:
+
+```python
+"""Shared access to the optional PyYAML serialization capability."""
+
+import importlib
+import types
+
+_PYYAML_REQUIRED_MESSAGE = (
+    "PyYAML is required for YAML support. Install with: pip install PyYAML"
+)
+
+
+def import_yaml() -> types.ModuleType:
+    """Return PyYAML's ``yaml`` module or raise an actionable error."""
+    try:
+        return importlib.import_module("yaml")
+    except ImportError as exc:
+        raise RuntimeError(_PYYAML_REQUIRED_MESSAGE) from exc
+```
+
+Call `import_yaml()` from every YAML entry point. For saves, resolve the module **before**
+opening the target. This preserves the filesystem on capability failure:
+
+```python
+if fmt == "yaml":
+    yaml = import_yaml()
+    with open(filepath, "w") as handle:
+        yaml.dump(data, handle, default_flow_style=False)
+```
+
+Test real import behavior without uninstalling anything:
+
+```python
+def test_missing_pyyaml_is_actionable(monkeypatch):
+    monkeypatch.setitem(sys.modules, "yaml", None)
+    with pytest.raises(RuntimeError, match=r"Install with: pip install PyYAML") as exc_info:
+        import_yaml()
+    assert isinstance(exc_info.value.__cause__, ImportError)
+```
+
+This replaces the v2-era `YAML_AVAILABLE` recommendation for repositories with multiple
+YAML consumers. The earlier split-condition fix remains useful historical evidence, but a
+shared resolver is the durable policy owner: one message, one exception translation, one
+test seam, and no duplicated capability state.
+
 ### Quick Reference
+
+The reference below preserves the original v2 split-condition investigation. Use it to
+understand caller reconciliation and error-type changes; use the shared resolver above for
+new multi-consumer capability handling instead of introducing another availability flag.
 
 ```bash
 # 1. Find the sibling that ALREADY raises the right error — reuse its message verbatim.
@@ -298,8 +367,27 @@ def test_load_fleet_config_yaml_missing_dep_raises_with_context(self, tmp_path, 
 | 9 (Arm B, #1509) | On a "silently ignores invalid input — raise OR document" audit finding, **defaulted to "raise `ValueError`"** without grepping callers or existing tests. | A sibling (`format_system_info`) already documented the silent text fallback AND an existing test (`test_info.py:167 test_invalid_format_falls_back_to_text`) asserted it as intended — raising would have **broken a documented, tested contract**; and all ~25 callers pass valid literals, so rejection benefits no one. | When the audit offers "raise OR document", do NOT pick raise by default. Grep ALL callers AND existing tests first; an existing test on the fallback is decisive proof it is an intentional contract → document it, don't raise. |
 | 10 (Arm B, #1509) | Fixed only the one silent fallthrough the audit **named**, missing a second one in the same function. | `format_output` has a secondary silent fallthrough the audit did not call out: `format_type == "table" and isinstance(data, (list, tuple))` means a `"table"` request on a **dict** silently falls through to text — left undocumented and untested. | Audit findings name the symptom they noticed, not every instance. Scan the whole function for SECONDARY silent fallthroughs and document/test those too. |
 | 11 (Arm B, #1509) | Shipped docstring-only + tests-only changes whose new tests **pass vacuously** (they assert current behavior with no logic change, so they would still pass if the fallback branch were deleted). | A test that does not fail when the behavior is removed is not protecting anything — it is not RED-GREEN; it can give false confidence that the contract is guarded. | For a no-logic-change documentation fix, prove each new test would FAIL if the fallback branch were removed; also verify case-sensitivity asymmetries (e.g. `format_output` case-sensitive vs `format_system_info` `.lower()`) are real and intended, not accidentally normalized. |
+| 12 (Arm C, unverified) | Kept an eager `import yaml` plus a module-level `YAML_AVAILABLE` flag in configuration while generic I/O imported `yaml` inside each function. | Capability policy remained duplicated: one path raised a custom error, another leaked `ImportError`, and tests patched synthetic state rather than the import boundary. | Put the lazy import and `ImportError` translation in one shared resolver; every consumer calls the same seam. |
+| 13 (Arm C, unverified) | Opened the YAML output file before resolving PyYAML. | A missing dependency could create or truncate the target before the actionable error was raised. | Resolve optional capabilities before any filesystem mutation; assert the target does not exist after failure. |
+| 14 (Arm C, unverified) | Simulated absence by uninstalling PyYAML or patching an availability boolean. | Package removal is nondeterministic and environment-dependent; a boolean can drift from actual import behavior. | Set `sys.modules["yaml"] = None`, exercise `importlib.import_module`, and assert both the canonical message and chained `ImportError`. |
 
 ## Results & Parameters
+
+### Shared resolver contract (unverified v3.0.0 guidance)
+
+| Concern | Contract |
+|---------|----------|
+| Resolution timing | Lazy, at the public YAML operation boundary |
+| Failure type | `RuntimeError` |
+| Actionable message | `PyYAML is required for YAML support. Install with: pip install PyYAML` |
+| Root cause | Preserve the caught `ImportError` with `raise ... from exc` |
+| Missing-module test seam | `monkeypatch.setitem(sys.modules, "yaml", None)` |
+| Save ordering | Resolve PyYAML before opening or truncating the target |
+| Dependency metadata | Leave the existing PyYAML declaration unchanged; this is runtime policy consolidation, not dependency removal |
+
+The implementation plan calls for resolver tests plus missing-capability regression tests in
+configuration, generic load, and generic save paths. It has not been executed; local and CI
+results are intentionally not claimed.
 
 ### The fix shape (copy-paste ready)
 
@@ -395,3 +483,4 @@ Residual reviewer risks for #1509 (ranked): (1) the "all ~25 callers pass valid 
 | ProjectHephaestus | Issue #1510 / PR #1608 — `load_config()` misleading missing-PyYAML error | v1.0.0: Planning session only; plan unverified, not executed in CI. v2.0.0: Implementation complete; 140 tests passing locally; CI pending. Sibling `load_yaml_config()` already raised the target `RuntimeError`; caller `fleet_sync.py:_load_fleet_config` had `except ValueError` updated to `except (FileNotFoundError, ValueError, RuntimeError)` tuple. |
 | ProjectHephaestus | Issue #1509 — `format_output()` / `format_system_info()` silently ignore invalid `format_type` (POLA, S14 API Design) | v2.1.0 (unverified planning): plan produced, NOT executed, no code run, no CI. Decision = document the existing text fallback + add regression tests, do NOT raise — the fallback is already documented in `format_system_info` (`info.py:237-239`) and asserted by `tests/unit/system/test_info.py:167 test_invalid_format_falls_back_to_text`, and all ~25 callers pass `"json"`/`"text"` literals. Also covers a secondary unnamed fallthrough: `"table"` on a dict in `format_output` (`cli/utils.py:368`). |
 | ProjectHephaestus | Issue #1509 / PR pending — `format_output()` document-the-fallback arm executed | v2.2.0: Arm B verified-local; 77 tests passing locally. Docstring expanded at `hephaestus/cli/utils.py:355-373`; two regression tests added at `tests/unit/cli/test_utils.py:328-356` (`test_invalid_format_falls_back_to_text` and `test_table_format_on_dict_falls_back_to_text`). No logic change. CI pending. |
+| ProjectHephaestus | Shared TOML/PyYAML capability-resolution and Python-floor cleanup plan | v3.0.0 Arm C is **PLAN ONLY / unverified**. Proposed: add `hephaestus.io.yaml.import_yaml()`, route configuration and generic serialization through it, mask `yaml` in `sys.modules` for deterministic absence tests, and resolve before opening save targets. No implementation or test execution was observed in this learning session. |

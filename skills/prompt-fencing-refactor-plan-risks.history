@@ -1,0 +1,492 @@
+# prompt-fencing-refactor-plan-risks — History
+
+## v2.1.0 (2026-08-07)
+
+**Changed by:** ProjectHephaestus commit/PR metadata prompt-hardening plan
+**Verification:** unverified
+
+### What changed
+
+- Added commit-message and PR-message metadata prompts as an explicit trigger.
+- Added field-authority classification: fence every GitHub/Git string and its static fallback while leaving host-owned policy and integer issue identifiers trusted.
+- Added the one-fencer-per-builder pattern using shared notice and labelled block variables.
+- Added regression contracts for fresh nonces, exact containment, trusted-text exclusion, and preserved JSON-only response schemas.
+- Added direct warnings against raw Jinja interpolation and fencing only non-empty values.
+
+### Why
+
+The v2 skill established behavior-first nonce and label matching, but did not spell out how to
+apply that boundary to commit and PR metadata builders. The supplied plan identifies a concrete
+failure surface: issue titles, issue bodies, changed-file output, diff statistics, and commit
+history can contain instruction-shaped text. Empty-value fallbacks should remain inside the same
+field boundary, while trusted allowlists, policy text, integer issue identifiers, parsers, and
+normalization paths should remain unchanged. The workflow remains unverified because this
+`/learn` session did not execute the Hephaestus implementation or its test suite.
+
+### Previous version (v2.0.0) snapshot
+
+---
+name: prompt-fencing-refactor-plan-risks
+description: "Test prompt builders through production consumers and security boundaries instead of pinning editorial text. Use when: (1) prompt tests assert headings, rubric phrases, example counts, or docstrings, (2) Jinja templates contain JSON examples consumed by real parsers, (3) nonce fencing must prove hostile payload containment, (4) provider or iteration routing must remain stable while prompt wording evolves."
+category: testing
+date: 2026-08-05
+version: "2.0.0"
+user-invocable: false
+verification: unverified
+history: prompt-fencing-refactor-plan-risks.history
+tags:
+  - prompt-builders
+  - prompt-schemas
+  - production-parsers
+  - untrusted-content
+  - nonce-fencing
+  - routing-tests
+  - jinja
+  - behavior-contracts
+  - projecthephaestus
+---
+
+# Prompt Tests Should Exercise Parsers, Fences, and Routing
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2026-08-05 |
+| **Objective** | Replace tests that freeze prompt prose with contracts over machine-consumed schemas, adversarial payload containment, provider selection, iteration routing, and host-produced job wiring. |
+| **Outcome** | Proposed major revision: validate rendered examples with production parsers, pair fence delimiters by nonce and label, prove payloads do not escape trusted regions, and assert routing outputs directly. The implementation plan was not executed. |
+| **Verification** | `unverified` — no templates or tests were changed in ProjectHephaestus and no focused suite or CI run was observed. |
+| **History** | [changelog](./prompt-fencing-refactor-plan-risks.history) |
+
+Prompt text is an implementation detail unless a downstream consumer parses it. Tests that
+pin headings, phrases, rubric markers, example counts, or builder docstrings make harmless
+editing expensive while missing malformed JSON and injection-boundary defects. Treat the
+consumer, fence, route, and host-owned job as the contract.
+
+## When to Use
+
+- A prompt test asserts that exact instructions, headings, rubric phrases, or forbidden
+  editorial strings occur in rendered output.
+- A template shows JSON that looks plausible to a model but is invalid JSON or rejected by
+  the production parser.
+- A security test checks only that `BEGIN_` and `END_` marker substrings exist, without
+  pairing their nonce and label or proving hostile text stays inside the block.
+- Prompt builders select providers or iteration-dependent fragments and those outcomes can
+  be asserted without freezing the selected fragment's wording.
+- A stage constructs an agent job whose prompt builder, parser, structured kwargs, and tool
+  permissions are host-owned policy.
+
+## Proposed Workflow
+
+> **Warning:** This workflow has not been validated end-to-end. Treat it as a hypothesis until CI confirms.
+
+### Quick Reference
+
+Use the production parser as the oracle for every machine-readable example:
+
+```python
+def test_prompt_example_is_accepted_by_consumer() -> None:
+    rendered = build_prompt(...)
+    parsed = production_parser(rendered)
+    assert parsed.valid
+```
+
+Pair nonce and label in fence extraction, compare exact block bodies, then remove all fenced
+regions and prove hostile payloads are absent from the trusted remainder:
+
+```python
+_FENCE_RE = re.compile(
+    r"BEGIN_(?P<nonce>[0-9A-F]+)_(?P<label>[A-Z0-9_]+)\n"
+    r"(?P<body>.*?)\n"
+    r"END_(?P=nonce)_(?P=label)",
+    re.DOTALL,
+)
+
+
+def assert_fenced(rendered: str, expected: dict[str, str]) -> None:
+    matches = list(_FENCE_RE.finditer(rendered))
+    blocks = {match.group("label"): match.group("body") for match in matches}
+    assert {label: blocks[label] for label in expected} == expected
+
+    trusted_text = _FENCE_RE.sub("", rendered)
+    assert all(payload not in trusted_text for payload in expected.values())
+```
+
+### Detailed Steps
+
+1. **Inventory real consumers before editing templates.** Map each structured example to
+   the production parser that consumes it: review audit, addressed replies, comment
+   classification, validation partition, follow-up issue classification, or another
+   domain parser.
+2. **Make examples valid and semantically admissible.** Use valid JSON, one allowed enum
+   value per field, all required fields, and any required exhaustive/non-overlapping
+   partition. Avoid pseudo-values such as `"easy|medium|hard"` and language-level union
+   expressions inside JSON.
+3. **Render through the public builder.** Do not validate a copied fixture that can drift
+   from the Jinja template. Render the real prompt and pass that result through the real
+   consumer or extract the example exactly as production does.
+4. **Assert semantic results.** Check parsed grades, findings, reply maps, classifications,
+   partition membership, and follow-up categories. Do not compare serialized formatting or
+   the explanatory sentence surrounding the example.
+5. **Fence adversarial payloads exactly.** Supply payloads containing fake verdicts, closing
+   markers, braces, and instruction text. Pair each `BEGIN` with an `END` carrying the same
+   nonce and label, compare the exact body, and prove the payload appears nowhere in trusted
+   text after fenced regions are removed.
+6. **Assert routing outcomes directly.** Monkeypatch or call provider-selection helpers and
+   compare the selected builder/callable. For iteration-dependent prompts, compare which
+   fragment or route is selected at each boundary, not the selected fragment's prose.
+7. **Assert host-owned job contracts at construction time.** At the stage seam, inspect the
+   produced job's builder identity, parser identity, allowed-tool scope, and decoded
+   structured kwargs. This is stronger evidence for permissions and routing than a sentence
+   in the prompt claiming what the agent may do.
+8. **Retain useful round-trip coverage.** Keep adversarial input round-trips, curly-brace
+   rendering, externally required PR-description output, parser behavior, fence security,
+   provider selection, and iteration routing. Delete editorial marker and docstring tests.
+
+## Verified Workflow
+
+No verified workflow exists for v2 yet. This compatibility heading satisfies the current
+Mnemosyne validator; follow **Proposed Workflow** and keep the result unverified until the
+templates, focused suites, pre-commit hooks, and CI pass.
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| ------- | -------------- | ------------- | -------------- |
+| Pin prompt headings and phrases | Asserted rubric markers, editorial instructions, headings, and forbidden strings | Harmless rewording broke tests while malformed structured examples could remain undetected | Parse machine-consumed output and assert semantic results |
+| Count examples or markers | Required an exact number of JSON blocks, headings, or directive occurrences | Reorganization changes counts without changing the contract, and duplicated bad examples can still satisfy the count | Identify each consumer-owned example and validate it with that consumer |
+| Marker-presence fencing test | Checked only that expected `BEGIN_` and `END_` substrings appeared | Mismatched nonces or labels, duplicated blocks, and payload leakage outside the fence were not excluded | Pair nonce and label with regex backreferences and remove fenced blocks before leakage checks |
+| JSON-like pseudo-schema | Used enum unions or language expressions inside a JSON example | The example was not valid JSON and could not be accepted by the runtime parser | Use one valid representative enum value and all parser-required fields |
+| Compare full rendered prompt text | Treated formatting and prose as the behavior-preservation oracle | Whitespace and editorial changes caused churn; equality did not prove the downstream parser accepted the schema | Render the real template, invoke the production parser, and assert its domain object |
+| Encode permissions in prose tests | Asserted wording about allowed tools inside a prompt | The host can construct a differently scoped job regardless of what the prompt says | Assert the stage-produced job's permission field at the host boundary |
+
+## Results & Parameters
+
+### Consumer-backed example shapes from the Hephaestus plan
+
+```json
+{"addressed": ["<thread_id>"], "replies": {"<thread_id>": "what was fixed"}}
+```
+
+```json
+{"classifications": {"<thread_id>": "medium"}}
+```
+
+```json
+{
+  "resolved": ["<resolved_thread_id>"],
+  "unaddressed": [
+    {
+      "thread_id": "<unaddressed_thread_id>",
+      "path": "module.py",
+      "line": 1,
+      "original_body": "original finding",
+      "detail": "remaining problem"
+    }
+  ]
+}
+```
+
+```json
+{
+  "follow_ups": [
+    {
+      "category": "core",
+      "title": "Short specific title",
+      "body": "module.py:1: Concrete defect and proposed fix"
+    }
+  ],
+  "rejected": [
+    {
+      "title": "Excluded candidate",
+      "reason": "It does not meet a supported scope category."
+    }
+  ]
+}
+```
+
+These are representative objects, not wording snapshots. The actual acceptance gate is
+that the corresponding production parser accepts them and returns the intended domain
+result.
+
+### Proposed ProjectHephaestus verification
+
+```bash
+uv run pytest \
+  tests/unit/automation/test_prompts.py \
+  tests/unit/automation/test_review_audit.py \
+  tests/unit/automation/test_address_review_property.py \
+  tests/unit/automation/test_follow_up.py \
+  tests/unit/automation/test_comment_difficulty.py \
+  tests/unit/automation/pipeline/test_agent_allowed_tools_scoping.py \
+  tests/unit/automation/pipeline/stages/test_stage_implementation.py -v
+uv run pre-commit run --all-files
+```
+
+### Review checklist
+
+- Every structured example is valid JSON and accepted by its real consumer.
+- Resolved and unaddressed thread examples form the partition required by the validator.
+- Every hostile payload is present in its exact nonce/label block and absent from trusted
+  text.
+- Provider selection and iteration routing tests compare callables or domain outcomes.
+- Stage tests assert prompt builder, parser, decoded kwargs, and host-owned tool scope.
+- No test exists solely to freeze a heading, editorial phrase, example count, source string,
+  or prompt-builder docstring.
+
+## Verified On
+
+| Project | Context | Details |
+| ------- | ------- | ------- |
+| ProjectHephaestus | Issue #1399 original prompt-fencing refactor plan | The v1 planning risks are archived; no implementation was verified. |
+| ProjectHephaestus | Issue #1950 behavior-first prompt-test refactor plan | V2 parser, fence, routing, and host-job contracts are proposed; implementation and CI are pending. |
+
+---
+
+
+## v2.0.0 (2026-08-05)
+
+**Changed by:** ProjectHephaestus issue #1950 behavior-first prompt-test refactor plan
+**Verification:** unverified
+
+### What changed
+
+- Replaced rendered-prompt prose comparison with production-parser-backed schema tests.
+- Added exact nonce-and-label fence pairing plus hostile-payload containment checks.
+- Added provider and iteration routing outcomes as stable contracts.
+- Added host-produced agent-job builder, parser, structured-kwargs, and permission assertions.
+- Added valid representative JSON for address replies, comment difficulty, validation partitioning, and follow-up classification.
+
+### Why
+
+The v1 skill correctly emphasized nonce scope and untrusted-content fencing, but still
+recommended comparing rendered prompt strings as the main behavioral oracle. The #1950
+plan demonstrated that headings, rubric phrases, example counts, and docstrings are not
+runtime contracts. Production parsers, exact fence containment, routing results, and
+host-owned job fields are the observable boundaries that should fail tests. The revised
+workflow remains unverified because the implementation was not executed.
+
+### Previous version (v1.0.0) snapshot
+
+---
+name: prompt-fencing-refactor-plan-risks
+description: "Planning-stage risk checklist for refactoring prompt builders that fence untrusted GitHub content. Use when: (1) extracting repeated nonce/fence/notice plumbing into a shared helper, (2) reviewing a prompt refactor that must preserve one nonce per rendered prompt, (3) moving _fence_untrusted/_UNTRUSTED_NOTICE usage behind a helper without weakening injection defenses, (4) adding or re-exporting prompt helper APIs from hephaestus.automation.prompts."
+category: architecture
+date: 2026-06-26
+version: "1.0.0"
+user-invocable: false
+verification: unverified
+tags:
+  - prompt-builders
+  - prompt-fencing
+  - untrusted-content
+  - nonce
+  - secrets-token-hex
+  - refactoring
+  - planning
+  - reviewer-risks
+  - parser-sensitive-tests
+  - projecthephaestus
+---
+
+# Prompt Fencing Refactor Plan Risks
+
+## Overview
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-06-26 |
+| **Objective** | Capture the planning risks from ProjectHephaestus issue #1399: add a shared prompt-scoped fencing helper in `hephaestus/automation/prompts/_shared.py` so prompt builders stop repeating `secrets.token_hex(8).upper()`, `_fence_untrusted(...)`, and `_UNTRUSTED_NOTICE` plumbing. |
+| **Outcome** | Plan produced only. The refactor was not executed in this learning capture, and none of the cited grep results, line numbers, prompt contracts, or test locations were independently re-verified here. |
+| **Verification** | unverified - planning artifact only; no ProjectHephaestus code was edited or tested. |
+
+This is the prompt-security specialization of the broader DRY/refactor planning
+skills. Reach for `dry-refactoring-plan-assumption-audit` for generic DRY
+consolidation risks and `refactor-extraction-plan-unverified-assumptions` for
+single-module extraction with re-exports. Use this skill when the refactor touches
+prompt fencing, nonce scope, or parser-sensitive rendered prompt text.
+
+## When to Use
+
+- Planning or reviewing a refactor that centralizes prompt fencing for untrusted
+  issue bodies, PR diffs, review comments, or plan text.
+- A plan proposes a `FencedContent`/`fence_content()` helper that generates a
+  prompt nonce and returns fenced blocks plus `_UNTRUSTED_NOTICE`.
+- Multiple prompt builders must still render exactly one nonce per prompt, even
+  when they include several fenced untrusted sections.
+- Lower-level prompt helpers keep a `nonce` parameter for compatibility while
+  top-level builders switch to a shared helper and pass `fenced.nonce`.
+- The plan re-exports a prompt helper from `hephaestus.automation.prompts.__init__`
+  and claims public API compatibility.
+- The acceptance criteria depend on parser-sensitive prompt output, not just helper
+  unit behavior.
+
+## Proposed Workflow
+
+> **Warning:** This workflow has not been validated end-to-end. Treat as a
+> hypothesis until CI confirms. The source plan was not executed, and this skill
+> records reviewer risks and verification commands to run before trusting it.
+
+### Quick Reference
+
+```bash
+# Run from the ProjectHephaestus repo root before implementing or approving.
+
+# 1. Rebuild the evidence instead of trusting the plan's copied grep output.
+rg -n "secrets\\.token_hex|_fence_untrusted|_UNTRUSTED_NOTICE" \
+  hephaestus/automation/prompts/planning.py \
+  hephaestus/automation/prompts/implementation.py \
+  hephaestus/automation/prompts/address_review.py \
+  hephaestus/automation/prompts/pr_review.py
+
+# 2. Locate lower-level helpers that must remain signature-compatible.
+rg -n "def build_unaddressed_directive|def _build_context_block" \
+  hephaestus/automation/prompts tests
+
+# 3. Verify public export expectations before adding/re-exporting names.
+rg -n "__all__|from hephaestus\\.automation\\.prompts import|FencedContent|fence_content" \
+  hephaestus/automation/prompts tests
+
+# 4. After the refactor, prove duplication is gone from the intended files only.
+rg -n "secrets\\.token_hex\\(8\\)\\.upper\\(\\)|_fence_untrusted\\(|_UNTRUSTED_NOTICE" \
+  hephaestus/automation/prompts/planning.py \
+  hephaestus/automation/prompts/implementation.py \
+  hephaestus/automation/prompts/address_review.py \
+  hephaestus/automation/prompts/pr_review.py
+
+# 5. Run helper and rendered-prompt behavioral tests together.
+pytest \
+  tests/unit/automation/prompts/test_shared.py \
+  tests/unit/automation/test_prompts.py \
+  tests/unit/automation/test_prompt_terseness.py
+```
+
+### Detailed Steps
+
+1. **Re-verify every plan premise against the current tree.** The #1399 plan
+   claimed specific `rg` results for `import secrets`, `secrets.token_hex`,
+   `_UNTRUSTED_NOTICE`, `_fence_untrusted`, re-export sites, and test locations.
+   Treat those as hints. Re-run the searches on the implementation branch before
+   writing code, and cite fresh paths/lines in the PR body.
+
+2. **Make nonce scope the central invariant.** The helper can reduce duplication
+   only if every top-level prompt builder still uses exactly one nonce for the
+   rendered prompt. If a builder fences multiple untrusted inputs, all nonce-delimited
+   blocks in that rendered prompt must share the same nonce. Tests should count or
+   monkeypatch nonce generation at the top-level builder, not only assert that the
+   helper returns a string.
+
+3. **Preserve the prompt-injection boundary, not just string shape.** Every untrusted
+   GitHub payload must remain inside `_fence_untrusted(..., nonce)` output and the
+   rendered prompt must still include `_UNTRUSTED_NOTICE`. A helper-only test can pass
+   while a prompt builder accidentally drops the notice or embeds one payload raw.
+   Compare actual rendered prompt output for planning, implementation, PR review,
+   and address review.
+
+4. **Keep lower-level nonce helpers compatible.** `build_unaddressed_directive(threads, nonce)`
+   and `_build_context_block(..., nonce)` are intended to keep their signatures. The
+   top-level builder should pass `fenced.nonce`; the lower-level helper should not
+   start generating its own nonce. Add direct regression coverage for the address-review
+   path because it is the easiest place to accidentally create a second nonce.
+
+5. **Treat `__all__`/re-export work as public API.** If `FencedContent` and
+   `fence_content()` are exported from `prompts/__init__.py`, verify the package's
+   existing export pattern and tests before changing it. Missing an `__all__` entry
+   breaks import-style callers; over-exporting private helpers broadens the public
+   surface without review.
+
+6. **Test parser-sensitive rendered prompts, not only helper mechanics.** The plan's
+   riskiest claim is behavioral equivalence. Existing tests in
+   `tests/unit/automation/test_prompts.py` and `test_prompt_terseness.py` are more
+   important than a new `test_shared.py` if they compare the real prompt strings that
+   downstream parsers/review loops consume.
+
+## Verified Workflow
+
+No verified workflow exists for this learning yet. The heading is retained only
+because `scripts/validate_plugins.py` currently requires `## Verified Workflow`
+in every flat skill file. Use the `## Proposed Workflow` section above; do not
+treat this as a verified implementation recipe.
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+|---------|----------------|---------------|----------------|
+| Trust copied grep evidence from the plan | Accepted claimed `rg` results for `secrets.token_hex`, `_UNTRUSTED_NOTICE`, `_fence_untrusted`, exact line numbers, and test locations | The learning request did not independently verify the ProjectHephaestus tree; line numbers and import sites can drift before implementation | Re-run every search on the current branch and cite fresh paths/lines before coding or approving |
+| Unit-test only the new helper | Added `test_shared.py` for `FencedContent`/`fence_content()` and assumed prompt behavior was covered | A helper can return correct fields while a prompt builder uses two nonces, drops `_UNTRUSTED_NOTICE`, or embeds one untrusted payload raw | Add rendered-prompt tests for each affected builder and keep existing behavioral tests in the verification set |
+| Treat nonce generation as a local detail | Moved `secrets.token_hex(8).upper()` behind a factory without asserting top-level nonce scope | Multiple helper calls inside one prompt can silently generate multiple nonces, breaking nonce-delimited fence contracts | Assert exactly one nonce per rendered prompt and ensure all fenced blocks in that prompt use `fenced.nonce` |
+| Assume lower-level helper signatures are safe by intent | Planned to pass `fenced.nonce` to `build_unaddressed_directive(threads, nonce)` and `_build_context_block(..., nonce)` without targeted address-review coverage | The address-review path has nested helper calls and can accidentally start generating or expecting a different nonce | Keep signatures unchanged and add direct address-review regression tests around the rendered output |
+| Re-export without auditing the package surface | Added helper names to `prompts/__init__.py` because the plan said to re-export them | `__all__` or import-style tests may require exact names; exposing private helper internals can create accidental API | Inspect current `__init__.py` export style and tests before changing the public surface |
+| Declare the duplication audit empty without scoping it | Ran a broad or stale grep and called duplication removed | A broad grep may flag `_shared.py` intentionally, while a narrow grep may miss one affected builder | Scope the final grep to `planning.py`, `implementation.py`, `address_review.py`, and `pr_review.py`, and make the expected hits/zero-hits explicit |
+
+## Results & Parameters
+
+### Plan Context Preserved
+
+- Objective: add a shared prompt-scoped fencing helper in
+  `hephaestus/automation/prompts/_shared.py`.
+- Proposed design: frozen `FencedContent` helper plus `fence_content()` factory.
+- Nonce rule: one nonce per prompt builder; pass `fenced.nonce` into lower-level
+  helpers that already accept a nonce.
+- Public API plan: re-export the helper from `hephaestus.automation.prompts.__init__`.
+- Affected prompt modules named in the plan: `planning.py`, `implementation.py`,
+  `address_review.py`, and `pr_review.py`.
+- Tests named in the plan: new `tests/unit/automation/prompts/test_shared.py`,
+  existing `tests/unit/automation/test_prompts.py`, and
+  `tests/unit/automation/test_prompt_terseness.py`.
+- Lower-level helpers intended to remain signature-compatible:
+  `build_unaddressed_directive(threads, nonce)` and `_build_context_block(..., nonce)`.
+
+### Most Uncertain Assumptions
+
+1. The existing prompt builders all share the same nonce lifecycle and can use one
+   factory result without changing rendered output.
+2. The current lower-level helper signatures are exactly as the plan states and
+   no caller relies on generating a nonce inside them.
+3. The package export surface can add `FencedContent` and `fence_content()` without
+   breaking `__all__`, lazy imports, or downstream import expectations.
+4. Existing behavioral tests compare enough parser-sensitive prompt output to catch
+   notice ordering, fence delimiter, and nonce regressions.
+5. The duplication audit grep is scoped to the intended prompt-builder files and
+   will not be fooled by legitimate helper definitions in `_shared.py`.
+
+### External Sources, Files, And APIs Not Verified Here
+
+- The plan's claimed `rg` output for `import secrets`, `secrets.token_hex`,
+  `_UNTRUSTED_NOTICE`, `_fence_untrusted`, exact line numbers, and test locations.
+- Current contents of `hephaestus/automation/prompts/_shared.py`,
+  `planning.py`, `implementation.py`, `address_review.py`, `pr_review.py`, and
+  `prompts/__init__.py`.
+- Current parser-sensitive prompt contracts asserted by
+  `tests/unit/automation/test_prompts.py` and `test_prompt_terseness.py`.
+- The exact behavior and expected delimiter format of `_fence_untrusted(...)`.
+- The public import/export contract for `hephaestus.automation.prompts`.
+- The stdlib `secrets.token_hex(8).upper()` behavior is stable, but whether tests
+  monkeypatch it or assert exact nonce text in this repo was not verified here.
+
+### Reviewer-Risk Focus
+
+```text
+Prompt fencing refactor review checklist
+
+- [ ] Every rendered prompt still uses exactly one nonce.
+- [ ] Every untrusted GitHub payload remains inside nonce-delimited fenced blocks.
+- [ ] `_UNTRUSTED_NOTICE` still appears in each prompt that includes untrusted content.
+- [ ] `build_unaddressed_directive(threads, nonce)` and `_build_context_block(..., nonce)`
+      keep behavior and do not generate their own nonce.
+- [ ] `FencedContent` / `fence_content()` exports match the package's public API policy.
+- [ ] Tests compare actual rendered prompt output, not just helper return values.
+- [ ] The final duplication-audit grep is empty for the intended prompt-builder files.
+```
+
+## Verified On
+
+| Project | Context | Details |
+|---------|---------|---------|
+| ProjectHephaestus | Issue #1399 implementation-plan learning capture | Planning-only; unverified. The plan was summarized into this skill, but the ProjectHephaestus code, tests, line numbers, and grep evidence were not independently checked in this request. |
+
+---
+
+## v1.0.0 (2026-06-26)
+
+**Initial version.**

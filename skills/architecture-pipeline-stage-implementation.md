@@ -1,358 +1,298 @@
 ---
 name: architecture-pipeline-stage-implementation
-description: "Use when: (1) implementing queue-based pipeline stages with state machine semantics (Continue/JobRequest/StageOutcome); (2) delegating pure classifiers to pipeline stages via context accessors; (3) routing jobs via on_job_done payload flags while avoiding state mutations; (4) distinguishing timer-park (RETRY disposition) from job submission (JobRequest); (5) managing job completion routing that doesn't mutate item.state (coordinator clobber risk); (6) implementing durable mutations (e.g., arming records, dedupe markers) that must occur before state advances."
+description: "Implement queue-based pipeline stages and worker-result boundaries against the landed state-machine contract. Use when: (1) returning Continue, JobRequest, or StageOutcome; (2) handling on_job_done without mutating coordinator-owned state; (3) distinguishing RETRY timer-parks from job submission; (4) ordering durable writes before queue advancement; (5) translating a helper's expected negative sentinel into JobResult; (6) a failed JobResult has error=None and downstream warnings render None; (7) checking whether a proposed stage still exists in the active routing table."
 category: architecture
-date: 2026-07-05
-version: "1.0.0"
+date: 2026-07-20
+version: "2.0.0"
 user-invocable: false
+verification: verified-local
 history: architecture-pipeline-stage-implementation.history
 tags:
   - pipeline
   - stage
   - state-machine
   - coordinator
-  - job-routing
+  - worker-pool
+  - job-result
+  - error-contract
+  - failure-observability
+  - sentinel-translation
   - durable-mutations
   - timer-park
-  - queue-automation
-  - classifiers
+  - rebase-conflicts
 ---
-# architecture-pipeline-stage-implementation
 
-Implement queue-based pipeline stages with state machine semantics, pure classifiers, job routing avoiding state mutation, and durable pre-advance mutations.
+# Queue Pipeline Stages and Worker Result Contracts
 
 ## Overview
 
-| Item | Details |
-| ------ | --------- |
-| Date | 2026-07-05 |
-| Objective | Establish patterns for pipeline stage implementation using Continue/JobRequest/StageOutcome, delegated pure classifiers, job routing via payload flags, and durable state before advance |
-| Outcome | Success — ProjectHephaestus pipeline stages (ci-drive-green, merge-wait) implemented with 479 unit tests passing, verified-ci |
-| Verification | verified-ci, 479 pipeline unit tests |
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-07-20 |
+| **Objective** | Implement stages against the landed queue-pipeline API and make worker failures observable by translating expected negative helper returns into complete `JobResult` values. |
+| **Outcome** | The canonical stage skill now matches the current API and adds the invariant that every non-interrupted failure has an actionable `error`. The ProjectHephaestus mechanical-rebase mapping was exercised locally for clean and conflict returns. |
+| **Verification** | **verified-local** — both parameterized worker-pool cases passed with `--no-cov`; Ruff passed for the implementation and test files. CI validation is pending. |
+| **History** | [changelog](./architecture-pipeline-stage-implementation.history) |
 
 ## When to Use
 
-- Implementing a pipeline stage that must classify work items and route them to different jobs or outcomes
-- Extracting pure classifiers from legacy code (not coupled to item.state mutations) for use in pipeline stages
-- Routing completed jobs back to the pipeline (on_job_done) using payload flags instead of direct state writes
-- Implementing timer-park semantics where a stage should delay before retrying (RETRY disposition, not JobRequest)
-- Managing durable state (arming records, dedupe markers) that must be written before state advances
-- Ensuring crash-safety: if a job completes but the arming record write fails, the stage must retry, not continue with a dangling armed state
-- Distinguishing when to return Continue (no job needed), JobRequest (submit a new job), or StageOutcome with RETRY (park and delay)
+- Implementing or reviewing a queue stage with `on_enter`, `step`, and `on_job_done`.
+- Choosing among `Continue`, `JobRequest`, and `StageOutcome`.
+- Adding a worker operation whose helper can return an expected negative sentinel such as `False`, an empty optional, or a domain status instead of raising.
+- Debugging logs such as `operation failed: None` when the result has `ok=False`.
+- Deciding whether failure text belongs in a stage, a coordinator, or the worker boundary.
+- Adding regression coverage for both success and expected-negative result metadata.
+- Planning work against an architecture diagram that may mention a removed stage. Read `StageName` and the routing table first; do not create tests for a stage that no longer exists.
 
 ## Verified Workflow
 
-### Quick Reference: Stage Structure
+### Quick Reference
 
-A pipeline stage is a callable that:
-1. **Receives** a WorkItem and a context (state accessor, classifier accessors, durable mutations)
-2. **Decides** (via classifiers) which job to submit, if any, or whether to continue/retry
-3. **Mutates durably** before state change (arming records, dedupe markers)
-4. **Returns** Continue, JobRequest, or StageOutcome with one of: Disposition.FINISH_OK, Disposition.FINISH_FAIL, Disposition.RETRY
+```bash
+# Confirm the landed pipeline vocabulary and active stages.
+rg -n "class StageName|class Continue|class JobRequest|class JobResult" \
+  hephaestus/automation/pipeline
 
-```python
-async def stage_ci_drive_green(
-    item: WorkItem,
-    ctx: StageContext,
-) -> Continue | JobRequest | StageOutcome:
-    # 1. Classify using pure classifier from context
-    ci_state = ctx.classify_ci_state(item)
+# Audit incomplete non-interrupted failure results.
+rg -n "JobResult\(.*ok=False|JobResult\(" \
+  hephaestus/automation/pipeline/worker_pool.py
 
-    # 2. Route based on classification
-    if ci_state == CIState.GREEN:
-        # Durable mutation BEFORE state change
-        await ctx.arm_auto_merge(item.pr_number)
-        return Continue(next_stage="merge-wait", reason="ci_green_armed")
+# Focused verification without triggering repository-wide coverage fail-under.
+uv run pytest --no-cov \
+  tests/unit/automation/pipeline/test_worker_pool.py::TestGitOps::test_rebase_dispatch_propagates_result -v
 
-    if ci_state == CIState.RED:
-        # Durable mutation if needed
-        await ctx.record_ci_failure(item.pr_number, ci_state)
-        return StageOutcome(Disposition.RETRY, reason="ci_red_retry")
-
-    # 3. Submit job if work needed
-    job = AgentJob(
-        name="drive-green",
-        payload={"pr_number": item.pr_number},
-    )
-    return JobRequest(job, on_job_done="on_drive_green_done")
+uv run ruff check \
+  hephaestus/automation/pipeline/worker_pool.py \
+  tests/unit/automation/pipeline/test_worker_pool.py
 ```
 
 ### Detailed Steps
 
-#### 1. Extract Pure Classifiers from Legacy Code
+#### 1. Read the landed contract before designing the stage
 
-Pure classifiers are functions that:
-- Take a WorkItem and return a classification (enum, bool, or structured result)
-- Do NOT mutate item.state or any global state
-- Are deterministic (same input → same output)
+The current ProjectHephaestus pipeline has these active stages:
 
-**Example: Extract from legacy code**
-
-```python
-# Legacy code (DO NOT USE in stages — couples state mutation to classification)
-def legacy_classify_and_advance(item):
-    state = fetch_external_state(item.pr_number)
-    if state.ci_passed:
-        item.state = "merge_ready"  # BAD: direct state mutation
-        return True
-    item.state = "ci_fixing"  # BAD: direct state mutation
-    return False
-
-# Pure classifier extraction
-def classify_ci_state(item: WorkItem) -> CIState:
-    """Pure classifier: no side effects, no item.state writes."""
-    state = fetch_external_state(item.pr_number)
-    if state.ci_passed and state.all_checks_green:
-        return CIState.GREEN
-    if state.ci_passed and state.has_warnings:
-        return CIState.GREEN_WITH_WARNINGS
-    return CIState.RED
-
-# Make it accessible via context
-class StageContext:
-    def classify_ci_state(self, item: WorkItem) -> CIState:
-        return classify_ci_state(item)
+```text
+repo → planning → plan_review → implementation → pr_review → merge_wait → finished
 ```
 
-**Benefit:** The classifier is testable in isolation, reusable across stages, and doesn't require mocking item.state mutations.
+CI/CD intentionally has no independent pipeline stage. Normal review may collect CI/CD
+evidence, but CI/CD does not authorize approval and the loop does not change it. Treat
+issue bodies, plans, and old architecture examples as hypotheses until `StageName`,
+`ROUTES`, and the stage base types confirm them.
 
-#### 2. Implement Job Routing via on_job_done Callback
-
-When a job completes, the coordinator calls the stage's `on_job_done` handler. Use this to route the completed job's result WITHOUT mutating item.state directly (the coordinator will clobber it).
-
-**Pattern:**
+The landed result vocabulary is:
 
 ```python
-async def stage_ci_drive_green(
-    item: WorkItem,
-    ctx: StageContext,
-) -> Continue | JobRequest | StageOutcome:
-    job = AgentJob(
-        name="drive-green-agent",
-        payload={"pr_number": item.pr_number, "branch": item.branch},
-    )
-    return JobRequest(
-        job,
-        on_job_done="on_drive_green_done",  # ← Callback name
-    )
+@dataclass(frozen=True)
+class Continue:
+    next_state: str
 
-# In the stage class:
-async def on_drive_green_done(
-    self,
-    item: WorkItem,
-    job_result: JobResult,
-    ctx: StageContext,
-) -> Continue | JobRequest | StageOutcome:
-    """Invoked by coordinator when job completes."""
-    if job_result.success:
-        # Job succeeded: drive-green completed
-        # Durable mutation BEFORE state advance
-        await ctx.arm_auto_merge(item.pr_number)
-        return Continue(next_stage="merge-wait")
-    else:
-        # Job failed: retry with timer-park
-        return StageOutcome(Disposition.RETRY, reason="drive_green_failed")
+@dataclass(frozen=True)
+class JobRequest:
+    job: AgentJob | BuildTestJob | GitJob
+    on_done_state: str
+
+@dataclass(frozen=True)
+class JobResult:
+    ok: bool
+    value: Any = None
+    error: str | None = None
+    interrupted: bool = False
+
+@dataclass(frozen=True)
+class StageOutcome:
+    disposition: Disposition
+    note: str = ""
 ```
 
-**Why not item.state = "armed"?** The coordinator is the sole writer of item.state; a stage writing directly causes race conditions and lost updates. Use `on_job_done` to signal the next stage or outcome to the coordinator.
+Use the actual fields: `next_state`, `on_done_state`, `ok`, and `note`.
+`Disposition.FINISH_PASS` is the successful terminal disposition. Names such as
+`next_stage`, `job_result.success`, `reason`, and `FINISH_OK` are stale.
 
-#### 3. Distinguish RETRY Disposition from JobRequest
+#### 2. Keep state ownership in the coordinator
 
-Two different patterns for different semantics:
-
-- **RETRY disposition**: Park the item, wait before retrying the SAME stage (timer-park semantics)
-- **JobRequest**: Submit a NEW job immediately, await its completion
-
-```python
-# Pattern 1: Timer-park (use RETRY)
-async def stage_with_delay(item, ctx):
-    """Wait before retrying the stage."""
-    # No new job needed; just delay and retry.
-    return StageOutcome(Disposition.RETRY, reason="delay_before_retry")
-
-# Pattern 2: Submit job (use JobRequest)
-async def stage_with_agent_work(item, ctx):
-    """Have an agent do work, then call on_job_done."""
-    job = AgentJob(name="my-agent", payload={"item": item.id})
-    return JobRequest(job, on_job_done="on_agent_done")
-```
-
-**In coordinator logic:**
-- RETRY: Coordinator parks item in a retry queue with a timer; after timeout, re-invokes the same stage
-- JobRequest: Coordinator submits the job, awaits completion, calls `on_job_done` in the same stage
-
-#### 4. Implement Durable Mutations BEFORE State Change
-
-A durable mutation is any write to persistent state (database, durable queue, file system) that must NOT be lost if the process crashes.
-
-**Rule:** Write durable state BEFORE returning Continue/JobRequest/StageOutcome. If the write fails, return FINISH_FAIL to force retry from a clean state.
+A stage returns a transition; it does not write `item.state` directly:
 
 ```python
-async def stage_arm_auto_merge(item, ctx) -> Continue | StageOutcome:
-    """Arm the PR for auto-merge. Durable arming record must be written before continue."""
+def step(self, item: WorkItem, ctx: StageContext) -> StepResult:
+    if item.state == "READY":
+        return Continue("SUBMIT")
 
-    # Classify to decide if we should arm
-    merge_state = ctx.classify_pr_merge_state(item)
-    if merge_state != MergeState.READY:
-        return Continue(next_stage="wait-merge", reason="not_ready")
-
-    try:
-        # Step 1: Write durable arming record to database
-        arming_record = await ctx.create_arming_record(
-            pr_number=item.pr_number,
-            armed_at=ctx.now(),
-            auto_merge_enabled=True,
+    if item.state == "SUBMIT":
+        return JobRequest(
+            job=BuildTestJob(
+                repo=item.repo,
+                cwd=ctx.paths.worktree(item),
+                argv=("uv", "run", "pytest", "--no-cov", "tests/unit"),
+                timeout_s=600,
+            ),
+            on_done_state="EVALUATE",
         )
 
-        # Step 2: Enable auto-merge on the PR (API call)
-        await ctx.enable_auto_merge(item.pr_number)
+    if item.state == "EVALUATE":
+        if item.payload["build_ok"]:
+            return StageOutcome(Disposition.FINISH_PASS, note="build passed")
+        return StageOutcome(Disposition.RETRY, note="build failed")
 
-        # Step 3: Update arming record (optional, for audit trail)
-        await ctx.update_arming_record(arming_record.id, status="api_called")
-
-    except Exception as e:
-        # Durable write failed: return FINISH_FAIL to force retry
-        # The PR is NOT armed (no arming record), so the retry is safe
-        return StageOutcome(Disposition.FINISH_FAIL, reason=f"arm_record_failed: {e}")
-
-    # Success: state advances to next stage
-    return Continue(next_stage="merge-wait", reason="auto_merge_armed")
+    return StageOutcome(Disposition.FINISH_FAIL, note=f"unknown state {item.state}")
 ```
 
-**Why this matters:** If the process crashes between "enable_auto_merge" (step 2) and "create_arming_record" (step 1), the PR is armed but no dedupe record exists. On restart, the stage might re-arm the PR (duplicate API calls, race conditions). By doing durable writes FIRST, a crash leaves the state consistent.
-
-#### 5. Avoid JobRequest(None) — Use Real Jobs or RETRY Disposition
-
-**WRONG:** Trying to use `JobRequest(None, ...)` as a way to signal "no job but want a callback":
+`on_job_done` receives the result while the item remains at the submitting wait state.
+It stores facts in `item.payload` and returns `None`; the coordinator then advances to
+`on_done_state`.
 
 ```python
-# WRONG — coordinator crashes on None
-return JobRequest(None, "on_something_done")  # type: ignore
+def on_job_done(
+    self,
+    item: WorkItem,
+    result: JobResult,
+    ctx: StageContext,
+) -> None:
+    item.payload["build_ok"] = result.ok
+    item.payload["build_error"] = result.error
 ```
 
-**RIGHT:** Use one of:
+#### 3. Enforce the worker-result failure invariant
+
+For any completed, non-interrupted job:
+
+```text
+result.ok is False  ⇒  result.error is a non-empty actionable string
+```
+
+`value`, `stdout_tail`, and `stderr_tail` remain useful structured evidence, but
+none substitutes for the short summary downstream warnings interpolate. Interrupted
+results are a separate resumability channel and may be excluded from ordinary failure
+routing.
+
+Audit the invariant where each worker operation constructs `JobResult`. The worker
+boundary knows which helper return means what; translating later in every stage duplicates
+domain knowledge and still leaves other consumers exposed to `None`.
+
+#### 4. Separate expected-negative sentinels from raised failures
+
+First read the helper contract.
+
+- If the helper raises on timeout, fetch failure, or non-zero subprocess exit, preserve the
+  worker's existing exception translation and output tails.
+- If the helper returns a sentinel for an expected branch, translate that sentinel at the
+  operation dispatch boundary.
+
+Mechanical rebase is the concrete pattern:
 
 ```python
-# Option 1: Return Continue if no job and no delay needed
-return Continue(next_stage="next_stage")
+# BEFORE: False becomes a failed result with no explanation.
+result = git_utils.rebase_worktree_onto(**job.kwargs, timeout=job.timeout_s)
+return JobResult(ok=result, value=result)
 
-# Option 2: Return RETRY if you want timer-park (delay then retry)
-return StageOutcome(Disposition.RETRY, reason="delay_before_retry")
-
-# Option 3: Submit a real job (GitJob, AgentJob, or custom)
-job = AgentJob(name="work", payload={...})
-return JobRequest(job, on_job_done="on_done")
+# AFTER: only the expected conflict sentinel gets the deterministic summary.
+result = git_utils.rebase_worktree_onto(**job.kwargs, timeout=job.timeout_s)
+error = None if result else "mechanical rebase hit conflicts; aborted"
+return JobResult(ok=result, value=result, error=error)
 ```
 
-**Reason:** JobRequest's job parameter is always instantiated and submitted to the job queue. If you pass None, the coordinator receives a None job and crashes when trying to serialize/queue it.
+This is intentionally narrow. `rebase_worktree_onto()` documents `False` as “conflicts
+encountered and rebase aborted.” Fetch and other subprocess failures raise, so their
+existing timeout, return-code, stdout-tail, and stderr-tail handling remains unchanged.
 
-#### 6. Test Stage Classification and Routing
+#### 5. Test the result contract at the dispatch boundary
 
-Use pure classifiers to make stages testable without mocking external state:
+Extend the existing operation-dispatch test. Cover success and the expected-negative
+branch in one parameterized contract:
 
 ```python
-import pytest
-from unittest.mock import AsyncMock
+@pytest.mark.parametrize(
+    ("rebase_clean", "expected_error"),
+    [
+        (True, None),
+        (False, "mechanical rebase hit conflicts; aborted"),
+    ],
+)
+def test_rebase_dispatch_propagates_result(
+    self,
+    pool: WorkerPool,
+    completion_q: CompletionQueue,
+    rebase_clean: bool,
+    expected_error: str | None,
+) -> None:
+    job = GitJob(
+        repo="test/repo",
+        op="rebase",
+        timeout_s=60,
+        kwargs={"cwd": Path("/tmp/wt"), "base_branch": "main"},
+    )
+    with patch(
+        "hephaestus.automation.git_utils.rebase_worktree_onto",
+        return_value=rebase_clean,
+    ) as mock_rebase:
+        pool.submit(job, StageName.MERGE_WAIT)
+        _, result = completion_q.get(timeout=10)
 
-@pytest.mark.asyncio
-async def test_stage_ci_green_routes_to_merge_wait():
-    """Test that CI-green classification routes to merge-wait stage."""
-    item = WorkItem(pr_number=123, state="drive_green")
-
-    # Mock the context classifier
-    ctx = AsyncMock()
-    ctx.classify_ci_state.return_value = CIState.GREEN
-    ctx.arm_auto_merge = AsyncMock()
-
-    # Invoke stage
-    result = await stage_ci_drive_green(item, ctx)
-
-    # Assert: Continue to merge-wait
-    assert isinstance(result, Continue)
-    assert result.next_stage == "merge-wait"
-    assert result.reason == "ci_green_armed"
-
-    # Assert: Durable mutation was called
-    ctx.arm_auto_merge.assert_called_once_with(123)
-
-@pytest.mark.asyncio
-async def test_stage_ci_red_retries_with_delay():
-    """Test that CI-red returns RETRY disposition."""
-    item = WorkItem(pr_number=123, state="drive_green")
-
-    ctx = AsyncMock()
-    ctx.classify_ci_state.return_value = CIState.RED
-
-    result = await stage_ci_drive_green(item, ctx)
-
-    assert isinstance(result, StageOutcome)
-    assert result.disposition == Disposition.RETRY
-    assert result.reason == "ci_red_retry"
+    mock_rebase.assert_called_once_with(
+        cwd=Path("/tmp/wt"),
+        base_branch="main",
+        timeout=60,
+    )
+    assert result.ok is rebase_clean
+    assert result.value is rebase_clean
+    assert result.error == expected_error
 ```
 
-### Architecture Diagram
+A stage-specific test is the wrong seam for this defect. The incomplete result originates
+in the generic worker operation and can affect every consumer.
 
-```
-Pipeline Coordinator (sole state writer)
-    │
-    ├── Invokes Stage (e.g., stage_ci_drive_green)
-    │   ├── Classifier (pure, no side effects)
-    │   │   └── Returns CIState (GREEN, RED, etc.)
-    │   └── Router (decision logic)
-    │       ├── If GREEN → Durable mutation (arm_auto_merge) → Continue
-    │       ├── If RED → Return RETRY (timer-park)
-    │       └── If UNKNOWN → Submit JobRequest → await on_job_done
-    │
-    ├── Receives stage return value
-    │   ├── Continue → State advances to next stage
-    │   ├── RETRY → Item parked in retry queue, timer set
-    │   ├── FINISH_OK → Work item completes
-    │   ├── FINISH_FAIL → Work item retried from clean state
-    │   └── JobRequest → Job submitted, on_job_done callback registered
-    │
-    └── On job completion → Invokes on_job_done callback → Return outcome → Update state
-```
+#### 6. Preserve timer and durability semantics
+
+- Return `StageOutcome(Disposition.RETRY, note=...)` to timer-park the item. If a delay
+  is needed, write `item.payload["retry_delay_s"]` before returning; stages never sleep.
+- Return `JobRequest` only with a real immutable job object. Never use
+  `JobRequest(None, ...)`.
+- Perform durable GitHub mutations immediately before the transition that queues or
+  advances the item. If a durable write fails, return a failure outcome; do not swallow
+  the exception and advance.
 
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
-| --------- | ---------------- | --------------- | ---------------- |
-| Mutate item.state directly in stage | `item.state = "armed"` after enabling auto-merge | Coordinator is the sole state writer; if stage and coordinator both write, coordinator's write clobbers the stage's mutation (lost update) | Delegate state changes to coordinator via return value (Continue with next_stage) or on_job_done callback |
-| Use JobRequest(None) for "no job but want callback" | `JobRequest(None, "on_done")` with type ignore | Coordinator crashes when trying to serialize/queue a None job (violates constructor contract) | Use real Job objects or return RETRY/Continue; never pass None to JobRequest |
-| Defer durable writes until after state change | `return Continue(...); await write_arming_record()` | Crash between return and write leaves PR armed but no dedupe record; restart re-arms the PR (duplicate work) | Write durable state BEFORE returning; if write fails, return FINISH_FAIL to force clean retry |
-| Exception handling swallows durable write failures | `try: await create_arming_record() except: pass; return Continue()` | Exception logged but stage continues with armed PR and no dedupe record (violates AC3 requirement for durable dedupe) | Propagate durable write failures as FINISH_FAIL; force the coordinator to retry the stage from scratch |
-| Use same stage function for initial and on_job_done paths | Single function handles both "first call" and "job done" cases without branching | Logic branching became unclear; hard to test "did job get submitted?" vs "does callback know result?" | Use separate functions: stage_foo (initial) and on_job_done handler (callback); or use a clear if-job-exists branch |
-| Extract classifier as a method on item | `item.classify_ci_state()` | Couples classifier to item schema; harder to test; classifier can't access external context (e.g., GH API state) | Classifier as a free function taking item + context; context provides accessors (fetch GH state, etc.) |
+|---------|----------------|---------------|----------------|
+| Propagate only the helper boolean | `JobResult(ok=result, value=result)` | The conflict sentinel produced `ok=False` with `error=None`; downstream warnings rendered `mechanical rebase failed (non-fatal): None`. | A negative sentinel needs domain translation at the worker boundary. |
+| Rely on exception handlers for every rebase failure | Kept only timeout and `CalledProcessError` translation | Mechanical conflicts are intentionally caught, aborted, and returned as `False`; no exception reaches those handlers. | Read the helper's return and raise contract before choosing the translation path. |
+| Add a test to a CI pipeline stage | Targeted a stage mentioned in old design material | The current routing table intentionally has no CI/CD stage. | Confirm `StageName` and `ROUTES`; test the surviving generic worker boundary. |
+| Run one focused node with repository coverage enabled | Used the ordinary pytest command unchanged | Both cases passed, but pytest exited nonzero because one node reported 7.33% repository coverage below the 83% global gate. | Use `--no-cov` for the focused contract, then rely on the full suite or CI for the repository-wide gate. |
+| Translate the same failure in each stage | Each consumer invented its own fallback text | Duplicates worker-operation knowledge and leaves logs from other consumers incomplete. | Construct a complete `JobResult` once, where the helper is dispatched. |
+| Use stale API examples | Used `job_result.success`, `Continue(next_stage=...)`, `StageOutcome(reason=...)`, and `FINISH_OK`. | These names do not match the landed dataclasses and enum. | Re-read the base types and routing enum before copying an old architecture example. |
+| Mutate `item.state` in a stage | Assigned the next state directly | The coordinator is the sole state writer and can clobber stage-owned assignments. | Return transitions and store completed-job facts in `item.payload`. |
+| Use `JobRequest(None)` as a timer | Submitted a null job to request a callback | The coordinator expects a real job object and will fail when handling the request. | Use `RETRY` for timer-parking and `JobRequest` only for actual work. |
 
 ## Results & Parameters
 
-**Core patterns:**
+The verified mechanical-rebase result matrix is:
 
-1. Pure classifiers (enum returns, no side effects) extracted from legacy code
-2. Job routing via on_job_done callback (not direct item.state mutation)
-3. Timer-park: RETRY disposition for delay-before-retry
-4. Durable mutations BEFORE state advances (arming records, dedupe markers)
-5. Exception handling: propagate durable-write failures as FINISH_FAIL
-6. JobRequest: always with a real Job object, never None
+| Helper outcome | `JobResult.ok` | `JobResult.value` | `JobResult.error` |
+|---------------|----------------|-------------------|-------------------|
+| Clean rebase (`True`) | `True` | `True` | `None` |
+| Conflict aborted (`False`) | `False` | `False` | `mechanical rebase hit conflicts; aborted` |
+| Timeout or subprocess failure | `False` | Existing behavior | Existing `timeout` / `rc=N` translation plus output tails |
 
-**Testing approach:**
+Local verification on 2026-07-20:
 
-- Unit test classifier in isolation (pure function)
-- Unit test stage routing with mocked classifier
-- Integration test end-to-end pipeline with durable store (in-memory or test DB)
-- Property-based tests for state machine transitions (Continue→next_stage, RETRY timing, etc.)
+```text
+uv run pytest --no-cov ...::test_rebase_dispatch_propagates_result -v
+2 passed in 0.16s
 
-**Verification:**
+uv run ruff check hephaestus/automation/pipeline/worker_pool.py \
+  tests/unit/automation/pipeline/test_worker_pool.py
+All checks passed!
+```
 
-ProjectHephaestus pipeline stages (ci-drive-green, merge-wait):
-- 479 unit tests (all passing)
-- Stage logic verified with classified inputs (GREEN, RED, UNKNOWN)
-- Durable arming records tested for crash-safety
-- on_job_done callbacks tested for job completion routing
-- verified-ci (full CI suite passing)
+The same focused pytest command without `--no-cov` executed both assertions successfully
+but exited nonzero on the repository's global 83% coverage threshold. Full-suite and CI
+validation of the proposed Hephaestus change remain pending.
 
 ## Verified On
 
 | Project | Context | Details |
-| --------- | --------- | --------- |
-| ProjectHephaestus | Pipeline epic #1809, stages ci-drive-green (issue #1816) and merge-wait (issue #1817), 479 tests passing | Implemented pure classifiers, job routing via on_job_done, timer-park (RETRY) semantics, durable arming records with crash-safety |
+|---------|---------|---------|
+| ProjectHephaestus | Mechanical rebase conflict result contract | Source contract inspected; temporary implementation and parameterized regression test executed locally, then the Hephaestus checkout was restored clean. |
+| ProjectHephaestus | Original queue-pipeline stage implementation | Prior v1.0.0 recorded 479 passing pipeline unit tests; see history for the archived version and its historical CI claim. |
