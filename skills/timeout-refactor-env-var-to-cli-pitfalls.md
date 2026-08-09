@@ -1,11 +1,12 @@
 ---
 name: timeout-refactor-env-var-to-cli-pitfalls
-description: "CI failure patterns when refactoring env-var-based timeout controls (e.g., HEPH_AGENT_*) into explicit CLI options. Use when: (1) removing HEPH_* or similar env-var timeout shims and replacing with --agent-timeout / --plan-timeout / --review-timeout CLI args, (2) adding new timeout arg helpers to a cli/utils module and need to keep cli/__init__.__all__ in sync, (3) updating Protocol stubs after changing a concrete method's default argument type, (4) tests assert env-var behavior that the refactor removed, (5) a rebase replay introduces duplicate function definitions that ruff F811 catches, (6) PYTHONPATH pollution makes local pre-commit run stale code from a different tree."
+description: "CI and boundary-validation patterns when moving timeout controls into explicit CLI options. Use when: (1) replacing timeout env shims with --*-timeout flags, (2) requiring shared timeout helpers to reject zero and negatives while omission selects defaults, (3) preserving a separate zero-disables timeout contract, (4) keeping exports, Protocols, tests, and worktree tooling aligned."
 category: ci-cd
-date: 2026-06-28
-version: "1.0.0"
+date: 2026-08-06
+version: "1.1.0"
 user-invocable: false
-verification: verified-ci
+verification: unverified
+history: timeout-refactor-env-var-to-cli-pitfalls.history
 tags:
   - timeout
   - refactor
@@ -29,6 +30,8 @@ tags:
   - pre-commit
   - ci-fix
   - hephaestus
+  - positive-integer
+  - zero-semantics
 ---
 
 # Timeout Refactor: Env-Var to CLI — CI Pitfalls
@@ -37,10 +40,11 @@ tags:
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-06-28 |
-| **Objective** | Document all CI failure modes encountered when replacing `HEPH_AGENT_*` env-var timeout controls with explicit `--agent-timeout` CLI options (ProjectHephaestus issue #1526, PR #1657) |
-| **Outcome** | 10 root-cause failures identified and fixed; CI green; PR merged |
-| **Verification** | verified-ci |
+| **Date** | 2026-08-06 (v1.1.0; originally 2026-06-28) |
+| **Objective** | Document timeout CLI migration failures and define explicit positive-domain versus zero-disables contracts for shared timeout options. |
+| **Outcome** | The original migration fixes were CI-verified. The v1.1.0 positive-integer hardening is a source-reviewed plan only; it was not implemented or run in this session. |
+| **Verification** | unverified for v1.1.0; the v1.0.0 migration workflow remains archived as verified-ci |
+| **History** | [changelog](./timeout-refactor-env-var-to-cli-pitfalls.history) |
 
 ## When to Use
 
@@ -50,8 +54,14 @@ tags:
 - Tests verify that env-var X controls behavior Y — after removing the env var, tests must be updated to verify the new fixed-default behavior
 - A branch has survived an interactive rebase and now has duplicate function definitions or missing variables
 - Pre-commit runs fine on CI but fails locally with `hephaestus-check-*` console script errors
+- Shared `--agent-timeout`, `--advise-timeout`, `--poll-max-wait`, `--git-message-timeout`, `--learn-timeout`, or `--follow-up-timeout` helpers currently use bare `type=int` and therefore accept zero or negative values.
+- One nearby option intentionally defines zero or negatives as "disabled" and must remain outside a shared strictly-positive parser.
 
 ## Verified Workflow
+
+> **Warning:** The v1.1.0 positive-domain subsection is unverified. Treat it as
+> a hypothesis until the focused timeout-helper tests and CI pass. The original
+> env-var-to-CLI migration and its ten CI fixes were `verified-ci`.
 
 ### Quick Reference
 
@@ -103,6 +113,34 @@ env -u PYTHONPATH git commit -S -s -m "fix: ..."
 ```
 
 ### Detailed Steps
+
+#### Proposed hardening — make timeout domains explicit
+
+1. Inventory all shared timeout argument helpers and any intentional disable contracts before introducing a common parser. Do not infer equivalent semantics merely because options contain the word "timeout".
+2. Use one private `argparse` type for options whose domain is strictly positive. Omission (`default=None`) selects configured behavior; zero is invalid and must not be overloaded as "use default" or "disable".
+3. Append one shared help suffix to every affected flag: "Must be a positive integer; zero does not disable the timeout." This makes the rejection and omission semantics visible in generated help.
+4. Keep any explicit zero-disables option on its own parser and normalization path. In ProjectHephaestus, `--phase-timeout` accepts a float and normalizes non-positive values to `None`; it is intentionally not one of the six shared positive timeout helpers.
+5. Parameterize the same zero, negative, help-text, positive, omitted-default, and non-integer assertions across every shared helper. A single representative-helper test does not prove the domain is consistently applied.
+
+```python
+_POSITIVE_TIMEOUT_HELP = (
+    " Must be a positive integer; zero does not disable the timeout."
+)
+
+def _positive_int(value: str) -> int:
+    """Parse a strictly positive integer."""
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(
+            f"expected a positive integer, got {value!r}"
+        ) from exc
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError(
+            f"expected a positive integer, got {parsed}"
+        )
+    return parsed
+```
 
 #### Fix 1 — `tmp_path` annotation: `Path`, not `TempPathFactory`
 
@@ -272,6 +310,9 @@ unset PYTHONPATH
 | Leaving old Protocol stub after signature change | Changed `_call_claude` to `timeout: int = 300` in `Planner` but left Protocol as `timeout: int \| None = None` | mypy `arg-type` error on every call site that passes an `int` | Always grep for Protocol/ABC definitions of any method being refactored |
 | Not checking all callers of removed functions | Removed timeout helpers but only updated obvious call sites | 3 callers in different automation modules retained dead imports → `ImportError` at runtime | `grep -rn "<removed_func>" hephaestus/` before removing any function |
 | Trusting `PYTHONPATH` set in shell for local commits | Used project-root `PYTHONPATH` to ensure correct imports | Pre-commit's isolated env uses the system/pixi-installed scripts, which resolve via `PYTHONPATH` to stale code | Always use `env -u PYTHONPATH git commit` in worktrees; new console scripts require re-install in the worktree env |
+| Reuse bare `type=int` for timeout flags | Accepted zero and negative integers because argparse only validated syntax, not the timeout domain | Downstream code receives values with ambiguous semantics; zero may be mistaken for disable even when omission is the only default-selection contract | Centralize a strictly positive parser for flags that require it and document zero semantics in shared help |
+| Apply the positive parser to every option named timeout | Included an option whose established contract says zero or negative disables the bound | A shared validator would silently remove an intentional operator capability | Inventory semantic domains first and preserve explicit disable contracts on their separate parsing and normalization path |
+| Test only `--agent-timeout` | Added boundary tests for one helper and assumed five siblings matched | Copy-pasted helpers can retain `type=int` or omit the help suffix while the representative test stays green | Parameterize the helper/flag matrix so every shared timeout entry point proves the same boundary and help contract |
 
 ## Results & Parameters
 
@@ -289,6 +330,42 @@ When removing env-var timeout controls and adding CLI `--*-timeout` args:
 7. [ ] After rebase: ruff check --select F811 to catch duplicate definitions
 8. [ ] After rebase: check for lost module-level variables in conflict resolutions
 9. [ ] Local commits: env -u PYTHONPATH git commit -S -s -m "..."
+10. [ ] Shared timeout helpers reject zero and negatives with one domain parser
+11. [ ] Help says zero is invalid and omission selects the configured default
+12. [ ] Separate zero-disables timeout options retain their documented behavior
+```
+
+### Proposed Shared-Timeout Test Matrix
+
+```python
+_TIMEOUT_ARGUMENTS = (
+    (add_agent_timeout_arg, "--agent-timeout"),
+    (add_advise_timeout_arg, "--advise-timeout"),
+    (add_git_message_timeout_arg, "--git-message-timeout"),
+    (add_learn_timeout_arg, "--learn-timeout"),
+    (add_follow_up_timeout_arg, "--follow-up-timeout"),
+    (add_poll_max_wait_arg, "--poll-max-wait"),
+)
+
+@pytest.mark.parametrize(("add_timeout_argument", "flag"), _TIMEOUT_ARGUMENTS)
+@pytest.mark.parametrize("value", ["0", "-1"])
+def test_timeout_helpers_reject_non_positive_values(
+    add_timeout_argument: Callable[[argparse.ArgumentParser], None],
+    flag: str,
+    value: str,
+) -> None:
+    parser = argparse.ArgumentParser()
+    add_timeout_argument(parser)
+    with pytest.raises(SystemExit) as exc:
+        parser.parse_args([flag, value])
+    assert exc.value.code == 2
+```
+
+Run both focused and combined suites after implementation:
+
+```bash
+uv run pytest tests/unit/automation/test_timeout_cli_threading.py -q
+uv run pytest tests/unit/cli/test_utils.py tests/unit/automation/test_timeout_cli_threading.py -q
 ```
 
 ### mypy Error Code Reference
@@ -323,6 +400,7 @@ pixi run which hephaestus-check-api-table-docs
 | Project | Context | Details |
 |---------|---------|---------|
 | ProjectHephaestus | Issue #1526, PR #1657 — HEPH_* env-var timeouts → --agent-timeout CLI options | 10 CI failure modes fixed; pre-commit clean; CI green; PR merged |
+| ProjectHephaestus | CLI boundary-hardening plan — positive domains for six shared timeout helpers, separate `--phase-timeout` disable contract | unverified plan, 2026-08-06 |
 
 ## References
 

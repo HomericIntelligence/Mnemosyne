@@ -1,12 +1,13 @@
 ---
 name: cli-format-output-pola-silent-fallback
-description: "When an audit flags a CLI utility for silently ignoring invalid format_type, the fix can be 'document + test the fallback' rather than raising ValueError — especially when callers depend on the fallback. Use when: (1) an audit flags POLA violation on silent fallback in format_output(), (2) deciding whether to raise ValueError vs document behavior, (3) writing tests to pin CLI format_type fallback behavior."
+description: "Choose and test a deliberate contract for CLI output-format dispatch instead of silently accepting invalid format names. Use when: (1) an audit flags POLA fallback in format_output(), (2) deciding whether caller compatibility requires fallback or permits ValueError, (3) preserving table-on-non-sequence behavior while rejecting unknown, empty, or case-mismatched names."
 category: debugging
-date: 2026-06-27
-version: "1.0.0"
+date: 2026-08-06
+version: "1.1.0"
 user-invocable: false
-verification: verified-ci
-tags: []
+verification: unverified
+history: cli-format-output-pola-silent-fallback.history
+tags: [cli, output-format, pola, validation, compatibility]
 ---
 
 # CLI format_output POLA: Silent Fallback vs ValueError
@@ -15,10 +16,11 @@ tags: []
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-06-27 |
-| **Objective** | Fix POLA violation in `format_output()` where invalid `format_type` silently fell through to text formatting |
-| **Outcome** | Successful — documented fallback behavior + added pinning tests; CI green |
-| **Verification** | verified-ci |
+| **Date** | 2026-08-06 (v1.1.0; originally 2026-06-27) |
+| **Objective** | Choose an explicit invalid-format contract for `format_output()` after auditing callers, without changing supported rendering or the separate table/non-sequence fallback. |
+| **Outcome** | The earlier fallback-documentation workflow was CI-verified. The v1.1.0 strict-validation successor is an implementation plan only; ProjectHephaestus code and tests were not changed in this session. |
+| **Verification** | unverified for v1.1.0; the v1.0.0 fallback workflow remains archived as verified-ci |
+| **History** | [changelog](./cli-format-output-pola-silent-fallback.history) |
 
 ## When to Use
 
@@ -26,8 +28,14 @@ tags: []
 - When deciding between raising `ValueError` vs documenting silent fallback in a CLI utility
 - When writing tests to pin CLI `format_type` fallback behavior in `hephaestus/cli/utils.py`
 - When a PR title says "raise ValueError" but the implementation keeps silent fallback — commit message must match actual behavior
+- When unknown, empty, or case-mismatched format names should fail while exact `"text"`, `"json"`, and `"table"` remain compatible
+- When strict name validation must not accidentally remove the existing `"table"` request behavior for non-sequence data
 
 ## Verified Workflow
+
+> **Warning:** The v1.1.0 strict-validation branch below has not been validated
+> end-to-end. Treat it as a hypothesis until its focused tests and CI pass. The
+> v1.0.0 document-and-test fallback branch was previously `verified-ci`.
 
 ### Quick Reference
 
@@ -36,10 +44,13 @@ tags: []
 # In docstring, explicitly state the fallback:
 # "Any unrecognized format_type falls back to 'text' format rather than raising."
 
-# Option B — Raise ValueError (preferred if callers should never pass invalid input)
-valid = ("text", "json", "table")
-if format_type not in valid:
-    raise ValueError(f"Unknown format_type {format_type!r}. Expected one of {valid}")
+# Option B — Raise ValueError (preferred after caller audit proves compatibility)
+_SUPPORTED_OUTPUT_FORMATS = ("json", "table", "text")
+if format_type not in _SUPPORTED_OUTPUT_FORMATS:
+    supported = ", ".join(_SUPPORTED_OUTPUT_FORMATS)
+    raise ValueError(
+        f"Unsupported output format {format_type!r}; expected one of: {supported}"
+    )
 ```
 
 ```python
@@ -63,12 +74,17 @@ def test_table_format_on_dict_falls_back_to_text():
 4. For `hephaestus/cli/utils.py` specifically: the actual branching logic is `if format_type == 'json': ... elif format_type == 'table' and isinstance(data, (list, tuple)): ... else: # text`
 5. Update the docstring to describe exact fallback behavior including case-sensitivity (`"JSON"` != `"json"`)
 6. Add non-vacuous test comments citing the specific code path and line numbers exercised
+7. Before moving an established helper from fallback to rejection, search every production call site. If all callers use supported literals, a strict public boundary does not require a permissive compatibility API solely for hypothetical callers.
+8. Validate the format name before rendering, then leave supported dispatch unchanged. In particular, `format_type="table"` with a dict or scalar is a supported format request with incompatible data shape; preserve its existing text rendering unless the issue explicitly changes that separate contract.
+9. Test invalid names (`"bogus"`, `"yaml"`, `""`, `"JSON"`) and supported behavior (`"text"`, `"json"`, sequence `"table"`, default text, and table/non-sequence compatibility) independently.
 
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 |---------|----------------|---------------|----------------|
 | Attempt 1 | Titled PR "raise ValueError" but implementation kept silent fallback | Misleading mismatch between PR title/body and actual code change; commit message must describe what actually changed | PR title and commit message MUST describe the actual behavior change, not the originally intended one |
+| Treat invalid format names and unsupported table data as one case | Put both checks behind one broad rejection path | `"table"` is a recognized format even when the input is not a sequence; rejecting it would expand scope beyond strict name validation and break compatibility | Validate the case-sensitive format identifier first, then preserve the existing rendering rules for each supported identifier |
+| Keep permissive fallback without auditing callers | Assumed unknown third-party strings might exist and retained silent text fallback | A repository-wide ProjectHephaestus search found production calls use the supported literal `"json"`; hypothetical compatibility did not justify hiding typos | Search actual call sites and choose the narrowest explicit contract supported by evidence |
 
 ## Results & Parameters
 
@@ -100,8 +116,27 @@ Args:
 # when format_type is not 'json' and not ('table' on a sequence).
 ```
 
+**Proposed ProjectHephaestus v1.1.0 boundary tests**:
+
+```python
+@pytest.mark.parametrize("format_type", ["bogus", "yaml", "", "JSON"])
+def test_unknown_format_is_rejected(format_type: str) -> None:
+    with pytest.raises(ValueError, match="Unsupported output format"):
+        format_output({"name": "hephaestus"}, format_type=format_type)
+
+def test_supported_formats_remain_case_sensitive_and_compatible() -> None:
+    assert format_output(["a", "b"], "text") == "a\nb"
+    assert json.loads(format_output({"ok": True}, "json")) == {"ok": True}
+    assert "name" in format_output([{"name": "hephaestus"}], "table")
+```
+
+The current plan reported 22 production calls and all explicit format arguments
+used the supported literal `"json"`. Re-run the search at implementation time;
+counts and line numbers are point-in-time evidence, not a permanent invariant.
+
 ## Verified On
 
 | Project | Context | Details |
 |---------|---------|---------|
 | ProjectHephaestus | Issue #1509, PR #1663 — fix(cli): raise ValueError on invalid format_type in format_output | CI green 2026-06-27 |
+| ProjectHephaestus | CLI boundary-hardening plan — strict case-sensitive format-name validation while preserving supported rendering | unverified plan, 2026-08-06 |

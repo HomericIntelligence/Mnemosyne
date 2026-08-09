@@ -1,11 +1,12 @@
 ---
 name: rebase-stale-automation-pr-onto-refactored-main
-description: "Semantic conflict-resolution classes when replaying a stale automation-authored PR onto a main that a large refactor has restructured. Use when: (1) a queued/DIRTY PR was branched many commits behind and now conflicts after a big landed refactor (e.g. Hephaestus #2280 loop-owned-approval), (2) a PR routes to a pipeline stage/symbol the refactor DELETED (verify against the enum, not the branch), (3) a merge-queue crawls because stale-base PRs fail the new zizmor gate and re-validate the whole tail, (4) an automation 'update' created a DCO-less merge commit that fails pr-policy, (5) security hardening (persist-credentials:false) auto-merged only into pre-existing jobs and a PR's NEW job trips zizmor artipacked, (6) two PRs claim the same ADR number, (7) an AST-guard registry (dontAsk / allowed-tools scopes) conflicts because the refactor renamed the call-site symbol, (8) deciding whether a PR is genuinely superseded vs. merely mentioning pixi in stale test boilerplate."
+description: "Semantic conflict-resolution and clean-history rebuild patterns for stale automation-authored PRs after a large refactor. Use when: (1) a queued/DIRTY PR was branched many commits behind and now conflicts after a big landed refactor, (2) a PR routes to a pipeline stage/symbol the refactor deleted, (3) a merge queue crawls because stale-base PRs fail a newly landed gate, (4) an automation update created a DCO-less merge commit, (5) a stale PR adds a workflow job that misses current security hardening, (6) two PRs claim the same ADR number, (7) an AST-guard registry conflicts with renamed call sites, (8) deciding whether a PR is genuinely superseded, (9) a PR history contains an unrelated duplicated commit and must be rebuilt from current main, (10) a rewritten PR needs an exact-head strict-review gate and rollback lease."
 category: ci-cd
-date: 2026-07-18
-version: "1.0.0"
+date: 2026-07-20
+version: "1.1.0"
 user-invocable: false
-verification: verified-ci
+verification: unverified
+history: rebase-stale-automation-pr-onto-refactored-main.history
 tags:
   - rebase
   - merge-conflict
@@ -21,6 +22,11 @@ tags:
   - dco-merge-commit
   - superseded-pr
   - pixi-boilerplate
+  - contaminated-history
+  - rebuild-branch
+  - diff-allowlist
+  - explicit-force-lease
+  - exact-head-review
   - homericintelligence
   - hephaestus
 ---
@@ -31,10 +37,10 @@ tags:
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-07-18 |
-| **Objective** | Drive a backlog of automation-authored PRs to mergeable after a large refactor (Hephaestus #2280, "loop-owned PR approval") landed on `main` and left ~7 PRs DIRTY and the merge queue crawling. |
-| **Outcome** | Successful. Every DIRTY PR rebased to MERGEABLE + armed (or closed as genuinely superseded); the queue-crawl root cause was eliminated. Each rebase verified by the repo's own guard tests passing on the resolved tree. |
-| **Verification** | verified-ci (each PR reached MERGEABLE with 0 conflicts; pipeline/AST-guard/doc-guard suites passed on every resolved tree; commits stayed `verified==true` + DCO). |
+| **Date** | 2026-07-20 |
+| **Objective** | Preserve valid PR intent across a refactored `main`, including the case where the stale branch history is contaminated by an unrelated duplicated commit and must be rebuilt rather than replayed. |
+| **Outcome** | The original semantic-rebase workflow is verified in CI. The new contaminated-history rebuild, explicit path-scope proof, rollback lease, and exact-head review gate are proposed from a reviewed implementation plan but have not been executed end-to-end. |
+| **Verification** | unverified for the v1.1.0 rebuild extension; the inherited v1.0.0 semantic conflict catalog remains verified-ci. See the [changelog](./rebase-stale-automation-pr-onto-refactored-main.history). |
 
 ## When to Use
 
@@ -44,13 +50,50 @@ sweep (see `automation-multi-repo-pr-sweep-rebase-resolve` for that). The value
 here is the **catalog of semantic conflict classes** the refactor creates and
 how to resolve each faithfully.
 
-## Verified Workflow
+Also use the rebuild variant when the PR's desired file changes are valid but
+its commit graph contains scope bleed from another issue. In that case, a
+rebase or multi-commit cherry-pick preserves the contamination; rebuild from
+current `main`, port only the intended hunks, and prove the complete diff scope.
+
+## Proposed Workflow
+
+> **Warning:** The contaminated-history rebuild extension has not been validated
+> end-to-end. Treat it as a hypothesis until CI and a strict exact-head review
+> confirm it. The semantic conflict classes inherited from v1.0.0 are verified-ci.
 
 Core insight: **the conflict text is a distraction; resolve against the CURRENT
 code/enum on `main`, never against what the stale branch assumed.** An
 automation branch encodes the world as it was N commits ago. After a big
 refactor, "take theirs" or "take ours" are both usually wrong — you must map the
 branch's *intent* onto `main`'s *new structure*.
+
+### Contaminated history: rebuild, do not replay
+
+When an unrelated commit appears in a PR's range, treat the old branch as a
+read-only evidence source. Do not rebase or cherry-pick its multi-commit range.
+
+1. Fetch the live base and PR branch. Record the exact remote PR-head SHA, and
+   create a local backup ref at that SHA. Never push the backup ref.
+2. Create a fresh branch from the fetched base. Port only the intended hunks,
+   resolving their semantics against current symbols and behavior.
+3. Add or update regression tests first and confirm the clean base fails the new
+   expectation. Apply the smallest source/doc change that makes them pass.
+4. Prove scope in two dimensions: a positive path allowlist rejects every
+   unexpected changed path, while a negative denylist asserts that the known
+   contamination surface has no diff. Review the full three-dot diff too; an
+   allowlist alone cannot detect an unrelated hunk hidden inside an allowed file.
+5. Run focused tests, repository validation, lint, and `git diff --check`. Commit
+   with the repository's signature and DCO policy, then verify that the rewritten
+   range contains only the intended commit(s).
+6. Replace the remote branch with an explicit force-with-lease bound to the SHA
+   captured in step 1. A bare tracking-ref lease is weaker when another process
+   may fetch or mutate the remote-tracking ref during the rebuild.
+7. Run the strict reviewer only after the rewritten head is pushed. Accept only
+   an unqualified GO tied to that exact head with zero unresolved blocking
+   threads. Any later commit invalidates the verdict and restarts verification.
+8. If validation or review fails irrecoverably, restore the local backup ref with
+   a second explicit lease bound to the rejected rebuilt SHA. Never rewrite the
+   base branch.
 
 ### The merge-queue-crawl diagnosis (do this first)
 
@@ -148,7 +191,38 @@ uv run pytest <affected pipeline/AST-guard/doc-guard suites> --override-ini="add
 uv run zizmor --no-online-audits --min-severity medium .github/workflows/<changed>.yml
 git push --force-with-lease origin "$BR"     # PR ejected from queue first if it was queued
 gh pr merge <n> --auto                        # queue owns merge method; do NOT pass --squash
+
+# 6. For contaminated history, rebuild from current main and pin both rewrite leases
+OLD_SHA=$(git ls-remote --heads origin "refs/heads/$BR" | awk '{print $1}')
+git branch "backup/<pr>-pre-isolation" "$OLD_SHA"     # local only; do not push
+git switch -c "$BR-rebuild" origin/main
+# Port only intended hunks and tests; do not cherry-pick the contaminated range.
+
+# ALLOWED_PATHS is a sorted file containing the exact intended PR path set.
+comm -23 \
+  <(git diff --name-only origin/main...HEAD | sort) \
+  "$ALLOWED_PATHS" \
+  | (! read -r unexpected)
+git diff --exit-code origin/main...HEAD -- <known-contamination-paths...>
+git diff --check origin/main...HEAD
+
+git push --force-with-lease="refs/heads/$BR:$OLD_SHA" origin \
+  "HEAD:refs/heads/$BR"
+PUSHED_SHA=$(git rev-parse HEAD)
+# Run the repository's strict reviewer now; require unqualified GO for PUSHED_SHA.
+
+# Roll back only if required; lease against the rejected rebuilt head.
+git push --force-with-lease="refs/heads/$BR:$PUSHED_SHA" origin \
+  "backup/<pr>-pre-isolation:refs/heads/$BR"
 ```
+
+## Verified Workflow
+
+The semantic conflict catalog, merge-queue diagnosis, and current-symbol
+resolution rule inherited from v1.0.0 remain `verified-ci`; their exact verified
+snapshot is preserved in the history file. The contaminated-history rebuild,
+scope-proof combination, and exact-head review/rollback steps in the Proposed
+Workflow above are explicitly excluded from this verification claim.
 
 ## Failed Attempts
 
@@ -160,6 +234,10 @@ gh pr merge <n> --auto                        # queue owns merge method; do NOT 
 | 4 | Left a docstring note "the FOLLOWUP_WAIT state was retired" after removing the state | A retirement guard test did a plain substring `"FOLLOWUP_WAIT" not in source` and failed on the note | When a guard is a substring check, even a historical mention trips it — reword to avoid the literal token. |
 | 5 | Passed `gh pr merge <n> --auto --squash` to re-enqueue | "The merge strategy for main is set by the merge queue" — rejected | On merge-queue repos, arm with `--auto` and NO strategy flag; the queue supplies SQUASH. |
 | 6 | Considered closing PRs that mention `pixi run` as pixi-specific | The `pixi run` was only stale testing boilerplate; the PRs' substance (SLOs, NATS DLQ, docs) touched no pixi files and was still valid | Judge by `git diff --name-only` (does it touch `pixi*`?), not by a boilerplate string. |
+| 7 | Rebased or replayed the complete commit range of a PR that contained a duplicated sibling-issue commit | Git faithfully preserved the unrelated commit, so the rewritten PR still had scope bleed even when its desired hunks were correct | Rebuild from current `main`; use the old head only as evidence and manually port the intended hunks. |
+| 8 | Checked only a positive changed-path allowlist | The allowlist catches unexpected files but cannot catch unrelated edits inside an allowed file | Combine the allowlist with a known-contamination denylist and a human review of the complete three-dot diff. |
+| 9 | Relied on CI or a review verdict produced before the branch rewrite | That evidence was tied to an obsolete commit graph and did not establish approval for the pushed replacement head | Re-run strict review after push and bind acceptance to the exact SHA; any later commit invalidates it. |
+| 10 | Used an implicit `--force-with-lease` after background fetches | The remote-tracking ref used as the implicit expectation can change during a long rebuild, weakening the intended compare-and-swap boundary | Capture the live remote SHA before rebuilding and pass `--force-with-lease=refs/heads/<branch>:<sha>` explicitly. |
 
 ## Results & Parameters
 
@@ -168,11 +246,25 @@ gh pr merge <n> --auto                        # queue owns merge method; do NOT 
 - **Queue mechanics:** `maximumEntriesToMerge` is not the throughput limit when entries FAIL; a failing entry ejects after a full matrix and re-stacks the tail. Throughput recovers only after the stale bases are rebased away.
 - **Merge-method:** merge-queue repos reject `gh pr merge --squash`; arm with bare `--auto`.
 - **Signatures:** rebasing re-signs replayed commits automatically when the GPG key is configured; verify `git log --show-signature` shows Good + `Signed-off-by` before pushing. Sign with `4211002+mvillmow@users.noreply.github.com`.
+- **Rebuild inputs:** exact base ref, live remote PR-head SHA, local-only backup ref,
+  sorted positive path allowlist, explicit contamination denylist, and focused test
+  commands. If any input is unknown, stop before rewriting the remote branch.
+- **Handoff proof:** pushed SHA, clean allowlist/denylist checks, focused tests,
+  signed+DCO commit verification, and a fresh unqualified strict-review GO for
+  that same SHA with zero unresolved blocking threads.
 
 ### Related skills (cross-links)
 
 - `pr-compliance-dco-and-rebase-fix` — the commit-signing/DCO/pr-policy remediation proper (whole-range rewrite); this entry's DCO-less-merge-commit case is the "drop it via rebase" sibling.
 - `automation-multi-repo-pr-sweep-rebase-resolve` — the multi-repo backlog-sweep orchestration this single-PR conflict catalog complements.
 - `hephaestus-automation-loop-branch-sync-drive-green` — driving open PRs to green via the loop, and the `--drive-green-all` vs `--phases drive-green` KeyError.
+- `planning-pr-open-file-scope-via-git-diff` — deriving an open PR's changed-path set; pair its positive scope with a known-contamination denylist here.
+- `pr-review-two-dot-vs-three-dot-diff` — selecting the three-dot PR delta used by the complete scope proof.
 - `prompt-loader-rebuild-race` — the `__file__`-loader fix that was one of the landed PRs in this wave.
 - `adr-authoring-indexing-and-maintenance` — ADR index/landing mechanics (this entry adds the collision-renumber-on-rebase case).
+
+## Verified On
+
+| Project | Context | Details |
+|---------|---------|---------|
+| ProjectHephaestus | PR #2206 / issue #2140 contaminated-history isolation plan | [Session notes](./rebase-stale-automation-pr-onto-refactored-main.notes.md); proposed only, strict exact-head review and CI execution pending. |

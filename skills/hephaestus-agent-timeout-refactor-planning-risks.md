@@ -1,120 +1,152 @@
 ---
 name: hephaestus-agent-timeout-refactor-planning-risks
-description: "Capture unverified planning-review risks for ProjectHephaestus issue #1416, where pytest tmp_path migration is combined with centralizing agent subprocess timeout defaults and env overrides. Use when: (1) reviewing a compound timeout/tmp_path refactor plan, (2) deciding timeout-scope boundaries across automation and github packages, (3) checking legacy HEPH_* timeout fallback precedence and call-time env behavior."
+description: "Remove deprecated timeout environment aliases without changing canonical overrides, defaults, call-time reads, or malformed-value fallback. Use when: (1) deleting alias fallback support from a shared env reader, (2) narrowing a public helper signature, (3) replacing compatibility tests with ignored-alias regressions, (4) preserving a library-to-product dependency boundary during configuration cleanup."
 category: architecture
-date: 2026-06-26
-version: "1.0.0"
+date: 2026-08-06
+version: "2.0.0"
 user-invocable: false
-verification: unverified
-tags: [hephaestus, planning, timeouts, tmp-path, review-risk]
+verification: verified-local
+history: hephaestus-agent-timeout-refactor-planning-risks.history
+tags:
+  - timeout
+  - environment-variable
+  - deprecated-alias
+  - canonical-configuration
+  - public-api
+  - call-time-read
+  - malformed-value
+  - regression-testing
+  - hephaestus
 ---
 
-# ProjectHephaestus Agent Timeout Refactor Planning Risks
+# Canonical Timeout Environment Variable Contracts
 
 ## Overview
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-06-26 |
-| **Objective** | Preserve reviewer guidance for ProjectHephaestus issue #1416, a compound refactor that combines pytest `tmp_path` conversion with centralizing agent subprocess timeout defaults and env overrides. |
-| **Outcome** | Planning-risk capture only. The issue body, cited line numbers, implementation scope, and command availability were not directly verified during capture. |
-| **Verification** | unverified |
+| **Date** | 2026-08-06 |
+| **Objective** | Remove deprecated phase-specific timeout aliases and the shared reader's alias parameter while preserving every canonical override, default, per-call read, and malformed-value fallback. |
+| **Outcome** | Successful in a disposable ProjectHephaestus checkout: the helper accepts one environment-variable name, six former alias mappings are ignored, canonical behavior remains unchanged, and documentation names the exact supported variables. |
+| **Verification** | `verified-local` — 81 focused unit tests passed; Ruff and mypy passed on all modified Python surfaces. CI validation is pending. |
+| **History** | [changelog](./hephaestus-agent-timeout-refactor-planning-risks.history) |
 
 ## When to Use
 
-- Reviewing or revising a ProjectHephaestus plan that centralizes hardcoded agent subprocess timeouts.
-- Deciding whether adjacent timeout constants such as `DIFF_COLLECT_TIMEOUT` or `PRE_PR_TEST_TIMEOUT` belong in the same issue as agent timeout defaults.
-- Moving timeout defaults into `hephaestus/constants.py` or another cross-package module while preserving the `hephaestus.github` -> `hephaestus.automation` import boundary.
-- Preserving legacy `HEPH_*` timeout env names as fallbacks while introducing new centralized names.
-- Testing that timeout env readers evaluate at call time, not at import time or through default arguments.
-- Pairing timeout refactors with pytest `tmp_path` conversion and needing a reviewer checklist to prevent broad, untested plumbing changes.
+- Removing deprecated environment-variable aliases after the canonical names have become the only supported operator contract.
+- Narrowing a shared configuration reader from one primary name plus fallback names to exactly one canonical name.
+- Replacing tests that preserve compatibility behavior with regressions proving deprecated inputs are ignored.
+- Preserving canonical defaults, call-time lookup, integer conversion, warning text, and malformed-value fallback during API cleanup.
+- Multiple accessors share one canonical budget but previously accepted different aliases, or one alias previously affected multiple accessors.
+- A product-layer configuration module imports a library-layer helper and the cleanup must preserve that dependency direction.
 
-## Proposed Workflow
+## Verified Workflow
 
-> **Warning:** This workflow has not been validated end-to-end. Treat it as a planning-review hypothesis until the issue body, current source tree, tests, and CI confirm it.
+Verified locally only — CI validation pending.
 
 ### Quick Reference
 
 ```bash
-# Verify the issue wording before accepting the plan scope.
-gh issue view 1416 --repo HomericIntelligence/ProjectHephaestus --json title,body
+# Re-inventory the compatibility surface from the current checkout.
+rg -n "legacy_names|DEPRECATED_ENV_NAME" <source-paths> <test-paths> <docs-paths>
 
-# Re-discover timeout sites from the current tree; do not trust stale line numbers.
-rg -n "timeout=|TIMEOUT|HEPH_.*TIMEOUT|subprocess\\.run|run_agent_text|run_codex|run_claude" hephaestus tests
+# Run behavior-first focused regressions without the repository-wide coverage gate.
+uv run pytest --no-cov \
+  <timeout-test>::test_canonical_timeout_envs_are_read_per_call \
+  <timeout-test>::test_deprecated_timeout_aliases_are_ignored \
+  <constants-test>::test_read_timeout_env_has_no_legacy_names_parameter -v
 
-# Confirm package boundaries before choosing the constants module.
-rg -n "import hephaestus\\.automation|from hephaestus\\.automation|must not import|automation" hephaestus/github docs hephaestus
+# Run the complete modified test files and static validation.
+uv run pytest --no-cov <constants-test> <timeout-test> -v
+uv run ruff check <modified-python-files>
+uv run mypy <modified-python-files>
+```
 
-# Find import-time env reads and default-argument reads.
-rg -n "os\\.environ|getenv|def .*timeout=.*\\(|= .*_timeout\\(\\)" hephaestus tests
-
-# Run the repo's real validation only after implementing.
-pixi run pytest tests/unit -v
-pixi run ruff check hephaestus tests
-pixi run ruff format --check hephaestus tests
-python3 scripts/validate_plugins.py
+```python
+def read_timeout_env(env_name: str, default: int) -> int:
+    """Read one canonical timeout env var at call time."""
+    raw = os.environ.get(env_name)
+    if raw is None:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        logger.warning(
+            "Ignoring non-integer %s=%r; using default %ds",
+            env_name,
+            raw,
+            default,
+        )
+        return default
 ```
 
 ### Detailed Steps
 
-1. **Verify the issue body first.** The plan cited ProjectHephaestus issue #1416 title/body semantics but did not include direct issue-body evidence. Before accepting scope, read the current issue text and separate the explicit requirement from reviewer or planner extrapolation.
+1. **Inventory the exact alias surface.** Search production, tests, and documentation for the helper parameter and every deprecated variable. Count mappings, not just distinct aliases: one deprecated name can feed multiple accessors and needs a regression row for each behavior.
 
-2. **Decide timeout scope deliberately.** Treat `DIFF_COLLECT_TIMEOUT` and `PRE_PR_TEST_TIMEOUT` as scope risks, not automatic inclusions. If the issue only asks for hardcoded agent-related subprocess timeouts, these constants may need a separate follow-up unless the issue body or nearby architecture clearly ties them to the same agent timeout policy.
+2. **Write the public-signature regression first.** Use `inspect.signature()` to assert that the helper exposes only `env_name` and `default`. This makes removal of the public compatibility seam executable rather than relying on a source grep.
 
-3. **Choose a cross-package home by import boundary, not convenience.** The plan assumes `hephaestus/constants.py` is the right home because `hephaestus/github/tidy.py` documents that GitHub code must not import `hephaestus.automation`. Re-open the current file and any architecture docs before implementation. Do not fix the timeout issue by adding imports from `hephaestus.github` into `hephaestus.automation` or vice versa unless the boundary is explicitly changed.
+3. **Replace compatibility tests with ignored-input tests.** Parameterize `(canonical_env, deprecated_env, accessor, default)`. Delete the canonical variable, set only the deprecated variable, and assert the accessor returns its unchanged default. Include every former mapping; in ProjectHephaestus the planner alias formerly controlled both the planner-agent budget and the outer planning wrapper, so it requires two rows.
 
-4. **Specify env precedence as a table.** If introducing new env names while preserving legacy names, write the precedence before coding: new env var present wins; else legacy phase-specific env var; else centralized default. Include invalid-value behavior and logging level. This prevents accidental migration behavior where old names silently override new names or deprecation warnings become noisy.
+4. **Simplify the shared reader.** Read only `os.environ.get(env_name)`. Retain call-time lookup, `int()` conversion, the same warning shape, and fallback to the passed integer default. Do not add caching or move the read to module import time.
 
-5. **Confirm export compatibility before preserving internals.** The plan assumes `implementer._CLAUDE_IMPL_TIMEOUT` must remain exported for public compatibility. Verify whether consumers import it from production code, tests, docs, or external contract. If it is internal residue, keeping it may be unnecessary; if tests or documented compatibility depend on it, keep an alias with targeted coverage.
+5. **Remove fallback arguments from all callers.** Keep each canonical variable and numeric default byte-for-byte unchanged. The change is alias removal, not timeout consolidation or default tuning.
 
-6. **Make call-time env reads executable.** Tests should mutate env and call the reader twice in the same process without module reload. Avoid module-level computed timeout values, default arguments like `timeout=agent_timeout()`, or cached readers unless cache invalidation is part of the contract.
+6. **Correct the operator documentation.** List the exact canonical variables. Avoid generic claims such as `HEPH_<PHASE>_AGENT_TIMEOUT` when the actual supported names use different word order or include a wrapper-specific name. State explicitly that deprecated aliases are not consulted.
 
-7. **Test the real subprocess plumbing.** A test that only asserts helper return values is too shallow. Include at least one path where `subprocess.run(...)`, `run_agent_text(...)`, or the relevant agent invoker receives the centralized timeout after env mutation. Patch at the consumer binding, not only the definition site.
+7. **Verify all preserved behavior.** Test defaults with variables absent, canonical overrides, two successive values in one process, malformed canonical values plus warning records, ignored deprecated aliases, and the narrowed signature. Then run lint and type checking on every modified Python file.
 
-8. **Keep the tmp_path migration scoped.** The `tmp_path` conversion should remove shared filesystem coupling without changing timeout behavior. Review file-fixture changes independently from timeout-default changes so a broad diff does not hide behavior regressions.
-
-9. **Treat audits as locators, not evidence.** File paths and line numbers from the plan may drift. Re-run `rg` or AST checks against the implementation branch and edit by symbol/call site, not by stale `file.py:NNN`.
-
-10. **State residual verification gaps in the PR.** An AST audit can catch literal timeout values but cannot prove every timeout's semantic category is correct. The PR should say which timeout classes were intentionally centralized, which were deferred, and which tests prove env precedence and call-time behavior.
-
-## Verified Workflow
-
-Not applicable. This skill is `unverified`; no implementation, tests, or CI run was executed for the captured plan. The actionable guidance is the warning-marked **Proposed Workflow** above.
+8. **Preserve dependency direction.** Keep the product layer importing the lower-level helper. Removing fallback behavior does not justify a new configuration module, dependency, cache, migration state owner, or security boundary.
 
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 |---------|----------------|---------------|----------------|
-| Treat every nearby numeric timeout as in scope | The plan grouped `DIFF_COLLECT_TIMEOUT`, `PRE_PR_TEST_TIMEOUT`, and agent subprocess timeouts together. | The user-facing issue may only require hardcoded agent-related timeouts; broader centralization increases blast radius. | Verify issue #1416 wording and split adjacent timeout classes unless the issue explicitly owns them. |
-| Pick `hephaestus.automation` as the timeout home for convenience | Centralizing defaults in an automation module is tempting because most agent code lives there. | GitHub package code documents an import boundary that must not depend on automation modules. | Use a cross-package constants module only after confirming the boundary in current source/docs. |
-| Preserve legacy env names without precedence rules | The plan kept old `HEPH_*` names as fallbacks but did not prove precedence or deprecation behavior. | Ambiguous precedence can make old names override new names or produce noisy fallback logs. | Write and test the precedence matrix before implementation. |
-| Preserve `_CLAUDE_IMPL_TIMEOUT` by assumption | The plan assumed the symbol is a supported public seam. | It may be a legacy internal alias, or it may be compatibility-critical; the plan did not prove either. | Search imports/docs/tests before deciding to retain, deprecate, or remove the symbol. |
-| Assert call-time behavior from helper tests only | Tests can validate a reader function while subprocess call sites still use import-time values or default arguments. | Real behavior depends on where the timeout value is read and passed. | Mutate env in one process and assert the actual agent/subprocess invoker receives the changed value without module reload. |
-| Trust planning audit line numbers | The plan cited file paths and line numbers from an audit. | Line numbers drift before implementation and may point at the wrong call site. | Re-run `rg` or AST checks on the implementation branch and edit by symbol. |
+| Preserve aliases through a generic fallback parameter | The original helper iterated over the canonical name followed by `legacy_names`, and six caller mappings retained deprecated phase-specific inputs. | The deprecated contract remained public and any caller could perpetuate or reintroduce aliases. | Remove the helper parameter itself, not only known caller arguments; guard the signature with `inspect.signature()`. |
+| Delete compatibility tests without replacement | Old fallback and precedence tests could simply be removed when aliases are retired. | That would not prove deprecated variables are ignored, especially when one alias formerly affected two accessors. | Replace support tests with a complete parameterized ignored-alias matrix. |
+| Verify removal with grep alone | `rg "legacy_names"` locates current source references. | A grep does not define the public callable contract and can be fooled by wrappers, generated code, or renamed parameters. | Combine inventory grep with a runtime public-signature assertion and behavior tests. |
+| Run a tiny pytest node selection with default coverage options | Focused RED tests were invoked under ProjectHephaestus's global `--cov=hephaestus --cov-fail-under=83` configuration. | The behavioral failures were correct, but the partial selection also reported only 4.84% repository coverage, obscuring the focused result. | Add `--no-cov` to partial acceptance commands; rely on the repository's full suite/CI for the global coverage gate. |
+| Document a generic phase-specific naming formula | Documentation said every phase used `HEPH_<PHASE>_AGENT_TIMEOUT`. | Canonical names use `HEPH_AGENT_<ROLE>_TIMEOUT`, while the outer wrapper uses `HEPH_PLAN_STAGE_TIMEOUT`; the generic formula described deprecated ordering. | Enumerate exact canonical variables and explicitly say aliases are ignored. |
 
 ## Results & Parameters
 
-Reviewer focus areas:
+ProjectHephaestus's locally verified mapping was:
 
-- **Scope:** confirm whether issue #1416 includes only hardcoded agent subprocess timeouts or also diff collection and pre-PR test budgets.
-- **Architecture:** verify `hephaestus/constants.py` or another non-automation module is the correct home for defaults needed by both automation and GitHub packages.
-- **Env compatibility:** define new-vs-legacy env precedence, invalid-value fallback behavior, and deprecation/noise expectations.
-- **Public surface:** decide whether `hephaestus.automation.implementer._CLAUDE_IMPL_TIMEOUT` is compatibility API, test-only residue, or internal implementation detail.
-- **Call-time behavior:** reject module-level env reads, cached readers, and default-argument reads unless intentionally covered.
-- **Subprocess proof:** include tests that inspect the timeout passed into the real consumer call, not just the helper output.
-- **tmp_path separation:** review tmp_path fixture conversion separately from timeout behavior so filesystem cleanup does not mask agent-timeout regressions.
-- **Verification limits:** AST or `rg` audits can find timeout literals, but they cannot classify each timeout's semantic ownership; reviewer judgment is still required.
+| Accessor | Canonical variable | Default | Deprecated input now ignored |
+|---------|--------------------|---------|------------------------------|
+| Planner agent | `HEPH_AGENT_PLAN_TIMEOUT` | 1200 s | `HEPH_PLANNER_AGENT_TIMEOUT` |
+| Outer planning wrapper | `HEPH_PLAN_STAGE_TIMEOUT` | 7200 s | `HEPH_PLANNER_AGENT_TIMEOUT` |
+| Plan reviewer | `HEPH_AGENT_REVIEW_TIMEOUT` | 1200 s | `HEPH_PLAN_REVIEWER_AGENT_TIMEOUT` |
+| Implementer | `HEPH_AGENT_IMPL_TIMEOUT` | 1800 s | `HEPH_IMPLEMENTER_AGENT_TIMEOUT` |
+| PR reviewer | `HEPH_AGENT_REVIEW_TIMEOUT` | 1200 s | `HEPH_PR_REVIEWER_AGENT_TIMEOUT` |
+| Learn agent | `HEPH_AGENT_LEARN_TIMEOUT` | 1200 s | `HEPH_LEARN_AGENT_TIMEOUT` |
 
-External inputs that must be re-verified before relying on them:
+Preserved invariants:
 
-- GitHub issue #1416 title/body and acceptance criteria.
-- Current source paths and line numbers from any previous audit.
-- Comments in `hephaestus/github/tidy.py` and any architecture docs that define package import boundaries.
-- Availability and behavior of `pytest`, `pixi`, `ruff`, and repository validators in the implementation environment.
+- Canonical values are read on every function call, so environment changes take effect without module reload.
+- An absent canonical variable returns the accessor's existing default.
+- A malformed canonical value logs the same warning and returns the default instead of failing startup.
+- Deprecated aliases are not read, do not affect values, and do not participate in precedence.
+- The automation product layer continues importing the library-layer reader; no reverse dependency is introduced.
+
+Observed local results:
+
+```text
+Focused canonical/alias/signature regressions: 13 passed
+Complete modified unit-test files: 81 passed
+Ruff modified-surface check: All checks passed
+mypy modified-surface check: Success, no issues in 4 source files
+CI: pending
+```
+
+## Verified On
+
+| Project | Context | Details |
+|---------|---------|---------|
+| ProjectHephaestus | Canonical timeout alias-removal experiment from `main` at `23050a27` | Disposable checkout; unit tests, Ruff, and mypy passed locally on 2026-08-06. |
 
 Related skills:
 
-- `planning-env-var-to-typed-cli-option-migration` for broader timeout env knob migration and per-knob granularity.
-- `automation-529-overload-not-retried-classifier-gap` for routing hardcoded agent subprocess timeouts through centralized helpers.
-- `planning-verify-issue-premise-before-implementing` for treating issue bodies and cited artifacts as hypotheses until verified.
-- `planning-test-coverage-verify-premise-and-mock-targets` for patching consumer-bound subprocess helpers in tests.
+- `planning-env-var-to-typed-cli-option-migration` for replacing environment controls with typed CLI options.
+- `deprecated-api-removal-plan-review` for wider public-surface removal audits.
+- `planning-reuse-existing-public-env-reader` for preferring an established low-level configuration helper over a new duplicate.

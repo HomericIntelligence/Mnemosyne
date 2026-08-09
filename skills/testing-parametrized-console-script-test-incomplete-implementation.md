@@ -1,154 +1,191 @@
 ---
 name: testing-parametrized-console-script-test-incomplete-implementation
-description: "Use when: (1) a PR adds a parametrized test that auto-discovers an entire set (e.g. every [project.scripts] entry, every module) and applies one assertion to each member; (2) an integration test like test_cli_entry_points.py::TestCLIVersionFlag::test_version_flag[<script>] fails post-merge with 'unrecognized arguments: --version' / exit 2 for a subset of scripts; (3) a REQUIRED check breaks on main because a new parametrized test expanded coverage faster than the implementation; (4) adding a new console script and needing to wire add_json_arg + add_version_arg so the existing sweep test still passes."
+description: "Use discovery-backed parametrized tests for executable CLI contracts. Use when: (1) console scripts are registered in project metadata, (2) a hand-maintained module list has drifted from parser builders, (3) every validation command must expose shared version behavior, (4) every importable parser with --dry-run must toggle one boolean contract, or (5) a discovered sweep exposes an incompletely wired entry point."
 category: testing
-date: 2026-06-22
-version: "1.1.0"
+date: 2026-08-05
+version: "1.2.0"
 history: testing-parametrized-console-script-test-incomplete-implementation.history
 user-invocable: false
-verification: verified-ci
-tags: [testing, parametrize, console-scripts, project-scripts, cli-entry-points, version-flag, json-arg, auto-discovery, required-check, hephaestus]
+verification: unverified
+tags:
+  - testing
+  - parametrize
+  - console-scripts
+  - project-scripts
+  - cli-entry-points
+  - parser-discovery
+  - dry-run
+  - version-flag
+  - auto-discovery
+  - behavior-contracts
+  - hephaestus
 ---
 
-# Parametrized "Apply X to All Console Scripts" Test vs Incomplete Implementation
+# Discovery-Backed CLI Contract Sweeps
 
 ## Overview
 
 | Field | Value |
-|-------|-------|
-| **Date** | 2026-06-11 |
-| **Objective** | Recognize that a parametrized test over an auto-discovered set is only as complete as the implementation that backs it, and fix the resulting broken REQUIRED check on main |
-| **Outcome** | All 237 tests in `tests/integration/test_cli_entry_points.py` pass after wiring `add_version_arg(parser)` on the 3 missed scripts (PR #1174, green on main) |
-| **Verification** | verified-ci |
+| ------- | ------- |
+| **Date** | 2026-08-05 |
+| **Objective** | Make executable registries and importable parser builders define the CLI test matrix, eliminating hand-maintained module lists, source-string counts, and help-wording assertions. |
+| **Outcome** | The original `[project.scripts]` sweep is verified in CI. A proposed extension discovers validation entry points from project metadata and dry-run parsers from importable modules, then asserts their public parse/exit behavior. |
+| **Verification** | `unverified` for the v1.2 discovery extension; the original version/JSON console-script sweep remains `verified-ci`. |
+| **History** | [changelog](./testing-parametrized-console-script-test-incomplete-implementation.history) |
 
 ## When to Use
 
-- A PR adds a parametrized test that auto-discovers a whole set (every `[project.scripts]` entry, every module, every command) and applies one assertion per member
-- `tests/integration/test_cli_entry_points.py::TestCLIVersionFlag::test_version_flag[<script>]` FAILS for some scripts with `error: unrecognized arguments: --version` and exit code 2
-- A REQUIRED check breaks on `main` immediately after merging a "apply X to all console scripts" PR
-- You are adding a new `[project.scripts]` entry and need to make the existing `--version` / `--json` sweep test pass
-- Local pre-commit / spot checks were green but the full parametrized sweep was never run before merge
+- A parametrized test should apply a shared contract to every registered console script,
+  importable module, parser builder, plugin, or command.
+- A static `VALIDATION_MODULES`, `CLI_PARSER_BUILDERS`, or similar list must be updated by
+  hand whenever a module is added or renamed.
+- Source-string counts or minimum-count floors are used as a proxy for whether parsers call
+  a shared helper.
+- Help-text substring and punctuation assertions are standing in for the behavior of a
+  boolean flag.
+- A newly registered command fails an existing discovered sweep because its implementation
+  did not wire the shared option contract.
 
-## Verified Workflow
+## Proposed Workflow
+
+> **Warning:** The v1.2 registry/module discovery extension has not been validated end-to-end. Treat it as a hypothesis until CI confirms.
 
 ### Quick Reference
 
-```bash
-# In each un-patched script's parser builder, alongside add_json_arg:
-from hephaestus.cli.utils import add_version_arg, add_json_arg
-add_json_arg(parser)
-add_version_arg(parser)
+Discover public console scripts from the packaging source of truth and invoke the registered
+callable:
 
-# Verify a single script:
-pixi run <script> --version   # exit 0, prints version
+```python
+import importlib
+import sys
+import tomllib
+from collections.abc import Callable
 
-# Run the FULL parametrized sweep before merging:
-pixi run pytest tests/integration/test_cli_entry_points.py
+
+def entry_points(project_file: Path, prefix: str) -> list[tuple[str, str]]:
+    project = tomllib.loads(project_file.read_text(encoding="utf-8"))
+    return sorted(
+        (command, target)
+        for command, target in project["project"]["scripts"].items()
+        if target.startswith(prefix)
+    )
+
+
+def load_entry_point(target: str) -> Callable[..., int]:
+    module_name, function_name = target.split(":", 1)
+    return getattr(importlib.import_module(module_name), function_name)
+
+
+@pytest.mark.parametrize(("command", "target"), entry_points(PROJECT_FILE, "project.validation."))
+def test_version_contract(command, target, monkeypatch, capsys) -> None:
+    monkeypatch.setattr(sys, "argv", [command, "--version"])
+    with pytest.raises(SystemExit) as exited:
+        load_entry_point(target)()
+    assert exited.value.code == 0
+    assert capsys.readouterr().out.strip()
+```
+
+Discover importable parser builders and test dry-run state directly:
+
+```python
+def discover_dry_run_parsers(package) -> list[tuple[str, argparse.ArgumentParser]]:
+    discovered = []
+    for info in pkgutil.iter_modules(package.__path__, prefix=f"{package.__name__}."):
+        module = importlib.import_module(info.name)
+        builder = getattr(module, "_build_parser", None)
+        if not callable(builder):
+            continue
+        parser = builder()
+        if any("--dry-run" in action.option_strings for action in parser._actions):
+            discovered.append((info.name, parser))
+    return discovered
+
+
+def required_arguments(parser: argparse.ArgumentParser) -> list[str]:
+    argv: list[str] = []
+    for action in parser._actions:
+        if action.required and action.option_strings:
+            value = next(iter(action.choices)) if action.choices else "1"
+            argv.extend([action.option_strings[0], str(value)])
+    return argv
+```
+
+For each discovered parser, assert only:
+
+```python
+required = required_arguments(parser)
+assert parser.parse_args(required).dry_run is False
+assert parser.parse_args([*required, "--dry-run"]).dry_run is True
 ```
 
 ### Detailed Steps
 
-#### The core insight
+1. **Identify the executable authority.** Use `[project.scripts]`, an importable package,
+   plugin metadata, or another runtime registry. Do not invent a parallel test list.
+2. **Filter by the contract's real boundary.** A validation-only sweep can filter entry
+   point targets by module prefix. A dry-run sweep can include only parser builders whose
+   actions actually expose `--dry-run`.
+3. **Load and execute the public seam.** Import the registered callable, set `sys.argv`, and
+   assert exit code and non-empty output for `--version`. Build parsers and call
+   `parse_args()` for parser-local option behavior.
+4. **Satisfy required options mechanically.** Derive required option strings and a valid
+   representative choice from each parser action so the dry-run test does not need
+   per-module fixtures.
+5. **Keep a direct helper test.** Test the isolated `add_dry_run_arg` helper for false by
+   default and true when present; the discovery sweep proves callers expose the same
+   behavior.
+6. **Keep deeper per-command tests.** Discovery proves breadth, not every command outcome.
+   Retain focused repository-root handling, JSON envelope, and error-path tests for the
+   public commands.
+7. **Run the complete discovered sweep before merge.** Auto-discovery expands faster than
+   manually wired implementation. A red new parameter usually identifies the missing
+   implementation, not a test that should be excluded.
 
-A parametrized "apply X to ALL console scripts" test is only as complete as the script list
-it wires. When a PR adds such a test that auto-discovers an entire set (e.g. all
-`[project.scripts]` entries), the **test coverage EXPANDS automatically** but the
-**implementation does NOT**. A partial implementation makes the PR's OWN new test fail
-post-merge — and if that test is a REQUIRED check, it breaks `main`.
+## Verified Workflow
 
-The asymmetry is the trap:
-
-- The test iterates over a discovered set (`[project.scripts]`) — adding a script grows the test.
-- The implementation is hand-applied per script — adding a script does NOT grow the implementation.
-- So a subset of un-patched scripts silently fails the test the same PR introduced.
-
-#### Symptom
-
-```text
-tests/integration/test_cli_entry_points.py::TestCLIVersionFlag::test_version_flag[hephaestus-audit-prs] FAILED
-tests/integration/test_cli_entry_points.py::TestCLIVersionFlag::test_version_flag[hephaestus-check-cli-tier-docs] FAILED
-tests/integration/test_cli_entry_points.py::TestCLIVersionFlag::test_version_flag[hephaestus-check-repo-analyze-skills] FAILED
-# error: unrecognized arguments: --version   (exit code 2)
-```
-
-This is a REQUIRED check, so the three failing params broke `main`.
-
-#### Root cause
-
-PR #1035 ("add -V/--version flag to all console scripts") added a parametrized test that
-auto-discovers ALL `[project.scripts]` entries AND added the flag to most scripts — but
-missed 3. The test discovers every script; the author only patched a subset, so the test
-failed for the un-patched scripts.
-
-#### Fix (PR #1174 — merged, green on main)
-
-The shared helper `add_version_arg(parser)` already exists in `hephaestus/cli/utils.py`
-(sibling of `add_json_arg`). Each missed script's parser-builder just imports it and calls
-`add_version_arg(parser)` alongside the existing `add_json_arg(parser)`:
-
-```python
-from hephaestus.cli.utils import add_version_arg, add_json_arg
-
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(...)
-    add_json_arg(parser)
-    add_version_arg(parser)   # the missing call
-    ...
-    return parser
-```
-
-After the fix, all 237 tests in `test_cli_entry_points.py` pass. Verify each script with
-`pixi run <script> --version` (exit 0, prints version).
-
-#### Prevention / pattern
-
-When a PR adds a parametrized test over an auto-discovered set ("for every console_script",
-"for every module"), ALWAYS run the FULL parametrized test locally before merge:
-
-```bash
-pixi run pytest tests/integration/test_cli_entry_points.py
-```
-
-When adding a new console script later, the same test will catch a missing `--version` /
-`--json`. The companion REQUIRED helpers `add_json_arg` and `add_version_arg` must BOTH be
-wired on every `[project.scripts]` entry.
+The original `[project.scripts]` console-script sweep is verified in CI: it caught commands
+that omitted a shared `--version` option. The broader registry and importable-module
+discovery pattern under **Proposed Workflow** is not yet verified.
 
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
-|---------|----------------|---------------|----------------|
-| Partial implementation | PR #1035 added the parametrized `--version` test (auto-discovers all `[project.scripts]`) but only added the flag to a subset of scripts | The test auto-expands to ALL scripts; 3 un-patched scripts (`hephaestus-audit-prs`, `hephaestus-check-cli-tier-docs`, `hephaestus-check-repo-analyze-skills`) failed `--version` with exit 2, breaking a REQUIRED check on main | A parametrized test over an auto-discovered set is only as complete as the implementation; patch EVERY member or the test fails |
-| Skipping the full local run | Relying on pre-commit / spot checks rather than running the whole parametrized suite | The failing params only surface when running the full `test_cli_entry_points.py` over every discovered script | Always run `pixi run pytest tests/integration/test_cli_entry_points.py` (full param sweep) before merge |
-| New script forgot add_version_arg | `hephaestus-scaffold-subpackage` (PR #1570, issue #1554) wired `add_json_arg(parser)` but omitted the companion `add_version_arg(parser)` call | `TestCLIVersionFlag::test_version_flag[hephaestus-scaffold-subpackage]` would have failed with `error: unrecognized arguments: --version` exit 2 — caught by a code reviewer before merge | Both `add_json_arg` AND `add_version_arg` must be wired together; a reviewer or the full integration sweep is the last safety net when the author forgets one |
+| ------- | -------------- | ------------- | -------------- |
+| Partial implementation | Added an auto-discovered `--version` sweep but wired the helper on only a subset of scripts | The test expanded to every registered script and exposed three unpatched commands | Treat each red discovered parameter as an implementation gap unless the registry entry is intentionally outside the contract |
+| Hand-maintained module dictionary | Listed known validation modules beside the production registry | The list named fewer modules than source discovery and required synchronized edits | Derive public entry points from packaging metadata |
+| Source-string counts and minimum floors | Counted helper-call strings or required at least N modules | Formatting and alternate valid call shapes can fail the proxy, while a stale floor can pass after new modules are added | Execute the shared public behavior for every discovered member |
+| Static dry-run parser list | Enumerated parser builders manually | New importable modules with `--dry-run` silently escaped the sweep | Discover modules, select callable builders, and inspect parser actions |
+| Help wording assertions | Pinned descriptions, prefixes, punctuation, and token-cost sentences | Editorial CLI help changes failed tests without changing option semantics | Assert parsed boolean state and keep text tests only for intentionally public wording APIs |
+| Skipping the full sweep | Ran spot checks or pre-commit without the complete parametrization | The missed commands surfaced only when every discovered entry ran | Execute the full discovered test matrix before merge |
 
 ## Results & Parameters
 
-**Failing scripts (3):** `hephaestus-audit-prs`, `hephaestus-check-cli-tier-docs`,
-`hephaestus-check-repo-analyze-skills` — each failed `--version` with `error: unrecognized
-arguments: --version` and exit code 2.
+### Stable contract layers
 
-**Fix:** wire `add_version_arg(parser)` (from `hephaestus/cli/utils.py`) alongside the
-existing `add_json_arg(parser)` in each missed script's parser builder.
+| Layer | Discovery source | Observable assertion |
+| ----- | ---------------- | -------------------- |
+| Packaged validation commands | `[project.scripts]` targets filtered by module prefix | `--version` exits `0` and emits output |
+| Automation dry-run parsers | Importable modules with callable `_build_parser` and a `--dry-run` action | Absent is `False`; present is `True` |
+| Shared dry-run helper | Isolated `ArgumentParser` | Same false/true boolean toggle |
+| Command-specific behavior | Focused public CLI tests | Repository root, JSON result, and error semantics |
 
-**Result:** all 237 tests in `tests/integration/test_cli_entry_points.py` pass after the fix.
-
-**Verification per script:**
-
-```bash
-pixi run hephaestus-audit-prs --version                 # exit 0, prints version
-pixi run hephaestus-check-cli-tier-docs --version       # exit 0, prints version
-pixi run hephaestus-check-repo-analyze-skills --version # exit 0, prints version
-```
-
-**Full sweep (run before merge):**
+### Proposed ProjectHephaestus verification
 
 ```bash
-pixi run pytest tests/integration/test_cli_entry_points.py   # 237 passed
+uv run pytest \
+  tests/unit/validation/test_validation_parser_usage.py \
+  tests/unit/cli/test_dry_run_help.py \
+  tests/unit/validation/test_validation_cli_contracts.py -v
 ```
+
+Original verified failure: three registered scripts omitted `add_version_arg(parser)` and
+failed the full sweep with `unrecognized arguments: --version`; wiring the shared helper
+made all 237 entry-point tests pass.
 
 ## Verified On
 
 | Project | Context | Details |
-|---------|---------|---------|
-| ProjectHephaestus | PR #1035 introduced; PR #1174 fixed (green on main) | Parametrized `--version` sweep auto-discovered all `[project.scripts]`; 3 un-patched scripts broke a REQUIRED check; fixed by wiring `add_version_arg` on each |
-| ProjectHephaestus | PR #1570, issue #1554 — new scaffold-subpackage script forgot add_version_arg; reviewer caught it pre-merge; fixed before landing | `hephaestus-scaffold-subpackage` had `add_json_arg` but no `add_version_arg`; inline PR review thread caught the omission; fix applied before merge |
+| ------- | ------- | ------- |
+| ProjectHephaestus | PR #1035 and PR #1174 | `[project.scripts]` version sweep exposed three incompletely wired commands; fixed and verified in CI. |
+| ProjectHephaestus | PR #1570 / issue #1554 | The same sweep caught a newly added script missing `add_version_arg`. |
+| ProjectHephaestus | Issue #1950 behavior-first test refactor plan | Validation-entry-point and dry-run parser discovery are proposed; implementation and CI are pending. |

@@ -1,204 +1,227 @@
 ---
 name: automation-graphql-batch-comment-fetch
-description: "Fetch GitHub issue comments for N issues in one aliased GraphQL call instead of N sequential round-trips (N+1 anti-pattern). Use when: (1) a pipeline checks comment state per issue before or after a worker pool starts, (2) the per-issue comment check uses `gh issue view --comments` or single-issue GraphQL, (3) you already batch-fetch issue states with `prefetch_issue_states()` and want to apply the same pattern to comments, (4) profiling shows comment fetches dominate pipeline wall-clock time, (5) adding a cache layer to `has_existing_plan()` or similar per-issue gates."
+description: "Use aliased GraphQL comment batches only as bounded, best-effort review context. Use when: (1) reducing N+1 comment reads where partial context is acceptable, (2) preserving a legacy review-state optimization, or (3) separating fast context caches from authoritative discovery. Never use a capped or failure-to-empty batch to prove plan absence, authorize a write, route durable state, or consume a retry budget."
 category: optimization
-date: 2026-05-28
-version: "1.0.0"
+date: 2026-08-06
+version: "2.0.0"
 user-invocable: false
-verification: verified-ci
+verification: unverified
+history: automation-graphql-batch-comment-fetch.history
 tags:
   - graphql
   - batch-fetch
   - github-api
   - aliased-query
+  - bounded-context
   - n-plus-one
   - comment-fetch
   - automation-pipeline
-  - planner-state
-  - round-trip-reduction
+  - completeness-boundary
+  - plan-discovery
+  - fail-closed
 ---
 
-# Automation: GraphQL Batch Comment Fetch
+# Bounded GraphQL Comment Context
 
 ## Overview
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-05-28 |
-| **Objective** | Replace N sequential `gh issue view --comments` (or per-issue GraphQL) calls with one aliased GraphQL query that fetches `comments` for all issues at once, matching the pattern already used by `prefetch_issue_states()` for issue states. |
-| **Outcome** | SUCCESS — `fetch_all_issue_comments_graphql()` in `hephaestus/automation/review_state.py` + `PlannerStateManager.prefetch_comments()` cache path in `planner_state.py` shipped in PR #670. Round-trips cut from O(N) to O(1) per pipeline pass. |
-| **Verification** | verified-ci — PR #670 passed all pre-commit hooks and CI. |
+| **Date** | 2026-08-06 |
+| **Objective** | Retain the useful one-call GraphQL context optimization without allowing a capped or failed batch to become authoritative absence. |
+| **Outcome** | The original batch optimization shipped and passed CI; this v2 boundary proposes moving all absence-sensitive plan discovery to complete paginated REST reads. |
+| **Verification** | unverified — PR #670 verified the v1 performance optimization, but the v2 authority split and Hephaestus migration were not implemented or run in this learning session. |
+| **History** | [changelog](./automation-graphql-batch-comment-fetch.history) |
+
+Aliased GraphQL remains useful when a caller explicitly wants recent context and
+can tolerate caps or missing data. It is unsafe as a source for a negative fact.
+A helper that requests `comments(last: 100)` and returns empty lists after failures
+cannot distinguish these states:
+
+- the issue truly has no comments;
+- the canonical comment is older than the cap;
+- one alias was missing or malformed;
+- GitHub rejected or rate-limited the request;
+- JSON parsing failed.
+
+Use a separate complete, strict, ownership-aware REST path whenever `ABSENT` can
+cause publication, label mutation, routing, a successful worker exit, or retry
+budget consumption.
 
 ## When to Use
 
-- A pipeline fetches per-issue comment state before or inside a worker pool (N+1 pattern).
-- Individual fetches use `gh issue view --comments --json comments` or a per-issue GraphQL call with `_fetch_issue_comments_graphql(issue_number)`.
-- You already have `prefetch_issue_states()` for issue open/closed state and want the same treatment for comment content.
-- You want to share the fetched comments between two pipeline phases (plan-detection AND review-gate) without double-fetching.
-- Adding a cache layer to `has_existing_plan()`, `is_plan_review_approved()`, or similar per-issue gates.
+- A review UI or prompt benefits from one bounded batch of recent issue comments.
+- An N+1 optimization is needed and incomplete context only reduces quality; it
+  cannot change correctness or durable state.
+- A legacy `fetch_all_issue_comments_graphql()` helper must remain for review-state
+  consumers while plan discovery migrates away from it.
+- You are designing separate caches for fast context and authoritative decisions.
+- You need to document why an empty best-effort result means "context unavailable
+  or empty," not "the resource is absent."
+
+Do not use this pattern when a negative lookup authorizes a write, suppresses work,
+advances a state machine, or consumes an absence/retry budget. Use complete
+paginated REST plus an explicit result contract for those paths.
 
 ## Verified Workflow
+
+> **Warning:** This workflow has not been validated end-to-end. Treat the v2
+> authority split as a hypothesis until the Hephaestus migration and CI pass.
 
 ### Quick Reference
 
 ```python
-# review_state.py — one aliased GraphQL call for N issues
-def fetch_all_issue_comments_graphql(
+def fetch_bounded_issue_comment_context(
     issue_numbers: list[int],
-) -> dict[int, list[dict[str, Any]]]:
-    if not issue_numbers:
-        return {}
+) -> dict[int, list[dict[str, object]]]:
+    """Return recent best-effort context, never authoritative absence.
 
-    owner, name = get_repo_info(get_repo_root())
+    Empty lists may mean no comments, a capped-out older comment, or a failed
+    lookup. Callers must not use this result for publication or state gates.
+    """
+    return fetch_all_issue_comments_graphql(issue_numbers)
+```
 
-    # One aliased fragment per issue: issue0: issue(number: <n>) { comments { nodes { ... } } }
-    fragments = [
-        (
-            f"issue{idx}: issue(number: {int(num)}){{"
-            "comments(last: 100, orderBy: {field: UPDATED_AT, direction: DESC})"
-            "{nodes{body updatedAt url}}"
-            "}}"
-        )
-        for idx, num in enumerate(issue_numbers)
-    ]
-    query = f"query{{repository(owner:{owner!r},name:{name!r}){{{' '.join(fragments)}}}}}"
+```python
+# Context-only consumer: partial data is acceptable.
+review_context = fetch_bounded_issue_comment_context(issue_numbers)
 
-    idx_to_num = dict(enumerate(issue_numbers))
-    result_map: dict[int, list[dict[str, Any]]] = {num: [] for num in issue_numbers}
-
-    try:
-        result = _gh_call(["api", "graphql", "-f", f"query={query}"])
-        data = json.loads(result.stdout)
-        repo_data = data.get("data", {}).get("repository", {})
-        for alias, issue_data in repo_data.items():
-            if not alias.startswith("issue"):
-                continue
-            try:
-                idx = int(alias[len("issue"):])
-            except ValueError:
-                continue
-            num = idx_to_num.get(idx)
-            if num is None or issue_data is None:
-                continue
-            nodes = issue_data.get("comments", {}).get("nodes", []) or []
-            # GraphQL returns newest-first; reverse to chronological order
-            result_map[num] = list(reversed(nodes))
-    except Exception as exc:
-        logger.warning("Failed to batch-fetch comments for issues %s: %s", issue_numbers, exc)
-
-    return result_map
-
-
-# planner_state.py — cache + fallback in PlannerStateManager
-class PlannerStateManager:
-    def __init__(self, options):
-        self.options = options
-        self._comments_cache: dict[int, list[dict]] | None = None  # None = not yet fetched
-
-    def prefetch_comments(self, issue_numbers: list[int]) -> None:
-        """One aliased GraphQL call for all issues. Call before the worker pool starts."""
-        self._comments_cache = fetch_all_issue_comments_graphql(issue_numbers)
-
-    def get_cached_comments(self, issue_number: int) -> list[dict] | None:
-        """Return cached comments, or None if prefetch_comments was not called."""
-        if self._comments_cache is None:
-            return None
-        return self._comments_cache.get(issue_number, [])
-
-    def has_existing_plan(self, issue_number: int) -> bool:
-        cached = self.get_cached_comments(issue_number)
-        if cached is not None:
-            return any(
-                any(marker in c.get("body", "") for marker in PLAN_COMMENT_MARKERS)
-                for c in cached
-            )
-        # Fallback: individual gh CLI call (pre-batch behaviour)
-        result = _gh_call(["issue", "view", str(issue_number), "--comments", "--json", "comments"])
-        return any(
-            any(marker in c.get("body", "") for marker in PLAN_COMMENT_MARKERS)
-            for c in json.loads(result.stdout).get("comments", [])
-        )
+# Correctness-sensitive consumer: a separate complete path is required.
+plan_lookup = discover_plan_via_complete_paginated_rest(issue_number)
+if plan_lookup.status is PlanDiscoveryStatus.READ_ERROR:
+    return RETRY
+if plan_lookup.status is PlanDiscoveryStatus.ABSENT:
+    publish_candidate_or_spend_absence_budget()
 ```
 
 ### Detailed Steps
 
-1. **Identify the N+1 site.** Look for `_gh_call(["issue", "view", str(n), "--comments", ...])` or `_fetch_issue_comments_graphql(n)` inside a loop or per-issue worker function.
+1. **Classify the downstream decision before optimizing.** Ask what an empty
+   result causes. If it only shortens context, a bounded batch may be appropriate.
+   If it changes durable state, success, publication, routing, or budget, require
+   complete enumeration and explicit failure.
 
-2. **Add `fetch_all_issue_comments_graphql(issue_numbers)` to `review_state.py`** (or the module that already owns per-issue comment fetching). It is the shared primitive: both the planner (plan-detection) and the reviewer (review-gate) call it.
+2. **Name the helper for its real guarantee.** Prefer names and docstrings such as
+   `fetch_bounded_issue_comment_context()` over `fetch_all_*` when the query uses
+   `last: 100`. If compatibility requires the historical name, document the cap
+   and prohibition at the function definition.
 
-3. **Add `prefetch_comments(issue_numbers)` to `PlannerStateManager`** (or equivalent state manager). Call it once, before the worker pool starts, with the full issue list returned by `filter()`.
+3. **Keep GraphQL batching for context only.** Aliased fragments can still reduce
+   N subprocess and network round-trips to one call. Reverse nodes if context
+   consumers need chronological order. Do not pass the resulting lists to an
+   authoritative plan selector.
 
-4. **Add `get_cached_comments(issue_number)` accessor.** Returns `None` when the cache has not been populated (so callers can fall back to the individual fetch). Returns `[]` for issues present in the cache but with no comments.
+4. **Build a separate complete REST discovery path.** Fetch every issue-comment
+   page, reject non-object entries, validate every body and author login, require
+   the authenticated viewer identity, derive ownership by case-insensitive login
+   comparison, and return `FOUND`, `ABSENT`, or `READ_ERROR`.
 
-5. **Update `has_existing_plan()` and any `is_plan_review_approved()` caller** to pass `get_cached_comments(n)` as the `comments` argument. Both already accept a pre-fetched `comments` list; the batch just populates it.
+5. **Do not share ambiguous caches.** A context cache may use `[]` as its
+   best-effort fallback because no correctness claim is attached. An authoritative
+   cache must keep successful normalized journals and per-issue read errors
+   separately. A missing key triggers a real read.
 
-6. **Keep the individual-fetch fallback** in `has_existing_plan()` for callers that do not call `prefetch_comments()` first. This preserves backward-compatibility — workers that run before the prefetch is populated still work correctly.
+6. **Remove plan-presence APIs from the context module.** Replace
+   `has_existing_plan()` and callers that accept the GraphQL cache with a tri-state
+   discovery method backed by the complete REST reader. Preserve review-context
+   consumers only if they do not infer absence.
 
-7. **Add tests:**
-   - `prefetch_comments([])` sets `_comments_cache = {}`.
-   - `get_cached_comments(n)` returns `None` before `prefetch_comments()`.
-   - `get_cached_comments(n)` returns `[]` for a missing key after `prefetch_comments()`.
-   - `has_existing_plan()` uses cache and does NOT call `_gh_call` when cache is populated.
-   - `has_existing_plan()` falls back to `_gh_call` when `_comments_cache is None`.
-   - `fetch_all_issue_comments_graphql([301, 302])` makes exactly ONE `_gh_call`.
-   - Single and multi-issue payloads parse correctly in chronological order.
-   - `fetch_all_issue_comments_graphql` returns `{n: []}` on `_gh_call` failure.
+7. **Correct docs and tests together.** Test the GraphQL helper as bounded context:
+   one aliased call, expected ordering, and documented failure-to-empty behavior.
+   Separately test authoritative discovery for empty success, valid owned plan,
+   foreign marker, API failure, rate limit, malformed page/body/author, and missing
+   identity.
+
+8. **Bind raw payload failure to the state-machine outcome.** Do not stop at a
+   normalizer unit test. Feed a malformed REST payload through the production
+   adapter and assert `RETRY`, no candidate write, no label mutation, and no
+   absence-budget charge.
 
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
-|---|---|---|---|
-| 1 | N sequential `gh issue view --comments --json comments` calls (original `has_existing_plan`) | One `gh` subprocess per issue; 20 issues = 20 round-trips before the first worker starts | The `gh` CLI call is a subprocess + HTTP round-trip; never put it in a per-issue loop |
-| 2 | N sequential single-issue GraphQL calls (`_fetch_issue_comments_graphql` called per issue) | Same O(N) round-trip problem; GraphQL is still one HTTP call per issue | The per-issue GraphQL function (`last: 100, orderBy: UPDATED_AT`) is a useful building block — but alias it, don't call it N times |
-| 3 | Putting the batch fetch inside the worker pool (called `fetch_all_issue_comments_graphql` from within each worker) | Race condition on the result dict; workers started before batch result arrived | Call batch fetch before the pool starts (in `filter()` or an explicit `prefetch_comments()` step) |
-| 4 | dict comprehension `{idx: num for idx, num in enumerate(issue_numbers)}` (passed ruff check initially) | ruff C416: unnecessary dict comprehension — rewrite using `dict()` | Use `dict(enumerate(issue_numbers))`; ruff C416 fires on `{k: v for k, v in iterable}` |
+|---------|----------------|---------------|----------------|
+| Treat `last: 100` as complete | A bounded query was named `fetch_all_*` and used to decide whether any plan existed. | A valid older plan could fall outside the slice. | Caps are acceptable for context, never for authoritative negative facts. |
+| Return `{issue: []}` on transport failure and call `has_existing_plan()` | Operational failure was intentionally softened for the optimization. | `False` became indistinguishable from a successful empty journal. | Failure-to-empty APIs cannot feed publication, routing, success, or budget gates. |
+| Return `[]` for a missing cache key | A partial alias response looked like a successfully fetched empty issue. | The caller skipped the real fallback read and invented absence. | Authoritative caches need distinct missing, empty-success, and error states. |
+| Reuse one cache for review context and plan authority | DRY was applied to values with different correctness guarantees. | The weaker GraphQL guarantee contaminated the stronger plan-discovery decision. | Share parsing policy where guarantees match; keep context and authority surfaces separate. |
+| Increase the cap | Raising 100 to a larger magic number appeared to reduce risk. | No finite cap proves completeness for a growing journal, and failures still collapse to empty. | Use pagination to exhaustion for completeness-sensitive reads. |
+| Remove batching everywhere | The unsafe authority use made the optimization itself look invalid. | Recent review context can still benefit from one best-effort call. | Preserve the optimization inside an explicit bounded-context boundary. |
 
 ## Results & Parameters
 
-**GraphQL query shape (aliased fragments):**
+### Decision Table
+
+| Consumer | Bounded GraphQL allowed? | Required failure model |
+|----------|--------------------------|------------------------|
+| Prompt/review recent context | Yes | Empty may mean unavailable; no durable decision |
+| Interactive recent-comment display | Yes | Display partial/unavailable state honestly |
+| Canonical plan presence/absence | No | Complete REST -> `FOUND` / `ABSENT` / `READ_ERROR` |
+| Candidate plan publication | No | `READ_ERROR` retries; only `ABSENT` authorizes initial write |
+| Restart fast-forward | No second lookup | Reuse successfully reconciled journal snapshot |
+| Absence/retry budget accounting | No | Charge only after confirmed `ABSENT` |
+
+### GraphQL Context Parameters
 
 ```graphql
-query {
-  repository(owner: "HomericIntelligence", name: "ProjectHephaestus") {
-    issue0: issue(number: 615) {
-      comments(last: 100, orderBy: {field: UPDATED_AT, direction: DESC}) {
-        nodes { body updatedAt url }
-      }
-    }
-    issue1: issue(number: 616) {
-      comments(last: 100, orderBy: {field: UPDATED_AT, direction: DESC}) {
-        nodes { body updatedAt url }
-      }
-    }
-  }
+comments(last: 100, orderBy: {field: UPDATED_AT, direction: DESC}) {
+  nodes { body updatedAt url }
 }
 ```
 
-**Key design decisions:**
+- `last: 100` is a context-window choice, not a completeness guarantee.
+- Aliasing N issues into one query changes round-trip count, not completeness.
+- Reversing nodes restores chronological presentation for consumers that need it.
+- Empty-on-failure is permitted only when callers cannot infer a negative fact.
 
-- `last: 100` + `orderBy: UPDATED_AT DESC`: matches the existing `_fetch_issue_comments_graphql` per-issue contract (so both single and batch paths see the same comment slice).
-- Reverse nodes to chronological order: downstream "walk forward, last-match-wins" semantics (e.g. `latest_verdict()`) require oldest-first ordering.
-- Return `{num: []}` on failure: callers already handle empty-list gracefully (`has_existing_plan` returns False, `is_plan_review_approved` returns False).
-- `_comments_cache is None` vs `{}`: distinguishes "not yet fetched" from "fetched, no issues had comments". `get_cached_comments` returns `None` for the former so callers know to fall back.
+### ProjectHephaestus Migration
 
-**Existing parallel in codebase (model to follow):**
+```text
+state/review.py
+  keep fetch_all_issue_comments_graphql() as bounded legacy review context
+  document that it may return empty after a failed or capped lookup
 
-```python
-# github_api.py — aliased batch for issue states (the exact same pattern)
-def _fetch_batch_states(batch: list[int], owner: str, repo: str) -> dict[int, IssueState]:
-    fragments = [
-        f"issue{idx}: issue(number: {int(num)}) {{ number state }}"
-        for idx, num in enumerate(batch)
-    ]
-    query = f"""query {{ repository(owner: "{owner}", name: "{repo}") {{ {" ".join(fragments)} }} }}"""
-    result = _gh_call(["api", "graphql", "-f", f"query={query}"])
-    ...
+state/planner.py
+  replace GraphQL plan prefetch with complete REST reads
+  cache successful normalized journals separately from errors
+  make a missing cache key perform a fallback read
+
+review_journal.py
+  own strict normalization and the actor-owned tri-state selector
 ```
+
+### Proposed Validation
+
+```bash
+uv run pytest \
+  tests/unit/automation/state/test_planner.py \
+  tests/unit/automation/test_pipeline_github.py \
+  tests/unit/automation/pipeline/stages/test_stage_planning.py -v
+
+uv run ruff check \
+  hephaestus/automation/state/review.py \
+  hephaestus/automation/state/planner.py \
+  hephaestus/automation/review_journal.py \
+  tests/unit/automation
+```
+
+### Verification Promotion
+
+Promote v2 to `verified-local` only after the complete-reader migration and
+focused state/pipeline tests pass locally. Promote it to `verified-ci` after the
+Hephaestus PR's required CI passes. Preserve PR #670 as evidence for the original
+GraphQL round-trip optimization, not for authoritative plan absence.
 
 ## Verified On
 
-| Project | File / Issue | Notes |
-|---|---|---|
-| ProjectHephaestus | `hephaestus/automation/review_state.py` | `fetch_all_issue_comments_graphql()` |
-| ProjectHephaestus | `hephaestus/automation/planner_state.py` | `PlannerStateManager.prefetch_comments()`, `get_cached_comments()`, updated `has_existing_plan()` |
-| ProjectHephaestus | Issues #615, #616 / PR #670 | Part of the verdict-loop + batch-fetch fixes |
+| Project | Context | Details |
+|---------|---------|---------|
+| ProjectHephaestus | v1 aliased GraphQL optimization | PR #670 passed CI; performance pattern verified. |
+| ProjectHephaestus | v2 bounded-context/authority split | Proposed only; implementation and CI pending. |
+
+## Related Skills
+
+- `automation-prefix-match-plan-detection` — canonical complete,
+  ownership-aware `FOUND` / `ABSENT` / `READ_ERROR` plan discovery.
+- `github-api-secondary-rate-limit-backoff` — rate-limit handling at GitHub API
+  boundaries.

@@ -1,0 +1,333 @@
+# release-version-verification-tag-wheel-exact-match — History
+
+## v2.0.0 (2026-08-07)
+
+**Changed by:** ProjectHephaestus reviewed implementation plan for dynamic-version bump refusal
+**Verification:** unverified
+
+### What changed
+
+- Replaced the universal compute-only bump recommendation with an explicit capability boundary: aggregate static-file mutation remains supported for static projects and is refused for dynamic/tag-derived projects.
+- Added fail-before-read and fail-before-write ordering at both CLI and direct API boundaries.
+- Added the single-JSON-document stdout contract for machine-readable CLI modes.
+- Added repository-neutral manager errors, repository-specific CLI release guidance, sentinel preservation tests, and normal/dry-run/JSON acceptance cases.
+
+### Why
+
+The previous version assumed every local bump command in a tag-derived project should become a
+compute-only preview. A reviewed Hephaestus plan exposed a broader reusable contract for utilities
+that serve both static and dynamic projects: preserve established static mutation behavior, but
+reject aggregate mutation before canonical-version lookup or any configured write whenever
+`[project].dynamic` contains `version`. It also showed that JSON mode needs explicit ownership
+of stdout and that policy guidance belongs at the CLI boundary rather than in the reusable manager.
+
+### Previous version (v1.0.0) snapshot
+
+---
+name: release-version-verification-tag-wheel-exact-match
+description: "Keep Git tags as the sole version authority in hatch-vcs releases, make local bump commands compute-only, and block publication unless both the canonical tag and a freshly installed wheel exactly equal the requested version. Use when: (1) a version preview still writes VERSION, pyproject.toml, package files, or tags, (2) installed metadata is incorrectly used as a canonical fallback, (3) development/local suffixes can pass a prefix-only version check, (4) release CI verifies an editable source install instead of the built artifact, or (5) signed-tag mutation must remain behind an explicit workflow gate."
+category: ci-cd
+date: 2026-08-05
+version: "1.0.0"
+user-invocable: false
+verification: unverified
+tags:
+  - python-packaging
+  - hatch-vcs
+  - semantic-versioning
+  - git-tags
+  - release-workflow
+  - wheel-verification
+  - importlib-metadata
+  - compute-only
+  - signed-tags
+  - github-actions
+  - pypi
+  - fail-closed
+---
+
+# Release Version Verification: Exact Tag-to-Wheel Match
+
+## Overview
+
+| Field | Value |
+| ------- | ------- |
+| **Date** | 2026-08-05 |
+| **Objective** | Preserve a tag-driven project's single version authority while still offering a local next-version preview, then prove the requested release version against both the reachable tag and the newly built distribution before publication. |
+| **Outcome** | Proposed a compute-only bump API, independent exact comparisons against Git and installed distribution metadata, a disposable wheel-install verification environment, and a workflow-order regression test. No implementation or CI run was observed. |
+| **Verification** | `unverified` — this is a design captured from an implementation plan. Treat it as a hypothesis until the criterion-specific tests and release CI pass. |
+
+## When to Use
+
+- A hatch-vcs or setuptools-scm project declares Git tags as the single source of truth but still has a `bump-version` command that writes `VERSION`, `[project].version`, `__version__`, or a tag.
+- A version helper falls back from an unavailable Git tag to `importlib.metadata.version()`, allowing a stale editable install to impersonate the canonical source.
+- Release verification compares only an `X.Y.Z` prefix, strips `.devN`, `+local`, or other suffixes, or merely checks whether two sources can be resolved.
+- A release workflow builds a wheel but checks version metadata through the repository's editable development environment instead of installing the wheel it will publish.
+- Tag creation requires signing credentials or another privileged mutation and must remain exclusively behind an explicitly dispatched workflow.
+- Publication must fail before any PyPI write when the tag, requested release, and built artifact disagree.
+
+## Proposed Workflow
+
+> **Warning:** This workflow has not been validated end-to-end. Treat it as a hypothesis until CI confirms it.
+
+### Quick Reference
+
+```text
+explicit signed-tag workflow -> authoritative vX.Y.Z tag -> build wheel
+                                                     |-> read exact tag version
+wheel -> disposable environment -> installed metadata|-> compare both to requested X.Y.Z
+                                                     `-> publish only when both match exactly
+
+local bump command -> compute next X.Y.Z from tag -> print proposal -> change nothing
+```
+
+```bash
+# Preview only: no files, commits, or tags change.
+package-bump-version patch
+
+# Release CI, after build and before publish.
+TAG_VERSION="${TAG#v}"
+VERIFY_ENV="build/version-verify"
+WHEEL="$(find dist -maxdepth 1 -type f -name '*.whl' -print -quit)"
+test -n "${WHEEL}" || { echo "No built wheel found" >&2; exit 1; }
+uv venv "${VERIFY_ENV}"
+uv pip install --python "${VERIFY_ENV}/bin/python" "${WHEEL}"
+"${VERIFY_ENV}/bin/package-check-version-consistency" \
+  --repo-root "${GITHUB_WORKSPACE}" \
+  --expected-version "${TAG_VERSION}" \
+  --verbose
+```
+
+### Detailed Steps
+
+1. **Separate authority, evidence, and proposal.** Give each value one role:
+
+   - **Canonical authority:** the latest reachable release tag matching the project's strict `vX.Y.Z` contract.
+   - **Requested version:** the exact version the release workflow intends to publish, normally `${TAG#v}`.
+   - **Installed evidence:** the exact `importlib.metadata.version(<distribution-name>)` value from a newly installed wheel.
+   - **Proposal:** the next semantic version computed locally from the canonical tag. It has no authority until the gated release workflow creates the signed tag.
+
+2. **Fail closed when the tag is unavailable.** Do not let installed package metadata stand in for the canonical source. A missing tag usually means the checkout lacks tag history or the repository has not established release authority; either condition should stop version-sensitive work with a useful error.
+
+```python
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _dist_version
+from pathlib import Path
+import sys
+
+DIST_NAME = "Your-Distribution-Name"
+
+
+def _version_from_metadata() -> str | None:
+    """Return the exact installed distribution version, or None."""
+    try:
+        return _dist_version(DIST_NAME)
+    except PackageNotFoundError:
+        return None
+
+
+def _get_canonical_version(repo_root: Path) -> str:
+    """Return the authoritative version from a reachable vX.Y.Z tag."""
+    version = _version_from_git_tag(repo_root)
+    if version is None:
+        print(
+            "ERROR: could not determine the canonical version from a vX.Y.Z Git tag.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    return version
+```
+
+3. **Compare the requested version independently and exactly.** Parse the requested input for shape, but do not normalize the observed installed value before comparing it. Exact string equality is intentional: `1.2.3.dev1` and `1.2.3+local` are not the requested release `1.2.3`.
+
+```python
+def check_version_consistency(
+    repo_root: Path,
+    requested_version: str,
+    verbose: bool = False,
+) -> int:
+    """Require both the canonical tag and installed wheel to equal the request."""
+    try:
+        parse_version(requested_version)
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+
+    canonical = _version_from_git_tag(repo_root)
+    installed = _version_from_metadata()
+    errors: list[str] = []
+
+    if canonical != requested_version:
+        errors.append(
+            f"canonical Git tag version is {canonical or '<not found>'}, "
+            f"expected {requested_version}"
+        )
+    if installed != requested_version:
+        errors.append(
+            f"installed distribution version is {installed or '<not found>'}, "
+            f"expected {requested_version}"
+        )
+
+    if errors:
+        for error in errors:
+            print(f"ERROR: {error}", file=sys.stderr)
+        return 1
+
+    if verbose:
+        print(f"Canonical tag version: {canonical}")
+        print(f"Installed distribution version: {installed}")
+    return 0
+```
+
+   Require `--expected-version` on the consistency-check CLI. This makes the release request explicit and prevents a resolution-only check from declaring success merely because two unrelated values exist.
+
+4. **Make the bump API compute-only.** Resolve the current version from the canonical tag, perform one semantic-version increment, return or print it, and do not accept a redundant `dry_run` flag. A function that never mutates state is already a preview.
+
+```python
+def bump_version(repo_root: Path, part: str, verbose: bool = False) -> str:
+    """Compute the next version from the authoritative tag without changing state."""
+    current_str = _get_canonical_version(repo_root)
+    current = parse_version(current_str)
+
+    if part == "major":
+        new = (current[0] + 1, 0, 0)
+    elif part == "minor":
+        new = (current[0], current[1] + 1, 0)
+    elif part == "patch":
+        new = (current[0], current[1], current[2] + 1)
+    else:
+        raise ValueError(
+            f"invalid part {part!r}: must be 'major', 'minor', or 'patch'"
+        )
+
+    requested = ".".join(str(component) for component in new)
+    if verbose:
+        print(f"Computed next version: {current_str} -> {requested}")
+    return requested
+```
+
+   The human CLI should say `Computed next version`, `No files or tags were changed`, and name the authoritative release action. A machine-readable response can use:
+
+```json
+{
+  "requested_version": "1.2.4",
+  "changed": false,
+  "authoritative_action": "explicit signed-tag release workflow"
+}
+```
+
+5. **Keep tag mutation in one explicit workflow.** The preview command must not print manual `git tag` instructions that encourage operators to bypass key import, signing, branch, or dispatch controls. Direct operators to the existing `workflow_dispatch` release action that owns signed-tag creation.
+
+6. **Verify the artifact that will be published.** After building, create a disposable environment under the repository's ignored build directory, install the discovered wheel into it, and invoke the checker binary from that environment. Do not invoke the checker through `uv run`, an editable install, or the source checkout at this gate.
+
+```yaml
+- name: Verify canonical and installed versions
+  shell: bash
+  env:
+    TAG: ${{ needs.resolve-release.outputs.tag }}
+  run: |
+    set -euo pipefail
+    TAG_VERSION="${TAG#v}"
+    VERIFY_ENV="build/version-verify"
+    WHEEL="$(find dist -maxdepth 1 -type f -name '*.whl' -print -quit)"
+    if [ -z "${WHEEL}" ]; then
+      echo "::error::No built wheel found for version verification"
+      exit 1
+    fi
+
+    uv venv "${VERIFY_ENV}"
+    uv pip install --python "${VERIFY_ENV}/bin/python" "${WHEEL}"
+    "${VERIFY_ENV}/bin/package-check-version-consistency" \
+      --repo-root "${GITHUB_WORKSPACE}" \
+      --expected-version "${TAG_VERSION}" \
+      --verbose
+```
+
+7. **Protect ordering and immutability with executable tests.** Cover the behavior, not internal calls:
+
+   - exact success when canonical and installed values both equal the request;
+   - failure when either source is missing or differs;
+   - failure for development/local installed versions such as `1.2.3.dev1` when `1.2.3` was requested;
+   - correct major/minor/patch proposals;
+   - byte-for-byte preservation of `VERSION`, `pyproject.toml`, package `__init__.py`, and any other sentinel file;
+   - no filesystem entries created by a successful preview;
+   - no partial writes when tag resolution fails;
+   - the installed-wheel verification step appears after build and before publish;
+   - the verification command comes from `build/version-verify`, includes `--expected-version`, and fails when no wheel exists.
+
+8. **Retain the source/build computation gate.** A pre-build check such as `TAG_VERSION == hatchling version` and the post-build installed-wheel check prove different things. Keep both: the first verifies VCS-derived build computation; the second verifies the actual artifact consumer before publication.
+
+## Verified Workflow
+
+_Not applicable._ This skill was captured from an implementation plan and is `unverified`: no code was applied, no criterion-specific test ran, and no release CI result was observed. The actionable methodology is under **Proposed Workflow** and must remain hypothesis-level until implementation and CI confirm it. This placeholder exists because `scripts/validate_plugins.py` currently requires the literal `## Verified Workflow` heading; it makes no verification claim.
+
+## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | --------------- | --------------- | ---------------- |
+| Use installed metadata as the canonical fallback | Returned `importlib.metadata.version()` when no release tag was reachable | A stale editable install or unrelated installed wheel can hide a shallow/tagless checkout and impersonate the source of truth | Fail closed when the authoritative tag is unavailable; installed metadata is independent evidence, never authority |
+| Normalize installed metadata to `X.Y.Z` before comparison | Stripped `.devN`, `+local`, or compared only the release prefix | A stale/development build such as `1.2.3.dev1` passes a check requesting the final `1.2.3` artifact | Preserve the exact metadata string and compare it directly to the exact request |
+| Let a local bump helper update secondary files | Rewrote `VERSION`, `[project].version`, or package version constants in a tag-driven project | Reintroduced competing authorities and made local preview capable of dirtying or partially updating the repository | Compute from the tag and return the proposal; leave every file and tag untouched |
+| Keep `--dry-run` on a non-mutating command | Added a mode switch after removing every write path | The flag implies a hidden mutating mode and creates needless branches in API, CLI, and tests | A compute-only function is inherently a preview; remove the redundant flag |
+| Verify through the editable development environment | Ran the consistency checker with `uv run` after building a wheel | The check can inspect repository metadata rather than the wheel that will be uploaded, so packaging defects escape | Install the wheel into a fresh disposable environment and invoke its installed console script |
+| Check the wheel after publication | Put artifact verification after the PyPI action | The irreversible external write already happened before the gate could fail | Order build -> isolated install -> exact verification -> publish, and freeze that ordering in a workflow test |
+| Print manual tag commands from the preview CLI | Told operators to copy the proposal into `git tag` commands | Bypasses the established explicit dispatch, signing-key import, and mutation controls | Point to the one authoritative signed-tag workflow instead of teaching a parallel release path |
+
+## Results & Parameters
+
+### Authority and Evidence Contract
+
+| Value | Source | Comparison rule | Failure behavior |
+| ------- | ------- | ------- | ------- |
+| Canonical version | Reachable strict `vX.Y.Z` Git tag | Strip only the leading tag marker defined by the repository, then require exact equality to the request | Missing or mismatched tag fails closed |
+| Requested version | Explicit CLI input / release tag with `v` removed | Validate the required semantic-version shape; retain the exact requested string | Invalid input returns nonzero before publication |
+| Installed version | `importlib.metadata.version(<distribution-name>)` inside the wheel-only environment | Preserve `.devN`, `+local`, and other suffixes; exact equality only | Missing or mismatched metadata fails closed |
+| Proposed next version | Major/minor/patch increment of canonical tag | Informational only | No files, tags, commits, or external state change |
+
+### Release Gate Parameters
+
+| Parameter | Recommended value | Purpose |
+| ------- | ------- | ------- |
+| Verification environment | `build/version-verify` | Disposable, repository-local, ignored generated state |
+| Wheel discovery | `find dist -maxdepth 1 -type f -name '*.whl' -print -quit` plus non-empty guard | Select the built wheel and fail clearly when build produced none |
+| Checker invocation | `${VERIFY_ENV}/bin/<check-command>` | Proves the executable and metadata come from the installed artifact |
+| Required CLI input | `--expected-version "${TAG#v}"` | Makes the release request explicit |
+| Workflow ordering | after build, before publish | Prevents irreversible publication on mismatch |
+| Rollback/data migration | none | The preview is read-only and the only generated state is disposable build content |
+
+### Proposed Acceptance Matrix
+
+| Canonical | Installed | Requested | Expected |
+| ------- | ------- | ------- | ------- |
+| `1.2.3` | `1.2.3` | `1.2.3` | pass |
+| `1.2.2` | `1.2.3` | `1.2.3` | fail: tag mismatch |
+| `1.2.3` | `1.2.2` | `1.2.3` | fail: artifact mismatch |
+| `1.2.3` | `1.2.3.dev1` | `1.2.3` | fail: exact metadata mismatch |
+| `1.2.3` | `1.2.3+local` | `1.2.3` | fail: exact metadata mismatch |
+| missing | `1.2.3` | `1.2.3` | fail: authority unavailable |
+| `1.2.3` | missing | `1.2.3` | fail: artifact metadata unavailable |
+
+### Verification Status
+
+- **Observed successes:** none; this was an initial implementation plan.
+- **Observed failures:** none executed. The Failed Attempts table records design hazards identified during review, not runtime experiments.
+- **Pending evidence:** criterion-specific unit tests, Ruff and mypy on modified Python files, workflow regression tests, and a green release CI run that builds and installs the wheel before publication.
+- **Originating context:** ProjectHephaestus plan to make `hephaestus-bump-version` compute-only and strengthen `.github/workflows/release.yml`; project-specific names are examples, while the authority/evidence separation applies to any tag-driven Python distribution.
+
+## Verified On
+
+| Project | Context | Details |
+| ------- | ------- | ------- |
+| ProjectHephaestus | Initial implementation plan, 2026-08-05 | Unverified proposal: no code, tests, or release CI run were observed. The planned integration points were the version-consistency CLI and the pre-publication wheel gate. |
+
+## Related Skills
+
+- [python-packaging-pyproject-editable-install](./python-packaging-pyproject-editable-install.md) — broad hatch-vcs migration, distribution-name lookup, editable install, and packaging setup.
+- [testing-local-wheel-install-content-test](./testing-local-wheel-install-content-test.md) — locally proving wheel contents, entry points, and optional-import boundaries from an installed artifact.
+- [gha-release-package-workflow-patterns](./gha-release-package-workflow-patterns.md) — broader GitHub Actions packaging and publishing workflow patterns.
+
+---
+
+## v1.0.0 (2026-08-05)
+
+**Initial version.**

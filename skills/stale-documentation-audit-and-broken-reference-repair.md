@@ -1,12 +1,13 @@
 ---
 name: stale-documentation-audit-and-broken-reference-repair
-description: "Use when: (1) running a doc-drift audit across a corpus — detecting stale counts, metric discrepancies, cross-doc contradictions, ecosystem-role drift; (2) removing phantom directory references from documentation when a path no longer exists; (3) fixing broken documentation references (dead links, stale headings); (4) auditing documentation examples for policy violations; (5) auditing and rewriting getting-started stubs by sourcing real commands from justfile and versions from pixi.toml; (6) fixing incorrect tier labels or version numbers in docs that have drifted from implementation; (7) managing the full lifecycle of placeholder and stub documentation — deletion under YAGNI, deferred-comment placeholders, rewriting with accurate codebase-grounded content; (8) resolving audit nitpicks for monolithic code by documenting verified design rationale; (9) resolving CONTRIBUTING.md case-clashes and circular cross-references in docs/; (10) validating anchor fragments in markdown deep-links to detect broken headings; (11) an issue claims a file contains a specific string — verify it before trusting the claim; (12) a doc or test comment references a line number in another file that may have shifted; (13) PLANNING a doc-drift consolidation — issue line numbers are stale and more copies exist than cited; (14) a flagged stale count is ambiguous which set the doc counts — disambiguate before bumping; (15) planning a phantom-path fix — applying the remove-vs-redirect decision rule and confirm-then-fix audit discipline; (16) a dated currency claim in a doc trails the git tag and you want a CI-effective version-currency guard; (17) a README/CLAUDE.md directory tree omits or miscounts a subpackage; (18) syncing a stale doc-version claim to the correct version authority and deciding whether to add a drift-detection regression test; (19) a doc count annotates a human-curated enumeration (tree, tier table, bullet list) and you must reconcile number-to-list not number-to-filesystem; (20) a replacement command must be verified to actually run in THIS repo before shipping — feature names are not environment names in pixi; (21) a pixi-only repo has bare env-tool invocations (pre-commit, pytest, mypy, ruff) that fail on clean machines; (22) an audit issue quotes conflicting numbers — treat both as suspect prose and count from the enforced artifact; (23) re-deriving a count from the authoritative manifest/code and hunting all stale copies with a phrase-scoped grep; (24) locating and repairing dangling file:line citations by content-match not coordinate, and confirming markdownlint was not silently skipped; (25) an issue reports multiple phantom command/recipe references in a doc — some may already be fixed; always re-grep against justfile ground truth before editing each one; (26) a justfile with mixed naming conventions (verb-first vs prefix-first recipes) is referenced in docs — cross-check ALL table entries, not just the reported phantom."
+description: "Use when: (1) running a doc-drift audit across a corpus — detecting stale counts, metric discrepancies, cross-doc contradictions, ecosystem-role drift; (2) removing phantom directory references from documentation when a path no longer exists; (3) fixing broken documentation references (dead links, stale headings); (4) auditing documentation examples for policy violations; (5) auditing and rewriting getting-started stubs by sourcing real commands from justfile and versions from pixi.toml; (6) fixing incorrect tier labels or version numbers in docs that have drifted from implementation; (7) managing the full lifecycle of placeholder and stub documentation — deletion under YAGNI, deferred-comment placeholders, rewriting with accurate codebase-grounded content; (8) resolving audit nitpicks for monolithic code by documenting verified design rationale; (9) resolving CONTRIBUTING.md case-clashes and circular cross-references in docs/; (10) validating anchor fragments in markdown deep-links to detect broken headings; (11) an issue claims a file contains a specific string — verify it before trusting the claim; (12) a doc or test comment references a line number in another file that may have shifted; (13) PLANNING a doc-drift consolidation — issue line numbers are stale and more copies exist than cited; (14) a flagged stale count is ambiguous which set the doc counts — disambiguate before bumping; (15) planning a phantom-path fix — applying the remove-vs-redirect decision rule and confirm-then-fix audit discipline; (16) a dated currency claim in a doc trails the git tag and you want a CI-effective version-currency guard; (17) a README/CLAUDE.md directory tree omits or miscounts a subpackage; (18) syncing a stale doc-version claim to the correct version authority and deciding whether to add a drift-detection regression test; (19) a doc count annotates a human-curated enumeration (tree, tier table, bullet list) and you must reconcile number-to-list not number-to-filesystem; (20) a replacement command must be verified to actually run in THIS repo before shipping — feature names are not environment names in pixi; (21) a pixi-only repo has bare env-tool invocations (pre-commit, pytest, mypy, ruff) that fail on clean machines; (22) an audit issue quotes conflicting numbers — treat both as suspect prose and count from the enforced artifact; (23) re-deriving a count from the authoritative manifest/code and hunting all stale copies with a phrase-scoped grep; (24) locating and repairing dangling file:line citations by content-match not coordinate, and confirming markdownlint was not silently skipped; (25) an issue reports multiple phantom command/recipe references in a doc — some may already be fixed; always re-grep against justfile ground truth before editing each one; (26) a justfile with mixed naming conventions (verb-first vs prefix-first recipes) is referenced in docs — cross-check ALL table entries, not just the reported phantom; (27) designing a recursive, read-only maintenance policy for living normative Markdown, including nested specifications, volatile-claim detection, semantic source contracts, and deterministic roadmap freshness."
 category: documentation
-date: 2026-06-19
-version: "1.11.0"
+date: 2026-07-20
+version: "1.12.0"
 user-invocable: false
+verification: verified-ci
 history: stale-documentation-audit-and-broken-reference-repair.history
-tags: [doc-drift, stale-doc, broken-references, phantom-dir, placeholder, stub, anchor-validation, tier-labels, doc-audit, doc-sync, merged, merge-method, consolidation-planning, count-disambiguation, remove-vs-redirect, confirm-then-fix, version-currency, git-tag-authority, subpackage-count, pattern-d, drift-test-fragility, count-annotates-list, pixi-environment, pixi-run-prefix, enforced-artifact, phrase-scoped-grep, file-line-citation, markdownlint-skipped, phantom-recipe, justfile-ground-truth, stale-issue-description, mixed-naming-convention]
+tags: [doc-drift, stale-doc, broken-references, phantom-dir, placeholder, stub, anchor-validation, tier-labels, doc-audit, doc-sync, merged, merge-method, consolidation-planning, count-disambiguation, remove-vs-redirect, confirm-then-fix, version-currency, git-tag-authority, subpackage-count, pattern-d, drift-test-fragility, count-annotates-list, pixi-environment, pixi-run-prefix, enforced-artifact, phrase-scoped-grep, file-line-citation, markdownlint-skipped, phantom-recipe, justfile-ground-truth, stale-issue-description, mixed-naming-convention, living-documentation, normative-specifications, semantic-source-contracts, roadmap-freshness]
 ---
 
 # Stale Documentation Audit and Broken Reference Repair
@@ -15,9 +16,9 @@ tags: [doc-drift, stale-doc, broken-references, phantom-dir, placeholder, stub, 
 
 | Field | Value |
 | ------- | ------- |
-| **Date** | 2026-06-13 |
+| **Date** | 2026-07-20 |
 | **Objective** | Canonical workflow for auditing stale documentation and repairing broken references: drift audits, phantom-dir/dead-link removal, placeholder lifecycle, getting-started rewrites, tier-label fixes, anchor validation, ADR LoC figure updates, stale line-number citations |
-| **Outcome** | Consolidated from 10 skills covering doc-drift audits, broken-reference repair, policy-violation audits, placeholder/stub lifecycle, monolith-rationale docs, CONTRIBUTING case-clash, and anchor validation; v1.1.0 adds ADR LoC drift pattern; v1.2.0 adds stale line-number citation audit and issue-body claim verification; v1.9.0 adds merge-method per-repo note, doc-drift consolidation PLANNING, count-set disambiguation, phantom-path remove-vs-redirect, git-tag version-currency guard, subpackage counting, and Pattern D drift-test fragility; v1.10.0 salvages 6 dropped learnings: count-annotates-list rule, pixi env verification before shipping, pixi-run prefix for bare env tools, enforced-artifact > prose for conflicting counts, phrase-scoped grep for count-drift, and content-anchored file:line citation repair with markdownlint-Skipped caveat |
+| **Outcome** | Consolidated from 10 skills covering doc-drift audits, broken-reference repair, policy-violation audits, placeholder/stub lifecycle, monolith-rationale docs, CONTRIBUTING case-clash, and anchor validation; v1.1.0 adds ADR LoC drift pattern; v1.2.0 adds stale line-number citation audit and issue-body claim verification; v1.9.0 adds merge-method per-repo note, doc-drift consolidation PLANNING, count-set disambiguation, phantom-path remove-vs-redirect, git-tag version-currency guard, subpackage counting, and Pattern D drift-test fragility; v1.10.0 salvages 6 dropped learnings: count-annotates-list rule, pixi env verification before shipping, pixi-run prefix for bare env tools, enforced-artifact > prose for conflicting counts, phrase-scoped grep for count-drift, and content-anchored file:line citation repair with markdownlint-Skipped caveat; v1.12.0 adds an unverified design pattern for recursively governing living normative Markdown with owned sources, review triggers, semantic selectors, relative-link validation, and deterministic roadmap freshness |
 | **Verification** | verified-ci |
 
 ## When to Use
@@ -51,6 +52,9 @@ tags: [doc-drift, stale-doc, broken-references, phantom-dir, placeholder, stub, 
 - A doc carries a dangling `file.py:NN-MM` reference — locate the construct by content-match grep (not the audit's reported coordinate, which is off-by-one), replace with a content-anchored durable citation; after the fix, verify `pre-commit run --files <doc>` actually LINTED the file (a "Skipped" status means the hook's file filter excluded the path — linting did NOT occur)
 - An issue reports multiple phantom command/recipe references in a doc — issue descriptions may cite several broken lines where only a subset are still live; always re-grep against the justfile (or authoritative source) before editing each reported location; fix only the live defects, not the stale issue claims
 - A justfile uses a mixed naming convention (e.g. verb-first `start-agamemnon` for some recipes, prefix-first `hermes-start` for others) — cross-check ALL doc table entries against the real recipe list, not just the reported phantom; a mixed convention makes it easy to trust adjacent already-correct entries as evidence that ALL entries must be correct
+- You are designing a read-only documentation-maintenance gate that must recursively cover living
+  normative Markdown, including nested `docs/specs/`, while explicitly excluding generated or
+  scratch content, test fixtures, accepted ADR bodies, and point-in-time release-note bodies
 
 ## Verified Workflow
 
@@ -855,6 +859,87 @@ Surface these as explicit risks; each is a place where a phantom-path plan commo
   label; the GPG committer-email-must-match-key rule; a specific signing email) should be flagged as
   assumed-from-memory so the reviewer re-confirms them against the live repo config.
 
+## Proposed Workflow: Recursive Living-Documentation Maintenance
+
+> **Warning:** This workflow has not been validated end-to-end. Treat it as a reviewed design
+> pattern until an implementation passes its repository tests, link checker, pre-commit hook, and
+> CI. Verification level for this section: `unverified`.
+
+Use this pattern when one-off stale-prose fixes are no longer enough and the repository needs an
+offline, read-only policy for living normative documentation.
+
+### Scope living and historical documents explicitly
+
+Default tracked Markdown to **living normative documentation**, including nested specifications.
+Do not treat `docs/specs/**/*.md` as historical merely because filenames contain dates: proposed
+designs can still define active behavior. Prefer a narrow, auditable exclusion list:
+
+- generated and scratch directories;
+- `tests/fixtures/`;
+- accepted ADR bodies and component-scoped release-note bodies.
+
+Keep the ADR and release-note README/index files in scope because their inventories and navigation
+remain current. Require every volatile living surface to name four things: owner, maintained
+source, review trigger, and automated check.
+
+### Remove snapshots unless an authority already maintains them
+
+Remove unsupported snapshots of transient issue state, dates, repository size, test counts, and
+coverage values instead of replacing one hand-maintained number with another. Preserve a numeric
+claim when an existing executable check already derives it from an authoritative source. Delegate
+to that check rather than implementing a competing parser—for example:
+
+- console-script counts from `pyproject.toml [project.scripts]`;
+- coverage floors from `pyproject.toml [tool.coverage.report]`;
+- release-version currency from the repository's tag-aware version check.
+
+### Discover recursively and ignore fenced examples
+
+Use `Path.rglob("*.md")`, then filter normalized repository-relative paths against explicit
+prefixes. Test both sides of every important boundary: a nested specification must be discovered,
+while a nested fixture must not. Strip or mask fenced examples before scanning prose so policy
+documentation can demonstrate a forbidden phrase without flagging itself.
+
+### Validate sources semantically
+
+File existence alone does not prove that a cited source still carries the documented contract.
+Represent high-value claims as `(document, source, selector)` contracts and validate the selector
+with the source's parser:
+
+- Python: use `ast` to find a module symbol or class such as `ROUTES` or `PromptCatalog`;
+- YAML: parse and require a key such as `jobs`;
+- Markdown: parse headings and require a heading such as `Pre-Release Checklist`.
+
+Local Markdown links resolve from the containing document, not the repository root. A link in
+`docs/architecture.md` to a root file normally needs `../`; repository-root-looking targets can
+turn a whole-corpus link run into hundreds of failures. Normalize the links before treating the
+link checker as acceptance evidence, and make CLI smoke tests assert the return code explicitly.
+
+### Make roadmap freshness deterministic
+
+Pass `today: date | None = None` into the roadmap validator and compute one `effective_today`.
+Require a parseable `Last updated` date that is not in the future, falls within the stated focus
+quarter, and has a focus quarter no older than the injected current quarter. Also require the
+roadmap to name its owner, authoritative sources, and review triggers. Unit tests should exercise
+quarter boundaries using injected dates rather than the wall clock.
+
+### Wire the hook last
+
+Keep the validator read-only and provide human-readable plus JSON output. First make the existing
+documentation corpus produce zero findings and repair its links; only then register the validator
+as a pre-commit hook. Focused tests should cover recursive discovery, exclusions, fenced prose,
+semantic selectors, injected dates, output formats, and the checked-in corpus.
+
+### Quick Reference
+
+```bash
+# Proposed acceptance sequence; adapt module names to the repository.
+python -m package.validation.doc_maintenance --repo-root .
+pytest tests/unit/validation/test_doc_maintenance.py -v
+package-validate-links docs --repo-root .
+pre-commit run check-doc-maintenance --all-files
+```
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -894,6 +979,11 @@ Surface these as explicit risks; each is a place where a phantom-path plan commo
 | Assumed `pre-commit run --files <doc>` linted the file when output showed `Skipped` | Counted a `Skipped` pre-commit result as lint-clean | `Skipped` means the hook's file filter excluded the path — markdownlint did NOT run; issues went undetected | Check the status word in the output; verify with `pixi run pre-commit run markdownlint-cli2 --files <doc>` |
 | Trusted issue's phantom-recipe line references without re-grepping | Issue claimed both lines 232 and 233 of `docs/onboarding.md` had broken justfile recipes; patched both | Ground-truth grep showed line 232 (`just start-agamemnon`) was already correct — only line 233 (`just nestor-start` → `just start-nestor`) was live; the issue described a formerly-broken state | Always re-grep the doc against the justfile before editing each reported line; issue descriptions may cite multiple phantom references where only a subset are still live defects |
 | Assumed uniform naming convention from a few correct justfile recipe names | Saw `start-agamemnon`, assumed verb-first was universal, relaxed verification on adjacent `hermes-start`, `argus-start` entries | The Odysseus justfile uses MIXED convention: verb-first (`start-agamemnon`, `start-nestor`) for Agamemnon/Nestor; prefix-first (`hermes-start`, `argus-start`, `keystone-start`) for infrastructure services | Run a bulk cross-check for ALL doc table entries: `for r in r1 r2 r3 r4 r5; do grep -qE "^${r}( \|:)" justfile && echo "OK $r" \|\| echo "MISSING $r"; done` |
+| Excluded dated `docs/specs/` files as historical records | Treated a date-bearing design filename as point-in-time evidence | Active proposed specifications can remain normative and would escape ownership and currency checks | Keep nested specifications in scope unless the repository explicitly archives them |
+| Discovered Markdown only at fixed depths | Scanned root files and `docs/*.md` | Nested specs and CI documentation bypassed the policy | Use recursive discovery and test a nested positive case plus a nested excluded fixture |
+| Treated local Markdown links as repository-root-relative | Kept root-looking targets such as `hephaestus/...` inside `docs/architecture.md` | The link checker resolves from the containing document, so those targets point under `docs/` and fail | Normalize targets relative to each document before using link-check results as evidence |
+| Used the wall clock directly in roadmap tests | Compared `Last updated` with `date.today()` inside every assertion | Quarter-boundary tests become nondeterministic and can fail based on execution date | Inject `today` and derive one effective date for all freshness checks |
+| Registered a corpus-wide hook before cleaning the corpus | Added enforcement while known stale claims and broken links remained | The hook produced noisy baseline failures with no usable migration path | Repair the corpus first, prove zero findings, then add the read-only pre-commit gate |
 
 ## Results & Parameters
 
@@ -910,6 +1000,19 @@ Surface these as explicit risks; each is a place where a phantom-path plan commo
 | Tier labels | `fix(docs): Fix all tier label mismatches in metrics-definitions.md` |
 | Contradiction | `fix(docs): Remove --label flag from CONTRIBUTING.md PR example` |
 | Anchor validator | `feat(scripts): add installation anchor validator + CI step` |
+
+### Proposed living-documentation policy contract
+
+| Concern | Parameter / invariant |
+| ------- | --------------------- |
+| Discovery | `Path.rglob("*.md")`; nested `docs/specs/` stays normative |
+| Historical exclusions | Explicit generated/scratch and fixture prefixes; accepted ADR and release-note bodies only |
+| Ownership | CODEOWNERS-backed owner plus maintained source, review trigger, and automated check |
+| Prose scan | Ignore fenced examples; flag unowned dated state, temporary issue state, and snapshot metrics |
+| Source contract | Validate both local path and semantic selector with AST/YAML/Markdown parsing |
+| Relative links | Resolve from the containing Markdown file, never implicitly from repository root |
+| Roadmap date | Inject `today`; date is parseable, non-future, in focus quarter, and focus quarter is current |
+| Hook order | Corpus clean and link-valid before enabling the read-only pre-commit gate |
 
 ### Drift-detection test pattern (Python)
 
@@ -972,5 +1075,6 @@ pixi run npx markdownlint-cli2 <file>
 | ProjectHephaestus | Issue #2397 (closed, content salvaged) | Conflicting prose counts (6 vs 11 modules); enforced-artifact (passing frozen-allowlist test) beats both; no redundant prose guard when test already exists |
 | ProjectHephaestus | Issue #2398 (closed, content salvaged) | Count-drift from `[project.scripts]`: ROADMAP said 37, pyproject had 47; phrase-scoped grep to scope edit and prove no copies survive; exact-string Edit over bare-digit replace_all |
 | ProjectHephaestus | Issues #2399/#2401 (closed, content salvaged) | Dangling file:line citation: locate by content not audit coordinate; content-anchored durable citation; markdownlint Skipped != linted; historical narrative left intact |
+| ProjectHephaestus | Living normative documentation implementation plan (2026-07-20, **unverified**) | Reviewed design for recursive specification coverage, narrow historical exclusions, volatile-claim detection, semantic source selectors, relative-link repair, injected roadmap dates, and read-only pre-commit enforcement; implementation and CI were not run in this session |
 | mvillmow/Random | Predictive-Coding-in-Mojo Phase 0 | Cross-doc citation drift: 8 stale §-refs, 2 arXiv ID swaps caught |
 | Odysseus | Issue #182, PR #312 (docs/onboarding.md:233 phantom recipe fix) | Issue claimed both lines 232–233 had broken recipes. Ground-truth grep showed line 232 (`just start-agamemnon`) was already correct; only line 233 needed fixing (`nestor-start` → `start-nestor`). Odysseus justfile uses mixed convention: verb-first for Agamemnon/Nestor, prefix-first for Hermes/Argus/Keystone. Signed commit `4d28379`; verified-local. |

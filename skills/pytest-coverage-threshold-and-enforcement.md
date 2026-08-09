@@ -1,9 +1,9 @@
 ---
 name: pytest-coverage-threshold-and-enforcement
-description: "Use when: (1) establishing [tool.coverage.report].fail_under as the single source of truth by removing redundant --cov-fail-under from CI and pyproject.toml addopts; (2) configuring multiple coverage report formats (xml, html, lcov) for CI and local use; (3) CI coverage % is lower than local because GitHub computes coverage against the merge-preview tree (PR HEAD merged with main HEAD) — adding entries to coverage.run.omit for files not on the branch IS the correct fix; (4) aggregate coverage gates hide under-tested critical modules — enforce per-file floors via parse_module_coverage() + coverage.toml + CI step; (5) some modules are intentionally omitted from measurement (live CLI/TTY) and need an integration backstop to catch import-time regressions; (6) pytest.importorskip() guards hide easy coverage wins — install optional deps and write targeted branch tests; (7) tuning coverage thresholds to match actual baselines and avoid false CI failures; (8) generate_coverage.sh fails in CI with wrong paths, cmake source dir errors, lcov gcov version mismatch on Ubuntu 24.04, or geninfo 'unable to create link .gcda'; (9) coverage is raised by adding targeted tests for uncovered branches plus unlocking skipped optional-dependency test groups; (10) planning a coverage threshold consolidation — verify actual coverage %, confirm consistency-checker accepts addopts absence, check whether CI uses --override-ini=addopts= before deciding where the real gate lives; (11) setting per-module branch-rate floor values in coverage.toml — choose margin 3-4pp below actual to avoid brittle thresholds that fail CI on unrelated PRs; (12) RAISING an existing per-module coverage floor by ADDING tests — measure the RIGHT number first (the floor is compared against branch_rate when > 0, else line_rate; the term-missing combined % and line_rate diverge from branch_rate and will mislead you), use `-o addopts=\"\"` to strip the global aggregate gate and read the true per-file number, read branch-rate authoritatively from the Cobertura XML `<class branch-rate>` attribute, and interpret `NN->exit` term-missing markers as the FALSE side of an uncovered branch."
+description: "Use when: (1) establishing [tool.coverage.report].fail_under as the single source of truth by removing redundant --cov-fail-under from CI and pyproject.toml addopts; (2) configuring multiple coverage report formats (xml, html, lcov) for CI and local use; (3) CI coverage % is lower than local because GitHub computes coverage against the merge-preview tree (PR HEAD merged with main HEAD) — adding entries to coverage.run.omit for files not on the branch IS the correct fix; (4) aggregate coverage gates hide under-tested critical modules — enforce per-file floors via parse_module_coverage() + coverage.toml + CI step; (5) some modules are intentionally omitted from measurement (live CLI/TTY) and need an integration backstop to catch import-time regressions; (6) pytest.importorskip() guards hide easy coverage wins — install optional deps and write targeted branch tests; (7) tuning coverage thresholds to match actual baselines and avoid false CI failures; (8) generate_coverage.sh fails in CI with wrong paths, cmake source dir errors, lcov gcov version mismatch on Ubuntu 24.04, or geninfo 'unable to create link .gcda'; (9) coverage is raised by adding targeted tests for uncovered branches plus unlocking skipped optional-dependency test groups; (10) planning a coverage threshold consolidation — verify actual coverage %, confirm consistency-checker accepts addopts absence, check whether CI uses --override-ini=addopts= before deciding where the real gate lives; (11) setting per-module branch-rate floor values in coverage.toml — choose margin 3-4pp below actual to avoid brittle thresholds that fail CI on unrelated PRs; (12) RAISING an existing per-module coverage floor by ADDING tests — measure the RIGHT number first (the floor is compared against branch_rate when > 0, else line_rate; the term-missing combined % and line_rate diverge from branch_rate and will mislead you), use `-o addopts=\"\"` to strip the global aggregate gate and read the true per-file number, read branch-rate authoritatively from the Cobertura XML `<class branch-rate>` attribute, and interpret `NN->exit` term-missing markers as the FALSE side of an uncovered branch; (13) a coverage validator treats an existing but unusable Cobertura report as skipped or passing — use one secure XML loader, typed failure states, nonzero exits, and consistent `passed: false` JSON for missing files, unavailable secure parsers, malformed XML, and absent required coverage data."
 category: testing
-date: 2026-06-30
-version: "1.4.0"
+date: 2026-08-05
+version: "1.5.0"
 user-invocable: false
 history: pytest-coverage-threshold-and-enforcement.history
 tags:
@@ -22,6 +22,11 @@ tags:
   - branch-rate
   - addopts-override
   - term-missing-markers
+  - cobertura
+  - fail-closed
+  - secure-xml
+  - defusedxml
+  - json-error-contract
 ---
 
 # Pytest Coverage Threshold and Enforcement
@@ -30,10 +35,10 @@ tags:
 
 | Field | Value |
 | ------- | ------- |
-| **Date** | 2026-06-30 |
-| **Objective** | Configure, tune, and enforce pytest/coverage thresholds — single source of truth, per-module floors, merge-preview reconciliation, integration backstops for omitted modules, optional-dep unlocks, and lcov/geninfo CI fixes; planning pattern for threshold consolidation; measuring the RIGHT coverage number (branch_rate vs line_rate vs combined display) before raising a per-module floor |
-| **Outcome** | Success — consolidated knowledge for establishing `fail_under` as canonical, raising real coverage, and keeping CI gates green and honest; v1.1.0 adds planning-phase pre-conditions and the --override-ini=addopts= CI pattern; v1.2.0 adds per-module floor margin rule (3-4pp below actual); v1.3.0 promotes Issue #1198 from unverified to verified-ci and adds test_doc_config.py fixture isolation finding; v1.4.0 adds the branch_rate measurement procedure for RAISING a per-module floor by adding tests (`-o addopts=""` to read the true per-file number, Cobertura `<class branch-rate>` is authoritative, `NN->exit` markers = false side of a branch) |
-| **Verification** | verified-ci (existing); unverified (v1.1.0 planning additions from ProjectHephaestus issue #1198); verified-ci (v1.2.0 floor margin rule from ProjectHephaestus issue #1197, PR #1288); verified-ci (v1.3.0 — #1198 implementation confirmed via PR #1293); verified-local (v1.4.0 — ProjectHephaestus issue #1471 floor raise 65→90; tests + coverage measured locally end-to-end RED→GREEN and full validation suite green; PR/CI had NOT merged at capture time) |
+| **Date** | 2026-08-05 |
+| **Objective** | Configure, tune, and enforce pytest/coverage thresholds — single source of truth, per-module floors, merge-preview reconciliation, integration backstops for omitted modules, optional-dep unlocks, lcov/geninfo CI fixes, correct branch-rate measurement, and fail-closed secure parsing of Cobertura reports |
+| **Outcome** | Success for the established coverage workflows; v1.5.0 adds an unverified implementation pattern for making existing but unusable Cobertura reports fail distinctly across direct, human CLI, JSON, aggregate, and module-floor paths |
+| **Verification** | verified-ci (existing core and v1.2.0/v1.3.0 additions); verified-local (v1.4.0 branch-rate floor raise); unverified (v1.5.0 fail-closed Cobertura parsing design from a repository-grounded ProjectHephaestus implementation plan; implementation and CI pending) |
 | **History** | [changelog](./pytest-coverage-threshold-and-enforcement.history) |
 
 ## When to Use
@@ -57,10 +62,14 @@ tags:
 - A single-file `pytest --cov` run prints `FAIL Required test coverage of N% not reached` and you need to know if it's a real per-file failure — it is **not**; it's the GLOBAL aggregate gate firing. Re-run with `-o addopts=""` to strip the repo default addopts and read the true per-file summary (`N passed`); do not pattern-match on the word `FAIL`
 - The line/combined coverage % looks high (e.g. 96-98%) but you suspect uncovered branches — read `branch_rate` from the Cobertura XML, which can be far lower (e.g. 68.75%)
 - You see `NN->exit` markers in `--cov-report=term-missing` output and need to know what they mean (the FALSE side of a branch — the guard condition not taken to its body) and how to cover them
+- A coverage parser returns `None` for an existing malformed or incomplete report and the threshold check interprets `None` as "skip" or pass
+- `defusedxml` is optional and the validator needs actionable installation guidance when it is absent without falling back to the standard-library XML parser
+- Aggregate coverage, per-module floors, human output, and JSON output have drifted into different failure behavior or error vocabularies
+- A machine consumer needs to distinguish a missing report, unavailable secure parser, malformed XML, and absent required coverage data while every unusable report still exits nonzero
 
 ## Verified Workflow
 
-> **Note:** Steps I–II below are planning pre-conditions added in v1.1.0 (ProjectHephaestus issue #1198) and promoted to **verified-ci** in v1.3.0 (PR #1293). Steps A–H are verified-ci.
+> **Note:** Steps I–II below are planning pre-conditions added in v1.1.0 (ProjectHephaestus issue #1198) and promoted to **verified-ci** in v1.3.0 (PR #1293). Steps A–H retain their stated verification levels. Step E3 is an unverified proposed workflow from v1.5.0.
 
 ### Quick Reference
 
@@ -121,6 +130,13 @@ print('line-rate', c.get('line-rate'), 'branch-rate', c.get('branch-rate'))"
 #     Never set the floor ABOVE the measured branch_rate.
 # (d) Validate the edited coverage.toml is still valid TOML and reads back the new floor:
 python -c "import tomllib; print(tomllib.load(open('coverage.toml','rb'))['coverage']['modules']['automation/models.py'])"
+
+# --- 5c. Fail closed when a Cobertura report exists but is unusable ---
+# One secure loader must serve aggregate and module parsing; never fall back to xml.etree.
+rg -n 'defusedxml|ElementTree.parse|parse_coverage_report|parse_module_coverage' \
+  <package>/validation/coverage.py
+# Test each external failure state at the parser and CLI/JSON boundaries.
+pytest tests/unit/validation/test_coverage.py -v
 
 # --- 6. Integration backstop for omitted modules ---
 pytest tests/integration/test_orchestration_smoke.py -v   # import + `--help` smoke
@@ -320,6 +336,69 @@ A naive raise to 90 here would have FAILED CI (0.6875 < 0.90) even though the li
 
 8. **The audit's cited line can be stale.** Issue #1471 cited `coverage.toml:8` but the actual floor line was 10 (line 8 was the `[coverage.modules]` header). Re-read the live file: the finding was genuine, the line number was off. (See the related planning skill `audit-remediation-verify-evidence-before-planning` for the planning-phase analogue; this section is the implementation/measurement analogue.)
 
+#### E3. Fail closed when a Cobertura report cannot be securely validated (v1.5.0, unverified)
+
+> **Warning:** This workflow has not been validated end-to-end. Treat it as a hypothesis until the implementation tests and CI pass.
+
+Use this pattern when a coverage validator already distinguishes a missing report from an
+explicit report, but collapses parse failures into `None` and then treats `None` as "nothing to
+check." Once an operator explicitly supplies a report, every unusable state is a validation
+failure. The public success path remains a `float`; failure states become exceptions with stable
+machine codes.
+
+**Proposed failure taxonomy:**
+
+| Condition | Python failure | Machine code | Required CLI behavior |
+| --------- | -------------- | ------------ | --------------------- |
+| File does not exist | `FileNotFoundError` | `coverage_file_missing` | exit nonzero; `passed: false`; include the path |
+| Secure XML dependency absent | `CoverageParserUnavailableError` | `parser_unavailable` | exit nonzero; include the exact optional-extra install command |
+| XML malformed or a numeric rate invalid | `CoverageReportParseError` | `report_unparseable` | exit nonzero; identify the report and bad data |
+| Required aggregate `line-rate` absent | `CoverageDataAbsentError` | `coverage_data_absent` | exit nonzero; identify the absent attribute |
+
+**Proposed workflow:**
+
+1. **Create one private secure loader for both aggregate and module parsing.** It should check
+   file existence, import `defusedxml.ElementTree`, parse the file, and return the root element.
+   Do not duplicate optional-dependency or XML handling in `parse_coverage_report()` and
+   `parse_module_coverage()`; duplicated loaders drift into different security and error
+   behavior.
+
+2. **Keep the secure parser optional but exclusive.** An unavailable `defusedxml` is not
+   permission to use `xml.etree.ElementTree`. Raise a typed parser-unavailable error with the
+   project's exact optional-extra install command. This preserves the intentionally optional
+   dependency while preventing unsafe parser downgrade.
+
+3. **Make the aggregate parser total over successful results.** Return `float(line_rate) * 100`
+   only when the root attribute exists and is numeric. Raise absent-data for a missing root
+   `line-rate`; raise unparseable for malformed XML or an invalid numeric value. Never use
+   `None` for these failure states.
+
+4. **Map failures at every consumer, not only the parser.** Direct threshold checks should
+   catch missing-file and typed report errors, write actionable human errors to stderr, and
+   return false. JSON should return nonzero with `coverage: null`, `passed: false`, stable
+   `error`, and actionable `message`. Valid above-threshold and below-threshold reports retain
+   their current comparison and payload behavior.
+
+5. **Audit execution order before changing only the aggregate path.** If module floors run
+   before aggregate JSON emission, an unusable report exits through the module-floor handler
+   first. Apply the same machine-readable fields and error codes there, including the
+   missing-file case, or the nominal aggregate fix remains unreachable under the default
+   configuration.
+
+6. **Test the import boundary, not an availability constant.** Monkeypatch `builtins.__import__`
+   so imports beginning with `defusedxml` raise `ImportError`, then assert the optional-extra
+   guidance. This exercises the actual lazy-import seam and avoids a test that passes without
+   entering the missing-parser branch.
+
+7. **Test the Cartesian behavior that callers observe.** At minimum cover parser-level
+   missing file, missing parser, malformed XML, absent `line-rate`, and invalid `line-rate`;
+   direct checks returning false; non-JSON stderr + exit 1; JSON exit 1 and stable fields for
+   all four external error categories; module-floor error JSON; plus valid passing and valid
+   below-threshold regressions.
+
+The key invariant is: **an explicitly evaluated report produces either a valid numeric coverage
+value or a distinct nonzero validation failure—never a skipped pass.**
+
 #### F. Integration backstop for intentionally-omitted modules
 
 Modules omitted because they need live CLI/TTY/process spawning still need proof they import and their entry points work, plus a guard against silent omit-list growth:
@@ -390,6 +469,10 @@ lcov --capture --directory . --output-file "$COVERAGE_INFO" \
 | Misreading `NN->exit` markers | Treated `327->exit` term-missing markers as unreachable noise and skipped them | `NN->exit` is the FALSE side of a branch (guard not taken to its body) — a coverable, real gap | Cover `NN->exit` by exercising the false-guard path (e.g. re-add an existing key so `if x not in d:` takes its false side); a bare line number is an unexecuted statement |
 | Trusting the audit's cited line number | Audit said the floor was at `coverage.toml:8`; edited that line | Line 8 was the `[coverage.modules]` header; the actual floor was line 10 — the audit's location was stale though the finding was genuine | Re-read the live file to locate the exact key; verify the finding's substance separately from its cited line number |
 | Long docstring tripping E501 in new tests | Wrote a one-line test docstring citing `models.py:NN` and the uncovered set | The docstring exceeded ruff's 100-char line limit (E501) | Keep test docstrings ≤ 100 chars; shorten or split the citation |
+| Treating parser `None` as a skipped check | XML parsing or missing `line-rate` returned `None`, and `check_coverage()` treated every `None` as a pass | An explicitly supplied but unusable report could satisfy the gate without any coverage data | Successful parsing returns a float; unusable reports raise typed errors that every caller maps to failure |
+| Falling back to the standard XML parser | `defusedxml` was optional, so the code considered `xml.etree.ElementTree` as a convenience fallback | The validator silently weakened its parser security exactly when the secure dependency was unavailable | Keep the secure parser exclusive and return actionable optional-extra installation guidance |
+| Fixing only aggregate JSON | `_emit_json_report()` returned `passed: false`, but configured module floors parsed the report first | The default execution path exited through a different handler with an inconsistent or incomplete payload | Trace CLI ordering and apply the same failure fields to aggregate, module-floor, and missing-file paths |
+| Collapsing every report failure into one string | A broad catch returned only "could not parse coverage" | Operators and automation could not distinguish installation, syntax, missing-data, and missing-file remediation | Use typed internal errors with stable machine codes and preserve contextual human messages |
 | Relative BUILD_DIR in lcov script | Used `BUILD_DIR=build/x86.coverage.debug` directly | After `cd`, all derived coverage paths were wrong | Canonicalize BUILD_DIR to absolute at script startup |
 | `cmake ... ..` after cd | Used `..` as the cmake source dir inside BUILD_DIR | `..` resolved to BUILD_DIR's parent, not PROJECT_ROOT | Pass `"$PROJECT_ROOT"` explicitly |
 | `--ignore-errors negative,mismatch` only | Added `mismatch` to suppress the gcov format error | `B33*` vs `4.8*` still fatal with lcov 2.0 | Add `version` to the ignore list |
@@ -488,6 +571,34 @@ ProjectHephaestus issue #1471 — raised the `automation/models.py` floor 65→9
 
 Cobertura element: `<class filename="validation/schema.py" branch-rate="0.56" line-rate="0.72">` (rates are 0.0-1.0; ×100 for percent).
 
+### Fail-closed Cobertura report contract (v1.5.0, unverified)
+
+The proposed JSON failure schema is the same for aggregate and module-floor entry points:
+
+```json
+{
+  "path": ".",
+  "threshold": 83.0,
+  "coverage": null,
+  "passed": false,
+  "error": "report_unparseable",
+  "message": "Could not securely parse coverage report build/coverage.xml: ..."
+}
+```
+
+For status-only paths, `path` and `threshold` may be omitted, but these fields remain invariant:
+
+| Field | Failure value |
+| ----- | ------------- |
+| process exit | nonzero (normally `1`) |
+| `passed` | `false` |
+| `coverage` | `null` |
+| `error` | one of `coverage_file_missing`, `parser_unavailable`, `report_unparseable`, `coverage_data_absent` |
+| `message` | actionable context containing the report path, missing attribute, or optional-extra install command |
+
+Valid reports are intentionally unchanged: coverage remains numeric; `passed` is the ordinary
+`coverage >= threshold` comparison; above-threshold exits 0 and below-threshold exits nonzero.
+
 ### Integration backstop parameters
 
 - Console-script smoke: `<script> --help`, `subprocess.run(..., timeout=5)`, assert exit 0.
@@ -531,3 +642,4 @@ Diagnostic order (each bug masks the next): (1) BUILD_DIR absolute vs relative; 
 | ProjectHephaestus | Issue #1198, PR #1293 (2026-06-13) | **verified-ci** — raised enforced floor from 80% to 83% (measured baseline 85.76%, 2pp buffer); consolidated `--cov-fail-under` to single source of truth via `[tool.coverage.report].fail_under`; confirmed `--override-ini="addopts="` makes addopts removal a CI no-op (only the `_required.yml` flag is load-bearing); confirmed `check_addopts_cov_fail_under()` accepts absence (test_doc_config.py:176); added `83%+ test coverage enforced; target 90%` to CLAUDE.md to satisfy `check_claude_md_threshold()`; CI run #27458373439: 4054 passed, 21 skipped, TOTAL 85.57% ≥ 83% gate |
 | ProjectHephaestus | Issue #1197, PR #1288 (2026-06-13) | **verified-ci** — per-module floor margin rule: set 3-4pp below actual; `automation/models.py` floor initially 68% (0.75pp margin, reviewer rejected); lowered to 65% (3.75pp margin, merged); three new floors added: `automation/arming_state.py@98`, `automation/dependency_resolver.py@74`, `automation/models.py@65`; confirmed Cobertura XML paths have no `hephaestus/` prefix |
 | ProjectHephaestus | Issue #1471 (2026-06-30) | **verified-local** — raised `automation/models.py` floor 65→90 by ADDING 5 targeted tests (no production change). Measured branch_rate (68.75%) vs line_rate (98.51%) vs combined display (96.31%) and confirmed the floor compares against branch_rate (coverage.py:262). Used `-o addopts=""` to strip the global aggregate gate and read the true per-file number; read branch-rate from the Cobertura `<class branch-rate>` attribute; covered `327->exit`/`350->exit` false-branch sides + statement misses to reach branch_rate=1.0; floor set to 90. Audit cited stale `coverage.toml:8` (actual line 10). verified-local because tests + coverage measured end-to-end RED→GREEN and full validation suite green, but PR/CI had NOT merged at capture time |
+| ProjectHephaestus | Coverage validator implementation plan (2026-08-05) | **unverified** — repository-grounded design for typed Cobertura failures, one `defusedxml` loader, fail-closed aggregate/module/direct handling, stable JSON error codes, and focused parser/CLI regressions. No ProjectHephaestus implementation or CI run was performed during this learning capture. |
