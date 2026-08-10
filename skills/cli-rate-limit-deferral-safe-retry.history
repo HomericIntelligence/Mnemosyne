@@ -1,12 +1,29 @@
+## v1.1.0 (2026-08-06)
+
+**Changed by:** ProjectHephaestus issue #2389 / PR #2668 automation-loop review and merge audit.
+**Verification:** verified-ci.
+
+### What changed
+
+- Promoted the rate-limit deferral workflow from planning-only to a verified implementation pattern.
+- Recorded the concrete `75` exit, JSON scope fields, no-dispatch guard, and retry-without-force behavior.
+- Added the direct-implementation review/merge audit: exact head, loop-owned GO label, independent required checks, and conditional squash merge with native auto-merge unset.
+
+### Why
+
+The prior version was derived from a plan and explicitly unverified. ProjectHephaestus issue #2389 / PR #2668 implemented the behavior, passed the repository required checks, and merged. Its PR body said the automation pipeline did not run tests, while live GitHub checks independently passed; the durable review/merge evidence was the exact implementation head `462a9c17`, `state:implementation-go`, required-check completion, and merge commit `898b1511`.
+
+### Previous version (v1.0.0 snapshot)
+
+````markdown
 ---
 name: cli-rate-limit-deferral-safe-retry
 description: "Design a CLI discovery wrapper that reports external rate-limit deferrals as retryable EX_TEMPFAIL (75), preserves unknown affected scope without inventing identifiers, and safely resumes from durable completed work. Use when: (1) pre-dispatch API discovery is rate-limited, (2) a CLI currently returns success for deferred work, (3) JSON callers need reset and incomplete-scope metadata, or (4) retry must not replay already completed batch items."
 category: architecture
 date: 2026-08-06
-version: "1.1.0"
+version: "1.0.0"
 user-invocable: false
-verification: verified-ci
-history: cli-rate-limit-deferral-safe-retry.history
+verification: unverified
 tags:
   - cli
   - rate-limit
@@ -27,9 +44,8 @@ tags:
 | ------- | ------- |
 | **Date** | 2026-08-06 |
 | **Objective** | Give automation callers an honest, machine-readable temporary-failure contract when pre-dispatch API discovery is rate-limited, without losing or replaying completed batch work. |
-| **Outcome** | Implemented the wrapper-local `EX_TEMPFAIL` (`75`) result, structured reset/scope metadata, a no-dispatch guard, and an idempotent retry regression for ProjectHephaestus issue #2389 / PR #2668. The PR passed its required checks and merged. |
-| **Verification** | `verified-ci` — ProjectHephaestus PR #2668 passed the required-checks gate and merged; the automation PR body accurately recorded that its own pipeline did not run tests, so live GitHub check evidence was used for the merge contract. |
-| **History** | [changelog](./cli-rate-limit-deferral-safe-retry.history) |
+| **Outcome** | Proposed a wrapper-local `EX_TEMPFAIL` (`75`) result, structured reset/scope metadata, a no-dispatch guard, and an idempotent retry test. No implementation or CI run was completed in the source session. |
+| **Verification** | `unverified` — planning-only; validate the target CLI, state model, and CI behavior before treating this as operational. |
 
 This pattern applies when a CLI must discover work from an external API before calling a
 shared coordinator. A rate-limit response means the requested work remains incomplete. Returning
@@ -50,11 +66,18 @@ Do not use this pattern for an API client that can safely sleep and retry inside
 It is for returning control to an external scheduler or operator when the CLI cannot complete its
 requested discovery now.
 
+## Proposed Workflow
+
+> **Warning:** This workflow has not been validated end-to-end. Treat it as a hypothesis until
+> focused tests, the completed-work preservation test, and CI all pass.
+
+The repository validator currently requires the literal `## Verified Workflow` section. The
+steps below remain proposed despite that compatibility heading.
+
 ## Verified Workflow
 
-The implementation and retry behavior below were verified by the merged ProjectHephaestus
-PR #2668. The review/merge audit is recorded in Results & Parameters because the source review
-and repository checks are separate evidence surfaces.
+> **Warning:** This workflow has not been validated end-to-end. Treat it as a hypothesis until CI
+> confirms the target implementation and retry semantics.
 
 ### Quick Reference
 
@@ -221,12 +244,15 @@ retry:
 
 ### Acceptance checks
 
-ProjectHephaestus validation used the concrete planner tests plus the repository's required
-checks:
+Adapt these placeholders to the target repository:
 
 ```bash
-uv run pytest tests/unit/automation/test_planner_main.py -v
-gh pr checks 2668 --repo HomericIntelligence/Hephaestus
+<package-runner> pytest '<entrypoint-test>::test_discovery_rate_limit_is_retryable_deferral[known-reset]' -v
+<package-runner> pytest '<entrypoint-test>::test_discovery_rate_limit_is_retryable_deferral' -v
+<package-runner> pytest '<entrypoint-test>::test_retry_discovers_and_dispatches_without_force' -v
+<package-runner> pytest '<entrypoint-test>::test_discovery_rate_limit_is_retryable_deferral' '<state-test>::test_at_or_past_target_clamps_to_finished' -v
+<package-runner> ruff check <entrypoint-module> <entrypoint-test>
+<package-runner> ruff format --check <entrypoint-module> <entrypoint-test>
 ```
 
 Expected observations:
@@ -239,28 +265,11 @@ Expected observations:
   false.
 - Pre-completed item: state seeding routes it to finished rather than planning it again.
 
-### Automation-loop review and merge audit: issue #2389 / PR #2668
-
-The final implementation head was `462a9c173f4c7040e6a35cf1f64a0fb77e8968bd`. GitHub exposed
-no review or issue/PR comment object for this direct implementation path, so the durable audit
-used the exact head, the loop-owned `state:implementation-go` label, required-check completion,
-and the merge event:
-
-- `state:implementation-go` was recorded at `2026-08-06T10:37:31Z`.
-- `pr-policy` succeeded at `10:34:02Z`; the aggregate `required-checks-gate` succeeded at
-  `10:44:54Z`.
-- Native `autoMergeRequest` was `null`; merge-wait conditionally squash-merged the reviewed head
-  as `898b15118ac51fe6164bdc208c6efc2d526c5af6` at `10:46:57Z`.
-
-Do not treat the PR body's “Not run by the automation pipeline” line as a failed or absent CI
-result. Source-review authorization came from the loop-owned label; required checks independently
-completed the repository merge contract.
-
 ## Verified On
 
 | Project | Context | Details |
 | ------- | ------- | ------- |
-| ProjectHephaestus | Issue #2389 / PR #2668 — `hephaestus-plan-issues` rate-limit discovery deferral | `verified-ci` — final head `462a9c17`; loop-owned `state:implementation-go`; required checks green; conditional merge `898b1511`; native auto-merge unset |
+| ProjectHephaestus | Planning-only design for `hephaestus-plan-issues` rate-limit discovery deferral | `unverified` — implementation, focused tests, and CI were not executed in the source session |
 
 ## Related Skills
 
@@ -270,3 +279,6 @@ completed the repository merge contract.
   in-process detection and backoff when the client should wait rather than defer to its caller.
 - [Checkpoint State Machine Resume](./checkpoint-state-machine-resume.md) — durable state and
   at-or-past guards for broader resumable workflows.
+````
+
+---
