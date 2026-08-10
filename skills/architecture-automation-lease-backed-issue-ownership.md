@@ -1,18 +1,20 @@
 ---
 name: architecture-automation-lease-backed-issue-ownership
-description: "Design lease-backed, target-bound issue ownership for concurrent GitHub automation. Use when: (1) multiple automation runs can select the same issue, (2) visible labels must not become workflow authority, (3) stale ownership needs explicit operator-only recovery, (4) coordinator and worker mutation paths must carry the same claim."
+description: "Design lease-backed, target-bound issue ownership for concurrent GitHub automation. Use when: (1) multiple runs can select the same issue, (2) the guard must live on the exact production branch rather than a synthetic guard ref, (3) branch or PR identity can drift, (4) stale ownership needs operator-only recovery, or (5) coordinator and worker mutation paths must carry the same claim."
 category: architecture
 date: 2026-08-06
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
-verification: unverified
+verification: verified-ci
 tags:
   - github
   - automation
   - concurrency
   - issue-ownership
   - lease
-  - git-ref
+  - production-branch
+  - branch-identity
+  - fork-safety
   - compare-and-swap
   - target-binding
   - stale-recovery
@@ -27,8 +29,8 @@ tags:
 |-------|-------|
 | **Date** | 2026-08-06 |
 | **Objective** | Prevent concurrent automation runs from dispatching agents or mutating issue, branch, journal, or PR state for the same issue while preserving the existing workflow-state authority. |
-| **Outcome** | A reviewed design was produced: use a per-issue Git ref as lock authority, an orthogonal label as a visible contention signal, target-bound credentials throughout coordinator and worker paths, owner-only release, and separately authorized stale recovery. No implementation or end-to-end test was executed in this session. |
-| **Verification** | `unverified` — design and test matrix only; implementation, local tests, live GitHub contract tests, and CI are pending. |
+| **Outcome** | A verified implementation pattern: bind the claim to the exact writable production branch, keep the visible label orthogonal, carry target-bound credentials through coordinator and worker paths, release only owner-held claims, and isolate stale recovery. No synthetic guard branch or compatibility path is required. |
+| **Verification** | `verified-ci` — focused and full tests, static checks, and current-head required CI passed; a disposable GitHub contract test remains a separate confidence gate. |
 
 ## When to Use
 
@@ -39,6 +41,8 @@ tags:
 - Long-running jobs need renewable leases, ownership-loss shutdown, and restart-safe observations.
 - Stale locks must be recoverable without allowing ordinary automation to steal an expired or malformed claim.
 - Pull-request mutations must remain bound to the issue currently linked to the PR.
+- The guard branch and the production branch must be the same branch, including when an existing PR
+  supplies the implementation head.
 
 ## Verified Workflow
 
@@ -94,7 +98,7 @@ SHUTDOWN_MARGIN = timedelta(minutes=5)
 
 ```text
 acquire:
-  read labels + ref -> install ACQUIRING child with non-forced CAS
+  read labels + exact production branch -> install ACQUIRING child with non-forced CAS
   -> confirm exact OID/record -> add guard label -> confirm label
   -> install ACTIVE child -> confirm record + target + lease + label
 
@@ -106,7 +110,7 @@ release:
 
 recover:
   separate credential + authenticated actor allowlist
-  + expired lease/grace + expected claim + expected OID
+  + expired lease/grace + expected claim + expected branch head
   -> install RECOVERING child with non-forced CAS
   -> remove only guard label -> preserve workflow labels
   -> install RECOVERED child -> confirm
@@ -116,7 +120,7 @@ recover:
 
 Keep the visible ownership label out of every exclusive routing tuple, transition rank, and
 workflow-state reducer. The label answers only, "does some run visibly claim this issue?"
-The Git ref record answers, "which run owns it?" Existing plan and review labels continue to
+The production-branch record answers, "which run owns it?" Existing plan and review labels continue to
 authorize stages.
 
 ```python
@@ -132,23 +136,28 @@ Do not let guard release or recovery remove, replace, or infer any workflow-stat
 operator-owned blocked label is especially important: ownership cleanup must not silently unblock
 work.
 
-### 2. Use a per-issue Git ref as the durable CAS object
+### 2. Use the exact production branch as the durable CAS object
 
-Allocate one ref per issue, for example:
+Resolve one writable production branch for the issue before acquiring ownership. If an open pull
+request already exists, its normalized head branch is the production branch; otherwise use the
+canonical implementation branch for the issue. The guard branch and production branch are the
+same object:
 
 ```text
-refs/heads/<automation>/issue-guards/issue-<number>
+refs/heads/<production-branch>
 ```
 
-Each transition creates a no-op child commit with the predecessor's unchanged tree. Put a strict,
-canonical, versioned JSON record in the commit message. Install the child with a non-forced ref
-update. Two contenders may create children of the same predecessor, but only one child can
-fast-forward the ref first; the loser must defer.
+Never create a separate `issue-guards` branch, tag, or auxiliary ref. Each guard transition creates
+a no-op child commit with the predecessor's unchanged tree on the production branch. Put a strict,
+canonical, versioned JSON record in the commit message and install the child with a non-forced
+branch update. Two contenders may create children of the same predecessor, but only one can
+fast-forward the production branch first; the loser must defer.
 
-Bootstrap a missing ref from a validated default-branch commit and its unchanged tree. Fail closed
-before any durable mutation when the repository is empty, default-branch metadata is invalid,
-record JSON is malformed or non-canonical, the response lacks server time, or required Contents
-or Issues permissions are unavailable.
+Require the branch head to be writable and to belong to the intended repository before any guard
+mutation. Fail closed when the repository is empty, the branch is missing or malformed, a PR head
+comes from a foreign fork, the issue-to-PR association changes, record JSON is malformed or
+non-canonical, the response lacks server time, or required Contents or Issues permissions are
+unavailable. Do not bootstrap a synthetic guard ref as a fallback.
 
 Use GitHub's response `Date` header for lease calculations so clients with skewed clocks do not
 disagree about expiry. Parse timestamps as timezone-aware UTC and reject ambiguous or unexpected
@@ -158,18 +167,20 @@ fields rather than ignoring them.
 
 An acquisition should use this order:
 
-1. Read live issue labels. If the visible guard label is present, defer without mutation.
-2. Read and strictly validate the guard ref. Defer for operator recovery on malformed,
-   nonterminal, expired, or label/ref-inconsistent state. Ordinary automation never steals it.
-3. Create a new claim/run identity and an `ACQUIRING` child whose lease uses server time.
-4. Install the child with create-ref or a non-forced update, then re-read and confirm its exact OID
-   and record.
-5. Add only the visible guard label, then re-read labels.
-6. Install an `ACTIVE` child with a non-forced update.
-7. Re-read and confirm OID, repository, issue, claim ID, run ID, phase, lease, and label before
+1. Resolve and validate the exact writable production branch and the current issue-to-PR
+   association. If an existing PR has a foreign or malformed head, defer without mutation.
+2. Read live issue labels. If the visible guard label is present, defer without mutation.
+3. Read and strictly validate the production-branch record. Defer for operator recovery on malformed,
+   nonterminal, expired, or label/record-inconsistent state. Ordinary automation never steals it.
+4. Create a new claim/run identity and an `ACQUIRING` child whose lease uses server time.
+5. Install the child with a non-forced production-branch update, then re-read and confirm its exact
+   OID and record.
+6. Add only the visible guard label, then re-read labels.
+7. Install an `ACTIVE` child with a non-forced update.
+8. Re-read and confirm branch identity, repository, issue, claim ID, run ID, phase, lease, and label before
    returning a handle.
 
-Every failure window matters. If the ref advances but label application fails, or the label applies
+Every failure window matters. If the branch advances but label application fails, or the label applies
 but `ACTIVE` installation fails, do not pretend the issue is free. Attempt only owner-held rollback;
 otherwise leave auditable state for recovery.
 
@@ -210,13 +221,14 @@ association through the guarded accessor before enqueueing.
 
 ### 5. Bind all mutation authority to the exact target
 
-A credential is valid only for one normalized `OWNER/REPO`, one issue, one claim, and one run.
-Reject repository, issue, claim, run, phase, label, or lease mismatch before mutation.
+A credential is valid only for one normalized `OWNER/REPO`, one issue, one production branch, one
+claim, and one run. Reject repository, issue, branch, claim, run, phase, label, or lease mismatch
+before mutation.
 
 Wrap every issue-bearing stage accessor in a target-bound proxy. Delegate reads, but before each
 mutator:
 
-1. Reconfirm the credential against the ref and lease.
+1. Reconfirm the credential against the production branch and lease.
 2. Verify the method target equals the credential issue.
 3. Reject attempts to add, edit, or remove the guard label; only the guard service owns it.
 4. Reject repository-wide methods such as label provisioning on issue-bound accessors.
@@ -290,15 +302,18 @@ shutdown or handled failure, stop workers first, then release only owner-held li
 Release is a state transition, not label cleanup:
 
 1. Confirm the current `ACTIVE` record, or an owner-held `ACQUIRING` rollback case, plus repository,
-   issue, claim, run, unexpired lease, and expected label state.
+   issue, claim, run, unexpired lease, exact production branch, and expected label state.
 2. Snapshot the workflow-state labels.
 3. Install and confirm a `RELEASING` child by non-forced update.
 4. Remove only the visible ownership label.
 5. Confirm the guard label is absent and the workflow-state snapshot is unchanged.
 6. Install and confirm `RELEASED`.
 
-A conflict, expired lease, or failed readback stops release. Never clear a label merely because a
-local `finally` block ran: the local process may no longer own the ref.
+A conflict, expired lease, branch-identity mismatch, or failed readback stops release. A normal
+implementation commit may advance the production branch between acquire and release, so release
+must revalidate the live claim/run/phase/lease/label and branch identity rather than requiring the
+old acquisition OID to remain the branch head. Never clear a label merely because a local `finally`
+block ran: the local process may no longer own the branch.
 
 ### 9. Isolate stale recovery from normal automation
 
@@ -310,13 +325,13 @@ Provide inspect and recover modes. Inspection is read-only. Recovery requires al
 - An authenticated `/user` identity present in an explicit operator allowlist.
 - A nonempty audit reason.
 - Current server time after `lease_expires_at + recovery_grace`.
-- Exact expected claim ID and ref OID captured during inspection.
+- Exact expected claim ID and production-branch head captured during inspection.
 - A non-forced `RECOVERING` transition, so a concurrent owner renewal changes the OID and wins.
 
 Normal automation should refuse to start when the recovery secret is present. This enforces a
 separate operator execution environment instead of treating recovery as a hidden automation mode.
 After winning the CAS, remove only the guard label, prove workflow labels are unchanged, and
-install `RECOVERED`.
+install `RECOVERED` on the same production branch.
 
 ### 10. Roll out only during quiescence
 
@@ -329,9 +344,9 @@ recommendation.
 
 Required test groups:
 
-- Strict canonical record validation, default-branch bootstrap, create/update conflicts, exact
+- Strict canonical record validation, exact production-branch resolution, update conflicts, exact
   readbacks, and all acquisition/release failure windows.
-- Simultaneous contenders against one fake ref store, proving a single winner.
+- Simultaneous contenders against one fake production-branch store, proving a single winner.
 - Pre-item mutation inventory, source-claim transfer, timer/queue retention, dispatch confirmation,
   terminal/failure release ordering, lease loss, and shutdown.
 - Every proxy mutator plus adversarial repository, issue, credential, guard-label, batch-target,
@@ -341,8 +356,9 @@ Required test groups:
   reconfirmation before writes, and release in `finally`.
 - Separate recovery credential, actor allowlist, expiry/grace, expected claim/OID, renewal race,
   malformed records, audit reason, and blocked-label preservation.
-- A disposable-repository integration test for GitHub create-ref, non-force contention, response
-  time, label application/removal, renewal-versus-recovery CAS, and terminal records.
+- A disposable-repository integration test for production-branch commit creation, non-force
+  contention, response time, label application/removal, renewal-versus-recovery CAS, and terminal
+  records.
 
 Prefer AST or source-inventory tests for architecture surfaces, but pair them with behavioral
 tests. A static inventory proves coverage of known call sites; it does not prove the proxy actually
@@ -352,16 +368,20 @@ reconfirms ownership.
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 |---------|----------------|---------------|----------------|
-| Treat the visible label as the lock | Used `state:in-progress` presence as ownership authority | Label updates do not identify an owner, encode a lease, or provide a strong compare-and-swap transition; routing code may also accidentally treat it as a verdict | Keep the label orthogonal and visible, with a Git ref record as the ownership authority |
+| Create a separate guard branch or ref | Stored ownership under an `issue-guards` branch and used a different implementation branch for production work | The guard and implementation identities could diverge, duplicate branches accumulated, and later stages could not prove they were operating on the claimed production branch | Store the guard record on the exact writable production branch; never create a synthetic guard target |
+| Require the acquisition OID at release | Rejected release whenever an implementation commit advanced the branch after acquisition | Ordinary production commits are valid progress and should not invalidate an otherwise owner-held live claim | Revalidate claim/run/phase/lease/label and exact branch identity; do not confuse normal branch progress with ownership loss |
+| Acquire before validating a PR head | Claimed an issue before discovering that its PR head was foreign, malformed, or not writable | The system could mutate base-repository guard state for work it could not safely implement | Validate PR association and writable head before durable guard acquisition, and revalidate before dispatch |
+| Trust the branch captured at source admission | Passed an early branch value through later adoption or worktree stages without readback | A PR head or payload could drift, causing guard and production work to target different branches | Compare the live PR head, payload guard branch, and work-item branch at every handoff |
+| Treat the visible label as the lock | Used `state:in-progress` presence as ownership authority | Label updates do not identify an owner, encode a lease, or provide a strong compare-and-swap transition; routing code may also accidentally treat it as a verdict | Keep the label orthogonal and visible, with a production-branch record as the ownership authority |
 | Guard only admitted work items | Acquired after queue admission while pre-item skip, audit, or classification paths could already mutate GitHub state | Concurrent runs could race before a durable item or handle existed | Inventory and guard every pre-item mutation, then transfer the temporary claim to the admitted item |
 | Make worker credentials implicit | Added a guard requirement to the worker union without a constructible envelope or coordinator binding point | Stage-created jobs had no credential yet, while workers required one; the type contract could not be satisfied | Keep stage jobs unbound, bind immediately before submit, and let workers accept only the explicit bound envelope |
 | Confirm only claim identity | Checked claim/run but not canonical repository, issue, request target, or fresh PR linkage | A valid claim could authorize mutation of the wrong repository, issue, batch, or newly relinked PR | Bind authority to exact targets and re-resolve PR-to-issue association immediately before mutation |
 | Add public lease timing flags | Exposed base lease, renewal, grace, and shutdown timing on every CLI | This enlarged the public configuration surface before operators had a real tuning requirement | Start with fixed private policy and add flags only after evidence demonstrates a need |
 | Let ordinary automation recover expired claims | Automatically stole a malformed or expired record during acquisition | Clock skew, partial release, delayed work, or a concurrent renewal could make the steal unsafe and unauditable | Defer to an explicit operator-only recovery path with grace, exact claim/OID CAS, allowlisting, and a separate token |
-| Remove labels in a generic `finally` | Cleared the visible label whenever local work ended | The lease may have expired or the ref may have advanced, so the local process might no longer be the owner | Release only after exact owner/lease/ref confirmation; otherwise preserve evidence for recovery |
+| Remove labels in a generic `finally` | Cleared the visible label whenever local work ended | The lease may have expired or the branch may have advanced, so the local process might no longer be the owner | Release only after exact owner/lease/branch confirmation; otherwise preserve evidence for recovery |
 | Confirm only at coordinator dispatch | Trusted the coordinator's pre-submit check for all subsequent worker mutations | A lease can expire or be replaced while work is queued or running | Confirm at dispatch and again inside a fresh target-bound worker proxy before each durable mutation |
-| Recover by force-updating the ref | Used a forced update to clear stale state | A live owner can renew concurrently and be overwritten | Recovery must use expected OID plus non-forced CAS; a renewal changes the OID and defeats recovery |
-| Deploy incrementally | Ran guarded and unguarded automation versions together | Old workers can ignore the new label/ref contract and mutate an issue owned by a guarded run | Require rollout quiescence and deploy the guard to every worker before restart |
+| Recover by force-updating the branch | Used a forced update to clear stale state | A live owner can renew concurrently and be overwritten | Recovery must use expected branch head plus non-forced CAS; a renewal changes the head and defeats recovery |
+| Deploy incrementally | Ran guarded and unguarded automation versions together | Old workers can ignore the new label/branch contract and mutate an issue owned by a guarded run | Require rollout quiescence and deploy the guard to every worker before restart |
 
 ## Results & Parameters
 
@@ -380,7 +400,7 @@ supports a public tuning surface.
 ### Core invariants
 
 ```text
-ownership_authority = exact Git ref OID + strict GuardRecord
+ownership_authority = exact production branch + strict GuardRecord + non-forced branch updates
 visibility_signal    = orthogonal issue label
 routing_authority    = existing workflow-state labels only
 
@@ -419,7 +439,7 @@ absent from logs and exception text.
 
 1. Focused unit and architecture suites pass locally.
 2. Lint and static typing pass for guard, coordinator, worker, proxy, and recovery modules.
-3. A disposable-repository integration test observes GitHub's create-ref and non-force conflict
+3. A disposable-repository integration test observes GitHub's production-branch update and non-force conflict
    behavior, response `Date` header, label transitions, and recovery-versus-renewal race.
 4. Full CI passes.
 5. A quiescent rollout proves live-guard deferral and owner-only cleanup in an automation run.
@@ -428,4 +448,4 @@ absent from logs and exception text.
 
 | Project | Context | Details |
 |---------|---------|---------|
-| ProjectHephaestus | Reviewed issue-guard implementation plan; no code executed | [Project-specific integration notes](./architecture-automation-lease-backed-issue-ownership.notes.md) |
+| A concurrent GitHub automation implementation | Production-branch guard identity, fork safety, branch-drift checks, and release after ordinary commits | Focused and full validation plus current-head required CI passed; disposable GitHub contract testing remains a separate gate |
