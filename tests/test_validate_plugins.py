@@ -12,6 +12,7 @@ Covers:
 - validate_plugin: integration tests with valid and invalid skill files
 """
 
+import os
 import subprocess
 from typing import Any
 from unittest.mock import patch
@@ -397,6 +398,72 @@ class TestValidatePlugin:
             errors = validate_plugin(skill_path.name)
 
         assert not any("allowed maximum" in error for error in errors)
+
+    def test_oversized_ratchet_selects_the_expected_base_and_skill_path(self, tmp_path):
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        skill_path = skills / "legacy.md"
+        legacy_content = b"x" * 30_001
+        skill_path.write_bytes(legacy_content)
+        base_result = subprocess.CompletedProcess(
+            args=["git", "show"],
+            returncode=0,
+            stdout=legacy_content,
+            stderr=b"",
+        )
+        cases = (
+            (
+                {"MNEMOSYNE_SKILL_SIZE_BASE_REF": "base-sha"},
+                "base-sha:skills/legacy.md",
+            ),
+            ({"GITHUB_BASE_REF": "release"}, "origin/release:skills/legacy.md"),
+            ({}, "origin/main:skills/legacy.md"),
+        )
+
+        for environment, expected_object in cases:
+            with (
+                patch.dict(os.environ, environment, clear=True),
+                patch("validate_plugins.SKILLS_DIR", skills),
+                patch("subprocess.run", return_value=base_result) as git_show,
+            ):
+                errors = validate_plugin(skill_path.name)
+
+            assert not any("allowed maximum" in error for error in errors)
+            git_show.assert_called_once_with(
+                ["git", "show", expected_object],
+                check=False,
+                capture_output=True,
+            )
+
+    def test_unresolved_base_cannot_grandfather_an_oversized_skill(self, tmp_path):
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        skill_path = skills / "legacy.md"
+        skill_path.write_bytes(b"x" * 30_001)
+        missing_base = subprocess.CompletedProcess(
+            args=["git", "show"],
+            returncode=128,
+            stdout=b"",
+            stderr=b"unknown revision",
+        )
+
+        with (
+            patch.dict(
+                os.environ,
+                {"MNEMOSYNE_SKILL_SIZE_BASE_REF": "missing-base"},
+                clear=True,
+            ),
+            patch("validate_plugins.SKILLS_DIR", skills),
+            patch("subprocess.run", return_value=missing_base) as git_show,
+        ):
+            errors = validate_plugin(skill_path.name)
+
+        assert any("allowed maximum" in error for error in errors)
+        git_show.assert_called_once_with(
+            ["git", "show", "missing-base:skills/legacy.md"],
+            check=False,
+            capture_output=True,
+        )
 
     def test_changed_oversized_legacy_skill_is_rejected(self, tmp_path):
         skills = tmp_path / "skills"
