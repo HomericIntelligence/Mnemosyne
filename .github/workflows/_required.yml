@@ -195,6 +195,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
       - name: Cache podman container storage
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
@@ -205,8 +207,12 @@ jobs:
       - name: Build CI image (podman)
         run: podman build -f ci/Containerfile -t mnemosyne-ci:local .
       - name: Run skill-file validation script (in container)
+        env:
+          MNEMOSYNE_SKILL_SIZE_BASE_REF: >-
+            ${{ github.event.pull_request.base.sha || github.event.before || 'origin/main' }}
         run: >
-          podman run --rm -v "$PWD:/workspace:Z" --userns=keep-id:uid=1000,gid=1000
+          podman run --rm -e MNEMOSYNE_SKILL_SIZE_BASE_REF -v "$PWD:/workspace:Z"
+          --userns=keep-id:uid=1000,gid=1000
           mnemosyne-ci:local uv run python scripts/validate_plugins.py
       - name: Run test suite (in container)
         run: >
@@ -219,6 +225,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
       - name: Cache podman container storage
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
@@ -229,8 +237,12 @@ jobs:
       - name: Build CI image (podman)
         run: podman build -f ci/Containerfile -t mnemosyne-ci:local .
       - name: Validate every skill file across the corpus (in container)
+        env:
+          MNEMOSYNE_SKILL_SIZE_BASE_REF: >-
+            ${{ github.event.pull_request.base.sha || github.event.before || 'origin/main' }}
         run: >
-          podman run --rm -v "$PWD:/workspace:Z" --userns=keep-id:uid=1000,gid=1000
+          podman run --rm -e MNEMOSYNE_SKILL_SIZE_BASE_REF -v "$PWD:/workspace:Z"
+          --userns=keep-id:uid=1000,gid=1000
           mnemosyne-ci:local uv run python scripts/validate_plugins.py
       - name: Assert the skills corpus is non-empty
         run: |
@@ -418,6 +430,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
       - name: Cache podman container storage
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
@@ -428,8 +442,12 @@ jobs:
       - name: Build CI image (podman)
         run: podman build -f ci/Containerfile -t mnemosyne-ci:local .
       - name: Assert every skill declares a valid semver version (in container)
+        env:
+          MNEMOSYNE_SKILL_SIZE_BASE_REF: >-
+            ${{ github.event.pull_request.base.sha || github.event.before || 'origin/main' }}
         run: >
-          podman run --rm -v "$PWD:/workspace:Z" --userns=keep-id:uid=1000,gid=1000
+          podman run --rm -e MNEMOSYNE_SKILL_SIZE_BASE_REF -v "$PWD:/workspace:Z"
+          --userns=keep-id:uid=1000,gid=1000
           mnemosyne-ci:local uv run python scripts/validate_plugins.py
       - name: Cross-check pyproject version is valid semver (in container)
         run: |

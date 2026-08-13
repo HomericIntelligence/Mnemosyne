@@ -206,3 +206,25 @@ tests/unit/e2e/test_runner.py (created)
 - Issue #599 (parent issue that identified this duplication)
 - Issue #642 (this refactoring)
 - PR #714 (implementation)
+
+## Pre-compaction case index
+
+The retrievable main skill was compacted in
+[Mnemosyne issue #3330](https://github.com/HomericIntelligence/Mnemosyne/issues/3330).
+Its complete v1.21.0 state remains available at immutable Mnemosyne revision
+`f7ef2968f89f138bd9e217b2c88b105bcec4a2d6`; the amendment trail and earlier snapshots remain in
+[`dry-refactoring-workflow.history`](./dry-refactoring-workflow.history).
+
+Use these case records only when the generalized workflow needs supporting detail:
+
+| Pattern | Source record | Verification at capture |
+| ------- | ------------- | ----------------------- |
+| Re-ground stale duplication evidence before scoping | ProjectHermes issue #329 / PR #652; history v1.7.0 | verified-ci |
+| Preserve shared core plus intentional collection extras | ProjectHephaestus issue #1205; history v1.5.0 | planning-only |
+| Keep or repoint patched seams when extracting or moving functions | ProjectHephaestus issues #1383 and #1823; history v1.9.0 and v1.21.0 | planning-only |
+| Preserve per-site behavior while extracting resource lifecycle scaffolding | ProjectHephaestus issue #1437; history v1.15.0 | verified-local |
+| Stop when a later revision already completed the consolidation | ProjectHephaestus issue #1461 / PR #1612; history v1.19.0 | verified-local |
+
+Do not copy these repository-specific paths, counts, transcripts, or test totals back into the main skill.
+Promote only a concise rule that changes behavior across repositories; append new session evidence here and
+record version/provenance changes in the history file.

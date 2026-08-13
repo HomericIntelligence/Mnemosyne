@@ -53,15 +53,22 @@ Save learnings after a session (auto-creates PR).
 
 1. Read entire conversation history
 2. Extract: objective, steps taken, successes, failures, parameters
-3. Auto-generate skill filename: `<topic>-<subtopic>-<short-4-word-summary>`
-4. Create git worktree for branch isolation (all work done in worktree, not base repo)
-5. Generate skill file from template:
+3. Search existing skills and open PRs by intent before choosing an artifact:
+   - If the intent already has a canonical skill, amend it instead of creating a sibling.
+   - Merge only the concise reusable trigger, rule, failure mode, or parameter into the main skill.
+   - Put session-specific paths, transcripts, worked examples, and verification detail in
+     `skills/<name>.notes.md`; append version and provenance records to `skills/<name>.history`.
+   - Keep the retrievable `skills/<name>.md` at or below 30,000 bytes.
+4. Otherwise auto-generate a skill filename: `<topic>-<subtopic>-<short-4-word-summary>`
+5. Create git worktree for branch isolation (all work done in worktree, not base repo)
+6. Generate or amend the skill artifacts:
    - `skills/<name>.md` with YAML frontmatter + all required sections
    - Optional `skills/<name>.notes.md` for raw session details
-6. Create branch: `skill/<name>`
-7. Commit and push
-8. Create PR with summary
-9. Clean up worktree with `git worktree remove`
+   - Optional `skills/<name>.history` for amendment history and provenance
+7. Create branch: `skill/<name>`
+8. Commit and push
+9. Create PR with summary
+10. Clean up worktree with `git worktree remove`
 
 **Auto-trigger**: UserPromptSubmit hook reminds about `/learn` when you type session-ending keywords.
 
@@ -78,6 +85,7 @@ Save learnings after a session (auto-creates PR).
 ```text
 skills/<name>.md             # Main skill file with YAML frontmatter + markdown content
 skills/<name>.notes.md       # (Optional) Additional context from development session
+skills/<name>.history        # (Optional) Version and provenance history
 ```
 
 All skills are now flat files in the `skills/` directory. Metadata is stored as YAML frontmatter in each `.md` file.
@@ -124,6 +132,8 @@ All skills are now flat files in the `skills/` directory. Metadata is stored as 
 2. **Failures required**: Document what didn't work and why
 3. **Copy-paste ready**: Parameters and configs should work immediately
 4. **No duplication**: Link to external docs instead of copying
+5. **Bounded retrieval**: Keep each retrievable main skill at or below 30,000 bytes. Move raw session
+   evidence, long examples, transcripts, and version history to its notes/history companions.
 
 ### Key Development Principles
 
@@ -159,9 +169,11 @@ Skills should be generic enough to work across multiple repositories:
 
    | Project | Context | Details |
    |---------|---------|---------|
-   | ProjectName | PR #XXX context | [notes.md](../references/notes.md) |
+   | ProjectName | PR #XXX context | [notes.md](./skill-name.notes.md) |
    ```
-4. **Move specifics to references**: Put project-specific commands, paths, and code in `references/notes.md`
+4. **Move specifics to companions**: Put project-specific commands, paths, transcripts, and detailed
+   verification in `skills/<name>.notes.md`; put version and provenance records in
+   `skills/<name>.history`.
 5. **Generic workflows**: Write workflows that can be adapted to any repository structure
 
 **Optional plugin.json fields for cross-repo support**:

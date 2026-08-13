@@ -3,6 +3,7 @@
 Validate flat-format skill files (skills/*.md).
 
 Checks:
+- Maximum new/changed retrievable skill size (30,000 bytes; unchanged legacy files ratcheted)
 - Required YAML frontmatter fields (name, description, category, date, version)
 - Section presence (Overview, When to Use, Verified Workflow, Failed Attempts, Results & Parameters)
 - Failed Attempts table structure
@@ -12,15 +13,18 @@ Checks:
 """
 
 import argparse
+import os
 import re
+import subprocess
 import sys
 import textwrap
 from pathlib import Path
 from typing import Dict, List, Tuple
 
-from mnemosyne_skill_utils import parse_frontmatter  # noqa: F401  (re-exported for tests)
+from mnemosyne_skill_utils import find_skill_files, parse_frontmatter  # noqa: F401  (re-exported for tests)
 
 SKILLS_DIR = Path("skills")
+MAX_SKILL_FILE_SIZE_BYTES = 30_000
 VALID_CATEGORIES = {
     "training",
     "evaluation",
@@ -42,13 +46,22 @@ RESET = "\033[0m"
 
 def find_plugins() -> List[Path]:
     """Find all flat skill files (skills/*.md, exclude *.notes*.md and *.history)."""
-    if not SKILLS_DIR.exists():
-        return []
+    return find_skill_files(SKILLS_DIR)
 
-    files = sorted(
-        [f for f in SKILLS_DIR.glob("*.md") if not re.match(r".*\.notes(-\w+)?\.md$", f.name) and f.is_file()]
+
+def matches_oversized_base_file(file_path: Path) -> bool:
+    """Return whether an oversized legacy skill is byte-identical to the base revision."""
+    base_ref = os.environ.get("MNEMOSYNE_SKILL_SIZE_BASE_REF")
+    if not base_ref:
+        github_base_ref = os.environ.get("GITHUB_BASE_REF")
+        base_ref = f"origin/{github_base_ref}" if github_base_ref else "origin/main"
+
+    result = subprocess.run(
+        ["git", "show", f"{base_ref}:skills/{file_path.name}"],
+        check=False,
+        capture_output=True,
     )
-    return files
+    return result.returncode == 0 and result.stdout == file_path.read_bytes()
 
 
 def validate_frontmatter(frontmatter: Dict, filename: str) -> List[str]:
@@ -195,6 +208,12 @@ def validate_plugin(filename: str) -> List[str]:
             content = f.read()
     except IOError as e:
         return [f"Cannot read file: {e}"]
+
+    size_bytes = file_path.stat().st_size
+    if size_bytes > MAX_SKILL_FILE_SIZE_BYTES and not matches_oversized_base_file(file_path):
+        errors.append(
+            f"Skill file {file_path} is {size_bytes:,} bytes; allowed maximum is {MAX_SKILL_FILE_SIZE_BYTES:,} bytes"
+        )
 
     # Parse frontmatter
     frontmatter, body, parse_errors = parse_frontmatter(content)

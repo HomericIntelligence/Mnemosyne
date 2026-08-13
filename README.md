@@ -49,12 +49,14 @@ Claude will search the skills corpus for relevant prior learnings and return:
 /learn
 ```
 
-After an experiment or debugging session, capture your learnings as a new skill.
+After an experiment or debugging session, capture your learnings in the existing canonical skill when one
+matches the intent; create a new skill only when no canonical exists.
 Claude automatically:
 
 1. Analyzes your entire session conversation
 2. Extracts successes, failures, and parameters
-3. Creates a branch and opens a PR with a new skill
+3. Keeps reusable guidance concise in the main skill and routes session/version detail to companions
+4. Creates a branch and opens a PR
 
 **Auto-trigger**: On `/exit` or `/clear`, you'll be prompted to save learnings.
 
@@ -64,6 +66,7 @@ Claude automatically:
 skills/
 ├── <name>.md               # Flat skill files with YAML frontmatter
 ├── <name>.notes.md         # (Optional) Additional session context
+├── <name>.history          # (Optional) Version and provenance history
 └── ...
 ```
 
@@ -73,7 +76,12 @@ in this repository. Each skill is a flat markdown file with YAML frontmatter:
 ```text
 skills/<name>.md             # Main skill file with YAML frontmatter + markdown content
 skills/<name>.notes.md       # (Optional) Additional context from development session
+skills/<name>.history        # (Optional) Version and provenance history
 ```
+
+Retrievable main skills are limited to 30,000 bytes. Keep reusable rules and a few high-value
+examples in the main file; keep raw session detail and version history in the companion files,
+which Athena excludes from normal retrieval.
 
 ## Available Skills
 
@@ -116,6 +124,8 @@ All PRs are validated by CI:
 - Failed Attempts section is present with proper table format
 - Description is specific (20+ chars)
 - Category is valid
+- New or changed retrievable main skill files are no larger than 30,000 bytes; unchanged oversized
+  legacy files are ratcheted and must be compacted when next amended
 
 Run validation locally:
 
