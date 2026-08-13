@@ -1,15 +1,51 @@
+# Dependabot configuration — HomericIntelligence fleet baseline
+# Cadence: monthly. Grouping: minor+patch updates in one PR, major-version
+# bumps in their own PR for focused review. See the Dependabot options
+# reference for details.
+
 version: 2
 updates:
-  - package-ecosystem: "pip"
-    directory: "/"
+  - package-ecosystem: 'uv'
+    directory: '/'
     schedule:
-      interval: "weekly"
+      interval: "monthly"
     open-pull-requests-limit: 5
-    target-branch: "main"
-
-  - package-ecosystem: "github-actions"
-    directory: "/"
+    labels:
+      - "dependencies"
+      - "python"
+    commit-message:
+      prefix: 'chore(deps)'
+    groups:
+      minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+      major:
+        patterns:
+          - "*"
+        update-types:
+          - "major"
+  - package-ecosystem: 'github-actions'
+    directory: '/'
     schedule:
-      interval: "weekly"
+      interval: "monthly"
     open-pull-requests-limit: 5
-    target-branch: "main"
+    labels:
+      - "dependencies"
+      - "ci"
+    commit-message:
+      prefix: 'chore(ci)'
+    groups:
+      minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+      major:
+        patterns:
+          - "*"
+        update-types:
+          - "major"
