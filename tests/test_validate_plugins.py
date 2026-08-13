@@ -411,7 +411,7 @@ class TestValidatePlugin:
             stdout=legacy_content,
             stderr=b"",
         )
-        cases = (
+        cases: tuple[tuple[dict[str, str], str], ...] = (
             (
                 {"MNEMOSYNE_SKILL_SIZE_BASE_REF": "base-sha"},
                 "base-sha:skills/legacy.md",
