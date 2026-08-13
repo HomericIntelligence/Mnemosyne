@@ -55,16 +55,21 @@ Save learnings after a session (auto-creates PR).
 2. Extract: objective, steps taken, successes, failures, parameters
 3. Search existing skills and open PRs by intent before choosing an artifact:
    - If the intent already has a canonical skill, amend it instead of creating a sibling.
-   - Merge only the concise reusable trigger, rule, failure mode, or parameter into the main skill.
+   - Rewrite the main skill around the concise reusable trigger, rule, failure mode, and parameter;
+     retain no more than three examples that cover materially different decisions.
    - Put session-specific paths, transcripts, worked examples, and verification detail in
-     `skills/<name>.notes.md`; append version and provenance records to `skills/<name>.history`.
+     `skills/<name>.notes.md`.
+   - Before replacing a main skill, archive its complete prior retrievable content in
+     `skills/<name>.history`, then append the new version and provenance record there.
+   - Keep only the schema-required current `version` identifier in main-file frontmatter; put all
+     prior versions, change summaries, and other version-control narrative in `.history`.
    - Keep the retrievable `skills/<name>.md` at or below 30,000 bytes.
 4. Otherwise auto-generate a skill filename: `<topic>-<subtopic>-<short-4-word-summary>`
 5. Create git worktree for branch isolation (all work done in worktree, not base repo)
 6. Generate or amend the skill artifacts:
    - `skills/<name>.md` with YAML frontmatter + all required sections
-   - Optional `skills/<name>.notes.md` for raw session details
-   - Optional `skills/<name>.history` for amendment history and provenance
+   - Optional `skills/<name>.notes.md` for useful supporting evidence
+   - `skills/<name>.history` for the initial or superseded main version and amendment provenance
 7. Create branch: `skill/<name>`
 8. Commit and push
 9. Create PR with summary
@@ -85,7 +90,7 @@ Save learnings after a session (auto-creates PR).
 ```text
 skills/<name>.md             # Main skill file with YAML frontmatter + markdown content
 skills/<name>.notes.md       # (Optional) Additional context from development session
-skills/<name>.history        # (Optional) Version and provenance history
+skills/<name>.history        # Version/provenance archive for /learn writes
 ```
 
 All skills are now flat files in the `skills/` directory. Metadata is stored as YAML frontmatter in each `.md` file.
@@ -133,7 +138,8 @@ All skills are now flat files in the `skills/` directory. Metadata is stored as 
 3. **Copy-paste ready**: Parameters and configs should work immediately
 4. **No duplication**: Link to external docs instead of copying
 5. **Bounded retrieval**: Keep each retrievable main skill at or below 30,000 bytes. Move raw session
-   evidence, long examples, transcripts, and version history to its notes/history companions.
+   evidence, long examples, and transcripts to notes; archive prior main versions and version-control
+   narrative in history. Keep no more than three materially distinct examples in the main skill.
 
 ### Key Development Principles
 

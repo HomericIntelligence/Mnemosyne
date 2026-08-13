@@ -55,7 +55,8 @@ Claude automatically:
 
 1. Analyzes your entire session conversation
 2. Extracts successes, failures, and parameters
-3. Keeps reusable guidance concise in the main skill and routes session/version detail to companions
+3. Keeps reusable guidance and at most three materially distinct examples in the main skill, routes
+   useful session evidence to notes, and archives prior versions and version-control narrative in history
 4. Creates a branch and opens a PR
 
 **Auto-trigger**: On `/exit` or `/clear`, you'll be prompted to save learnings.
@@ -76,12 +77,13 @@ in this repository. Each skill is a flat markdown file with YAML frontmatter:
 ```text
 skills/<name>.md             # Main skill file with YAML frontmatter + markdown content
 skills/<name>.notes.md       # (Optional) Additional context from development session
-skills/<name>.history        # (Optional) Version and provenance history
+skills/<name>.history        # Version/provenance archive for /learn writes
 ```
 
-Retrievable main skills are limited to 30,000 bytes. Keep reusable rules and a few high-value
-examples in the main file; keep raw session detail and version history in the companion files,
-which Athena excludes from normal retrieval.
+Retrievable main skills are limited to 30,000 bytes. Keep reusable rules and at most three high-value
+examples in the main file. Before replacing it, archive its complete prior retrievable content in
+`.history`; keep raw session detail in `.notes.md`. Keep only the current schema-required `version`
+identifier in main frontmatter. Athena excludes both companion types from normal retrieval.
 
 ## Available Skills
 
