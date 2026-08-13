@@ -1,6 +1,25 @@
 <!-- markdownlint-disable MD024 -->
 # dry-refactoring-workflow — History
 
+## v2.0.0 (2026-08-13)
+
+**Changed by:** [Mnemosyne issue #3330](https://github.com/HomericIntelligence/Mnemosyne/issues/3330)
+— compact the canonical skill for efficient retrieval.
+**Verification:** verified-local — focused validator tests, the full repository test suite, static
+checks, workflow-schema validation, Markdown lint, and pre-commit hooks passed.
+
+### What changed
+
+- Rewrote the retrievable main entry around six reusable decisions: re-ground the current tree, classify
+  candidates, choose a canonical home, protect behavior, migrate incrementally, and verify the single source.
+- Replaced the cumulative 26-phase trigger description, project-specific transcripts, repeated verification
+  reports, tag inventory, and embedded version history with three cross-repository examples and six concise
+  failed-attempt patterns.
+- Kept the v1.21.0 artifact recoverable at immutable revision
+  `f7ef2968f89f138bd9e217b2c88b105bcec4a2d6`; retained every earlier amendment record below and added a
+  source-oriented case index to `dry-refactoring-workflow.notes.md`.
+- Raised the major version because the canonical retrieval surface and workflow organization changed.
+
 ## v1.21.0 (2026-07-04)
 
 **Changed by:** ProjectHephaestus #1823 (R1) — PLANNING a pure-function MOVE (`review_pr_inline` / `resolve_addressed_threads` / `run_pr_review_analysis` → a `pr_review_core.py` sibling) whose moved functions' INTERNAL calls are themselves patched test seams; captured after the R0 plan received a NOGO (grade C) for the CORRECTNESS ERROR of claiming a re-export shim on the OLD module keeps those seams working — /learn

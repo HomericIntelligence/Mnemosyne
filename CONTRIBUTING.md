@@ -28,6 +28,10 @@ The easiest way to contribute is using the `/learn` command after a valuable ses
 3. Claude automatically:
    - Reads your entire conversation history.
    - Extracts successes, failures, and parameters.
+   - Searches for an existing canonical skill and open amendment PR by intent.
+   - When a canonical exists, rewrites its main file around concise reusable guidance and no more
+     than three materially distinct examples, writes useful session evidence to `.notes.md`, and
+     archives the complete prior main version plus version/provenance changes in `.history`.
    - Auto-generates a skill filename: `<topic>-<subtopic>-<short-4-word-summary>`.
    - Creates a branch (`skill/<name>`), commits, pushes, and opens a PR.
 4. Review and merge the PR.
@@ -48,7 +52,16 @@ All skills are flat markdown files in the `skills/` directory with YAML frontmat
 ```text
 skills/<name>.md             # Main skill file with YAML frontmatter + markdown content
 skills/<name>.notes.md       # (Optional) Additional context from development session
+skills/<name>.history        # Version/provenance archive for /learn writes
 ```
+
+Keep retrievable main skills at or below 30,000 bytes. Put reusable triggers, decision rules, short
+failure patterns, and no more than three materially distinct examples in the main file. Before an
+amendment replaces that file, archive its complete prior retrievable content in `.history`. Put raw
+session detail, project-specific paths, long examples, command transcripts, and verification reports
+in `.notes.md`; put all prior versions, change summaries, provenance, and other version-control
+narrative in `.history`. The required frontmatter `version` is only the current version identifier.
+Athena excludes both companion types from normal retrieval.
 
 ### Required YAML Frontmatter
 
@@ -101,6 +114,9 @@ All lowercase, kebab-case. Examples:
 2. **Failures required**: Every skill must document what did not work and why. The Failed Attempts table is mandatory.
 3. **Copy-paste ready**: Parameters, configurations, and commands should work immediately when copied.
 4. **No duplication**: Link to external docs instead of copying content. If a skill overlaps with an existing one, extend rather than duplicate.
+5. **Bounded retrieval**: Keep `skills/<name>.md` at or below 30,000 bytes. Amend existing skills with
+   concise reusable guidance and at most three materially distinct examples. Route session evidence
+   to notes and prior versions or version-control narrative to history.
 
 ## Categories
 
@@ -186,6 +202,9 @@ The validator checks:
 - Failed Attempts table is included.
 - Description meets minimum length (20+ characters).
 - Category is one of the 9 approved values.
+- New or changed retrievable main skills do not exceed 30,000 bytes; unchanged oversized legacy
+  files are temporarily tolerated but cannot be amended without compaction. `.notes.md` companions
+  are excluded.
 
 ## Code Style
 
@@ -223,9 +242,10 @@ Skills should be generic enough to work across multiple repositories:
 
    | Project | Context | Details |
    |---------|---------|---------|
-   | ProjectName | PR #XXX context | [notes.md](../skills/skill-name.notes.md) |
+   | ProjectName | PR #XXX context | [notes.md](./skill-name.notes.md) |
    ```
-4. **Move specifics to references** -- Put project-specific commands, paths, and code in a `.notes.md` file.
+4. **Move specifics to companions** -- Put project-specific commands, paths, transcripts, and detailed
+   verification in `.notes.md`; put version and provenance records in `.history`.
 5. **Generic workflows** -- Write workflows that can be adapted to any repository structure.
 
 ## Releasing

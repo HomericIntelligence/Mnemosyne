@@ -12,6 +12,7 @@ Covers:
 - validate_plugin: integration tests with valid and invalid skill files
 """
 
+import subprocess
 from typing import Any
 from unittest.mock import patch
 
@@ -288,6 +289,18 @@ class TestFindPlugins:
         assert len(result) == 1
         assert result[0].name == "alpha.md"
 
+    def test_excludes_history_companions(self, tmp_path):
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        (skills / "alpha.md").write_text("skill a")
+        (skills / "alpha.history.md").write_text("history")
+        (skills / "alpha.history").write_text("history")
+
+        with patch("validate_plugins.SKILLS_DIR", skills):
+            result = find_plugins()
+
+        assert [path.name for path in result] == ["alpha.md"]
+
     def test_empty_directory(self, tmp_path):
         skills = tmp_path / "skills"
         skills.mkdir()
@@ -335,3 +348,85 @@ class TestValidatePlugin:
             errors = validate_plugin("nonexistent.md")
         assert len(errors) == 1
         assert "Cannot read file" in errors[0]
+
+    def test_oversized_retrievable_skill_reports_path_measured_and_allowed_bytes(self, tmp_path):
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        skill_path = skills / "oversized.md"
+        skill_path.write_bytes(b"x" * 30_001)
+
+        with patch("validate_plugins.SKILLS_DIR", skills):
+            errors = validate_plugin(skill_path.name)
+
+        size_errors = [error for error in errors if "30,000 bytes" in error]
+        assert size_errors == [f"Skill file {skill_path} is 30,001 bytes; allowed maximum is 30,000 bytes"]
+
+    def test_size_limit_is_inclusive(self, tmp_path):
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        skill_path = skills / "at-limit.md"
+        content = CLEAN_SKILL_MD.encode()
+        skill_path.write_bytes(content + (b" " * (30_000 - len(content))))
+
+        with (
+            patch("validate_plugins.SKILLS_DIR", skills),
+            patch("subprocess.run") as git_show,
+        ):
+            errors = validate_plugin(skill_path.name)
+
+        assert not any("allowed maximum" in error for error in errors)
+        git_show.assert_not_called()
+
+    def test_unchanged_oversized_legacy_skill_is_grandfathered(self, tmp_path):
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        skill_path = skills / "legacy.md"
+        legacy_content = b"x" * 30_001
+        skill_path.write_bytes(legacy_content)
+        base_result = subprocess.CompletedProcess(
+            args=["git", "show"],
+            returncode=0,
+            stdout=legacy_content,
+            stderr=b"",
+        )
+
+        with (
+            patch("validate_plugins.SKILLS_DIR", skills),
+            patch("subprocess.run", return_value=base_result),
+        ):
+            errors = validate_plugin(skill_path.name)
+
+        assert not any("allowed maximum" in error for error in errors)
+
+    def test_changed_oversized_legacy_skill_is_rejected(self, tmp_path):
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        skill_path = skills / "legacy.md"
+        skill_path.write_bytes(b"x" * 30_001)
+        base_result = subprocess.CompletedProcess(
+            args=["git", "show"],
+            returncode=0,
+            stdout=b"y" * 30_001,
+            stderr=b"",
+        )
+
+        with (
+            patch("validate_plugins.SKILLS_DIR", skills),
+            patch("subprocess.run", return_value=base_result),
+        ):
+            errors = validate_plugin(skill_path.name)
+
+        assert any("allowed maximum" in error for error in errors)
+
+    def test_oversized_notes_file_is_excluded_from_retrieval_and_size_validation(self, tmp_path):
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        (skills / "alpha.md").write_text(CLEAN_SKILL_MD)
+        (skills / "alpha.notes.md").write_bytes(b"x" * 30_001)
+
+        with patch("validate_plugins.SKILLS_DIR", skills):
+            plugins = find_plugins()
+            errors = validate_plugin(plugins[0].name)
+
+        assert [plugin.name for plugin in plugins] == ["alpha.md"]
+        assert not any("allowed maximum" in error for error in errors)
