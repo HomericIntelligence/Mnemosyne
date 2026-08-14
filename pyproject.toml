@@ -34,7 +34,7 @@ dev = [
     "jsonschema>=4.26",
     "types-PyYAML",
     "build>=1.2",
-    "twine>=5.0",
+    "twine>=7.0.0",
 ]
 
 # Flat repo layout (scripts/, skills/, tests/, ...) breaks setuptools
