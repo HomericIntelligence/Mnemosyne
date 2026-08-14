@@ -30,7 +30,7 @@ dev = [
     "pytest-cov>=7.0",
     "mypy>=2.2",
     "yamllint>=1.35",
-    "ruff>=0.6",
+    "ruff>=0.16.1",
     "jsonschema>=4.26",
     "types-PyYAML",
     "build>=1.2",
