@@ -1,5 +1,6 @@
 ---
 name: canonical-config-env-var-expansion
+license: BSD-3-Clause
 description: "De-hardcode developer-specific values (IPs, hostnames, paths) from CANONICAL config files (NATS .conf, Nomad HCL) that hosts copy or symlink. CRITICAL: NATS expands a WHOLE-VALUE bare token only (url = $NATS_LEAF_URL) — NOT a substring inside a quoted URL; Nomad agent HCL does NOT expand OS env at all (use envsubst). Use when: (1) a canonical config in configs/ has a dev-specific literal like a Tailscale IP, (2) the file is deployed by copy/symlink so no launcher can inject values, (3) you need to verify env-var expansion actually resolves at runtime (run the daemon, not just -t)."
 category: architecture
 date: 2026-06-19

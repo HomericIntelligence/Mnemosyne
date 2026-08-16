@@ -1,5 +1,6 @@
 ---
 name: architecture-worker-pool-bounded-completion-recovery
+license: BSD-3-Clause
 description: "Use when: (1) bounding a staged worker-pool pipeline whose stage queues and completion queue can grow without limit, (2) a worker must publish a completion without blocking even when the coordinator is stalled, (3) rejected queue work must remain durably recoverable and observable with metrics disabled, (4) replacing queue wake sentinels with capacity-neutral signalling, or (5) designing saturation alerts that distinguish a full backlog from an actual rejected enqueue."
 category: architecture
 date: 2026-07-24

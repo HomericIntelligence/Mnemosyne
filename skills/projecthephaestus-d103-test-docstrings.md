@@ -1,5 +1,6 @@
 ---
 name: projecthephaestus-d103-test-docstrings
+license: BSD-3-Clause
 description: "ProjectHephaestus enforces ruff D103 on test functions too — every new test_* function needs a one-line docstring or CI fails. Use when: (1) adding new tests or public functions to ProjectHephaestus, (2) seeing D103 / ruff-format failures in ProjectHephaestus CI."
 category: ci-cd
 date: 2026-06-10

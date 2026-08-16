@@ -1,5 +1,6 @@
 ---
 name: testing-stale-issue-dedup-inline-pattern
+license: BSD-3-Clause
 description: "When consolidating duplicate test helpers, inline direct calls rather than adding wrapper fixtures. Use when: (1) an issue asks to move a helper to conftest.py, (2) the helper is already importable from a shared module, (3) the helper is a pure function (not setup/teardown)."
 category: testing
 date: 2026-06-19

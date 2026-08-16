@@ -1,5 +1,6 @@
 ---
 name: testing-oserror-swallow-nonfatal-patch-pattern
+license: BSD-3-Clause
 description: "Use when: (1) you need to test that a function swallows OSError (file write failures, permission errors, disk-full conditions) without raising to the caller; (2) the code under test calls Path.write_text, open().write(), or similar and catches OSError internally; (3) you want to verify that a logging/state-capture helper is non-fatal when I/O fails; (4) you need to inject a file-system error via unittest.mock.patch with side_effect=OSError."
 category: testing
 date: 2026-06-12

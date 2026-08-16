@@ -1,5 +1,6 @@
 ---
 name: pil-grayscale-method-flag
+license: BSD-3-Clause
 description: 'Add a --grayscale-method {luma,average,max} CLI flag to image preprocessing
   scripts using PIL. Use when: adding configurable grayscale strategies to a PIL-based
   script, fixing broken PIL image tests, or extending argparse CLIs with algorithm-selection

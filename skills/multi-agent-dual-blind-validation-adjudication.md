@@ -1,5 +1,6 @@
 ---
 name: multi-agent-dual-blind-validation-adjudication
+license: BSD-3-Clause
 description: "Validate every field/item of a structured dataset with TWO independent, mutually blind agents (one may edit in place, one is strictly read-only) and reconcile them with a deterministic merge plus a third adjudicator for high-stakes disagreements. Use when: (1) per-field validation accuracy matters and a single LLM pass is demonstrably unreliable on a large fraction of items, (2) you need 'fully confirmed' to mean two independent confirmations rather than one agent's say-so, (3) you must distinguish genuinely-unconfirmable fields from confirmable ones instead of asserting either way."
 category: testing
 date: 2026-06-19

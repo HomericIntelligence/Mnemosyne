@@ -1,5 +1,6 @@
 ---
 name: service-validation-fresh-isolated-allocation
+license: BSD-3-Clause
 description: "Validate or reproduce a service on a FRESH, isolated compute allocation instead of reusing a running one, and treat teardown + cleanup proof as part of the validation. Use when: (1) proving a service/endpoint launch end-to-end when other instances are already running, (2) reproducing a corruption/regression that needs a clean environment, (3) a manifest- or config-driven launch fails and you must separate control-plane failures from missing-artifact and probe failures, (4) running an A/B ablation where baseline and treatment must differ in exactly one variable, (5) you need evidence that the run allocated its own resources and released them afterward."
 category: debugging
 date: 2026-07-18

@@ -1,5 +1,6 @@
 ---
 name: computation-hard-walls-analysis
+license: BSD-3-Clause
 description: "Framework for analyzing 14 fundamental hard walls against exotic computation schemes in sci-fi mechanism design. Use when: (1) evaluating how many physical limits a fictional compute device breaks, (2) scoring mechanism plausibility against known physics limits, (3) writing scientifically rigorous speculative technology documents."
 category: architecture
 date: 2026-06-01

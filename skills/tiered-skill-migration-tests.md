@@ -1,5 +1,6 @@
 ---
 name: tiered-skill-migration-tests
+license: BSD-3-Clause
 description: 'Pattern for testing auxiliary subdir copying in tiered skill migrations.
   Use when: verifying tier-1/tier-2 skills with scripts/, templates/, and references/
   are migrated correctly.'

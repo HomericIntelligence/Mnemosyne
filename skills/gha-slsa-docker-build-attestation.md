@@ -1,5 +1,6 @@
 ---
 name: gha-slsa-docker-build-attestation
+license: BSD-3-Clause
 description: "Use when: (1) adding SLSA provenance or SBOM attestations to a Docker image publish GitHub Actions workflow, (2) choosing between provenance mode=min vs mode=max for supply-chain audit compliance, (3) writing structural regression tests for GHA workflow YAML flags using yaml.safe_load instead of regex, (4) deciding whether to use docker/build-push-action built-in attestation vs slsa-github-generator reusable workflow, (5) adding id-token: write and attestations: write permissions to a publish job with blast-radius analysis, (6) making pyyaml an explicit dev dependency instead of relying on it transitively."
 category: ci-cd
 date: 2026-06-20

@@ -1,5 +1,6 @@
 ---
 name: license-scan-marker-excluded-fallback
+license: BSD-3-Clause
 description: "Classify PEP 508 marker-excluded distributed dependencies in a single-leg CI license scan with a fail-closed fallback license map. Use when: (1) a platform- or Python-version-gated dependency is skipped because it is not installable on the CI leg, (2) a scan claims another matrix row will classify a dependency but no such row exists, (3) adding an unreachable dependency or validating fallback-map coverage and values against metadata or NOTICE."
 category: ci-cd
 date: 2026-07-17

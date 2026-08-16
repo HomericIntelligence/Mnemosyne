@@ -1,5 +1,6 @@
 ---
 name: resilience-construction-reject-invalid-numeric-config
+license: BSD-3-Clause
 description: "Fail-fast validation for retry decorator factories and circuit-breaker constructors. Use when: (1) invalid retry counts can skip protected work, (2) zero or non-finite breaker limits can wedge recovery, (3) Python bool values may pass integer checks, (4) zero is valid for delays but not thresholds or capacities."
 category: architecture
 date: 2026-08-06

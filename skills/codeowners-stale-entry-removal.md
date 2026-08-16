@@ -1,5 +1,6 @@
 ---
 name: codeowners-stale-entry-removal
+license: BSD-3-Clause
 description: Remove stale path entries from .github/CODEOWNERS that point to non-existent
   directories. Use when a CODEOWNERS audit flags entries for directories that were
   moved or renamed.

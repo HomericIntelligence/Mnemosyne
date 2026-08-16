@@ -1,5 +1,6 @@
 ---
 name: defensive-analysis-patterns
+license: BSD-3-Clause
 description: Defensive programming patterns for statistical analysis pipelines to handle data quality issues gracefully
 category: testing
 date: 2026-02-01

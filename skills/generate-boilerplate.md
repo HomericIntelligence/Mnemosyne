@@ -1,5 +1,6 @@
 ---
 name: generate-boilerplate
+license: BSD-3-Clause
 description: Create starter code from templates. Use when setting up new modules or
   test files.
 category: tooling

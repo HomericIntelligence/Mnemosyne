@@ -1,5 +1,6 @@
 ---
 name: automation-loop-exclude-epic-roadmap-issues
+license: BSD-3-Clause
 description: "An automation/planning loop that auto-discovers GitHub issues MUST exclude epic/roadmap TRACKING issues (checklists of child work, not code tasks) or it will plan+implement them and produce a wrong code PR. Detect an epic via an `epic`/`roadmap` LABEL (case-insensitive) OR an `epic`/`roadmap` token in the LEADING title words ONLY (first ~3) — an anywhere-in-title match skip-parks bug reports that merely MENTION epics (verified false positive). Native GitHub issue types are NOT reachable from the installed gh CLI. Filter at BOTH the loop discovery chokepoint and the standalone planner, tag excluded epics `state:skip` idempotently, and keep the write OUT of the pure 'return [] on failure / never raise' discovery function. Use when: (1) an auto-discovery loop plans an epic/roadmap tracking issue as if it were code, (2) designing an issue-type filter and reaching for `gh issue list --json issueType`, (3) a label convention exists but is not consistently applied, (4) you need to exclude tracking issues from convergence/open-issue gates too, (5) an issue ABOUT epic handling was excluded from planning and tagged state:skip."
 category: tooling
 date: 2026-07-17

@@ -1,5 +1,6 @@
 ---
 name: cli-json-flag-emitter-selection-status-vs-data
+license: BSD-3-Clause
 description: "Design safe JSON output for status- and data-shaped CLIs, including framework-owned envelope fields. Use when: (1) a registered --json flag is ignored, (2) choosing emit_json_status() versus format_output(data, 'json'), (3) preventing caller metadata from replacing status or exit_code, (4) writing behavioral JSON-output tests."
 category: tooling
 date: 2026-08-06

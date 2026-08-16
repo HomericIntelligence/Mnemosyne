@@ -1,5 +1,6 @@
 ---
 name: planning-mismatched-issue-surfaces-review-risks
+license: BSD-3-Clause
 description: "Capture reviewer-checkable risks for implementation plans when an issue title, body, or acceptance text point at different surfaces. Use when: (1) the title and body appear to ask for different changes, (2) a DRY/refactor plan depends on private import aliases or inherited option fields, (3) a plan intentionally excludes adjacent fields or call sites, (4) the plan was written from grep evidence and has not been executed."
 category: architecture
 date: 2026-06-26

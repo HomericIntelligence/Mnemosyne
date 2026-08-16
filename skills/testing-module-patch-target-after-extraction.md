@@ -1,5 +1,6 @@
 ---
 name: testing-module-patch-target-after-extraction
+license: BSD-3-Clause
 description: "Patch mocks at every module import binding after extracting collaborators, including direct and delegated dual call paths. Use when: (1) a refactor moves code from a god-class to collaborators, (2) tests have unexpected mock call counts or exhausted side effects, (3) the same symbol is called by both a driver and a collaborator, (4) resolving rebase conflicts in patch targets, (5) distinguishing shared stdlib module-object patches from named-function bindings that must move."
 category: testing
 date: 2026-07-17

@@ -1,5 +1,6 @@
 ---
 name: sglang-v2-source-build-runtime-dependency-validation
+license: BSD-3-Clause
 description: "Construct and validate a pinned-source SGLang v2 runtime image with CUDA build dependencies that match the PyTorch wheel, no obsolete Mooncake pin, and image-level validation independent of Warden HAProxy. Use when: (1) a SGLang source image fails to compile CUDA extensions, (2) a manifest-derived builder needs to forward source-build packages and a PyTorch CUDA version, (3) a serving image is incorrectly checked for a control-plane binary, (4) publishing a digest-verified SGLang artifact into a manifest-driven runtime catalog."
 category: ci-cd
 date: 2026-07-24

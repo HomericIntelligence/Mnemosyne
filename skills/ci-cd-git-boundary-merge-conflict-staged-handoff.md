@@ -1,5 +1,6 @@
 ---
 name: ci-cd-git-boundary-merge-conflict-staged-handoff
+license: BSD-3-Clause
 description: "Resolve a PR merge conflict when the agent may not commit (orchestrator owns signed commits). Use when: (1) an independent PR reviewer returns CONFLICT / mergeStateStatus=DIRTY inside an implement-review loop where the implementing agent operates under a MANDATORY git boundary (may edit files and run tests, must NOT run git commit or git push — the orchestrator creates the signed, DCO signed-off commit with `git commit -S -s` after the turn), (2) the reviewer's literal instruction is 'rebase onto origin/main and commit the resolution (signed)' but a literal rebase is impossible under the boundary (rebase creates commits or strands REBASE_HEAD state that a plain `git commit -S -s` cannot finish), (3) sibling PRs of a convention/ecosystem rollout wave race on the same shared doc lines (README/CLAUDE.md CI bullet lists, branch-protection required-check tables) and one lands on main first. Mechanism: `git merge origin/main --no-commit --no-ff`, resolve keeping BOTH sides, stage everything, re-run gates on the merged tree, and end the turn with MERGE_HEAD still set — the orchestrator's plain `git commit -S -s` then automatically finalizes the signed merge-resolution commit."
 category: ci-cd
 date: 2026-07-03

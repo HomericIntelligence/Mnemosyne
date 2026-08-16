@@ -1,5 +1,6 @@
 ---
 name: mojo-build-compilation-and-linker-error-patterns
+license: BSD-3-Clause
 description: "Use when: (1) adding --Werror to a Mojo build system and auditing all files for hidden warnings, (2) CI fails with Mojo import errors after module renames, mojo-format pre-commit hook line-length failures, or stable vs nightly version mismatch, (3) mojo build fails with 'undefined reference to fmaxf/sincos/libm' symbols from AOT compilation of example or benchmark files, (4) enabling ASAN/TSAN for Mojo CI and diagnosing tcmalloc/sanitizer incompatibility or AVX-512 codegen asymmetry, (5) resolving git rebase conflicts in Mojo test files by converting invalid Python syntax to valid Mojo Bool flag patterns, (6) fixing out-of-bounds List access from DynamicVector→List migration where index assignment was not converted to append."
 category: ci-cd
 date: 2026-06-07

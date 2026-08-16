@@ -1,5 +1,6 @@
 ---
 name: hephaestus-agent-timeout-refactor-planning-risks
+license: BSD-3-Clause
 description: "Remove deprecated timeout environment aliases without changing canonical overrides, defaults, call-time reads, or malformed-value fallback. Use when: (1) deleting alias fallback support from a shared env reader, (2) narrowing a public helper signature, (3) replacing compatibility tests with ignored-alias regressions, (4) preserving a library-to-product dependency boundary during configuration cleanup."
 category: architecture
 date: 2026-08-06

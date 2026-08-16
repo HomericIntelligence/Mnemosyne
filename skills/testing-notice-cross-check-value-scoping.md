@@ -1,5 +1,6 @@
 ---
 name: testing-notice-cross-check-value-scoping
+license: BSD-3-Clause
 description: "Scope NOTICE/registry value assertions to per-key lines, not full-file text. Use when: (1) writing a test that validates a value (e.g. SPDX license ID) is associated with a specific package in NOTICE, (2) any test asserting a value appears in a structured free-text file (changelogs, allowlists, SECURITY.md), (3) reviewing cross-check tests for potential false-pass conditions."
 category: testing
 date: 2026-06-13

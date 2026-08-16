@@ -1,5 +1,6 @@
 ---
 name: cli-argparse-nargs-optional-required-pattern
+license: BSD-3-Clause
 description: "argparse pattern for optional flag that requires >=1 value when present. Use when: (1) designing a CLI flag that is optional to omit but must have at least one value if given, (2) debugging silent nargs='*' acceptance of empty flag."
 category: tooling
 date: 2026-06-14

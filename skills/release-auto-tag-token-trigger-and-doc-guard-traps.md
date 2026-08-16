@@ -1,5 +1,6 @@
 ---
 name: release-auto-tag-token-trigger-and-doc-guard-traps
+license: BSD-3-Clause
 description: "Three traps in tag-driven release preparation: GITHUB_TOKEN tag pushes do not trigger push workflows, immutable tags strand stale documentation guards, and pre-tag documentation must name the pending version without falsely claiming it is released while keeping regex-owned phrases physically contiguous. Use when: (1) a tag-triggered release workflow never fires, (2) a release test fails a doc-version drift guard, (3) preparing release-status prose before a signed tag exists, (4) Markdown blockquote wrapping breaks a release-gate regex, (5) recovering a stranded release tag."
 category: ci-cd
 date: 2026-08-07

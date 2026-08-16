@@ -1,5 +1,6 @@
 ---
 name: checkout-other-ref-silent-file-clobber
+license: BSD-3-Clause
 description: "Use when: (1) about to run `git checkout <other-branch-or-ref> -- <path>` to 'port' or 'copy' one or more files from another branch/commit into the current clean working tree (not during conflict resolution, not to discard your own uncommitted changes); (2) reviewing a diff produced by that command and a section unrelated to the stated intent has vanished; (3) a strict-review agent flags a PR as reverting an already-landed, unrelated section of a file the PR also legitimately touches; (4) deciding how to bring specific hunks from one branch into another without touching the rest of a shared file; (5) a file was edited on the destination branch AFTER the source ref's branch point, and you need those edits preserved while still pulling in something else from the source ref."
 category: tooling
 date: 2026-07-19

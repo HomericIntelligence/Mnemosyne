@@ -1,5 +1,6 @@
 ---
 name: port-feature-branch-impl
+license: BSD-3-Clause
 description: 'Port an implementation from a stale feature branch worktree when the
   upstream PR was never merged to main. Use when: a test or follow-up issue references
   functionality that exists only in a worktree branch, not in main.'

@@ -1,5 +1,6 @@
 ---
 name: pr-compliance-dco-and-rebase-fix
+license: BSD-3-Clause
 description: "Repair a failing Hephaestus pr-policy gate by rewriting every offending PR commit with a verified cryptographic signature, DCO trailer, and Conventional Commit subject. Use when: (1) pr-policy reports unsigned, invalidly signed, or DCO-missing commits, (2) one or more historical PR commits have non-conventional subjects, (3) a final compliance commit would leave invalid commits in the PR range, or (4) a rebase requires conflict resolution."
 category: ci-cd
 date: 2026-07-18

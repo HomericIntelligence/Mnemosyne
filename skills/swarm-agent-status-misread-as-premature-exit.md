@@ -1,5 +1,6 @@
 ---
 name: swarm-agent-status-misread-as-premature-exit
+license: BSD-3-Clause
 description: "Distinguish in-progress status updates from premature-exit signals when dispatching parallel swarm sub-agents. Use when: (1) a parallel agent's notification arrives with short duration_ms (<60s) and 'waiting'/'polling' result text, (2) deciding whether to re-dispatch an apparently-stuck swarm agent, (3) auditing a multi-agent swarm for duplicate dispatches that caused PR/branch collisions, (4) the parent agent feels tempted to dispatch a retry within the first minute of a parallel agent's life."
 category: tooling
 date: 2026-05-25

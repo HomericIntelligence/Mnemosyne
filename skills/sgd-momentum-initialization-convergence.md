@@ -1,5 +1,6 @@
 ---
 name: sgd-momentum-initialization-convergence
+license: BSD-3-Clause
 description: "Use when: (1) implementing SGD-with-momentum and setting up per-parameter velocity buffers, (2) training loss diverges or oscillates and you suspect momentum/init, (3) you must initialize the velocity buffer count/order to exactly match the parameter-update order for stable monotone convergence."
 category: optimization
 date: 2026-07-02

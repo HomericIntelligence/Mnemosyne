@@ -1,5 +1,6 @@
 ---
 name: cpp-rate-limiter-test-fixture-burst-capacity-trap
+license: BSD-3-Clause
 description: "Token-bucket RateLimiter constructor takes (tokens_per_sec, burst_capacity) not (max_requests, window). Tests that pass burst_capacity=1e9 will never see 429. Use when: (1) writing a test that exercises rate-limit exceedance, (2) a RateLimit test passes locally but the production limiter mysteriously never fires, (3) inheriting a token-bucket library and not sure what the second constructor arg means."
 category: testing
 date: 2026-05-17

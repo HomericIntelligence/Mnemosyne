@@ -1,5 +1,6 @@
 ---
 name: mojo-comptime-gate-skip-dead-gradient-block
+license: BSD-3-Clause
 description: "Use when: (1) a backward or compute-all op wastes work computing an unused gradient at a first layer, frozen backbone, or local-learning setup; (2) you want to skip a loop nest at zero runtime cost via a compile-time flag in Mojo; (3) writing a Mojo compile-time conditional and unsure whether it's `comptime if` vs `@parameter if`; (4) extracting a large loop to make it conditionally-compiled without hand-reindenting."
 category: optimization
 date: 2026-07-10

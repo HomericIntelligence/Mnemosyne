@@ -1,5 +1,6 @@
 ---
 name: skill-consolidation-nuance-audit-workflow
+license: BSD-3-Clause
 description: "Use when: (1) a bulk skill consolidation (10+ skills merged into bundles) has just completed and you need to verify no knowledge was lost, (2) a canonical skill was absorbed into a larger bundle and the bundle must preserve all failed attempts, trigger conditions, and copy-paste commands, (3) you need to run a parallel swarm audit across many source→bundle pairs and automatically generate amendment PRs for any detected gaps"
 category: tooling
 date: '2026-06-07'

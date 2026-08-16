@@ -1,5 +1,6 @@
 ---
 name: cpp-httplib-prerouting-audit-event-planning
+license: BSD-3-Clause
 description: "Use when planning (not yet implementing) a feature that emits an audit/log event to NATS from a cpp-httplib pre-routing handler in a C++ service: (1) injecting a long-lived dependency (rate limiter, publisher) into set_pre_routing_handler, (2) rate-limiting events per client IP, (3) reusing a high-level publish_log/NATS envelope wrapper, (4) adding client IP (remote_addr) to a payload that triggers PII-audit-doc maintenance, (5) deciding test doubles for a fire-and-forget publisher."
 category: architecture
 date: 2026-06-19

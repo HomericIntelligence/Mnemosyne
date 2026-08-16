@@ -1,5 +1,6 @@
 ---
 name: ci-library-migration-audit-pip-install-coverage
+license: BSD-3-Clause
 description: "After migrating a Python helper from a local module to a pip-installed library (e.g. `from common import X` → `from hephaestus.utils import X`), audit every CI job that invokes the migrated scripts to confirm each job either (a) installs the library via `pip install`, or (b) routes the invocation through an env-manager (`pixi run`, `poetry run`, `uv run`) that already has it. Use when: (1) a library migration PR was green in pre-commit/local but CI jobs crash with `ModuleNotFoundError: No module named '<lib>'`, (2) a workflow step calls `python3 scripts/...` directly even though the job ran `setup-pixi`/`setup-poetry` (env-manager bypass), (3) a workflow YAML pins `<lib>>=X,<Y` in a `pip install` line that has drifted from the version pin in `pixi.toml`/`pyproject.toml`."
 category: ci-cd
 date: 2026-05-24

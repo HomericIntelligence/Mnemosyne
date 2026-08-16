@@ -1,5 +1,6 @@
 ---
 name: planning-test-coverage-verify-premise-and-mock-targets
+license: BSD-3-Clause
 description: "When planning a 'add tests for an untested module' task, the issue's filename, line numbers, and 'X is untested' claim are a HYPOTHESIS to verify against the filesystem before adopting them — and the mock.patch target must be the rebound name in the CONSUMER module, not the definition site. Use when: (1) planning unit-test coverage for a module an issue says is untested, (2) an issue tells you to CREATE a specific test file path, (3) the module under test uses `from .x import y` and your tests need to mock y, (4) deciding whether an 'untested' claim means no file or no coverage of specific methods."
 category: testing
 date: 2026-06-15

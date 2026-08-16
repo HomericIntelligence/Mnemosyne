@@ -1,5 +1,6 @@
 ---
 name: cifar10-one-hot-label-encoding
+license: BSD-3-Clause
 description: "Use when: (1) loading CIFAR-10 and preparing integer labels (0-9) for cross-entropy that expects one-hot (B,10) float32 targets, (2) debugging NaN losses or shape mismatches in loss computation from raw-index labels, (3) implementing training loops where cross_entropy multiplies logits by targets and raw indices silently produce a meaningless loss."
 category: testing
 date: 2026-07-02

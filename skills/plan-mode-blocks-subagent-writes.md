@@ -1,5 +1,6 @@
 ---
 name: plan-mode-blocks-subagent-writes
+license: BSD-3-Clause
 description: "Sub-agents launched while the parent conversation is in plan mode inherit plan-mode and silently stop at planning, refusing to write/commit/push. Use when: (1) launching Agent() sub-agents that must perform write actions, (2) seeing sub-agents return plan files instead of executing, (3) building skills that delegate /learn, /implement, or any write workflow."
 category: tooling
 date: 2026-05-26

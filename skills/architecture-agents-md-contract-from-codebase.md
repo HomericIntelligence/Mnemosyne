@@ -1,5 +1,6 @@
 ---
 name: architecture-agents-md-contract-from-codebase
+license: BSD-3-Clause
 description: "How to PLAN adding an AGENTS.md agent-behavior contract to a repo by DERIVING every rule from the real codebase + CLAUDE.md invariants instead of writing generic boilerplate, and how to surface the planning risks honestly. Use when: (1) planning/adding an AGENTS.md agent-behavior contract (scope-in/out, permitted/prohibited actions, --dangerously-skip-permissions policy, escalation, verification commands) to a repo; (2) deriving the permitted-tools / off-limits / escalation set from real pipeline/harness source (e.g. the --allowedTools flag in the runner) PLUS CLAUDE.md invariants (ADRs append-only, configs canonical, submodule pins matter) rather than aspiration; (3) wiring the new doc into an EXISTING markdownlint CI gate (extend the fixed file list, do not add a new job) and confirming .markdownlint.json disables the rules it would trip BEFORE claiming green; (4) adding a doc-to-source drift guard (a grep tying the documented tool contract to the runner code so they cannot silently diverge); (5) reusing an in-ecosystem sibling AGENTS.md as the structural template and scoping the new one so two AGENTS.md files do not diverge."
 category: architecture
 date: 2026-06-20

@@ -1,5 +1,6 @@
 ---
 name: automation-graphql-batch-comment-fetch
+license: BSD-3-Clause
 description: "Use aliased GraphQL comment batches only as bounded, best-effort review context. Use when: (1) reducing N+1 comment reads where partial context is acceptable, (2) preserving a legacy review-state optimization, or (3) separating fast context caches from authoritative discovery. Never use a capped or failure-to-empty batch to prove plan absence, authorize a write, route durable state, or consume a retry budget."
 category: optimization
 date: 2026-08-06

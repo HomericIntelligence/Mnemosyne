@@ -1,5 +1,6 @@
 ---
 name: planning-epic-verify-live-child-state
+license: BSD-3-Clause
 description: "Before planning an epic/tracking/umbrella issue, query the LIVE state of every child issue with gh (state, stateReason, merged PRs, labels) instead of trusting the epic body's status table — the body is a snapshot and drifts. Most children may already be CLOSED+COMPLETED via merged PRs, reframing the epic from 'plan N fixes' to 'dispatch the few remaining state:plan-go children + close-out'. Use when: (1) planning an epic/tracking/umbrella issue, (2) re-planning after a NOGO on a tracking issue, (3) any issue whose body is a checklist of child issues, (4) deciding implementation order across linked issues."
 category: tooling
 date: 2026-06-19

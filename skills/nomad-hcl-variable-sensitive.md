@@ -1,5 +1,6 @@
 ---
 name: nomad-hcl-variable-sensitive
+license: BSD-3-Clause
 description: "Use when: (1) Nomad HCL job spec fails to parse with 'An argument named sensitive is not expected here', (2) variable blocks in .nomad.hcl files contain sensitive = true, (3) migrating Terraform variable patterns to Nomad."
 category: ci-cd
 date: 2026-04-23

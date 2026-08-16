@@ -1,5 +1,6 @@
 ---
 name: rename-propagation-unexercised-paths-break-later
+license: BSD-3-Clause
 description: "A deliberately PARTIAL rename (references renamed now, directory/path renames DEFERRED) is a latent landmine: consumers that were rewritten to the aspirational future name pass the rename PR's CI only because they aren't in the required-check set, then detonate LATER on unrelated PRs. Use when: (1) planning or reviewing a 'drop the prefix' / dir-rename PR where the on-disk path rename is upstream-gated or deferred, (2) some references now point at a short/new name while .gitmodules (or the real dir) still uses the old name, (3) install/build/deploy scripts or non-required matrix legs fail LATER with 'submodule failed to initialize / still empty', a missing conan profile, or a path that resolves to nothing, (4) you're tempted to trust a green rename PR as proof the rename is complete, (5) you fixed ONE consumer (e.g. a justfile recipe) as a follow-up without grepping siblings for the same class of bug."
 category: tooling
 date: 2026-07-13

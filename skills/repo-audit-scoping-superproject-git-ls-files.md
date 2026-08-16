@@ -1,5 +1,6 @@
 ---
 name: repo-audit-scoping-superproject-git-ls-files
+license: BSD-3-Clause
 description: "Scope a full-coverage repo audit correctly when the target is a git SUPERPROJECT (contains submodules). Use when: (1) running /repo-analyze-strict-full or any full-coverage audit on a meta-repo/superproject like Odysseus, (2) a naive `find . -type f` inventory returns tens of thousands of files (it descended into submodule working trees), (3) you must bucket the repo's OWN tracked files by section and swarm them without overflowing context, (4) the working tree is on a feature branch behind origin/main and you need to grade against the shipped state, (5) grading a coordination/meta-repo fairly (no product source, but configs/schema/e2e are still gradeable)."
 category: testing
 date: 2026-07-02

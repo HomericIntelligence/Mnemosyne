@@ -1,5 +1,6 @@
 ---
 name: doc-issue-readme
+license: BSD-3-Clause
 description: Post structured documentation to GitHub issue as a comment. Use when
   starting work on an issue to document approach and track progress.
 category: tooling

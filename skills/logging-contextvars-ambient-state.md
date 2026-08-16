@@ -1,5 +1,6 @@
 ---
 name: logging-contextvars-ambient-state
+license: BSD-3-Clause
 description: "Use contextvars.ContextVar for ambient logging/tracing state (correlation IDs, trace IDs) instead of mutable globals or explicit parameters. Thread-safe and async-safe by design. Use when: propagating context across function call stacks, thread boundaries, and async contexts without explicitly threading it as a parameter."
 category: architecture
 date: 2026-05-28

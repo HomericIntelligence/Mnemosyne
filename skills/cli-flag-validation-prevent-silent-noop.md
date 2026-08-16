@@ -1,5 +1,6 @@
 ---
 name: cli-flag-validation-prevent-silent-noop
+license: BSD-3-Clause
 description: "CLI flag validation at parse time to prevent silent no-ops. When a flag value is incompatible with the selected backend (e.g., --approval with --agent=claude), reject it at parse time with a clear error message describing the constraint from the backend's perspective. Use when: (1) designing CLI tools that support multiple backends with different feature sets, (2) discovering that a flag value silently no-ops for one backend but not another, (3) operators pass incompatible flag combinations without realizing they're being ignored."
 category: tooling
 date: 2026-06-08

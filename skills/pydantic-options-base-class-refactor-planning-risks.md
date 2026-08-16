@@ -1,5 +1,6 @@
 ---
 name: pydantic-options-base-class-refactor-planning-risks
+license: BSD-3-Clause
 description: "Planning-risk checklist for Pydantic options/model base-class refactors. Use when: (1) consolidating duplicated Pydantic option defaults into shared base classes, (2) preserving constructor/API fields while changing inheritance, (3) reviewing plans that may accidentally add runtime-only fields to options models."
 category: architecture
 date: 2026-06-26

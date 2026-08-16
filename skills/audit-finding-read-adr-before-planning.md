@@ -1,5 +1,6 @@
 ---
 name: audit-finding-read-adr-before-planning
+license: BSD-3-Clause
 description: "When an audit finding cites an ADR, read the ADR before planning. Use when: (1) an audit finding references an architectural decision record, (2) a finding describes a structural smell and a remedy, (3) a plan would involve large structural refactors to a well-established codebase."
 category: architecture
 date: 2026-06-13

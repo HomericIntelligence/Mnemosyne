@@ -1,5 +1,6 @@
 ---
 name: ai-blog-generator
+license: BSD-3-Clause
 description: Generate AI-authored blog posts from git commit history to fill documentation
   gaps
 category: tooling

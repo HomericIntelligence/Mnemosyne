@@ -1,5 +1,6 @@
 ---
 name: validate-tier-id-filename-consistency
+license: BSD-3-Clause
 description: Validate that config field values match their source filename at the
   aggregation layer to prevent silent key/value disagreement
 category: testing

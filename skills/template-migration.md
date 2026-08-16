@@ -1,5 +1,6 @@
 ---
 name: template-migration
+license: BSD-3-Clause
 description: 'Skill: template-migration. Use when working with template migration.'
 category: tooling
 date: 2026-01-01

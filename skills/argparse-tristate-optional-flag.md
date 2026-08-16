@@ -1,5 +1,6 @@
 ---
 name: argparse-tristate-optional-flag
+license: BSD-3-Clause
 description: "Python argparse pattern for tri-state CLI flags (absent / present-with-no-arg / present-with-value) using nargs='?' + const=<sentinel>. Use when: (1) designing CLI flags like --org that need three behaviors, (2) want argparse to do parsing rather than custom post-processing."
 category: tooling
 date: 2026-05-26

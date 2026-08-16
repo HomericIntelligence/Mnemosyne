@@ -1,5 +1,6 @@
 ---
 name: testing-doc-guard-markdown-linewrap-substring
+license: BSD-3-Clause
 description: "A doc-content presence guard that asserts a required multi-word phrase via a raw `in` substring check yields FALSE FAILURES the moment a formatter (markdownlint / mdformat / prettier / manual 80-col wrapping) line-wraps that phrase across a newline — a plain substring does not span `\\n`. Normalize `\\s+`→single-space BEFORE the `in` check. Use when: (1) a regression test asserts `'some documented phrase' in section` against prose and fails even though the phrase is visibly present in the source markdown (it is wrapped, e.g. `**auto tag\\nrelease**`), (2) you are writing a doc-content membership/presence guard that pins required wording in a doc so a future edit can't silently re-vague it, (3) a freshly-authored `test_*` function trips ruff D103 (missing-docstring-in-public-function) in a repo with pydocstyle enabled, (4) a single-file `pixi run pytest <file>` run fails the repo's `--cov-fail-under` coverage gate."
 category: testing
 date: 2026-07-01

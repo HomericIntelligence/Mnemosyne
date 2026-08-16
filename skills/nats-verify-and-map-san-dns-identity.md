@@ -1,5 +1,6 @@
 ---
 name: nats-verify-and-map-san-dns-identity
+license: BSD-3-Clause
 description: "Mechanics of NATS verify_and_map cert→user identity matching. Use when: (1) mapping TLS client certs to NATS users via verify_and_map and wondering what field is matched, (2) debugging silent client rejection where every cert-presenting client is refused, (3) setting the accounts{} user= field and unsure whether to use CN, SAN-DNS, or full DN, (4) issuing role certs with step ca and needing the correct --san flag pattern, (5) writing a deny clause in accounts{} permissions and needing to know when deny overrides allow, (6) validating allow-list enforcement via a permissions-violation test."
 category: architecture
 date: 2026-06-19

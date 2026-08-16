@@ -1,5 +1,6 @@
 ---
 name: automation-prefix-match-plan-detection
+license: BSD-3-Clause
 description: "Recognize mutable automation-owned GitHub comments only by an exact opaque marker at byte zero, with headings and malformed lookalikes left inert. Use when: (1) fixing substring or permissive-prefix comment detection, (2) an owned-comment upsert can fall back to a display heading, (3) caller-side trimming can broaden identity, or (4) a durable plan/review journal must reconstruct safely after crashes."
 category: architecture
 date: 2026-08-06

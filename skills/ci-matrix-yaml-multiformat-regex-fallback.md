@@ -1,5 +1,6 @@
 ---
 name: ci-matrix-yaml-multiformat-regex-fallback
+license: BSD-3-Clause
 description: "Regex fallback pattern for parsing CI matrix Python version lists that appear in either inline bracket format (python-version: [\"3.10\", \"3.11\"]) or multiline YAML sequence format. Use when: (1) extending a function that parses CI workflow YAML for Python version lists, (2) a regex-based parser only handles one of the two common GHA matrix formats, (3) reviewing a plan to add multiline sequence support alongside existing inline bracket support."
 category: ci-cd
 date: 2026-06-13

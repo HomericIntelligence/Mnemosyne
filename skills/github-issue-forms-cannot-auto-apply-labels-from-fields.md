@@ -1,5 +1,6 @@
 ---
 name: github-issue-forms-cannot-auto-apply-labels-from-fields
+license: BSD-3-Clause
 description: "GitHub issue *forms* (`.github/ISSUE_TEMPLATE/*.yml`) cannot themselves apply a label from a dropdown/field answer — only the static `labels:` key applies labels, and only unconditionally. To turn a form field (e.g. a `severity` dropdown) into a label you MUST build a consumer Action that parses the rendered issue body. Use when: (1) a planning/triage issue-form proposal adds a dropdown or input whose answer nobody reads — a reviewer NOGOs an inert field, (2) you are tempted to embed the body-parsing `grep` directly in a workflow `run:` block — it is untestable and silently no-ops on a rendering-format mismatch, (3) the consumer triggers on `issues: [opened, edited]` and a plain POST of the label leaves a stale same-family label, (4) you need to bind `${{ github.event.issue.body }}` safely without opening a CWE-94 Actions-injection hole, (5) the issue names a second linkage (an 'audit-section' field) you decline to build and you must scope it out explicitly rather than silently drop it, (6) you must keep the EXACT GitHub body-rendering format honest — a fixture test encodes the assumption but the only true closure is opening one throwaway issue and capturing the real rendered body."
 category: architecture
 date: 2026-06-12

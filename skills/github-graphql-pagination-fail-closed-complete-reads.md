@@ -1,5 +1,6 @@
 ---
 name: github-graphql-pagination-fail-closed-complete-reads
+license: BSD-3-Clause
 description: "Design complete, fail-closed GitHub GraphQL connection reads with centralized cursor traversal, nested-connection ceilings, duplicate detection, and caller-specific failure policy. Use when: (1) a GitHub GraphQL consumer reads reviewThreads or another cursor connection, (2) later pages must not be silently omitted, (3) malformed pageInfo, cursor cycles, duplicate IDs, or oversized nested histories must not expose partial facts, (4) read-only dedupe helpers may fail open but authorization or reconciliation reads must fail closed."
 category: architecture
 date: 2026-08-06

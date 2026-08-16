@@ -1,5 +1,6 @@
 ---
 name: planning-bash-eval-to-positional-args-injection-fix
+license: BSD-3-Clause
 description: >-
   Methodology for planning a bash shell-injection remediation that replaces
   `eval "$cmd"` with positional-parameter expansion `"$@"` in a retry/wrapper

@@ -1,5 +1,6 @@
 ---
 name: config-explicit-path-fail-closed
+license: BSD-3-Clause
 description: "Layered config resolvers (CLI > env > file > auto-discovery) must fail closed when an EXPLICITLY passed config path does not exist, instead of silently falling through to env/defaults — while keeping silent fall-through for auto-discovery (path=None). Includes the companion test migration: existing tests that pass a nonexistent path as an isolation trick to bypass file config break under fail-closed and must be migrated to disable discovery explicitly (patch the discovery helper, pass path=None). Use when: (1) an audit flags 'explicit nonexistent config path is silently ignored and defaults are used', (2) adding an existence check to a config loader with auto-discovery, (3) tests start failing with the new file-not-found error because they used fake paths for isolation, (4) deciding which exception type a config resolver should raise."
 category: architecture
 date: 2026-07-17

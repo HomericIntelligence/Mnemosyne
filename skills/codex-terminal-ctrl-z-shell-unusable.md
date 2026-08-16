@@ -1,5 +1,6 @@
 ---
 name: codex-terminal-ctrl-z-shell-unusable
+license: BSD-3-Clause
 description: "Capture and triage Codex terminal job-control failures after Ctrl-Z suspend/resume over iTerm2 plus tsh into remote Linux/Slurm. Use when: (1) Codex or the shell stops accepting command input after fg, (2) debugging terminal mode or job-control state after SIGTSTP/SIGCONT, (3) recording evidence for upstream Codex issue #29730 without inventing a workaround."
 category: tooling
 date: 2026-06-23

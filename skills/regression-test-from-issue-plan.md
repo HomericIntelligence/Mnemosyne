@@ -1,5 +1,6 @@
 ---
 name: regression-test-from-issue-plan
+license: BSD-3-Clause
 description: "Recover missing regression tests from issue plans and choose the lowest test tier that proves the real boundary. Use when: (1) an issue references a test that should exist as a harness, (2) a bug fix landed without its named regression, (3) issue comments contain hand-computed expected values, (4) a parser consumes external-tool output whose producer semantics must be exercised without mocks."
 category: testing
 date: 2026-07-20

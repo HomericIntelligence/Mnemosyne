@@ -1,5 +1,6 @@
 ---
 name: automation-loop-explicit-scope-drain
+license: BSD-3-Clause
 description: "Keep queue-pipeline loop re-seeding limited to discovery. Use when an automation loop accepts explicit --issues or --prs selections, when a reviewed or merged item reappears after a full drain, or when writing regression tests for loop admission and retry boundaries."
 category: tooling
 date: 2026-08-05

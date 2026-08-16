@@ -1,5 +1,6 @@
 ---
 name: process-metrics-pipeline-integration
+license: BSD-3-Clause
 description: "Use when: (1) emitting R_Prog, CFP, strategic_drift, or pr_revert_rate\
   \ from a stage-based E2E runner into run_result.json; (2) loading process_metrics\
   \ from run_result.json into the ProjectScylla loader → dataframes → figures stack;\

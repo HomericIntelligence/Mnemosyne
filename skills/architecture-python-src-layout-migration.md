@@ -1,5 +1,6 @@
 ---
 name: architecture-python-src-layout-migration
+license: BSD-3-Clause
 description: "Pattern for migrating a Python project from flat layout (package/ at repo root) to src-layout (src/package/). Use when: (1) moving a Python package into src/ for ecosystem compliance, (2) updating all filesystem path references after a directory restructure, (3) fixing Path(__file__) navigations after adding a directory level."
 category: architecture
 date: '2026-03-25'

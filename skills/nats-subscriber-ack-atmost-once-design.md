@@ -1,5 +1,6 @@
 ---
 name: nats-subscriber-ack-atmost-once-design
+license: BSD-3-Clause
 description: "Document and pin the at-most-once delivery contract for NATSSubscriberThread._subscribe_loop in ProjectHephaestus. Use when: (1) the unconditional msg.ack() placement after a handler raise looks like a bug — it is intentional poison-message defense; (2) adding a class docstring Delivery semantics section to explain why ack is outside the except block; (3) writing a pinning test to make the three-way contract (acked even on raise, last_error set, success counter untouched) executable so prose comments cannot drift; (4) reviewing whether to move ack into the else: branch — NOGO, it switches to at-least-once and re-enables redelivery loops."
 category: architecture
 date: 2026-06-23

@@ -1,5 +1,6 @@
 ---
 name: warn-on-existing-dest-subdir
+license: BSD-3-Clause
 description: 'Defensive copytree pattern: emit stderr warning before shutil.copytree(dirs_exist_ok=True)
   when destination already exists. Use when: adding observability to re-runnable migration
   scripts, preventing silent overwrites.'

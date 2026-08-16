@@ -1,5 +1,6 @@
 ---
 name: planning-queue-priority-aging-dependency-safe-overlap-admission
+license: BSD-3-Clause
 description: "Plan starvation-resistant priority aging for a queue whose admission path combines dependency ordering, file-overlap serialization, and worker-cap checks. Use when: (1) repeatedly overlap-deferred work must gain priority, (2) aging must never violate dependency edges, (3) deferral age must survive selection without actual admission, or (4) warning thresholds need persistent visibility above the boundary."
 category: architecture
 date: 2026-07-20

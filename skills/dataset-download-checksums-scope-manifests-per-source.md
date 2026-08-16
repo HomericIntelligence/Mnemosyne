@@ -1,5 +1,6 @@
 ---
 name: dataset-download-checksums-scope-manifests-per-source
+license: BSD-3-Clause
 description: "Scope download checksums to the artifact owner instead of a shared basename. Use when: (1) multiple datasets or sources publish identically named files with different digests, (2) a shared downloader must preserve retry, transport, unknown-file, and corrupt-file behavior while fixing integrity selection."
 category: architecture
 date: 2026-08-07

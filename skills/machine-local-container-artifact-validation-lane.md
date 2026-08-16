@@ -1,5 +1,6 @@
 ---
 name: machine-local-container-artifact-validation-lane
+license: BSD-3-Clause
 description: "Keep a local validation lane containerized against a machine-local, digest-verified image artifact while hosted CI uses a host lane, fail closed when the artifact is missing, and isolate long-lived runtime inputs with least-privilege mounts. Use when: (1) `just validate` (or equivalent) must run in a reviewed container locally but hosted runners lack that container runtime, (2) a validation wrapper must bootstrap before the normal language/private helpers can be trusted, (3) a build/run tool does NOT fetch or build the runtime image so it must be materialized per machine, (4) a digest check only validates manifest text rather than the actual image bytes, (5) strict review flags stale rootfs reuse, unsafe shell interpolation, broad writable mounts, host-checkout imports, linked-worktree assumptions, or a PR bundling unrelated scope."
 category: ci-cd
 date: 2026-07-24

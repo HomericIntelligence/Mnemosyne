@@ -1,5 +1,6 @@
 ---
 name: logical-model-family-rename-with-storage-exceptions
+license: BSD-3-Clause
 description: "Rename logical reference surfaces (model-family names, or org/repo names when dropping a prefix) without breaking physical storage paths or package identity, AND execute the deferred breaking package rename correctly. Use when: (1) replacing old names in manifests, docs, tests, scripts, routes, and repo/URL references, (2) preserving real external paths or package names that still contain the old name, (3) splitting a safe reference-only sweep now from a breaking package/source rename deferred to a tracked issue, (4) adding a guard that blocks old logical names while allowing storage references, (5) a rename PR fails coverage/build because refs were renamed but package DIRECTORIES were not git mv'd, (6) completing a projectX->X package rename (git mv dirs + fix post-branch-merged files), (7) rebasing a stale whole-tree rename onto current main."
 category: tooling
 date: 2026-07-12

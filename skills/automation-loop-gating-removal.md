@@ -1,5 +1,6 @@
 ---
 name: automation-loop-gating-removal
+license: BSD-3-Clause
 description: "Patterns for removing defensive gating when upstream bug is fixed. Use when: (1) removing a gate function that guards against an upstream issue, (2) making previously-gated CLI flags optional, (3) cleaning up environment variable injections that are no longer needed, (4) synchronizing shell script invocations with CLI changes."
 category: tooling
 date: 2026-06-06

@@ -1,5 +1,6 @@
 ---
 name: python-testing-coverage-xml-gitignore
+license: BSD-3-Clause
 description: "Prevent generated pytest-cov artifacts from being committed. Use when: (1) coverage.xml appears in git status or PR diff, (2) htmlcov/ directory is tracked, (3) CI diff shows absolute developer paths in coverage reports."
 category: ci-cd
 date: 2026-06-20

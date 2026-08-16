@@ -1,5 +1,6 @@
 ---
 name: security-md-version-sync
+license: BSD-3-Clause
 description: "Keep SECURITY.md release-support and Python-compatibility statements synchronized with explicit project policy without mistaking release metadata for the support-policy authority. Use when: (1) a release tag or static version changes, (2) a hatch-vcs project has no static version field, (3) a supported-versions table drifts, (4) a guard requires a specific number of supported series, (5) a CI interpreter matrix changes, (6) a tag-coupled SECURITY.md guard should be retired because release cadence no longer defines the support window."
 category: documentation
 date: 2026-07-20

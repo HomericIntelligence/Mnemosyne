@@ -1,5 +1,6 @@
 ---
 name: git-worktree-sys-path-precedence-issue
+license: BSD-3-Clause
 description: "Document Python path-order failures in git worktrees and spawned child phases. Use when: (1) console scripts load stale code from a main checkout, (2) direct imports work but subprocess entry points do not, (3) an editable install points to the worktree but `sys.path` does not, (4) a generated console-script shebang selects another environment, (5) verification must bind the loaded module file, or (6) a child phase must replace a hostile inherited `PYTHONPATH` with the intended checkout root."
 category: tooling
 date: 2026-08-07

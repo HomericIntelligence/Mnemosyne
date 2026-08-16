@@ -1,5 +1,6 @@
 ---
 name: systemd-docker-compose-restart-storm-fix
+license: BSD-3-Clause
 description: "Fix systemd units supervising docker-compose-managed stacks that get stuck in activating (auto-restart) restart-storm loops, caused by combining systemd Restart=always with an attached (foreground) `docker compose up` on services that already carry their own container-level restart: policy. Use when: (1) `systemctl status` shows `Active: activating (auto-restart)` indefinitely for a docker compose unit even though `docker ps` shows the container running fine, (2) unit logs show `Error response from daemon: Conflict. The container name ... is already in use by container ...`, (3) after switching a unit to detached `docker compose up -d` you instead see `Error response from daemon: endpoint with name ... already exists in network ...` with zero matching containers in `docker ps -a`, (4) designing a systemd unit to supervise a docker-compose project and deciding who should own restart responsibility."
 category: tooling
 date: 2026-07-13

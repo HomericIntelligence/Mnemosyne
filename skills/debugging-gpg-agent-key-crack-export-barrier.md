@@ -1,5 +1,6 @@
 ---
 name: debugging-gpg-agent-key-crack-export-barrier
+license: BSD-3-Clause
 description: "Recover (or correctly conclude you cannot fast-crack) a forgotten passphrase for a GnuPG secret encryption subkey whose secret material lives ONLY as a gpg-agent S-expression file ~/.gnupg/private-keys-v1.d/<KEYGRIP>.key. Use when: (1) you must decrypt a message but the required subkey is protected by an unknown passphrase, (2) gpg2john rejects the .key file with 'can't find PGP armor boundary', (3) gpg --export-secret-keys/--export-secret-subkeys refuses without the passphrase ('No passphrase given' under loopback, 'Inappropriate ioctl for device' without pinentry) or emits only a gnu-dummy S2K stub, (4) you are tempted to hand-build a john \\$gpg\\$ hash by copying salt/count/iv/blob out of the .key S-expression and john reports 'No password hashes loaded', (5) you need the SAFE always-correct fallback trial loop and its realistic throughput before quoting an ETA. GnuPG 2.2.27, 2021-era openpgp-s2k3-sha1-aes-cbc keys."
 category: debugging
 date: 2026-06-12

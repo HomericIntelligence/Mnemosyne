@@ -1,5 +1,6 @@
 ---
 name: mypy-incremental-cache-scope
+license: BSD-3-Clause
 description: "Keep explicit mypy incremental-mode configuration separate from cache-format optimization. Use when: (1) an audit asks to make incremental mode explicit, (2) a change also proposes `sqlite_cache`, or (3) CI cache behavior needs a narrowly scoped, testable contract."
 category: tooling
 date: 2026-08-07

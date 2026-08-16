@@ -1,5 +1,6 @@
 ---
 name: cli-json-report-format-implementation
+license: BSD-3-Clause
 description: "Implement JSON output format for CLI report commands using dataclasses.asdict() with NaN/Inf sanitization. Use when: (1) adding JSON output to a CLI that already has a dataclass-based report model, (2) serializing dataclasses containing IEEE 754 special floats to JSON."
 category: tooling
 date: 2026-03-25

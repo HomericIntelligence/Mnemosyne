@@ -1,5 +1,6 @@
 ---
 name: python-type-hints-and-mypy-patterns
+license: BSD-3-Clause
 description: "Canonical guide to Python type annotation and mypy compliance patterns. Use when: (1) mypy with implicit_reexport=false or disallow_untyped_defs raises errors after a module refactor, (2) annotating hundreds of unannotated test functions in tests/unit/ to satisfy mypy strict mode, (3) AI-generated type annotations are placed at call sites instead of function definitions causing CI failures, (4) a manager/proxy class needs correct Callable or TypeVar generics to preserve return types without ParamSpec violations, or you see a `func: object`/`-> object` passthrough wrapper forcing `# type: ignore[arg-type]`/`[operator]`/`[attr-defined]` (including in downstream consumers) that a forbid-suppressions audit flags, (5) adding PEP 561 py.typed marker to make a typed package discoverable by mypy/pyright, (6) Pydantic model field types diverge from function signatures causing implicit-reexport or attribute-export errors."
 category: tooling
 date: 2026-06-11

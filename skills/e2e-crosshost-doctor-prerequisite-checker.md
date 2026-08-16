@@ -1,5 +1,6 @@
 ---
 name: e2e-crosshost-doctor-prerequisite-checker
+license: BSD-3-Clause
 description: "Build a `just doctor` prerequisite checker for the HomericIntelligence cross-host E2E pipeline. Use when: (1) creating or extending the doctor diagnostic tool, (2) adding new check categories or dependency verifications, (3) debugging missing prerequisites on worker/control hosts, (4) implementing auto-install modes for CI or fresh host setup."
 category: tooling
 date: 2026-04-06

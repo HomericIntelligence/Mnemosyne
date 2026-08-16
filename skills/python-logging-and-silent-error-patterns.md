@@ -1,5 +1,6 @@
 ---
 name: python-logging-and-silent-error-patterns
+license: BSD-3-Clause
 description: "Diagnose and fix Python logging configuration bugs and silent-error anti-patterns. Use when: (1) log lines show duplicated context prefixes or empty delimiters like [//], (2) get_logger() adds duplicate StreamHandlers on repeated calls, (3) KeyError on custom %(field)s format placeholders, (4) LoggerAdapter.process() mutates the caller's extra dict, (5) a function silently swallows ValueError and falls back to a default instead of raising, (6) a string-typed enum is not normalized in-place so downstream middleware fails-open, (7) a Python CLI flag is silently prefix-matched by argparse causing a silent no-op, (8) __repr__ produces untruncated output inconsistent with __str__."
 category: debugging
 date: 2026-05-19

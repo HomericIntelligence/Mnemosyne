@@ -1,5 +1,6 @@
 ---
 name: bash-stderr-mktemp-trap-return
+license: BSD-3-Clause
 description: "Pattern for separating stderr from stdout in bash functions using mktemp + trap RETURN. Use when: (1) a bash function calls a tool that mixes stderr into stdout (e.g., 2>&1 corrupts jq input), (2) you need clean stdout for piping while still capturing error details, (3) function uses local temp files that need guaranteed cleanup."
 category: debugging
 date: 2026-06-14

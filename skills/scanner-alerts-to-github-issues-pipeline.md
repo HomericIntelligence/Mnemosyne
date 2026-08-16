@@ -1,5 +1,6 @@
 ---
 name: scanner-alerts-to-github-issues-pipeline
+license: BSD-3-Clause
 description: "Disciplined, scanner-grounded pipeline for a cross-repo security & quality audit: collect a repo's own hosted GitHub scanner alerts (code-scanning + Dependabot), verify each on live origin/main, dedup against the existing issue backlog, cluster by rule, and file one detailed GitHub issue per verified (rule x repo) cluster. Use when: (1) asked to analyze many repos for security/quality and file a GitHub issue per distinct real finding, (2) triaging GitHub-hosted CodeQL/Semgrep/Trivy code-scanning and Dependabot alerts rather than free-form LLM code-reading, (3) filtering scanner false positives (vendored-dep CVEs, docs example keys, stale alerts) before filing, (4) needing the finding source to be the repo's own scanner alerts, not an LLM swarm's claims."
 category: tooling
 date: 2026-07-16

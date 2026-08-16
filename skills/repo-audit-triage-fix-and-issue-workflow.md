@@ -1,5 +1,6 @@
 ---
 name: repo-audit-triage-fix-and-issue-workflow
+license: BSD-3-Clause
 description: "Full workflow for strict repo audit triage: run audit, verify each finding is true before acting on it, classify findings by complexity, batch-fix simple items in one PR, file GitHub issues for complex work. Use when: (1) running a comprehensive repository quality audit and acting on all findings, (2) needing to triage audit results into immediate fixes vs tracked issues, (3) remediating dead code, stale docs, broken CI, or missing requirements files, (4) acting on a multi-agent swarm audit (`/repo-analyze-strict-full`) whose section reports may contain false positives that must be verified before triage, (5) reconciling declared runtime support with APIs used by the implementation, (6) checking security suppressions and live GitHub controls rather than trusting a green default-environment scan or committed policy file."
 category: tooling
 date: 2026-07-29

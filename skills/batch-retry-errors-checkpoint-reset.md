@@ -1,5 +1,6 @@
 ---
 name: batch-retry-errors-checkpoint-reset
+license: BSD-3-Clause
 description: 'Fix --retry-errors in batch mode to detect and reset failed/rate-limited
   runs inside checkpoints of tests that are marked ''success'' at the batch level.
   Use when batch reruns silently skip tests with internal checkpoint failures, or

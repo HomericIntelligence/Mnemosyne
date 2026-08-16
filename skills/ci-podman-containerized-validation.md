@@ -1,5 +1,6 @@
 ---
 name: ci-podman-containerized-validation
+license: BSD-3-Clause
 description: "Install rootless Podman in GitHub Actions CI to run containerized validation. Use when: (1) CI needs to build/run dev containers, (2) set -u causes unbound variable errors with empty bash arrays, (3) shasum is missing on Ubuntu CI runners."
 category: ci-cd
 date: 2026-06-11

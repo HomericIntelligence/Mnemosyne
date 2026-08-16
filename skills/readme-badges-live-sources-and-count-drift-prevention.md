@@ -1,5 +1,6 @@
 ---
 name: readme-badges-live-sources-and-count-drift-prevention
+license: BSD-3-Clause
 description: "Use when: (1) adding badges to a README and need live-source badge endpoints (shields.io, GitHub Actions status, PyPI JSON API) instead of hardcoded values; (2) adding missing PR-critical workflow badges to a README badge block; (3) automating README badge count validation to prevent drift when file/test counts grow; (4) verifying package names via PyPI before committing badge URLs; (5) replacing hardcoded test/file counts in README badges and prose with live commands users can run, preventing flakiness when counts change frequently."
 category: documentation
 date: 2026-06-07

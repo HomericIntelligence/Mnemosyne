@@ -1,5 +1,6 @@
 ---
 name: slurm-shared-storage-artifact-relocation
+license: BSD-3-Clause
 description: "Relocate large artifact trees through Slurm and shared storage without exposing a partial destination or deleting the only good copy. Use when: (1) a quota-bound checkpoint, model, dataset, or image tree must move to shared storage, (2) cross-parent rename may fail with EXDEV even though stat reports equal st_dev values, (3) login, sandbox, and compute nodes can see different mount or identity metadata, (4) an interrupted copy must resume by verified content, or (5) source retirement needs a separate destructive-authorization gate."
 category: tooling
 date: "2026-07-31"

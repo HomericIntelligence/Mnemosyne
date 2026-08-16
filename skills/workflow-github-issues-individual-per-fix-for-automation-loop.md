@@ -1,5 +1,6 @@
 ---
 name: workflow-github-issues-individual-per-fix-for-automation-loop
+license: BSD-3-Clause
 description: "When filing GitHub issues that the HomericIntelligence automation loop (`hephaestus-automation-loop`) will fix, file ONE issue per independently-shippable PR — not one combined issue listing several fixes. Use when: (1) filing a multi-bug audit finding, (2) filing a multi-component refactor, (3) the automation loop will pick up these issues, (4) the Closes #N rule (`pr-policy` CI gate enforces exactly-one closing reference) constrains you to one issue per PR."
 category: tooling
 date: 2026-05-30

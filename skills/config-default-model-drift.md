@@ -1,5 +1,6 @@
 ---
 name: config-default-model-drift
+license: BSD-3-Clause
 description: 'Skill: config-default-model-drift. Use when working with config default
   model drift.'
 category: tooling

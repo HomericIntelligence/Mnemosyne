@@ -1,5 +1,6 @@
 ---
 name: timeout-refactor-env-var-to-cli-pitfalls
+license: BSD-3-Clause
 description: "CI and boundary-validation patterns when moving timeout controls into explicit CLI options. Use when: (1) replacing timeout env shims with --*-timeout flags, (2) requiring shared timeout helpers to reject zero and negatives while omission selects defaults, (3) preserving a separate zero-disables timeout contract, (4) keeping exports, Protocols, tests, and worktree tooling aligned."
 category: ci-cd
 date: 2026-08-06

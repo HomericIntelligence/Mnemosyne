@@ -1,5 +1,6 @@
 ---
 name: github-api-secondary-rate-limit-backoff
+license: BSD-3-Clause
 description: 'Fix rate-limit message phrasings that no regex matches falling through
   to the wrong retry path in rate_limit.py. Use when GitHub secondary rate limit
   messages fall through to the generic 1s/2s/4s transient retry path with no useful

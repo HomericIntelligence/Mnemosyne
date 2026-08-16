@@ -1,5 +1,6 @@
 ---
 name: review-coordination-parallel-serial-subagent-dispatch
+license: BSD-3-Clause
 description: "Use when: (1) coordinating multiple sub-agents to fix GitHub PR review inline comments in parallel, (2) a PR has 3+ review threads and you need to avoid file collisions and race conditions, (3) you want to dispatch agents by difficulty tier (simple→Haiku, medium→Sonnet, hard→Opus), (4) review threads touch the same file and must be fixed sequentially to avoid concurrent edits, (5) review threads touch different files and can be fixed in parallel for speed, (6) you need to group review threads by file, sort by difficulty, and dispatch with model-tier routing, (7) fixing a PR review requires invoking /hephaestus:advise per sub-agent for domain knowledge before applying fixes, (8) after sub-agent fixes, you need to coordinate formatting, compilation, and commit creation, (9) sub-agent replies must be aggregated with thread_id and one-liner summaries for verification."
 category: ci-cd
 date: 2026-07-03

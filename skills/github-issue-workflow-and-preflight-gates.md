@@ -1,5 +1,6 @@
 ---
 name: github-issue-workflow-and-preflight-gates
+license: BSD-3-Clause
 description: "Use when: (1) starting work on any GitHub issue — run preflight checks to avoid duplicate implementation, (2) building or maintaining automated preflight safety gates in issue-implementation workflows, (3) filing 10–40 audit findings as a tracked GitHub issue queue with a parent tracker, (4) filing issues that cite repo-internal markdown docs — push docs to origin/main first so URLs resolve on first render, (5) posting structured progress updates or completion summaries to GitHub issues, (6) filing a feature request against a third-party OSS repo with a proposed patch and duplicate check, (7) verifying an already-resolved issue and closing it with grep evidence, (8) the duplicate-search before filing often reshapes scope — finding an existing issue may convert 'file N issues' into 'comment on K existing + file (N-K) new', (9) a transient validation transcript captures a real unresolved bug and should become a durable GitHub bug issue instead of a checked-in artifact"
 category: tooling
 date: 2026-06-17

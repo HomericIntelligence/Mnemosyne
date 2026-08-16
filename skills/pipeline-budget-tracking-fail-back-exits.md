@@ -1,5 +1,6 @@
 ---
 name: pipeline-budget-tracking-fail-back-exits
+license: BSD-3-Clause
 description: "Use when: (1) building routing tables with retry budgets for an automation pipeline (e.g., review loops, implementation loops); (2) distinguishing between retry failures that consume budget (re-enter the same stage) and terminal/fail-back exits that don't (leave the stage or terminate); (3) writing property tests to assert that unbudgeted exits guarantee termination to FINISHED; (4) debugging property test assertions that incorrectly assume all state transitions preserve budget semantics."
 category: architecture
 date: 2026-07-04

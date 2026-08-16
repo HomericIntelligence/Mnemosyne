@@ -1,5 +1,6 @@
 ---
 name: testing-mock-print-stdout-patch-target
+license: BSD-3-Clause
 description: "Python's built-in print() resolves sys.stdout from the live sys/builtins module at CALL TIME, so @patch('mypkg.mymod.sys.stdout') does NOT intercept a bare print() inside that module — the write mock stays empty and the assertion passes vacuously (false green). Subtly, the SAME patch DOES intercept mymod.sys.stdout.isatty(). Use when: (1) writing a unit test that mocks stdout/stderr, (2) asserting on captured print() output, (3) a stdout-mock test passes but doesn't actually verify anything."
 category: testing
 date: 2026-06-14

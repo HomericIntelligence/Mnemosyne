@@ -1,5 +1,6 @@
 ---
 name: codebase-analysis-generic-tier2-tools
+license: BSD-3-Clause
 description: "Use when: (1) analyzing code structure, module hierarchy, or dependency\
   \ graphs for orientation or documentation; (2) extracting algorithms, equations,\
   \ or hyperparameters from research papers for implementation planning; (3) measuring\

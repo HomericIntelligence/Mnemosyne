@@ -1,5 +1,6 @@
 ---
 name: ci-manifest-platform-fixes
+license: BSD-3-Clause
 description: "Fix CI/CD failures in manifest-driven platforms. Use when: (1) Python binary path differs between local and CI, (2) git-dependent tests fail in CI, (3) docs routing tests fail for new files."
 category: ci-cd
 date: 2026-06-15

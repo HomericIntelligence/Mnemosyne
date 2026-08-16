@@ -1,5 +1,6 @@
 ---
 name: yaml-long-line-refactor
+license: BSD-3-Clause
 description: 'Skill: yaml-long-line-refactor. Use when working with yaml long line
   refactor.'
 category: architecture

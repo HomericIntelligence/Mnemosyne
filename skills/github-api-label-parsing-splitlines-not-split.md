@@ -1,5 +1,6 @@
 ---
 name: github-api-label-parsing-splitlines-not-split
+license: BSD-3-Clause
 description: "Use .splitlines() not .split() when parsing gh api label output in Python.
   Use when: (1) calling `gh api .../labels --jq '.[].name'` and splitting the output
   into a Python list, (2) any `gh api` call whose newline-delimited output is processed

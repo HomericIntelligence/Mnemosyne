@@ -1,5 +1,6 @@
 ---
 name: debug-external-reachability-not-local-dns
+license: BSD-3-Clause
 description: "Verify whether a self-hosted service is truly unreachable from outside, instead of trusting DNS/reachability checks run on a server that is itself a VPN/mesh member. Use when: (1) a client reports a self-hosted service is unreachable/timing out, (2) the server is itself on a VPN/mesh network with custom DNS (e.g. Tailscale MagicDNS, WireGuard split-DNS, corporate VPN split-horizon), (3) debugging whether a service is really down or just looked-down from the wrong vantage point."
 category: debugging
 date: 2026-07-13

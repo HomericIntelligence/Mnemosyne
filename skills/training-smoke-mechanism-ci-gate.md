@@ -1,5 +1,6 @@
 ---
 name: training-smoke-mechanism-ci-gate
+license: BSD-3-Clause
 description: "Build a CI gate that proves each ML training ENTRYPOINT's training MECHANISM works — the arg parser wires, synthetic data flows through the model, the loss is computed and printed — WITHOUT downloading a dataset or checking convergence (per ADR-014). Two entrypoint flags (--smoke to build in-process synthetic tensors, --max-batches N to cap batches per epoch), an --epochs 1 gate invocation, a mechanism-not-convergence assertion (exit 0 + >=2 finite parseable loss lines, never monotonic decrease), and a per-model GitHub Actions matrix so N models compile+run in parallel instead of one serial job. Use when: (1) building a CI gate for ML training entrypoints, (2) a smoke run needs synthetic data instead of a dataset download, (3) a training gate times out because it ran all 200 epochs, (4) deciding mechanism-vs-convergence assertions, (5) parallelizing N model smoke-runs via a CI matrix. Concrete IMPLEMENTATION of a training-smoke gate; distinct from planning-unmerged-parent-contract-compile-smoke-gate (PLANNING such a gate) and tooling-dry-run-smoke-full-profile-dispatcher (a dry/smoke/full PROFILE dispatcher)."
 category: ci-cd
 date: 2026-07-11

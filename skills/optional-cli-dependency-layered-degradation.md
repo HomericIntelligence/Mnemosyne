@@ -1,5 +1,6 @@
 ---
 name: optional-cli-dependency-layered-degradation
+license: BSD-3-Clause
 description: "Use when: (1) a containerized validation path crashes because an optional system binary is absent, (2) Python converts the missing binary into a domain result but a shell caller still treats that result as fatal, (3) required and optional command dependencies need explicit, observable preflight behavior."
 category: ci-cd
 date: 2026-08-07

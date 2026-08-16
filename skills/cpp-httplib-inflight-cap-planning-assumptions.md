@@ -1,5 +1,6 @@
 ---
 name: cpp-httplib-inflight-cap-planning-assumptions
+license: BSD-3-Clause
 description: "Use when planning (not yet implementing) a global in-flight request cap / backpressure / concurrency throttle for a cpp-httplib (or similar embedded HTTP) server, or when reviewing such a plan, or for any design that must release a per-request resource on every exit path. PRIMARY learning: when a framework offers only two SEPARATE lifecycle callbacks (pre/post-routing), do NOT split acquire/release across them — DECORATE each handler with a closure that constructs an RAII guard at handler entry so it destructs on every exit (normal/early/throw), removing the unverifiable post-routing-fires-on-every-path assumption. Also captures: verify call-site COUNTS by fresh grep before asserting them in a plan, std::counting_semaphore availability, and the default-cap heuristic."
 category: architecture
 date: 2026-06-20

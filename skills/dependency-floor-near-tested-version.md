@@ -1,5 +1,6 @@
 ---
 name: dependency-floor-near-tested-version
+license: BSD-3-Clause
 description: "Pattern for raising a tool's version floor to match the tested minor version. Use when: (1) a dependency floor is much lower than the CI-resolved version, (2) adding a cross-manifest consistency regression guard for a dev tool, (3) a load-bearing package (pip, setuptools) needs a two-sided bound, not just a floor raise."
 category: ci-cd
 date: 2026-06-14

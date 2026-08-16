@@ -1,5 +1,6 @@
 ---
 name: pipeline-auxiliary-lane-capacity-isolation
+license: BSD-3-Clause
 description: "Use when: (1) a queue pipeline moves slow optional or terminal work into a new stage but it still stalls primary work, (2) one global permit spans every queue, (3) a single worker pool lets post-processing consume primary capacity, or (4) cleanup must wait for asynchronous post-processing without leaking resources."
 category: architecture
 date: 2026-08-07

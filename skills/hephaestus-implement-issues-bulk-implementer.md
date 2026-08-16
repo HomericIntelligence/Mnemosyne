@@ -1,5 +1,6 @@
 ---
 name: hephaestus-implement-issues-bulk-implementer
+license: BSD-3-Clause
 description: "How to use ProjectHephaestus's canonical bulk issue-implementer (hephaestus-implement-issues) to implement many GitHub issues per repo instead of hand-rolling agent prompts — flags, worker-cap math, and the failure modes that actually bite (signal-not-main-thread, 429 session-quota, blocking-inside-a-schema'd-Workflow-subagent, AND the --issues N Depends-on scope-leak that re-implements already-CLOSED dependency issues, bug #1940). Use when: (1) you need to implement N GitHub issues across one or more repos and are tempted to write your own agent loop, (2) you hit 'ValueError: signal only works in main thread', (3) you hit HTTP 429 'session limit' mid-batch, (4) a Workflow subagent wrapping the implementer fails with 'subagent completed without calling StructuredOutput', (5) you need to size --max-workers to a per-CPU-core cap, (6) cleaning up orphaned .worktrees/issue-N after an interrupted run, (7) --issues N logs 'Loaded 3 issues' / re-implements a CLOSED 'Depends on #M' dependency and makes DUPLICATE PRs for merged work, (8) you must drive a serial 'Depends on' cleanup chain safely (sub-agent impl + hephaestus-review-prs, which has no dependency-resolver)."
 category: tooling
 date: 2026-07-06

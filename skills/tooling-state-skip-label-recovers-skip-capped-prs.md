@@ -1,5 +1,6 @@
 ---
 name: tooling-state-skip-label-recovers-skip-capped-prs
+license: BSD-3-Clause
 description: "The state:skip label blocks the hephaestus automation loop from re-attempting a PR. ROOT CAUSE (fixed in PR #1584): the script was wrongly ADDING state:skip in a self-perpetuating cycle (sticky non-recovery + repo-level rc mis-attribution + closed-issue bypass) — the loop re-tagged everything every iteration, converging on nothing. The fix makes state:skip operator-only and absolute (read live, never auto-added, never auto-removed). To recover an ALREADY-stranded PR, remove the label by hand (gh issue edit <N> --remove-label state:skip), rebase if DIRTY, re-run. Use when: (1) the loop keeps skipping everything / re-tags state:skip every loop and converges on nothing, (2) hephaestus-automation-loop --issues <N> logs 'Skipping #<N> (state:skip)' and does nothing (~3s loops), (3) a green-but-unarmed pending-review PR gets spuriously skipped, (4) a CLOSED issue passed via --issues is driven and tagged, (5) recovering a skip-capped PR after the blocker is fixed."
 category: tooling
 date: 2026-06-23

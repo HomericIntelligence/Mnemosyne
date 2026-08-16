@@ -1,5 +1,6 @@
 ---
 name: documentation-state-machine-consistency-review
+license: BSD-3-Clause
 description: "Review design documents for state machine self-consistency. Use when: (1) a design doc defines a state type and diagram, (2) reviewing API lifecycle designs, (3) verifying all states appear in transition diagram."
 category: documentation
 date: 2026-06-12

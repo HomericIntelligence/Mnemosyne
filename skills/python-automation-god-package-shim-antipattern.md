@@ -1,5 +1,6 @@
 ---
 name: python-automation-god-package-shim-antipattern
+license: BSD-3-Clause
 description: "The import * shim strategy for Python package reorganization is fatally flawed unless all modules define __all__. Use when: (1) planning to move Python modules to sub-packages with backward-compat shims, (2) considering wildcard imports as a migration strategy, (3) auditing a large Python package for reorganization."
 category: architecture
 date: 2026-06-13

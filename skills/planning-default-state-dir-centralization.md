@@ -1,5 +1,6 @@
 ---
 name: planning-default-state-dir-centralization
+license: BSD-3-Clause
 description: "Planning checklist for centralizing a repeated default automation state directory behind one helper or constant. Use when: (1) a repo repeats a literal default path such as build/.issue_implementer, (2) a refactor moves mkdir side effects into a helper, (3) tests risk hiding literal-path regressions by importing the production constant."
 category: architecture
 date: 2026-06-26

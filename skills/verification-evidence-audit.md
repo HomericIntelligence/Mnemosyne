@@ -1,5 +1,6 @@
 ---
 name: verification-evidence-audit
+license: BSD-3-Clause
 description: "Verify completion, fix, passing-check, metric, CI, or benchmark claims with fresh runnable evidence. Use when: (1) about to claim work is complete/fixed/passing/ready, (2) a measured value, CI result, benchmark, or training loss is posted, (3) a success claim cites a committed file or badge instead of a live gate"
 category: testing
 date: 2026-07-16

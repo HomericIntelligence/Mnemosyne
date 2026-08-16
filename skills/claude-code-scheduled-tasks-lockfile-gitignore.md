@@ -1,5 +1,6 @@
 ---
 name: claude-code-scheduled-tasks-lockfile-gitignore
+license: BSD-3-Clause
 description: "Untrack and gitignore Claude Code's .claude/scheduled_tasks.lock runtime lockfile to stop two distinct failure modes: (a) end-of-file-fixer pre-commit failures in CI, (b) CLI tools like hephaestus-tidy that abort because `git status --porcelain` reports the untracked lockfile as dirty. Use when: (1) CI pre-commit / lint check fails on `Fixing .claude/scheduled_tasks.lock`, (2) a CLI tool refuses to run with `Working tree has uncommitted changes` and `git status --porcelain` shows `?? .claude/scheduled_tasks.lock`, (3) the same failure recurs across unrelated PRs in the same repo, (4) the `/schedule` skill is in use."
 category: ci-cd
 date: 2026-05-30

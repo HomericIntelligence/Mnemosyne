@@ -1,5 +1,6 @@
 ---
 name: multi-repo-governance-and-ecosystem-setup
+license: BSD-3-Clause
 description: "Provision and govern multiple HomericIntelligence repositories at scale. Use when: (1) rolling out governance files (LICENSE/CODE_OF_CONDUCT/SECURITY/CONTRIBUTING) to 10+ repos in an org, (2) onboarding a new Tailnet host with the full HomericIntelligence dependency stack, (3) fleshing out scaffolded repos with justfile/pixi.toml/READMEs and fixing bash bugs, (4) centralizing external repo clones to save disk and avoid scattered dependencies, (5) configuring the Claude Code plugin marketplace for auto-update via cron, (6) migrating enabled plugins between marketplaces, or (7) setting up SessionEnd hooks or pipeline integration for automatic /learn retrospectives."
 category: tooling
 date: 2026-05-19

@@ -1,5 +1,6 @@
 ---
 name: contributing-md-structure-sync
+license: BSD-3-Clause
 description: "contributing-md-structure-sync"
 category: tooling
 date: 2026-03-19

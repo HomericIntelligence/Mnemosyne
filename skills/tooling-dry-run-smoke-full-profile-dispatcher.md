@@ -1,5 +1,6 @@
 ---
 name: tooling-dry-run-smoke-full-profile-dispatcher
+license: BSD-3-Clause
 description: 'Ship long-running training/inference/experiment scripts behind a single-file
   bash dispatcher exposing three named execution profiles (dry-run, smoke, full).
   Use when: (1) a script has a wall-clock budget ranging from seconds (verify pipeline)

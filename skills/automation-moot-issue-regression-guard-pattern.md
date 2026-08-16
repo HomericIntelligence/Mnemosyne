@@ -1,5 +1,6 @@
 ---
 name: automation-moot-issue-regression-guard-pattern
+license: BSD-3-Clause
 description: "Use when a follow-up or auto-generated issue's concrete premises (file names, class names, function names, PR references) do not match the actual codebase state — i.e. the code described never existed or was never merged. Instead of fabricating the missing modules (YAGNI/KISS violation) or closing with no artifact, convert the already-satisfied invariant into a machine-checkable regression-guard test using ast.parse. Use when: (1) every grep for issue-cited symbols returns zero hits; (2) the upstream PR the issue references does not exist (gh pr view → 'Could not resolve'); (3) the issue describes a refactor across modules that a grep confirms live in only one place already; (4) implementing the literal request would create dead code or phantom modules."
 category: testing
 date: 2026-06-14

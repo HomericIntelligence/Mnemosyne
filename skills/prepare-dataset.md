@@ -1,5 +1,6 @@
 ---
 name: prepare-dataset
+license: BSD-3-Clause
 description: Process and validate datasets for training. Use when setting up data
   pipelines.
 category: tooling

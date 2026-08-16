@@ -1,5 +1,6 @@
 ---
 name: cluster-endpoint-incident-reproducer-validation
+license: BSD-3-Clause
 description: "Build and harden cluster endpoint incident reproducer PRs after strict review. Use when: (1) a model-serving/HPC incident needs a checkout-to-validation reproducer, (2) a shell reproducer allocates Slurm or similar cluster resources, (3) artifacts may contain private prompts, responses, tokens, endpoint metadata, profiler traces, or control-plane evidence, (4) a strict PR review produced blockers around security, cleanup, reproducibility, shell quoting, tests, operator docs, or CI."
 category: debugging
 date: 2026-07-02

@@ -1,5 +1,6 @@
 ---
 name: train-model
+license: BSD-3-Clause
 description: Execute model training with optimization algorithms. Use when running
   training loops on datasets.
 category: tooling

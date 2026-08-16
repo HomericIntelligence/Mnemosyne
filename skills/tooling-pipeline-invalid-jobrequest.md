@@ -1,5 +1,6 @@
 ---
 name: tooling-pipeline-invalid-jobrequest
+license: BSD-3-Clause
 description: "Use when: (1) encountering TypeErrors or coordinator crashes from JobRequest(None, ...); (2) trying to use JobRequest as a generic callback signal (not for job submission); (3) needing to distinguish timer-park (RETRY disposition) from job submission (JobRequest); (4) fixing legacy code that uses type: ignore to silence JobRequest(None) violations; (5) routing work without actually submitting a job to the queue."
 category: tooling
 date: 2026-07-05

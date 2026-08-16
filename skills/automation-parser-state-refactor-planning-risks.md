@@ -1,5 +1,6 @@
 ---
 name: automation-parser-state-refactor-planning-risks
+license: BSD-3-Clause
 description: "Planning-risk checklist for consolidating repeated ProjectHephaestus automation parser builders and issue-implementer state directory construction. Use when: (1) refactoring many argparse _build_parser() functions behind a shared builder, (2) centralizing build/.issue_implementer paths behind DEFAULT_STATE_DIR and ensure_state_dir(), (3) reviewing parser-parity tests that inspect argparse internals, (4) a plan relies on grep-derived counts for parser builders, magic strings, or state-directory bypasses."
 category: architecture
 date: 2026-06-26

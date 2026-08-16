@@ -1,5 +1,6 @@
 ---
 name: cytoscape-filter-compose
+license: BSD-3-Clause
 description: Composing multiple Cytoscape.js visibility filters (day, status, team
   trajectory) without mutual state reset. Covers the single-owner pattern, boundary
   edge insertion in DAGs, and avoiding relayout thrash.

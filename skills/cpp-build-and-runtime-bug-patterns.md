@@ -1,5 +1,6 @@
 ---
 name: cpp-build-and-runtime-bug-patterns
+license: BSD-3-Clause
 description: "Use when: (1) a C++ PR fails with 'no matching function for call to register_routes' or undefined references after a signature change, (2) std::atomic members cause POSIX socket calls to resolve as std::bind via ADL, (3) a [[deprecated]] struct field causes the struct's own .cpp to fail under -Werror, (4) cpp-httplib route handler lambdas crash due to dangling reference UB after register_routes returns, (5) nlohmann/json .value(key, nullptr).is_null() fails to compile with nullptr_t type error, (6) cmake configure succeeds but ctest reports No tests were found in a scaffold repo."
 category: debugging
 date: 2026-05-19

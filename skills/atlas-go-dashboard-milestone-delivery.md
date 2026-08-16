@@ -1,5 +1,6 @@
 ---
 name: atlas-go-dashboard-milestone-delivery
+license: BSD-3-Clause
 description: "Deliver a final Go service milestone: implement auth middleware, hand-rolled Prometheus metrics, golangci-lint CI, e2e tests, docker build, review wave, and close an epic. Use when: (1) completing the last milestone of a Go dashboard service in HomericIntelligence, (2) adding auth middleware (none/basic/bearer) with timing-safe comparisons to a Go HTTP service, (3) implementing a hand-rolled Prometheus /metrics endpoint without external dependencies, (4) wiring golangci-lint + e2e build tags into CI, (5) posting multi-commit branch protection statuses for all milestones on every new PR SHA."
 category: architecture
 date: 2026-05-04

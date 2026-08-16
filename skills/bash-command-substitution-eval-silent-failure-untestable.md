@@ -1,5 +1,6 @@
 ---
 name: bash-command-substitution-eval-silent-failure-untestable
+license: BSD-3-Clause
 description: "The inner command of `eval \"$(/cmd ...)\"` runs in a command-substitution subshell whose non-zero exit is swallowed, so the eval-failure rc-capture path is unreachable and untestable via the public function. Use when: (1) writing or reviewing a bats/unit test that claims to assert `eval` returns non-zero by pointing it at a nonexistent or exit-N command, (2) a test named 'eval failure surfaces rc' is functionally identical to the happy-path test and can never catch a regression, (3) hardening an `eval`-bound function with a whitelist regex and then trying to test the real-eval-failure branch, (4) deciding whether a `local _rc=0; eval \"$line\" || _rc=$?` capture is verifiable by runtime test or only by code inspection, (5) reconciling a `|| true` call-site (POLA-visible failure tolerance) against a repo `forbid-or-true` pre-commit hook, (6) removing redundant line-level `# shellcheck disable=SC2015` under a file-wide disable."
 category: testing
 date: 2026-06-11

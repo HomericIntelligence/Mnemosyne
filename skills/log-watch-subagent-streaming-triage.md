@@ -1,5 +1,6 @@
 ---
 name: log-watch-subagent-streaming-triage
+license: BSD-3-Clause
 description: "Run a long-lived log-monitoring subagent that blocks cheaply on tail -F | grep, streams one triage message per incident back to the coordinating session, batches repeated signatures, and — critically — treats its own classifications as HYPOTHESES: attribution requires artifact inspection (the monitored system's own comments/state), which in the verified case REFUTED the monitor's systemic-failure hypothesis before a wrong remediation (stopping the loop / switching models) was taken. Use when: (1) watching an automation run's log for errors over hours without burning tokens on polling, (2) a monitor must report EACH incident as it happens rather than stopping at the first, (3) a monitor's plausible root-cause hypothesis is about to drive a state-changing remediation, (4) deciding what a watch agent should ignore vs batch vs escalate, (5) recalibrating a running monitor mid-flight with new classification rules."
 category: tooling
 date: 2026-07-17

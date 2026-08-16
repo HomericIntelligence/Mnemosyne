@@ -1,5 +1,6 @@
 ---
 name: github-issue-state-label-rank-at-or-past
+license: BSD-3-Clause
 description: >-
   Use when: (1) classifying issues by mutually-exclusive state labels into a pipeline
   queue (e.g. state:needs-plan, state:plan-go, state:implementation-go), (2) routing

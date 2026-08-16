@@ -1,5 +1,6 @@
 ---
 name: bash-mock-gh-python-subprocess-export-f
+license: BSD-3-Clause
 description: "Pattern for mocking a bash CLI tool (e.g., gh) as a bash function in Python subprocess tests using export -f. Use when: (1) testing a bash script that calls an external CLI tool like gh, (2) tests run via Python subprocess.run('bash -c ...'), (3) you need to control the CLI tool's stdout/exit code per test case."
 category: testing
 date: 2026-06-12

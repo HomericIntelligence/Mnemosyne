@@ -1,5 +1,6 @@
 ---
 name: gcovr-lcov-excl-region-exclusion
+license: BSD-3-Clause
 description: "Replace file-level gcovr excludes with fine-grained LCOV_EXCL_START/STOP region markers so complex C++ files stay inside the coverage gate, excluding only regions provably unreachable without a live external dependency. Use when: (1) removing a file-level `--exclude foo.cpp` from a gcovr coverage gate and replacing it with fine-grained LCOV_EXCL_START/STOP markers, (2) deciding which regions to exclude vs leave measured when code requires a live external service (broker/DB) to execute, (3) a reviewer flags measured-but-provably-unreachable lines or 'covered by integration tests' comments that assert nonexistent coverage, (4) coverage numbers must be evidenced reviewer-visibly (PR body / --print-summary)."
 category: ci-cd
 date: 2026-07-02

@@ -1,5 +1,6 @@
 ---
 name: python-sca-pip-audit-update-transitive-lock
+license: BSD-3-Clause
 description: "Resolve GitHub Actions Python SCA / security-dependency-scan pip-audit failures caused by vulnerable transitive dependencies in a uv.lock OR pixi.lock file, including stale-lock propagation across sibling PRs after a red-main dep-fix merges. Use when: (1) python-sca or pip-audit fails with only a summary in the job log, (2) the failing package is transitive through a dev tool, (3) uv --locked reproduction needs cache paths redirected in a restricted sandbox, (4) a red-main dependency fix merged but sibling PRs branched before it still fail pip-audit on the OLD vulnerable lock (a plain rebase does not regenerate the lock), (5) a pixi.lock at format v7 fails CI's older pinned pixi with 'Lock-file version 7 is newer than supported'."
 category: ci-cd
 date: 2026-06-28

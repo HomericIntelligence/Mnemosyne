@@ -1,5 +1,6 @@
 ---
 name: stale-plan-already-resolved
+license: BSD-3-Clause
 description: 'Detect when a stale point-in-time artifact (issue plan, captured LOG,
   error report, CI failure, audit finding) describes a defect that was already fixed.
   Use when: the plan references specific line numbers that don''t match current code;

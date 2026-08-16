@@ -1,5 +1,6 @@
 ---
 name: evaluation-baseline-parity-cross-matrix
+license: BSD-3-Clause
 description: "Prove baseline parity before using any pre-existing baseline number as a comparison anchor, and design a 2x2 cross-matrix (rule x architecture) to de-confound learning-rule claims. Use when: (1) comparing a new training rule/method against a pre-existing baseline run, (2) a reviewer or audit asks whether an accuracy gap is attributable to the rule vs architecture/pipeline differences, (3) planning cross runs to isolate a variable and needing to cost them, (4) citing data artifacts across branches under rebase-merge, (5) deriving wall-clock anchors from logs without per-event timestamps."
 category: evaluation
 date: 2026-07-11

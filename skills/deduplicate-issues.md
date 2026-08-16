@@ -1,5 +1,6 @@
 ---
 name: deduplicate-issues
+license: BSD-3-Clause
 description: Systematically identify and close duplicate or resolved GitHub issues
 category: ci-cd
 date: 2026-02-15

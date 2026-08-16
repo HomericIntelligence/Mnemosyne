@@ -1,5 +1,6 @@
 ---
 name: cytoscape-interaction-patterns
+license: BSD-3-Clause
 description: Patterns for separating node-click highlight (visual dimming) from filter-based
   hiding in Cytoscape.js, and for working around cytoscape-node-html-label HTML overlay
   persistence. Use when node click should be visual-only (not hide nodes), or when

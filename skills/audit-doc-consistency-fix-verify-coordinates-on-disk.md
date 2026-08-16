@@ -1,5 +1,6 @@
 ---
 name: audit-doc-consistency-fix-verify-coordinates-on-disk
+license: BSD-3-Clause
 description: "Use when planning a fix for a documentation-consistency issue (drifted line numbers/paths, a command that disagrees across docs), OR when authoring the verification commands that prove such a fix. Trigger: (1) an issue, a PRIOR PLAN, or a repo audit cites file:line coordinates that may have drifted since they were captured — re-derive them on disk before quoting, (2) N docs disagree on the same command/snippet and one must be brought into line with a canonical copy, (3) a repo-wide grep surfaces matches inside throwaway worktree/build copies that must be scoped out, (4) a prior-learnings suggestion proposes drift-guard CI tooling that is disproportionate for a one-line docs fix, (5) you are writing a plan's verification-command grep assertions and they must be PORTABLE and actually able-to-fail (no cross-line / GNU-only regex; pair a positive with a negative assertion)."
 category: documentation
 date: 2026-06-20

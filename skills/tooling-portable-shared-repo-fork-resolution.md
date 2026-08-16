@@ -1,5 +1,6 @@
 ---
 name: tooling-portable-shared-repo-fork-resolution
+license: BSD-3-Clause
 description: "Make a hardcoded shared-knowledge-base repo reference (e.g. HomericIntelligence/Mnemosyne) org-aware/portable via a clone-or-fork resolution ladder, so any GitHub user can read and contribute to it instead of only the canonical org. Use when: (1) a script/skill hardcodes an `owner/repo` slug everywhere and only that org can use it, (2) /learn or /advise-style automation always targets the canonical upstream and you want it to target the caller's own fork, (3) you need a single resolver returning the correct owner/slug across env-override > gh-login-fork > upstream-fallback, (4) you must mirror the same resolution logic across a Python source-of-truth and a bash SKILL.md (cannot import Python), (5) you are about to call `gh repo fork` programmatically and need to handle the can't-fork-into-own-org case."
 category: tooling
 date: 2026-06-27

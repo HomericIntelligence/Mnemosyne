@@ -1,5 +1,6 @@
 ---
 name: python-cli-dry-run-and-entrypoint-patterns
+license: BSD-3-Clause
 description: "Use when: (1) adding a --dry-run flag to a CLI script that exits 1 on errors, letting developers preview all violations without blocking pre-commit or CI during bulk migrations; (2) standardizing --dry-run help text across multiple CLIs using a shared constant and testable _build_parser() entrypoint helper; (3) smoke-testing Python CLI entry points declared in [project.scripts] with --help subprocess calls and import verification to prevent regressions; (4) refactoring CLI parsers to extract testable _build_parser() functions and adding parametrized help-text tests across CLI modules; (5) making a standalone analysis CLI report findings by default but fail only when an explicit --fail-on-* gate is supplied, with subprocess tests proving both exit-code modes."
 category: tooling
 date: 2026-08-06

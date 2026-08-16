@@ -1,5 +1,6 @@
 ---
 name: ci-required-checks-gate-superseded-run-false-failure
+license: BSD-3-Clause
 description: "Use when: (1) a PR's `gh pr view --json statusCheckRollup` shows the SAME check name (e.g. `required-checks-gate`) as BOTH FAILURE and SUCCESS and you're about to conclude CI failed, (2) a docs-only / path-filtered PR shows heavy jobs (lint, unit-tests, build, pixi-check, schema-validation, shellcheck, license-scan) as SKIPPED or CANCELLED and you worry they're 'missing', (3) you see CANCELLED jobs paired with SKIPPED ones in the rollup and can't tell if the PR is red, (4) a path-filtering `changes-gate` feeds a `required-checks-gate` aggregator and you need to know the healthy shape, (5) you're tempted to 'fix' a non-existent CI failure on an otherwise-mergeable PR. The trap: the FAILURE/CANCELLED rollup entries belong to an EARLIER workflow run superseded and cancelled by concurrency; a cancelled run's gate reports FAILURE. Authoritative signal = the LATEST run for the head SHA, not the aggregated rollup."
 category: ci-cd
 date: 2026-07-01

@@ -1,5 +1,6 @@
 ---
 name: automation-review-comment-validation-host-receipts
+license: BSD-3-Clause
 description: "Use when: (1) an automation loop validates implementation replies on existing PR threads, (2) validation needs host-bound pytest evidence, (3) a comment-only review must avoid starting a second broad audit before merge authorization, (4) a reply claims test/coverage results for a SHA without a concrete command/output or artifact receipt, or (5) docs-only path checks or tag-dependent guards can be bypassed by early-return or tagless logic."
 category: ci-cd
 date: 2026-08-07

@@ -1,5 +1,6 @@
 ---
 name: clang-tidy-conda-sysroot-isystem-pairing
+license: BSD-3-Clause
 description: "Use when clang-tidy fails with \"'stddef.h' file not found\" (or similar libc/compiler-builtin header errors) under a conda-forge / pixi GCC toolchain, or when deciding whether passing --extra-arg=--sysroot to clang-tidy fixes header resolution: clang-tidy needs BOTH --sysroot (conda cross sysroot, for libc headers like wchar.h) AND -isystem<gcc include dir> (for compiler builtins like stddef.h); --sysroot alone reproduces the error. Derive both from the live compiler via $CXX -print-sysroot / -print-file-name=include in StaticAnalyzers.cmake — never hardcode the pixi env path."
 category: tooling
 date: 2026-06-19

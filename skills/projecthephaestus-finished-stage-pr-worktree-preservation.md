@@ -1,5 +1,6 @@
 ---
 name: projecthephaestus-finished-stage-pr-worktree-preservation
+license: BSD-3-Clause
 description: "Use when debugging or testing ProjectHephaestus finished-stage cleanup for failed PR-only work items whose preserved worktree records must keep the PR number instead of collapsing to 0. Applies to coordinator preserved-list ownership, summary formatting, and regression tests for PR-only pipeline items."
 category: testing
 date: 2026-07-07

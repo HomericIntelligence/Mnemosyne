@@ -1,5 +1,6 @@
 ---
 name: planning-implementation-from-issue
+license: BSD-3-Clause
 description: 'Skill: planning-implementation-from-issue. Use when working with planning
   implementation from issue.'
 category: tooling

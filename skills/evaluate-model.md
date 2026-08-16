@@ -1,5 +1,6 @@
 ---
 name: evaluate-model
+license: BSD-3-Clause
 description: Measure model performance on test datasets. Use when assessing accuracy,
   precision, recall, and other metrics.
 category: tooling

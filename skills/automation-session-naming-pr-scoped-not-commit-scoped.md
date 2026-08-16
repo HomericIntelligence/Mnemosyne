@@ -1,5 +1,6 @@
 ---
 name: automation-session-naming-pr-scoped-not-commit-scoped
+license: BSD-3-Clause
 description: "Keep deterministic agent session IDs scoped to the durable artifact while resolving Claude transcripts across only the registered worktrees of the caller's exact Git checkout. Use when: (1) repo-root and worktree callers share the same repo/issue/agent/model key but silently create duplicate sessions, (2) call sites cannot safely enforce one identical cwd, (3) same-slug repositories must remain isolated, (4) historical same-family transcripts need deterministic resume behavior without migration."
 category: architecture
 date: 2026-07-20

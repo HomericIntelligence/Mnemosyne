@@ -1,5 +1,6 @@
 ---
 name: automation-529-overload-not-retried-classifier-gap
+license: BSD-3-Clause
 description: "Use when: (1) an agent/API call hits 529 Overloaded or 5xx and is treated as fatal despite max_retries being set; (2) a retry loop only fires on quota/429-with-reset-epoch and ignores server-overload; (3) auditing whether retryability covers ALL transient failure families; (4) a subprocess hard-codes a timeout that bypasses a centralized timeout module; (5) a reviewer/agent path records a synthetic ERROR verdict and IMMEDIATELY retries against an exhausted 429 session-limit quota instead of waiting until reset; (6) a transient-failure (429/529/timeout) handler exists in ONE agent-call path but a SIBLING path that calls the same invoker lacks it — audit every sibling path that calls the same invoker; (7) a CLI exits 0 but returns an `is_error:true` JSON envelope carrying api_error_status 429 that a caller silently treats as a real result; (8) a 429 carries a remediation hint (switch models with /model) instead of a reset epoch — needs a model-switch fallback, not wait-until-reset."
 category: debugging
 date: 2026-07-03

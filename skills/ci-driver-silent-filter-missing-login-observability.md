@@ -1,5 +1,6 @@
 ---
 name: ci-driver-silent-filter-missing-login-observability
+license: BSD-3-Clause
 description: "When an author-filter guard silently drops items with a missing REST field, add a warning-level log inside the filter branch. Use when: (1) a filter uses .get() on a field that could be None from a schema change, (2) silent drops could cause a done-gate to false-green."
 category: debugging
 date: 2026-06-13

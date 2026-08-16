@@ -1,5 +1,6 @@
 ---
 name: zero-count-division-guard
+license: BSD-3-Clause
 description: "Skill: Zero-Count Division Guard in Metric Collection Functions"
 category: tooling
 date: 2026-03-19

@@ -1,5 +1,6 @@
 ---
 name: testing-real-server-fault-test-recovery
+license: BSD-3-Clause
 description: "Plan a credible real-server fault-injection recovery test that can prove both failure and recovery. Use when: (1) replacing a placeholder chaos/resilience test that always passes, (2) kill/restart testing a broker or async service, (3) deciding dedicated-server isolation and skip-versus-fail behavior, (4) validating a reconnect loop through observable end-to-end recovery rather than configuration assertions, (5) reviewing unverified binary, client, lifecycle, or timeout assumptions."
 category: testing
 date: 2026-07-17

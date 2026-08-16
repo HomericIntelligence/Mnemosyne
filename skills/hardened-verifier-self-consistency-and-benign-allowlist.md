@@ -1,5 +1,6 @@
 ---
 name: hardened-verifier-self-consistency-and-benign-allowlist
+license: BSD-3-Clause
 description: "How to harden a final verification script for a validated dataset so it touches substance instead of linting surface, and how to separate genuine errors from the verifier's own regex artifacts using a reviewed-benign allowlist. A weak verifier (link-exists + vocabulary regex + a ~0.5% line-number spot check) gives false assurance; a hardened one re-binds cited sources on a large sample, independently re-checks arithmetic, foots totals across tiers, and asserts the verdict tally is identical everywhere it is reported. Use when: (1) signing off on a large validated dataset of records/fields with derivations and totals and the existing checker only verifies links/vocabulary/format; (2) a process reports its own pass/fail tally in more than one place and you need them to agree; (3) a hardened checker emits many findings and you must distinguish real data errors from regex limitations, public identifiers, and intentional descriptive formatting; (4) you want an auditable clean run where every hard finding is on a reviewed allowlist with a written justification rather than silently suppressed."
 category: testing
 date: 2026-06-19

@@ -1,4 +1,5 @@
 ---
+license: BSD-3-Clause
 target_skill: testing-dynamic-import-sys-path-resolution
 date: 2026-07-22
 ---

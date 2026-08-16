@@ -1,5 +1,6 @@
 ---
 name: observability-readiness-closed-status-local-alert-recovery
+license: BSD-3-Clause
 description: "Design an existing HTTP health route as a bounded readiness endpoint driven by local alert state. Use when: (1) a health endpoint always returns HTTP 200 even during shutdown or degradation, (2) provider payloads can emit missing or unknown status values, (3) readiness must share circuit-breaker, queue-depth, or stall policy with alerting, (4) readiness must recover automatically without restarting the server, or (5) rollout must separate readiness from liveness semantics."
 category: architecture
 date: 2026-08-06

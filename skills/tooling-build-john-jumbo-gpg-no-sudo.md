@@ -1,5 +1,6 @@
 ---
 name: tooling-build-john-jumbo-gpg-no-sudo
+license: BSD-3-Clause
 description: 'TRIGGER CONDITIONS: Need a working gpg2john plus a john "gpg" format to
   crack a GnuPG private-key passphrase WITHOUT sudo/root. Use when the packaged john
   is not jumbo, hashcat lacks OpenPGP modes, and you must build john-jumbo against

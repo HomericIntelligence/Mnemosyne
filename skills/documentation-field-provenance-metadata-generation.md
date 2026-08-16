@@ -1,5 +1,6 @@
 ---
 name: documentation-field-provenance-metadata-generation
+license: BSD-3-Clause
 description: "Generate a per-field provenance/metadata document for a large document package where every field must be traceable to source documents. Use when: (1) a document set must be auditable field-by-field against source PDFs (legal disclosures, compliance filings, data rooms); (2) the deliverable is a metadata document listing each field, how it was produced, the source document/page, and the exact line where the field lives; (3) multi-agent validation passes produce findings that must be assembled deterministically into one provenance document. Covers JSON row schema for validator agents, fix-then-re-read line-number ordering, deterministic Python assembly, idempotent changelog append, line-reference re-anchoring by token search, and a scripted verification sweep including a PII digit-run scan of audit comments."
 category: documentation
 date: 2026-06-12

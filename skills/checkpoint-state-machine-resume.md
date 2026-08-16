@@ -1,5 +1,6 @@
 ---
 name: checkpoint-state-machine-resume
+license: BSD-3-Clause
 description: "Canonical patterns for checkpoint-based resume and recovery across long-running workflows: state-machine guards, intermediate-state recovery, until-resume past-state fixes, experiment-recovery tools, housekeeping verification, completion verification. Use when: (1) building a workflow that must resume mid-run after failure, (2) diagnosing a resume that loads a stale or non-terminal checkpoint, (3) adding completion-verification gates to issue/experiment workflows, (4) integrating retrospective hooks after a recovery operation."
 category: tooling
 date: 2026-05-18

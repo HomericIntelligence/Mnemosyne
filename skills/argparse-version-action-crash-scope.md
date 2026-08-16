@@ -1,5 +1,6 @@
 ---
 name: argparse-version-action-crash-scope
+license: BSD-3-Clause
 description: "Identify the true crash scope when an issue blames --version for a script crash. Use when: (1) an issue claims --version flag causes a crash, (2) a script uses argparse action='version' and also accesses os.environ, (3) debugging KeyError or missing env var crashes in CLI scripts."
 category: debugging
 date: 2026-06-13

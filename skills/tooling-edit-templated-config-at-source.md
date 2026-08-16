@@ -1,5 +1,6 @@
 ---
 name: tooling-edit-templated-config-at-source
+license: BSD-3-Clause
 description: "When a config file is regenerated from a template by a build/deploy step, editing the generated file gets silently overwritten. Use when: (1) your edits to a config file disappear after running a setup/config step, (2) a tool renders config from a Jinja/template + variable defaults, (3) a deploy reads a value that was set but comes through empty."
 category: tooling
 date: 2026-06-22

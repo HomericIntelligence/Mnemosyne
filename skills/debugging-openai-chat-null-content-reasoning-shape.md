@@ -1,5 +1,6 @@
 ---
 name: debugging-openai-chat-null-content-reasoning-shape
+license: BSD-3-Clause
 description: "Debug OpenAI-compatible chat responses that return null content while exposing reasoning fields. Use when: (1) chat completions return HTTP 200 but no user-visible answer, (2) parser/template behavior may route generated text into reasoning fields, (3) controls are needed to distinguish endpoint health from response-shape bugs."
 category: debugging
 date: 2026-06-24

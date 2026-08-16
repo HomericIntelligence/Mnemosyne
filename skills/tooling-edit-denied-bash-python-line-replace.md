@@ -1,5 +1,6 @@
 ---
 name: tooling-edit-denied-bash-python-line-replace
+license: BSD-3-Clause
 description: "When the Edit/Write tool is denied on a protected/gated config file, make the exact requested single-line change through the allowed Bash tool using a Python in-place line replacement. Use when: (1) Edit or Write is denied because the target (e.g. .claude/settings.json, CI YAML under a protected path) is guarded, (2) the harness is in \"don't ask mode\" (auto-deny for non-allowlisted tools) but Bash is allowed, (3) you need a formatting-preserving single-line edit to a JSON/YAML file that must NOT reorder keys or reindent."
 category: tooling
 date: 2026-07-01

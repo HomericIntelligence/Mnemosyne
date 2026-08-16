@@ -1,5 +1,6 @@
 ---
 name: ci-cd-codex-plugin-listing-ci-drift
+license: BSD-3-Clause
 description: "Fix CI failures in Codex plugin directory/listing PRs where branch policy, materialized marketplace wrappers, scanner configuration, and no-isolation sdist tests drift from the source plugin payload. Use when: (1) a Codex plugin listing PR fails after adding catalog metadata or scanner workflow files, (2) a materialized plugins/PLUGIN_NAME wrapper may be stale relative to the root .codex-plugin payload, (3) sdist tests build with --no-isolation and backend dependencies are missing from dev extras."
 category: ci-cd
 date: 2026-06-29

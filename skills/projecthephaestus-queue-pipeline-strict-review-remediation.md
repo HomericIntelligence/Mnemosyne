@@ -1,5 +1,6 @@
 ---
 name: projecthephaestus-queue-pipeline-strict-review-remediation
+license: BSD-3-Clause
 description: "Review and repair ProjectHephaestus queue-pipeline PRs after strict review. Use when: (1) review-pr-strict reports sandbox coverage gaps, (2) queue-only automation docs drift from code, (3) worker attribution must prove different workers claim different queue entries, (4) logging basicConfig migrations need direct CLI-main delegation tests."
 category: architecture
 date: 2026-07-09

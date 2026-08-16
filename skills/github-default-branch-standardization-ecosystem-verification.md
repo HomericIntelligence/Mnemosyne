@@ -1,5 +1,6 @@
 ---
 name: github-default-branch-standardization-ecosystem-verification
+license: BSD-3-Clause
 description: "Verify, remediate, and document GitHub default-branch standardization across
   a multi-repo fleet. Use when: (1) confirming all repos in an org have migrated from
   `master` to `main` as the default branch, (2) scanning for stale `refs/heads/master`

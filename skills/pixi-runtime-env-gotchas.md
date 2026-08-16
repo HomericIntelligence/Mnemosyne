@@ -1,5 +1,6 @@
 ---
 name: pixi-runtime-env-gotchas
+license: BSD-3-Clause
 description: "Use when: (1) pixi silently re-solves the shared .pixi/envs/default and wipes the pip install -e . editable install mid-run after a worktree edit to pyproject.toml, (2) CI logs show 'Saved cache with ID -1' or cache hits are inconsistent despite cache: true in setup-pixi, (3) adding a second actions/cache over .pixi poisons a locked pixi env (downgrades packages, fails pip-audit), (4) a pre-commit hook invoking 'pixi run <command>' resolves to the system-installed binary instead of the project's pixi env binary because dev-install was not run, (5) GLIBC_PRIVATE linker errors appear when using system OpenSSL with a pixi conda-forge compiler toolchain."
 category: debugging
 date: 2026-06-07

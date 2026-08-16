@@ -1,5 +1,6 @@
 ---
 name: sibling-pr-mutually-exclusive-design-conflict
+license: BSD-3-Clause
 description: "Use when: (1) two OPEN pull requests each individually pass CI and diff cleanly against `main`, but implement mutually incompatible designs for the same subsystem (e.g. one PR removes an aggregator job another PR's tests assert must exist); (2) reviewing/landing a PR that touches a shared architectural surface (a CI aggregator/gate job, a shared config schema, a ruleset/branch-protection contract) and a sibling PR touching the same surface is also open; (3) deciding whether standard two-dot (`origin/main..branch`) review is sufficient before merging when a sibling PR on the same subsystem exists — it is NOT, because that view only proves compatibility with `main`, never with the sibling; (4) planning to merge one of two competing-design PRs and needing to prove the OTHER one doesn't silently rot into a design the merged one just invalidated; (5) a merge-queue, aggregator-job, or gate-workflow redesign is in flight via multiple parallel PRs from different authors or sessions."
 category: ci-cd
 date: 2026-07-19

@@ -1,5 +1,6 @@
 ---
 name: ci-ruff-format-collapses-handwrapped-comprehensions
+license: BSD-3-Clause
 description: "Deleting a filter clause from a hand-wrapped comprehension makes ruff format collapse it onto one line, failing both the lint and pre-commit CI gates with one root cause. Use when: (1) the required `lint` check AND the `pre-commit` check both fail red with the same ruff-format root cause; (2) after hand-deleting a filter/condition clause from a multi-line list/generator comprehension (or a call), the committed layout disagrees with `ruff format`; (3) `ruff format --check` reports only `Would reformat: <file>` with no diff and you need to see the actual change."
 category: ci-cd
 date: 2026-06-11

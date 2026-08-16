@@ -1,5 +1,6 @@
 ---
 name: ci-cd-cpp-asan-gtest-discovery-branch-protection
+license: BSD-3-Clause
 description: "C++ CI repair patterns for ASAN/UBSAN test discovery failures and GitHub branch protection drift. Use when: (1) gtest_discover_tests() aborts at CMake configure time with ASan runtime error, (2) branch ruleset required_approving_review_count resets to 0 causing daily audit CI failures, (3) upgrading peter-evans/create-pull-request from v6 to v8, (4) upgrading gitleaks/gitleaks-action from v2 to v3."
 category: ci-cd
 date: 2026-06-13

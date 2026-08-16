@@ -1,5 +1,6 @@
 ---
 name: mojo-type-api-migration-and-import-patterns
+license: BSD-3-Clause
 description: "Use when: (1) upgrading Mojo to a new API baseline (Writable->WritableTo, trait/conformance refactors, parametric dtype migration), (2) migrating callers after a Mojo stdlib breaking change, (3) resolving 'import of X is ambiguous' errors caused by two modules exporting the same name, (4) systematically reviewing a large-scale parametric type system migration for dependency order and zero-copy conversion safety, (5) removing ImplicitlyCopyable trait from Mojo structs and fixing resulting compile errors, (6) migrating DType from runtime-typed patterns to native compile-time parametric patterns."
 category: architecture
 date: 2026-06-07

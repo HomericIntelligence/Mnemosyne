@@ -1,5 +1,6 @@
 ---
 name: planning-roadmap-tracking-issue-reconciliation
+license: BSD-3-Clause
 description: "When a GitHub issue carries `epic`+`roadmap` labels it is a TRACKING issue, not a code task — the correct 'implementation' is to reconcile its checklist against the ACTUAL shipped state of the codebase and edit the issue body, NOT to write source code. Audit each roadmap item against three independent sources of truth before flipping a checkbox: (1) the implementing source file AND its wiring (grep for the endpoint/decorator/symbol, not just `test -f`), (2) the linked tracking issue's state via `gh issue view <n> --json state`, and (3) dependency pinning in the manifest. Distinguish FULLY shipped from PARTIAL: a wire field that is only EMITTED (e.g. `schema_version` present) without consumer-side NEGOTIATION (`grep -rn 'schema_version >'`) stays unchecked with an inline annotation. Confirm genuinely unstarted phases with a NEGATIVE grep. Use when: (1) an issue is labelled epic/roadmap and its body is a checkbox checklist, (2) you are tempted to write code for a tracking issue, (3) a checklist item links to another issue (`— #NNN`), (4) a checklist item names a registry/version/negotiation feature, (5) producing a verbatim replacement issue body to apply via `gh issue edit`."
 category: documentation
 date: 2026-06-19

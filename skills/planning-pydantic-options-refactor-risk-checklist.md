@@ -1,5 +1,6 @@
 ---
 name: planning-pydantic-options-refactor-risk-checklist
+license: BSD-3-Clause
 description: "Planning checklist for DRY refactors of Pydantic option models where constructor names, defaults, schema behavior, and CLI/API compatibility must not change. Use when: (1) a plan centralizes duplicated option defaults with BaseModel inheritance, (2) issue title/body disagree about the requested change, (3) a reviewer needs the unverified assumptions and compatibility risks called out before implementation."
 category: architecture
 date: 2026-06-26

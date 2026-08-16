@@ -1,5 +1,6 @@
 ---
 name: inference360-dynamic-serving-capacity
+license: BSD-3-Clause
 description: "Compute serving concurrency from the selected checkpoint and exact assigned GPU subset. Use when: (1) an inference profile needs a safe request limit, (2) capacity depends on checkpoint KV-cache geometry, or (3) a scheduler allocation must be measured instead of relying on static profile limits."
 category: optimization
 date: 2026-07-27

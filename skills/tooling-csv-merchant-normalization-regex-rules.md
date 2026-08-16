@@ -1,5 +1,6 @@
 ---
 name: tooling-csv-merchant-normalization-regex-rules
+license: BSD-3-Clause
 description: "Normalize raw bank/CC transaction descriptions in a CSV so variants of the same merchant collapse to a single canonical name, enabling clean per-merchant aggregation. Use when: (1) you have a CSV of transactions with messy raw descriptions, (2) you want SUMIF/pivot-table rollups by merchant in a spreadsheet, (3) multiple description variants (location suffixes, namespace prefixes like SQ*/SP*/TST*) represent one real merchant."
 category: tooling
 date: 2026-04-26

@@ -1,5 +1,6 @@
 ---
 name: mypy-shutil-which-optional-narrowing
+license: BSD-3-Clause
 description: "mypy cannot narrow Optional through pytest.skip(), so shutil.which() results stay str|None and fail list-item/arg type checks. Use when: (1) a [list-item] or [arg-type] mypy error appears after a pytest.skip() guard, (2) passing a shutil.which() / os.environ.get() result into subprocess.run() or a path API, (3) the lint and pre-commit CI checks both fail on one identical mypy error."
 category: ci-cd
 date: 2026-06-11

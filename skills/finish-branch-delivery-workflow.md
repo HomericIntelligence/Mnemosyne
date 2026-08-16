@@ -1,5 +1,6 @@
 ---
 name: finish-branch-delivery-workflow
+license: BSD-3-Clause
 description: "Finish a development branch with repository-defined validation, signed DCO Conventional Commits, and explicit delivery choices. Use when: (1) implementation on a feature branch is complete, (2) a branch is ready for PR creation or preservation, (3) commit hygiene must be verified before delivery"
 category: tooling
 date: 2026-07-16

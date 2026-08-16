@@ -1,5 +1,6 @@
 ---
 name: code-quality-bot-ignores-noqa
+license: BSD-3-Clause
 description: "GitHub's `github-code-quality[bot]` static analyzer posts diff-scoped findings and suggested patches that its own AST engine cannot reconcile with runtime dynamics — it flags `# noqa: F401` re-exports as 'unused imports', PEP 562 lazy `__all__` names as 'exported but not defined', and PEP 544 Protocol `...` bodies as 'statement has no effect'. Under org rulesets with `required_review_thread_resolution` these unresolved threads block merge. TRIAGE each finding and its proposed patch separately: confirmed false positives are resolved via `gh api graphql resolveReviewThread` with one explanatory comment (no code change); genuine findings must be fixed and fully validated. Use when: (1) bot flags deliberate test-patch-seam re-exports as 'unused imports', (2) bot flags `__all__` exports as 'not defined' on a PEP-562 lazy-export package, (3) bot flags Protocol `...` bodies as 'statement has no effect', (4) PR shows `MERGEABLE / BLOCKED` with all CI checks green under `required_review_thread_resolution`, (5) an automated suggestion removes a still-used import alias or turns implicit string concatenation into an `E501` violation, (6) several suggestion commits turn a previously green PR red."
 category: tooling
 date: 2026-07-30

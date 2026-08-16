@@ -1,5 +1,6 @@
 ---
 name: required-check-noop-fix-via-tested-script
+license: BSD-3-Clause
 description: "Use when: (1) fixing a no-op / decorative required GitHub Actions check that computes a value and echoes it but never branches on it (only `exit 1` in a dead branch), (2) reusing an already-existing tested script in CI instead of reimplementing logic in workflow bash — especially under `pip install -e . --no-deps`, where a script that imports the project package can hit a latent ModuleNotFoundError, (3) deciding whether to DELETE a redundant required check (query the ruleset first — a pinned context cannot be removed from a code PR), or (4) an audit issue cites workflow line numbers you are about to edit. Headline: trace the full import chain and verify in the env that SHIPS (clean venv), not the pixi env."
 category: ci-cd
 date: 2026-06-12

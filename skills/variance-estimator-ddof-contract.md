@@ -1,5 +1,6 @@
 ---
 name: variance-estimator-ddof-contract
+license: BSD-3-Clause
 description: "Make variance estimator semantics explicit and consistent. Use when: (1) small-sample metrics disagree across libraries, (2) coefficient-of-variation or consistency scores change unexpectedly, or (3) code mixes population variance (`ddof=0`) with sample variance (`ddof=1`)."
 category: evaluation
 date: 2026-08-07

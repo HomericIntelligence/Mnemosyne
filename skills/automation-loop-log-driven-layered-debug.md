@@ -1,5 +1,6 @@
 ---
 name: automation-loop-log-driven-layered-debug
+license: BSD-3-Clause
 description: "Use when: (1) debugging hephaestus-automation-loop / a multi-stage plan→implement→drive-green pipeline from its output.log, (2) a single symptom ('PR not reviewed/implemented') turns out to be a stack of layered bugs revealed one at a time as each prior blocker is removed, (3) a fix 'didn't work' because the loop runs editable working-tree code and the fix wasn't dev-installed, (4) --issues was given PR numbers instead of issue numbers, (5) validating an automation-loop fix with a scoped re-run, (6) verifying automation-loop fixes by driving a single issue end-to-end to a merged PR + closed issue (scoped plan→implement re-run, artifact-chain success signals, zero-error health-check grep, live GitHub cross-check)."
 category: debugging
 date: 2026-06-20

@@ -1,5 +1,6 @@
 ---
 name: nfs-no-root-squash-client-cache-flush
+license: BSD-3-Clause
 description: "Read/write owner-restricted files over NFS by granting the client no_root_squash, then flushing the client's NFS access cache (drop_caches) so it stops serving stale 'Permission denied'. Use when: (1) rsync/backup as root fails with thousands of 'Permission denied (13)' on owner-only (700/750/770/755) files on an NFS export, (2) you changed an export server-side but the client keeps returning the OLD denial, (3) a freshly-named file reads fine while the exact files denied before keep failing (stale client access cache)."
 category: tooling
 date: 2026-06-28

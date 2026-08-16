@@ -1,5 +1,6 @@
 ---
 name: parallel-agent-myrmidon-swarm-orchestration
+license: BSD-3-Clause
 description: "Canonical guide to parallel-agent and Myrmidon swarm orchestration: wave-based dispatch, hierarchical tier assignment (Opus L0 → Sonnet L1/L2 → Haiku L4), agent prompt patterns, dispatcher discipline, multi-repo coordination. Use when: (1) dispatching 5+ parallel agents on independent tasks, (2) coordinating a multi-repo swarm operation, (3) designing tier assignments (Opus vs Sonnet vs Haiku), (4) ensuring deterministic dispatch without orchestrator hand-holding."
 category: tooling
 date: 2026-06-13

@@ -1,5 +1,6 @@
 ---
 name: automation-issue-waves-durable-merge-checkpoint-rollout
+license: BSD-3-Clause
 description: "Design and verify durable repository-scoped issue waves that admit exact selections in 1, 2, 4, 8, then all phases. Use when: (1) an automation rollout must advance only after the prior exact issues merged normally, (2) restarts must replay immutable identifiers without rediscovery, (3) external or ambiguous merges must not authorize the next wave, (4) completed rollouts must become permanently audit-only, (5) implementation review must cover partial-wave resume and direct-recovery terminalization, or (6) the rollout's exact-head review-to-merge evidence needs auditing."
 category: architecture
 date: 2026-08-06

@@ -1,5 +1,6 @@
 ---
 name: ci-shell-grep-case-mismatch
+license: BSD-3-Clause
 description: 'Skill: ci-shell-grep-case-mismatch. Use when a shell-tests or smoke-check
   CI workflow fails because a grep -q assertion checks the wrong casing of a string
   vs the actual content in a source file — especially with org names or proper nouns.'

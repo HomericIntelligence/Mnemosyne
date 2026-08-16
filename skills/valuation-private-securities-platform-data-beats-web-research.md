@@ -1,5 +1,6 @@
 ---
 name: valuation-private-securities-platform-data-beats-web-research
+license: BSD-3-Clause
 description: "When valuing private securities (Reg-CF crowdfunding, pre-IPO equity, private LLCs) for legal disclosure (divorce FL-142, estate tax, FBAR), the investor platform's own portfolio data beats web research for quantitative facts (share counts, cost basis, current marks) but platform marks lag wipeouts by months-to-years. Use platform data as authoritative for quantities; use parallel web research to catch silent wipeouts. Use when: (1) building FL-142 or estate-tax disclosure for a venture-investment LLC, (2) reconciling agent web research against an investor portfolio snapshot, (3) deciding whether to trust platform mark vs independent valuation, (4) a working-paper share total is unsupported by any document — test it as vesting math against known grant sizes, (5) reading a Series Seed SPA Schedule of Purchasers (SAFE conversions vs cash shares), (6) reconciling ISO exercises via Carta holdings plus IRS Form 3921, (7) valuing converted preferred when the issuer has no 409A."
 category: documentation
 date: 2026-06-12

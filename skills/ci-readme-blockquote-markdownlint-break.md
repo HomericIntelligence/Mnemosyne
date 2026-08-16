@@ -1,5 +1,6 @@
 ---
 name: ci-readme-blockquote-markdownlint-break
+license: BSD-3-Clause
 description: "Markdownlint CI fails on a specific markdown construct even though pre-commit / plugin-validation passed on the individual file — the CI all-files markdownlint run catches it. Covers (a) MD028 blank line without > inside a multi-paragraph blockquote, and (b) MD018 when a line-wrapped GitHub issue reference like #1234 lands at column 1 and is parsed as a malformed ATX heading. Use when: (1) CI markdownlint job fails on README/docs/skills after an edit, (2) CI log cites MD028 or MD018/no-missing-space-atx, (3) pre-commit or validate_plugins.py passes locally but the CI all-files markdownlint run fails."
 category: ci-cd
 date: 2026-07-09

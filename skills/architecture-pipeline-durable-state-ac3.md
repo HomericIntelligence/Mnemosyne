@@ -1,5 +1,6 @@
 ---
 name: architecture-pipeline-durable-state-ac3
+license: BSD-3-Clause
 description: "Use when: (1) implementing durable state operations in pipeline stages (arming records, dedupe markers, state ledgers); (2) designing crash-safe state transitions where durable write failure must block stage advance; (3) managing idempotency: ensuring duplicate job completions don't re-arm/re-apply state changes; (4) handling exception scenarios where a durable write fails after some API calls succeed (e.g., auto-merge enabled but record write fails); (5) implementing acceptance criteria #3 (AC3) from Hephaestus pipeline epic #1809: 'durable records must exist before state advances'; (6) building retry-from-clean-state semantics when durable mutations fail."
 category: architecture
 date: 2026-07-05

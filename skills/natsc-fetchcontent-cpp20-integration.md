@@ -1,5 +1,6 @@
 ---
 name: natsc-fetchcontent-cpp20-integration
+license: BSD-3-Clause
 description: "Integrate nats.c into C++20 projects via CMake FetchContent without polluting ctest or leaking -Werror. Use when: (1) adding NATS JetStream pub/sub to a C++20 service, (2) natsc FetchContent is registering 300+ ctest entries, (3) check_cpp.cpp fails with -Wunused-parameter, (4) debugging nats.c API signature mismatches in C++."
 category: tooling
 date: 2026-04-24

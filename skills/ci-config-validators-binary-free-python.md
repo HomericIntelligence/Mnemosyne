@@ -1,5 +1,6 @@
 ---
 name: ci-config-validators-binary-free-python
+license: BSD-3-Clause
 description: "Binary-free Python validators for CI config syntax gates (NATS HOCON, docker-compose). Use when: (1) adding a CI job that validates NATS server.conf / leaf.conf syntax without running nats-server, (2) validating a docker-compose YAML structurally without docker/podman compose installed, (3) nats-server -t exits non-zero on a valid config due to missing TLS cert files (the TLS-cert trap), (4) podman compose config is not installed on the CI runner (skip-everywhere trap), (5) writing a stdlib-only HOCON brace/string depth checker in Python, (6) needing a PyYAML compose validator that runs on any runner with python3."
 category: ci-cd
 date: 2026-06-20

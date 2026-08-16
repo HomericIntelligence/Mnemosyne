@@ -1,5 +1,6 @@
 ---
 name: googlenet-backward-pass-inception-gradients
+license: BSD-3-Clause
 description: "Use when: (1) implementing neural network backward passes through Inception modules with multiple branches; (2) splitting gradients across parallel branches using split_with_indices with channel tables; (3) implementing SGD-momentum parameter updates for large numbers of parameters (100+); (4) debugging Batch Normalization backward pass tuple indexing ([0]/[1]/[2] for grad_input/gamma/beta); (5) generating highly repetitive gradient computation code via Python helpers to avoid copy-paste errors; (6) handling merge conflicts when rebasing backward-pass PRs with fine-tuned imports."
 category: optimization
 date: 2026-07-04

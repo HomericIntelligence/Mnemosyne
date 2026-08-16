@@ -1,5 +1,6 @@
 ---
 name: pydantic-none-coercion-pattern
+license: BSD-3-Clause
 description: Fix Pydantic ValidationError when None flows into non-Optional dict fields
   via dict.get() with a default value
 category: debugging

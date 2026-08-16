@@ -1,5 +1,6 @@
 ---
 name: warden-hot-upgrade-listener-isolation
+license: BSD-3-Clause
 description: "Use when: (1) designing or reviewing a same-host hot upgrade with a standby control plane and HAProxy handoff, (2) validating that a temporary management listener cannot collide with a public gateway listener, (3) separating scheduler-selected active placement from source-node-pinned standby placement."
 category: architecture
 date: 2026-07-29

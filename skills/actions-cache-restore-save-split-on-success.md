@@ -1,5 +1,6 @@
 ---
 name: actions-cache-restore-save-split-on-success
+license: BSD-3-Clause
 description: "Plan converting combined actions/cache@vN (which uses the action's built-in post-job save, firing unconditionally even after a failed build) into explicit actions/cache/restore@vN (early, unconditional) + actions/cache/save@vN (gated on if: success()), so a failed or partial build never poisons a build-output (FetchContent / build/_deps / Conan) cache. Use when: (1) planning or implementing finer cache-write control in GitHub Actions, (2) preventing a failed build from saving a corrupt build/_deps or Conan cache, (3) a CI-hardening review touches actions/cache blocks, (4) you must enumerate EVERY combined block on a 'fix all N occurrences' issue and prove the per-file accounting sums to N before claiming coverage, (5) you must decide which cache blocks to split and how to AND the success() gate with an existing skip guard. PLANNING learning — captures completeness/sum-check discipline, the rule that a plan's acceptance command must pass against the artifact the plan produces, verifying design linchpins (cache-primary-key) against the action docs rather than shipping them as assumptions, and stating decisions (split all) with rationale instead of leaving options."
 category: ci-cd
 date: 2026-06-19

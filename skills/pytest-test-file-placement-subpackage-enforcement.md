@@ -1,5 +1,6 @@
 ---
 name: pytest-test-file-placement-subpackage-enforcement
+license: BSD-3-Clause
 description: Where a new pytest unit-test file must live when a repo pre-commit hook
   forbids bare test_*.py directly under tests/unit/, plus the Path(__file__).resolve().parents[N]
   REPO_ROOT depth adjustment and commit-hygiene checks when relocating a test deeper.

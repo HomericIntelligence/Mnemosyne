@@ -1,5 +1,6 @@
 ---
 name: planning-mechanize-dod-convention-gate
+license: BSD-3-Clause
 description: "Planning a mechanized Definition-of-Done / convention gate (e.g. a commit-message convention check) enforced at BOTH a local pre-commit stage and a REQUIRED CI job. Use when: (1) planning a hook + CI gate that enforces a project convention on new artifacts; (2) a plan rests on an external API field, a hook-installation mechanism, or an inferred allow-list and a reviewer NOGO'd it as unverified; (3) you must convert plan-time assumptions into verified evidence to move a plan from NOGO to GO; (4) adding a commit-msg-stage pre-commit hook and wondering why it never fires; (5) extending an existing GitHub GraphQL block to read commit.message; (6) deciding whether an allow-list (conventional-commit types) is safe to hard-fail."
 category: ci-cd
 date: 2026-06-12

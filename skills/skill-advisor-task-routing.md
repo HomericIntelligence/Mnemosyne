@@ -1,5 +1,6 @@
 ---
 name: skill-advisor-task-routing
+license: BSD-3-Clause
 description: "Route a task to the appropriate procedural skill before starting substantive work. Use when: (1) beginning any non-trivial task, (2) unsure whether a process, execution, or completion skill applies, (3) tempted to skip workflow checks because the task 'seems simple'"
 category: tooling
 date: 2026-07-16

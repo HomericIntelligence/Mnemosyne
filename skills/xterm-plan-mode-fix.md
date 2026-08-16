@@ -1,5 +1,6 @@
 ---
 name: xterm-plan-mode-fix
+license: BSD-3-Clause
 description: Fix xterm.js rendering of TUI modes (Claude Code /plan) in browser-based
   terminals with Unicode11 addon, binary WebSocket handling, and resize timing
 category: architecture

@@ -1,5 +1,6 @@
 ---
 name: research-charter-amendment-governance-workflow
+license: BSD-3-Clause
 description: "Governance workflow for amending a pinned research-project charter (gate thresholds, phase criteria, outcome labels) when a trigger event fires mid-project — hardware pulled, policy pivot mid-run, acceptance-criteria realization. Use when: (1) a research project with pinned success criteria needs a threshold, phase gate, or label changed, (2) a trigger event (hardware allocation change, mid-run training-policy pivot, refuted dependency) forces replanning against a contract doc, (3) you must decide whether an edit is descriptive (lands now) vs contractual (waits for user approval), (4) defining a blocked:*/hold:* status label that must survive a strict audit, (5) an anchor number (wall-clock per-epoch cost, budget line) must trace to an observable artifact, (6) a run must be stopped mid-epoch because policy changed and its partial data must be classified."
 category: documentation
 date: 2026-07-11

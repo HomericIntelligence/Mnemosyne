@@ -1,5 +1,6 @@
 ---
 name: testing-integration-fake-binary-on-path
+license: BSD-3-Clause
 description: "Pattern for integration tests that verify subprocess environment variable propagation: create fake executable in temporary directory, prepend to PATH with monkeypatch, subprocess finds fake first. Use when: testing that subprocesses receive expected env vars (GH_TRACE_ID, custom config, etc.) and must verify behavior without mocking subprocess.run()."
 category: testing
 date: 2026-05-28

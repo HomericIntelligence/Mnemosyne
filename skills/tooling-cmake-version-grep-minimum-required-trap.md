@@ -1,5 +1,6 @@
 ---
 name: tooling-cmake-version-grep-minimum-required-trap
+license: BSD-3-Clause
 description: "Fix empty VERSION string when extracting project version from CMakeLists.txt using grep -m1 'VERSION'. Use when: (1) CI job fails with 'ERROR: Could not parse VERSION from CMakeLists.txt' despite version being present, (2) grep -m1 'VERSION' returns cmake_minimum_required line instead of project() block, (3) three-part semver regex finds no match on a two-component string like '3.20'."
 category: tooling
 date: 2026-04-28

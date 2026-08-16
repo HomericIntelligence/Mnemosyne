@@ -1,5 +1,6 @@
 ---
 name: docker-compose-v1-v2-naming-cascading-recreate
+license: BSD-3-Clause
 description: "Diagnose unexpected container recreates when switching from docker-compose v1 (Python binary) to docker compose v2 (Go CLI plugin) on a project with existing containers. Use when: (1) running `docker compose up -d <single-service>` unexpectedly reports Recreate for OTHER services you did not target, (2) container names change from underscore (`project_service_1`) to hyphen (`project-service-1`) after an update, (3) a service without an explicit `container_name:` gets swept into a naming migration triggered by a sibling service's update, (4) you see a transient `No such container: <hex-id>` error mid-operation on a project with mixed v1/v2 history."
 category: debugging
 date: 2026-07-06

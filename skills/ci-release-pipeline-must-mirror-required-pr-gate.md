@@ -1,5 +1,6 @@
 ---
 name: ci-release-pipeline-must-mirror-required-pr-gate
+license: BSD-3-Clause
 description: "A required PR gate (integration tests, lint, schema check) only protects the auto-tag-from-merged-PR path — a workflow_dispatch/manual release can target an ARBITRARY commit that never passed that gate, so the release/publish pipeline must run the SAME gate itself. Use when: (1) auditing or hardening a release.yml / publish pipeline and a required PR-gate job (e.g. `_required.yml` `integration-tests`) enforces an invariant the release path does NOT re-run, (2) a workflow has BOTH a tag-push trigger AND a `workflow_dispatch`/manual trigger and you must reason about which commits actually passed the PR gates, (3) you are tempted to justify a missing release-time check with 'the PR gate already covers it' — true only for merged-PR tags, false for dispatch, (4) you are adding the missing check and must decide between a NEW parallel CI job vs a STEP in an existing job, (5) you must mirror the required gate's exact invocation (including addopts overrides like `--override-ini` and marker flags) so the release run cannot drift from the merged-PR guarantee, (6) proving an integration/e2e suite is actually COLLECTED by a new command and that build-backend-dependent tests do not silently skip in the release env."
 category: ci-cd
 date: 2026-07-01

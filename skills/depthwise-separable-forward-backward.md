@@ -1,5 +1,6 @@
 ---
 name: depthwise-separable-forward-backward
+license: BSD-3-Clause
 description: "Use when: (1) implementing depthwise separable convolution blocks (MobileNetV1-style: depthwise + pointwise), (2) you hit gradient mismatches between forward and backward passes in per-channel convolution, (3) building efficient architectures and need forward/backward shape+math consistency across the separable block."
 category: architecture
 date: 2026-07-02

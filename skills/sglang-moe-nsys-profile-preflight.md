@@ -1,5 +1,6 @@
 ---
 name: sglang-moe-nsys-profile-preflight
+license: BSD-3-Clause
 description: "Prepare and recover a defensible Nsight Systems campaign for SGLang models on Slurm. Use when: (1) an SGLang serving image lacks Nsight tooling, (2) a checkpoint is presented through a symlink farm, (3) exact input/output and concurrency cells must be profiled, (4) a multi-rank trace needs proof that every rank was captured, or (5) partially completed preemptible model arrays must be serialized without discarding resumable raw captures."
 category: debugging
 date: 2026-07-29

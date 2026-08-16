@@ -1,5 +1,6 @@
 ---
 name: automation-loop-backlog-cost-scaling
+license: BSD-3-Clause
 description: "Profile and bound Hephaestus automation-loop cost for large issue backlogs. Use when: (1) launching an audit-sized issue sweep, (2) a loop seems slow and tests may be blamed, (3) choosing worker count or phase scope, (4) automatic learn work dominates wall time."
 category: tooling
 date: 2026-07-15

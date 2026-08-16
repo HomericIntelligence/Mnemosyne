@@ -1,5 +1,6 @@
 ---
 name: agent-background-task-failure-recovery
+license: BSD-3-Clause
 description: "Detect and recover from silent background agent failures caused by API connection errors. Use when: (1) a background agent completes but its result shows 'API Error: Unable to connect to API', (2) files appear untouched after a background agent run, (3) deciding whether to use run_in_background vs foreground for a multi-file task."
 category: tooling
 date: 2026-04-17

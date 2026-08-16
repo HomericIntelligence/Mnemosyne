@@ -1,5 +1,6 @@
 ---
 name: agent-config-validation-and-integrity
+license: BSD-3-Clause
 description: "Design, validate, and maintain agent configuration integrity in the HomericIntelligence agentic hierarchy. Use when: (1) consolidating redundant junior/senior agent tiers or multiple specialist agents into a parent tier with overlapping scope, (2) adding CI validation that delegates_to frontmatter fields map to real .md files (referential integrity), (3) fixing stale cross-references in agent configs or docs after specialist consolidation deletes agent files, (4) validating YAML frontmatter correctness before committing agent configuration changes, (5) routing pipeline phases to the correct Claude model tier via centralized module with env-var overrides."
 category: architecture
 date: 2026-06-07

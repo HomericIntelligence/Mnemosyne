@@ -1,5 +1,6 @@
 ---
 name: slurm-wrap-shell-contract
+license: BSD-3-Clause
 description: "Submit reliable Slurm --wrap commands. Use when: (1) a wrapped job fails before its payload starts, (2) Bash-only shell options such as pipefail are needed, or (3) a container build is submitted through sbatch --wrap."
 category: tooling
 date: 2026-07-16

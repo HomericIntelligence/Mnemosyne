@@ -1,5 +1,6 @@
 ---
 name: documentation-planning-stage-plan-comment-docstring
+license: BSD-3-Clause
 description: "Clarify ProjectHephaestus PlanningStage plan-comment docstrings without changing behavior. Use when: (1) touching _normalize_plan_comment, (2) documenting PLAN_COMMENT_MARKER keyed upsert dedupe, (3) separating plan-comment normalization from the VERIFY ADVANCE gate."
 category: documentation
 date: 2026-07-07

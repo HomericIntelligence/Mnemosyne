@@ -1,5 +1,6 @@
 ---
 name: pytest-test-splitting-matrix-and-parametrization
+license: BSD-3-Clause
 description: "Use when: (1) a monolithic test file exceeds the Edit tool's ~25K token limit and must be split into focused sub-modules preserving test count and git history; (2) coverage tracking is needed for _partN.mojo test files split from a single logical test — validate_test_coverage.py must group part files by base name using regex; (3) adding or splitting test groups in a CI matrix — group splitting by filesystem structure, glob pattern evolution, zero-discovery guards, matrix status checks; (4) a CI matrix sub-pattern level silently goes stale when space-separated multi-pattern strings are used and a subset stops matching files; (5) building E2E workspace lifecycle code with staged parallel test generation; (6) pytest-asyncio with auto mode where fixture and test both run in the same event loop and parametrize interacts with async fixtures; (7) creating a weekly GitHub Actions workflow for Mojo training tests excluded from per-PR CI because they are in the validate_test_coverage.py exclusion list; (8) a test file was split across part files and a CI workflow pattern must be updated to match the new filenames."
 category: testing
 date: 2026-06-07

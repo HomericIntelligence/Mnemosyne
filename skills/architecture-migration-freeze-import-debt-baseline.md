@@ -1,5 +1,6 @@
 ---
 name: architecture-migration-freeze-import-debt-baseline
+license: BSD-3-Clause
 description: "Freeze legacy direct imports during a partial runtime migration with an AST-derived exact consumer/module allowlist and matching ADR policy. Use when: (1) an accepted ADR describes a completed abstraction but source still uses legacy provider modules, (2) compatibility imports must remain temporarily without allowing the exception to expand, (3) line-oriented grep would miss nested or function-local imports, (4) documentation must distinguish invocation, response parsing/validation, compatibility exports, and provider-specific failure diagnostics."
 category: architecture
 date: 2026-07-20

@@ -1,4 +1,5 @@
 ---
+license: BSD-3-Clause
 target_skill: architecture-import-time-assert-anti-pattern
 date: 2026-07-22
 ---

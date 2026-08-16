@@ -1,5 +1,6 @@
 ---
 name: planning-container-image-digest-pinning
+license: BSD-3-Clause
 description: "Planning-discipline for pinning floating container image tags (:latest, :alpine) in a Compose/e2e stack to immutable name:vX.Y.Z@sha256:<digest> references for reproducibility — WHAT a planner can and cannot verify offline. Use when: (1) planning a fix for an issue like ':latest image tags break reproducibility' in a docker-compose/e2e file, (2) you are about to write specific upstream version tags and sha256 digests into a plan without registry access, (3) you need to choose between pinning a multi-arch manifest-list digest vs a single-arch image digest, (4) you are tempted to cite an existing Actions SHA-pin convention as proof that container images should be digest-pinned, or to rely on `compose config` as the acceptance check."
 category: ci-cd
 date: 2026-06-20

@@ -1,5 +1,6 @@
 ---
 name: resilience-circuit-breaker-per-target-vs-service-failure
+license: BSD-3-Clause
 description: "A circuit breaker must not count 'the service answered correctly about one target' errors (404, could-not-resolve, no-checks) as failures — split per-target errors from per-credential errors, add a generic ignore predicate, and ANCHOR the classifying regexes or you fail OPEN. Use when: (1) adding or reviewing a circuit breaker that shells out to a CLI/HTTP service, (2) a handful of deterministic 404-style errors is opening a breaker and failing unrelated calls, (3) porting a retry (non-transient) classifier into a breaker (service-down) classifier."
 category: architecture
 date: 2026-07-10

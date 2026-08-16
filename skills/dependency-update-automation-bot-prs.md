@@ -1,5 +1,6 @@
 ---
 name: dependency-update-automation-bot-prs
+license: BSD-3-Clause
 description: "Use when: (1) a repo uses pixi.toml for conda-forge deps but Dependabot only covers pip/github-actions — add Renovate to automate conda dep updates, (2) reviewing ANY bot-authored PR (Dependabot, Renovate) — run gh pr diff --name-only first because bot PRs frequently carry silent lockfile-format upgrades or maintainer fixup commits that the title doesn't mention, (3) a Dependabot PR title describes a single bump but the diff includes a pixi.lock v6->v7 format migration or unrelated files stacked on the bot branch, (4) a repo declares a centralized versions.yml/versions.json as single source of truth but automated bumps (Dependabot, weekly cron, hand-edits) update only the consumer files (Dockerfiles, workflow pins) while bypassing the manifest — causing silent drift."
 category: ci-cd
 date: 2026-06-07

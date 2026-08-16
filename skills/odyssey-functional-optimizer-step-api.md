@@ -1,5 +1,6 @@
 ---
 name: odyssey-functional-optimizer-step-api
+license: BSD-3-Clause
 description: "Use when: (1) calling any Odyssey exotic optimizer (ADOPT, Sophia, Adan, Muon-Hyperball, LionMuon, MGUP-Muon, SOAP, FTRL) from Mojo, (2) wiring a runtime --optimizer dispatch over several optimizers into a training loop, (3) resolving the import path for an optimizer (it is odyssey.training.optimizers.X, NOT odyssey.optimizers.X), (4) sizing per-parameter state buffers for one of these optimizers, (5) debugging wrong-arity or wrong tuple-unpack errors from a <name>_step call."
 category: optimization
 date: 2026-07-22

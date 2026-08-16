@@ -1,5 +1,6 @@
 ---
 name: prometheus-cardinality-atomic-admission-drop-new
+license: BSD-3-Clause
 description: "Bound retained Prometheus label series in a small in-process registry. Use when: (1) metric families retain one sample per label tuple, (2) dynamic label values can grow without bound, (3) concurrent writers must not exceed a per-family cap, or (4) dropped new-series updates must be observable without evicting admitted data."
 category: architecture
 date: 2026-08-06

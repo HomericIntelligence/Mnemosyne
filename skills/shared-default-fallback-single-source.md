@@ -1,5 +1,6 @@
 ---
 name: shared-default-fallback-single-source
+license: BSD-3-Clause
 description: "Use when: (1) a selector or pipeline helper hardcodes a fallback value that duplicates a shared default constant, (2) blank or missing configuration must follow the canonical runtime default, (3) tests should prove explicit configuration still wins while default changes propagate automatically."
 category: architecture
 date: 2026-08-07

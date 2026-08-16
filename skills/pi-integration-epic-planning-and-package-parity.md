@@ -1,5 +1,6 @@
 ---
 name: pi-integration-epic-planning-and-package-parity
+license: BSD-3-Clause
 description: "Plan and stage a first-class Pi agent integration across Hephaestus when parity includes runtime dispatch, skills, tools, plugins, sessions, pipeline permission scopes, Athena, and Mnemosyne. Use when: (1) a provider integration spans multiple repositories or pipeline stages, (2) a single PR would mix package bootstrap, skill semantics, and end-to-end validation, (3) Athena skills require pi-subagents or web access, (4) Mnemosyne must remain a canonical repository dependency rather than an invented Pi package, (5) an epic needs executable dependency order and a simple issue conformance run, (6) upstream packaging or a required security scan blocks downstream admission, or (7) policy requires a full repository-review Go before merge."
 category: architecture
 date: 2026-07-29

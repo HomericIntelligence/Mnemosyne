@@ -1,5 +1,6 @@
 ---
 name: python-repo-modernization-workflow
+license: BSD-3-Clause
 description: "Modernize a Python repository with mixed legacy and modern practices, following the target's product requirements. Use when: (1) a Python repo mixes legacy and modern tooling, (2) packaging/typing/CI need alignment without breaking public behavior, (3) release artifacts must be verified outside the checkout"
 category: tooling
 date: 2026-07-16

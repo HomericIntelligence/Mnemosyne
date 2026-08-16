@@ -1,5 +1,6 @@
 ---
 name: github-actions-workflow-paths-filter-completeness
+license: BSD-3-Clause
 description: "Use when: (1) a workflow's paths: filter omits a file that the job reads/depends on, (2) PRs modifying that file don't trigger the job, (3) a compliance audit flags missing files from paths filters, (4) you need to verify paths-filter completeness for all files that a job consumes (e.g. configuration files, data files, license manifests)."
 category: ci-cd
 date: 2026-06-19

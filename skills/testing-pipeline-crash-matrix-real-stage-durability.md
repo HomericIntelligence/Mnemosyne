@@ -1,5 +1,6 @@
 ---
 name: testing-pipeline-crash-matrix-real-stage-durability
+license: BSD-3-Clause
 description: "Use when: (1) strengthening ProjectHephaestus pipeline crash-matrix or restart/re-seeding tests, (2) replacing hand-fabricated GitHub journal labels or PR records with real PlanReviewStage / ImplementationStage transitions, (3) making fake GitHub PR creation durable enough for classifier lookup paths, (4) testing crash recovery from durable state:plan-go or PR_CREATE boundaries."
 category: testing
 date: 2026-07-07

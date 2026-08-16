@@ -1,5 +1,6 @@
 ---
 name: warden-hot-upgrade-api-wire-compatibility
+license: BSD-3-Clause
 description: "Use when: (1) tightening an existing Warden or control-plane request field while rolling hot upgrades must remain possible, (2) an optional API field should have stricter CLI or wizard validation without narrowing the predecessor wire contract, (3) hot-upgrade preflight rejects a target because its request schema no longer accepts every predecessor-valid payload."
 category: architecture
 date: 2026-08-03

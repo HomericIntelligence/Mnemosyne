@@ -1,5 +1,6 @@
 ---
 name: tooling-docker-headless-build-credential-helper
+license: BSD-3-Clause
 description: "Docker build/pull over SSH, or 'docker compose pull'/'up' under sudo (or any headless/non-desktop shell), fails with 'Cannot autolaunch D-Bus without X11 $DISPLAY' because a credential helper needs a desktop keyring. Use when: (1) docker build fails getting credentials in a headless/SSH session, (2) docker compose pull/up fails with the same D-Bus/X11 error under sudo even though plain docker pull just worked in the same shell, (3) error mentions D-Bus/X11/$DISPLAY during an image pull, (4) a build or compose pull works on a desktop login but not over SSH/CI/sudo/cron."
 category: tooling
 date: 2026-07-06

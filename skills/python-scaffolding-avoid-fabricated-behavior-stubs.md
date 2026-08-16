@@ -1,5 +1,6 @@
 ---
 name: python-scaffolding-avoid-fabricated-behavior-stubs
+license: BSD-3-Clause
 description: "Keep Python package scaffolders structural and behavior-neutral. Use when: (1) a generator emits a same-name module with a placeholder function, (2) generated tests assert fabricated return values, (3) a mirrored test-layout policy requires a substantive test, or (4) changing generated artifacts must preserve validation, overwrite refusal, dry-run, JSON, and optional CLI behavior."
 category: tooling
 date: 2026-08-05

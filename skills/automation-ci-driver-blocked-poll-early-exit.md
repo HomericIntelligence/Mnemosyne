@@ -1,5 +1,6 @@
 ---
 name: automation-ci-driver-blocked-poll-early-exit
+license: BSD-3-Clause
 description: "Use when: (1) _wait_for_pr_terminal spins for the full 30-minute timeout on a BLOCKED PR that has unresolved human review threads or pending required review, (2) diagnosing why the ci_driver polls indefinitely instead of exiting early on mergeStateStatus=BLOCKED, (3) implementing or testing an early-exit guard for BLOCKED PRs, (4) adding _pending_required_check_names helper to ci_driver, (5) a CI-green auto-merge-armed PR is stuck in mergeStateStatus=BLOCKED and you need to determine whether the blocker is unresolved review threads (not a human approval gate), (6) routing the drive-green BLOCKED path through a _resolve_blocked_pr handler that reuses address_review.py instead of yielding unmergeable success, (7) triaging github-code-quality bot false-positive threads (unused-import on re-export shims, unnecessary-lambda on DIP injection wrappers)."
 category: debugging
 date: 2026-06-15

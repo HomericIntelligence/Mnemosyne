@@ -1,5 +1,6 @@
 ---
 name: architecture-ocp-dip-abc-protocol-planning-risks
+license: BSD-3-Clause
 description: "Plan and implement safe Python ABC/Protocol refactors by verifying real hierarchy and test constraints first, then combining abstract inheritance enforcement with structural Protocol coverage. Use when: (1) adding abc.ABC or typing.Protocol to an existing hierarchy, (2) adding an abstract method to a base class with concrete or test-only subclasses, (3) introducing a shared interface across mixed-inheritance classes, (4) protecting lazy package-import boundaries and contract tests during an OCP/DIP refactor."
 category: architecture
 date: 2026-07-17

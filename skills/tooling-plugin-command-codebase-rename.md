@@ -1,5 +1,6 @@
 ---
 name: tooling-plugin-command-codebase-rename
+license: BSD-3-Clause
 description: "Rename a Claude Code plugin directory, commands, and hooks across an entire codebase. Use when: (1) renaming a plugin from one name to another, (2) renaming a slash command, (3) bulk find-and-replace of plugin/command references across 40+ files."
 category: tooling
 date: 2026-03-26

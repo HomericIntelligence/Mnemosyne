@@ -1,5 +1,6 @@
 ---
 name: ci-cd-codeql-default-to-advanced-canonical-names
+license: BSD-3-Clause
 description: "Migrate GitHub CodeQL from managed default setup to an advanced-setup workflow so the check-run names can be canonicalized (e.g. Analyze (python) → security/codeql-python). Use when: (1) a repo's CodeQL checks report as 'Analyze (<lang>)' and an ecosystem CI board requires canonical namespaced names like security/codeql-<lang>, (2) `gh api repos/<owner>/<repo>/code-scanning/default-setup` returns state=configured and no .github/workflows/codeql.yml exists so the check name cannot be changed via YAML, (3) you must decide whether emit-before-require sequencing is needed — query the ruleset's required_status_checks via the API instead of assuming, (4) you need a matrix analyze job whose per-language check names have no '(python)' suffix, (5) you must sequence disabling default setup vs. the first advanced-workflow run because SARIF uploads from advanced configs are rejected while default setup is enabled, (6) you need default-setup parity (languages, query suite, threat model, weekly schedule) preserved in the committed workflow."
 category: ci-cd
 date: 2026-07-03

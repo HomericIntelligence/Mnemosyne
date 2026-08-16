@@ -1,5 +1,6 @@
 ---
 name: automation-event-log-retention-concurrency-safe-bounded-lifecycle
+license: BSD-3-Clause
 description: "Design bounded lifecycle management for local diagnostic event logs without turning them into restart state. Use when: (1) timestamp-and-PID JSONL logs accumulate without bounds, (2) concurrent pipeline runs must never prune one another's active logs, (3) age and count limits need independent operator disable switches, (4) dry-run cleanup must reflect lock contention, or (5) cleanup failures must be observable but must not change the pipeline result."
 category: architecture
 date: 2026-08-06

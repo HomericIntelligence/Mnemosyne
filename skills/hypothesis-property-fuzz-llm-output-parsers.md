@@ -1,5 +1,6 @@
 ---
 name: hypothesis-property-fuzz-llm-output-parsers
+license: BSD-3-Clause
 description: "EXECUTED procedure (verified-local) + pitfalls for adding Hypothesis property-based / fuzz tests for LLM-output string parsers in a pixi+pyproject dual-manifest Python repo. Use when: (1) adding property/fuzz tests for parsers that ingest free-form LLM output (verdict markers, ```json fences, bold/CRLF noise), (2) the goal is to assert a parser's FAIL-SAFE CONTRACT (never-raises + typed default) rather than parsed values, (3) you must add a new test/dev dependency (e.g. hypothesis) and need it in BOTH pyproject.toml [project.optional-dependencies].dev AND pixi.toml [feature.dev.dependencies] (conda path is what `pixi run test` uses), (4) deciding whether a new dep triggers a floor-consistency guard, (5) composing st.text() with crafted fragments so Hypothesis reaches structured parser branches, (6) deciding to append a Test<Parser>Properties class vs create a new _property sibling test file. RELATED but distinct: llm-output-verdict-parse-last-line-not-substring (parser CORRECTNESS, not fuzz-test planning) and dependency-manifest-single-source-of-truth (manifest alignment)."
 category: testing
 date: 2026-06-30

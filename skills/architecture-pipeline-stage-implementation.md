@@ -1,5 +1,6 @@
 ---
 name: architecture-pipeline-stage-implementation
+license: BSD-3-Clause
 description: "Implement queue-based pipeline stages and worker-result boundaries against the landed state-machine contract. Use when: (1) returning Continue, JobRequest, or StageOutcome; (2) handling on_job_done without mutating coordinator-owned state; (3) distinguishing RETRY timer-parks from job submission; (4) ordering durable writes before queue advancement; (5) translating a helper's expected negative sentinel into JobResult; (6) a failed JobResult has error=None and downstream warnings render None; (7) checking whether a proposed stage still exists in the active routing table."
 category: architecture
 date: 2026-07-20

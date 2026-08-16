@@ -1,5 +1,6 @@
 ---
 name: mkdocs-markdown-doc-site-build-and-pr-workflow
+license: BSD-3-Clause
 description: "Use when: (1) MkDocs build failures from nav or cross-references pointing at deleted files — run a pre-deletion audit, fix mkdocs.yml nav, repair --strict out-of-tree links; (2) markdownlint CI reports MD056/table-column-count from pipes inside backtick spans, MD060/table-column-style from compact (unspaced) table separators, MD012/no-multiple-blanks caused by a trailing double newline at EOF, MD040/MD031 from a language-tagged closing code fence, or MD013/MD032/MD022 on docs; or mkdocs --strict fails with relative links escaping docs/, or a systemic main-branch markdownlint regression is blocking a PR queue; (3) adding a CI pre-commit script to detect drift between documented metric values (CLAUDE.md, README.md) and pyproject.toml config sources (coverage threshold, test counts); (4) starting any documentation-only PR task — detect already-done work, handle a review fix plan that concludes no changes are needed, merge overlapping markdown docs, validate markdown for formatting/links/style, reconcile stale agent-hierarchy counts, document pre-commit hook incompatibilities in CONTRIBUTING.md."
 category: documentation
 date: 2026-06-07

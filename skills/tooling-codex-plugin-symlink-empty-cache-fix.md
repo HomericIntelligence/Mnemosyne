@@ -1,5 +1,6 @@
 ---
 name: tooling-codex-plugin-symlink-empty-cache-fix
+license: BSD-3-Clause
 description: "Diagnose and fix Codex plugin marketplace installs that report enabled while the plugin cache is empty because the marketplace target contains symlinked .codex-plugin or skills directories. Use when: (1) a Codex plugin installs but exposes no skills, (2) the plugin cache is empty after marketplace install, (3) a repo-side materialized wrapper is needed while filing an upstream installer fix."
 category: tooling
 date: 2026-06-29

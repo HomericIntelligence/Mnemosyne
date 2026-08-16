@@ -1,5 +1,6 @@
 ---
 name: test-state-machine-docstring-accuracy
+license: BSD-3-Clause
 description: "Test names and docstrings must document actual code paths (early-exit guards, fast-forwards) not hypothetical later logic. Use when: (1) writing tests for state-machine early-exit guards, (2) documenting fast-forward paths, (3) fixing misleading test docstrings that claim 'defense-in-depth' but test fast-forward behavior."
 category: testing
 date: 2026-07-05

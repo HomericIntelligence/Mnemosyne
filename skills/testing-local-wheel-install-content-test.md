@@ -1,5 +1,6 @@
 ---
 name: testing-local-wheel-install-content-test
+license: BSD-3-Clause
 description: "Design a fail-closed Python artifact lane that proves deterministic wheel and sdist builds, exact safe archive inventories, complete wheel RECORD integrity, and isolated install/upgrade/uninstall behavior. Use when: (1) package CI only samples archive members or smoke-imports an installed wheel, (2) reproducibility must be checked under controlled build inputs, (3) wheel RECORD rows and archive path safety need complete validation, (4) current-wheel, current-sdist, upgrade, and uninstall contracts must run outside the checkout, (5) a required CI job and release workflow must select the same dedicated artifact suite."
 category: testing
 date: 2026-08-05

@@ -1,5 +1,6 @@
 ---
 name: shared-predicate-gate-discovery-parity
+license: BSD-3-Clause
 description: "Keep discovery and completion gates on one pure eligibility predicate. Use when: (1) one path enumerates actionable records while another counts remaining work, (2) their filters can drift, or (3) a loop declares convergence while discovery still finds work."
 category: architecture
 date: 2026-08-07

@@ -1,5 +1,6 @@
 ---
 name: automation-log-path-helper-planning-risks
+license: BSD-3-Clause
 description: "Planning-risk checklist for extracting standard automation log path naming into a shared helper. Use when: (1) a plan consolidates repeated per-issue log filename construction into hephaestus.automation._review_utils.log_file_path(...), (2) issue text hints at one scope but examples/affected files imply another, (3) standard .log filenames and diagnostic parse-error filenames must stay distinct, (4) reviewers need to re-grep drift-prone call-site inventories before implementation."
 category: architecture
 date: 2026-06-26

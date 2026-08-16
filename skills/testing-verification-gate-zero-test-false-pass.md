@@ -1,5 +1,6 @@
 ---
 name: testing-verification-gate-zero-test-false-pass
+license: BSD-3-Clause
 description: "Prevent zero-test verification from becoming a false pass. Use when: (1) a wrapper invokes pytest and interprets subprocess return codes, especially code 5, (2) a gate uses name-filtered selection such as `pytest -k`, `ctest -R`, or `go test -run`, (3) CI-log parsing can produce no runnable targets, (4) a test source may be orphaned from its build target, (5) push or merge safety depends on the test gate."
 category: testing
 date: 2026-08-06

@@ -1,5 +1,6 @@
 ---
 name: pixi-env-task-config
+license: BSD-3-Clause
 description: "Use when: (1) setting up a new Mojo/MAX/Python project with pixi.toml and choosing between nightly/stable channels, (2) wrapping pixi tasks with a justfile for cross-repo convention alignment, (3) eliminating DRY violations by using pixi feature composition (environments = {features = [shared, dev]}) to share dev tools across environments, (4) adding justfile delegation recipes to a meta-repo, (5) auditing pixi task definitions for consistency with CI workflows, (6) a pixi [tasks] entry whose command body is itself `pixi run ...` (nested/recursive pixi invocation smell) — relocate it into the target environment's [feature.<env>.tasks] with a depends-on alias, (7) invoking a named pixi task with extra paths or flags — inspect the task body first because trailing arguments are forwarded and may duplicate task-owned targets."
 category: tooling
 date: 2026-08-07

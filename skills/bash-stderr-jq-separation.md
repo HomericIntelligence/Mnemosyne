@@ -1,5 +1,6 @@
 ---
 name: bash-stderr-jq-separation
+license: BSD-3-Clause
 description: "Pattern for separating stderr from stdout in bash functions that pipe command output into jq. Use when: (1) a bash function captures CLI output (gh api, curl, etc.) for JSON parsing, (2) the command may emit stderr warnings/banners alongside valid JSON stdout, (3) 2>&1 is used to combine channels before piping into jq — this corrupts JSON parsing."
 category: debugging
 date: 2026-06-14

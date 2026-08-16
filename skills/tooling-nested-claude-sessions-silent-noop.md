@@ -1,5 +1,6 @@
 ---
 name: tooling-nested-claude-sessions-silent-noop
+license: BSD-3-Clause
 description: "hephaestus-automation-loop's IMPLEMENT stage silently no-ops (agent job ok=true, ~170s, zero file changes, 'no commits vs base', issue auto-tagged state:skip) when the loop is run from INSIDE a Claude Code session: the spawned claude subprocesses inherit CLAUDECODE / CLAUDE_CODE_* env vars and hit nested-session poisoning. Planning agents (API-side) are unaffected, so plan artifacts are fully reusable. Fix: run the loop from a plain user shell, OR have the in-session orchestrator execute the loop cycle itself (consume the approved plan, implement via a normal sub-agent, strict-review, merge). Do NOT scrub the env with env -u CLAUDECODE — the permission classifier denies it as defeating session-recursion protections. Use when: (1) hephaestus-automation-loop or hephaestus-implement-issues reports implement success but produces zero commits and the issue gets state:skip, (2) an agent-spawning automation tool works from a terminal but no-ops inside Claude Code, (3) retrying after a no-op (remove state:skip, remove preserved worktree, rerun), (4) invoking modern uv-based Hephaestus (no pixi manifest, no --resume/--no-ui flags)."
 category: tooling
 date: 2026-07-16

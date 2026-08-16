@@ -1,5 +1,6 @@
 ---
 name: tooling-command-admission-exact-argv-boundary-enforcement
+license: BSD-3-Clause
 description: "Replace prefix-based admission of documentation-derived commands with parsed, exact argv grammars, and enforce the grammar again at the subprocess sink. Use when: (1) README or documentation code fences can be executed by a validator, (2) command.startswith(...) or a similar prefix check admits extra programs, options, or paths, (3) callers can reach an execution helper without passing through an outer safety loop, or (4) custom command overrides must preserve an exact least-privilege policy."
 category: tooling
 date: 2026-08-07

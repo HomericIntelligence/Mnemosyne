@@ -1,5 +1,6 @@
 ---
 name: console-scripts-exit-code-discipline
+license: BSD-3-Clause
 description: "Enforce exit-code discipline for Python console-script main() functions without breaking existing return-value contracts. Use when a CLI exits 0 despite recoverable errors, helper methods have tuple-return callers, or cumulative error state must be tracked through instance state instead of changing signatures."
 category: architecture
 date: 2026-05-28

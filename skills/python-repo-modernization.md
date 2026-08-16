@@ -1,5 +1,6 @@
 ---
 name: python-repo-modernization
+license: BSD-3-Clause
 description: 'Bring a Python utility package from C+ to production-grade quality in one session: fix package re-exports, raise test coverage to 75%+, create integration smoke tests, harden CI/CD pipeline, and produce an installable wheel. Also covers implementing a multi-phase audit plan when an existing audit report has Critical/Major findings. Use when: a shared utility repo is functional but not yet consumable by downstream projects, or an audit report exists with graded findings.'
 category: tooling
 date: 2026-03-13

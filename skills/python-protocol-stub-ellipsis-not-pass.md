@@ -1,5 +1,6 @@
 ---
 name: python-protocol-stub-ellipsis-not-pass
+license: BSD-3-Clause
 description: "Convention + planning pattern for the S4 lint nitpick of replacing `pass` with `...` (Ellipsis) in Python typing.Protocol / abc / .pyi method stub bodies. Use when: (1) a lint/audit nitpick asks to change empty Protocol/ABC/stub method bodies from `pass` to `...`, (2) planning any mechanical multi-occurrence token replacement where the token repeats and you must anchor each edit unambiguously, (3) you need an AST-based acceptance check that no Protocol method body still contains an ast.Pass node (more robust than `grep pass`), (4) you want the in-repo precedent rule: grep the SAME package for the existing idiom before importing an external style preference. Headline: in Protocol/stub bodies `...` is the canonical interface marker and `pass` is a runtime-statement smell, but the two are behaviorally identical (bodies never execute under structural typing) so it is purely a readability nitpick — anchor edits on the unique preceding docstring, verify with AST not grep, and mark verification verified-local (ruff/pytest/mypy were reasoned-not-run)."
 category: architecture
 date: 2026-06-24

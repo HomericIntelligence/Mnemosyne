@@ -1,5 +1,6 @@
 ---
 name: odysseus-multi-branch-submodule-pin-management
+license: BSD-3-Clause
 description: >-
   Manage submodule pins across multiple Odysseus branches with rebase, cherry-pick avoidance,
   and justfile recipe collision resolution. Use when: (1) updating a submodule SHA on a feature

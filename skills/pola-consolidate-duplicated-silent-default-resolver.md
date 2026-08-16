@@ -1,5 +1,6 @@
 ---
 name: pola-consolidate-duplicated-silent-default-resolver
+license: BSD-3-Clause
 description: "Plan a fix for a magic-number/silent-default bug that is duplicated across many call sites by consolidating every duplicate into ONE shared fail-loud resolver, raising instead of substituting an arbitrary value (POLA), and reusing an existing broad except boundary instead of adding a new one. Use when: (1) the same silent-default expression (e.g. `task_data.get(\"issue_number\", ISSUE_NUMBER or 7)`) is copy-pasted across multiple handlers and one fix would leave the rest vulnerable, (2) deciding raise-vs-sentinel for missing/invalid input and a hardcoded default would silently target an unrelated resource, (3) a broad `except Exception` boundary already catches+logs+continues so a raised ValueError need not crash the worker, (4) validating JSON-sourced fields where presence checks miss 0/\"\"/null/non-numeric, (5) testing a hyphenated-filename module that cannot be imported normally and whose config globals are read from env at import time."
 category: architecture
 date: 2026-06-20

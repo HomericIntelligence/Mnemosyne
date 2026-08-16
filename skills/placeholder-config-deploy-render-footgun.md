@@ -1,5 +1,6 @@
 ---
 name: placeholder-config-deploy-render-footgun
+license: BSD-3-Clause
 description: "Fix-completeness / blast-radius discipline for de-hardcoding a value out of a CANONICAL config file when the config engine cannot interpolate it at startup, so the committed file must carry an UNRESOLVED placeholder (e.g. ${NOMAD_SERVER_IP}). The placeholder is a POLA footgun: any deployment path that consumes the committed file RAW feeds the literal ${...} to the daemon. The fix is NOT done until EVERY raw-consumption path (deployment docs, runbooks, disaster-recovery) renders the file first. Render to a DEPLOY-LOCAL dir (not back into configs/) so no rendered file enters the repo and no .gitignore band-aid is needed; keep ONE file that IS the template (placeholder + loud GENERATED header) rather than a separate .tmpl + resolved sibling; and add a doc-level grep gate plus a validate-configs placeholder guard. Use when: (1) a committed config in configs/ must keep an unresolved ${VAR}/<placeholder> because the engine cannot expand it at startup, (2) docs/runbooks bind-mount or -config the committed file directly, (3) you are choosing between one self-documenting template file vs a .tmpl + resolved sibling, (4) you want the fix to be enforced so it cannot silently regress in code OR docs."
 category: architecture
 date: 2026-06-19

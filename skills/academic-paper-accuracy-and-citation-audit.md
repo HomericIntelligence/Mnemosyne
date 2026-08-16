@@ -1,5 +1,6 @@
 ---
 name: academic-paper-accuracy-and-citation-audit
+license: BSD-3-Clause
 description: "Use when: (1) performing a multi-pass LaTeX paper audit covering data consistency, cross-references, scientific rigor, and writing quality before submission; (2) verifying every numerical claim in a research paper against source data files (CSV, JSON) with parallel agents and fixing errors; (3) finding academic citations for unsupported claims via parallel web searches and filling citation gaps with real published papers including full BibTeX metadata; (4) verifying every numeric claim in a corpus citation against the cited paper's arXiv abstract via parallel WebFetch agents — distinguishing fabricated papers from misquoted real ones; (5) fixing LaTeX build errors from unescaped underscores in table cells (Missing $ inserted)."
 category: documentation
 date: 2026-06-07

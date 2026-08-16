@@ -1,5 +1,6 @@
 ---
 name: nas-nfs-write-throughput-diagnosis
+license: BSD-3-Clause
 description: "Diagnose slow NFS write throughput to a NAS by separating the bottleneck by LAYER (network / CPU / disk-array), because 'slow NFS writes' is ambiguous and may have multiple independent root causes. Use when: (1) NFS writes to a NAS are far slower than the link can carry (e.g. ~8 MB/s on 1GbE), (2) you see intermittent 'nfs: server not responding, timed out' errors mixed in with slowness, (3) you must decide whether the floor is network, CPU (parity/checksum), or disk before recommending any tuning."
 category: debugging
 date: 2026-06-25

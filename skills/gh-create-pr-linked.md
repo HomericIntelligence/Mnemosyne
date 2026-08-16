@@ -1,5 +1,6 @@
 ---
 name: gh-create-pr-linked
+license: BSD-3-Clause
 description: "Create linked GitHub PRs"
 category: ci-cd
 date: 2026-03-19

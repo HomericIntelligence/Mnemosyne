@@ -1,5 +1,6 @@
 ---
 name: skill-teaching-stale-practices-contradicting-canonical-docs
+license: BSD-3-Clause
 description: "When a skill or guide teaches practices contradicting CLAUDE.md or other canonical docs, wholesale rewrite (not patching) is required to prevent contradiction persistence. Use when: (1) a skill teaches deprecated tools (flake8, black, requirements.txt, setup.py) contradicting CLAUDE.md Language Preference, (2) a skill references stale Python versions (3.8–3.9) contradicting current baseline (3.10+), (3) supporting files (session logs, references) contain the same stale practices as the main skill file, (4) patching individual sections would leave dangerous contradictions elsewhere, (5) stale guidance could mislead downstream consumers before they discover the newer canonical docs."
 category: tooling
 date: 2026-06-11

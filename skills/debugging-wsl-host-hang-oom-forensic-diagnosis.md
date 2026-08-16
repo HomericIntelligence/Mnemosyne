@@ -1,5 +1,6 @@
 ---
 name: debugging-wsl-host-hang-oom-forensic-diagnosis
+license: BSD-3-Clause
 description: "Forensic, after-the-fact diagnosis of a WSL2 host that hung/froze under heavy load.
   Use when: (1) a WSL2 host froze or became unresponsive during a heavy multi-agent build/swarm and
   you must prove what happened post-mortem, (2) you suspect a swap-death OOM but the kernel did not

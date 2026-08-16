@@ -1,5 +1,6 @@
 ---
 name: hephaestus-slurm-verification-shared-worktree
+license: BSD-3-Clause
 description: "Run long ProjectHephaestus verification safely on Slurm. Use when jobs need the submitted script and Git worktree after allocation, or when recovering changes from a pruned temporary worktree."
 category: testing
 date: 2026-07-15

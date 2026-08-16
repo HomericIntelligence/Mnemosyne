@@ -1,5 +1,6 @@
 ---
 name: resilience-circuit-breaker-error-translation
+license: BSD-3-Clause
 description: "Translate CircuitBreakerOpenError to domain exception at integration boundary to preserve caller exception semantics. Use when: wrapping low-level circuit breaker in a service-layer function where callers expect domain-specific exceptions."
 category: architecture
 date: 2026-05-28

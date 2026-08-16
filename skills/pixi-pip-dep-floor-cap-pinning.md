@@ -1,5 +1,6 @@
 ---
 name: pixi-pip-dep-floor-cap-pinning
+license: BSD-3-Clause
 description: "Use when: (1) pixi.toml has pip listed as `\"*\"` (unbounded) in [dependencies] while all other deps are pinned, (2) planning a floor/cap constraint for conda-managed pip to guard PEP 660 editable-install compatibility, (3) adding a regression test to ensure pip stays within a safe range after a version bump, (4) checking whether pixi.lock needs to be committed after constraining pip."
 category: ci-cd
 date: 2026-06-13

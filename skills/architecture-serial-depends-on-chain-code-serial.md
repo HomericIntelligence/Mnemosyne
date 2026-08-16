@@ -1,5 +1,6 @@
 ---
 name: architecture-serial-depends-on-chain-code-serial
+license: BSD-3-Clause
 description: "A strictly-serialized `Depends on #prev` epic chain is CODE-serial, not just order-serial: each issue N+1 builds on issue N's MERGED code (new symbols, patterns, scope wiring), so you MUST launch N+1's implementation only AFTER issue N's PR merges to main — never parallelize the chain even when the files look disjoint. Use when: (1) executing an epic whose sub-issues each carry `Depends on #prev` (e.g. a cleanup wave converting legacy CLIs into pipeline wrappers and deleting the legacy module), (2) you are tempted to parallelize consecutive chain issues to save wall-clock because their touched files look non-overlapping, (3) a sub-agent launched for issue N+1 REFUSES / makes zero changes citing a 'false premise' (the prerequisite symbol or wiring isn't on main yet), (4) you need the per-issue serialized loop (worktree off current origin/main -> dev-install -> focused implement+verify+signed commit -> PR -> review -> resolve threads -> state:implementation-go -> arm auto-merge -> WATCH CI to merge -> only then start N+1)."
 category: architecture
 date: 2026-07-06

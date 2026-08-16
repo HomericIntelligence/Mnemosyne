@@ -1,5 +1,6 @@
 ---
 name: checkpoint-recovery
+license: BSD-3-Clause
 description: Implementing checkpoint/resume functionality for long-running batch processes
   with rate limit handling
 category: tooling

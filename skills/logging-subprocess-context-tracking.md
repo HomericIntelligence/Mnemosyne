@@ -1,5 +1,6 @@
 ---
 name: logging-subprocess-context-tracking
+license: BSD-3-Clause
 description: "Add diagnostic context (working directory, command, cwd) to subprocess execution logging. Use when: (1) run_git_cmd or similar subprocess runners log execution without showing which directory the command ran in, (2) debugging multi-directory workflows where cwd context is critical for tracing, (3) writing tests for subprocess execution and caplog fixture fails with custom logger handlers (propagate=False)."
 category: debugging
 date: 2026-06-05

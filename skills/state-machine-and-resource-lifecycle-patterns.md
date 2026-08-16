@@ -1,5 +1,6 @@
 ---
 name: state-machine-and-resource-lifecycle-patterns
+license: BSD-3-Clause
 description: "Use when: (1) a resumable state machine's advance() leaves a subtest\
   \ stuck in the prior state after a sentinel exception fires before the state update;\
   \ (2) Ctrl+C/SIGINT must leave long-running agent runs resumable instead of FAILED\

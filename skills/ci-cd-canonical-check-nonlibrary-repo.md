@@ -1,5 +1,6 @@
 ---
 name: ci-cd-canonical-check-nonlibrary-repo
+license: BSD-3-Clause
 description: "Implement meaningful canonical CI check-runs for a non-library, content, manifest, dataset, or configuration repository. Use when: (1) an ecosystem status board requires a `package`, `release`, or `install` check that seems inapplicable, (2) the board derives state from live check-runs on main, (3) choosing a real distributable rather than forcing a wheel build or a no-op check, (4) adding hardened artifact, release, or clean-install validation to mirrored workflows."
 category: ci-cd
 date: 2026-07-17

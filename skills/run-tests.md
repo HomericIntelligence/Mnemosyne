@@ -1,5 +1,6 @@
 ---
 name: run-tests
+license: BSD-3-Clause
 description: Execute test suites and report results. Use when validating code functionality.
 category: testing
 date: '2026-03-19'

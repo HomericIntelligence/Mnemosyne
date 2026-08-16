@@ -1,5 +1,6 @@
 ---
 name: tooling-cli-batch-terminal-outcome-contracts
+license: BSD-3-Clause
 description: "Design honest batch CLI outcomes. Use when: (1) a command returns success after blocked, failed, unmapped, or unprocessed work, (2) malformed mapping/config inputs or invalid JSON Schema definitions escape as exceptions, (3) human and JSON diagnostics diverge, (4) requested, validated, failed, and diagnostic counts are conflated, or (5) dry-run and interruption need explicit semantics."
 category: tooling
 date: 2026-08-06

@@ -1,5 +1,6 @@
 ---
 name: code-review-before-merge-workflow
+license: BSD-3-Clause
 description: "Review completed implementation work for correctness, regressions, maintainability, security, and test quality before merge. Use when: (1) a substantial change or complex fix is complete, (2) a branch is about to merge, (3) the author claims readiness and the claim needs independent technical review"
 category: tooling
 date: 2026-07-16

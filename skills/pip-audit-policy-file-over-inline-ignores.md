@@ -1,5 +1,6 @@
 ---
 name: pip-audit-policy-file-over-inline-ignores
+license: BSD-3-Clause
 description: "Enforce one uv-only, fail-closed pip-audit path whose sole suppression authority is an exact repository-root ledger. Use when: (1) CI, hooks, or task runners invoke pip-audit differently, (2) native --ignore-vuln flags or alternate ledgers bypass review, (3) scanner status can contradict JSON evidence, or (4) stale suppressions must fail rather than disappear silently."
 category: ci-cd
 date: 2026-08-07

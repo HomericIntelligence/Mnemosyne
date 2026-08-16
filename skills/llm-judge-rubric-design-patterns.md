@@ -1,5 +1,6 @@
 ---
 name: llm-judge-rubric-design-patterns
+license: BSD-3-Clause
 description: "Use when: (1) designing or extending LLM-as-Judge rubrics for agent evaluation, (2) reducing judge score variance beyond 10%, (3) implementing multi-judge consensus or hybrid scoring, (4) adding fair-baseline regression detection, (5) consolidating grading-scale definitions, (6) hardening judge worker pools against API rate limits, (7) improving diagnostic clarity of judge pipeline logs"
 category: evaluation
 date: 2026-05-19

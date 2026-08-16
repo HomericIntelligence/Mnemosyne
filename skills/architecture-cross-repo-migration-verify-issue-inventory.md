@@ -1,5 +1,6 @@
 ---
 name: architecture-cross-repo-migration-verify-issue-inventory
+license: BSD-3-Clause
 description: "Cross-repo/submodule migrations: verify the proposed inventory before a move, then sweep every orphaned consumer after it. Use when: (1) planning a file or package move, (2) crossing repository boundaries, (3) cited files or counts may be stale, (4) destination capabilities are assumed, (5) removed source leaves validators, tests, entry points, hooks, workflows, docs, package exports, or frozen guards behind, or (6) deleting a public symbol requires downstream and re-export-chain evidence."
 category: architecture
 date: 2026-08-07

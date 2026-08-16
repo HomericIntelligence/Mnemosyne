@@ -1,5 +1,6 @@
 ---
 name: release-workflow-stagewise-failure-debugging
+license: BSD-3-Clause
 description: "A tag-triggered release workflow fails one job at a time — each fix only exposes the next latent bug, because a release is the first time the publish path actually runs end-to-end. Use when: (1) a release/publish pipeline fails at a verification or publish job and you must debug stage-by-stage, (2) a fix on the default branch does not take effect because the release checks out the tag's tree, (3) a release runner lacks a local-only dependency, (4) trusted publishing rejects a valid token, (5) deciding whether a staging gate earns its configuration cost, or (6) a tag-triggered deployment is rejected by an environment before any job step starts."
 category: ci-cd
 date: 2026-08-07

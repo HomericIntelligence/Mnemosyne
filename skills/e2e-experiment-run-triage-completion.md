@@ -1,5 +1,6 @@
 ---
 name: e2e-experiment-run-triage-completion
+license: BSD-3-Clause
 description: "Use when: (1) a batch E2E experiment run has completed and needs result
   triage (framework bugs vs model failures); (2) experiments are broken/partial and
   need repair, fresh re-runs, or stale-worktree cleanup; (3) checkpoint states appear

@@ -1,5 +1,6 @@
 ---
 name: exception-discriminator-enums-state-machine-pola
+license: BSD-3-Clause
 description: "Add a discriminator enum field to exceptions in state machines to distinguish semantic reasons for the same exception type. Use when: (1) same exception type is raised in multiple states with different recovery strategies; (2) callers need to distinguish error reasons without parsing message strings; (3) a single field has context-dependent semantics across states, violating POLA."
 category: architecture
 date: 2026-06-05

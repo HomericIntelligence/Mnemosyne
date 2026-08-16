@@ -1,5 +1,6 @@
 ---
 name: audit-epic-sequencing-milestone-attachment
+license: BSD-3-Clause
 description: "Implement a GitHub audit epic that sequences remediation across many child issues in dependency order using GitHub milestones, wave structure, and verify-and-close patterns. Use when: (1) you have a completed strict audit with 20+ findings filed as child issues and need to coordinate their implementation order, (2) you need to attach all child issues to a GitHub milestone in bulk, (3) deciding wave dependency structure (Foundation → Critical → Hygiene), (4) closing child issues that are already fixed before implementing any PR, (5) batching Wave-3 hygiene items by co-located files to prevent merge conflicts, (6) verifying PR policy (body, auto-merge, signature) before declaring an epic done."
 category: tooling
 date: 2026-06-19

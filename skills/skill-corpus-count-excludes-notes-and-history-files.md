@@ -1,5 +1,6 @@
 ---
 name: skill-corpus-count-excludes-notes-and-history-files
+license: BSD-3-Clause
 description: "Use when: (1) counting the number of skills in the marketplace corpus, (2) auditing per-category skill counts, (3) any script or agent step that measures corpus size with ls/find/git ls-tree on the skills/ directory. Naive *.md globs silently include .notes.md companion files and inflate counts by ~57%."
 category: tooling
 date: 2026-05-19

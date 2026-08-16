@@ -1,5 +1,6 @@
 ---
 name: dry-refactoring-plan-assumption-audit
+license: BSD-3-Clause
 description: "Checklist of hidden assumptions that bite DRY module-consolidation and shim-collapse plans before implementation starts. Use when: (1) planning to merge two modules into one canonical, (2) replacing a module with a delegation shim that re-exports from the canonical, (3) porting tests from one file to another, (4) extending a main() function with new sub-checks, (5) consolidating two functions with the same name but different signatures, (6) the issue proposes BUILDING a delegation mechanism (__getattr__, frozenset, orchestrator) that a prior refactor may already have shipped."
 category: architecture
 date: 2026-06-30

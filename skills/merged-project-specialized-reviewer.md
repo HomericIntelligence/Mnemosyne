@@ -1,5 +1,6 @@
 ---
 name: merged-project-specialized-reviewer
+license: BSD-3-Clause
 description: "Create a project-specialized read-only reviewer subagent by merging an existing general-review-specialist agent with WebFetch/WebSearch/Bash capabilities and project-pinned context (gate thresholds, dependency SHAs, friction inventory, citation-discipline rules). Use when: (1) a project has artifacts that cite primary sources (papers, model cards, API specs) and citation correctness matters, (2) the project has pinned thresholds/SHAs/invariants that must not drift across documents, (3) a generic reviewer would either miss project-specific drift or re-derive context every invocation, (4) you want read-only review with WebFetch capability rather than the standard Read/Grep/Glob-only specialist."
 category: evaluation
 date: 2026-05-12

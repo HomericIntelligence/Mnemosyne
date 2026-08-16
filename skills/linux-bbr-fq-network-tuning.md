@@ -1,5 +1,6 @@
 ---
 name: linux-bbr-fq-network-tuning
+license: BSD-3-Clause
 description: "Enable TCP BBR congestion control + fq qdisc on a Linux host, persistently and kernel-version-aware. Use when: (1) tuning throughput on lossy/higher-RTT paths like internet uploads or a Tailscale mesh, (2) tcp_available_congestion_control lists only \"reno cubic\" and bbr is missing because tcp_bbr is not loaded yet, (3) BBR reads back active but interfaces still show pfifo_fast, (4) applying the same tuning across multiple mesh hosts on different kernels (4.19 vs 5.10), (5) an lsmod grep says the module is \"not loaded\" but sysctl already reports bbr."
 category: optimization
 date: 2026-07-04

@@ -1,5 +1,6 @@
 ---
 name: cli-localization-isolate-human-machine-output
+license: BSD-3-Clause
 description: "Design a stdlib-only Python localization boundary that translates authored human-facing CLI, plain-log, and TUI text without changing machine contracts. Use when: (1) adding localization to argparse CLIs without process-global hooks, (2) preserving JSON, flags, metavars, runtime values, and exit codes, (3) localizing threaded logging or terminal UIs with context-local catalogs."
 category: architecture
 date: 2026-07-25

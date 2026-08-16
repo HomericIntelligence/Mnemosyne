@@ -1,5 +1,6 @@
 ---
 name: ci-pip-install-user-pep668
+license: BSD-3-Clause
 description: "Use pip install --user in GitHub Actions to guard against PEP 668 externally-managed-environment errors. Use when: (1) writing a pip install step in a GitHub Actions workflow that does NOT use actions/setup-python first, (2) the job installs pyyaml, yamllint, or any other package on ubuntu-latest, (3) you see 'error: externally-managed-environment' from pip on a CI runner, (4) reviewing workflow run: steps that use bare pip install <pkg>, (5) future-proofing pip installs against runner image upgrades that enforce PEP 668."
 category: ci-cd
 date: 2026-06-20

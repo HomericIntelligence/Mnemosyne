@@ -1,5 +1,6 @@
 ---
 name: prometheus-json-api-exporter-sidecar
+license: BSD-3-Clause
 description: 'Deploy a Python sidecar that converts JSON REST APIs to Prometheus text
   format. Use when: upstream services expose JSON (not /metrics), all Prometheus targets
   show up=0, or bridging Docker-networked services.'

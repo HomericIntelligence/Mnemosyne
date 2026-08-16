@@ -1,5 +1,6 @@
 ---
 name: shell-wrapper-container-detection
+license: BSD-3-Clause
 description: "Implement shell script wrappers that detect container context and route commands via container orchestrator (podman/docker) when on host. Use when: (1) wrapping CLI tools that must run inside containers, (2) dev environment uses podman compose with detached environments, (3) same script must work both on host (via podman compose exec) and inside container (direct execution)."
 category: tooling
 date: 2026-07-03

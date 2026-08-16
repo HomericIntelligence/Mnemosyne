@@ -1,5 +1,6 @@
 ---
 name: tailscale-split-dns-dnsmasq-restricted-nameserver
+license: BSD-3-Clause
 description: "Give tailnet devices LAN-speed access to a self-hosted service by killing the WAN hairpin — a tiny dnsmasq container bound to the host's tailnet IP plus a Tailscale 'restricted nameserver' overrides the public hostname to the tailnet IP (no Tailscale 'Custom DNS records' UI needed). Use when: (1) a self-hosted service (NextCloud, etc.) is slow from LAN/tailnet because its public hostname resolves to the WAN IP and traffic hairpins out and back through the router capped at upstream bandwidth, (2) you want `svc.example.com` to resolve to the host's tailnet IP for tailnet devices while all other `*.example.com` names still resolve to their real public records, (3) the Tailscale admin 'Custom DNS records' section is missing/unfindable and you need the always-available split-DNS model instead."
 category: tooling
 date: 2026-07-04

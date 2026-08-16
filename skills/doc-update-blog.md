@@ -1,5 +1,6 @@
 ---
 name: doc-update-blog
+license: BSD-3-Clause
 description: Update development blog with implementation milestones, learnings, and
   progress. Use after completing major milestones or phases.
 category: tooling

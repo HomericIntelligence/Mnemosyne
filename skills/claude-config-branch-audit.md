@@ -1,5 +1,6 @@
 ---
 name: claude-config-branch-audit
+license: BSD-3-Clause
 description: 'Audit and fix Claude Code configuration branches for consistency with
   actual repo tooling. Use when: reviewing a branch that modifies CLAUDE.md or .claude/
   settings, hook scripts are referenced but don''t exist, or Python version and commands

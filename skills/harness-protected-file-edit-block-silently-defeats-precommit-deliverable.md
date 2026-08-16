@@ -1,5 +1,6 @@
 ---
 name: harness-protected-file-edit-block-silently-defeats-precommit-deliverable
+license: BSD-3-Clause
 description: "Recognize a harness per-file Edit denial as a deliberate restriction, not a bug, and stop it from cascading into false docs and un-resolvable review threads. Use when: (1) an issue's central deliverable is 'add a pre-commit hook' / edit .pre-commit-config.yaml and your Edit calls are denied by don't-ask permission mode, (2) a sub-agent AND the coordinator both get 'Permission to use Edit has been denied' on the SAME specific file while other files edit fine, (3) you must decide whether a permission-denied edit is a bug to work around or a deliberate restriction to surface, (4) you are a review-thread coordinator and 2+ threads all depend on one un-editable file."
 category: tooling
 date: 2026-07-01

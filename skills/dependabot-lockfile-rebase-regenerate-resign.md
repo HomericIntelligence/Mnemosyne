@@ -1,5 +1,6 @@
 ---
 name: dependabot-lockfile-rebase-regenerate-resign
+license: BSD-3-Clause
 description: "Use when: (1) a Dependabot/bot dependency-bump PR (pixi/pip) goes DIRTY/CONFLICTING on its lockfile (pixi.lock) plus its manifest (pyproject.toml/pixi.toml) after main advances and must be rebased by hand, (2) fleet-sync / @me-scoped rebase tooling silently SKIPS the bot PR because its discovery is author-scoped to @me and bot PRs are not yours, (3) you must semantically merge a dependency CONSTRAINT change onto a manifest whose layout main has since refactored — keeping main's new structure and re-applying only the bump, (4) you need to resolve a generated pixi.lock conflict without hand-merging it — regenerate instead, (5) a re-signed/--locked CI gate must pass before a bot dep PR can land."
 category: ci-cd
 date: 2026-06-11

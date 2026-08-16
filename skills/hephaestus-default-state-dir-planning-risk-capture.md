@@ -1,5 +1,6 @@
 ---
 name: hephaestus-default-state-dir-planning-risk-capture
+license: BSD-3-Clause
 description: "Planning checklist for centralizing ProjectHephaestus automation default state-dir construction around the repo-local build/.issue_implementer path. Use when: (1) a plan consolidates duplicated state_dir defaults, (2) reviewers must preserve explicit state_dir overrides, (3) tests add literal-string audits around build/.issue_implementer, (4) helper placement may introduce automation circular imports."
 category: architecture
 date: 2026-06-26

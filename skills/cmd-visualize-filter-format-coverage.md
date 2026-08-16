@@ -1,5 +1,6 @@
 ---
 name: cmd-visualize-filter-format-coverage
+license: BSD-3-Clause
 description: "cmd_visualize Filter × Format Coverage Tests"
 category: testing
 date: 2026-03-19

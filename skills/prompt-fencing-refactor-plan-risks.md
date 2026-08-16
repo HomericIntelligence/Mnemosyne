@@ -1,5 +1,6 @@
 ---
 name: prompt-fencing-refactor-plan-risks
+license: BSD-3-Clause
 description: "Test prompt builders through production consumers and security boundaries instead of pinning editorial text. Use when: (1) GitHub- or Git-derived metadata enters agent prompts, (2) nonce fencing must prove hostile payload containment, (3) Jinja templates contain JSON examples consumed by real parsers, (4) provider or iteration routing must remain stable while prompt wording evolves."
 category: testing
 date: 2026-08-07
