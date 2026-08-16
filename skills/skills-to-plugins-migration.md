@@ -1,5 +1,6 @@
 ---
 name: skills-to-plugins-migration
+license: BSD-3-Clause
 description: Migrate PRs that add skills to the flat skills/ directory into the correct
   plugins/<category>/<name>/ structure so CI triggers and the validate check passes.
   Use when a PR branch puts files under skills/ instead of plugins/, or when the validate

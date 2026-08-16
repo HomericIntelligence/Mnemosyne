@@ -1,5 +1,6 @@
 ---
 name: ci-markdownlint-all-files-repo-wide-blocks-prs
+license: BSD-3-Clause
 description: "CI markdownlint / pre-commit gates that run --all-files lint the WHOLE repo tree, not the PR diff, so one pre-existing malformed file anywhere fails the required check on EVERY open PR — even diff-clean ones. Use when: (1) a PR is BLOCKED by a failing markdownlint or pre-commit required check but `gh pr diff --name-only` shows its own diff is clean, (2) multiple unrelated PRs all go red on the same lint job at once, (3) a local `pre-commit run --files <your-diff>` passes but CI's all-files run still fails, (4) deciding whether to keep editing your PR or to open a separate cleanup PR to delete a stray file, (5) the failing job log cites a filename (e.g. a stray LEARNINGS/scratch .md at repo root) that you never touched."
 category: ci-cd
 date: 2026-06-12

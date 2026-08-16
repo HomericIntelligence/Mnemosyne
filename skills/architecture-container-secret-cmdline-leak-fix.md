@@ -1,5 +1,6 @@
 ---
 name: architecture-container-secret-cmdline-leak-fix
+license: BSD-3-Clause
 description: "Use when: (1) a secret like ANTHROPIC_API_KEY is passed to a container via `-e VAR=value` on a podman/docker run command line, (2) two container workers use different binaries with different auth paths and need asymmetric fixes, (3) a name-only -e VAR form is added and a pre-flight guard for the unset-var silent-injection case is needed, (4) a 'safe to remove/change' argument is about to be applied across multiple call sites — confirm each site invokes the SAME binary/auth path first, (5) writing a regression test for a credential change — a string-absence test is NOT an auth-regression test, (6) citing a test runner in a verification plan — confirm the runner actually exists in pixi.toml/justfile."
 category: architecture
 date: 2026-06-19

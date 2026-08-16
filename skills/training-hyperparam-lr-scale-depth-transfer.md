@@ -1,5 +1,6 @@
 ---
 name: training-hyperparam-lr-scale-depth-transfer
+license: BSD-3-Clause
 description: "Use when: (1) you tuned learning-rate scales at one model geometry (e.g. 2L MLP) and are about to reuse them on a deeper/wider model (e.g. 8-layer CNN) without re-screening, (2) a sweep that worked at one depth suddenly diverges (top-1 ≈ 1/n_classes, train CE close to ln(n_classes)) at a deeper/wider target, (3) you see `clip_fires` correlate with `--use-adam` and want to know whether to attribute them to Adam or to an under-scaled LR, (4) you are about to design a `larger-model` follow-up to an already-completed `smaller-model` sweep and want a checklist before starting."
 category: training
 date: 2026-07-22

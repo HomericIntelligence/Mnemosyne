@@ -1,5 +1,6 @@
 ---
 name: openai-agentic-serving-parser-flags
+license: BSD-3-Clause
 description: "Configure OpenAI-compatible serving engines for agentic tool use. Use when: (1) vLLM or SGLang serves a model family that requires an explicit parser, (2) a client uses automatic tool choice, (3) errors mention --enable-auto-tool-choice or --tool-call-parser."
 category: tooling
 date: 2026-06-18

@@ -1,5 +1,6 @@
 ---
 name: tooling-plan-artifact-delivery-nogo
+license: BSD-3-Clause
 description: "A plan-producing turn followed by a /learn-or-summary step can post the WRONG artifact to the reviewer: the harness pipes your post-work reviewer-bullet SUMMARY into the issue AS THE PLAN BODY, the reviewer sees only bullets, grades it F ('risk memo, not a plan'), and NOGOs — a false NOGO caused by artifact-delivery, not design. Use when: (1) a planning step is chained with a /learn, /retrospective, or summary step and the plan lands in the wrong channel, (2) a reviewer NOGO'd a plan that reads as 3-5 bullets / a risk register with no full sections, (3) you are re-planning after a NOGO and must decide whether to emit a diff or the whole plan, (4) you see the #693 R0/R1 NOGO-exhaustion failure mode where the plan body is empty/bulletized, (5) you need to reason about which OUTPUT goes to which CHANNEL when one turn produces both a plan artifact and a reviewer summary."
 category: tooling
 date: 2026-07-05

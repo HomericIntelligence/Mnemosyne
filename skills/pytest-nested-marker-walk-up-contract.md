@@ -1,5 +1,6 @@
 ---
 name: pytest-nested-marker-walk-up-contract
+license: BSD-3-Clause
 description: "Pin the first-match-up (innermost-wins) contract of walk-up path resolvers using pytest tmp_path. Use when: (1) testing a function that walks up from a seed path returning the first ancestor containing a filesystem marker (.git, pyproject.toml, config file), (2) tests must assert equality against a resolved path returned by the SUT (Path(start_path).resolve() pattern), (3) building the nested-marker matrix (outer/inner with same or mixed markers) to pin innermost-wins semantics, (4) CI runs on macOS or symlinked-tmpdir Linux where bare tmp_path subpaths differ from their resolved form."
 category: testing
 date: 2026-06-13

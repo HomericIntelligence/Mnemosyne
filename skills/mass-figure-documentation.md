@@ -1,5 +1,6 @@
 ---
 name: mass-figure-documentation
+license: BSD-3-Clause
 description: Generate comprehensive documentation for multiple analysis figures using
   parallel background agents
 category: documentation

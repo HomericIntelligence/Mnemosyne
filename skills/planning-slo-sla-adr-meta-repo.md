@@ -1,5 +1,6 @@
 ---
 name: planning-slo-sla-adr-meta-repo
+license: BSD-3-Clause
 description: "How to plan adding SLO/SLA definitions to a read-mostly, ADR-driven meta-repo. Use when: (1) an audit finds no SLO/SLA/alerting targets in a docs-only repo, (2) planning where service-level targets should live when the implementing service is a separate submodule, (3) translating SLOs into Prometheus alerting rules."
 category: documentation
 date: 2026-06-19

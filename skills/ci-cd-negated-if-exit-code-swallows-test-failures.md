@@ -1,5 +1,6 @@
 ---
 name: ci-cd-negated-if-exit-code-swallows-test-failures
+license: BSD-3-Clause
 description: "A CI test harness using `if ! cmd; then rc=$?; fi` reads $? AFTER the negated condition, so rc is always 0 and every failure counts as a pass — the job reports Passed: N, Failed: 0, SUCCESS while tests fail to even compile. Use when: (1) a CI summary says all tests pass but you suspect some never ran or never compiled, (2) auditing shell test-runner loops for exit-code capture bugs, (3) fixing a false-green harness and handling the wave of newly exposed failures, (4) writing a red-green proof that a harness fix actually detects failures."
 category: ci-cd
 date: 2026-07-16

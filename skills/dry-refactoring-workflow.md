@@ -1,5 +1,6 @@
 ---
 name: dry-refactoring-workflow
+license: BSD-3-Clause
 description: "Use when duplicated or near-duplicated code, data, or control flow should be consolidated without changing behavior. Covers current-state discovery, exact-vs-intentional-variant classification, canonical placement, TDD, compatibility and patch-seam preservation, incremental migration, and anti-drift verification."
 category: architecture
 date: 2026-07-04

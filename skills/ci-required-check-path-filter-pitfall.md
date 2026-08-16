@@ -1,5 +1,6 @@
 ---
 name: ci-required-check-path-filter-pitfall
+license: BSD-3-Clause
 description: "Use when: (1) an issue asks you to run a build/job ONLY on PRs that touch certain paths (e.g. a Dockerfile, a subdirectory) and the target workflow is a REQUIRED status check — adding a workflow-level on.pull_request.paths: filter is a trap that makes path-irrelevant PRs un-mergeable, (2) planning a smoke/build gate that you are tempted to soft-fail with continue-on-error: true (a repo may have a forbid-suppressions guard that fails CI on it), (3) tempted to rewrite a digest-pinned Dockerfile FROM to an mcr.microsoft.com mirror to dodge Docker Hub rate limits (this changes the shipped image digest), (4) deciding base-image arch for a pixi/conda smoke build (linux-64 workspace cannot build linux/arm64), (5) writing a CI implementation plan and you need an uncertain-assumptions checklist a reviewer can verify (is the workflow actually a required check? are cited line numbers fresh? is the action SHA verified upstream?)."
 category: ci-cd
 date: 2026-06-19

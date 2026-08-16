@@ -1,5 +1,6 @@
 ---
 name: backoff-jitter-clamp-after-not-before-max-delay
+license: BSD-3-Clause
 description: "Clamp exponential-backoff delay to max_delay AFTER applying jitter so the cap is a hard ceiling, while KEEPING the pre-jitter clamp (the doubled clamp is intentional, not a DRY violation). Use when: (1) a retry/backoff helper applies max(min) cap before adding jitter and a caller's max_delay is being exceeded by the jitter percentage, (2) you are reviewing or fixing exponential-backoff code and need to decide whether the pre-jitter clamp is redundant, (3) you see delay = min(base * factor**n, cap) * jitter or cap-then-add-jitter and need the worst-case sleep bounded, (4) a max_delay is documented as advisory rather than a hard bound."
 category: architecture
 date: 2026-06-12

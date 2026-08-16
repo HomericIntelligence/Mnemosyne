@@ -1,5 +1,6 @@
 ---
 name: plan-review-interview
+license: BSD-3-Clause
 description: Structured interview workflow for reviewing implementation plans and
   capturing decisions
 category: evaluation

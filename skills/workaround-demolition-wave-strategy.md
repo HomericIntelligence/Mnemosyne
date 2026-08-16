@@ -1,5 +1,6 @@
 ---
 name: workaround-demolition-wave-strategy
+license: BSD-3-Clause
 description: "Multi-PR sequencing framework for safely ripping out workarounds after an upstream library/compiler bug is fixed. Use when: (1) an upstream dependency (compiler, runtime, library) just shipped a fix for a bug your repo has accumulated workarounds for, (2) workarounds are spread across CI retry loops, continue-on-error flags, build flags, debug infrastructure, ADRs, dev docs, reproducer files, test-file comments, and agent-facing skills/memory, (3) you need to avoid one giant unreviewable demolition PR and instead want a safe, bisectable, reviewable sequence, (4) you have to decide between scorched-earth deletion vs preservation-with-Superseded-markers for documentation/ADRs, (5) some workaround-removals are risky one-liners not exercised by your validation matrix and need their own CI gate, (6) Wave 2 scorched-earth targets a directory (e.g. `repro/`) where files may correspond to DISTINCT upstream bugs sharing only symptom surface — partition by bug, not by directory, before deletion."
 category: ci-cd
 date: 2026-05-26

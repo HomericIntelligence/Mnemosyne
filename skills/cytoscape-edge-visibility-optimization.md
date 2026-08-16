@@ -1,5 +1,6 @@
 ---
 name: cytoscape-edge-visibility-optimization
+license: BSD-3-Clause
 description: Cytoscape.js DAG visualization bug fixes and performance patterns. Covers
   edge-at-baseline-hidden pattern, read-only graph config, day-filter phase boundary
   visibility, and role-complete trajectory highlighting.

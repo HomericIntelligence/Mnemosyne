@@ -1,5 +1,6 @@
 ---
 name: pydantic-frozen-models-testing-pattern
+license: BSD-3-Clause
 description: "Testing patterns for frozen Pydantic models. Use when: (1) converting mutable config to frozen=True, (2) rewriting mode='after' validators as mode='before', (3) fixing test override patterns with LRU-cached singletons."
 category: testing
 date: 2026-06-04

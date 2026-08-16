@@ -1,5 +1,6 @@
 ---
 name: track-implementation-progress
+license: BSD-3-Clause
 description: Track implementation progress against plan. Use to monitor component
   delivery and identify blockers.
 category: tooling

@@ -1,5 +1,6 @@
 ---
 name: architecture-import-time-assert-anti-pattern
+license: BSD-3-Clause
 description: "Use when: (1) you wrote `assert len(REGISTRY) == EXPECTED_LEN` at the top of a Python module to enforce a single-source-of-truth count, (2) the module is loaded both in tests (where asserts run) and in production via `python -O ...` (where asserts are stripped), (3) you want the SSoT-length contract to hold *always*, not only under the developer's default interpreter, (4) you are about to add a drift-catcher assertion and want to know the canonical CI-test-only shape."
 category: architecture
 date: 2026-07-22

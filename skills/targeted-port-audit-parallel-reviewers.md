@@ -1,5 +1,6 @@
 ---
 name: targeted-port-audit-parallel-reviewers
+license: BSD-3-Clause
 description: "Targeted code-port audit using 3-5 parallel review agents instead of a full repo audit. Use when: (1) a script/module was rewritten from one language to another (bash→Python, Python→Rust, etc.), (2) you need feature parity verification vs. a previous implementation, (3) the change is narrowly scoped and the full /repo-analyze-strict-full skill would drown actionable findings in 14 irrelevant sections, (4) auditing a refactor against a deleted-or-archived prior version, (5) you have line-by-line side-by-side comparison material available."
 category: tooling
 date: 2026-05-26

@@ -1,5 +1,6 @@
 ---
 name: experiment-checkpoint-resume-state-bugs
+license: BSD-3-Clause
 description: "Diagnose and fix experiment checkpoint resume failures. Use when: (1) checkpoint shows intermediate states (e.g. `judge_prompt_built`, `report_written`) but on-disk artifacts confirm completion, (2) `--retry-errors` appears to do nothing or skips runs that need re-running, (3) experiment is marked `complete` but has stuck or orphaned intermediate runs, (4) dryrun NOGO with fixable blockers (stuck checkpoints, missing subtests, leftover workspace dirs), (5) Liza planning handoff is stalled after checkpoint/resume, (6) `.liza/state.yaml` timestamps were rewritten by PyYAML breaking `liza validate`/`liza resume`."
 category: debugging
 date: 2026-05-19

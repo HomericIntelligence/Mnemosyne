@@ -1,5 +1,6 @@
 ---
 name: regex-value-strip-before-finite-check
+license: BSD-3-Clause
 description: "A validity/sentinel check that runs AFTER a numeric-extraction step is dead code — the extraction strips the sentinel characters (nan/inf) before the check ever sees them, so a broken run passes green. Use when: (1) writing a validity/sentinel check right after a value-extraction step, (2) a nan/inf or bounds check that never fires, (3) reviewing your own CI assertion/gate code, (4) a smoke gate that passes on obviously-broken output."
 category: debugging
 date: 2026-07-11

@@ -1,5 +1,6 @@
 ---
 name: skill-unify-config-structure
+license: BSD-3-Clause
 description: 'Skill: Unify Config Structure'
 category: architecture
 date: 2026-01-17

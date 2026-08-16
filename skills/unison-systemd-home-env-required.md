@@ -1,5 +1,6 @@
 ---
 name: unison-systemd-home-env-required
+license: BSD-3-Clause
 description: "Fixes unison crashing with 'Environment variable HOME not found' when run from systemd. Use when: (1) unison fails immediately in a systemd service, (2) journalctl shows Fatal error about HOME, (3) all datasets fail before any files sync."
 category: debugging
 date: 2026-06-23

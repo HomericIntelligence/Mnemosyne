@@ -1,5 +1,6 @@
 ---
 name: meta-repo-build-root-pattern
+license: BSD-3-Clause
 description: "Orchestrate out-of-tree CMake builds in a meta-repo justfile without importing build tool dependencies into the root pixi.toml. Use when: (1) adding a just build recipe to a meta-repo that coordinates multiple C++/CMake submodules, (2) redirecting all build artifacts into a single root build/ directory, (3) the meta-repo should stay lean — each submodule manages its own pixi environment."
 category: architecture
 date: 2026-03-29

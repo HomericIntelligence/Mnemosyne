@@ -1,5 +1,6 @@
 ---
 name: gitea-large-version-jump-upgrade-doctor-verify
+license: BSD-3-Clause
 description: "Upgrade a Dockerized Gitea directly across a very large version gap (e.g. 15 releases, ~6 years) in a single jump, backed by a mandatory pre-flight backup and Gitea's own `gitea doctor check --all` for verification. Use when: (1) a homelab/self-hosted Gitea instance has sat unpatched for years and needs to reach current in one operation, (2) you are unsure whether Gitea enforces staged one-major-at-a-time upgrades like some other self-hosted apps, (3) you need a stronger post-upgrade health signal than 'container is Up' or an HTTP 200 on the login page, (4) `gitea doctor` fails with a root-user error and you need the correct invocation."
 category: tooling
 date: 2026-07-06

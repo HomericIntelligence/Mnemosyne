@@ -1,5 +1,6 @@
 ---
 name: nats-leaf-multi-account-remote-bridging
+license: BSD-3-Clause
 description: "Configure NATS leaf node remote bridging when named accounts{} + system_account are defined. Use when: (1) a leaf node has explicit accounts{} + system_account, and leaf-local client traffic silently fails to reach the hub, (2) deciding how many remotes entries to write (one per non-SYS account), (3) debugging silent propagation failures where clients authenticate locally but hi.* messages never arrive at the hub, (4) verifying leaf→hub propagation after adding per-account remotes entries."
 category: architecture
 date: 2026-06-19

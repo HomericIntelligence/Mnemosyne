@@ -1,5 +1,6 @@
 ---
 name: review-worker-defaults-options-alignment
+license: BSD-3-Clause
 description: "Keep automation worker-count defaults aligned when rebasing across shared Pydantic option base-class refactors. Use when: (1) CI fails after a behavior PR rebases over shared options/base-model changes, (2) CLI parser defaults/help drift from Pydantic defaults, (3) tests need to pin shared option inheritance and parser defaults."
 category: ci-cd
 date: 2026-06-27

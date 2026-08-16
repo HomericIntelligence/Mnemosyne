@@ -1,5 +1,6 @@
 ---
 name: toml-section-bounded-regex-dotall-bug
+license: BSD-3-Clause
 description: "Fix for re.DOTALL cross-section matching bug when extracting values from TOML [tool.X] sections via regex. Use when: (1) writing a regex to extract a key from a specific TOML section, (2) a TOML parser regex returns wrong values for keys that appear in multiple sections, (3) refactoring TOML extraction code that uses re.DOTALL."
 category: debugging
 date: 2026-06-13

@@ -1,5 +1,6 @@
 ---
 name: docker-ufw-published-ports-bypass-forward-chain
+license: BSD-3-Clause
 description: "Docker published ports (docker run -p / compose ports:) bypass ufw's normal INPUT-chain allow/deny rules entirely, via the DOCKER-USER/FORWARD chain. Use when: (1) a ufw deny/allow rule doesn't seem to affect a containerized service, (2) auditing firewall coverage for a Docker host, (3) trying to restrict a docker-published port to a trusted interface/VPN mesh."
 category: debugging
 date: 2026-07-04

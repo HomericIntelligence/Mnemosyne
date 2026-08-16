@@ -1,5 +1,6 @@
 ---
 name: split-figure-per-tier
+license: BSD-3-Clause
 description: Split figures that exceed Vega-Lite row limit specs
 category: tooling
 date: '2026-02-08'

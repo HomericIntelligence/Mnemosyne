@@ -1,5 +1,6 @@
 ---
 name: ci-transient-flake-and-environment-failures
+license: BSD-3-Clause
 description: "Use when: (1) a CI job fails non-deterministically and re-running resolves it (e.g. Trivy install.sh curl-pipe exit-1, lychee link-check 403/connection-reset from bot-blocking sites), (2) CI passes locally 100% but fails in GitHub Actions and you need a reproduction strategy that covers cold pixi cache + UID mismatch + no-TTY simultaneously, (3) a CI job is failing because a doctor/health-check script validates developer-local resources absent in GitHub Actions runners, (4) a dependency-install step stays in_progress far beyond the repo's baseline before tests start, such as Playwright browser install or Python package install hangs."
 category: ci-cd
 date: 2026-06-17

@@ -1,5 +1,6 @@
 ---
 name: git-trailer-human-identity-vs-model-provenance
+license: BSD-3-Clause
 description: "Keep a stable human-shaped identity in git commit identity slots (Co-Authored-By) and route volatile machine metadata (model id, version, run id) to a separate custom trailer (Implemented-By). Use when: (1) generating git commit trailers in automation, (2) deciding where model/version/run metadata goes in a commit, (3) debugging broken mailmap/shortlog/contribution aggregation from automated commits, (4) a model id or version string is leaking into a Co-Authored-By name slot, (5) writing a regression test that locks a commit-trailer identity slot to a human-shaped value."
 category: tooling
 date: 2026-06-11

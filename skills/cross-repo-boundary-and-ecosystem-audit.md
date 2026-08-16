@@ -1,5 +1,6 @@
 ---
 name: cross-repo-boundary-and-ecosystem-audit
+license: BSD-3-Clause
 description: "Enforce repo charters, audit ecosystem health, and remediate scope creep
   across multi-repo HomericIntelligence projects. Use when: (1) validating multi-repo
   integration boundaries and hunting cross-repo contract bugs, (2) a repo has suffered

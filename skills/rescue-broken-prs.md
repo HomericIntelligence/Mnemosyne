@@ -1,5 +1,6 @@
 ---
 name: rescue-broken-prs
+license: BSD-3-Clause
 description: Rescue Broken PRs
 category: ci-cd
 date: 2026-02-06

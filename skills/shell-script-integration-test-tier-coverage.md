@@ -1,5 +1,6 @@
 ---
 name: shell-script-integration-test-tier-coverage
+license: BSD-3-Clause
 description: "Pattern for ensuring integration tests cover all preference tiers in shell scripts with N-tier fallback logic. Use when: (1) a shell script has N-tier fallback/preference logic but tests only cover the first N-1 tiers, (2) adding a test for a bash script that uses bash-function-override injection (export a mock `gh` function via a Python pytest helper), (3) reviewing test coverage gaps in `scripts/choose_merge_flag.sh` or similar tiered-preference scripts, (4) constructing flat REST JSON bodies for each tier of a jq-driven preference selector."
 category: testing
 date: 2026-06-13

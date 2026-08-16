@@ -1,5 +1,6 @@
 ---
 name: github-issue-stale-plan-comment-cleanup
+license: BSD-3-Clause
 description: "Clean up stale GitHub issue plan/review/task comments after revalidating the issue against the current architecture. Use when: (1) issue bodies are current but older authored plan comments contradict them, (2) a user asks to remove existing plans or stale planning artifacts, (3) issue comments have headings like '# Implementation Plan', '## Plan Review', '# Task #', or older superseded notes, (4) an issue is superseded by a newer architecture path and needs a disposition comment plus closure."
 category: tooling
 date: 2026-07-09

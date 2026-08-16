@@ -1,5 +1,6 @@
 ---
 name: extract-test-failures
+license: BSD-3-Clause
 description: Extract and summarize test failures from logs
 category: testing
 date: 2025-12-30

@@ -1,5 +1,6 @@
 ---
 name: stale-background-bash-tasks-audit
+license: BSD-3-Clause
 description: "Background Bash tasks (via run_in_background) have no built-in completion timeout. If their command hangs (tmpdir cleanup, missing dependency, polling loop with no deadline), they stay 'running' indefinitely with no parent notification. Use when: (1) a parent agent realizes it dispatched a background bash task hours ago and never heard back, (2) the user reports 'X is still running' from their UI panel, (3) writing a polling loop that needs to wait on an external condition, (4) writing a repro harness that depends on transient tmpdirs."
 category: tooling
 date: 2026-05-25

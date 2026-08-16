@@ -1,5 +1,6 @@
 ---
 name: architecture-getattr-delegate-collapse-mypy-regressions
+license: BSD-3-Clause
 description: >-
   Use when: (1) collapsing pure-forward delegate/wrapper methods (each just
   `return self._inner._same_name(...)`) on a facade class into the class's

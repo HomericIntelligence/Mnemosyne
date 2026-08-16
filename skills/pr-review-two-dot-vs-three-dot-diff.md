@@ -1,5 +1,6 @@
 ---
 name: pr-review-two-dot-vs-three-dot-diff
+license: BSD-3-Clause
 description: "TWO questions, TWO diffs on a stale branch. For MERGE-READINESS / revert-footprint (what re-merging does to main), use two-dot (git diff origin/main..branch). For the BRANCH'S OWN delta (its actual contribution, ignoring main's advance), use merge-base-isolated / three-dot (origin/main...branch) — a naive two-dot INVERTS main's advance into phantom deletions. Use when: (1) reviewing a stale *-auto-impl or long-lived feature branch that is N commits behind origin/main, (2) a three-dot diff shows a scary regression (e.g. a timeout 7200s->300s) that turns out to already be on main via a sibling PR, (3) deciding whether re-merging a stale branch is safe or would REVERT sibling work already landed on trunk, (4) you suspect a PR is a zombie whose feature already merged, (5) verifying a PR's true revert footprint before issuing a GO/NO-GO verdict, (6) a two-dot diff of a stale branch shows tens of thousands of phantom DELETIONS drowning the real change and you want the branch's own work instead."
 category: tooling
 date: 2026-07-10

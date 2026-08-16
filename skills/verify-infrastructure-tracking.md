@@ -1,5 +1,6 @@
 ---
 name: verify-infrastructure-tracking
+license: BSD-3-Clause
 description: 'Verify a known environment incompatibility is tracked as an open infrastructure
   issue before re-implementing a workaround. Use when: a pre-commit hook silently
   skips due to host constraints, or an issue asks you to ''verify X is tracked''.'

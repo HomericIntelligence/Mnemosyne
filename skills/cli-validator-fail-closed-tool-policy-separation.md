@@ -1,5 +1,6 @@
 ---
 name: cli-validator-fail-closed-tool-policy-separation
+license: BSD-3-Clause
 description: "Design batch file validators so incomplete inspection fails closed without changing successful helper return types, while CLI output separates tool errors from policy violations. Use when: (1) discovery, stat, read, decode, size, or parse failures can currently look clean, (2) an empty discovered inventory should fail unless narrowly allowed, (3) public list-returning helpers need backward-compatible success behavior, or (4) human and JSON output must expose operational failures separately from policy findings."
 category: tooling
 date: 2026-08-06

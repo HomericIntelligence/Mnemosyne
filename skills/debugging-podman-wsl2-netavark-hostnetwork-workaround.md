@@ -1,5 +1,6 @@
 ---
 name: debugging-podman-wsl2-netavark-hostnetwork-workaround
+license: BSD-3-Clause
 description: "Bypass podman-compose network creation failures on WSL2 rootless podman by running one-off host-network containers. Use when: (1) podman-compose up -d fails with netavark/nftables errors ('Could not process rule: No such file or directory', 'IPAM error: failed to get ips', 'nft did not return successfully') on WSL2/rootless podman; (2) a Makefile/CI recipe wrapping podman-compose exec -T dev fails with 'can only create exec sessions on running containers' because the compose network silently failed; (3) you need to replicate a compose dev-service environment for a one-off in-container command without the compose network."
 category: debugging
 date: 2026-07-02

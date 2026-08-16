@@ -1,5 +1,6 @@
 ---
 name: scifi-mechanism-pr-box-trivial-communication-complexity
+license: BSD-3-Clause
 description: "Documents the PR-box / super-quantum correlation processor mechanism for a Planck-scale reality simulator, including the van Dam trivial communication complexity theorem, information causality (Tsirelson bound), NPA hierarchy characterization, and the M-file writing style used in the HomericIntelligence/Story research corpus. Use when: (1) writing a new M-file mechanism for the Story project, (2) researching super-quantum correlations or PR-boxes, (3) applying communication complexity theory to distributed computation design."
 category: architecture
 date: 2026-06-01

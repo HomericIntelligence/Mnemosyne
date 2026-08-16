@@ -1,5 +1,6 @@
 ---
 name: phase-skip-semantics-already-done-success
+license: BSD-3-Clause
 description: "Distinguish orchestrator-level phase skips (disabled/gated/not-final-loop/shutdown) from worker-internal already-done idempotency, and enforce that 'already done' returns success not failure. Use when: (1) building a multi-phase pipeline driver, (2) a phase's worker has any 'already exists / already done' check, (3) debugging why phase N's downstream phases stopped running, (4) auditing rc semantics across an orchestrator → worker boundary, (5) reviewing whether a worker's success count includes idempotent skips."
 category: architecture
 date: 2026-05-26

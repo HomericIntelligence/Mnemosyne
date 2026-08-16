@@ -1,5 +1,6 @@
 ---
 name: architecture-threadsafe-cache-per-key-locks
+license: BSD-3-Clause
 description: "Pattern for shared module-level caches with per-key locking and TTL. Use when: (1) a module caches expensive computations (subprocess, API calls, repo metadata), (2) multiple threads access the same cache, (3) you need per-key invalidation instead of global clear(), (4) cache entries should expire after a TTL to prevent stale data, (5) callers must get defensive copies to prevent accidental mutations of cached state."
 category: architecture
 date: 2026-07-06

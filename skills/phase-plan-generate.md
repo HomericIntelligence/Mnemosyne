@@ -1,5 +1,6 @@
 ---
 name: phase-plan-generate
+license: BSD-3-Clause
 description: Generate comprehensive plan documentation following Template 1 format.
   Use when creating plan.md files for new components or subsections.
 category: tooling

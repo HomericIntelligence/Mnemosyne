@@ -1,5 +1,6 @@
 ---
 name: ci-cd-distributed-dependency-license-compatibility-gate
+license: BSD-3-Clause
 description: "Use when: (1) NOTICE/license attribution is maintained manually but no CI verifies that new or transitively-upgraded distributed deps stay license-compatible; (2) building a stdlib-only license drift-guard that scans the DISTRIBUTED dependency set (base + runtime extras, never dev) from importlib.metadata Requires-Dist; (3) resolving a package's license across License-Expression (PEP 639 SPDX) -> trove Classifier -> freeform License field; (4) implementing a two-tier allowlist (blanket permissive set + per-package NOTICE-justified copyleft entries such as PyGitHub/LGPL or defusedxml/PSF); (5) wiring an advisory-on-main / blocking-on-PR CI job that installs the project's full runtime extras on a bare setup-python runner; (6) deciding NOT to add a pre-commit hook because the check requires a full extras install that dev environments lack."
 category: ci-cd
 date: 2026-06-12

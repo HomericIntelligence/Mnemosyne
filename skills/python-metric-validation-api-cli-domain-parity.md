@@ -1,5 +1,6 @@
 ---
 name: python-metric-validation-api-cli-domain-parity
+license: BSD-3-Clause
 description: "Enforce explicit metric domains across Python APIs and argparse CLIs. Use when: (1) helpers accept negative counts or durations, (2) percentages permit NaN, infinity, or impossible ranges, (3) CLI inputs must exit 2 while programmatic callers receive documented ValueErrors."
 category: tooling
 date: 2026-08-06

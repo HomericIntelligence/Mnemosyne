@@ -1,5 +1,6 @@
 ---
 name: learn
+license: BSD-3-Clause
 description: Save session learnings as a new skill plugin. Use after experiments, debugging sessions, or when you want to preserve team knowledge.
 user-invocable: false
 ---

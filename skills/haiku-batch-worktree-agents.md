@@ -1,5 +1,6 @@
 ---
 name: haiku-batch-worktree-agents
+license: BSD-3-Clause
 description: 'Run 4 parallel Haiku sub-agents in persistent git worktrees to implement
   60-80 GitHub issues in one session. Use when: (1) closing a large backlog of 50+
   low-complexity issues, (2) persistent worktrees already exist, (3) agents need resume-loop

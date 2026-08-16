@@ -1,5 +1,6 @@
 ---
 name: architecture-pre-discovery-worker-guard-pattern
+license: BSD-3-Clause
 description: "Use when: (1) building parallel workers (ThreadPoolExecutor) that process GitHub issues and need a lookup before doing real work, (2) some subset of items in the work queue may not be actionable (no PR, no matching resource), (3) worker functions receive a resource identifier they need to look up before doing real work, (4) tests for worker methods have stale lookup patches that need updating after adding pre-discovery"
 category: architecture
 date: 2026-04-24

@@ -1,5 +1,6 @@
 ---
 name: mypy-narrow-cast-not-assert-ruff-s101
+license: BSD-3-Clause
 description: "In production code, narrow a sentinel-union to drop a `# type: ignore[assignment]` with `typing.cast`, NOT `assert` — `assert` trips ruff bandit S101 'Use of assert detected' (tests are per-file-exempt, production is not). Use when: (1) auditing `# type: ignore` comments to remove unjustified suppressions, (2) mypy needs you to narrow a `Path | None | _UnsetType` (or any sentinel union) after an `is _UNSET` check and the obvious `assert not isinstance(...)` fails `ruff check`, (3) deciding whether a suppression is justified (platform/backport) vs deletable, leveraging mypy `warn_unused_ignores`."
 category: tooling
 date: 2026-06-29

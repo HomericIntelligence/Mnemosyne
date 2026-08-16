@@ -1,5 +1,6 @@
 ---
 name: automation-planner-learn-record-writing-robustness
+license: BSD-3-Clause
 description: "Robustness patterns for planner learn record writing in hephaestus/automation/planner_review_loop.py. Use when: (1) auditing or refactoring _write_planner_learn_record, (2) adding companion file writes (json + log), (3) changing persisted JSON schema fields, (4) designing multi-part prompt directives in build_learn_prompt."
 category: architecture
 date: 2026-06-13

@@ -1,5 +1,6 @@
 ---
 name: ci-gha-dead-guard-removal
+license: BSD-3-Clause
 description: "Use when: (1) a GHA workflow has a detect step that checks file presence and emits skip=true/false, and the guarded files are always committed — the detect+guard pattern is dead code; (2) a workflow step has `if: steps.detect.outputs.skip == 'false'` but the detection can never emit skip=true for this repo; (3) you need to verify whether a detect-and-guard scaffold in a reusable or caller workflow is load-bearing before removing it."
 category: ci-cd
 date: 2026-06-13

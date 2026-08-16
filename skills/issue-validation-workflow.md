@@ -1,5 +1,6 @@
 ---
 name: issue-validation-workflow
+license: BSD-3-Clause
 description: Validate GitHub issue state against codebase reality before implementation.
   Use when starting work on multiple issues to prevent wasted effort on already-resolved
   issues.

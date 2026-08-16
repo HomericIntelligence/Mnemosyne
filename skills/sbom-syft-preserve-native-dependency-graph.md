@@ -1,5 +1,6 @@
 ---
 name: sbom-syft-preserve-native-dependency-graph
+license: BSD-3-Clause
 description: "Build reproducible Syft SPDX release evidence without destroying dependency semantics. Use when: (1) canonicalizing Syft JSON for deterministic CI, (2) publishing archive and build-environment SBOMs, (3) a rewrite drops DEPENDS_ON or DEPENDENCY_OF relationships."
 category: ci-cd
 date: 2026-07-15

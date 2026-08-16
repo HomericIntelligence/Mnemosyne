@@ -1,5 +1,6 @@
 ---
 name: manifests-config-derived-limits-digest-hardening
+license: BSD-3-Clause
 description: "Use when: (1) a manifest-driven serving platform hardcodes model serving sequence lengths that can be derived from checkpoint metadata, (2) adding an optional relative model.config_path that points under model.path, (3) launch templates need placeholders for derived serving limits, (4) local .sqsh/squashfs runtime images carry manifest-owned SHA256 provenance that must be verified before launch."
 category: architecture
 date: 2026-06-29

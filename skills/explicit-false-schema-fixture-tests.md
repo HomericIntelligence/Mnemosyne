@@ -1,5 +1,6 @@
 ---
 name: explicit-false-schema-fixture-tests
+license: BSD-3-Clause
 description: "Skill: Explicit-False Schema Fixture Tests"
 category: tooling
 date: 2026-03-19

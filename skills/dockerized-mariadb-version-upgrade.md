@@ -1,5 +1,6 @@
 ---
 name: dockerized-mariadb-version-upgrade
+license: BSD-3-Clause
 description: "Safely upgrade a Dockerized MariaDB across a major version and finalize on-disk system tables with zero data loss, while stopping silent version drift. Use when: (1) a Docker Compose MariaDB uses an unpinned `image: mariadb` (resolves to `:latest`) and may have silently drifted to a newer major, (2) you need to run `mariadb-upgrade` to finalize system tables after a version jump, (3) the on-disk upgrade marker looks stale because you checked the legacy `mysql_upgrade_info` instead of `mariadb_upgrade_info`, (4) recreated container has an empty MYSQL_ROOT_PASSWORD env but the stored root password persists on an existing data volume."
 category: tooling
 date: 2026-06-25

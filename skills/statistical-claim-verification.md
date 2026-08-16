@@ -1,5 +1,6 @@
 ---
 name: statistical-claim-verification
+license: BSD-3-Clause
 description: Verify statistical methodology claims in research papers against raw
   data and authoritative references before making corrections
 category: documentation

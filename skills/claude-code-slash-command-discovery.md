@@ -1,5 +1,6 @@
 ---
 name: claude-code-slash-command-discovery
+license: BSD-3-Clause
 description: 'Fix slash commands not appearing in Claude Code autocomplete by moving
   .md files to the correct auto-discovered directory. Use when: commands sit in an
   unregistered plugin directory and are not discoverable.'

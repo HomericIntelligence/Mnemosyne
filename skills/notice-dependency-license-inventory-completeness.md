@@ -1,5 +1,6 @@
 ---
 name: notice-dependency-license-inventory-completeness
+license: BSD-3-Clause
 category: documentation
 date: 2026-06-12
 version: "1.1.0"

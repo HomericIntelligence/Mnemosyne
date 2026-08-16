@@ -1,5 +1,6 @@
 ---
 name: architecture-pipeline-stage-order-is-semantic
+license: BSD-3-Clause
 description: "Use when: (1) a pipeline has both an enum and a route table that imply stage order, (2) queue initialization, scope trimming, or drain order copy the sequence independently, (3) route tests or architecture docs hand-copy every route row, (4) adding or reordering a route should update all order-sensitive consumers automatically."
 category: architecture
 date: 2026-08-05

@@ -1,5 +1,6 @@
 ---
 name: systemd-inapplicable-failed-units-mask
+license: BSD-3-Clause
 description: "Triage systemd units stuck in \"failed\" state that are actually INAPPLICABLE to the hardware/filesystem rather than genuinely broken — the fix is to mask + reset-failed, not repair. Covers the two canonical cases (fwupd-refresh failing on legacy-BIOS machines with \"0 local devices supported\", snapper-boot failing because root is ext4 not btrfs / no 'root' snapper config) and why masking alone leaves a stale failed flag that reset-failed must clear. Use when: (1) systemctl --failed lists units that can never succeed on this hardware, (2) fwupd-refresh fails on a legacy-BIOS host, (3) snapper-boot fails with \"config 'root' does not exist\", (4) a unit still shows failed after being masked."
 category: debugging
 date: 2026-07-04

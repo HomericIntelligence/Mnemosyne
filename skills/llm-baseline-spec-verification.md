@@ -1,5 +1,6 @@
 ---
 name: llm-baseline-spec-verification
+license: BSD-3-Clause
 description: "Verify LLM baseline model specs from authoritative sources before any quantitative analysis. Use when: (1) starting any research/review task that involves computing KV cache sizes, FLOPs, or memory bandwidth for specific models, (2) using a shared context document with model specs, (3) comparing multiple LLM baselines quantitatively."
 category: architecture
 date: 2026-04-13

@@ -1,5 +1,6 @@
 ---
 name: asymptotic-safety-quantum-gravity-refs
+license: BSD-3-Clause
 description: "Key papers, formulas, and physical facts for asymptotic safety quantum gravity and spectral dimension flow in sci-fi mechanism design. Use when: (1) designing a fictional device based on Planck-scale RG-flow physics, (2) citing real quantum gravity results about dimensional reduction to d_s=2, (3) grounding a sci-fi simulation engine in asymptotic-safety or CDT results."
 category: architecture
 date: 2026-06-01

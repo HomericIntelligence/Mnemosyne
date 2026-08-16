@@ -1,5 +1,6 @@
 ---
 name: external-codebase-pattern-integration
+license: BSD-3-Clause
 description: "Integrate proven patterns from existing codebases into new design plans. Use when: (1) design docs reference code from another repo, (2) implementing a subsystem that an existing project already solves, (3) adapting battle-tested Slurm/job-management/infrastructure code to a new project."
 category: architecture
 date: 2026-06-11

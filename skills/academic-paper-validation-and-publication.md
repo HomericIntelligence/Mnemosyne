@@ -1,5 +1,6 @@
 ---
 name: academic-paper-validation-and-publication
+license: BSD-3-Clause
 description: "Canonical workflow for academic paper validation and publication readiness: data accuracy checks, iterative accuracy review, peer-review prep, LaTeX section-adding patterns, paper-readiness epic management. Use when: (1) preparing a manuscript for submission, (2) running an iterative-accuracy review pass, (3) adding architecture/methodology sections to a LaTeX paper, (4) managing a paper-readiness epic with sub-tasks."
 category: documentation
 date: 2026-05-18

@@ -1,5 +1,6 @@
 ---
 name: external-request-boundary-invariants
+license: BSD-3-Clause
 description: "Use when: (1) an external API client combines local admission, provider rate limiting, retries, and deadlines, (2) persisted logical names map to endpoint- or credential-keyed process registries, (3) batched completion/chat responses contain indexed choices and parallel optional fields, or (4) YAML/JSON safety limits may silently coerce booleans into numbers."
 category: architecture
 date: 2026-07-30

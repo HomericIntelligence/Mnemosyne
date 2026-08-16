@@ -1,5 +1,6 @@
 ---
 name: hephaestus-planning-review-risk-capture
+license: BSD-3-Clause
 description: "Plan-review checklist for ProjectHephaestus automation refactors that centralize repeated state-directory path construction. Use when: (1) an issue title and body appear to disagree, (2) a plan introduces DEFAULT_STATE_DIR or ensure_state_dir(), (3) repeated state_dir literals are being collapsed, (4) reviewer confidence depends on grep coverage over hephaestus/automation."
 category: architecture
 date: 2026-06-26

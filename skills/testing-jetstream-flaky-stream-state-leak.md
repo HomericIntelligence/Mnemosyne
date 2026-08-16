@@ -1,5 +1,6 @@
 ---
 name: testing-jetstream-flaky-stream-state-leak
+license: BSD-3-Clause
 description: "Planning-reasoning checklist for diagnosing flaky NATS/JetStream integration tests that assert an exact message count and intermittently OVER-count (e.g. `assert 2 == 1`) only under full-suite or repeated runs. Key correction: classify the subscriber type FIRST — a core NATS push subscriber (`nc.subscribe(...)`) receives live fan-out only and NEVER reads a JetStream stream, so purging streams is inert for it; only a JetStream consumer (`js.pull_subscribe`/`js.subscribe`) reads stream history. Use when: (1) a test asserts `len(received) == N` on a `nc.subscribe(...)` callback and flakes; (2) you are tempted to purge a JetStream stream to fix it — STOP and classify first; (3) tests use broad wildcard subjects (`hi.agents.>`, `hi.>`) and/or a fixed `asyncio.sleep` before the count assert."
 category: testing
 date: 2026-06-19

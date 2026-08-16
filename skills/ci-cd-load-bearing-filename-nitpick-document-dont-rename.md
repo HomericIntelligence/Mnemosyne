@@ -1,5 +1,6 @@
 ---
 name: ci-cd-load-bearing-filename-nitpick-document-dont-rename
+license: BSD-3-Clause
 description: "Use when: (1) an audit/lint/review NITPICK proposes renaming a file or symbol 'for discoverability/clarity' — first check whether the name is a load-bearing CROSS-REPO convention before planning the rename, (2) the candidate name is wired into branch-protection rulesets, CI status-check contexts, runbooks, canonical-checks docs, or sibling/fleet repos — the right fix is to make the name self-documenting (header comment + rationale at the source-of-truth doc), NOT to rename, (3) you must SCOPE the blast radius of a rename and need to distinguish a FILENAME change (cosmetic: breaks docs/runbook references + fleet uniformity) from a JOB-NAME change (load-bearing: breaks ruleset status-check contexts, which key off the BARE JOB NAME, not the workflow filename), (4) you are about to claim N files are 'identical across the fleet' from a single-line grep match — matching a workflow NAME or a header line is NOT byte-identity; the convention is the job-name CONTRACT, not literal file equality. Headline: a discoverability rename against a cross-repo convention has disproportionate blast radius and can deadlock ruleset rollout — DOCUMENT the rationale instead of renaming."
 category: ci-cd
 date: 2026-06-19

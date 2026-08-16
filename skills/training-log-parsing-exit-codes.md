@@ -1,5 +1,6 @@
 ---
 name: training-log-parsing-exit-codes
+license: BSD-3-Clause
 description: "Parse ML training logs with regex pattern matching and return distinct exit codes per failure mode (SUCCESS, TRAINING_FAILURE, LOG_FORMAT_MISMATCH, LOSS_NOT_DECREASING, NUMERIC_INSTABILITY). Use when: (1) validating training runs in CI/automation, (2) distinguishing between script bugs and training bugs, (3) requiring clear failure attribution for debugging."
 category: ci-cd
 date: 2026-07-03

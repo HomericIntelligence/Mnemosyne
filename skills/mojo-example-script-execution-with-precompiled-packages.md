@@ -1,5 +1,6 @@
 ---
 name: mojo-example-script-execution-with-precompiled-packages
+license: BSD-3-Clause
 description: "Use when: (1) running example Mojo scripts that import from a shared library without errors, (2) debugging import resolution failures in Mojo example scripts, (3) optimizing example script execution to avoid long build times during local development, (4) configuring the `-I` flag to access precompiled package artifacts. Execute scripts with `-I build/debug` after `just build` completes to access precompiled projectodyssey package context."
 category: tooling
 date: 2026-07-05

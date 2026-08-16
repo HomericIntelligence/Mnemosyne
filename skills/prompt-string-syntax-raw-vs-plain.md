@@ -1,5 +1,6 @@
 ---
 name: prompt-string-syntax-raw-vs-plain
+license: BSD-3-Clause
 description: "Raw string prefixes (r\"\"\") prevent backslash line continuation in prompt directives; use plain strings for multiline directives. Comments inside strings appear verbatim in rendered prompts. Use pytest.fail() instead of bare assert in tests — optimize builds strip assert statements."
 category: debugging
 date: 2026-06-07

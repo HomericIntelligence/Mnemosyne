@@ -1,5 +1,6 @@
 ---
 name: symbol-scoped-import-exemptions
+license: BSD-3-Clause
 description: "Use when: (1) enforcing zero-io-imports architectural guards on pipeline automation modules — exempting ONLY specific symbols (e.g., parse_review_verdict) from normally-forbidden I/O module imports; (2) writing a guard that validates symbol-scoped exemptions (e.g., asserts that importing ANY OTHER symbol from claude_invoke triggers a violation); (3) designing an import exemption to be explicit-intent-based, forcing future imports to be justified in the exemption list rather than silently slipping through unscoped rules; (4) documenting why a pure function (parse_review_verdict) needs importing an I/O module (claude_invoke) but constraining that import to ONLY the pure function and not hypothetical future uses."
 category: architecture
 date: 2026-07-04

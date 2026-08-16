@@ -1,5 +1,6 @@
 ---
 name: github-merge-current-checks-only-fail-closed
+license: BSD-3-Clause
 description: "Authorize a manual GitHub PR merge only from current Checks API evidence. Use when: (1) a merge helper falls back to legacy combined commit statuses, (2) missing or unreadable check runs can become mergeable, (3) a tri-state check helper delegates authorization to a second evidence source, or (4) CLI regressions must prove no merge mutation occurs without trustworthy current checks."
 category: ci-cd
 date: 2026-08-06

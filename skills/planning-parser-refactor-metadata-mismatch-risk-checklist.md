@@ -1,5 +1,6 @@
 ---
 name: planning-parser-refactor-metadata-mismatch-risk-checklist
+license: BSD-3-Clause
 description: "Plan parser-consolidation refactors when issue metadata conflicts with body/review evidence. Use when: (1) an issue title points at one subsystem but the body, proposed solution, prior review, and affected-file list point elsewhere; (2) consolidating argparse _build_parser() boilerplate behind a shared helper; (3) preserving exact CLI contract parity across non-universal flags, action classes, defaults, help text, and argument order; (4) reviewer focus should be a risk checklist rather than a broad refactor endorsement."
 category: architecture
 date: 2026-06-26

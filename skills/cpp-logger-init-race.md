@@ -1,5 +1,6 @@
 ---
 name: cpp-logger-init-race
+license: BSD-3-Clause
 description: "A SIGABRT / 'Subprocess aborted' that appears only under -O0 --coverage (or TSan) builds, with a CI log line like `terminate called after throwing an instance of 'spdlog::spdlog_ex'  what(): logger with name '<name>' already exists`, is a check-then-act data race in a lazy logger singleton — NOT a flaky assertion. Use when: (1) a unit test intermittently aborts (SIGABRT) only in coverage/TSan CI builds, (2) CI logs show spdlog_ex / 'already exists' / 'terminate called', (3) a prior PR relaxed an assertion tolerance to 'fix flakiness' but the abort persisted, (4) any lazily-initialized C++ singleton (logger, registry) is created from multiple threads without synchronization."
 category: debugging
 date: 2026-05-29

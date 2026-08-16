@@ -1,5 +1,6 @@
 ---
 name: automation-multi-repo-pr-sweep-rebase-resolve
+license: BSD-3-Clause
 description: "Driving a large backlog of author-scoped PRs to green+merged across many repos. Use when: (1) hephaestus-review-prs runs but leaves PRs unmerged / BLOCKED-all-green, (2) deciding between a rebase-resolve sweep and the plain automation loop, (3) diagnosing why armed auto-merge PRs sit BLOCKED (unresolved review threads vs. CI backlog vs. red main), (4) a merge train of file-overlapping PRs keeps re-conflicting as siblings merge, (5) you need force-with-lease + resolveReviewThread after rebasing PR branches onto a moved main."
 category: tooling
 date: 2026-06-28

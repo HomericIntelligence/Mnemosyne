@@ -1,5 +1,6 @@
 ---
 name: cli-validator-cross-section-blind-spot
+license: BSD-3-Clause
 description: "Fix markdown-section validators that silently miss duplicate or contradictory sections because a section parser breaks on the first non-matching H2. Use when a CLI/doc validator parses only the first matching section, a duplicate section later in the document passes CI, or a parser return shape must expose section_count without losing per-item duplicate checks."
 category: debugging
 date: 2026-06-13

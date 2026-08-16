@@ -1,5 +1,6 @@
 ---
 name: nfs-server-oom-recursive-metadata-ops
+license: BSD-3-Clause
 description: "A RAM-starved NFS server (low-power appliance NAS) OOM-crashes and silently wedges under recursive metadata operations; reads are safe but metadata writes are deadly. Use when: (1) a Linux NFS client logs multi-hour 'nfs: server <ip> not responding, still trying' windows that end in 'OK', (2) an appliance NAS with little RAM 'keeps hanging' or crash-loops while a chown -R / chmod -R or rsync runs, (3) you must decide whether it is a failing disk or an out-of-memory crash before acting."
 category: debugging
 date: 2026-06-28

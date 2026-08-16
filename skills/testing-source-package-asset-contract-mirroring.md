@@ -1,5 +1,6 @@
 ---
 name: testing-source-package-asset-contract-mirroring
+license: BSD-3-Clause
 description: "Prevent source and packaged runtime asset drift. Use when: (1) a Python package ships manifests or scripts as package data, (2) a strict audit finds source/package contract differences, (3) model manifests must validate from both source and installed-asset locations, (4) container-backed validation is required for a full release gate."
 category: testing
 date: 2026-07-13

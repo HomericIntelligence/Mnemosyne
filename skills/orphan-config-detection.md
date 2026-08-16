@@ -1,5 +1,6 @@
 ---
 name: orphan-config-detection
+license: BSD-3-Clause
 description: "Orphan Config Detection"
 category: tooling
 date: 2026-03-19

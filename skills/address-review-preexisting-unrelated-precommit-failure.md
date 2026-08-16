@@ -1,5 +1,6 @@
 ---
 name: address-review-preexisting-unrelated-precommit-failure
+license: BSD-3-Clause
 description: "Use when a local pre-merge/pre-push gate goes red on work your PR did not introduce. Covers two verified variants: (1) `pre-commit run --all-files` fails on an unrelated hook, where the durable proof is stash-verify (`git stash push <your-changed-file>` then rerun just the failing hook; identical failure means pre-existing/out-of-scope); (2) a post-rebase `git push` pre-push hook runs a broad pytest suite and fails on unrelated local host assumptions (for example macOS lacks `/usr/bin/bash` or uses Bash 3.2 without Bash 4 features) while PR-specific tests pass. The rule is: prove/classify the failure, run focused validation against the PR diff, do not expand scope to repair unrelated local gate debt, and document any `--no-verify` push exception with the exact full-hook failure and targeted-pass evidence."
 category: tooling
 date: 2026-07-04

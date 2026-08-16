@@ -1,5 +1,6 @@
 ---
 name: auto-init-py-generation
+license: BSD-3-Clause
 description: 'TRIGGER CONDITIONS: Auto-generating __init__.py files with __all__ exports
   for Python packages. Use when creating or updating package-level exports, especially
   with mypy implicit_reexport=false compliance.'

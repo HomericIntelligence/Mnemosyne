@@ -1,5 +1,6 @@
 ---
 name: holographic-adscft-mechanism-design
+license: BSD-3-Clause
 description: "Design patterns for exotic physics computation devices in sci-fi world-building, covering three physics domains: (1) AdS/CFT holographic boundary computers, (2) Deutsch CTC oracle (closed timelike curve) computation, and (3) TSVF / weak-value retrocausal oracle devices. Use when: (1) designing a fictional device that uses holographic or causality-breaking physics, (2) grounding a sci-fi simulation engine in real physics, (3) needing real citations for boundary/bulk duality mechanics, CTC fixed-point computation, or weak-value amplification, (4) designing a time-oracle or weak-value amplification based device, (5) evaluating which of the 14 computational hard walls a mechanism defeats, (6) identifying the single root break from which all other wall defeats cascade."
 category: architecture
 date: 2026-06-01

@@ -1,5 +1,6 @@
 ---
 name: lazy-clone-dependency
+license: BSD-3-Clause
 description: Pattern for lazy-cloning a missing external git repository dependency
   instead of skipping a workflow step
 category: tooling

@@ -1,5 +1,6 @@
 ---
 name: planning-parser-prompt-refactor-risk-review
+license: BSD-3-Clause
 description: "Review unexecuted refactor plans that centralize automation CLI parser boilerplate and prompt nonce generation. Use when: (1) a plan extracts argparse helpers across many CLIs, (2) prompt nonce or untrusted-content fencing code is moved, (3) the plan relies on grep evidence but has not proved full CLI parity."
 category: architecture
 date: 2026-06-26

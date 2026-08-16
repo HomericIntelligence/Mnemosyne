@@ -1,5 +1,6 @@
 ---
 name: ufw-firewalld-dual-manager-conflict
+license: BSD-3-Clause
 description: "Diagnose and fix a Linux host running TWO firewall managers at once (ufw AND firewalld both active), which produces nondeterministic netfilter rule ordering and can silently break DNS/outbound connectivity. Also covers why firewalld is present on Debian/PureOS (pulled by the pureos-standard metapackage, so it cannot be apt-removed cleanly) and the correct disable-not-uninstall fix. Use when: (1) outbound/DNS breaks after adding ufw, (2) `systemctl is-active ufw firewalld` shows both active, (3) deciding ufw vs firewalld on a Debian-family host, (4) a firewall package can't be removed because a distro metapackage depends on it."
 category: debugging
 date: 2026-07-04

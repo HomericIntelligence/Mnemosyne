@@ -1,5 +1,6 @@
 ---
 name: traefik-middleware-cross-provider-reference-suffix
+license: BSD-3-Clause
 description: "Diagnose and fix a Traefik router that fails to load with `middleware \"X@<provider>\" does not exist` because a middleware reference omitted its provider suffix and Traefik silently assumed it lived in the referencing router's own provider. Use when: (1) a Docker-labeled router references a middleware defined in the file provider (or vice versa) without an explicit `@file`/`@docker` suffix, (2) one router 404s or fails to route while a sibling router on the same host/different entrypoint works fine, (3) `docker logs` shows nothing useful for a Traefik routing failure."
 category: debugging
 date: 2026-07-06

@@ -1,5 +1,6 @@
 ---
 name: validation-workflow
+license: BSD-3-Clause
 description: GitHub Actions CI for validating skill plugins. Use when setting up CI/CD for a skills marketplace or enforcing plugin quality.
 user-invocable: false
 ---

@@ -1,5 +1,6 @@
 ---
 name: pcp-pmlogger-unbounded-archive-growth
+license: BSD-3-Clause
 description: "Documents how PCP (Performance Co-Pilot) pmlogger silently accumulates unbounded archives on Debian/PureOS systems, consuming gigabytes of root disk with no warnings. Use when: (1) root disk is unexpectedly full on a Debian/PureOS/HomelabOS server, (2) /var/log/pcp is large and growing, (3) pmlogger or pmcd are running and you don't use PCP dashboards."
 category: tooling
 date: 2026-06-20

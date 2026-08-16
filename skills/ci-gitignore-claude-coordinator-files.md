@@ -1,5 +1,6 @@
 ---
 name: ci-gitignore-claude-coordinator-files
+license: BSD-3-Clause
 description: "Claude automation coordinator files (.claude-address-review-*.md, .claude-prompt-*.md, .claude-followup-*.md) must be gitignored to prevent markdownlint CI gate failures. Use when: (1) CI fails with 100+ markdownlint violations on a .claude-*.md file, (2) adding a new Claude coordinator file pattern to the automation loop, (3) diagnosing mysterious lint failures on a PR branch caused by an accidentally-tracked automation scratch file."
 category: ci-cd
 date: 2026-06-13

@@ -1,5 +1,6 @@
 ---
 name: hephaestus-automation-loop-branch-sync-drive-green
+license: BSD-3-Clause
 description: "Diagnose and fix ProjectHephaestus automation-loop completion failures by enforcing fresh branch/worktree sync before implementation, limiting each worker's drive-green scope to its owned issue/PR, and running a final catch-all drive-green pass. Also: how to drive all existing open PRs to green — use --drive-green-all, NOT --phases drive-green (which crashes with KeyError on the uninitialized REPO stage). Use when: (1) automation loops leave planned issues or PRs unfinished, (2) existing issue worktrees or branches are reused across runs, (3) drive-green acts on unrelated PRs, (4) Codex-authored commits must satisfy signed and Signed-off-by policy gates, (5) you want to drive existing open PRs to green without planning/implementing new issues, (6) --drive-green-all logs 'ci:None: PR #N lacks state:implementation-go; regressing to pr_review' and swept-in PRs are dropped instead of driven, (7) a single failed drive-green attempt durably tags issues state:skip (--max-merge-attempts default 1; replaced by --drive-green-loops default 5)."
 category: tooling
 date: 2026-07-17

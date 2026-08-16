@@ -1,5 +1,6 @@
 ---
 name: observability-logging-and-process-monitoring
+license: BSD-3-Clause
 description: "Add structured observability to Python/shell pipelines. Use when: (1) adding JSON log formatting to a shared library for Loki/Promtail/ELK integration, (2) adding stage logging with timing to multi-stage pipeline workers, (3) implementing SIGINT/SIGTERM graceful shutdown with checkpoint save, (4) adding real-time progress indicators to parallel tier execution, (5) suppressing noisy ERROR logs for subprocess failures that callers intentionally catch, (6) adding a log level function to a shared bash logging library, (7) overwriting transient terminal status lines with carriage return, (8) extracting duplicate logger.info/warning blocks into a shared helper method, (9) a successful coordinator exits 130 or reports interrupted after normal worker-pool teardown."
 category: tooling
 date: 2026-07-24

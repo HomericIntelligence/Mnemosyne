@@ -1,5 +1,6 @@
 ---
 name: bats-shell-test-patterns
+license: BSD-3-Clause
 description: "Use when: (1) adding BATS test coverage to any shell script (preflight check, Docker entrypoint, CLI wrapper), (2) stubbing external CLI binaries (gh, kubectl, aws, curl, git) under BATS with per-test configurable responses via fake-binary shims, (3) a recursive glob in a bash test runner silently skips files at depth >=3, (4) replacing `|| true` in bash test helpers with an observable captured-rc pattern that satisfies a no-silent-failures lint guard."
 category: testing
 date: 2026-05-19

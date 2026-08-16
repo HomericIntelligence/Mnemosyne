@@ -1,5 +1,6 @@
 ---
 name: generate-fix-suggestions
+license: BSD-3-Clause
 description: Generate fix suggestions based on error patterns and best practices
 category: testing
 date: 2025-12-30

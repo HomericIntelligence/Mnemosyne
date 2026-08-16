@@ -1,5 +1,6 @@
 ---
 name: campaign-handoff-prompt-authoring
+license: BSD-3-Clause
 description: "Teaches the required anatomy of a single self-contained cross-machine resume prompt that hands a strictly-serial multi-PR epic campaign to a fresh session with no access to the prior transcript. Use when: (1) a long-running serial epic driven one PR at a time must move to another machine or operator, (2) context compaction is about to destroy the working memory that keeps a serial campaign safe and you need a compaction-survival brief, (3) you must restate a session Stop-hook completion condition, the in-flight PR's per-thread REAL/FALSE-POSITIVE classification, and the serial issue ordering so the receiving session neither redoes finished work nor picks up two dependent issues at once."
 category: tooling
 date: 2026-07-05

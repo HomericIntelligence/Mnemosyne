@@ -1,5 +1,6 @@
 ---
 name: debugging-silent-pipeline-stage-via-argparse-required-grep
+license: BSD-3-Clause
 description: "Diagnose silent stages in fan-out orchestrators (shell driving N Python CLIs, Makefile driving N tools, CI workflow driving N jobs) via a 3-command source-grep that compares argparse `required=True` flags against the flags the orchestrator actually passes, OR via a 2-command grep that identifies unguarded infrastructure commands in a backgrounded orchestrator function running under `set -euo pipefail`. Use when: (1) a multi-stage pipeline reports success but a downstream stage produced no visible output, (2) only the first phase of run_automation_loop.sh / similar orchestrator runs, (3) orchestrator logs show generic `Warning: ... exited non-zero` with no underlying error detail, (4) you are tempted to re-run with `tee` + banner greps to reproduce a silent-stage bug, (5) the orchestrator uses `|| echo`, `|| true`, `set +e`, or `continue-on-error: true` to swallow exit codes, (6) the symptom returned AFTER a prior fix to a different silent-stage cause in the same orchestrator — there is often a SECOND silent-stage cause hiding behind the first."
 category: debugging
 date: 2026-05-25

@@ -1,5 +1,6 @@
 ---
 name: mesh-dispatch-pipeline-debugging
+license: BSD-3-Clause
 description: "Debug and fix the live HomericIntelligence agent mesh dispatch pipeline
   (Agamemnon → NATS → claude-myrmidon Python workers → GitHub PRs). Use when: (1)
   Agamemnon POST /v1/tasks returns 404, (2) Claude CLI in container produces zero

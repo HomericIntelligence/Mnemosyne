@@ -1,5 +1,6 @@
 ---
 name: communication-redaction-avoid-internal-leaks
+license: BSD-3-Clause
 description: "Prevent internal infrastructure identifiers from leaking into user-facing summaries, durable notes, PR bodies, reports, reproducibility packages, golden files, and reusable examples. Use when: (1) reporting operational validation or launch details, (2) writing durable artifacts from logs, endpoints, checkpoints, prompts, or commands, (3) committing repro artifacts copied from cluster runs."
 category: documentation
 date: 2026-07-01

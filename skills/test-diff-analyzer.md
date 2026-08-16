@@ -1,5 +1,6 @@
 ---
 name: test-diff-analyzer
+license: BSD-3-Clause
 description: Analyze test differences between runs to identify flaky tests
 category: testing
 date: 2025-12-30

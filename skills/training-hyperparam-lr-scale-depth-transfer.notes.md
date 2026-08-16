@@ -1,4 +1,5 @@
 ---
+license: BSD-3-Clause
 target_skill: training-hyperparam-lr-scale-depth-transfer
 date: 2026-07-22
 ---

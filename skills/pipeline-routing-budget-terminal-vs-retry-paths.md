@@ -1,5 +1,6 @@
 ---
 name: pipeline-routing-budget-terminal-vs-retry-paths
+license: BSD-3-Clause
 description: "Use when: (1) modeling budget attribution in queue-based automation pipelines where some failure reasons loop back for retry while others are terminal paths; (2) the routing table incorrectly maps a terminal reason (routes to FINISHED) to a budget key as if it consumes per-item budget; (3) distinguishing which failure modes consume retry-loop budgets (looping back to same/earlier stage) vs which are one-shot terminal outcomes (no retry, routes directly to FINISHED); (4) writing property-based tests to verify budget exhaustion invariants across all failure modes; (5) validating that terminal paths (terminal work-item states, no-op reasons) consume NO budget while retry paths (requeue, recirculate) consume budgets per item."
 category: testing
 date: 2026-07-04

@@ -1,5 +1,6 @@
 ---
 name: testing-parametrized-console-script-test-incomplete-implementation
+license: BSD-3-Clause
 description: "Use discovery-backed parametrized tests for executable CLI contracts. Use when: (1) console scripts are registered in project metadata, (2) a hand-maintained module list has drifted from parser builders, (3) every validation command must expose shared version behavior, (4) every importable parser with --dry-run must toggle one boolean contract, or (5) a discovered sweep exposes an incompletely wired entry point."
 category: testing
 date: 2026-08-05

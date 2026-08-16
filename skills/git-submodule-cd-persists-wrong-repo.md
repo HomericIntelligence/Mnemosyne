@@ -1,5 +1,6 @@
 ---
 name: git-submodule-cd-persists-wrong-repo
+license: BSD-3-Clause
 description: "A shell `cd` into a git SUBMODULE persists across separate Bash-tool calls and silently redirects later git commands to the SUBMODULE instead of the parent superproject. Use when: (1) `git add -A` stages nothing in a meta-repo/superproject and `git status --short` is unexpectedly empty, (2) `git log --oneline -1` shows a SUBMODULE's HEAD commit when you expected the superproject's, (3) submodule pin bumps appear to have 'vanished' after you inspected a submodule with `cd sub && git ...`, (4) you ran `cd control/Agamemnon && git fetch` in one Bash call and later git commands (issued without re-cd'ing) hit the wrong repo, (5) `git rev-parse --show-toplevel` resolves to a submodule path instead of the meta-repo root."
 category: tooling
 date: 2026-07-18

@@ -1,5 +1,6 @@
 ---
 name: debugging-diagnose-before-fixing-stale-blocker-claims
+license: BSD-3-Clause
 description: "When you inherit a claim that a deploy/build is broken 'because of X and Y' (a missing role/module, a missing dependency/collection), treat the claim as a HYPOTHESIS and run cheap READ-ONLY diagnostics before fixing anything: confirm the suspect component is REAL (a named role/module dir, not just a string/variable/template reference), confirm it is on the ACTIVE path (enabled/imported/reachable — a requirement from a DISABLED feature is not a live blocker), and confirm the GENERATED/rendered config artifact actually exists and is current. A wholly-missing generated artifact frequently masquerades as a deep code defect; regenerating it via the project's config/render target often makes the symptom vanish. Use when: (1) prior notes/memory assert a build or deploy is blocked by specific code-level causes, (2) the symptom involves a config/settings file the project generates or renders, (3) suspect components are gated behind enable/disable flags, (4) a grep matches a name and you are about to assume the named component exists."
 category: debugging
 date: 2026-06-22

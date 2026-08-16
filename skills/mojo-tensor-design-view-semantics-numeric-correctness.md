@@ -1,5 +1,6 @@
 ---
 name: mojo-tensor-design-view-semantics-numeric-correctness
+license: BSD-3-Clause
 description: "Use when: (1) designing ExTensor/AnyTensor types with parametric dtypes, view semantics, and stride-aware slices, (2) implementing or debugging zero-copy view operations (transpose, slice, ravel) for stride-aware tensor access, (3) diagnosing silent correctness bugs in tensor numeric operations (strided layout, dtype mismatch, bitcast corruption, NaN hashing), (4) adding NumPy-style truncation to Mojo tensor __str__ methods, (5) fixing DataLoader N-D batch slicing or shape assumptions, (6) SIMD-vectorizing element-wise tensor ops in Mojo for throughput gains, (7) adding Apple Silicon BF16 runtime guards to dtype/precision factory methods, (8) implementing or testing __hash__ on Mojo tensors with float/int fields and empty-tensor edge cases."
 category: architecture
 date: 2026-07-11

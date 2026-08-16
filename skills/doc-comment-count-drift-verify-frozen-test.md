@@ -1,5 +1,6 @@
 ---
 name: doc-comment-count-drift-verify-frozen-test
+license: BSD-3-Clause
 description: "When an issue reports 'doc says X but config says Y', trust neither — find the frozen test that enforces the canonical count. Use when: (1) issue claims doc/config count mismatch but actual code count differs from both, (2) multiple files repeat the same stale count and all need synchronizing, (3) a frozen allowlist or validation test is the real enforcer."
 category: ci-cd
 date: 2026-06-13

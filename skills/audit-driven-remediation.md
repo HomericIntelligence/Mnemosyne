@@ -1,5 +1,6 @@
 ---
 name: audit-driven-remediation
+license: BSD-3-Clause
 description: 'Systematic implementation of findings from a strict repository audit.
   Use when: you have a graded audit report with major/minor findings to remediate
   across CI, source, docs, and packaging.'

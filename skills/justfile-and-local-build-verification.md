@@ -1,5 +1,6 @@
 ---
 name: justfile-and-local-build-verification
+license: BSD-3-Clause
 description: "Use when: (1) just recipe fails with 'inconsistent leading whitespace'\
   \ due to heredoc; (2) build completes suspiciously fast with 0-1 compiled files\
   \ (silent no-op from over-eager find exclusions); (3) running local builds before\

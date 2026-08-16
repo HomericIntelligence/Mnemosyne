@@ -1,5 +1,6 @@
 ---
 name: github-actions-python-required-checks
+license: BSD-3-Clause
 description: "Create or repair required GitHub Actions checks and tag releases for a Python repository using Hephaestus as the control-pattern reference. Use when: (1) a Python repo needs a required merge gate, (2) CI must be brought up to fail-closed policy, (3) a tag-only release workflow is needed"
 category: ci-cd
 date: 2026-07-16

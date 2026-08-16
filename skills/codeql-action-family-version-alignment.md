@@ -1,5 +1,6 @@
 ---
 name: codeql-action-family-version-alignment
+license: BSD-3-Clause
 description: "Keep every github/codeql-action sub-action in a workflow on one release and immutable commit. Use when: (1) Dependabot updates init, analyze, or upload-sarif independently, (2) CodeQL reports a configuration-version mismatch, or (3) a non-required scanning check could fail without blocking a merge."
 category: ci-cd
 date: 2026-08-07

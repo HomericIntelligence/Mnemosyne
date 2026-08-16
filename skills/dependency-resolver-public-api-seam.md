@@ -1,5 +1,6 @@
 ---
 name: dependency-resolver-public-api-seam
+license: BSD-3-Clause
 description: "Use when a dependency resolver owns a graph or edge store but call sites bypass the public API and mutate internals directly, especially in pipeline admission or topological-order code."
 category: architecture
 date: 2026-07-07

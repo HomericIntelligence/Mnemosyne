@@ -1,5 +1,6 @@
 ---
 name: documentation-github-issue-final-report-live-body
+license: BSD-3-Clause
 description: "Rewrite GitHub issues, PR bodies, comments, and evidence mirrors into coherent public reports without overwriting live edits or leaking local operator details. Use when: (1) an issue has accumulated investigation notes, follow-up phrasing, or stale detours, (2) the user asks for a final report-style issue body, (3) sensitive or model-specific details must be removed before publishing, (4) automation evidence may contain local filesystem paths or usernames."
 category: documentation
 date: 2026-07-06

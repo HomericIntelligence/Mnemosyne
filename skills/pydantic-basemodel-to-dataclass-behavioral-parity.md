@@ -1,5 +1,6 @@
 ---
 name: pydantic-basemodel-to-dataclass-behavioral-parity
+license: BSD-3-Clause
 description: "Swapping a pydantic BaseModel for a stdlib @dataclass is NOT a behavioral drop-in: pydantic v2 silently IGNORES unknown kwargs and COERCES str/int -> float, while a dataclass raises TypeError on both. Use when: (1) removing pydantic from a package's base dependencies to satisfy an import/automation boundary, (2) replacing a BaseModel config/event model with @dataclass, (3) a loader does Model(**yaml_dict) with possibly-extra keys or string-typed numeric fields, (4) planning an audit-remediation that claims a validation-library swap has no behavior change."
 category: architecture
 date: 2026-07-01

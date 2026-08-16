@@ -1,5 +1,6 @@
 ---
 name: llm-corruption-repro-artifact-review
+license: BSD-3-Clause
 description: "Durable repro artifact layout and manual-review tooling for long-running LLM corruption investigations. Use when: (1) a corruption sweep must be rerunnable outside the chat or agent session, (2) raw tokens/logits should support later prefix and intervention analysis, (3) manual labels must produce seed-level rates without leaking private operational artifacts."
 category: debugging
 date: 2026-07-09

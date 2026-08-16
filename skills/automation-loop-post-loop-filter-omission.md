@@ -1,5 +1,6 @@
 ---
 name: automation-loop-post-loop-filter-omission
+license: BSD-3-Clause
 description: "Use when: (1) diagnosing why loops_run reports an inflated loop count after early-exit fires, (2) a caller re-aggregates a raw result list without applying the same filter the inner function already uses, (3) auditing max()/sum() aggregations over mixed per-loop + post-loop result collections."
 category: debugging
 date: 2026-06-13

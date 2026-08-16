@@ -1,5 +1,6 @@
 ---
 name: testing-cli-mock-subprocess-http
+license: BSD-3-Clause
 description: "Test Python CLI apps that call subprocess.run and urlopen. Use when: (1) testing argparse CLI handlers, (2) mocking Slurm/CLI subprocess commands, (3) mocking HTTP health checks with urlopen."
 category: testing
 date: 2026-06-15

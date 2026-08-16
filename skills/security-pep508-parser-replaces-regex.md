@@ -1,5 +1,6 @@
 ---
 name: security-pep508-parser-replaces-regex
+license: BSD-3-Clause
 description: "Replace custom regex validation of pip requirement strings with packaging.requirements.Requirement (PEP 508 parser). Use when: (1) validating pip/PyPI package names in install_package or similar functions, (2) custom regex allows unintended characters like whitespace or shell metacharacters in package names."
 category: architecture
 date: 2026-03-25

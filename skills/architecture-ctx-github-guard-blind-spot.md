@@ -1,5 +1,6 @@
 ---
 name: architecture-ctx-github-guard-blind-spot
+license: BSD-3-Clause
 description: "Use when: (1) a pipeline architecture AST guard only tracks direct github_api mutators and misses coordinator-neutral ctx.github / StageGitHub calls; (2) you need to keep the guard scope narrow while proving the StageGitHub binding surface separately; (3) a synthetic-stage regression test should document that direct github_api calls are counted but ctx.github calls are out of scope."
 category: architecture
 date: 2026-07-07

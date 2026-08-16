@@ -1,5 +1,6 @@
 ---
 name: tech-debt-discovery-grep-self-match
+license: BSD-3-Clause
 description: "Planning discipline for tech-debt Epic automation, grep-marker scanners, and gating CI side-effects. Use when: (1) a scheduled discovery job (e.g. .github/workflows/tech-debt-discovery.yml) keeps posting a 'debt found' comment to an Epic on EVERY run — fix the side-effecting step's gate, not the data it consumes; (2) a repo-wide grep marker scanner (FIXME/TODO/DEPRECATED/HACK/XXX) self-matches and you must separate tool artifacts from genuine debt; (3) a discovery shell script uses `grep ... || echo` and you need a real clean/dirty EXIT-CODE signal for a workflow to gate on; (4) you are about to dress local-only `grep -r` noise as a CI fix, or reuse label names from another repo's playbook."
 category: tooling
 date: 2026-06-19

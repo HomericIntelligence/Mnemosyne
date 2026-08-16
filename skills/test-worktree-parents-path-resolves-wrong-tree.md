@@ -1,5 +1,6 @@
 ---
 name: test-worktree-parents-path-resolves-wrong-tree
+license: BSD-3-Clause
 description: "A repo-scanning test that locates the tree it scans via Path(__file__).parents[N] / 'subdir' resolves to the WRONG checkout when pytest is run from a different directory than the test file's repo — e.g. invoking pytest at the MAIN repo root against test files living in a git worktree under build/.worktrees/<x>/. parents[N] anchors to the file's branch, but a cwd mismatch means a local 'FAILURE' may have scanned the main checkout (a different branch with different code), producing false failures (or false passes) that CI does not reproduce. Use when: (1) a repo-scanning guard/assertion test fails locally but you suspect a worktree/cwd artifact, (2) validating a worktree branch by running pytest from the main checkout root, (3) a test passes in CI but fails locally with offenders you cannot find on the branch."
 category: testing
 date: 2026-06-27

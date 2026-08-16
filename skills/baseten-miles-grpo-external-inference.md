@@ -1,5 +1,6 @@
 ---
 name: baseten-miles-grpo-external-inference
+license: BSD-3-Clause
 description: "GRPO training with Miles RL framework using Baseten-hosted vLLM as external inference endpoint or NVIDIA Dynamo as self-hosted multi-node inference orchestrator. Use when: (1) running GRPO training with a remote OpenAI-compatible inference server, (2) integrating Baseten with Miles bypassing the SGLang router, (3) deploying a model on Baseten for RL training rollouts, (4) running self-hosted distributed inference via Dynamo+SGLang on a Slurm cluster."
 category: training
 date: "2026-03-25"

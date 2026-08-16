@@ -1,5 +1,6 @@
 ---
 name: ci-merge-preview-script-count-drift
+license: BSD-3-Clause
 description: "Use when: (1) CI fails with 'prose says N console scripts but pyproject.toml [project.scripts] has N+1 entries', (2) pre-commit fails with '[missing-from-docs] hephaestus-<script> is in [project.scripts] but has no row in COMPATIBILITY.md', (3) a branch cut before parallel PRs landed now has stale script counts in README/docs/COMPATIBILITY.md on the merge-preview SHA, (4) updating prose counts in README.md or docs/index.md that reference the number of console scripts, (5) a strict audit flags a stale literal count in a roadmap/planning doc (e.g. ROADMAP.md) where the number contradicts pyproject.toml [project.scripts] but CI is not currently failing, (6) a doc, ADR, or module docstring advertises a console script that is absent from [project.scripts] entirely — reference drift, not count drift; diff backticked doc command tokens against declared entry points and decide register-vs-remove from evidence, (7) a prose script count lives in a file no validator scans (e.g. COMPATIBILITY.md 'installs N console scripts') so every checker is green while the number is wrong."
 category: ci-cd
 date: 2026-07-21

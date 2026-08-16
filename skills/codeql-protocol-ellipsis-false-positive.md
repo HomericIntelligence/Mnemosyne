@@ -1,5 +1,6 @@
 ---
 name: codeql-protocol-ellipsis-false-positive
+license: BSD-3-Clause
 description: "CodeQL bot incorrectly flags Protocol `...` (Ellipsis) method bodies as 'Statement has no effect' — a false positive per PEP 544. Teaches correct response workflow: (1) identify Protocol context, (2) do NOT apply bot's suggested fix, (3) resolve false-positive threads via GraphQL mutation. Use when: (1) CodeQL flags Protocol method `...` as dead code, (2) linter suggests replacing Protocol `...` with `raise NotImplementedError`/`pass`, (3) need to resolve false-positive bot threads without code changes, (4) unresolved threads blocking PR merge despite green CI."
 category: ci-cd
 date: 2026-07-12

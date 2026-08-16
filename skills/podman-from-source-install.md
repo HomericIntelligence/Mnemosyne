@@ -1,5 +1,6 @@
 ---
 name: podman-from-source-install
+license: BSD-3-Clause
 description: 'Build and install full Podman 4.0+ from source on Debian/PureOS. Use
   when: apt repos only ship 3.x, GitHub static binary is podman-remote not full podman,
   or host GLIBC < 2.32 requires a container engine.'

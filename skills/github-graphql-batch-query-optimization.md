@@ -1,5 +1,6 @@
 ---
 name: github-graphql-batch-query-optimization
+license: BSD-3-Clause
 description: "Replace N serial `gh api search/issues` REST calls with a single GraphQL query using aliased fields to fetch multiple issue counts (total/merged/open) in one round-trip. Use when: (1) a pipeline needs multiple GitHub issue statistics (count, merged count, open count), (2) currently implemented via N sequential REST search calls, (3) profiling shows API round-trips dominate wall-clock time, (4) need to reduce rate-limit consumption and latency."
 category: optimization
 date: 2026-06-06

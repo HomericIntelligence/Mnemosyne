@@ -1,5 +1,6 @@
 ---
 name: test-implementation-gap-analysis
+license: BSD-3-Clause
 description: "Test-Implementation Gap Analysis — detects gaps between test expectations and implementation, including PR commit message/diff mismatches where a route or feature is described but never added to the relevant source file"
 category: testing
 date: 2026-04-24

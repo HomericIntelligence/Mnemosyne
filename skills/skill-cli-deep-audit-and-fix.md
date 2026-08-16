@@ -1,5 +1,6 @@
 ---
 name: skill-cli-deep-audit-and-fix
+license: BSD-3-Clause
 description: Deep-audit CLI scripts across 8 dimensions (bugs, dead code, duplication, validation placement, error messaging, exception safety, test coverage gaps, argparse resolution) then fix in dependency order with complementary tests.
 category: testing
 date: 2026-02-24

@@ -1,5 +1,6 @@
 ---
 name: create-reusable-utilities-hephaestus-port
+license: BSD-3-Clause
 description: "Port project-local utilities into the shared Hephaestus automation repository. Use when: (1) project-local automation has a demonstrated cross-project use case, (2) equivalent behavior may already exist in Hephaestus and must be extended instead of duplicated, (3) a typed reusable interface must be separated from source-repository policy"
 category: tooling
 date: 2026-07-16

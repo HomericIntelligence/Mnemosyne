@@ -1,5 +1,6 @@
 ---
 name: shell-negation-exit-status-capture
+license: BSD-3-Clause
 description: "Preserve the real command status in shell test and CI harnesses. Use when: (1) a loop uses `if ! command; then status=$?`, (2) summaries report success while commands fail, or (3) pass/fail counters need a non-vacuous accounting invariant."
 category: ci-cd
 date: 2026-08-07

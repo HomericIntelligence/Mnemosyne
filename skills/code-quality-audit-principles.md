@@ -1,5 +1,6 @@
 ---
 name: code-quality-audit-principles
+license: BSD-3-Clause
 description: "Use when reviewing, planning, or implementing repository changes that must apply KISS, YAGNI, TDD, DRY, SOLID, modularity, and POLA without creating brittle prose tests or maintenance-only artifacts, including CLI help tests that distinguish public argument grammar from editorial explanation."
 category: tooling
 date: 2026-07-25

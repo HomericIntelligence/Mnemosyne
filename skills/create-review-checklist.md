@@ -1,5 +1,6 @@
 ---
 name: create-review-checklist
+license: BSD-3-Clause
 description: Generate customized review checklists based on type of change
 category: testing
 date: 2025-12-30

@@ -1,5 +1,6 @@
 ---
 name: fix-yaml-config-propagation
+license: BSD-3-Clause
 description: Debug pattern for fixing YAML config fields that aren't propagating to execution, plus eliminating DRY violations in config dataclasses
 category: debugging
 date: 2026-02-05

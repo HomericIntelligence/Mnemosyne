@@ -1,5 +1,6 @@
 ---
 name: cpp-cmake-ci-build-and-test-fixes
+license: BSD-3-Clause
 description: "Fix C++/CMake CI build and test failures. Use when: (1) FetchContent C library breaks build with -Werror due to global warning flags, (2) ctest reports 'No tests found' because library target contains main() conflicting with GTest::gtest_main, (3) Ubuntu 24.04 apt Docker build fails with 'GTest::gmock target not found', (4) TSan reports data races or hangs tests, (5) clang-tidy floods warnings from _deps/ vendor headers."
 category: ci-cd
 date: 2026-05-19

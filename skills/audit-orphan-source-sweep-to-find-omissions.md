@@ -1,5 +1,6 @@
 ---
 name: audit-orphan-source-sweep-to-find-omissions
+license: BSD-3-Clause
 description: "Audit a structured dataset built from a larger source corpus for OMISSIONS by sweeping every uncited (orphan) source file and classifying it against an included-item index. Use when: (1) a curated index/schedule/inventory is derived from many underlying source documents and an item could be silently dropped, (2) prior validation only re-checked already-cited sources and so cannot detect a missing item, (3) you need defensible 100% source coverage rather than a sampled spot-check."
 category: testing
 date: 2026-06-19

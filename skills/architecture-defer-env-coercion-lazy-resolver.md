@@ -1,5 +1,6 @@
 ---
 name: architecture-defer-env-coercion-lazy-resolver
+license: BSD-3-Clause
 description: "Defer env/config coercion+validation OUT of module import into a single lazy validating resolver, so a malformed env value surfaces through a handled (acked) boundary instead of crashing the process at import. The module global stays a RAW string (default \"\"), and ALL coercion/validation routes through one lazy function already inside a try/except boundary. Use when: (1) a module top-level does int()/float()/json.loads() of an env var (e.g. `int(os.environ.get(\"ISSUE_NUMBER\", \"0\"))`), (2) a worker/daemon/CLI crashes at import on a bad config value before main() or any consumer loop can ack it, (3) converting an eager parse into a lazy resolver call, (4) a config global is flipping from int to string and you must re-check truthiness sentinels (`0 or None` vs `\"0\" or None`)."
 category: architecture
 date: 2026-06-20

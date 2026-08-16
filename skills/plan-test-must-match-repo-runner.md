@@ -1,5 +1,6 @@
 ---
 name: plan-test-must-match-repo-runner
+license: BSD-3-Clause
 description: "A plan's regression test must be written in the format the target repo's ACTUAL runner already executes — not a generic/familiar format (pytest by reflex). Detect the runner FIRST: grep the dependency manifest (pixi.toml / pyproject.toml / package.json) for the framework, and grep the task/recipe runner (justfile / Makefile / npm scripts) for what test/ci targets actually invoke. If the repo has no harness for your default test language, write the test in the idiom the repo DOES run and WIRE it into that runner; otherwise the test lands 'green by absence' and never executes in CI. Use when: (1) a plan adds a regression/unit test and you are about to reach for pytest/jest by default, (2) the target repo's pixi.toml/pyproject.toml declares no pytest/jest dependency, (3) `just test` / `just ci` invokes ctest or bash scripts or lint-only and runs no python tests, (4) you must pick a verification command and want it to be one the repo can actually run TODAY (e.g. `just e2e-test-*`, not a raw `pixi run pytest <path>` that errors), (5) you need to unit-test a python function in a repo with no python test harness (drive it from a bash test), (6) reviewing a plan and asking 'will this test actually run in CI, or just sit there green?'"
 category: testing
 date: 2026-06-20

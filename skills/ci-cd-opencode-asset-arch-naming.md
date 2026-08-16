@@ -1,5 +1,6 @@
 ---
 name: ci-cd-opencode-asset-arch-naming
+license: BSD-3-Clause
 description: 'Documents that opencode (sst/opencode) release assets use x64 (not amd64)
   in their filenames, requiring a TARGETARCH→arch mapping case statement in Dockerfiles.
   Use when: building a vessel Dockerfile for opencode or downloading opencode release

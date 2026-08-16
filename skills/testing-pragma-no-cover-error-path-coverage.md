@@ -1,5 +1,6 @@
 ---
 name: testing-pragma-no-cover-error-path-coverage
+license: BSD-3-Clause
 description: "Safely remove or justify `# pragma: no cover` coverage exemptions by classifying each pragma into one of two kinds and applying the right fix: reachable-error-fallback (a `try/except` around an external call that logs and returns an empty collection / `False` — test it by mocking the inner call to raise via `side_effect`, assert the fallback value, THEN delete the pragma) vs unreachable-mypy-type-narrowing-guard (an `if x is None:` branch made dead by `__post_init__`/an invariant — KEEP the pragma, add an issue reference to its comment, and add an invariant test instead of faking coverage). Use when: (1) an audit flags `# pragma: no cover` carrying only a prose justification, (2) you must decide whether a coverage-exempted branch is honestly testable, (3) you need the correct patch target for an error-path test (patch the name in the namespace where it is USED, not where it is defined), (4) a type-narrowing `if x is None` guard cannot be covered honestly and you must avoid deleting it (deletion breaks mypy narrowing) or fake-covering it."
 category: testing
 date: 2026-07-17

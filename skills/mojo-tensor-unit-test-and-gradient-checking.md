@@ -1,5 +1,6 @@
 ---
 name: mojo-tensor-unit-test-and-gradient-checking
+license: BSD-3-Clause
 description: "Use when: (1) writing or extending Mojo tensor unit tests (dtype-aware string/repr, BFloat16 NaN canonicalization, UInt bitwise boundary tests, view vs copy semantics in slice tests), (2) re-enabling NOTE-disabled or TODO-stubbed Mojo test files and resolving TODO(#N) markers, (3) writing numerical gradient checks for conv2d, depthwise conv2d, batch norm, layer norm, or pooling backward passes in Mojo, (4) a gradient check reports analytical≈0 vs numerical≈nonzero for a normalization layer (often caused by symmetric weight initialization), (5) adding end-to-end convergence tests as a complement to per-op finite-difference checks, (6) diagnosing symmetric-weight-init dead-symmetry pathology where uniform-fill weights produce algebraically zero gradients to early layers, (7) adding hardware-guarded BF16 precision recommendations to dtype selection functions."
 category: testing
 date: 2026-07-19

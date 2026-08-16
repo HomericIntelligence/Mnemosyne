@@ -1,5 +1,6 @@
 ---
 name: github-ruleset-write-scope-404
+license: BSD-3-Clause
 description: "Use when: (1) `gh api --method PATCH repos/<o>/<r>/rulesets/<id>` returns `404 Not Found` even though `GET` on the identical URL succeeds and `gh api repos/<o>/<r> --jq .permissions` shows `admin:true`; (2) diagnosing whether a ruleset-write failure is a real permission gap or a `gh` CLI / request-shape bug before trying workarounds; (3) planning a batch ruleset mutation (e.g. flipping `required_status_checks` across many repos) and need to pre-flight whether the current token can actually write, not just read; (4) a classic OAuth token (`gho_...`) with `repo`+`workflow` scopes and confirmed repo-admin role still cannot PATCH/PUT a repository ruleset; (5) deciding the correct remediation — `gh auth refresh -h github.com -s admin:org` vs. a fine-grained PAT vs. the GitHub UI — for a ruleset-write permission gap."
 category: ci-cd
 date: 2026-07-19

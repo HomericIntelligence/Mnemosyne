@@ -1,5 +1,6 @@
 ---
 name: workflow-batched-validation-resume-rate-limits
+license: BSD-3-Clause
 description: "Run multi-hour, multi-agent document validation/migration sweeps in Claude Code so they survive session death and API usage-limit resets. Patterns: batch by section instead of per-field (stay under the 1,000-agent workflow cap and avoid re-reading sources), make per-item output JSONs double as a skip-cache for idempotent reruns, resume with Workflow resumeFromRunId so completed agents replay from the journal cache, and persist all scratch state beside the data instead of /tmp. Use when: (1) a validation fan-out may outlive a session or hit usage limits, (2) deciding agent granularity for per-field/per-item sweeps, (3) Workflow-tool orchestration must be resumable/idempotent."
 category: tooling
 date: 2026-06-12

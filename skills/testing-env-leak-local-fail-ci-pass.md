@@ -1,5 +1,6 @@
 ---
 name: testing-env-leak-local-fail-ci-pass
+license: BSD-3-Clause
 description: "Diagnose tests that fail locally but pass in CI because the local environment differs: inherited variables copied by os.environ.copy(), stale console scripts resolved by PATH or shutil.which(), or sibling checkout artifacts. Use when local pytest is red, CI is green, and the failure could be ambient shell/PATH pollution rather than a code regression."
 category: testing
 date: 2026-06-11

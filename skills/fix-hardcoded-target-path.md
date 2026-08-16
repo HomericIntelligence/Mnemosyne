@@ -1,5 +1,6 @@
 ---
 name: fix-hardcoded-target-path
+license: BSD-3-Clause
 description: 'Fix hardcoded output/target directory paths in migration and tooling
   scripts by adding CLI flag, env var fallback, and safe default. Use when: a script
   has a hardcoded absolute path that fails on other machines.'

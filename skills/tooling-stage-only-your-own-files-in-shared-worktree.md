@@ -1,5 +1,6 @@
 ---
 name: tooling-stage-only-your-own-files-in-shared-worktree
+license: BSD-3-Clause
 description: "Use when: (1) an automation/address-review loop runs in a SHARED worktree that already carries unrelated pre-existing dirty changes (modified/deleted/untracked files) from a different change; (2) you are about to commit your fix and are tempted to run `git add -A` / `git add .`; (3) a commit accidentally bundled unrelated files (scratch artifacts like .claude-address-review-*.md, deletions, sibling edits); (4) you need to un-bundle a too-broad commit without losing the other (not-yours) changes; (5) reviewing whether an agent's commit scope matches only the files it actually edited; (6) implementing a salvage-commit path for a REUSED worktree (preserve in-progress changes across re-sync) — specifically when `git add -A` in the salvage commit followed by cherry-pick after `reset --hard` produces a CONFLICT that hard-fails the entire issue."
 category: tooling
 date: 2026-06-15

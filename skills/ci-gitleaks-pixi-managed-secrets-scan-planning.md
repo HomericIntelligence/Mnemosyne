@@ -1,5 +1,6 @@
 ---
 name: ci-gitleaks-pixi-managed-secrets-scan-planning
+license: BSD-3-Clause
 description: "Plan a safe replacement of ad hoc Gitleaks release-tarball downloads in required GitHub Actions workflows with pixi-managed lint-environment tooling. Use when: (1) a required secrets-scan job downloads gitleaks directly from GitHub Releases, (2) moving scanner trust to pixi.lock / conda-forge, (3) reviewing whether pixi setup changes preserve gitleaks detect behavior."
 category: ci-cd
 date: 2026-07-04

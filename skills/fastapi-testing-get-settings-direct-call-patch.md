@@ -1,5 +1,6 @@
 ---
 name: fastapi-testing-get-settings-direct-call-patch
+license: BSD-3-Clause
 description: "Fix test failures when app.dependency_overrides has no effect on a FastAPI route. Use when: (1) dependency_overrides for get_settings does not change route behavior in tests, (2) a route calls get_settings() directly instead of via Depends(), (3) settings changes in tests are silently ignored."
 category: testing
 date: 2026-06-20

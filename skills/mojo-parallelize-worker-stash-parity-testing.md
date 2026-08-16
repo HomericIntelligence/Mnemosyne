@@ -1,5 +1,6 @@
 ---
 name: mojo-parallelize-worker-stash-parity-testing
+license: BSD-3-Clause
 description: "Mojo 1.0.0b1 std.algorithm.parallelize patterns: workers cannot raise (stash-and-re-raise via pre-sized per-worker slots), perf_counter_ns timing (time.now() does not exist), field-level-disjointness safety argument for shared mut struct captures, and the CI test triad that makes parallel updates defensible (bit-exact parallel-vs-serial parity, exact interval-sweep concurrency-achievement, worker-error stash isolation). Use when: (1) parallelizing per-layer or per-shard work in Mojo with parallelize/sync_parallelize, (2) a worker closure hits a compile error because it raises, (3) proving parallel and serial training paths are bit-identical, (4) measuring whether parallelize actually ran concurrently instead of silently degrading to sequential, (5) computing max simultaneous overlap from timestamped intervals without the naive overlap-counting overcount."
 category: testing
 date: 2026-07-10

@@ -1,5 +1,6 @@
 ---
 name: cli-input-file-prevalidation
+license: BSD-3-Clause
 description: "Pre-validate file-path CLI arguments at parse time so a missing or wrong-type input file produces a controlled parser.error diagnostic instead of an uncaught FileNotFoundError/IsADirectoryError traceback. Use when: (1) an argparse CLI reads a --file argument with a bare read_text/open and crashes with a traceback on a nonexistent path, (2) adding a required or optional file-path flag to a CLI entrypoint, (3) an audit flags 'uncaught traceback for nonexistent input file' on a command-line tool."
 category: tooling
 date: 2026-07-17

@@ -1,5 +1,6 @@
 ---
 name: planning-frozen-registry-guard-co-update
+license: BSD-3-Clause
 description: "When a planned change removes or edits an entry in a list/registry/manifest that is ENFORCED by a frozen 'exact-set' guard test, the edit silently breaks the guard unless the guard's hard-coded copy is co-updated — or you prove the edit is unnecessary via sibling precedent and drop it. Use when: (1) planning to remove/add/edit an entry in a coverage omit-allowlist, `__all__`, a plugin/skill registry, or any hard-coded enumerated set, (2) an issue suggests a side cleanup like 'also de-list X', (3) you are about to edit pyproject.toml/setup.cfg/a config list and are unsure whether a test pins its contents, (4) adding tests to a coverage-omitted module, (5) a reviewer or CI surfaces a `*_frozen`/exact-set assertion failure after a list edit."
 category: testing
 date: 2026-07-04

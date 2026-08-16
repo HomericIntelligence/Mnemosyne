@@ -1,5 +1,6 @@
 ---
 name: testing-python-constants-module
+license: BSD-3-Clause
 description: "Test Python constants modules for type safety, immutability, and format string validity. Use when: (1) adding test coverage for a constants.py module, (2) verifying frozenset immutability and contents, (3) testing logging format strings."
 category: testing
 date: 2026-03-25

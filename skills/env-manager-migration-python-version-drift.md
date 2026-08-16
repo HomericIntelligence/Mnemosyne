@@ -1,5 +1,6 @@
 ---
 name: env-manager-migration-python-version-drift
+license: BSD-3-Clause
 description: "Migrating between Python environment managers (pixi->uv, conda->uv, poetry->uv) can make the new resolver pick a DIFFERENT interpreter version, silently re-exposing latent version-dependent bugs the old version masked. Use when: (1) migrating a repo's Python env manager (pixi->uv, conda->uv, poetry->uv), (2) CI goes red right after an env-manager swap even though nothing 'real' changed, (3) a test that was green before the migration now fails on the same source, (4) you must decide whether a newly-surfaced failure is a real bug or a version regression, (5) a repo policy forbids a top-level pyproject.toml but the uv migration needs one to lock the build toolchain."
 category: ci-cd
 date: 2026-07-18

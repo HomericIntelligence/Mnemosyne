@@ -1,5 +1,6 @@
 ---
 name: claude-code-v21-adoption
+license: BSD-3-Clause
 description: Systematic approach to adopting Claude Code v2.1.0 features. Use when
   upgrading to new Claude Code version or analyzing CHANGELOG for feature adoption.
 category: tooling

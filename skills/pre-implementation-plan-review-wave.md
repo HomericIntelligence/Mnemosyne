@@ -1,5 +1,6 @@
 ---
 name: pre-implementation-plan-review-wave
+license: BSD-3-Clause
 description: "Run a multi-agent pre-implementation review wave (R0/R1) against an Epic
   plan file and its child GitHub issues, catching regressions before implementation
   begins. Use when: (1) a plan file and child issues must be kept consistent, (2) a

@@ -1,5 +1,6 @@
 ---
 name: release-tag-drift-recut-on-fixed-commit
+license: BSD-3-Clause
 description: "Diagnose and fix a tag-time version-currency drift guard that silently skips PyPI publish, then re-cut the release tag on a fixed commit. Use when: (1) a vX.Y.Z git tag exists but the package was never published to PyPI even though main's push-CI is green; (2) a Release GitHub Actions run shows the `test` job failing and `build-and-publish` SKIPPED (not failed); (3) a drift-guard unit test (e.g. test_migration_md_version_does_not_trail_latest_git_tag) fails inside the tag-triggered Release workflow because a doc's 'latest released version' line trails the new tag; (4) you need to delete and re-create a release tag on a corrected commit without reproducing the same failure (land-on-main-then-recut, never recut-in-place); (5) a failing CI run's headBranch is a vX.Y.Z tag and you must tell a tag-triggered Release run apart from a push-to-main run; (6) an UNRELATED open PR (incl. a Dependabot PR) suddenly fails test_version_currency / required-checks-gate right after a vX.Y.Z tag was pushed — the stale tag's blast radius reaches every open PR, not just the Release run."
 category: ci-cd
 date: 2026-06-20

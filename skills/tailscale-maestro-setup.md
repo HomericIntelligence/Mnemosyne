@@ -1,5 +1,6 @@
 ---
 name: tailscale-maestro-setup
+license: BSD-3-Clause
 description: 'Set up Tailscale on Linux and configure cross-host AI Maestro connectivity.
   Use when: (1) enabling Tailscale on Debian/Linux, (2) connecting multiple AI Maestro
   instances across machines, (3) diagnosing network connectivity issues between hosts.'

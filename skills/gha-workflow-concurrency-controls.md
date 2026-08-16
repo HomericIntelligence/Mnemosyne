@@ -1,5 +1,6 @@
 ---
 name: gha-workflow-concurrency-controls
+license: BSD-3-Clause
 description: "Choosing GitHub Actions `concurrency:` controls for event-driven workflows from trigger identity and side-effect idempotency. Use `cancel-in-progress: true` for idempotent or supersede-able runs and `false` for non-idempotent publishers. Scope groups with stable work identity: a native issue number or required typed `workflow_call` input for per-issue work, `github.ref` for per-tag publishing, and `github.head_ref || github.ref` (not `github.sha`) for PR scans. Use `github.run_id` only when no stable entity key exists and unique per-run grouping is intentional. Use when adding concurrency, supporting both native and reusable triggers, reviewing cancellation safety, or checking branch-protection interaction."
 category: ci-cd
 date: 2026-08-07

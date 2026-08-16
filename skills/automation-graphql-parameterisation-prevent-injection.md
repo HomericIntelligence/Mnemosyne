@@ -1,5 +1,6 @@
 ---
 name: automation-graphql-parameterisation-prevent-injection
+license: BSD-3-Clause
 description: "Safely parameterise GitHub GraphQL calls without query injection or gh CLI file expansion. Use when: (1) binding dynamic strings or integers with gh api graphql, (2) handling agent-generated bodies or other strings that may begin with @, (3) centralising GraphQL argv construction, (4) testing the exact -f versus -F transport contract."
 category: tooling
 date: 2026-08-07

@@ -1,5 +1,6 @@
 ---
 name: myrmidon-research-grounding-swarm-with-counterfactual-track
+license: BSD-3-Clause
 description: "Ground a speculative or creative premise (sci-fi story device, invented computing concept) in real, cited science using a Myrmidon Opus swarm: one agent per research dimension writing a tagged, cited, feasibility-graded briefing, PLUS a parallel counterfactual track that re-examines each dimension under the assumption a core physical law is false, all converging in a single synthesis agent. Use when: (1) grounding a creative/speculative premise in rigorous real science (no narrative injected), (2) you need per-claim feasibility tags (established vs frontier vs speculative vs impossible) with real citations, (3) you want to separate what real physics says from what a story's new-physics lever would change via a counterfactual track, (4) one cited briefing per research dimension is the natural deliverable, (5) you want a pure synthesis (recurring-walls + tiered feasibility tables) deferring thematic/narrative integration."
 category: architecture
 date: 2026-05-30

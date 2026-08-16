@@ -1,5 +1,6 @@
 ---
 name: monorepo-subproject-gitignore-and-github-template-gotchas
+license: BSD-3-Clause
 description: "Two related gotchas when adding per-subproject config to a project that lives in a SUBDIRECTORY of a monorepo. (1) A monorepo-root .gitignore rule silently blocks committing files in a subproject — `git add` does nothing, `git status` shows nothing — and un-ignoring requires re-including the parent directory FIRST before any file negation takes effect. (2) GitHub issue/PR templates are NOT auto-wired from a monorepo subdirectory; GitHub reads templates only from the repository-root .github/, root, or docs/. Use when: (1) adding a .claude/, .vscode/, or other tool-config directory to a monorepo subproject and `git add` appears to do nothing; (2) `git status` does not show new files you just created inside a monorepo subproject; (3) adding GitHub issue or PR templates to one subproject of a monorepo; (4) writing a CONTRIBUTING.md for a monorepo subproject."
 category: tooling
 date: 2026-05-19

@@ -1,5 +1,6 @@
 ---
 name: odyssey-audit-migration-coverage
+license: BSD-3-Clause
 description: 'Add --audit flag to a migration script to cross-reference source skills
   against a target repo and report coverage gaps. Use when: CI needs to detect porting
   gaps, migration script lacks coverage observability.'

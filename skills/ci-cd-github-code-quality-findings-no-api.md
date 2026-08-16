@@ -1,5 +1,6 @@
 ---
 name: ci-cd-github-code-quality-findings-no-api
+license: BSD-3-Clause
 description: "Fixing GitHub Code Quality (/security/quality) findings — a product distinct from CodeQL code-scanning, with NO public REST API. Use when: (1) a /security/quality/rules/py%2F... URL reports open findings, (2) deciding how to locate Code Quality violations when the code-scanning alerts API returns them empty, (3) reconciling ruff vs CodeQL semantic differences for py/unused-local-variable, py/unused-global-variable, py/repeated-import, py/import-and-import-from, py/empty-except, py/undefined-export, (4) a Copilot/AI-findings autofix PR fails to merge, (5) a Code Quality finding is a false positive and you must refactor working code to satisfy the analyser without changing behaviour, (6) consolidating or moving Python modules and leaving a thin re-export backward-compat shim, (7) a CodeQL/static-analyzer flags re-exported names as unused/dead imports even though the shim uses the `name as name` redundant-alias idiom that Ruff already accepts."
 category: ci-cd
 date: 2026-06-30

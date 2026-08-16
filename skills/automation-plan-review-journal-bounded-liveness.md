@@ -1,5 +1,6 @@
 ---
 name: automation-plan-review-journal-bounded-liveness
+license: BSD-3-Clause
 description: "Keep issue-based plan/review loops compact and live. Use when: (1) an issue has canonical plan and review comments, (2) review amendments risk growing the timeline, (3) repeated plans must stop without oscillation, or (4) migration must remove old actor-owned raw reviews and diffs safely."
 category: architecture
 date: 2026-07-21

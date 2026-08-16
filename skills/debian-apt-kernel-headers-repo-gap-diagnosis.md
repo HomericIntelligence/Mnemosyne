@@ -1,5 +1,6 @@
 ---
 name: debian-apt-kernel-headers-repo-gap-diagnosis
+license: BSD-3-Clause
 description: "Diagnose apt-get install --only-upgrade linux-headers-amd64 failing with an unmet-dependency / held-broken-packages error on Debian/PureOS, and distinguish a genuine upstream repository publish gap from a local hold/pin misconfiguration. Use when: (1) apt reports 'Depends: linux-headers-<version> but it is not installable', (2) apt says 'you have held broken packages' but apt-mark showhold is empty, (3) linux-headers-amd64 cannot upgrade even though linux-image-amd64 upgraded fine."
 category: debugging
 date: 2026-07-04

@@ -1,5 +1,6 @@
 ---
 name: python-cli-cwd-github-repo-detect
+license: BSD-3-Clause
 description: "Package a pip-installable Python CLI that auto-detects (org, repo) from cwd via git rev-parse + git remote get-url origin (handles both SSH and HTTPS URLs). Use when: (1) shipping a CLI that should default to acting on the current GitHub repo (POLA), (2) want a $PATH binary without `pixi run` / `python -m` wrappers."
 category: tooling
 date: 2026-05-26

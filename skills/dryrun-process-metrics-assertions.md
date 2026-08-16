@@ -1,5 +1,6 @@
 ---
 name: dryrun-process-metrics-assertions
+license: BSD-3-Clause
 description: "Skill: Dryrun process_metrics Assertions in Integration Tests"
 category: tooling
 date: 2026-03-19

@@ -1,5 +1,6 @@
 ---
 name: benchmark-artifact-triage-pr-splitting
+license: BSD-3-Clause
 description: "Triage and incrementally publish generated benchmark result artifacts. Use when: (1) benchmark/report runs leave many untracked files, (2) result PRs must include durable reports and exact current records without logs or scratch residue, (3) live sweeps need consistency-checked report snapshots with stable record identities, (4) Pareto/report assets need validation before staging, (5) large result sets need split into reviewable PRs."
 category: tooling
 date: 2026-07-30

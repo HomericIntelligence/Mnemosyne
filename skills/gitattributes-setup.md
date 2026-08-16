@@ -1,5 +1,6 @@
 ---
 name: gitattributes-setup
+license: BSD-3-Clause
 description: Add .gitattributes for cross-platform line-ending normalization and diff
   drivers. Use when repository lacks .gitattributes, has spurious diffs, CRLF/LF merge
   conflicts, or CI failures due to line-ending mismatch.

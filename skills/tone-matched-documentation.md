@@ -1,5 +1,6 @@
 ---
 name: tone-matched-documentation
+license: BSD-3-Clause
 description: Fill placeholder sections in documents while matching the author's existing
   writing style and tone
 category: tooling

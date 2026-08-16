@@ -1,5 +1,6 @@
 ---
 name: tooling-hephaestus-implementer-no-changes-state-skip
+license: BSD-3-Clause
 aliases:
   - automation-implementer-no-changes-state-skip
 description: "When hephaestus implementer_phase_runner raises RuntimeError('No changes produced...') from pr_manager because a branch has 0 commits vs main (work already merged), detect this specific case and apply state:skip + return WorkerResult(success=True) instead of failing. Also: run_learn() in learn.py must accept model= parameter so ImplementationPhaseRunner._run_learn() can pass implementer_model() instead of the hardcoded learn_model() (Haiku). Use when: (1) an automation loop inflates rc=1 for issues whose work already landed via a prior merged PR, (2) diagnosing why drive-green stays suppressed after implementation loops 1-4 even though the actual code change is already merged, (3) implementing or reviewing error handling in _implement_issue in implementer_phase_runner.py, (4) the /learn step after an implementation session uses the wrong model tier."

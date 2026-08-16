@@ -1,5 +1,6 @@
 ---
 name: academic-paper-writing-and-publication-workflow
+license: BSD-3-Clause
 description: "Use when: (1) assembling a large LaTeX research paper from parallel-agent-written parts and need to merge sections into a compilable .tex with unified bibliography; (2) performing pre-submission quality validation of a LaTeX paper covering data accuracy, statistical methodology, statistical power analysis, and arXiv build preparation; (3) polishing an arXiv paper for submission — voice normalization, pronoun changes, duplicate heading removal, BibTeX deduplication, inline arXiv href removal; (4) conducting a final publication-readiness review checklist pass before camera-ready; (5) preparing a LaTeX arXiv paper for final review with a myrmidon swarm of specialist reviewers; (6) wiring a pipeline-computed power analysis to interpret null results as small effects vs underpower; (7) consolidating scattered verdict codes into a Future Work longtable section and fixing \\verb/\\texttt underscore and cite-key-collision issues during parallel assembly."
 category: documentation
 date: 2026-06-07

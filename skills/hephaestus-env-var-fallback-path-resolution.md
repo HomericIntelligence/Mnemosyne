@@ -1,5 +1,6 @@
 ---
 name: hephaestus-env-var-fallback-path-resolution
+license: BSD-3-Clause
 description: "Centralize fragile __file__.parents[N] patterns with env-var + walk-up fallback resolvers, and avoid the worktree+editable-install trap where a __file__-anchored repo-root walk-up silently resolves to a PARENT meta-repo / sibling checkout that shares the marker file (making a checker read the WRONG file). Use when: (1) multiple files use __file__.parents[N] to resolve paths, (2) paths differ between editable installs and CI, (3) need single source of truth for repo_root() or scripts_dir(), (4) a get_repo_root()/marker-file walk-up runs inside a git worktree nested under a meta-repo or monorepo with nested pyproject.toml, (5) a validator/checker PASSES even on injected-violation input and you suspect repo-root/path resolution, (6) choosing between `python -m pkg.mod` and `python path/to/shim.py` to invoke an installed entry point."
 category: architecture
 date: 2026-06-12

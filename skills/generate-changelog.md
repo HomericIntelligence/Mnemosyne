@@ -1,5 +1,6 @@
 ---
 name: generate-changelog
+license: BSD-3-Clause
 description: "Generate changelog from git commits with safe delimiter handling. Use when: (1) writing git log format strings that parse fields, (2) parsing conventional commit messages, (3) extracting scope from commit prefixes."
 category: tooling
 date: '2026-03-25'

@@ -1,5 +1,6 @@
 ---
 name: automation-pola-poll-helper-none-sentinel
+license: BSD-3-Clause
 description: "Use None as early-exit sentinel in poll helpers instead of returning a union of data+result. Use when: (1) a helper returns union[DataType, ResultType] where ResultType is the caller's responsibility, (2) instanceof discrimination pollutes call sites, (3) a poll/scan helper is constructing terminal WorkerResult objects."
 category: architecture
 date: 2026-06-13

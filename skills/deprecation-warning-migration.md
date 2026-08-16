@@ -1,5 +1,6 @@
 ---
 name: deprecation-warning-migration
+license: BSD-3-Clause
 description: Add runtime DeprecationWarning to a legacy dataclass superseded by a
   Pydantic model, track usages in CI, and document migration timeline
 category: testing

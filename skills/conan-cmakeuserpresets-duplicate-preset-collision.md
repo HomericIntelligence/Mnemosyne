@@ -1,5 +1,6 @@
 ---
 name: conan-cmakeuserpresets-duplicate-preset-collision
+license: BSD-3-Clause
 description: "Fix 'Duplicate preset: \"conan-debug\"' errors after a second conan install in the same repo. Use when: (1) cmake --preset, cmake --build --preset, or ctest --preset suddenly fails with Duplicate preset: \"conan-debug\" (or conan-release etc.), (2) running conan install into a SECOND --output-folder with the same build_type in one repo, (3) deciding how to get a compile_commands.json/second build dir (e.g. for clang-tidy) without breaking existing preset invocations."
 category: tooling
 date: 2026-07-02

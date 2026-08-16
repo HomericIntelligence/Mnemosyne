@@ -1,5 +1,6 @@
 ---
 name: fix-altair-facet-layering
+license: BSD-3-Clause
 description: 'Systematic workflow for fixing Altair/Vega-Lite faceted chart bugs:
   invisible overlays, data clipping, and domain issues'
 category: debugging

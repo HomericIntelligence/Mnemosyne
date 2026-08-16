@@ -1,5 +1,6 @@
 ---
 name: debugging-prefix-cache-nsight-kernel-evidence
+license: BSD-3-Clause
 description: "Capture and interpret Nsight and active-row evidence for vLLM, AltLLM, or SGLang prefix-cache nondeterminism. Use when: (1) cache hits change output despite deterministic settings, (2) warm prefix-cache paths may select different GEMM tiling, (3) bit-exact cache replay still leaves garbled text, (4) sampling or token selection may be the real corruption source."
 category: debugging
 date: 2026-07-09

@@ -1,5 +1,6 @@
 ---
 name: dead-abstraction-investigate-before-removing
+license: BSD-3-Clause
 description: "Before removing a 'dead abstraction' (a centralized helper/registry with zero callers), INVESTIGATE rather than pre-emptively delete. A zero-caller module may be useful scaffolding waiting to be wired up OR a harmful orphan duplicate. Use when: (1) a strict review flags a well-built but unused module as a 'dead abstraction' removal candidate, (2) you are tempted to file a bare 'no callers -> delete' PR, (3) several parallel refactor PRs may have produced competing mechanisms for the same goal. The deciding factors for removal are an ALREADY-WIRED competing mechanism, an OPEN PR heading a different direction, and STALE defaults vs trunk (a footgun)."
 category: architecture
 date: 2026-06-27

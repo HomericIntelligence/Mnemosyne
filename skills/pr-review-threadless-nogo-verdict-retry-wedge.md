@@ -1,5 +1,6 @@
 ---
 name: pr-review-threadless-nogo-verdict-retry-wedge
+license: BSD-3-Clause
 description: "Prevent threadless PR-review retry wedges by distinguishing missing remediation artifacts from actionable host-verification diagnostics. Use when: (1) a NOGO has no durable review threads, (2) a formatter, test, or validation command failed on an exact PR head, (3) implementation must receive bounded command/output context without fabricating thread replies, (4) real review threads must retain exhaustive reply, journal, and handoff semantics, or (5) a repaired head must pass fresh verification, required CI, review, and exact-head merge gates."
 category: ci-cd
 date: 2026-08-06

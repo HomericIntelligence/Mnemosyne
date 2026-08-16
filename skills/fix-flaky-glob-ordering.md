@@ -1,5 +1,6 @@
 ---
 name: fix-flaky-glob-ordering
+license: BSD-3-Clause
 description: 'Fix flaky tests caused by non-deterministic filesystem glob ordering.
   Use when: test passes sometimes and fails other times with identical code, and the
   test asserts on the order of files loaded from a directory.'

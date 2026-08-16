@@ -1,5 +1,6 @@
 ---
 name: linux-cpu-governor-persist-without-cpupower
+license: BSD-3-Clause
 description: "Set and persist the Linux CPU frequency scaling governor (e.g. performance) across reboots on a system with NO cpufrequtils/linux-cpupower package installed, using direct sysfs writes plus a minimal systemd oneshot unit — works under the intel_pstate driver without needing any governor-management package. Use when: (1) a host is sitting on the wrong scaling_governor (e.g. powersave when it should be performance) and `dpkg -l | grep -iE 'cpufrequtils|cpupower'` returns empty, (2) you want two servers to have matching CPU throughput behavior, (3) you need the setting to survive a reboot without adding new package surface."
 category: tooling
 date: 2026-07-04

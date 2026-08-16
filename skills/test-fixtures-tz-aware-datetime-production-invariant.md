@@ -1,5 +1,6 @@
 ---
 name: test-fixtures-tz-aware-datetime-production-invariant
+license: BSD-3-Clause
 description: "Use when: (1) production code guarantees all timestamps are tz-aware UTC (coordination layer convention); (2) test fixtures use naive datetime.now() instead of tz-aware datetime.now(timezone.utc); (3) timezone-aware invariants are enforced at runtime (TypeError, ValueError, or silent logical bugs when comparing aware/naive); (4) fixtures should mirror production constraints to catch timezone bugs at authoring time, not at CI time; (5) refactoring fixtures to use tz-aware UTC across history events, event timestamps, or any temporal data that flows through coordination layers; (6) coordinating timestamps across multiple subsystems (agents, events, work items) where some use naive and others use aware, causing comparison failures."
 category: testing
 date: 2026-07-04

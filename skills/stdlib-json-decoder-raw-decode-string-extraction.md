@@ -1,5 +1,6 @@
 ---
 name: stdlib-json-decoder-raw-decode-string-extraction
+license: BSD-3-Clause
 description: "Use json.JSONDecoder.raw_decode() to extract the first JSON object from mixed text (with preamble, trailing text, whitespace, or nested objects), and a complementary parse-then-repair pass for structurally near-JSON the decoder cannot parse. Canonical stdlib pattern replacing custom balanced-brace parsers. Use when: (1) extracting JSON from LLM responses with preamble/postamble text, (2) parsing JSON from markdown code blocks with surrounding text, (3) handling edge cases like nested JSON objects, leading whitespace, or multiple trailing comment lines, (4) avoiding reinvention of the balanced-brace parser wheel, (5) json.loads fails with 'Expecting property name enclosed in double quotes ... char 1' on LLM output, (6) an LLM returned a Python-style single-quoted dict instead of JSON, (7) trailing commas appear in model-emitted JSON, (8) you need a best-effort repair pass after strict JSON fails."
 category: architecture
 date: 2026-06-20

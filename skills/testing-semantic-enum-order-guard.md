@@ -1,5 +1,6 @@
 ---
 name: testing-semantic-enum-order-guard
+license: BSD-3-Clause
 description: "Use when an enum's declaration order is semantic runtime behavior, such as a pipeline order tuple derived from tuple(EnumClass) or contiguity checks based on list/index position; document the invariant at the enum site and pin tuple(EnumClass) in tests."
 category: testing
 date: 2026-07-07

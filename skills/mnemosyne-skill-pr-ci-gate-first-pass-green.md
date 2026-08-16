@@ -1,5 +1,6 @@
 ---
 name: mnemosyne-skill-pr-ci-gate-first-pass-green
+license: BSD-3-Clause
 description: "Use when authoring a Mnemosyne /learn skill PR and you want it to pass CI on the FIRST push instead of bouncing on a red gate: (1) before committing a new or amended skills/*.md so you run the SAME two checks the Mnemosyne branch-protection requires — validate (ruff + scripts/validate_plugins.py over the WHOLE skills/ dir + mypy + pytest) and markdownlint (markdownlint-cli2 with .markdownlint.yaml); (2) when a markdown table in your skill has an inline pipe (regex, shell pipe, a|b) that markdownlint MD056/table-column-count rejects but validate_plugins.py silently passes; (3) when /learn emits a skill missing one of the five required ## sections and validate fails on your own new file; (4) when parallel /learn runs fork fresh origin/main against the SAME skill and become mutually DIRTY, so you need the open-PR amend-lock; (5) when a pre-existing broken file already on main reddens validate for files you never touched; (6) before claiming verified-ci, to confirm the gate is actually green and not just your local run."
 category: tooling
 date: 2026-06-13

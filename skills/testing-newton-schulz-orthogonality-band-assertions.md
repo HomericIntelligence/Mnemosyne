@@ -1,5 +1,6 @@
 ---
 name: testing-newton-schulz-orthogonality-band-assertions
+license: BSD-3-Clause
 description: "How to correctly test Newton-Schulz / Muon-style orthogonalization output. Use when: (1) a test asserts A^T A ≈ I (strict orthonormality) on a Newton-Schulz-orthogonalized matrix and it fails with off-diagonal or singular-value errors around 0.1–0.3, (2) you are writing regression tests for a Muon optimizer's `zeropower_via_newtonschulz5` / quintic-iteration step, (3) a reviewer claims the orthogonalizer is 'broken' because the result is not exactly orthogonal, (4) you need tolerances for singular values after a fixed 5-iteration Newton-Schulz run, (5) input to the orthogonalizer can be rank-deficient (fewer effective rows/cols than dimension) and the test must not assume full rank, (6) a parity test compares a Mojo/C++ orthogonalizer against a PyTorch reference and the two disagree only in the 3rd decimal."
 category: testing
 date: 2026-07-16

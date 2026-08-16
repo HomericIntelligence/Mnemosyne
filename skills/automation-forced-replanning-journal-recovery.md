@@ -1,5 +1,6 @@
 ---
 name: automation-forced-replanning-journal-recovery
+license: BSD-3-Clause
 description: "Teach a fail-closed forced-replanning workflow for queue pipelines with durable GitHub plan journals. Use when: (1) a force flag must bypass approved-plan and open-PR shortcuts, (2) an approved canonical plan must become a new reviewed revision, (3) partial archive or canonical writes must recover without duplicate planner jobs, or (4) stale hydrated state could republish an old plan after an agent failure."
 category: architecture
 date: 2026-08-05

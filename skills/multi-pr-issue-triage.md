@@ -1,5 +1,6 @@
 ---
 name: multi-pr-issue-triage
+license: BSD-3-Clause
 description: Triage a backlog of open GitHub issues, close resolved ones with comments,
   and implement remaining issues as ordered PRs with dependency management. Use when
   facing a batch of open issues that need classification and implementation.

@@ -1,5 +1,6 @@
 ---
 name: cpp-http-client-wrapper-lifetime-equals-object-not-per-call
+license: BSD-3-Clause
 description: "Keep connection/handle members in wrapper classes — never construct heavy resources per call. Use when: (1) reviewing a PR that rewrites a Client/Connection wrapper from member-owned to per-call construction, (2) the rewrite is justified by 'make methods const' or 'satisfy clang-tidy on mutable members', (3) designing a new wrapper around any connection-holding handle (httplib::Client, TCP socket, DB connection, file handle)."
 category: architecture
 date: 2026-05-10

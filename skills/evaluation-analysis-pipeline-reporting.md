@@ -1,5 +1,6 @@
 ---
 name: evaluation-analysis-pipeline-reporting
+license: BSD-3-Clause
 description: >-
   Use when: (1) building or extending an end-to-end analysis pipeline that turns
   raw experiment results into publication-quality figures, statistical tables, and

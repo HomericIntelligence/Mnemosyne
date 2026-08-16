@@ -1,5 +1,6 @@
 ---
 name: nextcloud-appapi-harp-deploy-daemon
+license: BSD-3-Clause
 description: "Register a Nextcloud AppAPI deploy daemon on a single Docker host using HaRP (HTTP+Reverse Proxy), the current non-deprecated method required to install External Apps (Ex-Apps). Use when: (1) the Nextcloud admin overview shows an 'AppAPI deploy daemon' warning and you need Ex-Apps to install, (2) occ warns that Direct Docker access / Docker Socket Proxy is deprecated and prints 'please register a HaRP-based daemon instead (pass --harp)', (3) migrating a Nextcloud 34 install off the removed-in-NC35 docker-socket-proxy daemon (ghcr.io/nextcloud/nextcloud-appapi-dsp) onto HaRP, (4) app_api:daemon:register fails to reach Ex-App containers because --net used the short compose alias instead of the real compose-prefixed docker network name, (5) the HaRP shared key silently registers blank because the haproxy password file was created root-owned by a container and read back empty."
 category: tooling
 date: 2026-06-25

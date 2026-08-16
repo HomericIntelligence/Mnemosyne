@@ -1,5 +1,6 @@
 ---
 name: tooling-subprocess-json-fail-closed-result-validation
+license: BSD-3-Clause
 description: "Make validators that consume JSON from external CLI tools fail closed instead of treating missing, empty, malformed, or wrong-shaped output as zero findings. Use when: (1) a validator wraps a linter, scanner, compiler, or analyzer through subprocess, (2) findings and tool failures share nonzero exit codes, (3) an exit-zero process can still produce unusable JSON, (4) human and --json CLI modes need honest failure diagnostics and exit status."
 category: tooling
 date: 2026-08-05

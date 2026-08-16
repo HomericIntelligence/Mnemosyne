@@ -1,5 +1,6 @@
 ---
 name: cli-adapter-implementation
+license: BSD-3-Clause
 description: 'Skill: cli-adapter-implementation. Use when working with cli adapter
   implementation.'
 category: tooling

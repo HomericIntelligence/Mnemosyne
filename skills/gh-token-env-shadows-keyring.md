@@ -1,5 +1,6 @@
 ---
 name: gh-token-env-shadows-keyring
+license: BSD-3-Clause
 description: "Diagnose and fix a read-only-session gotcha where an ambient GH_TOKEN / GITHUB_TOKEN environment PAT (github_pat_... fine-grained/restricted) shadows the full-scope keyring gho_... OAuth token for BOTH gh and git, causing every write op (git push, gh pr merge, gh pr merge --admin, gh run rerun) to fail with HTTP 403 'Permission denied' or 'Resource not accessible by personal access token' — even though gh auth status shows a second keyring account with repo+workflow scopes. Fix: prefix every write command with 'unset GH_TOKEN GITHUB_TOKEN;'. Use when: (1) git push returns 403 'Permission denied to <user>' in an agent/CI shell but works interactively, (2) gh pr merge / gh run rerun says 'Resource not accessible by personal access token', (3) gh pr merge --admin is rejected, (4) gh auth status lists two accounts (an active GITHUB_TOKEN PAT and a keyring gho_ token), (5) you are tempted to hand-inject a token via git -c http.extraheader."
 category: tooling
 date: 2026-05-29

@@ -1,5 +1,6 @@
 ---
 name: testing-source-line-number-assertions-are-churn-engines
+license: BSD-3-Clause
 description: "A test that asserts an exact SOURCE LINE NUMBER (`inspect.getsourcelines(fn)[1] == <literal>`, `fn.__code__.co_firstlineno == N`, or a doc `path:LINE function` reference pinned against the current source line) is a churn engine — REMOVE it and assert symbol presence/resolution instead. Any edit above the function shifts its line number and fails the test with zero behavior change; under concurrent merging the correct line is only knowable at the merge instant, so no PR author (human or agent) can pin it ahead of time. Use when: (1) a doc/regression test fails only because a line number drifted, (2) a PR keeps re-conflicting on a doc that hardcodes `file.py:NNN`, (3) you see `getsourcelines(...)[1]` or `co_firstlineno` compared to a constant in tests, (4) an automation loop keeps force-pushing a wrong-line-number CI fix."
 category: testing
 date: 2026-07-12

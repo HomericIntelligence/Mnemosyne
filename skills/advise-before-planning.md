@@ -1,5 +1,6 @@
 ---
 name: advise-before-planning
+license: BSD-3-Clause
 description: Integrate team knowledge search before automated planning workflows
 category: tooling
 date: 2026-02-13

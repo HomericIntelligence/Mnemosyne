@@ -1,5 +1,6 @@
 ---
 name: blog-writer
+license: BSD-3-Clause
 description: Write development blog posts in episodic story-arc format with day numbering anchored to project start. Produces self-contained, narrative-driven posts where the root cause arrives near the end, every rejected hypothesis gets its own paragraph, and primary-source quotes are mined from Claude session logs. Use after a milestone, bug hunt, or multi-day investigation worth a narrative retrospective.
 category: documentation
 date: 2026-05-13

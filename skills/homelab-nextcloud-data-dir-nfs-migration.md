@@ -1,5 +1,6 @@
 ---
 name: homelab-nextcloud-data-dir-nfs-migration
+license: BSD-3-Clause
 description: "Relocate the Nextcloud /data directory between storage tiers in HomelabOS (local NVMe/USB <-> NFS NAS) while keeping core (webroot, config, apps, DB) on fast storage, with a reboot-safe live cutover. Use when: (1) moving the Nextcloud data dir from local disk to a NAS NFS share, (2) moving it OFF a slow NFS share onto a fast local disk because uploads time out, (3) HomelabOS Nextcloud compose has NFS bind mounts but NFS mounted after container start, (4) rsyncing to/from a share with root_squash, (5) making the data dir bind reboot-safe with fstab + RequiresMountsFor."
 category: architecture
 date: 2026-06-28

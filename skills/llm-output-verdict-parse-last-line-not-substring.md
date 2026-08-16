@@ -1,5 +1,6 @@
 ---
 name: llm-output-verdict-parse-last-line-not-substring
+license: BSD-3-Clause
 description: "Parse discrete LLM-emitted verdicts (APPROVED/REVISE/BLOCK, GO/NOGO, SAFE/UNSAFE) using last-line regex extraction, not substring `in` checks. Use when: (1) adding a Python/shell consumer that reads a classification marker from LLM output, (2) the prompt instructs the LLM that 'readers take the LAST matching line', (3) the LLM may discuss multiple options before settling on a verdict, (4) a substring-in check would fire on quoted/discussed markers, (5) auditing an existing parser for false-positive verdict reads, (6) a reviewer comment exists but its verdict is never parsed — causing the pipeline to re-review the same issue every pass forever (#615 infinite loop), (7) diagnosing a re-review loop where the log gives no clue what the reviewer wrote, (8) deciding whether a verdict parser should be first-match or last-match — persisted/accumulating comment gates need last-match-wins, single-line fresh-output parsers can use first-match, (9) auditing a 'parser unification' refactor that may have silently dropped a last-wins safety guarantee."
 category: architecture
 date: 2026-05-28

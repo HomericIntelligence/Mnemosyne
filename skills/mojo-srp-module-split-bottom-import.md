@@ -1,5 +1,6 @@
 ---
 name: mojo-srp-module-split-bottom-import
+license: BSD-3-Clause
 description: "Use when: (1) a Mojo file exceeds ~3,000 lines and needs SRP extraction into sibling modules in the same package directory, (2) you are splitting any_tensor.mojo or a similarly large Mojo module and need to avoid circular import type-identity issues, (3) you encounter 'type registered twice' or silent type-mismatch errors after placing sibling module imports at the top of a Mojo file, (4) you need to determine how many lines of Mojo code remain after mojo format runs (formatter adds whitespace that can push line counts over budget), (5) you want to access private struct fields from a sibling module within the same package."
 category: architecture
 date: 2026-06-20

@@ -1,5 +1,6 @@
 ---
 name: phase-implement
+license: BSD-3-Clause
 description: Coordinate implementation phase by delegating tasks and ensuring code
   quality. Use during implementation phase to manage engineer tasks.
 category: tooling

@@ -1,5 +1,6 @@
 ---
 name: babylonjs-havok-vite-wasm
+license: BSD-3-Clause
 description: When Babylon.js Havok physics fails in Vite dev server with WASM MIME type errors
 user-invocable: false
 category: debugging

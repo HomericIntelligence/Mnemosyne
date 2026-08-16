@@ -1,5 +1,6 @@
 ---
 name: github-relative-doc-links-resolve-to-file-location
+license: BSD-3-Clause
 description: "GitHub resolves a relative markdown link RELATIVE TO THE FILE'S OWN LOCATION, not the repo root. A doc link added to a file in a subdirectory (e.g. `.github/pull_request_template.md`) needs `../docs/X.md`, not `docs/X.md` — and the rule is easy to get wrong from memory. The robust fix is an ABSOLUTE `https://github.com/<owner>/<repo>/blob/<branch>/docs/X.md` URL that resolves identically from any file location. Also: markdownlint does NOT validate that relative link targets resolve, so a grep + lint pass is green even with a broken link — add an explicit `test -f <target>`. And: do not cite `pixi run markdownlint` without confirming the task exists; in some repos markdown is gated only by a `markdownlint-cli2` pre-commit hook. Use when: (1) adding a doc link inside a markdown file that lives in a subdirectory (`.github/`, `docs/`, `.github/ISSUE_TEMPLATE/`); (2) a plan or PR asserts how GitHub resolves a relative link from a non-root file; (3) an acceptance criterion is 'references doc X' and you need to actually verify the link resolves; (4) a reviewer flags an ambiguous `../docs/...` vs `docs/...` relative link; (5) deciding which lint command actually gates markdown in a repo."
 category: documentation
 date: 2026-06-23

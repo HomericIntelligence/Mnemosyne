@@ -1,5 +1,6 @@
 ---
 name: comet-cli-offline-review-evidence-reporting
+license: BSD-3-Clause
 description: "Review Comet CLI behavior without cluster access and report bounded evidence for offline defects or user-observed dashboard incidents. Use when: (1) reviewing comet or comet-admin commands in a workstation-only environment, (2) a CLI issue must be filed without exercising Slurm, gateways, or databases, (3) users report several dashboard views failing with the same validation error, (4) local validation is complete but the full test suite has no reliable terminal result."
 category: testing
 date: 2026-08-05

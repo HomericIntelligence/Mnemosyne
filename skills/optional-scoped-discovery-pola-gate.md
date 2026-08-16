@@ -1,5 +1,6 @@
 ---
 name: optional-scoped-discovery-pola-gate
+license: BSD-3-Clause
 description: "POLA (Principle of Least Astonishment) pattern for optional CLI flags that gate discovery behavior. When a discovery flag is optional (e.g., `--issues`), gate discovery on its PRESENCE, not its value: operator-provided scope stays narrow (issue-driven); empty/absent scope widens to all candidates (PR-driven). Prevents user surprise when optional flag silently ignores what they meant to scope. Use when: (1) designing CLI with optional filtering that switches between discovery modes, (2) feature toggles need intuitive defaults, (3) preventing 'operator provided --issues but they weren't used' bugs."
 category: architecture
 date: 2026-06-06

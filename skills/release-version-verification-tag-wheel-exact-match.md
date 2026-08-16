@@ -1,5 +1,6 @@
 ---
 name: release-version-verification-tag-wheel-exact-match
+license: BSD-3-Clause
 description: "Keep Git tags as the sole authority in dynamic-version releases, refuse aggregate static-file bumps before reads or writes, preserve static-project mutation, and verify tag-to-wheel equality. Use when: (1) one bump utility serves static and hatch-vcs projects, (2) dry-run or JSON can report false success for an unsupported project, (3) machine-readable stdout is contaminated by human output, (4) direct API callers can bypass CLI safety, or (5) release publication needs exact tag and wheel evidence."
 category: ci-cd
 date: 2026-08-07

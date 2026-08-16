@@ -1,5 +1,6 @@
 ---
 name: python-module-move-all-surface-sweep
+license: BSD-3-Clause
 description: "Use when: (1) moving a Python module into a package, (2) renaming an import path used by tests, shell commands, documentation, templates, or CI, (3) a migration needs proof that packaging metadata, module entry points, patch seams, and operational references all moved together."
 category: architecture
 date: 2026-08-07

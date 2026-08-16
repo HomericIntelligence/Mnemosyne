@@ -1,5 +1,6 @@
 ---
 name: ci-cd-non-required-precommit-strict-false-breaks-main
+license: BSD-3-Clause
 description: "Non-required pre-commit workflow plus strict:false branch protection silently breaks main's required checks while PRs keep auto-merging. Use when: (1) main's Required Checks are red for hours but PRs still merge, (2) a GO'd PR fails CI on lint/pre-commit only (not tests), (3) auditing branch-protection required-status-check configuration."
 category: ci-cd
 date: 2026-06-12

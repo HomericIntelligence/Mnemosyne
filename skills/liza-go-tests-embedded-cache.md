@@ -1,5 +1,6 @@
 ---
 name: liza-go-tests-embedded-cache
+license: BSD-3-Clause
 description: "Run and debug Liza Go tests in local/sandboxed environments. Use when Go tests fail on missing embedded contracts or skills, cannot write the default Go cache, or show flaky internal/gitenv timeout behavior during Liza validation."
 category: testing
 date: 2026-05-16

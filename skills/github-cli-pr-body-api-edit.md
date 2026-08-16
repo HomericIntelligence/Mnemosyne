@@ -1,5 +1,6 @@
 ---
 name: github-cli-pr-body-api-edit
+license: BSD-3-Clause
 description: "Update a GitHub PR body from automation when gh pr edit --body-file fails on missing read:project scope and gh auth refresh cannot complete headlessly. Use when: (1) gh pr edit only needs to change the PR body but reports missing read:project, (2) gh auth refresh starts a browser or device-code flow, (3) existing repo auth can still call gh api."
 category: tooling
 date: 2026-07-04

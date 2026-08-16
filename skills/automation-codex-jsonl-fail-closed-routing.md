@@ -1,5 +1,6 @@
 ---
 name: automation-codex-jsonl-fail-closed-routing
+license: BSD-3-Clause
 description: "Fail closed when a headless Codex invocation reports fatal provider, sandbox, or tool events inside JSONL even if the CLI exits zero or writes a plausible final answer. Use when: (1) Codex reports `error`, `turn.failed`, or any failed/declined completed item but orchestration treats the run as successful, (2) nested macOS execution emits `sandbox_apply: Operation not permitted`, (3) a timeout-recovered final message could hide an earlier fatal event, (4) documented recoverable command or stream-lag events need narrow exceptions, or (5) provider failures must reach a provider-neutral worker/stage error path without broadening sandbox access."
 category: debugging
 date: 2026-08-04

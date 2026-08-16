@@ -1,5 +1,6 @@
 ---
 name: cli-audit-subcommand
+license: BSD-3-Clause
 description: "Skill: cli-audit-subcommand"
 category: architecture
 date: 2026-03-19

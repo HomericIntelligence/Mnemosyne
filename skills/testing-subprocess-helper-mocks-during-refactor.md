@@ -1,5 +1,6 @@
 ---
 name: testing-subprocess-helper-mocks-during-refactor
+license: BSD-3-Clause
 description: "After refactoring code that calls subprocess helpers (run_subprocess, subprocess.check_output, etc.), unit tests must update mocks to match the ACTUAL return type of the helper being tested. Use when: (1) refactoring code that changes which subprocess helper is used (run_subprocess vs subprocess.check_output), (2) test mocks fail with AttributeError on stdout/stderr/returncode after extraction, (3) tests expect CompletedProcess with specific attributes but the helper returns a different type, (4) test side_effect mocks don't match the actual return type of the helper being called, (5) extracting small helper functions from larger modules that call subprocess — verify helpers match their callsites' expectations."
 category: testing
 date: 2026-06-27

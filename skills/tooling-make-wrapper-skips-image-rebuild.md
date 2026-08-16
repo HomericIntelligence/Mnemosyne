@@ -1,5 +1,6 @@
 ---
 name: tooling-make-wrapper-skips-image-rebuild
+license: BSD-3-Clause
 description: "A high-level build wrapper (e.g. a Makefile `build` target, `just`, or a shell script around `docker build`) short-circuits when the target image already exists, prints something like 'image already built', and does nothing — so a Dockerfile edit never lands. Use when: (1) you edited a Dockerfile (added a dependency, bumped a pin, added a package) then ran a `make`/`just`/script build target and the change is not in the running image; (2) a build wrapper prints 'already built'/'up to date' and exits without compiling; (3) you need to confirm a build-input edit actually baked into the output artifact."
 category: tooling
 date: 2026-06-22

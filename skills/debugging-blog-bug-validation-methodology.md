@@ -1,5 +1,6 @@
 ---
 name: debugging-blog-bug-validation-methodology
+license: BSD-3-Clause
 description: "Methodology for systematically validating that bugs documented in blog posts have been fixed in the codebase. Use when: (1) reviewing blog posts that document bugs, (2) verifying historical bug fixes are still in place, (3) auditing codebase against documented issues."
 category: debugging
 date: 2026-04-09

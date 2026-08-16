@@ -1,5 +1,6 @@
 ---
 name: coverage-omit-orchestration-pure-function-testing
+license: BSD-3-Clause
 description: "How to replace whole-module coverage omissions and import/test-name proxies with hermetic behavior tests plus explicit per-module coverage metrics. Use when: (1) orchestration modules are excluded because they touch agents, GitHub, Git, subprocesses, clocks, or terminals, (2) a proxy test proves only that a module was imported or named, (3) line and branch floors need unambiguous enforcement."
 category: testing
 date: 2026-08-05

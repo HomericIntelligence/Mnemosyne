@@ -1,5 +1,6 @@
 ---
 name: training-grokking-preconditions-and-vision-recipe
+license: BSD-3-Clause
 description: "Catalog the necessary conditions for grokking (delayed generalization) and provide a proposed recipe to attempt it on small vision tasks (MNIST/EMNIST with MLP or LeNet). Use when: (1) a user reports overfitting after long training and asks why they don't see grokking, (2) planning a grokking experiment on supervised vision data, (3) tuning weight decay / AdamW / epochs / dataset-size for delayed-generalization studies, (4) deciding whether a task is structurally capable of grokking, (5) distinguishing grokking from ordinary overfitting or ordinary late convergence, (6) reviewing claims that 'training longer' alone will produce grokking."
 category: training
 date: 2026-05-25

@@ -1,5 +1,6 @@
 ---
 name: grpo-external-vllm
+license: BSD-3-Clause
 description: GRPO training with external vLLM server for distributed GPU setups
 category: training
 date: 2025-12-28

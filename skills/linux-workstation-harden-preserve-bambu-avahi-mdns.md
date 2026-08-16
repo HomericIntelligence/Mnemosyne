@@ -1,5 +1,6 @@
 ---
 name: linux-workstation-harden-preserve-bambu-avahi-mdns
+license: BSD-3-Clause
 description: "When hardening a Linux workstation that has Bambu Lab 3D printers on the LAN, keep avahi-daemon in the service-enable set (Bambu Studio / OrcaSlicer discover printers over mDNS/Bonjour via avahi). CUPS is safe to disable — Bambu uses its own MQTT+HTTP protocol, not CUPS/IPP. Use when: (1) applying an aeolus/epimetheus-style workstation service-disable list to a box that hosts 3D printers, (2) Bambu Studio / OrcaSlicer stops auto-discovering LAN printers after a hardening pass, (3) deciding which of avahi vs CUPS is safe to disable on a printer-adjacent workstation."
 category: architecture
 date: 2026-07-07

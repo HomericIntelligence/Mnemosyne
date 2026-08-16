@@ -1,5 +1,6 @@
 ---
 name: mcp-config-deliberate-absence-posture
+license: BSD-3-Clause
 description: "How to respond to a repo audit finding of 'no MCP server configuration'. Use when: (1) an audit reports a missing .mcp.json / mcpServers key, (2) deciding whether to add live MCP servers vs an empty placeholder, (3) distinguishing Claude Code plugin marketplaces from MCP servers. Recommends a TRACKED .mcp.json with empty mcpServers:{} — NOT a git-ignored file or a .example twin."
 category: tooling
 date: 2026-06-12

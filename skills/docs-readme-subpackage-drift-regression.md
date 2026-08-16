@@ -1,5 +1,6 @@
 ---
 name: docs-readme-subpackage-drift-regression
+license: BSD-3-Clause
 description: "Replace documentation tests that pin prose, headings, package inventories, dates, or manually maintained counts with observable navigation and source contracts. Use when: (1) a README tree test requires every package or tracked path to appear in prose, (2) privacy or architecture tests assert literal wording, (3) documentation should prove local links resolve, public indexes reach an artifact, or executable source contracts remain valid."
 category: documentation
 date: 2026-08-05

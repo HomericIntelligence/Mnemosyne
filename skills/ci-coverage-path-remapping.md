@@ -1,5 +1,6 @@
 ---
 name: ci-coverage-path-remapping
+license: BSD-3-Clause
 description: "Remap container paths to host paths for coverage reports in CI. Use when: (1) coverage XML export fails with 'No source for code' after running inside a container, (2) .coverage file has /workspace/ paths that don't exist on the host."
 category: ci-cd
 date: 2026-06-11

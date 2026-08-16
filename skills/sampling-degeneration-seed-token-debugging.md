@@ -1,5 +1,6 @@
 ---
 name: sampling-degeneration-seed-token-debugging
+license: BSD-3-Clause
 description: "Debug seed-driven LLM sampling degeneration by stopping at the first bad token and inspecting the next-token distribution. Use when: (1) the same prompt, weights, backend, and generation config differ only by seed, (2) top-k/top-p/temperature changes alter garbled-output rates, (3) a logging top-N limit may have been confused with sampler support."
 category: debugging
 date: 2026-07-09

@@ -1,5 +1,6 @@
 ---
 name: spec-driven-experimentation
+license: BSD-3-Clause
 description: TECHSPEC.md pattern for structured ML experiments
 category: training
 date: 2025-12-29

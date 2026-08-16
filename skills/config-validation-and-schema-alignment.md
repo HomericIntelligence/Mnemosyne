@@ -1,5 +1,6 @@
 ---
 name: config-validation-and-schema-alignment
+license: BSD-3-Clause
 description: "Canonical patterns for config validation and schema alignment: JSON-Schema generation from Pydantic, schema-wiring tests, config-filename and model-id validation, YAML linter false-positives, env-var double-underscore nesting, plugin-cache staleness, pixi container env isolation. Use when: (1) adding a new config validator, (2) wiring schema checks to CI, (3) diagnosing config-loader schema mismatches, (4) plugin/cache reports stale skill metadata, (5) reconciling config-filename conventions across model configs."
 category: tooling
 date: 2026-06-12

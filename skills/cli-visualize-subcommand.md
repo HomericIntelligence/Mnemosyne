@@ -1,5 +1,6 @@
 ---
 name: cli-visualize-subcommand
+license: BSD-3-Clause
 description: Pattern for adding a visualize/inspect subcommand to a CLI experiment
   management tool
 category: tooling

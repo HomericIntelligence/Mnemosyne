@@ -1,5 +1,6 @@
 ---
 name: plan-review-strict-rubric-iteration
+license: BSD-3-Clause
 description: "Iterative multi-round plan review with strict rubric applying 7 software engineering principles (KISS, YAGNI, TDD, DRY, SOLID, Modularity, POLA). Use when: (1) reviewing implementation plans for GitHub issues, (2) design docs need GO/NOGO gating, (3) plans must evolve through multiple review rounds until all findings are resolved."
 category: architecture
 date: 2026-06-11

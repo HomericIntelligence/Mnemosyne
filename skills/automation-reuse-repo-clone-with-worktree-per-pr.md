@@ -1,5 +1,6 @@
 ---
 name: automation-reuse-repo-clone-with-worktree-per-pr
+license: BSD-3-Clause
 description: "Use when: (1) code clones the SAME repo once per PR/branch/item inside a loop,
   (2) a fleet/batch tool re-clones a repo for every item causing redundant network+disk I/O
   that scales with item count, (3) refactoring a per-item-clone hot loop to a single clone +

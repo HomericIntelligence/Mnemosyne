@@ -1,5 +1,6 @@
 ---
 name: png-jpeg-to-idx-conversion
+license: BSD-3-Clause
 description: "Convert PNG/JPEG images to MNIST-style IDX files for an inference pipeline, in single-image or directory/glob batch mode. Use when: (1) a model accepts IDX but users supply raster images, (2) adding a Pillow-backed CLI bridge to a Mojo or ML inference workflow, (3) writing a multi-image IDX file with a count greater than one, (4) preserving EMNIST preprocessing and reproducible input order."
 category: tooling
 date: 2026-07-17

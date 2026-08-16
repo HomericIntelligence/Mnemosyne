@@ -1,5 +1,6 @@
 ---
 name: tooling-ansible-core-upgrade-legacy-playbooks
+license: BSD-3-Clause
 description: "How to run a legacy Ansible 2.9 project on modern ansible-core (2.13). Use when: (1) a Dockerized Ansible toolchain ships ansible 2.9 and Mitogen aborts with 'too old', (2) you hit 'couldn't resolve module/action' for alternatives/docker_image/htpasswd after upgrading, (3) playbooks error on vars_prompt 'when' or command 'warn'."
 category: tooling
 date: 2026-06-22

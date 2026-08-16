@@ -1,5 +1,6 @@
 ---
 name: mojo-tensor-ownership-training-loops
+license: BSD-3-Clause
 description: "Use when: (1) implementing Mojo training loops where functions take AnyTensor by value (moving ownership), (2) you hit 'use after move' compile errors across compute_gradients()/model.forward() calls in an iteration, (3) you must reuse tensor data between training and a post-training forward pass and need separate batch objects / borrow-vs-transfer discipline."
 category: debugging
 date: 2026-07-02

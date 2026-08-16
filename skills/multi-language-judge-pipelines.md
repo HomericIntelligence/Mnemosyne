@@ -1,5 +1,6 @@
 ---
 name: multi-language-judge-pipelines
+license: BSD-3-Clause
 description: Add language-specific build pipelines to E2E test judge systems
 category: testing
 date: 2026-01-09

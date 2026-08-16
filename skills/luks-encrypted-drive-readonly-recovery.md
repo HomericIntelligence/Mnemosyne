@@ -1,5 +1,6 @@
 ---
 name: luks-encrypted-drive-readonly-recovery
+license: BSD-3-Clause
 description: "Read-only recovery of files from a hotplugged LUKS-encrypted drive, prioritizing data safety over speed. Use when: (1) a SATA/USB drive with LUKS partitions needs file extraction, (2) drive health is unknown or suspect and you must not write to it, (3) imaging-first vs mount-directly tradeoff needs to be decided."
 category: tooling
 date: 2026-05-18

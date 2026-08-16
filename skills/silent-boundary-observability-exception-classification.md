@@ -1,5 +1,6 @@
 ---
 name: silent-boundary-observability-exception-classification
+license: BSD-3-Clause
 description: "Add observability to broad exception boundaries in orchestrator code without changing fail-safe behavior. Use when: (1) a broad `except Exception` boundary is designed for fail-safe/non-blocking behavior but swallows errors silently making bugs hard to debug, (2) you need to surface exceptions to observability systems (logging, monitoring) while preserving the safety contract (returns None, never blocks), (3) exception classification (expected vs unexpected) enables aggregation in log analysis, (4) modules like run_follow_up_issues, planner, or ci_driver need better observability for post-mortem debugging. Pattern: define a module-level tuple of expected exception types, use isinstance() to route to WARNING (expected) or ERROR (unexpected) severity, capture full traceback with exc_info=True, and include exception type as discrete log argument for aggregation."
 category: architecture
 date: 2026-06-06

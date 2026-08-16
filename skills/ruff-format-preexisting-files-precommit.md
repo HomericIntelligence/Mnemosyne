@@ -1,5 +1,6 @@
 ---
 name: ruff-format-preexisting-files-precommit
+license: BSD-3-Clause
 description: "ruff-format reformats pre-existing files (not authored by you) when you run `pre-commit run --all-files` on a feature branch — those reformats land in the working tree and must be staged and committed (or amended into the feature commit). Use when: (1) you ran `pre-commit run --all-files` after completing a feature and the hook reports 'Failed' + 'N files reformatted' for files you never touched; (2) the hook then reports 'Passed' on a second run but `git diff --name-only` still shows those files as modified (unstaged); (3) you only staged your own authored files and are about to commit, risking a pre-commit failure in CI because the reformatted files are still in the working tree unstaged. The fix is NOT to create a separate PR — stage the reformatted files and fold them into the feature commit (amend or a new style commit)."
 category: tooling
 date: 2026-06-20

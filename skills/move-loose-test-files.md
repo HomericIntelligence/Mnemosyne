@@ -1,5 +1,6 @@
 ---
 name: move-loose-test-files
+license: BSD-3-Clause
 description: Safe pattern for moving test files from a root test directory into mirrored
   sub-packages, including fixture path correction
 category: testing

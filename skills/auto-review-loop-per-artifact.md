@@ -1,5 +1,6 @@
 ---
 name: auto-review-loop-per-artifact
+license: BSD-3-Clause
 description: "Per-artifact write-review-fix-rereview-commit loop that replaces user-pause-for-review with subagent-driven correctness audits. Use when: (1) producing a series of related markdown deliverables where citation/cross-reference correctness matters, (2) long-running task that would otherwise need many user interruptions to ask 'is this OK', (3) working with a project-specialized reviewer that has WebFetch or other primary-source verification capability, (4) downstream cost of a wrong artifact is high (e.g., 25 issue bodies citing a fabricated paper)."
 category: evaluation
 date: 2026-05-12

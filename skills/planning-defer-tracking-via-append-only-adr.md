@@ -1,5 +1,6 @@
 ---
 name: planning-defer-tracking-via-append-only-adr
+license: BSD-3-Clause
 description: "Prefer an append-only ADR over a closeable GitHub issue as the canonical tracker when documentation marks work 'planned/future' and a reviewer flags it as untracked — because issues get auto-closed and go stale. Use when: (1) a reviewer/audit flags documented 'planned'/'future phase'/'not yet implemented' work as having no tracking issue or ADR; (2) you're tempted to open a GitHub issue to track a deferral but issues get auto-closed and go stale; (3) you need a durable canonical tracker for an architectural-state decision in a repo that already uses append-only ADRs; (4) an existing inline doc reference points at a CLOSED or wrong-scope issue and must be replaced; (5) you're planning a docs-only change to a read-mostly meta-repo and must respect ADR append-only conventions."
 category: documentation
 date: 2026-06-20

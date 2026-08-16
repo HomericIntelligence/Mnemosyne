@@ -1,5 +1,6 @@
 ---
 name: mojo-package-build-and-distribution
+license: BSD-3-Clause
 description: "Use when: (1) planning to publish a Mojo library via the modular-community conda channel — idiomatic src/<pkg>/ layout, conda.recipe/recipe.yaml (rattler-build), PR workflow, (2) converting an in-tree shared/ directory into a distributable .mojopkg, (3) creating GitHub Actions workflows for automated .mojopkg building and release creation, (4) deciding between conda channel vs Python wheel vs git dependency for distributing a Mojo library, (5) replacing fictional 'mojo install'/'mojo publish' CLI references in documentation with the correct pixi-channel workflow."
 category: tooling
 date: 2026-06-07

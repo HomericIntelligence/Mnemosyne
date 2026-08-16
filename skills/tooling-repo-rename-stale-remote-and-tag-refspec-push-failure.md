@@ -1,5 +1,6 @@
 ---
 name: tooling-repo-rename-stale-remote-and-tag-refspec-push-failure
+license: BSD-3-Clause
 description: "After a GitHub repository is RENAMED, the local `origin` still points at the OLD URL; pushes get a `remote: This repository moved` redirect, and a TAG-source refspec force-push (`tag:branch`) fails through that redirect with `remote: fatal error in commit_refs` / `[remote rejected]` even though branch/HEAD-source pushes succeed in the same session. Fix: `git remote set-url origin` to the new location, then push a BRANCH source (materialize the tag into a temp branch first) instead of a tag source. Use when: (1) `remote: This repository moved` appears on push, (2) `fatal error in commit_refs` / `[remote rejected]` when pushing a tag to a branch, (3) some pushes work and others fail in the same session after a repo rename."
 category: tooling
 date: 2026-07-12

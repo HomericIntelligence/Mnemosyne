@@ -1,5 +1,6 @@
 ---
 name: training-multi-metric-best-checkpoint-min-after-max
+license: BSD-3-Clause
 description: "Capture *transitions* (regime changes) in long-running training runs, not just absolute extrema, by tracking multiple metrics with per-metric modes (max / min / both / min_after_max / max_after_min). Use when: (1) designing checkpointing for a grokking or phase-transition study where the interesting test loss is the one *after* it has spiked and come back down, (2) the naive `if test_loss < best_test_loss` tracker is trivially won at epoch 1 because loss starts highest and falls monotonically, (3) you want to diagnose overfitting valleys / spikes / weight-norm regrowth and the absolute min/max is uninformative, (4) you want one checkpoint per (metric, mode_kind) tuple with weights + JSON sidecar, (5) extending an existing single-metric CheckpointManager to N metrics without changing on-disk format, (6) detecting change-of-regime in any time-series metric pipeline (LR scheduling, overfitting detection, anomaly detection over training metrics)."
 category: training
 date: 2026-05-25

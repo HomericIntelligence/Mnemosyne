@@ -1,5 +1,6 @@
 ---
 name: docker-conan-cache-mount-vs-layer-ssl-not-found
+license: BSD-3-Clause
 description: "Fix a Docker C++/Conan build that fails at cmake configure with 'Library ssl not found in package' (OpenSSL-Target-release.cmake conan_package_library_targets) even though conanfile.py and CMakeLists are correct. Use when: (1) a Dockerfile builder stage fails at cmake configure with 'Library <x> not found in package', (2) the conan-install RUN uses --mount=type=cache for /root/.conan2, (3) the cmake step fails suspiciously fast (~0.2s) after a buildx cache-from hit, (4) a fix works on a native/local build but the Docker build stays broken, (5) deciding whether to bake Conan packages into an image layer vs a cache mount."
 category: ci-cd
 date: 2026-07-13

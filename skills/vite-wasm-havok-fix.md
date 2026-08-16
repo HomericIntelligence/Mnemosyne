@@ -1,5 +1,6 @@
 ---
 name: vite-wasm-havok-fix
+license: BSD-3-Clause
 description: "Skill: vite-wasm-havok-fix"
 category: debugging
 date: 2026-03-19

@@ -1,5 +1,6 @@
 ---
 name: sata-drive-bus-disconnect-diagnosis
+license: BSD-3-Clause
 description: "Diagnose and triage a SATA drive that has dropped off the bus (capacity=0, DID_BAD_TARGET on every command). Use when: (1) dmesg shows 'detected capacity change from N to 0' on a drive that was previously working, (2) smartctl returns 'A mandatory SMART command failed', (3) wipefs/sgdisk hit 'Read error 5/22' on raw device access."
 category: debugging
 date: 2026-05-18

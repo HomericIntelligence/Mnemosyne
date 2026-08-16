@@ -1,5 +1,6 @@
 ---
 name: fix-default-value-test-mismatch
+license: BSD-3-Clause
 description: Fix test failures when default values change in source code but tests
   aren't updated
 category: testing

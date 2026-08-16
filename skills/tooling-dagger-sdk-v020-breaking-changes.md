@@ -1,5 +1,6 @@
 ---
 name: tooling-dagger-sdk-v020-breaking-changes
+license: BSD-3-Clause
 description: "Migrate Dagger SDK from v0.9.x to v0.20+. Use when: (1) CI TypeScript typecheck fails after a dagger SDK bump, (2) upgrading dagger from 0.9 to 0.20+, (3) seeing 'Container.build is not a function' or similar type errors after a dependabot dagger upgrade PR."
 category: tooling
 date: 2026-04-28

@@ -1,5 +1,6 @@
 ---
 name: model-config-explicit-model-id
+license: BSD-3-Clause
 description: "Skill: model-config-explicit-model-id"
 category: tooling
 date: 2026-03-19

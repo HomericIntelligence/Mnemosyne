@@ -1,5 +1,6 @@
 ---
 name: container-runtime-dependency-linkage-audit
+license: BSD-3-Clause
 description: "Audit whether a runtime dependency (e.g. libssl3) can be dropped from a container image by tracing per-binary linkage from source #defines through CMake link lists and the package manager's transitive usage interface down to ldd/nm on the built artifact. Use when: (1) planning to slim a runtime container image by removing an apparently-unused shared library, (2) a Dockerfile/compose ships a .so (libssl3, libcrypto) you suspect is dead, (3) producing an implementation plan whose conclusion rests on linkage you have NOT yet verified empirically, (4) you need a discipline for flagging uncertain/unverified assumptions in a dependency-removal plan for a reviewer."
 category: ci-cd
 date: 2026-06-19

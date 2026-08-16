@@ -1,5 +1,6 @@
 ---
 name: git-rebase-skip-duplicate-merged-commits
+license: BSD-3-Clause
 description: >-
   Use when: (1) a PR branch has commits that duplicate work already merged upstream,
   (2) a rebase onto origin/main encounters conflicts from commits whose content is

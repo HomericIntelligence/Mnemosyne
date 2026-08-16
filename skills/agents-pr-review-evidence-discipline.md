@@ -1,5 +1,6 @@
 ---
 name: agents-pr-review-evidence-discipline
+license: BSD-3-Clause
 description: "Four codified rules for reviewing AI-agent authored PRs that drop a project prefix or rename a package. Use when reviewing chore/rename-* PRs, when claiming a PR is CLEAN/DIRTY, or when posting a verdict comment. Prevents false-positive NO-GO verdicts caused by inspecting the wrong branch."
 category: tooling
 date: 2026-07-11

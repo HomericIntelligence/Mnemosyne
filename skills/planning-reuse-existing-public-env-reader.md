@@ -1,5 +1,6 @@
 ---
 name: planning-reuse-existing-public-env-reader
+license: BSD-3-Clause
 description: "When a TASK/issue says to PROMOTE or EXPORT a private helper (e.g. `make _read_int_env public`), FIRST grep the whole package for an ALREADY-PUBLIC function that does the same job and reuse THAT as the canonical source — the issue's suggested fix may be superseded by repo reality. Then collapse the private duplicate to a 1-line delegate (do NOT delete it if it has in-module callers), and prioritize any MODULE-TOP-LEVEL env coercion as the real bug (fatal-at-import beats function-body reads). Use when: (1) an issue proposes exporting/renaming a private `_helper` to public, (2) you suspect an already-public equivalent exists in a library-layer module like constants.py, (3) a base-layer module reads `int(os.environ.get(...))` at import time, (4) routing a base-layer module through another module risks pulling forbidden transitive imports into the base import surface, (5) swapping `int(os.environ.get(NAME, \"1800\"))` for a typed reader and the string default must become an int default."
 category: architecture
 date: 2026-06-30

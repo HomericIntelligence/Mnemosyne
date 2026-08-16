@@ -1,5 +1,6 @@
 ---
 name: mcp-boundary-missing-argument-keyerror-translation
+license: BSD-3-Clause
 description: "Translate bare KeyError from missing MCP tool arguments into a typed, actionable ValueError subclass. Use when: (1) an MCP tool handler accesses arguments['key'] without a guard and a client omits that argument, (2) the mcp>=1.0 SDK does NOT validate arguments against inputSchema before calling the handler so bare dict access raises KeyError whose str() is just \"'key_name'\" — opaque to clients, (3) you want the error path to be symmetric with UnknownToolError (raise ValueError subclass, let SDK convert to structured isError response) rather than returning a TextContent error manually, (4) any MCP dispatcher that uses call_tool() decorator patterns where KeyError would surface as an opaque string."
 category: architecture
 date: 2026-06-20

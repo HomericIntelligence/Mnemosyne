@@ -1,5 +1,6 @@
 ---
 name: ci-cd-stage-shared-backoff-cap-constant
+license: BSD-3-Clause
 description: "Use when: (1) legacy poll backoff caps are duplicated across CI pipeline stages, (2) stage-local literals drift from a shared base constant, (3) you need a base-level invariant test tying consumer modules back to the shared export."
 category: ci-cd
 date: 2026-07-07

@@ -1,5 +1,6 @@
 ---
 name: testing-dynamic-import-sys-path-resolution
+license: BSD-3-Clause
 description: "Use when: (1) pytest tests use `importlib.util.spec_from_file_location` to dynamic-load helper scripts from a vendor/toolkit directory (e.g. `scripts/`), (2) those loaded scripts internally `import` a sibling module from the same directory and you see `ModuleNotFoundError: No module named '<sibling>'` at pytest-collection time, (3) you need a way for test harnesses to dynamic-load a one-shot CLI toolkit script WITHOUT symlinking, copying it into the package tree, or changing its imports, (4) you want a single config-level fix instead of per-test sys.path manipulation."
 category: testing
 date: 2026-07-22

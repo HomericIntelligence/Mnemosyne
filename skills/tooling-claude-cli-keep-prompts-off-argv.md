@@ -1,5 +1,6 @@
 ---
 name: tooling-claude-cli-keep-prompts-off-argv
+license: BSD-3-Clause
 description: "Keep sensitive or large Claude CLI prompts out of process arguments by routing them through stdin without breaking session create/resume, model fallback, or best-effort compaction. Use when: (1) an automation pipeline passes generated prompts to Claude, (2) multiple dispatch types invoke Claude through different subprocess seams, (3) tests must prove prompt content is absent from argv for ordinary and very large inputs."
 category: tooling
 date: 2026-08-05

@@ -1,5 +1,6 @@
 ---
 name: planning-env-var-to-typed-cli-option-migration
+license: BSD-3-Clause
 description: "Plan a migration that REMOVES operator-facing env-var knobs (e.g. HEPH_*_TIMEOUT) and replaces them with explicit CLI flags threaded through typed options objects, across a large fan-out of call sites. Method: map each env-reading helper 1:1 to the typed options object that ALREADY reaches its call site via self.options; keep the helper module as the single source of DEFAULT CONSTANTS (don't delete it); use a None-sentinel CLI flag + pydantic field default (POLA); centralize new flags in a shared add_*_arg(parser); make the env-removal a TESTED invariant (helper IGNORES env + inspect.getsource has no os.environ). Use when: (1) planning an env-var -> typed CLI option migration, (2) a config knob is read by a helper called from many sites, (3) some leaf callers are FREE FUNCTIONS that do NOT hold the options object and need a threaded timeout parameter, (4) collapsing multiple per-phase env knobs onto one options field risks removing operator tunability, (5) a different default (e.g. git_message_timeout=300s vs agent_timeout=7200s) must stay a SEPARATE field."
 category: architecture
 date: 2026-06-24

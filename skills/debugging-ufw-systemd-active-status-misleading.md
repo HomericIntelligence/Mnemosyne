@@ -1,5 +1,6 @@
 ---
 name: debugging-ufw-systemd-active-status-misleading
+license: BSD-3-Clause
 description: "systemctl is-active ufw can report active (exited) for weeks while the firewall enforces zero rules, because ufw.service's ExecStart always exits 0. Use when: (1) auditing a host's firewall/security posture and systemctl reports ufw as active, (2) ports that should be blocked are reachable despite ufw appearing enabled, (3) verifying whether a systemd oneshot/exited unit's active status actually reflects the application-level state it manages."
 category: debugging
 date: 2026-07-04

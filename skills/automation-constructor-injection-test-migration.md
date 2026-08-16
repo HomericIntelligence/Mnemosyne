@@ -1,5 +1,6 @@
 ---
 name: automation-constructor-injection-test-migration
+license: BSD-3-Clause
 description: "How to migrate tests when a class switches from importlib/module-level patching to constructor injection (DI). Use when: (1) refactoring a class to use kwarg-injected factory params instead of module-level re-exports, (2) CI fails with stale patch() targets after a DI refactor, (3) ruff C408 fires on dict() calls in new test code."
 category: testing
 date: 2026-06-14

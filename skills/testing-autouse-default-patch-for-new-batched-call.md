@@ -1,5 +1,6 @@
 ---
 name: testing-autouse-default-patch-for-new-batched-call
+license: BSD-3-Clause
 description: "When you add a NEW external call (e.g. a new batched GraphQL fetch) inside a function that MANY existing unit tests already mock at a DIFFERENT seam, keep the existing tests green without editing each one by (a) making the new helper fault-tolerant (return {}/[] on any exception) and (b) adding ONE module-scoped autouse fixture that default-patches the new call (and any new side-effect write) to a no-op. Use when: (1) a function under test gains a new fetch/write that pre-existing tests do not patch; (2) ~N existing tests would otherwise hit the network or real I/O through the new seam; (3) you switched a gh JSON projection from --jq newline output to full --json + json.loads and must update mock payloads from newline strings to JSON arrays."
 category: testing
 date: 2026-06-29

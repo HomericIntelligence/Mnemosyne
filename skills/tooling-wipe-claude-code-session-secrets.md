@@ -1,5 +1,6 @@
 ---
 name: tooling-wipe-claude-code-session-secrets
+license: BSD-3-Clause
 description: "After a Claude Code session handled secrets (passwords, candidate lists, decrypted data), shredding your own output files is NOT enough — secrets persist in four hidden harness locations (transcript, background-task outputs, persisted tool-results, sub-agent transcripts). Use when: (1) a session processed passwords/wordlists/decrypted data and you need to scrub it afterward, (2) you shredded your working files but want to verify nothing leaked into the harness, (3) you need exact path templates for Claude Code session-state on a single-user Linux box, (4) you must hand the user transcript-wipe commands you cannot safely run mid-session."
 category: tooling
 date: 2026-06-19

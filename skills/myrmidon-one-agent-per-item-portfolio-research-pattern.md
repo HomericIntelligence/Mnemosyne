@@ -1,5 +1,6 @@
 ---
 name: myrmidon-one-agent-per-item-portfolio-research-pattern
+license: BSD-3-Clause
 description: "Dispatch ONE Myrmidon agent per item (not 3-4 items per agent) when researching N independent items (10+ startup holdings, contractor invoices, paper citations, etc.). Each agent fully focuses on one item, picks up item-specific evidence, handles identity-disambiguation per-item, and writes a discrete evidence file. Commander synthesizes by reading files. Use when: (1) N >= 10 independent items, (2) each item needs ~5-6 web searches, (3) one-document-per-item is the natural output, (4) batching agents (3-4 items per agent) produced lower quality."
 category: architecture
 date: 2026-05-30

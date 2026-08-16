@@ -1,5 +1,6 @@
 ---
 name: docker-container-writable-layer-log-bloat
+license: BSD-3-Clause
 description: "Diagnose and fix Docker containers accumulating gigabytes of log data in their overlay2 writable layer due to log files written to internal paths not bind-mounted to the host. Use when: (1) docker system df shows unexpectedly large container sizes, (2) a long-running container's writable layer has grown to GBs, (3) host disk usage is unexplained and containers are suspects."
 category: tooling
 date: 2026-06-20

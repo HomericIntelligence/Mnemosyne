@@ -1,5 +1,6 @@
 ---
 name: optimizer-shampoo-matrix-form-api
+license: BSD-3-Clause
 description: "Use when: (1) implementing the matrix-form Shampoo optimizer (Anil et al. 2020) in Mojo, (2) calling shampoo_step or initialize_shampoo_state from projectodyssey.training.optimizers.shampoo, (3) wiring a mixed optimizer (Shampoo for rank-2 FC weight matrices, SGD/Lion fallback for conv kernels and biases), (4) adding per-parameter state buffers to a Mojo model struct for Shampoo-eligible parameters, (5) debugging wrong arity or wrong tuple-unpack errors from shampoo_step."
 category: optimization
 date: 2026-06-19

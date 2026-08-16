@@ -1,5 +1,6 @@
 ---
 name: github-label-mass-mislabel-forensics
+license: BSD-3-Clause
 description: "Triage an org-wide GitHub label mass-mislabel (e.g. dozens of issues suddenly carrying an automation state label like state:skip) by histogramming label timeline events, separating the DISTINCT tagging mechanisms by timestamp cluster, bulk-removing first (timelines preserve provenance), and using the still-running automation as a live probe of which code path re-tags. Use when: (1) many issues across repos carry a label nobody remembers applying, (2) you must decide whether a bulk label removal destroys evidence (it does not — labeled/unlabeled events persist), (3) a label reappears minutes after removal and you need to identify WHICH code path re-applied it, (4) label writes appear on the WRONG repo's issue numbers, (5) sizing an org-wide sweep (gh repo list --limit, pagination, PRs-are-issues)."
 category: debugging
 date: 2026-07-17

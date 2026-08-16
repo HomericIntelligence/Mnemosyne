@@ -1,5 +1,6 @@
 ---
 name: automation-clean-checkout-intermediate-artifacts
+license: BSD-3-Clause
 description: "Require reusable automation checkouts to reject tracked changes and non-ignored untracked files while allowing generated intermediates only through explicit ignore rules or out-of-checkout storage. Use when: (1) a checkout synchronization gate is blocked by logs or build output, (2) a proposed fix hides all untracked files from status, (3) agents or tools consume repository-local configuration after a cleanliness check, or (4) behavior tests must distinguish ignored artifacts from unsafe ambient files."
 category: tooling
 date: 2026-08-06

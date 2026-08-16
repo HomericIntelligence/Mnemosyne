@@ -1,5 +1,6 @@
 ---
 name: gh-issue-author-or-assignee-union
+license: BSD-3-Clause
 description: "Combine `gh issue list` filters with OR semantics via two calls + Python set union. Use when: (1) you want issues authored-by OR assigned-to a user (not both), (2) automation that should only touch the operator's own issues."
 category: tooling
 date: 2026-05-26

@@ -1,5 +1,6 @@
 ---
 name: pr-review-thread-coordination-sub-agent-serialization
+license: BSD-3-Clause
 description: "Coordinating a small batch (2-5) of independent PR review-thread fixes by dispatching one sub-agent per thread. Use when: (1) a PR has multiple open review comments/threads and you want to fix them without one sub-agent stepping on another's edit, (2) two or more of the threads touch the SAME file — dispatch those sequentially, not in parallel, (3) a thread's fix is a one-line test-assertion or docstring change that a cheap (haiku-tier) sub-agent can safely execute, (4) you need to verify each sub-agent's edit landed correctly before running the full test/lint/type-check gate and committing, (5) deciding between running N agents in parallel Task calls vs. one after another for a small (<=5) review-comment batch."
 category: tooling
 date: 2026-07-04

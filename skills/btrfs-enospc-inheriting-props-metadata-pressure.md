@@ -1,5 +1,6 @@
 ---
 name: btrfs-enospc-inheriting-props-metadata-pressure
+license: BSD-3-Clause
 description: "btrfs `error inheriting props ... -28` during file creation is a transient METADATA-reservation shortfall on old kernels, NOT a full disk or a failing drive — and `btrfs balance` usually cannot fix it. Use when: (1) rsync to a btrfs volume fails on a handful of files with `close failed ... Input/output error (5)` and exits rc=11, hitting different files each run, (2) the btrfs host's dmesg shows `BTRFS error (device mdX): error inheriting props for ino N (root R): -28` while `df` shows the volume far from full, (3) you are tempted to run `btrfs balance` to fix an ENOSPC that df says is not real, (4) you must decide between disk-full, disk-failure, and metadata-pressure before acting."
 category: debugging
 date: 2026-07-04

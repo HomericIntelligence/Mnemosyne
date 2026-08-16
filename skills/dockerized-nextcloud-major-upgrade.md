@@ -1,5 +1,6 @@
 ---
 name: dockerized-nextcloud-major-upgrade
+license: BSD-3-Clause
 description: "Upgrade a Dockerized Nextcloud across consecutive major versions (e.g. 25 to 34) using official nextcloud:<NN>-apache images with zero data loss, one major at a time. Use when: (1) running Nextcloud in Docker and need to climb several majors, (2) the entrypoint occ upgrade never completes and occ status keeps needsDbUpgrade=true, (3) occ refuses commands with 'Nextcloud is in maintenance mode', (4) you want a gated upgrade script that backs up, recreates, and validates each major."
 category: tooling
 date: 2026-06-25

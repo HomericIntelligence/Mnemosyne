@@ -1,5 +1,6 @@
 ---
 name: training-diagnosis-loss-accuracy-decoupling-overfitting
+license: BSD-3-Clause
 description: "Diagnose late-stage supervised-classification runs where training loss keeps falling but test accuracy plateaus and slowly regresses. Use when: (1) user reports loss-down-accuracy-flat from a long epoch log, (2) user hoped for grokking but is seeing slow test regression instead, (3) auditing a fixed-epoch training run with no validation split."
 category: training
 date: '2026-05-25'

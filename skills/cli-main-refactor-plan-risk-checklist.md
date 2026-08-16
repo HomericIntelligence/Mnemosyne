@@ -1,5 +1,6 @@
 ---
 name: cli-main-refactor-plan-risk-checklist
+license: BSD-3-Clause
 description: "Planning checklist for behavior-preserving refactors of over-complex Python CLI main() functions. Use when: (1) removing C901 suppressions by extracting workflow or handler helpers, (2) an issue suggests a stale subcommand model but the live CLI is flag-driven, (3) JSON/error/dry-run paths must remain byte-for-byte compatible, (4) helper complexity targets were estimated in a plan but not yet proven by Ruff or tests."
 category: architecture
 date: 2026-06-26

@@ -1,5 +1,6 @@
 ---
 name: ci-cd-pixi-macos-runner-integration-test-gotcha
+license: BSD-3-Clause
 description: "Adding a macOS (osx-arm64) runner to a pixi-based GitHub Actions CI job, and the gotcha that the aggregate test recipe pulls in Docker/NATS integration tests that cannot run on macOS GitHub runners. Use when: (1) adding macos-latest / osx-arm64 to a pixi CI matrix or job, (2) a new macOS pixi job goes permanently red at test collection because integration fixtures connect to a service unconditionally, (3) deciding what test subset a macOS pixi job should run, (4) `pixi install --locked` fails with 'The workspace does not support <platform>', (5) reasoning about whether setup-python / a version matrix controls pixi's interpreter."
 category: ci-cd
 date: 2026-06-19

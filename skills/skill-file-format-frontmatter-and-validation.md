@@ -1,5 +1,6 @@
 ---
 name: skill-file-format-frontmatter-and-validation
+license: BSD-3-Clause
 description: "Canonical reference for skill/plugin file format, YAML frontmatter rules, and validation failure fixes. Use when: (1) a skill PR fails CI with 'YAML frontmatter missing' or 'Failed Attempts table missing required columns', (2) fixing frontmatter parsers that use line.partition(':') or split(':',1) and silently truncate colon-containing values, (3) creating a new Claude Code plugin and need to satisfy format requirements or marketplace registration, (4) a skill description or agent field needs the agent routing pattern for Claude Code v2.1.0+, (5) debugging 'plugin has invalid manifest' or 'Unrecognized key(s)' errors after installation."
 category: tooling
 date: 2026-06-07

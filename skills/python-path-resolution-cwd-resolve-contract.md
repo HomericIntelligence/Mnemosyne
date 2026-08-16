@@ -1,5 +1,6 @@
 ---
 name: python-path-resolution-cwd-resolve-contract
+license: BSD-3-Clause
 description: "Path resolution contract for get_repo_root and similar helpers: Path.cwd() must always be followed by .resolve(), and test assertions comparing resolved paths must call .resolve() on expected values. Use when: (1) implementing path-returning helpers, (2) writing tests for functions that return resolved paths, (3) diagnosing symlink-fragile test failures."
 category: testing
 date: 2026-06-13

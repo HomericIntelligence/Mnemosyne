@@ -1,5 +1,6 @@
 ---
 name: documentation-table-from-frontmatter-drift-safe-edit
+license: BSD-3-Clause
 description: "How to safely add/edit a markdown documentation TABLE whose cell values are derived VERBATIM from another file's YAML frontmatter (e.g. a CLAUDE.md skill-catalog table whose new Arguments column mirrors each skill's argument-hint: field), and how to drift-check the result without false failures. Use when: (1) adding a column to a doc table where each row value must equal a per-file frontmatter field (argument-hint, name, description) extracted verbatim; (2) executing an approved plan that cites specific doc line ranges for the table location — the numbers WILL have drifted, re-grep the section heading anchor instead; (3) a grep -qF drift check reports a spurious MISS on a value containing markdown table metacharacters (a raw pipe | that must be escaped as \\| inside a table cell, so the raw form is intentionally absent from the rendered file); (4) invoking the markdownlint pre-commit hook and needing its REAL hook id (markdownlint-cli2, not markdownlint) before claiming the gate is green; (5) representing no-value rows with an em dash — as the sentinel."
 category: documentation
 date: 2026-07-01

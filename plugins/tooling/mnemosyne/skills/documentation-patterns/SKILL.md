@@ -1,5 +1,6 @@
 ---
 name: documentation-patterns
+license: BSD-3-Clause
 description: Best practices for writing effective skill documentation. Use when creating new skills, improving skill discoverability, or documenting failed attempts.
 user-invocable: false
 ---

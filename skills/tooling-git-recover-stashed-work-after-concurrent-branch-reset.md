@@ -1,5 +1,6 @@
 ---
 name: tooling-git-recover-stashed-work-after-concurrent-branch-reset
+license: BSD-3-Clause
 description: "Recover uncommitted work that 'vanished' because a CONCURRENT agent/automation process switched branches and stashed your dirty tree in a SHARED git checkout. Use when: (1) you were editing a working tree on a feature branch and suddenly `git status` is clean and your files are gone from disk, (2) you suspect data loss but never actually committed (you only edited the working tree), (3) multiple agents / automation-loops share ONE git checkout and one of them ran `git checkout main` + `git reset` + `git pull --ff-only` under you, (4) `git stash list` shows an entry labeled 'PRESERVED ... (not mine)' created by the concurrent tooling, (5) you need to confirm the checkout/reset/pull sequence via reflog and re-apply the stash onto a fresh branch."
 category: tooling
 date: 2026-06-27

@@ -1,5 +1,6 @@
 ---
 name: gha-trigger-paths-filter-planning-checklist
+license: BSD-3-Clause
 description: "Planning-time checklist for any change that adds, removes, or edits a GitHub Actions trigger-filter list (`paths:`, `paths-ignore:`, `branches:`, event-type lists) — especially audit-driven one-line YAML edits. Use when: (1) an audit finding (S15 Compliance / license-scan / NOTICE / SBOM) asks you to add a path to a workflow's `pull_request.paths:` filter, (2) you are tempted to quote workflow YAML from an audit excerpt without `Read`-ing the file, (3) the plan cites a downstream script as 'consuming' the new path without grepping the script for that filename, (4) the plan defers verification to a post-merge throwaway PR instead of self-testing in-PR, (5) the workflow has both `pull_request:` and `push:` (or `merge_group:`) triggers and you've only edited one, (6) the workflow may have `paths-ignore:` instead of (or alongside) `paths:`, (7) the job is non-blocking / advisory so trigger bugs rot silently with no CI signal."
 category: ci-cd
 date: 2026-06-19

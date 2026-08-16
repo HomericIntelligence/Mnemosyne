@@ -1,5 +1,6 @@
 ---
 name: architecture-claude-md-agents-md-single-source-ecosystem-migration
+license: BSD-3-Clause
 description: "How to consolidate CLAUDE.md into canonical AGENTS.md without leaving policy consumers, templates, guards, tests, workflows, or scanners reading the compatibility pointer. Use when: (1) replacing a substantive CLAUDE.md with an exact AGENTS.md pointer; (2) preserving directives from multiple guidance documents with an executable section-scoped contract; (3) retargeting live repository consumers atomically while keeping narrow compatibility aliases; (4) sweeping an ecosystem where already-migrated repos should be detected before work begins."
 category: architecture
 date: 2026-07-21

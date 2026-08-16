@@ -1,5 +1,6 @@
 ---
 name: retry-cap-after-jitter-hard-ceiling-clamp
+license: BSD-3-Clause
 description: 'Fix and verify exponential-backoff retry helpers where max_delay is
   applied BEFORE jitter, making the cap advisory so the actual sleep exceeds it. Use
   when: (1) planning or reviewing a retry/backoff function that clamps with

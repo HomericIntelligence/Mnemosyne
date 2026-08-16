@@ -1,5 +1,6 @@
 ---
 name: automation-review-loop-unpushed-fix-oscillates
+license: BSD-3-Clause
 description: "Use when: (1) a review loop oscillates on an unpushed fix; (2) an untrusted report claims a fix landed; (3) an address agent drafts an out-of-scope change and SIGTERM may be retried or followed by an already-queued coordinator commit/push. Verify local and remote Git state before recovery."
 category: tooling
 date: 2026-07-17

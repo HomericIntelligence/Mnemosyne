@@ -1,5 +1,6 @@
 ---
 name: autoscaling-template-promotion-evidence
+license: BSD-3-Clause
 description: "Use when: (1) designing production admission for a route-eligible autoscaling pool, (2) deciding whether exact scale-out clones must repeat a soak, (3) defining durable evidence that separates template promotion from allocation-specific admission, (4) reviewing restart and relaunch invalidation rules for autoscaling safety."
 category: architecture
 date: 2026-07-29

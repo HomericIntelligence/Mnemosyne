@@ -1,5 +1,6 @@
 ---
 name: rebase-stale-automation-pr-onto-refactored-main
+license: BSD-3-Clause
 description: "Semantic conflict-resolution and clean-history rebuild patterns for stale automation-authored PRs after a large refactor. Use when: (1) a queued/DIRTY PR was branched many commits behind and now conflicts after a big landed refactor, (2) a PR routes to a pipeline stage/symbol the refactor deleted, (3) a merge queue crawls because stale-base PRs fail a newly landed gate, (4) an automation update created a DCO-less merge commit, (5) a stale PR adds a workflow job that misses current security hardening, (6) two PRs claim the same ADR number, (7) an AST-guard registry conflicts with renamed call sites, (8) deciding whether a PR is genuinely superseded, (9) a PR history contains an unrelated duplicated commit and must be rebuilt from current main, (10) a rewritten PR needs an exact-head strict-review gate and rollback lease."
 category: ci-cd
 date: 2026-07-20

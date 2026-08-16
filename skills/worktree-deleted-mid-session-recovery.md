@@ -1,5 +1,6 @@
 ---
 name: worktree-deleted-mid-session-recovery
+license: BSD-3-Clause
 description: "When a git worktree directory is deleted between sessions (by git worktree prune, automation cleanup, or OS temp-dir purge), the shell cwd becomes invalid and Path.cwd() / os.getcwd() throws FileNotFoundError. Use when: (1) pytest or pixi run fails with FileNotFoundError on cwd, (2) git worktree list shows an entry but the directory is gone from disk, (3) resuming work on a branch after a gap and finding the worktree path missing."
 category: ci-cd
 date: 2026-06-23

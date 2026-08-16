@@ -1,5 +1,6 @@
 ---
 name: tooling-bulk-rename-relative-path-trap
+license: BSD-3-Clause
 description: "Bulk path renames (sed/perl across a repo) silently break relative-pattern argument lists like `just test-group \"tests\" \"shared/fuzz/test_*.mojo\"` because the relative arg already has an implicit base path. Use when: (1) planning a `shared/`->`src/<pkg>/` rename, (2) refactoring any directory name that appears in wrapper-script invocations (just, xargs, find -path, Makefile includes, Dockerfile COPY), (3) debugging a CI coverage validator that fails after an otherwise-green bulk refactor, (4) writing perl/sed sweeps with path-boundary lookbehinds and want to audit the false-negative cases."
 category: tooling
 date: 2026-05-18

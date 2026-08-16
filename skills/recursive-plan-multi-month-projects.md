@@ -1,5 +1,6 @@
 ---
 name: recursive-plan-multi-month-projects
+license: BSD-3-Clause
 description: 'Recursive plan-file structure for multi-month research/engineering projects where the plan itself is composed of mini-plans, each composed of sub-plans, and downstream artifacts (issue bodies, code, docs) cite stable §-numbered subsection IDs that survive plan growth and reordering. Use when: (1) scoping a research project that will run for >1 month and span multiple sessions/PRs, (2) the plan must serve as a navigable reference (read non-linearly) rather than a one-shot input to execution, (3) downstream artifacts will cite §-numbers from the plan and refactoring the plan must not break those cites, (4) the same plan will be referenced by future agents (sub-agents, future Claude sessions, human collaborators) who need to jump to specific subsections, (5) a single planning session must produce 5+ independent deliverables (scoping docs, epic body, child issue bodies, GitHub-filing pass, commit pass).'
 category: documentation
 date: 2026-05-12

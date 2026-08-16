@@ -1,5 +1,6 @@
 ---
 name: verify-delegated-agent-claims-run-full-suite
+license: BSD-3-Clause
 description: "Don't trust a sub-agent's success report for a delegated git/rebase/refactor task — independently re-verify the load-bearing claims (merge-base re-parented, main-only symbols present, actual return values), and run the FULL test suite locally from the worktree cwd before pushing a merge candidate. Use when: (1) an Opus/Sonnet sub-agent reports 'rebased onto main, all tests pass, force-pushed' and you are about to trust it, (2) CI keeps failing on a DIFFERENT test each round after a delegated rebase/refactor, (3) you are validating a merge candidate with a hand-picked test subset, (4) a path-relative test gives a false failure because you ran from the wrong checkout."
 category: tooling
 date: 2026-06-27

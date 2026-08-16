@@ -1,5 +1,6 @@
 ---
 name: planning-state-dir-centralization-risk-audit
+license: BSD-3-Clause
 description: "Review checklist for plans that centralize a duplicated state/work directory path behind one constant and one mkdir helper. Use when: (1) replacing repeated `repo_root / \"build\" / \".issue_implementer\"` constructions, (2) adding a shared `ensure_*_dir()` helper with side effects, (3) a plan relies on rg-discovered call sites and test patch seams, (4) acceptance depends on a grep proving only one magic-string source remains."
 category: architecture
 date: 2026-06-27

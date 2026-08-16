@@ -1,5 +1,6 @@
 ---
 name: recurring-tier-label-fix
+license: BSD-3-Clause
 description: Fix recurring tier label mismatches in metrics-definitions.md. Use when
   a quality audit flags tier label inconsistencies.
 category: documentation

@@ -1,5 +1,6 @@
 ---
 name: architecture-config-pass-frozen-authority-directly
+license: BSD-3-Clause
 description: "Use when: (1) a coordinator projects a typed config into a second stage-only config object, (2) new CLI/config fields fail to reach stages without synchronized edits, (3) stage code uses `getattr` compatibility fallbacks for known fields, (4) tests mutate partial config stubs that do not match the frozen production type."
 category: architecture
 date: 2026-08-05

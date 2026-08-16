@@ -1,5 +1,6 @@
 ---
 name: uv-offline-validation-sync-first
+license: BSD-3-Clause
 description: "Run Python project validation with uv when network access is unavailable. Use when: (1) `uv run --offline` still tries to synchronize a locked environment, (2) a missing locked wheel blocks offline tests, or (3) `--no-sync` may select the wrong pytest executable."
 category: tooling
 date: 2026-08-05

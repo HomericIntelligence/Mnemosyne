@@ -1,5 +1,6 @@
 ---
 name: verify-pr-ready
+license: BSD-3-Clause
 description: Verify PR is ready for merge with all requirements met
 category: ci-cd
 date: 2025-12-30

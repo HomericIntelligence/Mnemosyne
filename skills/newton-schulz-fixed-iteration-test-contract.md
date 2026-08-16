@@ -1,5 +1,6 @@
 ---
 name: newton-schulz-fixed-iteration-test-contract
+license: BSD-3-Clause
 description: "Test fixed-iteration Newton-Schulz orthogonalization against its actual approximation contract. Use when: (1) strict `Q.T @ Q == I` assertions reject a valid finite iteration, (2) rank-deficient inputs are supported, or (3) cross-language parity needs both a spectral band and an absolute anchor."
 category: testing
 date: 2026-08-07

@@ -1,5 +1,6 @@
 ---
 name: testing-guard-clause-environment-satisfaction
+license: BSD-3-Clause
 description: "When writing unit tests that mock internal functions, the test environment must satisfy ALL prerequisite guards that execute BEFORE the mock is reached. Guard clauses in entry points check prerequisites (env vars, files, config) before internal logic executes. If the test only satisfies partial prerequisites, the guard will exit early, preventing the mocked code from being reached. This pattern ensures mocked tests reach their target code instead of failing at guard-time."
 category: testing
 date: 2026-06-27

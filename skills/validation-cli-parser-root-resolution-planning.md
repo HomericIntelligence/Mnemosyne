@@ -1,5 +1,6 @@
 ---
 name: validation-cli-parser-root-resolution-planning
+license: BSD-3-Clause
 description: "Planning review checklist for consolidating repo-root-aware validation CLI parser boilerplate in Hephaestus-like Python repos. Use when: (1) a plan extracts argparse/root-resolution helpers for validation/version CLIs, (2) reviewers need to separate real common parser behavior from intentional parser variants, (3) preserving --json, --version, --repo-root, argv injection, prog/epilog, exit codes, and special control flow matters."
 category: architecture
 date: 2026-06-26

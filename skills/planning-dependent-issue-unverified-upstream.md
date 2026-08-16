@@ -1,5 +1,6 @@
 ---
 name: planning-dependent-issue-unverified-upstream
+license: BSD-3-Clause
 description: "Plan an issue whose dependency it builds on is unconfirmed locally — and AVOID the trap of writing 'if the dependency did X else Y' conditional fallbacks. A dependent issue's upstream is almost always ALREADY MERGED and READABLE; reading it collapses every fork into one verified fact. Use when: (1) planning an issue that depends on / blocks another issue (e.g. B adds a Dockerfile on top of A's server skeleton), (2) you are tempted to write conditional fallbacks or hardcode the upstream's module path / function signature / directory layout into your plan, (3) an issue body's code snippets reference a base image / module path / file layout created by a not-yet-read dependency, (4) the local submodule is pinned to an older SHA on a detached HEAD so the dependency's output is not in the working tree."
 category: architecture
 date: 2026-06-20

@@ -1,5 +1,6 @@
 ---
 name: tooling-parallel-gpg-passphrase-trial
+license: BSD-3-Clause
 description: "Brute-force a forgotten passphrase against a GPG-encrypted file using gpg itself (always-correct, no key export), parallelized across cores with a tiered most-likely-first wordlist. Use when: (1) you must recover a forgotten GPG passphrase and the fast offline john gpg path is unavailable, (2) you need a safe always-correct fallback that never exports key material, (3) you need to parallelize gpg trial decryption across CPU cores without gpg-agent contention."
 category: tooling
 date: 2026-06-19

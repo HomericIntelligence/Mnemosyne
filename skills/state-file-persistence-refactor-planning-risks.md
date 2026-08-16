@@ -1,5 +1,6 @@
 ---
 name: state-file-persistence-refactor-planning-risks
+license: BSD-3-Clause
 description: "Planning-risk checklist for JSON automation state, including fail-closed persisted agent-session resume. Use when: (1) extracting repeated prefix-<issue>.json load/save mechanics, (2) mixing raw session probes with Pydantic validation, (3) requiring explicit supported provider metadata before resuming a durable session, or (4) preserving monkeypatch seams and corrupt-file logging contracts."
 category: architecture
 date: 2026-08-06

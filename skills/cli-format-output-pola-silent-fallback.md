@@ -1,5 +1,6 @@
 ---
 name: cli-format-output-pola-silent-fallback
+license: BSD-3-Clause
 description: "Choose and test a deliberate contract for CLI output-format dispatch instead of silently accepting invalid format names. Use when: (1) an audit flags POLA fallback in format_output(), (2) deciding whether caller compatibility requires fallback or permits ValueError, (3) preserving table-on-non-sequence behavior while rejecting unknown, empty, or case-mismatched names."
 category: debugging
 date: 2026-08-06

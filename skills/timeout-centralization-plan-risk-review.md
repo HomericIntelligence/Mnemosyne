@@ -1,5 +1,6 @@
 ---
 name: timeout-centralization-plan-risk-review
+license: BSD-3-Clause
 description: "Review planning risks when hardcoded timeout literals are centralized into env-overridable shared constants across automation, runtime, and GitHub direct-agent modules. Use when: (1) a plan moves timeout defaults into a constants module, (2) re-export shims preserve legacy timeout names, (3) timeout literals are replaced across subprocess or agent call sites, (4) reviewers need to separate verified facts from inferred grep findings."
 category: architecture
 date: 2026-06-26

@@ -1,5 +1,6 @@
 ---
 name: cytoscape-frontend-rewrite
+license: BSD-3-Clause
 description: Full rewrite of Cytoscape.js tournament visualization — court-slot packing layout, composable filters, multi-team trajectory, single bottom toolbar
 category: architecture
 date: 2026-02-27

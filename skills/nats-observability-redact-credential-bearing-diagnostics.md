@@ -1,5 +1,6 @@
 ---
 name: nats-observability-redact-credential-bearing-diagnostics
+license: BSD-3-Clause
 description: "Keep NATS health responses and logs useful without publishing URL credentials, query secrets, fragments, or raw exception text. Use when: (1) a subscriber health payload includes its configured broker URL, (2) logger.exception or str(exception) can expose tokens, (3) operators still need stable broker identity, lifecycle, stream, circuit-breaker state, and failure category, (4) in-process callers must retain the original exception."
 category: architecture
 date: 2026-08-05

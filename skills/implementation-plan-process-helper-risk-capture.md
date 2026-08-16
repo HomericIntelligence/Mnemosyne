@@ -1,5 +1,6 @@
 ---
 name: implementation-plan-process-helper-risk-capture
+license: BSD-3-Clause
 description: "Capture uncertain assumptions, unverified anchors, and reviewer focus for mechanical refactor plans that replace low-level process calls with shared helper APIs. Use when: (1) reviewing a plan that swaps direct subprocess/git probes for a shared helper, (2) the plan preserves an interactive Popen path while changing non-interactive probes, (3) helper behavior is inferred from nearby call sites instead of re-reading the helper contract."
 category: architecture
 date: 2026-06-26

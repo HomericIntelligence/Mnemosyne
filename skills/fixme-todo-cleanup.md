@@ -1,5 +1,6 @@
 ---
 name: fixme-todo-cleanup
+license: BSD-3-Clause
 description: Systematic FIXME/TODO cleanup workflow with proper branching, PRs, and
   CI handling
 category: debugging

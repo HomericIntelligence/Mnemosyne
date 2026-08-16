@@ -1,5 +1,6 @@
 ---
 name: dataset-pickle-stage-verify-convert-cleanup
+license: BSD-3-Clause
 description: "Contain downloaded pickle-based datasets by staging the archive and extracted payload in a private temporary directory, rechecking the pinned digest at the verification-to-extraction seam, and converting to inert outputs before cleanup. Use when: (1) a downloader extracts pickle or another executable serialization format into a caller-controlled directory, (2) verification occurs inside a download helper but consumption resumes later by pathname, (3) tests mock extraction without proving permissions, isolation, tamper rejection, and lifecycle cleanup, or (4) a security rationale overstates what private staging protects."
 category: architecture
 date: 2026-08-05

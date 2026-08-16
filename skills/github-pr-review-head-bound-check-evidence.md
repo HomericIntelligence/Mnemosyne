@@ -1,5 +1,6 @@
 ---
 name: github-pr-review-head-bound-check-evidence
+license: BSD-3-Clause
 description: "Use when: (1) a GitHub pull-request review needs to determine whether required checks passed on the exact reviewed commit, (2) a status rollup looks green but does not identify the commit for each result, or (3) a review must fail closed rather than infer merge readiness from mutable CI metadata."
 category: ci-cd
 date: 2026-08-02

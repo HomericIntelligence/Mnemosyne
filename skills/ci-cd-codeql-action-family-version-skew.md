@@ -1,5 +1,6 @@
 ---
 name: ci-cd-codeql-action-family-version-skew
+license: BSD-3-Clause
 description: "The github/codeql-action family (init / analyze / upload-sarif) enforces internal version consistency — mixing sub-action versions in one workflow hard-fails the CodeQL job with a configuration error. Dependabot files SEPARATE PRs per sub-action, so merging any one alone breaks scanning; the CodeQL check is often non-required, so branch protection lets the broken merge through and scanning silently stops. Use when: (1) a dependabot PR bumps any github/codeql-action sub-action (init, analyze, upload-sarif), (2) a CodeQL job fails with 'Loaded a configuration file for version X, but running version Y' or 'CodeQL job status was configuration error', (3) you see multiple sibling dependabot PRs each bumping one codeql-action sub-action, (4) you need to verify a codeql-action SHA pin matches its release tag (annotated-tag double-deref)."
 category: ci-cd
 date: 2026-07-16

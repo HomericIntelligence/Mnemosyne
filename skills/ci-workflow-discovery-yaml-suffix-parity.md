@@ -1,5 +1,6 @@
 ---
 name: ci-workflow-discovery-yaml-suffix-parity
+license: BSD-3-Clause
 description: "Unify GitHub Actions workflow discovery across .yml and .yaml. Use when: (1) inventory or checkout validation recognizes only one YAML suffix, (2) README parsing and pre-commit triggers drift from filesystem discovery, (3) compatibility helpers duplicate workflow glob logic."
 category: ci-cd
 date: 2026-08-06

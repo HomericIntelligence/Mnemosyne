@@ -1,5 +1,6 @@
 ---
 name: tooling-sonnet-content-filter-contributor-covenant
+license: BSD-3-Clause
 description: "Documents Claude Sonnet subagent HTTP 400 content filtering failures when writing Contributor Covenant or similar conduct policy files. Use when: (1) delegating CODE_OF_CONDUCT.md writes to Sonnet subagents, (2) any subagent returns 'Output blocked by content filtering policy' on governance/conduct document writes."
 category: tooling
 date: 2026-04-03

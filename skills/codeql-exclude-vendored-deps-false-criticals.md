@@ -1,5 +1,6 @@
 ---
 name: codeql-exclude-vendored-deps-false-criticals
+license: BSD-3-Clause
 description: "GitHub CodeQL (and Trivy) analyze the vendored third-party dependency tree that CMake FetchContent / Conan fetch under build/**/_deps/, so upstream findings (e.g. cpp/use-after-free critical, cpp/world-writable-file-creation high) get reported AGAINST your repo — creating false urgency and burying real first-party alerts. Teaches how to detect vendored alerts by location path and how to exclude the build tree via a codeql-config.yml paths-ignore wired into every codeql-action/init step. Use when: (1) CodeQL/Trivy reports a critical/high in C++ code you did not write, (2) an alert path contains build/**/_deps/ or *-src, (3) triage is swamped by upstream nats.c/cista findings, (4) you need to stop scanning vendored deps without silencing first-party findings."
 category: ci-cd
 date: 2026-07-16

@@ -1,5 +1,6 @@
 ---
 name: derived-default-map-canonical-keys
+license: BSD-3-Clause
 description: "Derive default counter or state maps from the canonical key provider. Use when: (1) routing or retry keys are duplicated in a dataclass default, (2) adding a key breaks a stale literal expectation, or (3) a test should prove derivation rather than compare two copies of the same list."
 category: architecture
 date: 2026-08-07

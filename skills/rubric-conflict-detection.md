@@ -1,5 +1,6 @@
 ---
 name: rubric-conflict-detection
+license: BSD-3-Clause
 description: Pattern for detecting and handling conflicting rubric weights across
   experiments in a multi-experiment data loader
 category: testing

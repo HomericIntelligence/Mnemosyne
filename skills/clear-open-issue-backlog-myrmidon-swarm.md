@@ -1,5 +1,6 @@
 ---
 name: clear-open-issue-backlog-myrmidon-swarm
+license: BSD-3-Clause
 description: "End-to-end orchestrator recipe for clearing an entire open GitHub issue backlog with a single myrmidon-swarm session: preflight the whole backlog, re-grade each issue against current code, map file ownership, dispatch wave-based parallel agents, trust-but-verify each PR, and close out. Use when: (1) an open-issue backlog has 5+ issues to triage and implement in one session, (2) planning a myrmidon swarm to close out accumulated issues, (3) managing file-ownership collisions across parallel agents, (4) deciding which issues to flag to the user vs dispatch to agents."
 category: tooling
 date: 2026-05-28

@@ -1,5 +1,6 @@
 ---
 name: tooling-wave-b-pr-fix-mesh-playbook
+license: BSD-3-Clause
 description: "Wave-B autonomous fix-mesh playbook: green 20+ failing PRs across multiple HomericIntelligence repos by applying mechanical autofixes (markdownlint, clang-format, pixi lock, pre-commit autofixes) with signed/verified commits, AND reliably verifying/finishing a Wave-B auto-fix run whose own log over-reports success. Use when: (1) running an autonomous PR-sweep where many fully-auto PRs are red on the same mechanical checks, (2) a Myrmidon swarm Wave-B auto-fix executor exited claiming PRs pass but you need to confirm/finish them, (3) re-signing previously unsigned commits to satisfy branch-protection signature policies, (4) applying a single shared-doc fix across N PRs that all inherit the same defect from main."
 category: tooling
 date: 2026-05-31

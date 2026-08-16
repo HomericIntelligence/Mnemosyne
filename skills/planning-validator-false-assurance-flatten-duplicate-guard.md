@@ -1,5 +1,6 @@
 ---
 name: planning-validator-false-assurance-flatten-duplicate-guard
+license: BSD-3-Clause
 description: "Planning lesson for fixing a validator that gives false assurance because its parser flattens repeated entries into a dict (last-write-wins), making it structurally unable to detect duplicate/conflicting rows it is supposed to forbid. The fix must preserve ALL occurrences before the flatten, then add an explicit duplicate/conflict check. Captures the planning risks: a breaking return-type API change with un-grepped blast radius, stale plan line numbers, an unverified doc-promise claim, a verify-clean-day-one gate risk, a scope-policy assumption about exact-duplicates, and the need for a RED test that reproduces the exact false-OK. Use when: (1) planning a fix for a markdown/config/table parser that builds dict[key]=value from repeated rows and a validator over it never reports duplicates; (2) a self-contradiction guard reports OK on a self-contradictory document; (3) a plan changes a loader's return type and you must bound the caller blast radius; (4) strengthening a validator that gates CI and you must avoid a day-one merge failure."
 category: tooling
 date: 2026-06-12

@@ -1,5 +1,6 @@
 ---
 name: nfs-root-squash-systemd-service-user
+license: BSD-3-Clause
 description: "Fix systemd services that silently fail to write to NFS shares due to root_squash. Use when: (1) a systemd service running as root fails to write to NFS mounts, (2) per-file sync failures appear despite rw mount, (3) touch/write as root returns 'Read-only file system' on an NFS share."
 category: debugging
 date: 2026-06-23

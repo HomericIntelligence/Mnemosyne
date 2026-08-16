@@ -1,5 +1,6 @@
 ---
 name: scan-vulnerabilities
+license: BSD-3-Clause
 description: "Detect and gate code or dependency vulnerabilities. Use when: (1) auditing source or dependencies, (2) enforcing Grype findings in CI, (3) allowing a temporary vulnerability exception without creating a broad permanent suppression."
 category: tooling
 date: 2026-07-15
