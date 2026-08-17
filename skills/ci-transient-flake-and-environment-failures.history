@@ -1059,3 +1059,18 @@ fi
 | ProjectMyrmidons | PR #350 | `scripts/doctor.sh` Check 4 was failing `just doctor --skip-connectivity` in CI. Added `${CI:-}` guard. CI job passed after fix. |
 
 ---
+## v1.2.0 (2026-08-17)
+
+**Changed by:** generalized CI provider-outage triage
+**Verification:** verified-ci
+
+### What changed
+- Replaced the unconditional empty-commit retry fallback with a supported-rerun boundary.
+- Added provider-side 5xx and non-rerunnable managed analysis handling: use bounded supported retries, preserve the reviewed SHA, and wait for provider recovery or a legitimate source update.
+
+### Why
+An empty commit does not repair a provider outage and can create misleading implementation-branch history. Some provider-managed analyses explicitly reject reruns, so the durable rule is to distinguish a rejected retry from a source failure.
+
+### Previous version snapshot
+
+The complete v1.1.0 retrievable content is preserved in repository history at the parent of this amendment; it is superseded by the v1.2.0 main entry above.

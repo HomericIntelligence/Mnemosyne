@@ -1,10 +1,10 @@
 ---
 name: ci-transient-flake-and-environment-failures
 license: BSD-3-Clause
-description: "Use when: (1) a CI job fails non-deterministically and re-running resolves it (e.g. Trivy install.sh curl-pipe exit-1, lychee link-check 403/connection-reset from bot-blocking sites), (2) CI passes locally 100% but fails in GitHub Actions and you need a reproduction strategy that covers cold pixi cache + UID mismatch + no-TTY simultaneously, (3) a CI job is failing because a doctor/health-check script validates developer-local resources absent in GitHub Actions runners, (4) a dependency-install step stays in_progress far beyond the repo's baseline before tests start, such as Playwright browser install or Python package install hangs."
+description: "Use when: (1) a CI job fails non-deterministically and re-running resolves it, (2) a provider-side 5xx makes a supported rerun unavailable, (3) CI passes locally but fails in GitHub Actions, (4) a CI health check wrongly requires developer-local resources, or (5) dependency installation hangs before tests start."
 category: ci-cd
 date: 2026-06-17
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 history: ci-transient-flake-and-environment-failures.history
 verification: verified-ci
@@ -43,7 +43,7 @@ tags:
 | **Objective** | Diagnose and resolve CI failures that are transient network flakes, environment-only, developer-local health checks, or dependency-install hangs before tests start - without reaching for banned suppressions. |
 | **Outcome** | Verified across ProjectAgamemnon (#368), ProjectOdyssey (#5347), ProjectOdyssey local repro, ProjectMyrmidons (#350), and Metrics Service (#897/#904). |
 | **Verification** | verified-ci |
-| **History** | Previous v1.0.0 snapshot archived in `ci-transient-flake-and-environment-failures.history` |
+| **History** | Previous versions archived in `ci-transient-flake-and-environment-failures.history` |
 
 ## When to Use
 
@@ -53,6 +53,7 @@ tags:
 - Tests pass locally 100% but fail consistently in CI, and you need to replicate the three CI conditions (cold pixi cache + UID mismatch + no-TTY) simultaneously.
 - A doctor / health-check / preflight script (`scripts/doctor.sh`, `just doctor`) exits 1 in CI because it validates developer-local resources (`.git/hooks/`, SSH keys, local config) absent on GHA runners.
 - A GitHub job API response shows a dependency-install step such as `Install Playwright Chromium for browser smoke tests`, `Install backend coverage dependencies`, `Install backend runtime and test dependencies`, or `Install focused regression dependencies` remains `in_progress` far beyond the latest green baseline while the test step is still pending.
+- A job log and the retry endpoint both report a provider-side 5xx, or a provider-managed analysis reports that it cannot be rerun.
 - You are tempted to add `|| true` or `continue-on-error: true` to silence a flake — STOP, those are policy-banned.
 
 ## Verified Workflow
@@ -60,11 +61,11 @@ tags:
 ### Quick Reference
 
 ```bash
-# --- Transient flake: rerun first, no code change ---
+# --- Transient flake: retry only through a supported provider operation ---
 unset GITHUB_TOKEN GH_TOKEN                       # let gh use runner auth chain
 gh run rerun <RUN_ID> --repo "$ORG/$REPO" --failed
-# Fallback: empty commit retriggers a fresh run
-git commit --allow-empty -m "ci: retrigger CI to clear transient flake" && git push
+# If the provider rejects rerun or returns 5xx: preserve the head SHA, record
+# the outage, and wait for provider recovery or a legitimate source update.
 
 # --- Lychee bot-403 / reset: add regex patterns to .lycheeignore ---
 cat >> .lycheeignore << 'EOF'
@@ -124,8 +125,8 @@ gh run rerun <run_id> --repo <owner/repo>
    If the log includes a progress bar, checksum-mismatch, or extraction error, this is NOT the same flake — investigate normally.
 2. **Confirm the prior step passed.** A clean `pip-audit` immediately before rules out a job-wide environment issue.
 3. **Rerun the failed jobs.** `gh run rerun <RUN_ID> --failed`. Unset `GITHUB_TOKEN`/`GH_TOKEN` if your shell has a PAT lacking `actions:write`.
-4. **If rerun isn't possible** (workflow changed since the run), push an empty commit to retrigger.
-5. **Only investigate if multiple reruns fail.** A repeat after two clean reruns implies a real problem (GitHub raw-content outage, version yank).
+4. **Classify a rejected retry separately.** If the retry endpoint returns a provider-side 5xx, retry only a bounded number of times. If the provider explicitly marks the job non-rerunnable, preserve the head SHA and record the outage; do not create an empty commit or otherwise rewrite branch history solely to force another run.
+5. **Only investigate if supported retries fail repeatedly.** A repeat after two clean reruns implies a real problem (provider outage, version yank).
 6. **Durable follow-up (separate issue, don't block the PR):** replace curl-pipe-to-sh with the official action, which has retry semantics:
 
    ```yaml
@@ -273,6 +274,7 @@ gh run rerun <run_id> --repo <owner/repo>
 | Debug tests before dependency install completed | Treated the failing check as a test failure | The test command never ran, so editing tests or assertions could not affect the failure | Classify pre-test dependency-install hangs separately from deterministic test failures |
 | Keep `playwright install --with-deps chromium` after a long CI hang | Waited on the apt/system dependency path even though the runner baseline installed browsers in seconds | The optional `--with-deps` path was the variable and could hang before browser smoke tests started | If runner system deps are already adequate, install the pinned browser only and verify fresh CI |
 | Wait indefinitely on Python dependency install hangs | Assumed enough time would eventually produce logs | The same install path passed on a fresh runner attempt; the stuck attempt consumed CI time without new evidence | After proving a pre-test install hang is transient, cancel and rerun on a fresh runner |
+| Create an empty commit when a provider-managed job cannot rerun | Tried to force a new analysis without a source change | It changes implementation-branch history without fixing the provider outage, and some provider-managed scans reject reruns entirely | Preserve the SHA; use only supported reruns, then wait for recovery or a legitimate update |
 
 ## Results & Parameters
 
@@ -281,8 +283,8 @@ gh run rerun <run_id> --repo <owner/repo>
 ```bash
 unset GITHUB_TOKEN GH_TOKEN
 gh run rerun <RUN_ID> --repo "$ORG/$REPO" --failed
-# fallback
-git commit --allow-empty -m "ci: retrigger CI to clear trivy install flake" && git push
+# If rerun is rejected or returns a provider 5xx, preserve the SHA and report
+# the outage instead of creating an empty retrigger commit.
 ```
 
 Signature features: job shell is `bash -e`; the `found version` line is the last informational line; the `##[error]` appears <0.4s later; no trivy/curl/sh error message; the prior dep-scanner step exited 0.
