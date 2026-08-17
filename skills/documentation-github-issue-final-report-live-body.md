@@ -1,14 +1,14 @@
 ---
 name: documentation-github-issue-final-report-live-body
 license: BSD-3-Clause
-description: "Rewrite GitHub issues, PR bodies, comments, and evidence mirrors into coherent public reports without overwriting live edits or leaking local operator details. Use when: (1) an issue has accumulated investigation notes, follow-up phrasing, or stale detours, (2) the user asks for a final report-style issue body, (3) sensitive or model-specific details must be removed before publishing, (4) automation evidence may contain local filesystem paths or usernames."
+description: "Rewrite live issue, pull-request, comment, and evidence artifacts into one coherent public report without stale overwrites, provenance loss, or disclosure. Use when: (1) an issue contains incremental notes or obsolete detours, (2) an exact implementation plan has a terminal GO review and must become a reader-first handoff, (3) publication must preserve concurrent edits and source identities, (4) public artifacts may contain sensitive operator or environment details."
 category: documentation
 date: 2026-07-06
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-ci
 history: documentation-github-issue-final-report-live-body.history
-tags: [github, issues, pull-requests, comments, evidence-mirrors, final-report, live-body, redaction, documentation, public-artifact-hygiene, local-path-sanitization]
+tags: [github, issues, pull-requests, comments, final-report, implementation-plan, go-review, provenance, live-body, redaction, concurrent-edits]
 ---
 
 # GitHub Issue Final Report Live Body
@@ -16,154 +16,198 @@ tags: [github, issues, pull-requests, comments, evidence-mirrors, final-report, 
 ## Overview
 
 | Field | Value |
-|-------|-------|
-| **Date** | 2026-07-06 |
-| **Objective** | Convert GitHub issue/PR public artifacts from incremental investigation transcripts into coherent final reports while preserving user edits and removing stale, sensitive, or local-operator details. |
-| **Outcome** | Successful. The safe workflow reads the current live issue/PR body and comments, checks for concurrent edits, sanitizes public evidence including older comments and mirrors, publishes once, then verifies required content and forbidden local identifiers are absent. |
-| **Verification** | verified-ci - public artifact hygiene for ProjectHephaestus PR #1854 / issue #1818 passed the PR gate; local full automation tests 3237 passed and affected slice 190 passed. |
-| **History** | [changelog](./documentation-github-issue-final-report-live-body.history) |
+| --- | --- |
+| **Objective** | Convert incremental public artifacts into a coherent final report or implementation handoff while preserving live edits, exact source provenance, and public-artifact hygiene. |
+| **Outcome** | Successful. The workflow binds the live sources, composes from their accepted decisions, revalidates immediately before one authorized write, and verifies the published artifact. |
+| **Verification** | The general live-body workflow is CI-verified. The reviewed-plan extension was verified through an exact plan-plus-GO read, one guarded issue-body rewrite, and live readback. |
 
 ## When to Use
 
-- A GitHub issue body contains chronological debugging notes, follow-up language, or obsolete side investigations.
-- The user asks for the issue to read as a final report rather than an activity log.
-- You need to avoid overwriting edits that may have happened since your last local draft.
-- The issue should preserve technical evidence while removing user-error detours, stale checklists, or unnecessary operational specifics.
-- The report must protect model-specific, endpoint-specific, host-specific, path-specific, or other internal identifiers.
-- A PR body, issue comment, automation evidence mirror, or final run report may have copied local paths, home-directory fragments, or operator usernames into a public artifact.
-- You need to clean older comments as well as the latest body because durable public evidence is spread across the issue/PR timeline.
+- An issue body reads like a chronological investigation rather than a final report.
+- A canonical implementation plan and its terminal GO review must become the issue's readable implementation handoff.
+- A rewrite must preserve user edits made after an earlier draft was prepared.
+- The public artifact must retain decisions and evidence while removing stale, sensitive, or operator-local details.
+- Durable evidence is spread across a body, comments, review comments, or automation mirrors.
+
+Do not use this workflow to turn a NO-GO review into an implementation handoff, to invent missing
+requirements, or to hide unresolved findings. Material requirement changes start a new planning and
+review epoch.
 
 ## Verified Workflow
 
 ### Quick Reference
 
-```bash
-# 1. Fetch the current live body. Treat this as source of truth.
-gh issue view <issue-number> --repo <owner>/<repo> \
-  --json body --jq '.body' > /tmp/issue-live.md
-
-# 2. Capture metadata for a concurrent-edit guard.
-gh issue view <issue-number> --repo <owner>/<repo> \
-  --json number,title,state,url,updatedAt --jq '.'
-
-# 3. Draft the replacement body locally.
-$EDITOR /tmp/issue-final.md
-
-# 4. Re-check updatedAt immediately before editing.
-gh issue view <issue-number> --repo <owner>/<repo> \
-  --json updatedAt --jq '.updatedAt'
-
-# 5. Publish only if updatedAt is unchanged or the newer body has been merged.
-gh issue edit <issue-number> --repo <owner>/<repo> \
-  --body-file /tmp/issue-final.md
-
-# 6. Fetch and verify the live final body.
-gh issue view <issue-number> --repo <owner>/<repo> \
-  --json body --jq '.body' > /tmp/issue-live-final.md
-
-rg -n "## Summary|## Final Finding|## Evidence|## Acceptance Criteria" /tmp/issue-live-final.md
-rg -n "follow-up|previously unchecked|remaining|still untested|intermediate detour" /tmp/issue-live-final.md
-rg -n "/mnt|/home|home/|/Users|Users/|<operator-username>" /tmp/issue-live-final.md
+```text
+1. Fetch the live destination and every authoritative source artifact.
+2. Bind source identities, normalized content digests, actors, and update timestamps.
+3. Require one canonical plan and one terminal GO review bound to that exact plan.
+4. Compose a complete reader-first artifact from requirements and accepted plan decisions.
+5. Re-fetch and compare all bindings immediately before publication.
+6. Publish once through the authorized mutation boundary.
+7. Read back the live artifact and verify presence, absence, provenance, and privacy.
 ```
 
-### Detailed Steps
+### 1. Bind the authoritative source set
 
-1. **Read the live issue body first.** Do not reuse an older local draft as the source of truth after the user says they edited or wants to avoid overwrites.
-2. **Capture `updatedAt`.** Use it as a simple guard against concurrent edits between read and write.
-3. **Identify the final report structure.** Prefer sections like Summary, Final Finding, Environment, Evidence, Reproduction Matrix, Controls, Logs, Bad Behavior, Expected Behavior, Reproduction Steps, Acceptance Criteria, and Validation.
-4. **Convert chronology into conclusions.** Replace "follow-up testing" and "still unchecked" phrasing with final-state statements such as "tested", "observed", "not observed", or "inconclusive".
-5. **Remove stale detours.** If an intermediate problem was unrelated to the final diagnosis, omit it unless it materially changes the conclusion.
-6. **Protect sensitive details.** Replace model IDs, endpoint addresses, hostnames, job IDs, absolute paths, internal repo names, usernames, and proprietary payloads with placeholders or generic descriptions unless the user explicitly asks to retain them.
-7. **Keep enough evidence to reproduce.** Preserve response shape, request shape, relevant flags, logs, control results, and acceptance criteria, but sanitize identifiers.
-8. **Re-check `updatedAt` before publishing.** If the timestamp changed, fetch the body again and merge the user edits before editing.
-9. **Sanitize every public surface, not only the latest body.** Search the PR body, issue body, issue comments, PR comments, review comments, and any evidence mirror that automation posts or links. Edit older comments too; leaving an old leaked path in the timeline defeats the cleanup.
-10. **Scan for local operator details before posting or updating.** Treat these as forbidden in public artifacts unless explicitly approved: `/mnt`, `/home`, `home/`, `/Users`, `Users/`, absolute checkout paths, local cache paths, usernames, hostnames, job scratch paths, and raw evidence paths.
-11. **Verify the live result, not the local file.** Fetch the GitHub body/comments after editing and check both required sections and forbidden stale phrasing plus forbidden local-identifier patterns.
+For an ordinary final report, bind the current live body and every comment or evidence mirror that
+contains a conclusion still needed in the result. For a reviewed-plan handoff, bind all three inputs:
+
+| Input | Required identity |
+| --- | --- |
+| Requirements | Issue identity, normalized pre-publication body digest, and update timestamp |
+| Canonical plan | Unique marker or role, comment identity, author ownership, update timestamp, and normalized content digest |
+| Terminal review | Unique marker or role, comment identity, reviewer ownership, update timestamp, terminal status, and the requirements and plan digests it reviewed |
+
+Titles, URLs, comment order, and labels are discovery aids, not identity. Fail closed when a source
+is missing, duplicated, foreign-owned, stale, or internally inconsistent.
+
+The review must bind the exact canonical plan digest and the same requirements digest. A GO review is
+evidence that the plan is acceptable; it is not permission to add suggestions or new scope that the
+plan did not accept.
+
+### 2. Seal the planning epoch before changing the body
+
+Treat the pre-publication requirements, canonical plan, and terminal review as immutable inputs to
+one finalization attempt. The final issue body is output from that sealed source set.
+
+This distinction prevents a digest loop: replacing the issue body necessarily changes a digest that
+was computed from the old requirements body. Preserve the old requirements digest as provenance for
+the completed epoch. Do not claim that it describes the new body, and never define an artifact digest
+over bytes that include the digest value itself. If the published body also needs an identity, compute
+it after publication or define normalization that excludes its own identity field.
+
+### 3. Compose the reader-first artifact
+
+Preserve the original reason and the accepted plan; remove iteration chatter and duplicated review
+prose. For an implementation handoff, prefer this order:
+
+```text
+## Why
+## System shape                 # only when relationships warrant a diagram
+## Architecture breakdown      # decisions, ownership, boundaries, invariants
+## Review status               # compact status plus source provenance
+## Implementation plan         # behavior-first sequence
+## Cutover and rollback
+## Acceptance criteria
+## Validation
+## Dependencies and residuals
+```
+
+Use the requirements for the problem and constraints, the plan for the solution, and the review only
+for disposition and accepted corrections. Do not replace the plan with a summary, a review recap, a
+revision diff, or a list of findings. Do not silently drop non-goals, failure boundaries, tests,
+rollback behavior, dependencies, or unresolved operational parameters.
+
+For investigation reports, use the smallest structure that preserves the final finding, environment,
+evidence, reproduction, controls, expected behavior, acceptance criteria, and validation. Convert
+chronology into final-state language such as `observed`, `not observed`, `verified`, or
+`inconclusive`.
+
+### 4. Apply public-artifact hygiene
+
+Before publication, scan the draft and all durable public surfaces. Generalize or remove:
+
+- personal, account, customer, organization, or non-public project identifiers;
+- internal hostnames, URLs, repository names, environment names, and infrastructure details;
+- absolute paths, local cache or scratch locations, operator names, and allocation identifiers;
+- secrets, tokens, proprietary payloads, raw logs, or unneeded operational metrics; and
+- obsolete detours or raw reasoning that do not change the final conclusion.
+
+Keep only the request or response shape, relevant controls, conclusions, and safely shareable
+evidence needed to execute or verify the result.
+
+### 5. Revalidate immediately before the write
+
+Re-fetch the destination plus every bound source. Compare identities, ownership, timestamps,
+normalized digests, plan-review binding, and terminal status. Abort instead of merging implicitly if:
+
+- the destination or any source changed;
+- another canonical plan or terminal review appeared;
+- the review no longer binds the exact plan and requirements;
+- the review is not GO or contains unresolved required findings; or
+- the authenticated actor lacks explicit authority to replace the destination body.
+
+If the destination changed only because of a known user edit, restart from the new live source and
+merge deliberately. Never publish from an older local draft.
+
+### 6. Publish once and verify the live result
+
+Use one body mutation. Then fetch the live artifact rather than trusting the local file or command
+exit code. Verify:
+
+- every required section and accepted decision exists;
+- source links or stable identities point to the exact plan and review;
+- no new scope, unresolved finding, or stale iteration language was introduced;
+- forbidden sensitive details are absent across the body and durable comments; and
+- the live body is byte-equivalent to the approved candidate after provider normalization, or its
+  normalized digest matches the expected candidate digest.
+
+If readback differs, stop and preserve evidence. Do not retry with another blind overwrite.
 
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
-|---------|----------------|---------------|----------------|
-| Editing from an old local draft | Reused a body file after additional live edits may have occurred | Risked overwriting user changes or resurrecting stale language | Always re-read the live issue body before a rewrite |
-| Leaving chronological investigation language | Kept phrases like "follow-up", "previously unchecked", or intermediate detours | The issue read like a work log instead of a final bug report | Rewrite in final-state language once the investigation is complete |
-| Over-preserving raw evidence | Included raw identifiers and detailed operational paths | Durable issue bodies can leak unnecessary internal information | Keep response shapes and conclusions; redact identifiers and proprietary payloads |
-| Cleaning only the latest artifact | Updated the current PR body or latest issue comment but left older automation comments and evidence mirrors untouched | Public timeline still exposed local filesystem paths or operator usernames even though the newest artifact looked clean | Scan and edit every durable public surface: PR body, issue body, comments, review comments, and evidence mirrors |
-| Publishing without absence checks | Verified only that new sections existed | Old misleading phrases or leaked local identifiers can remain and undermine the final report | Check both presence of required sections and absence of stale wording plus `/mnt`, `/home`, `home/`, `/Users`, `Users/`, and username patterns |
+| --- | --- | --- | --- |
+| Publish an old local draft | Reused a body prepared before later live edits | It can overwrite user changes or resurrect stale language | Re-read and rebind the live destination immediately before mutation |
+| Replace the plan with a summary or review recap | Posted conclusions, findings, or a revision delta as the final artifact | Implementers lose exact steps, tests, rollback, and accepted constraints | The final handoff is the complete accepted plan in reader-first order |
+| Hash the mutable destination as both input and output identity | Treated the pre-review requirements digest as if it also identified the rewritten body | Publication changes the bytes and invalidates its own provenance | Seal the source epoch and keep input identity distinct from published-output identity |
+| Treat GO as fresh mutation authority | Used review success without rebinding sources and actor authority | GO proves plan quality, not that live artifacts stayed unchanged or that a write is authorized | Revalidate exact artifacts and mutation authority immediately before the write |
+| Clean only the latest body | Left sensitive or stale material in older comments and evidence mirrors | The durable public timeline still exposed or contradicted the final report | Scan every durable public surface and verify absence after publication |
 
 ## Results & Parameters
 
-### Final Report Section Order
+### Minimal identity record
+
+```yaml
+requirements:
+  artifact_id: "<stable-issue-id>"
+  content_digest: "<normalized-pre-publication-digest>"
+  updated_at: "<timestamp>"
+plan:
+  artifact_id: "<stable-comment-id>"
+  actor_id: "<stable-actor-id>"
+  content_digest: "<normalized-plan-digest>"
+  updated_at: "<timestamp>"
+review:
+  artifact_id: "<stable-comment-id>"
+  actor_id: "<stable-reviewer-id>"
+  status: "GO"
+  requirements_digest: "<normalized-pre-publication-digest>"
+  plan_digest: "<normalized-plan-digest>"
+  updated_at: "<timestamp>"
+candidate:
+  content_digest: "<normalized-final-body-digest>"
+```
+
+### Decision table
+
+| Condition | Result |
+| --- | --- |
+| One owned canonical plan, exact terminal GO binding, no drift | Compose, revalidate, publish once, and read back |
+| Destination or source timestamp/digest changed | Abort and restart from live sources |
+| Multiple or foreign canonical artifacts | Abort; resolve authority explicitly |
+| NO-GO or unresolved required finding | Do not finalize; return to planning |
+| Material requirements change after GO | Start a new planning/review epoch |
+| Candidate cannot be generalized safely for public use | Do not publish |
+
+### Verification checklist
 
 ```text
-## Summary
-## Final Finding
-## Date And Environment
-## Runtime Context
-## Template Or Parser Evidence
-## Request Shape
-## Response Evidence
-## Reproduction Matrix
-## Control Results
-## Endpoint Checks
-## Log Evidence
-## Bad Behavior
-## Expected Behavior
-## Reproduction Steps
-## Acceptance Criteria
-## Validation
-```
-
-### Concurrent Edit Guard
-
-```text
-1. Fetch live body.
-2. Record updatedAt.
-3. Draft local replacement.
-4. Re-fetch updatedAt immediately before `gh issue edit`.
-5. If changed, stop and merge live edits before publishing.
-```
-
-### Public Artifact Hygiene Scan
-
-```bash
-# Fetch durable public artifacts into a temp directory, then scan them before posting/updating.
-rg -n "/mnt|/home|home/|/Users|Users/|<operator-username>|<local-hostname>" /tmp/public-artifacts
-# Expected: no output. If matches appear, redact and re-fetch live artifacts after editing.
-```
-
-Surfaces to check:
-
-- PR body and issue body.
-- Issue comments and PR comments, including older automation comments.
-- Review comments and resolved-thread summaries.
-- Evidence mirrors, status reports, and final-run comments produced by automation.
-- Any linked public gist, artifact summary, or markdown file copied from local run evidence.
-
-### Redaction Checklist
-
-- No model IDs or model-family names unless explicitly approved.
-- No endpoint IPs, hostnames, ports, or internal URLs unless explicitly approved.
-- No job IDs, process IDs, usernames, cluster names, or allocation identifiers.
-- No absolute paths, checkpoint paths, local cache paths, or evidence mirror paths.
-- No home-directory fragments such as `/mnt`, `/home`, `home/`, `/Users`, or `Users/`.
-- No full raw reasoning output unless explicitly approved and clearly truncated.
-- No obsolete auth/user-error detours unless they are part of the final diagnosis.
-
-### Live Verification Checklist
-
-```bash
-# Required content should exist.
-rg -n "## Summary|## Final Finding|## Acceptance Criteria|## Validation" /tmp/issue-live-final.md
-
-# Stale wording should be absent.
-rg -n "follow-up|previously unchecked|remaining|still untested|intermediate detour" /tmp/issue-live-final.md
-rg -n "/mnt|/home|home/|/Users|Users/|<operator-username>" /tmp/issue-live-final.md
-# Expected: no output, exit code 1.
+[ ] Live destination and all authoritative sources were fetched.
+[ ] Stable IDs, actors, timestamps, and normalized digests were recorded.
+[ ] The terminal GO review binds the exact requirements and canonical plan.
+[ ] The candidate begins with the reason and retains the complete accepted plan.
+[ ] Diagram, architecture, implementation, tests, rollback, and acceptance are present when applicable.
+[ ] Review prose did not introduce unaccepted scope.
+[ ] Sensitive identifiers and obsolete detours are absent from every durable surface.
+[ ] Every binding was rechecked immediately before the single write.
+[ ] The live readback matches the approved candidate after normalization.
 ```
 
 ## Verified On
 
-| Project | Context | Details |
-|---------|---------|---------|
-| GitHub issue tracker | Final report rewrite after operational debugging | Sanitized workflow only; no issue number, model IDs, endpoints, paths, jobs, or raw proprietary payloads retained |
-| ProjectHephaestus | PR #1854 / issue #1818 public automation evidence cleanup | Scanned and removed absolute local filesystem paths and operator usernames from public PR/issue evidence, including older comments rather than only the latest artifact. Final head `30287af`; Required Checks `28771968071`, Test `28771968016`, and HOL Plugin Scanner `28771968083` succeeded; local full automation suite 3237 passed and affected slice 190 passed. |
+| Surface | Context | Evidence |
+| --- | --- | --- |
+| Public issue tracker | Final report rewrite after an operational investigation | Live read, guarded single update, public-hygiene scan, and live readback |
+| Public issue tracker | Reader-first handoff from an exact canonical plan and terminal GO review | Exact source binding, one body rewrite, preserved provenance, and live readback |
+| Public review artifacts | Body, comments, review comments, and evidence mirrors | CI-backed checks for required content and absence of local operator details |
