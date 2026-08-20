@@ -18,7 +18,7 @@ These notes retain project-specific evidence moved during
 | API-table alignment | [Issue #1419](https://github.com/HomericIntelligence/ProjectHephaestus/issues/1419) | verified-local | Same-cycle version anchor; whole validation module required |
 | Logging stable surface | [Issue #1513](https://github.com/HomericIntelligence/ProjectHephaestus/issues/1513) | unverified plan | Export/identity/table plan; original tag-arithmetic assumption superseded |
 | Lazy `__dir__` | [Issue #1512](https://github.com/HomericIntelligence/ProjectHephaestus/issues/1512) | unverified plan | Union globals, declared exports, lazy names; subset tests |
-| Runtime graph acyclicity | Reviewed implementation plan | unverified plan | AST graph + neutral leaf + Tarjan SCC; not executed |
+| Runtime graph acyclicity | [Immutable archived plan](https://github.com/HomericIntelligence/Mnemosyne/blob/1ae0cb498e5250c341c2a4bf585f97e2a28060af/skills/python-import-patterns-and-compatibility-guards.md) | unverified plan | AST graph + neutral leaf + Tarjan SCC; not executed |
 
 ## Durable case details
 
