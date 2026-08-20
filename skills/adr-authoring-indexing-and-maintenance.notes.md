@@ -17,10 +17,10 @@ archived only in history.
 
 ## Core Maintenance Cases
 
-ProjectOdyssey issue #3150 / PR #3338 added a missing ADR index row by reading the canonical title,
-status, and date from the file and inserting one numerically ordered table row. Issue #3151 / PR
-#3339 changed both status locations for the memory-pool decision to `Accepted (Deferred)` without
-rewriting the already-correct limitation body.
+ProjectOdyssey issue #3150 / PR #3338 added a missing ADR index row by reading the canonical
+title, status, and date from the file and inserting one numerically ordered table row. Issue #3151 /
+PR #3339 changed both status locations for the memory-pool decision to `Accepted (Deferred)`
+without rewriting the already-correct limitation body.
 
 Issue #3291 / PR #3886 moved duplicated FP16 SIMD limitation prose into ADR-010 and replaced every
 source/sibling reference with short direct ADR links. Issue #3252 / PR #3820 reconciled an embedded
