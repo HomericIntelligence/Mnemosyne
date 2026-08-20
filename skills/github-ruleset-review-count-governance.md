@@ -1,422 +1,272 @@
 ---
 name: github-ruleset-review-count-governance
-description: "Use when: (1) auditing GitHub org or repo branch-protection ruleset JSON files for a zero-review governance gap (`required_approving_review_count: 0`), (2) fixing `required_approving_review_count` in canonical ruleset JSON files and the issue only names a subset of the files, (3) adding a CI regression guard to assert the review count cannot regress silently, (4) checking whether existing `bypass_actors` already mitigate the self-merge deadlock that requiring >=1 review creates, (5) leaving `enforcement` untouched and treating activation as a separate operational step, (6) green auto-merge-armed PRs will not merge because an automation authors PRs AS the operator and self-approval is forbidden — the count MUST be 0 on BOTH the classic branch protection and the repository ruleset layer, (7) diagnosing whether a PR is 'blocked waiting on approval' — verify against the LIVE ruleset (`gh api repos/OWNER/REPO/rulesets/ID`), NOT the committed ruleset JSON, which can drift and cause a false 'needs review' misdiagnosis, (8) a CI schema-validation guard hardcodes `required_approving_review_count >= 1` for ALL ruleset files and fails when you sync a repo-scoped file to the live count of 0 — relax the guard to a per-scope expected-count map (repo=0, org=1), or (9) canonical repository policy still describes human approval or human merge as required even though a single-maintainer repository intentionally uses zero required approvals — make required CI/CD checks the merge contract and keep human confirmations as agent-safety controls."
+description: "Use when setting or auditing required approving-review counts, diagnosing whether a PR is blocked by review or CI, reconciling committed ruleset JSON with live GitHub state, preventing automation self-approval deadlock, or writing a per-scope validation guard. Select the repository's human-review or automation-author regime first, inspect both classic protection and rulesets, and preserve all unrelated policy fields."
 category: ci-cd
 date: 2026-07-13
-version: "1.3.0"
-user-invocable: false
+version: "2.0.0"
 verification: verified-ci
+license: BSD-3-Clause
+user-invocable: false
 history: github-ruleset-review-count-governance.history
 tags:
-  - github-actions
+  - github
   - branch-protection
   - ruleset
   - governance
   - review-count
-  - bypass-actors
-  - jq
-  - merge-contract
-  - single-maintainer
-  - documentation-policy
+  - auto-merge
+  - required-checks
+  - drift
 ---
 
-# GitHub Ruleset Required Approving Review Count Governance
+# GitHub Ruleset Review-Count Governance
 
 ## Overview
 
-| Field | Value |
-|-------|-------|
-| **Date** | 2026-07-30 |
-| **Objective** | Govern `required_approving_review_count` on GitHub `main` protection, and diagnose merge-blockage against the LIVE ruleset rather than the committed JSON. THREE concerns: (a) human-reviewed repos — close the zero-review gap (0 → 1) across ALL canonical ruleset JSON variants; (b) automation-authored repos — when an automation authors PRs AS the operator, the count MUST be `0` (nonzero is a permanent self-approval deadlock), flipped on BOTH the classic protection AND the ruleset layer; (c) NEVER conclude a PR is "blocked on review" from the committed ruleset JSON — the committed file drifts from the live ruleset; verify against `gh api .../rulesets/<id>` |
-| **Outcome** | v1.0.0: four Odysseus ruleset files set to count=1 + CI guard. v1.1.0: on the HomericIntelligence org (17 active repos) the count was set to `0` on `main` for every repo because the automation authors PRs as the operator; 3 green auto-merge-armed PRs merged the instant the gate dropped; `required_review_thread_resolution` preserved. v1.2.0: caught a twice-repeated MISDIAGNOSIS — PRs read as "blocked on approval" because the COMMITTED `repo-ruleset-active.json` said count=1, but the LIVE `homeric-main-baseline` ruleset (the ONLY ruleset on the repo, `source_type: Repository`) requires **0**; the real blocker was a GitHub Actions runner backlog. Synced the committed file to live (0 reviews, 11 checks) and relaxed the CI guard from a blanket `>=1` to a per-scope expected-count map (repo=0, org=1) (Odysseus PR #394, MERGED). v1.3.0: documented the zero-approval single-maintainer regime as a CI/CD-only merge contract in the canonical policy files (ProjectHephaestus PR #2533) |
-| **Verification** | verified-ci — v1.1.0 applied org-wide (3 PRs merged); v1.2.0 diagnosis proven (PRs #388/#390 auto-merged mid-session with 0 reviews; live ruleset count=0 confirmed via `gh api`); the sync + per-scope guard fix shipped in Odysseus PR #394 which MERGED (2026-07-13T02:02:20Z), main now shows count=0 / 11 checks. v1.3.0 verified-ci on ProjectHephaestus PR #2533: focused documentation checks and 6,874-test pre-push suite passed; required GitHub checks remain the merge gate |
-| **History** | [changelog](./github-ruleset-review-count-governance.history) |
+Required approvals have two legitimate regimes. Human-reviewed repositories need a nonzero review
+gate. Repositories where one automation/operator account authors every PR cannot satisfy a nonzero
+self-review gate and may intentionally use zero approvals with required CI/CD checks as the merge
+contract. Diagnose and change live policy, not assumptions from committed JSON.
+
+Verification remains `verified-ci`. Applied cases and repository-specific values are in the
+[notes](./github-ruleset-review-count-governance.notes.md); the byte-preserved source and prior
+changelog are in [history](./github-ruleset-review-count-governance.history).
 
 ## When to Use
 
-- An issue reports `required_approving_review_count: 0` in one or two specific ruleset JSON files — check ALL canonical files (both base and `-active.json` variants) before scoping the fix.
-- An apply script selects the `-active.json` variant for enforcing mode; fixing only the base file leaves the gap live when the ruleset is activated.
-- You want a CI guard that asserts the review count cannot regress to zero silently (JSON-parse/lint validation alone does not check values).
-- You are about to add `bypass_actors` to prevent a self-merge deadlock — first inspect what bypass actors already exist.
-- A fix touches the `pull_request` rule but should NOT change `enforcement` (disabled/active/evaluate) — that is a separate rollout step.
-- **Green, auto-merge-armed PRs will NOT merge and `reviewDecision` is empty**, and `gh pr review --approve` fails with `GraphQL: Cannot approve your own pull request`. An automation authors PRs as the SAME account that would approve them (no second GitHub account). Then a nonzero `required_approving_review_count` is UNSATISFIABLE — set it to `0` on `main` (see the self-approval-deadlock regime below). This is the OPPOSITE of the 0 → 1 fix; apply it only when the automation-as-author model holds.
-- **You are about to conclude a PR is "blocked waiting on approval."** STOP and verify against the LIVE ruleset (`gh api repos/OWNER/REPO/rulesets/<id>`), NOT the committed `configs/github/*-ruleset*.json` — the committed file DRIFTS from live and reading it caused a repeated false "needs review" misdiagnosis (see "Diagnose against the live ruleset" below). `mergeStateStatus: BLOCKED` + `mergeable: MERGEABLE` + required checks still pending = waiting on **CI** (a runner backlog), NOT on a review gate.
-- **A CI `schema-validation` guard hardcodes `required_approving_review_count >= 1` for every ruleset file** and fails when you sync a repo-scoped file to the live count of `0`. Relax the guard from a blanket `>=1` to a per-scope expected-count map (repo=0, org=1) so drift is still caught in BOTH directions per scope.
-- **Canonical repository policy still describes human approval or human merge as required** even though a single-maintainer repository intentionally uses zero required approvals. Make required CI/CD checks the merge contract, and classify human confirmations for swarm deployment, tagging, or force-pushing as agent-safety controls rather than GitHub merge gates.
+- Canonical ruleset JSON contains `required_approving_review_count: 0` and governance expects human
+  review.
+- Green auto-merge PRs cannot merge because the automation author is also the only potential
+  approver.
+- A PR is described as “waiting for review” based only on committed configuration.
+- Classic branch protection and a repository ruleset may encode different review requirements.
+- Base and `-active` ruleset variants drift or an apply script selects a file the issue omitted.
+- A schema guard assumes every scope must use `>=1`, but repository and organization policy differ.
+- Committed required-check contexts do not match the live enforcing ruleset.
+- Documentation still calls human approval a merge gate in an intentional zero-review,
+  single-maintainer repository.
+
+## Regime Decision
+
+| Regime | Preconditions | Approval count | Merge contract |
+| --- | --- | --- | --- |
+| A: human-reviewed | A distinct eligible reviewer exists and policy requires review | At least 1, or the exact policy value | Required review plus required checks |
+| B: automation authors as operator | Same account authors and would approve; no eligible second reviewer | 0 | Required checks and thread-resolution policy |
+
+The regimes are mutually exclusive for a branch. A workflow label such as `state:implementation-go`
+is not a GitHub approving review. Existing bypass actors may affect feasibility, but do not infer
+their semantics without live evidence.
+
+## Decision Rules
+
+1. **Read live policy first.** Enumerate rulesets, source type, enforcement, pull-request parameters,
+   and required checks. Committed JSON is desired-state evidence, not reliable runtime diagnosis.
+2. **Inspect both enforcement layers.** Classic protection and repository rulesets are independent.
+   A 404 for classic protection means no classic gate, not that ruleset inspection can stop.
+3. **Choose the regime from actor topology.** A nonzero count is unsatisfiable when every PR is
+   authored by the sole operator and GitHub forbids self-approval.
+4. **Preserve unrelated fields.** Read the current full object, change only the approved field, and
+   retain thread resolution, stale-review, code-owner, bypass, enforcement, and required-check data.
+5. **Scope all canonical variants.** Search base/active and org/repo files and read the deployment
+   script. Fixing only issue-named files can leave deployed policy unchanged.
+6. **Do not conflate `BLOCKED` with review.** `MERGEABLE` plus required checks queued/in progress can
+   be a runner backlog. Inspect required contexts and live review parameters.
+7. **Guard exact policy per scope.** A map such as org=1/repo=0 catches drift in both directions;
+   blanket `>=1` cannot express a legitimate zero-review repository.
+8. **Keep rollout separate.** Do not alter `enforcement` while changing a review count unless the
+   task explicitly includes activation.
+9. **Make surgical config diffs.** Do not rewrite full JSON formatting to change one field.
+10. **Align documentation.** In Regime B, human confirmations for tagging, force updates, or swarm
+    deployment remain agent-safety controls, not GitHub review gates.
 
 ## Verified Workflow
 
-> **Two regimes.** Pick by who authors the PRs.
->
-> - **Regime A — human-reviewed repos (v1.0.0):** `required_approving_review_count: 0` is a governance GAP. Close it (0 → 1) across ALL canonical ruleset JSON variants. This is the original workflow below.
-> - **Regime B — automation authors PRs AS the operator (v1.1.0):** the count MUST be `0`. GitHub structurally forbids self-approval, so ANY nonzero value is a permanent deadlock for green, auto-merge-armed PRs. Flip it to `0` on BOTH the classic protection AND the ruleset layer. See "Self-approval deadlock regime" below.
->
-> The two regimes are mutually exclusive per repo. Never apply Regime A to a repo whose PRs are all authored by the single automation account.
-
-### Self-approval deadlock regime (automation authors PRs as the operator)
-
-**Symptom:** green, auto-merge-armed PRs will not merge; `reviewDecision` is empty;
-`gh pr review <n> --approve` returns `GraphQL: Cannot approve your own pull request`.
-
-**Root cause:** the automation runs as the operator, so every PR is authored by the
-same account that would approve it. There is no second GitHub account. The loop's own
-reviewer applies a `state:implementation-go` LABEL — that is NOT a GitHub approving
-review — so a nonzero `required_approving_review_count` is UNSATISFIABLE.
-
-**Fix — set the count to `0` on `main` on BOTH layers, preserving required STATUS
-CHECKS and `required_review_thread_resolution`:**
+### 1. Read live state and diagnose the actual blocker
 
 ```bash
-OWNER_REPO="OWNER/REPO"
+gh api repos/OWNER/REPO/rulesets \
+  --jq '.[] | {id,name,source_type,enforcement}'
 
-# --- Layer 1: classic branch protection ---
-# Read current values first so you can PRESERVE dismiss_stale / code-owner flags.
-gh api "repos/$OWNER_REPO/branches/main/protection/required_pull_request_reviews" \
-  --jq '{count:.required_approving_review_count, dismiss:.dismiss_stale_reviews, codeowners:.require_code_owner_reviews}'
-# Repos with NO classic protection return 404 — they simply have no gate to drop; skip.
-gh api -X PATCH "repos/$OWNER_REPO/branches/main/protection/required_pull_request_reviews" \
-  -F required_approving_review_count=0 \
-  -F dismiss_stale_reviews=<preserve> \
-  -F require_code_owner_reviews=<preserve>
-
-# --- Layer 2: repository ruleset ---
-# 2a. Find the ruleset that carries a pull_request rule on main.
-gh api "repos/$OWNER_REPO/rules/branches/main" \
-  --jq '.[] | select(.type=="pull_request") | {r?:.ruleset_id, count:.parameters.required_approving_review_count}'
-# 2b. Fetch the FULL ruleset body, set only the one field, PUT the whole thing back.
-#     NEVER hand-reconstruct the rules array — preserve every other rule verbatim.
-RS_ID=<id from 2a>
-gh api "repos/$OWNER_REPO/rulesets/$RS_ID" > /tmp/rs.json
-jq '(.rules[] | select(.type=="pull_request").parameters.required_approving_review_count) = 0' \
-  /tmp/rs.json > /tmp/rs.patched.json
-gh api -X PUT "repos/$OWNER_REPO/rulesets/$RS_ID" --input /tmp/rs.patched.json
-```
-
-**Detection sweep across an org:** for each repo, read the classic
-`.required_approving_review_count` AND enumerate `rules/branches/main` for any
-`pull_request` rule's `required_approving_review_count`. Repos with NO classic
-protection (404) have no classic gate to drop — still check their ruleset.
-
-### Diagnose against the LIVE ruleset, never the committed JSON (committed-vs-live drift)
-
-**Symptom:** you conclude "these armed PRs are blocked waiting on approval" because
-the COMMITTED `configs/github/repo-ruleset-active.json` says
-`required_approving_review_count: 1`. That conclusion is WRONG when the committed file
-has drifted from the live ruleset. In this session it was wrong TWICE — the live
-`homeric-main-baseline` ruleset (the ONLY ruleset enforced on the repo,
-`source_type: Repository`) actually requires **0** approvals; the PRs auto-merge on
-required STATUS CHECKS alone. Proof: PRs #388/#390 auto-merged mid-conversation with no
-review while I was still calling them "blocked."
-
-**The committed file drifts on MORE than the review count.** The same stale committed
-file also carried only 8 required checks while live had 11 (`+test, +install, +release`).
-Never trust the committed ruleset for any diagnostic claim — always read live.
-
-**Root-cause the REAL blocker.** `mergeStateStatus: BLOCKED` + `mergeable: MERGEABLE`
-+ all required checks `queued`/`in_progress` (for 20-40 min) = a GitHub Actions **runner
-backlog**, NOT a policy gate. Do not "fix" a review gate that is not the blocker.
-
-```bash
-# 1. Which rulesets are LIVE on the repo, and which is the enforcing one?
-gh api repos/OWNER/REPO/rulesets --jq '.[] | {id, name, source_type, enforcement}'
-#    source_type: Repository  => this repo's own ruleset (the enforcing one here)
-
-# 2. What does the LIVE ruleset actually require for reviews? (NOT the committed JSON)
-gh api repos/OWNER/REPO/rulesets/<ID> \
+gh api repos/OWNER/REPO/rulesets/<id> \
   --jq '.rules[] | select(.type=="pull_request") | .parameters
-        | {required_approving_review_count, required_review_thread_resolution}'
-#    => count 0 here: PRs merge on status checks alone, no human review needed
+        | {required_approving_review_count,required_review_thread_resolution}'
 
-# 3. Live required-check list (compare against the committed file — it drifts)
-gh api repos/OWNER/REPO/rulesets/<ID> \
+gh api repos/OWNER/REPO/rulesets/<id> \
   --jq '[.rules[] | select(.type=="required_status_checks")
          .parameters.required_status_checks[].context]'
 
-# 4. Is a specific PR REALLY blocked on review, or just on CI?
-gh pr view N --repo OWNER/REPO --json mergeable,mergeStateStatus,reviewDecision
-#    mergeable=MERGEABLE + mergeStateStatus=BLOCKED + reviewDecision empty + checks
-#    pending  =>  waiting on CI, not review
-gh pr checks N --repo OWNER/REPO
-#    look at REQUIRED contexts pending vs non-required (e.g. `Install (matrix)` is NOT
-#    required); a required context still queued is a runner backlog, not a policy block
+gh pr view <pr> --repo OWNER/REPO \
+  --json mergeable,mergeStateStatus,reviewDecision,autoMergeRequest
+gh pr checks <pr> --repo OWNER/REPO
 ```
 
-**Fix the drift (Odysseus PR #394):** sync the committed `repo-ruleset*.json` to live via
-a field-by-field diff against `gh api .../rulesets/<id>` — set the review count to `0` and
-the required-check list to the live 11. Then relax the CI schema-validation guard: it
-HARDCODED `required_approving_review_count >= 1` for ALL ruleset files, so syncing the
-repo-scoped file to `0` FAILED that guard until the guard was changed to a per-scope
-expected-count map (repo=0, org=1) that still catches drift in BOTH directions.
+Identify which returned ruleset applies to `main` and whether its `source_type` is repository or
+organization. Compare only required contexts when diagnosing a queue; optional matrix jobs do not
+explain a required gate.
 
-```yaml
-# _required.yml schema-validation guard — per-scope expected count, NOT a blanket >=1
-declare -A expected_min_reviews=(
-  [configs/github/org-ruleset.json]=1          # org policy: human review
-  [configs/github/org-ruleset-active.json]=1
-  [configs/github/repo-ruleset.json]=0         # repo: auto-merge on status checks
-  [configs/github/repo-ruleset-active.json]=0
-)
-for f in "${!expected_min_reviews[@]}"; do
-  count=$(jq 'first(.rules[] | select(.type=="pull_request")
-             | .parameters.required_approving_review_count)' "$f")
-  want=${expected_min_reviews[$f]}
-  [ "$count" != "$want" ] && { echo "ERROR: $f count=$count (expected $want)"; exit 1; }
-done
-```
-
-**Editing gotcha:** do NOT `json.dump(indent=2)` the whole ruleset file to change one field
-— it reformatted the entire file (a 63-line churn) and buried the one-field intent. Do a
-surgical edit: `git show HEAD~1:configs/github/repo-ruleset-active.json > <file>` to restore
-the original formatting, then a single-line Edit of just the count/check list.
-
-### Quick Reference
+Read classic protection independently:
 
 ```bash
-# 1. Find all ruleset files carrying the zero-review gap — not just the ones the issue named.
-grep -n '"required_approving_review_count"' configs/github/*.json
-
-# 2. Identify which variant is actually deployed in enforcing mode.
-grep -nE 'active|--active|enforce' tools/github/apply-repo-rulesets.sh
-# -> confirms -active.json is what gets pushed when --active mode is used
-
-# 3. Fix the count in every file that carries 0 (one-field edit per file).
-#    The pull_request rule already exists; no rule insertion needed.
-#    jq:  .rules[] | select(.type=="pull_request") | .parameters.required_approving_review_count
-#    Change 0 → 1 in all four files:
-#      configs/github/org-ruleset.json          line 21
-#      configs/github/org-ruleset-active.json   line 21
-#      configs/github/repo-ruleset.json         line 17
-#      configs/github/repo-ruleset-active.json  line 17
-
-# 4. Inspect existing bypass_actors BEFORE adding a new one.
-jq '.bypass_actors' configs/github/org-ruleset-active.json
-# -> OrganizationAdmin id 1, Integration id 49699333, RepositoryRole id 5 already present
-#    => no new bypass actor needed
-
-# 5. Add a CI regression guard — use first() to be robust against files
-#    that could ever have multiple pull_request rules.
-count=$(jq 'first(.rules[] | select(.type=="pull_request")
-            | .parameters.required_approving_review_count)' \
-        configs/github/org-ruleset-active.json)
-[ "$count" -lt 1 ] && { echo "FAIL: $f has required_approving_review_count=$count"; exit 1; }
-
-# 6. Verification — run all four checks.
-for f in configs/github/org-ruleset.json configs/github/org-ruleset-active.json \
-          configs/github/repo-ruleset.json configs/github/repo-ruleset-active.json; do
-  jq '.rules[] | select(.type=="pull_request") | .parameters.required_approving_review_count' "$f"
-done
-# Expected: 1 1 1 1
-
-! grep -rn '"required_approving_review_count": 0' configs/github/
-# Expected: exit 0 (no matches)
-
-for f in configs/github/*.json; do jq empty "$f" && echo "OK: $f"; done
-# Expected: OK for all four files
+gh api repos/OWNER/REPO/branches/main/protection/required_pull_request_reviews \
+  --jq '{count:.required_approving_review_count,
+         dismiss:.dismiss_stale_reviews,
+         codeowners:.require_code_owner_reviews}'
 ```
 
-### Detailed Steps
+### 2. Inventory desired-state files and deployment consumers
 
-1. **Scope the fix by grepping all files, not just those the issue named.**
-   Run `grep -n required_approving_review_count configs/github/*.json`. In a four-file
-   canonical layout (base + active, org + repo), the same `0` appears in all four.
-   An issue citing only `org-ruleset.json` and `repo-ruleset.json` omits the
-   `-active.json` variants — those are what the apply script deploys in enforcing mode.
+```bash
+rg -n 'required_approving_review_count' configs .github scripts tools
+rg -n 'active|--active|enforcement|ruleset' scripts tools .github
+for file in configs/github/*ruleset*.json; do jq empty "$file"; done
+```
 
-2. **Read the apply script to find the enforcing path.**
-   `tools/github/apply-repo-rulesets.sh` selects `*-active.json` when `--active` is
-   passed. Fixing only the base files leaves the gap live on activation.
+List every base/active and org/repo variant, the apply path that selects them, current count,
+enforcement, bypass actors, thread resolution, and required checks. Record live-vs-file differences
+before editing.
 
-3. **Apply the one-field fix to every affected file.**
-   The `pull_request` rule is already present — no new rule insertion needed.
-   Change `"required_approving_review_count": 0` to `1` in each of the four files.
-   Leave all other PR rule flags unchanged (`dismiss_stale_reviews_on_push`,
-   `require_code_owner_review`, etc. are out of scope).
+### 3. Apply Regime A — require human review
 
-4. **Leave `enforcement` untouched.**
-   The `"enforcement"` field (`"disabled"` / `"active"` / `"evaluate"`) controls
-   whether the ruleset is enforced. Activation is a separate operational step covered
-   by the rollout runbook — do not change it as part of a review-count fix.
+Change every deployed canonical variant to the exact policy value (commonly 1). Leave enforcement
+and unrelated pull-request flags unchanged. Inspect existing bypass actors before proposing new
+ones. Use `first(...)` when reading the pull-request rule so the shell receives one scalar:
 
-5. **Inspect existing `bypass_actors` before adding a new one.**
-   A `pull_request`-mode admin bypass actor already in place mitigates the solo-author
-   self-merge deadlock that requiring >=1 review would otherwise create. In the Odysseus
-   canonical files, OrganizationAdmin id 1, Integration id 49699333, and RepositoryRole
-   id 5 are already present. Do not add a redundant actor.
+```bash
+count=$(jq 'first(.rules[] | select(.type=="pull_request")
+  | .parameters.required_approving_review_count)' "$file")
+test "$count" -ge 1
+```
 
-6. **Add a CI guard using `first()` wrapper for robustness.**
-   Use `jq 'first(.rules[] | select(.type=="pull_request") | .parameters.required_approving_review_count)'`
-   rather than bare `.rules[] | select(...) | .parameters.required_approving_review_count`.
-   Without `first()`, if a file ever grows multiple `pull_request` rules, jq emits
-   multiple lines and the bash `[ "$count" -lt 1 ]` guard sees `[: too many arguments`
-   and exits non-zero regardless of the actual values.
+If policy says exactly one, validate equality rather than `>=1`; the guard must encode the actual
+consumer contract.
 
-7. **Run verification checks before committing.**
-   See Quick Reference step 6 for the four-check suite (jq value check, grep for
-   remaining zeros, JSON parse, and the CI guard logic mirroring).
+### 4. Apply Regime B — remove the unsatisfiable self-review gate
+
+First prove the same account authors the PR and would be the only approver. A self-approval failure
+is confirming evidence, not the only input.
+
+For classic protection, preserve current flags in the PATCH. For a repository ruleset, fetch the
+complete object, modify only the count, and PUT the full accepted payload required by the current API:
+
+```bash
+repo=OWNER/REPO
+ruleset_id=<id>
+
+# Values come from the preceding GET; do not replace them with assumed defaults.
+gh api -X PATCH \
+  "repos/$repo/branches/main/protection/required_pull_request_reviews" \
+  -F required_approving_review_count=0 \
+  -F dismiss_stale_reviews=<preserved-boolean> \
+  -F require_code_owner_reviews=<preserved-boolean>
+
+gh api "repos/$repo/rulesets/$ruleset_id" > /tmp/ruleset.json
+jq '(.rules[] | select(.type=="pull_request")
+  .parameters.required_approving_review_count) = 0' \
+  /tmp/ruleset.json > /tmp/ruleset.patched.json
+diff -u /tmp/ruleset.json /tmp/ruleset.patched.json
+gh api -X PUT "repos/$repo/rulesets/$ruleset_id" --input /tmp/ruleset.patched.json
+```
+
+Mutating live protection is an external policy change: perform it only when the task authorizes the
+repository and regime. Re-read both layers and verify required checks and thread resolution remain.
+
+### 5. Reconcile committed configuration and guards
+
+Treat live state as runtime evidence and repository policy as desired-state authority. If they
+conflict, resolve which should change; do not silently overwrite either direction.
+
+Use an exact per-file map:
+
+```bash
+declare -A expected_reviews=(
+  [configs/github/org-ruleset.json]=1
+  [configs/github/org-ruleset-active.json]=1
+  [configs/github/repo-ruleset.json]=0
+  [configs/github/repo-ruleset-active.json]=0
+)
+
+for file in "${!expected_reviews[@]}"; do
+  count=$(jq 'first(.rules[] | select(.type=="pull_request")
+    | .parameters.required_approving_review_count)' "$file")
+  want=${expected_reviews[$file]}
+  test "$count" = "$want" || {
+    echo "ERROR: $file count=$count expected=$want" >&2
+    exit 1
+  }
+done
+```
+
+Also compare live and committed required-check sets. Keep JSON formatting stable with a targeted
+edit and review the field-level diff.
+
+### 6. Verify end to end
+
+```bash
+for file in configs/github/*ruleset*.json; do
+  jq empty "$file"
+  jq 'first(.rules[] | select(.type=="pull_request")
+      | .parameters.required_approving_review_count)' "$file"
+done
+
+git diff --check
+<repository-schema-and-policy-tests>
+gh api repos/OWNER/REPO/rulesets/<id> --jq \
+  '.rules[] | select(.type=="pull_request" or .type=="required_status_checks")'
+```
+
+For Regime B, verify a green PR becomes eligible through required checks without claiming that an
+automation label is an approval. For Regime A, verify an eligible distinct reviewer can satisfy the
+gate. Record live IDs and timestamps as volatile evidence, not portable constants.
+
+## Examples
+
+### False approval diagnosis
+
+A committed file said one approval and eight checks, while the live enforcing ruleset said zero
+approvals and eleven checks. Two PRs merged without review; the delay was queued required jobs. The
+fix reconciled desired state and changed the schema guard to org=1/repo=0.
+
+### Human-review gap across variants
+
+An issue named two JSON files, but the deployment script selected `-active` variants carrying the
+same zero count. Searching all consumers identified four files; the review field changed in each
+while enforcement and bypass actors remained untouched.
 
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
-|---------|----------------|---------------|----------------|
-| Fix only the two files named in the issue | Planned to edit only `org-ruleset.json` and `repo-ruleset.json` as the issue stated | `org-ruleset-active.json` and `repo-ruleset-active.json` also had `0`; the apply script uses `-active.json` for enforcing mode, so leaving them at `0` would keep the gap live on activation | Grep the whole config directory for the offending field; the deploy path may use a file the issue never named |
-| Use bare jq select without `first()` in CI guard | `count=$(jq '...rules[]\|select\|.parameters.required_approving_review_count' "$f")` — pipes inside code span trigger cell splitting | If a file ever has multiple `pull_request` rules, jq emits multiple lines; bash `[ "$count" -lt 1 ]` errors with `too many arguments` | Wrap the jq expression with `first(...)` so the guard always receives a single scalar value |
-| Change `enforcement` field while fixing review count | Considered activating the ruleset as part of the same PR | Activation is a separate operational step with its own rollout runbook; bundling it expands scope and risk | Leave `enforcement` unchanged; activation is a distinct step |
-| Add new bypass actor to prevent self-merge deadlock | Considered adding a bypass for admin authors so they can self-merge after requiring >=1 review | Existing `pull_request`-mode bypass actors (OrganizationAdmin id 1, Integration id 49699333, RepositoryRole id 5) already address the deadlock | Inspect existing `bypass_actors` before adding any; a redundant actor is unnecessary and may confuse future audits |
-| Change other PR rule flags alongside review count | Considered setting `dismiss_stale_reviews_on_push: true` while touching the file | The issue's sole finding is `required_approving_review_count: 0`; other fields are out of scope | Minimal-diff principle: change only the field the issue names; other improvements go in separate PRs |
-| Approve the PRs to satisfy a nonzero gate (automation-authored repos) | `gh pr review <n> --approve` as the operator | `GraphQL: Cannot approve your own pull request` — the PRs are authored by the same account | GitHub structurally forbids self-approval; a nonzero required-approval count is a permanent deadlock when automation authors PRs as the operator — set the count to `0` instead |
-| Flip only the classic branch-protection layer | PATCH classic `required_approving_review_count=0` and stop | Some repos ALSO enforce approval via a repository ruleset's `pull_request` rule, so the gate stayed live | The count lives on TWO independent layers — enumerate `rules/branches/main` and flip the ruleset too |
-| Rely on the loop's `state:implementation-go` label as an approval | Assumed the automation's GO label satisfied the review gate | The label is not a GitHub approving review; the required-approval gate ignores it entirely | Distinguish the automation's GO label from a real GitHub approval; the branch-protection gate counts only real approvals |
-| Diagnosed PRs as "blocked waiting on approval" from the COMMITTED ruleset JSON | Read `configs/github/repo-ruleset-active.json` (count=1) and concluded a review was required — twice | The committed file had DRIFTED; the LIVE `homeric-main-baseline` ruleset (`source_type: Repository`, the only one enforced) requires **0** approvals; PRs #388/#390 auto-merged mid-conversation with no review | Never diagnose merge-blockage from the committed ruleset; read the LIVE ruleset via `gh api repos/OWNER/REPO/rulesets/<id>` before claiming a review gate exists |
-| Trusted the committed required-check list | Assumed the 8 checks in the committed file were the enforced set | Live ruleset had 11 (`+test, +install, +release`); the committed file was stale on the check list too | The committed ruleset JSON drifts on MORE than the review count; verify the required-check list against live as well |
-| Assumed BLOCKED meant a policy gate | Saw `mergeStateStatus: BLOCKED` and looked for a review/protection rule to fix | The blocker was a GitHub Actions runner BACKLOG — required checks `queued`/`in_progress` for 20-40 min; `mergeable: MERGEABLE` + checks pending = waiting on CI | `BLOCKED` + `MERGEABLE` + required checks pending = CI backlog, not review; check `gh pr checks N` for pending REQUIRED contexts before touching any ruleset |
-| Synced the committed repo file to live count=0 and expected CI to pass | Changed `required_approving_review_count` to 0 to match live | A CI `schema-validation` guard HARDCODED `>= 1` for ALL ruleset files and failed on the repo-scoped 0 | Relax the guard to a per-scope expected-count map (repo=0, org=1); a blanket `>=1` can't express that repo-scoped rulesets legitimately require 0 |
-| Reformatted the whole ruleset file to change one field | `json.dump(indent=2)` rewrote the entire file — a 63-line churn for a 1-field change | The diff buried the intent and expanded review surface | Surgical edit: `git show HEAD~1:file > file` to restore formatting, then a single-line Edit of just the changed field |
-
+| --- | --- | --- | --- |
+| Failure 1 | Edit only issue-named files | Active/deployed variants retain drift | Search every variant and consumer |
+| Failure 2 | Use bare multi-result `jq select` | Shell comparison can receive several lines | Wrap with `first()` or validate cardinality |
+| Failure 3 | Change enforcement with the count | Mixes policy content and rollout | Keep activation separate |
+| Failure 4 | Add bypass actors reflexively | Existing actors may already cover policy | Inspect and verify before adding |
+| Failure 5 | Self-approve an automation-authored PR | GitHub forbids approving one’s own PR | Choose Regime B or add a distinct reviewer |
+| Failure 6 | Change only classic protection | Repository ruleset may keep the gate | Inspect and update both authorized layers |
+| Failure 7 | Treat a workflow label as approval | Labels are not review objects | Diagnose actual GitHub review state |
+| Failure 8 | Trust committed JSON for live diagnosis | Files drift from enforcement | Query the live ruleset first |
+| Failure 9 | Treat `BLOCKED` as review-required | Pending required checks produce the same state | Inspect required contexts and live parameters |
+| Failure 10 | Hardcode `>=1` for every scope | Rejects legitimate automation-author repos | Encode exact per-scope expectations |
+| Failure 11 | Reformat the full JSON object | Hides the policy change in churn | Make a surgical field edit |
+| Failure 12 | Rewrite docs as “human review required” in Regime B | Contradicts the actual merge contract | Separate CI gates from agent-safety confirmations |
 ## Results & Parameters
 
-**Files fixed (HomericIntelligence/Odysseus, PR #308, issue #178):**
+| Parameter | Contract |
+| --- | --- |
+| Regime A | Distinct eligible reviewer; exact nonzero policy value |
+| Regime B | Sole automation/operator author; approval count zero |
+| Enforcement layers | Classic protection and applicable rulesets inspected independently |
+| Runtime authority | Live API state for diagnosis; committed files for reviewed desired state |
+| Guard | Exact expected count per file/scope, plus required-check set comparison |
+| Mutation scope | Review count only unless rollout or other fields are explicitly authorized |
 
-```text
-configs/github/org-ruleset.json          line 21: 0 → 1
-configs/github/org-ruleset-active.json   line 21: 0 → 1
-configs/github/repo-ruleset.json         line 17: 0 → 1
-configs/github/repo-ruleset-active.json  line 17: 0 → 1
-```
+## Output Contract
 
-**CI guard added to `.github/workflows/_required.yml` (lines 275-276):**
+Report the selected regime and actor proof, live classic/ruleset state, enforcing ruleset source,
+required review and check values, committed-file inventory, exact authorized mutation, preserved
+fields, guard/tests, and final PR eligibility evidence. Mark numeric IDs and live values with their
+observation time; never diagnose review blockage from committed JSON alone.
 
-```bash
-# Four-file guard — replaces single-file JSON-parse check
-for f in configs/github/org-ruleset.json configs/github/org-ruleset-active.json \
-          configs/github/repo-ruleset.json configs/github/repo-ruleset-active.json; do
-  count=$(jq 'first(.rules[] | select(.type=="pull_request")
-              | .parameters.required_approving_review_count)' "$f")
-  [ "$count" -lt 1 ] && { echo "FAIL: $f has required_approving_review_count=$count"; exit 1; }
-done
-```
+## Companions
 
-**Key design decisions:**
-
-- `first()` wrapper: makes the guard robust if files ever grow multiple `pull_request` rules
-- Four-file scope: covers both base and enforcing (`-active.json`) variants
-- `>= 1` threshold (not `== 1`): a future tightening to 2 would not break the guard
-- Existing bypass actors: OrganizationAdmin id 1, Integration id 49699333, RepositoryRole id 5 already present — no new actor added
-
-**Verification suite (all four checks passed locally):**
-
-```bash
-# 1. jq value check — should print: 1 1 1 1
-for f in configs/github/org-ruleset.json configs/github/org-ruleset-active.json \
-          configs/github/repo-ruleset.json configs/github/repo-ruleset-active.json; do
-  jq '.rules[] | select(.type=="pull_request") | .parameters.required_approving_review_count' "$f"
-done
-
-# 2. grep check — should produce no output (exit 0)
-! grep -rn '"required_approving_review_count": 0' configs/github/
-
-# 3. JSON validity
-for f in configs/github/*.json; do jq empty "$f" && echo "OK: $f"; done
-
-# 4. CI guard logic mirror — should exit 0 on count=1
-count=1; [ "$count" -lt 1 ] && echo "FAIL" || echo "PASS"
-```
-
-**Unverified assumptions (recorded as risks):**
-
-- `bypass_actors` numeric IDs (`actor_id: 1` OrganizationAdmin, `5` RepositoryRole admin,
-  `49699333` Integration) taken from existing JSON — NOT confirmed against live `gh api`.
-- Bypass-actor merge semantics (a `pull_request`-mode bypass lets an admin author merge
-  a self-PR the review requirement would block) NOT empirically tested against live GitHub.
-- Line numbers (`org:21`, `repo:17`) are checkout-relative and may drift.
-
-### v1.1.0 — Self-approval deadlock remediation (HomericIntelligence org)
-
-**Regime:** automation authors every PR AS the operator (`mvillmow`); no second GitHub account exists.
-
-**Applied:** set `required_approving_review_count: 0` on `main` for all 17 active org repos,
-across BOTH the classic branch-protection layer and the repository-ruleset layer. Required
-STATUS CHECKS and `required_review_thread_resolution: true` were PRESERVED — only the
-human-approval requirement was dropped, matching the automation-as-author model.
-
-**Immediate result:** 3 green, auto-merge-armed PRs merged the instant the gate dropped.
-
-```bash
-# Preserve thread-resolution; drop only the approval count. Ruleset PUT uses the
-# full fetched body with a single jq-patched field — never a reconstructed rules array.
-jq '(.rules[] | select(.type=="pull_request").parameters.required_approving_review_count) = 0' \
-  ruleset.json > ruleset.patched.json
-gh api -X PUT "repos/OWNER/REPO/rulesets/$RS_ID" --input ruleset.patched.json
-```
-
-### v1.2.0 — Committed-vs-live ruleset drift + false "needs review" misdiagnosis (Odysseus PR #394)
-
-**Misdiagnosis:** twice concluded armed PRs were "blocked waiting on approval" by reading
-the COMMITTED `configs/github/repo-ruleset-active.json` (`required_approving_review_count: 1`).
-
-**Ground truth (live):** the only ruleset enforced on HomericIntelligence/Odysseus is
-`homeric-main-baseline`, id `15556483`, `source_type: Repository`, `enforcement: active`.
-Its `pull_request` rule requires **0** approvals with `required_review_thread_resolution: true`,
-and its `required_status_checks` list has **11** contexts:
-
-```text
-lint, unit-tests, integration-tests, security/dependency-scan, security/secrets-scan,
-build, schema-validation, deps/version-sync, test, install, release
-```
-
-The committed file was stale on BOTH: count=1 (live 0) and 8 checks (live 11 — missing
-`test, install, release`). PRs #388/#390 auto-merged mid-session with zero reviews, proving
-review was never the gate. The actual merge delay was a GitHub Actions runner backlog.
-
-**Fix (PR #394, MERGED 2026-07-13T02:02:20Z):**
-- Synced committed `repo-ruleset*.json` to live via a field-by-field `gh api .../rulesets/<id>`
-  diff — set count to `0`, required-check list to the live 11. main now shows count=0 / 11 checks.
-- Changed the `_required.yml` `schema-validation` guard from a blanket
-  `required_approving_review_count >= 1` for all files to a per-scope expected-count map
-  (`org*=1`, `repo*=0`) so drift is still caught in BOTH directions per scope.
-- Reverted an accidental `json.dump(indent=2)` whole-file reformat (63-line churn) to a
-  surgical 1-line edit via `git show HEAD~1:file > file` then Edit.
-
-**Diagnostic commands that mattered:**
-
-```bash
-gh api repos/OWNER/REPO/rulesets --jq '.[] | {id,name,source_type,enforcement}'   # find the live enforcing ruleset
-gh api repos/OWNER/REPO/rulesets/<id> --jq '.rules[]|select(.type=="pull_request").parameters'
-gh pr view N --json mergeable,mergeStateStatus,reviewDecision   # MERGEABLE+BLOCKED+empty = CI, not review
-gh pr checks N                                                  # pending REQUIRED contexts vs non-required (e.g. `Install (matrix)`)
-```
-
-### v1.3.0 — CI/CD-only merge contract for a single-maintainer repository
-
-**Regime:** the repository intentionally keeps GitHub's
-`required_approving_review_count` at `0` because there is only one developer and
-the automation account cannot self-approve its own pull requests.
-
-**Applied:** canonical repository policy was updated to state that branch
-protection and required CI/CD checks define merge eligibility. Human
-confirmations required by agent workflows remain safety controls for actions
-such as swarm deployment, tagging, or force-pushing; they are not GitHub
-required approvals or merge gates. The same contract was aligned across
-`AGENTS.md`, `CONTRIBUTING.md`, `README.md`, and `docs/architecture.md`.
-
-**Verification:** ProjectHephaestus PR #2533 contains only those four
-documentation changes. Markdown lint, repository link validation (48 files,
-340 links), architecture-document tests, and the full pre-push suite (6,874
-passed, 6 skipped, 85.59% coverage) passed. The live PR has no auto-merge
-request; required GitHub checks are the remaining merge gate.
-
-## Verified On
-
-| Project | Context | Details |
-|---------|---------|---------|
-| HomericIntelligence/Odysseus | Issue #178, PR #308 (2026-06-19) | Regime A: fixed all four canonical ruleset JSON files (0 → 1); CI guard added; verified-local at v1.0.0 |
-| HomericIntelligence org (17 active repos) | Self-approval deadlock remediation (2026-07-12) | Regime B: set count to `0` on `main` across classic protection + rulesets; 3 PRs merged immediately; thread-resolution preserved; verified-ci |
-| HomericIntelligence/Odysseus | Committed-vs-live drift + misdiagnosis, PR #394 (2026-07-13) | Live `homeric-main-baseline` (id 15556483, `source_type: Repository`) requires 0 approvals / 11 checks; committed file was stale (1 / 8); PRs #388/#390 auto-merged with no review; real blocker was a runner backlog. Synced committed JSON to live + relaxed the CI guard to a per-scope map (repo=0, org=1); PR #394 MERGED; main confirmed count=0 / 11 checks — verified-ci |
-
-## References
-
-- [GitHub: Rulesets documentation](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets)
-- [GitHub REST: Rulesets API](https://docs.github.com/en/rest/repos/rules?apiVersion=2022-11-28)
-- [jq `first()` function](https://jqlang.org/manual/#first-last)
-- [Related skill: config-governance-fix-scope-all-variant-files](config-governance-fix-scope-all-variant-files.md)
-- [Related skill: ci-cd-ruleset-bootstrap-deadlock](ci-cd-ruleset-bootstrap-deadlock.md)
-- [Related skill: github-branch-protection-org-standardize](github-branch-protection-org-standardize.md)
+- [Case notes](./github-ruleset-review-count-governance.notes.md)
+- [Version history and superseded snapshot](./github-ruleset-review-count-governance.history)

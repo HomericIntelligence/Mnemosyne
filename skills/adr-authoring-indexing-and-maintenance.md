@@ -1,9 +1,11 @@
 ---
 name: adr-authoring-indexing-and-maintenance
-description: "Use when: (1) generating a new Architecture Decision Record (ADR) to document a significant architectural decision; (2) an ADR file exists but is not listed in the index table (docs/adr/README.md); (3) updating ADR status to Accepted (Deferred) when implementation is bypassed pending platform support; (4) two or more functions have nearly identical limitation comments and need consolidating into a single ADR with cross-references replacing duplicates; (5) updating ADR directory tree listings to reflect actual filesystem contents after file deletions or additions; (6) writing an ADR on an epic branch where some child PRs have not yet merged to main — use pending-tense language for open PRs, past-tense only for work already on main; (7) writing an ADR that references decisions from other repos or external docs — verify every ADR number on disk before asserting it exists, use commit SHAs for cross-repo work, cite file:line for cross-repo CLAUDE.md claims; (8) writing an ADR whose Decision section names a code artifact — verify it is git-tracked before citing it as canonical; (9) adding a structural guard test that keeps the ADR index enumerable and in sync with on-disk files; (10) creating a pre-implementation architecture skeleton for a multi-stage system — use full identifier names (not abbreviations) in ROUTES tables, complete line-range citations for code anchors, consistent file:line paths for all prompt-builder references, and structure the doc with status banner, topology, contract, per-stage docs, ROUTES table, seeding/reconstruction, and 'finalized-in-cutover' markers."
+description: "Use when creating or maintaining Architecture Decision Records, their index and status lifecycle, consolidating duplicated design notes, correcting directory trees, documenting in-flight epic work, citing cross-repository evidence, or adding an ADR membership guard. Match the repository's local ADR format, verify every frozen claim against tracked/live evidence, and update the document plus every consumer together."
 category: documentation
 date: 2026-07-04
-version: "1.4.0"
+version: "2.0.0"
+verification: mixed
+license: BSD-3-Clause
 user-invocable: false
 history: adr-authoring-indexing-and-maintenance.history
 tags:
@@ -11,481 +13,282 @@ tags:
   - architecture-decision-record
   - documentation
   - index-maintenance
-  - markdownlint
-  - consolidation
-  - directory-tree
-  - pending-pr
-  - epic-branch
-  - in-flight-work
-  - cross-repo
-  - citation-discipline
   - provenance
   - append-only
-  - tracked-symbols
   - membership-guard
-  - nygard-format
 ---
-# ADR Authoring, Indexing, and Maintenance
 
-End-to-end skill for the lifecycle of Architecture Decision Records: creating new
-ADRs, keeping the `docs/adr/README.md` index table in sync, updating ADR status
-through its lifecycle (including `Accepted (Deferred)`), consolidating duplicate
-limitation comments into a single ADR with cross-references, and keeping ADR
-directory-tree listings accurate against the real filesystem.
+# ADR Authoring, Indexing, and Maintenance
 
 ## Overview
 
-| Field | Value |
-| ------- | ------- |
-| Date | 2026-06-07 |
-| Objective | Author and maintain ADRs and their index, status, cross-references, and embedded directory trees |
-| Outcome | Consistent, traceable ADRs; index always reflects on-disk ADRs; status reflects code reality; no duplicate limitation comments |
-| Category | documentation |
-| Verification | verified-ci (core); v1.3.0 additions (section I) are verified-local, CI pending |
+Use this skill for the complete ADR lifecycle: choose the local format, verify evidence, author the
+decision, index it, maintain status and references, and guard the disk/index relationship. Accepted
+ADRs are durable records; unverifiable claims and stale implementation tense become permanent debt.
+
+Verification is `mixed`: the core authoring/index/status/consolidation workflow is `verified-ci`;
+tracked-symbol anchoring and the bidirectional Nygard-format guard were recorded `verified-local`
+with hosted CI pending. Case details are in the
+[notes](./adr-authoring-indexing-and-maintenance.notes.md); the byte-preserved source and prior
+changelog are in [history](./adr-authoring-indexing-and-maintenance.history).
 
 ## When to Use
 
-- **Authoring**: Making a significant architectural decision, choosing between technical alternatives, documenting design trade-offs, or recording rationale for future reference.
-- **Indexing**: An ADR file exists under `docs/adr/` but its row is absent from the `## ADR Index` table in `docs/adr/README.md`; a quality audit or GitHub issue flags a missing ADR index entry; a new ADR was merged without the author updating the index table.
-- **Status lifecycle**: An ADR has `**Status**: Accepted` but the implementation explicitly bypasses the architecture (e.g., `# Temporary: Direct malloc`); a bypass comment references a known platform gap (e.g., Mojo global variable support); the underlying design decision is still valid but the active status is wrong.
-- **Consolidation**: A GitHub issue says "consider a single shared ADR instead of cross-referencing between two function docstrings"; two or more functions contain nearly identical `# NOTE:`/`Note:` blocks describing the same limitation; an audit finds that updating a limitation note requires editing multiple files.
-- **Directory-tree accuracy**: A file is deleted/added in a PR but the ADR directory tree was not updated; a follow-up issue asks to verify a helpers/tests directory is accurately documented; `grep` finds an ADR tree listing fewer files than `ls` shows on disk.
-- **Cross-repo citation discipline**: Writing an ADR in a meta-repo (e.g., Odysseus) that references decisions from submodule repos or external docs; the ADR text asserts an ADR number from another repo; the ADR claims a CLAUDE.md or internal doc says something — all such claims must be verified on disk before the ADR is written since ADRs are append-only once Accepted.
+- A significant architectural choice needs rationale, alternatives, and consequences.
+- An ADR exists on disk but is absent or stale in `docs/adr/README.md`.
+- An accepted design is temporarily bypassed and its status should be `Accepted (Deferred)`.
+- Multiple functions repeat the same limitation/workaround explanation.
+- An ADR’s embedded directory tree no longer matches the repository.
+- An epic ADR describes child PRs that have not all merged.
+- A cross-repository claim cites an ADR number, commit, or internal-document statement.
+- A Decision section names a code symbol that may be untracked or absent from main.
+- The repository needs an executable README-to-disk ADR membership contract.
+- A pre-implementation multi-stage architecture needs topology, routes, contracts, and cutover
+  boundaries without pretending the runtime already exists.
+
+## Decision Rules
+
+1. **Read local policy and recent ADRs first.** Do not impose a three-digit `ADR-NNN-*` format on a
+   repository using four-digit Nygard names and list-style metadata.
+2. **Allocate from disk, not memory.** Enumerate ADR files and inspect the index before choosing the
+   next number.
+3. **Freeze only verified claims.** Check every cited ADR file, commit, symbol, path, and internal-doc
+   line. If an external number cannot be verified, say “external docs cite ADR-NNN” and attach the
+   verifiable commit or file:line evidence.
+4. **Anchor decisions on tracked artifacts.** `git ls-files <path>` must resolve a named canonical
+   implementation. Mark untracked or future artifacts illustrative, not authoritative.
+5. **Describe state, not intention, as completed.** Use past tense only for work already on the
+   branch/base being documented. Open child PRs stay pending and retain their PR links.
+6. **Update both sides of every relationship.** A new ADR needs its index row; consolidation needs
+   every duplicate/sibling cross-reference replaced; a tree description must match disk.
+7. **Change status everywhere.** If metadata repeats status, update and verify every occurrence.
+8. **Guard set equality.** The ADR files linked by the index must equal the ADR files on disk. A
+   one-way “all files linked” check misses stale links.
+9. **Preserve append-only governance.** Do not edit an accepted ADR when repository policy requires a
+   superseding ADR. Status/index maintenance is permitted only under local policy.
+10. **Separate design from implementation.** Mark a skeleton pre-implementation and name which
+    sections are finalized during cutover.
 
 ## Verified Workflow
 
-### Quick Reference
+### 1. Discover the local contract
 
-| Task | Key command / action |
-| ------ | ---------------------- |
-| Create ADR | `docs/adr/ADR-NNN-<slug>.md`; fill Context/Decision/Rationale/Consequences/Alternatives; Status `Proposed` → `Accepted` |
-| Add index row | Edit `docs/adr/README.md`; insert row `[ADR-NNN](ADR-NNN-<slug>.md) \| Title \| Status \| YYYY-MM-DD` (ascending order) |
-| Defer status | Edit with `replace_all: true`: `**Status**: Accepted` → `**Status**: Accepted (Deferred)` (header + Document Metadata) |
-| Consolidate dupes | Create ADR, replace each verbose block with 2–3 line `See docs/adr/ADR-NNN-<name>.md` cross-ref |
-| Fix dir tree | Compare ADR ASCII tree vs `ls`; Edit to match real files using `├──`/`└──` connectors |
-| Lint | `pixi run pre-commit run markdownlint-cli2 --files docs/adr/<file>.md` (NOT `npx`/`just`) |
-| Cross-repo ADR ref | `ls docs/adr/` to verify number exists; cite commit SHA for cross-repo work; cite `<file>:<line>` for CLAUDE.md claims |
-| Land | conventional commit `docs(adr): ...`, push, `gh pr create --label documentation`, `gh pr merge --auto --rebase` |
+```bash
+rg -n 'ADR|architecture decision|append-only|supersed' AGENTS.md CONTRIBUTING.md docs
+find docs/adr -maxdepth 1 -type f -name '*.md' | sort
+sed -n '1,220p' docs/adr/README.md
+git log --oneline -5 -- docs/adr
+```
 
-### Detailed Steps
+Read the newest accepted and proposed ADRs. Capture filename/title/metadata/section conventions,
+index order, status vocabulary, lint commands, and whether accepted records may be edited.
 
-#### A. Generating a new ADR
+Two recorded variants:
 
-1. **Identify the decision** — what choice needs documentation.
-2. **Research alternatives** — gather evidence and performance data.
-3. **Check the next ADR number** with `ls docs/adr/` and read one recent ADR to match its structure.
-4. **Create the file** at `docs/adr/ADR-NNN-<slug>.md` using the template below.
-5. **Fill sections** — Context, Decision, Rationale, Consequences (Positive/Negative/Neutral), Alternatives Considered.
-6. **Add the index row** (section B) and set status `Proposed` → `Accepted` after review.
+| Aspect | Three-digit variant | Four-digit Nygard variant |
+| --- | --- | --- |
+| Filename | `ADR-NNN-<slug>.md` | `NNNN-<slug>.md` |
+| Title | `# ADR-NNN: Title` | `# ADR-NNNN: Title` |
+| Metadata | bold `Status`/`Date` | list `- Status:` / `- Date:` / optional `- Tracks:` |
+| Sections | Context, Decision, Rationale, Consequences, Alternatives | Context, Decision, Alternatives considered, Consequences |
+
+Match the target repository exactly, including case.
+
+### 2. Verify evidence and current state
+
+```bash
+git ls-files <claimed-canonical-path>
+git log --oneline -- <claimed-path>
+git -C <dependency> log --oneline --all -- <path>
+rg -n 'ADR-[0-9]+|<claim-keyword>' docs/adr <dependency>/AGENTS.md <dependency>/CLAUDE.md
+gh pr view <child-pr> --json state,mergedAt,headRefOid
+```
+
+Verify the audit’s characterization too. A cited line can be current while its prose summary is
+wrong (for example, describing a three-provider union as dual-provider). Record the immutable SHA
+or file:line used for cross-repository evidence.
+
+### 3. Author or update the ADR
+
+A minimal decision record contains:
 
 ```markdown
 # ADR-NNN: Title
 
-**Status**: Proposed | Accepted | Deprecated | Superseded
+**Status**: Proposed
 **Date**: YYYY-MM-DD
-**Deciders**: Names/roles
 
 ## Context
-What is the issue we're facing?
+
+What constraint or conflict requires a durable decision?
 
 ## Decision
-What decision are we making?
+
+What is selected, including scope and invariants?
 
 ## Rationale
-Why this decision? Key reasons.
+
+Why does this option best satisfy the constraints?
 
 ## Consequences
+
 ### Positive
-- Benefit 1
+
+- Benefit.
 
 ### Negative
-- Drawback 1
 
-### Neutral
-- Other impact 1
+- Cost or risk.
 
 ## Alternatives Considered
-### Alternative 1
-Why not chosen.
+
+### Alternative
+
+Why it was rejected.
 ```
 
-**Status lifecycle**: `Proposed` (under consideration) → `Accepted` (active) → `Deprecated` (no longer recommended) → `Superseded` (replaced by a newer ADR). `Accepted (Deferred)` is a valid variant — see section C.
+Add deciders, supersession criteria, neutral consequences, or implementation references when local
+convention requires them. Keep status `Proposed` until the repository’s review/acceptance event.
 
-#### B. Adding a missing ADR index entry
+The common lifecycle is `Proposed` (under review) to `Accepted` (active), then `Deprecated` (no
+longer recommended) or `Superseded` (replaced by a named later ADR). `Accepted (Deferred)` means the
+decision remains accepted while its implementation is deliberately postponed; it is not a synonym
+for rejected or obsolete.
 
-1. **Read the ADR file** to get the canonical title, status, and date — never guess from the filename:
+For `Accepted (Deferred)`, first verify the design remains valid but implementation is explicitly
+bypassed. Update every metadata occurrence, then confirm the body already explains the limitation;
+do not add unrelated redesign prose.
 
-   ```bash
-   head -10 docs/adr/ADR-NNN-<slug>.md
-   ```
+### 4. Maintain the index and directory descriptions
 
-   Extract the `**Status**:` value, the `**Date**:` value, and the title after the colon in the `# ADR-NNN: ...` heading.
-
-2. **Read the current index** (`cat docs/adr/README.md`) and find the last row of the `## ADR Index` table; the new row goes immediately after it, maintaining ascending ADR-number order.
-
-3. **Edit README.md** using the exact previous last row as `old_string` and append:
-
-   ```markdown
-   | [ADR-NNN](ADR-NNN-<slug>.md) | <Title> | <Status> | <Date> |
-   ```
-
-   These updates are always exactly one table row — no surrounding context changes are needed.
-
-#### C. Updating status to Accepted (Deferred)
-
-1. **Read the ADR** to confirm it has a status in two places — the header (line ~3) and the Document Metadata section near the tail:
-
-   ```text
-   **Status**: Accepted          ← header
-   ...
-   - **Status**: Accepted        ← Document Metadata section
-   ```
-
-2. **Use `replace_all: true`** in the Edit tool to update both occurrences in one operation:
-
-   ```text
-   old_string: **Status**: Accepted
-   new_string: **Status**: Accepted (Deferred)
-   replace_all: true
-   ```
-
-3. **Verify both locations** were updated by reading the header and the tail.
-4. If the ADR body already documents the bypass (a "Current Limitation" / "Known Limitation" section), only the status label needs changing — no body edits required.
-
-#### D. Consolidating duplicate ADR references
-
-1. **Read the issue and its plan** (`gh issue view <number> --comments`) to confirm scope.
-2. **Locate all duplicate comment blocks** before editing — e.g. `Grep pattern="NOTE.*<keyword>" glob="**/*.mojo" output_mode="content"`.
-3. **Create the ADR** (section A). Fill an Executive Summary (the limitation + workaround), Context/Key Findings (compiler/runtime facts), Decision (the workaround), Consequences (quantify perf/maintenance impact), Alternatives Considered (include "keep duplicate comments" and explain why rejected), and Supersession Criteria (explicit conditions to mark it Superseded).
-4. **Add the index row** (section B).
-5. **Edit each source file** — replace the verbose block with a 2–3 line cross-reference, and rewrite any "see sibling function" comments to point directly at the ADR:
-
-   ```mojo
-   # <Short description of limitation>; using <workaround>.
-   # See docs/adr/ADR-NNN-<name>.md for rationale.
-   ```
-
-   For docstring `Note:` blocks, keep the `Note:` label and shorten the body:
-
-   ```text
-   Note:
-       <Limitation> uses <workaround> (~Xx slower than optimized path).
-       See docs/adr/ADR-NNN-<name>.md for full rationale.
-   ```
-
-   Update ALL cross-references (including inline body comments that referenced a sibling function) to point at the new ADR — leaving "see sibling_fn()" defeats the purpose.
-
-#### E. Keeping the ADR directory tree accurate
-
-1. **Confirm the actual state** with `gh issue view <number> --comments` and `ls <directory>/`; verify whether a deletion/addition actually happened (it may already be done by a prior PR).
-2. **Find the stale reference**: `grep -n "<dir>\|<deleted-file>" docs/adr/ADR-*.md`.
-3. **Compare** the ADR listing against `ls` — look for phantom references (listed but gone) and incomplete listings (on disk but missing).
-4. **Edit the tree** to match reality, preserving the existing ASCII format (`├──`/`└──` connectors and trailing comments):
-
-   ```text
-   └── helpers/
-       ├── __init__.mojo                     # Package re-exports
-       ├── fixtures.mojo                     # Test fixture utilities
-       ├── utils.mojo                        # Tensor debugging utilities
-       ├── test_fixtures.mojo                # Self-tests for fixtures.mojo
-       └── test_utils.mojo                   # Self-tests for utils.mojo
-   ```
-
-#### F. Validate and land (all tasks)
-
-1. **Lint** with pre-commit's markdownlint (works in pixi-managed environments; does NOT require `npx` or `just`):
-
-   ```bash
-   pixi run pre-commit run markdownlint-cli2 --files docs/adr/<file>.md
-   # or for broader changes
-   pixi run pre-commit run --all-files
-   ```
-
-   Watch for MD013 (120-char line limit) — URLs in list items are NOT exempt; wrap after the closing `)` of the URL. GLIBC-related mojo errors in stderr on older hosts are non-blocking; the relevant hooks still run and pass.
-
-2. **Commit, push, PR, auto-merge**:
-
-   ```bash
-   git add docs/adr/<changed-files>
-   git commit -m "docs(adr): <summary>
-
-   Closes #<issue-number>"
-   git push -u origin <branch>
-   gh pr create --title "docs(adr): <summary>" --body "Closes #<issue-number>" --label documentation
-   gh pr merge --auto --rebase
-   ```
-
-#### G. Pending-PR accuracy on epic branches
-
-When writing an ADR on an **epic branch** that pulls together work from multiple child PRs,
-some of those child PRs may not yet be merged to `main`. Use the correct tense for each item:
-
-| Work state | Language to use | Example |
-| ------------ | ----------------- | --------- |
-| Already on `main` (merged PR or direct commit) | Past tense — "was split", "now has", "reduced to" | "Split of `any_tensor.mojo` is now ≤3,000 lines (PR #5503 / commit abc1234)." |
-| Open child PR, not yet merged | Pending tense — "pending split", "will reach", "once PR #N merges" | "Pending split of `any_tensor.mojo` (4,106 lines) into 6 focused sibling modules (PR #5503 — pending merge to main)." |
-
-**Rule**: Only use completion language for work that is already on `main` at the time the ADR
-is written. If a child PR is still open, describe the work as pending/in-flight and include
-the PR number so readers can check the merge status themselves.
-
-**Template — pending entry (Remediation section)**:
-
-```markdown
-- **#NNNN**: Pending <description>. (<implementation detail>) (PR #XXXX — pending merge to main)
-```
-
-**Template — completed entry (Remediation section)**:
-
-```markdown
-- **#NNNN**: <Past-tense description>. (PR #XXXX / commit <hash>)
-```
-
-**Template — Consequences section, pending work**:
-
-```markdown
-- `file.mojo` will reach <target> once PR #XXXX merges, with <benefit>.
-```
-
-**Verification**: Before finalising the ADR, run:
-
-```bash
-# Confirm which child PRs are actually merged
-for pr in <list of PR numbers>; do
-  gh pr view "$pr" --json state,mergedAt --jq '"\(.state) mergedAt=\(.mergedAt)"'
-done
-# merged + mergedAt set → use past tense
-# OPEN / mergedAt null  → use pending tense
-```
-
-Reviewers will flag any past-tense claim on an epic branch if the underlying PR is still open
-(the file on the branch will contradict the claim). Fix before requesting re-review.
-
-#### H. Cross-repo citation discipline in append-only ADRs
-
-ADRs are frozen once Accepted. Any unverifiable claim baked into an Accepted ADR is permanent.
-Apply these rules **before drafting** any ADR that references work in other repos or external docs.
-
-**Rule 1 — Verify ADR numbers on disk before asserting they exist.**
-
-```bash
-ls docs/adr/
-# Only assert "ADR-NNN" if docs/adr/ADR-NNN-*.md appears in this listing.
-# If the number came from an implementation plan or external source, treat it as unverified.
-```
-
-**Rule 2 — Use commit SHAs for cross-repo work, not asserted ADR numbers.**
-
-When documenting that another repo made a decision, prefer:
-
-```markdown
-# GOOD: verifiable evidence
-The C++ HMAS hierarchy extraction is verifiable via commits 473da6a/341ae56 in ProjectAgamemnon.
-
-# BAD: unverifiable assertion
-ADR-015 subsequently extracted the C++ HMAS hierarchy.
-```
-
-If the external ADR number cannot be verified on disk, fall back to "external docs cite ADR-NNN"
-framing, paired with the commit SHA or file:line citation that proves the work happened.
-
-**Rule 3 — Cite `<file>:<line>` for CLAUDE.md or internal-doc claims.**
-
-Never write "Keystone's internal documentation refers to this decision as 'ADR-016'" without citing
-the exact file and line. Use:
-
-```bash
-grep -n 'ADR-016' submodule/CLAUDE.md
-# → CLAUDE.md:144, CLAUDE.md:156 — cite these line numbers in the ADR
-```
-
-Template for a cross-repo label claim:
-
-```markdown
-ProjectKeystone's `CLAUDE.md` (lines 144, 156) labels the Python orchestration layer as ADR-016.
-```
-
-**Rule 4 — Frame unverifiable external ADR numbers as "external docs cite X".**
-
-| Situation | Safe framing | Unsafe framing |
-| --------- | ------------ | -------------- |
-| External plan says "ADR-015 did X" but no file exists locally | "External docs cite ADR-015; this is not present in `docs/adr/` (001–009 confirmed on disk)." | "ADR-015 subsequently extracted …" |
-| Cross-repo CLAUDE.md mentions a number | "ProjectKeystone `CLAUDE.md:156` labels this layer as ADR-016." | "Keystone's internal documentation refers to this decision as 'ADR-016'." |
-| Cross-repo work verified by commit | "The extraction is verifiable via commits 473da6a/341ae56 in ProjectAgamemnon." | "ADR-015 extracted the C++ hierarchy." |
-
-**Verification checklist before finalising a cross-repo ADR**:
-
-```bash
-# 1. Confirm every ADR number cited exists on disk
-ls docs/adr/   # shows 001-009 → only assert numbers in this range
-
-# 2. Find commit SHAs for cross-repo work
-git -C <submodule-path> log --oneline | grep -i '<keyword>'
-
-# 3. Verify CLAUDE.md line numbers
-grep -n 'ADR-[0-9]\+\|<keyword>' <submodule-path>/CLAUDE.md
-```
-
-#### I. Tracked-symbol anchoring, index membership guard, and the Nygard 4-digit variant (Proposed — verified-local, CI pending)
-
-> The additions in this subsection were captured from ProjectHephaestus issue #1452
-> (2026-06-30). The structural guard test was run and passed locally (4 passed;
-> `markdownlint-cli2` passed); CI had not yet run when this was recorded. Treat as
-> **verified-local** until confirmed in CI.
-
-**Rule 1 — Anchor an ADR that documents code on *tracked* symbols, never on untracked
-working-tree files.** Before writing a Decision section that names a code artifact as the
-canonical implementation, confirm the file is git-tracked:
-
-```bash
-git ls-files hephaestus/agents/invoker.py   # empty output → UNTRACKED → do not cite as canonical
-```
-
-In #1452, ADR-0005 originally cited `hephaestus/agents/invoker.py` / `AgentInvoker` as the
-canonical artifact, but `git ls-files` returned empty — the file was untracked and
-out-of-scope for the PR. If merged, the ADR would document a decision whose primary artifact
-does not exist on `main`, a latent staleness/POLA risk. Fix: anchor on **tracked** symbols
-(`AgentName = Literal["claude","codex","pi"]` at `hephaestus/agents/runtime.py:23`; `is_codex`
-at `runtime.py:205`) and demote the untracked `AgentInvoker` to "illustrative of the direction,
-not the canonical anchor."
-
-**Rule 2 — Verify the audit's *characterization* against the live tree, not just its
-file:line evidence.** Issue #1452 described a "dual-agent" runtime; reading
-`hephaestus/agents/runtime.py:23` showed `Literal["claude","codex","pi"]` — **three** agents.
-The ADR documented the true tri-agent reality and explicitly noted the audit's framing was
-wrong. The count or description in an audit can be wrong, not merely stale — read the live code
-before transcribing the audit's claim into a frozen ADR.
-
-**Rule 3 — Add a bidirectional README↔disk membership-guard test so the ADR index stays
-enumerable.** Mirror the `api_table_docs` membership-guard pattern: assert SET EQUALITY between
-the ADR files linked in the README index and the ADR files on disk, so a stale link OR a
-missing link both fail. In ProjectHephaestus this lives at `tests/unit/docs/test_adr_records.py`
-(a sanctioned extra test dir). The full guard asserts: (a) every `docs/adr/NNNN-*.md` filename
-matches `^\d{4}-[a-z0-9-]+\.md$`; (b) numeric prefixes are contiguous from 1 with no gaps or
-dupes; (c) each ADR has the required Nygard sections (`## Context`, `## Decision`,
-`## Alternatives considered`, `## Consequences`) plus `- Status:` / `- Date:` and a
-`# ADR-NNNN:` title; (d) the README index links **exactly** the set of ADR files on disk.
-
-```python
-def test_readme_index_lists_every_adr() -> None:
-    readme = (ADR_DIR / "README.md").read_text(encoding="utf-8")
-    linked = set(re.findall(r"\(([0-9]{4}-[a-z0-9-]+\.md)\)", readme))
-    on_disk = {p.name for p in _adr_files()}  # *.md excluding README.md
-    assert linked == on_disk, f"index out of sync: missing={on_disk-linked}, stale={linked-on_disk}"
-```
-
-Test the README↔disk SET EQUALITY (`linked == on_disk`), not just one direction — a
-one-directional "every ADR file is linked" check passes silently when README links a deleted ADR.
-
-**Rule 4 — Match the repo's local ADR format; ProjectHephaestus uses the Nygard 4-digit
-variant.** This skill's default is the `ADR-NNN-<slug>.md` / `**Status**:` format. Hephaestus is
-different — document the variant so future ADR work there matches the local convention:
-
-| Aspect | This skill's default | ProjectHephaestus (Nygard 4-digit) |
-| ------ | -------------------- | ---------------------------------- |
-| Filename | `docs/adr/ADR-NNN-<slug>.md` | `docs/adr/NNNN-<kebab>.md` (4-digit zero-padded) |
-| Title | `# ADR-NNN: …` | `# ADR-NNNN: …` |
-| Metadata | `**Status**: …` / `**Date**: …` | list-style `- Status: Accepted` / `- Date: YYYY-MM-DD` / `- Tracks: #NNNN` |
-| Sections | Context / Decision / Rationale / Consequences / Alternatives Considered | `## Context` / `## Decision` / `## Alternatives considered` (lowercase 'c') / `## Consequences` |
-| Markdown gate | `pixi run pre-commit run markdownlint-cli2 --files <paths>` | `pre-commit run markdownlint-cli2 --files <paths>` (hook id `markdownlint-cli2`, NOT `markdownlint`) |
-
-## Failed Attempts
-
-| Attempt | What Was Tried | Why It Failed | Lesson Learned |
-| --------- | ---------------- | --------------- | ---------------- |
-| Single Edit without `replace_all` | Edited only the header status field when deferring | ADR has two status locations (header + Document Metadata); only one was updated | Use `replace_all: true` to catch all occurrences in one edit |
-| `pixi run npx markdownlint-cli2` | Ran markdownlint via npx | `npx: command not found` even inside the pixi environment | Use `pixi run pre-commit run markdownlint-cli2 --files <file>` — pre-commit has the tool |
-| `just pre-commit-all` | Ran `just pre-commit-all` to validate markdown | `just` not available in the worktree shell environment | Use `pixi run pre-commit run ...` instead |
-| Long URL list item on one line | Put `[Issue #NNN](https://...): description` on one line | MD013 fired (line > 120 chars) | Wrap after the closing `)` of the URL onto the next line |
-| Referencing sibling function in comment | Left "see sibling_fn() for details" instead of pointing to the ADR | Still requires navigating to another function — defeats consolidation | Update ALL cross-references to point directly at the new ADR path |
-| Trusting issue-body line numbers | Edited the line number an issue cited for a stale entry | Line number referenced an earlier state of the file | Don't trust line numbers from issue descriptions; grep for the actual pattern |
-| Past-tense claim for open child PR | ADR said "#5182: Split of `any_tensor.mojo` is now ≤3,000 lines" | On the epic branch `any_tensor.mojo` was still 4,106 lines because PR #5503 had not merged; reviewer flagged two threads (line 24 and line 55) — factually false | Use pending tense for open PRs: "Pending split … (PR #XXXX — pending merge to main)"; past tense only for work already on main |
-| "is now" in Consequences for pending PR | Consequences said "`any_tensor.mojo` is now ≤3,000 lines" when PR #5503 was unmerged | False on the branch; same code review thread flagged it as a second major finding | Write "will reach ≤3,000 lines once PR #XXXX merges" for pending outcomes; "is now" only after the PR lands |
-| Assuming the deletion was pending | Searched for an allegedly-stale deleted-file reference | No matches — the file was already removed by a prior PR | Always check both the filesystem AND the ADR independently before editing |
-| Asserting cross-repo ADR number without on-disk verification | ADR-009 draft said "ADR-015 subsequently extracted the C++ HMAS hierarchy" | `ls docs/adr/` shows only 001–009; ADR-015 does not exist in Odysseus; reviewer caught permanently-baked false claim in an append-only document | Run `ls docs/adr/` before asserting any ADR number; if the file isn't listed, reframe as "external docs cite ADR-NNN" + commit SHA evidence |
-| Asserting CLAUDE.md content without file:line citation | ADR-009 draft said "Keystone's internal documentation refers to this decision as 'ADR-016'" | No file:line was cited; reviewer blocked as unverifiable in a frozen document | Run `grep -n 'ADR-016' submodule/CLAUDE.md` first; cite the exact lines (e.g., `CLAUDE.md:144,156`) in the ADR |
-| Trusting implementation plan ADR numbers | Used ADR numbers from a planning doc without verifying on disk | Planning docs can reference ADRs from other repos or future ADRs not yet merged | Always independently verify every ADR number reference with `ls docs/adr/` in the target repo |
-| Citing an untracked working-tree file as an ADR's canonical artifact | ADR-0005 named `hephaestus/agents/invoker.py`/`AgentInvoker` as the implemented abstraction | `git ls-files` showed `invoker.py` was untracked; the ADR would reference a symbol absent from `main` | Run `git ls-files <path>` before citing a code artifact in an ADR; anchor on tracked symbols, mark untracked ones illustrative |
-| One-directional ADR-index check | Considered asserting only "every ADR file is linked in README" | A stale link to a deleted ADR would pass silently | Assert SET EQUALITY (`linked == on_disk`) so stale AND missing links both fail |
-| Trusting the audit's "dual-agent" description | Nearly wrote the ADR for two agents | `runtime.py:23` had `Literal["claude","codex","pi"]` — three | Verify the audit's CHARACTERIZATION against live code, not just its file:line evidence |
-| Abbreviations in ROUTES table | Used `already_go_pr` and `not_impl_go` abbreviations in a ROUTES column | Inconsistent abbreviation drift: reviewers noticed some rows used `implementation_go_pr` (full name) and others used `go_pr` (short); abbreviations are harder to search/cross-ref than full names | Use consistent full-length identifiers in ROUTES and architecture tables; e.g., `already_implementation_go_pr`, `not_implementation_go` — same names must appear in stage documentation and stage-failure handling code |
-| Partial line range in code anchor citation | Referenced ASCII diagram with `:9-30` when diagram extended to line 37 | Reader saw only first part of diagram; later lines (31–37) were missing from citation range; created the impression the design was incomplete | Always cite the COMPLETE line range covering all content (`:9-37` not `:9-30`); verify by reading the lines before committing |
-| Inconsistent file:line for prompt paths | Documented `build_learn_prompt` in one location with `learn.py:111` but omitted file paths in other references | ROUTES table and per-stage docs referenced the same prompt-builder without consistent file:line; hard to locate source via search | Add file path and line number (`prompts/planning.py:223`, `learn.py:111`) to EVERY prompt-builder reference, even when the function appears multiple times; consistency enables cross-referencing and code search |
-
-## Results & Parameters
-
-### ADR file naming
-
-`docs/adr/ADR-NNN-<kebab-description>.md` where `NNN` is the next integer after the highest existing ADR.
-
-### Index row format
+Read title, status, and date from the ADR itself; never infer them from the filename. Insert one row
+in numeric order using the exact local table shape:
 
 ```markdown
 | [ADR-NNN](ADR-NNN-<slug>.md) | Title | Status | YYYY-MM-DD |
 ```
 
-### Deferred-status edit
+For an embedded tree, compare the actual directory listing and tracked paths against the prose.
+Remove phantom files, add missing files, and preserve the existing connector/comment style.
+
+### 5. Consolidate repeated design notes
+
+1. Find every duplicated block and every “see sibling function” reference.
+2. Put the complete constraint, workaround, consequences, alternatives, and supersession criteria
+   in one ADR.
+3. Replace each source block with a two- or three-line direct reference:
 
 ```text
-Tool: Edit
-file_path: docs/adr/ADR-NNN-<name>.md
-old_string: **Status**: Accepted
-new_string: **Status**: Accepted (Deferred)
-replace_all: true
+# <Limitation>; using <workaround>.
+# See docs/adr/ADR-NNN-<slug>.md for rationale.
 ```
 
-### Replacement comment pattern (2–3 lines max)
+4. Search again for obsolete wording and indirect sibling references.
 
-```mojo
-# <Limitation summary>; using <workaround>.
-# See docs/adr/ADR-NNN-<name>.md for rationale.
+### 6. Represent epic and cross-repository state accurately
+
+| Evidence state | Required language |
+| --- | --- |
+| On the documented base/main | “was implemented”, “now has” plus commit/merged PR |
+| Open child PR | “pending”, “will reach once PR #N merges” |
+| External ADR number verified on disk | State it and link/cite the file |
+| External number not verified | “External docs cite ADR-NNN”; add commit or file:line evidence |
+| Untracked planned artifact | “Illustrative/future”, never canonical |
+
+Recheck child PR state immediately before finalizing because tense can change during an epic.
+
+### 7. Add a bidirectional membership guard when consumed
+
+```python
+def test_readme_index_lists_exactly_the_adr_files() -> None:
+    readme = (ADR_DIR / "README.md").read_text(encoding="utf-8")
+    linked = set(re.findall(r"\(([0-9]{4}-[a-z0-9-]+\.md)\)", readme))
+    on_disk = {path.name for path in ADR_DIR.glob("[0-9][0-9][0-9][0-9]-*.md")}
+    assert linked == on_disk, (
+        f"index out of sync: missing={on_disk - linked}, stale={linked - on_disk}"
+    )
 ```
 
-### Markdown line-length fix for long issue links
+Where local policy requires it, also validate filename pattern, contiguous unique numeric prefixes,
+required metadata, title identity, and required section headings. Test behavior and membership, not
+exact prose strings.
 
-```markdown
-- [Issue #NNN](https://github.com/Org/Repo/issues/NNN):
-  Description text that would have exceeded 120 chars
-```
+### 8. Structure a pre-implementation architecture skeleton
 
-### Lint command (pixi)
+Include:
+
+1. a visible pre-implementation status banner;
+2. queue/topology diagram and coordinator/worker ownership;
+3. message, state-transition, and handoff contracts;
+4. per-stage steps, verdicts, failure routes, budgets, labels, and exact source anchors;
+5. one ROUTES table using full consistent identifiers;
+6. seeding and reconstruction rules for stuck state;
+7. sections explicitly marked “finalized in cutover issue #N”.
+
+Cite complete line ranges and repeat consistent file:line anchors wherever the same prompt-builder or
+route appears. Abbreviated identifiers that differ between the route table and stage prose are not
+searchable contracts.
+
+### 9. Validate
 
 ```bash
-pixi run pre-commit run markdownlint-cli2 --files docs/adr/<file>.md
+pre-commit run markdownlint-cli2 --files docs/adr/<adr>.md docs/adr/README.md
+git diff --check
+git diff -- docs/adr
+<repository-command-for-ADR-guard-and-link-tests>
 ```
 
-### Pre-implementation architecture skeleton structure
+Use the repository’s actual tool wrapper. Wrap long linked list items after the link when line-length
+lint applies. Before delivery, repeat file enumeration, index equality, tracked-symbol checks, child
+PR state reads, and cross-repository citations.
 
-When documenting a complex multi-stage system (such as an automation pipeline) that is **not yet fully implemented**, structure the architecture doc to guide future cutover issues:
+## Examples
 
-**Required sections:**
+### Pending child outcome
 
-1. **Status banner** — `> Status: pre-implementation` at the top to signal this is a design, not a runtime specification.
-2. **Queue topology** — Mermaid flowchart + ASCII diagram showing message flow, coordinator role, and worker pools (tag workers `[W:A]`, `[W:B]`, `[W:G]` if parallel or differentiated; tag coordinator steps `[M]` for "main").
-3. **Coordinator/Worker contract** — Explicit specification of message types, state transitions, and handoff semantics (e.g., "Coordinator posts work item to Q and waits for verdict; worker reads, validates, executes, writes verdict; coordinator polls").
-4. **Per-stage documentation** — For each stage: states, steps (tagged with worker/coordinator affinity), exact prompt path with file:line (e.g., `prompts/planning.py:223 get_plan_prompt`), verdicts (success/fail/defer), fail routes, execution budgets, owned labels.
-5. **ROUTES table** — Declarative single-location routing for all stage-failure paths; use full, consistent identifiers (not abbreviations); columns: `Stage`, `Success route`, `Failure route`, `Skip-state route`, etc.
-6. **Seeding/reconstruction classification** — Describe which issue-fields seed the pipeline and how to reconstruct state from log/verdict history for stuck items.
-7. **Finalized-in-cutover sections** — Mark sections with `Finalized in [cutover issue #NNN]` for sections that will be completed during implementation, ensuring readers know what is design vs. what is pending.
+Write “`module.mojo` will reach the target once PR #5503 merges,” not “is now at the target,” while
+the PR is open. After merge, update only under the repository’s ADR mutation/supersession policy.
 
-**Why this structure matters:** Future implementers need to understand intent (topology, contract) before writing code. The ROUTES table as a single source of truth prevents stage handlers from implementing divergent error handling. Full file:line citations in per-stage docs let implementers quickly locate prompt templates and coordinate changes.
+### Unverifiable external ADR number
 
-### Expected outcomes
+If a meta-repository contains ADRs 001–009 but an external plan says ADR-015 performed an extraction,
+do not assert that ADR-015 exists locally. Cite the external wording as external and attach the
+verified implementation commit.
 
-- Index updates are typically a single inserted table row; pre-commit passes (Markdown Lint, ruff, yaml, trailing-whitespace).
-- Status-defer changes are pure label updates with no formatting impact; markdownlint passes first try.
-- Directory-tree fixes are small (e.g., 1 removed, 5 added) and complete in a few minutes.
-- Pre-implementation architecture skeletons pass all doc tests (ADR index guards, link validation, markdown lints) and correctly guide the cutover implementation.
+## Failed Attempts
 
-## Verified On
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --- | --- | --- | --- |
+| Failure 1 | Guess format or next number | Creates a nonconforming or colliding ADR | Read disk, index, and recent ADRs |
+| Failure 2 | Update only one status occurrence | Header and metadata disagree | Replace and verify every occurrence |
+| Failure 3 | Keep “see sibling” comments | Design rationale remains duplicated and indirect | Point every site to the ADR |
+| Failure 4 | Trust issue line numbers | Coordinates drift | Search the current tree |
+| Failure 5 | Use past tense for open PRs | Freezes a false implementation claim | Query live state and use pending language |
+| Failure 6 | Assert external ADR numbers from plans | The referenced record may not exist | Verify on disk or qualify and cite commits |
+| Failure 7 | Cite an untracked canonical symbol | Main cannot satisfy the decision | Anchor on tracked symbols |
+| Failure 8 | Check index in one direction | Stale README links pass | Assert set equality |
+| Failure 9 | Trust an audit’s summary | Characterization can be wrong despite real lines | Read the live symbol/value |
+| Failure 10 | Abbreviate ROUTES inconsistently | Breaks search and cross-reference | Use full stable identifiers everywhere |
+| Failure 11 | Cite a partial line range | Omits part of the claimed artifact | Read and cite the complete range |
+| Failure 12 | Reformat unrelated ADR prose | Expands review surface and risks frozen drift | Make the smallest policy-compliant edit |
+## Results & Parameters
 
-| Project | Context | Details |
-| --------- | --------- | --------- |
-| ProjectOdyssey | Issue #3150, PR #3338 — add missing ADR index row | [history](adr-authoring-indexing-and-maintenance.history) |
-| ProjectOdyssey | Issue #3151, PR #3339 — ADR-003 memory pool Accepted (Deferred) | [history](adr-authoring-indexing-and-maintenance.history) |
-| ProjectOdyssey | Issue #3291, PR #3886 — consolidate FP16 SIMD limitation into ADR-010 | [history](adr-authoring-indexing-and-maintenance.history) |
-| ProjectOdyssey | Issue #3252, PR #3820 — ADR-004 helpers directory tree accuracy | [history](adr-authoring-indexing-and-maintenance.history) |
-| ProjectOdyssey | Issue #5191, PR #5504 — ADR-014 pending-PR accuracy: corrected past-tense claim for open child PR #5503 (commit 20b0d7c7) | [history](adr-authoring-indexing-and-maintenance.history) |
-| Odysseus | Issue #143, branch 143-auto-impl — ADR-009 cross-repo citation discipline: removed unverifiable ADR-015/016 claims; replaced with `ls docs/adr/` verification, commit SHA citations, and `CLAUDE.md:line` references | [history](adr-authoring-indexing-and-maintenance.history) |
-| ProjectHephaestus | Issue #1452 (2026-06-30) — author 4 ADRs (0002–0005) + `docs/adr/README.md` index + structural guard; tracked-symbol anchoring (ADR-0005), bidirectional README↔disk membership guard, tri-agent audit-characterization fix, Nygard 4-digit format variant (verified-local; CI pending) | [history](adr-authoring-indexing-and-maintenance.history) |
-| ProjectHephaestus | Issue #1810, PR #1811 (2026-07-04) — ADR-0006 queue-based in-process automation pipeline + AUTOMATION_LOOP_ARCHITECTURE.md skeleton; discovered ADR guard enforcement via regex patterns, emphasized consistency in full-name use (not abbreviations) in ROUTES tables, full line-range citations for code anchors, file:line consistency for prompt-path references, and pre-implementation skeleton structure (status banner, topology, coordinator/worker contract, per-stage docs, ROUTES table, seeding/reconstruction table, "finalized-in-cutover" sections) | [history](adr-authoring-indexing-and-maintenance.history) |
+| Parameter | Contract |
+| --- | --- |
+| Format | Match repository-local filename, title, metadata, and section case |
+| Accepted record | Append-only or superseded according to local policy |
+| Cross-repo claim | Verified file/commit/line, otherwise explicitly qualified |
+| Epic state | Completion language only for work present on documented base |
+| Index guard | Exact README-link set equals on-disk ADR set |
+| Evidence status | Core verified-ci; tracked-symbol/guard additions verified-local |
+
+## Output Contract
+
+Return the local ADR convention, verified evidence inventory, files and index rows changed, status
+and tense decisions, cross-repository citations, membership/directory proof, lint/link/test commands
+and outcomes, and every remaining unverified claim. Never mark `mixed` evidence as fully CI-verified.
+
+## Companions
+
+- [Case notes](./adr-authoring-indexing-and-maintenance.notes.md)
+- [Version history and superseded snapshot](./adr-authoring-indexing-and-maintenance.history)
