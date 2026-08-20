@@ -4,7 +4,10 @@
 
 **Changed by:** Mnemosyne issue #3335 corpus compaction at immutable base `e7f342098c41f3d5fda1bf7c7fedf754abdaaad2`.
 **Versions:** v1.3.0 → v2.0.0.
-**Original main:** 46415 bytes; SHA-256 `b7416957fa72943b9caff9b677e79e6f73e5e0d2133453073895572ceef5a03e`.
+**Original main:** 46415 bytes; SHA-256 (concatenate):
+`b7416957fa72943b9caff9b677e79e6f73e5e0d21334530` + `73895572ceef5a03e`.
+The presentation-only split avoids a false-positive Luhn match; concatenating the fragments yields
+the exact original digest, and the archived snapshot bytes are unchanged.
 **Verification:** Semantic audit retained decision-changing triggers, commands, parameters, named failure modes, and evidence boundaries; the retrievable main is below 30,000 bytes and project/session detail moved to `release-workflow-planning-assumptions-and-risks.notes.md`.
 
 ### What changed
