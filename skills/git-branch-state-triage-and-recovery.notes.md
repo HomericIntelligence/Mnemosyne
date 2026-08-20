@@ -7,14 +7,14 @@ Supporting cases for
 
 | State/case | Source | Verification | Result |
 | --- | --- | --- | --- |
-| Corpus branch superseded after consolidation | Mnemosyne `feature/myrmidon-merge-triage` | verified-local | Three-way counts and content proved old originals were absorbed |
-| Unrelated-history branch | Mnemosyne `skill/debugging/fixme-todo-cleanup-v2` | verified-local | Content already on main; classified orphan/superseded |
-| Diverged BF16 fix | ProjectOdyssey issue #3088, PR #3197 | verified-local | Reset to remote tip and cherry-picked intended fix |
-| Squash-merge false positives | ProjectHephaestus issues #1041/#1282/#1335 | verified-local | Message/content search proved all branches subsumed |
-| Selective replay after premature merge | LLM360/Inference360 PRs #460/#462 | verified-ci | Missing commits replayed; artifact rebuilt and exact-head review passed |
-| Uncommitted follow-up on merged branch | example-org/metrics-service issue #907, PR #908 | verified-local; CI pending at capture | Stash moved to fresh branch and signed commit |
-| Closed PR replacement | Existing source case around closed unmerged recovery | verified-local | Recovered head published as replacement when reopen refused |
-| Contaminated stacked child | example-org/inference-service PRs #399/#400 | verified-ci | Parent rebased; child rebuilt with exact leases |
+| Corpus branch superseded after consolidation | [Immutable source snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/1ae0cb498e5250c341c2a4bf585f97e2a28060af/skills/git-branch-state-triage-and-recovery.md) for Mnemosyne `feature/myrmidon-merge-triage` | verified-local | Three-way counts and content proved old originals were absorbed |
+| Unrelated-history branch | [Immutable source snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/1ae0cb498e5250c341c2a4bf585f97e2a28060af/skills/git-branch-state-triage-and-recovery.md) for Mnemosyne `skill/debugging/fixme-todo-cleanup-v2` | verified-local | Content already on main; classified orphan/superseded |
+| Diverged BF16 fix | ProjectOdyssey [issue #3088](https://github.com/HomericIntelligence/Odyssey/issues/3088), [PR #3197](https://github.com/HomericIntelligence/Odyssey/pull/3197) | verified-local | Reset to remote tip and cherry-picked intended fix |
+| Squash-merge false positives | ProjectHephaestus [issue #1041](https://github.com/HomericIntelligence/Hephaestus/issues/1041), [#1282](https://github.com/HomericIntelligence/Hephaestus/issues/1282), and [#1335](https://github.com/HomericIntelligence/Hephaestus/issues/1335) | verified-local | Message/content search proved all branches subsumed |
+| Selective replay after premature merge | LLM360/Inference360 [PR #460](https://github.com/LLM360/Inference360/pull/460) and [PR #462](https://github.com/LLM360/Inference360/pull/462) | verified-ci | Missing commits replayed; artifact rebuilt and exact-head review passed |
+| Uncommitted follow-up on merged branch | [Immutable source snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/1ae0cb498e5250c341c2a4bf585f97e2a28060af/skills/git-branch-state-triage-and-recovery.md) for anonymized issue #907 / PR #908 | verified-local; CI pending at capture | Stash moved to fresh branch and signed commit |
+| Closed PR replacement | [Immutable source snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/1ae0cb498e5250c341c2a4bf585f97e2a28060af/skills/git-branch-state-triage-and-recovery.md) for the anonymized closed-PR recovery case | verified-local | Recovered head published as replacement when reopen refused |
+| Contaminated stacked child | [Immutable source snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/1ae0cb498e5250c341c2a4bf585f97e2a28060af/skills/git-branch-state-triage-and-recovery.md) for anonymized PRs #399/#400 | verified-ci | Parent rebased; child rebuilt with exact leases |
 
 ## Detailed Verification
 

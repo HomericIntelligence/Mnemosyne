@@ -7,18 +7,18 @@ Supporting evidence for
 
 | Case | Source | Verification | Result |
 | --- | --- | --- | --- |
-| Commit-gated progress and GO convergence | ProjectHephaestus PR #1084, issue #1083 | verified-ci | Reviewer-side resolution and bounded state vocabulary |
-| Inline diff-hunk validation | ProjectHephaestus PR #1043, issue #1039 | verified-ci | Old/new line parser and HTTP 422 regression tests |
-| One no-commit retry | ProjectHephaestus PR #847 | verified-ci | Verbatim thread injection and forensic marker |
-| GraphQL mutation correction | ProjectHephaestus PRs #906/#1006, issues #905/#999 | verified-ci | Live-schema-compatible selections and inputs |
-| GO-only existing-PR shortcut | ProjectHephaestus PR #1104 | verified-ci | NO-GO PRs re-enter loop |
-| Live head-branch resolution | ProjectHephaestus PR #1106 | verified-ci | `headRefName` replaces issue-derived branch |
-| Zero-thread non-GO iteration | ProjectHephaestus PR #1114, issue #725 | verified-ci | Re-review until GO or true exhaustion |
-| CI gate owns policy | ProjectHephaestus PR #1112 | verified-ci | Removed false LLM policy enforcement |
-| Out-of-scope thread disposition | ProjectHephaestus PR #1245, issue #1216 | verified-local | No edit/commit; empty addressed set |
-| Complete review pagination | ProjectHephaestus issue #2390, PR #2671 | verified-ci | Thread and nested-comment pages collected |
-| Branch-point and post-review rebase | ProjectHephaestus issue #2711, PR #2712 | verified-ci | Reviewed-head re-entry, conflict budget, merge proof |
-| Head-bound normal merges | Issues #2338/#2617/#2371; PRs #2610/#2620/#2652 | verified-ci | Required checks and final reviewed heads bound to merge |
+| Commit-gated progress and GO convergence | ProjectHephaestus [PR #1084](https://github.com/HomericIntelligence/Hephaestus/pull/1084), [issue #1083](https://github.com/HomericIntelligence/Hephaestus/issues/1083) | verified-ci | Reviewer-side resolution and bounded state vocabulary |
+| Inline diff-hunk validation | ProjectHephaestus [PR #1043](https://github.com/HomericIntelligence/Hephaestus/pull/1043), [issue #1039](https://github.com/HomericIntelligence/Hephaestus/issues/1039) | verified-ci | Old/new line parser and HTTP 422 regression tests |
+| One no-commit retry | ProjectHephaestus [PR #847](https://github.com/HomericIntelligence/Hephaestus/pull/847) | verified-ci | Verbatim thread injection and forensic marker |
+| GraphQL mutation correction | ProjectHephaestus [PR #906](https://github.com/HomericIntelligence/Hephaestus/pull/906), [PR #1006](https://github.com/HomericIntelligence/Hephaestus/pull/1006), [issue #905](https://github.com/HomericIntelligence/Hephaestus/issues/905), and [issue #999](https://github.com/HomericIntelligence/Hephaestus/issues/999) | verified-ci | Live-schema-compatible selections and inputs |
+| GO-only existing-PR shortcut | ProjectHephaestus [PR #1104](https://github.com/HomericIntelligence/Hephaestus/pull/1104) | verified-ci | NO-GO PRs re-enter loop |
+| Live head-branch resolution | ProjectHephaestus [PR #1106](https://github.com/HomericIntelligence/Hephaestus/pull/1106) | verified-ci | `headRefName` replaces issue-derived branch |
+| Zero-thread non-GO iteration | ProjectHephaestus [PR #1114](https://github.com/HomericIntelligence/Hephaestus/pull/1114), [issue #725](https://github.com/HomericIntelligence/Hephaestus/issues/725) | verified-ci | Re-review until GO or true exhaustion |
+| CI gate owns policy | ProjectHephaestus [PR #1112](https://github.com/HomericIntelligence/Hephaestus/pull/1112) | verified-ci | Removed false LLM policy enforcement |
+| Out-of-scope thread disposition | ProjectHephaestus [PR #1245](https://github.com/HomericIntelligence/Hephaestus/pull/1245), [issue #1216](https://github.com/HomericIntelligence/Hephaestus/issues/1216) | verified-local | No edit/commit; empty addressed set |
+| Complete review pagination | ProjectHephaestus [issue #2390](https://github.com/HomericIntelligence/Hephaestus/issues/2390), [PR #2671](https://github.com/HomericIntelligence/Hephaestus/pull/2671) | verified-ci | Thread and nested-comment pages collected |
+| Branch-point and post-review rebase | ProjectHephaestus [issue #2711](https://github.com/HomericIntelligence/Hephaestus/issues/2711), [PR #2712](https://github.com/HomericIntelligence/Hephaestus/pull/2712) | verified-ci | Reviewed-head re-entry, conflict budget, merge proof |
+| Head-bound normal merges | ProjectHephaestus [issue #2338](https://github.com/HomericIntelligence/Hephaestus/issues/2338), [#2617](https://github.com/HomericIntelligence/Hephaestus/issues/2617), [#2371](https://github.com/HomericIntelligence/Hephaestus/issues/2371); [PR #2610](https://github.com/HomericIntelligence/Hephaestus/pull/2610), [#2620](https://github.com/HomericIntelligence/Hephaestus/pull/2620), [#2652](https://github.com/HomericIntelligence/Hephaestus/pull/2652) | verified-ci | Required checks and final reviewed heads bound to merge |
 
 ## Detailed Evidence
 

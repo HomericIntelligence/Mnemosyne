@@ -7,12 +7,12 @@ Supporting evidence for
 
 | Case | Source | Verification | Material result |
 | --- | --- | --- | --- |
-| Weighted-RMSNorm workload and roofline matrix | CUDA monokernel benchmark, 2026-07-30 | verified-local | Full rootless host suite, H200 correctness/Compute Sanitizer, 14-case Nsys matrix |
-| Five-position minimax campaign | BF16 full-decoder monokernel campaign | verified-local | Immutable screen/confirmation and trigger-based reconsideration |
-| Shared-lane rebaseline | Full-decoder campaign | verified-local | Candidate compared only with adjacent champion under one lane |
-| Compiler-materialized composition | Full-decoder campaign | verified-local | Distinct runnable binary timed regardless of static resource direction |
-| Reachability and binary deduplication | Full-decoder campaign | verified-local | Unreachable/byte-identical candidates marked invalid, not performance-rejected |
-| Numerical topology and GPU isolation | Full-decoder campaign | verified-local | Trusted-reference cache checks; overlapping-process timings invalidated |
+| Weighted-RMSNorm workload and roofline matrix | [Immutable source snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/1ae0cb498e5250c341c2a4bf585f97e2a28060af/skills/bf16-monokernel-sol-profiling.md) for the CUDA monokernel benchmark, 2026-07-30 | verified-local | Full rootless host suite, H200 correctness/Compute Sanitizer, 14-case Nsys matrix |
+| Five-position minimax campaign | [Immutable source snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/1ae0cb498e5250c341c2a4bf585f97e2a28060af/skills/bf16-monokernel-sol-profiling.md) for the BF16 full-decoder campaign | verified-local | Immutable screen/confirmation and trigger-based reconsideration |
+| Shared-lane rebaseline | [Immutable source snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/1ae0cb498e5250c341c2a4bf585f97e2a28060af/skills/bf16-monokernel-sol-profiling.md) for the full-decoder campaign | verified-local | Candidate compared only with adjacent champion under one lane |
+| Compiler-materialized composition | [Immutable source snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/1ae0cb498e5250c341c2a4bf585f97e2a28060af/skills/bf16-monokernel-sol-profiling.md) for the full-decoder campaign | verified-local | Distinct runnable binary timed regardless of static resource direction |
+| Reachability and binary deduplication | [Immutable source snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/1ae0cb498e5250c341c2a4bf585f97e2a28060af/skills/bf16-monokernel-sol-profiling.md) for the full-decoder campaign | verified-local | Unreachable/byte-identical candidates marked invalid, not performance-rejected |
+| Numerical topology and GPU isolation | [Immutable source snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/1ae0cb498e5250c341c2a4bf585f97e2a28060af/skills/bf16-monokernel-sol-profiling.md) for the full-decoder campaign | verified-local | Trusted-reference cache checks; overlapping-process timings invalidated |
 
 ## Reusable Parameter Record
 

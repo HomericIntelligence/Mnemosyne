@@ -8,15 +8,15 @@ The byte-exact prior main is archived once in the history companion and is not d
 
 | Case | Source | Verification | Disposition |
 | --- | --- | --- | --- |
-| Split one issue across isolated owners | ProjectScylla issue #1887, PRs #1932/#1933 | verified-ci | Successful split with explicit ownership |
-| Remote branch collision and partial contamination | ProjectAgamemnon PRs #386, #398, #401 | verified-ci | Unique branch names; rebuild contaminated branch by cherry-pick |
-| Shared-checkout contamination | ProjectAgamemnon PRs #407/#409/#410; ProjectOdyssey PR #5363 | verified-ci | Dedicated worktrees; consolidate already-tangled commits |
-| Closed `cherry=+` branch was superseded | ProjectHephaestus PR #586; content via #583/#585/#587 | verified-local | PR/content/path evidence over cherry count |
-| Foreign repository under a worktree-looking path | ProjectHephaestus cleanup audit, 2026-06-15 | verified-local | Remote mismatch made directory out of scope |
-| Cross-process create race | ProjectHephaestus issue #1567, PR #1568 | verified-local; CI pending at capture | Reusable `fcntl.flock` helper around sweep/allocation |
-| Submodule worktree removal refusal | Odysseus cleanup, 2026-07-13; PR #5582 context | verified-local | Plain remove and deinit failed; force command handed to user |
-| First-writer-wins shared branch | ProjectHephaestus design review, 2026-07-26 | unverified | Proposed typed ownership/admission contract |
-| NUL-safe porcelain parser | ProjectHephaestus cleanup plan, 2026-08-06 | unverified | Proposed `--porcelain -z` stateful parser |
+| Split one issue across isolated owners | ProjectScylla [issue #1887](https://github.com/HomericIntelligence/Scylla/issues/1887), [PR #1932](https://github.com/HomericIntelligence/Scylla/pull/1932), and [PR #1933](https://github.com/HomericIntelligence/Scylla/pull/1933) | verified-ci | Successful split with explicit ownership |
+| Remote branch collision and partial contamination | ProjectAgamemnon [PR #386](https://github.com/HomericIntelligence/Agamemnon/pull/386), [PR #398](https://github.com/HomericIntelligence/Agamemnon/pull/398), and [PR #401](https://github.com/HomericIntelligence/Agamemnon/pull/401) | verified-ci | Unique branch names; rebuild contaminated branch by cherry-pick |
+| Shared-checkout contamination | ProjectAgamemnon [PR #407](https://github.com/HomericIntelligence/Agamemnon/pull/407), [PR #409](https://github.com/HomericIntelligence/Agamemnon/pull/409), and [PR #410](https://github.com/HomericIntelligence/Agamemnon/pull/410); ProjectOdyssey [PR #5363](https://github.com/HomericIntelligence/Odyssey/pull/5363) | verified-ci | Dedicated worktrees; consolidate already-tangled commits |
+| Closed `cherry=+` branch was superseded | ProjectHephaestus [PR #586](https://github.com/HomericIntelligence/Hephaestus/pull/586); content via [#583](https://github.com/HomericIntelligence/Hephaestus/pull/583), [#585](https://github.com/HomericIntelligence/Hephaestus/pull/585), and [#587](https://github.com/HomericIntelligence/Hephaestus/pull/587) | verified-local | PR/content/path evidence over cherry count |
+| Foreign repository under a worktree-looking path | [Immutable source snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/1ae0cb498e5250c341c2a4bf585f97e2a28060af/skills/git-worktree-parallel-execution-lifecycle.md) of the ProjectHephaestus cleanup audit, 2026-06-15 | verified-local | Remote mismatch made directory out of scope |
+| Cross-process create race | ProjectHephaestus [issue #1567](https://github.com/HomericIntelligence/Hephaestus/issues/1567), [PR #1568](https://github.com/HomericIntelligence/Hephaestus/pull/1568) | verified-local; CI pending at capture | Reusable `fcntl.flock` helper around sweep/allocation |
+| Submodule worktree removal refusal | [Immutable source snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/1ae0cb498e5250c341c2a4bf585f97e2a28060af/skills/git-worktree-parallel-execution-lifecycle.md) of the Odysseus cleanup, 2026-07-13; ProjectOdyssey [PR #5582](https://github.com/HomericIntelligence/Odyssey/pull/5582) context | verified-local | Plain remove and deinit failed; force command handed to user |
+| First-writer-wins shared branch | [Immutable source snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/1ae0cb498e5250c341c2a4bf585f97e2a28060af/skills/git-worktree-parallel-execution-lifecycle.md) of the ProjectHephaestus design review, 2026-07-26 | unverified | Proposed typed ownership/admission contract |
+| NUL-safe porcelain parser | [Immutable source snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/1ae0cb498e5250c341c2a4bf585f97e2a28060af/skills/git-worktree-parallel-execution-lifecycle.md) of the ProjectHephaestus cleanup plan, 2026-08-06 | unverified | Proposed `--porcelain -z` stateful parser |
 
 ## Detailed Evidence
 

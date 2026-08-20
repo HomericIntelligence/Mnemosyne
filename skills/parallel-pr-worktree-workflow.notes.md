@@ -7,15 +7,15 @@ Supporting evidence for
 
 | Case | Source | Verification | Result |
 | --- | --- | --- | --- |
-| Bulk rebase waves | ProjectOdyssey 70 PRs; ProjectScylla 13 PRs | verified-local | Three/four batched workers with isolated state |
-| Six-wave patch series | ProjectArgus PRs #463–#474 | verified-ci | First-wave bleed-over eliminated by per-agent worktrees |
-| Contamination consolidation | ProjectOdyssey PR #5363 | verified-ci | Eight tangled worker PRs collapsed into one branch |
-| Shared prerequisite fan-out | ProjectHephaestus output-log fixes, 2026-06-13 | verified-local | Prerequisite landed before five isolated fixes |
-| Stacked auto-merge orphan | ProjectHephaestus session, 2026-06-14 | verified-local | Retarget-before-arm rule and cherry-pick recovery |
-| Current-head CI rescue | example-org/inference-service PRs #149/#155/#156/#157 | verified-ci | Logs, mergeability, focused tests, current-head polling |
-| Conflict-before-validate | example-org/inference-service PRs #155/#254 | verified-ci | Rebase restored merge refs and checks |
-| Endpoint-only workflow drift | example-org/inference-service PR #255 | verified-ci | Full-log diagnosis, tests, current CLI commands |
-| Stale branch missing trunk dependency fix | ProjectHephaestus PRs #1731/#1732; prerequisite #1730 | verified-ci | Detached rebase, exact lease, green current-head checks |
+| Bulk rebase waves | [Immutable source snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/1ae0cb498e5250c341c2a4bf585f97e2a28060af/skills/parallel-pr-worktree-workflow.md) for the ProjectOdyssey 70-PR and ProjectScylla 13-PR sessions | verified-local | Three/four batched workers with isolated state |
+| Six-wave patch series | ProjectArgus [PR #463](https://github.com/HomericIntelligence/Argus/pull/463) through [PR #474](https://github.com/HomericIntelligence/Argus/pull/474) | verified-ci | First-wave bleed-over eliminated by per-agent worktrees |
+| Contamination consolidation | ProjectOdyssey [PR #5363](https://github.com/HomericIntelligence/Odyssey/pull/5363) | verified-ci | Eight tangled worker PRs collapsed into one branch |
+| Shared prerequisite fan-out | [Immutable source snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/1ae0cb498e5250c341c2a4bf585f97e2a28060af/skills/parallel-pr-worktree-workflow.md) for the ProjectHephaestus output-log session, 2026-06-13 | verified-local | Prerequisite landed before five isolated fixes |
+| Stacked auto-merge orphan | [Immutable source snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/1ae0cb498e5250c341c2a4bf585f97e2a28060af/skills/parallel-pr-worktree-workflow.md) for the ProjectHephaestus session, 2026-06-14 | verified-local | Retarget-before-arm rule and cherry-pick recovery |
+| Current-head CI rescue | [Immutable source snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/1ae0cb498e5250c341c2a4bf585f97e2a28060af/skills/parallel-pr-worktree-workflow.md) for anonymized PRs #149/#155/#156/#157 | verified-ci | Logs, mergeability, focused tests, current-head polling |
+| Conflict-before-validate | [Immutable source snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/1ae0cb498e5250c341c2a4bf585f97e2a28060af/skills/parallel-pr-worktree-workflow.md) for anonymized PRs #155/#254 | verified-ci | Rebase restored merge refs and checks |
+| Endpoint-only workflow drift | [Immutable source snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/1ae0cb498e5250c341c2a4bf585f97e2a28060af/skills/parallel-pr-worktree-workflow.md) for anonymized PR #255 | verified-ci | Full-log diagnosis, tests, current CLI commands |
+| Stale branch missing trunk dependency fix | ProjectHephaestus [PR #1731](https://github.com/HomericIntelligence/Hephaestus/pull/1731), [PR #1732](https://github.com/HomericIntelligence/Hephaestus/pull/1732), prerequisite [PR #1730](https://github.com/HomericIntelligence/Hephaestus/pull/1730) | verified-ci | Detached rebase, exact lease, green current-head checks |
 
 ## Detailed Evidence
 
