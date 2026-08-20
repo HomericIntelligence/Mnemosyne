@@ -1,497 +1,184 @@
 ---
 name: git-commit-signing-failures-and-setup
-description: "Diagnose and fix commit signing failures that block PR merge under required_signatures / pr-policy gates. Use when: (1) a PR shows mergeStateStatus BLOCKED with all CI green and mergeable MERGEABLE — suspect unsigned or unverified commits, (2) GPG commit.gpgsign=true produces commits GitHub reports as verified=false with reason=no_user because the author email has no matching UID on the signing key, (3) sub-agent shells inherit commit.gpgsign=true but silently fail to sign due to un-warmed gpg-agent or wrong default key, (4) setting up commit signing on a fresh remote/headless/CI host for the first time using SSH signing keys, (5) git push is rejected with 'push declined due to email privacy restrictions' even though signing appears correct, (6) the pr-policy required-check gate reports unsigned commits even though local git log shows signatures, (7) an OPEN PR stays BLOCKED under required_signatures because a prior `git commit --amend -S` produced a SIBLING (same parent+tree, new SHA) — a DIVERGED non-descendant that GitHub will NOT adopt as the PR head, so the signed commit sits on the branch invisible to the PR (fix: replay the PATCHES re-signed onto the correct base with `git format-patch`/`git am --gpg-sign`, then force-push so the PR head follows), (8) `gh pr close`+`reopen` or `gh api .../update-branch` failed to re-sync a re-signed head (a merge commit whose parent is still unsigned stays BLOCKED)"
+description: "Use when required-signature policy blocks a conflict-free PR; GitHub reports unsigned, no_user, unknown_key, or bad signatures; local cryptographic checks disagree with GitHub; noninteractive workers silently fail to sign; a fresh headless host needs SSH signing; email privacy rejects a push; or amend produced a signed sibling that the PR did not adopt. Diagnose with REST, align identity and registered key, re-sign every introduced commit without changing content, and verify the exact remote PR head before merge."
 category: tooling
 date: 2026-07-13
-version: "1.1.0"
+version: "2.0.0"
 user-invocable: false
-verification: verified-local
+license: BSD-3-Clause
+verification: mixed
 history: git-commit-signing-failures-and-setup.history
-tags:
-  - git
-  - gpg
-  - ssh-signing
-  - commit-signing
-  - required-signatures
-  - pr-policy
-  - branch-protection
-  - noreply-email
-  - email-privacy
-  - gpg-agent
-  - graphql-lag
-  - headless
-  - agent-dispatch
-  - amend-sibling
-  - pr-head-desync
-  - fast-forward
-  - force-push
-  - format-patch
+tags: [git, commit-signing, gpg, ssh-signing, required-signatures, github, identity, headless, force-with-lease, pr-head]
 ---
 
 # Git Commit Signing: Failures and Setup
 
 ## Overview
 
-| Field | Value |
-|-------|-------|
-| **Date** | 2026-07-13 |
-| **Objective** | Diagnose and remediate commit-signing failures that block PR merge under `required_signatures` / `pr-policy` gates (silent unsigned commits, email/key-UID mismatch producing `no_user`, un-warmed gpg-agent in sub-shells, GraphQL lag, **and the `--amend`-produces-a-sibling PR-head-desync trap**), AND set up GitHub-valid signing from scratch on a fresh remote/headless host using SSH signing keys |
-| **Outcome** | Successful — re-authored and re-signed blocked PRs across multiple repos (Keystone #552, Hephaestus #1021/#1026/#1071, #900) flipping commits to `verified: true`; set up first-time SSH signing on headless host `aeolus` and confirmed `verification.verified == true` via REST. Example D (PR-head desync) reconstructed from evidence on Mnemosyne #3021 — the recommended in-place patch-replay fix is the correct approach but was not run end-to-end to a green merge (the session escaped via a fresh PR), so that example is `verified-local` |
-| **Verification** | verified-local (core signing workflow is verified-ci; the new Example D PR-head-desync fix is reasoned + partially executed, not run to a merged green gate) |
+A green, conflict-free PR can remain blocked because every introduced commit must satisfy GitHub
+signature policy. Local `%G?` proves cryptography against the local keyring; GitHub REST proves
+registered-key and identity attribution. Treat those as separate gates, and treat email-privacy push
+acceptance as a third gate.
+
+Verification is `mixed`: the core GPG/SSH remediation is CI-backed, while the in-place patch-replay
+recovery for a PR head pinned to an unsigned sibling was reconstructed and partially exercised but
+not completed through a green merge. Case evidence is in
+[the notes](./git-commit-signing-failures-and-setup.notes.md); the exact prior skill is in
+[history](./git-commit-signing-failures-and-setup.history).
 
 ## When to Use
 
-- A PR's `gh pr view --json mergeStateStatus` returns `BLOCKED` while `mergeable` returns `MERGEABLE` and every CI check is `SUCCESS` — `mergeable` only means "no conflicts", NOT "passes branch protection". The authoritative blocker is usually the `pr-policy` / signature gate.
-- `gh api repos/<O>/<R>/pulls/<N>/commits --jq '.[].commit.verification'` shows `verified: false, reason: "no_user"` (signed locally but author/committer email has no matching UID on the key registered to the GitHub account).
-- A direct merge fails with `the base branch policy prohibits the merge` — `required_signatures` cannot be admin-bypassed at the merge layer.
-- You are dispatching sub-agents (Myrmidon swarm workers, code-review fixers) that override `user.email` to a bot identity while inheriting a personal GPG key, OR that need to create signed commits in a repo with `pr-policy`.
-- You are auditing a multi-repo / multi-agent sweep where a few agents may have local config overrides that desync `user.email` from the GPG key UID.
-- `gh pr view --json commits` shows `signature.state=null` / `UNSIGNED` for newly-pushed commits — the GraphQL field lags reality by 10+ minutes; cross-check via REST `/commits/<sha>` before acting.
-- A sub-agent push produces unsigned commits despite global `commit.gpgsign=true` — usually a non-pre-warmed `gpg-agent` in the non-interactive subshell, not config propagation.
-- You are tempted to "fix" `no_user` by adding a `+suffix` bot noreply email as a GPG key UID — STOP, it cannot be verified on a GitHub account.
-- You are setting up commit signing for the FIRST time on a fresh remote / headless / CI host (no GUI) using an SSH signing key.
-- `git push` is rejected with `push declined due to email privacy restrictions` even though the commit is correctly signed.
-- `gh api user/ssh_signing_keys` / `gh ssh-key add --type signing` returns HTTP 404 (token lacks `admin:ssh_signing_key` scope), or commits land Unverified because a key was added auth-only (missing `--type signing`).
-- You authored commits via the GitHub Contents REST API expecting auto-signing and they come back `verification.reason=unsigned`.
-- You are building automated re-sign / fleet tooling that must validate the resign email against the key UIDs and must NEVER rewrite PRs it does not own.
-- An OPEN PR stays BLOCKED under `required_signatures` for days even after you "re-signed" its head — because a prior `git commit --amend -S` wrote a **sibling** commit (same parent + same tree, new SHA) that is a DIVERGED non-descendant of the PR head. GitHub advances an open PR's head **only** on a fast-forward descendant push, so force-pushing the sibling updates the branch ref but leaves the PR head PINNED to the old unsigned commit (Example D).
-- `gh pr close`+`gh pr reopen` did NOT re-sync a diverged head, and `gh api .../pulls/<N>/update-branch` created a merge commit whose PARENT is still the unsigned commit — `required_signatures` rejects EVERY unsigned commit the PR introduces, not just the head, so both left the PR BLOCKED (Example D).
+- `mergeStateStatus` is BLOCKED although `mergeable` is MERGEABLE and checks are green.
+- REST reports `unsigned`, `no_user`, `unknown_key`, or another non-valid reason.
+- `git log --show-signature` is good but GitHub still marks the commit unverified.
+- An agent inherits `commit.gpgsign=true` yet emits unsigned commits in a noninteractive shell.
+- A fresh remote/headless host needs GitHub-valid SSH signing.
+- Git rejects a signed commit for exposing a private email.
+- GraphQL says UNSIGNED shortly after push while REST may already say valid.
+- A tip-only amend leaves older commits unsigned.
+- A signed amend creates a sibling SHA and the open PR remains pinned to the old head.
+- Fleet tooling might rewrite a bot or another owners PR.
 
 ## Verified Workflow
 
 ### Quick Reference
 
 ```bash
-# --- DIAGNOSE a BLOCKED PR with green CI ---
-gh pr view <N> --repo <O>/<R> --json mergeStateStatus,mergeable,statusCheckRollup
+gh pr view <N> --repo <O>/<R> \
+  --json mergeStateStatus,mergeable,statusCheckRollup,headRefOid
 gh api repos/<O>/<R>/pulls/<N>/commits \
-  --jq '.[].commit.verification'        # look for verified:false reason:"no_user"/"unsigned"
+  --jq '[.[] | {sha:.sha,verified:.commit.verification.verified,reason:.commit.verification.reason}]'
 
-# --- AUTHORITATIVE per-commit check (REST, NOT GraphQL — GraphQL lags 10+ min) ---
+# Local tripwire after the first commit; G is required.
+git log -1 --pretty=format:'%G?'
+
+# GitHub is authoritative for hosted policy attribution.
 gh api repos/<O>/<R>/commits/<sha> \
-  --jq '.commit.verification | "verified=\(.verified) reason=\(.reason)"'
+  --jq '.commit.verification | {verified,reason,signature,payload}'
+```
 
-# --- PREFLIGHT tripwire (run inside agent after first commit, before push) ---
-git log -1 --pretty=format:'%G?'        # MUST print 'G' (not 'N'/'B'/'E')
+### 1. Classify the blocker
 
-# --- FIX: re-author every commit to key-owner identity AND re-sign ---
-unset GITHUB_TOKEN GH_TOKEN
-cd "$WORKTREE"
-git config user.email "<ID>+<USERNAME>@users.noreply.github.com"   # MUST be a UID on the key
-git config user.name  "<Key Owner Name>"
-OLD_HEAD=$(git rev-parse HEAD)
-git fetch origin
-git rebase origin/main --exec 'git commit --amend --no-edit --reset-author -S'
-git diff "$OLD_HEAD" HEAD                # MUST be EMPTY (content byte-identical)
-git log origin/main..HEAD --pretty=format:'%h %G? %an %s'   # every row col-2 = G
-git push --force-with-lease origin "$BRANCH"
+`mergeable` reports conflicts, not policy. Query `mergeStateStatus`, required checks, rulesets, and
+every PR commit through REST. Use REST immediately after push; GraphQL signature fields can lag.
 
-# --- SET UP SSH signing on a fresh remote/headless host ---
-ssh-keygen -t ed25519 -f ~/.ssh/id_signing_ed25519 -N ""
+| REST reason | Interpretation | Next action |
+| --- | --- | --- |
+| `unsigned` | Commit has no signature | Configure/prime signing and rewrite every affected commit |
+| `no_user` | Signed identity is not attributable to the GitHub user | Use a verified email or canonical noreply identity and re-sign |
+| `unknown_key` | Signing key is not registered for signing | Register the correct GPG/SSH signing key |
+| `valid` | Signature policy is not the blocker | Inspect missing contexts, reviews, conversations, and issue-link policy |
+
+Record the base SHA, PR head SHA, branch ref SHA, and commit range before rewriting. Do not mutate a
+PR you do not own.
+
+### 2. Align author, committer, and key
+
+For GPG, the author/committer email must be a UID attributable to the registered key and GitHub
+account. The canonical private-email-safe identity is
+`<numeric-id>+<login>@users.noreply.github.com`; derive both components from `gh api user`. A custom
+`+bot` suffix is not equivalent.
+
+Pin the signing subkey when multiple secret keys exist. In a noninteractive shell, export a valid
+`GPG_TTY` when available and perform a harmless signing/agent-availability preflight before rewriting
+history. Fail immediately if `%G?` is not `G`.
+
+For SSH signing on a headless host:
+
+```bash
 git config --global gpg.format ssh
-git config --global user.signingkey ~/.ssh/id_signing_ed25519.pub   # PUBLIC key path, not a key id
+git config --global user.signingkey ~/.ssh/id_signing_ed25519.pub
 git config --global commit.gpgsign true
 git config --global gpg.ssh.allowedSignersFile ~/.config/git/allowed_signers
-EMAIL="$(gh api user --jq '.id')+$(gh api user --jq '.login')@users.noreply.github.com"
-git config --global user.email "$EMAIL"
-mkdir -p ~/.config/git
-printf '%s %s\n' "$EMAIL" "$(cat ~/.ssh/id_signing_ed25519.pub)" >> ~/.config/git/allowed_signers
-gh auth refresh -h github.com -s admin:ssh_signing_key            # interactive; cannot be headless
-gh ssh-key add ~/.ssh/id_signing_ed25519.pub --type signing --title "$(hostname)-signing"
+git config --global user.email '<numeric-id>+<login>@users.noreply.github.com'
+gh ssh-key add ~/.ssh/id_signing_ed25519.pub --type signing --title '<host>-signing'
 ```
 
-### Detailed Steps
+The allowed-signers row contains the email, key type, and public-key body. Registering the key as an
+authentication key is insufficient. Adding a signing key may require the interactive
+`admin:ssh_signing_key` scope; do not try to bypass that authorization step.
 
-#### Example A — GPG sign email mismatch silently produces unsigned commits, blocking merge
+### 3. Re-sign the complete introduced range
 
-This is the most common silent failure: `commit.gpgsign=true` is set, but `user.email` is a bot
-identity that has NO matching UID on the configured GPG signing key. GPG produces NO signature and
-**git does not error** (exit 0). The commit lands unsigned (`%G?`=`N`), or signs locally but GitHub
-returns `verified=false reason=no_user`.
-
-1. **Recognize the symptom.** `mergeable: MERGEABLE` does NOT mean "passes branch protection". Query
-   `mergeStateStatus`; `BLOCKED` + all CI green + no pending reviews ⇒ suspect signature verification.
-
-2. **Confirm via the commits API (ground truth):**
-   ```bash
-   gh api repos/<O>/<R>/pulls/<N>/commits --jq '.[].commit.verification'
-   ```
-
-   | `reason` | Meaning | Fix |
-   |----------|---------|-----|
-   | `unsigned` | No signature at all | Configure signing, re-commit with `-S` |
-   | `no_user` | Signed but author/committer email is not a verified email on the key-owner's GitHub account | **This example** — re-author with `{id}+{username}@users.noreply.github.com` AND re-sign |
-   | `unknown_key` | Signed but public key not registered as a signing key | Register key (`--type signing` for SSH) |
-   | `valid` + `verified:true` | Pass | Done |
-
-3. **Confirm root cause locally.**
-   ```bash
-   git config --get user.email; git config --get user.signingkey; git config --get commit.gpgsign
-   gpg --list-keys "$(git config --get user.signingkey)"   # does ANY uid line match user.email?
-   ```
-   If `user.email` is not a UID on the secret key, GPG silently writes the commit without `gpgsig`.
-
-4. **Fix in a worktree** (never the main checkout). Set the key-owner identity repo-locally, then
-   re-author + re-sign EVERY commit since `origin/main` (`--exec` runs the amend per-commit so each
-   gets its own signature; `--reset-author` updates author/committer to the matching identity; `-S`
-   forces signing):
-   ```bash
-   git config user.email "<ID>+<USERNAME>@users.noreply.github.com"
-   git config user.name  "<Real Name on GPG Key>"
-   OLD_HEAD=$(git rev-parse HEAD)
-   git rebase origin/main --exec 'git commit --amend --no-edit --reset-author -S'
-   ```
-
-5. **CRITICAL — content must be byte-identical:** `git diff "$OLD_HEAD" HEAD` must be 0 bytes. If not,
-   STOP and investigate before force-pushing.
-
-6. **Verify locally, force-push, confirm at GitHub:**
-   ```bash
-   git log origin/main..HEAD --pretty=format:'%h %G? %an %s'   # all col-2 = G
-   git push --force-with-lease origin "$BRANCH"
-   TOTAL=$(gh api repos/<O>/<R>/pulls/<N>/commits --jq 'length')
-   VERIFIED=$(gh api repos/<O>/<R>/pulls/<N>/commits \
-     --jq '[.[] | select(.commit.verification.verified == true)] | length')
-   [ "$TOTAL" = "$VERIFIED" ] && echo "ALL SIGNED"
-   ```
-   `mergeStateStatus` flips `BLOCKED` → `CLEAN`; pre-armed `--auto-merge` fires.
-
-7. **Preventative agent tripwire** — gate any committing agent before push:
-   ```bash
-   SIG=$(git log -1 --pretty=format:'%G?')
-   [ "$SIG" = "G" ] || { echo "FATAL sig=$SIG"; git config --get user.email; exit 1; }
-   ```
-
-**GraphQL lag — use REST.** `pullRequest.commits.nodes.commit.signature.state` (via
-`gh pr view --json commits`) returns `null`/`UNSIGNED` for MINUTES-to-HOURS after a push even when
-the commit is verified. The REST `/commits/<sha>` endpoint updates within seconds and is
-authoritative. **Before any remediation based on GraphQL `UNSIGNED`, poll REST on one commit** — if
-`verified=true`, wait, do NOT re-upload the key / force-push / rebase.
-
-**`+suffix` noreply emails cannot be verified — do NOT patch the key.** GitHub only accepts two email
-shapes as account-verifiable: `{id}+{username}@users.noreply.github.com` (canonical ID-prefixed
-noreply) or a real email added+verified in settings. An arbitrary `{username}+anything@users.noreply.github.com`
-variant (e.g. `user+bot@...`) can NEVER become a verified account email, so adding it as a key UID
-does not clear `no_user`. Fix at the identity layer (set the committer email to the canonical
-ID-prefixed noreply) or fix the global `~/.gitconfig` so automation never writes the `+bot` email.
-```bash
-gpg --list-keys --with-colons "$KEY" | awk -F: '/^uid:/{print $10}'  # UID emails the key can sign as
-```
-
-**Always pin the signing key; re-verify HEAD after every commit.** Bare `git commit -S` can fall back
-to a foreign default secret key (`%G?`=`E`, "No public key"); pin it:
-`git -c user.signingkey=<signing-subkey> commit -S`. A pre-commit hook that exits non-zero aborts the
-commit and leaves HEAD unmoved — `git log --show-signature` then shows the PREVIOUS commit, which looks
-like corruption but is just "the commit never happened". Capture rc and compare `git rev-parse HEAD`
-before/after.
-
-#### Example B — SSH noreply-email signing on a fresh remote/headless host
-
-Set up GitHub-valid (`verification.verified==true`) signing from scratch on a headless host with no
-existing key, satisfying BOTH the signature gate AND the email-privacy push block.
-
-1. **Generate an ed25519 SSH signing keypair** with an empty passphrase (headless, non-interactive):
-   ```bash
-   ssh-keygen -t ed25519 -f ~/.ssh/id_signing_ed25519 -N ""
-   ```
-
-2. **Wire git's SSH-signing config (global).** `gpg.format ssh` switches git from GPG to SSH; for SSH,
-   `user.signingkey` is the **public key file path** (not a key id):
-   ```bash
-   git config --global gpg.format ssh
-   git config --global user.signingkey ~/.ssh/id_signing_ed25519.pub
-   git config --global commit.gpgsign true
-   git config --global gpg.ssh.allowedSignersFile ~/.config/git/allowed_signers
-   ```
-
-3. **Populate the allowed_signers file** so local `git log --show-signature` can verify
-   (`<email> <pubkey-type> <pubkey-body>`):
-   ```bash
-   mkdir -p ~/.config/git
-   EMAIL="$(gh api user --jq '.id')+$(gh api user --jq '.login')@users.noreply.github.com"
-   printf '%s %s\n' "$EMAIL" "$(cat ~/.ssh/id_signing_ed25519.pub)" >> ~/.config/git/allowed_signers
-   ```
-
-4. **Set the author to the noreply email — CRITICAL.** Derivation
-   `<numeric-id>+<login>@users.noreply.github.com` (e.g. `4211002+mvillmow@users.noreply.github.com`).
-   If "Block command-line pushes that expose my email" is enabled, pushing a commit authored with the
-   real gmail email is rejected even with correct signing. The noreply email BOTH bypasses the push
-   block AND verifies against the registered key:
-   ```bash
-   git config --global user.email "$EMAIL"
-   ```
-
-5. **Grant the missing scope, then register the PUBLIC key as a SIGNING key.** The default `gh` token
-   lacks `admin:ssh_signing_key` (API returns 404 without it); the grant is interactive — a human must
-   approve the device-code/browser flow, it CANNOT be done headlessly. `--type signing` is
-   essential — without it the key registers as an **auth** key and commits stay Unverified:
-   ```bash
-   gh auth refresh -h github.com -s admin:ssh_signing_key
-   gh ssh-key add ~/.ssh/id_signing_ed25519.pub --type signing --title "$(hostname)-signing"
-   ```
-
-6. **Verify end-to-end on a throwaway branch before trusting a batch.** Signature validity is checkable
-   via REST independently of any push policy:
-   ```bash
-   git checkout -b verify-signing-scratch
-   git commit --allow-empty -S -m "verify signing"
-   git push -u origin verify-signing-scratch
-   gh api repos/<owner>/<repo>/commits/$(git rev-parse HEAD) --jq .commit.verification.verified  # true
-   git push origin --delete verify-signing-scratch
-   ```
-
-#### Example C — cryptographic signed-commit pr-policy gate validation
-
-The `pr-policy` required-check gate runs at the GitHub GraphQL API layer (not just a CI runner) and
-validates: (1) every commit in the PR is cryptographically signed, (2) the PR body contains literal
-`Closes #<n>` (capital C, no colon), (3) auto-merge is enabled (`gh pr merge --auto --squash`). If ANY
-fail, the `pr-policy` check status is `BLOCKED` — **silently, with no log message** — and auto-merge
-does not fire even when armed.
-
-1. **Recognize the silent block** — all other checks SUCCESS, `pr-policy` BLOCKED, no error text:
-   ```bash
-   gh pr view <N> --json mergeStateStatus,mergeable,statusCheckRollup
-   # mergeStateStatus:BLOCKED, mergeable:MERGEABLE, pr-policy status:BLOCKED, others SUCCESS
-   ```
-
-2. **Diagnose unsigned commits — local (fast) then API (authoritative):**
-   ```bash
-   git log origin/main..HEAD --pretty=format:'%h %G? %an — %s'   # any 'N' = unsigned
-   gh pr view <N> --json commits \
-     --jq '.commits[] | {oid:.oid[0:7], state:.commit.signature.state}'
-   ```
-
-   | `signature.state` | Meaning | Fix |
-   |-------------------|---------|-----|
-   | `VALID` | Signed and verified | None |
-   | `UNSIGNED` | No signature | Re-commit `-S` |
-   | `UNVERIFIED` | Signed but doesn't match GitHub records | gpg-agent / wrong-key config |
-   | `BAD_SIGNATURE` | Verification failed | Key / agent config problem |
-
-3. **Fix** — re-author+re-sign every commit, verify, force-push, confirm:
-   ```bash
-   git fetch origin
-   git rebase origin/main --exec 'git commit --amend --no-edit -S'
-   git log origin/main..HEAD --pretty=format:'%G? %h %s'   # all col-1 = G
-   git push --force-with-lease origin <branch>
-   gh pr view <N> --json mergeStateStatus                  # no longer BLOCKED (unless Closes #N missing)
-   ```
-
-4. **Sign from the start.** Use the GPG/SSH key REGISTERED on your GitHub account (a different local
-   key marks commits `UNVERIFIED`/`BAD_SIGNATURE`). Do not ask to disable `pr-policy` — it is an org
-   security standard, not a per-repo override. Branch protection (including `required_signatures`) is
-   enforced at the GitHub API layer, so force-pushing unsigned commits to a protected branch is
-   rejected before the push lands.
-
-#### Example D — `--amend -S` produces a SIBLING; the PR head never adopts the signed commit
-
-> _(This example's fix is `verified-local`: reconstructed from evidence on Mnemosyne #3021 and
-> partially executed this session, but the clean "re-sign the patches in place, force-push, PR head
-> follows, SAME PR merges green" path was NOT run to a merged gate — the session escaped via a fresh
-> PR. The in-place patch-replay fix below is the CORRECT approach; treat the end-to-end merge as
-> unconfirmed until you run it.)_
-
-An open PR whose head commit is unsigned is BLOCKED by `required_signatures`. The instinct is to
-"re-sign it in place" with `git commit --amend -S` and force-push. **This does not work, and it is
-the root trap:**
-
-- `git commit --amend` reuses the SAME parent and SAME tree but writes a NEW commit object, so the
-  result is a **SIBLING** of the original (same parent, same tree, different SHA), NOT a descendant.
-  Fingerprint: amend keeps the original author-date but stamps a fresh committer-date.
-- A sibling is a DIVERGED commit (`git status` vs the remote = "diverged", ahead 1 / behind 1).
-  Landing it requires a FORCE-push — it is not a fast-forward from the remote tip.
-- **GitHub advances an open PR's head ONLY when the new branch tip is a fast-forward DESCENDANT of
-  the current PR head.** Force-pushing a diverged sibling updates the branch ref but leaves the PR
-  head PINNED to the old unsigned commit. The signed commit sits on the branch, invisible to the PR,
-  and the PR stays BLOCKED indefinitely.
-- `required_signatures` rejects EVERY unsigned commit the PR introduces, not just the head. (Proof:
-  a signed merge commit with an unsigned parent was still BLOCKED.)
-
-**The proper fix — replay the PATCHES (the diff/content), re-signed onto the correct base, NOT the
-commit objects.** The unit of work is the patch, not the commit object: cherry-picking or `--amend`
-copies a commit object and yields a sibling; `format-patch` + `am --gpg-sign` re-creates the commits
-with correct lineage and a signature on each.
+Fetch the base, set the correct identity/key, preserve the old head, then rewrite every introduced
+commit rather than only the tip:
 
 ```bash
-# 1. Identify the PR's commit range: base (fork point) .. head.
-BASE=$(git merge-base origin/main <pr-head-sha>)
-# 2. Export the PR's commits as patches (content, not commit objects).
-git format-patch "$BASE"..<pr-head-sha> -o "$HOME/.tmp/pr-patches"   # use $HOME/.tmp, never /tmp
-# 3. Reset the PR branch to the correct base and re-apply the patches, SIGNING each.
-git checkout -B <pr-branch> "$BASE"
-git am --gpg-sign "$HOME/.tmp/pr-patches"/*.patch
-#    (equivalent: git rebase --exec 'git commit --amend --no-edit -S' "$BASE")
-# 4. Verify EVERY commit in the range is signed — every row's col-2 must be G.
-git log --format='%h %G? %s' "$BASE"..HEAD
-# 5. Force-push the clean re-signed lineage to the SAME PR branch. Force is REQUIRED and
-#    CORRECT here (re-signing rewrites SHAs); --force-with-lease guards against clobbering.
-git push --force-with-lease origin HEAD:<pr-branch>
-# 6. GitHub re-reads the branch; because it is a clean re-signed history on the correct base
-#    (not a competing sibling), the PR head follows to the new signed tip, required_signatures
-#    clears, and the SAME PR becomes mergeable.
+git fetch origin
+old_head=$(git rev-parse HEAD)
+git rebase origin/main --exec 'git commit --amend --no-edit --reset-author -S'
+git diff "$old_head" HEAD                 # must be empty: content unchanged
+git log origin/main..HEAD --format='%H %G? %ae'
 ```
 
-**Crucial distinctions:**
+Every row must be `G` and use an attributable email. A failed hook can leave HEAD unchanged; inspect
+the command exit and before/after SHAs rather than assuming amend occurred. Push rewritten history
+only with `--force-with-lease` after fetching and confirming no unexpected remote owner update.
 
-- The unit of replay is the **patch (diff)**, not the commit object — copying/cherry-picking a commit
-  object or `--amend` gives you a sibling.
-- **Force-push IS the right tool here.** A 403 on the force-push is almost certainly a read-only
-  fine-grained PAT lacking push scope — re-auth to a `repo`-scoped / OAuth token; it is NOT a
-  force-push ruleset denial. Do NOT reach for `--allow-empty` or `update-branch` to avoid
-  force-pushing; those cannot sign an unsigned lineage.
-- The desync happens because PR-head tracking is fast-forward-only. Keep the branch and the intended
-  PR head as the SAME clean lineage — never leave them as diverged siblings.
-- **Fresh PR is the LAST-RESORT escape, not the fix.** Opening a new PR works but abandons the
-  original PR's number, review, and discussion thread. Only fall back to it when the branch history
-  is already irreparably tangled (e.g. you have already pushed a sibling AND an `update-branch` merge
-  commit on top of it).
+### 4. Recover a PR-head sibling safely
 
-#### Pre-warm gpg-agent in sub-agent shells
+This pattern remains only `verified-local`. `git commit --amend -S` creates a sibling of the old
+commit, not its descendant. A branch ref can move while an open PR remains associated with a stale
+or tangled lineage. Close/reopen and update-branch do not sign the unsigned ancestor.
 
-With `commit.gpgsign=true` set globally and the key on the GitHub account, sub-agent shells DO inherit
-the config — but a non-interactive subshell needs `GPG_TTY` and a pre-warmed `gpg-agent` to actually
-produce a signature. If pre-warming is skipped, the commit silently fails to sign (no error). Combined
-with GraphQL lag this is indistinguishable from "config didn't propagate" — diagnose via REST, not by
-changing config.
+Reconstruct content commits on the correct base:
+
 ```bash
-export GPG_TTY=$(tty 2>/dev/null || echo /dev/null)
-echo "test" | gpg --batch --yes --passphrase-fd 0 --pinentry-mode loopback \
-  -as -o /dev/null 2>&1 | tail -1 || true
+base=$(git merge-base origin/main <old-pr-head>)
+git format-patch --stdout "$base"..<old-pr-head> > /tmp/pr.patch
+git switch <owned-pr-branch>
+git rebase origin/main
+git am --gpg-sign=<signing-key> /tmp/pr.patch
+git log origin/main..HEAD --format='%H %G?'
+git push --force-with-lease origin HEAD:<owned-pr-branch>
 ```
 
-#### Fleet/automation re-sign scoping
+Use a recoverable temporary patch and verify its SHA/content before replay. The equivalent rebase
+workflow is acceptable when it produces a clean signed lineage. Confirm GitHub `headRefOid` equals
+the remote branch tip and re-query REST verification for every commit. A fresh PR is a last-resort
+escape because it abandons reviews and discussion.
 
-Automation that rebases/re-signs PRs in bulk MUST scope discovery to the current user
-(`gh pr list --author @me ...`), or it will rewrite — and STRIP the native web-flow signature off —
-PRs it does not own (e.g. Dependabot bumps), turning a previously `verified=true` bot commit into
-`unsigned`/`no_user` and BLOCKING it. Guard the resolved resign email against the signing key's UID
-emails before a batch re-sign (escape hatch e.g. `FLEET_SKIP_EMAIL_KEY_CHECK=1`); note the UID check is
-necessary but not sufficient (a `+suffix` noreply UID passes locally yet fails GitHub verification).
-Companion `pr-policy` carve-out: exempt `dependabot[bot]` from the `Closes #N` body check (bot bodies
-never carry it) while keeping the "every commit signed" + "auto-merge armed" checks enforced; pass the
-PR-author login via `env:` (never interpolated into `run:`) for workflow-injection safety.
+### 5. Verify hosted acceptance
+
+After push, poll REST on the exact PR commit SHAs until GitHub reports `verified:true, reason:valid`
+or a stable failure. Re-read `headRefOid`; do not verify a signed commit that is not the PR head.
+Then inspect required checks and merge state. Local signature, hosted verification, and email privacy
+must all pass independently.
 
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
-|---------|----------------|---------------|----------------|
-| Attempt 1 | Set `user.email` to a bot identity globally, kept personal GPG key as `user.signingkey`, ran `git commit -S` | GPG found no secret key matching the bot email's UID, produced NO signature; git did not error (exit 0) and the commit landed unsigned | `commit.gpgsign=true` is a NO-OP when `user.email` matches no UID on the signing key. Always run `git log -1 --pretty=format:'%G?'` after the first signed commit as a tripwire |
-| Attempt 2 | Read `gh pr view --json mergeable` (got `MERGEABLE`) and concluded the PR could merge | `mergeable` only reports merge-conflict status, nothing about branch protection. The authoritative field is `mergeStateStatus` (returned `BLOCKED`) | Query `mergeStateStatus`, never `mergeable` alone. `MERGEABLE` + `BLOCKED` is the signature-problem signature |
-| Attempt 3 | `gh pr merge --rebase --admin` to bypass the rule | `required_signatures` cannot be admin-bypassed at the merge endpoint — GitHub returns `the base branch policy prohibits the merge` | Fix at the commit layer (re-sign), not the merge layer |
-| Attempt 4 | `git commit --amend -S` on only the tip commit | Only the tip got signed; the other commits stayed unsigned so the PR stayed BLOCKED — `required_signatures` needs EVERY commit verified | Use `git rebase origin/main --exec 'git commit --amend --no-edit --reset-author -S'` to re-sign the whole range |
-| Attempt 5 | Ran `rebase --exec` WITHOUT `--reset-author` | `%G?` still `N` because the author email was still the bot identity, so GPG still found no matching UID | `--reset-author` is mandatory — it updates author/committer to the current `user.email`, which GPG checks against the key UIDs |
-| Attempt 6 | Checked mergeability without verifying the diff was byte-identical after the rebase | A mis-configured rebase (rerere, autosquash, clean-filter changes) could silently rewrite content and lose work if pushed | Always `git diff <old-HEAD> <new-HEAD>` and confirm 0 bytes before force-pushing |
-| Attempt 7 | Trusted GraphQL `gh pr view --json commits ... signature.state=UNSIGNED` as authoritative and began remediation | GraphQL lags 10+ min after push even when commits ARE verified; REST `/commits/<sha>` returned `verified=true reason=valid` immediately (31 commits across Argus #520, Scylla #1978, Agamemnon #382) | Poll REST `gh api repos/<O>/<R>/commits/<sha>` for signature state; treat GraphQL `signature.state` as advisory only |
-| Attempt 8 | Re-uploaded the GPG key assuming it was missing | Key was already registered; `gh gpg-key add` returned HTTP 422 "subkey already exists". The real issue was GraphQL lag | Before re-uploading, query REST verification on one commit; if `verified=true`, wait — do not re-upload |
-| Attempt 9 | Trusted `git log --show-signature` ("Good signature", `%G?`=`G`) as proof of merge-readiness | GitHub returned `verified:false reason:no_user` and the gate failed at merge — `--show-signature` only checks LOCAL keyring cryptographic validity, not GitHub email attribution | Authoritative check is `gh api repos/<O>/<R>/commits/<sha> --jq .commit.verification` expecting `{verified:true, reason:valid}`. Never trust `--show-signature` alone |
-| Attempt 10 | Tried to fix `no_user` by adding the `+bot` noreply email as a new GPG key UID and re-uploading | GitHub will not verify a `+suffix` noreply variant as an account email; `no_user` persisted with the UID present | Fix at the identity layer: set committer email to the key's registered `{id}+{username}@users.noreply.github.com` (or a real verified email) and re-sign |
-| Attempt 11 | Re-signed with bare `git commit -S` (no explicit `user.signingkey`) | GPG fell back to a foreign default secret key; `%G?` came back `E` ("No public key") | Pin the subkey: `git -c user.signingkey=<signing-subkey> commit -S`. Never rely on default-key fallback when multiple secret keys exist |
-| Attempt 12 | Amended a commit, saw `--show-signature` still showing the OLD identity, concluded the repo was corrupt | The amend had silently aborted (pre-commit hook exit non-zero); HEAD never moved so `git log` showed the unchanged previous commit | Capture the commit exit code AND compare `git rev-parse HEAD` before/after. If HEAD unchanged or rc≠0, the commit failed — fix the hook |
-| Attempt 13 | Ran fleet re-sign automation with NO `--author` filter, rewriting every open PR including Dependabot's | Rewriting a PR you do not own STRIPS GitHub's native web-flow signature and stamps the local identity; the Dependabot commit went from `verified=true` to `no_user` and BLOCKED | Scope fleet discovery to `--author @me`; never rewrite PRs you do not own |
-| Attempt 14 | Re-signed a damaged bot PR via `git commit --amend -S` in a sub-shell trusting `commit.gpgsign=true` | The sub-shell had a COLD gpg-agent (no `GPG_TTY`, no priming call), so signing was a no-op and the commit landed `reason=unsigned` | Warm the gpg-agent before ANY amend (`export GPG_TTY=$(tty)` + a priming `gpg --batch` call), then re-sign and verify via REST |
-| Attempt 15 | Authored commits via the GitHub Contents REST API expecting server-side auto-sign | Returned `verified=false reason=unsigned` — GitHub does NOT auto-sign PAT-authored commits without Vigilant mode + a registered key | Sign locally and push; the REST API does not sign commits for you |
-| Attempt 16 | Pushed a correctly-SSH-signed commit authored with the private gmail email | `push declined due to email privacy restrictions` — the account blocks pushes that expose the real email, independent of signing | Author with `<id>+<login>@users.noreply.github.com`; it bypasses the push block and still verifies |
-| Attempt 17 | Registered the SSH signing key without `--type signing` | The key registered as an AUTH key, so GitHub had no signing key to verify against and commits stayed Unverified | `--type signing` is mandatory; an auth-only key does not make commits verify |
-| Attempt 18 | Registered the SSH key via the API with the default token | HTTP 404 — the token lacked `admin:ssh_signing_key` | Grant it interactively: `gh auth refresh -h github.com -s admin:ssh_signing_key` (human approves device/browser flow; cannot be headless) |
-| Attempt 19 | Committed without `-S` hoping pr-policy wouldn't catch it | pr-policy validated every commit at the GraphQL layer; PR showed all checks SUCCESS but `mergeStateStatus:BLOCKED` with no visible explanation, auto-merge did not fire | Always `git commit -S` in repos with `pr-policy`; verify each commit with `git log -1 --pretty=format:'%G?'` before pushing |
-| Attempt 20 | Signed with a different GPG key than the one registered on GitHub | GitHub checked the public key against registered keys; the new key was unregistered so signatures were `UNVERIFIED`/`BAD_SIGNATURE` and pr-policy still blocked | Use the key registered on your GitHub account; `git config user.signingkey` must match an account key |
-| Attempt 21 | `git commit --amend -S` on the PR's tip, then force-push, to "re-sign in place" | `--amend` writes a SIBLING (same parent + same tree, new SHA) — a diverged non-descendant. GitHub advances a PR head only on a fast-forward descendant, so the force-push updated the branch ref but left the PR head PINNED to the old unsigned commit; the PR stayed BLOCKED with the signed commit invisible to it | Never use `--amend` to re-sign a PR commit you need the PR head to follow. Replay the PATCHES onto the correct base (`git format-patch` + `git am --gpg-sign`) so the new head is a clean re-signed lineage, then force-push |
-| Attempt 22 | Plain `git push` of the sibling (avoided force-push, believing a ruleset blocked force) | A sibling is not a fast-forward, so the plain push was rejected; the 403 seen on the force-push was actually a read-only fine-grained PAT lacking push scope, not a force-push ruleset | Diagnose a push 403 as a credential-scope problem (re-auth with `repo` scope), not a force-push policy. Force-push is the correct tool when re-signing rewrites SHAs |
-| Attempt 23 | `gh pr close` + `gh pr reopen` to nudge GitHub to re-read the branch tip | The head stayed pinned — diverged (non-descendant) commits are not adopted as the PR head via reopen | Close/reopen does NOT adopt a diverged branch tip as the PR head; only a fast-forward descendant push advances it |
-| Attempt 24 | `gh api PUT .../pulls/<N>/update-branch` to sync the PR with main | Created a MERGE commit whose PARENT was still the unsigned commit. `required_signatures` rejects EVERY unsigned commit the PR introduces (not just the head), so it stayed BLOCKED — and the head was now a merge commit, more tangled | `update-branch` / merging main over an unsigned commit does NOT sign it; `required_signatures` checks all introduced commits. Re-sign the lineage, do not merge over it |
-| Attempt 25 | Opened a fresh PR to escape the tangle | Works, but abandons the original PR (loses its number, review, and discussion thread); acceptable only as a last resort after the branch is irreparably tangled | Prefer re-signing the patches in place on the SAME PR branch (Example D); a fresh PR is the fallback escape hatch, not the fix |
+| --- | --- | --- | --- |
+| Trust `mergeable` | MERGEABLE was read as policy-ready | It excludes required-signature policy | Inspect `mergeStateStatus` and commit verification |
+| Trust local GPG | `%G?` was good | GitHub could not attribute the email/key | REST verification is authoritative for hosted policy |
+| Sign only the tip | Amended the latest commit | Older introduced commits remained unsigned | Rewrite and verify the whole range |
+| Omit `--reset-author` | Re-signed with stale bot identity | `no_user` persisted | Reset to an attributable identity during rewrite |
+| Rely on default key | Multiple keys existed | A foreign/unregistered key signed the commit | Pin the registered signing key |
+| Trust GraphQL immediately | Saw transient UNSIGNED | Signature state lagged REST | Poll REST by SHA |
+| Register SSH key as auth-only | Uploaded without signing type | GitHub had no signing key for verification | Use `--type signing` |
+| Re-sign another owners PR | Fleet rewrite included bots | Native signatures and ownership were damaged | Scope to owned PRs only |
+| Amend into a sibling | Force-pushed a same-parent signed SHA | The PR still introduced unsigned/tangled lineage | Replay patches on the correct base and verify head identity |
+| Merge/update over unsigned history | Added a merge commit | Required signatures checks all introduced ancestors | Replace the lineage; do not cover it with a merge |
 
 ## Results & Parameters
 
-**Diagnostic decision tree:**
-
-```text
-PR not auto-merging?
-├─ gh pr view --json mergeStateStatus
-│  ├─ BLOCKED → continue
-│  ├─ BEHIND  → rebase against base branch
-│  ├─ DIRTY   → resolve conflicts
-│  └─ CLEAN   → wait for CI
-└─ BLOCKED + all CI green:
-   └─ gh api .../commits --jq '.[].commit.verification.reason'
-      ├─ "unsigned"    → no signing configured / un-warmed gpg-agent → configure + re-commit -S
-      ├─ "no_user"     → email/key-UID mismatch → re-author + re-sign (Example A)
-      ├─ "unknown_key" → key not registered as signing → register (--type signing for SSH)
-      └─ all "valid"   → not a signing problem; check missing required checks / Closes #N
-```
-
-**Two orthogonal gates that BOTH must pass — debug separately:**
-
-| Gate | Controlled by | Symptom when failing | Fix |
-|------|---------------|----------------------|-----|
-| Signature verification | Key registered (GPG, or SSH with `--type signing`) + author email matches a registered/verified identity | Commit shows Unverified / `no_user` / `unsigned` | Register key correctly; author with the noreply email; re-sign |
-| Push acceptance (email privacy) | "Block command-line pushes that expose my email" account setting | `push declined due to email privacy restrictions` | Author with `<id>+<login>@users.noreply.github.com` |
-
-**GitHub noreply email derivation:**
-
-```text
-<numeric-id>+<login>@users.noreply.github.com
-# numeric-id: gh api user --jq '.id'     (e.g. 4211002)
-# login:      gh api user --jq '.login'  (e.g. mvillmow)
-# result:     4211002+mvillmow@users.noreply.github.com
-```
-
-**Authoritative signature verification (REST, NOT GraphQL):**
-
-```bash
-gh api repos/<owner>/<repo>/commits/<sha> \
-  --jq '.commit.verification | "verified=\(.verified) reason=\(.reason)"'
-gh api repos/<owner>/<repo>/pulls/<N>/commits \
-  --jq '[.[] | {sha:.sha[0:7], verified:.commit.verification.verified, reason:.commit.verification.reason}]'
-```
-
-**Critical config invariant for any GPG signing agent (must be true after config is set):**
-
-```bash
-git config --get user.email | xargs -I{} \
-  gpg --list-keys "$(git config --get user.signingkey)" 2>/dev/null | grep -q "<{}>"
-# If the grep fails, GPG will silently NOT sign.
-```
-
-**SSH-signing global config (remote/headless host):**
-
-```bash
-git config --global gpg.format ssh
-git config --global user.signingkey ~/.ssh/id_signing_ed25519.pub   # PUBLIC key path
-git config --global commit.gpgsign true
-git config --global gpg.ssh.allowedSignersFile ~/.config/git/allowed_signers
-git config --global user.email "<numeric-id>+<login>@users.noreply.github.com"
-# allowed_signers line: <email> ssh-ed25519 AAAA...<pubkey-body>
-```
-
-**GPG signature status codes (`%G?`):**
-
-| Code | Meaning |
-|------|---------|
-| `G` | Good signature (target state) |
-| `B` | Bad signature |
-| `U` | Good signature, unknown validity |
-| `X` | Good signature, expired |
-| `Y` | Good signature by an expired key |
-| `R` | Good signature by a revoked key |
-| `E` | Cannot be checked (missing/foreign key) |
-| `N` | No signature (silent-fail state) |
-
-**Empirical detection in multi-agent sweeps:**
-
-| Sweep | Total PRs | Affected | Cause |
-|-------|-----------|----------|-------|
-| 2026-05-11 ecosystem easy-issue sweep | 11 | 1 (Keystone #552) | One agent had a local `user.email` override to a bot identity desynced from the GPG key UID |
+| Invariant | Required value |
+| --- | --- |
+| Local signature | `%G? == G` for every introduced commit |
+| Hosted signature | REST `verified == true`, `reason == valid` |
+| Identity | Verified email or `<id>+<login>@users.noreply.github.com` |
+| SSH key registration | Signing key, not authentication-only |
+| Content preservation | `git diff <old-head> HEAD` empty after pure re-sign |
+| Rewrite push | Owned branch, fetched remote, `--force-with-lease` |
+| PR-head proof | `headRefOid` equals verified remote tip |
+| Fleet scope | Author/owner allowlist; never rewrite third-party PRs |
 
 ## Verified On
 
-| Project | Context | Details |
-|---------|---------|---------|
-| ProjectKeystone | 2026-05-11 ecosystem easy-issue sweep, PR #552 | Re-authored 7 commits with `--reset-author -S` rebase, byte-identical diff (0 bytes), force-pushed; GitHub flipped all 7 from `verified:false reason:no_user` to `verified:true reason:valid`; `mergeStateStatus` `BLOCKED`→`CLEAN`; pre-armed auto-merge fired |
-| ProjectArgus / ProjectScylla / ProjectAgamemnon | 2026-05-16 org-wide sweep — Argus #520, Scylla #1978, Agamemnon #382 | 31 commits showed GraphQL `signature.state=null`/`UNSIGNED` for 10+ min while REST returned `verified=true reason=valid` immediately. `gh gpg-key add` returned HTTP 422 "subkey already exists". Resolution: wait for GraphQL; no remediation needed |
-| HomericIntelligence mesh (host `aeolus`) | 2026-05-31 first-time headless SSH signing setup | Generated ed25519 SSH signing key, registered with `gh ssh-key add --type signing` (after `gh auth refresh -s admin:ssh_signing_key`), authored with `<id>+<login>@users.noreply.github.com`; scratch commit pushed, `gh api .../commits/<sha> --jq .commit.verification.verified` returned `true` |
-| ProjectHephaestus | 2026-06-04 Issue #739, PR #900+ | DRY refactor required all commits to pass pr-policy; all signed with `-S`, pr-policy confirmed `signature.state=VALID` per commit via GraphQL, auto-merge fired after pr-policy passed |
-| ProjectHephaestus | 2026-06-06, PRs #1021 / #1026 | Global `~/.gitconfig` `user.email` was `mvillmow+bot@users.noreply.github.com`; GPG key `F0A2530669A31A2E` (subkey `7FD616C4744A8A7C`) was bound only to `4211002+mvillmow@users.noreply.github.com`. Commits showed `%G?`=`G` locally but GitHub returned `no_user` and pr-policy failed. Discovered the `+bot` variant cannot be a verified email (patching the key UID was a dead end). Fixed by `git config user.email 4211002+mvillmow@...` + `git commit --amend --reset-author -S`; added a defensive guard in `fleet_sync.get_resign_email()` validating resign email vs key UIDs (`FLEET_SKIP_EMAIL_KEY_CHECK=1` bypass). Also hit bare-`-S` foreign-key (`%G?`=`E`) and silent commit-abort-from-hook leaving HEAD unchanged |
-| ProjectHephaestus | 2026-06-07, PR #1071 (issue #1070) | Fleet automation `fleet_sync.py` `list_prs()` had no author filter; `rebase_and_resign()` rewrote a Dependabot bump, STRIPPING the native web-flow signature; the amend ran in a sub-shell with a cold gpg-agent so it landed `reason=unsigned`. Fixed by scoping discovery with `--author @me`, warming gpg-agent before any re-sign amend, and exempting `dependabot[bot]` from pr-policy Check 1 (`Closes #N`) while keeping Checks 2/3. Verified via REST `reason=valid`; merged to main |
-| ProjectHephaestus | 2026-06-11, PR #946 (issue #755) | Forensics code-only fix (malformed COREDUMP_MAX_BYTES handling) failed pr-policy Check 3 "every commit is signed": commit `189110e2` returned GitHub GraphQL `signature.isValid:false`. Re-signed via `git rebase origin/main --exec 'git commit --amend --no-edit -S'`; final merged commit `ab5ab4de` returned REST `verification.verified:true reason:valid` (PGP), committer email `4211002+mvillmow@users.noreply.github.com` matching the key UID. Confirms Example C pattern; auto-merge fired after pr-policy passed. |
-| HomericIntelligence/Mnemosyne | 2026-07-13, PR #3021 (Example D, `verified-local`) | Open PR sat BLOCKED under `required_signatures` for ~a week with an unsigned head `c7a5b6a2`. A prior automated `git commit --amend -S` produced `b29075a2` — a SIBLING of the original (same parent `d6c2075e`, same tree `e06bfd76`, new SHA); force-pushing it left the PR head PINNED to the old unsigned commit. `close`/`reopen` did not re-sync; `update-branch` created merge commit `96353454` whose parent was still `c7a5b6a2`, so it stayed BLOCKED. The recommended fix (replay the patches re-signed onto the fork-point base, force-push so the head follows) is reconstructed from this evidence but was NOT run to a merged green gate — the session escaped via a fresh PR (#3077). Hence Example D is `verified-local`, not `verified-ci` |
+- Core GPG/SSH workflows: CI-backed cases across the repositories indexed in notes.
+- Sibling/patch-replay recovery: `verified-local`, not demonstrated through a merged green gate.
+
+## Companions
+
+- [Case notes](./git-commit-signing-failures-and-setup.notes.md)
+- [Version history and exact superseded snapshot](./git-commit-signing-failures-and-setup.history)
