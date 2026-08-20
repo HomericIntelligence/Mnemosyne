@@ -1,63 +1,10 @@
 ---
 name: git-worktree-parallel-execution-lifecycle
-description: "Use when: (1) creating isolated git worktrees for parallel agent execution on
-  3+ independent issues, (2) splitting a single multi-part issue into N independent sub-tasks
-  with hot-file ownership coordination, (3) switching or syncing feature branches without
-  stashing, (4) cleaning up worktrees under no-branch-deletion / reviewable-script constraints,
-  (5) mass-removing 20+ mixed stale worktrees using myrmidon wave parallelization, (6) detecting
-  and recovering from branch-namespace contamination when parallel agents commit to the wrong
-  branch, (7) avoiding the no-worktree-at-all anti-pattern where N agents share the same
-  main workdir, (8) handling locked worktrees from dead agent PIDs, (9) staged-file two-step
-  cleanup (status A lines), (10) cherry=1 rebase-merge artifact classification, (11) inline
-  worktree cleanup inside a per-branch rebase loop, (12) fixing stale origin/HEAD or missing
-  origin/main for worktree creation, (13) branch-name collision check before remote push, (14)
-  a single-PR fix agent finds the shared main repo checked out to its target branch and starts
-  editing there, but a sibling agent stashes + switches the branch out mid-session, silently
-  discarding the unstaged edits — recover by locating the WIP stash and re-applying into a fresh
-  /tmp worktree, (15) deciding whether a CLOSED-PR branch with `git cherry` +1 is keepable
-  unreleased work or merely superseded (content reached main via another PR, or the branch edits
-  since-deleted/renamed files) — investigate before keeping, don't assume cherry=+1 means keep,
-  (16) auditing a worktree-looking directory (especially under the host repo's build/.worktrees/
-  or a stray clone-within-a-repo at build/<OtherProject>) that may belong to a DIFFERENT
-  repository — confirm `git -C <dir> remote get-url origin` matches the current repo's remote
-  before touching it; a dir that shows up in a `git status` loop but is ABSENT from `git worktree
-  list` belongs to another clone and is OUT OF SCOPE, (17) distinguishing stale-checkout drift
-  (a big dirty diff full of `D`/`M` lines in a merged worktree that is redundant with main) from
-  real uncommitted work — prove redundancy with `git cat-file -e main:<file>` before discarding,
-  (18) a bulk `git reset --hard` / `git clean -fd` / `git worktree remove --force` across many
-  worktrees got safety-net-BLOCKED as 'Irreversible Local Destruction' — hand the exact per-worktree
-  commands to the user to run themselves rather than auto-executing, (19) two parallel SUBPROCESSES
-  (not threads — separate `subprocess.run` children) race to create the SAME
-  `build/.worktrees/issue-<N>` path and one dies with `fatal: '.../issue-<N>' already exists` (git
-  exit 128) because each child has its own in-process `threading.Lock` that gives ZERO cross-process
-  protection, (20) needing a reusable cross-process file lock and finding only INLINE `fcntl.flock`
-  copies (e.g. `github/rate_limit.py`, `automation/advise_runner.py`) and no generic helper — extract
-  one `file_lock` contextmanager, don't add a third copy, (21) an in-process `threading.Lock` appears
-  'not working' / fails to serialize because the contention is actually ACROSS PROCESSES, so the
-  guard must be an advisory `fcntl.flock(LOCK_EX)` on a sentinel file, (22) cleaning agent worktrees
-  in a repo that has git SUBMODULES (e.g. a meta-repo with `research/ProjectOdyssey`) and
-  `git worktree remove <path>` REFUSES with `fatal: working trees containing submodules cannot be
-  moved or removed` EVEN WHEN the worktree is clean or its only diff is a submodule-pointer artifact
-  — `git submodule deinit` does NOT unblock it, and `git worktree remove --force` is Safety-Net-blocked,
-  so hand the exact `git worktree remove --force <wt> && git worktree prune` to the USER, (23) deciding
-  whether a merged worktree branch is prunable when `git branch --merged` does NOT list it — a
-  SQUASH-merged PR shows commits-ahead > 0 and is absent from `--merged`, so trust the PR `MERGED`
-  state from `gh pr list --head <br> --state all`, not `--merged`/commits-ahead, and delete with
-  `git branch -D` (not `-d`) handed to the user with PR-MERGED proof, (24) a dirty worktree whose
-  uncommitted changes are actually junk (an abandoned partial REVERT of an already-merged feature) —
-  inspect the diff and ASK the user (discard/stash/leave) rather than auto-commit or auto-discard;
-  on discard, HAND them `rm -rf <wt> && git worktree prune && git branch -D <branch>` because
-  `git checkout -- .`/`reset --hard`/`rm -rf`/`branch -D` are all Safety-Net-blocked even after an
-  explicit user 'discard' approval, (25) multiple independently discovered issues or PRs resolve
-  to the SAME writable head branch — admit exactly one writer at the serialized worktree-allocation
-  boundary, let only the requesting issue's expected path reuse the checkout, and classify every
-  later issue as permanently superseded without retries, writer agents, preservation, or reruns,
-  (26) programmatic stale-worktree cleanup parses `git worktree list --porcelain` with whitespace
-  tokenization or newline-only record boundaries — request `--porcelain -z`, parse NUL-delimited
-  attributes as records, and keep each complete path paired with its branch and lock state."
+description: "Use when parallel agents need isolated Git state; one issue is split across disjoint owners; worktree creation races across processes; branch ownership, stale, locked, dirty, submodule, or foreign-repository worktrees must be classified; or cleanup is constrained by preservation and destructive-action policy."
 category: tooling
 date: 2026-08-06
-version: "1.7.0"
+version: "2.0.0"
+license: BSD-3-Clause
 verification: unverified
 user-invocable: false
 history: git-worktree-parallel-execution-lifecycle.history
@@ -66,1031 +13,209 @@ tags: [worktree, git, parallel-agents, wave-execution, cleanup, branch-collision
   squash-merge, hand-to-user, first-writer-wins, branch-ownership, superseded, porcelain,
   nul-delimited, path-safety]
 ---
+
 # Git Worktree Parallel Execution Lifecycle
 
 ## Overview
 
-| Field | Value |
-| ------ | ----- |
-| **Date** | 2026-05-19 |
-| **Objective** | Complete lifecycle of git worktrees for parallel agent execution: creation, switching, syncing, parallel dispatch, contamination recovery, and constraint-aware cleanup |
-| **Outcome** | Canonical consolidation of 4 skills: worktree-parallel-agent-execution (v1.5.0), worktree-cleanup-user-constraints (v1.6.0), git-worktree-management-patterns (v2.8.0), worktree-lifecycle-create-switch-sync (v1.0.0) |
-| **Verification** | unverified overall after the v1.7.0 delimiter-safe parsing amendment; prior phases retain their recorded verified-local/verified-ci evidence, while Phase 9 and the new Phase 6 parser subsection are reviewed designs pending implementation and CI |
-| **History** | [changelog](./git-worktree-parallel-execution-lifecycle.history) |
+Use one explicit worktree per concurrent writer. A worktree isolates `HEAD` and the index, not
+repository-wide refs or remote branch names, so allocation and publication still need ownership
+checks. Cleanup is a classification problem: prove repository identity, branch/PR state,
+cleanliness, and recoverability before removing anything.
 
-Covers the full git worktree lifecycle for parallel agent work: creation, navigation, syncing
-with upstream, parallel wave execution patterns, branch collision avoidance, contamination
-detection and recovery, constraint-aware cleanup, and myrmidon swarm parallelization for
-mass cleanup. Includes the critical "no-worktree-at-all" anti-pattern warning and a
-delimiter-safe machine-parsing contract for worktree paths.
+This skill remains `unverified`; it consolidates observed procedures and proposed parser/locking
+contracts. Do not treat proposed helpers as shipped APIs without checking the target repository.
+
+Supporting cases and provenance are in
+[`git-worktree-parallel-execution-lifecycle.notes.md`](git-worktree-parallel-execution-lifecycle.notes.md).
+The complete superseded source is in
+[`git-worktree-parallel-execution-lifecycle.history`](git-worktree-parallel-execution-lifecycle.history).
 
 ## When to Use
 
-**Parallel execution:**
-
-- Multiple independent issues (3+): code refactoring, test additions, config changes
-- Single multi-part issue with 2+ truly independent remediation items (hot-file split)
-- Mass-rebasing many PR branches after a large main merge
-- Time-critical sprints where independent tasks can parallelize
-
-**Lifecycle / create / switch / sync:**
-
-- Starting isolated work on a new issue alongside ongoing branches
-- Switching between branches without stashing context
-- Long-running feature branches that need syncing with main
-- Editing a file and getting "nothing to commit" (path confusion)
-- Detecting when a `.claude-prompt-<N>.md` task is already done
-
-**Cleanup:**
-
-- User says "no branch deletion" or "give me a script to review first"
-- Worktrees from merged branches have uncommitted files that might be real work
-- 20+ worktrees after parallel wave execution with mixed states
-- Locked worktrees from dead agent PIDs (myrmidon swarm sessions)
-- `git worktree remove --force` blocked by Safety Net
-- Auditing a worktree-looking directory that may belong to a DIFFERENT repo or a
-  clone-within-a-repo (e.g. `build/.worktrees/...`, `build/<OtherProject>`)
-- Distinguishing stale-checkout drift (redundant-with-main dirty diff) from real uncommitted work
-- A bulk `git reset --hard` / `git clean -fd` / `git worktree remove --force` got safety-net-blocked
-- Cleaning worktrees in a repo with git SUBMODULES where `git worktree remove` refuses with
-  `fatal: working trees containing submodules cannot be moved or removed` (even when clean)
-- Deciding if a merged worktree branch is prunable when `git branch --merged` does not list it
-  (squash-merge caveat: trust the PR `MERGED` state, not `--merged`/commits-ahead)
-- A dirty worktree whose uncommitted changes are junk (an abandoned partial revert of merged work)
-  — inspect + ASK the user rather than auto-commit/auto-discard
-- A cleanup tool parses `git worktree list --porcelain`, especially when worktree paths may contain
-  spaces or newlines and must remain paired with their branch and `locked` attributes
-
-**Cross-process subprocess contention:**
-
-- Two parallel SUBPROCESSES (separate `subprocess.run` children, not threads) race on the same
-  `build/.worktrees/issue-<N>` path and one dies with `fatal: '.../issue-<N>' already exists`
-- Needing a reusable cross-process file lock and discovering only inline `fcntl.flock` copies exist
-- An in-process `threading.Lock` "not working" / failing to serialize because the contention is
-  across processes, not threads
-- Multiple issue or PR work items independently adopt the same writable head branch and would
-  otherwise share a checkout or start redundant writer sessions
-- A worktree manager currently aliases one branch checkout under multiple issue keys
-- Branch ownership must remain independent of PR identity: one consolidated PR and distinct PRs
-  with the same head branch require the same first-writer-wins behavior
-
-**Not suitable for:**
-
-- Issues requiring shared state or coordinated changes across the same files
-- More than 2 sub-tasks for a single issue (coordination cost dominates)
-- EASY-tier 8+ issue swarms (serialize instead — see Phase 0a)
+- Two or more agents or subprocesses can write in the same repository.
+- One issue can be split only after assigning disjoint file ownership and dependencies.
+- A branch is already checked out, a remote branch name may collide, or two requests resolve to
+  the same writable head.
+- A worktree is locked, dirty, missing from `git worktree list`, contains submodules, or appears
+  stale after a squash/rebase merge.
+- Worktree creation races even though an in-process `threading.Lock` exists.
+- Cleanup would require discarding uncommitted work, force-removing a worktree, or deleting a
+  branch.
 
 ## Verified Workflow
 
-### Quick Reference
+### 1. Establish the isolation and ownership boundary
 
-```bash
-# Create worktree for new issue
-git worktree add .worktrees/issue-<N> -b <N>-feature-name origin/main
-
-# Split one issue into 2 parallel sub-tasks
-git worktree add ~/<repo>-worktrees/<issue>-a -b <issue>-a main
-git worktree add ~/<repo>-worktrees/<issue>-b -b <issue>-b main
-
-# Switch (just cd — no stash needed)
-cd <repo>/.worktrees/issue-<N>
-git branch --show-current
-
-# Sync with main (from inside worktree)
-git fetch origin && git rebase origin/main
-
-# Remote collision check BEFORE push (required for parallel agents)
-git ls-remote --exit-code --heads origin <branch> \
-  && { echo "FATAL: branch exists on remote — STOP"; exit 1; }
-git push -u origin <branch>
-
-# Branch check BEFORE every commit in parallel agent
-CURRENT_BRANCH=$(git -C <my-worktree-path> rev-parse --abbrev-ref HEAD)
-[ "$CURRENT_BRANCH" != "<my-assigned-branch>" ] \
-  && { echo "ABORT: branch contamination detected"; exit 1; }
-
-# Remove single worktree (cd out first)
-cd <repo-root>
-git worktree remove .worktrees/issue-<N>
-git worktree prune
-
-# Machine-readable inventory: consume stdout with the stateful NUL parser in Phase 6.
-# Do not pipe paths through awk '{print $2}' or `for path in $(...)`.
-git worktree list --porcelain -z
-
-# Locked worktree cleanup (clean PIDs only): inspect the `locked` attribute in the
-# same parsed record that supplied the complete path.
-git -C <locked-path> status --short   # empty = safe
-git worktree unlock <path> && git worktree remove <path>
-
-# Fix stale origin/HEAD
-git fetch origin && git remote set-head origin --auto
-```
-
-### Phase 0a: Branch-Namespace Contamination (Serialize EASY-Tier)
-
-**Foundation**: ProjectOdyssey Phase G EASY-tier swarm (PR #5363, 2026-05-09). Eight parallel
-haiku/sonnet agents dispatched with `Task(isolation="worktree")` committed to the parent
-repo's checked-out branch instead of their own assigned worktree branch.
-
-**Root cause**: `Task isolation=worktree` gives path isolation but does NOT isolate the git
-index/HEAD when N agents target N distinct branches sharing the parent `.git/`. A parallel
-`git commit` from inside a sub-worktree can race the parent HEAD pointer and land on the
-wrong branch. `git status` in a sibling agent then shows stat-cache deltas.
-
-**Decision matrix:**
-
-| Scenario | Parallel? | Reason |
-| -------- | --------- | ------ |
-| EASY-tier 8+ issues, distinct branches | **NO — serialize** | Branch-namespace contention; cherry-pick consolidation is safer |
-| MEDIUM/HARD issues, one at a time | YES (sequential) | Wait for completion before launching next |
-| Mass rebase (agents own branches end-to-end) | YES | No shared HEAD contention |
-| Single multi-part issue, hot-file ownership | YES (2 agents max) | Phase 0b pattern holds |
-| Mnemosyne `/learn` parallel skill amendments | **NO — serialize** | Recurring contamination on shared clone |
-
-**Recovery (cherry-pick consolidation):**
-
-```bash
-git checkout main && git pull
-git checkout -b <epic>-consolidated
-
-for branch in worker-1 worker-2 worker-3; do
-  git fetch origin "$branch"
-  git cherry-pick "origin/$branch"
-  # resolve conflicts, run pre-commit, continue
-done
-
-gh pr create --title "feat(epic): EASY-tier batch consolidation" \
-  --body "Closes #A
-Closes #B
-..."
-
-for pr in <worker-prs>; do
-  gh pr close "$pr" --comment "Consolidated into #<consolidated-pr>"
-done
-```
-
-**Per-agent brief mitigation:**
-
-```text
-CRITICAL — branch check before EVERY commit:
-  CURRENT_BRANCH=$(git -C <my-worktree-path> rev-parse --abbrev-ref HEAD)
-  [ "$CURRENT_BRANCH" != "<my-assigned-branch>" ] && { echo "ABORT"; exit 1; }
-  git -C <my-worktree-path> commit ...
-Always pass git -C <absolute-worktree-path> — never trust plain `cd`.
-```
-
-### Phase 0b: Splitting a Single Issue (Hot-File Ownership)
-
-Use when a single multi-part issue has 2 truly independent remediation items.
-
-1. Survey remaining scope: `gh issue view <N> --comments` + recent merged PRs
-2. Build a hot-file ownership matrix — every shared file must have ONE owner or be APPEND-ONLY
-3. Detect merge policy once: `gh repo view --json squashMergeAllowed,rebaseMergeAllowed`
-4. `grep -E '^\[(feature\.|environments)' pixi.toml` — detect pixi env (don't assume `dev`)
-5. Create per-sub-task worktrees: `git worktree add ~/<repo>/<issue>-a -b <issue>-a main`
-6. Dispatch 2 opus agents in background mode; each brief MUST include: absolute worktree path,
-   hot-file matrix, `--squash` vs `--rebase`, pixi env, `pre-commit run --files <changed>` before push,
-   and "Do NOT edit 'still TODO'/'out of scope' lists in shared docs"
-7. On completion: second PR may need rebase — `git rebase origin/main && pre-commit run --files <changed> && git push --force-with-lease`
-
-| Sub-tasks | Throughput gain | Verdict |
-| --------- | --------------- | ------- |
-| 2 | ~1.7x | **Sweet spot** |
-| 3 | ~2.0x | Marginal — coordination cost high |
-| 4+ | <2.5x | Conflict risk dominates |
-
-### Phase 1: Wave-Based Parallel Execution
-
-Organize issues into dependency waves; waves with no cross-wave deps run simultaneously.
-Send ALL `Task` tool calls for a wave in **a single message** for true parallelism.
-
-**Agent instruction template:**
-
-```text
-Execute [Wave N / Issue #XXX]: [brief description]
-
-CRITICAL: Use a dedicated git worktree. NEVER work in the main workdir.
-1. git worktree add /tmp/<project>-<phase> -b <branch-name> origin/main
-2. cd into it FIRST before any other git operation.
-3. [Specific steps — exact file paths, function names, expected line counts]
-4. pre-commit run --all-files
-5. git commit -m "type(scope): description\n\nCloses #XXX"
-6. git ls-remote --exit-code --heads origin <branch> && { echo "FATAL: exists"; exit 1; }
-7. git push -u origin <branch>
-8. gh pr create && gh pr merge --auto --rebase
-9. git worktree remove --force /tmp/<project>-<phase>
-Do NOT use harness isolation:"worktree" if agents need sibling branch visibility
-(it creates a separate clone, losing cross-reference visibility).
-```
-
-### Phase 2: Branch Collision Hardening
-
-**Failure mode**: Four parallel Haiku agents used `isolation: "worktree"` correctly but
-used the same branch-naming template. 26 commits from 4 distinct branches collapsed onto a
-single remote ref under one PR. (ProjectAgamemnon 2026-05-16, PR #386.)
-
-**Fix — issue-number-suffixed branch names:**
-
-```
-# Pattern: <theme>-<issue-number(s)>-<date>
-medium/clang-tidy-177-2026-05-16
-medium/cmake-cleanup-182-189-2026-05-16
-```
-
-**Mandatory remote collision check before push:**
-
-```bash
-git ls-remote --exit-code --heads origin <branch> \
-  && { echo "FATAL: branch <branch> already exists — STOP"; exit 1; }
-git push -u origin <branch>
-```
-
-### Phase 3: Partial Contamination Recovery
-
-**Symptom**: PR diff shows files outside the agent's declared scope. Detected via:
-
-```bash
-git log origin/<branch> ^origin/main --oneline
-# Returns N+1 commits when N expected
-```
-
-**Recovery (verified-ci, PR #398):**
-
-```bash
-git fetch origin main
-OWN_SHAS=$(git log origin/main..HEAD --format=%H -- <files-agent-actually-touched>)
-git reset --hard origin/main
-echo "$OWN_SHAS" | tac | xargs -I {} git cherry-pick {}
-git push --force-with-lease origin <branch-name>
-```
-
-**Prevention**: Forbid `git pull` inside agent worktrees. Validate diff scope before push:
-
-```bash
-EXPECTED_FILES="<list>"
-ACTUAL_FILES=$(git diff --name-only origin/main..HEAD)
-diff <(echo "$EXPECTED_FILES") <(echo "$ACTUAL_FILES") \
-  || { echo "FATAL: out-of-scope files — STOP"; exit 1; }
-```
-
-### Phase 4: No-Worktree-at-All Anti-Pattern
-
-**Never dispatch N parallel agents to the same working directory, even when their files
-are disjoint.** (ProjectAgamemnon F-phase, 2026-05-18 — PRs #407, #409, #410.)
-
-Disjoint files do NOT protect shared `.git/HEAD` and `.git/index`. Agents run `git checkout`
-concurrently, causing HEAD-flip + commit-leak + stash/checkout/cherry-pick recovery cycles
-requiring `git reflog` archaeology. Total wasted time: ~15 min/agent.
-
-**Workdir strategy decision matrix:**
-
-| Scenario | Strategy | Reason |
-| -------- | --------- | ------ |
-| 2+ parallel Sonnet impl agents (>5 min, multi-commit) | **Explicit `git worktree add /tmp/<name>`** | Disjoint files do NOT protect shared `.git/HEAD` |
-| Single Haiku fix, <5 min, single commit, no concurrency | Main workdir OK | Setup cost exceeds risk |
-| Agents needing cross-reference to sibling pushed branches | Local `git worktree add` (NOT harness flag) | Harness creates separate clone — loses visibility |
-| EASY-tier 8+ Haiku swarm | Serialize or consolidate-via-cherry-pick | See Phase 0a |
-
-**Recovery when contamination has occurred mid-flight:**
-
-```bash
-git reflog | grep '<commit-msg-prefix-you-wrote>'
-git reset --hard origin/main
-git checkout -b <correct-branch> origin/main
-for sha in <your-shas-oldest-first>; do git cherry-pick "$sha"; done
-git worktree add /tmp/<project>-<phase> -b <correct-branch>-iso HEAD
-cd /tmp/<project>-<phase>
-```
-
-### Phase 5: Create, Switch, Sync Basics
-
-```bash
-# New branch from origin (conventional layout)
-git worktree add .worktrees/issue-<N> -b <N>-feature-name origin/main
-# Switch — just cd; no stash needed
-cd <repo>/.worktrees/issue-<N>
-# Sync inside worktree
-git fetch origin && git rebase origin/main && git push --force-with-lease origin <branch>
-# Fix stale origin/HEAD
-git fetch origin && git remote set-head origin --auto
-```
-
-**Path awareness:** Always resolve the worktree root before editing:
-
-```bash
-WORKTREE_ROOT=$(git rev-parse --show-toplevel)
-FILE="$WORKTREE_ROOT/tests/shared/training/test_file.mojo"
-# WRONG: /home/user/Project/tests/file.mojo (lands on main!)
-# RIGHT: /home/user/Project/.worktrees/issue-NNN/tests/file.mojo
-```
-
-**Detect already-done work:** `git log --oneline -3` and `gh pr list --head <branch>` before planning.
-
-### Phase 6: Constraint-Aware Worktree Cleanup
-
-#### Delimiter-Safe Porcelain Parsing (proposed, ProjectHephaestus 2026-08-06)
-
-> **Warning:** This amendment is `unverified`. The implementation and regression tests were
-> planned and reviewed, but had not been executed locally or in CI when captured.
-
-[Git documents `--porcelain` as the stable scripting format](https://git-scm.com/docs/git-worktree#Documentation/git-worktree.txt---porcelain)
-and recommends combining it with `-z`; with `-z`, every attribute line is NUL-terminated, so even
-a path containing a newline is unambiguous. The first attribute is always `worktree`, and an empty
-field ends the record.
-
-Request and preserve that representation end-to-end. Parse labeled attributes with a small
-record-state machine; never recover a path with `.split()`, `awk '{print $2}'`, or
-`for path in $(...)`:
-
-```python
-from pathlib import Path
-
-
-def worktree_porcelain() -> str:
-    """Return the repository's NUL-delimited worktree inventory."""
-    return run_git(["worktree", "list", "--porcelain", "-z"]).stdout
-
-
-def parse_worktree_porcelain(output: str, root: Path) -> list[tuple[Path, str]]:
-    """Return attached, non-primary worktrees and their exact branch names."""
-    worktrees: list[tuple[Path, str]] = []
-    path: Path | None = None
-    branch: str | None = None
-    for field in [*output.split("\0"), ""]:
-        if field.startswith("worktree "):
-            path = Path(field.removeprefix("worktree "))
-            branch = None
-        elif field.startswith("branch refs/heads/"):
-            branch = field.removeprefix("branch refs/heads/")
-        elif not field:
-            if path is not None and branch is not None and path != root:
-                worktrees.append((path, branch))
-            path = None
-            branch = None
-    return worktrees
-
-
-def worktree_is_locked(path: Path, porcelain: str) -> bool:
-    """Return whether *path* is locked in the supplied inventory."""
-    in_record = False
-    for field in [*porcelain.split("\0"), ""]:
-        if field.startswith("worktree "):
-            in_record = Path(field.removeprefix("worktree ")) == path
-        elif not field:
-            in_record = False
-        elif in_record and field.startswith("locked"):
-            return True
-    return False
-```
-
-This changes only the transport/parser boundary. Keep cleanup policy stable: exclude the primary,
-detached, and bare worktrees; preserve attached branch names; classify staleness by the existing
-closed-issue or merged-branch rules; and continue skipping dirty or locked worktrees.
-
-Pin both the low-level protocol and the behavioral boundary in tests:
-
-1. Assert the Git argv is exactly `worktree list --porcelain -z`.
-2. Build representative NUL-delimited records for primary, ordinary attached, detached, bare,
-   and locked worktrees.
-3. Assert a path such as `/repo/.worktrees/123 finished` remains paired with `123-finished`.
-4. Pass that fixture through the dry-run cleanup entry point; assert dirtiness receives the
-   complete `Path`, logging includes the complete path and branch, and removal is not called.
-5. Retain ordinary-path tests for candidate filtering, branch pairing, and closed-issue stale
-   detection. A delimiter migration is incomplete if only the parser unit test changes.
-
-#### All-Clean Shortcut
-
-When `git status --short` is empty for every worktree (0 dirty files), execute removal
-directly — no script needed. The generate-first constraint exists only to prevent accidental
-loss of real work.
-
-Use `parse_worktree_porcelain(worktree_porcelain(), root)` above, then run the dirty check with an
-argv list such as `run_git(["status", "--porcelain"], cwd=path)`. Do not serialize the parsed path
-back through shell whitespace splitting. If every candidate is clean, direct removal remains safe.
-
-#### Locked Worktrees from Dead Agent PIDs
-
-```text
-# Identify locked worktrees with worktree_is_locked(path, porcelain) above.
-# Check cleanliness
-git -C <locked-path> status --short   # empty = clean
-# Locked + clean: unlock and remove directly (no --force)
-git worktree unlock <path>
-git worktree remove <path>
-# Locked + dirty: classify files first (Phase 6 below), then unlock+remove
-```
-
-#### Staged-Only Addition Cleanup (Status A Lines)
-
-`git checkout -- .` alone does NOT clean worktrees that have staged new files (status `A`):
-
-```bash
-git -C <worktree> status --short | grep '^A'   # non-empty = staged additions present
-# Three-step sequence required:
-git -C <worktree> reset HEAD -- .    # Step 1: unstage
-git -C <worktree> checkout -- .      # Step 2: restore tracked modified files
-git -C <worktree> clean -fd          # Step 3: remove untracked
-git worktree remove <worktree>       # now succeeds without --force
-```
-
-#### Cherry=1 Rebase-Merge Artifact Classification
-
-`git cherry` reports `+1` for MERGED rebase PRs (hash rewrite). Always verify PR state:
-
-```bash
-pr_state=$(gh pr list --head "$br" --state all --json state --jq '.[0].state')
-# MERGED → cherry=1 is artifact — safe to remove
-# CLOSED → cherry=+1 is necessary-but-NOT-sufficient for "keep" — INVESTIGATE first (see below)
-# NONE → real unreleased work — keep branch
-```
-
-**CLOSED + cherry=+1 is NOT automatically keepable work.** A PR can be CLOSED because its work
-*landed on main through a DIFFERENT PR/branch* (superseded), not because it was abandoned-but-valuable.
-Before deciding keep-vs-delete on a CLOSED-PR branch, run two investigative checks:
-
-```bash
-# Check (a): did the feature/content reach main via a DIFFERENT commit/PR?
-git log origin/main --oneline | grep -i '<feature-keyword>'        # e.g. strict-rubric, marker symbol
-git grep '<marker-symbol-the-branch-introduces>' origin/main -- . # is the content already on main?
-
-# Check (b): does the branch's diff target files that STILL EXIST on main?
-git diff origin/main...<branch> --stat
-# If every path the branch touches no longer exists on main (file renamed/split/deleted),
-# the diff is stale and unrebaseable — a strong "superseded" signal.
-```
-
-| Investigation result | Verdict |
-| -------------------- | ------- |
-| Content already on main via another commit/PR | **SUPERSEDED → delete** (`git branch -D`) |
-| Branch only edits since-deleted/renamed files (vanished on main) | **SUPERSEDED → delete** (`git branch -D`) |
-| Content genuinely NOT on main AND files still exist | **KEEP** (real unreleased work) |
-
-Deletion uses `git branch -D` (capital), NOT `-d`: a cherry=`+` tip is not an ancestor of main,
-so `-d` refuses. `git tidy` also cannot auto-remove these — local-only branches that were never
-pushed (no tracking remote) or whose remote is already `[gone]` are the deliberate `git branch -D`
-human step, taken only AFTER content-on-main is confirmed by the checks above.
-
-#### Generate Reviewable Cleanup Script
-
-When the user says "give me a script" or any worktree has potentially real dirty files,
-generate a 7-section script (`/tmp/<repo>-worktree-cleanup.sh`):
-
-- `set -euo pipefail`; `cd /path/to/repo`
-- **§1 PRE-FLIGHT** — `git worktree list | wc -l`; `git branch | wc -l`
-- **§2 COMMIT real work** — `git add <specific-files>` (NEVER `-A`); one block per dirty worktree
-- **§3 CLEAN artifacts** — staged additions → 3-step (`reset HEAD -- . && checkout -- . && clean -fd`); otherwise 2-pass (`checkout -- . && clean -fd`)
-- **§4 REMOVE stray agent files** — `rm -f .claude-prompt-*.md`, `rm -rf Mnemosyne`, `rm -f .issue_implementer`
-- **§5 REMOVE worktrees** — explicit list, no wildcards, no `--force`
-- **§6 PRUNE** — `git worktree prune && git remote prune origin`
-- **§7 VERIFY** — `git worktree list` (expect 1); `git branch | wc -l` (unchanged)
-
-#### Cross-Repo & Stale-Drift Safety Checks (verified-local, ProjectHephaestus 2026-06-15)
-
-Three traps surfaced during a real `/worktree-cleanup` session. Run these BEFORE any destructive op.
-
-**(a) Cross-repo check — a worktree-looking dir may belong to ANOTHER repo.** A directory under
-the host repo's `build/.worktrees/` (e.g. `build/.worktrees/mnemo-skill-911`) was actually a
-worktree of a DIFFERENT repository, spawned from a stray clone-within-a-repo at
-`build/Mnemosyne`. It did NOT appear in the host repo's `git worktree list` (different
-`.git`), yet showed up in a `git status` loop. A blind cleanup would have force-deleted genuine
-uncommitted work from another project.
-
-```bash
-# Before touching ANY worktree-looking directory, confirm it belongs to THIS repo:
-THIS_REMOTE=$(git remote get-url origin)
-DIR_REMOTE=$(git -C <dir> remote get-url origin 2>/dev/null)
-[ "$DIR_REMOTE" != "$THIS_REMOTE" ] && { echo "OUT OF SCOPE: $dir belongs to $DIR_REMOTE — never remove"; }
-# Red flag: a dir present in a `git status` loop but ABSENT from `git worktree list`
-# belongs to a different clone — leave it alone.
-```
-
-**(b) Redundancy proof — a big dirty diff in a MERGED worktree is usually stale-checkout drift.**
-Worktrees whose PRs are already MERGED showed huge dirty diffs full of `D` (deleted) and `M`
-lines (e.g. `D hephaestus/automation/_implement_phase.py`). These were NOT new work — the working
-tree had been edited toward a state main has long since passed. Prove redundancy before discarding:
-
-```bash
-gh pr list --head <branch> --state all     # MERGED = positive signal it's safe
-# For each "deleted" file in the dirty diff, check whether it STILL EXISTS on main:
-git cat-file -e main:<path> && echo "file exists on main → the local deletion is drift, not real"
-# Confirm untracked files are only automation artifacts:
-ls .claude-address-review-*.md .claude-followup-*.json followup-*.json 2>/dev/null
-```
-
-If `git cat-file -e main:<file>` succeeds for the "deleted" files, the deletion is local drift
-(redundant with main), not a change worth preserving.
-
-**(c) Safety-net-blocked bulk discard → hand the commands to the user.** Looping
-`git reset --hard HEAD` + `git clean -fd` across many worktrees the agent UNILATERALLY judged
-redundant was BLOCKED by the Claude Code auto-mode safety classifier as "Irreversible Local
-Destruction not cleared by the general cleanup request." `git worktree remove` also refuses a
-dirty worktree without `--force`, and `--force` is itself blocked. Resolution that worked: stop
-auto-executing and surface the per-worktree command block for the user to run via the `!` prefix.
-
-```text
-# Clean worktrees (dirty=0), including locked-by-dead-PID ones, CAN be removed automatically:
-git worktree unlock <path> && git worktree remove <path>      # no --force needed
-
-# Force-discard of dirty-but-redundant trees needs the USER's hands — print, do not run:
-#   (for each judged-redundant worktree)
-#   git -C <wt> reset --hard HEAD
-#   git -C <wt> clean -fd
-#   git worktree remove --force <wt>
-```
-
-Only the force-discard of dirty-but-redundant trees needs user hands; everything clean is automatic.
-
-#### Submodule Worktrees Refuse `git worktree remove` — Even When Clean (verified-local, HomericIntelligence Odysseus 2026-07-13)
-
-In a repo with initialized git **submodules** (e.g. the HomericIntelligence Odysseus meta-repo,
-~14 submodules incl. `research/ProjectOdyssey`), `git worktree remove <path>` REFUSES with:
-
-```text
-fatal: working trees containing submodules cannot be moved or removed
-```
-
-This fires even when the worktree is otherwise CLEAN, and even for a worktree whose only "dirty"
-line is a submodule-POINTER change (`M research/ProjectOdyssey`) that is an artifact, not real
-work (0 unique commits ahead of `origin/main`). Two workarounds that DID NOT clear it in-session:
-
-- `git submodule deinit -f research/ProjectOdyssey` inside the worktree first — this cleared the
-  submodule checkout, but `git worktree remove` STILL refused.
-- `git worktree remove --force <path>` — blocked by the CC Safety Net (destructive).
-
-**Resolution that worked:** hand the user the exact force-remove command to run themselves. Once
-the user ran it, the worktree entries deregistered and the directories were gone.
-
-```bash
-# HAND TO USER (do not auto-run — --force is Safety-Net-blocked):
-git worktree remove --force <worktree-path> && git worktree prune
-# For a submodule-containing worktree that ALSO has a branch to delete after PR MERGED:
-git worktree remove --force <worktree-path> && git worktree prune && git branch -D <branch>
-```
-
-**Three-method worktree classification that drove the keep/prune decision** (run all three per
-worktree; a worktree is `CLEAN_PRUNE_OK` only when PR is MERGED AND status is clean):
-
-Iterate the `(path, branch)` pairs returned by the NUL parser above. For each pair, run the same
-three checks with argv-based subprocess calls: PR state via `gh pr list --head <branch> --state all`,
-commits ahead via `git -C <path> rev-list --count origin/main..HEAD`, and dirtiness via
-`git -C <path> status --porcelain`. The classification table below is unchanged.
-
-| PR state | ahead | dirty | Classification |
-| -------- | ----- | ----- | -------------- |
-| MERGED | >0 (squash) | 0 | `CLEAN_PRUNE_OK` — safe to remove |
-| OPEN | ≥0 | any | `KEEP` — in-flight PR |
-| none (`worktree-agent-*`, no remote) | 0 | 0 | throwaway — remove |
-| any | any | dirty with real diff | INSPECT before deciding (see preserve-first below) |
-
-**Squash-merge caveat:** a squash-merged PR's branch shows `ahead > 0` AND is ABSENT from
-`git branch --merged` (squash collapses history into one new commit, so the old tip is not an
-ancestor of main). Do NOT trust `git branch --merged` to detect merged work — trust the PR
-`MERGED` state from `gh pr list`. Deleting such a branch needs `git branch -D` (capital), not
-`-d` (which refuses a non-ancestor tip); hand it to the user WITH the PR-MERGED proof.
-
-**Preserve-first: inspect dirty diffs before discarding — an "uncommitted change" can be junk
-superseding merged work.** One worktree (`odyssey-5551-wt`) was dirty with uncommitted changes
-that, on inspection, were an abandoned PARTIAL REVERT of an already-MERGED feature (PR #5582).
-Correct handling: inspect (`git -C <wt> diff HEAD --stat`, then read a changed file), recognize it
-as junk that would undo merged work, and ASK the user (discard / stash / leave) rather than
-auto-commit or auto-discard. When the user chose discard, hand them:
-
-```bash
-# HAND TO USER (rm -rf + branch -D are Safety-Net-blocked / destructive):
-rm -rf <worktree-path> && git worktree prune && git branch -D <branch>
-```
-
-**Orphan on-disk worktree dirs:** a `.claude/worktrees/agent-XXXX/` directory can exist on disk
-WITHOUT being a registered worktree (`git worktree list` won't show it). Those are orphans —
-`rm -rf` them directly (they hold no git registration to deregister).
-
-**Safety-Net blocks encountered this session (ALL hand-to-user — do not work around):**
-
-| Operation | Blocked | Hand-to-user command |
-| --------- | ------- | -------------------- |
-| `git worktree remove --force <wt>` | Yes | print for user + `git worktree prune` |
-| `git checkout -- .` / `git reset --hard` (discard uncommitted) | Yes (even with explicit user "discard") | `git -C <wt> checkout -- . && git -C <wt> clean -fd` OR `rm -rf <wt>` |
-| `git branch -D <branch>` (force-delete squash-merged/unmerged) | Yes | print with PR-MERGED proof; user runs it |
-| `rm -rf <worktree-dir>` | Yes | print for user |
-
-Pattern: for ANY destroy-uncommitted-or-unmerged op, PRINT the exact command for the user; do
-not try to work around the Safety Net.
-
-#### Gitignore Hygiene (Phase 0.5)
-
-Run before cleanup operations to prevent re-accumulation:
-
-```bash
-git check-ignore -v .worktrees .claude/worktrees .coverage .claude/scheduled_tasks.lock
-# Add missing entries to .gitignore:
-# .coverage / .coverage.*
-# .worktrees/ / .claude/worktrees/
-# .claude/scheduled_tasks.lock
-```
-
-#### Inline Worktree Cleanup in a Rebase Loop
-
-```bash
-CLEANED_WORKTREES=()
-
-maybe_remove_worktree() {
-    local branch="$1" wt_path="$2"
-    [ -z "$wt_path" ] || [ "$wt_path" = "$MAIN_REPO_ROOT" ] || [ ! -d "$wt_path" ] && return 0
-    [ -n "$(git -C "$wt_path" status --porcelain 2>/dev/null)" ] && return 0
-    local open_prs
-    if ! open_prs=$(gh pr list --head "$branch" --state open --json number 2>/dev/null); then
-        return 0   # gh failure → preserve worktree (failure-safe)
-    fi
-    [ -n "$open_prs" ] && [ "$open_prs" != "[]" ] && return 0
-    git worktree remove "$wt_path" 2>/dev/null && CLEANED_WORKTREES+=("$branch")
-}
-
-for branch in "${BRANCHES[@]}"; do
-    cd "$WORK_DIR"
-    git rebase origin/main || { cd "$MAIN_REPO_ROOT"; continue; }
-    git push --force-with-lease origin "$branch"
-    cd "$MAIN_REPO_ROOT"   # CRITICAL: cd out BEFORE calling helper
-    maybe_remove_worktree "$branch" "$WORK_DIR"
-    # Guard: directory may now be gone — use -C, not CWD
-    [ -d "$WORK_DIR" ] && git -C "$WORK_DIR" status --porcelain 2>/dev/null
-done
-git worktree prune   # replaces the old end-of-script stale-sweep
-```
-
-### Phase 7: Myrmidon Wave Pattern (20+ Mixed Worktrees)
-
-**Triage categories before dispatching any agents:**
-
-| Category | Criteria | Wave | Executor |
-| -------- | -------- | ---- | -------- |
-| A — Stale/Merged | `[gone]` remote OR merged PR OR 0 commits ahead | Wave 1 | Haiku |
-| B — Unreleased | 1+ commits ahead, no merged PR | Wave 2a | Sonnet |
-| C — Stale-PR conflict | Closed PR + suspected conflicts | Wave 2b | Haiku |
-
-```
-Wave 1: N Haiku agents (parallel) — remove stale/merged worktrees
-Wave 2: SIMULTANEOUSLY
-         Wave 2a: Sonnet agents for B (one per branch — reads diff for PR description)
-         Wave 2b: Haiku agents for C conflict-check
-Wave 3: 1 Haiku agent — prune + final verification
-```
-
-**Conflict pre-check (Category B/C):**
+Fetch before resolving the base, confirm the actual repository root and remote, and reserve unique
+branch and path names.
 
 ```bash
 git fetch origin
-git rebase --onto origin/main origin/main <branch> --no-commit 2>&1 | grep -E "CONFLICT|error"
-git rebase --abort 2>/dev/null
-# Conflicts on closed-PR branch = superseded — keep closed; do NOT rebase
+git rev-parse --show-toplevel
+git remote get-url origin
+git ls-remote --exit-code --heads origin <branch>
+git worktree list --porcelain -z
 ```
 
-### Phase 8: Cross-PROCESS Worktree-Creation Race (Subprocess Workers)
-
-**Distinct from Phases 0a/4.** Those cover cross-THREAD `.git/HEAD`/index contention among
-agents sharing one interpreter. This phase covers cross-PROCESS contention: when a tool's
-parallel workers are separate `subprocess.run` CHILDREN (each its own Python interpreter) that
-share an on-disk worktree path.
-
-**Foundation**: ProjectHephaestus issue-major automation loop (real 2026-06-21 output.log,
-issues 1553/1547; fix PR #1568 / issue #1567). The loop runs each issue's phases as separate
-`subprocess.run` children. With 2+ issues in parallel, two `hephaestus-ci-driver` subprocesses
-start near-simultaneously and EACH runs `_sweep_orphaned_arming_records` (`ci_driver.py`), which
-globs ALL `drive-green-armed-*.json` records in the SHARED `build/.issue_implementer` dir. Both
-independently find the same merged orphan PR and both call `create_worktree(same_issue)` on the
-same path `build/.worktrees/issue-1547` → `fatal: '.../build/.worktrees/issue-1547' already
-exists` (git exit 128). It self-recovered via a repo-root fallback, but that cascaded into
-spurious `/compact` "No conversation found with session ID" warnings (the fallback /learn ran in
-a fresh session whose deterministic session_uuid never existed).
-
-**Root cause**: `WorktreeManager.create_worktree` (`worktree_manager.py:185`) guards only with an
-in-process `threading.Lock` + an in-memory `self.worktrees` dict. Those coordinate THREADS of one
-interpreter only. Two separate processes each have their own `WorktreeManager`/lock/dict but share
-the same filesystem path — so the in-process lock provides ZERO cross-process protection. The
-`worktree_path.exists()` check is a TOCTOU race against another process's `git worktree add`.
-
-**Decision — pick the lock by your parallel UNIT:**
-
-| Parallel unit | Shared resource | Correct lock |
-| ------------- | --------------- | ------------ |
-| THREADS of one interpreter | `.git/HEAD`, in-memory dict | `threading.Lock` (and serialize — Phases 0a/4) |
-| Separate `subprocess.run` children / processes | on-disk worktree dir, state file | cross-process advisory `fcntl.flock(LOCK_EX)` on a sentinel file |
-
-**Fix — reusable cross-process `file_lock` primitive** (`hephaestus/utils/file_lock.py`):
-
-```python
-from hephaestus.utils.file_lock import file_lock, LockUnavailableError
-
-# Serialize the WHOLE create/sweep across processes (blocking — waits for the holder):
-with file_lock(state_dir / "orphan-sweep.lock"):
-    # re-glob + re-load records here; the second sweeper finds them already terminal → no-op
-    _sweep_orphaned_arming_records(...)
-
-# Non-blocking variant (skip if another process holds it):
-try:
-    with file_lock(path, blocking=False):
-        ...
-except LockUnavailableError:
-    ...  # someone else owns it — back off
-```
-
-Primitive contract: `@contextmanager file_lock(path, *, blocking=True)` wraps
-`fcntl.flock(LOCK_EX)` (`LOCK_NB` → raises `LockUnavailableError` when `blocking=False`); opens the
-sentinel securely with `os.open(... O_RDWR|O_CREAT|O_NOFOLLOW, 0o600)` (refuses symlinks); does NOT
-unlink the sentinel while held (inode-reuse hazard); Windows no-op fallback when `import fcntl`
-fails. It was extracted from TWO pre-existing INLINE flock copies
-(`github/rate_limit.py:359-435` `_open_secure_state_file` + `gh_global_throttle_acquire`, and
-`automation/advise_runner.py:150-195`) — there was no generic helper and no `filelock` dependency.
-
-**Why wrapping the WHOLE sweep (not just the create) is the fix:** holding the lock across the
-entire sweep serializes the subprocesses; the second sweeper, on acquiring, re-globs + re-loads
-records and finds them already terminal (the first sweeper called
-`_mark_drive_green_learn_result`), so it no-ops. This closes BOTH the double-`/learn` and the
-`create_worktree` collision at the source. Do NOT just `path.exists()`-then-create under no
-lock — that guard is the TOCTOU race.
-
-**Cascading-symptom lesson:** the race was masked by the self-recovery fallback (repo-root fresh
-session), which then produced a DIFFERENT downstream symptom (`/compact` "No conversation found").
-Trace cascading warnings back to the original masked failure rather than fixing the visible symptom.
-
-Related: [[concurrency-and-process-reliability-patterns]] (Pattern 4 — cross-process semaphore) and
-[[automation-loop-phase-major-to-issue-major]] (the architecture that made workers separate
-subprocesses).
-
-### Phase 9: Proposed First-Writer-Wins Ownership for Shared Writer Branches
-
-> **Warning:** This phase is `unverified`. It records a reviewed implementation design from
-> ProjectHephaestus on 2026-07-26; the code, tests, and CI had not been executed when captured.
-
-Path isolation is insufficient when two logical work items resolve to the same writable branch.
-Git permits only one non-detached checkout of a branch, and aliasing that checkout under two issue
-keys admits two writers to the same files. The durable policy is **first writer wins**:
-
-1. Let planning and read-only review remain item-independent. Apply ownership only when a work
-   item asks for a non-isolated writer worktree and the exact adopted PR head branch is known.
-2. Use a repository-scoped cross-process Git metadata lock around the complete
-   **find-current-holder → decide reuse/ownership → add-worktree** sequence. A holder check before
-   the lock is a TOCTOU race; two workers can both observe "free" and then both attempt creation.
-3. Reuse is legal only when the branch is already checked out at the requesting issue's expected
-   path. If a different path holds the branch, raise a typed ownership exception carrying the
-   branch and owner path. Detached `isolated=True` review checkouts remain independent.
-4. Translate only that typed exception into a stable machine classification such as
-   `branch_worktree_owned`, with diagnostics in structured fields rather than interpolated into the
-   classification string. All unrelated worktree errors remain generic failures and fail closed.
-5. At the writer stage, consume the exact ownership classification before the generic Git-retry
-   path and finish the later item successfully as **superseded**. Clear its worktree and do not
-   increment Git retries or writer attempts; do not submit implementation/address agents.
-6. Keep terminal reporting structural: a superseded item has no worktree and passes terminally, so
-   preservation and rerun collectors naturally include only the owning item.
-
-The ownership key is the verified writable branch, **not issue number and not PR number**. Tests
-must cover both shapes:
-
-- two distinct PRs whose live `head_branch` values are equal;
-- one consolidated PR linked to multiple issues.
-
-In both cases, assert exactly one writer worktree and one writer-agent submission. Also assert the
-later item passes with a superseded reason, has an empty worktree, consumes no retry/attempt budget,
-and never appears in preserved-worktree or rerun guidance.
-
-```python
-BRANCH_WORKTREE_OWNED = "branch_worktree_owned"
-
-
-class BranchWorktreeOwnedError(RuntimeError):
-    """A different logical item already owns the requested writer branch."""
-
-    def __init__(self, branch: str, owner_path: Path) -> None:
-        self.branch = branch
-        self.owner_path = owner_path
-        super().__init__(f"{branch!r} is already checked out at {owner_path}")
-
-
-with file_lock(repo_git_metadata_lock):
-    existing = None if isolated else worktree_holding_branch(branch)
-    if existing == expected_issue_path:
-        return existing
-    if existing is not None:
-        raise BranchWorktreeOwnedError(branch, existing)
-    add_worktree_for_branch(branch, expected_issue_path)
-```
-
-Stable transport and stage routing:
-
-```python
-try:
-    create_worktree(...)
-except BranchWorktreeOwnedError as error:
-    return JobResult(
-        ok=False,
-        error=BRANCH_WORKTREE_OWNED,
-        value={"branch": error.branch, "owner_path": str(error.owner_path)},
-    )
-
-if result.error == BRANCH_WORKTREE_OWNED:
-    item.payload["branch_worktree_owner"] = result.value
-    item.worktree = ""
-    # The next state returns FINISH_PASS with a superseded reason.
-```
-
-### Branch Deletion Policy
-
-**CRITICAL: Never delete branches autonomously. Always defer to the user.**
+Create from an immutable or freshly fetched base. Use the worktree directory as the working
+directory for every edit and Git command.
 
 ```bash
-# Identify candidates — present to user, do NOT delete
-git branch -v | grep '\[gone\]'
-git cherry origin/main <branch>  # '-' = in main; '+' = not in main
-# For remote branch deletion (user-confirmed only):
-REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
-gh api --method DELETE "repos/$REPO/git/refs/heads/<branch-name>"
-# NOT git push origin --delete (triggers pre-push hooks)
+git worktree add -b <unique-branch> <absolute-worktree-path> origin/main
+git -C <absolute-worktree-path> status --short --branch
 ```
+
+Before every commit, assert the branch and ownership scope:
+
+```bash
+test "$(git branch --show-current)" = "<unique-branch>"
+git status --short
+git diff --name-only --cached
+```
+
+If several logical items resolve to the same branch, admit exactly one writer. Reuse is safe only
+for the requesting item's expected path. Treat later writers as permanently superseded; retrying
+cannot create ownership.
+
+### 2. Split work by dependencies and hot files
+
+Map every task to owned paths before dispatch. Run independent owners concurrently, but serialize
+tasks that touch the same main/history/index file or depend on a preceding merge. Give every worker
+the worktree path, branch, base, owned files, forbidden files, validations, and publication rules.
+
+Do not rely on disjoint files in a shared checkout: branch switches, stash, rebase metadata, and
+the shared index can still move another writer's work. Harness-created clones may also hide sibling
+branches, so use explicit linked worktrees when cross-branch inspection matters.
+
+### 3. Serialize cross-process allocation
+
+First determine whether contention is among threads or processes. `threading.Lock` protects only
+one interpreter. For subprocesses sharing Git metadata and filesystem paths, hold one
+repository-scoped advisory file lock across all of these operations:
+
+1. Refresh and parse the worktree inventory.
+2. Detect the current branch holder.
+3. Decide same-path reuse versus typed ownership rejection.
+4. Run `git worktree add`.
+
+The existence check and add must be inside the same lock; otherwise they form a TOCTOU race. Prefer
+one reusable `file_lock(path, blocking=True)` context manager over duplicated inline `fcntl.flock`
+blocks. A nonblocking acquisition should raise a typed "lock unavailable" outcome, not silently
+continue.
+
+### 4. Parse inventory without losing paths
+
+Request `git worktree list --porcelain -z` and parse NUL-delimited attributes into stateful records.
+Keep each complete path paired with its branch, HEAD, and `locked` attribute. Never use
+`awk '{print $2}'`, shell word splitting, or newline-only records: paths and lock reasons can contain
+spaces or newlines.
+
+Before touching a worktree-looking directory, verify both:
+
+```bash
+git -C <candidate> remote get-url origin
+git worktree list --porcelain -z
+```
+
+A directory whose remote differs, or which is absent from the current repository's worktree
+inventory, is out of scope even if it lives beneath a familiar build directory.
+
+### 5. Classify before cleanup
+
+For each candidate, record branch, PR state, dirtiness, lock state, submodule presence, and unique
+work. Use PR state as the merge authority in squash/rebase repositories; `git branch --merged`,
+ahead counts, and `git cherry` can report old commits as unique after their patch shipped under a
+new SHA.
+
+```bash
+git -C <worktree> status --porcelain
+gh pr list --head <branch> --state all --json number,state,url
+git cherry origin/main <branch>
+git diff --name-status origin/main...<branch>
+```
+
+For CLOSED plus `cherry=+`, investigate whether the content landed through another PR and whether
+the touched paths still exist on main. For apparent deleted-file drift:
+
+```bash
+git cat-file -e origin/main:<path>
+```
+
+Success means the path exists on main and the checkout may merely be stale. Inspect untracked
+files; do not assume a large dirty count is cache noise. If unstaged edits vanished after a foreign
+branch switch, inspect `git stash list` for `WIP on <branch>` and apply the matching stash only in a
+fresh owned worktree.
+
+### 6. Apply the least-destructive cleanup action
+
+- Clean and unlocked: move outside the target, then `git worktree remove <path>`.
+- Clean and locked: `git worktree unlock <path>`, then remove normally.
+- Dirty or uncertain: preserve and ask for a disposition; never auto-commit or auto-discard.
+- Foreign repository: leave untouched.
+- Initialized submodules: plain removal may fail even after `git submodule deinit`; report that
+  force removal is required.
+- After successful removals: `git worktree prune`.
+
+Never let a failed `gh` query default to deletion. Capture it explicitly and stop cleanup on error.
+Never remove the current working directory; `cd` to the main repository first and use `git -C` for
+checks. Staged additions survive `git checkout -- .`; this is one reason discard must be treated as
+an explicit destructive operation rather than a casual cleanup step.
+
+If policy blocks `reset --hard`, `clean -fd`, `worktree remove --force`, `rm -rf`, or `branch -D`,
+do not work around the guard. Present exact, fully resolved commands and evidence to the user.
+
+### 7. Recover contamination or stranded work
+
+When commits leaked between branches, identify each owner's commits and rebuild from the intended
+base in a fresh worktree. Prefer cherry-picking known-good commits to complicated revert chains.
+Protect any rewritten remote with the exact observed old head:
+
+```bash
+git push --force-with-lease=refs/heads/<branch>:<old-head> origin HEAD:<branch>
+```
+
+For uncommitted work on a hijacked shared checkout, export a patch or locate the stash, create a
+fresh owned worktree, apply there, and revalidate. Never keep editing after `HEAD` or the branch
+changes unexpectedly.
 
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
-| ------- | -------------- | ------------- | -------------- |
-| Sequential agent execution | Launch one agent, wait, then launch next | 10 issues × 3 min = 30 min; no parallelism | Launch all independent agents in ONE message |
-| Agents working on main branch | Multiple agents working on shared branches | Merge conflicts when agents push simultaneously | Each agent gets its own worktree |
-| Parallel agents without worktree isolation | Both agents shared the same working tree | Stale `.git/rebase-merge/` state from each other's abandoned rebases | Always assign each parallel agent a dedicated `git worktree` |
-| Overly generic agent instructions | "Fix issues #479, #478 in parallel" | Agents waste time exploring; inconsistent approach | Provide step-by-step with exact file paths and function names |
-| Shared temp branch prefix across agents | Agent 1 and 2 used same `tmp-r2-*` prefix | Conflicting temp branch names | Include unique batch ID in prefix: `tmp-b1-<N>`, `tmp-b2-<N>` |
-| Parallel Haiku bundle agents, no branch-name uniqueness | Four agents used same naming template | 26 commits from 4 branches collapsed onto one remote ref (PR #386) | Issue-number-suffixed names + `git ls-remote --exit-code --heads origin <branch>` before push |
-| Parallel Task isolation=worktree on 8 EASY-tier branches | 8 haiku/sonnet dispatched simultaneously | Multiple agents committed to parent repo's checked-out branch; sibling agents reported stat-cache deltas | `Task isolation=worktree` is path-isolated but NOT branch/index-isolated; serialize EASY-tier batches |
-| Parallel Haiku bundle agents, partial contamination (PR #398+#401) | Two `isolation: "worktree"` agents near-simultaneous push | PR #398 acquired one stray commit from PR #401; diff showed unrelated `nats_client.cpp` | Recovery: `git reset --hard origin/main && cherry-pick <own-shas> && push --force-with-lease`. Do NOT try `git revert` or `git rebase --onto` |
-| 3 parallel Sonnet agents "work directly here, NO worktree" (F-phase) | Dispatch told all three to operate in main workdir; files were disjoint | All 3 agents reported HEAD-flipping contamination; commits leaked between branches; ~15 min/agent of stash/checkout/reflog recovery | Disjoint files do NOT protect shared `.git/HEAD`. Every parallel impl agent MUST have its own worktree |
-| Harness `isolation: "worktree"` for agents needing cross-reference | Set `Task(isolation="worktree")` on agents needing sibling branch visibility | Harness creates a separate CLONE — agents lose visibility into sibling pushed branches; also slower setup | For cross-reference needs, use explicit `git worktree add /tmp/<name>` inside the prompt |
-| Parallel Mnemosyne `/learn` amendments | 5 parallel sub-agents amending skills on shared clone | Same contamination as EASY-tier swarm; agents wrote to wrong skill files/branches | Serialize `/learn` OR use a truly independent clone per agent |
-| Edit files via absolute main-repo path from worktree | Used Read/Edit on main repo path while session rooted in worktree | Changes landed on main branch, not feature branch | Always run `git rev-parse --show-toplevel` before editing |
-| Start implementation without checking git log | Planned work from prompt description alone | Work was already done in HEAD commit | Always run `git log --oneline -3` before any planning |
-| Assume large dirty count = artifacts | 187 files dirty → assumed `__pycache__` noise | agent-a117bab3 had 32 real modified Python files on a merged branch | Always inspect `git status --short` output per-file; never assume based on count |
-| Assume cherry=1 means unreleased work | Three branches showed cherry=1 despite MERGED PRs | Rebase-merge rewrites commit hashes; cherry count is 1 even though work is in main | Always check PR state; cherry count is only meaningful when combined with PR=NONE or CLOSED |
-| Treat a CLOSED-PR branch with cherry=+1 as keepable unreleased work | Classified `fix/strict-simplify-pr-site4-581-v2` (PR #586 CLOSED, cherry=+1) as "real unreleased work — keep" by the old heuristic | PR #586 was CLOSED because the strict-rubric feature landed via #583/#585/#587, and the branch edited `prompts.py` which main had split into a `prompts/` package — the +1 diff (123 lines) was stale/superseded, not valuable | On CLOSED+cherry=+, verify (a) content on main via another commit/PR (`git log origin/main` keyword grep / `git grep <marker> origin/main`) and (b) the branch's files still exist on main (`git diff origin/main...<branch> --stat`) before deciding keep-vs-delete; if superseded, delete with `git branch -D` |
-| `git checkout -- .` alone on staged-addition worktree | Ran `checkout -- .` then `git worktree remove` | `fatal: contains modified or untracked files` — staged new files (status `A`) survive `checkout --` unchanged | Run `reset HEAD -- .` first, then `checkout -- .`, then `clean -fd` |
-| Execute destructive ops directly | Planned `git worktree remove` directly on dirty worktrees | User wanted a script to review first | All destructive ops go into a reviewable script; only read-only analysis runs directly |
-| `git worktree remove --force` on dirty worktrees | Used `--force` for stubborn cases | Safety Net blocks `--force` | Clean stray files individually first, then remove without `--force` |
-| Classify all locked worktrees as KEEP | Treated lock status as always ambiguous; printed manual unlock+force-remove commands for user | Unnecessary — locked+clean worktrees can be unlocked and removed directly without `--force` | Split on cleanliness: locked+clean → unlock+remove; locked+dirty → classify files first |
-| `git worktree remove` on locked worktree directly | Ran remove without unlock | Fails with "is locked, use 'git worktree unlock' to unlock it first" | Always run `git worktree unlock <path>` before `git worktree remove <path>` |
-| Skip .gitignore hygiene | Cleaned up worktrees but did not add worktree dirs to `.gitignore` | `.worktrees/` reappeared as untracked after next agent session | Run Phase 0.5 gitignore hygiene before cleanup |
-| `git worktree remove "$WORK_DIR"` from inside loop that cd-ed there | Remove succeeded but every subsequent command failed — CWD was the deleted directory | `git worktree remove` returns 0; failures cascade silently | Always `cd "$MAIN_REPO_ROOT"` BEFORE calling remove; use `git -C <path>` for subsequent checks |
-| `OPEN_PRS=$(gh pr list ...) && [ -z "$OPEN_PRS" ] && git worktree remove` | When `gh` failed (unauthenticated/offline), `$OPEN_PRS` was empty — script removed an in-flight worktree | Destructive default on `gh` failure is exactly backwards | Capture inside the `if`: `if ! open_prs=$(gh pr list ... 2>/dev/null); then return 0; fi` |
-| Post-removal dirty-check via `cd "$WORK_DIR"; git diff-index` | After inline removal, `cd` failed silently; `git diff-index` ran on wrong directory | CWD-based git after possibly-removed directory yields wrong-tree results | Guard with `[ -d "$WORK_DIR" ]` first AND use `git -C "$WORK_DIR" status --porcelain` |
-| End-of-script stale worktree sweep AFTER inline loop cleanup | Sweep re-queried `gh` and re-checked dirtiness on already-classified branches | Pure duplication; doubled `gh` API calls; second silent-failure surface | Replace sweep with `git worktree prune` + printed summary of `CLEANED_WORKTREES` |
-| `gh pr merge --auto --rebase` (default) | Standard merge command | Repo had rebase merging disabled | Detect with `gh repo view --json squashMergeAllowed,rebaseMergeAllowed` once, pass to all briefs |
-| Single-PR fix agent edits in the shared main workdir because its target branch happened to be checked out there | Made review-comment + lint fixes directly in `/home/.../ProjectHephaestus` (not a worktree) while sibling swarm agents ran | A sibling agent ran `git stash` + `git checkout <other-branch>` on the shared repo mid-session; my unstaged edits vanished and `git -C <repo> status` showed a totally different branch (`623-auto-impl`) and different dirty files | NEVER edit in the shared main workdir during a swarm. Even a single-PR agent must `git worktree add /tmp/wt-<pr>-<branch> <branch>` first and work only there. The shared `.git/HEAD` and index belong to everyone |
-| Assume lost unstaged edits are gone after the branch was switched out | Panicked the fixes were lost when the shared repo flipped to another branch | The sibling agent's `git stash` (run before its checkout) captured MY edits as `stash@{0}: WIP on 613-auto-impl` | Before redoing work, run `git stash list` and look for `WIP on <your-branch>`; `git stash apply stash@{N}` into your own fresh worktree to recover verbatim |
-| Both agents append to same docs file end-of-file | Each appended a new H2 section at EOF | Agent A removed a "still out of scope" bullet that B's work made in-scope; rebase produced stale-bullet conflict | "Append-only" necessary but insufficient — also forbid editing "still TODO"/"out of scope" lists |
-| Trusting local pre-commit pass after manual rebase conflict resolution | Resolved markdownlint conflict, force-pushed without rerunning hooks | Manual edit during conflict resolution introduced missing blank line; CI markdownlint failed | Always run `pre-commit run --files <changed>` AFTER manually resolving rebase conflicts |
-| `pixi run -e dev` in split-issue agent brief | Used `dev` env name from instinct | Repo had envs `default`/`lint`/`docs`, no `dev` — agent commands failed | Brief should say "use `pixi run` (default env)" OR grep `pixi.toml` for env names first |
-| Repeated `git -C <worktree>` for add/commit/push | Drove day-to-day git operations from parent harness | Permission-gated harnesses triggered repeated approvals; Git wrote locks through shared metadata | Once the worktree exists, use that directory as CWD and run plain `git` commands there |
-| Sub-agent dispatched with `Agent(isolation="worktree")` used bare repo paths in Read/Edit | Read/Edit operated on user's main checkout instead of worktree | The harness does not enforce paths stay inside the worktree | Prompt MUST state: "Use the worktree path EXPLICITLY in every Read/Edit/Bash call. NEVER use bare `<repo>/...` paths." |
-| Direct worktree creation without fetching | `git worktree add -b name path origin/main` on stale clone | `origin/main` did not exist locally (only `origin/master`) | Always fetch origin before referencing remote refs in worktree commands |
-| Over-broad Wave 1 myrmidon removal | Removed all `worktree-agent-*` in Wave 1 without checking unreleased work | Discarded branches that could have been rebased and PRed | Categorize first (A/B/C triage), then remove only Category A in Wave 1 |
-| Rebase of stale-PR branches without conflict pre-check | Attempted `git rebase origin/main` on closed-PR branches | All had conflicts — work was superseded | Run conflict pre-check before any rebase; conflicts on closed-PR = superseded, keep closed |
-| Haiku for Category B rebase+PR | Used Haiku for rebase+PR wave | Haiku wrote generic/inaccurate PR descriptions without analyzing the diff | Sonnet required for Category B: needs to read diff and write meaningful PR title/body |
-| Sequential Wave 2 myrmidon | Ran rebase+PR and conflict-check sequentially | Doubled time when both subtasks are fully independent | Run Wave 2a (Sonnet) and Wave 2b (Haiku) in parallel |
-| Treat a dir under `build/.worktrees/` as one of THIS repo's worktrees | About to clean `build/.worktrees/mnemo-skill-911`, which sat under the host repo's build dir | It was a worktree of a DIFFERENT repo (Mnemosyne), spawned from a stray clone-within-a-repo at `build/Mnemosyne`; it never appeared in the host repo's `git worktree list` (different `.git`); a blind cleanup would have force-deleted genuine uncommitted work from another project | Before touching any worktree-looking dir, run `git -C <dir> remote get-url origin` and confirm it matches THIS repo's remote; a dir in a `git status` loop but ABSENT from `git worktree list` belongs to another clone — OUT OF SCOPE, never remove |
-| Assume a big `D`/`M` dirty diff in a merged worktree is real work to preserve | Worktrees on already-MERGED PRs showed huge diffs full of `D hephaestus/automation/_implement_phase.py`-style deletions | The deletions were stale-checkout drift — the tree was edited toward a state main long since passed; the "deleted" files still exist on main, so the diff is redundant, not new work | Prove redundancy with `git cat-file -e main:<file>` for each "deleted" path (success = drift) + `gh pr list --head <branch> --state all` (MERGED = safe) + confirm untracked files are only `.claude-address-review-*.md`/`.claude-followup-*.json`/`followup-*.json` artifacts BEFORE discarding |
-| Auto-loop `git reset --hard HEAD` + `git clean -fd` across 14 unilaterally-judged-redundant worktrees | Tried to bulk-discard dirty-but-redundant trees in auto mode | Claude Code safety classifier BLOCKED it as "Irreversible Local Destruction not cleared by the general cleanup request"; `git worktree remove` also refuses dirty trees without `--force`, and `--force` is blocked too | Auto-remove only CLEAN worktrees (incl. locked-by-dead-PID: `git worktree unlock <p> && git worktree remove <p>`, no `--force`); for force-discard of dirty-but-redundant trees, STOP and print the exact per-worktree reset/clean/remove block for the USER to run via the `!` prefix |
-| In-process `threading.Lock` to guard worktree creation across `subprocess.run` workers | `WorktreeManager.create_worktree` guarded only with a `threading.Lock` + in-memory `self.worktrees` dict; two `hephaestus-ci-driver` SUBPROCESSES ran `_sweep_orphaned_arming_records` near-simultaneously | A `threading.Lock` coordinates only THREADS of one interpreter; each subprocess has its OWN lock/dict but shares the filesystem path, so both called `create_worktree(issue-1547)` → `fatal: '.../build/.worktrees/issue-1547' already exists` (git exit 128) | Check whether your parallel unit is THREADS or PROCESSES before choosing a lock; for subprocess workers sharing an on-disk path use a cross-process advisory `fcntl.flock(LOCK_EX)` on a sentinel file, NOT a `threading.Lock` |
-| `worktree_path.exists()`-then-`git worktree add` guard | Checked path existence, then created the worktree if absent | Across processes this is a TOCTOU race — the second process passes the `.exists()` check before the first's `git worktree add` completes, then collides | Serialize the WHOLE create (and its enclosing sweep) under a cross-process `file_lock`; the second holder re-globs/re-loads and finds the records already terminal → no-ops |
-| Add a third inline `fcntl.flock` copy for the new lock site | Was about to inline another flock block in `ci_driver.py` like the two existing ones | Two inline flock copies already existed (`github/rate_limit.py`, `automation/advise_runner.py`) with no generic helper — a third copy is a DRY violation | Extract ONE reusable `hephaestus/utils/file_lock.py` `@contextmanager file_lock(path, *, blocking=True)` (secure `O_NOFOLLOW` open, `LockUnavailableError` on `LOCK_NB`, Windows no-op) and route all sites through it |
-| Fix the visible `/compact` "No conversation found with session ID" warning | Investigated the `/compact` session-id warning as the primary bug | It was a CASCADED downstream symptom: the worktree-creation race self-recovered via a repo-root fallback whose fresh /learn session had a deterministic session_uuid that never existed | Trace cascading warnings back to the ORIGINAL masked failure; fixing the cross-process race at the source eliminated both the collision and the `/compact` warning |
-| `git worktree remove <wt>` on a CLEAN worktree in a submodule repo | Ran plain `git worktree remove` on an Odysseus worktree whose only diff was a `M research/ProjectOdyssey` submodule-pointer artifact (0 unique commits) | `fatal: working trees containing submodules cannot be moved or removed` — git refuses to remove ANY worktree containing an initialized submodule, clean or not | In a submodule repo, `git worktree remove` cannot remove submodule-containing worktrees at all; `--force` is required and it is Safety-Net-blocked — hand the exact `git worktree remove --force <wt> && git worktree prune` to the user |
-| `git submodule deinit -f <submodule>` inside the worktree, then `git worktree remove` | Deinitialized `research/ProjectOdyssey` inside the worktree hoping `git worktree remove` would then succeed | The submodule checkout cleared, but `git worktree remove` STILL refused with the same "contains submodules" fatal | `git submodule deinit` does not unblock `git worktree remove` — do not chase this workaround; go straight to handing the user `git worktree remove --force` |
-| Trust `git branch --merged` to detect merged worktree branches | Used `git branch --merged` to decide which worktree branches were safe to prune | Squash-merged PR branches are ABSENT from `--merged` (squash collapses history so the old tip is not an ancestor of main) and show `rev-list --count origin/main..HEAD > 0`, looking like unreleased work | Trust the PR `MERGED` state from `gh pr list --head <br> --state all`, not `git branch --merged`/commits-ahead; delete the branch with `git branch -D` (capital) handed to the user with the PR-MERGED proof |
-| Auto-discard a dirty worktree's uncommitted changes as cleanup noise | About to `git checkout -- .`/`rm -rf` the dirty `odyssey-5551-wt` worktree as throwaway | The uncommitted diff was an abandoned PARTIAL REVERT of an already-MERGED feature (PR #5582) — auto-discarding is defensible but auto-committing would have re-broken merged work; either way the agent shouldn't unilaterally decide | Preserve-first: inspect the dirty diff (`git -C <wt> diff HEAD --stat` + read a file), and if it's junk superseding merged work, ASK the user (discard/stash/leave); on discard, HAND them `rm -rf <wt> && git worktree prune && git branch -D <branch>` (both are Safety-Net-blocked) |
-| `git checkout -- .` / `git reset --hard` to discard uncommitted worktree changes after the user said "discard" | Tried to run the discard directly since the user had approved discarding | CC Safety Net blocks discard-uncommitted ops (`checkout -- .`, `reset --hard`, `rm -rf <wt>`, `branch -D`) even WITH an explicit user "discard" approval — the approval is not the permission system | For any destroy-uncommitted-or-unmerged op, PRINT the exact command for the user to run via the `!` prefix; do not try to work around the Safety Net even after verbal user approval |
-| Alias one branch worktree under a second issue key | Reused whichever checkout already held the adopted PR head and registered that same path for another issue | Two logical items now share one writable filesystem and can start redundant writer agents; issue identity does not make the branch independent | Reuse only at the requesting issue's expected path; a different holder is typed branch ownership and the later item is superseded |
-| Check the branch holder before acquiring the Git metadata lock | Performed a branch-holder preflight, then locked only around `git worktree add` | The check/add split is a cross-process TOCTOU race: two workers can both observe no holder before either registers the branch | Hold one repository-scoped file lock across holder detection, same-path reuse, ownership rejection, and worktree add |
-| Route all worktree failures through Git retry | Converted branch-already-owned into a generic subprocess/worktree failure | A deterministic second-writer conflict consumed retry budgets and could end as `agent_error_exhausted`, even though retrying cannot grant ownership | Give only the typed ownership exception a stable classification and permanent successful supersession; unrelated errors still fail closed |
-| Key deduplication by issue or PR number | Grouped items only when they shared an issue mapping or one consolidated PR | Distinct PRs may still report the same writable `head_branch`, so PR-keyed grouping misses the dangerous collision | Key writer ownership on the verified live branch at allocation time; test both consolidated-PR and distinct-PR/same-head cases |
-| Preserve or rerun the superseded item | Treated the second logical item as a failed implementation with a checkout to retain | It never owned a writer worktree and no agent ran, so preservation/rerun guidance creates duplicate or misleading operator work | Clear the worktree and finish pass; structural terminal collectors then list only the branch owner |
-| Tokenize `git worktree list --porcelain` with `awk '{print $2}'`, `.split()`, or `for path in $(...)` | Treated paths as whitespace-delimited tokens | A worktree such as `/repo/.worktrees/123 finished` is truncated and can be checked, logged, or removed under the wrong path; newline-containing paths are ambiguous without `-z` | Request `--porcelain -z`, parse labeled NUL-delimited fields, and keep path/branch/lock attributes in one record |
-| Change only the parser to NUL fields | Updated `.splitlines()` to `.split("\0")` but left the Git invocation, fixtures, lock lookup, or cleanup-boundary test unchanged | Producer and consumers no longer share one format contract, or the unit test passes without proving the real cleanup path receives the complete path | Migrate producer, all consumers, fixtures, lock detection, and an end-to-end dry-run regression together; retain ordinary-path policy assertions |
+| --- | --- | --- | --- |
+| Multiple writers in one checkout | Multiple writers in one checkout | Shared `HEAD`, index, stash, and rebase state contaminate work | One explicit worktree per writer |
+| In-process lock around subprocess allocation | In-process lock around subprocess allocation | Each process owns a different lock | One repository-scoped file lock around check and add |
+| Path-exists check before locked add | Path-exists check before locked add | Cross-process TOCTOU race | Recheck inventory inside the lock |
+| `git cherry` or `--merged` as merge proof | `git cherry` or `--merged` as merge proof | Squash/rebase changes commit identity | Trust live PR state plus content evidence |
+| Word-splitting porcelain output | Word-splitting porcelain output | Corrupts paths and record associations | Parse `--porcelain -z` statefully |
+| Blind cleanup under build directories | Blind cleanup under build directories | May target another repository | Verify remote and worktree membership |
+| Force cleanup of dirty/submodule worktrees | Force cleanup of dirty/submodule worktrees | Destructive and often policy-blocked | Preserve, classify, and hand off exact commands |
+| Branch reuse for a second logical issue | Branch reuse for a second logical issue | Creates two writers for one head | First writer wins; later item is superseded |
 
 ## Results & Parameters
 
-### Delimiter-Safe Worktree Inventory (Proposed)
-
-| Parameter / invariant | Required value |
-| --------------------- | -------------- |
-| Git argv | `worktree list --porcelain -z` |
-| Field delimiter | NUL (`"\0"`) |
-| Record start | `worktree <complete-path>` |
-| Record end | Empty NUL-delimited field |
-| Attached branch | `branch refs/heads/<name>` in the same record |
-| Lock state | `locked` or `locked <reason>` in the same record |
-| Candidate exclusions | Primary root, detached, and bare worktrees |
-| Stale policy | Existing closed-issue OR merged-branch rule |
-| Safety policy | Skip dirty and locked worktrees; dry-run never removes |
-| Regression path | `/repo/.worktrees/123 finished` paired with `123-finished` |
-| Verification | `unverified` — implementation and CI pending |
-
-### Shared-Branch Writer Admission Invariants (Proposed)
-
-| Parameter / invariant | Required value |
-| --------------------- | -------------- |
-| Ownership key | Verified writable head branch |
-| Arbitration scope | Repository-scoped cross-process Git metadata lock |
-| Reusable holder | Requesting item's own expected worktree path only |
-| Review checkout | Detached/isolated; does not claim writer ownership |
-| Stable classification | `branch_worktree_owned` |
-| Diagnostic payload | `{"branch": <branch>, "owner_path": <path>}` |
-| Later-item disposition | Successful terminal supersession |
-| Later-item budgets | 0 Git retries; 0 writer attempts; 0 writer-agent jobs |
-| Preservation / rerun | Owner only |
-| Verification | unverified — implementation and CI pending |
-
-### Scale Metrics
-
-| Session | Notes | Time | Speedup |
-| ------- | ----- | ---- | ------- |
-| ProjectScylla PR sprint — 10 issues, 9 PRs | 6–8 agents | 15–20 min | 6–8x |
-| Mnemosyne LOW — 12 issues, 12 PRs | 12 agents | 6 min | ~5x |
-| ProjectOdyssey rebase — 70 PRs | 3 agents | 45 min | — |
-| ProjectScylla #1887 split — 1 issue → 2 PRs | 2 agents | ~30 min | ~1.7x |
-| ProjectHephaestus myrmidon — 32 → 4 worktrees | 3-wave swarm | 45 min | — |
-
-**Myrmidon scale:**
-
-| Worktree Count | Approach | Expected Duration |
-| -------------- | -------- | ----------------- |
-| < 10 | Sequential | 10–20 min |
-| 10–20 | Myrmidon waves, 3–5 agents/wave | 15–25 min |
-| 20–35 | Myrmidon waves, 5–10 agents/wave | 20–45 min |
-| 35+ | Myrmidon waves, sub-batch per agent | 45–90 min |
-
-### Artifact Patterns, Safety Net, and Utilities
-
-**Artifact patterns (always discard):**
-`__pycache__` `.pyc` `.pyo` `build/` `dist/` `.egg-info/` `.claude-prompt-*.md`
-`Mnemosyne/` `.issue_implementer` `.pytest_cache` `.mypy_cache` `.ruff_cache`
-`.coverage.*` `htmlcov/`
-
-**Safety Net interaction:**
-
-| Operation | Blocked? | Workaround |
-| --------- | -------- | ---------- |
-| `git worktree remove --force` (untracked files) | Yes | Delete untracked files first, then remove without `--force` |
-| `git worktree remove --force` (dirty merged-PR) | Yes | Unlock first, then ask user to run `--force` manually |
-| `git reset --hard` | Yes | Use `pull --rebase` instead |
-| `git checkout --` / `git restore` on tracked artifacts | Yes | Use `git stash` to park before rebase, then `git stash drop` after |
-| `git worktree remove` (submodule-containing worktree, even clean) | N/A — git itself refuses (`--force` needed) | `--force` is Safety-Net-blocked; hand `git worktree remove --force <wt> && git worktree prune` to the user |
-| `git checkout -- .` / `git reset --hard` (discard uncommitted) | Yes (even with user "discard" approval) | Print for user; `git stash` if recoverable is acceptable |
-| `git branch -D <branch>` (force-delete squash-merged/unmerged) | Yes | Print with PR-MERGED proof for the user to run |
-| `rm -rf /tmp/mnemosyne-skill-*` inside sub-agent | Yes | Run from orchestrator before spawning sub-agents |
-| `rm -rf <worktree-dir>` (discard abandoned worktree) | Yes | Print for user; combine with `git worktree prune && git branch -D` |
-
-**Stale /tmp cleanup before parallel /learn agents:**
-
-```bash
-rm -rf /tmp/mnemosyne-skill-* 2>/dev/null || true
-git -C "$HOME/.agent-brain/Mnemosyne" worktree prune
-# Prefer timestamp-suffixed paths to eliminate future collisions:
-WORKTREE_DIR="/tmp/mnemosyne-$(date +%s)-<name>"
-```
-
-**Programmatic path extraction from porcelain output:**
+Copy-ready worker contract:
 
 ```text
-# WRONG — loses whitespace/newline safety and can extract the ref instead of the path:
-git worktree list --porcelain | grep ... | awk '{print $2}'
-
-# CORRECT — capture once and use the stateful NUL parser from Phase 6:
-porcelain = run_git(["worktree", "list", "--porcelain", "-z"]).stdout
-for path, branch in parse_worktree_porcelain(porcelain, root):
-    ...
+worktree: <absolute path>
+branch: <unique branch>
+base: <immutable SHA or fetched remote ref>
+owned paths: <explicit list>
+forbidden paths: <explicit list>
+verification: <commands>
+publication: <push/PR rules>
 ```
 
-**Rebase conflict resolution:**
+Safety invariants:
 
-| File | Resolution |
-| ---- | ---------- |
-| `CLAUDE.md`, config files | Take `--ours` always |
-| CI workflow YAML | Take `--ours` unless branch adds the workflow |
-| Deleted file (modify/delete conflict) | Honor deletion with `git rm <file>` |
-| Test files | Keep both sides' additions |
+1. A writable branch has at most one active owner.
+2. Worktree allocation is atomic across processes.
+3. Inventory parsing preserves arbitrary paths.
+4. Destructive cleanup requires proven scope and explicit authority.
+5. A failed remote query never becomes permission to delete.
 
 ## Verified On
 
-| Project | Context | Details |
-| ------- | ------- | ------- |
-| ProjectScylla | 10 issues resolved, 9 PRs merged, ~1,335 lines eliminated | parallel-issue-resolution-with-worktrees 2026-02-13 |
-| ProjectScylla | Issue #1887 split into PRs #1932 (squash-merged green) and #1933 | 2026-05-07 — v1.1.0 split-issue pattern |
-| ProjectOdyssey | Phase G EASY-tier 8-issue swarm contamination (PR #5363); recovery via cherry-pick consolidation | 2026-05-09 |
-| ProjectAgamemnon | 2026-05-16 swarm (PR #386 collision recovery + PRs #387–#390 success after fix) | — |
-| ProjectAgamemnon | 2026-05-17 PR #398 partial contamination recovery (force-pushed, CI clean, auto-squash merged) | — |
-| ProjectAgamemnon | 2026-05-18 F-phase (PRs #407, #409, #410): no-worktree anti-pattern; all 3 PRs merged after recovery | — |
-| ProjectScylla | 36 worktrees, 6 dirty, 26 `[gone]` branches; reviewable script | cleanup session 2026-04-12 |
-| Mnemosyne | 13 locked `worktree-agent-<hash>` from dead myrmidon sessions, all dirty=0; unlocked+removed without `--force` | 2026-05-04 |
-| ProjectHephaestus | Myrmidon wave parallelization — 32 → 4 worktrees; 3 PRs from unreleased work | myrmidon-wave 2026-04-05 |
-| ProjectHephaestus | CLOSED+cherry=+1 superseded-branch refinement: `fix/strict-simplify-pr-site4-581-v2` (PR #586 CLOSED) looked keepable but its strict-rubric work was on main via #583/#585/#587 and it edited the since-split `prompts.py` — read-only branch-safety audit, recommendation to user (verified-local, NOT CI) | worktree-cleanup/tidy audit 2026-05-28 |
-| AchaeanFleet | Phase 0.5 gitignore hygiene (commit dcf3d43); `git status --short` clean after cleanup | 2026-04-25 |
-| ProjectOdyssey | `scripts/rebase-all-branches.sh` inline cleanup refactor (PR #5408) | 2026-05-14 |
-| ProjectHephaestus | Worktree-cleanup safety session: cross-repo hiding under `build/.worktrees/mnemo-skill-911` (belonged to Mnemosyne via stray `build/Mnemosyne` clone); stale-checkout drift on merged worktrees proven redundant via `git cat-file -e main:<file>`; bulk `reset --hard`/`clean -fd`/`remove --force` across 14 trees safety-net-blocked → handed per-worktree commands to user (verified-local, read-only audit + recommendation) | worktree-cleanup safety 2026-06-15 |
-| ProjectHephaestus | Cross-PROCESS worktree-creation race in the issue-major automation loop (issues 1553/1547): two `hephaestus-ci-driver` subprocesses ran `_sweep_orphaned_arming_records` simultaneously → `create_worktree(issue-1547)` collision (`fatal: ... already exists`); fixed with new reusable `hephaestus/utils/file_lock.py` (`fcntl.flock`) wrapping the sweep, extracted from two pre-existing inline flock copies. PR #1568 / issue #1567. Verified-local: 2017 unit tests pass, mypy clean (411 files), ruff clean, TDD RED→GREEN for both `file_lock` and the sweep regression; PR CI still PENDING (unit-test matrix) at capture time | cross-process-orphan-sweep-race 2026-06-21 |
-| HomericIntelligence Odysseus | Cleaning ~7 agent worktrees in the Odysseus meta-repo (~14 submodules incl. `research/ProjectOdyssey`) after a long parallel session. 3-method classification (PR state / commits-ahead / dirty) pruned 2 merged-PR worktrees cleanly by the agent; submodule-containing + dirty ones hit `fatal: working trees containing submodules cannot be moved or removed` (even after `git submodule deinit`), and `--force`/`reset --hard`/`branch -D`/`rm -rf` were Safety-Net-blocked → handed exact commands to the user, who completed them. Squash-merge caveat (merged branches show ahead>0, absent from `--merged`) and a preserve-first abandoned-revert case (`odyssey-5551-wt`, junk revert of merged PR #5582) surfaced. Read-only classification + hand-to-user (procedure, not a CI-tested artifact) | worktree-cleanup-submodule 2026-07-13 |
-| ProjectHephaestus | Reviewed design for branch-keyed first-writer-wins admission when multiple issues, whether through one consolidated PR or distinct PRs, adopt the same writable head branch. Proposed typed ownership classification, file-locked holder-check/add, successful supersession, and owner-only preservation/rerun assertions. Unverified: implementation and CI pending. | shared-writer-branch ownership plan 2026-07-26 |
-| ProjectHephaestus | Reviewed stale-worktree cleanup plan: move the current Python owner to `git worktree list --porcelain -z`, parse NUL-delimited path/branch/lock records, add a space-containing dry-run regression, and preserve existing stale/safety policy. Unverified: implementation and CI pending. | delimiter-safe stale-worktree cleanup plan 2026-08-06 |
+- Source observations through 2026-08-06; overall status remains `unverified`.
+- Compacted for issue #3335 without upgrading evidence. Detailed cases and proposed helper
+  contracts are indexed in the notes companion.
