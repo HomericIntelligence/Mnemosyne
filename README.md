@@ -126,8 +126,7 @@ All PRs are validated by CI:
 - Failed Attempts section is present with proper table format
 - Description is specific (20+ chars)
 - Category is valid
-- New or changed retrievable main skill files are no larger than 30,000 bytes; unchanged oversized
-  legacy files are ratcheted and must be compacted when next amended
+- Every retrievable main skill file is no larger than 30,000 bytes
 
 Run validation locally:
 

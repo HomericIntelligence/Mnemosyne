@@ -202,9 +202,7 @@ The validator checks:
 - Failed Attempts table is included.
 - Description meets minimum length (20+ characters).
 - Category is one of the 9 approved values.
-- New or changed retrievable main skills do not exceed 30,000 bytes; unchanged oversized legacy
-  files are temporarily tolerated but cannot be amended without compaction. `.notes.md` companions
-  are excluded.
+- Every retrievable main skill is at most 30,000 bytes. `.notes.md` companions are excluded.
 
 ## Code Style
 

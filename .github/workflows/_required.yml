@@ -209,11 +209,8 @@ jobs:
       - name: Build CI image (podman)
         run: podman build -f ci/Containerfile -t mnemosyne-ci:local .
       - name: Run skill-file validation script (in container)
-        env:
-          MNEMOSYNE_SKILL_SIZE_BASE_REF: >-
-            ${{ github.event.pull_request.base.sha || github.event.before || 'origin/main' }}
         run: >
-          podman run --rm -e MNEMOSYNE_SKILL_SIZE_BASE_REF -v "$PWD:/workspace:Z"
+          podman run --rm -v "$PWD:/workspace:Z"
           --userns=keep-id:uid=1000,gid=1000
           mnemosyne-ci:local uv run python scripts/validate_plugins.py
       - name: Run test suite (in container)
@@ -239,11 +236,8 @@ jobs:
       - name: Build CI image (podman)
         run: podman build -f ci/Containerfile -t mnemosyne-ci:local .
       - name: Validate every skill file across the corpus (in container)
-        env:
-          MNEMOSYNE_SKILL_SIZE_BASE_REF: >-
-            ${{ github.event.pull_request.base.sha || github.event.before || 'origin/main' }}
         run: >
-          podman run --rm -e MNEMOSYNE_SKILL_SIZE_BASE_REF -v "$PWD:/workspace:Z"
+          podman run --rm -v "$PWD:/workspace:Z"
           --userns=keep-id:uid=1000,gid=1000
           mnemosyne-ci:local uv run python scripts/validate_plugins.py
       - name: Assert the skills corpus is non-empty
@@ -444,11 +438,8 @@ jobs:
       - name: Build CI image (podman)
         run: podman build -f ci/Containerfile -t mnemosyne-ci:local .
       - name: Assert every skill declares a valid semver version (in container)
-        env:
-          MNEMOSYNE_SKILL_SIZE_BASE_REF: >-
-            ${{ github.event.pull_request.base.sha || github.event.before || 'origin/main' }}
         run: >
-          podman run --rm -e MNEMOSYNE_SKILL_SIZE_BASE_REF -v "$PWD:/workspace:Z"
+          podman run --rm -v "$PWD:/workspace:Z"
           --userns=keep-id:uid=1000,gid=1000
           mnemosyne-ci:local uv run python scripts/validate_plugins.py
       - name: Cross-check pyproject version is valid semver (in container)
