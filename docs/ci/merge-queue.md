@@ -25,9 +25,10 @@ jq '.required_contexts_by_ruleset, .merge_queue_rule' \
 
 `.github/workflows/_required.yml` emits those contexts for `push` and
 `pull_request` events on `main`, and for `merge_group` `checks_requested`
-events. The advisory `validate-plugins.yml` workflow keeps its existing
-triggers. The release publisher remains tag-only and retains write permission
-only for publishing releases.
+events. The advisory `validate-plugins.yml` workflow also runs on pull requests,
+pushes to `main`, manual dispatches, and `merge_group` `checks_requested` events.
+The release publisher remains tag-only and retains write permission only for
+publishing releases.
 
 ## Staged activation
 
