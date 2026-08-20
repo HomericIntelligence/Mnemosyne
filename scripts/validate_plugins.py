@@ -3,7 +3,7 @@
 Validate flat-format skill files (skills/*.md).
 
 Checks:
-- Maximum new/changed retrievable skill size (30,000 bytes; unchanged legacy files ratcheted)
+- Maximum retrievable skill size (30,000 bytes)
 - Required YAML frontmatter fields (name, description, category, date, version)
 - Section presence (Overview, When to Use, Verified Workflow, Failed Attempts, Results & Parameters)
 - Failed Attempts table structure
@@ -13,9 +13,7 @@ Checks:
 """
 
 import argparse
-import os
 import re
-import subprocess
 import sys
 import textwrap
 from pathlib import Path
@@ -47,21 +45,6 @@ RESET = "\033[0m"
 def find_plugins() -> List[Path]:
     """Find all flat skill files (skills/*.md, exclude *.notes*.md and *.history)."""
     return find_skill_files(SKILLS_DIR)
-
-
-def matches_oversized_base_file(file_path: Path) -> bool:
-    """Return whether an oversized legacy skill is byte-identical to the base revision."""
-    base_ref = os.environ.get("MNEMOSYNE_SKILL_SIZE_BASE_REF")
-    if not base_ref:
-        github_base_ref = os.environ.get("GITHUB_BASE_REF")
-        base_ref = f"origin/{github_base_ref}" if github_base_ref else "origin/main"
-
-    result = subprocess.run(
-        ["git", "show", f"{base_ref}:skills/{file_path.name}"],
-        check=False,
-        capture_output=True,
-    )
-    return result.returncode == 0 and result.stdout == file_path.read_bytes()
 
 
 def validate_frontmatter(frontmatter: Dict, filename: str) -> List[str]:
@@ -210,7 +193,7 @@ def validate_plugin(filename: str) -> List[str]:
         return [f"Cannot read file: {e}"]
 
     size_bytes = file_path.stat().st_size
-    if size_bytes > MAX_SKILL_FILE_SIZE_BYTES and not matches_oversized_base_file(file_path):
+    if size_bytes > MAX_SKILL_FILE_SIZE_BYTES:
         errors.append(
             f"Skill file {file_path} is {size_bytes:,} bytes; allowed maximum is {MAX_SKILL_FILE_SIZE_BYTES:,} bytes"
         )
