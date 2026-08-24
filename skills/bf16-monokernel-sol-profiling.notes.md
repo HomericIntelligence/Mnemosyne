@@ -13,6 +13,7 @@ Supporting evidence for
 | Compiler-materialized composition | [Immutable source snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/1ae0cb498e5250c341c2a4bf585f97e2a28060af/skills/bf16-monokernel-sol-profiling.md) for the full-decoder campaign | verified-local | Distinct runnable binary timed regardless of static resource direction |
 | Reachability and binary deduplication | [Immutable source snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/1ae0cb498e5250c341c2a4bf585f97e2a28060af/skills/bf16-monokernel-sol-profiling.md) for the full-decoder campaign | verified-local | Unreachable/byte-identical candidates marked invalid, not performance-rejected |
 | Numerical topology and GPU isolation | [Immutable source snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/1ae0cb498e5250c341c2a4bf585f97e2a28060af/skills/bf16-monokernel-sol-profiling.md) for the full-decoder campaign | verified-local | Trusted-reference cache checks; overlapping-process timings invalidated |
+| Semantic output versus diagnostic parity | Local BF16 prefill qualification, 2026-08-24 | verified-local | Finite decision logits and exact greedy selection passed the declared one-step output contract while sparse hidden/cache differences remained visible as diagnostic failures |
 
 ## Reusable Parameter Record
 
@@ -45,6 +46,19 @@ Project references retained from the source:
 - [Radiance H200 hardware profile](https://github.com/LLM360/Radiance/blob/add857a1ee42bfd907e956783213cd4e173844a0/fixtures/hardware_profiles/builtin_profile_evidence.json)
 - `sglang-moe-nsys-profile-preflight.md`
 - `machine-local-container-artifact-validation-lane.md`
+
+## Semantic Acceptance Evidence
+
+A verified BF16 prefill candidate produced finite decision logits, satisfied the configured logit
+comparison, and selected the same greedy token as the trusted reference. A stricter full-state check
+still reported sparse hidden/cache differences. The task owner explicitly defined the current
+decision logits and one greedy selection as the authoritative semantic horizon, so the candidate was
+eligible for performance promotion while the full-state result remained a recorded diagnostic failure.
+
+The configured logit comparison was tolerance-based. It established zero violations under that
+tolerance; it did not establish bit-exact or one-ULP agreement. Cache divergence can influence later
+tokens, so any campaign whose contract includes continuation must repeat the finite-logit and exact-token
+checks at every required generation step rather than inheriting the one-step result.
 
 ## Provenance
 
