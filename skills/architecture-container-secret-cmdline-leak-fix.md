@@ -1,141 +1,175 @@
 ---
 name: architecture-container-secret-cmdline-leak-fix
 license: BSD-3-Clause
-description: "Use when: (1) a secret like ANTHROPIC_API_KEY is passed to a container via `-e VAR=value` on a podman/docker run command line, (2) two container workers use different binaries with different auth paths and need asymmetric fixes, (3) a name-only -e VAR form is added and a pre-flight guard for the unset-var silent-injection case is needed, (4) a 'safe to remove/change' argument is about to be applied across multiple call sites — confirm each site invokes the SAME binary/auth path first, (5) writing a regression test for a credential change — a string-absence test is NOT an auth-regression test, (6) citing a test runner in a verification plan — confirm the runner actually exists in pixi.toml/justfile."
+description: "Prevent containerized services from exposing credentials through launch argv, child-process argv, effective-configuration dumps, startup logs, exceptions, crash artifacts, or retained files. Use when: (1) moving a secret from a command-line flag into an environment variable, file, or stdin, (2) a runtime or framework serializes its parsed configuration, (3) a cmdline-only regression test passes but a credential still appears in logs, (4) responding to a credential exposure that requires containment, rotation, and historical-log remediation."
 category: architecture
 date: 2026-06-19
-version: "1.2.0"
+version: "2.0.0"
 user-invocable: false
 verification: verified-local
 history: architecture-container-secret-cmdline-leak-fix.history
-tags: [security, secrets, container, podman, docker, cmdline-leak, anthropic-api-key, oauth, credentials, proc, planning, env-name-only, per-callsite-binary, auth-regression-test, verify-the-runner, asymmetric-fix]
+tags:
+  - containers
+  - secrets
+  - command-line
+  - effective-configuration
+  - logging
+  - redaction
+  - credential-rotation
+  - security-boundary
 ---
 
-# Container Secret Cmdline Leak Fix
+# Container Secret Exposure Surface Audit
 
 ## Overview
 
 | Field | Value |
-|-------|-------|
-| **Date** | 2026-06-19 |
-| **Objective** | Remove API key / secret values from podman `run -e VAR=value` cmdline to prevent world-readable exposure via `ps auxww` and `/proc/<pid>/cmdline` |
-| **Outcome** | SUCCESS — both workers fixed asymmetrically; Odysseus PR #311 merged; Layer-1 acceptance tests pass |
-| **Verification** | verified-local — Layer-1 cmdline-absence acceptance tests pass; live container auth probe confirmed on developer machine |
+| ------- | ------- |
+| **Date** | 2026-06-19; broadened 2026-08-24 |
+| **Objective** | Keep a service credential out of every observable and retained surface, not only the launcher command line. |
+| **Outcome** | Model the complete secret flow, choose the least-exposed transport each consumer supports, redact at serialization boundaries, restrict retained artifacts, and prove absence using a sentinel through the real launch path. |
+| **Verification** | verified-local — a container launch kept a credential out of its constructed command line, but inspection of actual runtime output found that the framework serialized the parsed configuration, including the credential, into retained startup logs. |
 | **History** | [changelog](./architecture-container-secret-cmdline-leak-fix.history) |
 
 ## When to Use
 
-- A podman/docker `run` command passes `-e VAR=value` with a secret value on the command line
-- A security review flags that the secret is readable via `ps auxww`, `ps -ef`, or `/proc/<pid>/cmdline` by any host user for the process lifetime
-- You are about to "fix" the leak by moving the secret to a different `-e` var or another command-line mechanism (this is the same class of bug)
-- Two sibling container workers invoke **different binaries** with different auth paths — **asymmetric fixes required**
-- Adding the podman name-only `-e VAR` form and needing a pre-flight guard for the silent-injection case when the host var is unset
-- You are about to apply a single "safe to remove/change this argument" judgement across MULTIPLE call sites — first confirm each site invokes the SAME binary and auth path
-- Writing a bash acceptance test for a cmdline-absence security fix in a repo without pytest
+- A container command includes a secret-bearing flag, an inline environment assignment, or a token-bearing URL.
+- A launcher is being changed from `--credential <value>` to an environment variable, mounted file, secret descriptor, or stdin.
+- The launched application, framework, or child process logs its parsed arguments or effective configuration.
+- A test asserts that a secret is absent from a constructed command but does not inspect emitted logs or retained artifacts.
+- Logs, tracebacks, support bundles, crash dumps, or generated configuration files have a broader audience or longer lifetime than the credential should have.
+- A credential was exposed and the response must address both future launches and historical copies.
 
 ## Verified Workflow
 
 ### Quick Reference
 
-```bash
-# 1. PROVE the leak class: a secret on the run command line is world-readable on the host.
-ps auxww | grep -i ANTHROPIC_API_KEY          # any host user sees it
-cat /proc/<container-runtime-pid>/cmdline | tr '\0' ' '   # also exposes it
-
-# 2. Find every injection site AND the binary each site runs.
-grep -rn ANTHROPIC_API_KEY e2e/*.py
-#  The two workers invoke DIFFERENT binaries with DIFFERENT auth paths:
-#    claude-myrmidon.py       -> runs mounted standalone `claude-host` (OAuth-capable)
-#    claude-myrmidon-multi.py -> runs image-baked npm `claude` (@anthropic-ai/claude-code), NO claude-host mount
-
-# 3. SINGLE worker fix (OAuth binary — drop env var entirely):
-#    Delete the -e line; binary reads creds from mounted ~/.claude/.credentials.json + ~/.claude.json
-#    Result: ANTHROPIC_API_KEY not in cmd args at all
-
-# 4. MULTI worker fix (npm binary — name-only form preserves auth):
-"-e", "ANTHROPIC_API_KEY",   # podman reads value from host env; value NEVER on cmdline
-
-# 5. Add pre-flight guard (name-only silently injects nothing if host var unset):
-if not os.environ.get("ANTHROPIC_API_KEY"):
-    log("claude", f"{YELLOW}ANTHROPIC_API_KEY is unset — container auth may fail{NC}")
-
-# 6. Tighten auth-failure heuristic in any live probe:
-_AUTH_FAILURE_TOKENS = ("authentication", "invalid api key", "credential", "unauthorized")
-_stderr_lower = (result.stderr or "").lower()
-if result.returncode != 0 or not out or any(tok in _stderr_lower for tok in _AUTH_FAILURE_TOKENS):
-    sys.exit(1)
-
-# 7. Verify no value-bearing form remains:
-grep -rn 'ANTHROPIC_API_KEY=' e2e/claude-myrmidon.py e2e/claude-myrmidon-multi.py
-# criterion: zero matches
+```text
+1. Map: source -> launcher -> container -> child -> parsed config -> diagnostics -> retention.
+2. Minimize: use the least-observable transport supported by each consumer.
+3. Redact: serialize only an allowlist of safe diagnostic fields.
+4. Restrict: create logs and artifacts for the intended audience, with bounded retention.
+5. Prove: inject a sentinel through the real launch path and scan every observable surface.
+6. Respond: contain historical copies and rotate the credential after any exposure.
 ```
 
-### Detailed Steps
+### 1. Inventory the complete secret flow
 
-1. **Identify the auth path for each worker** — do NOT assume symmetry. Read each worker's
-   invocation function and trace which binary it calls:
-   - If the binary is a standalone OAuth binary (e.g. `claude-host`) that authenticates via
-     mounted credentials files → drop the env var entirely (it is unused and leaking)
-   - If the binary is an npm/image-baked CLI whose auth path is unverified → keep the key
-     reaching the container but switch to podman name-only `-e VAR` form
+Do not stop at the wrapper command. Trace the value through every transformation and consumer:
 
-2. **Single worker fix** (OAuth binary): delete the `-e ANTHROPIC_API_KEY=...` element from
-   the cmd list. Update the docstring to explain why the key is absent. Confirm the OAuth
-   credential files are bind-mounted (e.g. `~/.claude`, `~/.claude.json`).
+```text
+secret store
+  -> launcher argument / environment / file descriptor / mounted file / stdin
+  -> container runtime metadata
+  -> entrypoint and child-process argv or environment
+  -> parsed application configuration
+  -> startup summaries, exception text, tracebacks, metrics, and health output
+  -> log files, collectors, support bundles, crash dumps, and backups
+```
 
-3. **Multi worker fix** (npm binary): replace `"-e", f"ANTHROPIC_API_KEY={os.environ.get(...)}"`
-   with `"-e", "ANTHROPIC_API_KEY"`. Podman 4.9.3 name-only `-e VAR`: reads the value from the
-   host process environment and injects it into the container — only the name appears on the
-   cmdline, never the value.
+For each edge, record who can observe it and how long it persists. Process listings, runtime inspection APIs, scheduler metadata, logs, and backups are separate trust boundaries even when they originate from one launch.
 
-4. **Add pre-flight guard** for the multi worker: name-only `-e` silently injects nothing if the
-   host variable is unset. Log a visible warning so an operator on a host without the key gets a
-   clear signal rather than a silent auth break.
+### 2. Choose transport per consumer, not once per service
 
-5. **Write the acceptance test** as a bash script (`e2e/tests/security/test-*.sh`) matching the
-   repo idiom — do NOT use pytest if the repo has no pytest dep. Two layers:
-   - Layer 1 (always): import each worker module in Python inline, call the builder with a
-     sentinel secret value, assert the value is absent from the joined command string
-   - Layer 2 (gated): live container auth probe — skip cleanly if podman or image absent
+Prefer a secret manager or runtime-native secret descriptor. When the application supports it, a mode-restricted mounted file or inherited file descriptor usually exposes less than argv or a literal environment assignment. Environment variables can be an improvement over argv, but they remain visible through process inspection, debug dumps, child inheritance, and configuration serialization.
 
-6. **Tighten auth-failure heuristics** in any live probe helper: avoid broad substrings like
-   `"auth"` (matches "author", "authenticated successfully") or `"ERROR" in stdout`. Use specific
-   failure tokens and rely on returncode + empty-output as primary signals:
-   ```python
-   _AUTH_FAILURE_TOKENS = ("authentication", "invalid api key", "credential", "unauthorized")
-   _stderr_lower = (result.stderr or "").lower()
-   if result.returncode != 0 or not out or any(tok in _stderr_lower for tok in _AUTH_FAILURE_TOKENS):
-       sys.exit(1)
-   ```
+Keep asymmetric paths explicit. A control-plane client, worker, and health probe may require different authentication mechanisms. Moving one path off argv does not prove the others are safe.
+
+### 3. Treat effective configuration as a publication boundary
+
+Many runtimes log a dataclass, namespace, settings object, or reconstructed command at startup. If that object contains the parsed secret, changing the injection mechanism does not prevent the value from being logged.
+
+Use an allowlisted diagnostic projection instead of serializing the authoritative configuration:
+
+```python
+def diagnostic_config(config: object) -> dict[str, object]:
+    return {
+        "bind_address": config.bind_address,
+        "worker_count": config.worker_count,
+        "auth_enabled": bool(config.api_key),
+    }
+```
+
+Prefer `auth_enabled: true` or a non-reversible credential identifier over a masked value. Masking can still leak length or prefixes and is easy to apply inconsistently. Ensure exception formatting and object `repr` implementations follow the same rule.
+
+### 4. Protect retained diagnostics at creation time
+
+Redaction is the primary boundary; permissions are defense in depth. Create sensitive diagnostic directories with access limited to their intended operators, set a restrictive umask before file creation, and define rotation and deletion. Do not write broadly readable logs and plan to fix their mode later.
+
+If a diagnostic genuinely needs a secret-bearing payload, isolate it from routine logs, mark it sensitive, bound its lifetime, and make access explicit. A normal startup log should never require the credential itself.
+
+### 5. Test the real emitted surfaces with a sentinel
+
+Use a unique non-production sentinel and exercise the same launch/configuration path as production. Assert both authentication behavior and secret absence:
+
+```text
+positive: authenticated operation succeeds with the sentinel credential
+negative: sentinel is absent from
+  - constructed launcher command and runtime metadata
+  - live parent and child process argv
+  - emitted stdout/stderr and startup logs
+  - serialized health or diagnostic output
+  - generated config, support bundles, and failure artifacts
+permission: retained sensitive artifacts match the declared audience
+```
+
+Include a failure-path case because exceptions and crash reporting often bypass normal redaction. A unit test of the command builder is useful, but it is not sufficient evidence for the end-to-end invariant.
+
+### 6. Respond to an observed exposure completely
+
+Once a real credential has reached an observable or retained surface:
+
+1. Stop future emission at the earliest serialization boundary.
+2. Restrict or quarantine affected logs and collectors.
+3. Identify replicas, archives, support bundles, and backups within scope.
+4. Rotate or revoke the credential; assume copied values remain usable until then.
+5. Delete historical copies according to the incident and retention policy.
+6. Re-run the sentinel test against success and failure paths.
+
+Changing the launch command protects future processes only. Rotation without containment leaves readable historical copies; deleting logs without rotation leaves copied credentials valid.
 
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
-|---------|----------------|---------------|----------------|
-| Symmetric fix — drop env var in both workers | Applied "drop env var entirely" to both `claude-myrmidon.py` and `claude-myrmidon-multi.py` | Wrong: the workers run different binaries with different auth paths — the single worker invokes the mounted standalone `claude-host` (OAuth, env var droppable), the multi worker invokes the image-baked npm `claude` (`@anthropic-ai/claude-code`) with NO `claude-host` mount | Before generalizing a "safe to remove/change" argument across call sites, confirm each site invokes the SAME binary/auth path |
-| Broad `"auth"` substring in auth-failure heuristic | `"auth" in result.stderr.lower()` to detect auth failure | Matches benign substrings: "author", "authorize", "authenticated successfully" — false positives | Use specific failure tokens: "authentication", "invalid api key", "credential", "unauthorized" |
-| `"ERROR" in stdout` check in auth-failure heuristic | `"ERROR" in out` to catch auth errors in stdout | Matches any model reply that quotes the word "ERROR" — false positive | Drop stdout check; rely on returncode and empty-output as primary signals |
-| Using pytest for acceptance test | Wrote test in pytest style | Odysseus repo has no pytest dep in `pixi.toml`; `just test` runs `ctest` over C++ submodules only | Match the repo's established idiom: standalone bash scripts in `e2e/tests/security/*.sh` |
-| Relocate the secret to a different `-e` var | Move ANTHROPIC_API_KEY to another env flag still set as `-e VAR=value` | Still leaks — any `-e VAR=value` argument is visible via `ps auxww` and `/proc/<pid>/cmdline` | Command-line args are world-readable. Remove the VALUE from the cmdline (name-only `-e`, file, stdin, or delete), not move it to another flag |
-| Remove the secret entirely when it must still reach the container | Delete the `-e ANTHROPIC_API_KEY` line everywhere as the KISS fix | Breaks auth where the env var is the only working path (e.g. the multi worker's npm `claude`) | Use podman/docker name-only `-e VAR` so the value stays off the cmdline but is still injected from the host environment |
-| Assert removal of `-e ANTHROPIC_API_KEY` is behavior-neutral for all workers | Applied one "safe to remove the env var" judgement to BOTH workers | Wrong: the workers run different binaries with different auth paths | Before generalizing a safety argument across call sites, confirm each site's binary/auth path |
+| ------- | -------------- | ------------- | -------------- |
+| Move the secret off argv and stop | Replaced a secret-bearing flag with configuration or environment injection | The runtime serialized the parsed configuration, so the same plaintext value appeared in retained startup logs | Audit the full secret flow; transport changes do not control downstream publication |
+| Test only the command builder | Asserted the sentinel was absent from the constructed container command | The test never launched the framework or inspected its actual stdout, stderr, child processes, or files | Run a sentinel through the real launch path and scan emitted and retained surfaces |
+| Redact a short denylist of field names | Masked familiar keys such as `token` or `password` | Aliases, nested objects, URLs, exception text, and future fields bypassed the denylist | Publish an allowlisted diagnostic projection rather than the authoritative config |
+| Rely on restrictive log permissions alone | Kept plaintext credentials in logs but limited file access | Copies can reach collectors, backups, support bundles, or later permission changes; authorized readers still receive an unnecessary secret | Remove the credential at serialization; use permissions only as defense in depth |
+| Rotate without remediating retained logs | Issued a new credential after fixing future launches | Historical copies remained sensitive evidence and could disclose usage patterns or an accidentally unrevoked value | Contain and retire historical copies as part of the same response |
+| Suppress all startup diagnostics | Disabled useful configuration logging entirely | Operators lost safe information needed to diagnose launches | Keep a small allowlist of reviewed, non-secret fields and authentication state |
 
 ## Results & Parameters
 
-| Parameter | Verified Value |
-|-----------|----------------|
-| Podman version | 4.9.3 (name-only `-e VAR` confirmed) |
-| Name-only `-e VAR` behavior | Podman reads value from host process env; value never appears on cmdline |
-| Single worker binary | `claude-host` (standalone OAuth binary, mounted `:ro`) |
-| Multi worker binary | `claude` (npm binary baked into `achaean-claude:latest`, no `claude-host` mount) |
-| Auth-failure tokens | `"authentication"`, `"invalid api key"`, `"credential"`, `"unauthorized"` |
-| Test runner | Bash script (`e2e/tests/security/*.sh`), not pytest |
-| Verification command | `grep -rn 'ANTHROPIC_API_KEY=' <workers>` → zero matches |
-| PR | Odysseus #311 (merged) |
-| Issue | Odysseus #180 |
+### Surface Contract
+
+| Surface | Required invariant | Verification |
+| ------- | ------------------ | ------------ |
+| Launcher and runtime | No literal credential in argv, inline environment assignments, labels, or reconstructed commands | Inspect the rendered command and runtime metadata with a sentinel |
+| Parent and child processes | No literal credential in process argv; inheritance is limited to consumers that require it | Inspect the live process tree during the test launch |
+| Effective configuration | Authoritative config is never serialized directly; diagnostic output uses an allowlist | Capture startup output and exercise object formatting and exception paths |
+| Logs and health output | Sentinel absent; safe state such as `auth_enabled` remains available | Scan stdout, stderr, files, and serialized diagnostics |
+| Retained artifacts | Access and lifetime match the declared audience; no routine artifact contains the credential | Check modes, collectors, rotation, bundles, and backup scope |
+| Incident response | Historical copies contained and credential rotated or revoked | Record containment scope, rotation completion, and post-fix sentinel evidence |
+
+### Minimum Regression Matrix
+
+| Case | Expected result |
+| ---- | --------------- |
+| Successful authenticated startup | Operation succeeds; sentinel absent from every inspected surface |
+| Authentication failure | Error remains actionable; sentinel and raw exception payload are absent |
+| Child-process launch | Child receives only the required secret transport; argv and logs remain clean |
+| Diagnostic/config dump | Only allowlisted fields are emitted; authentication is represented as state, not value |
+| Retention check | Files are created with the intended access and rotation policy |
+
+### Related Skills
+
+- [Credential-safe runtime diagnostics](./nats-observability-redact-credential-bearing-diagnostics.md) covers URL and exception redaction at health and logging boundaries.
+- [Communication redaction](./communication-redaction-avoid-internal-leaks.md) covers publishing sanitized durable documentation and evidence.
+- [Cluster incident reproducer validation](./cluster-endpoint-incident-reproducer-validation.md) covers private artifact modes, cleanup, and reproducibility bundles.
 
 ## Verified On
 
-| Project | Context | Details |
-|---------|---------|---------|
-| Odysseus | Issue #180, PR #311 | Both myrmidon workers fixed asymmetrically; Layer-1 acceptance tests pass; PR merged |
+| Context | Evidence | Status |
+| ------- | -------- | ------ |
+| Containerized service startup | A cmdline-safe injection still appeared in retained logs because the runtime serialized its effective configuration; direct inspection established the missing boundary | verified-local |
