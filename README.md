@@ -21,8 +21,8 @@ policies.
 
 ## Installation
 
-Do not install Mnemosyne as a plugin. Install the **Athena** plugin marketplace
-to get `/advise` and `/learn`. These commands read and write the skills in this
+Do not install Mnemosyne as a plugin. Install **Athena** through the coding
+harness plugin mechanism. Athena reads and writes the skills in this
 repository.
 
 To work on the corpus directly, clone the repository:
@@ -31,47 +31,14 @@ To work on the corpus directly, clone the repository:
 git clone https://github.com/HomericIntelligence/Mnemosyne.git
 ```
 
-## Quick Start
+## Use the Corpus
 
-The **Athena** plugin provides these commands. You can use them in a Claude Code
-session that has Athena installed. Use `/advise` to find skills. Use `/learn` to
-create skills.
+Athena owns the agent workflows that use this corpus. Use Athena `/advise` to
+find knowledge. Use Athena `/learn` to save verified knowledge.
 
-### Search for Knowledge
-
-```text
-/advise <your goal or question>
-```
-
-Claude searches the skill corpus and returns this information:
-
-- Methods that worked in similar situations
-- Methods that failed and the causes of the failures
-- Recommended parameters and configurations
-
-### Save Knowledge
-
-```text
-/learn
-```
-
-After an experiment or a debugging session, use `/learn` to save the knowledge.
-Claude does these tasks:
-
-1. Analyzes the complete session conversation.
-2. Searches existing skills and open pull requests by intent.
-3. Extracts successes, failures, and parameters.
-4. If a canonical skill exists, amends that skill.
-5. Keeps reusable guidance and no more than three different examples in the
-   main skill.
-6. Puts useful session evidence in `.notes.md`.
-7. Before replacement, archives the complete prior main skill in `.history`.
-8. Puts version and provenance records in `.history`.
-9. If no canonical skill exists, creates a new skill.
-10. Creates a branch and opens a pull request.
-
-**Automatic reminder**: `/exit` and `/clear` prompt you to save the session
-knowledge.
+Follow the authoritative skill instructions in
+[Athena](https://github.com/HomericIntelligence/Athena). Mnemosyne does not
+copy or implement those skills.
 
 ## Repository Structure
 
@@ -109,11 +76,10 @@ Athena searches the corpus and returns relevant skills.
 
 ### Option 1: Automatic (Recommended)
 
-1. Complete an experiment or a debugging session.
-2. Run `/learn`.
-3. Let Claude select the skill category.
-4. Let Claude name the skill.
-5. Let Claude create the pull request automatically.
+1. Install Athena through the coding harness plugin mechanism.
+2. After a session contains verified knowledge, run `/learn`.
+3. Follow the installed Athena skill.
+4. Review the pull request.
 
 ### Option 2: Manual
 

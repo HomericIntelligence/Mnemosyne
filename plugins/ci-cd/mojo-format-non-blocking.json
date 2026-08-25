@@ -1,8 +1,0 @@
-{
-  "name": "mojo-format-non-blocking",
-  "version": "1.0.0",
-  "description": "When Mojo 0.26.1 reports '_python_symbols' object has no attribute 'comptime_assert_stmt', use this skill. When formatter defects block CI or several pull requests need formatting fixes, use this skill. Make mojo-format an advisory CI step. Use SKIP=mojo-format and continue-on-error. Apply the CI formatting diff manually. Generated prose must follow ASD-STE100.",
-  "category": "ci-cd",
-  "date": "2026-03-13",
-  "tags": ["ci-cd", "mojo-format", "pre-commit", "formatter-crash", "continue-on-error", "workaround", "parallel-fixes", "worktree-agents", "odyssey"]
-}

@@ -14,7 +14,6 @@ certification, or endorsement.
 Apply this policy to these content types:
 
 - All retrievable main skill files in `skills/`
-- All active command-infrastructure skills
 - Agent instructions and generated skill content
 - Contributor guides, templates, procedures, and public technical documents
 - New prose and prose that an author changes or republishes

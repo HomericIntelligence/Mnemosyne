@@ -20,25 +20,12 @@ quality requirements and the pull request process.
 
 ### Option 1: Automatic via `/learn` (Recommended)
 
-After a session contains useful knowledge, use the `/learn` command:
+Athena owns the `/learn` workflow. Mnemosyne does not copy its skill
+instructions.
 
-1. Complete an experiment, debugging session, or development task.
-2. Run `/learn` in your Claude Code session.
-3. Claude does these tasks:
-   - Reads your entire conversation history.
-   - Extracts successes, failures, and parameters.
-   - Searches existing skills and open amendment pull requests by intent.
-   - If a canonical skill exists, amends that skill.
-   - Keeps concise reusable guidance in the main skill.
-   - Keeps no more than three examples that cover different decisions.
-   - Puts useful session evidence in `.notes.md`.
-   - Archives the complete prior main skill in `.history`.
-   - Puts version and provenance records in `.history`.
-   - If no canonical skill exists, generates this filename:
-     `<topic>-<subtopic>-<short-4-word-summary>`.
-   - Creates the `skill/<name>` branch.
-   - Commits and pushes the changes.
-   - Opens a pull request.
+1. Install Athena through the coding harness plugin mechanism.
+2. After a session contains verified knowledge, run `/learn`.
+3. Follow the installed Athena skill.
 4. Review the pull request.
 5. Merge the pull request.
 

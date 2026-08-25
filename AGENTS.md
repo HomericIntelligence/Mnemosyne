@@ -51,78 +51,17 @@ edit, keep all development-principles text unchanged.
 Automated checks can confirm that the policy is present. They cannot certify
 that prose conforms to ASD-STE100. Authors and reviewers must check the prose.
 
-## Commands
+## Athena Integration
 
-### /advise
+Athena owns all agent workflow skills and Claude plugin infrastructure. Follow
+the installed Athena skill for `/advise`, `/learn`, reviews, planning, testing,
+worktrees, debugging, and cleanup.
 
-Before you start work, search the skill corpus.
+Mnemosyne contains only the knowledge corpus. Do not add local Claude plugins,
+hooks, shared plugin directions, or copies of Athena skills. The
+`.claude/settings.json` file enables the single `athena@Athena` plugin.
 
-**When to use**: At the session start, use `/advise`. Before an experiment,
-also use it. When you debug an unfamiliar error, use it again.
-
-**Workflow**:
-
-1. Read the user goal or question.
-2. Search the `skills/` corpus for related skill files.
-3. Read the matching skill files.
-4. Return successful methods, failed methods, and recommended parameters.
-
-**Example**:
-
-```text
-User: /advise training a model with GRPO
-Claude: Found 2 related skills...
-- training/grpo-external-vllm: Use external vLLM server for GRPO training
-  - Key finding: vllm_skip_weight_sync errors require separate GPU setup
-  - Recommended: batch_size=4, learning_rate=1e-5
-```
-
-### /learn
-
-Save useful session knowledge. The command creates a pull request.
-
-**When to use**: After an experiment, use `/learn`. After a debugging session,
-also use it. After you implement a new pattern, use it again.
-
-**Workflow**:
-
-1. Read the complete conversation history.
-2. Extract the objective, steps, successes, failures, and parameters.
-3. Search existing skills and open pull requests by intent.
-4. If a canonical skill exists, amend it. Do not create a sibling skill.
-5. Keep the reusable trigger, rule, failure mode, and parameters in the main skill.
-6. Keep no more than three examples that cover different decisions.
-7. Put session paths, transcripts, examples, and verification details in
-   `skills/<name>.notes.md`.
-8. Before replacement, archive the complete prior main skill in
-   `skills/<name>.history`.
-9. Append the new version and its provenance to the history file.
-10. Keep only the current `version` value in the main skill frontmatter.
-11. Keep each retrievable main skill at or below 30,000 bytes.
-12. If no canonical skill exists, generate this filename:
-    `<topic>-<subtopic>-<short-4-word-summary>`.
-13. Create a Git worktree for isolation. Do all work in that worktree.
-14. Write all required content to `skills/<name>.md`.
-15. If supporting evidence is useful, create the notes file.
-16. Create the history file for the initial or superseded main version.
-17. Create the `skill/<name>` branch.
-18. Commit the change.
-19. Push the branch.
-20. Create a pull request with a summary.
-21. Run `git worktree remove` to remove the worktree.
-
-**Automatic reminder**: The `UserPromptSubmit` hook reminds users about
-`/learn`. Session-ending keywords activate the reminder.
-
-**Format notes**:
-
-- The command generates the category and name without a user prompt.
-- The command uses one Git worktree for each branch.
-- The command removes the worktree after it creates the pull request.
-- A skill is one flat Markdown file with YAML frontmatter.
-- The branch name is `skill/<name>`.
-
-## Plugin Standards
+## Skill Standards
 
 ### Required Structure
 
@@ -134,9 +73,6 @@ skills/<name>.history        # Version and provenance archive for /learn writes
 
 Each skill is a flat file in `skills/`. Each skill stores its metadata in YAML
 frontmatter.
-
-**Exception**: Keep `plugins/tooling/mnemosyne/` in `plugins/`. It contains
-Mnemosyne-side command infrastructure and is not a corpus skill.
 
 ### Required Fields
 
@@ -229,43 +165,6 @@ Write skills that users can apply in multiple repositories:
    version and provenance records in `skills/<name>.history`.
 5. **Generic workflows**: Write workflows that users can adapt to each
    repository structure.
-
-**Optional plugin.json fields for cross-repo support**:
-
-- `requires.tools`: Give an array of tool requirements. For example, use
-  `[{"name": "mojo", "version": ">=0.25.0"}]`.
-- `requires.languages`: Give the applicable programming languages.
-- `verified_on`: Give an array of projects where you validated the skill.
-
-## Hooks Configuration
-
-The project uses Claude Code hooks for automatic retrospective prompts.
-
-**Important**: `SessionEnd` hooks cannot show messages to users. Use
-`UserPromptSubmit` hooks instead.
-
-**UserPromptSubmit hook**: Session-ending keywords activate this hook. These
-keywords include `exit`, `quit`, `clear`, `done`, and `finished`. The hook
-reminds users about `/learn`.
-
-**Added in v2.1.0**: Use `once: true` to run a hook one time in a session:
-
-```json
-{
-  "hooks": [{
-    "type": "command",
-    "command": "script.sh",
-    "once": true
-  }]
-}
-```
-
-Read `.claude/settings.json` for the active configuration. Read
-`plugins/tooling/mnemosyne/hooks/settings.json.example` for an example.
-
-**Skill location**: Keep each corpus skill as a flat file in `skills/`. For
-example, use `skills/skill-name.md`. The `plugins/tooling/mnemosyne/` directory
-is the only documented exception.
 
 ## Contributing a Skill
 
