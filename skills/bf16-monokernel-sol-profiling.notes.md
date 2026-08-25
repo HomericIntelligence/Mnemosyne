@@ -14,6 +14,7 @@ Supporting evidence for
 | Reachability and binary deduplication | [Immutable source snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/1ae0cb498e5250c341c2a4bf585f97e2a28060af/skills/bf16-monokernel-sol-profiling.md) for the full-decoder campaign | verified-local | Unreachable/byte-identical candidates marked invalid, not performance-rejected |
 | Numerical topology and GPU isolation | [Immutable source snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/1ae0cb498e5250c341c2a4bf585f97e2a28060af/skills/bf16-monokernel-sol-profiling.md) for the full-decoder campaign | verified-local | Trusted-reference cache checks; overlapping-process timings invalidated |
 | Semantic output versus diagnostic parity | Local BF16 prefill qualification, 2026-08-24 | verified-local | Finite decision logits and exact greedy selection passed the declared one-step output contract while sparse hidden/cache differences remained visible as diagnostic failures |
+| Cooperative phase-clock attribution | Local BF16 decode qualification, 2026-08-25 | verified-local | Compile-time-only leader-clock samples at existing grid barriers showed that the assumed attention bottleneck was not the largest phase; production source was restored before optimization timing |
 
 ## Reusable Parameter Record
 
@@ -59,6 +60,20 @@ The configured logit comparison was tolerance-based. It established zero violati
 tolerance; it did not establish bit-exact or one-ULP agreement. Cache divergence can influence later
 tokens, so any campaign whose contract includes continuation must repeat the finite-logit and exact-token
 checks at every required generation step rather than inheriting the one-step result.
+
+## Cooperative Phase-Attribution Evidence
+
+A verified cooperative BF16 decode artifact contained several model phases inside one launch, while
+available external evidence did not rank those internal phases precisely enough to select the next
+experiment. A compile-time-only diagnostic sampled one leader thread's device clock immediately
+after existing grid-wide barriers and emitted stable per-phase cycle totals. Repeated launches agreed
+on the ordering: a fused feed-forward phase, not attention, was the largest bucket. The campaign then
+restored the uninstrumented source and targeted that measured phase.
+
+The diagnostic build passed the unchanged output checks, but its latency and compiler resource report
+were not compared with production. This preserves the boundary between bottleneck attribution and
+promotion evidence: device-clock shares prioritize work, while only an uninstrumented immutable
+candidate under matched host timing can win.
 
 ## Provenance
 

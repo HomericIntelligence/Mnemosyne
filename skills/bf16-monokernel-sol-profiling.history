@@ -305,6 +305,9 @@ What changed:
 - Required the semantic output, numerical comparator, and continuation horizon to be declared before timing.
 - Kept full hidden/cache parity as diagnostic evidence unless the task contract makes it authoritative.
 - Required claims such as bit-exact or one-ULP agreement to come from a matching bit/ULP comparator.
+- Added compile-time-only leader-clock phase attribution for cooperative launches when external
+  profiling cannot rank internal phases, with an explicit ban on using instrumented timing or
+  resources as production evidence.
 
 Superseded main SHA-256: `e3f0c511cc0c269dfc9499c74d20d711dd98ed7eaf6e9974b85bf260aab36f75`
 

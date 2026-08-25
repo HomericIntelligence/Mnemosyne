@@ -1,6 +1,6 @@
 ---
 name: bf16-monokernel-sol-profiling
-description: "Build and optimize a reproducible BF16 CUDA monokernel benchmark. Use when workload normalization may duplicate cases, semantic outputs and intermediate-state parity need separate acceptance policies, GPU profiling needs provenance and isolation, tiny grids underfill the GPU, multi-position acceptance needs a minimax rule, or compiler/resource changes disagree with composed-kernel correctness and latency."
+description: "Build and optimize a reproducible BF16 CUDA monokernel benchmark. Use when workload normalization may duplicate cases, semantic outputs and intermediate-state parity need separate acceptance policies, a cooperative launch needs phase attribution without external counters, GPU profiling needs provenance and isolation, tiny grids underfill the GPU, multi-position acceptance needs a minimax rule, or compiler/resource changes disagree with composed-kernel correctness and latency."
 category: optimization
 date: 2026-08-09
 version: "2.1.0"
@@ -10,7 +10,7 @@ verification: verified-local
 history: bf16-monokernel-sol-profiling.history
 tags: [cuda, bf16, rmsnorm, monokernel, nvidia-h200, roofline, sol, minimax,
   optimization-campaign, composition, compiler, sass, occupancy, registers, ncu, nsys,
-  provenance, gpu-isolation, semantic-validation, greedy-decoding]
+  provenance, gpu-isolation, semantic-validation, greedy-decoding, phase-attribution]
 ---
 
 # Reproducible BF16 CUDA Monokernel SOL Profiling and Optimization
@@ -33,6 +33,8 @@ The complete prior source is in
 - Model-derived normalization cases may duplicate learned parameter counts.
 - Rootless GPU profiling needs immutable image, source, device, tool, and result provenance.
 - Nsight Compute reports `ERR_NVGPUCTRPERM`, or Nsys and NCU appear to disagree.
+- One cooperative launch contains many globally synchronized phases, but external tooling cannot
+  attribute enough time to rank the next optimization target.
 - A one-row/tiny-grid kernel has low global speed-of-light despite low latency.
 - Several sequence positions must pass one promotion decision.
 - Greedy-token output agrees while hidden or cache tensors differ numerically.
@@ -72,6 +74,16 @@ campaign used every five formal attempts.
 Measure verified, uninstrumented p50 first with fixed warmup and samples. Capture a separate Nsys
 trace for kernel duration and launch attribution. Collect NCU counters only when policy allows.
 Never use profiler-instrumented host timing as the latency result.
+
+When external profiling cannot separate phases inside one cooperative launch, build a distinct
+compile-time diagnostic artifact. At existing grid-wide synchronization boundaries, let one fixed
+leader thread sample `clock64()`, accumulate deltas by stable phase identifier, and emit one
+machine-parseable summary after the final boundary. Do not add synchronization, public parameters,
+runtime branches, or fallback paths merely for measurement. Validate the diagnostic artifact, use
+only its phase ordering and approximate shares to choose the next experiment, then restore the
+uninstrumented production source before correctness and latency adjudication. Instrumentation can
+change registers, stack, scheduling, and total latency, so its resource report and host timing are
+diagnostic artifacts, never production performance evidence.
 
 For `N = rows * columns` weighted RMSNorm elements, use the declared ideal model:
 
@@ -212,6 +224,7 @@ than the champion is still rejected and is not a globally beneficial mechanism.
 | Equate zero tolerance failures with bit identity | Reused a threshold comparator to claim one-bit agreement | The comparator never measured bit or ULP distance | State only the property the comparator proves |
 | Make strict parity the only semantic gate | Rejected matching finite logits and exact greedy output solely for diagnostic hidden/cache drift | Intermediate parity exceeded the declared one-step output contract | Preserve the diagnostic failure, but adjudicate with the declared semantic horizon |
 | Validate only the first greedy token | Treated one matching token as proof of continuation correctness | Divergent cache state can affect later decoding | Check every token in the required continuation horizon |
+| Treat phase-clock instrumentation as production timing | Used an instrumented cooperative kernel's latency or resources as the promotion result | Clock reads, counters, and reporting perturb the compiled kernel | Use phase ordering only; restore and time an uninstrumented immutable candidate |
 
 ## Results & Parameters
 
@@ -228,6 +241,7 @@ declared observable outputs, numerical comparator, and continuation horizon
 semantic-gate result plus separate hidden/cache diagnostic-parity result
 p50 and algorithmic SOL per position; minimax result
 Nsys kernel duration/launch gap; NCU SOL or unavailable reason
+diagnostic revision, compile-time selector, phase boundaries, raw cycle deltas, and phase ordering
 registers, stack, spills/local ops, shared memory, residency/occupancy
 outcome: accepted | rejected | invalid duplicate | invalid execution
 reconsideration trigger and learning checkpoint disposition
@@ -242,5 +256,8 @@ this reusable decision procedure.
   and multi-position campaign evidence through 2026-08-09.
 - Verified-local BF16 prefill evidence through 2026-08-24 separated finite-logit and exact-greedy
   acceptance from sparse hidden/cache diagnostic divergence without weakening the strict comparator.
+- Verified-local cooperative BF16 decode evidence through 2026-08-25 used macro-gated leader-clock
+  sampling at existing grid barriers to redirect optimization toward the measured dominant phase,
+  then restored the production source before candidate qualification.
 - Compaction for issue #3335 preserved the verification boundary and did not claim NCU counters
   where host policy denied them.
