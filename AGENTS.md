@@ -1,121 +1,101 @@
 # AGENTS.md
 
-This file is the authoritative agent contract for Mnemosyne. It provides guidance
-to Claude Code and any other AI agent working with this repository.
+This file is the authoritative agent contract for Mnemosyne. Claude Code and
+other agents must follow this contract.
 
 ## Project Overview
 
-Mnemosyne is the skills and session-memory store for the HomericIntelligence agentic
-ecosystem. It stores, organizes, and shares learnings from experiments, debugging sessions,
-and development work as flat skill files under `skills/`.
+Mnemosyne stores skills and session memory for the HomericIntelligence agentic
+ecosystem. It stores knowledge from experiments, debugging sessions, and
+development work. The repository keeps this knowledge as flat skill files in
+`skills/`.
 
-Mnemosyne is **not** a plugin marketplace — the `/advise` and `/learn` commands live in the
-**Athena** plugin, which is the marketplace. Mnemosyne only holds the corpus those commands
-read and write. Do not add a `.claude-plugin/marketplace.json` to this repo.
+Mnemosyne is **not** a plugin marketplace. The **Athena** plugin provides the
+`/advise` and `/learn` commands. Mnemosyne stores the corpus that these commands
+read and write. Do not add `.claude-plugin/marketplace.json` to this repository.
 
-**Purpose**: Capture team knowledge so Claude can `/advise` before starting work and prevent
+**Purpose**: Store team knowledge. This knowledge helps `/advise` prevent
 repeated mistakes.
 
-**Ecosystem**: Works with ProjectOdyssey (training), ProjectKeystone (DAG execution), ProjectScylla (testing), Myrmidons (agent provisioning), AchaeanFleet (agent images), and ProjectHephaestus (shared utilities).
+**Ecosystem**: Mnemosyne works with these projects:
 
-## Commands
+- ProjectOdyssey for training.
+- ProjectKeystone for DAG execution.
+- ProjectScylla for testing.
+- Myrmidons for agent provisioning.
+- AchaeanFleet for agent images.
+- ProjectHephaestus for shared utilities.
 
-### /advise
+## Writing Standard
 
-Search the skills registry before starting work.
+All active skill prose and repository guidance must follow
+[ASD-STE100 Simplified Technical English](https://www.asd-ste100.org).
+Use the current official issue. This repository uses Issue 9, dated 15 January
+2025, as its review baseline.
 
-**When to use**: At session start, before experiments, when debugging unfamiliar errors.
+Read the repository [ASD-STE100 writing policy](docs/asd-ste100.md). Apply the
+policy to all content in its scope.
+The policy applies to new prose and to prose that you change or republish. It
+also applies when an agent presents information from an older skill.
 
-**Workflow**:
+Do not change these content types only to change the writing style:
 
-1. Read user's goal/question
-2. Search the `skills/` corpus for related skill files
-3. Read matching skill `.md` files
-4. Return: what worked, what failed, recommended parameters
+- Code, commands, and configuration
+- Identifiers, paths, and URLs
+- Proper names and quotations
+- Legal text and raw evidence.
 
-**Example**:
+Treat established project terms as approved technical terms. For a style-only
+edit, keep all development-principles text unchanged.
 
-```text
-User: /advise training a model with GRPO
-Claude: Found 2 related skills...
-- training/grpo-external-vllm: Use external vLLM server for GRPO training
-  - Key finding: vllm_skip_weight_sync errors require separate GPU setup
-  - Recommended: batch_size=4, learning_rate=1e-5
-```
+Automated checks can confirm that the policy is present. They cannot certify
+that prose conforms to ASD-STE100. Authors and reviewers must check the prose.
 
-### /learn
+## Athena Integration
 
-Save learnings after a session (auto-creates PR).
+Athena owns all agent workflow skills and Claude plugin infrastructure. Follow
+the installed Athena skill for `/advise`, `/learn`, reviews, planning, testing,
+worktrees, debugging, and cleanup.
 
-**When to use**: After experiments, debugging sessions, or implementing new patterns.
+Mnemosyne contains only the knowledge corpus. Do not add local Claude plugins,
+hooks, shared plugin directions, or copies of Athena skills. The
+`.claude/settings.json` file enables the single `athena@Athena` plugin.
 
-**Workflow**:
-
-1. Read entire conversation history
-2. Extract: objective, steps taken, successes, failures, parameters
-3. Search existing skills and open PRs by intent before choosing an artifact:
-   - If the intent already has a canonical skill, amend it instead of creating a sibling.
-   - Rewrite the main skill around the concise reusable trigger, rule, failure mode, and parameter;
-     retain no more than three examples that cover materially different decisions.
-   - Put session-specific paths, transcripts, worked examples, and verification detail in
-     `skills/<name>.notes.md`.
-   - Before replacing a main skill, archive its complete prior retrievable content in
-     `skills/<name>.history`, then append the new version and provenance record there.
-   - Keep only the schema-required current `version` identifier in main-file frontmatter; put all
-     prior versions, change summaries, and other version-control narrative in `.history`.
-   - Keep the retrievable `skills/<name>.md` at or below 30,000 bytes.
-4. Otherwise auto-generate a skill filename: `<topic>-<subtopic>-<short-4-word-summary>`
-5. Create git worktree for branch isolation (all work done in worktree, not base repo)
-6. Generate or amend the skill artifacts:
-   - `skills/<name>.md` with YAML frontmatter + all required sections
-   - Optional `skills/<name>.notes.md` for useful supporting evidence
-   - `skills/<name>.history` for the initial or superseded main version and amendment provenance
-7. Create branch: `skill/<name>`
-8. Commit and push
-9. Create PR with summary
-10. Clean up worktree with `git worktree remove`
-
-**Auto-trigger**: UserPromptSubmit hook reminds about `/learn` when you type session-ending keywords.
-
-**Format notes**:
-- Category/name are auto-generated (no user prompting)
-- Work isolation: git worktrees (auto-created per branch, cleaned up after PR)
-- Single flat `.md` file with YAML frontmatter
-- Branch name: `skill/<name>`
-
-## Plugin Standards
+## Skill Standards
 
 ### Required Structure
 
 ```text
 skills/<name>.md             # Main skill file with YAML frontmatter + markdown content
 skills/<name>.notes.md       # (Optional) Additional context from development session
-skills/<name>.history        # Version/provenance archive for /learn writes
+skills/<name>.history        # Version and provenance archive for /learn writes
 ```
 
-All skills are now flat files in the `skills/` directory. Metadata is stored as YAML frontmatter in each `.md` file.
-
-**Exception**: `plugins/tooling/mnemosyne/` stays in `plugins/` — it's the command infrastructure (advise, learn), not a skill.
+Each skill is a flat file in `skills/`. Each skill stores its metadata in YAML
+frontmatter.
 
 ### Required Fields
 
 **YAML Frontmatter** (in `skills/<name>.md`):
 
-- `name`: Lowercase, kebab-case identifier
-- `description`: Trigger conditions with specific use cases ("Use when: (1) ..., (2) ...")
-- `category`: One of 9 approved categories
-- `date`: Creation date (YYYY-MM-DD)
-- `version`: Semantic version (e.g., "1.0.0")
-- `user-invocable`: Set to `false` for internal/sub-skills (declutters slash command menu)
-- `tags` (optional): Searchable keywords array
+- `name`: Use a lowercase, kebab-case identifier.
+- `description`: Give trigger conditions and specific use cases.
+- `category`: Use one of the nine approved categories.
+- `date`: Give the creation date in `YYYY-MM-DD` format.
+- `version`: Give a semantic version such as `1.0.0`.
+- `user-invocable`: For an internal skill or subskill, use `false`.
+- `tags` (optional): Give an array of searchable keywords.
 
 **Markdown Sections**:
 
-- Overview table (date, objective, outcome)
-- When to Use (trigger conditions)
-- Verified Workflow (what worked, including Quick Reference subsection)
-- **Failed Attempts table (REQUIRED)** — must include: Attempt, What Was Tried, Why It Failed, Lesson Learned
-- Results & Parameters (copy-paste ready configs, expected outputs)
+- Overview table with the date, objective, and outcome.
+- When to Use section with trigger conditions.
+- Verified Workflow section with successful steps and a Quick Reference subsection.
+- **Failed Attempts table (REQUIRED)** with all four required columns.
+- Results & Parameters section with usable configurations and expected outputs.
+
+The Failed Attempts columns are Attempt, What Was Tried, Why It Failed, and
+Lesson Learned.
 
 ### Categories
 
@@ -133,13 +113,14 @@ All skills are now flat files in the `skills/` directory. Metadata is stored as 
 
 ### Quality Rules
 
-1. **Specific descriptions**: Include trigger conditions, not vague summaries
-2. **Failures required**: Document what didn't work and why
-3. **Copy-paste ready**: Parameters and configs should work immediately
-4. **No duplication**: Link to external docs instead of copying
-5. **Bounded retrieval**: Keep each retrievable main skill at or below 30,000 bytes. Move raw session
-   evidence, long examples, and transcripts to notes; archive prior main versions and version-control
-   narrative in history. Keep no more than three materially distinct examples in the main skill.
+1. **Specific descriptions**: Include trigger conditions. Do not use vague summaries.
+2. **Failures required**: Record failed methods. Explain each failure.
+3. **Ready to use**: Give parameters and configurations that users can copy.
+4. **No duplication**: Link to external documents. Do not copy their content.
+5. **Bounded retrieval**: Keep each retrievable main skill at or below 30,000
+   bytes. Move raw evidence and long examples to the notes file. Move prior
+   versions and provenance to the history file. Keep no more than three
+   examples that cover different decisions in the main skill.
 
 ### Key Development Principles
 
@@ -165,11 +146,13 @@ Relevant links:
 
 ### Cross-Repository Compatibility
 
-Skills should be generic enough to work across multiple repositories:
+Write skills that users can apply in multiple repositories:
 
-1. **No `source:` in frontmatter**: Remove repository-specific source fields
-2. **Use placeholders**: Replace hardcoded paths with `<project-root>`, `<test-path>`, `<package-manager>`
-3. **Add "Verified On" section**: Document where the skill was validated with a table:
+1. **No `source:` in frontmatter**: Remove repository-specific source fields.
+2. **Use placeholders**: Replace hardcoded paths with `<project-root>`,
+   `<test-path>`, and `<package-manager>`.
+3. **Add a "Verified On" section**: Record where you validated the skill.
+   Use this table:
    ```markdown
    ## Verified On
 
@@ -177,81 +160,56 @@ Skills should be generic enough to work across multiple repositories:
    |---------|---------|---------|
    | ProjectName | PR #XXX context | [notes.md](./skill-name.notes.md) |
    ```
-4. **Move specifics to companions**: Put project-specific commands, paths, transcripts, and detailed
-   verification in `skills/<name>.notes.md`; put version and provenance records in
-   `skills/<name>.history`.
-5. **Generic workflows**: Write workflows that can be adapted to any repository structure
-
-**Optional plugin.json fields for cross-repo support**:
-- `requires.tools`: Array of tool requirements (e.g., `[{"name": "mojo", "version": ">=0.25.0"}]`)
-- `requires.languages`: Programming languages this skill applies to
-- `verified_on`: Array of projects where the skill was validated
-
-## Hooks Configuration
-
-The project uses Claude Code hooks for automatic retrospective prompts.
-
-**Important**: SessionEnd hooks CANNOT display messages to users (Claude Code limitation).
-This project uses UserPromptSubmit hooks instead.
-
-**UserPromptSubmit Hook**: Triggers when user types session-ending keywords (exit, quit,
-clear, done, finished, etc.) to remind about `/learn`.
-
-**NEW in v2.1.0**: Hooks support `once: true` field to execute only once per session:
-```json
-{
-  "hooks": [{
-    "type": "command",
-    "command": "script.sh",
-    "once": true
-  }]
-}
-```
-
-See `.claude/settings.json` for configuration and
-`plugins/tooling/mnemosyne/hooks/settings.json.example` for reference.
-
-**Skills location**: All skills live as flat files in `skills/` (e.g., `skills/skill-name.md`). The only exception is
-`plugins/tooling/mnemosyne/` which contains the /advise and /learn
-command infrastructure.
+4. **Move specifics to companions**: Put project-specific commands, paths,
+   transcripts, and verification details in `skills/<name>.notes.md`. Put
+   version and provenance records in `skills/<name>.history`.
+5. **Generic workflows**: Write workflows that users can adapt to each
+   repository structure.
 
 ## Contributing a Skill
 
-1. Run `/learn` after a valuable session (preferred — auto-generates filename and structure)
-2. Or manually create from `templates/skill-template.md`
-   - Copy to `skills/<name>.md`
-   - Fill YAML frontmatter (name, description, category, date, version)
-   - Fill all required sections (Overview, When to Use, Verified Workflow, Failed Attempts, Results & Parameters)
-   - Optional: create `skills/<name>.notes.md` for raw details
-3. File format: flat markdown with YAML frontmatter, no nested directories
-4. Filename convention: `<topic>-<subtopic>-<short-4-word-summary>.md` (all lowercase, kebab-case)
-5. PR will be validated by CI before merge (skill-file frontmatter + sections)
+1. After a session contains useful knowledge, run `/learn`.
+2. To create a skill manually, copy `templates/skill-template.md` to
+   `skills/<name>.md`.
+3. Complete the name, description, category, date, and version fields.
+4. Complete all required Markdown sections.
+5. If raw details are necessary, create `skills/<name>.notes.md`.
+6. Use a flat Markdown file with YAML frontmatter. Do not use nested directories.
+7. Use this filename format:
+   `<topic>-<subtopic>-<short-4-word-summary>.md`.
+8. Use lowercase kebab-case for the filename.
+9. Before a merge, let CI validate the frontmatter and sections.
 
 ## Dependencies
 
-`pyproject.toml` is the **canonical** dependency specification for this project (ADR-017).
-Runtime dependencies live in `[project.dependencies]`; the development toolchain (pytest,
-pytest-cov, mypy, yamllint, ruff, jsonschema, build, twine) lives in the uv-native
-`[dependency-groups]` dev group. `uv.lock` is the committed, reproducible lockfile.
+`pyproject.toml` is the **canonical** dependency specification for this project.
+ADR-017 defines this requirement. Runtime dependencies are in
+`[project.dependencies]`. Development tools are in the uv-native
+`[dependency-groups]` development group. `uv.lock` is the committed,
+reproducible lockfile.
 
-- Install everything: `uv sync` (add `--group dev` explicitly, or `--locked` in CI)
-- Run tasks: `just validate`, `just test`, `just check`, `just package` — each recipe wraps
-  `uv run`, so no manual environment activation is needed
-- Equivalent raw invocations: `uv run python scripts/validate_plugins.py`,
-  `uv run python -m pytest tests/`, `uv build`
+- Install all dependencies with `uv sync`. You can add `--group dev` explicitly.
+- In CI, add `--locked` to the installation command.
+- Run tasks with `just validate`, `just test`, `just check`, or `just package`.
+- Each recipe uses `uv run`. You do not need to activate an environment.
+- Equivalent commands are `uv run python scripts/validate_plugins.py`,
+  `uv run python -m pytest tests/`, and `uv build`.
 
-The canonical CI `package` check builds the Python wheel + sdist (`mnemosyne_skill_utils`,
-the shared skill-parsing helper) with `uv build` and smoke-tests the installed wheel.
-Mnemosyne no longer ships a plugin-marketplace bundle — Athena is the plugin distribution;
-Mnemosyne is the skills/memory store.
+The canonical CI `package` check builds the Python wheel and source distribution
+with `uv build`. The package contains `mnemosyne_skill_utils`, the shared skill
+parser. The check installs and smoke-tests the wheel.
 
-`[project.optional-dependencies] dev` is retained purely for pip compatibility
-(`pip install .[dev]`); it mirrors the uv `[dependency-groups]` dev group. The CI
-`security/dependency-scan` (`pip-audit`) job audits the exact runtime dependencies exported
-from `uv.lock`, so there are no separate `requirements*.txt` mirrors to keep in sync.
+Mnemosyne does not supply a plugin-marketplace bundle. Athena supplies the
+plugin distribution. Mnemosyne stores skills and session memory.
+
+`[project.optional-dependencies] dev` provides pip compatibility for
+`pip install .[dev]`. It mirrors the uv development group. The CI
+`security/dependency-scan` job uses `pip-audit`. It audits the exact runtime
+dependencies that `uv.lock` exports. Do not create separate
+`requirements*.txt` mirrors.
 
 ## References
 
-- [ProjectOdyssey](https://github.com/HomericIntelligence/ProjectOdyssey) - Training platform
-- [ProjectKeystone](https://github.com/HomericIntelligence/ProjectKeystone) - DAG execution and task coordination
-- [ProjectScylla](https://github.com/HomericIntelligence/ProjectScylla) - Testing
+- [ProjectOdyssey](https://github.com/HomericIntelligence/ProjectOdyssey): Training platform.
+- [ProjectKeystone](https://github.com/HomericIntelligence/ProjectKeystone): DAG execution and task coordination.
+- [ProjectScylla](https://github.com/HomericIntelligence/ProjectScylla): Testing.

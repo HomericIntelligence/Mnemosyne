@@ -27,8 +27,6 @@ paths = [
   '''skills/ci-gitleaks-sarif-false-positive-fix\.md''',
   '''skills/quality-security-scan\.md''',
   '''skills/ci-workflow-hardening-checklist\.md''',
-  '''plugins/uncategorized/skills/quality-security-scan/SKILL\.md''',
-  '''plugins/architecture/quality-security-scan/skills/quality-security-scan/SKILL\.md''',
 ]
 
 # Dummy/example token literals that recur in documentation. Listing them

@@ -1,17 +1,24 @@
 ---
 name: Bug Report
-about: Report a bug in the skills marketplace
+about: Report a bug in the skill corpus
 labels: bug
 ---
 
+<!-- Use the [ASD-STE100 policy](https://github.com/HomericIntelligence/Mnemosyne/blob/main/docs/asd-ste100.md) for all issue text. -->
+
 ## Description
-<!-- Clear description of the bug -->
+<!-- Describe the bug. -->
 
 ## Steps to Reproduce
+
+<!-- List the steps that cause the bug. -->
+
 1.
 
 ## Expected Behavior
-<!-- What should happen -->
+
+<!-- Describe the correct result. -->
 
 ## Actual Behavior
-<!-- What actually happens -->
+
+<!-- Describe the result that you got. -->

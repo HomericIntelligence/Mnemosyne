@@ -1,8 +1,7 @@
 # Contributing to Mnemosyne
 
-Thank you for your interest in contributing to Mnemosyne! This guide covers everything
-you need to know about contributing skills, maintaining quality standards, and navigating the
-PR process.
+This guide explains how to contribute skills to Mnemosyne. It also gives the
+quality requirements and the pull request process.
 
 ## Table of Contents
 
@@ -21,33 +20,29 @@ PR process.
 
 ### Option 1: Automatic via `/learn` (Recommended)
 
-The easiest way to contribute is using the `/learn` command after a valuable session:
+Athena owns the `/learn` workflow. Mnemosyne does not copy its skill
+instructions.
 
-1. Complete an experiment, debugging session, or development task.
-2. Run `/learn` in your Claude Code session.
-3. Claude automatically:
-   - Reads your entire conversation history.
-   - Extracts successes, failures, and parameters.
-   - Searches for an existing canonical skill and open amendment PR by intent.
-   - When a canonical exists, rewrites its main file around concise reusable guidance and no more
-     than three materially distinct examples, writes useful session evidence to `.notes.md`, and
-     archives the complete prior main version plus version/provenance changes in `.history`.
-   - Auto-generates a skill filename: `<topic>-<subtopic>-<short-4-word-summary>`.
-   - Creates a branch (`skill/<name>`), commits, pushes, and opens a PR.
-4. Review and merge the PR.
+1. Install Athena through the coding harness plugin mechanism.
+2. After a session contains verified knowledge, run `/learn`.
+3. Follow the installed Athena skill.
+4. Review the pull request.
+5. Merge the pull request.
 
 ### Option 2: Manual Creation
 
-1. Copy the template: `templates/skill-template.md`
+1. Copy `templates/skill-template.md`.
 2. Save as `skills/<name>.md` (lowercase, kebab-case).
-3. Fill in the YAML frontmatter (see [Skill Structure](#skill-structure) below).
-4. Fill in all required markdown sections.
-5. Optionally create `skills/<name>.notes.md` for raw session details.
-6. Create a PR following the [branch conventions](#branch-and-commit-conventions).
+3. Complete the YAML frontmatter. See [Skill Structure](#skill-structure).
+4. Complete all required Markdown sections.
+5. You can create `skills/<name>.notes.md` for raw session details.
+6. Create a pull request. Follow the
+   [branch conventions](#branch-and-commit-conventions).
 
 ## Skill Structure
 
-All skills are flat markdown files in the `skills/` directory with YAML frontmatter.
+Each skill is a flat Markdown file in `skills/`. Each file has YAML
+frontmatter.
 
 ```text
 skills/<name>.md             # Main skill file with YAML frontmatter + markdown content
@@ -55,12 +50,15 @@ skills/<name>.notes.md       # (Optional) Additional context from development se
 skills/<name>.history        # Version/provenance archive for /learn writes
 ```
 
-Keep retrievable main skills at or below 30,000 bytes. Put reusable triggers, decision rules, short
-failure patterns, and no more than three materially distinct examples in the main file. Before an
-amendment replaces that file, archive its complete prior retrievable content in `.history`. Put raw
-session detail, project-specific paths, long examples, command transcripts, and verification reports
-in `.notes.md`; put all prior versions, change summaries, provenance, and other version-control
-narrative in `.history`. The required frontmatter `version` is only the current version identifier.
+Keep each retrievable main skill at or below 30,000 bytes. Put reusable triggers,
+decision rules, and short failure patterns in the main skill. Keep no more than
+three examples that cover different decisions. Before an amendment replaces the
+main skill, archive its complete prior content in `.history`.
+
+Put raw session details and project-specific paths in `.notes.md`. Also put long
+examples, command transcripts, and verification reports in `.notes.md`. Put
+prior versions, change summaries, provenance, and version-control narratives in
+`.history`. In the frontmatter, keep only the current `version` identifier.
 Athena excludes both companion types from normal retrieval.
 
 ### Required YAML Frontmatter
@@ -68,7 +66,7 @@ Athena excludes both companion types from normal retrieval.
 ```yaml
 ---
 name: skill-name-here
-description: "Use when: (1) specific condition, (2) another condition"
+description: "When a specific condition occurs, use this skill. When another condition occurs, use it again."
 category: training
 date: 2026-03-24
 version: "1.0.0"
@@ -83,19 +81,22 @@ tags: [optional, searchable, keywords]
 | `description` | Trigger conditions with specific use cases |
 | `category` | One of the 9 approved categories (see below) |
 | `date` | Creation date (YYYY-MM-DD) |
-| `version` | Semantic version (e.g., "1.0.0") |
+| `version` | Semantic version such as `1.0.0` |
 | `user-invocable` | Set to `false` for internal/sub-skills |
 | `tags` | (Optional) Searchable keywords array |
 
 ### Required Markdown Sections
 
-Every skill must include:
+Each skill must contain these sections:
 
 1. **Overview table** -- Date, objective, outcome.
 2. **When to Use** -- Specific trigger conditions.
-3. **Verified Workflow** -- Step-by-step instructions that worked, including a Quick Reference subsection.
-4. **Failed Attempts table (REQUIRED)** -- Must include columns: Attempt, What Was Tried, Why It Failed, Lesson Learned.
-5. **Results & Parameters** -- Copy-paste ready configs and expected outputs.
+3. **Verified Workflow** -- Give the steps that worked. Include a Quick
+   Reference subsection.
+4. **Failed Attempts table (REQUIRED)** -- Include these columns: Attempt, What
+   Was Tried, Why It Failed, and Lesson Learned.
+5. **Results & Parameters** -- Give configurations that users can copy and use.
+   Give the expected outputs.
 
 ### Filename Convention
 
@@ -103,20 +104,26 @@ Every skill must include:
 <topic>-<subtopic>-<short-4-word-summary>.md
 ```
 
-All lowercase, kebab-case. Examples:
+Use lowercase kebab-case. For example:
+
 - `mojo-parametric-dtype-migration.md`
 - `docker-pixi-isolation.md`
 - `batch-subprocess-signal-hang.md`
 
 ## Quality Standards
 
-1. **Specific descriptions**: Include trigger conditions, not vague summaries. Descriptions should specify *when* to use the skill (e.g., "Use when: (1) encountering vLLM weight sync errors, (2) setting up multi-GPU GRPO training").
-2. **Failures required**: Every skill must document what did not work and why. The Failed Attempts table is mandatory.
-3. **Copy-paste ready**: Parameters, configurations, and commands should work immediately when copied.
-4. **No duplication**: Link to external docs instead of copying content. If a skill overlaps with an existing one, extend rather than duplicate.
-5. **Bounded retrieval**: Keep `skills/<name>.md` at or below 30,000 bytes. Amend existing skills with
-   concise reusable guidance and at most three materially distinct examples. Route session evidence
-   to notes and prior versions or version-control narrative to history.
+1. **Specific descriptions**: Include trigger conditions. Do not use vague
+   summaries. State when to use the skill.
+2. **Failures required**: Record each method that did not work. Explain why it
+   did not work. The Failed Attempts table is mandatory.
+3. **Ready to use**: Parameters, configurations, and commands must work when
+   users copy them.
+4. **No duplication**: Link to external documents. Do not copy their content.
+   If a skill overlaps an existing skill, extend the existing skill.
+5. **Bounded retrieval**: Keep `skills/<name>.md` at or below 30,000 bytes.
+   Keep concise reusable guidance in the main skill. Keep no more than three
+   examples that cover different decisions. Put session evidence in the notes
+   file. Put prior versions and version-control records in the history file.
 
 ## Categories
 
@@ -136,9 +143,9 @@ All lowercase, kebab-case. Examples:
 
 ### Branch Naming
 
-- **Skills (automatic)**: `skill/<name>` (e.g., `skill/mojo-parametric-dtype-migration`)
-- **Fixes**: `fix/<issue-number>-<short-description>` (e.g., `fix/913-contributing-changelog`)
-- **Features**: `feat/<short-description>`
+- **Skills (automatic)**: `skill/<name>`, such as `skill/mojo-parametric-dtype-migration`
+- **Fixes**: `fix/<issue-number>-<short-description>`, such as `fix/913-contributing-changelog`
+- **Features**: `feat/<short-description>`.
 
 ### Commit Messages
 
@@ -152,13 +159,15 @@ Follow the [Conventional Commits](https://www.conventionalcommits.org/) format:
 [optional footer]
 ```
 
-Common types:
+Use these common types:
+
 - `feat:` -- New skill or feature
 - `fix:` -- Bug fix or correction
 - `docs:` -- Documentation changes
 - `chore:` -- Maintenance tasks
 
-Examples:
+For example:
+
 ```
 feat: add mojo-parametric-dtype-migration skill
 fix: resolve skill validation issues and missing frontmatter fields
@@ -168,50 +177,65 @@ docs: update migration status - 100% complete
 ## Pull Request Process
 
 1. Create a branch following the naming conventions above.
-2. Make your changes (add skill files, fix issues, etc.).
-3. Run validation locally before pushing (see [Validation](#validation)).
-4. Push your branch and create a PR.
-5. CI will automatically validate:
+2. Make the required changes.
+3. Before you push, run local validation. See [Validation](#validation).
+4. Push your branch.
+5. Create a pull request.
+6. Let CI validate these requirements:
    - YAML frontmatter has required fields.
    - All required markdown sections are present.
    - Failed Attempts section exists.
-   - Description is specific (20+ characters).
+   - The description field is present.
    - Category is valid.
-6. Once CI passes and the PR is approved, it will be merged.
+7. Confirm that the description has specific trigger conditions.
+8. After CI passes and reviewers approve the pull request, maintainers can
+   merge it.
 
 ### Merge queue readiness
 
-The required-check workflow supports GitHub merge groups, but queue activation
-is a separate Odysseus-owned operation. See
-[`docs/ci/merge-queue.md`](docs/ci/merge-queue.md) for the policy artifact,
-trigger boundaries, and post-merge evidence required by issue #3115. Until that
-evidence is recorded, enabling auto-merge does not prove a pull request entered
-the queue.
+The required-check workflow supports GitHub merge groups. Odysseus owns the
+separate queue-activation operation. Read
+[`docs/ci/merge-queue.md`](docs/ci/merge-queue.md) for the policy and trigger
+boundaries. It also gives the post-merge evidence for issue #3115. Auto-merge
+does not prove that a pull request entered the queue.
 
 ## Validation
 
-All PRs are validated by CI. Run validation locally before submitting:
+CI validates all pull requests. Before you submit a pull request, run local
+validation:
 
 ```bash
 python3 scripts/validate_plugins.py
 ```
 
-The validator checks:
-- Required frontmatter fields are present and valid.
-- All required markdown sections exist.
-- Failed Attempts table is included.
-- Description meets minimum length (20+ characters).
-- Category is one of the 9 approved values.
-- Every retrievable main skill is at most 30,000 bytes. `.notes.md` companions are excluded.
+The validator does these checks:
+
+- Confirms the required frontmatter fields
+- Confirms all required Markdown sections
+- Confirms the Failed Attempts table
+- Confirms the description field
+- Confirms one of the nine approved categories
+- Enforces the 30,000-byte main skill limit
+- Excludes notes and history files.
+
+Authors and reviewers must confirm that each description has specific trigger
+conditions.
 
 ## Code Style
+
+### Technical prose
+
+All active technical prose must follow the
+[ASD-STE100 writing policy](docs/asd-ste100.md). Use short sentences and active
+voice. Do not use contractions or semicolons. Preserve commands, identifiers,
+facts, legal text, and quoted text.
 
 ### Markdown
 
 - Use ATX-style headers (`#`, `##`, `###`).
-- Use fenced code blocks with language identifiers (e.g., ` ```bash`, ` ```yaml`).
+- Use fenced code blocks with language identifiers, such as ` ```bash` and ` ```yaml`.
 - Use tables for structured data (overview, failed attempts, verified-on).
-- Keep lines readable; no strict line length limit, but aim for clarity.
+- Keep lines readable. There is no strict line-length limit.
 
 ### YAML Frontmatter
 
@@ -230,11 +254,13 @@ This project follows these development principles:
 
 ## Cross-Repository Compatibility
 
-Skills should be generic enough to work across multiple repositories:
+Write skills that can work in multiple repositories:
 
-1. **No `source:` in frontmatter** -- Do not include repository-specific source fields.
-2. **Use placeholders** -- Replace hardcoded paths with `<project-root>`, `<test-path>`, `<package-manager>`.
-3. **Add a "Verified On" section** -- Document where the skill was validated:
+1. **No `source:` in frontmatter** -- Do not include repository-specific source
+   fields.
+2. **Use placeholders** -- Replace hardcoded paths with `<project-root>`,
+   `<test-path>`, and `<package-manager>`.
+3. **Add a "Verified On" section** -- Record where you validated the skill:
    ```markdown
    ## Verified On
 
@@ -242,19 +268,24 @@ Skills should be generic enough to work across multiple repositories:
    |---------|---------|---------|
    | ProjectName | PR #XXX context | [notes.md](./skill-name.notes.md) |
    ```
-4. **Move specifics to companions** -- Put project-specific commands, paths, transcripts, and detailed
-   verification in `.notes.md`; put version and provenance records in `.history`.
-5. **Generic workflows** -- Write workflows that can be adapted to any repository structure.
+4. **Move specifics to companions** -- Put project-specific commands, paths,
+   transcripts, and verification details in `.notes.md`. Put version and
+   provenance records in `.history`.
+5. **Generic workflows** -- Write workflows that users can adapt to each
+   repository structure.
 
 ## Releasing
 
-The skills corpus is released as a tagged snapshot. `pyproject.toml`
+Maintainers release the skill corpus as a tagged snapshot. `pyproject.toml`
 `[project].version` is the single source of truth.
 
 1. Bump the version in `pyproject.toml`.
 2. Add a matching `## [X.Y.Z] - YYYY-MM-DD` entry at the top of `CHANGELOG.md`.
-3. Merge; the `release` CI check dry-runs
-   `scripts/validate_release_contract.py` on every PR and `main` push.
-4. Tag `vX.Y.Z` and push the tag -- `.github/workflows/release.yml` re-validates
-   the contract against the tag and publishes a GitHub Release with the
-   skills-corpus snapshot tarball and the changelog entry as notes.
+3. Merge the pull request. The `release` CI check runs
+   `scripts/validate_release_contract.py` in dry-run mode on every pull request
+   and every push to `main`.
+4. Create the `vX.Y.Z` tag.
+5. Push the tag. `.github/workflows/release.yml` validates the contract against
+   the tag.
+6. The workflow publishes a GitHub Release. The release contains the corpus
+   snapshot and the changelog entry.
