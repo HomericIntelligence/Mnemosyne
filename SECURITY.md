@@ -1,5 +1,8 @@
 # Security Policy
 
+All active technical prose in this policy must follow the
+[ASD-STE100 writing policy](docs/asd-ste100.md).
+
 ## Supported Versions
 
 | Version | Supported |
@@ -9,14 +12,14 @@
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability in Mnemosyne, please report it
-responsibly using **GitHub Private Security Advisories**:
+If you find a security vulnerability in Mnemosyne, report it with **GitHub
+Private Security Advisories**:
 
-1. Go to the [Security Advisories page](https://github.com/HomericIntelligence/Mnemosyne/security/advisories)
-2. Click **"New draft security advisory"**
-3. Fill in the details of the vulnerability
+1. Go to the [Security Advisories page](https://github.com/HomericIntelligence/Mnemosyne/security/advisories).
+2. Select **"New draft security advisory"**.
+3. Enter the vulnerability details.
 
-**Please do not open a public issue for security vulnerabilities.**
+**Do not open a public issue for a security vulnerability.**
 
 ## Response Timeline
 
@@ -26,27 +29,29 @@ responsibly using **GitHub Private Security Advisories**:
 
 ## Scope
 
-Mnemosyne is a **skills/knowledge marketplace** — it stores markdown
-documentation and skill files, not production application code. The repository
-does include Python scripts for validation and marketplace generation, but does
-not handle user data or run production services.
+Mnemosyne is a **skills and session-memory store**. It contains Markdown
+documents and skill files. It also contains Python scripts for validation and
+repository maintenance. It does not handle user data or run production
+services.
 
-This policy covers:
-- Python scripts (validation, marketplace generation, CI automation)
+This policy covers these items:
+
+- Python scripts for validation, migration, and CI automation
 - CI/CD workflows and GitHub Actions configurations
 - Pre-commit hook configurations
 
-Skill content (markdown files contributed by the community) is informational
-and does not execute code directly.
+Community skill files contain information. The Markdown content does not run
+code directly.
 
 ## Security Scanning
 
-Pre-commit hooks are configured for basic file hygiene (YAML/JSON validation,
-large file checks). Bandit (Python security linter) is **not** currently
-configured in `.pre-commit-config.yaml`. Given the limited Python surface area,
-this is acceptable but can be added if the codebase grows.
+Pre-commit hooks check basic file hygiene. The checks include YAML validation,
+JSON validation, and large-file detection. The repository does **not** configure
+Bandit in `.pre-commit-config.yaml`. The Python codebase is small. Maintainers
+accept the current configuration. If the Python codebase grows, maintainers can
+add Bandit.
 
 ## Contact
 
-For questions about this policy, open a GitHub Issue or reach out to the
+For questions about this policy, open a GitHub issue. You can also contact the
 HomericIntelligence project maintainers.

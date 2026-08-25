@@ -1,60 +1,84 @@
 ---
 name: learn
 license: BSD-3-Clause
-description: Save session learnings as a new skill plugin. Use after experiments, debugging sessions, or when you want to preserve team knowledge.
+description: After experiments or debugging, use this skill to save reusable knowledge. When a team needs verified knowledge, use this skill.
 user-invocable: false
 ---
 
 # /learn
 
-Capture session learnings and create a new skill plugin with PR.
+Save reusable session knowledge in the canonical skill. When no canonical
+skill exists, create one.
+Write all new or changed active technical prose according to the
+[Mnemosyne ASD-STE100 writing policy](../../../../../docs/asd-ste100.md).
+Apply the policy to all generated skill prose. Preserve exact technical
+evidence and protected content.
+
+Follow the complete `/learn` workflow in the root `AGENTS.md`. That workflow is
+the authoritative source.
 
 ## Overview
 
 | Item | Details |
 | ------ | --------- |
 | Date | 2025-12-29 |
-| Objective | Automate knowledge capture from sessions into searchable skill plugins |
+| Objective | Store session knowledge in searchable flat skill files |
 | Outcome | ✅ Operational |
 
 ## When to Use
 
-- After completing an experiment (successful or failed)
-- After debugging a tricky issue
-- After implementing a new pattern
-- When you want to preserve learnings for the team
-- Automatically prompted on session-ending keywords (if hooks configured)
+- Complete an experiment, whether it succeeds or fails.
+- Debug a difficult issue.
+- Implement a new pattern.
+- Preserve knowledge for the team.
+- Respond to an automatic prompt from a configured hook.
+
+## Required Workflow
+
+1. Search existing skills and open pull requests by intent.
+2. If a canonical skill exists, amend it. Do not create a sibling skill.
+3. Keep concise reusable guidance in the main skill.
+4. Keep no more than three examples that cover different decisions.
+5. Put session evidence and long examples in the notes file.
+6. Before replacement, archive the complete prior main skill in the history file.
+7. Keep only the current version value in the main skill frontmatter.
+8. Keep the main skill at or below 30,000 bytes.
+9. If no canonical skill exists, create a new flat skill.
+10. Before you commit, validate the change.
+11. Commit the change.
+12. Push the branch.
+13. Create the pull request from an isolated worktree.
 
 ## Common Mistakes and Fixes
 
 | Mistake | Symptom | Fix |
 | --------- | --------- | ----- |
-| Forgot `.claude-plugin/plugin.json` | "Missing .claude-plugin/plugin.json" | Create with name, version, description, category, date |
-| Description < 20 chars | "Description too short" | Add "Use when:" trigger conditions |
+| Missing required frontmatter | "Missing required field" | Add all required fields |
+| Vague description | Reviewers cannot identify the trigger | Add specific trigger conditions |
 | Failed Attempts as prose | "should contain a table" | Use pipe-delimited table format |
-| Missing frontmatter | "missing YAML frontmatter" | Add `---` delimiters at top of SKILL.md |
+| Missing frontmatter delimiters | "missing YAML frontmatter" | Add `---` delimiters at the start of the skill file |
 | Wrong category | "Invalid category" | Use one of 9 approved categories |
 | `## Workflow` instead of `## Verified Workflow` | "Missing Verified Workflow section" | Use exact header name |
-| SessionEnd hook | Hook doesn't display messages to user | Use UserPromptSubmit hook instead |
-| Committed without validating | PR fails CI | Run `python3 scripts/validate_plugins.py skills/` before commit |
+| SessionEnd hook | Hook does not display messages to users | Use UserPromptSubmit hook instead |
+| Committed without validating | PR fails CI | Before commit, run `uv run python scripts/validate_plugins.py` |
 
 ## Failed Attempts
 
-| Attempt | Why Failed | Lesson Learned |
-| --------- | ----------- | ---------------- |
-| Auto-trigger on every session | User fatigue from constant prompts | Use >10 messages threshold |
-| Generic skill names | Hard to find later via /advise | Enforce kebab-case with category prefix |
-| Optional Failed Attempts section | Most valuable content missing | Make failures REQUIRED in template |
-| Single references/notes.md | Information overload in one file | Split into experiment-log + troubleshooting |
-| No environment capture | "Works on my machine" problems | Add environment table to Overview section |
-| Committing without validation | Bad plugins entered registry | Run validate_plugins.py before commit |
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| Duplicate skill | Created a sibling without an intent search | Retrieval returned competing guidance | Amend the canonical skill |
+| Oversized main skill | Kept transcripts and long examples in the main file | Retrieval became inefficient | Move supporting evidence to notes |
+| Missing archive | Replaced a canonical skill without history | The prior evidence became unavailable | Archive the prior main skill first |
+| Optional Failed Attempts section | Omitted failure evidence | Users could repeat failed work | Require the Failed Attempts section |
+| Committing without validation | Skipped the local checks | Invalid content reached the pull request | Before commit, run `just check` |
 
 ## Results & Parameters
 
-N/A — this skill describes a workflow pattern.
+This skill describes a workflow pattern. It has no runtime parameters.
 
 ## References
 
-- See `commands/learn.md` for the full command implementation
-- See `validation-workflow` for CI validation details
-- See `documentation-patterns` for writing quality skills
+- [Athena](https://github.com/HomericIntelligence/Athena) supplies the installed command.
+- Read the root `AGENTS.md` file for the current `/learn` workflow.
+- Read `validation-workflow` for CI validation details.
+- Read `documentation-patterns` for skill author guidance.

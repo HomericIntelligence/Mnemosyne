@@ -1,14 +1,24 @@
 # Plugin Standards
 
-Standards for creating and validating skills in the Mnemosyne skills/memory store.
+Use these standards to create skills in the Mnemosyne skills and session-memory
+store. Also use the standards to validate skills.
 
-> **Format:** Mnemosyne uses the **flat-file skill format** introduced in v2.0.0.
-> Each skill is a single markdown file at `skills/<name>.md`. There is no
+## Writing Standard
+
+Use ASD-STE100 Simplified Technical English for all active skill prose and all
+prose that tools generate for skills. Follow the repository
+[ASD-STE100 writing policy](../../docs/asd-ste100.md). Preserve exact commands,
+code, configuration, identifiers, paths, and technical literals.
+
+> **Format:** Mnemosyne v2.0.0 uses the **flat-file skill format**.
+> Each skill is a single Markdown file at `skills/<name>.md`. There is no
 > nested `<name>/SKILL.md`, no per-skill `plugin.json`, and no `.claude-plugin/`
-> directory inside each skill. The only documented exception is
-> `plugins/tooling/mnemosyne/` (command infrastructure), which is *not* a skill.
-> See `AGENTS.md` for repo structure and `templates/skill-template.md` for a
-> ready-to-copy template.
+> directory inside each skill.
+>
+> The only documented exception is
+> `plugins/tooling/mnemosyne/`. That directory contains Mnemosyne-side command
+> infrastructure and is not a corpus skill. Read `AGENTS.md` for the repository
+> structure. Use `templates/skill-template.md` to create a skill.
 
 ## Required Structure
 
@@ -19,34 +29,37 @@ skills/
 
 Optional sibling files alongside `<name>.md`:
 
-- `<name>.notes.md` / `<name>.notes-<topic>.md` — session notes (excluded from skill validation)
-- `<name>.history*` — historical revisions (excluded from skill validation)
+- `<name>.notes.md` or `<name>.notes-<topic>.md`: Session notes that validation excludes.
+- `<name>.history*`: Historical revisions that validation excludes.
 
-## SKILL Metadata (YAML Frontmatter in `<name>.md`)
+## Skill Metadata
+
+Put the YAML frontmatter at the start of `skills/<name>.md`.
 
 | Field | Required | Description |
 | ------- | ---------- | ------------- |
 | `name` | Yes | Lowercase kebab-case identifier (matches the filename stem) |
-| `description` | Yes | Trigger conditions (20+ chars) |
-| `version` | Yes | Semantic version (e.g., "1.0.0") |
+| `description` | Yes | Specific trigger conditions |
+| `version` | Yes | Semantic version such as `1.0.0` |
 | `date` | Yes | Last-updated date (YYYY-MM-DD) |
 | `category` | Yes | One of the approved categories below |
-| `tags` | Yes | YAML list of searchable keywords |
-| `verification` | Yes | One of `verified-ci`, `verified-local`, `verified-precommit`, `unverified` |
-| `source` | No | Originating project (e.g., `ProjectOdyssey`) |
+| `user-invocable` | Yes | For an internal skill or subskill, use `false` |
+| `tags` | No | YAML list of searchable keywords |
 
-## SKILL.md Requirements
+Do not add a repository-specific `source` field.
+
+## Skill File Requirements
 
 ### YAML Frontmatter (Required)
 
 ```yaml
 ---
 name: skill-name
-description: "Trigger conditions (≥20 chars)"
+description: "Specific trigger conditions"
 category: category-name
 version: "1.0.0"
 date: YYYY-MM-DD
-verification: verified-local
+user-invocable: false
 tags:
   - keyword-1
   - keyword-2
@@ -55,13 +68,14 @@ tags:
 
 ### Required Sections
 
-1. **Title** (H1): Skill name
-2. **Overview table**: Date, objective, outcome
-3. **When to Use**: Bullet list of trigger conditions
-4. **Verified Workflow**: Numbered steps that worked
-5. **Failed Attempts** (REQUIRED): Table of failures
-6. **Results & Parameters**: Copy-paste ready configs
-7. **References**: Links to issues, docs
+1. **Overview table**: Give the date, objective, and outcome.
+2. **When to Use**: Give specific trigger conditions.
+3. **Verified Workflow**: Give successful steps and a Quick Reference subsection.
+4. **Failed Attempts**: Use the required four-column table.
+5. **Results & Parameters**: Give configurations and expected outputs.
+
+The repository policy recommends a title and References section. The validator
+does not require them.
 
 ## Approved Categories
 
@@ -75,25 +89,31 @@ tags:
 | `tooling` | Automation tools |
 | `ci-cd` | Pipeline configs |
 | `testing` | Test strategies |
+| `documentation` | Knowledge and technical documents |
 
-## Validation Rules
+## Validation and Review Rules
 
-1. **`skills/<name>.md` must exist** — the flat file *is* the skill
-2. **Frontmatter must be valid YAML** delimited by `---` lines
-3. **Failed Attempts section required** — validation fails without it
-4. **Description must be specific** — 20+ characters with trigger conditions
-5. **Category must be valid** — one of the approved categories above
-6. **Date format** — YYYY-MM-DD
-7. **`verification` must be one of** `verified-ci` / `verified-local` / `verified-precommit` / `unverified`
+1. Store the skill at `skills/<name>.md`.
+2. Delimit valid YAML frontmatter with `---` lines.
+3. Include all required frontmatter fields.
+4. Include the description field. The validator confirms that it is not empty.
+5. Use one approved category.
+6. Use `YYYY-MM-DD` for the date.
+7. Include all required Markdown sections.
+8. Use the required Failed Attempts columns.
+9. Use a level-three Quick Reference heading.
+
+Authors and reviewers must confirm that each description has specific trigger
+conditions.
 
 ## Quality Guidelines
 
 ### Good Description
 
 ```text
-"GRPO training with external vLLM server. Use when: (1) Running vLLM on
-separate GPUs, (2) vllm_skip_weight_sync errors, (3) OpenAI API parsing
-issues. Verified on gemma-3-12b-it."
+"When you run vLLM on separate GPUs, use this skill for GRPO training.
+When vllm_skip_weight_sync errors or OpenAI API parsing issues occur, use
+this skill again. The team verified it on gemma-3-12b-it."
 ```
 
 ### Bad Description
@@ -104,20 +124,22 @@ issues. Verified on gemma-3-12b-it."
 
 ### Good Failed Attempts
 
-| Attempt | Why Failed | Lesson |
-| --------- | ----------- | -------- |
-| Used inline vLLM | OOM on single GPU | Use external server |
-| batch_size=16 | Gradient overflow | Use batch_size=4 |
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| External inference | Used inline vLLM | The process exhausted GPU memory | Use an external server |
+| Large batch | Used `batch_size=16` | The gradients overflowed | Use `batch_size=4` |
 
 ### Bad Failed Attempts
 
-| Attempt | Why Failed | Lesson |
-| --------- | ----------- | -------- |
-| It didn't work | Unknown | Try again |
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| Unknown | It did not work | Unknown | Try again |
 
 ## Search Command Standards
 
-All grep/find commands in skills **MUST exclude hidden directories** to avoid searching `.pixi/`, `.git/`, `.cache/`, etc.
+Exclude hidden directories from all `grep` and `find` commands in skills. This
+rule prevents searches in `.pixi/`, `.git/`, `.cache/`, and other hidden
+directories.
 
 ### Required Pattern
 
@@ -144,7 +166,7 @@ grep -rn "FIXME" --include="*.mojo" --exclude-dir='.*' .
 
 ### Why This Matters
 
-- `.pixi/` contains thousands of dependency files with their own TODOs/FIXMEs
-- `.git/` contains repository metadata
-- Hidden directories pollute search results with false positives
-- Slows down searches significantly
+- `.pixi/` contains many dependency files with their own TODOs and FIXMEs.
+- `.git/` contains repository metadata.
+- Hidden directories can add false positives to search results.
+- Searches take more time when they examine hidden directories.

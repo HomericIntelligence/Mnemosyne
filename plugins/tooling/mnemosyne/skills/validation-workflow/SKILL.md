@@ -1,101 +1,122 @@
 ---
 name: validation-workflow
 license: BSD-3-Clause
-description: GitHub Actions CI for validating skill plugins. Use when setting up CI/CD for a skills marketplace or enforcing plugin quality.
+description: When you configure GitHub Actions, use this skill to validate flat Mnemosyne skill files. Before you contribute a skill, use this skill to run checks.
 user-invocable: false
 ---
 
-# Plugin Validation Workflow
+# Skill Validation Workflow
 
-CI/CD pipeline for validating skills and auto-generating marketplace.
+Use this workflow to validate the Mnemosyne skill corpus. Mnemosyne does not
+generate or publish a plugin marketplace.
+
+Write all new or changed active technical prose according to the
+[Mnemosyne ASD-STE100 writing policy](../../../../../docs/asd-ste100.md).
 
 ## Overview
 
 | Item | Details |
 | ------ | --------- |
-| Date | 2025-12-29 |
-| Objective | Automate skill validation and marketplace generation |
-| Outcome | Consistent quality, auto-updated discoverability |
+| Date | 2026-08-25 |
+| Objective | Validate flat skill files and the shared parser |
+| Outcome | Invalid corpus changes fail before merge |
 
 ## When to Use
 
-- Setting up CI/CD for a skills marketplace
-- Enforcing required sections in SKILL.md
-- Auto-generating marketplace.json on merge
-- Preventing low-quality skills from entering registry
+- Configure CI for the Mnemosyne skill corpus.
+- Validate a new or changed flat skill file.
+- Check required frontmatter and Markdown sections.
+- Before a pull request, run the repository tests.
 
 ## Verified Workflow
 
-### 1. PR Validation
+### Quick Reference
 
-CI runs `python3 scripts/validate_plugins.py skills/ plugins/` on every PR touching `skills/**`, `plugins/**`, `templates/**`, or `scripts/validate_plugins.py`.
+Run the complete local check:
 
-**What it checks** (`scripts/validate_plugins.py`):
-- `.claude-plugin/plugin.json` exists with name, version, description
-- Name matches `^[a-z0-9-]+$`
-- Description ≥ 20 chars
-- Category valid if present (9 approved values)
-- SKILL.md has YAML frontmatter (`---`)
-- Required sections: Overview, When to Use, Verified Workflow, Failed Attempts, Results
-- Failed Attempts has table format (pipe characters)
-
-Run locally before committing:
 ```bash
-python3 scripts/validate_plugins.py skills/
+just check
 ```
 
-### 2. Auto-Generate Marketplace on Merge
+When you investigate a failure, run the two parts separately:
 
-On push to `main` (paths: `skills/**`, `plugins/**`), CI runs:
 ```bash
-python3 scripts/generate_marketplace.py .claude-plugin/marketplace.json skills/ plugins/
+just validate
+just test
 ```
 
-Result is committed with `[skip ci]` to prevent infinite loops.
+### 1. Validate Active Skill Files
 
-### 3. Install Scripts
+Run this command:
 
-Copy from this plugin's `scripts/` directory:
-- `validate_plugins.py` — PR validation
-- `generate_marketplace.py` — Marketplace generation
+```bash
+uv run python scripts/validate_plugins.py
+```
+
+The validator reads flat main skill files in `skills/`. It excludes raw notes
+and history files. It checks these requirements:
+
+- Required YAML frontmatter fields.
+- Approved categories and field formats.
+- Required Markdown sections.
+- The Failed Attempts table.
+- The Quick Reference heading level.
+
+### 2. Run the Test Suite
+
+Run this command:
+
+```bash
+uv run python -m pytest tests/
+```
+
+The tests cover the validator, schema, release contract, and shared parser.
+
+### 3. Use the Repository CI Workflows
+
+The required workflow runs structural, test, lint, schema, security, package,
+and release-contract checks. The advisory validation workflow runs additional
+skill and Python checks. Neither workflow creates a marketplace index.
 
 ## Failed Attempts
 
-| Attempt | Why Failed | Lesson |
-| --------- | ----------- | -------- |
-| No validation on PRs | Bad plugins entered registry | Validate before merge |
-| Manual marketplace.json edits | Out of sync with actual plugins | Auto-generate on merge |
-| Optional failures section | Most valuable info missing | Make it required in validation |
-| Single validation script | Hard to debug which check failed | Separate steps in workflow |
-| Inline grep validation | Missed edge cases, hard to maintain | Use dedicated validate_plugins.py |
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| No pull request validation | Accepted invalid skill files | Errors reached the default branch | Before merge, validate the files |
+| Manual frontmatter review | Relied only on reviewer inspection | Reviewers missed structural errors | Use the parser and schema checks |
+| Optional failures section | Allowed skills without failure evidence | The most reusable diagnostic facts were absent | Require the Failed Attempts section |
+| Inline shell validation | Used multiple `grep` checks | The checks missed parser edge cases | Use `validate_plugins.py` |
+| Marketplace generation | Treated Mnemosyne as a plugin marketplace | Athena owns plugin distribution | Keep Mnemosyne as the skill corpus |
 
 ## Results & Parameters
 
 ```yaml
-# Validation rules (from validate_plugins.py)
 validation:
-  required_plugin_fields:
+  target: "skills/*.md"
+  excluded_evidence:
+    - "skills/*.notes*.md"
+    - "skills/*.history*"
+  required_frontmatter:
     - name
-    - version
     - description
-  min_description_length: 20
-  description_must_contain: "Use when:"
-  required_skill_sections:
-    - "## Failed Attempts"
+    - category
+    - date
+    - version
+  required_sections:
+    - "## Overview"
     - "## When to Use"
+    - "## Verified Workflow"
+    - "## Failed Attempts"
+    - "## Results & Parameters"
 
-# Workflow triggers
-triggers:
-  validate_on: pull_request (paths: skills/**, plugins/**, templates/**, scripts/validate_plugins.py)
-  generate_on: push to main (paths: skills/**, plugins/**)
-
-# Commit message patterns
-commits:
-  marketplace_update: "chore: update marketplace.json [skip ci]"
-  skip_ci_pattern: "[skip ci]"  # Prevent infinite loops
+commands:
+  validate: "uv run python scripts/validate_plugins.py"
+  test: "uv run python -m pytest tests/"
+  complete: "just check"
 ```
 
 ## References
 
-- GitHub Actions: https://docs.github.com/en/actions
-- Key insight: "Auto-update marketplace makes skills discoverable to /plugin system"
+- [Contributor validation](../../../../../CONTRIBUTING.md#validation)
+- [Required checks workflow](../../../../../.github/workflows/_required.yml)
+- [Advisory validation workflow](../../../../../.github/workflows/validate-plugins.yml)

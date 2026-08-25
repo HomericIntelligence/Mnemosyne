@@ -1,10 +1,13 @@
 # Troubleshooting Guide Template
 
-Use this for error-solution mappings.
+Use this template to map errors to solutions.
+Write active technical prose according to the
+[Mnemosyne ASD-STE100 writing policy](../../../../docs/asd-ste100.md).
+Preserve exact errors, commands, configurations, outputs, and quotations.
 
 ## Common Issues
 
-### Category: [e.g., Training Errors]
+### Category: [Training Errors]
 
 #### Issue 1: [Error Name]
 
@@ -15,20 +18,21 @@ Use this for error-solution mappings.
 
 #### Issue 2: [Error Name]
 
-[Same structure...]
+Use the same structure.
 
-### Category: [e.g., Infrastructure]
+### Category: [Infrastructure Errors]
 
-[More issues...]
+[Add more issues.]
 
 ## Debugging Checklist
 
-Before filing issues, check:
-- [ ] Environment matches documented versions
-- [ ] Dataset is correct format
-- [ ] Hardware has sufficient resources
-- [ ] Configuration file is valid
-- [ ] Dependencies are installed
+Before you file an issue, complete these checks:
+
+- [ ] Verify that the environment uses the documented versions.
+- [ ] Verify that the dataset has the correct format.
+- [ ] Make sure that the hardware has sufficient resources.
+- [ ] Validate the configuration file.
+- [ ] Install all required dependencies.
 
 ## Quick Reference
 

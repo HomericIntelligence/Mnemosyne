@@ -1,18 +1,24 @@
 #!/usr/bin/env python3
-"""
-Hook triggered on UserPromptSubmit when user types session-ending keywords.
-Adds context reminding about /learn - does not block.
+"""Remind a user about /learn after a session-ending prompt.
 
-Receives JSON input with:
+This UserPromptSubmit hook adds context. It does not block the prompt.
+
+The reminder requires generated skill prose to follow the repository
+ASD-STE100 writing policy at docs/asd-ste100.md.
+
+The hook receives JSON input with these fields:
+
 - prompt: The user's prompt text
 - session_id: Session identifier
 - cwd: Current working directory
 
-Outputs JSON to stdout for Claude to process.
+The hook writes JSON to standard output for Claude to process.
 
 Installation:
-1. Copy this file to your project's .claude/hooks/ directory
-2. Add the hook config to .claude/settings.json (see settings.json.example)
+
+1. Copy this file to the project .claude/hooks/ directory.
+2. Add the hook configuration to .claude/settings.json.
+3. Read settings.json.example for an example.
 """
 
 import json
@@ -43,8 +49,10 @@ def main():
                 "hookSpecificOutput": {
                     "hookEventName": "UserPromptSubmit",
                     "additionalContext": (
-                        "[Learn Reminder] Before ending this session, "
-                        "consider running /learn to capture any learnings."
+                        "[Learn Reminder] Before you end this session, consider "
+                        "running /learn to save useful information. If you run "
+                        "/learn, write the generated skill prose in ASD-STE100 "
+                        "Simplified Technical English. Follow docs/asd-ste100.md."
                     ),
                 }
             }

@@ -1,8 +1,18 @@
-# Mnemosyne - Complete Setup
+# Historical Mnemosyne Setup Notes
 
-A complete skills registry system for Claude agents, including commands, hooks, validation, and documentation patterns.
+This file records the old nested-plugin and marketplace design. Do not use its
+procedures for the current repository. Mnemosyne now stores a flat skill corpus.
+The [Athena plugin](https://github.com/HomericIntelligence/Athena) supplies the
+installed commands.
 
-## What's Included
+Write all new or changed explanatory prose according to the
+[Mnemosyne ASD-STE100 writing policy](../../../../docs/asd-ste100.md).
+Preserve exact code, commands, identifiers, outputs, quotations, and technical evidence.
+
+The commands and file trees below are historical evidence. They are not current
+installation instructions.
+
+## Included Components
 
 ```
 mnemosyne/
@@ -21,7 +31,7 @@ mnemosyne/
     └── notes.md                     # This file
 ```
 
-## Quick Start
+## Historical Setup Procedure
 
 ### 1. Copy Plugin to Your Project
 
@@ -79,7 +89,8 @@ Save learnings after a session (auto-creates PR).
 
 ### 5. Set Up CI/CD (Optional)
 
-Copy workflows from the validation-workflow skill:
+Copy these workflows from the `validation-workflow` skill:
+
 - `.github/workflows/validate-plugins.yml`
 - `.github/workflows/update-marketplace.yml`
 
@@ -91,7 +102,7 @@ echo '{"version": "1.0.0", "plugins": []}' > marketplace.json
 mkdir -p plugins/{training,evaluation,optimization,debugging,architecture,tooling,ci-cd,testing}
 ```
 
-## Components
+## Historical Components
 
 | Component | Purpose |
 | ----------- | --------- |
@@ -103,14 +114,16 @@ mkdir -p plugins/{training,evaluation,optimization,debugging,architecture,toolin
 | `validate_plugins.py` | PR validation script |
 | `generate_marketplace.py` | Marketplace index generator |
 
-## Hook Behavior
+## Historical Hook Behavior
 
-The SessionEnd hook:
-- Triggers on `/exit` and `/clear`
-- Checks if session has meaningful content (>10 messages)
-- Prompts: "Would you like to save your learnings?"
-- Non-blocking
+The `SessionEnd` hook has these behaviors:
+
+- It starts for `/exit` and `/clear`.
+- It requires a session that has more than 10 messages.
+- It shows this prompt: "Would you like to save your learnings?"
+- It does not block the session.
 
 ## Source
 
-Based on: https://huggingface.co/blog/sionic-ai/claude-code-skills-training
+This setup is based on the
+[Sionic AI article](https://huggingface.co/blog/sionic-ai/claude-code-skills-training).

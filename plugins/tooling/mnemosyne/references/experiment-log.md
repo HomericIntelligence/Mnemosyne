@@ -1,12 +1,15 @@
 # Experiment Log Template
 
-Use this for detailed experiment tracking.
+Use this template to record an experiment in detail.
+Write active technical prose according to the
+[Mnemosyne ASD-STE100 writing policy](../../../../docs/asd-ste100.md).
+Preserve exact values, commands, configurations, outputs, and quotations.
 
 ## Experiment: [Name]
 
 **Date**: YYYY-MM-DD
-**Objective**: [What you're trying to learn]
-**Hypothesis**: [What you predict will happen]
+**Objective**: [State what you want to learn]
+**Hypothesis**: [State the expected result]
 
 ### Environment
 
@@ -41,10 +44,13 @@ param2: value2
 ### Conclusions
 
 **What Worked**:
-- [List successful approaches]
+
+- [List the successful approaches]
 
 **What Failed**:
-- [List failed approaches with reasons]
+
+- [List each failed approach and its cause]
 
 **Next Steps**:
-- [What to try next]
+
+- [List the next actions]

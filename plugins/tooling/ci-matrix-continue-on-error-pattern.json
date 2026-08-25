@@ -1,7 +1,7 @@
 {
   "name": "ci-matrix-continue-on-error-pattern",
   "version": "1.0.0",
-  "description": "TRIGGER CONDITIONS: GitHub Actions matrix with some jobs non-blocking. Use when: (1) adding continue-on-error to specific matrix entries for flaky tests (JIT crashes, heap corruption), (2) resolving merge conflicts between hardcoded name matching vs matrix-field approaches. Fix: use matrix-level continue-on-error boolean field instead of hardcoding group names in step conditions.",
+  "description": "When some GitHub Actions matrix jobs must not block CI, use this skill. It applies to unstable tests and conflicting job-selection methods. Add a continue-on-error Boolean field to the matrix. Do not match hardcoded group names in step conditions. Generated prose must follow ASD-STE100.",
   "category": "ci-cd",
   "date": "2026-03-12",
   "tags": ["ci-cd", "github-actions", "matrix", "continue-on-error", "merge-conflicts", "mojo", "jit-crashes", "odyssey"]

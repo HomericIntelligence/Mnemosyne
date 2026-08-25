@@ -1,13 +1,15 @@
 ---
 name: documentation-patterns
 license: BSD-3-Clause
-description: Best practices for writing effective skill documentation. Use when creating new skills, improving skill discoverability, or documenting failed attempts.
+description: When you create skill documentation, use this skill. When you improve skill discovery, use this skill. When you record failed methods, use this skill.
 user-invocable: false
 ---
 
 # Skill Documentation Patterns
 
-How to write skills that Claude can find and use effectively.
+Use these patterns to write skills that Claude can find and use.
+Write all new or changed active technical prose according to the
+[Mnemosyne ASD-STE100 writing policy](../../../../../docs/asd-ste100.md).
 
 ## Overview
 
@@ -20,17 +22,18 @@ How to write skills that Claude can find and use effectively.
 
 ## When to Use
 
-- Creating a new skill after `/learn`
-- Improving an existing skill's discoverability
-- Writing trigger conditions for `/advise` matching
-- Documenting failed attempts (most valuable content)
-- Making configs and parameters copy-paste ready
+- Review a skill that `/learn` creates or amends.
+- Improve the discovery of an existing skill.
+- Write trigger conditions for `/advise` matching.
+- Record failed attempts.
+- Make configurations and parameters ready to copy.
 
 ## Verified Workflow
 
 ### 1. Write Specific Trigger Conditions
 
-The description field determines if `/advise` finds your skill. Be specific:
+The `description` field controls whether `/advise` finds the skill.
+Write specific trigger conditions.
 
 **Bad (vague):**
 ```
@@ -39,23 +42,24 @@ The description field determines if `/advise` finds your skill. Be specific:
 
 **Good (specific):**
 ```
-"description": "GRPO training with external vLLM server. Use when: (1) Running vLLM on separate GPUs, (2) Encountering vllm_skip_weight_sync errors, (3) OpenAI API parsing issues. Verified on gemma-3-12b-it."
+"description": "When you run vLLM on separate GPUs, use this skill for GRPO training. When vllm_skip_weight_sync errors or OpenAI API parsing issues occur, use this skill again. The team verified it on gemma-3-12b-it."
 ```
 
-Pattern: `{what} + Use when: {numbered triggers} + Verified on: {environment}`
+For each description, put the trigger condition first. Then state the required
+action. If you give a verified environment, use a complete sentence.
 
 ### 2. Document Failed Attempts (Most Valuable)
 
-Failed attempts save weeks of trial-and-error. Use this table format:
+Failed attempts can prevent repeated work. Use this table format:
 
 ```markdown
-| Attempt | Why it Failed | Lesson Learned |
-|---------|---------------|----------------|
-| Running vLLM without --served-model-name | 404 Model 'default' not found | Must add --served-model-name default |
-| Execution without vllm_skip_weight_sync | 404 /update_flattened_params/ error | Mandatory flag when using vllm serve |
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+|---------|----------------|---------------|----------------|
+| Missing served name | Ran vLLM without --served-model-name | 404 Model 'default' not found | Add --served-model-name default |
+| Missing sync flag | Ran without vllm_skip_weight_sync | 404 /update_flattened_params/ error | Use the flag with vllm serve |
 ```
 
-### 3. Use Concrete Numbers, Not Vague Advice
+### 3. Use Concrete Numbers
 
 **Bad:**
 ```
@@ -69,7 +73,7 @@ RoPE theta=100 works well for short sequences. d_proj=64+ prevents information l
 
 ### 3.5. Include Environment Details in Overview
 
-Add environment context for reproducibility:
+Add environment data to make the results reproducible:
 
 ```markdown
 ## Overview
@@ -86,7 +90,8 @@ Add environment context for reproducibility:
 | Source | [Blog/paper/issue link] |
 ```
 
-**Why**: Reproducibility requires environment context. "Works on A100-80GB" might fail on V100-16GB due to memory constraints.
+Environment data is necessary for reproducibility.
+For example, "Works on A100-80GB" can fail on V100-16GB because of memory limits.
 
 ### 4. Make Configs Copy-Paste Ready
 
@@ -103,7 +108,7 @@ dtype: bfloat16
 
 ### 5. Include Error-to-Solution Mappings
 
-Use this structured format for documenting errors:
+Use this structure to document errors:
 
 ```markdown
 ## Error: [Error Title/Message]
@@ -147,13 +152,13 @@ freqs = freqs.unsqueeze(0).unsqueeze(0)    # Add batch and head dims [1, 1, seq,
 
 ## Failed Attempts
 
-| Attempt | Why Failed | Lesson |
-|---------|-----------|--------|
-| Vague descriptions like "ML training" | Claude can't match to user queries | Include numbered trigger conditions |
-| Optional failures section | Teams skip it, lose most valuable info | Make failures REQUIRED in validation |
-| Pseudo-code in documentation | Users can't copy-paste directly | Always use real, tested commands |
-| Missing environment details | Works on my machine problems | Include versions, hardware specs |
-| Long prose explanations | Hard to scan quickly | Use tables and bullet points |
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| Vague description | Used text such as "ML training" | Claude could not match user queries | Include numbered trigger conditions |
+| Optional failures section | Let authors omit failure evidence | Teams lost valuable information | Require the Failed Attempts section |
+| Pseudocode | Used commands that users could not run | Users could not copy the workflow | Use real tested commands |
+| Missing environment details | Omitted software and hardware versions | Users could not reproduce the result | Include the environment details |
+| Long explanation | Used dense prose | Users could not scan it quickly | Use tables and lists |
 
 ## Results & Parameters
 
@@ -162,10 +167,10 @@ freqs = freqs.unsqueeze(0).unsqueeze(0)    # Add batch and head dims [1, 1, seq,
 required_sections:
   - "When to Use"           # Trigger conditions
   - "Verified Workflow"     # What worked
-  - "Failed Attempts"       # What didn't (most valuable)
+  - "Failed Attempts"       # What failed (most valuable)
   - "Results & Parameters"  # Copy-paste configs
 
-description_pattern: "{what} + Use when: {numbered triggers} + Verified on: {env}"
+description_pattern: "When {trigger condition}, use this skill to {purpose}. The team verified it on {environment}."
 
 # Anti-patterns to avoid
 avoid:
@@ -186,10 +191,10 @@ skill_quality_indicators:
 
 From the Sionic AI blog:
 
-1. **Frictionless contribution**: `/learn` takes 30 seconds; Claude writes it
-2. **Reward specificity**: Skills with precise descriptions get surfaced, reused, cited
-3. **Celebrate failures**: "I tried X and it broke because Y" is the most valuable content
-4. **Timing matters**: Capture knowledge while fresh (end-of-session, not two weeks later)
+1. **Easy contribution**: `/learn` can create the skill quickly.
+2. **Specific descriptions**: Precise descriptions improve discovery and reuse.
+3. **Failed methods**: A failed method and its cause provide useful evidence.
+4. **Timely capture**: At the end of the session, record the knowledge.
 
 ## References
 

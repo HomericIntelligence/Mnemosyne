@@ -1,7 +1,7 @@
 {
   "name": "mnemosyne",
   "version": "2.0.0",
-  "description": "Skills registry for the HomericIntelligence ecosystem. Provides documentation-patterns and validation-workflow skills for skill authoring. Commands are provided by the Athena plugin.",
+  "description": "The Mnemosyne plugin stores skills for the HomericIntelligence ecosystem. It supplies author and validation guidance that uses ASD-STE100. The Athena plugin supplies the commands.",
   "author": {
     "name": "ML Odyssey Team"
   },
