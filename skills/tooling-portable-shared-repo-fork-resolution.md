@@ -1,125 +1,231 @@
 ---
 name: tooling-portable-shared-repo-fork-resolution
 license: BSD-3-Clause
-description: "Make a hardcoded shared-knowledge-base repo reference (e.g. HomericIntelligence/Mnemosyne) org-aware/portable via a clone-or-fork resolution ladder, so any GitHub user can read and contribute to it instead of only the canonical org. Use when: (1) a script/skill hardcodes an `owner/repo` slug everywhere and only that org can use it, (2) /learn or /advise-style automation always targets the canonical upstream and you want it to target the caller's own fork, (3) you need a single resolver returning the correct owner/slug across env-override > gh-login-fork > upstream-fallback, (4) you must mirror the same resolution logic across a Python source-of-truth and a bash SKILL.md (cannot import Python), (5) you are about to call `gh repo fork` programmatically and need to handle the can't-fork-into-own-org case."
+description: "Resolve a trusted shared repository through an explicit override, an eligible same-owner fork, or canonical-upstream fallback without treating every probe failure as absence. Use when: (1) repository selection depends on remote metadata, (2) a missing optional fork is expected but authentication and network failures must block, (3) shell code uses or proposes `|| true`, which is banned unless a human explicitly signs off and the exception is documented at its call site, (4) a checkout must be origin-verified, clean, synchronized, and revision-bound before use."
 category: tooling
 date: 2026-06-27
-version: "1.0.0"
+version: "2.0.0"
 user-invocable: false
-verification: verified-ci
-tags: ["gh-cli", "fork", "repo-resolution", "portability", "dry", "python-bash-mirror"]
+verification: verified-local
+tags:
+  - repository-resolution
+  - trust
+  - fork
+  - tri-state-probe
+  - fail-closed
+  - shell
+  - failure-swallowing
+  - human-signoff
+  - remote-metadata
+  - revision-binding
 ---
 
-# Portable Shared-Repo Fork Resolution
+# Trusted Shared-Repository Resolution
 
 ## Overview
 
 | Field | Value |
-|-------|-------|
-| **Date** | 2026-06-27 |
-| **Objective** | A hardcoded `HomericIntelligence/Mnemosyne` slug was scattered across skills (/advise, /learn) AND the Python automation pipeline, so only that org could use the shared knowledge base and every /learn PR targeted the canonical upstream. Make it work for any GitHub user. |
-| **Outcome** | Successful — one shared Python resolver + mirrored bash ladder; automation targets the caller's own fork (created on demand). |
-| **Verification** | verified-ci (merged as ProjectHephaestus PR #1668, all required CI green) |
+| ------- | ------- |
+| **Date** | 2026-06-27; revised 2026-08-25 |
+| **Objective** | Select a portable repository target while preserving the difference between verified presence, confirmed absence, and an indeterminate remote failure. |
+| **Outcome** | Use one trust ladder, classify remote probes explicitly, fall back only after confirmed absence, and bind a verified clean checkout to an immutable revision. |
+| **Verification** | verified-local — an optional candidate probe returned a confirmed not-found response; explicit classification allowed canonical fallback without hiding authentication, network, or other remote failures. |
 
 ## When to Use
 
-- A script or skill hardcodes a shared `owner/repo` slug and only the original org can use it.
-- A knowledge-base/automation flow always opens PRs against the canonical upstream instead of the caller's own fork.
-- You need a single resolver returning `(owner, slug, is_fork_of_upstream)` with a clear precedence ladder.
-- You must keep the same resolution logic in Python (source of truth) AND in bash inside a SKILL.md (skills cannot import Python).
-- You are about to call `gh repo fork` from code and must handle "the login IS the upstream owner" (cannot fork a repo into its own org).
+- A tool needs a shared repository but must support an explicit trusted owner or a maintained fork.
+- A same-owner repository name is not enough to establish fork ancestry or trust.
+- A candidate repository may legitimately be absent, while authentication, rate-limit, network, and server failures must stop resolution.
+- A shell command chains identity discovery and candidate probing, and the final optional probe makes the whole diagnostic command return nonzero.
+- A shell command uses `|| true`, `|| :`, or another construct whose only purpose is to erase a failure status.
+- Cached knowledge or automation must be synchronized and bound to an exact revision before use.
+- A remote check needs network access that the default execution context may not provide.
 
 ## Verified Workflow
 
 ### Quick Reference
 
-```python
-# hephaestus/github/mnemosyne_repo.py — single source of truth
-from dataclasses import dataclass
+```text
+1. Explicit override present -> validate syntax, identity, access, and target; never fall back.
+2. No override -> establish current owner type and write-level permission.
+3. Probe the same-owner candidate with a three-way result:
+     FOUND  -> verify canonical ancestry and immutable tip before selecting it.
+     ABSENT -> select canonical upstream.
+     ERROR  -> stop; do not reinterpret the failure as absence.
+4. Verify checkout origin and cleanliness, fetch, fast-forward, and bind the exact SHA.
+5. Revalidate automatically selected fork identity immediately before use.
+6. Ban failure swallowing by default; any exception requires human signoff and call-site documentation.
+```
 
-UPSTREAM_OWNER = "HomericIntelligence"
-UPSTREAM_SLUG = f"{UPSTREAM_OWNER}/Mnemosyne"
+### 1. Define a closed result type for repository probes
+
+A Boolean `exists` result is insufficient because `false` can mean either a confirmed not-found response or a failed request. Return one of three states:
+
+```python
+from dataclasses import dataclass
+from enum import Enum, auto
+
+
+class ProbeState(Enum):
+    FOUND = auto()
+    ABSENT = auto()
+    ERROR = auto()
+
 
 @dataclass(frozen=True)
-class MnemosyneTarget:
-    owner: str
-    slug: str
-    is_fork_of_upstream: bool
-
-def resolve_mnemosyne_target(*, override_owner=None, allow_fork=True) -> MnemosyneTarget:
-    # 1. explicit override (env HEPH_MNEMOSYNE_OWNER or arg)
-    owner = override_owner or os.environ.get("HEPH_MNEMOSYNE_OWNER")
-    if owner:
-        if owner == UPSTREAM_OWNER:
-            return MnemosyneTarget(owner, UPSTREAM_SLUG, False)
-        slug = f"{owner}/Mnemosyne"
-        return MnemosyneTarget(owner, slug, True)
-    # 2. gh-authenticated login -> its own fork (create if missing)
-    login = gh_authenticated_login()           # gh api user --jq .login (via gh_call)
-    if login and login != UPSTREAM_OWNER:
-        slug = f"{login}/Mnemosyne"
-        if remote_repo_exists(slug) or (allow_fork and fork_upstream(login)):
-            return MnemosyneTarget(login, slug, True)
-    # 3. login IS upstream owner, or undeterminable -> upstream directly
-    return MnemosyneTarget(UPSTREAM_OWNER, UPSTREAM_SLUG, False)
+class RepositoryProbe:
+    state: ProbeState
+    metadata: dict[str, object] | None = None
+    diagnostic: str | None = None
 ```
+
+Only a provider-confirmed not-found response maps to `ABSENT`. Authentication failure, permission ambiguity, timeout, DNS failure, rate limit, malformed output, and other status codes map to `ERROR` and block resolution.
+
+### 2. Apply one explicit trust ladder
+
+Use this order:
+
+1. **Explicit owner override.** Validate the owner syntax and resolve the exact target. An invalid or inaccessible explicit override is an error; it is an explicit trust decision and must not silently fall back.
+2. **Eligible same-owner fork.** Require the current repository owner to be an organization, require write-level access, and prove through remote metadata that the candidate is a fork of the canonical repository. Resolve its default branch and exact tip.
+3. **Canonical upstream.** Select it only when no override exists and the optional same-owner candidate is confirmed absent or fails an eligibility check with complete trustworthy metadata.
+
+Matching names never prove ancestry. A user-owned repository, insufficient viewer permission, unrelated same-named repository, or unverified metadata does not qualify as an automatic fork target.
+
+### 3. Handle expected absence without hiding other failures
+
+In shell, branch on the remote probe instead of leaving an expected failing command as the last command in a diagnostic sequence. Capture diagnostics long enough to distinguish confirmed absence from every other failure:
 
 ```bash
-# Mirror the SAME ladder in bash inside SKILL.md (skills can't import Python)
-resolve_mnemosyne_target() {
-  local upstream_owner="HomericIntelligence"
-  local owner="${HEPH_MNEMOSYNE_OWNER:-}"
-  if [ -z "$owner" ]; then owner="$(gh api user --jq .login 2>/dev/null || true)"; fi
-  if [ -z "$owner" ] || [ "$owner" = "$upstream_owner" ]; then
-    echo "$upstream_owner/Mnemosyne"; return
-  fi
-  if gh repo view "$owner/Mnemosyne" --json name >/dev/null 2>&1; then
-    echo "$owner/Mnemosyne"; return
-  fi
-  gh repo fork "$upstream_owner/Mnemosyne" --clone=false >/dev/null 2>&1 || true
-  echo "$owner/Mnemosyne"
-}
+candidate_meta="$(mktemp)"
+candidate_error="$(mktemp)"
+trap 'rm -f "$candidate_meta" "$candidate_error"' EXIT
+
+if <forge-cli> repository view "<candidate>" --json >"$candidate_meta" 2>"$candidate_error"; then
+  printf '%s\n' 'candidate=found'
+elif <confirmed-not-found-check> "$candidate_error"; then
+  printf '%s\n' 'candidate=absent; target=canonical-upstream'
+else
+  sed -n '1,20p' "$candidate_error" >&2
+  exit 1
+fi
 ```
 
-### Detailed Steps
+The exact not-found classifier must match the provider CLI's stable structured status or documented exit contract. Prefer structured status metadata over parsing human prose. If the CLI cannot distinguish not-found from other failures reliably, use a lower-level API that can; otherwise stop.
 
-1. **Create ONE Python resolver as source of truth.** `resolve_mnemosyne_target(*, override_owner=None, allow_fork=True) -> MnemosyneTarget(owner, slug, is_fork_of_upstream)` with a frozen dataclass return. Precedence: (1) `HEPH_MNEMOSYNE_OWNER` env/arg override; (2) gh-authenticated login's own `<login>/Mnemosyne` fork, created via `gh repo fork` if absent — but if the login IS the upstream owner, clone upstream directly (you cannot fork a repo into its own org); (3) fall back to upstream if the login is undeterminable.
-2. **Add small single-purpose gh helpers**: `gh_authenticated_login()` = `gh api user --jq .login`; `remote_repo_exists(slug)` = `gh repo view <slug> --json name`; `fork_upstream(owner)` = `gh repo fork <upstream> --clone=false`.
-3. **Route EVERY gh call through the existing rate-limit / circuit-breaker adapter** (`gh_call`) — never bare `subprocess.run(["gh", ...])`. Reuse existing timeout constants (`METADATA_TIMEOUT`, `NETWORK_TIMEOUT`) rather than inventing new ones.
-4. **Wire the automation through the resolver.** The clone step (`advise_runner._clone_mnemosyne`) clones the resolved slug, not the hardcoded one.
-5. **Broaden evidence/confirmation regexes.** Change `HomericIntelligence/Mnemosyne` literals to `[A-Za-z0-9._-]+/Mnemosyne` so a push to a fork still counts as confirmation in /learn evidence checks.
-6. **Mirror the ladder into the SKILL.md bash** as a `resolve_mnemosyne_target` shell function. Keep the canonical `skills/<name>/SKILL.md` and the plugin-mirror `plugins/hephaestus/skills/<name>/SKILL.md` BYTE-IDENTICAL (`diff -q` them) — every skill exists in two trees.
-7. **Add tests that patch the resolver, not the literal.** New tests in `tests/unit/github/test_mnemosyne_repo.py` mock `gh_call` at the module namespace; tests that previously asserted the old literal in a clone command must patch `resolve_mnemosyne_target` and assert the resolved slug.
+Run network-dependent probes in an execution context that has explicit network authorization. A sandbox denial or DNS failure is `ERROR`, not evidence that the candidate does not exist.
+
+### 4. Keep composed diagnostics honest
+
+When several read-only probes are printed together, the overall exit status should represent the trust decision, not whichever command happened to run last. Expected `ABSENT` should print the selected fallback and exit zero. `ERROR` should print a bounded diagnostic and exit nonzero.
+
+### 5. Ban `|| true` and equivalent failure swallowing by default
+
+Do not append `|| true`, `|| :`, or an unconditional zero-status wrapper to any command merely to keep a script moving. The construct discards the command's failure class and makes later success indistinguishable from partial execution.
+
+Use an explicit conditional or capture and classify the exit status instead:
+
+```bash
+if output="$(<command>)"; then
+  handle_success "$output"
+else
+  command_status=$?
+  handle_expected_or_fatal_failure "$command_status"
+fi
+```
+
+An exception is permitted only when a human explicitly signs off. The call site must document all of the following immediately above the suppression:
+
+```bash
+# failure-swallow-approved: human-reviewed
+# tolerated failure: <one exact failure class>
+# safe continuation: <why no required state or evidence is lost>
+# observability: <where the failure remains visible>
+<command> || true
+```
+
+The signoff is scoped to that call site and exact failure class. It is not permission to suppress future failures from the same command. If the tool cannot distinguish the approved failure from authentication, corruption, partial mutation, data loss, or other unsafe outcomes, the exception is invalid and the command must fail.
+
+Repository checks should add a static guard that rejects `|| true`, `|| :`, and equivalent known suppression forms unless the adjacent approval block is present. Review must still validate the reason; a comment marker is evidence of the required review, not self-authorization.
+
+### 6. Verify and revision-bind the checkout
+
+Before consuming the selected repository:
+
+1. Require the configured origin to identify the resolved repository.
+2. Refuse local changes; never overwrite them or silently rewrite the remote.
+3. Fetch and prune the selected origin.
+4. Resolve the remote default branch and fast-forward the local default branch only.
+5. Record the exact resulting commit SHA and trust basis.
+6. For an automatically selected fork, re-query owner type, permission, ancestry, repository identity, default branch, and tip immediately before use.
+
+Any mismatch between the reported trust decision, checkout origin, or checked-out revision is blocking.
+
+### 7. Test every branch of the trust decision
+
+Use behavior-based tests with concrete subprocess results:
+
+```text
+explicit valid override       -> exact target, no automatic fallback
+explicit invalid override     -> error
+eligible verified fork        -> fork selected at exact tip
+candidate confirmed absent    -> canonical upstream selected
+candidate unauthorized        -> error
+candidate rate-limited        -> error
+candidate timeout/DNS failure -> error
+candidate wrong ancestry      -> canonical upstream or policy error, never selected
+dirty checkout                -> error
+origin mismatch               -> error
+fork moves before use         -> revalidation error
+unapproved `|| true`          -> static guard failure
+approved suppression          -> exact adjacent rationale plus human-review evidence required
+```
+
+Assert both target selection and command exit status. A test that checks only printed text can miss a correct fallback followed by an unintended nonzero shell result.
 
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
-|---------|----------------|---------------|----------------|
-| Fork into own org | Call `gh repo fork` unconditionally for the login | `gh` cannot fork a repo into the org that already owns it; the login may BE the upstream owner | Branch on `login == UPSTREAM_OWNER` → clone/target upstream directly, skip the fork |
-| Keep the hardcoded test assertion | Test asserted `"HomericIntelligence/Mnemosyne" in clone_cmd` | Once resolution is dynamic the clone command contains the resolved fork slug, so the assertion breaks | Patch `resolve_mnemosyne_target` in the test and assert the resolved slug instead of the upstream literal |
-| Mock only `gh_call` generically | Tests mocked `gh_call` to return a bare `MagicMock` | `.stdout.strip()` on a MagicMock is truthy, so the login resolver treated the mock as a real login and went down the fork path | Patch the resolver itself (or give `gh_call` a concrete `stdout` string), not just a generic `gh_call` mock |
-| Narrow confirmation regex | Left evidence regex matching only `HomericIntelligence/Mnemosyne` | A push to a user's fork (`<login>/Mnemosyne`) no longer matched, so /learn never registered confirmation | Broaden to `[A-Za-z0-9._-]+/Mnemosyne` |
-| Duplicate logic in bash by hand | Re-implemented the ladder in bash independently of the Python | Drift risk: the two copies silently diverge | Treat Python as source of truth and deliberately MIRROR it in bash; document that every skill lives in two byte-identical trees and `diff -q` them |
-| Pre-arm auto-merge on the Heph PR | `gh pr merge --auto` before `state:implementation-go` | The `auto-merge-policy` CI gate fails if auto-merge is armed before the GO label (documented convention; gate happened to be non-required here) | On ProjectHephaestus, arm auto-merge only after the GO label. NOTE: this gate is specific to HomericIntelligence/ProjectHephaestus — other repos (incl. Mnemosyne) have no such gate |
+| ------- | -------------- | ------------- | -------------- |
+| Leave the optional probe as the last command | Ran identity checks followed by a candidate lookup expected to return not-found | The useful fallback decision was known, but the composed command still returned the lookup's nonzero status | Handle expected absence inside an explicit conditional and return the trust decision's status |
+| Swallow every lookup failure | Added `2>/dev/null || true` around the candidate check | Authentication, rate limits, network failures, and malformed responses became indistinguishable from confirmed absence | Model `FOUND`, `ABSENT`, and `ERROR`; only confirmed absence authorizes fallback |
+| Treat `|| true` as harmless shell glue | Used it for cleanup, optional discovery, or best-effort reporting without review | The same spelling also hid permission errors, partial mutations, and broken evidence collection; callers could not tell which operation completed | Ban failure swallowing by default; require human signoff and an adjacent exact-failure, safety, and observability explanation for every exception |
+| Approve a command family globally | Documented that one tool is generally “best effort” | Different call sites have different state and evidence consequences, and future tool versions can add new failure modes | Scope approval to one call site and one distinguishable failure class |
+| Trust a same-named repository | Selected `<current-owner>/<shared-name>` when it existed | Naming does not prove fork ancestry, maintenance, or authority | Verify owner type, viewer permission, canonical ancestry, branch, and immutable tip |
+| Fall back after an invalid explicit override | Treated an inaccessible override like a missing optional candidate | The user explicitly chose a trust target; silently substituting another repository violates that decision | Explicit override failure is fatal |
+| Probe without network authorization | Ran a required remote check in a context where network access was restricted | Connectivity failure could be mistaken for absence or produce misleading partial diagnostics | Use an authorized network-capable context and keep connectivity failures fatal |
+| Use a generic truthy subprocess mock | Returned an unconstrained mock for structured metadata | Truthy placeholder fields sent the resolver down a branch no real response justified | Test concrete status, stdout, stderr, and metadata shapes for every result state |
 
 ## Results & Parameters
 
-- **Language**: Python 3.10+.
-- **Env override var**: `HEPH_MNEMOSYNE_OWNER`.
-- **Return type**: `MnemosyneTarget` — a frozen dataclass `(owner: str, slug: str, is_fork_of_upstream: bool)`.
-- **Resolver module**: `hephaestus/github/mnemosyne_repo.py` (single source of truth).
-- **Tests**: `tests/unit/github/test_mnemosyne_repo.py`, mocking `gh_call` at the module namespace.
-- **Reuse-before-invent survey** (existing infra in this repo to reuse rather than re-writing subprocess patterns):
-  - `gh_call` — rate-limit + circuit-breaker gh adapter (route all gh calls through it)
-  - `fleet_sync.ensure_repo_clone` — idempotent clone
-  - `loop_repo_manager._detect_cwd_repo` — cwd repo detection
-  - `git_utils.get_repo_info` — repo metadata
-  - `resolve_fleet_config` / `resolve_projects_dir` — the override > env > config > cwd precedence pattern to model the ladder after
-- **Cross-reference**: for making a hardcoded LOCAL filesystem path portable (CLI arg > env var > default), see the related `fix-hardcoded-target-path` skill. This skill is the GitHub-slug / fork-resolution analog.
-- **Merge-policy gotcha**: don't pre-arm `gh pr merge --auto` on ProjectHephaestus before the `state:implementation-go` label (auto-merge-policy gate). This is Hephaestus-specific.
+### Resolution Contract
+
+| Input or evidence | Result |
+| ----------------- | ------ |
+| Valid explicit override | Select exact verified target |
+| Invalid, inaccessible, or indeterminate explicit override | Stop |
+| Verified eligible organization fork | Select fork and bind exact default-branch tip |
+| Confirmed candidate absence | Select canonical upstream |
+| Authentication, permission ambiguity, timeout, DNS, rate limit, server error, malformed metadata | Stop |
+| Candidate exists but ancestry is wrong | Never select automatically |
+| Dirty checkout or origin mismatch | Stop |
+| Automatic fork changes before use | Stop during revalidation |
+| Unapproved failure swallowing | Reject through review and static checks |
+| Human-approved call-site exception | Continue only for the documented, distinguishable failure; retain an observable failure signal |
+
+### Required Report
+
+```text
+resolved_repository: <owner>/<repository>
+revision: <full-commit-sha>
+trust_basis: explicit override | maintained organization fork | canonical upstream
+candidate_probe: found | absent | not-applicable
+checkout: clean, origin-verified, fast-forwarded
+```
+
+Do not report `candidate_probe: absent` when the probe could not complete. That state is `ERROR`, and resolution has not succeeded.
 
 ## Verified On
 
-| Project | Context | Details |
-|---------|---------|---------|
-| ProjectHephaestus | PR #1668 (org-aware Mnemosyne resolution), all required CI green | resolver `hephaestus/github/mnemosyne_repo.py`; tests `tests/unit/github/test_mnemosyne_repo.py` |
+| Context | Evidence | Status |
+| ------- | -------- | ------ |
+| Optional same-owner candidate resolution | A remote lookup returned a confirmed not-found result; explicit classification selected canonical upstream and returned success, while the same workflow preserves non-not-found failures as blocking | verified-local |
