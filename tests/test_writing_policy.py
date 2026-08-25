@@ -12,6 +12,10 @@ from pathlib import Path
 from mnemosyne_skill_utils import find_skill_files
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+ASD_SITE_TARGETS = {
+    "https://www.asd-ste100.org",
+    "https://www.asd-ste100.org/",
+}
 
 POLICY_REFERENCE_SURFACES = (
     "AGENTS.md",
@@ -69,6 +73,10 @@ def _read(relative_path: str) -> str:
     return (REPO_ROOT / relative_path).read_text(encoding="utf-8")
 
 
+def _markdown_link_targets(text: str) -> set[str]:
+    return set(re.findall(r"\]\((https?://[^)\s]+)\)", text))
+
+
 def _policy_reference_surfaces() -> list[str]:
     paths = set(POLICY_REFERENCE_SURFACES)
     for pattern in POLICY_REFERENCE_PATTERNS:
@@ -80,13 +88,13 @@ def test_agents_contract_requires_asd_ste100() -> None:
     contract = _read("AGENTS.md")
 
     assert "ASD-STE100 Simplified Technical English" in contract
-    assert "https://www.asd-ste100.org" in contract
+    assert ASD_SITE_TARGETS & _markdown_link_targets(contract)
     assert "Issue 9" in contract
     assert "all active skill prose" in contract.lower()
 
     policy = _read("docs/asd-ste100.md")
     assert "ASD-STE100 Simplified Technical English" in policy
-    assert "https://www.asd-ste100.org" in policy
+    assert ASD_SITE_TARGETS & _markdown_link_targets(policy)
     assert "Issue 9" in policy
     assert "not a statement of ASD approval" in policy
 
