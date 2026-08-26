@@ -1,26 +1,27 @@
 ---
 name: bf16-monokernel-sol-profiling
-description: "Build and optimize a reproducible BF16 CUDA monokernel benchmark. Use when workload normalization may duplicate cases, H200 profiling needs provenance and isolation, counters are unavailable, tiny grids underfill the GPU, multi-position acceptance needs a minimax rule, or compiler/resource changes disagree with composed-kernel correctness and latency."
+description: "Build and optimize a reproducible BF16 CUDA monokernel benchmark. Use when workload normalization may duplicate cases, semantic outputs and intermediate-state parity need separate acceptance policies, a cooperative launch needs phase attribution without external counters, GPU profiling needs provenance and isolation, tiny grids underfill the GPU, multi-position acceptance needs a minimax rule, or compiler/resource changes disagree with composed-kernel correctness and latency."
 category: optimization
 date: 2026-08-09
-version: "2.0.0"
+version: "2.1.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-local
 history: bf16-monokernel-sol-profiling.history
 tags: [cuda, bf16, rmsnorm, monokernel, nvidia-h200, roofline, sol, minimax,
   optimization-campaign, composition, compiler, sass, occupancy, registers, ncu, nsys,
-  provenance, gpu-isolation]
+  provenance, gpu-isolation, semantic-validation, greedy-decoding, phase-attribution]
 ---
 
 # Reproducible BF16 CUDA Monokernel SOL Profiling and Optimization
 
 ## Overview
 
-Separate four questions that are often conflated: is the workload canonical, is the output correct,
-is the measurement reproducible, and did the fully composed kernel improve every required operating
-point? Static resources and profiler counters explain results; only host-owned correctness and
-matched latency adjudicate a distinct runnable implementation.
+Separate five questions that are often conflated: is the workload canonical, what observable output
+must agree, which intermediate states are diagnostic, is the measurement reproducible, and did the
+fully composed kernel improve every required operating point? Static resources and profiler counters
+explain results; a predeclared host-owned semantic gate and matched latency adjudicate a distinct
+runnable implementation. Keep stricter parity checks visible even when they are not the promotion gate.
 
 Detailed campaign cases and artifact locations are indexed in
 [`bf16-monokernel-sol-profiling.notes.md`](bf16-monokernel-sol-profiling.notes.md).
@@ -32,8 +33,12 @@ The complete prior source is in
 - Model-derived normalization cases may duplicate learned parameter counts.
 - Rootless GPU profiling needs immutable image, source, device, tool, and result provenance.
 - Nsight Compute reports `ERR_NVGPUCTRPERM`, or Nsys and NCU appear to disagree.
+- One cooperative launch contains many globally synchronized phases, but external tooling cannot
+  attribute enough time to rank the next optimization target.
 - A one-row/tiny-grid kernel has low global speed-of-light despite low latency.
 - Several sequence positions must pass one promotion decision.
+- Greedy-token output agrees while hidden or cache tensors differ numerically.
+- A tolerance-based comparison is being described as bit-exact or one-ULP agreement.
 - A rejected mechanism is reconsidered after champion, bottleneck, resource, or lane changes.
 - Source-active changes compile away, select an unreachable helper, or duplicate a prior binary.
 - Fewer instructions/registers, partial unrolling, index narrowing, or shared-state movement makes
@@ -70,6 +75,16 @@ Measure verified, uninstrumented p50 first with fixed warmup and samples. Captur
 trace for kernel duration and launch attribution. Collect NCU counters only when policy allows.
 Never use profiler-instrumented host timing as the latency result.
 
+When external profiling cannot separate phases inside one cooperative launch, build a distinct
+compile-time diagnostic artifact. At existing grid-wide synchronization boundaries, let one fixed
+leader thread sample `clock64()`, accumulate deltas by stable phase identifier, and emit one
+machine-parseable summary after the final boundary. Do not add synchronization, public parameters,
+runtime branches, or fallback paths merely for measurement. Validate the diagnostic artifact, use
+only its phase ordering and approximate shares to choose the next experiment, then restore the
+uninstrumented production source before correctness and latency adjudication. Instrumentation can
+change registers, stack, scheduling, and total latency, so its resource report and host timing are
+diagnostic artifacts, never production performance evidence.
+
 For `N = rows * columns` weighted RMSNorm elements, use the declared ideal model:
 
 ```text
@@ -90,13 +105,35 @@ substitute zero. Include `min(grid_blocks / SM_count, 1)`; a one-CTA workload ca
 SMs, so prioritize launch reduction/legal fusion for single-invocation latency rather than changing
 the workload through extra concurrency.
 
-### 4. Use immutable minimax acceptance
+### 4. Declare the semantic contract, then use immutable minimax acceptance
+
+Before optimization, define the observable output, numerical comparator, and semantic horizon. A
+valid greedy-inference contract can require all decision logits to be finite, logits to satisfy a
+declared absolute/relative, bitwise, or ULP bound, and the selected token to match exactly at every
+required step. Test the full continuation horizon when subsequent generated tokens matter; agreement
+for one next token proves only that one-step contract.
+
+Match each claim to its comparator. Zero tolerance violations do not prove bit identity or a one-bit
+bound. A bit-exact claim needs a bitwise comparison; a ULP claim needs a defined ULP computation,
+including signed zero, NaN, and infinity handling. Any nonfinite decision logit fails the semantic gate.
+
+Classify hidden states and caches separately. They may remain diagnostic for a one-step output contract,
+but become authoritative when the API exposes them or when later decoding consumes them beyond the
+tested horizon. Never delete, weaken, or relabel a strict parity validator to manufacture a pass;
+report both the semantic result and the stricter diagnostic result.
+
+Treat approximate device math as an explicit mechanism, not an informal compiler flag. Put it behind
+a compile-time target policy so unaffected targets retain the precise operation and the hot path gains
+no runtime length branch or fallback. Qualify the changed symbol independently at its nominal workload,
+at the largest supported context, and with the minimum legal grid. Require the declared semantic gate
+at every point and retain all stricter diagnostics. A fast intrinsic is neither safe nor fast by name;
+only the forced-symbol boundary checks and matched uninstrumented timing establish those properties.
 
 Define the required position set before optimization. Screen the exact candidate at every position
 with identical image, fixtures, grid, warmup, and iterations. Promote only if the minimum
-required-position SOL improves without an unacceptable regression elsewhere. Confirm a screen
-winner with a longer run before replacing the champion; prototype or isolated-position gains are
-not substitutes for the formal revision.
+required-position SOL improves, the predeclared semantic gate passes, and no other authoritative
+output regresses. Confirm a screen winner with a longer run before replacing the champion; prototype,
+diagnostic-parity failure, or isolated-position gains are not substitutes for the formal revision.
 
 When execution moves to another node or a shared non-exclusive lane, rebaseline the champion there.
 Serialize on one pinned physical GPU, keep baseline and candidate adjacent, record GPU UUID/index,
@@ -153,8 +190,9 @@ Audit these interactions explicitly:
 
 Numerical validation is bound to reduction topology. Higher precision, two-pass softmax, and
 vectorized reductions can round differently. Compare every produced cache element at required
-context boundaries to the same trusted reference; do not promote either disagreeing candidate into
-the oracle.
+context boundaries to the same trusted reference and retain those results as diagnostic evidence.
+Whether a disagreement blocks promotion is determined only by the predeclared semantic contract and
+horizon; neither candidate may silently replace the oracle after a disagreement.
 
 ### 8. Reconsider and compose mechanisms conditionally
 
@@ -190,6 +228,11 @@ than the champion is still rejected and is not a globally beneficial mechanism.
 | Modify an unreachable helper | Modify an unreachable helper | Candidate compiles to parent binary | Prove dispatch and linked identity first |
 | Treat dispatch substitution as isolation | Treat dispatch substitution as isolation | Changes topology and mechanism together | Use only as a control; transplant to active paths |
 | Trust separate launcher locks | Trust separate launcher locks | Co-tenancy contaminates one physical GPU | One UUID-keyed lock and in-lock process audit |
+| Equate zero tolerance failures with bit identity | Reused a threshold comparator to claim one-bit agreement | The comparator never measured bit or ULP distance | State only the property the comparator proves |
+| Make strict parity the only semantic gate | Rejected matching finite logits and exact greedy output solely for diagnostic hidden/cache drift | Intermediate parity exceeded the declared one-step output contract | Preserve the diagnostic failure, but adjudicate with the declared semantic horizon |
+| Validate only the first greedy token | Treated one matching token as proof of continuation correctness | Divergent cache state can affect later decoding | Check every token in the required continuation horizon |
+| Treat phase-clock instrumentation as production timing | Used an instrumented cooperative kernel's latency or resources as the promotion result | Clock reads, counters, and reporting perturb the compiled kernel | Use phase ordering only; restore and time an uninstrumented immutable candidate |
+| Apply approximate math through a runtime length check | Specialized one target by branching in the shared hot path | Added dispatch cost and left other target symbols unqualified | Use a compile-time policy and force the changed symbol at nominal, extreme-context, and minimum-grid cases |
 
 ## Results & Parameters
 
@@ -202,8 +245,12 @@ image/lock/source/result artifact SHA-256 values
 node, physical GPU UUID, scheduler job, lane/process audit
 required positions, warmup, screen samples, confirmation samples
 host correctness/nonfinite/max-error statistics
+declared observable outputs, numerical comparator, and continuation horizon
+semantic-gate result plus separate hidden/cache diagnostic-parity result
+approximate-math policy, unaffected precise targets, forced-symbol contexts, and minimum-grid result
 p50 and algorithmic SOL per position; minimax result
 Nsys kernel duration/launch gap; NCU SOL or unavailable reason
+diagnostic revision, compile-time selector, phase boundaries, raw cycle deltas, and phase ordering
 registers, stack, spills/local ops, shared memory, residency/occupancy
 outcome: accepted | rejected | invalid duplicate | invalid execution
 reconsideration trigger and learning checkpoint disposition
@@ -216,5 +263,13 @@ this reusable decision procedure.
 
 - Verified-local rootless image, host suites, H200 correctness, Compute Sanitizer, RMSNorm/Nsys,
   and multi-position campaign evidence through 2026-08-09.
+- Verified-local BF16 prefill evidence through 2026-08-24 separated finite-logit and exact-greedy
+  acceptance from sparse hidden/cache diagnostic divergence without weakening the strict comparator.
+- Verified-local cooperative BF16 decode evidence through 2026-08-25 used macro-gated leader-clock
+  sampling at existing grid barriers to redirect optimization toward the measured dominant phase,
+  then restored the production source before candidate qualification.
+- Verified-local BF16 decode evidence through 2026-08-26 qualified a target-policy fast intrinsic at
+  nominal and extreme contexts plus the minimum legal grid, retained stricter parity, and confirmed a
+  matched uninstrumented latency improvement without changing unaffected target policies.
 - Compaction for issue #3335 preserved the verification boundary and did not claim NCU counters
   where host policy denied them.

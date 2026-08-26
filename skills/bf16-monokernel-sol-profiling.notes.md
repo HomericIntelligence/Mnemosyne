@@ -13,6 +13,8 @@ Supporting evidence for
 | Compiler-materialized composition | [Immutable source snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/1ae0cb498e5250c341c2a4bf585f97e2a28060af/skills/bf16-monokernel-sol-profiling.md) for the full-decoder campaign | verified-local | Distinct runnable binary timed regardless of static resource direction |
 | Reachability and binary deduplication | [Immutable source snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/1ae0cb498e5250c341c2a4bf585f97e2a28060af/skills/bf16-monokernel-sol-profiling.md) for the full-decoder campaign | verified-local | Unreachable/byte-identical candidates marked invalid, not performance-rejected |
 | Numerical topology and GPU isolation | [Immutable source snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/1ae0cb498e5250c341c2a4bf585f97e2a28060af/skills/bf16-monokernel-sol-profiling.md) for the full-decoder campaign | verified-local | Trusted-reference cache checks; overlapping-process timings invalidated |
+| Semantic output versus diagnostic parity | Local BF16 prefill qualification, 2026-08-24 | verified-local | Finite decision logits and exact greedy selection passed the declared one-step output contract while sparse hidden/cache differences remained visible as diagnostic failures |
+| Cooperative phase-clock attribution | Local BF16 decode qualification, 2026-08-25 | verified-local | Compile-time-only leader-clock samples at existing grid barriers showed that the assumed attention bottleneck was not the largest phase; production source was restored before optimization timing |
 
 ## Reusable Parameter Record
 
@@ -45,6 +47,48 @@ Project references retained from the source:
 - [Radiance H200 hardware profile](https://github.com/LLM360/Radiance/blob/add857a1ee42bfd907e956783213cd4e173844a0/fixtures/hardware_profiles/builtin_profile_evidence.json)
 - `sglang-moe-nsys-profile-preflight.md`
 - `machine-local-container-artifact-validation-lane.md`
+
+## Semantic Acceptance Evidence
+
+A verified BF16 prefill candidate produced finite decision logits, satisfied the configured logit
+comparison, and selected the same greedy token as the trusted reference. A stricter full-state check
+still reported sparse hidden/cache differences. The task owner explicitly defined the current
+decision logits and one greedy selection as the authoritative semantic horizon, so the candidate was
+eligible for performance promotion while the full-state result remained a recorded diagnostic failure.
+
+The configured logit comparison was tolerance-based. It established zero violations under that
+tolerance; it did not establish bit-exact or one-ULP agreement. Cache divergence can influence later
+tokens, so any campaign whose contract includes continuation must repeat the finite-logit and exact-token
+checks at every required generation step rather than inheriting the one-step result.
+
+## Cooperative Phase-Attribution Evidence
+
+A verified cooperative BF16 decode artifact contained several model phases inside one launch, while
+available external evidence did not rank those internal phases precisely enough to select the next
+experiment. A compile-time-only diagnostic sampled one leader thread's device clock immediately
+after existing grid-wide barriers and emitted stable per-phase cycle totals. Repeated launches agreed
+on the ordering: a fused feed-forward phase, not attention, was the largest bucket. The campaign then
+restored the uninstrumented source and targeted that measured phase.
+
+The diagnostic build passed the unchanged output checks, but its latency and compiler resource report
+were not compared with production. This preserves the boundary between bottleneck attribution and
+promotion evidence: device-clock shares prioritize work, while only an uninstrumented immutable
+candidate under matched host timing can win.
+
+## Target-Policy Approximate-Math Evidence
+
+A later verified candidate changed only one target policy from a precise exponential to the device's
+fast exponential in the phase selected by the diagnostic. The shared function used compile-time
+selection; other target policies retained the precise operation, and no runtime context branch or
+fallback was added. The forced changed symbol passed its nominal context, the maximum supported
+context, and both the normal and minimum legal grids. Finite logits, exact greedy selection, and the
+stricter numerical comparisons all passed before and after timing.
+
+An adjacent-parent screen was positive and a longer matched confirmation preserved the improvement
+without changing the resource envelope. This does not establish that approximate intrinsics are
+generally safe or profitable. It establishes the reusable gate: isolate them by target policy, force
+the symbol outside normal dispatch at boundary geometry, preserve precise sibling targets and strict
+diagnostics, then decide from an uninstrumented confirmation.
 
 ## Provenance
 
