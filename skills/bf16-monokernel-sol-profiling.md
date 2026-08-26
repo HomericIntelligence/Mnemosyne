@@ -122,6 +122,13 @@ but become authoritative when the API exposes them or when later decoding consum
 tested horizon. Never delete, weaken, or relabel a strict parity validator to manufacture a pass;
 report both the semantic result and the stricter diagnostic result.
 
+Treat approximate device math as an explicit mechanism, not an informal compiler flag. Put it behind
+a compile-time target policy so unaffected targets retain the precise operation and the hot path gains
+no runtime length branch or fallback. Qualify the changed symbol independently at its nominal workload,
+at the largest supported context, and with the minimum legal grid. Require the declared semantic gate
+at every point and retain all stricter diagnostics. A fast intrinsic is neither safe nor fast by name;
+only the forced-symbol boundary checks and matched uninstrumented timing establish those properties.
+
 Define the required position set before optimization. Screen the exact candidate at every position
 with identical image, fixtures, grid, warmup, and iterations. Promote only if the minimum
 required-position SOL improves, the predeclared semantic gate passes, and no other authoritative
@@ -225,6 +232,7 @@ than the champion is still rejected and is not a globally beneficial mechanism.
 | Make strict parity the only semantic gate | Rejected matching finite logits and exact greedy output solely for diagnostic hidden/cache drift | Intermediate parity exceeded the declared one-step output contract | Preserve the diagnostic failure, but adjudicate with the declared semantic horizon |
 | Validate only the first greedy token | Treated one matching token as proof of continuation correctness | Divergent cache state can affect later decoding | Check every token in the required continuation horizon |
 | Treat phase-clock instrumentation as production timing | Used an instrumented cooperative kernel's latency or resources as the promotion result | Clock reads, counters, and reporting perturb the compiled kernel | Use phase ordering only; restore and time an uninstrumented immutable candidate |
+| Apply approximate math through a runtime length check | Specialized one target by branching in the shared hot path | Added dispatch cost and left other target symbols unqualified | Use a compile-time policy and force the changed symbol at nominal, extreme-context, and minimum-grid cases |
 
 ## Results & Parameters
 
@@ -239,6 +247,7 @@ required positions, warmup, screen samples, confirmation samples
 host correctness/nonfinite/max-error statistics
 declared observable outputs, numerical comparator, and continuation horizon
 semantic-gate result plus separate hidden/cache diagnostic-parity result
+approximate-math policy, unaffected precise targets, forced-symbol contexts, and minimum-grid result
 p50 and algorithmic SOL per position; minimax result
 Nsys kernel duration/launch gap; NCU SOL or unavailable reason
 diagnostic revision, compile-time selector, phase boundaries, raw cycle deltas, and phase ordering
@@ -259,5 +268,8 @@ this reusable decision procedure.
 - Verified-local cooperative BF16 decode evidence through 2026-08-25 used macro-gated leader-clock
   sampling at existing grid barriers to redirect optimization toward the measured dominant phase,
   then restored the production source before candidate qualification.
+- Verified-local BF16 decode evidence through 2026-08-26 qualified a target-policy fast intrinsic at
+  nominal and extreme contexts plus the minimum legal grid, retained stricter parity, and confirmed a
+  matched uninstrumented latency improvement without changing unaffected target policies.
 - Compaction for issue #3335 preserved the verification boundary and did not claim NCU counters
   where host policy denied them.

@@ -308,6 +308,8 @@ What changed:
 - Added compile-time-only leader-clock phase attribution for cooperative launches when external
   profiling cannot rank internal phases, with an explicit ban on using instrumented timing or
   resources as production evidence.
+- Added a compile-time target-policy gate for approximate device math and required nominal,
+  extreme-context, and minimum-grid qualification of the forced symbol before matched timing.
 
 Superseded main SHA-256: `e3f0c511cc0c269dfc9499c74d20d711dd98ed7eaf6e9974b85bf260aab36f75`
 

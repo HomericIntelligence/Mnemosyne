@@ -75,6 +75,21 @@ were not compared with production. This preserves the boundary between bottlenec
 promotion evidence: device-clock shares prioritize work, while only an uninstrumented immutable
 candidate under matched host timing can win.
 
+## Target-Policy Approximate-Math Evidence
+
+A later verified candidate changed only one target policy from a precise exponential to the device's
+fast exponential in the phase selected by the diagnostic. The shared function used compile-time
+selection; other target policies retained the precise operation, and no runtime context branch or
+fallback was added. The forced changed symbol passed its nominal context, the maximum supported
+context, and both the normal and minimum legal grids. Finite logits, exact greedy selection, and the
+stricter numerical comparisons all passed before and after timing.
+
+An adjacent-parent screen was positive and a longer matched confirmation preserved the improvement
+without changing the resource envelope. This does not establish that approximate intrinsics are
+generally safe or profitable. It establishes the reusable gate: isolate them by target policy, force
+the symbol outside normal dispatch at boundary geometry, preserve precise sibling targets and strict
+diagnostics, then decide from an uninstrumented confirmation.
+
 ## Provenance
 
 - Superseded main SHA-256:
