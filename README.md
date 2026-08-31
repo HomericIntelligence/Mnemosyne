@@ -45,8 +45,8 @@ copy or implement those skills.
 ```text
 skills/
 ├── <name>.md               # Flat skill files with YAML frontmatter
-├── <name>.notes.md         # (Optional) Additional session context
-├── <name>.history          # (Optional) Version and provenance history
+├── <name>.notes.md         # (Optional) Privacy-safe session context
+├── <name>.history          # (Optional) Privacy-safe version and provenance history
 └── ...
 ```
 
@@ -56,16 +56,18 @@ with YAML frontmatter:
 
 ```text
 skills/<name>.md             # Main skill file with YAML frontmatter + markdown content
-skills/<name>.notes.md       # (Optional) Additional context from development session
+skills/<name>.notes.md       # (Optional) Privacy-safe context from development session
 skills/<name>.history        # Version/provenance archive for /learn writes
 ```
 
 Keep each retrievable main skill at or below 30,000 bytes. Keep reusable rules
 and no more than three high-value examples in the main skill. Before you replace
-the main skill, archive its complete prior content in `.history`. Keep raw
-session details in `.notes.md`. In the frontmatter, keep only the current
-`version` identifier. Athena excludes both companion types from normal
-retrieval.
+the main skill, archive its complete prior content in `.history`. If Athena's
+privacy-redaction exception applies to the prior content, use the record that
+Athena defines. Never copy prohibited content into a companion file. Keep only
+privacy-safe supporting context in `.notes.md`. In the frontmatter, keep only
+the current `version` identifier. Athena excludes both companion types from
+normal retrieval.
 
 ## Available Skills
 

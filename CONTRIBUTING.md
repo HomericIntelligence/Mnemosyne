@@ -35,7 +35,7 @@ instructions.
 2. Save as `skills/<name>.md` (lowercase, kebab-case).
 3. Complete the YAML frontmatter. See [Skill Structure](#skill-structure).
 4. Complete all required Markdown sections.
-5. You can create `skills/<name>.notes.md` for raw session details.
+5. You can create `skills/<name>.notes.md` for privacy-safe session details.
 6. Create a pull request. Follow the
    [branch conventions](#branch-and-commit-conventions).
 
@@ -46,20 +46,24 @@ frontmatter.
 
 ```text
 skills/<name>.md             # Main skill file with YAML frontmatter + markdown content
-skills/<name>.notes.md       # (Optional) Additional context from development session
+skills/<name>.notes.md       # (Optional) Privacy-safe context from development session
 skills/<name>.history        # Version/provenance archive for /learn writes
 ```
 
 Keep each retrievable main skill at or below 30,000 bytes. Put reusable triggers,
 decision rules, and short failure patterns in the main skill. Keep no more than
 three examples that cover different decisions. Before an amendment replaces the
-main skill, archive its complete prior content in `.history`.
+main skill, archive its complete prior content in `.history`. If Athena's
+privacy-redaction exception applies to the prior content, use the record that
+Athena defines. Never copy prohibited content into a companion file.
 
-Put raw session details and project-specific paths in `.notes.md`. Also put long
-examples, command transcripts, and verification reports in `.notes.md`. Put
-prior versions, change summaries, provenance, and version-control narratives in
-`.history`. In the frontmatter, keep only the current `version` identifier.
-Athena excludes both companion types from normal retrieval.
+Put only privacy-safe supporting context in `.notes.md`. You can include
+privacy-safe long examples, command transcripts, and verification reports
+there. Put prior versions, change summaries, provenance, and version-control
+narratives in `.history`. Only when the Athena exception applies, use a
+privacy-redaction record instead of a prior snapshot. In the frontmatter, keep
+only the current `version` identifier. Athena excludes both companion types
+from normal retrieval.
 
 ### Required YAML Frontmatter
 
@@ -122,8 +126,10 @@ Use lowercase kebab-case. For example:
    If a skill overlaps an existing skill, extend the existing skill.
 5. **Bounded retrieval**: Keep `skills/<name>.md` at or below 30,000 bytes.
    Keep concise reusable guidance in the main skill. Keep no more than three
-   examples that cover different decisions. Put session evidence in the notes
-   file. Put prior versions and version-control records in the history file.
+   examples that cover different decisions. Put only privacy-safe session
+   evidence in the notes file. Put prior versions and version-control records
+   in the history file. Only when Athena's exception applies, use a
+   privacy-redaction record.
 
 ## Categories
 
@@ -268,9 +274,10 @@ Write skills that can work in multiple repositories:
    |---------|---------|---------|
    | ProjectName | PR #XXX context | [notes.md](./skill-name.notes.md) |
    ```
-4. **Move specifics to companions** -- Put project-specific commands, paths,
-   transcripts, and verification details in `.notes.md`. Put version and
-   provenance records in `.history`.
+4. **Move only privacy-safe specifics to companions** -- Put privacy-safe
+   project-specific commands, paths, transcripts, and verification details in
+   `.notes.md`. Put privacy-safe version and provenance records in `.history`.
+   If the Athena privacy-redaction exception applies, use that record instead.
 5. **Generic workflows** -- Write workflows that users can adapt to each
    repository structure.
 
