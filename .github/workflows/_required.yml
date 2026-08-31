@@ -471,3 +471,61 @@ jobs:
         run: >
           podman run --rm -v "$PWD:/workspace:Z" --userns=keep-id:uid=1000,gid=1000
           mnemosyne-ci:local uv run python scripts/validate_release_contract.py
+
+  required-checks-gate:
+    name: required-checks-gate
+    if: ${{ always() }}
+    needs:
+      - build
+      - deps-version-sync
+      - forbid-suppressions
+      - install
+      - integration-tests
+      - justfile-check
+      - lint
+      - markdownlint
+      - package
+      - pixi-check
+      - release
+      - schema-validation
+      - security-dependency-scan
+      - security-secrets-scan
+      - symlink-check
+      - test
+      - unit-tests
+    permissions:
+      contents: read
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require every check to succeed
+        shell: bash
+        env:
+          NEEDS_JSON: ${{ toJson(needs) }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+
+          try:
+              needs = json.loads(os.environ["NEEDS_JSON"])
+          except (KeyError, json.JSONDecodeError) as error:
+              raise SystemExit(f"Invalid aggregate input: {error}") from error
+
+          if not isinstance(needs, dict) or not needs:
+              raise SystemExit("The needs context is missing or invalid")
+
+          unsuccessful = []
+          for job_id in sorted(needs):
+              detail = needs[job_id]
+              result = detail.get("result") if isinstance(detail, dict) else None
+              if result != "success":
+                  unsuccessful.append(f"{job_id}={result or 'unknown'}")
+
+          if unsuccessful:
+              print("Unsuccessful required jobs:", ", ".join(unsuccessful))
+              raise SystemExit(1)
+
+          print("All required jobs succeeded.")
+          PY
