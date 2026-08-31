@@ -1,0 +1,15 @@
+# worktree-deleted-mid-session-recovery — History
+
+## v2.0.0 amendment (2026-08-31)
+
+- **Superseded version:** `1.0.0`
+- **Archive status:** `privacy-redacted`. The exact snapshot was intentionally
+  omitted.
+- **Generalized reason:** The prior retrievable content contains identifiers
+  and case-specific operational details that the current Athena privacy rules
+  prohibit.
+- **Generalized change summary:** Corrected prune and restoration semantics,
+  defined recovery boundaries for per-worktree state, added repair guidance,
+  and replaced case-specific evidence with a reusable workflow.
+- **Privacy-safe provenance:** The correction uses official Git documentation
+  and generic verification in a disposable local repository.
