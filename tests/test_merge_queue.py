@@ -1,9 +1,12 @@
 """Behavioral regression tests for staged GitHub merge-queue readiness."""
 
 import json
+import os
+import subprocess
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping, cast
 
+import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -45,6 +48,26 @@ EXPECTED_MERGE_QUEUE_RULE = {
         "min_entries_to_merge_wait_minutes": 5,
     },
 }
+REQUIRED_CHECKS_GATE = "required-checks-gate"
+EXPECTED_GATE_NEEDS = {
+    "build",
+    "deps-version-sync",
+    "forbid-suppressions",
+    "install",
+    "integration-tests",
+    "justfile-check",
+    "lint",
+    "markdownlint",
+    "package",
+    "pixi-check",
+    "release",
+    "schema-validation",
+    "security-dependency-scan",
+    "security-secrets-scan",
+    "symlink-check",
+    "test",
+    "unit-tests",
+}
 
 
 def _load_workflow(path: Path) -> dict[Any, Any]:
@@ -64,6 +87,34 @@ def _load_policy() -> dict[str, Any]:
     policy = json.loads(MERGE_QUEUE_POLICY.read_text())
     assert isinstance(policy, dict), "merge-queue policy must be a JSON object"
     return policy
+
+
+def _required_checks_gate() -> dict[str, Any]:
+    jobs = _load_workflow(REQUIRED_WORKFLOW)["jobs"]
+    matching_names = [job_id for job_id, job in jobs.items() if job.get("name") == REQUIRED_CHECKS_GATE]
+
+    assert REQUIRED_CHECKS_GATE in jobs, "the required workflow must define the aggregate gate"
+    assert matching_names == [REQUIRED_CHECKS_GATE], "the aggregate job id and name must be unique and equal"
+    return cast(dict[str, Any], jobs[REQUIRED_CHECKS_GATE])
+
+
+def _run_required_checks_gate(results: Mapping[str, str | None], tmp_path: Path) -> subprocess.CompletedProcess[str]:
+    gate = _required_checks_gate()
+    step = gate["steps"][0]
+    needs = {job_id: ({"result": result} if result is not None else {}) for job_id, result in results.items()}
+    env = {
+        "NEEDS_JSON": json.dumps(needs, sort_keys=True),
+        "PATH": os.environ["PATH"],
+    }
+    return subprocess.run(
+        ["bash", "-c", step["run"]],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
 
 
 def test_policy_pins_exact_live_required_contexts_by_ruleset() -> None:
@@ -115,6 +166,83 @@ def test_required_workflow_emits_every_policy_context_exactly_once() -> None:
 
     assert sorted(emitted_policy_contexts) == policy_contexts
     assert len(emitted_policy_contexts) == len(set(emitted_policy_contexts))
+
+
+def test_required_checks_gate_has_the_complete_read_only_job_graph() -> None:
+    jobs = _load_workflow(REQUIRED_WORKFLOW)["jobs"]
+    gate = _required_checks_gate()
+    needs = gate["needs"]
+
+    assert set(jobs) == EXPECTED_GATE_NEEDS | {REQUIRED_CHECKS_GATE}
+    assert isinstance(needs, list)
+    assert len(needs) == len(set(needs))
+    assert set(needs) == EXPECTED_GATE_NEEDS
+    assert gate["if"] == "${{ always() }}"
+    assert gate["permissions"] == {"contents": "read"}
+    assert gate["timeout-minutes"] == 5
+    assert set(gate) == {"if", "name", "needs", "permissions", "runs-on", "steps", "timeout-minutes"}
+
+    steps = gate["steps"]
+    assert len(steps) == 1
+    step = steps[0]
+    assert set(step) == {"env", "name", "run", "shell"}
+    assert step["shell"] == "bash"
+    assert step["env"] == {"NEEDS_JSON": "${{ toJson(needs) }}"}
+
+    executable = step["run"].lower()
+    forbidden_fragments = (
+        "actions/checkout",
+        "actions/cache",
+        "download-artifact",
+        "upload-artifact",
+        "curl ",
+        "wget ",
+        "http://",
+        "https://",
+        "git ",
+        "pip ",
+        "uv ",
+        "npm ",
+        "scripts/",
+        "$github_workspace",
+        "secrets.",
+    )
+    assert not any(fragment in executable for fragment in forbidden_fragments)
+
+
+@pytest.mark.parametrize(
+    ("overrides", "expected_success"),
+    [
+        pytest.param({}, True, id="all-success"),
+        pytest.param({"lint": "failure"}, False, id="failed"),
+        pytest.param({"lint": "cancelled"}, False, id="cancelled"),
+        pytest.param({"markdownlint": "skipped"}, False, id="skipped"),
+        pytest.param({"schema-validation": None}, False, id="missing"),
+        pytest.param({"build": "timed_out"}, False, id="unknown"),
+        pytest.param(
+            {
+                "lint": "failure",
+                "justfile-check": "skipped",
+                "markdownlint": "skipped",
+                "pixi-check": "skipped",
+                "symlink-check": "skipped",
+            },
+            False,
+            id="transitive-skip",
+        ),
+    ],
+)
+def test_required_checks_gate_executes_fail_closed(
+    overrides: dict[str, str | None],
+    expected_success: bool,
+    tmp_path: Path,
+) -> None:
+    results: dict[str, str | None] = dict.fromkeys(EXPECTED_GATE_NEEDS, "success")
+    results.update(overrides)
+
+    completed = _run_required_checks_gate(results, tmp_path)
+
+    assert (completed.returncode == 0) is expected_success, completed.stdout + completed.stderr
 
 
 def test_workflows_keep_existing_least_privilege_permissions() -> None:
