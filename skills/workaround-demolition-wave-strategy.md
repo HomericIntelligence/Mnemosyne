@@ -45,7 +45,7 @@ Wave 1: CI/infra demolition   — retry loops, continue-on-error, debug wrappers
 Wave 1.5: risky one-line strips — anything not exercised by Wave 0's CI gets its own PR.
 Wave 2: scorched-earth purge  — ADRs, dev docs, repro files, workflow YAML, test-file comments.
 Wave 3: agent memory updates  — user-context-specific feedback files, NOT a PR (edit directly).
-Wave 4: cross-repo skills     — amend team-knowledge skills (Mnemosyne-style marketplaces).
+Wave 4: cross-repo skills     — amend team-knowledge skills in Mnemosyne's flat corpus.
 ```
 
 ### Sequencing Dependency Graph
@@ -179,7 +179,7 @@ These live OUTSIDE the repo in user-specific memory; no PR is involved. The main
 
 #### Wave 4 — Cross-Repo Skill Amendment
 
-Amend any team-knowledge skills (Mnemosyne, Mnemosyne-style marketplaces) that documented the workaround patterns. For each:
+Amend any team-knowledge skills in Mnemosyne's flat `skills/` corpus that documented the workaround patterns. For each:
 
 - Bump skill version
 - Mark workaround-recommendation sections as obsolete with explicit anti-recommendations

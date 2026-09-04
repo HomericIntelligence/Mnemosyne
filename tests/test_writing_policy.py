@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import re
 import subprocess
+import sys
 from collections import Counter
 from pathlib import Path
 
@@ -19,21 +20,6 @@ ASD_SITE_TARGETS = {
     "https://www.asd-ste100.org/",
 }
 ASD_DOWNLOAD_TARGET = "https://www.asd-ste100.org/STE_downloads.html"
-
-POLICY_REFERENCE_SURFACES = (
-    "AGENTS.md",
-    "CONTRIBUTING.md",
-    "README.md",
-    "SECURITY.md",
-    "docs/ci/merge-queue.md",
-    ".github/PULL_REQUEST_TEMPLATE.md",
-    "schemas/skill-frontmatter.schema.json",
-)
-
-POLICY_REFERENCE_PATTERNS = (
-    "templates/**/*.md",
-    ".github/ISSUE_TEMPLATE/**/*.md",
-)
 
 DELEGATING_DIRECTION_SURFACES = ("CLAUDE.md",)
 PROTECTED_PATHS = {
@@ -65,10 +51,7 @@ def _markdown_link_targets(text: str) -> set[str]:
 
 
 def _policy_reference_surfaces() -> list[str]:
-    paths = set(POLICY_REFERENCE_SURFACES)
-    for pattern in POLICY_REFERENCE_PATTERNS:
-        paths.update(path.relative_to(REPO_ROOT).as_posix() for path in REPO_ROOT.glob(pattern))
-    return sorted(path for path in paths if not _is_skill_companion(path))
+    return sorted(path for path in _tracked_paths() if _is_active_guidance_path(path))
 
 
 def _active_skill_paths() -> set[str]:
@@ -77,9 +60,21 @@ def _active_skill_paths() -> set[str]:
 
 
 def _is_skill_companion(path: str) -> bool:
-    """Identify all notes and history companions, including suffixed variants."""
+    """Identify notes and history companions in the skills corpus only."""
+    if not path.startswith("skills/"):
+        return False
     name = Path(path).name
     return re.search(r"\.notes.*\.md$", name) is not None or re.search(r"\.history(?:.*)?$", name) is not None
+
+
+def _is_active_guidance_path(path: str) -> bool:
+    """Classify tracked authoring guidance while excluding legal and history records."""
+    return (
+        path.endswith(".md")
+        and not path.startswith("skills/")
+        and not path.startswith(".history/")
+        and path not in PROTECTED_PATHS
+    ) or (path.startswith("schemas/") and path.endswith(".json"))
 
 
 def _active_review_paths() -> list[str]:
@@ -110,7 +105,11 @@ def test_agents_contract_requires_asd_ste100() -> None:
 
 
 def test_reviewed_direction_surfaces_reference_asd_ste100() -> None:
-    missing = [path for path in _policy_reference_surfaces() if "ASD-STE100" not in _read(path)]
+    missing = [
+        path
+        for path in _policy_reference_surfaces()
+        if "ASD-STE100" not in _read(path) and "AGENTS.md" not in _read(path)
+    ]
 
     assert missing == []
 
@@ -220,6 +219,7 @@ def test_active_marketplace_claims_match_athena_boundary() -> None:
     """Reject active guidance that assigns corpus ownership to a plugin."""
     prohibited = (
         r"mnemosyne\s*@\s*mnemosyne",
+        r"\bmnemosyne(?:-style)?(?:\s+\w+){0,3}\s+marketplaces?\b",
         r"(?:mnemosyne|projectmnemosyne)[^\n]{0,100}(?:marketplace\.json|plugin\.json|\.claude-plugin)",
         r"(?:marketplace\.json|plugin\.json|\.claude-plugin)[^\n]{0,100}(?:mnemosyne|projectmnemosyne)",
         r"(?:/advise|/learn).{0,80}projecthephaestus\s+(?:commands?|plugin|skills?)",
@@ -241,17 +241,45 @@ def test_active_review_scans_exclude_all_skill_companions() -> None:
 
 
 def test_companion_classifier_handles_arbitrary_suffixes_and_paths() -> None:
-    """Keep every notes/history companion out of policy and approval scans."""
+    """Keep every skills notes/history companion out of policy and approval scans."""
     for path in (
         "skills/example.notes.md",
         "skills/example.notes-session-one.md",
         "skills/example.notesraw.md",
         "skills/example.history",
         "skills/example.history-v2.md",
-        "docs/example.notes-review.md",
-        "docs/example.history-review.md",
     ):
         assert _is_skill_companion(path)
+
+    for path in ("docs/example.notes-review.md", "docs/example.history-review.md"):
+        assert not _is_skill_companion(path)
+
+
+def test_active_mnemosyne_guidance_has_no_plugin_skill_path() -> None:
+    """Keep Mnemosyne retrieval on its flat corpus, not a plugin skill path."""
+    for path in _active_skill_paths():
+        assert ".claude-plugin/skills/" not in _read(path).lower(), path
+
+
+def test_policy_surface_discovery_uses_tracked_guidance_classifier(monkeypatch) -> None:
+    """Include new active Markdown and exclude only explicit legal/history records."""
+    tracked = [
+        "README.md",
+        "docs/example.history-review.md",
+        "docs/example.notes-review.md",
+        "docs/new-guide.md",
+        "skills/example.notes-review.md",
+        ".history/old-guide.md",
+        "LICENSE",
+    ]
+    monkeypatch.setattr(sys.modules[__name__], "_tracked_paths", lambda: tracked)
+
+    assert _policy_reference_surfaces() == [
+        "README.md",
+        "docs/example.history-review.md",
+        "docs/example.notes-review.md",
+        "docs/new-guide.md",
+    ]
 
 
 def test_repository_makes_no_asd_or_stemg_approval_claims() -> None:
