@@ -100,7 +100,7 @@ git worktree prune
 
 ```yaml
 files_changed: 41
-plugin_directory: plugins/tooling/skills-registry-commands/ → plugins/tooling/mnemosyne/
+plugin_directory: plugins/tooling/<old-plugin>/ → plugins/tooling/<new-plugin>/
 command_file: commands/retrospective.md → commands/learn.md
 hook_script: retrospective-trigger.py → learn-trigger.py
 skill_dir: skills/retrospective/ → skills/learn/

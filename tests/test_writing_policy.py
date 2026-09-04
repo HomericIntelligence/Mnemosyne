@@ -77,6 +77,16 @@ PROTECTED_LITERAL_EXPECTATIONS = {
     ),
 }
 
+MIGRATION_FACTUAL_MARKERS = (
+    "841/844 nested skills migrated",
+    "930 skills successfully indexed",
+    "550 valid skills",
+    "380 skills with quality issues",
+    "git revert 6b6eb31c d1d65f15  # Revert in order",
+    "d1d65f15",
+    "6b6eb31c",
+)
+
 
 def _read(relative_path: str) -> str:
     return (REPO_ROOT / relative_path).read_text(encoding="utf-8")
@@ -154,6 +164,16 @@ def test_policy_declares_scope_for_all_retrievable_skills() -> None:
     assert retrievable_skills
     assert "All retrievable main skill files in `skills/`" in _read("docs/asd-ste100.md")
     assert "All active skill prose" in _read("AGENTS.md")
+
+
+def test_migration_status_preserves_factual_record() -> None:
+    """Keep migration counts, findings, references, and rollback evidence."""
+    migration_status = _read("MIGRATION_STATUS.md")
+
+    for marker in MIGRATION_FACTUAL_MARKERS:
+        assert marker in migration_status, f"MIGRATION_STATUS.md lost {marker!r}"
+
+    assert "not a plugin marketplace" in migration_status.split("## Summary", 1)[0].lower()
 
 
 def test_compatibility_directions_delegate_to_agents_contract() -> None:
@@ -270,6 +290,7 @@ def _prohibited_ownership_patterns() -> tuple[str, ...]:
         r"mnemosyne\s*@\s*mnemosyne",
         r"\bmnemosyne(?:-style)?(?:\s+(?!(?:is|does)\s+not\b|isn't\b)\w+){0,3}\s+marketplaces?\b",
         r"\bplugin\s+marketplace\s*\(\s*mnemosyne\s*\)",
+        r"\bplugins/tooling/(?:[^/\s]+/)*mnemosyne/",
         r"(?:mnemosyne|projectmnemosyne)[^\n]{0,100}(?:marketplace\.json|plugin\.json|\.claude-plugin)",
         r"(?:marketplace\.json|plugin\.json|\.claude-plugin)[^\n]{0,100}(?:mnemosyne|projectmnemosyne)",
         r"(?:/advise|/learn).{0,80}projecthephaestus\s+(?:commands?|plugin|skills?)",
@@ -307,6 +328,7 @@ def test_ownership_patterns_cover_reverse_forms_without_broad_matches() -> None:
     """Keep reverse marketplace and ProjectHephaestus ownership forms covered."""
     prohibited_examples = (
         "plugin marketplace (Mnemosyne)",
+        "plugins/tooling/mnemosyne/",
         "ProjectHephaestus owns /advise",
         "ProjectHephaestus owns /learn",
         "/advise is owned by ProjectHephaestus",
@@ -317,6 +339,7 @@ def test_ownership_patterns_cover_reverse_forms_without_broad_matches() -> None:
 
     safe_examples = (
         "A plugin marketplace can provide generic skills.",
+        "plugins/tooling/<plugin-name>/",
         "Mnemosyne is not a plugin marketplace.",
         "Mnemosyne is not a marketplace.",
         "Athena owns /advise and /learn; ProjectHephaestus provides shared utilities.",
