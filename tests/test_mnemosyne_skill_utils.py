@@ -228,3 +228,16 @@ class TestFindSkillFiles:
 
         assert "skill.md" in names
         assert "skill.notes-session1.md" not in names
+
+    def test_all_notes_suffixes_are_excluded(self, tmp_path: Path):
+        """Regression: every *.notes*.md companion stays out of discovery."""
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        self._write(skills, "skill.md")
+        self._write(skills, "skill.notes-session1-extra.md")
+        self._write(skills, "skill.notesraw.md")
+
+        result = find_skill_files(skills)
+        names = [f.name for f in result]
+
+        assert names == ["skill.md"]

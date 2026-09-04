@@ -132,7 +132,7 @@ def _run_advise(self, issue_number: int, issue_title: str, issue_body: str) -> s
 
 - Return `""` (empty string) on any failure
 - Log warnings but don't raise exceptions
-- Check for both directory and marketplace.json existence
+- Check that the skills directory exists; Mnemosyne stores tracked flat skill files
 - Use standardized path: `$HOME/.agent-brain/Mnemosyne`
 
 ### 3. Inject Findings into Main Context

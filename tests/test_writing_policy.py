@@ -68,13 +68,36 @@ def _policy_reference_surfaces() -> list[str]:
     paths = set(POLICY_REFERENCE_SURFACES)
     for pattern in POLICY_REFERENCE_PATTERNS:
         paths.update(path.relative_to(REPO_ROOT).as_posix() for path in REPO_ROOT.glob(pattern))
-    return sorted(paths)
+    return sorted(path for path in paths if not _is_skill_companion(path))
+
+
+def _active_skill_paths() -> set[str]:
+    """Return the active main-skill paths from the canonical discovery helper."""
+    return {path.relative_to(REPO_ROOT).as_posix() for path in find_skill_files(REPO_ROOT / "skills")}
+
+
+def _is_skill_companion(path: str) -> bool:
+    """Identify all notes and history companions, including suffixed variants."""
+    name = Path(path).name
+    return re.search(r"\.notes.*\.md$", name) is not None or re.search(r"\.history(?:.*)?$", name) is not None
+
+
+def _active_review_paths() -> list[str]:
+    """Return active prose paths without notes/history or protected records."""
+    return [
+        path
+        for path in _tracked_paths()
+        if path not in PROTECTED_PATHS
+        and not path.startswith(".history/")
+        and not _is_skill_companion(path)
+    ]
 
 
 def test_agents_contract_requires_asd_ste100() -> None:
     contract = _read("AGENTS.md")
 
     assert "ASD-STE100 Simplified Technical English" in contract
+    assert "Simplified Technical English Maintenance Group (STEMG)" in contract
     assert ASD_SITE_TARGETS & _markdown_link_targets(contract)
     assert "Issue 9" in contract
     assert "all active skill prose" in contract.lower()
@@ -128,11 +151,12 @@ def _tracked_paths() -> list[str]:
 def test_active_guidance_inventory_is_closed() -> None:
     """Require tracked active surfaces to match an explicit review class."""
     paths = _tracked_paths()
-    active_skills = {
-        path for path in paths if path.startswith("skills/") and path.endswith(".md") and not path.endswith(".notes.md")
+    active_skills = _active_skill_paths()
+    assert active_skills
+    tracked_active_skills = {
+        path for path in paths if path.startswith("skills/") and path.endswith(".md") and not _is_skill_companion(path)
     }
-    discovered_skills = {path.relative_to(REPO_ROOT).as_posix() for path in find_skill_files(REPO_ROOT / "skills")}
-    assert discovered_skills == active_skills
+    assert active_skills == tracked_active_skills
 
     def classify(path: str) -> str:
         if path in active_skills:
@@ -148,10 +172,7 @@ def test_active_guidance_inventory_is_closed() -> None:
     unknown = [
         path
         for path in paths
-        if path.startswith("skills/")
-        and path not in active_skills
-        and not path.endswith(".history")
-        and not path.endswith(".notes.md")
+        if path.startswith("skills/") and path not in active_skills and not _is_skill_companion(path)
     ]
     assert unknown == []
     classes = Counter(classify(path) for path in paths)
@@ -196,28 +217,47 @@ def test_pull_request_template_requires_complete_writing_review() -> None:
 
 
 def test_active_marketplace_claims_match_athena_boundary() -> None:
-    """Reject current prose that describes Mnemosyne as a plugin marketplace."""
-    paths = [
-        path
-        for path in _tracked_paths()
-        if path.startswith("skills/") and path.endswith(".md") and not path.endswith(".notes.md")
-    ]
-    for path in paths:
+    """Reject active guidance that assigns corpus ownership to a plugin."""
+    prohibited = (
+        r"mnemosyne\s*@\s*mnemosyne",
+        r"(?:mnemosyne|projectmnemosyne)[^\n]{0,100}(?:marketplace\.json|plugin\.json|\.claude-plugin)",
+        r"(?:marketplace\.json|plugin\.json|\.claude-plugin)[^\n]{0,100}(?:mnemosyne|projectmnemosyne)",
+        r"(?:/advise|/learn).{0,80}projecthephaestus\s+(?:commands?|plugin|skills?)",
+        r"projecthephaestus\s+(?:commands?|plugin|skills?).{0,80}(?:/advise|/learn)",
+    )
+    for path in _active_skill_paths():
         text = _read(path).lower()
-        assert "mnemosyne marketplace" not in text
-        assert "skills marketplace" not in text
+        for pattern in prohibited:
+            assert re.search(pattern, text, flags=re.DOTALL) is None, f"{path}: {pattern}"
+
+
+def test_active_review_scans_exclude_all_skill_companions() -> None:
+    """Keep notes/history evidence outside active prose and approval scans."""
+    paths = _active_review_paths()
+    assert paths
+    assert all(not _is_skill_companion(path) for path in paths)
+    assert all(not _is_skill_companion(path) for path in _policy_reference_surfaces())
+    assert any(path.endswith(".md") and not path.startswith("skills/") for path in paths)
+
+
+def test_companion_classifier_handles_arbitrary_suffixes_and_paths() -> None:
+    """Keep every notes/history companion out of policy and approval scans."""
+    for path in (
+        "skills/example.notes.md",
+        "skills/example.notes-session-one.md",
+        "skills/example.notesraw.md",
+        "skills/example.history",
+        "skills/example.history-v2.md",
+        "docs/example.notes-review.md",
+        "docs/example.history-review.md",
+    ):
+        assert _is_skill_companion(path)
 
 
 def test_repository_makes_no_asd_or_stemg_approval_claims() -> None:
     """Reject positive claims that ASD or STEMG approves this repository."""
-    text = "\n".join(
-        _read(path)
-        for path in _tracked_paths()
-        if path not in PROTECTED_PATHS
-        and not path.startswith(".history/")
-        and not path.startswith("tests/")
-        and (not path.startswith("skills/") or path.endswith(".md"))
-    ).lower()
+    text = "\n".join(_read(path) for path in _active_review_paths() if not path.startswith("tests/"))
+    text = text.lower()
     for pattern in (
         r"asd.{0,40}(approves|certifies|endorses)",
         r"stemg.{0,40}(approves|certifies|endorses)",

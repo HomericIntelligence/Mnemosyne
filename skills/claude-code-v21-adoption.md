@@ -10,7 +10,7 @@ user-invocable: false
 ---
 # Claude Code v2.1.0 Feature Adoption
 
-Systematic workflow for analyzing Claude Code CHANGELOG and adopting new features in a skill collection.
+Systematic workflow for analyzing the Claude Code CHANGELOG and adopting new features in a skill collection.
 
 ## Overview
 
@@ -31,16 +31,16 @@ Systematic workflow for analyzing Claude Code CHANGELOG and adopting new feature
 
 ## Verified Workflow
 
-### 1. Research Phase: Use /advise
+### 1. Research Phase: Use Athena `/advise`
 
-Start with `/advise` to search existing skills about Claude Code features:
+Start with Athena `/advise` to search existing skills about Claude Code features:
 
 ```text
 /advise Analyze the release notes https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md
 ```
 
 This provides:
-- Related skills (claude-plugin-format, claude-plugin-marketplace, retrospective-hook-integration)
+- Related skills (skill-file-format-frontmatter-and-validation and other relevant corpus skills)
 - What worked vs failed in previous integrations
 - Known schema constraints and validation requirements
 
@@ -94,29 +94,18 @@ For each feature:
 git checkout main
 git checkout -b feature/<feature-name>
 
-# For new documentation skills
-mkdir -p plugins/tooling/<skill-name>/{.claude-plugin,skills/<skill-name>,references}
+# For a new Mnemosyne documentation skill, copy the flat-file template.
+cp templates/skill-template.md skills/<skill-name>.md
 
-# Create plugin.json
-cat > .claude-plugin/plugin.json <<'EOF'
-{
-  "name": "skill-name",
-  "version": "1.0.0",
-  "description": "Trigger conditions...",
-  "author": {"name": "HomericIntelligence"},
-  "skills": "./skills"
-}
-EOF
-
-# Create SKILL.md with:
+# Complete the skill file with:
 # - When to Use (trigger conditions)
 # - Verified Workflow (step-by-step)
 # - Failed Attempts (what didn't work)
 # - Results & Parameters (copy-paste templates)
 
 # Update template if needed
-# Regenerate marketplace.json
-python3 scripts/generate_marketplace.py
+# Validate the flat corpus.
+python3 scripts/validate_plugins.py
 
 # Commit and push
 git add -A
@@ -243,13 +232,8 @@ def add_field(file_path: Path) -> bool:
 ### Documentation Skill Structure
 
 ```text
-plugins/tooling/<feature-name>/
-├── .claude-plugin/
-│   └── plugin.json
-├── skills/<feature-name>/
-│   └── SKILL.md           # Main documentation
-└── references/
-    └── notes.md           # Implementation details
+skills/<feature-name>.md        # Main documentation
+skills/<feature-name>.notes.md  # Optional implementation details
 ```
 
 ## Verified On
@@ -279,7 +263,7 @@ plugins/tooling/<feature-name>/
 ## References
 
 - [Claude Code CHANGELOG](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md)
-- Related skill: claude-plugin-format (schema requirements)
-- Related skill: claude-plugin-marketplace (marketplace setup)
+- Related skill: skill-file-format-frontmatter-and-validation (schema requirements)
+- Related guidance: use the target repository's plugin documentation when it uses plugins
 - Related skill: retrospective-hook-integration (SessionEnd hooks)
 - PRs: #70 (user-invocable), #71 (agent hooks), #72 (agent field), #73 (once field)

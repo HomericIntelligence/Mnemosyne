@@ -1,7 +1,7 @@
 ---
 name: skill-file-format-frontmatter-and-validation
 license: BSD-3-Clause
-description: "Canonical reference for skill/plugin file format, YAML frontmatter rules, and validation failure fixes. Use when: (1) a skill PR fails CI with 'YAML frontmatter missing' or 'Failed Attempts table missing required columns', (2) fixing frontmatter parsers that use line.partition(':') or split(':',1) and silently truncate colon-containing values, (3) creating a new Claude Code plugin and need to satisfy format requirements or marketplace registration, (4) a skill description or agent field needs the agent routing pattern for Claude Code v2.1.0+, (5) debugging 'plugin has invalid manifest' or 'Unrecognized key(s)' errors after installation."
+description: "Canonical reference for skill/plugin file format, YAML frontmatter rules, and validation failure fixes. Use when: (1) a skill PR fails CI with 'YAML frontmatter missing' or 'Failed Attempts table missing required columns', (2) fixing frontmatter parsers that use line.partition(':') or split(':',1) and silently truncate colon-containing values, (3) creating a Claude Code plugin in a repository that uses plugins and need to satisfy its format requirements, (4) a skill description or agent field needs the agent routing pattern for Claude Code v2.1.0+, (5) debugging 'plugin has invalid manifest' or 'Unrecognized key(s)' errors after installation."
 category: tooling
 date: 2026-06-07
 version: "1.1.0"
@@ -20,7 +20,7 @@ plugin format rules for repositories that use those plugins.
 | Item | Details |
 | ------ | --------- |
 | Objective | One reference for skill/plugin file format, frontmatter parsing, and the validation failures that block skill PRs |
-| Scope | Frontmatter spec, `partition(":")`/`split(":",1)` colon bug, Failed Attempts column check, MD033 inline-HTML false positive, plugin.json/marketplace.json schema, `agent` field |
+| Scope | Frontmatter spec, `partition(":")`/`split(":",1)` colon bug, Failed Attempts column check, MD033 inline-HTML false positive, Claude Code plugin manifest schema, `agent` field |
 | Outcome | Skill and plugin PRs pass `validate_plugins.py` and markdownlint; plugins install without manifest errors |
 | Verification | verified-ci |
 
@@ -32,8 +32,8 @@ plugin format rules for repositories that use those plugins.
 3. A skill PR fails `markdownlint` with `MD033/no-inline-html` on a `<placeholder>` in prose.
 4. A frontmatter parser uses `line.partition(":")` or `line.split(":", 1)` and silently
    truncates values containing colons (URLs, ratios like `3:1`, quoted strings with colons).
-5. You are creating a new Claude Code plugin and need to satisfy plugin.json/SKILL.md schema
-   or register a marketplace.
+5. You are creating a Claude Code plugin in a repository that uses plugins and need to satisfy
+   its `plugin.json`/`SKILL.md` schema or register it with that repository's plugin catalog.
 6. A plugin install fails with `plugin has invalid manifest` or `Unrecognized key(s) in object`.
 7. A skill needs the `agent` routing field (Claude Code v2.1.0+) to direct execution to a
    specialized agent type.
@@ -104,7 +104,7 @@ tags: [searchable, keywords]     # optional
 Plugin **name** rules enforced by `scripts/validate_plugins.py` (regex `^[a-z0-9-]+$`):
 lowercase only, digits and hyphens allowed, **no periods, underscores, or uppercase**. A name
 like `claude-code-v2.1-adoption` fails — rename to `claude-code-v21-adoption` (rename
-directories and the frontmatter `name`, then regenerate the marketplace).
+directories and the frontmatter `name`, then regenerate that repository's catalog if it has one).
 
 #### 2. The colon-split parser bug
 
@@ -239,9 +239,10 @@ in prose, list items, and table cells.
 
 #### 4. claude-plugin format
 
-For full Claude Code plugins (the `plugins/tooling/mnemosyne` infrastructure, not flat skills):
+For a repository that uses full Claude Code plugins (not this flat corpus):
 
-- Marketplace index lives at exactly `.claude-plugin/marketplace.json` at repo root.
+- A plugin catalog index lives at the path required by that repository (for example,
+  `.claude-plugin/marketplace.json`).
   Root-level `marketplace.json`, `.claude/marketplace.json`, and `plugins/marketplace.json`
   are all invalid.
 - Only `plugin.json` goes inside `.claude-plugin/`. `commands/`, `skills/`, `agents/`,
@@ -249,7 +250,7 @@ For full Claude Code plugins (the `plugins/tooling/mnemosyne` infrastructure, no
 - `plugin.json` schema is **strict** — only `name`, `version`, `description`, `author`,
   `skills` are allowed. `tags`, `category`, `date`, or any other key cause
   `Unrecognized key(s) in object` / `plugin has invalid manifest`. `tags` belong in
-  `marketplace.json` only; `category` is derived from directory structure.
+  the catalog index only; `category` is derived from directory structure.
 - Official SKILL.md frontmatter (the upstream schema) allows only `name` and `description`
   (plus optional `version`, `license`). Custom fields break installation.
 - Commands (`commands/`) are user-invocable `/plugin:command`; skills (`skills/`) are
@@ -335,7 +336,7 @@ if not all(col in header for col in ["Attempt", "What Was Tried", "Why It Failed
 
 # Plugin (claude-plugin) manifest: only these keys allowed
 REQUIRED_PLUGIN_FIELDS = {"name", "version", "description"}
-# category derived from directory; date optional; tags only in marketplace.json
+# category derived from directory; date optional; tags only in the plugin catalog
 ```
 
 ### Expected output after fix
@@ -355,7 +356,7 @@ skills/your-skill.md: 0 error(s), 0 warning(s)
 | Scenario | Action |
 | ---------- | -------- |
 | Same error on multiple PRs | Fix on `main` first, then rebase the PRs |
-| Plugin name validation error | Rename plugin (dirs + frontmatter), regenerate marketplace |
+| Plugin name validation error | Rename plugin (dirs + frontmatter), regenerate the repository's plugin catalog |
 | Missing frontmatter | Add the `---` frontmatter block at the file start |
 | Frontmatter value truncated at a colon | Replace `split(":")`/`partition(":")` with `yaml.safe_load()` |
 | Failed Attempts table rejected | Use the exact 4-column header |
@@ -382,7 +383,7 @@ grep -rn 'split.*":"\|split.*'\'':'\''\|partition.*":"\|partition.*'\'':'\''' sc
 ## References
 
 - `scripts/validate_plugins.py` — skill/plugin validator
-- `scripts/generate_marketplace.py` — regenerates `marketplace.json`
+- Repository-specific catalog generation script, if one exists
 - [markdownlint MD033 rule](https://github.com/DavidAnson/markdownlint/blob/main/doc/md033.md)
 - [Claude Code plugin docs](https://code.claude.com/docs/en/plugins)
 - [Claude Code skills docs](https://code.claude.com/docs/en/skills)

@@ -35,7 +35,8 @@ Use the current official issue. This repository uses Issue 9, dated 15 January
 
 This broader requirement is a Hephaestus house-style rule. It does not define
 the formal scope of ASD-STE100. The ASD-STE100 name identifies the standard
-only. ASD and STEMG do not approve, certify, or endorse Hephaestus or
+only. The Simplified Technical English Maintenance Group (STEMG) maintains
+the standard. ASD and STEMG do not approve, certify, or endorse Hephaestus or
 Mnemosyne.
 
 Read the repository [ASD-STE100 writing policy](docs/asd-ste100.md). Apply the

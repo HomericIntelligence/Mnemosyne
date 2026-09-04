@@ -184,7 +184,7 @@ git checkout -b fix/amend-bundle-<label> origin/main
 # Copy the amended file
 cp /tmp/amendments/<bundle-label>.md skills/<bundle>.md
 
-# Commit (do NOT include marketplace.json — it auto-regenerates on merge)
+# Commit only the amended skill file; do not add generated files.
 git add skills/<bundle>.md
 git commit -m "fix(skill-merge): restore lost nuance in <bundle> from absorbed sources"
 
@@ -208,8 +208,8 @@ EOF
 gh pr merge --auto --squash
 ```
 
-**Important**: Do NOT add `marketplace.json` to any amendment PR branch. The auto-update
-workflow regenerates it on merge; including it creates a merge conflict on every branch.
+**Important**: Do not add generated catalog files to an amendment PR branch. The repository
+does not use a marketplace index; generated files can create merge conflicts between branches.
 
 **Pre-commit helper (run-once-and-re-stage)**: Before the real commit, have the amend agent run
 `pre-commit run --files <skill>.md <skill>.history` ONCE and then re-stage both files. The
@@ -222,7 +222,7 @@ not pre-run; running it once and re-staging avoids the abort. (Same lesson as th
 | --------- | ---------------- | --------------- | ---------------- |
 | JS template literal with unescaped shell variable | Used `${GITLEAKS_VERSION}` inside a JS backtick string in a workflow script | The workflow runtime evaluates `${VAR}` inside backtick template literals before executing the JS; the variable is undefined at script parse time, producing `undefined` or an empty string | Escape with `${'$'}{VAR}` when shell variable syntax appears inside JS template literals in workflow files |
 | `gh pr merge --squash --admin` on conflicting PR | Used `--admin` flag expecting it to bypass merge conflicts | `--admin` bypasses branch protection rules (required reviews, status checks) but does NOT resolve content conflicts; Git cannot merge two different file contents without human resolution | Resolve the conflict first, then merge; `--admin` is not a force-merge for content conflicts |
-| Including marketplace.json in amendment PRs | Let `git add -A` or `git add .` stage the auto-generated `marketplace.json` along with the skill file | Every amendment branch had a different `marketplace.json` state, causing merge conflicts between branches | Stage only the specific skill file by name (`git add skills/<name>.md`); use a follow-up PR to regenerate marketplace.json after all amendments merge |
+| Including generated catalog files in amendment PRs | Let `git add -A` or `git add .` stage generated files along with the skill file | Every amendment branch can have a different generated-file state, causing merge conflicts between branches | Stage only the specific skill file by name (`git add skills/<name>.md`) |
 | Flagging cosmetic differences as "lost nuance" | Audit agents flagged reworded trigger conditions and paraphrased lessons as lost knowledge | This generated false positives and unnecessary amendment work; bundles correctly paraphrased the lesson without losing the substance | Only flag as "lost" when: a specific error message/command is literally absent; a trigger condition covers a genuinely different scenario; do NOT flag reformulations |
 | Audited only the 13 largest bundles, then declared the consolidation sound | A first pass covered just the 8+-skill merges and the 5 absorb-into-existing bundles, skipping the 37 mid-size (3–7 skill) bundles | A second pass over the 37 mid-size bundles found 22 of 36 had genuine body-not-surfaced losses — ~60% of the real losses lived in the merges that were skipped | Audit EVERY bundle on the merge worklist; size is not a proxy for risk and the biggest-bundles-only heuristic misses the majority of losses |
 | Treated a bundle as clean because the canonical "generalized" the content | Auditor read only the canonical body, saw the topic was covered at a higher level, and verdicted OK | Generalization is fine, but several canonicals had dropped the concrete commands/flags entirely while keeping only the abstract statement — omission was mistaken for generalization | Distinguish generalization from omission by reading the verbatim `.history` `## Superseded from` body, not just the canonical; if a concrete command/flag exists in `.history` but nowhere in the body, it is a LOSS |
@@ -288,29 +288,11 @@ Do NOT flag:
 | Audit swarm | 25 | Haiku | ~15 min | 134 high/medium items across all 25 bundles |
 | Amendment swarm | 18 | Sonnet | ~20 min | 18 bundle files amended |
 | PR creation | 18 | — | ~5 min | 18 PRs created, auto-merge enabled |
-| Marketplace regen | 1 | — | ~2 min | PR #2196 |
+| Final corpus validation | 1 | — | ~2 min | PR #2196 |
 
 All 25 audited consolidations had at least one high/medium loss. Bulk consolidation of 10+ skills
 into a single bundle almost always loses nuance — particularly the "Failed Attempts" table entries
 and copy-paste-ready commands, which are frequently dropped in favor of higher-level prose.
-
-### marketplace.json Conflict Resolution
-
-When an amendment PR has a merge conflict only on `marketplace.json`:
-
-```bash
-# Option A: Remove marketplace.json from the branch to unblock merge
-git checkout fix/amend-bundle-<label>
-git rm --cached marketplace.json
-git commit -m "chore: exclude marketplace.json (auto-regenerated on merge)"
-git push
-# Then merge normally; follow up with a single regen PR
-
-# Option B: If conflict is on the skill file itself, resolve manually first
-git checkout origin/main -- marketplace.json
-git add marketplace.json
-git commit -m "chore: reset marketplace.json to main"
-```
 
 ## Verified On
 

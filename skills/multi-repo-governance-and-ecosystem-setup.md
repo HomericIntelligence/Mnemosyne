@@ -86,8 +86,8 @@ for host in aeolus apollo artemis athena hephaestus hermes titan; do
     'mkdir -p ~/Projects && git clone https://github.com/HomericIntelligence/ProjectHephaestus.git ~/Projects/ProjectHephaestus || git -C ~/Projects/ProjectHephaestus pull && bash ~/Projects/ProjectHephaestus/scripts/shell/install.sh --install' &
 done; wait
 
-# Athena supplies `/advise` and `/learn`; keep the Mnemosyne corpus outside
-# Claude Code marketplace configuration.
+# Athena supplies `/advise` and `/learn`; Mnemosyne stores the corpus as
+# tracked flat skill files.
 ```
 
 ### Governance File Rollout (Detailed)
@@ -221,8 +221,8 @@ Use full (non-shallow) clones for centralized repos so arbitrary commits can be 
 }
 ```
 
-The Mnemosyne corpus does not belong in `extraKnownMarketplaces`. ProjectHephaestus
-commands (`/advise`, `/learn`) resolve it through their corpus dependency path.
+The Mnemosyne corpus does not belong in `extraKnownMarketplaces`. Athena's
+`/advise` and `/learn` commands resolve it through their corpus dependency path.
 
 ### Retrospective Hook Integration
 
@@ -252,7 +252,7 @@ For pipeline integration, resume the session with explicit tool permissions:
 ```python
 run([
     "claude", "--resume", session_id,
-    "/mnemosyne:learn commit the results and create a PR",
+    "/learn commit the results and create a PR",
     "--print",
     "--tools", "Bash",
     "--allowedTools", "Bash(git:*)",
@@ -281,7 +281,7 @@ run([
 | Delegating file reads to a subagent | Asked Explore agent to read files and return exact contents | Agent returned summaries, not exact file content | For files that will be edited, always use the Read tool directly |
 | Using just `claude` without full path in cron | `0 * * * * claude plugin marketplace update ...` | cron does not source `.bashrc`/`.profile` | Always use absolute path to binary in cron jobs |
 | Updating only the marketplace in cron | `claude plugin marketplace update` alone | Marketplace index updates but installed plugin version does not change | Must also run `claude plugin update <plugin>@<marketplace>` |
-| Missing tool permissions in retrospective pipeline | `claude --resume session_id --message "Use /mnemosyne:learn..."` | No git/gh permissions; retrospective cannot commit | Add `--allowedTools Bash(git:*)` and `--allowedTools Bash(gh:*)` |
+| Missing tool permissions in retrospective pipeline | `claude --resume session_id --message "Use /learn..."` | No git/gh permissions; retrospective cannot commit | Add `--allowedTools Bash(git:*)` and `--allowedTools Bash(gh:*)` |
 | Shallow clone for centralized repos | `git clone --depth=1` for centralized base | Cannot fetch arbitrary commits from shallow clones | Use full clone for centralized repos |
 | Including commit in `git worktree add` | `git worktree add -b branch /path commit` | Fails when base repo is on a different branch | Separate `git worktree add` and `git checkout` steps |
 
