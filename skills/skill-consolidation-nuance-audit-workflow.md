@@ -288,7 +288,10 @@ Do NOT flag:
 | Audit swarm | 25 | Haiku | ~15 min | 134 high/medium items across all 25 bundles |
 | Amendment swarm | 18 | Sonnet | ~20 min | 18 bundle files amended |
 | PR creation | 18 | — | ~5 min | 18 PRs created, auto-merge enabled |
-| Final corpus validation | 1 | — | ~2 min | PR #2196 |
+| Marketplace regeneration | 1 | — | ~2 min | Commit `84ea62f1` for PR #2196 regenerated and added `.claude-plugin/marketplace.json` after 18 bundle amendments |
+
+Current corpus policy: Mnemosyne stores the knowledge corpus only. Do not add
+`.claude-plugin/marketplace.json`.
 
 All 25 audited consolidations had at least one high/medium loss. Bulk consolidation of 10+ skills
 into a single bundle almost always loses nuance — particularly the "Failed Attempts" table entries

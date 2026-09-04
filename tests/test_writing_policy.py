@@ -285,6 +285,8 @@ def _has_positive_attribution(text: str) -> bool:
         r"\basd(?:-ste100)?\s+certification\b",
         r"\basd(?:-ste100)?\s+certified\b",
         r"\b(?:asd|stemg)\s+endorsement\b",
+        r"\b(?:asd|stemg)\s+approval\b",
+        r"\b(?:asd|stemg)\s+approv(?:e|es|ed)\b",
     )
     negative_pattern = re.compile(r"\b(?:not|no|without|never|does not|do not|doesn't|don't|isn't|aren't)\b")
     for sentence in re.split(r"(?<=[.!?])\s+|\n", text.lower()):
@@ -411,6 +413,11 @@ def test_attribution_scan_covers_noun_and_past_tense_claims() -> None:
         "ASD certification covers Mnemosyne.",
         "ASD certified Mnemosyne.",
         "STEMG endorsement appears in the project record.",
+        "ASD approval covers Mnemosyne.",
+        "ASD approved Mnemosyne.",
+        "ASD approves Mnemosyne.",
+        "STEMG approval covers Mnemosyne.",
+        "STEMG approved Mnemosyne.",
     )
     for example in positive_examples:
         assert _has_positive_attribution(example)
@@ -419,6 +426,10 @@ def test_attribution_scan_covers_noun_and_past_tense_claims() -> None:
         "This project makes no ASD certification claim.",
         "ASD did not certify Mnemosyne.",
         "The repository has no STEMG endorsement.",
+        "This project makes no ASD approval claim.",
+        "ASD did not approve Mnemosyne.",
+        "The repository has no STEMG approval.",
+        "STEMG did not approve Mnemosyne.",
     )
     for example in negative_examples:
         assert not _has_positive_attribution(example)
