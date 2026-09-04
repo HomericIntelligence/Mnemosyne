@@ -29,7 +29,7 @@ are bulk-consolidated into larger bundle files.
 | ------- | ------- |
 | **Date** | 2026-06-07 |
 | **Objective** | Verify no knowledge was lost after a Myrmidon swarm triage merged ~175 satellite skills into canonicals, then a second consolidation wave merged those canonicals into larger bundles |
-| **Outcome** | Successful — 134 high/medium items found across all 25 consolidations; 18 amendment PRs created and merged; 1 marketplace regen PR |
+| **Outcome** | Successful — 134 high/medium items found across all 25 consolidations; 18 amendment PRs created and merged; 1 index regeneration PR |
 | **Scale** | 25 audit agents + 18 amendment agents = 43 total agents; ~15 min for full audit phase |
 
 ## When to Use

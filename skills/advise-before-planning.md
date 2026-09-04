@@ -243,7 +243,7 @@ Search the team knowledge base for relevant prior learnings before planning this
 ---
 
 **Your task:**
-1. Read the skills marketplace: {marketplace_path}
+1. Read the generated skills index: {marketplace_path}
 2. Search for plugins matching this issue's topic by:
    - Keywords in plugin names and descriptions
    - Tags and categories

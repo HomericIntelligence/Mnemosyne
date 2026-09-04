@@ -11,9 +11,9 @@ tags: [yaml, frontmatter, validation, markdownlint, md033, failed-attempts, plug
 ---
 # Skill File Format, Frontmatter, and Validation
 
-Canonical reference for the skill/plugin file format used in this marketplace: YAML
-frontmatter rules, the colon-truncation parser bug, CI validation failure patterns,
-the Claude Code plugin/marketplace schema, and the `agent` routing field.
+Canonical reference for the flat skill file format in the Mnemosyne corpus.
+It also records parser bugs, validation failures, and generic Claude Code
+plugin format rules for repositories that use those plugins.
 
 ## Overview
 
@@ -84,7 +84,7 @@ result = parsed if isinstance(parsed, dict) else {}
 
 ### Detailed Steps
 
-#### 1. Frontmatter Spec (this marketplace)
+#### 1. Frontmatter Specification (Mnemosyne corpus)
 
 Every `skills/<name>.md` must start with `---`, contain a YAML mapping, and close with `---`.
 Required fields and the validator's expectations:

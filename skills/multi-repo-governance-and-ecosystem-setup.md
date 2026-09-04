@@ -41,7 +41,7 @@ tags:
 - Onboarding a new Tailnet host for the HomericIntelligence mesh (Go, NATS, cmake, templ, pixi, gh CLI)
 - Completing a scaffolded repo that is missing a justfile, pixi.toml, README, or build scripts
 - Centralizing external repo clones to avoid duplicated 8 MB+ clones across parallel experiments
-- Setting up an hourly cron to auto-update a Claude Code plugin marketplace (Mnemosyne)
+- Setting up an hourly cron to auto-update a Claude Code plugin marketplace
 - Migrating `enabledPlugins` in `~/.claude/settings.json` from one marketplace to another
 - Integrating SessionEnd hooks or a CI/CD pipeline phase to automatically trigger `/learn`
 
@@ -229,7 +229,8 @@ crontab -l  # verify
 }
 ```
 
-Mnemosyne can be removed from `extraKnownMarketplaces` because ProjectHephaestus commands (`/advise`, `/learn`) clone it independently to `$HOME/.agent-brain/Mnemosyne/`.
+The Mnemosyne corpus does not belong in `extraKnownMarketplaces`. ProjectHephaestus
+commands (`/advise`, `/learn`) resolve it through their corpus dependency path.
 
 ### Retrospective Hook Integration
 

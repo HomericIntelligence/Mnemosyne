@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import hashlib
 import re
+import subprocess
+from collections import Counter
 from pathlib import Path
 
 from mnemosyne_skill_utils import find_skill_files
@@ -33,6 +35,13 @@ POLICY_REFERENCE_PATTERNS = (
 )
 
 DELEGATING_DIRECTION_SURFACES = ("CLAUDE.md",)
+PROTECTED_PATHS = {
+    "CHANGELOG.md",
+    "CODE_OF_CONDUCT.md",
+    "LICENSE",
+    "THIRD_PARTY_LICENSES.md",
+    "uv.lock",
+}
 
 PRINCIPLE_BLOCKS = {
     "AGENTS.md": (
@@ -102,3 +111,123 @@ def test_development_principles_are_unchanged() -> None:
         assert match is not None, f"Missing protected principles block in {path}"
         actual_digest = hashlib.sha256(match.group(0).encode()).hexdigest()
         assert actual_digest == expected_digest, f"Protected principles changed in {path}"
+
+
+def _tracked_paths() -> list[str]:
+    output = subprocess.run(
+        ["git", "ls-files", "-z"],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=False,
+    ).stdout
+    return sorted(path for path in output.decode().split("\0") if path)
+
+
+def test_active_guidance_inventory_is_closed() -> None:
+    """Require every tracked path to have one documented review class."""
+    paths = _tracked_paths()
+    active_skills = {
+        path.relative_to(REPO_ROOT).as_posix()
+        for path in find_skill_files(REPO_ROOT / "skills")
+    }
+
+    def classify(path: str) -> str:
+        if path in active_skills:
+            return "active-main-skill"
+        if path.startswith("skills/"):
+            return "protected-skill-companion"
+        if path.startswith(".history/") or path in PROTECTED_PATHS:
+            return "protected-record"
+        if path.endswith(".md"):
+            return "active-guidance-markdown"
+        return "mixed-tracked-file"
+
+    classes = Counter(classify(path) for path in paths)
+    assert sum(classes.values()) == len(paths)
+    assert classes["active-main-skill"] == len(active_skills)
+    assert classes["active-guidance-markdown"] > 0
+    assert classes["mixed-tracked-file"] > 0
+
+
+def test_official_source_issue_and_download_contract() -> None:
+    """Require links to the official site and download page without copied rules."""
+    policy = _read("docs/asd-ste100.md")
+
+    assert "Issue 9" in policy
+    assert "15 January 2025" in policy
+    assert "https://www.asd-ste100.org/" in policy
+    assert "https://www.asd-ste100.org/STE_downloads.html" in policy
+    assert "## Writing Rules" not in policy
+    assert "controlled dictionary" not in policy.lower()
+
+
+def test_all_active_guidance_surfaces_reference_or_delegate_to_policy() -> None:
+    """Require active authoring surfaces to name the policy or delegate to AGENTS.md."""
+    paths = _policy_reference_surfaces()
+    missing = [
+        path
+        for path in paths
+        if "ASD-STE100" not in _read(path) and "AGENTS.md" not in _read(path)
+    ]
+    assert missing == []
+
+
+def test_pull_request_template_requires_complete_writing_review() -> None:
+    """Require the pull-request checklist to cover scope, literals, and attribution."""
+    template = _read(".github/PULL_REQUEST_TEMPLATE.md")
+    for phrase in (
+        "complete `git ls-files` inventory",
+        "inventory digest",
+        "Protected literals",
+        "software-development principles",
+        "copied standard",
+        "approval, certification, or endorsement",
+        "Athena boundary",
+    ):
+        assert phrase.lower() in template.lower()
+
+
+def test_active_marketplace_claims_match_athena_boundary() -> None:
+    """Reject current prose that describes Mnemosyne as a plugin marketplace."""
+    paths = [
+        "skills/skill-file-format-frontmatter-and-validation.md",
+        "skills/multi-repo-governance-and-ecosystem-setup.md",
+        "skills/mcp-config-deliberate-absence-posture.md",
+        "skills/observability-readiness-closed-status-local-alert-recovery.md",
+        "skills/advise-before-planning.md",
+        "skills/skill-consolidation-nuance-audit-workflow.md",
+        "skills/planning-implementation-from-issue.md",
+    ]
+    for path in paths:
+        text = _read(path).lower()
+        assert "mnemosyne marketplace" not in text
+        assert "skills marketplace" not in text
+
+
+def test_repository_makes_no_asd_or_stemg_approval_claims() -> None:
+    """Reject positive claims that ASD or STEMG approves this repository."""
+    text = "\n".join(
+        _read(path)
+        for path in _tracked_paths()
+        if path not in PROTECTED_PATHS
+        and not path.startswith("skills/")
+        and not path.startswith(".history/")
+        and not path.startswith("tests/")
+    ).lower()
+    for pattern in (
+        r"asd.{0,40}(approves|certifies|endorses)",
+        r"stemg.{0,40}(approves|certifies|endorses)",
+    ):
+        assert re.search(pattern, text) is None
+
+
+def test_repository_does_not_vendor_asd_ste100_assets() -> None:
+    """Reject tracked standard PDFs, dictionaries, and logos."""
+    paths = _tracked_paths()
+    forbidden = [
+        path
+        for path in paths
+        if re.search(r"(?:asd|ste|simplified|technical).*(?:pdf|dict|logo)|(?:pdf|dict|logo).*(?:asd|ste)", path, re.I)
+    ]
+    assert forbidden == []

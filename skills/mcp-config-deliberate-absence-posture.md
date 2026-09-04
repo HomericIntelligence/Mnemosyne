@@ -34,7 +34,7 @@ tags: [mcp, claude-code, config, audit, documentation, mcp-json]
 - An empty `{"mcpServers": {}}` is a valid, canonical, inert shape that satisfies
   an audit's "mcpServers key exists" requirement while starting zero servers.
 - "MCP-style integration" references in an ecosystem are frequently Claude Code
-  **plugin marketplaces** (a different mechanism, e.g. the Mnemosyne marketplace)
+  **plugin marketplaces** (a different mechanism, such as a Claude Code marketplace)
   or NATS/HTTP-REST integrations — NOT MCP servers. Verify the mechanism before
   wiring anything.
 

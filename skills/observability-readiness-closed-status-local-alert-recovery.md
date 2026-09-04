@@ -132,7 +132,7 @@ Those commands are recorded as acceptance checks, not as observed passing result
 
 ## Verified Workflow
 
-> **Warning:** No end-to-end workflow is verified yet. This section exists for Mnemosyne marketplace schema compatibility. Follow the proposed workflow above and require local test plus CI evidence before changing `verification` from `unverified`.
+> **Warning:** No end-to-end workflow is verified yet. Follow the proposed workflow above and require local test plus CI evidence before changing `verification` from `unverified`.
 
 ### Quick Reference
 
