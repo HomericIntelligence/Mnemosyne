@@ -232,9 +232,18 @@ conditions.
 ### Technical prose
 
 All active technical prose must follow the
-[ASD-STE100 writing policy](docs/asd-ste100.md). Use short sentences and active
-voice. Do not use contractions or semicolons. Preserve commands, identifiers,
-facts, legal text, and quoted text.
+[ASD-STE100 writing policy](docs/asd-ste100.md). Use the official copy as the
+primary source. Request that copy from the [official download page](https://www.asd-ste100.org/STE_downloads.html)
+and keep it outside the repository.
+
+Before you open a pull request, review changed prose in Markdown, frontmatter,
+schemas, JSON, YAML, and other mixed files. Preserve commands, identifiers,
+facts, legal text, quotations, and technical meaning.
+
+For a corpus-wide change, use `git ls-files` and record the inventory digest,
+class counts, reviewed counts, and zero unresolved prose findings in the pull
+request description. Automated checks cannot prove natural-language
+conformance. Ask a human reviewer to check the technical English.
 
 ### Markdown
 

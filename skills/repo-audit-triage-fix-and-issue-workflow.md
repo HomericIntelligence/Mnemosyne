@@ -345,7 +345,7 @@ can carry a finding that would have caused wasted or misleading work if acted on
 | Section | Grade | Key Findings |
 | --------- | ------- | -------------- |
 | Documentation | B+ | Good README/CHANGELOG, missing ADRs |
-| AI Agent Tooling | B+ | Skills marketplace functional |
+| AI Agent Tooling | B+ | Skill corpus functional |
 | Planning/Compliance | B | Issues filed but no roadmap doc |
 | Testing | C | 2 broken test files, no coverage enforcement |
 | Dependencies | D | No requirements.txt (fixed in this session) |

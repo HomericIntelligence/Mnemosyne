@@ -33,8 +33,16 @@ All active skill prose and repository guidance must follow
 Use the current official issue. This repository uses Issue 9, dated 15 January
 2025, as its review baseline.
 
+This broader requirement is a Hephaestus house-style rule. It does not define
+the formal scope of ASD-STE100. The ASD-STE100 name identifies the standard
+only. The Simplified Technical English Maintenance Group (STEMG) maintains
+the standard. ASD and STEMG do not approve, certify, or endorse Hephaestus or
+Mnemosyne.
+
 Read the repository [ASD-STE100 writing policy](docs/asd-ste100.md). Apply the
 policy to all content in its scope.
+Use the [official download page](https://www.asd-ste100.org/STE_downloads.html)
+to request the current official copy. Keep the copy outside the repository.
 The policy applies to new prose and to prose that you change or republish. It
 also applies when an agent presents information from an older skill.
 

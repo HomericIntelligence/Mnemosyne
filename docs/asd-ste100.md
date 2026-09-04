@@ -24,7 +24,7 @@ human reviewed unchanged legacy prose against ASD-STE100.
 
 ## Protected Content
 
-Do not rewrite these content types only to change their style:
+For a style-only change, do not rewrite these content types:
 
 - The documented software-development principles
 - Code, commands, configuration syntax, and schema syntax
@@ -39,35 +39,37 @@ description values in frontmatter, manifests, configuration, and schemas.
 Preserve technical meaning. If a style change can alter the meaning, keep the
 original text. Record the reason for the exception.
 
-## Writing Rules
+## Repository Review Procedure
 
-Use the official standard as the primary source. During each writing and review
-task, use this checklist:
+Use the official copy of the standard as the primary source. Request a copy
+from the official download page. Keep that copy outside this repository.
 
-1. Use one approved term for each concept.
-2. Use approved words and project technical terms.
-3. Use American English. Do not use slang or unnecessary jargon.
-4. Use active voice. If the actor is unknown in descriptive text, you can use
-   passive voice.
-5. Put one instruction in each sentence. Use the imperative form.
-6. Put a necessary condition before the instruction.
-7. Limit an instruction sentence to 20 words.
-8. Limit a descriptive sentence to 25 words.
-9. Give each paragraph one topic. Use no more than six sentences.
-10. Do not use contractions, semicolons, or Latin abbreviations.
-11. When complex text is hard to read, use a vertical list.
-12. Use inclusive language and unambiguous pronouns.
+Before you publish a change, use the procedure that matches its scope.
 
-These items are a review aid. They do not replace the official standard or its
-controlled dictionary.
+For a corpus-wide style change, complete these actions:
 
-Use the official copy of the standard. Do not store the standard, its
-dictionary, or ASD logos in this repository. Do not redistribute these items.
+1. Review every active prose surface in the complete tracked-path inventory.
+2. Check changed descriptions, comments, labels, help text, and Markdown prose.
+3. For a style-only change, keep code, commands, configuration, identifiers, URLs, quotations, and evidence unchanged.
+4. Preserve technical meaning and protected historical or legal content.
+5. Run repository validation and the applicable tests.
+6. Ask a human reviewer to check the technical English.
 
-## Approved Project Terms
+For another change, review new, changed, or republished active prose. Apply the
+protected-content rules when the change is style-only.
 
-ASD-STE100 permits approved technical terms. Mnemosyne uses these established
-terms where they are necessary:
+The inventory includes active skills, active guidance Markdown, and human-facing
+prose in mixed tracked files. It excludes notes, history, legal records, and
+generated lock data from style-only changes.
+
+The repository does not store or redistribute the standard, its rules, its
+dictionary, or its logo. Automated checks cannot certify natural-language
+conformance.
+
+## Established Repository Terms
+
+Use these established project terms when they are necessary. Their use does
+not imply ASD approval:
 
 | Term | Meaning |
 | ------- | ------- |

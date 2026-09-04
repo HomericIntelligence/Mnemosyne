@@ -1,5 +1,9 @@
 # Mnemosyne Flat File Migration - Complete
 
+> Current status: the migration record is complete. Mnemosyne is a skill corpus
+> and session-memory store, not a plugin marketplace. See the [ASD-STE100
+> writing policy](docs/asd-ste100.md) for current repository requirements.
+
 ## Summary
 
 Successfully migrated Mnemosyne skills from nested directory structure to flat file format.

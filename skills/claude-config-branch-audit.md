@@ -110,7 +110,7 @@ git commit -m "fix(claude): <summary of fixes>"
 ```json
 {
   "enabledPlugins": {
-    "mnemosyne@Mnemosyne": true,
+    "athena@Athena": true,
     "safety-net@cc-marketplace": true
   }
 }

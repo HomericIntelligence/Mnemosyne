@@ -7,7 +7,7 @@ date: 2026-03-26
 version: "1.0.0"
 user-invocable: false
 verification: verified-ci
-tags: [rename, plugin, command, refactor, bulk-rename, mnemosyne]
+tags: [rename, plugin, command, refactor, bulk-rename]
 ---
 
 # Plugin and Command Codebase-Wide Rename
@@ -17,7 +17,7 @@ tags: [rename, plugin, command, refactor, bulk-rename, mnemosyne]
 | Field | Value |
 | ------- | ------- |
 | **Date** | 2026-03-26 |
-| **Objective** | Rename `skills-registry-commands` plugin to `mnemosyne` and `/retrospective` command to `/learn` across 41 files |
+| **Objective** | Rename a plugin and its `/retrospective` command to their new names across 41 files |
 | **Outcome** | All references updated, CI passes, zero stale references remaining |
 | **Verification** | verified-ci |
 
@@ -100,7 +100,7 @@ git worktree prune
 
 ```yaml
 files_changed: 41
-plugin_directory: plugins/tooling/skills-registry-commands/ → plugins/tooling/mnemosyne/
+plugin_directory: plugins/tooling/<old-plugin>/ → plugins/tooling/<new-plugin>/
 command_file: commands/retrospective.md → commands/learn.md
 hook_script: retrospective-trigger.py → learn-trigger.py
 skill_dir: skills/retrospective/ → skills/learn/
@@ -111,12 +111,12 @@ skill_dir: skills/retrospective/ → skills/learn/
 ```yaml
 # Order matters — do qualified invocations first, then general
 replacements:
-  - old: "/skills-registry-commands:retrospective"
-    new: "/mnemosyne:learn"
-  - old: "/skills-registry-commands:advise"
-    new: "/mnemosyne:advise"
-  - old: "skills-registry-commands"
-    new: "mnemosyne"
+  - old: "/<old-plugin>:retrospective"
+    new: "/<new-plugin>:learn"
+  - old: "/<old-plugin>:advise"
+    new: "/<new-plugin>:advise"
+  - old: "<old-plugin>"
+    new: "<new-plugin>"
   - old: "/retrospective"  # command invocation only
     new: "/learn"
   - old: "retrospective-trigger"

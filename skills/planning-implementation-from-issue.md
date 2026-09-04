@@ -73,7 +73,7 @@ Use this skill when:
    ```
 
 5. **Review team knowledge** from related skills:
-   - Check `.claude-plugin/skills/` for similar issues
+   - Use Athena `/advise` to retrieve similar issues from the tracked flat `skills/` corpus
    - Look for migration patterns (Pydantic v2, etc.)
    - Reference past test fixes
 

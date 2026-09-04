@@ -56,7 +56,7 @@ def find_skill_files(skills_dir: Path = SKILLS_DIR) -> List[Path]:
         [
             f
             for f in skills_dir.glob("*.md")
-            if not re.match(r".*\.notes(-\w+)?\.md$", f.name) and not re.match(r".*\.history", f.name) and f.is_file()
+            if not re.match(r".*\.notes.*\.md$", f.name) and not re.match(r".*\.history", f.name) and f.is_file()
         ]
     )
     return files
