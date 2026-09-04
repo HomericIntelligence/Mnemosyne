@@ -41,6 +41,42 @@ PRINCIPLE_BLOCKS = {
     ),
 }
 
+PROTECTED_LITERAL_EXPECTATIONS = {
+    "AGENTS.md": (
+        "Read the repository [ASD-STE100 writing policy](docs/asd-ste100.md).",
+        "https://www.asd-ste100.org",
+        "https://www.asd-ste100.org/STE_downloads.html",
+        ".claude/settings.json",
+        "`uv sync`",
+        "`uv run python scripts/validate_plugins.py`",
+        "`uv run python -m pytest tests/`",
+        "`uv build`",
+        "skills/<name>.md",
+        "skills/<name>.notes.md",
+        "skills/<name>.history",
+    ),
+    ".claude/settings.json": (
+        '"enabledPlugins": {',
+        '"athena@Athena": true',
+        '"https://github.com/HomericIntelligence/Athena.git"',
+    ),
+    "docs/asd-ste100.md": (
+        "https://www.asd-ste100.org/",
+        "https://www.asd-ste100.org/STE_downloads.html",
+        "https://www.asd-ste100.org/STE_faq.html",
+        "All retrievable main skill files in `skills/`",
+    ),
+    "scripts/mnemosyne_skill_utils.py": (
+        r'if not re.match(r".*\.notes.*\.md$"',
+        r'not re.match(r".*\.history"',
+    ),
+    "skills/advise-before-planning.md": (
+        'skills_path = mnemosyne_root / "skills"',
+        "skills_path=str(skills_path)",
+        "$HOME/.agent-brain/Mnemosyne",
+    ),
+}
+
 
 def _read(relative_path: str) -> str:
     return (REPO_ROOT / relative_path).read_text(encoding="utf-8")
@@ -193,6 +229,21 @@ def test_official_source_issue_and_download_contract() -> None:
     assert "controlled dictionary" not in policy.lower()
 
 
+def test_policy_links_instead_of_copying_asd_rules() -> None:
+    """Reject the former local rule-summary markers without claiming full copy detection."""
+    policy = _read("docs/asd-ste100.md")
+
+    assert "https://www.asd-ste100.org/" in policy
+    assert ASD_DOWNLOAD_TARGET in policy
+    assert "## Writing Rules" not in policy
+    for former_rule in (
+        "1. Use one approved term for each concept.",
+        "7. Limit an instruction sentence to 20 words.",
+        "10. Do not use contractions, semicolons, or Latin abbreviations.",
+    ):
+        assert former_rule not in policy
+
+
 def test_all_active_guidance_surfaces_reference_or_delegate_to_policy() -> None:
     """Require active authoring surfaces to name the policy or delegate to AGENTS.md."""
     paths = _policy_reference_surfaces()
@@ -215,19 +266,68 @@ def test_pull_request_template_requires_complete_writing_review() -> None:
         assert phrase.lower() in template.lower()
 
 
-def test_active_marketplace_claims_match_athena_boundary() -> None:
-    """Reject active guidance that assigns corpus ownership to a plugin."""
-    prohibited = (
+def _prohibited_ownership_patterns() -> tuple[str, ...]:
+    return (
         r"mnemosyne\s*@\s*mnemosyne",
-        r"\bmnemosyne(?:-style)?(?:\s+\w+){0,3}\s+marketplaces?\b",
+        r"\bmnemosyne(?:-style)?(?:\s+(?!(?:is|does)\s+not\b|isn't\b)\w+){0,3}\s+marketplaces?\b",
+        r"\bplugin\s+marketplace\s*\(\s*mnemosyne\s*\)",
         r"(?:mnemosyne|projectmnemosyne)[^\n]{0,100}(?:marketplace\.json|plugin\.json|\.claude-plugin)",
         r"(?:marketplace\.json|plugin\.json|\.claude-plugin)[^\n]{0,100}(?:mnemosyne|projectmnemosyne)",
         r"(?:/advise|/learn).{0,80}projecthephaestus\s+(?:commands?|plugin|skills?)",
         r"projecthephaestus\s+(?:commands?|plugin|skills?).{0,80}(?:/advise|/learn)",
+        r"\bprojecthephaestus\s+owns?\s+(?:the\s+)?(?:/advise|/learn)\b",
+        r"(?:/advise|/learn)\s+(?:is|are)\s+owned\s+by\s+projecthephaestus\b",
     )
-    for path in _active_skill_paths():
+
+
+def _active_claim_scan_paths() -> list[str]:
+    """Cover active skills, guidance, schema prose, and other active tracked text."""
+    active_non_test = {path for path in _active_review_paths() if not path.startswith("tests/")}
+    return sorted(set(_active_skill_paths()) | set(_policy_reference_surfaces()) | active_non_test)
+
+
+def test_ownership_patterns_cover_reverse_forms_without_broad_matches() -> None:
+    """Keep reverse marketplace and ProjectHephaestus ownership forms covered."""
+    prohibited_examples = (
+        "plugin marketplace (Mnemosyne)",
+        "ProjectHephaestus owns /advise",
+        "ProjectHephaestus owns /learn",
+        "/advise is owned by ProjectHephaestus",
+        "/learn is owned by ProjectHephaestus",
+    )
+    for example in prohibited_examples:
+        assert any(re.search(pattern, example.lower(), flags=re.DOTALL) for pattern in _prohibited_ownership_patterns())
+
+    safe_examples = (
+        "A plugin marketplace can provide generic skills.",
+        "Mnemosyne is not a plugin marketplace.",
+        "Mnemosyne is not a marketplace.",
+        "Athena owns /advise and /learn; ProjectHephaestus provides shared utilities.",
+    )
+    for example in safe_examples:
+        assert all(
+            re.search(pattern, example.lower(), flags=re.DOTALL) is None
+            for pattern in _prohibited_ownership_patterns()
+        )
+
+
+def test_protected_literals_are_unchanged() -> None:
+    """Keep high-risk commands, paths, URLs, and configuration values exact."""
+    for path, literals in PROTECTED_LITERAL_EXPECTATIONS.items():
+        text = _read(path)
+        for literal in literals:
+            assert literal in text, f"{path}: missing protected literal {literal!r}"
+
+
+def test_active_marketplace_claims_match_athena_boundary() -> None:
+    """Reject active guidance that assigns corpus ownership to a plugin."""
+    paths = _active_claim_scan_paths()
+    assert set(_active_skill_paths()).issubset(paths)
+    assert "schemas/skill-frontmatter.schema.json" in paths
+    assert "configs/github/merge-queue-policy.json" in paths
+    for path in paths:
         text = _read(path).lower()
-        for pattern in prohibited:
+        for pattern in _prohibited_ownership_patterns():
             assert re.search(pattern, text, flags=re.DOTALL) is None, f"{path}: {pattern}"
 
 
