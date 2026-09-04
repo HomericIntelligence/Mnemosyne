@@ -104,9 +104,9 @@ def _run_advise(self, issue_number: int, issue_title: str, issue_body: str) -> s
             )
             return ""
 
-        marketplace_path = mnemosyne_root / ".claude-plugin" / "marketplace.json"
-        if not marketplace_path.exists():
-            logger.warning(f"Marketplace not found, skipping advise step")
+        skills_path = mnemosyne_root / "skills"
+        if not skills_path.exists():
+            logger.warning(f"Skills directory not found, skipping advise step")
             return ""
 
         # Build advise prompt
@@ -114,7 +114,7 @@ def _run_advise(self, issue_number: int, issue_title: str, issue_body: str) -> s
             issue_number=issue_number,
             issue_title=issue_title,
             issue_body=issue_body,
-            marketplace_path=str(marketplace_path),
+            skills_path=str(skills_path),
         )
 
         # Call Claude with shorter timeout
@@ -243,12 +243,12 @@ Search the team knowledge base for relevant prior learnings before planning this
 ---
 
 **Your task:**
-1. Read the generated skills index: {marketplace_path}
-2. Search for plugins matching this issue's topic by:
-   - Keywords in plugin names and descriptions
+1. Read the tracked main skill files in: {skills_path}
+2. Search for skills matching this issue's topic by:
+   - Keywords in skill names and descriptions
    - Tags and categories
    - Similar problem domains
-3. For each relevant plugin, read its SKILL.md file to understand:
+3. For each relevant skill, read its file to understand:
    - What worked (successful approaches)
    - What failed (common pitfalls)
    - Recommended parameters and configurations
@@ -256,17 +256,17 @@ Search the team knowledge base for relevant prior learnings before planning this
 
 **Output format:**
 ## Related Skills
-| Plugin | Category | Relevance |
+| Skill | Category | Relevance |
 |--------|----------|-----------|
-| plugin-name | category | Why it's relevant |
+| skill-name | category | Why it's relevant |
 
 ## What Worked
 - Successful approach 1
 - Successful approach 2
 
 ## What Failed
-- Common pitfall 1 (from plugin X)
-- Common pitfall 2 (from plugin Y)
+- Common pitfall 1 (from skill X)
+- Common pitfall 2 (from skill Y)
 
 ## Recommended Parameters
 - Parameter/configuration 1
@@ -276,7 +276,7 @@ If no relevant skills are found, output:
 ## Related Skills
 None found
 
-**Important:** Only return findings from the actual marketplace. Do not speculate or invent skills.
+**Important:** Only return findings from the tracked skill files. Do not speculate or invent skills.
 """
 ```
 

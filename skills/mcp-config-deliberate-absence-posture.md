@@ -109,7 +109,7 @@ These are the durable, official-doc-verified learnings (code.claude.com/docs/en/
 |---------|----------------|---------------|----------------|
 | Git-ignored file + `.example` twin | Git-ignore `.mcp.json` and ship a parallel `.mcp.example.json` template | Inverts the documented convention that project `.mcp.json` is checked into version control for team sharing; the `.example` twin is redundant | Ship the tracked `.mcp.json` directly with an empty map. |
 | "Breaks startup" justification | Justify the `.example` approach with "an active `.mcp.json` with unreachable commands breaks tool startup" | False per docs — MCP startup is non-blocking by default; unreachable servers connect in the background and are approval-gated | Verify runtime behaviour against official docs before using it as a design premise. |
-| Trust the audit's vocabulary | Assume the audit's "MCP-style integration" reference means an MCP server | It was a Claude Code plugin marketplace (Mnemosyne), a different mechanism | Distinguish marketplaces / NATS / REST from MCP before wiring. |
+| Trust the audit's vocabulary | Assume the audit's "MCP-style integration" reference means an MCP server | It was a Claude Code plugin marketplace, a different mechanism | Distinguish marketplaces / NATS / REST from MCP before wiring. |
 | Fence nested in a list | Nest a ```json fence inside a numbered list in the runbook | markdownlint MD031 (blanks-around-fences) is live under `default: true` and blocks the PR | Keep fences top-level with surrounding blank lines. |
 
 ## Results & Parameters

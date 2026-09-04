@@ -375,7 +375,7 @@ grep -rn 'split.*":"\|split.*'\'':'\''\|partition.*":"\|partition.*'\'':'\''' sc
 |---------|---------|---------|
 | Mnemosyne | PRs #74, #73, #72, #69, #68 — missing-frontmatter + plugin-name fixes | See history block `yaml-frontmatter-validation` |
 | Mnemosyne | PRs #1498, #1516 — Failed Attempts columns + MD033 inline-HTML | See history block `ci-cd-skill-validation-failed-attempts-inline-html` |
-| Mnemosyne | Marketplace schema compliance (official plugin format) | See history block `claude-plugin-format` |
+| Mnemosyne | Skill schema compliance (official plugin format) | See history block `claude-plugin-format` |
 | Mnemosyne | Template updates for the `agent` field (Claude Code v2.1.0) | See history block `skills-agent-field` |
 | ProjectOdyssey | `validate_configs.py` colon-split fix, 86 tests passing | See history block `frontmatter-colon-split-fix` |
 

@@ -18,6 +18,7 @@ ASD_SITE_TARGETS = {
     "https://www.asd-ste100.org",
     "https://www.asd-ste100.org/",
 }
+ASD_DOWNLOAD_TARGET = "https://www.asd-ste100.org/STE_downloads.html"
 
 POLICY_REFERENCE_SURFACES = (
     "AGENTS.md",
@@ -125,12 +126,13 @@ def _tracked_paths() -> list[str]:
 
 
 def test_active_guidance_inventory_is_closed() -> None:
-    """Require every tracked path to have one documented review class."""
+    """Require tracked active surfaces to match an explicit review class."""
     paths = _tracked_paths()
     active_skills = {
-        path.relative_to(REPO_ROOT).as_posix()
-        for path in find_skill_files(REPO_ROOT / "skills")
+        path for path in paths if path.startswith("skills/") and path.endswith(".md") and not path.endswith(".notes.md")
     }
+    discovered_skills = {path.relative_to(REPO_ROOT).as_posix() for path in find_skill_files(REPO_ROOT / "skills")}
+    assert discovered_skills == active_skills
 
     def classify(path: str) -> str:
         if path in active_skills:
@@ -143,8 +145,16 @@ def test_active_guidance_inventory_is_closed() -> None:
             return "active-guidance-markdown"
         return "mixed-tracked-file"
 
+    unknown = [
+        path
+        for path in paths
+        if path.startswith("skills/")
+        and path not in active_skills
+        and not path.endswith(".history")
+        and not path.endswith(".notes.md")
+    ]
+    assert unknown == []
     classes = Counter(classify(path) for path in paths)
-    assert sum(classes.values()) == len(paths)
     assert classes["active-main-skill"] == len(active_skills)
     assert classes["active-guidance-markdown"] > 0
     assert classes["mixed-tracked-file"] > 0
@@ -156,8 +166,9 @@ def test_official_source_issue_and_download_contract() -> None:
 
     assert "Issue 9" in policy
     assert "15 January 2025" in policy
-    assert "https://www.asd-ste100.org/" in policy
-    assert "https://www.asd-ste100.org/STE_downloads.html" in policy
+    policy_links = _markdown_link_targets(policy)
+    assert ASD_SITE_TARGETS & policy_links
+    assert ASD_DOWNLOAD_TARGET in policy_links
     assert "## Writing Rules" not in policy
     assert "controlled dictionary" not in policy.lower()
 
@@ -165,11 +176,7 @@ def test_official_source_issue_and_download_contract() -> None:
 def test_all_active_guidance_surfaces_reference_or_delegate_to_policy() -> None:
     """Require active authoring surfaces to name the policy or delegate to AGENTS.md."""
     paths = _policy_reference_surfaces()
-    missing = [
-        path
-        for path in paths
-        if "ASD-STE100" not in _read(path) and "AGENTS.md" not in _read(path)
-    ]
+    missing = [path for path in paths if "ASD-STE100" not in _read(path) and "AGENTS.md" not in _read(path)]
     assert missing == []
 
 
@@ -191,13 +198,9 @@ def test_pull_request_template_requires_complete_writing_review() -> None:
 def test_active_marketplace_claims_match_athena_boundary() -> None:
     """Reject current prose that describes Mnemosyne as a plugin marketplace."""
     paths = [
-        "skills/skill-file-format-frontmatter-and-validation.md",
-        "skills/multi-repo-governance-and-ecosystem-setup.md",
-        "skills/mcp-config-deliberate-absence-posture.md",
-        "skills/observability-readiness-closed-status-local-alert-recovery.md",
-        "skills/advise-before-planning.md",
-        "skills/skill-consolidation-nuance-audit-workflow.md",
-        "skills/planning-implementation-from-issue.md",
+        path
+        for path in _tracked_paths()
+        if path.startswith("skills/") and path.endswith(".md") and not path.endswith(".notes.md")
     ]
     for path in paths:
         text = _read(path).lower()
@@ -211,9 +214,9 @@ def test_repository_makes_no_asd_or_stemg_approval_claims() -> None:
         _read(path)
         for path in _tracked_paths()
         if path not in PROTECTED_PATHS
-        and not path.startswith("skills/")
         and not path.startswith(".history/")
         and not path.startswith("tests/")
+        and (not path.startswith("skills/") or path.endswith(".md"))
     ).lower()
     for pattern in (
         r"asd.{0,40}(approves|certifies|endorses)",

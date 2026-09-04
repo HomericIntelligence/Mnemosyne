@@ -1,7 +1,7 @@
 ---
 name: multi-repo-governance-and-ecosystem-setup
 license: BSD-3-Clause
-description: "Provision and govern multiple HomericIntelligence repositories at scale. Use when: (1) rolling out governance files (LICENSE/CODE_OF_CONDUCT/SECURITY/CONTRIBUTING) to 10+ repos in an org, (2) onboarding a new Tailnet host with the full HomericIntelligence dependency stack, (3) fleshing out scaffolded repos with justfile/pixi.toml/READMEs and fixing bash bugs, (4) centralizing external repo clones to save disk and avoid scattered dependencies, (5) configuring the Claude Code plugin marketplace for auto-update via cron, (6) migrating enabled plugins between marketplaces, or (7) setting up SessionEnd hooks or pipeline integration for automatic /learn retrospectives."
+description: "Provision and govern multiple HomericIntelligence repositories at scale. Use when: (1) rolling out governance files (LICENSE/CODE_OF_CONDUCT/SECURITY/CONTRIBUTING) to 10+ repos in an org, (2) onboarding a new Tailnet host with the full HomericIntelligence dependency stack, (3) fleshing out scaffolded repos with justfile/pixi.toml/READMEs and fixing bash bugs, (4) centralizing external repo clones to save disk and avoid scattered dependencies, (5) configuring Athena corpus access, (6) migrating enabled plugins between marketplaces, or (7) setting up SessionEnd hooks or pipeline integration for automatic /learn retrospectives."
 category: tooling
 date: 2026-05-19
 version: "1.0.0"
@@ -41,7 +41,7 @@ tags:
 - Onboarding a new Tailnet host for the HomericIntelligence mesh (Go, NATS, cmake, templ, pixi, gh CLI)
 - Completing a scaffolded repo that is missing a justfile, pixi.toml, README, or build scripts
 - Centralizing external repo clones to avoid duplicated 8 MB+ clones across parallel experiments
-- Setting up an hourly cron to auto-update a Claude Code plugin marketplace
+- Configuring Athena corpus access for agent commands
 - Migrating `enabledPlugins` in `~/.claude/settings.json` from one marketplace to another
 - Integrating SessionEnd hooks or a CI/CD pipeline phase to automatically trigger `/learn`
 
@@ -86,8 +86,8 @@ for host in aeolus apollo artemis athena hephaestus hermes titan; do
     'mkdir -p ~/Projects && git clone https://github.com/HomericIntelligence/ProjectHephaestus.git ~/Projects/ProjectHephaestus || git -C ~/Projects/ProjectHephaestus pull && bash ~/Projects/ProjectHephaestus/scripts/shell/install.sh --install' &
 done; wait
 
-# --- Plugin marketplace cron ---
-(crontab -l 2>/dev/null; echo "0 * * * * /home/<user>/.local/bin/claude plugin marketplace update Mnemosyne >> /tmp/claude-plugin-update.log 2>&1 && /home/<user>/.local/bin/claude plugin update mnemosyne@Mnemosyne >> /tmp/claude-plugin-update.log 2>&1") | crontab -
+# Athena supplies `/advise` and `/learn`; keep the Mnemosyne corpus outside
+# Claude Code marketplace configuration.
 ```
 
 ### Governance File Rollout (Detailed)
@@ -202,14 +202,6 @@ subprocess.run(["git", "-C", str(workspace), "checkout", commit], check=True)
 ```
 
 Use full (non-shallow) clones for centralized repos so arbitrary commits can be fetched.
-
-### Plugin Marketplace Auto-Update
-
-```bash
-# Install hourly cron (both commands required)
-(crontab -l 2>/dev/null; echo "0 * * * * /home/<user>/.local/bin/claude plugin marketplace update Mnemosyne >> /tmp/claude-plugin-update.log 2>&1 && /home/<user>/.local/bin/claude plugin update mnemosyne@Mnemosyne >> /tmp/claude-plugin-update.log 2>&1") | crontab -
-crontab -l  # verify
-```
 
 ### Plugin Migration (`~/.claude/settings.json`)
 

@@ -10,7 +10,7 @@ user-invocable: false
 ---
 # Claude Code v2.1.0 Feature Adoption
 
-Systematic workflow for analyzing Claude Code CHANGELOG and adopting new features in a skills marketplace.
+Systematic workflow for analyzing Claude Code CHANGELOG and adopting new features in a skill collection.
 
 ## Overview
 
@@ -23,7 +23,7 @@ Systematic workflow for analyzing Claude Code CHANGELOG and adopting new feature
 
 ## When to Use
 
-- Upgrading skills marketplace to new Claude Code version
+- Upgrading a skill collection to a new Claude Code version
 - Analyzing CHANGELOG to identify applicable features
 - Creating documentation skills for new platform capabilities
 - Updating plugin schemas and templates for new fields

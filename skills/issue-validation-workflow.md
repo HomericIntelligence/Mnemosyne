@@ -86,7 +86,7 @@ Example:
 /advise Implement GitHub issues 340, 341, 342, 346, 421 in parallel using worktrees
 ```
 
-**Why**: `/advise` searches the skills marketplace for relevant patterns. Searching with stale/incorrect issue descriptions wastes time.
+**Why**: `/advise` searches the tracked skill corpus for relevant patterns. Searching with stale or incorrect issue descriptions wastes time.
 
 ### Phase 5: Close Resolved Issues
 
@@ -159,7 +159,7 @@ Evidence: <grep/file content>
 ## Integration with Other Skills
 
 This skill **must run before**:
-- `/advise` - Search skills marketplace with validated objectives
+- `/advise` - Search the skill corpus with validated objectives
 - `parallel-issue-implementation` - Implement validated issues in parallel
 - `git-worktree-workflow` - Create worktrees only for valid issues
 

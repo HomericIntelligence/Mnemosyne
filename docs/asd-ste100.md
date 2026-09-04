@@ -24,7 +24,7 @@ human reviewed unchanged legacy prose against ASD-STE100.
 
 ## Protected Content
 
-Do not rewrite these content types only to change their style:
+For a style-only change, do not rewrite these content types:
 
 - The documented software-development principles
 - Code, commands, configuration syntax, and schema syntax
@@ -44,14 +44,19 @@ original text. Record the reason for the exception.
 Use the official copy of the standard as the primary source. Request a copy
 from the official download page. Keep that copy outside this repository.
 
-Before you publish a change, complete these actions:
+Before you publish a change, use the procedure that matches its scope.
+
+For a corpus-wide style change, complete these actions:
 
 1. Review every active prose surface in the complete tracked-path inventory.
 2. Check changed descriptions, comments, labels, help text, and Markdown prose.
-3. Keep code, commands, configuration, identifiers, URLs, quotations, and evidence unchanged.
+3. For a style-only change, keep code, commands, configuration, identifiers, URLs, quotations, and evidence unchanged.
 4. Preserve technical meaning and protected historical or legal content.
 5. Run repository validation and the applicable tests.
 6. Ask a human reviewer to check the technical English.
+
+For another change, review new, changed, or republished active prose. Apply the
+protected-content rules when the change is style-only.
 
 The inventory includes active skills, active guidance Markdown, and human-facing
 prose in mixed tracked files. It excludes notes, history, legal records, and
