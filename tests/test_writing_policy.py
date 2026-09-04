@@ -234,7 +234,7 @@ def test_policy_links_instead_of_copying_asd_rules() -> None:
     policy = _read("docs/asd-ste100.md")
     policy_links = _markdown_link_targets(policy)
 
-    assert "https://www.asd-ste100.org/" in policy_links
+    assert ASD_SITE_TARGETS & policy_links
     assert ASD_DOWNLOAD_TARGET in policy_links
     assert "## Writing Rules" not in policy
     for former_rule in (
