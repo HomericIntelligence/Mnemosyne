@@ -118,9 +118,7 @@ def _active_review_paths() -> list[str]:
     return [
         path
         for path in _tracked_paths()
-        if path not in PROTECTED_PATHS
-        and not path.startswith(".history/")
-        and not _is_skill_companion(path)
+        if path not in PROTECTED_PATHS and not path.startswith(".history/") and not _is_skill_companion(path)
     ]
 
 
@@ -281,6 +279,22 @@ def _prohibited_ownership_patterns() -> tuple[str, ...]:
     )
 
 
+def _has_positive_attribution(text: str) -> bool:
+    """Reject positive ASD or STEMG attribution and permit explicit denials."""
+    positive_patterns = (
+        r"\basd(?:-ste100)?\s+certification\b",
+        r"\basd(?:-ste100)?\s+certified\b",
+        r"\b(?:asd|stemg)\s+endorsement\b",
+    )
+    negative_pattern = re.compile(r"\b(?:not|no|without|never|does not|do not|doesn't|don't|isn't|aren't)\b")
+    for sentence in re.split(r"(?<=[.!?])\s+|\n", text.lower()):
+        matches = [re.search(pattern, sentence) for pattern in positive_patterns]
+        for match in (item for item in matches if item is not None):
+            if not negative_pattern.search(sentence[: match.start()]):
+                return True
+    return False
+
+
 def _active_claim_scan_paths() -> list[str]:
     """Cover active skills, guidance, schema prose, and other active tracked text."""
     active_non_test = {path for path in _active_review_paths() if not path.startswith("tests/")}
@@ -307,8 +321,7 @@ def test_ownership_patterns_cover_reverse_forms_without_broad_matches() -> None:
     )
     for example in safe_examples:
         assert all(
-            re.search(pattern, example.lower(), flags=re.DOTALL) is None
-            for pattern in _prohibited_ownership_patterns()
+            re.search(pattern, example.lower(), flags=re.DOTALL) is None for pattern in _prohibited_ownership_patterns()
         )
 
 
@@ -389,12 +402,26 @@ def test_policy_surface_discovery_uses_tracked_guidance_classifier(monkeypatch) 
 def test_repository_makes_no_asd_or_stemg_approval_claims() -> None:
     """Reject positive claims that ASD or STEMG approves this repository."""
     text = "\n".join(_read(path) for path in _active_review_paths() if not path.startswith("tests/"))
-    text = text.lower()
-    for pattern in (
-        r"asd.{0,40}(approves|certifies|endorses)",
-        r"stemg.{0,40}(approves|certifies|endorses)",
-    ):
-        assert re.search(pattern, text) is None
+    assert not _has_positive_attribution(text)
+
+
+def test_attribution_scan_covers_noun_and_past_tense_claims() -> None:
+    """Cover certification and endorsement claims while allowing explicit denials."""
+    positive_examples = (
+        "ASD certification covers Mnemosyne.",
+        "ASD certified Mnemosyne.",
+        "STEMG endorsement appears in the project record.",
+    )
+    for example in positive_examples:
+        assert _has_positive_attribution(example)
+
+    negative_examples = (
+        "This project makes no ASD certification claim.",
+        "ASD did not certify Mnemosyne.",
+        "The repository has no STEMG endorsement.",
+    )
+    for example in negative_examples:
+        assert not _has_positive_attribution(example)
 
 
 def test_repository_does_not_vendor_asd_ste100_assets() -> None:
