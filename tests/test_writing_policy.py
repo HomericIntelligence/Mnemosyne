@@ -232,9 +232,10 @@ def test_official_source_issue_and_download_contract() -> None:
 def test_policy_links_instead_of_copying_asd_rules() -> None:
     """Reject the former local rule-summary markers without claiming full copy detection."""
     policy = _read("docs/asd-ste100.md")
+    policy_links = _markdown_link_targets(policy)
 
-    assert "https://www.asd-ste100.org/" in policy
-    assert ASD_DOWNLOAD_TARGET in policy
+    assert "https://www.asd-ste100.org/" in policy_links
+    assert ASD_DOWNLOAD_TARGET in policy_links
     assert "## Writing Rules" not in policy
     for former_rule in (
         "1. Use one approved term for each concept.",
@@ -316,7 +317,10 @@ def test_protected_literals_are_unchanged() -> None:
     for path, literals in PROTECTED_LITERAL_EXPECTATIONS.items():
         text = _read(path)
         for literal in literals:
-            assert literal in text, f"{path}: missing protected literal {literal!r}"
+            if literal.startswith("https://") and path.endswith(".md"):
+                assert literal in _markdown_link_targets(text), f"{path}: missing protected link {literal!r}"
+            else:
+                assert literal in text, f"{path}: missing protected literal {literal!r}"
 
 
 def test_active_marketplace_claims_match_athena_boundary() -> None:
