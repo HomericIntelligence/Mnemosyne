@@ -1,0 +1,96 @@
+# skill-advisor-task-routing — History
+
+## v1.1.0 amendment (2026-09-06)
+
+- **Superseded version:** `1.0.0`
+- **Archive status:** `privacy-redacted`. The exact snapshot was intentionally
+  omitted.
+- **Generalized reason:** The prior retrievable content contains identifiers,
+  a URL, and attribution details that the current privacy rules prohibit.
+- **Privacy-safe provenance:** A reviewed workflow change showed that a
+  standing policy remains active before its boundary-specific validation
+  procedure starts.
+
+### Privacy-Cleared v1.0.0 Semantic Snapshot
+
+#### Metadata and overview
+
+- Name: `skill-advisor-task-routing`
+- License: `BSD-3-Clause`
+- Category: `tooling`
+- Date: `2026-07-16`
+- Version: `1.0.0`
+- User invocation: disabled
+- Tags: workflow, routing, process, and skills
+- Objective: Select an applicable procedural skill before work starts.
+- Outcome: Operational guidance for skill selection.
+
+#### Purpose and trigger
+
+The prior version routed a task to an applicable procedural skill before
+substantive work. It instructed the agent to check even when the probability
+that a skill applied was small. It also instructed the agent to get applicable
+prior knowledge before it selected a process skill. Failure to prepare a
+required knowledge source blocked that skill.
+
+#### Workflow
+
+The prior decision map had these branches:
+
+- A new feature or bug correction used `test-driven-development` before code.
+- An unexpected failure used `systematic-debugging` before a proposed
+  correction.
+- A completion claim used `verification-evidence-audit` before the claim.
+- Complex or ambiguous work used `brainstorm` before a plan or code.
+- Work that needed isolation used the applicable isolation skill. It did not
+  add a second isolation procedure when the orchestrator already supplied
+  isolation.
+- Verified work used `finish-branch-delivery-workflow` before delivery.
+- A major task used an independent review before merge when a reviewer was
+  available.
+- Review feedback received an evidence check before changes and an independent
+  recheck after changes.
+
+When more than one skill applied, the prior version used this order:
+
+1. Process skills selected the work method.
+2. Execution skills controlled the work.
+3. Completion skills checked the result and controlled delivery.
+
+The prior skip conditions were a bounded subagent task, an explicit request
+for one action without workflow overhead, and a truly trivial change.
+
+#### Failed approaches
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --- | --- | --- | --- |
+| Treat a question as simple | Skipped the skill check for a question | A question can become a substantive task | Check the task before substantive work |
+| Work from memory | Used a remembered workflow | Skill content can change | Read the current skill |
+| Reject a skill as excessive | Used task size instead of the skill trigger | A simple task can become complex | Use the applicable skill |
+| Explore before routing | Started discovery before the skill check | The skill can control the discovery method | Route the task first |
+
+#### Output contract
+
+The prior version required the agent to state the selected skill or the skip
+reason before substantive work.
+
+#### References and verification
+
+The prior version named three related procedural skills. The semantic snapshot
+keeps those skill names in the workflow section. The exact verification record
+and third-party notice are not in this privacy-cleared archive because they
+contain prohibited identifiers and attribution details. The original
+repository revision retains the exact legal record.
+
+### v1.1.0 Change Record
+
+- Separated policy scope from procedural-skill timing.
+- Replaced probability-based early activation with stated-trigger routing.
+- Added phase-aware routing and complete boundary input checks.
+- Permitted early skill use only when the user names the skill or a
+  higher-precedence instruction specifies an earlier boundary.
+- Required instruction-precedence checks for conflicting trigger statements.
+- Narrowed the explicit-action skip to trivial work with no applicable
+  repository workflow.
+- Rewrote the current guidance with new expression. The third-party notice for
+  the prior expression does not apply to the new text.
