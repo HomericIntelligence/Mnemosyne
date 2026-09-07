@@ -33,7 +33,6 @@ dev = [
     "ruff>=0.16.1",
     "jsonschema>=4.26",
     "types-PyYAML",
-    "build>=1.2",
     "twine>=7.0.0",
 ]
 

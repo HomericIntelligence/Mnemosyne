@@ -25,7 +25,7 @@ validate:
 
 # Build the Python wheel + sdist (mnemosyne_skill_utils) into dist/
 package:
-    uv run python -m build
+    uv build
 
 # === Testing ===
 
