@@ -37,7 +37,23 @@ in CI. Detached temporary worktrees were rebased rather than editing branch code
 reported 82 and 24 passing tests, signatures/trailers were checked, exact old-head leases protected
 the pushes, and GitHub reported CLEAN/MERGEABLE with all checks passing.
 
-## Provenance
+## Delivery capability observation
+
+A local audit found published changes whose remote heads matched the intended commits.
+Independent source reviews had no remaining source finding, and CI had passed.
+A separate required reviewer execution capability was unavailable.
+The review therefore remained conditional.
+
+The audit verified the publication state and the missing review stage.
+It did not implement or verify a replacement runner.
+Repeated planning and source inspection did not supply the missing capability.
+Development stopped at the user's request, and the existing work was preserved.
+
+This evidence supports a delivery preflight and distinct stage reports.
+It does not prove that a proposed runner works or that the changes are merge-ready.
+No source identifiers, private paths, raw logs, or operational data are retained here.
+
+## Earlier provenance
 
 - Superseded main SHA-256:
   `bb8e4a6f8e500ac3e031fcd1422a7f37e9a0e19b88602d9652661f6375af8b5d`
