@@ -1,9 +1,12 @@
 ---
 name: parallel-agent-swarm-dispatch-patterns
-description: "Dispatch and verify parallel specialist agents with explicit ownership, bounded tasks, dependency-aware waves, and live artifact checks. Use for 5+ independent tasks, prior stall/fabrication, hot-file contention, staged transformations, audit remediation, or a dependency gate that tempts workers to stop before their actual task."
+description: >-
+  Use parallel agents with bounded tasks. Give each file one owner.
+  Use this skill for dependency waves, shared files, or missing task results.
+  Also use it when a stopped worker must start another task.
 category: tooling
 date: 2026-05-31
-version: "2.0.0"
+version: "2.1.0"
 license: BSD-3-Clause
 user-invocable: false
 history: parallel-agent-swarm-dispatch-patterns.history
@@ -32,6 +35,7 @@ The complete prior source is archived in
 - Audit findings need one independently revertible PR per theme.
 - A strict dependency chain invites many workers to poll the same gate.
 - The first prompt instruction is a wait/poll loop and workers may treat gate failure as task end.
+- An existing agent must start a new task after its last task ends.
 
 ## Verified Workflow
 
@@ -75,6 +79,24 @@ coordinator focused on graph decisions, evidence reconciliation, and exception h
 Subagents may not be able to spawn another tier. If nested delegation is unavailable, the root
 coordinator performs all fan-out. Never encode an architecture that depends on undeclared recursive
 delegation.
+
+#### Start another task on an existing agent
+
+Message delivery and task execution are different operations.
+Before a new assignment, read the host-reported agent state and the tool contract.
+Do not use time or old response text as state evidence.
+
+1. For a running agent, use a message only if the host supports updates during execution.
+2. For an idle or completed agent, use the supported task-start, resume, or follow-up operation.
+3. Bind the new task to its own scope, output, and file owner.
+4. After dispatch, examine the host state or a result from the new task.
+5. Accept a running state transition or the new task result as execution evidence.
+6. Do not accept a delivery acknowledgment or the old task result as execution evidence.
+
+If execution does not start, inspect the host state and existing work before another dispatch.
+Do not assign a second writer to the same files while the first writer can still run.
+If the host has no safe activation operation, report that limit.
+Do not send repeated messages and assume that they start a task.
 
 ### 4. Make the prompt executable
 
@@ -145,6 +167,7 @@ their paths rather than discarding evidence.
 | Concurrent chain wait | Assigned one poller per dependent task | Slots were consumed without progress | Use one sequential state machine |
 | Trusted report | Accepted “PR done” | PR was absent, stale, or wrong | Query remote head, diff, and checks |
 | Immediate redispatch | Replaced a silent worker | Duplicated already-published work | Search branch/PR state first |
+| Message without task activation | Sent new work to a completed agent through messaging | Delivery did not start execution | Use the supported activation operation and examine new execution evidence |
 | Unbounded hook | Waited indefinitely on local hook | One worker stalled the wave | Diagnose with budget; never bypass |
 | Nested fan-out | Required unsupported delegation | Second-level work never launched | Root coordinator owns fan-out |
 
@@ -154,6 +177,8 @@ their paths rather than discarding evidence.
 task ID and live-state grade
 dependency wave and predecessor PRs
 executor capability and isolated worktree
+host-reported agent state and task-activation capability
+new task identity and execution evidence
 exclusive paths and hot-file owner
 change budget and stop condition
 required validation and publication protocol
