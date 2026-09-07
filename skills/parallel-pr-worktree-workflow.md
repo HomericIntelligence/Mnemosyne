@@ -3,10 +3,10 @@ name: parallel-pr-worktree-workflow
 description: "Use when executing or rescuing multiple independent PRs concurrently: each writer needs an isolated worktree, dependency-aware batching, current-head CI triage, explicit merge-method/base handling, exact-lease rebases, contamination rescue, and bounded cleanup."
 category: ci-cd
 date: 2026-07-01
-version: "2.0.0"
+version: "2.1.0"
 license: BSD-3-Clause
 user-invocable: false
-verification: verified-ci
+verification: verified-local
 history: parallel-pr-worktree-workflow.history
 tags: [parallel-prs, git-worktree, agent-isolation, dependency-waves, current-head-ci,
   mergeability, stacked-pr, auto-merge, contamination-rescue, force-with-lease]
@@ -35,8 +35,36 @@ superseded source is in
 - Branch/file contamination has already occurred and individual cleanup is becoming quadratic.
 - A stacked PR must be retargeted before auto-merge, or an earlier stacked merge was orphaned.
 - Checks are stale/missing, mergeability is DIRTY/CONFLICTING, or a branch predates a trunk CI fix.
+- A required review tool is unavailable, although the changes are already in a PR.
 
 ## Verified Workflow
+
+### 0. Verify the delivery path before increasing a wave
+
+Before you add workers, verify that the host can perform each required delivery stage.
+Apply the repository and host policies. Do not replace a required capability with a weaker check.
+
+| Stage | Required evidence |
+| --- | --- |
+| Local work | The assigned worktree, owned paths, local commit, and applicable author checks. |
+| PR publication | The remote PR exists and its head matches the intended local commit. |
+| Source review | An independent review identifies the exact source and its findings. |
+| Review validation | The required execution boundary exists and supplies the required exact-head evidence. |
+| Merge readiness | The complete review, current-head checks, merge policy, and authority all permit the merge. |
+
+Success at one stage does not prove success at another.
+Green CI does not replace separate reviewer validation when that validation is required.
+A source review with no findings does not remove an unmet validation requirement.
+
+If a required capability is unavailable, identify the affected stage and its owner.
+Stop work that depends on that stage. Continue only authorized work with independent dependencies and adequate delivery capacity.
+Preserve completed work and existing PRs. Publish completed units when their publication gates permit it.
+Do not enlarge the wave while completed work accumulates behind the same unavailable stage.
+Do not repeat unchanged planning or source reviews to substitute for the missing capability.
+
+Report the last verified stage, exact commit, missing capability, next action, and any required authority.
+If the user pauses development, stop implementation and preserve the recorded delivery state.
+Do not claim that the missing capability or recovery has been verified.
 
 ### 1. Inventory live state before editing
 
@@ -170,6 +198,7 @@ guarded cleanup policy; do not improvise destructive commands.
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 | --- | --- | --- | --- |
 | Concurrent work in primary checkout | Concurrent work in primary checkout | Shared HEAD/index contaminates branches | One explicit worktree per writer |
+| Check delivery capabilities after implementation | Increased a wave before verifying a required review capability | Published work could not complete its review | Verify each required stage before increasing the wave |
 | Branch all dependents from trunk | Branch all dependents from trunk | Shared prerequisite blocks every PR | Land prerequisite, then fan out |
 | Arm auto-merge while still stacked | Arm auto-merge while still stacked | May merge into a dead intermediate base | Retarget/rebase to trunk first |
 | Trust stale check table | Trust stale check table | Results may belong to an old head | Bind checks to `headRefOid` |
