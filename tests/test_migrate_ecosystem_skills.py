@@ -5,7 +5,6 @@ Tests for scripts/migrate_ecosystem_skills.py.
 Covers:
 - parse_frontmatter: valid content, missing delimiters, empty body, no frontmatter
 - frontmatter_to_yaml: key ordering, quoting, list handling
-- _format_yaml_value: none, list, special chars, booleans
 - map_category: scylla override, source mapping, defaults
 - generalize_paths: pixi, project-specific absolute paths, catch-all home paths
 - rename_workflow_section: bare "## Workflow" -> "## Verified Workflow"
@@ -19,13 +18,15 @@ Covers:
 - migrate_skill: skip existing, dry-run, write, force overwrite, read error
 """
 
+import datetime
 from pathlib import Path
 from typing import Any
 
+import pytest
+import yaml
 from migrate_ecosystem_skills import (
     FIELDS_TO_REMOVE,
     TODAY,
-    _format_yaml_value,
     add_missing_sections,
     build_skill_registry,
     build_target_frontmatter,
@@ -158,7 +159,7 @@ class TestParseFrontmatter:
 
 
 # ===========================================================================
-# frontmatter_to_yaml / _format_yaml_value
+# frontmatter_to_yaml
 # ===========================================================================
 
 
@@ -178,33 +179,11 @@ class TestFrontmatterToYaml:
         for i in range(len(canonical) - 1):
             assert keys_in_order.index(canonical[i]) < keys_in_order.index(canonical[i + 1])
 
-    def test_none_value_serialized_correctly(self):
-        result = _format_yaml_value("key", None)
-        assert result == "key:"
-
-    def test_empty_list_value_serialized_as_empty_flow_sequence(self):
-        result = _format_yaml_value("tags", [])
-        assert result == "tags: []"
-
-    def test_nonempty_list_value_serialized_as_flow_sequence(self):
-        # Regression for #1462: list values must not be silently discarded.
-        # Per migrate_ecosystem_skills._format_yaml_value, populated lists are
-        # emitted as flow-style YAML sequences so the contents round-trip.
-        result = _format_yaml_value("tags", ["a", "b"])
-        assert result == "tags: [a, b]"
-
-    def test_value_with_colon_is_quoted(self):
-        result = _format_yaml_value("description", "Use when: something")
-        assert result.startswith('description: "')
-        assert "Use when: something" in result
-
-    def test_boolean_like_value_is_quoted(self):
-        result = _format_yaml_value("user-invocable", "false")
-        assert result.startswith('user-invocable: "')
-
-    def test_plain_value_unquoted(self):
-        result = _format_yaml_value("category", "tooling")
-        assert result == "category: tooling"
+    @pytest.mark.parametrize(
+        "value", [None, [], ["a", "b"], "Use when: something", "false", "tooling", ["use when: x", "a, b"]]
+    )
+    def test_values_round_trip(self, value):
+        assert yaml.safe_load(frontmatter_to_yaml({"key": value})) == {"key": value}
 
     def test_extra_keys_emitted_after_canonical(self):
         fm = {"name": "s", "extra-key": "extra-val"}
@@ -819,23 +798,6 @@ class TestMigrateSkill:
 
 
 # ===========================================================================
-# _format_yaml_value — list item quoting branch (L189-190)
-# ===========================================================================
-
-
-class TestFormatYamlValueListItemQuoting:
-    def test_list_item_needing_quote_is_quoted(self):
-        # Items with colons need quoting inside flow sequences
-        result = _format_yaml_value("tags", ["use when: x", "plain"])
-        assert '"use when: x"' in result
-        assert "plain" in result
-
-    def test_list_item_with_comma_is_quoted(self):
-        result = _format_yaml_value("tags", ["a, b"])
-        assert '"a, b"' in result
-
-
-# ===========================================================================
 # _insert_before_failed_attempts — L330 branch (Results fallback)
 # ===========================================================================
 
@@ -1148,3 +1110,56 @@ class TestMainGuard:
             runpy.run_path(script_path, run_name="__main__")
         except SystemExit as e:
             assert e.code == 0
+
+
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        {"description": "First line\nSecond line\n"},
+        {"description": 'Use "quotes", a colon: and a backslash \\ here.'},
+        {"tags": ["123", "001", "1.5", "2026-01-01", "true", "null", "", "a, b"]},
+        {"date": datetime.date(2026, 1, 1), "user-invocable": False, "tags": []},
+        {"date": "2026-01-01", "user-invocable": True, "extra": {"count": 2, "optional": None}},
+    ],
+    ids=["multiline", "quotes-and-backslash", "string-tags", "date-bool-empty", "nested-values"],
+)
+@pytest.mark.parametrize("write_file", [False, True], ids=["transform", "migration-file"])
+def test_migration_preserves_yaml_values(metadata, write_file, tmp_path, monkeypatch):
+    import migrate_ecosystem_skills as module
+
+    original = {"name": "round-trip", "category": "github", "source": "legacy", **metadata}
+    body = "## Workflow\n\npixi run mojo example.mojo\n"
+    content = "---\n" + yaml.safe_dump(original) + "---\n" + body
+    monkeypatch.setattr(module, "TODAY", "2026-01-02")
+    if write_file:
+        source = tmp_path / "source.md"
+        source.write_text(content, encoding="utf-8")
+        output = tmp_path / "output"
+        output.mkdir()
+        monkeypatch.setattr(module, "SKILLS_DIR", output)
+        assert migrate_skill("round-trip", "odyssey", source, None) == "migrated"
+        result = (output / "round-trip.md").read_text(encoding="utf-8")
+    else:
+        result = transform_skill(content, "round-trip", None)
+
+    from mnemosyne_skill_utils import parse_frontmatter as parse_result
+
+    actual, result_body, errors = parse_result(result)
+    assert not errors
+    expected = {
+        "name": "round-trip",
+        "description": "Skill: round-trip",
+        "category": "tooling",
+        "date": "2026-01-02",
+        "version": "1.0.0",
+        "user-invocable": "false",
+        "verification": "unverified",
+        "tags": [],
+        **metadata,
+    }
+    assert actual == expected
+    for key, value in expected.items():
+        assert type(actual[key]) is type(value)
+    assert "## Verified Workflow" in result_body
+    assert "<package-manager> run mojo example.mojo" in result_body
+    assert "## Failed Attempts" in result_body

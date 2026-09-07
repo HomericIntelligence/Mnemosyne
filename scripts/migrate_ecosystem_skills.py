@@ -21,6 +21,8 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+import yaml
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
@@ -112,7 +114,7 @@ PATH_GENERALIZATIONS = [
 
 
 # ---------------------------------------------------------------------------
-# Frontmatter parsing (manual, no yaml dependency)
+# Frontmatter parsing and serialization
 # ---------------------------------------------------------------------------
 
 
@@ -135,8 +137,6 @@ def parse_frontmatter(content: str) -> tuple[dict, str]:
 
 def frontmatter_to_yaml(frontmatter: dict) -> str:
     """Serialize frontmatter dict back to YAML block."""
-    lines = []
-    # Emit in a defined order for readability
     ordered_keys = [
         "name",
         "description",
@@ -147,64 +147,9 @@ def frontmatter_to_yaml(frontmatter: dict) -> str:
         "verification",
         "tags",
     ]
-    emitted = set()
-    for key in ordered_keys:
-        if key in frontmatter:
-            val = frontmatter[key]
-            lines.append(_format_yaml_value(key, val))
-            emitted.add(key)
-    # Emit any remaining keys not in the canonical order
-    for key, val in frontmatter.items():
-        if key not in emitted:
-            lines.append(_format_yaml_value(key, val))
-    return "\n".join(lines)
-
-
-def _format_yaml_value(key: str, val) -> str:
-    """Format a single YAML key-value pair.
-
-    Lists are emitted as a flow-style sequence (``[a, b, c]``) so that list
-    values such as ``tags:`` are not silently discarded (see #1462). Items
-    that look like they need quoting are quoted; otherwise they are emitted
-    bare.
-    """
-    if val is None:
-        return f"{key}:"
-    if isinstance(val, list):
-        if not val:
-            return f"{key}: []"
-        items = []
-        for item in val:
-            item_str = str(item)
-            needs_quote = (
-                ":" in item_str
-                or "#" in item_str
-                or "," in item_str
-                or item_str.startswith("{")
-                or item_str.startswith("[")
-                or item_str.lower() in ("true", "false", "null", "yes", "no")
-                or not item_str
-            )
-            if needs_quote and not (item_str.startswith('"') and item_str.endswith('"')):
-                escaped = item_str.replace('"', '\\"')
-                items.append(f'"{escaped}"')
-            else:
-                items.append(item_str)
-        return f"{key}: [{', '.join(items)}]"
-    val_str = str(val)
-    # Quote strings that contain special chars or look like they need quoting
-    needs_quote = (
-        ":" in val_str
-        or "#" in val_str
-        or val_str.startswith("{")
-        or val_str.startswith("[")
-        or val_str.lower() in ("true", "false", "null", "yes", "no")
-        or not val_str
-    )
-    if needs_quote and not (val_str.startswith('"') and val_str.endswith('"')):
-        escaped = val_str.replace('"', '\\"')
-        return f'{key}: "{escaped}"'
-    return f"{key}: {val_str}"
+    ordered = {key: frontmatter[key] for key in ordered_keys if key in frontmatter}
+    ordered.update(frontmatter)
+    return yaml.safe_dump(ordered, sort_keys=False, allow_unicode=True).rstrip("\n")
 
 
 # ---------------------------------------------------------------------------
