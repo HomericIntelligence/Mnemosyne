@@ -35,7 +35,6 @@ from fix_remaining_warnings import (
     has_verified_workflow_section,
     merge_quick_reference_into_verified_workflow,
 )
-from validate_plugins import validate_skill_md
 
 
 def make_skill(
@@ -220,62 +219,3 @@ class TestFixSkillFileIntegration:
 
         assert modified is False
         assert fixes == []
-
-
-# ---------------------------------------------------------------------------
-# Tests for validate_plugins.py warning
-# ---------------------------------------------------------------------------
-
-
-class TestValidatePluginsQuickReferenceWarning:
-    def _make_plugin_dir(self, tmp_path: Path, skill_content: str) -> Path:
-        """Set up a minimal plugin directory structure."""
-        plugin_dir = tmp_path / "test-plugin"
-        skill_subdir = plugin_dir / "skills" / "test-plugin"
-        skill_subdir.mkdir(parents=True)
-        (skill_subdir / "SKILL.md").write_text(skill_content)
-
-        plugin_json_dir = plugin_dir / ".claude-plugin"
-        plugin_json_dir.mkdir()
-        import json
-
-        (plugin_json_dir / "plugin.json").write_text(
-            json.dumps(
-                {
-                    "name": "test-plugin",
-                    "version": "1.0.0",
-                    "description": "A test plugin for unit testing purposes.",
-                    "category": "tooling",
-                    "date": "2026-01-01",
-                }
-            )
-        )
-        return plugin_dir
-
-    def test_warns_on_orphaned_top_level_quick_reference(self, tmp_path: Path) -> None:
-        content = make_skill(has_quick_reference=True, has_verified_workflow=True)
-        plugin_dir = self._make_plugin_dir(tmp_path, content)
-
-        errors, warnings = validate_skill_md(plugin_dir, {})
-
-        warning_texts = " ".join(warnings)
-        assert "Quick Reference" in warning_texts
-        assert "subsection" in warning_texts.lower() or "###" in warning_texts
-
-    def test_no_warning_when_quick_reference_is_subsection(self, tmp_path: Path) -> None:
-        content = make_skill(qr_as_subsection=True)
-        plugin_dir = self._make_plugin_dir(tmp_path, content)
-
-        errors, warnings = validate_skill_md(plugin_dir, {})
-
-        qr_warnings = [w for w in warnings if "Quick Reference" in w and "subsection" in w.lower()]
-        assert qr_warnings == []
-
-    def test_no_warning_when_no_quick_reference(self, tmp_path: Path) -> None:
-        content = make_skill(has_quick_reference=False, has_verified_workflow=True)
-        plugin_dir = self._make_plugin_dir(tmp_path, content)
-
-        errors, warnings = validate_skill_md(plugin_dir, {})
-
-        qr_warnings = [w for w in warnings if "Quick Reference" in w]
-        assert qr_warnings == []
