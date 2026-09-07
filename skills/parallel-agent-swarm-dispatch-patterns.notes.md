@@ -1,5 +1,22 @@
 # Parallel Agent Swarm Dispatch Notes
 
+## New task activation
+
+A read-only runtime probe examined two host capabilities.
+The selected worker ended its last task.
+The host accepted a message with a small new assignment.
+The host still reported the completed state.
+
+The coordinator then used the host's task-start capability for the new assignment.
+The host reported a running state, and the worker returned the new result.
+The probe changed no files and ran no repository command.
+
+Verification: verified-local.
+This is runtime and tool-contract evidence, not CI evidence.
+The observation applies to a host that uses different operations for message delivery and task activation.
+Other hosts can combine these operations.
+Their declared capabilities and reported state must control the dispatch choice.
+
 Supporting cases for
 [`parallel-agent-swarm-dispatch-patterns.md`](parallel-agent-swarm-dispatch-patterns.md).
 
