@@ -472,10 +472,17 @@ jobs:
           podman run --rm -v "$PWD:/workspace:Z" --userns=keep-id:uid=1000,gid=1000
           mnemosyne-ci:local uv run python scripts/validate_release_contract.py
 
+  agent-contract:
+    name: agent-contract
+    permissions:
+      contents: read
+    uses: HomericIntelligence/Athena/.github/workflows/_agent-contract.yml@agent-contract-v1.0.0
+
   required-checks-gate:
     name: required-checks-gate
     if: ${{ always() }}
     needs:
+      - agent-contract
       - build
       - deps-version-sync
       - forbid-suppressions

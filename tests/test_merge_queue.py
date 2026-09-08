@@ -50,6 +50,7 @@ EXPECTED_MERGE_QUEUE_RULE = {
 }
 REQUIRED_CHECKS_GATE = "required-checks-gate"
 EXPECTED_GATE_NEEDS = {
+    "agent-contract",
     "build",
     "deps-version-sync",
     "forbid-suppressions",
@@ -67,6 +68,11 @@ EXPECTED_GATE_NEEDS = {
     "symlink-check",
     "test",
     "unit-tests",
+}
+EXPECTED_AGENT_CONTRACT_JOB = {
+    "name": "agent-contract",
+    "permissions": {"contents": "read"},
+    "uses": "HomericIntelligence/Athena/.github/workflows/_agent-contract.yml@agent-contract-v1.0.0",
 }
 
 
@@ -208,6 +214,14 @@ def test_required_checks_gate_has_the_complete_read_only_job_graph() -> None:
         "secrets.",
     )
     assert not any(fragment in executable for fragment in forbidden_fragments)
+
+
+def test_agent_contract_job_has_exact_read_only_call() -> None:
+    jobs = _load_workflow(REQUIRED_WORKFLOW)["jobs"]
+    job = jobs["agent-contract"]
+
+    assert set(job) == {"name", "permissions", "uses"}
+    assert job == EXPECTED_AGENT_CONTRACT_JOB
 
 
 @pytest.mark.parametrize(
