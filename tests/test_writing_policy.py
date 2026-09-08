@@ -13,7 +13,6 @@ import stat
 import subprocess
 import sys
 from collections import Counter
-from functools import lru_cache
 from pathlib import Path
 
 import pytest
@@ -484,6 +483,7 @@ EXPECTED_AGENT_CONTRACT_IDENTIFIERS = tuple(f"P{number:03d}" for number in range
 ROOT_FILE_LIMIT = 256 * 1024
 ROOT_CLAUDE_POINTER = b"@AGENTS.md\n"
 ATHENA_CONTRACT_RENDERER = REPO_ROOT / "scripts" / "render_athena_agent_contract.py"
+EXPECTED_GENERATED_BLOCK_SHA256 = "54705687c9c8d7401127622340c9989ce2579c1f6340caac79ab08d2410ad0be"
 AGENT_CONTRACT_ROW_PATTERN = re.compile(
     r"^- \[(P\d{3}) — ([^[]+?)\]"
     r"\((https://github\.com/HomericIntelligence/Athena/blob/"
@@ -566,23 +566,6 @@ def _extract_generated_block(text: str) -> tuple[str | None, list[str]]:
     return text[block_start:block_end], []
 
 
-@lru_cache(maxsize=1)
-def _render_athena_agent_contract_block() -> tuple[str | None, list[str]]:
-    try:
-        result = subprocess.run(
-            [sys.executable, str(ATHENA_CONTRACT_RENDERER)],
-            cwd=REPO_ROOT,
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-    except subprocess.CalledProcessError as error:
-        stderr = error.stderr.strip() if error.stderr else str(error)
-        return None, [f"Athena contract renderer failed: {stderr}"]
-
-    return result.stdout, []
-
-
 def _validate_generated_block(root: Path) -> list[str]:
     text, errors = _read_bounded_regular_utf8(root, "AGENTS.md")
     if errors:
@@ -595,12 +578,9 @@ def _validate_generated_block(root: Path) -> list[str]:
         return errors
 
     marked_block = f"{AGENT_CONTRACT_BLOCK_START}\n{block}\n{AGENT_CONTRACT_BLOCK_END}"
-    generated_block, renderer_errors = _render_athena_agent_contract_block()
-    errors.extend(renderer_errors)
-    if generated_block is None:
-        return errors
-    if marked_block != generated_block:
-        errors.append("AGENTS.md generated block bytes do not match the Athena release renderer")
+    actual_digest = hashlib.sha256(marked_block.encode("utf-8")).hexdigest()
+    if actual_digest != EXPECTED_GENERATED_BLOCK_SHA256:
+        errors.append("AGENTS.md generated block bytes do not match the pinned Athena release digest")
 
     rows = block.splitlines()
     if len(rows) != len(EXPECTED_AGENT_CONTRACT_IDENTIFIERS):
@@ -937,4 +917,16 @@ def test_athena_regeneration_requires_provider_files(tmp_path: Path) -> None:
     result = _run_regeneration(REPO_ROOT, tmp_path)
     assert result.returncode == 1
     assert b"agent_contract.py" in result.stderr
+    assert result.stdout == b""
+
+
+def test_athena_renderer_requires_explicit_provider() -> None:
+    result = subprocess.run(
+        [sys.executable, str(ATHENA_CONTRACT_RENDERER)],
+        cwd=REPO_ROOT,
+        check=False,
+        capture_output=True,
+    )
+    assert result.returncode == 2
+    assert b"--catalog-root" in result.stderr
     assert result.stdout == b""

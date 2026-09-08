@@ -26,10 +26,8 @@ def _extract_block_bounds(text: str) -> tuple[int, int]:
     return start, end + len(BLOCK_END)
 
 
-def _render_block(catalog_root: Path | None) -> str:
-    command = [sys.executable, str(RENDERER)]
-    if catalog_root is not None:
-        command.extend(["--catalog-root", str(catalog_root)])
+def _render_block(catalog_root: Path) -> str:
+    command = [sys.executable, str(RENDERER), "--catalog-root", str(catalog_root)]
     result = subprocess.run(command, capture_output=True, check=False, text=True)
     if result.returncode != 0:
         message = result.stderr.strip() or "Athena contract renderer failed."
@@ -37,7 +35,7 @@ def _render_block(catalog_root: Path | None) -> str:
     return result.stdout
 
 
-def _regenerate(root: Path, catalog_root: Path | None) -> str:
+def _regenerate(root: Path, catalog_root: Path) -> str:
     agents_path = root / "AGENTS.md"
     content = agents_path.read_text(encoding="utf-8")
     block_start, block_end = _extract_block_bounds(content)
@@ -48,7 +46,7 @@ def _regenerate(root: Path, catalog_root: Path | None) -> str:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Regenerate root AGENTS.md.")
     parser.add_argument("--root", type=Path, default=REPO_ROOT)
-    parser.add_argument("--athena-root", type=Path, default=None)
+    parser.add_argument("--athena-root", type=Path, required=True)
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args(argv)
 
