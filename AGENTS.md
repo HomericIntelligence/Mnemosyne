@@ -69,6 +69,35 @@ Mnemosyne contains only the knowledge corpus. Do not add local Claude plugins,
 hooks, shared plugin directions, or copies of Athena skills. The
 `.claude/settings.json` file enables the single `athena@Athena` plugin.
 
+## Validation Delegation
+
+This section has priority over general Athena directions for testing.
+
+The main agent must not run validation commands. Validation commands include
+tests, lint checks, format checks, type checks, and builds. The main agent
+selects commands from a fixed command plan from trusted host policy. The main
+agent gives the validation sub-agent the exact source commit. The source tree
+must be clean.
+
+Use `gpt-5.6-luna` with `xhigh` reasoning for the validation sub-agent. If that
+model is not available, use the weakest available model with at least `medium`
+reasoning. Report the model substitution.
+
+The validation sub-agent must run commands only in a host-enforced validation
+boundary. The boundary must make the source read-only and permit writes only
+to declared disposable outputs. It must deny network, credentials, external
+writes, the home directory, parent checkouts, and host temporary directories.
+It must use an unprivileged user, a scrubbed environment, and resource limits.
+If the boundary is not available, do not run validation. Report a validation
+coverage gap.
+
+The validation sub-agent must not change files or fix failures. For a pass,
+report the tested commit, clean-tree state, commands, and successful results.
+For a failure, report the tested commit, clean-tree state, command, exit
+status, failed checks, relevant concise output, likely cause or subsystem, and
+the next investigation step. Report a validation coverage gap if the tested
+commit or clean-tree state does not match the requested source.
+
 ## Skill Standards
 
 ### Required Structure
