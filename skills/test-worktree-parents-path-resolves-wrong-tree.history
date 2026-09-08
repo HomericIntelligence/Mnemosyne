@@ -1,0 +1,17 @@
+# History: test-worktree-parents-path-resolves-wrong-tree
+
+## v1.0.1 (2026-09-08)
+
+Added the missing Attempt cells to the Failed Attempts data rows.
+
+Provenance: Repository corpus-validation amendment.
+
+## v1.0.0 privacy-redaction record
+
+- Prior version: `1.0.0`
+- Archive status: `privacy-redacted`
+- Reason: The prior file contains repository-specific project, issue, or local-path identifiers.
+- Change summary: Added only the missing Attempt cells.
+- Provenance: Existing corpus content before the validation amendment.
+
+The exact snapshot was intentionally omitted.

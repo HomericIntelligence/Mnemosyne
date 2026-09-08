@@ -1,10 +1,23 @@
+# History: cifar10-one-hot-label-encoding
+
+## v1.0.1 (2026-09-08)
+
+Changed the Failed Attempts section to the required four-column table. The amendment preserves the prior evidence.
+
+Provenance: Repository corpus-validation amendment.
+
+## Superseded v1.0.0
+
+The complete prior retrievable content follows.
+
+````markdown
 ---
 name: cifar10-one-hot-label-encoding
 license: BSD-3-Clause
 description: "Use when: (1) loading CIFAR-10 and preparing integer labels (0-9) for cross-entropy that expects one-hot (B,10) float32 targets, (2) debugging NaN losses or shape mismatches in loss computation from raw-index labels, (3) implementing training loops where cross_entropy multiplies logits by targets and raw indices silently produce a meaningless loss."
 category: testing
 date: 2026-07-02
-version: "1.0.1"
+version: "1.0.0"
 user-invocable: false
 verification: verified-local
 tags:
@@ -282,12 +295,6 @@ fn test_one_hot_encoding() -> None:
 
 ## Failed Attempts
 
-| Attempt | What Was Tried | Why It Failed | Lesson Learned |
-| --- | --- | --- | --- |
-| Raw integer labels | Passed `(B,)` integer class indices to cross-entropy | The loss expects `(B, num_classes)` float32 target distributions | Convert class indices to one-hot targets before loss computation |
-| Float casts | Cast `(B,)` integer labels to float32 | The cast changes the type but does not create the required class dimension | Create a `(B, num_classes)` one-hot tensor instead of only changing the data type |
-| Soft targets | Used `0.7` for the true class and distributed `0.3` across other classes | The targets added unintended label smoothing instead of standard CIFAR-10 hard targets | Use `1.0` for the true class and `0.0` for the other classes |
-
 ### 1. Using Raw Integer Labels Directly
 
 **What was tried:**
@@ -448,3 +455,4 @@ labels_onehot[i, true_class] = 0.8  // Label smoothing (unintended)
 // ✅ CORRECT: Hard one-hot (1.0 for true class)
 labels_onehot[i, true_class] = 1.0
 ```
+````

@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Use when: (1) implementing SGD-with-momentum and setting up per-parameter velocity buffers, (2) training loss diverges or oscillates and you suspect momentum/init, (3) you must initialize the velocity buffer count/order to exactly match the parameter-update order for stable monotone convergence."
 category: optimization
 date: 2026-07-02
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 verification: verified-local
 tags:
@@ -222,6 +222,12 @@ fn compare_momentum_values(
 ```
 
 ## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --- | --- | --- | --- |
+| High initial momentum | Used `lr=0.01` and `momentum=0.9` with random weights on a fixed batch | The recorded velocity accumulation could overshoot and produce `loss2 >= loss1` | Use `momentum=0.0` for the fixed-batch convergence test |
+| Uninitialized velocity buffers | Read and updated velocity tensors before initialization | The recorded behavior included garbage values, crashes, or NaN propagation | Initialize each velocity buffer to zero before the first update |
+| Momentum divergence | Used `momentum=0.95` with `lr=0.01` for repeated updates on the same batch | The recorded velocity growth caused parameter divergence and a NaN or infinite loss | Use momentum not more than `0.9` and monitor velocity magnitude |
 
 ### 1. High Momentum on Random Initialization
 
