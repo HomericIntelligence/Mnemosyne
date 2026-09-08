@@ -128,8 +128,8 @@ run_test() {
 
 run_lint() {
     log_step "Lint (yamllint, mypy, PII check)"
-    run_in_container uv run yamllint -c .yamllint.yaml .github/workflows/
-    run_in_container bash -c 'if [ -d scripts ] || [ -d tests ]; then uv run python -m mypy; else echo "No scripts/ or tests/ — skipping mypy"; fi'
+    run_in_container uv run yamllint -c .yamllint.yaml .github/workflows/ || return $?
+    run_in_container bash -c 'if [ -d scripts ] || [ -d tests ]; then uv run python -m mypy; else echo "No scripts/ or tests/ — skipping mypy"; fi' || return $?
     run_in_container uv run python scripts/check_pii.py
 }
 
@@ -140,7 +140,7 @@ run_schema() {
 
 run_version() {
     log_step "Version-sync checks"
-    run_in_container uv run python scripts/validate_plugins.py
+    run_in_container uv run python scripts/validate_plugins.py || return $?
     run_in_container bash -c 'ver=$(uv run python -c '\''import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])'\''); echo "pyproject version: $ver"; printf "%s" "$ver" | grep -qE "^[0-9]+\.[0-9]+\.[0-9]+$" || { echo "pyproject version is not semver: $ver"; exit 1; }'
 }
 
