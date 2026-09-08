@@ -13,6 +13,12 @@ permissions:
   contents: read
 
 jobs:
+  agent-contract:
+    name: agent-contract
+    permissions:
+      contents: read
+    uses: HomericIntelligence/Athena/.github/workflows/_agent-contract.yml@agent-contract-v1.0.0
+
   validate:
     runs-on: ubuntu-latest
 

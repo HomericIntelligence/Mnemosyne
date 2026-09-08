@@ -74,6 +74,11 @@ EXPECTED_AGENT_CONTRACT_JOB = {
     "permissions": {"contents": "read"},
     "uses": "HomericIntelligence/Athena/.github/workflows/_agent-contract.yml@agent-contract-v1.0.0",
 }
+EXPECTED_DIRECT_CALLER_WORKFLOWS = {
+    "_required.yml",
+    "release.yml",
+    "validate-plugins.yml",
+}
 
 
 def _load_workflow(path: Path) -> dict[Any, Any]:
@@ -222,6 +227,21 @@ def test_agent_contract_job_has_exact_read_only_call() -> None:
 
     assert set(job) == {"name", "permissions", "uses"}
     assert job == EXPECTED_AGENT_CONTRACT_JOB
+
+
+def test_agent_contract_direct_caller_inventory_is_complete() -> None:
+    workflow_names = {path.name for path in WORKFLOWS_DIR.glob("*.yml")}
+
+    assert workflow_names == EXPECTED_DIRECT_CALLER_WORKFLOWS
+    for workflow_name in EXPECTED_DIRECT_CALLER_WORKFLOWS:
+        jobs = _load_workflow(WORKFLOWS_DIR / workflow_name)["jobs"]
+        assert jobs["agent-contract"] == EXPECTED_AGENT_CONTRACT_JOB
+
+
+def test_release_writer_depends_on_the_agent_contract() -> None:
+    jobs = _load_workflow(RELEASE_WORKFLOW)["jobs"]
+
+    assert jobs["release"]["needs"] == ["agent-contract"]
 
 
 def test_unit_tests_exercise_regeneration_against_the_pinned_athena_release() -> None:
