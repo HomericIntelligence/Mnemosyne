@@ -1,0 +1,51 @@
+name: Nightly Validation
+
+on:
+  schedule:
+    - cron: "0 8 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  nightly:
+    name: nightly
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Check out the pinned Athena agent-contract release
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          repository: HomericIntelligence/Athena
+          ref: agent-contract-v1.0.0
+          path: .athena-agent-contract
+          persist-credentials: false
+      - name: Setup uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d  # v10.0.1
+        with:
+          python-version: "3.13"
+      - name: Install dependencies (locked)
+        run: uv sync --locked --group dev
+      - name: Run nightly test tier
+        env:
+          ATHENA_AGENT_CONTRACT_ROOT: ${{ github.workspace }}/.athena-agent-contract
+        run: uv run python -m pytest tests/ -m nightly -v
+      - name: Validate the skills corpus
+        run: uv run python scripts/validate_plugins.py
+      - name: Validate the release contract
+        run: uv run python scripts/validate_release_contract.py
+      - name: Audit locked runtime dependencies
+        run: |
+          uv export --frozen --no-dev --no-emit-project --format requirements-txt > audit-requirements.txt
+          uvx pip-audit --requirement audit-requirements.txt
+      - name: Scan repository history for secrets
+        env:
+          GITLEAKS_IMAGE: >-
+            ghcr.io/gitleaks/gitleaks:v8.30.0@sha256:691af3c7c5a48b16f187ce3446d5f194838f91238f27270ed36eef6359a574d9
+        run: >-
+          podman run --rm -v "$PWD:/repo:ro" -w /repo "$GITLEAKS_IMAGE"
+          detect --source=. --verbose --exit-code=1

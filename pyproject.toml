@@ -47,6 +47,9 @@ py-modules = ["mnemosyne_skill_utils"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--cov=scripts --cov-report=term-missing"
+markers = [
+    "nightly: expensive full-corpus or workflow-contract validation that runs in the nightly tier",
+]
 
 [tool.ruff]
 target-version = "py313"

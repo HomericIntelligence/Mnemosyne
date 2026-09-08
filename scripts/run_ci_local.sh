@@ -7,7 +7,8 @@
 # Usage:
 #   ./scripts/run_ci_local.sh                 # Run all CI checks
 #   ./scripts/run_ci_local.sh validate        # Skill-file validation
-#   ./scripts/run_ci_local.sh test            # pytest unit tests
+#   ./scripts/run_ci_local.sh test            # fast pytest tier (pre-commit/PR)
+#   ./scripts/run_ci_local.sh nightly-test    # nightly pytest tier
 #   ./scripts/run_ci_local.sh lint            # yamllint + mypy + PII check
 #   ./scripts/run_ci_local.sh schema          # Workflow YAML schema validation
 #   ./scripts/run_ci_local.sh version         # deps/version-sync checks
@@ -122,8 +123,13 @@ run_validate() {
 }
 
 run_test() {
-    log_step "Unit tests (pytest)"
-    run_in_container uv run python -m pytest tests/ -v
+    log_step "Fast tests (pytest)"
+    run_in_container uv run python -m pytest tests/ -m 'not nightly' -q
+}
+
+run_nightly_test() {
+    log_step "Nightly tests (pytest)"
+    run_in_container uv run python -m pytest tests/ -m nightly -v
 }
 
 run_lint() {
@@ -177,6 +183,9 @@ case "${SUBSET}" in
     test)
         run_step "test" run_test
         ;;
+    nightly-test)
+        run_step "nightly-test" run_nightly_test
+        ;;
     lint)
         run_step "lint" run_lint
         ;;
@@ -199,7 +208,7 @@ case "${SUBSET}" in
         ;;
     *)
         log_error "Unknown subset: ${SUBSET}"
-        log_error "Valid values: all, validate, test, lint, schema, version, release"
+        log_error "Valid values: all, validate, test, nightly-test, lint, schema, version, release"
         exit 1
         ;;
 esac

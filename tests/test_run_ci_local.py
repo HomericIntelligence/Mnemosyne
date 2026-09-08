@@ -11,6 +11,8 @@ import pytest
 
 RUNNER = Path(__file__).resolve().parents[1] / "scripts" / "run_ci_local.sh"
 
+pytestmark = pytest.mark.nightly
+
 
 @pytest.fixture
 def run_ci(tmp_path):
@@ -97,6 +99,13 @@ def test_success_runs_every_command(run_ci, subset, count):
     if subset == "version":
         assert commands[0] == ["uv", "run", "python", "scripts/validate_plugins.py"]
         assert commands[1][:2] == ["bash", "-c"]
+
+
+def test_nightly_test_subset_runs_only_the_nightly_marker(run_ci):
+    result, commands = run_ci("nightly-test")
+
+    assert result.returncode == 0, result.stderr
+    assert commands == [["uv", "run", "python", "-m", "pytest", "tests/", "-m", "nightly", "-v"]]
 
 
 @pytest.mark.parametrize("fail_at,subset", [(3, "lint"), (4, "lint"), (5, "lint"), (7, "version"), (8, "version")])

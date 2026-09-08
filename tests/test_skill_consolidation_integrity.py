@@ -5,9 +5,13 @@ import sys
 from pathlib import Path
 from typing import NotRequired, TypedDict, cast
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
 from mnemosyne_skill_utils import parse_frontmatter
+
+pytestmark = pytest.mark.nightly
 
 ROOT = Path(__file__).resolve().parent.parent
 SKILLS_DIR = ROOT / "skills"

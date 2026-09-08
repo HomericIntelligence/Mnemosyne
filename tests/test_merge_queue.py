@@ -12,6 +12,7 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
 REQUIRED_WORKFLOW = WORKFLOWS_DIR / "_required.yml"
+NIGHTLY_WORKFLOW = WORKFLOWS_DIR / "nightly.yml"
 VALIDATE_WORKFLOW = WORKFLOWS_DIR / "validate-plugins.yml"
 RELEASE_WORKFLOW = WORKFLOWS_DIR / "release.yml"
 MERGE_QUEUE_POLICY = REPO_ROOT / "configs" / "github" / "merge-queue-policy.json"
@@ -79,6 +80,13 @@ EXPECTED_DIRECT_CALLER_WORKFLOWS = {
     "release.yml",
     "validate-plugins.yml",
 }
+
+pytestmark = pytest.mark.nightly
+
+
+def _fast_test_command(command: str) -> str:
+    """Return the command that executes the PR test tier."""
+    return f"uv run python -m pytest tests/ -m 'not nightly' {command}"
 
 
 def _load_workflow(path: Path) -> dict[Any, Any]:
@@ -230,7 +238,11 @@ def test_agent_contract_job_has_exact_read_only_call() -> None:
 
 
 def test_agent_contract_direct_caller_inventory_is_complete() -> None:
-    workflow_names = {path.name for path in WORKFLOWS_DIR.glob("*.yml")}
+    workflow_names = {
+        path.name
+        for path in WORKFLOWS_DIR.glob("*.yml")
+        if "agent-contract" in _load_workflow(path)["jobs"]
+    }
 
     assert workflow_names == EXPECTED_DIRECT_CALLER_WORKFLOWS
     for workflow_name in EXPECTED_DIRECT_CALLER_WORKFLOWS:
@@ -244,26 +256,13 @@ def test_release_writer_depends_on_the_agent_contract() -> None:
     assert jobs["release"]["needs"] == ["agent-contract"]
 
 
-def test_unit_tests_exercise_regeneration_against_the_pinned_athena_release() -> None:
+def test_unit_tests_run_only_the_fast_tier() -> None:
     jobs = _load_workflow(REQUIRED_WORKFLOW)["jobs"]
     steps = jobs["unit-tests"]["steps"]
 
-    athena_checkout = next(
-        step for step in steps if step.get("name") == "Check out the pinned Athena agent-contract release"
-    )
-    assert athena_checkout == {
-        "name": "Check out the pinned Athena agent-contract release",
-        "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
-        "with": {
-            "repository": "HomericIntelligence/Athena",
-            "ref": "agent-contract-v1.0.0",
-            "path": ".athena-agent-contract",
-            "persist-credentials": False,
-        },
-    }
-
-    test_step = next(step for step in steps if step.get("name") == "Run test suite (in container)")
-    assert "--env ATHENA_AGENT_CONTRACT_ROOT=/workspace/.athena-agent-contract" in test_step["run"]
+    assert all(step.get("name") != "Check out the pinned Athena agent-contract release" for step in steps)
+    test_step = next(step for step in steps if step.get("name") == "Run fast test suite (in container)")
+    assert _fast_test_command("-q") in test_step["run"]
 
 
 @pytest.mark.parametrize(
@@ -325,3 +324,37 @@ def test_release_publisher_remains_tag_only() -> None:
     on_block = _on_block(_load_workflow(RELEASE_WORKFLOW))
 
     assert on_block == {"push": {"tags": ["v*"]}}
+
+
+def test_precommit_and_pr_ci_use_the_same_fast_test_selection() -> None:
+    precommit = (REPO_ROOT / ".pre-commit-config.yaml").read_text()
+    workflow = _load_workflow(REQUIRED_WORKFLOW)
+    test_steps = workflow["jobs"]["unit-tests"]["steps"]
+    test_step = next(step for step in test_steps if step.get("name") == "Run fast test suite (in container)")
+
+    assert _fast_test_command("-q") in precommit
+    assert _fast_test_command("-q") in test_step["run"]
+
+
+def test_nightly_workflow_runs_the_excluded_test_tier_and_expensive_checks() -> None:
+    workflow = _load_workflow(NIGHTLY_WORKFLOW)
+    on_block = _on_block(workflow)
+    nightly_steps = workflow["jobs"]["nightly"]["steps"]
+    commands = "\n".join(step.get("run", "") for step in nightly_steps)
+    workflow_text = NIGHTLY_WORKFLOW.read_text()
+
+    assert on_block == {"schedule": [{"cron": "0 8 * * *"}], "workflow_dispatch": None}
+    assert "uv run python -m pytest tests/ -m nightly -v" in commands
+    assert "uv run python scripts/validate_plugins.py" in commands
+    assert "uv run python scripts/validate_release_contract.py" in commands
+    assert "uvx pip-audit" in commands
+    assert "gitleaks/gitleaks" in workflow_text
+
+
+def test_subminute_validate_plugins_job_keeps_its_existing_full_suite() -> None:
+    workflow = _load_workflow(VALIDATE_WORKFLOW)
+    steps = workflow["jobs"]["validate"]["steps"]
+    commands = "\n".join(step.get("run", "") for step in steps)
+
+    assert "uv run python scripts/validate_plugins.py" in commands
+    assert "uv run pytest tests/ -v" in commands
