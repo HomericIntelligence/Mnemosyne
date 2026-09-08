@@ -12,6 +12,8 @@ from jsonschema import Draft202012Validator
 from mnemosyne_skill_utils import find_skill_files, parse_frontmatter
 from validate_plugins import validate_frontmatter
 
+pytestmark = pytest.mark.nightly
+
 ROOT = Path(__file__).resolve().parent.parent
 SCHEMA = json.loads((ROOT / "schemas" / "skill-frontmatter.schema.json").read_text())
 SCHEMA_VALIDATOR = Draft202012Validator(SCHEMA)

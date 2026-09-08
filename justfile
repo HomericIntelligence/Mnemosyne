@@ -29,9 +29,13 @@ package:
 
 # === Testing ===
 
-# Run all tests
+# Run the fast test tier used by pre-commit and pull-request CI
 test:
-    uv run python -m pytest {{ test_dir }}
+    uv run python -m pytest {{ test_dir }} -m 'not nightly' -q
+
+# Run the nightly test tier
+test-nightly:
+    uv run python -m pytest {{ test_dir }} -m nightly -v
 
 # === Composite ===
 
@@ -48,9 +52,13 @@ ci-build:
 ci-validate:
     ./scripts/run_ci_local.sh validate
 
-# Run CI tests in container
+# Run the fast CI test tier in container
 ci-test:
     ./scripts/run_ci_local.sh test
+
+# Run the nightly CI test tier in container
+ci-test-nightly:
+    ./scripts/run_ci_local.sh nightly-test
 
 # Run CI lint (yamllint, mypy, PII) in container
 ci-lint:

@@ -10,6 +10,8 @@ import yaml
 from mnemosyne_skill_utils import find_skill_files
 from validate_plugins import validate_plugin
 
+pytestmark = pytest.mark.nightly
+
 ROOT = Path(__file__).resolve().parent.parent
 VALIDATOR = ROOT / "scripts" / "validate_plugins.py"
 

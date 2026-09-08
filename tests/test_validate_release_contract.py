@@ -17,7 +17,10 @@ contract no longer tracks any .claude-plugin/ marketplace or plugin.json version
 from pathlib import Path
 from typing import Optional
 
+import pytest
 from validate_release_contract import check_tag, find_violations, main
+
+pytestmark = pytest.mark.nightly
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
