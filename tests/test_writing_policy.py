@@ -764,10 +764,10 @@ def _mutate_claude_fixture(tmp_path: Path, mutation: str) -> None:
         claude_path.write_bytes(b"@AGENTS.md\r\n")
         return
     if mutation == "bom":
-        claude_path.write_bytes(b"\xef\xbb\xbf@AGENTS.md\n")
+        claude_path.write_bytes(b"\xef\xbb\xbf" + ROOT_CLAUDE_POINTER)
         return
     if mutation == "leading-data":
-        claude_path.write_bytes(b"prefix\n@AGENTS.md\n")
+        claude_path.write_bytes(b"prefix\n" + ROOT_CLAUDE_POINTER)
         return
     if mutation == "trailing-data":
         claude_path.write_bytes(b"@AGENTS.md\nsuffix\n")
