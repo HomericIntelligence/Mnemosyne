@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Use when: (1) implementing depthwise separable convolution blocks (MobileNetV1-style: depthwise + pointwise), (2) you hit gradient mismatches between forward and backward passes in per-channel convolution, (3) building efficient architectures and need forward/backward shape+math consistency across the separable block."
 category: architecture
 date: 2026-07-02
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 verification: verified-local
 tags:
@@ -232,6 +232,12 @@ fn train_step(
 ```
 
 ## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --- | --- | --- | --- |
+| Model wrapper | Used the `Conv2d` wrapper for a depthwise operation | The wrapper uses cross-channel filtering with `groups=1`, which did not implement the required depthwise operation | Call `depthwise_conv2d` directly |
+| Missing intermediate caches | Recomputed forward intermediates during the backward pass | Different dropout state or batch-normalization running statistics produced inconsistent gradients | Cache the forward intermediates for the backward pass |
+| Incorrect backward order | Applied backward operations in forward order | Batch-normalization statistics were not applied in the required reverse chain, which caused scale mismatch and NaN propagation | Apply the operations in exact reverse order |
 
 ### 1. Using Model Wrapper for Depthwise
 

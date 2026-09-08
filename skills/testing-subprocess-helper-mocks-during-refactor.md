@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "After refactoring code that calls subprocess helpers (run_subprocess, subprocess.check_output, etc.), unit tests must update mocks to match the ACTUAL return type of the helper being tested. Use when: (1) refactoring code that changes which subprocess helper is used (run_subprocess vs subprocess.check_output), (2) test mocks fail with AttributeError on stdout/stderr/returncode after extraction, (3) tests expect CompletedProcess with specific attributes but the helper returns a different type, (4) test side_effect mocks don't match the actual return type of the helper being called, (5) extracting small helper functions from larger modules that call subprocess — verify helpers match their callsites' expectations."
 category: testing
 date: 2026-06-27
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 verification: verified-ci
 tags:
@@ -250,15 +250,10 @@ StopIteration: generator raised StopIteration
 
 ## Failed Attempts
 
-### Attempt 1: Continuing with run_subprocess after refactoring to subprocess.check_output
-- **Problem**: Assumed the original subprocess helper would continue to work after the refactoring changed to `subprocess.check_output`
-- **Outcome**: Tests failed with `AttributeError` because mocks expected `CompletedProcess.stdout` but `check_output` returns `bytes`
-- **Resolution**: Reverted the implementation change and stuck with `run_subprocess` for consistency with test expectations
-
-### Attempt 2: Keeping old function signatures after extraction
-- **Problem**: Extracted handlers from `_process_pr(args, ...)` to `_process_pr(..., push_all, dry_run)` without updating all test calls
-- **Outcome**: Tests failed with `TypeError: unexpected keyword argument 'args'` because they still used the old signature
-- **Resolution**: Updated all test calls to use the new individual parameter signatures
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --- | --- | --- | --- |
+| Continue with `run_subprocess` after a change to `subprocess.check_output` | Assumed that the original helper contract would continue after the implementation started to return `bytes` | Tests raised `AttributeError` because mocks expected `CompletedProcess.stdout` | Revert the helper change when the established tests require `run_subprocess`, or update the complete contract and its mocks together |
+| Keep old function signatures after extraction | Changed `_process_pr(args, ...)` to `_process_pr(..., push_all, dry_run)` without changing all test calls | Tests raised `TypeError: unexpected keyword argument 'args'` | Update all callers to use the new individual parameters |
 
 ## Results & Parameters
 

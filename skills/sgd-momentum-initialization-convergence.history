@@ -1,0 +1,17 @@
+# History: sgd-momentum-initialization-convergence
+
+## v1.0.1 (2026-09-08)
+
+Changed the Failed Attempts section to the required four-column table. The amendment preserves the prior evidence.
+
+Provenance: Repository corpus-validation amendment.
+
+## v1.0.0 privacy-redaction record
+
+- Prior version: `1.0.0`
+- Archive status: `privacy-redacted`
+- Reason: The prior file contains repository-specific project or issue identifiers.
+- Change summary: Converted the recorded Failed Attempts content to the required table structure.
+- Provenance: Existing corpus content before the validation amendment.
+
+The exact snapshot was intentionally omitted.

@@ -1,10 +1,23 @@
+# History: uv-lock-stale-after-constraint-regenerate-verify-marker
+
+## v1.0.1 (2026-09-08)
+
+Changed the Failed Attempts section to the required four-column table. The amendment preserves the prior evidence.
+
+Provenance: Repository corpus-validation amendment.
+
+## Superseded v1.0.0
+
+The complete prior retrievable content follows.
+
+````markdown
 ---
 name: uv-lock-stale-after-constraint-regenerate-verify-marker
 license: BSD-3-Clause
 description: "Use when a uv.lock is stale after a pyproject.toml dependency-constraint change and the stale lock causes a deterministic lock-freshness NOGO/CI failure. Specifically: (1) a version specifier or platform marker was added/edited in pyproject.toml [project.dependencies] but uv.lock was NOT regenerated, so `uv lock --check` (the uv-pre-commit `uv-lock --check` hook / required lint gate) fails or a plan/PR gets NOGO'd for a stale lock; (2) you must confirm the fix is real by two concrete lock signals — the new version specifier appears in the lock's `[package.metadata] requires-dist` block, and a PEP 508 marker like `platform_system == 'Windows'` normalizes to uv's `sys_platform == 'win32'`; (3) the stale PR branch is many commits behind main and you must decide between rebasing vs regenerating on a fresh branch off main; (4) you are tempted to hand-edit uv.lock instead of regenerating it. Do NOT hand-edit uv.lock; regenerate with `uv lock` (plain) unless a deliberate upgrade is intended."
 category: ci-cd
 date: 2026-07-17
-version: "1.0.1"
+version: "1.0.0"
 user-invocable: false
 verification: verified-local
 tags:
@@ -116,12 +129,10 @@ uv rewrites PEP 508 markers into its own canonical form in `uv.lock`. `platform_
 
 ## Failed Attempts
 
-| Attempt | What Was Tried | Why It Failed | Lesson Learned |
-| --- | --- | --- | --- |
-| Hand-edit `uv.lock` | Added a specifier or changed a marker in resolver output | The edit could differ from `uv lock` output, and `uv lock --check` could fail locally or in CI | Regenerate the lock file |
-| Use `uv lock --upgrade` for a routine refresh | Upgraded all packages for a declared-metadata change | The command produced a large unrelated diff and risked untested versions | Use plain `uv lock` for a declared-metadata change |
-| Hand-merge a lock conflict on a branch far behind `main` | Rebasing required manual selection of generated lock content | An `--ours` or `--theirs` choice could corrupt resolver output | Start a new branch from `main` and run `uv lock` |
-| Treat the normalized marker as a scope defect | Expected `platform_system == 'Windows'` in the lock instead of `sys_platform == 'win32'` | `uv` normalizes the marker representation | Validate marker meaning instead of requiring the source literal |
+- **Hand-editing `uv.lock`** to add the specifier or flip the marker. It is resolver output; hand edits diverge from what `uv lock` would produce and `uv lock --check` still fails (or worse, passes locally but not in CI). Regenerate.
+- **`uv lock --upgrade`** as the routine refresh. It bumps every package, producing a huge unrelated diff and risking untested versions. Use plain `uv lock` for a declared-metadata change.
+- **Rebasing the far-behind branch and hand-merging the generated `uv.lock` conflict.** For a branch tens of commits behind, cutting fresh from `main` + `uv lock` is simpler and avoids a `--ours`/`--theirs` lock corruption.
+- **Treating `sys_platform == 'win32'` in the lock as a wrong-scope defect** because `pyproject.toml` says `platform_system == 'Windows'`. That is uv's normalization; asserting the literal pyproject form against the lock is a false finding.
 
 ## Results & Parameters
 
@@ -152,3 +163,4 @@ uv run pre-commit run uv-lock --all-files # CI-parity hook run
 - [[ci-cd-pixi-lock-version-skew-regeneration]] — the pixi analogue where the lock *format version* skews with the writer binary.
 - [[dependency-manifest-single-source-of-truth]] — keeping declared constraints aligned across manifests (the upstream cause of many lock refreshes).
 - [[lockfile-and-release-pipeline-management]] — broad lock-drift recovery across pixi/cargo/npm; this entry is the uv-specific constraint-change + marker-verification case.
+````

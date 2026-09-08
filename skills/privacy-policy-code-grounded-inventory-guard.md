@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Author a privacy / data-retention / deletion policy (GDPR audit finding) for a code repository by grounding the data inventory in grep-verified persistence constants and freezing it with a structural guard test. Use when: (1) an audit finding says no privacy/retention/deletion policy exists for a repo that handles third-party content or developer credentials, (2) writing any compliance/policy doc whose claims can be derived from code (state dirs, cache dirs, crash-dump paths), (3) a policy doc needs protection against silent rot or deletion, (4) tempted to paste a boilerplate GDPR template that overstates the project's data-controller role."
 category: documentation
 date: 2026-07-17
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 verification: unverified
 tags: [privacy, gdpr, retention, deletion-policy, compliance, data-inventory, structural-guard, doc-rot, audit-remediation, security-policy]
@@ -69,7 +69,7 @@ ls scripts/ | grep -i "policy\|date"
 
 ## Failed Attempts
 
-| Attempt | What Was Tried | Why It Failed / Was Rejected | Lesson Learned |
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
 |---------|----------------|------------------------------|----------------|
 | Boilerplate GDPR template | Standard SaaS privacy-policy skeleton | Claims controller role, sub-processors, cookie/tracking sections that are false for a local CLI library | Derive posture from the threat model; false compliance claims are worse than none |
 | New privacy mailbox | Dedicated privacy@ contact | Unmonitored mailboxes rot; SECURITY.md already publishes a monitored channel | Reuse the published security contact for DSRs |

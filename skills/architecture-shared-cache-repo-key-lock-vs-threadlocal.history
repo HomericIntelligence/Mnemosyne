@@ -2,6 +2,22 @@
 
 # History: architecture-shared-cache-repo-key-lock-vs-threadlocal
 
+## v1.1.1 (2026-09-08)
+
+Corrected the Failed Attempts header so that corpus validation can enforce the required structure.
+
+Provenance: Repository corpus-validation amendment.
+
+## v1.1.0 privacy-redaction record
+
+- Prior version: `1.1.0`
+- Archive status: `privacy-redacted`
+- Reason: The prior file contains repository-specific project and issue identifiers.
+- Change summary: Corrected only the Failed Attempts header.
+- Provenance: Existing corpus content before the validation amendment.
+
+The exact snapshot was intentionally omitted.
+
 This file preserves the amendment history and superseded snapshots of the
 `architecture-shared-cache-repo-key-lock-vs-threadlocal` skill.
 

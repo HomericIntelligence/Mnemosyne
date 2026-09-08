@@ -6,7 +6,7 @@ Covers:
 - parse_frontmatter: valid content, missing delimiters, invalid YAML, empty frontmatter
 - validate_frontmatter: missing/empty fields, invalid category, date, name format
 - validate_sections: missing required sections, all present
-- validate_failed_attempts_table: valid table, empty section, missing columns, plain text
+- validate_failed_attempts_table: required table structure and invalid alternatives
 - validate_quick_reference_heading: ## vs ### detection
 - find_plugins: excludes .notes.md, handles empty/missing dirs
 - validate_plugin: integration tests with valid and invalid skill files
@@ -205,14 +205,14 @@ class TestValidateFailedAttemptsTable:
     def test_empty_section(self):
         body = "## Failed Attempts\n\nNone.\n\n## Results & Parameters\n"
         errors = validate_failed_attempts_table(body)
-        assert any("empty" in e.lower() or "None" in e for e in errors)
+        assert any("table" in error.lower() for error in errors)
 
     def test_missing_columns(self):
         body = "## Failed Attempts\n\n| Attempt | Details |\n|---------|--------|\n| 1 | Something |\n"
         errors = validate_failed_attempts_table(body)
         assert any("missing required columns" in e for e in errors)
 
-    def test_plain_text_allowed(self):
+    def test_plain_text_is_rejected(self):
         body = (
             "## Failed Attempts\n\n"
             "We tried approach A but it did not work because of reason B.\n"
@@ -220,7 +220,7 @@ class TestValidateFailedAttemptsTable:
             "\n## Results & Parameters\n"
         )
         errors = validate_failed_attempts_table(body)
-        assert errors == []
+        assert any("table" in error.lower() for error in errors)
 
     def test_no_failed_attempts_section(self):
         body = "## Overview\nstuff\n"
@@ -235,6 +235,96 @@ class TestValidateFailedAttemptsTable:
         )
         errors = validate_failed_attempts_table(body)
         assert any("incomplete" in e.lower() for e in errors)
+
+    def test_invalid_separator_is_rejected(self):
+        body = (
+            "## Failed Attempts\n\n"
+            "| Attempt | What Was Tried | Why It Failed | Lesson Learned |\n"
+            "| words | are | not | separators |\n"
+            "| 1 | Did X | Broke Y | Use Z instead |\n"
+        )
+        errors = validate_failed_attempts_table(body)
+        assert any("separator" in error.lower() for error in errors)
+
+    def test_header_without_data_row_is_rejected(self):
+        body = (
+            "## Failed Attempts\n\n"
+            "| Attempt | What Was Tried | Why It Failed | Lesson Learned |\n"
+            "| --- | --- | --- | --- |\n"
+            "Prose after the header is not a data row.\n"
+        )
+        errors = validate_failed_attempts_table(body)
+        assert any("data row" in error.lower() for error in errors)
+
+    def test_all_empty_data_row_is_rejected(self):
+        body = (
+            "## Failed Attempts\n\n"
+            "| Attempt | What Was Tried | Why It Failed | Lesson Learned |\n"
+            "| --- | --- | --- | --- |\n"
+            "| | | | |\n"
+        )
+        errors = validate_failed_attempts_table(body)
+        assert any("data row" in error.lower() for error in errors)
+
+    def test_prose_with_incidental_pipe_is_rejected_as_data(self):
+        body = (
+            "## Failed Attempts\n\n"
+            "| Attempt | What Was Tried | Why It Failed | Lesson Learned |\n"
+            "| --- | --- | --- | --- |\n"
+            "This prose has an incidental | pipe.\n"
+        )
+        errors = validate_failed_attempts_table(body)
+        assert any("data row" in error.lower() for error in errors)
+
+    def test_header_substrings_are_rejected(self):
+        body = (
+            "## Failed Attempts\n\n"
+            "| Attempt notes | What Was Tried before | Why It Failed often | Lesson Learned later |\n"
+            "| --- | --- | --- | --- |\n"
+            "| 1 | Did X | Broke Y | Use Z instead |\n"
+        )
+        errors = validate_failed_attempts_table(body)
+        assert any("missing required columns" in error for error in errors)
+
+    def test_escaped_pipe_in_data_cell_is_accepted(self):
+        body = (
+            "## Failed Attempts\n\n"
+            "| Attempt | What Was Tried | Why It Failed | Lesson Learned |\n"
+            "| --- | --- | --- | --- |\n"
+            r"| 1 | Ran `first \| second` | It failed | Escape the pipe |"
+            "\n"
+        )
+        assert validate_failed_attempts_table(body) == []
+
+    def test_alignment_markers_are_accepted(self):
+        body = (
+            "## Failed Attempts\n\n"
+            "| Attempt | What Was Tried | Why It Failed | Lesson Learned |\n"
+            "| :--- | :---: | ---: | --- |\n"
+            "| 1 | Did X | Broke Y | Use Z instead |\n"
+        )
+        assert validate_failed_attempts_table(body) == []
+
+    def test_additional_exact_header_cell_is_accepted(self):
+        body = (
+            "## Failed Attempts\n\n"
+            "| Attempt | What Was Tried | Why It Failed | Lesson Learned | Status |\n"
+            "| --- | --- | --- | --- | --- |\n"
+            "| 1 | Did X | Broke Y | Use Z instead | Closed |\n"
+        )
+        assert validate_failed_attempts_table(body) == []
+
+    def test_table_in_fenced_example_is_rejected(self):
+        body = (
+            "## Failed Attempts\n\n"
+            "```markdown\n"
+            "| Attempt | What Was Tried | Why It Failed | Lesson Learned |\n"
+            "| --- | --- | --- | --- |\n"
+            "| 1 | Did X | Broke Y | Use Z instead |\n"
+            "```\n"
+        )
+        errors = validate_failed_attempts_table(body)
+        assert any("table" in error.lower() for error in errors)
 
 
 # ---------------------------------------------------------------------------
@@ -327,10 +417,23 @@ class TestValidatePlugin:
         (skills / "good-skill.md").write_text(CLEAN_SKILL_MD)
         with patch("validate_plugins.SKILLS_DIR", skills):
             errors = validate_plugin("good-skill.md")
-        # CLEAN_SKILL_MD from conftest uses short column names that won't
-        # match the strict 4-column check, so filter to non-column errors.
-        non_column_errors = [e for e in errors if "missing required columns" not in e]
-        assert non_column_errors == []
+        assert errors == []
+
+    def test_prose_failed_attempts_section_is_rejected(self, tmp_path):
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        content = CLEAN_SKILL_MD.replace(
+            "| Attempt | What Was Tried | Why It Failed | Lesson Learned |\n"
+            "| --- | --- | --- | --- |\n"
+            "| N/A | No failures | No failure was recorded | Record failures when they occur |",
+            "No failed attempts were recorded.",
+        )
+        (skills / "prose-skill.md").write_text(content)
+
+        with patch("validate_plugins.SKILLS_DIR", skills):
+            errors = validate_plugin("prose-skill.md")
+
+        assert any("table" in error.lower() for error in errors)
 
     def test_invalid_skill_file_no_frontmatter(self, tmp_path):
         skills = tmp_path / "skills"

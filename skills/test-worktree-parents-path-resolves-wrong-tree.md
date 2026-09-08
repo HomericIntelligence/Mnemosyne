@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "A repo-scanning test that locates the tree it scans via Path(__file__).parents[N] / 'subdir' resolves to the WRONG checkout when pytest is run from a different directory than the test file's repo — e.g. invoking pytest at the MAIN repo root against test files living in a git worktree under build/.worktrees/<x>/. parents[N] anchors to the file's branch, but a cwd mismatch means a local 'FAILURE' may have scanned the main checkout (a different branch with different code), producing false failures (or false passes) that CI does not reproduce. Use when: (1) a repo-scanning guard/assertion test fails locally but you suspect a worktree/cwd artifact, (2) validating a worktree branch by running pytest from the main checkout root, (3) a test passes in CI but fails locally with offenders you cannot find on the branch."
 category: testing
 date: 2026-06-27
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 verification: verified-local
 tags:
@@ -79,8 +79,8 @@ cd <worktree-root> && pixi run pytest <test_path> -q --no-cov
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 |---------|----------------|---------------|----------------|
-| Ran `pixi run pytest <worktree>/tests/...` from the MAIN repo root to validate a worktree branch | The guard test computed its scan root via `Path(__file__).parents[3]` which resolved to the MAIN checkout (a different branch), reporting 54 false offenders | Run repo-scanning tests with cwd == the worktree root; `parents[N]` is relative to the file, but the test's INTENT is the repo it belongs to — a mismatched cwd breaks that |
-| Trusted the local "FAILED" and started hunting for raw `write_text` reversions in the branch | The branch genuinely had 0 offenders; the failure was a path-resolution artifact, wasting time | Before fixing, verify the test scanned the RIGHT tree (print `parents[N]`); re-run with the worktree cwd; a CI-only-clean test that "fails" locally is often a cwd artifact |
+| Main-root test run | Ran `pixi run pytest <worktree>/tests/...` from the MAIN repo root to validate a worktree branch | The guard test computed its scan root via `Path(__file__).parents[3]` which resolved to the MAIN checkout (a different branch), reporting 54 false offenders | Run repo-scanning tests with cwd == the worktree root; `parents[N]` is relative to the file, but the test's INTENT is the repo it belongs to — a mismatched cwd breaks that |
+| Trust the local failure | Trusted the local "FAILED" and started hunting for raw `write_text` reversions in the branch | The branch genuinely had 0 offenders; the failure was a path-resolution artifact, wasting time | Before fixing, verify the test scanned the RIGHT tree (print `parents[N]`); re-run with the worktree cwd; a CI-only-clean test that "fails" locally is often a cwd artifact |
 
 ## Results & Parameters
 

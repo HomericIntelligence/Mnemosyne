@@ -1,0 +1,17 @@
+# History: codeql-exclude-vendored-deps-false-criticals
+
+## v1.0.1 (2026-09-08)
+
+Corrected the Failed Attempts table so that corpus validation can enforce the required structure.
+
+Provenance: Repository corpus-validation amendment.
+
+## v1.0.0 privacy-redaction record
+
+- Prior version: `1.0.0`
+- Archive status: `privacy-redacted`
+- Reason: The prior file contains repository-specific project, issue, or pull-request identifiers.
+- Change summary: Corrected only the Failed Attempts table structure.
+- Provenance: Existing corpus content before the validation amendment.
+
+The exact snapshot was intentionally omitted.
