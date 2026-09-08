@@ -478,7 +478,7 @@ AGENT_CONTRACT_TAG = "agent-contract-v1.0.0"
 AGENT_CONTRACT_BLOCK_START = f"<!-- BEGIN ATHENA DEVELOPMENT PRINCIPLES: {AGENT_CONTRACT_TAG} -->"
 AGENT_CONTRACT_BLOCK_END = "<!-- END ATHENA DEVELOPMENT PRINCIPLES -->"
 AGENT_CONTRACT_DETAIL_PREFIX = (
-    "https://github.com/HomericIntelligence/Athena/blob/" f"{AGENT_CONTRACT_TAG}/docs/principles/details/"
+    f"https://github.com/HomericIntelligence/Athena/blob/{AGENT_CONTRACT_TAG}/docs/principles/details/"
 )
 EXPECTED_AGENT_CONTRACT_IDENTIFIERS = tuple(f"P{number:03d}" for number in range(1, 92))
 ROOT_FILE_LIMIT = 256 * 1024
@@ -682,13 +682,13 @@ def _mutate_agents_fixture(tmp_path: Path, mutation: str) -> None:
         )
         return
     if mutation == "reordered":
-        block = _extract_block_text(text).splitlines()
-        block[0], block[1] = block[1], block[0]
+        block_lines = _extract_block_text(text).splitlines()
+        block_lines[0], block_lines[1] = block_lines[1], block_lines[0]
         agents_path.write_text(
             text[: text.index(AGENT_CONTRACT_BLOCK_START)]
             + AGENT_CONTRACT_BLOCK_START
             + "\n"
-            + "\n".join(block)
+            + "\n".join(block_lines)
             + "\n"
             + AGENT_CONTRACT_BLOCK_END
             + text[text.index(AGENT_CONTRACT_BLOCK_END) + len(AGENT_CONTRACT_BLOCK_END) :],
@@ -700,8 +700,7 @@ def _mutate_agents_fixture(tmp_path: Path, mutation: str) -> None:
         return
     if mutation == "reworded":
         original = (
-            "Select the design with minimum complexity that obeys all requirements "
-            "that evidence shows are necessary."
+            "Select the design with minimum complexity that obeys all requirements that evidence shows are necessary."
         )
         replacement = "Select the design with minimum complexity that obeys the requirement."
         agents_path.write_text(

@@ -237,3 +237,4 @@ def _fetch_batch_states(batch: list[int], owner: str, repo: str) -> dict[int, Is
 ## v1.0.0 (2026-05-28)
 
 **Initial version.**
+

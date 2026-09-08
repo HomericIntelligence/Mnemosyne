@@ -23,7 +23,7 @@ def _extract_block_bounds(text: str) -> tuple[int, int]:
     end_line_start = text.rfind("\n", 0, end)
     if start_line_end == -1 or end_line_start == -1:
         raise ValueError("AGENTS.md generated block markers must stand alone on their own lines.")
-    return start_line_end + 1, end_line_start
+    return start, end + len(BLOCK_END)
 
 
 def _render_block(catalog_root: Path | None) -> str:

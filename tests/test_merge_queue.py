@@ -224,6 +224,28 @@ def test_agent_contract_job_has_exact_read_only_call() -> None:
     assert job == EXPECTED_AGENT_CONTRACT_JOB
 
 
+def test_unit_tests_exercise_regeneration_against_the_pinned_athena_release() -> None:
+    jobs = _load_workflow(REQUIRED_WORKFLOW)["jobs"]
+    steps = jobs["unit-tests"]["steps"]
+
+    athena_checkout = next(
+        step for step in steps if step.get("name") == "Check out the pinned Athena agent-contract release"
+    )
+    assert athena_checkout == {
+        "name": "Check out the pinned Athena agent-contract release",
+        "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+        "with": {
+            "repository": "HomericIntelligence/Athena",
+            "ref": "agent-contract-v1.0.0",
+            "path": ".athena-agent-contract",
+            "persist-credentials": False,
+        },
+    }
+
+    test_step = next(step for step in steps if step.get("name") == "Run test suite (in container)")
+    assert "--env ATHENA_AGENT_CONTRACT_ROOT=/workspace/.athena-agent-contract" in test_step["run"]
+
+
 @pytest.mark.parametrize(
     ("overrides", "expected_success"),
     [
