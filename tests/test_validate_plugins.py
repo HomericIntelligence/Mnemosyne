@@ -341,6 +341,28 @@ class TestValidatePlugin:
         assert len(errors) > 0
         assert any("frontmatter" in e.lower() for e in errors)
 
+    def test_empty_mapping_reports_metadata_and_section_errors(self, tmp_path):
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        (skills / "empty.md").write_text("---\n{}\n---\n# Incomplete\n")
+
+        with patch("validate_plugins.SKILLS_DIR", skills):
+            errors = validate_plugin("empty.md")
+
+        assert "Missing required field: name" in errors
+        assert "Missing required section: ## Overview" in errors
+
+    def test_empty_mapping_preserves_list_return_contract(self, tmp_path):
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        (skills / "empty.md").write_text("---\n{}\n---\n## Quick Reference\n")
+
+        with patch("validate_plugins.SKILLS_DIR", skills):
+            errors = validate_plugin("empty.md")
+
+        assert isinstance(errors, list)
+        assert "Quick Reference should use ### (h3) not ## (h2)" in errors
+
     def test_missing_file(self, tmp_path):
         skills = tmp_path / "skills"
         skills.mkdir()

@@ -9,6 +9,7 @@ Covers:
   empty directory, non-existent directory, files sorted deterministically
 """
 
+import datetime
 from pathlib import Path
 
 from mnemosyne_skill_utils import find_skill_files, parse_frontmatter
@@ -59,6 +60,22 @@ class TestParseFrontmatter:
         assert errors == []
         assert fm == {}
         assert body == "Body."
+
+    def test_explicit_empty_mapping_preserves_body_and_contract(self):
+        content = "---\n{}\n---\nBody."
+
+        result = parse_frontmatter(content)
+
+        assert result == ({}, "Body.", [])
+
+    def test_bare_yaml_date_remains_native_date(self):
+        content = "---\ndate: 2026-01-01\n---\nBody."
+
+        fm, body, errors = parse_frontmatter(content)
+
+        assert fm == {"date": datetime.date(2026, 1, 1)}
+        assert body == "Body."
+        assert errors == []
 
     def test_body_leading_newline_is_stripped(self):
         content = "---\nname: s\n---\n\nActual body."
