@@ -13,11 +13,12 @@ Checks:
 """
 
 import argparse
+import datetime
 import re
 import sys
 import textwrap
 from pathlib import Path
-from typing import Dict, List
+from typing import Any, List
 
 from mnemosyne_skill_utils import find_skill_files, parse_frontmatter  # noqa: F401  (re-exported for tests)
 
@@ -47,11 +48,13 @@ def find_plugins() -> List[Path]:
     return find_skill_files(SKILLS_DIR)
 
 
-def validate_frontmatter(frontmatter: Dict, filename: str) -> List[str]:
+def validate_frontmatter(frontmatter: Any, filename: str) -> List[str]:
     """Validate required frontmatter fields."""
-    errors = []
+    errors: List[str] = []
 
-    # Required fields
+    if not isinstance(frontmatter, dict):
+        return ["Invalid frontmatter: expected a YAML mapping"]
+
     required = ["name", "description", "category", "date", "version"]
     for field in required:
         if field not in frontmatter:
@@ -59,23 +62,51 @@ def validate_frontmatter(frontmatter: Dict, filename: str) -> List[str]:
         elif not frontmatter[field]:
             errors.append(f"Empty required field: {field}")
 
-    # Category validation
-    if "category" in frontmatter:
-        cat = frontmatter["category"]
-        if cat not in VALID_CATEGORIES:
-            errors.append(f"Invalid category: {cat}. Valid: {', '.join(sorted(VALID_CATEGORIES))}")
-
-    # Date format validation (YYYY-MM-DD)
-    if "date" in frontmatter:
-        date_str = frontmatter["date"]
-        if not re.match(r"^\d{4}-\d{2}-\d{2}$", str(date_str)):
-            errors.append(f"Invalid date format: {date_str} (expected YYYY-MM-DD)")
-
-    # Name format validation (kebab-case: lowercase alphanumeric + hyphens only)
-    if "name" in frontmatter:
-        name = str(frontmatter["name"])
-        if not re.match(r"^[a-z0-9-]+$", name):
+    if "name" in frontmatter and frontmatter["name"]:
+        name = frontmatter["name"]
+        if not isinstance(name, str):
+            errors.append("Invalid name: expected a string")
+        elif not re.fullmatch(r"(?:[a-z0-9][a-z0-9-]*[a-z0-9]|[a-z0-9])", name):
             errors.append(f"Invalid name format: '{name}' must be kebab-case (lowercase, hyphens, no spaces)")
+
+    if "description" in frontmatter and frontmatter["description"]:
+        if not isinstance(frontmatter["description"], str):
+            errors.append("Invalid description: expected a string")
+
+    if "category" in frontmatter and frontmatter["category"]:
+        category = frontmatter["category"]
+        if not isinstance(category, str):
+            errors.append("Invalid category: expected a string")
+        elif category not in VALID_CATEGORIES:
+            errors.append(f"Invalid category: {category}. Valid: {', '.join(sorted(VALID_CATEGORIES))}")
+
+    if "date" in frontmatter and frontmatter["date"]:
+        date_value = frontmatter["date"]
+        if isinstance(date_value, datetime.date) and not isinstance(date_value, datetime.datetime):
+            date_text = date_value.isoformat()
+        elif isinstance(date_value, str):
+            date_text = date_value
+        else:
+            date_text = None
+        if date_text is None or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date_text):
+            errors.append(f"Invalid date format: {date_value} (expected YYYY-MM-DD)")
+
+    if "version" in frontmatter and frontmatter["version"]:
+        version = frontmatter["version"]
+        if not isinstance(version, str):
+            errors.append("Invalid version: expected a string")
+        elif not re.fullmatch(r"\d+\.\d+\.\d+", version):
+            errors.append(f"Invalid version format: {version} (expected X.Y.Z)")
+
+    if "user-invocable" in frontmatter:
+        user_invocable = frontmatter["user-invocable"]
+        if not isinstance(user_invocable, bool) and user_invocable not in {"true", "false"}:
+            errors.append("Invalid user-invocable: expected a Boolean or 'true'/'false'")
+
+    if "tags" in frontmatter:
+        tags = frontmatter["tags"]
+        if not isinstance(tags, list) or not all(isinstance(tag, str) for tag in tags):
+            errors.append("Invalid tags: expected an array of strings")
 
     return errors
 
@@ -172,8 +203,8 @@ def validate_plugin(filename: str) -> List[str]:
     frontmatter, body, parse_errors = parse_frontmatter(content)
     errors.extend(parse_errors)
 
-    if not frontmatter:
-        return errors  # Fatal error, can't continue
+    if parse_errors:
+        return errors
 
     # Validate frontmatter fields
     errors.extend(validate_frontmatter(frontmatter, filename))
