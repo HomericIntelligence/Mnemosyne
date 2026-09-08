@@ -50,6 +50,7 @@ EXPECTED_MERGE_QUEUE_RULE = {
 }
 REQUIRED_CHECKS_GATE = "required-checks-gate"
 EXPECTED_GATE_NEEDS = {
+    "agent-contract",
     "build",
     "deps-version-sync",
     "forbid-suppressions",
@@ -67,6 +68,16 @@ EXPECTED_GATE_NEEDS = {
     "symlink-check",
     "test",
     "unit-tests",
+}
+EXPECTED_AGENT_CONTRACT_JOB = {
+    "name": "agent-contract",
+    "permissions": {"contents": "read"},
+    "uses": "HomericIntelligence/Athena/.github/workflows/_agent-contract.yml@agent-contract-v1.0.0",
+}
+EXPECTED_DIRECT_CALLER_WORKFLOWS = {
+    "_required.yml",
+    "release.yml",
+    "validate-plugins.yml",
 }
 
 
@@ -208,6 +219,51 @@ def test_required_checks_gate_has_the_complete_read_only_job_graph() -> None:
         "secrets.",
     )
     assert not any(fragment in executable for fragment in forbidden_fragments)
+
+
+def test_agent_contract_job_has_exact_read_only_call() -> None:
+    jobs = _load_workflow(REQUIRED_WORKFLOW)["jobs"]
+    job = jobs["agent-contract"]
+
+    assert set(job) == {"name", "permissions", "uses"}
+    assert job == EXPECTED_AGENT_CONTRACT_JOB
+
+
+def test_agent_contract_direct_caller_inventory_is_complete() -> None:
+    workflow_names = {path.name for path in WORKFLOWS_DIR.glob("*.yml")}
+
+    assert workflow_names == EXPECTED_DIRECT_CALLER_WORKFLOWS
+    for workflow_name in EXPECTED_DIRECT_CALLER_WORKFLOWS:
+        jobs = _load_workflow(WORKFLOWS_DIR / workflow_name)["jobs"]
+        assert jobs["agent-contract"] == EXPECTED_AGENT_CONTRACT_JOB
+
+
+def test_release_writer_depends_on_the_agent_contract() -> None:
+    jobs = _load_workflow(RELEASE_WORKFLOW)["jobs"]
+
+    assert jobs["release"]["needs"] == ["agent-contract"]
+
+
+def test_unit_tests_exercise_regeneration_against_the_pinned_athena_release() -> None:
+    jobs = _load_workflow(REQUIRED_WORKFLOW)["jobs"]
+    steps = jobs["unit-tests"]["steps"]
+
+    athena_checkout = next(
+        step for step in steps if step.get("name") == "Check out the pinned Athena agent-contract release"
+    )
+    assert athena_checkout == {
+        "name": "Check out the pinned Athena agent-contract release",
+        "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+        "with": {
+            "repository": "HomericIntelligence/Athena",
+            "ref": "agent-contract-v1.0.0",
+            "path": ".athena-agent-contract",
+            "persist-credentials": False,
+        },
+    }
+
+    test_step = next(step for step in steps if step.get("name") == "Run test suite (in container)")
+    assert "--env ATHENA_AGENT_CONTRACT_ROOT=/workspace/.athena-agent-contract" in test_step["run"]
 
 
 @pytest.mark.parametrize(

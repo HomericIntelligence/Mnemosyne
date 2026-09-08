@@ -199,6 +199,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           fetch-depth: 0
+      - name: Check out the pinned Athena agent-contract release
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          repository: HomericIntelligence/Athena
+          ref: agent-contract-v1.0.0
+          path: .athena-agent-contract
+          persist-credentials: false
       - name: Cache podman container storage
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
@@ -216,6 +223,7 @@ jobs:
       - name: Run test suite (in container)
         run: >
           podman run --rm -v "$PWD:/workspace:Z" --userns=keep-id:uid=1000,gid=1000
+          --env ATHENA_AGENT_CONTRACT_ROOT=/workspace/.athena-agent-contract
           mnemosyne-ci:local uv run pytest tests/ -v
 
   integration-tests:
@@ -472,10 +480,17 @@ jobs:
           podman run --rm -v "$PWD:/workspace:Z" --userns=keep-id:uid=1000,gid=1000
           mnemosyne-ci:local uv run python scripts/validate_release_contract.py
 
+  agent-contract:
+    name: agent-contract
+    permissions:
+      contents: read
+    uses: HomericIntelligence/Athena/.github/workflows/_agent-contract.yml@agent-contract-v1.0.0
+
   required-checks-gate:
     name: required-checks-gate
     if: ${{ always() }}
     needs:
+      - agent-contract
       - build
       - deps-version-sync
       - forbid-suppressions

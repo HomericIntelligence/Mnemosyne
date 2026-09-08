@@ -13,8 +13,15 @@ permissions:
   contents: write
 
 jobs:
+  agent-contract:
+    name: agent-contract
+    permissions:
+      contents: read
+    uses: HomericIntelligence/Athena/.github/workflows/_agent-contract.yml@agent-contract-v1.0.0
+
   release:
     name: release
+    needs: [agent-contract]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
