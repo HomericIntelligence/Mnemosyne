@@ -18,7 +18,7 @@ import re
 import sys
 import textwrap
 from pathlib import Path
-from typing import Any, List
+from typing import Any, List, Optional
 
 from mnemosyne_skill_utils import find_skill_files, parse_frontmatter  # noqa: F401  (re-exported for tests)
 
@@ -135,6 +135,7 @@ def validate_sections(body: str) -> List[str]:
 def validate_failed_attempts_table(body: str) -> List[str]:
     """Validate Failed Attempts table structure."""
     errors: List[str] = []
+    required_columns = ["Attempt", "What Was Tried", "Why It Failed", "Lesson Learned"]
 
     # Find Failed Attempts section
     if "## Failed Attempts" not in body:
@@ -147,24 +148,71 @@ def validate_failed_attempts_table(body: str) -> List[str]:
         return errors
 
     section_content = match.group(1).strip()
+    lines: List[str] = []
+    fence_marker: Optional[str] = None
+    for line in section_content.splitlines():
+        stripped = line.lstrip()
+        marker = stripped[:3]
+        if marker in {"```", "~~~"}:
+            if fence_marker is None:
+                fence_marker = marker
+            elif marker == fence_marker:
+                fence_marker = None
+            continue
+        if fence_marker is None:
+            lines.append(line)
 
-    # Check if it's a table or plain text
-    if "|" not in section_content:
-        # Allow plain text failed attempts
-        if not section_content or section_content.lower() == "none.":
-            errors.append("Failed Attempts section is empty or only contains 'None.'")
-        return errors
+    def split_row(line: str) -> List[str]:
+        """Split a Markdown table row without splitting escaped pipes."""
+        stripped = line.strip()
+        cells: List[str] = []
+        cell: List[str] = []
+        slash_count = 0
+        for character in stripped:
+            if character == "|" and slash_count % 2 == 0:
+                cells.append("".join(cell).strip())
+                cell = []
+            else:
+                cell.append(character)
+            slash_count = slash_count + 1 if character == "\\" else 0
+        cells.append("".join(cell).strip())
+        if stripped.startswith("|"):
+            cells = cells[1:]
+        if stripped.endswith("|"):
+            cells = cells[:-1]
+        return cells
 
-    # Validate table structure
-    lines = section_content.split("\n")
-    if len(lines) < 3:
-        errors.append("Failed Attempts table is incomplete (needs header, separator, at least one row)")
-        return errors
+    table_rows = [(index, split_row(line)) for index, line in enumerate(lines) if "|" in line]
+    if not table_rows:
+        return ["Failed Attempts section must contain a table"]
 
-    # Check header row
-    header = lines[0].strip()
-    if not all(col in header for col in ["Attempt", "What Was Tried", "Why It Failed", "Lesson Learned"]):
-        errors.append("Failed Attempts table missing required columns")
+    header_index: Optional[int] = None
+    header_cells: List[str] = []
+    for index, cells in table_rows:
+        if all(column in cells for column in required_columns):
+            header_index = index
+            header_cells = cells
+            break
+
+    if header_index is None:
+        return ["Failed Attempts table missing required columns"]
+
+    if header_index + 1 >= len(lines):
+        return ["Failed Attempts table is incomplete (needs a separator and at least one data row)"]
+
+    separator_cells = split_row(lines[header_index + 1])
+    separator_pattern = re.compile(r"^:?-{3,}:?$")
+    if len(separator_cells) != len(header_cells) or not all(
+        separator_pattern.fullmatch(cell) for cell in separator_cells
+    ):
+        return ["Failed Attempts table has an invalid separator row"]
+
+    if header_index + 2 >= len(lines):
+        return ["Failed Attempts table is incomplete (needs at least one data row)"]
+
+    data_cells = split_row(lines[header_index + 2])
+    if len(data_cells) < len(header_cells) or not any(data_cells):
+        return ["Failed Attempts table needs at least one nonempty data row"]
 
     return errors
 
