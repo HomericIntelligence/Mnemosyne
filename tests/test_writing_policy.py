@@ -6,16 +6,17 @@ These tests do not determine natural-language conformance with ASD-STE100.
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 import shutil
 import stat
 import subprocess
 import sys
 from collections import Counter
+from functools import lru_cache
 from pathlib import Path
 
 import pytest
-
 from mnemosyne_skill_utils import find_skill_files
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -476,14 +477,13 @@ def test_repository_does_not_vendor_asd_ste100_assets() -> None:
 AGENT_CONTRACT_TAG = "agent-contract-v1.0.0"
 AGENT_CONTRACT_BLOCK_START = f"<!-- BEGIN ATHENA DEVELOPMENT PRINCIPLES: {AGENT_CONTRACT_TAG} -->"
 AGENT_CONTRACT_BLOCK_END = "<!-- END ATHENA DEVELOPMENT PRINCIPLES -->"
-AGENT_CONTRACT_BLOCK_SHA256 = "54705687c9c8d7401127622340c9989ce2579c1f6340caac79ab08d2410ad0be"
 AGENT_CONTRACT_DETAIL_PREFIX = (
-    "https://github.com/HomericIntelligence/Athena/blob/"
-    f"{AGENT_CONTRACT_TAG}/docs/principles/details/"
+    "https://github.com/HomericIntelligence/Athena/blob/" f"{AGENT_CONTRACT_TAG}/docs/principles/details/"
 )
 EXPECTED_AGENT_CONTRACT_IDENTIFIERS = tuple(f"P{number:03d}" for number in range(1, 92))
 ROOT_FILE_LIMIT = 256 * 1024
 ROOT_CLAUDE_POINTER = b"@AGENTS.md\n"
+ATHENA_CONTRACT_RENDERER = REPO_ROOT / "scripts" / "render_athena_agent_contract.py"
 AGENT_CONTRACT_ROW_PATTERN = re.compile(
     r"^- \[(P\d{3}) — ([^[]+?)\]"
     r"\((https://github\.com/HomericIntelligence/Athena/blob/"
@@ -492,7 +492,11 @@ AGENT_CONTRACT_ROW_PATTERN = re.compile(
 )
 
 
-def _read_bounded_regular_file(root: Path, relative_path: str, maximum_bytes: int = ROOT_FILE_LIMIT) -> tuple[bytes | None, list[str]]:
+def _read_bounded_regular_file(
+    root: Path,
+    relative_path: str,
+    maximum_bytes: int = ROOT_FILE_LIMIT,
+) -> tuple[bytes | None, list[str]]:
     path = root / relative_path
 
     try:
@@ -541,9 +545,7 @@ def _extract_generated_block(text: str) -> tuple[str | None, list[str]]:
     errors: list[str] = []
 
     if start_count != 1:
-        errors.append(
-            f"AGENTS.md must contain exactly one generated start marker, found {start_count}"
-        )
+        errors.append(f"AGENTS.md must contain exactly one generated start marker, found {start_count}")
     if end_count != 1:
         errors.append(f"AGENTS.md must contain exactly one generated end marker, found {end_count}")
     if errors:
@@ -564,6 +566,23 @@ def _extract_generated_block(text: str) -> tuple[str | None, list[str]]:
     return text[block_start:block_end], []
 
 
+@lru_cache(maxsize=1)
+def _render_athena_agent_contract_block() -> tuple[str | None, list[str]]:
+    try:
+        result = subprocess.run(
+            [sys.executable, str(ATHENA_CONTRACT_RENDERER)],
+            cwd=REPO_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except subprocess.CalledProcessError as error:
+        stderr = error.stderr.strip() if error.stderr else str(error)
+        return None, [f"Athena contract renderer failed: {stderr}"]
+
+    return result.stdout, []
+
+
 def _validate_generated_block(root: Path) -> list[str]:
     text, errors = _read_bounded_regular_utf8(root, "AGENTS.md")
     if errors:
@@ -576,14 +595,16 @@ def _validate_generated_block(root: Path) -> list[str]:
         return errors
 
     marked_block = f"{AGENT_CONTRACT_BLOCK_START}\n{block}\n{AGENT_CONTRACT_BLOCK_END}"
-    if hashlib.sha256(marked_block.encode("utf-8")).hexdigest() != AGENT_CONTRACT_BLOCK_SHA256:
-        errors.append("AGENTS.md generated block bytes do not match the Athena release")
+    generated_block, renderer_errors = _render_athena_agent_contract_block()
+    errors.extend(renderer_errors)
+    if generated_block is None:
+        return errors
+    if marked_block != generated_block:
+        errors.append("AGENTS.md generated block bytes do not match the Athena release renderer")
 
     rows = block.splitlines()
     if len(rows) != len(EXPECTED_AGENT_CONTRACT_IDENTIFIERS):
-        errors.append(
-            f"AGENTS.md must contain exactly {len(EXPECTED_AGENT_CONTRACT_IDENTIFIERS)} generated rows"
-        )
+        errors.append(f"AGENTS.md must contain exactly {len(EXPECTED_AGENT_CONTRACT_IDENTIFIERS)} generated rows")
 
     identifiers: list[str] = []
     for index, row in enumerate(rows, start=1):
@@ -597,14 +618,10 @@ def _validate_generated_block(root: Path) -> list[str]:
         identifiers.append(identifier)
 
         if identifier != expected_identifier:
-            errors.append(
-                f"AGENTS.md row {index} must use identifier {expected_identifier}, not {identifier}"
-            )
+            errors.append(f"AGENTS.md row {index} must use identifier {expected_identifier}, not {identifier}")
 
         if detail_url != f"{AGENT_CONTRACT_DETAIL_PREFIX}{detail_path}":
-            errors.append(
-                f"AGENTS.md row {index} must use the tagged Athena detail link for {identifier}"
-            )
+            errors.append(f"AGENTS.md row {index} must use the tagged Athena detail link for {identifier}")
 
         expected_detail_path = f"p{index:03d}-"
         if not detail_path.startswith(expected_detail_path):
@@ -660,14 +677,7 @@ def _mutate_agents_fixture(tmp_path: Path, mutation: str) -> None:
     if mutation == "duplicate-block":
         block = _extract_block_text(text)
         agents_path.write_text(
-            text
-            + "\n"
-            + AGENT_CONTRACT_BLOCK_START
-            + "\n"
-            + block
-            + "\n"
-            + AGENT_CONTRACT_BLOCK_END
-            + "\n",
+            text + "\n" + AGENT_CONTRACT_BLOCK_START + "\n" + block + "\n" + AGENT_CONTRACT_BLOCK_END + "\n",
             encoding="utf-8",
         )
         return
@@ -689,12 +699,13 @@ def _mutate_agents_fixture(tmp_path: Path, mutation: str) -> None:
         agents_path.write_text(text.replace("P001 — KISS", "P001 — KISSX", 1), encoding="utf-8")
         return
     if mutation == "reworded":
+        original = (
+            "Select the design with minimum complexity that obeys all requirements "
+            "that evidence shows are necessary."
+        )
+        replacement = "Select the design with minimum complexity that obeys the requirement."
         agents_path.write_text(
-            text.replace(
-                "Select the design with minimum complexity that obeys all requirements that evidence shows are necessary.",
-                "Select the design with minimum complexity that obeys the requirement.",
-                1,
-            ),
+            text.replace(original, replacement, 1),
             encoding="utf-8",
         )
         return
@@ -842,3 +853,89 @@ def test_claude_pointer_contract_rejects_fixture_mutations(
     errors = _validate_root_claude(tmp_path)
 
     assert expected_fragment in "\n".join(errors)
+
+
+@pytest.fixture
+def athena_contract_root() -> Path:
+    source = os.environ.get("ATHENA_AGENT_CONTRACT_ROOT")
+    if not source:
+        pytest.skip("Set ATHENA_AGENT_CONTRACT_ROOT to the Athena agent-contract-v1.0.0 source directory.")
+    return Path(source)
+
+
+def _run_regeneration(root: Path, provider: Path, *arguments: str) -> subprocess.CompletedProcess[bytes]:
+    return subprocess.run(
+        [
+            sys.executable,
+            str(REPO_ROOT / "scripts/regenerate_agent_contract.py"),
+            "--root",
+            str(root),
+            "--athena-root",
+            str(provider),
+            *arguments,
+        ],
+        capture_output=True,
+        check=False,
+        timeout=30,
+    )
+
+
+def test_athena_regeneration_produces_no_diff(athena_contract_root: Path, tmp_path: Path) -> None:
+    _copy_root_contract_fixture(tmp_path)
+    expected = (tmp_path / "AGENTS.md").read_bytes()
+
+    for _ in range(2):
+        result = _run_regeneration(tmp_path, athena_contract_root)
+        assert result.returncode == 0, result.stderr.decode()
+        assert result.stdout == expected
+        (tmp_path / "AGENTS.md").write_bytes(result.stdout)
+
+    result = _run_regeneration(tmp_path, athena_contract_root, "--check")
+    assert result.returncode == 0, result.stderr.decode()
+    assert (tmp_path / "AGENTS.md").read_bytes() == expected
+    assert (tmp_path / "CLAUDE.md").read_bytes() == ROOT_CLAUDE_POINTER
+
+
+def test_athena_regeneration_repairs_drift_without_changing_local_guidance(
+    athena_contract_root: Path, tmp_path: Path
+) -> None:
+    _copy_root_contract_fixture(tmp_path)
+    agents = tmp_path / "AGENTS.md"
+    expected = b"Local guidance before.\n\n" + agents.read_bytes() + b"\nLocal guidance after.\n"
+    agents.write_bytes(expected)
+    _mutate_agents_fixture(tmp_path, "renamed")
+    changed = agents.read_bytes()
+
+    check = _run_regeneration(tmp_path, athena_contract_root, "--check")
+    assert check.returncode == 1
+    assert b"differs" in check.stderr
+    result = _run_regeneration(tmp_path, athena_contract_root)
+    assert result.returncode == 0, result.stderr.decode()
+    assert result.stdout == expected
+    assert agents.read_bytes() == changed
+
+
+@pytest.mark.parametrize("relative_path", ["scripts/policies/agent_contract.py", "docs/principles/README.md"])
+def test_athena_regeneration_rejects_changed_provider(
+    relative_path: str, athena_contract_root: Path, tmp_path: Path
+) -> None:
+    provider = tmp_path / "provider"
+    for filename in ("scripts/policies/agent_contract.py", "docs/principles/README.md"):
+        target = provider / filename
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(athena_contract_root / filename, target)
+    with (provider / relative_path).open("ab") as stream:
+        stream.write(b"\n# Changed release input.\n")
+
+    result = _run_regeneration(REPO_ROOT, provider)
+    assert result.returncode == 1
+    assert relative_path.encode() in result.stderr
+    assert b"SHA-256" in result.stderr
+    assert result.stdout == b""
+
+
+def test_athena_regeneration_requires_provider_files(tmp_path: Path) -> None:
+    result = _run_regeneration(REPO_ROOT, tmp_path)
+    assert result.returncode == 1
+    assert b"agent_contract.py" in result.stderr
+    assert result.stdout == b""
