@@ -64,6 +64,8 @@ def _is_schema_valid(metadata: Any) -> bool:
         ({"user-invocable": True}, True),
         ({"user-invocable": "false"}, True),
         ({"user-invocable": "yes"}, False),
+        ({"user-invocable": []}, False),
+        ({"user-invocable": {}}, False),
         ({"tags": []}, True),
         ({"tags": ["testing", "tooling"]}, True),
         ({"tags": ["testing", 42]}, False),

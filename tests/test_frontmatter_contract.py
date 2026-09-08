@@ -100,6 +100,8 @@ def test_control_cli_passes(tmp_path: Path) -> None:
         ("version", 1.0),
         ("user-invocable", "yes"),
         ("user-invocable", 1),
+        ("user-invocable", []),
+        ("user-invocable", {}),
         ("tags", "testing"),
         ("tags", ["testing", 42]),
     ],

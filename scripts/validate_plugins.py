@@ -100,7 +100,9 @@ def validate_frontmatter(frontmatter: Any, filename: str) -> List[str]:
 
     if "user-invocable" in frontmatter:
         user_invocable = frontmatter["user-invocable"]
-        if not isinstance(user_invocable, bool) and user_invocable not in {"true", "false"}:
+        if not isinstance(user_invocable, bool) and (
+            not isinstance(user_invocable, str) or user_invocable not in {"true", "false"}
+        ):
             errors.append("Invalid user-invocable: expected a Boolean or 'true'/'false'")
 
     if "tags" in frontmatter:
