@@ -19,14 +19,6 @@ repos:
 
   - repo: local
     hooks:
-      - id: fast-tests
-        name: "run fast pytest tier"
-        description: "Run the same pytest selection as pull-request CI."
-        language: system
-        entry: "uv run python -m pytest tests/ -m 'not nightly' -q"
-        pass_filenames: false
-        always_run: true
-
       - id: forbid-or-true
         name: "forbid silent-failure workaround in shell/YAML/Dockerfile/justfile/HCL"
         description: >

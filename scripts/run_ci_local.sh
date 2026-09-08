@@ -7,7 +7,7 @@
 # Usage:
 #   ./scripts/run_ci_local.sh                 # Run all CI checks
 #   ./scripts/run_ci_local.sh validate        # Skill-file validation
-#   ./scripts/run_ci_local.sh test            # fast pytest tier (pre-commit/PR)
+#   ./scripts/run_ci_local.sh test            # fast pytest tier (pull-request CI)
 #   ./scripts/run_ci_local.sh nightly-test    # nightly pytest tier
 #   ./scripts/run_ci_local.sh lint            # yamllint + mypy + PII check
 #   ./scripts/run_ci_local.sh schema          # Workflow YAML schema validation

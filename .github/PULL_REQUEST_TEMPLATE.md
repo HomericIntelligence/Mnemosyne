@@ -12,7 +12,7 @@
 
 ## Test Plan
 
-- [ ] Tests pass locally
+- [ ] I ran and validated each new test before I created this pull request
 - [ ] Changes verified manually
 
 ## Checklist

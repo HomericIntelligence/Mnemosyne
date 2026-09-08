@@ -36,7 +36,8 @@ instructions.
 3. Complete the YAML frontmatter. See [Skill Structure](#skill-structure).
 4. Complete all required Markdown sections.
 5. You can create `skills/<name>.notes.md` for privacy-safe session details.
-6. Create a pull request. Follow the
+6. If you add tests, run and validate each new test.
+7. Create a pull request. Follow the
    [branch conventions](#branch-and-commit-conventions).
 
 ## Skill Structure
@@ -185,16 +186,17 @@ docs: update migration status - 100% complete
 1. Create a branch following the naming conventions above.
 2. Make the required changes.
 3. Before you push, run local validation. See [Validation](#validation).
-4. Push your branch.
-5. Create a pull request.
-6. Let CI validate these requirements:
+4. If you add tests, run and validate each new test.
+5. Push your branch.
+6. Create a pull request.
+7. Let CI validate these requirements:
    - YAML frontmatter has required fields.
    - All required markdown sections are present.
    - Failed Attempts section exists.
    - The description field is present.
    - Category is valid.
-7. Confirm that the description has specific trigger conditions.
-8. After CI passes and reviewers approve the pull request, maintainers can
+8. Confirm that the description has specific trigger conditions.
+9. After CI passes and reviewers approve the pull request, maintainers can
    merge it.
 
 ### Merge queue readiness
@@ -207,11 +209,20 @@ does not prove that a pull request entered the queue.
 
 ## Validation
 
-CI validates all pull requests. Before you submit a pull request, run local
-validation:
+CI validates all pull requests. Pre-commit does not run pytest. CI is the
+automated authority for the complete test suite.
+
+Before you submit a pull request, run local validation:
 
 ```bash
 python3 scripts/validate_plugins.py
+```
+
+If you add tests, run and validate each new test before you create the pull
+request:
+
+```bash
+uv run python -m pytest path/to/new_test.py
 ```
 
 The validator does these checks:

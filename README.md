@@ -89,7 +89,8 @@ Athena searches the corpus and returns relevant skills.
 2. Complete the YAML frontmatter.
 3. Complete all required Markdown sections.
 4. Include the required **Failed Attempts** table.
-5. Create a pull request.
+5. If you add tests, run and validate each new test.
+6. Create a pull request.
 
 ### Required Sections in Skill Files
 
@@ -111,6 +112,13 @@ CI validates all pull requests:
 - The description field is present.
 - The category is valid.
 - Each retrievable main skill is at or below 30,000 bytes.
+
+Pre-commit does not run pytest. CI is the automated authority for the complete
+test suite. Before you create a pull request, run and validate each new test:
+
+```bash
+uv run python -m pytest path/to/new_test.py
+```
 
 Authors and reviewers must confirm that each description contains specific trigger
 conditions.
