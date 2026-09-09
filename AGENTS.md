@@ -313,8 +313,8 @@ Write skills that users can apply in multiple repositories:
 7. Use this filename format:
    `<topic>-<subtopic>-<short-4-word-summary>.md`.
 8. Use lowercase kebab-case for the filename.
-9. If you add tests, run and validate each new test before you create a pull
-   request.
+9. If you add tests, use the Validation Delegation workflow to run and validate
+   each new test before you create a pull request.
 10. Before a merge, let CI validate the frontmatter, sections, and complete test
     suite. Pre-commit does not run pytest.
 

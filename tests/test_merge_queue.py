@@ -326,13 +326,13 @@ def test_release_publisher_remains_tag_only() -> None:
     assert on_block == {"push": {"tags": ["v*"]}}
 
 
-def test_precommit_and_pr_ci_use_the_same_fast_test_selection() -> None:
+def test_pytest_is_absent_from_precommit_and_pr_ci_uses_fast_selection() -> None:
     precommit = (REPO_ROOT / ".pre-commit-config.yaml").read_text()
     workflow = _load_workflow(REQUIRED_WORKFLOW)
     test_steps = workflow["jobs"]["unit-tests"]["steps"]
     test_step = next(step for step in test_steps if step.get("name") == "Run fast test suite (in container)")
 
-    assert _fast_test_command("-q") in precommit
+    assert _fast_test_command("-q") not in precommit
     assert _fast_test_command("-q") in test_step["run"]
 
 
