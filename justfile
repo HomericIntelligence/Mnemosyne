@@ -29,7 +29,7 @@ package:
 
 # === Testing ===
 
-# Run the fast test tier used by pre-commit and pull-request CI
+# Run the fast test tier used by pull-request CI
 test:
     uv run python -m pytest {{ test_dir }} -m 'not nightly' -q
 
