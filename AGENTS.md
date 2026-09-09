@@ -76,8 +76,10 @@ This section has priority over general Athena directions for testing.
 The main agent must not run validation commands. Validation commands include
 tests, lint checks, format checks, type checks, and builds. The main agent
 selects commands from a fixed command plan from trusted host policy. The main
-agent gives the validation sub-agent the exact source commit. The source tree
-must be clean.
+agent must use a validation sub-agent for each validation run. A suitable
+validation sub-agent can do more than one validation run. The main agent does
+not have to create a new sub-agent for each run. The main agent gives the
+validation sub-agent the exact source commit. The source tree must be clean.
 
 Use `gpt-5.6-luna` with `xhigh` reasoning for the validation sub-agent. If that
 model is not available, use the weakest available model with at least `medium`
