@@ -118,4 +118,3 @@ A valid preflight gives these results:
 
 - [Exact argv admission at the subprocess boundary](tooling-command-admission-exact-argv-boundary-enforcement.md)
 - [Automation agent tool scopes](automation-agent-tool-scopes-least-privilege.md)
-
