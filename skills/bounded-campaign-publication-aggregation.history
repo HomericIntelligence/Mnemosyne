@@ -1,0 +1,9 @@
+# History: bounded-campaign-publication-aggregation
+
+## v1.0.0 (2026-09-11)
+
+Created the rule for promoting the latest cumulative reports to a campaign root when redundant
+per-cycle copies would exhaust a bounded public projection. The rule preserves immutable prior
+cycles and requires hash, byte-budget, omission, and atomic-rollback evidence.
+
+Provenance: Privacy-safe generalization from a locally verified publication-extension regression.
