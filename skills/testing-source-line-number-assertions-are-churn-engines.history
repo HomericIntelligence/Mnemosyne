@@ -1,0 +1,28 @@
+# Version history
+
+## 1.1.0
+
+Archive status: privacy-redacted.
+
+The prior entry contained project identifiers and delivery references.
+The exact snapshot is intentionally omitted under the legacy privacy-redaction rule.
+No secret, regulated record, or erasure request was identified in this operation.
+
+Privacy-safe provenance: the selected prior main entry was examined before replacement.
+Its removal guidance was supported by prior delivery evidence.
+Its proposed scanner and empty-selection rules were not equivalent to completed guard implementation.
+
+## 1.2.0
+
+Date: 2026-09-11.
+Disposition: amend.
+
+Keep the existing retrieval intent. Replace layout invariants with behavior checks.
+Distinguish diagnostic locations from fixed implementation positions.
+Reject empty test selections as passing evidence.
+Keep automated enforcement separate from a requested review rule.
+
+Privacy-safe provenance: a maintainer-directed removal retained functional tests
+and passed repository checks before merge. A subsequent corpus comparison
+identified conflicting replacement and validation instructions.
+No project identifiers, source excerpts, or internal evidence pointers are retained.
