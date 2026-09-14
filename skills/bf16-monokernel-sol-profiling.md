@@ -1,9 +1,9 @@
 ---
 name: bf16-monokernel-sol-profiling
-description: "Build and optimize a reproducible BF16 CUDA monokernel benchmark. Use when workload normalization may duplicate cases, semantic outputs and intermediate-state parity need separate acceptance policies, a cooperative launch needs phase attribution without external counters, GPU profiling needs provenance and isolation, tiny grids underfill the GPU, multi-position acceptance needs a minimax rule, or compiler/resource changes disagree with composed-kernel correctness and latency."
+description: "Build and optimize a reproducible BF16 CUDA monokernel benchmark. Use when workload normalization may duplicate cases, semantic outputs and intermediate-state parity need separate acceptance policies, a cooperative launch needs phase attribution without external counters, GPU profiling needs provenance and isolation, tiny grids underfill the GPU, multi-position acceptance needs a minimax rule, compiler/resource changes disagree with composed-kernel correctness and latency, or memory-layout changes affect alignment and workspace fit."
 category: optimization
 date: 2026-08-09
-version: "2.1.0"
+version: "2.2.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-local
@@ -25,7 +25,7 @@ runnable implementation. Keep stricter parity checks visible even when they are 
 
 Detailed campaign cases and artifact locations are indexed in
 [`bf16-monokernel-sol-profiling.notes.md`](bf16-monokernel-sol-profiling.notes.md).
-The complete prior source is in
+Prior versions and archive decisions are in
 [`bf16-monokernel-sol-profiling.history`](bf16-monokernel-sol-profiling.history).
 
 ## When to Use
@@ -44,6 +44,8 @@ The complete prior source is in
 - Fewer instructions/registers, partial unrolling, index narrowing, or shared-state movement makes
   the composed kernel slower.
 - Timing may be contaminated by another process or a different lock namespace on the same GPU.
+- A vector access requires more alignment than the public API guarantees.
+- A smaller reduction changes scratch storage, but an old fit guard still selects a slow path.
 
 ## Verified Workflow
 
@@ -167,6 +169,26 @@ Dispatch substitution is only a reachability control because it changes topology
 mechanism. For the real candidate, retain accepted dispatch and implement equivalent lowering in
 every active path where the geometry is legal.
 
+### Memory-layout changes need contract and boundary checks
+
+Trace each vector access back to its allocation and the public API contract. Check the
+alignment of the base pointer, every offset, and every row stride. A caller-supplied workspace
+is not an internal allocation. Aligned test fixtures do not prove that every legal caller
+satisfies a wider access requirement. If the requirement is stronger than the API guarantee,
+retain an alignment-safe path inside the optimized implementation. Test the weakest legal
+alignment before production use. Do not strengthen host admission to make the candidate pass.
+
+When a reduction publishes fewer temporary values, update its offsets, allocation requirement,
+and fit predicate together. Prove that all live regions remain disjoint and in bounds. Include
+other scratch regions in the proof; compacting one region does not remove the others. Trace the
+selected path immediately below and above the new fit boundary. Then compare the full kernel
+with an adjacent baseline under the unchanged gate. Mark unavailable boundary fixtures as
+untested instead of claiming support for an entire range.
+
+A stale workspace guard can hide the main benefit of a compact reduction by retaining a slow
+fallback. Report that path-selection effect separately from arithmetic improvements. A benefit
+at a short input does not establish a benefit at the campaign's primary input.
+
 ### 7. Diagnose the composed kernel without static rejection gates
 
 Build the exact full composition. Resource metrics are diagnostic and cannot reject a runnable
@@ -271,5 +293,5 @@ this reusable decision procedure.
 - Verified-local BF16 decode evidence through 2026-08-26 qualified a target-policy fast intrinsic at
   nominal and extreme contexts plus the minimum legal grid, retained stricter parity, and confirmed a
   matched uninstrumented latency improvement without changing unaffected target policies.
-- Compaction for issue #3335 preserved the verification boundary and did not claim NCU counters
-  where host policy denied them.
+- Historical consolidation preserved the verification boundary and did not claim performance
+  counters where host policy denied them.

@@ -96,3 +96,20 @@ diagnostics, then decide from an uninstrumented confirmation.
   `ee2dae76415650e0cd96ed95ee76dd8e0278d77c8153b1f5bd2b730f5075daa7`
 - Issue #3335 base: `1ae0cb498e5250c341c2a4bf585f97e2a28060af`
 - Old/new version: `1.25.0` → `2.0.0`
+
+## Memory-layout contract evidence
+
+A local candidate used wider stores on caller-supplied buffers. The existing fixtures passed,
+but source inspection found that the API accepted weaker alignment. The fixture results therefore
+did not establish safety for all legal calls. An implementation-level alignment guard preserved
+the contract. The revised candidate required its own measurements; the earlier result did not
+transfer automatically. No misaligned execution result is claimed.
+
+In a separate local experiment, a reduction emitted fewer temporary candidates while its original
+workspace offsets and fit predicate remained unchanged. A follow-up compacted both regions and
+recomputed the required capacity. A previously slow short input then used the parallel path and
+passed the unchanged output gate. This supports checking workspace admission after compaction. It
+does not prove unmeasured boundary inputs, universal speedups, or general production qualification.
+
+The reusable main contains the decision rules. Internal identities, source code, paths, exact
+workload dimensions, and measured timings are intentionally excluded from this evidence summary.

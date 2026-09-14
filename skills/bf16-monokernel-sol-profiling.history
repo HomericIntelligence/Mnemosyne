@@ -537,3 +537,14 @@ this reusable decision procedure.
 - Compaction for issue #3335 preserved the verification boundary and did not claim NCU counters
   where host policy denied them.
 ````
+
+## v2.2.0
+
+- Prior version: `2.1.0`.
+- Prior archive status: `privacy-redacted`.
+- Reason: the prior main contained legacy campaign identifiers.
+- The exact prior snapshot was intentionally omitted. No retrieval pointer is retained here.
+- Change: add public-alignment and workspace-fit boundary checks to memory-layout optimization.
+- Provenance: generalized local source inspection and paired fixture observations.
+- Verification boundary: evidence supports the stated checks, not universal alignment or input coverage.
+- Delivery validation: repository validation is pending in an approved execution boundary.
