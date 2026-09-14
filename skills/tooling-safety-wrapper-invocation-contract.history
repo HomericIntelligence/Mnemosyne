@@ -1,0 +1,13 @@
+# tooling-safety-wrapper-invocation-contract — History
+
+## v1.0.0 (2026-09-11)
+
+**Change:** Created the canonical rule for the first execution of a
+safety-sensitive pass-through wrapper.
+
+**Provenance:** A privacy-safe local automation session supplied the failure
+evidence. The initial wrapper call omitted its required positional arguments.
+The parser stopped before downstream execution.
+
+**Archive result:** Initial version. No prior version exists.
+
