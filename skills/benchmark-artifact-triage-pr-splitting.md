@@ -3,12 +3,12 @@ name: benchmark-artifact-triage-pr-splitting
 license: BSD-3-Clause
 description: "Triage and incrementally publish generated benchmark result artifacts. Use when: (1) benchmark/report runs leave many untracked files, (2) result PRs must include durable reports and exact current records without logs or scratch residue, (3) live sweeps need consistency-checked report snapshots with stable record identities, (4) a new result must be integrated into an existing PR without regressing its newer snapshot, (5) Pareto/report assets need validation before staging."
 category: tooling
-date: 2026-08-19
-version: "1.3.0"
+date: 2026-09-15
+version: "1.4.0"
 history: benchmark-artifact-triage-pr-splitting.history
 user-invocable: false
 verification: verified-local
-tags: [benchmark, artifacts, triage, results, pareto, pr-splitting, git, reproducibility, concurrency, capacity, provenance, artifact-index, live-sweep, runner-compatibility, pr-head, redaction]
+tags: [benchmark, artifacts, triage, results, pareto, pr-splitting, git, reproducibility, concurrency, capacity, provenance, artifact-index, live-sweep, runner-compatibility, pr-head, redaction, coverage-forecast]
 ---
 
 # Benchmark Artifact Triage and PR Splitting
@@ -34,6 +34,7 @@ tags: [benchmark, artifacts, triage, results, pareto, pr-splitting, git, reprodu
 - A local result commit was built from an older snapshot than the open destination PR and must be integrated without removing records already present in that PR.
 - A large result set needs to be split by model family, backend, endpoint, or dataset so reviewers can inspect it without a huge all-in-one PR.
 - You need to preserve durable benchmark information without committing logs, scratch directories, progress files, overlays, or build/runtime residue.
+- You need to estimate remaining work in a multi-stage benchmark campaign before relaunching workers or reporting completion.
 
 ## Verified Workflow
 
@@ -107,10 +108,13 @@ git diff --cached --check
 9. **Keep campaign execution separate from publication.**
    Leave raw results and live worker residue in the campaign worktree. Promote only the frozen aggregate, detailed reports, data bundles, and intentional generator changes into a clean result-PR worktree. This prevents runtime logs and a partially refreshed report tree from entering the publication diff.
 
-10. **Create explicit candidate lists in `/tmp`.**
+10. **Forecast coverage before relaunching.**
+   Derive remaining work from the benchmark contract and its evidence gates, not from the number of request rows already present. Count endpoint discovery cells, headline blocks, profiler controls, analytical runs, and kernel-counter pairs as separate work classes. Record completed, failed, blocked, and pending counts for each class, and keep client concurrency separate from scheduled active batch. Existing rows establish coordinate coverage only after they satisfy the applicable success gate.
+
+11. **Create explicit candidate lists in `/tmp`.**
    Write one file list per intended PR, such as `/tmp/endpoint-reports.txt`, `/tmp/model-baseline.txt`, or `/tmp/inference-json-complete.txt`. Avoid `git add -A` and broad directory adds; generated benchmark directories often contain valuable reports next to useless runtime files.
 
-11. **Classify artifacts by information value.**
+12. **Classify artifacts by information value.**
    Keep durable information:
 - generated reports such as `PARETO.md`, backend reports, and README files that summarize results;
 - `summary.csv` and `summary.md` files with non-empty result rows;
@@ -126,28 +130,28 @@ git diff --cached --check
 - empty failure logs;
 - partial or zero-completion JSON benchmark records unless the PR is explicitly a failure-analysis archive.
 
-12. **Validate CSV report artifacts before staging.**
+13. **Validate CSV report artifacts before staging.**
    For each summary, check row count, status values, profile/scenario coverage, and backend/model labels. A useful report PR should say exactly what it includes, such as "69 rows across short, medium, and long" or "TRT rows only, SGLang absent." If rows are marked interrupted but still plotted, put that caveat in the PR body.
 
-13. **Validate report asset references.**
+14. **Validate report asset references.**
    Search markdown reports for referenced images and confirm each image exists. If a referenced image is untracked, include it with the report. A report without its referenced Pareto images is broken rendered documentation, not a clean text-only result.
 
-14. **Validate structured JSON benchmark records by completion.**
+15. **Validate structured JSON benchmark records by completion.**
    Parse JSON rather than relying on filenames. Require `completed == prompt_count` or `completed == num_prompts` and zero failed requests for result PRs that claim comparable records. Validate freshness separately from the canonical benchmark index; raw result JSON may not carry `freshness_status`. Leave zero-completion and partial records untracked unless the PR title and body are explicitly about failure evidence.
 
-15. **Preserve concurrency coverage and scope capacity claims.**
+16. **Preserve concurrency coverage and scope capacity claims.**
    Treat concurrency as a first-class result dimension. Record the requested and observed concurrency for every retained result, and state the observed set in the report or PR body. A concurrency-one result is a latency baseline; it cannot establish saturation, largest supported concurrency, or maximum throughput. Make those claims only after an explicit sweep over higher concurrency values, and only select a capacity or maximum-performance point from a run with complete prompt accounting, zero failed requests, and finite non-negative throughput. Retain failed or partial sweep records only when they are deliberately included as failure evidence, and never use them as peak-performance candidates.
 
-16. **Stage from the reviewed file lists.**
+17. **Stage from the reviewed file lists.**
    Use `git add --pathspec-from-file=/tmp/<list>.txt` so the staged set exactly matches the reviewed set. After staging, compare `git diff --cached --name-only` to the list and investigate any mismatch.
 
-17. **Run a pre-commit staged audit for every PR.**
+18. **Run a pre-commit staged audit for every PR.**
    Before each commit, run staged stats, staged file count, a transient-pattern scan, `git diff --cached --check`, data-specific validation, and an added-line privacy scan. Rewriting an aggregate JSONL or table row can expose an old sensitive value even when the newly integrated record is clean. Fix that value at the generator or import boundary, add a regression check, regenerate the affected consumers, and rescan; do not hand-edit generated output.
 
-18. **Split PRs by dataset and review size.**
+19. **Split PRs by dataset and review size.**
    Prefer one PR per endpoint/model family/report surface. For large structured JSON sets, split by model family or experiment group so each PR remains reviewable. State exact included counts and excluded categories in every PR body.
 
-19. **Return to trunk and inspect leftovers.**
+20. **Return to trunk and inspect leftovers.**
    After opening PRs, switch back to trunk and run `git status --short --untracked-files=all`. The remaining untracked files should all be intentionally excluded categories, not forgotten report assets.
 
 ## Failed Attempts
@@ -165,6 +169,7 @@ git diff --cached --check
 | Render directly into the PR worktree during a live sweep | Let the report generator consume mutating indexes while replacing published assets | The result can mix generations and leave reports, counts, and referenced data out of sync | Establish a lock, immutable generation, or stable pre/post index digests with referenced-result validation; render to a temporary snapshot, validate it, then promote it. |
 | Run overlapping workers against one endpoint | Treat benchmark worker parallelism as equivalent to request concurrency | Workers contend for one capacity surface and can race on the same index, obscuring both performance and provenance | Use one writer per independently isolated endpoint; express load through the coordinate's request concurrency. |
 | Replace an existing PR snapshot with a stale local candidate | Push a locally valid snapshot containing one new record over a destination that already has additional valid identities | Direct replacement silently removes destination-only evidence and can also leave derived reports or source locks inconsistent | Bind the destination head, merge by stable identity with zero unexpected removals, regenerate every consumer, and verify the head again before publishing. |
+| Relaunch from the current row count | Treat existing request rows as proof that every benchmark-contract gate is complete | Discovery, profiler, analytical, and counter-pair gates can remain missing even when endpoint rows are present | Forecast remaining work by evidence class and gate, with separate completed, failed, blocked, and pending counts, before scheduling another run. |
 
 ## Results & Parameters
 
@@ -182,6 +187,7 @@ git diff --cached --check
 | Stable canonical indexed-results root | Keep invariant | Do not change the path ancestor used to derive opaque record identities between snapshots. |
 | Incremental live-sweep snapshot | Keep after consistency audit | Use a lock, immutable generation, or stable pre/post index digests with referenced-result validation; preserve prior IDs unless explicitly superseded and render outside the PR worktree first. |
 | Existing-PR snapshot addition | Merge from the bound destination head | Require all destination identities plus exactly the expected additions, recompute counts, regenerate direct and transitive consumers, scan added lines for sensitive values, and stop if the destination head moves. |
+| Coverage forecast | Keep as a campaign planning artifact | Compare the benchmark-contract matrix and evidence gates by class; do not infer profiler, analytical, or counter coverage from endpoint-row counts. |
 | Benchmark workers | One per isolated endpoint | Parallelize across distinct endpoints; use request concurrency inside a coordinate to measure capacity. |
 | Concurrency-one records | Keep as latency baselines | Label as `concurrency=1`; do not use for saturation or capacity claims. |
 | Higher-concurrency sweep records | Keep when complete | Record the requested and observed set; use only complete, zero-failure records for capacity or peak-throughput selection. |
