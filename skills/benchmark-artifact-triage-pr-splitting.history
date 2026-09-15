@@ -1,5 +1,27 @@
 # Benchmark Artifact Triage and PR Splitting — History
 
+## v1.4.0 (2026-09-15)
+
+**Changed by:** Privacy-cleared performance campaign coverage review.
+**Verification:** verified-local after repository validation.
+
+### What changed
+
+- Added contract-first forecasting for endpoint, profiler, analytical, and kernel-counter evidence
+  gates before relaunching benchmark work.
+- Required separate completed, failed, blocked, and pending counts; request-row counts do not prove
+  that other evidence gates are complete.
+
+### Why
+
+Multi-stage campaigns can have many endpoint rows while profiler, analytical, or counter evidence
+remains missing. Forecasting by evidence class prevents false completion and redundant relaunches.
+
+### Prior-version archive
+
+The complete v1.3.0 snapshot is the immediately preceding main artifact in the delivery worktree;
+its content is retained unchanged below the existing v1.3.0 record.
+
 ## v1.3.0 (2026-08-19)
 
 **Changed by:** Privacy-cleared benchmark publication session.

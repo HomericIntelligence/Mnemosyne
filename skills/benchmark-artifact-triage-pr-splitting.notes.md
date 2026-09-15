@@ -13,3 +13,15 @@
 - Raw profiler captures, operational logs, endpoints, internal paths, model or customer identifiers, repository names, issue numbers, and exact campaign measurements are intentionally excluded.
 - The evidence supports snapshot integration, provenance, regeneration, and privacy-audit rules. It does not establish profiler-capture completeness or kernel-level performance conclusions.
 - Existing-PR publication remains conditional on rebinding the destination identity and head immediately before push; a moved head requires stopping and repeating the merge proof.
+
+## Verification evidence for v1.4.0
+
+- A multi-stage inference campaign requires endpoint, profiler, analytical, and counter evidence
+  gates whose completion cannot be inferred from the count of request rows.
+- The reusable rule is to forecast each evidence class from the benchmark contract, preserving
+  separate completed, failed, blocked, and pending counts before relaunching work.
+
+## Evidence boundaries for v1.4.0
+
+- This rule governs campaign accounting and scheduling. It does not claim that any profiler,
+  analytical, or serving measurement exists when its gate is incomplete.
