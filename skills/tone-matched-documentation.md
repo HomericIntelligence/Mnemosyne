@@ -1,11 +1,11 @@
 ---
 name: tone-matched-documentation
 license: BSD-3-Clause
-description: Fill placeholder sections in documents while matching the author's existing
-  writing style and tone
+description: Fill placeholder sections while preserving the author's narrative structure and
+  matching the existing writing style and tone
 category: tooling
 date: 2026-01-11
-version: 1.0.0
+version: 1.1.0
 user-invocable: false
 ---
 # Tone-Matched Documentation Skill
@@ -21,7 +21,7 @@ user-invocable: false
 | Field | Value |
 | ------- | ------- |
 | **Date** | 2026-01-11 |
-| **Session ID** | ProjectScylla paper authoring |
+| **Session ID** | General documentation authoring |
 | **Objective** | Fill placeholder sections (`<...>`) in academic paper while matching author's conversational, direct writing style |
 | **Outcome** | SUCCESS - Filled 16 sections (~4000 words) maintaining consistent tone throughout |
 | **Category** | tooling |
@@ -38,6 +38,9 @@ Use this skill when:
 3. **Tone matters** - document needs consistent voice (not generic formal writing)
 4. **Multiple sections** - filling 5+ sections where consistency is critical
 5. **Mixed content types** - tables, formulas, prose need to match overall style
+
+6. **Document has authored scaffolding** - headings, section prompts, TODO markers, or agent
+   placeholders define the intended story and must remain until the owner resolves them
 
 **Trigger phrase**: "Fill in the marked sections matching my style/tone"
 
@@ -100,6 +103,12 @@ Use this skill when:
    - Maintain core voice but adapt formality for content
 
 4. **Batch 3: Final sections and verify**
+
+**Preserve the story:** Treat existing headings, transitions, prompts, and placeholders as
+authored structure. Do not replace the document with a metrics inventory or a new outline. Add
+measurements and caveats inside the existing sections. If a placeholder cannot be resolved, leave
+it visible and explain the evidence gap in nearby prose. Use a separate appendix or evidence
+register for dense provenance details so the main narrative remains readable.
 
 ### Phase 4: Tone Revision (If Requested)
 

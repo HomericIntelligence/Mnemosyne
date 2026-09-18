@@ -1,0 +1,8 @@
+## 1.0.0 — privacy-redacted archive
+
+- archive_status: privacy-redacted
+- reason: The prior entry contained project-specific identifiers and session details.
+- change_summary: Added a decision rule to preserve authored narrative scaffolding and placeholders
+  while inserting evidence incrementally; avoid replacing a report with a technical inventory.
+- provenance: Prior local revision inspected before amendment.
+- exact_snapshot: intentionally omitted.
