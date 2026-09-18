@@ -1,0 +1,13 @@
+# preserve-primary-failure-diagnostics — History
+
+## v1.0.0 (2026-09-15)
+
+**Change:** Created the canonical rule for a failed operation followed by a failed reconciliation
+probe.
+
+**Provenance:** A privacy-safe automation session supplied the failure evidence. The initial
+operation produced useful diagnostics. A later state probe failed and replaced that evidence until
+the failure boundary preserved both causes. Focused failure-route tests and exact-source continuous
+integration passed.
+
+**Archive result:** Initial version. No prior version exists.
