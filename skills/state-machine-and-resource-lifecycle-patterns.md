@@ -360,7 +360,8 @@ grep -rn "ProcessPoolExecutor\|from multiprocessing import Manager\|BrokenProces
 
 **Key decision** — threads are sufficient when workers run external CLI subprocesses (`subprocess.run()`/`Popen()`), because the GIL is released during I/O and the real work happens in external processes.
 
-**Semantic rebase strategy** when the final commit subsumes earlier incremental fixes:
+**Semantic rebase strategy** only when an active task is blocked by reviewable history that the
+final commit subsumes. Do not use it merely because main advanced; CI/CD integrates completed work:
 
 ```bash
 # Edit rebase todo to drop superseded intermediate commits

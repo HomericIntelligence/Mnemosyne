@@ -1,10 +1,10 @@
 ---
 name: rebase-stale-automation-pr-onto-refactored-main
 license: BSD-3-Clause
-description: "Semantic conflict-resolution and clean-history rebuild patterns for stale automation-authored PRs after a large refactor. Use when: (1) a queued/DIRTY PR was branched many commits behind and now conflicts after a big landed refactor, (2) a PR routes to a pipeline stage/symbol the refactor deleted, (3) a merge queue crawls because stale-base PRs fail a newly landed gate, (4) an automation update created a DCO-less merge commit, (5) a stale PR adds a workflow job that misses current security hardening, (6) two PRs claim the same ADR number, (7) an AST-guard registry conflicts with renamed call sites, (8) deciding whether a PR is genuinely superseded, (9) a PR history contains an unrelated duplicated commit and must be rebuilt from current main, (10) a rewritten PR needs an exact-head strict-review gate and rollback lease."
+description: "Semantic conflict-resolution and clean-history rebuild patterns for automation-authored PRs after a large refactor. Use when: (1) a queued/DIRTY PR now reports a conflict, (2) an active task needs a main artifact that the refactor changed, (3) a merge queue crawls because stale-base PRs fail a newly landed gate, (4) an automation update created a DCO-less merge commit, (5) a PR adds a workflow job that misses current security hardening, (6) two PRs claim the same ADR number, (7) an AST-guard registry conflicts with renamed call sites, (8) deciding whether a PR is genuinely superseded, (9) a PR history contains an unrelated duplicated commit and must be rebuilt from current main, (10) a rewritten PR needs an exact-head strict-review gate and rollback lease."
 category: ci-cd
 date: 2026-07-20
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: unverified
 history: rebase-stale-automation-pr-onto-refactored-main.history
@@ -39,17 +39,23 @@ tags:
 | Field | Value |
 |-------|-------|
 | **Date** | 2026-07-20 |
-| **Objective** | Preserve valid PR intent across a refactored `main`, including the case where the stale branch history is contaminated by an unrelated duplicated commit and must be rebuilt rather than replayed. |
+| **Objective** | Preserve valid PR intent across a refactored `main` when a reported conflict or an active task requires main content, including the case where the branch history is contaminated by an unrelated duplicated commit and must be rebuilt rather than replayed. |
 | **Outcome** | The original semantic-rebase workflow is verified in CI. The new contaminated-history rebuild, explicit path-scope proof, rollback lease, and exact-head review gate are proposed from a reviewed implementation plan but have not been executed end-to-end. |
 | **Verification** | unverified for the v1.1.0 rebuild extension; the inherited v1.0.0 semantic conflict catalog remains verified-ci. See the [changelog](./rebase-stale-automation-pr-onto-refactored-main.history). |
 
 ## When to Use
 
-Reach for this when a **single** stale PR must be replayed onto a `main` that a
-large refactor restructured — a different problem from a multi-repo backlog
-sweep (see `automation-multi-repo-pr-sweep-rebase-resolve` for that). The value
-here is the **catalog of semantic conflict classes** the refactor creates and
-how to resolve each faithfully.
+Reach for this when a **single** PR reports a merge conflict after a large
+refactor, or when an active task cannot continue without a main artifact that
+the refactor changed. This is different from a multi-repo backlog sweep (see
+`automation-multi-repo-pr-sweep-rebase-resolve`). The value here is the
+**catalog of semantic conflict classes** the refactor creates and how to
+resolve each faithfully.
+
+At task start, a branch can pin to `main` for implementation, review, or any
+other work. Keep that base stable after task start. Do not rebase because the
+branch is old or the merge queue is slow. For a completed PR without a reported
+conflict, let repository CI/CD integrate the branch with `main`.
 
 Also use the rebuild variant when the PR's desired file changes are valid but
 its commit graph contains scope bleed from another issue. In that case, a
@@ -112,18 +118,19 @@ NOT queue config. Check, in order:
    A PR ~6+ behind, whose `_required.yml`/`contract.yml` differs from `main`, will
    FAIL the new gate in its `merge_group` — then GitHub ejects it after a full
    ~20-min matrix and **re-validates every entry behind it**. That cascade, not
-   runners, is the crawl. **Fix = rebase the stale PRs onto current `main`** (which
-   pulls in the hardened workflow files). Re-enqueuing without rebasing just
-   re-poisons the queue.
+   runners, is the crawl. Let the repository integration path supply ordinary
+   main updates. Rebase only a branch with a reported conflict, or an active
+   task that needs the hardened workflow content to continue. Re-enqueuing a
+   branch without resolving its actual failure just re-poisons the queue.
 
 ### The conflict classes (resolve each this way)
 
 - **DCO-less merge commit** — an automation "update main into branch" created a
   `Merge remote-tracking branch ...` commit with no `Signed-off-by` trailer;
-  `pr-policy` rejects it. **Rebase onto `origin/main`** — this DROPS the merge
-  commit entirely, replaying only the real (already-signed+DCO) work commit. Do
-  not try to amend a merge commit. (Commit-signing remediation proper lives in
-  `pr-compliance-dco-and-rebase-fix`.)
+  `pr-policy` rejects it. This active PR-policy block permits a rebase onto
+  `origin/main`, which drops the merge commit and replays only the real
+  (already-signed+DCO) work commit. Do not try to amend a merge commit.
+  (Commit-signing remediation proper lives in `pr-compliance-dco-and-rebase-fix`.)
 
 - **zizmor `artipacked` on a NEW job** — the landed security PR added
   `persist-credentials: false` to every *pre-existing* checkout, but the stale
@@ -158,8 +165,9 @@ NOT queue config. Check, in order:
   landed PR (same issue, same file, older base whose diff would REVERT newer
   work) is genuinely superseded → close it, resolve its issue. But a PR that
   merely mentions `pixi run` in its stale testing-boilerplate section is NOT
-  pixi-specific — check `git diff --name-only` for actual `pixi*` file touches;
-  if none, its substance is real → rebase it, don't close it.
+  pixi-specific — check `git diff --name-only` for actual `pixi*` file touches.
+  If none, its substance is real; preserve its base unless a reported conflict
+  or active-task main-content need permits a rebase.
 
 ### Quick Reference
 
@@ -178,7 +186,8 @@ diff <(git show origin/main:.github/workflows/_required.yml) \
      <(git show origin/$BR:.github/workflows/_required.yml) >/dev/null \
      && echo "fresh" || echo "STALE workflow -> will fail zizmor in merge_group"
 
-# 3. Rebase in an ISOLATED worktree; a DCO-less merge commit is dropped automatically
+# 3. Only after a reported conflict or an active-task main-content need, rebase in an
+#    ISOLATED worktree; a DCO-less merge commit is dropped automatically
 git worktree add /tmp/rb-$BR "$BR"
 cd /tmp/rb-$BR && git fetch origin main "$BR" && git rebase origin/main
 # ...resolve each conflict class per the sections above...
@@ -244,7 +253,7 @@ Workflow above are explicitly excluded from this verification claim.
 
 - **Scale:** one session cleared all DIRTY PRs after a large refactor landed; each reached MERGEABLE + armed or was closed as genuinely superseded (with its issue resolved).
 - **Verification signal:** the repo's OWN guard tests are the oracle — an AST-scanning `dontAsk` registry test and a doc/ADR retirement test each *pass only if* the resolution matches the real code. Run them on the resolved tree before pushing.
-- **Queue mechanics:** `maximumEntriesToMerge` is not the throughput limit when entries FAIL; a failing entry ejects after a full matrix and re-stacks the tail. Throughput recovers only after the stale bases are rebased away.
+- **Queue mechanics:** `maximumEntriesToMerge` is not the throughput limit when entries FAIL; a failing entry ejects after a full matrix and re-stacks the tail. Resolve the reported conflict or task-blocking main-content need; CI/CD owns ordinary base integration.
 - **Merge-method:** merge-queue repos reject `gh pr merge --squash`; arm with bare `--auto`.
 - **Signatures:** rebasing re-signs replayed commits automatically when the GPG key is configured; verify `git log --show-signature` shows Good + `Signed-off-by` before pushing. Sign with `4211002+mvillmow@users.noreply.github.com`.
 - **Rebuild inputs:** exact base ref, live remote PR-head SHA, local-only backup ref,

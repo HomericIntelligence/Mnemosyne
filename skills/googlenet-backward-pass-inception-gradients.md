@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Use when: (1) implementing neural network backward passes through Inception modules with multiple branches; (2) splitting gradients across parallel branches using split_with_indices with channel tables; (3) implementing SGD-momentum parameter updates for large numbers of parameters (100+); (4) debugging Batch Normalization backward pass tuple indexing ([0]/[1]/[2] for grad_input/gamma/beta); (5) generating highly repetitive gradient computation code via Python helpers to avoid copy-paste errors; (6) handling merge conflicts when rebasing backward-pass PRs with fine-tuned imports."
 category: optimization
 date: 2026-07-04
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 tags: [googlenet, inception, backward-pass, gradient-splitting, split_with_indices, channel-tables, sgd-momentum, batch-norm-gradients, python-code-generation, gradient-combining, merge-conflict-resolution, parameter-updates, mojo]
 verification: verified-precommit
@@ -426,7 +426,7 @@ var grad_beta = bn_backward_result[2]       # [2] = grad_beta
 - [ ] Verify all parameter names match initialize_velocities() order
 - [ ] Run pre-commit: `pixi run pre-commit run --all-files`
 - [ ] Test gradient computation gates
-- [ ] Rebase onto main if needed: `git rebase main --strategy-option=ours`
+- [ ] Rebase only for a reported merge conflict or an active task that needs main content
 - [ ] Push and create PR
 - [ ] Verify CI passes (all gates, formatting, linting)
 

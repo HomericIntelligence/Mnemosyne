@@ -8,11 +8,12 @@ description: >-
   of main with no duplicate commits, (4) a branch was created before upstream completed
   the same work and now both exist—skip deduplicates automatically, (5) you have
   validated that the conflicts are solely from duplicate/superseded content, not new work.
-  Use `git rebase --skip` to skip those duplicate commits during rebase instead of
-  manually resolving conflicts that would delete/undo changes main already has.
+  During a permitted rebase, use `git rebase --skip` to skip those duplicate
+  commits instead of manually resolving conflicts that would delete/undo changes
+  main already has.
 category: ci-cd
 date: 2026-07-06
-version: "1.0.0"
+version: "1.1.0"
 verification: verified-local
 ---
 
@@ -23,7 +24,7 @@ verification: verified-local
 | Field | Value |
 | ------- | ------- |
 | **Date** | 2026-07-06 |
-| **Objective** | Recognize when a branch's commits are duplicates of already-merged upstream work and use `git rebase --skip` to cleanly land the branch on top of main without the duplicate commits |
+| **Objective** | During a permitted rebase, recognize commits that duplicate already-merged upstream work and use `git rebase --skip` without retaining duplicate commits |
 | **Outcome** | Branch rebased successfully with duplicate commits skipped, ending cleanly on top of origin/main with no manual conflict resolution needed |
 | **Verification** | verified-local |
 
@@ -34,7 +35,7 @@ Use this skill when:
 1. **A PR branch has duplicate commits**: The branch was created before upstream completed the same work.
    Both the branch and upstream have commits with the same or nearly-identical content.
 
-2. **Rebase encounters conflicts from duplicate content**: Running `git rebase origin/main` hits
+2. **A permitted rebase encounters conflicts from duplicate content**: Running `git rebase origin/main` hits
    conflicts where the conflicting file versions are **identical or nearly identical** between
    the branch's commit and the already-merged upstream commit.
 
@@ -66,7 +67,9 @@ Use this skill when:
 # 1. Fetch to ensure origin/main is current
 git fetch origin main
 
-# 2. Start a rebase onto origin/main
+# 2. Start only a permitted rebase onto origin/main: a host-reported conflict or
+#    an active task that requires main content. A completed conflict-free PR is
+#    integrated by CI/CD.
 git rebase origin/main
 
 # 3. When a conflict appears (conflicts on duplicate content)
@@ -118,10 +121,10 @@ git log origin/main --oneline | grep -i "pipeline coordinator"   # example: sear
 # If found on main, that commit is a duplicate and should be skipped during rebase
 ```
 
-#### Step 3: Start the rebase and encounter conflicts
+#### Step 3: Start a permitted rebase and encounter conflicts
 
 ```bash
-# Start rebasing onto origin/main
+# Start the permitted rebase onto origin/main
 git rebase origin/main
 
 # Git will stop at the first conflict and show:
@@ -213,7 +216,7 @@ but the content was identical—just a different commit SHA due to the merge.
 # 1. Fetch current main
 git fetch origin main
 
-# 2. Start rebase
+# 2. Start the permitted rebase
 git rebase origin/main
 
 # 3. Conflicts appear (the pipeline coordinator commits already exist on main)
@@ -279,7 +282,7 @@ git rebase --skip
 **Scenario**: Branch has commits A, B, C, D, E. Upstream merged A, B, C.
 Branch has unique work in D and E.
 
-**Rebase behavior**:
+**Permitted-rebase behavior**:
 ```bash
 git rebase origin/main   # conflicts on A, B, C (duplicates)
 git rebase --skip        # skip A

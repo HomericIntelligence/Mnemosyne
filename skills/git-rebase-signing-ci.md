@@ -46,9 +46,10 @@ tags: [git, signing, rebase, ci, gpg, exec, conflict-resolution, update-branch, 
 ### Current applicability
 
 Use [verify-pr-ready](verify-pr-ready.md) for live policy, affected validation, and evidence
-reuse. A branch behind main is not itself blocked. Rebase only for an actual conflict,
-a necessary dependency, or an explicit request. Keep required CI and exact-head review
-before merge. PR publication can precede validation if pending results are clear.
+reuse. A branch behind main is not itself blocked. During active work, rebase only for a blocker
+or required main content. After task completion, rebase only for a host-reported merge conflict;
+otherwise CI/CD or the merge queue integrates main. Keep required CI and exact-head review before
+merge. PR publication can precede validation if pending results are clear.
 Cleanup is separate from rebasing. Historical verification below does not verify this
 policy correction or the current version of an external tool.
 
@@ -65,7 +66,8 @@ select affected checks and retain required CI.
 ### Quick Reference
 
 ```bash
-# Only when target integration through rebase is justified: replay with signing
+# Only for an active-task blocker or required main content, or a host-reported conflict
+# after completion: replay with signing.
 git rebase --exec 'git commit --amend --no-edit -S' origin/main
 
 # Verify all commits are signed (G = good)
@@ -91,7 +93,7 @@ git push --force-with-lease origin <branch>
 ### Detailed Steps
 
 1. **Identify unsigned commits**: `git log --format='%h %G? %s' origin/main..HEAD` — look for `N` (no signature) or `U` (unknown validity).
-2. **Rebase with signing**: `git rebase --exec 'git commit --amend --no-edit -S' origin/main` — this replays each commit and re-signs it with your GPG key.
+2. **Rebase with signing only when permitted**: for an active-task blocker or required main content, or a host-reported conflict after completion, run `git rebase --exec 'git commit --amend --no-edit -S' origin/main`. This replays each commit and re-signs it with your GPG key.
 3. **If it stops on a conflict**: resolve the conflict per-hunk, `git add <file>`, then run `git rebase --continue` (NOT `git commit --amend` by hand — see warning above). `--continue` finalizes the pick as a commit and then automatically fires the queued `--exec` command against that new commit.
 4. **Verify**: Re-run `git log --format='%h %G? %s' origin/main..HEAD` — all should show `G`.
 5. **Force push**: `git push --force-with-lease origin <branch>` — the `--force-with-lease` is safer than `--force` as it rejects if the remote has changes you haven't fetched.
@@ -131,7 +133,7 @@ GitHub's **Update branch** button and `gh pr update-branch --rebase` perform the
 server-side: every commit is re-created by GitHub **without your GPG signature**, so a
 signed-commits `pr-policy` gate that was green goes red on the next run with
 `<sha>: commit signature is missing or invalid`. On a repo that requires signed commits,
-NEVER update a PR branch server-side. Instead:
+NEVER update a PR branch server-side. If a rebase is otherwise permitted, instead:
 
 ```bash
 # Local re-signed rebase (commit.gpgsign re-signs each replayed commit)
@@ -145,12 +147,10 @@ git push --force-with-lease --force-if-includes origin <branch>
   longer matches the remote, and `--force-with-lease` (correctly) refuses. Fetch the branch,
   confirm the remote head is exactly the known server-side rewrite (not someone else's work),
   then push again.
-- **Strict up-to-date + signed commits, NO merge queue = manual serial merges:** each merge
-  advances `main` and flips every sibling PR to BEHIND, and the server-side updater is unusable, so
-  the observed case used a local re-signed rebase and required CI for each PR. Inspect current
-  policy and supported methods before selecting that procedure. Do not infer a universal full
-  local validation cycle. This is the historical *no-queue* case; if a
-  real GitHub merge queue is enabled, do the opposite (next bullet).
+- **Strict up-to-date + signed commits:** a behind status alone does not permit an agent rebase,
+  whether or not the repository has a merge queue. Hand ordinary integration to repository CI/CD.
+  If CI/CD reports an actual merge conflict, resolve that conflict with the permitted signed rebase
+  above. Do not use a local serial re-sign-and-force-push cycle merely after a sibling merges.
 - **A real GitHub merge queue makes the local re-signed rebase UNNECESSARY:** when the repo has a
   merge queue enabled (branch protection "Require merge queue" / a `merge_group`-triggered required
   workflow), a green PR does NOT need to be brought up-to-date by hand. Queue it and the queue

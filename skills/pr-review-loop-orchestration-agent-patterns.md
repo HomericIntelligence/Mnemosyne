@@ -3,7 +3,7 @@ name: pr-review-loop-orchestration-agent-patterns
 description: "Use when implementing or debugging an agent-driven PR review/fix loop: progress must be commit-gated, GO convergence bounded, inline comments diff-valid, review evidence fully paginated, branch/head identity live-bound, non-blocking threads correctly dispositioned, and merge conditional on the reviewed head."
 category: ci-cd
 date: 2026-08-08
-version: "2.0.0"
+version: "2.1.0"
 license: BSD-3-Clause
 verification: verified-ci
 user-invocable: false
@@ -152,9 +152,10 @@ pagination and mutation behavior covered by focused tests.
 
 A GO applies to one exact reviewed head. Immediately before a normal conditional or queue merge,
 re-read the PR head and required checks. If the head changed, discard the stale GO and re-review.
-If it is behind/conflicting after review, use the host-owned bounded rebase path, restore the writer
-checkout, re-run validations, and re-enter review. Enforce a conflict/retry budget; remote-head drift
-must not become an unbounded force-push loop.
+If it reports a merge conflict after review, use the host-owned bounded rebase path, restore the
+writer checkout, re-run validations, and re-enter review. If it is only behind, let CI/CD or the
+merge queue integrate the base update. Enforce a conflict/retry budget; remote-head drift must not
+become an unbounded force-push loop.
 
 Merge evidence includes the reviewed head, final head, required check conclusions, merge commit or
 squash OID, and complete thread disposition snapshot.

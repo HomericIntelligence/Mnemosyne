@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Canonical guide to parallel-agent and Myrmidon swarm orchestration: wave-based dispatch, hierarchical tier assignment (Opus L0 → Sonnet L1/L2 → Haiku L4), agent prompt patterns, dispatcher discipline, multi-repo coordination. Use when: (1) dispatching 5+ parallel agents on independent tasks, (2) coordinating a multi-repo swarm operation, (3) designing tier assignments (Opus vs Sonnet vs Haiku), (4) ensuring deterministic dispatch without orchestrator hand-holding."
 category: tooling
 date: 2026-06-13
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-local
 history: parallel-agent-myrmidon-swarm-orchestration.history
@@ -142,9 +142,9 @@ for PR in $(gh pr list --state open --author "@me" --json number --jq '.[].numbe
 done
 
 # Phase A.2 — categories:
-#   DIRTY                   -> rebase (Haiku agent)
+#   DIRTY                   -> reported conflict; permitted rebase (Haiku agent)
 #   BLOCKED + FAILURE       -> CI fix needed (Sonnet agent)
-#   BLOCKED + 0 failures    -> stale; rebase to retrigger
+#   BLOCKED + 0 failures    -> inspect policy and let CI/CD integrate ordinary main movement
 #   UNKNOWN                 -> wait 30s, re-check
 
 # Phase A.3 — dispatch one agent per PR, isolation=worktree

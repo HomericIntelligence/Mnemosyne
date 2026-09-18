@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Non-required pre-commit workflow plus strict:false branch protection silently breaks main's required checks while PRs keep auto-merging. Use when: (1) main's Required Checks are red for hours but PRs still merge, (2) a GO'd PR fails CI on lint/pre-commit only (not tests), (3) auditing branch-protection required-status-check configuration."
 category: ci-cd
 date: 2026-06-12
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-ci
 tags: []
@@ -69,5 +69,5 @@ If main is red on lint/pre-commit, it's main-debt contamination — fix main, no
 
 ## Results & Parameters
 
-- **Open follow-up:** `strict: false` is still unfixed. Enabling `strict: true` forces every open PR to rebase onto current main before merging (mergeability churn), which is why it was deferred. Tracked under issue #1173.
+- **Open follow-up:** `strict: false` is still unfixed. Enabling `strict: true` creates mergeability churn for open PRs. Do not rebase agents' branches only for that state; let CI/CD or the merge queue integrate ordinary main updates. It was deferred for that churn. Tracked under issue #1173.
 - **Required contexts at breakage time:** `test (ubuntu-latest, 3.12, integration)` and `test (ubuntu-latest, 3.12, unit)`; `Pre-commit` was advisory.

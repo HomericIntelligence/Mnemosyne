@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "The DCO Signed-off-by trailer (git commit -s) is a SEPARATE requirement from GPG/SSH cryptographic signing (git commit -S); a commit can be -S signed yet still fail the pr-policy DCO check because it lacks the trailer. Use when: (1) a PR is BLOCKED and the pr-policy / required-checks-gate CI gate fails with 'missing Signed-off-by: Name <email> trailer' even though git log --show-signature shows a valid GPG signature, (2) automation/agent-generated commits (auto-impl branches) lack the DCO trailer because the generator ran `git commit -S` without `-s`, (3) you need to retroactively add Signed-off-by to every commit on a branch WITHOUT losing GPG signatures, (4) lint passes but required-checks-gate still fails — check pr-policy sub-checks (Check 4 is DCO), (5) you fixed only one blocker (mypy/lint) but the gate is still red on a second independent DCO failure, (6) `git log` shows TWO (or more) `Signed-off-by` trailers on the same commit after the retroactive fix-all recipe was run more than once — this is a DUPLICATE trailer, not a missing one, caused by `--exec ... -s -S` being run twice with different `user.name` config values, since `-s` dedups by literal string match on the whole trailer line, not by email, (7) you are about to run `git rebase --exec \"git commit --amend --no-edit -s -S\" origin/main` on a branch that may ALREADY carry a Signed-off-by trailer (e.g. a resumed/interrupted rebase session) — reconcile `git config user.name` first to avoid producing a duplicate trailer, (8) rewriting or force-pushing a legacy branch is disallowed, so you must reproduce only the intended change as one fresh `git commit -S -s` from current `origin/main`."
 category: ci-cd
 date: 2026-07-16
-version: "1.2.0"
+version: "1.3.0"
 user-invocable: false
 verification: verified-ci
 history: git-dco-signoff-distinct-from-gpg-sign.history
@@ -48,8 +48,9 @@ signed) and still fail Check 4 for lack of the trailer.
 # 1. ALWAYS commit with BOTH the DCO trailer (-s) and the GPG signature (-S):
 git commit -s -S -m "feat(scope): message"
 
-# 2. Retroactively add the DCO trailer to EVERY commit on a branch while
-#    PRESERVING GPG signing (works because commit.gpgsign=true):
+# 2. A missing DCO trailer blocks the active task. Retroactively add it to EVERY
+#    commit while PRESERVING GPG signing (works because commit.gpgsign=true).
+#    Do not use this rebase merely because main advanced:
 git rebase --exec "git commit --amend --no-edit -s -S" origin/main
 git push --force-with-lease
 
@@ -151,8 +152,10 @@ git config user.name "Micah Villmow"
 
 **Recovery if trailers are already duplicated.** Do NOT run `git commit -s`
 again — that risks adding a THIRD variant if `user.name` still isn't
-reconciled. Instead run a second `--exec` pass with a message-rewrite script
-that keeps only the first trailer:
+reconciled. A duplicate is not a merge blocker, so leave it unchanged unless
+an independently permitted rebase is already necessary. During that permitted
+rebase, use a second `--exec` pass with a message-rewrite script that keeps
+only the first trailer:
 
 ```bash
 git rebase --exec '
@@ -179,7 +182,8 @@ script itself already writes the canonical trailer into the rewritten
 message, so re-adding `-s` would risk re-triggering the same
 literal-string-mismatch dedup failure if `user.name` still isn't reconciled.
 This recovery is a pure commit-MESSAGE rewrite (no file content changes), so
-it runs with zero working-tree conflicts. Verify with:
+it runs with zero working-tree conflicts. It does not itself authorize a
+rebase. Verify with:
 
 ```bash
 git log origin/main..HEAD --format='%h %(trailers:key=Signed-off-by)'
@@ -194,7 +198,7 @@ git log origin/main..HEAD --format='%h %(trailers:key=Signed-off-by)'
 | Treated a cryptographically signed legacy branch as policy-complete | Every old commit had `%G?` = `G`, but none had a `Signed-off-by` trailer | DCO validates the text trailer independently of SSH/GPG signature status, so a good signature alone still fails DCO | Require both `%G?` = `G` or `U` and a non-empty trailer; use one fresh `git commit -S -s` when rewriting is disallowed |
 | Fixed the mypy/lint error and assumed the gate would pass | Treated required-checks-gate as a single-cause failure | Gate still red — a second independent DCO failure remained | A required-checks-gate failure can aggregate multiple independent causes; enumerate ALL failing pr-policy sub-checks before re-pushing |
 | Re-signed only the new commit, left the original auto-impl commit untouched | Thought only my own commit needed the trailer | Check 4 validates EVERY commit on the PR, including bot/automation-authored ones | Use `git rebase --exec ... -s -S origin/main` to cover every commit, not just HEAD |
-| Ran `--exec "git commit --amend --no-edit -s -S" origin/main` twice with different `user.name` between passes | Expected `-s` to dedupe an already-present trailer on the second pass | Produced duplicate `Signed-off-by` trailers instead of deduping — `-s` matches the whole trailer line literally, not just the email | Reconcile `user.name` (local + global) to one canonical value before the first pass; recover via a message-rewrite `--exec` pass keeping only the first trailer |
+| Ran `--exec "git commit --amend --no-edit -s -S" origin/main` twice with different `user.name` between passes | Expected `-s` to dedupe an already-present trailer on the second pass | Produced duplicate `Signed-off-by` trailers instead of deduping — `-s` matches the whole trailer line literally, not just the email | Reconcile `user.name` (local + global) to one canonical value before the first pass. Leave a duplicate unchanged unless another permitted rebase already exists; then use a message-rewrite `--exec` pass that keeps only the first trailer. |
 
 ## Results & Parameters
 

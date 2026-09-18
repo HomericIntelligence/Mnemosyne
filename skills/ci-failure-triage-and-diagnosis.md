@@ -3,7 +3,7 @@ name: ci-failure-triage-and-diagnosis
 description: "Canonical workflow for triaging CI failures: log analysis, core dump capture, subprocess hang diagnosis, container forensics, libKGEN/JIT crash retrieval, GHA-only vs cross-environment failures, PR-specific vs systemic failure separation. Use when: (1) a CI run failed and you need to identify the root cause, (2) deciding whether a failure is PR-induced or pre-existing, (3) capturing core dumps from container environments, (4) reproducing a GHA-only crash locally, (5) GraphQL/REST rate-limited CI monitoring."
 category: ci-cd
 date: 2026-06-20
-version: "2.0.0"
+version: "2.1.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-local
@@ -73,10 +73,11 @@ from them remains unverified until its own tests or CI run succeed.
 
 ### 2. Classify ownership and recurrence
 
-Check main before rebasing downstream branches. When unrelated PRs fail at the same job/file/line,
-confirm the file is on main and absent from each PR diff; fix main once, then rebase downstream.
-Do not scatter suppressions across the affected PRs. After force-updating a downstream branch,
-re-arm its auto-merge request because the force update clears it.
+Check main before changing downstream branches. When unrelated PRs fail at the same job/file/line,
+confirm the file is on main and absent from each PR diff; fix main once. An active downstream task
+may rebase only when that main fix is required to complete the task. A completed, non-conflicting PR
+stays unchanged for CI/CD integration. Do not scatter suppressions across the affected PRs. After a
+permitted force update, re-arm its auto-merge request because the force update clears it.
 
 For a red run, rerun only failed jobs. A pass is evidence of a transient failure; a repeated,
 same-signature failure is reproducible. Empty commits are unreliable with concurrency
@@ -169,7 +170,7 @@ the current head SHA.
 | Host-path core capture | Put the runner CWD in `core_pattern` | The path did not exist in the crashing container namespace | Use the container-visible bind path |
 | Bare gdb and `hook-stop` | Ran host gdb and dumped on every stop | Environment paths were absent and exit-stop is not a live signal stop | Use `pixi run -- gdb` plus `SignalEvent` |
 | Exit 137 as OOM proof | Classified every 137 as OOM | A JIT signal handler produced the same code | Combine exit code with log signatures |
-| Per-PR suppression | Patched identical failures on each branch | The defective file came from main | Fix main once, then rebase |
+| Per-PR suppression | Patched identical failures on each branch | The defective file came from main | Fix main once; rebase only an active task that needs the fix or a PR with a reported conflict |
 | Blocking futures | Used `as_completed()` and unbounded waits | Shutdown could not be observed while nothing completed | Poll at two-second intervals |
 | Always-on debug capture | Defaulted gdb collection to true | Every PR paid the diagnostic cost | Use an opt-in dispatch input |
 

@@ -3,7 +3,7 @@ name: lockfile-and-release-pipeline-management
 description: "Recover generated lockfiles, resync locks after manifest edits, repair no-op release recipes, enforce one version source, configure multi-ecosystem dependency automation, recover garbage-collected nightly pins, and stabilize Dependabot contract tests without deleting coverage. Use when lock/release CI disagrees with manifests or bot updates must move exact peers together."
 category: ci-cd
 date: 2026-06-17
-version: "2.0.0"
+version: "2.1.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-ci
@@ -113,8 +113,9 @@ properties:
 - required features/sources remain present.
 
 Do not delete the contract test. When packages have exact peer coupling, update them in one grouped
-PR and regenerate one coherent lock. After the stabilization change lands, refresh/rebase open bot
-branches so they run against the new structural contract.
+PR and regenerate one coherent lock. After the stabilization change lands, start a new bot task
+from a current main pin when remediation is necessary. Keep active bot-task bases stable unless a
+blocker or required main artifact permits a rebase; let CI/CD integrate completed PRs.
 
 ### 8. Verify release and dependency outcomes
 

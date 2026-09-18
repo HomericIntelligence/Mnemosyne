@@ -6,7 +6,7 @@ description: >-
   Also use it when a stopped worker must start another task.
 category: tooling
 date: 2026-05-31
-version: "2.1.0"
+version: "2.2.0"
 license: BSD-3-Clause
 user-invocable: false
 history: parallel-agent-swarm-dispatch-patterns.history
@@ -56,6 +56,7 @@ Every dispatch includes:
 ```text
 objective and exact issue/PR identity
 isolated worktree and branch
+task-start base SHA when the branch is pinned to `main`
 exclusive writable paths
 explicit out-of-scope paths
 dependency/precondition and what to do if it fails
@@ -152,9 +153,12 @@ only its mergeable flag—to the requested intent.
 ### 8. Merge in dependency-aware waves
 
 Do not open the next dependent wave until predecessor artifacts are merged and revalidated on
-current main. Rebase queued work when its base changes, rerun scoped checks, and update the wave
-graph for new conflicts or already-landed work. Preserve isolated worktrees for failures and report
-their paths rather than discarding evidence.
+current main. A newly started task can pin its branch to that main revision. Keep the base of an
+existing task stable when its base changes. Rebase it only when a blocker or required main artifact
+prevents completion, or after completion when a reported merge conflict needs resolution. Otherwise,
+let CI/CD integrate the queued branch. Rerun scoped checks and update the wave graph for new
+conflicts or already-landed work. Preserve isolated worktrees for failures and report their paths
+rather than discarding evidence.
 
 ## Failed Attempts
 

@@ -1,10 +1,10 @@
 ---
 name: python-sca-pip-audit-update-transitive-lock
 license: BSD-3-Clause
-description: "Resolve GitHub Actions Python SCA / security-dependency-scan pip-audit failures caused by vulnerable transitive dependencies in a uv.lock OR pixi.lock file, including stale-lock propagation across sibling PRs after a red-main dep-fix merges. Use when: (1) python-sca or pip-audit fails with only a summary in the job log, (2) the failing package is transitive through a dev tool, (3) uv --locked reproduction needs cache paths redirected in a restricted sandbox, (4) a red-main dependency fix merged but sibling PRs branched before it still fail pip-audit on the OLD vulnerable lock (a plain rebase does not regenerate the lock), (5) a pixi.lock at format v7 fails CI's older pinned pixi with 'Lock-file version 7 is newer than supported'."
+description: "Resolve GitHub Actions Python SCA / security-dependency-scan pip-audit failures caused by vulnerable transitive dependencies in a uv.lock OR pixi.lock file, including stale-lock propagation across sibling PRs after a red-main dep-fix merges. Use when: (1) python-sca or pip-audit fails with only a summary in the job log, (2) the failing package is transitive through a dev tool, (3) uv --locked reproduction needs cache paths redirected in a restricted sandbox, (4) an active task must use a red-main dependency fix because its old vulnerable lock fails pip-audit (a plain rebase does not regenerate the lock), (5) a pixi.lock at format v7 fails CI's older pinned pixi with 'Lock-file version 7 is newer than supported'."
 category: ci-cd
 date: 2026-06-28
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-ci
 history: python-sca-pip-audit-update-transitive-lock.history
@@ -107,10 +107,10 @@ Everything above maps to pixi: the `pixi.lock` analogue of `uv lock --upgrade-pa
 
 ### Dimension 1 — Stale-lock-after-main-fix propagation (the fleet dimension)
 
-When a red `main` is fixed by a dependency-bump PR that adds/raises a constraint **and regenerates the lock**, merging that fix unblocks `main` — but every OTHER open PR branched before it still carries the OLD vulnerable lock and keeps failing the required `security/dependency-scan` (pip-audit). **A plain `git rebase onto main` does NOT regenerate the lock**, so the vulnerable pin persists. The fix, per PR, is to REGENERATE the lock so it picks up the patched version. There are two sub-cases:
+When a red `main` is fixed by a dependency-bump PR that adds/raises a constraint **and regenerates the lock**, an active task with an old vulnerable lock can need that main content to clear the required `security/dependency-scan` (pip-audit). **A plain `git rebase onto main` does NOT regenerate the lock**, so the vulnerable pin persists. Do not rebase solely because the branch is old. When the active task needs the new constraint, regenerate the lock after the permitted rebase. For a completed PR without a reported conflict, let CI/CD perform ordinary integration. There are two sub-cases:
 
 - **Constraint already allows the patched version** (e.g. `pydantic-settings >=2.0`, but the lock pins `2.13.1` which has `GHSA-4xgf-cpjx-pc3j`). A plain `pixi lock` re-solves with locked content and does **NOT** bump — you must run `pixi update <package>` (e.g. `pixi update pydantic-settings` → `2.14.2`) for a minimal targeted bump.
-- **Fix added an explicit pin in `pixi.toml`** (e.g. an explicit `msgpack >= 1.2.1` for `GHSA-6v7p-g79w-8964`, transitive via `cachecontrol`). Here, rebasing onto the fixed `main` brings the pin in, and a `pixi install` / `pixi lock` re-solve picks it up. (Even so, confirm the lock actually changed — a no-op rebase leaves the old pin.)
+- **Fix added an explicit pin in `pixi.toml`** (e.g. an explicit `msgpack >= 1.2.1` for `GHSA-6v7p-g79w-8964`, transitive via `cachecontrol`). Here, an active task can rebase onto the fixed `main` because it needs the pin, then a `pixi install` / `pixi lock` re-solve picks it up. (Even so, confirm the lock actually changed — a no-op rebase leaves the old pin.)
 
 **Batch this as one lock-regen sub-agent per repo** across the open PRs.
 
@@ -122,7 +122,7 @@ pixi run pip-audit            # or the repo's exact CI command; read "Found N kn
 pixi update pydantic-settings
 grep -nE "name: *\"?pydantic-settings|pydantic-settings *[=@]" pixi.lock   # confirm 2.13.1 -> 2.14.2
 
-# Sub-case B — fix added an explicit pin upstream on main: rebase brings the pin, then re-solve:
+# Sub-case B — active task needs an explicit pin upstream on main: rebase brings the pin, then re-solve:
 git rebase origin/main
 pixi install                  # or `pixi lock`
 grep -nE "name: *\"?msgpack|msgpack *[=@]" pixi.lock        # confirm 1.1.2 -> 1.2.1
@@ -162,7 +162,7 @@ pixi install --locked        # against a v6 lock: exits 0, warn-only, no rewrite
 | Run pip-audit with default cache paths | Ran the CI-equivalent command in a restricted sandbox | pip-audit attempted to write under a read-only home cache and raised `OSError: [Errno 30] Read-only file system` | Redirect both `UV_CACHE_DIR` and `XDG_CACHE_HOME` to writable `/tmp` paths |
 | Broad dependency refresh | Could have run a full uv lock update | Full resolver churn increases review risk and can change unrelated packages | Use `uv lock --upgrade-package <package>` for a minimal lockfile change |
 | Plain `pixi lock` to clear a transitive CVE | Ran `pixi lock` expecting it to pick up the patched `pydantic-settings 2.14.2` | The constraint (`>=2.0`) already allowed the patch, so `pixi lock` re-solved with **locked content** and kept the vulnerable `2.13.1` pin | Use `pixi update <pkg>` (the pixi analogue of `uv lock --upgrade-package`) for a minimal targeted bump when the constraint already permits the fixed version |
-| Plain rebase-onto-fixed-main to propagate a lock fix | Rebased a sibling PR onto a `main` whose dep-fix had merged, expecting the vulnerable lock to clear | `git rebase onto main` does NOT regenerate the lock; the old vulnerable pin persisted and `security/dependency-scan` kept failing | Explicitly regenerate the lock per PR — `pixi update <pkg>` (constraint allows patch) or rebase-then-`pixi install` when the fix added an explicit `pixi.toml` pin; always `git diff -- pixi.lock` to confirm it actually changed |
+| Plain rebase-onto-fixed-main to propagate a lock fix | Rebased a sibling PR onto a `main` whose dep-fix had merged, expecting the vulnerable lock to clear | `git rebase onto main` does NOT regenerate the lock; the old vulnerable pin persisted and `security/dependency-scan` kept failing | Explicitly regenerate the lock per PR — `pixi update <pkg>` when the constraint allows the patch. Rebase then run `pixi install` only when the active task needs the explicit `pixi.toml` pin on main; otherwise let CI/CD integrate. Always use `git diff -- pixi.lock` to confirm the lock changed. |
 | Shipped a v7 `pixi.lock` against CI's older pinned pixi | Pushed a PR carrying a `pixi.lock` at format v7 while CI pinned `v0.67.2` | The WHOLE pipeline died at `pixi install` with `Lock-file version 7 is newer than supported … Maximum supported version: 6` — a read-incompatibility, not churn | Bump the CI `pixi-version` (e.g. `v0.67.2` → `v0.70.2`) across all `.github/` pins; verify safety first — a newer pixi reads v6 locks via `pixi install --locked` (exit 0, warn-only, no rewrite), so it won't red a v6 `main` |
 
 ## Results & Parameters

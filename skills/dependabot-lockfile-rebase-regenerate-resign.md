@@ -1,10 +1,10 @@
 ---
 name: dependabot-lockfile-rebase-regenerate-resign
 license: BSD-3-Clause
-description: "Use when: (1) a Dependabot/bot dependency-bump PR (pixi/pip) goes DIRTY/CONFLICTING on its lockfile (pixi.lock) plus its manifest (pyproject.toml/pixi.toml) after main advances and must be rebased by hand, (2) fleet-sync / @me-scoped rebase tooling silently SKIPS the bot PR because its discovery is author-scoped to @me and bot PRs are not yours, (3) you must semantically merge a dependency CONSTRAINT change onto a manifest whose layout main has since refactored — keeping main's new structure and re-applying only the bump, (4) you need to resolve a generated pixi.lock conflict without hand-merging it — regenerate instead, (5) a re-signed/--locked CI gate must pass before a bot dep PR can land."
+description: "Use when: (1) a Dependabot/bot dependency-bump PR (pixi/pip) reports DIRTY/CONFLICTING on its lockfile (pixi.lock) plus its manifest (pyproject.toml/pixi.toml), or its active security task needs main dependency content, (2) fleet-sync / @me-scoped rebase tooling silently SKIPS the bot PR because its discovery is author-scoped to @me and bot PRs are not yours, (3) you must semantically merge a dependency CONSTRAINT change onto a manifest whose layout main has since refactored — keeping main's new structure and re-applying only the bump, (4) you need to resolve a generated pixi.lock conflict without hand-merging it — regenerate instead, (5) a re-signed/--locked CI gate must pass before a bot dep PR can land."
 category: ci-cd
 date: 2026-06-11
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-ci
 tags:
@@ -34,7 +34,7 @@ tags:
 | Field | Value |
 |-------|-------|
 | **Date** | 2026-06-11 |
-| **Objective** | Rebase a Dependabot dependency-bump PR that went DIRTY on its lockfile + manifest after main advanced — without hand-merging the generated lock, while preserving main's refactored manifest layout, and re-signing every commit so pr-policy accepts it |
+| **Objective** | Resolve a reported Dependabot dependency-bump conflict, or an active security task that needs main content, without hand-merging the generated lock; preserve main's refactored manifest layout and re-sign every commit so pr-policy accepts it |
 | **Outcome** | PR #1032 (HomericIntelligence/ProjectHephaestus, author `app/dependabot`) rebased and MERGED this session; CI (including the `--locked` gate) passed green |
 | **Verification** | verified-ci |
 
@@ -45,6 +45,10 @@ tags:
 - main has REFACTORED the dependency layout since the bot opened the PR (e.g. moved a dep out of separate `[feature.dev.dependencies]`/`[feature.lint.dependencies]` blocks into a consolidated `[feature.shared.dependencies]` block), so the PR's stale edit targets a location that no longer exists.
 - You hit a `pixi.lock` merge conflict and are tempted to `--ours`/`--theirs`/hand-edit it — don't; regenerate.
 - pr-policy requires every commit cryptographically signed with the committer email matching a UID on your GPG key (NOT the bot's noreply email), and the bot's commits are signed by the bot.
+
+Do not rebase a bot PR merely because it is old. After task completion, rebase
+only to resolve a reported merge conflict; repository CI/CD owns other main
+integration.
 
 ## Verified Workflow
 
@@ -59,7 +63,8 @@ git fetch origin
 git worktree add /tmp/pr-1032 -b rebase/dependabot-1032 "origin/$BRANCH"
 cd /tmp/pr-1032
 
-# 1. Rebase onto main AND re-sign every commit (bot signed them; pr-policy wants YOUR key + committer email)
+# 1. Only if a host-reported conflict or an active security task requires main
+#    content, rebase onto main AND re-sign every commit (bot signed them; pr-policy wants YOUR key + committer email)
 git rebase origin/main \
   --exec "git -c user.email=$KEY_EMAIL commit --amend --no-edit -S --reset-author"
 
@@ -84,7 +89,7 @@ git push --force-with-lease origin HEAD:"$BRANCH"
 
 ### Detailed Steps
 
-1. **Use an isolated worktree.** Never rebase a bot PR in your main checkout — bot branches force-push under you and the shared clone's state matters for concurrent work.
+1. **Use an isolated worktree.** Never rebase a bot PR in your main checkout — bot branches force-push under you and the shared clone's state matters for concurrent work. First confirm the host-reported conflict or active-task main-content need.
 2. **Re-sign during the rebase.** The bot's commits carry the bot's signature. pr-policy requires each commit signed with a key whose UID email matches the committer email — use `--exec 'git -c user.email=<key-email> commit --amend --no-edit -S --reset-author'`. Do NOT use the bot's noreply email and do NOT trust `git log --show-signature` alone (it can show "Good signature" while GitHub still reports the commit unverified — check `gh api .../commits/<sha> --jq .commit.verification`).
 3. **Manifest conflicts are CONSTRAINT EDITS, not 3-way text merges.** Read what real change the bump makes (one constraint string), then apply ONLY that to main's CURRENT layout. If main moved/renamed/consolidated the dependency block, re-apply the bump to the NEW location and DELETE the PR's stale reintroduced block. Blindly keeping the PR's old structure reintroduces a layout main deliberately removed.
 4. **Update BOTH manifests.** `pyproject.toml` and `pixi.toml` must agree — a consistency test (`test_dependency_floor_consistency.py`) asserts they match. Editing only one fails CI.

@@ -7,7 +7,7 @@ description: 'Run 4 parallel Haiku sub-agents in persistent git worktrees to imp
   to overcome token limits.'
 category: ci-cd
 date: 2026-03-15
-version: 1.0.0
+version: 1.1.0
 user-invocable: false
 ---
 ## Overview
@@ -45,10 +45,11 @@ user-invocable: false
 **Critical**: Use `git switch` not `git checkout` (safety net hook blocks `git checkout`).
 
 ```bash
-# Agent-1 worktree can switch to main directly
+# Create a new task branch from current main. Do not rebase a prior task branch
+# merely to reuse this worktree.
 cd worktrees/agent-1-batch
-git switch main
-git fetch origin && git rebase origin/main
+git fetch origin
+git switch -c batch-agent1-reset origin/main
 
 # Agents 2-4 can't switch to main if agent-1 is already on it
 # Create fresh branches from origin/main instead:

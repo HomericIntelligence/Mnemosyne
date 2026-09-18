@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "CI markdownlint / pre-commit gates that run --all-files lint the WHOLE repo tree, not the PR diff, so one pre-existing malformed file anywhere fails the required check on EVERY open PR — even diff-clean ones. Use when: (1) a PR is BLOCKED by a failing markdownlint or pre-commit required check but `gh pr diff --name-only` shows its own diff is clean, (2) multiple unrelated PRs all go red on the same lint job at once, (3) a local `pre-commit run --files <your-diff>` passes but CI's all-files run still fails, (4) deciding whether to keep editing your PR or to open a separate cleanup PR to delete a stray file, (5) the failing job log cites a filename (e.g. a stray LEARNINGS/scratch .md at repo root) that you never touched."
 category: ci-cd
 date: 2026-06-12
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-ci
 tags: [ci-cd, markdownlint, pre-commit, all-files, repo-wide, ci-blocked, required-checks, stray-file, ci-debug, github-actions]
@@ -70,8 +70,10 @@ gh pr create --title "[Fix] Unblock CI: remove stray markdownlint-failing file" 
   --body "$(printf 'Removes a stray file failing the repo-wide markdownlint gate.\n\nCloses #<n>\n')"
 gh pr merge --auto --squash
 
-# 5. After the cleanup PR lands on main, rebase your PR onto the new main.
-git fetch origin && git rebase origin/main && git push --force-with-lease
+# 5. After the cleanup PR lands, keep this task's base stable. CI/CD integrates
+#    the PR. Rebase only if the host reports a merge conflict or active work
+#    requires the cleanup content to continue.
+git fetch origin
 ```
 
 ### Detailed Steps
@@ -87,8 +89,9 @@ git fetch origin && git rebase origin/main && git push --force-with-lease
 4. **Fix it in its own small cleanup PR** that deletes/repairs the offending file.
    Because the gate is repo-wide, one cleanup PR unblocks *every* queued PR at
    once — not just yours.
-5. **Rebase your PR** onto the new main after the cleanup lands; the gate goes
-   green.
+5. **Keep your task base stable** after the cleanup lands. The gate can go green
+   through CI/CD integration. Rebase only if the host reports a merge conflict
+   or active work needs the cleanup content to continue.
 6. **Caveat — trust the CI log, not local all-files output.** A local
    `pre-commit run --all-files` may *also* report failures (e.g. skill-catalog,
    dependency-sync) that actually PASS in CI due to environment differences.

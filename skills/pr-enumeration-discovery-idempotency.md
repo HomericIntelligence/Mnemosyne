@@ -3,7 +3,7 @@ name: pr-enumeration-discovery-idempotency
 description: "Use when GitHub list commands silently truncate, bot PRs lack issue-closing links, automation creates duplicate PRs, bulk status discovery times out, planner and implementer skip semantics diverge, merged closing PRs leave zombie issues, soft-fail gh wrappers omit timeout/OS errors, or a stale local branch appears to contain already-merged work. Paginate exhaustive discovery, separate bulk identity from per-PR status, deduplicate by stable issue keys, verify merged state against fetched refs, and guard every creation phase."
 category: ci-cd
 date: 2026-06-15
-version: "2.0.0"
+version: "2.1.0"
 user-invocable: false
 license: BSD-3-Clause
 history: pr-enumeration-discovery-idempotency.history
@@ -116,14 +116,14 @@ the top-level queue discovery.
 ### 5. Classify state for routing
 
 Use check conclusions for test health and `mergeStateStatus` for branch/ruleset health. A BEHIND or
-BLOCKED PR is not automatically failing; route it to rebase/update or policy handling. Treat UNKNOWN
-as indeterminate and refresh rather than green. Preserve distinctions among pending, failing,
-behind, blocked, conflict, approved, and mergeable.
+BLOCKED PR is not automatically failing; route it to policy or CI/CD integration handling, not an
+automatic rebase. Treat UNKNOWN as indeterminate and refresh rather than green. Preserve distinctions
+among pending, failing, behind, blocked, conflict, approved, and mergeable.
 
 In the cited bulk synchronizer, a red MERGEABLE PR was treated as PR-specific failure only when
-`mergeStateStatus == CLEAN`; every other red mergeable state was stale and routed to refresh/rebase.
-Adopt that exact rule only when the repository state machine has the same semantics, but never
-collapse branch staleness into test failure.
+`mergeStateStatus == CLEAN`; every other red mergeable state was treated as stale and routed to
+refresh/rebase. Do not adopt that rebase routing. Branch staleness is not a test failure or rebase
+authority; retain the state distinction and let CI/CD integrate ordinary base movement.
 
 Avoid requesting expensive rollups until after identity pagination. This keeps a single pathological
 PR from turning the whole queue into a silent no-op.

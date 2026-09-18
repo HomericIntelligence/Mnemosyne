@@ -3,7 +3,7 @@ name: automation-review-authorization-ci-boundary
 description: "Keep automation-loop source-review authorization independent of CI, bind approval to an exact PR head, and conditionally merge only that reviewed head. Use for moving heads, unresolved threads, no-commit evidence replies, scope retractions, label transitions, external auto-merge, reruns after merge, or auditing review-to-merge event order."
 category: architecture
 date: 2026-08-08
-version: "4.0.0"
+version: "4.1.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-ci
@@ -63,10 +63,12 @@ The barrier alone binds it. For an already-current writer, prove base ancestry, 
 exact remote branch ref, then return an unchanged-head receipt without rebase or push. Remote drift
 fails closed.
 
-If the reviewed source is behind the current target, use the repository's signed policy-rebase path,
-resolve conflicts without dropping contracts already landed on the target, and publish with a
-conditional lease. The new head invalidates the old authorization and must pass the checkout barrier
-and review again.
+If the reviewed source is behind the current target, do not rebase only for that state. Let CI/CD
+or the merge queue integrate ordinary target updates. Use the repository's signed policy-rebase
+path only when an active task is blocked or needs target content, or when a completed PR reports a
+merge conflict. Resolve conflicts without dropping contracts already landed on the target and
+publish with a conditional lease. The new head invalidates the old authorization and must pass the
+checkout barrier and review again.
 
 ### 3. Run strict source review inside the loop
 

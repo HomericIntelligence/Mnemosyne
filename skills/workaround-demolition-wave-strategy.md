@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Multi-PR sequencing framework for safely ripping out workarounds after an upstream library/compiler bug is fixed. Use when: (1) an upstream dependency (compiler, runtime, library) just shipped a fix for a bug your repo has accumulated workarounds for, (2) workarounds are spread across CI retry loops, continue-on-error flags, build flags, debug infrastructure, ADRs, dev docs, reproducer files, test-file comments, and agent-facing skills/memory, (3) you need to avoid one giant unreviewable demolition PR and instead want a safe, bisectable, reviewable sequence, (4) you have to decide between scorched-earth deletion vs preservation-with-Superseded-markers for documentation/ADRs, (5) some workaround-removals are risky one-liners not exercised by your validation matrix and need their own CI gate, (6) Wave 2 scorched-earth targets a directory (e.g. `repro/`) where files may correspond to DISTINCT upstream bugs sharing only symptom surface — partition by bug, not by directory, before deletion."
 category: ci-cd
 date: 2026-05-26
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-ci
 tags: [workaround-removal, multi-pr-strategy, upstream-fix, wave-sequencing, ci-discipline, demolition, rollback-strategy]
@@ -57,9 +57,9 @@ Wave 0 (validation gate) ──────────────────�
 Wave 1 (CI demolition + guardrails) ──► merge ──► main
    │                                              │
    │                                              ▼
-   ├──► Wave 1.5 (risky strips, independent gate) ──► rebase + merge
+   ├──► Wave 1.5 (risky strips, independent gate) ──► fresh main pin or permitted rebase + merge
    │
-   ├──► Wave 2 (scorched earth)                    ──► rebase + merge
+   ├──► Wave 2 (scorched earth)                    ──► fresh main pin or permitted rebase + merge
    │
    └──► Wave 3 (memory edit, no PR — done immediately)
 
@@ -201,7 +201,7 @@ Independent timeline; no dependency on Waves 0-3 merging.
 |---------|----------------|---------------|----------------|
 | Combine gdb-wrapper removal and build-flag strip in one commit | Both were "remove justfile JIT workaround" shaped, so bundled into Wave 1 | Build-flag strip needed its OWN CI gate; bundling required surgical interactive-rebase + amend to split after the fact | If you can't point to green CI for a change, it belongs in its own PR. Split early or pay the rebase tax later. |
 | Delegate bulk file deletion to a sub-agent | Spawned sub-agent to execute Wave 2 deletions; it "ran out of token budget" | Agent produced a comprehensive deletion-list report but did not execute the `git rm`s | For bulk-mechanical work (delete N files, sed N files), main agent's direct bash is more efficient than delegation. Reserve sub-agents for reasoning/exploration. |
-| Debug "why is Wave 1 lint failing" on the branch | Spent time bisecting branch commits | A stale `.claude/scheduled_tasks.lock` had been committed accidentally in an unrelated prior PR and was failing pre-commit on every branch including ours | Before blaming your branch for a CI failure, check whether the same failure exists on `main`. Rebase early to inherit recent main fixes. |
+| Debug "why is Wave 1 lint failing" on the branch | Spent time bisecting branch commits | A stale `.claude/scheduled_tasks.lock` had been committed accidentally in an unrelated prior PR and was failing pre-commit on every branch including ours | Before blaming your branch for a CI failure, check whether the same failure exists on `main`. If the active task needs a main fix to continue, document that need before rebasing; otherwise keep the task base stable and let CI/CD integrate completed work. |
 | Push Wave 2 doc deletions and let CI find broken links | Pushed deletions, doc-deploy job (mkdocs --strict) failed | 3 separate iterations needed to chase broken links from surviving docs to deleted docs | Always pre-audit doc cross-references before deletion. See [[mkdocs-pre-deletion-audit]]. |
 | Put workaround-removal AND demolition in the validation PR | Tried to make Wave 0 do double duty | Conflated "does the bump work?" with "does removing X work?" — when CI failed, signal was muddled and rollback was painful | Keep Wave 0 a pure canary. Demolition belongs in Wave 1+ where the diff scope makes failures attributable. |
 | Bulk-delete `repro/` directory in Wave 2 | `git rm -r repro/` after an audit comment listed every path under the directory | 13+ reproducer files were for DISTINCT upstream bugs (libAsyncRT crash, JIT volume exhaustion, parametric monomorphization, module-import chain crashes, deterministic-allocator heap corruption) — not the demolition-target bug. They shared only the JIT-crash symptom surface. User audit caught it post-merge; required restoration PR HomericIntelligence/ProjectOdyssey#5464 to recover from commits `e8c5609a` and `7cde386d`. | **Partition by bug, not by directory.** Each `repro_<bug_name>.mojo` with a companion `issues/*.md` filing is its own bug. Apply the Pre-Deletion Bug-Partition Checklist to every file individually before deletion. |
