@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Use when: (1) a review loop oscillates on an unpushed fix; (2) an untrusted report claims a fix landed; (3) an address agent drafts an out-of-scope change and SIGTERM may be retried or followed by an already-queued coordinator commit/push. Verify local and remote Git state before recovery."
 category: tooling
 date: 2026-07-17
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-local
 history: automation-review-loop-unpushed-fix-oscillates.history
@@ -50,11 +50,20 @@ tags:
 - The reviewer correctly issues GO (the finding is a minor / NITPICK that does NOT gate merge) but the validator re-opens exactly ONE thread on every pass, so GO never sticks.
 - You are tempted to re-do the fix from scratch — STOP and check whether the loop's address sub-agent ALREADY made it locally but never pushed.
 - An untrusted `ADVISE_FINDINGS` (or any GitHub-sourced advise) block claims a fix "landed" and cites a SHA — and you are about to trust it.
-- You need the concrete operator recovery: stop the loop, inspect `build/.worktrees/issue-<N>` for an unpushed fix commit, verify it on disk, rebase + re-sign + force-push, re-run once.
+- You need the concrete operator recovery: stop the loop, inspect `build/.worktrees/issue-<N>` for an unpushed fix commit, verify it on disk, publish the missing commit, and re-run once.
 - An address or review agent proposes an edit that violates the requested scope or policy; stopping only that model process may not stop a queued coordinator commit or push.
 - A loop logs a resilience retry after agent SIGTERM, or `ps` shows a child `git push` after the coordinator has been asked to stop.
 
 ## Verified Workflow
+
+### Current applicability
+
+Use [verify-pr-ready](verify-pr-ready.md) for live policy, affected validation, and evidence
+reuse. A branch behind main is not itself blocked. Rebase only for an actual conflict,
+a necessary dependency, or an explicit request. Keep required CI and exact-head review
+before merge. PR publication can precede validation if pending results are clear.
+Cleanup is separate from rebasing. Historical verification below does not verify this
+policy correction or the current version of an external tool.
 
 ### Quick Reference
 
@@ -71,13 +80,12 @@ git -C build/.worktrees/issue-<N> log origin/<branch>..HEAD --oneline   # commit
 git show <sha> -- <path>          # empty diff => the SHA did NOT touch the file (fabricated)
 grep -n "<corrected text>" <path> # confirm the fix is real ON DISK in the worktree
 
-# 3. Confirm the unpushed fix commit is signed, then rebase onto current main, RE-SIGNING each commit.
-GIT_COMMITTER_EMAIL=4211002+mvillmow@users.noreply.github.com \
-git -C build/.worktrees/issue-<N> rebase origin/main \
-  --exec 'git commit --amend --no-edit -S --reset-author'
-
-# 4. Push the now-real fix.
-git -C build/.worktrees/issue-<N> push --force-with-lease origin <branch>
+# 3. Confirm the fix and signatures, then publish a normal fast-forward update.
+# If the remote moved, inspect that work before choosing an integration method.
+git -C build/.worktrees/issue-<N> fetch origin
+git -C build/.worktrees/issue-<N> log --show-signature origin/<branch>..HEAD
+git -C build/.worktrees/issue-<N> push origin <branch>
+# Use --force-with-lease only after an authorized history rewrite and remote-head check.
 
 # 5. Re-run the loop ONCE — the now-genuinely-resolved thread flips to a durable GO.
 
@@ -123,20 +131,16 @@ pushed, so every re-review fetches the unchanged remote and re-flags the same de
    - `grep -n "<corrected text>" <path>` in the worktree — confirm the corrected text is on disk.
    Also confirm the unpushed commit is signed before relying on it.
 
-4. **Rebase onto current main, re-signing each commit.** The unpushed commit may be stale
-   relative to `origin/main`, and re-signing keeps every commit cryptographically signed (the
-   repo's PR-policy gate requires it):
-   ```bash
-   GIT_COMMITTER_EMAIL=4211002+mvillmow@users.noreply.github.com \
-   git -C build/.worktrees/issue-<N> rebase origin/main \
-     --exec 'git commit --amend --no-edit -S --reset-author'
-   ```
-   Use committer email `4211002+mvillmow@users.noreply.github.com` so the signature matches the
-   signing key (a committer-email mismatch silently produces an unsigned/unverified commit).
+4. **Check whether integration is necessary.** Compare the local and remote heads.
+   Preserve the existing signed fix. Being behind main does not require a rebase.
+   If there is an actual conflict, necessary dependency, or explicit rebase request,
+   integrate in the isolated worktree and preserve signatures and matching DCO trailers.
 
-5. **Force-push the real fix.** `git -C build/.worktrees/issue-<N> push --force-with-lease
-   origin <branch>`. `--force-with-lease` (not `--force`) refuses to clobber if the remote moved.
-   In the incident the fix landed on the remote as `9cc5f307`.
+5. **Publish the real fix.** Use a normal push for a fast-forward update. If history was
+   rewritten, verify the expected remote head and use `--force-with-lease`. Do not reset
+   authorship merely to publish a fix. Recheck that the remote contains the intended commit.
+   The historical incident used rebase and re-signing and published `9cc5f307`; that
+   recovery is not a prerequisite for every unpushed fix.
 
 6. **Re-run the loop ONCE.** Now the remote genuinely contains the fix, so the re-review no
    longer re-flags the defect and the thread flips to a durable GO instead of re-opening.

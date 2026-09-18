@@ -1,9 +1,9 @@
 ---
 name: git-workflow-rebase-worktree-signing
-description: "Operate rebases, isolated worktrees, signed commits/tags, submodules, branch recovery, cherry-picks, stashes, and preservation-biased cleanup. Use for conflict resolution, stale bases, rejected signatures, parallel sibling branches, or uncertain branch/worktree state."
+description: "Use for actual rebase conflicts, missing dependencies, rejected signatures, parallel branches, submodule recovery, or uncertain branch and worktree state. Preserve work and inspect cleanup separately."
 category: tooling
 date: 2026-08-05
-version: "2.0.0"
+version: "2.1.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-local
@@ -23,9 +23,10 @@ tags:
 
 ## Overview
 
-Preserve work first, isolate each branch, rebase from a verified upstream, resolve conflicts by
-intent, and publish only signed commits with lease-protected updates. Treat cleanup as an audited
-separate phase. A valid local signature is only one part of hosted verification: key, commit/tag
+Preserve work first, isolate each branch, and resolve conflicts by intent. Rebase from a verified
+upstream only for an actual conflict, a necessary dependency, or an explicit request.
+Publish signed commits. Use lease protection for history rewrites. Treat cleanup as a separate
+phase. A valid local signature is only one part of hosted verification: key, commit/tag
 identity, account registration, and verified email must align.
 
 Detailed case provenance is in
@@ -64,7 +65,7 @@ Record the current HEAD, upstream, dirty/staged files, worktree ownership, and r
 Do not discard, force-remove, or overwrite uncertain state. If local changes exist, inspect them and
 either commit them on a preservation branch or stash them with an explicit message.
 
-### 2. Detect a stale base before editing
+### 2. Check a missing dependency before editing
 
 When a reviewed plan cites a file, line range, or job absent from the branch, compare with current
 upstream before declaring the plan wrong:
@@ -76,10 +77,15 @@ git log --oneline --left-right --cherry-pick HEAD...origin/main
 git show origin/main:path/to/cited-file
 ```
 
-If upstream contains the cited artifact, rebase first, then rediscover anchors. Never create a
-parallel substitute for code that simply has not reached the stale branch.
+If upstream contains the cited artifact, confirm that the task needs it. Integrate that dependency
+with a repository-supported method, then find the relevant locations again. Do not duplicate an
+existing implementation. A branch behind main without a conflict or necessary dependency does not
+need a rebase. Follow [live readiness policy](verify-pr-ready.md); do not add approval requirements.
 
 ### 3. Rebase one branch in its own worktree
+
+Use this procedure only after the applicability decision above. A pending or unknown forge
+mergeability result is not a conflict; recheck it with a bounded wait.
 
 ```bash
 git worktree add ../worktree-feature feature-branch
@@ -105,7 +111,8 @@ git rebase --continue
 Do not use a blanket “ours” or “theirs” rule. Those names also change meaning across rebase and
 merge contexts. Resolve semantically.
 
-Publish rewritten history only after checks pass:
+Publish an authorized PR update with pending validation clearly reported. Before merge, require
+applicable CI and exact-head review. For rewritten history, use lease protection:
 
 ```bash
 git push --force-with-lease origin feature-branch
@@ -119,7 +126,8 @@ Create one worktree per sibling branch and assign non-overlapping ownership. Fet
 dispatch, but revalidate `origin/main` and branch heads before publishing. Do not let multiple
 workers share an index, worktree, or branch.
 
-Resolve a common conflict root on main first when repository policy allows; then rebase siblings.
+Resolve a common conflict through an authorized PR when repository policy allows. Integrate the
+result only into siblings that need it; do not rebase every sibling when main moves.
 Repeatedly hand-resolving the same generated or hook defect across branches creates divergence.
 
 ### 5. Diagnose hook failures after rebase
@@ -225,6 +233,8 @@ retry with diagnostics; do not redirect to another checkout or silently continue
 
 ### 11. Audit cleanup separately
 
+Cleanup does not require a rebase, and a cleanup request does not authorize one.
+
 For each worktree/branch/stash, prove whether its commits are reachable, merged, superseded by a
 squash, or still unique. A squash merge requires patch/file comparison because commit ancestry may
 not show containment. Report safe cleanup candidates, but preserve anything ambiguous. Forced
@@ -239,7 +249,7 @@ worktree removal, branch deletion, and stash drop require explicit authority.
 | 3 | Push rewritten history with `--force` | Can overwrite concurrent remote work | Use `--force-with-lease` after head recheck |
 | 4 | Bypass a failing hook | Publishes unverified state and hides shared defect | Reproduce and fix the enforcement boundary |
 | 5 | Register a valid key and expect verified tags | UID email/account verification may still disagree | Align all four signing identities |
-| 6 | Edit around files missing on a stale branch | Duplicates code already on current main | Compare and rebase before implementation |
+| 6 | Edit around files missing on a stale branch | Duplicates code already on current main | Confirm the dependency and integrate it with a supported method |
 | 7 | Commit all dirty worktree changes together | Leftover revert can undo the feature | Inspect staged and unstaged intent separately |
 | 8 | Delete squash-merged branches by ancestry alone | Squash commit has different identity | Compare patch/file content and preserve ambiguity |
 | 9 | Drop stash immediately after conflicted pop | Removes recovery evidence before verification | Keep stash until resolved commit is proven |
@@ -257,6 +267,12 @@ worktree removal, branch deletion, and stash drop require explicit authority.
   head/check readback.
 
 ## Evidence Boundary
+
+Use affected validation first. Reuse evidence only when relevant inputs, commands, dependencies,
+configuration, and environment still apply. Keep the original tested revision; do not describe a
+historical run as current-head evidence. Required repository gates remain mandatory.
+
+The issue #3415 applicability correction adds no operational verification.
 
 The consolidated workflow is `verified-local` across the indexed repositories. Individual cases
 have different scopes; the public hosted-tag case proves identity alignment, not every hosting
