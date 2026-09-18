@@ -1,10 +1,10 @@
 ---
 name: git-rebase-signing-ci
 license: BSD-3-Clause
-description: "Rebase and sign commits to pass CI pr-policy checks. Use when: (1) CI pr-policy fails on unsigned commits, (2) need to re-sign all PR commits after rebase, (3) force push signed commits to update a PR, (4) a rebase using --exec stops on a real conflict and you need to resume it correctly instead of hand-invoking the exec command, (5) pr-policy fails with 'commit signature is missing or invalid' immediately after GitHub's Update branch button or gh pr update-branch --rebase — the server-side rebase re-creates every commit UNSIGNED, so never use it on a signed-commits repo, (6) git push --force-with-lease is rejected with 'stale info' after a server-side branch update — fetch the branch to refresh the remote-tracking ref, verify the remote head is the expected rewrite, then push, (7) branch protection requires strictly up-to-date branches AND signed commits and NO merge queue is enabled — every merge to main invalidates sibling PRs and each needs its own local re-signed rebase + force-push, one PR per cycle (server-side update is never usable), (8) a stacked PR's base branch was squash-merged — rebase with git rebase --onto origin/main <old-base-head> to shed the base's commits before pushing, (9) a GitHub merge queue IS enabled — do NOT prepare a local re-signed rebase + force-push cycle at all; a green PR queued for merge is rebuilt and merged server-side (merge-signed by GitHub) and lands MERGED without any author force-push, so check pr state before rebasing."
+description: "Diagnose signature failures, resume a justified rebase after conflicts, and compare signing repair with current branch-update or merge-queue requirements."
 category: tooling
 date: 2026-07-17
-version: "1.3.0"
+version: "1.4.0"
 user-invocable: false
 verification: verified-ci
 history: git-rebase-signing-ci.history
@@ -43,10 +43,29 @@ tags: [git, signing, rebase, ci, gpg, exec, conflict-resolution, update-branch, 
 
 ## Verified Workflow
 
+### Current applicability
+
+Use [verify-pr-ready](verify-pr-ready.md) for live policy, affected validation, and evidence
+reuse. A branch behind main is not itself blocked. Rebase only for an actual conflict,
+a necessary dependency, or an explicit request. Keep required CI and exact-head review
+before merge. PR publication can precede validation if pending results are clear.
+Cleanup is separate from rebasing. Historical verification below does not verify this
+policy correction or the current version of an external tool.
+
+### Signing repair boundary
+
+Signing repair is separate from target integration. If a commit must be re-signed, keep
+its intended source content and ancestry unless integration is also necessary. The
+`origin/main` rebase examples below apply only when that integration is justified.
+A strict freshness rule is an actual policy gate, but does not mandate rebase as its
+only solution. Check the live update methods and merge queue. A status label alone does
+not prove queue eligibility. Do not repeat a full local suite solely because main moved;
+select affected checks and retain required CI.
+
 ### Quick Reference
 
 ```bash
-# Rebase all PR commits onto latest base with signing (no conflicts expected)
+# Only when target integration through rebase is justified: replay with signing
 git rebase --exec 'git commit --amend --no-edit -S' origin/main
 
 # Verify all commits are signed (G = good)
@@ -128,8 +147,9 @@ git push --force-with-lease --force-if-includes origin <branch>
   then push again.
 - **Strict up-to-date + signed commits, NO merge queue = manual serial merges:** each merge
   advances `main` and flips every sibling PR to BEHIND, and the server-side updater is unusable, so
-  each PR needs its own local re-signed rebase, force-push, and full CI cycle — plan merges one at a
-  time and rebase the NEXT PR only after the previous one lands. This is the *no-queue* case; if a
+  the observed case used a local re-signed rebase and required CI for each PR. Inspect current
+  policy and supported methods before selecting that procedure. Do not infer a universal full
+  local validation cycle. This is the historical *no-queue* case; if a
   real GitHub merge queue is enabled, do the opposite (next bullet).
 - **A real GitHub merge queue makes the local re-signed rebase UNNECESSARY:** when the repo has a
   merge queue enabled (branch protection "Require merge queue" / a `merge_group`-triggered required

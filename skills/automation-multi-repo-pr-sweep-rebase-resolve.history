@@ -1,11 +1,24 @@
+# automation-multi-repo-pr-sweep-rebase-resolve — History
+
+
+## v1.1.0 — Issue #3415 (2026-09-18)
+
+Source: https://github.com/HomericIntelligence/Mnemosyne/issues/3415.
+Prior source: `611a59048c24ac3fcd9c9472c8452bc059f187b5`.
+Change: Correct current readiness, integration, and evidence applicability rules.
+Verification: Documentation correction; no new operational verification is claimed.
+Prior verification levels describe the historical cases only.
+
+### Complete prior v1.0.0 snapshot
+
+`````markdown
 ---
 name: automation-multi-repo-pr-sweep-rebase-resolve
 license: BSD-3-Clause
-description: "Inspect an authorized PR backlog across repositories when review alone leaves checks, conflicts, or review threads unresolved. Select repairs from live policy and actual blockers."
-history: automation-multi-repo-pr-sweep-rebase-resolve.history
+description: "Driving a large backlog of author-scoped PRs to green+merged across many repos. Use when: (1) hephaestus-review-prs runs but leaves PRs unmerged / BLOCKED-all-green, (2) deciding between a rebase-resolve sweep and the plain automation loop, (3) diagnosing why armed auto-merge PRs sit BLOCKED (unresolved review threads vs. CI backlog vs. red main), (4) a merge train of file-overlapping PRs keeps re-conflicting as siblings merge, (5) you need force-with-lease + resolveReviewThread after rebasing PR branches onto a moved main."
 category: tooling
 date: 2026-06-28
-version: "1.1.0"
+version: "1.0.0"
 user-invocable: false
 verification: verified-ci
 tags:
@@ -45,19 +58,9 @@ tags:
 
 ## Verified Workflow
 
-### Current applicability
+The core insight: **`hephaestus-review-prs` has 3 gaps, so do not rely on it alone.**
 
-Use [verify-pr-ready](verify-pr-ready.md) for live policy, affected validation, and evidence
-reuse. A branch behind main is not itself blocked. Rebase only for an actual conflict,
-a necessary dependency, or an explicit request. Keep required CI and exact-head review
-before merge. PR publication can precede validation if pending results are clear.
-Cleanup is separate from rebasing. Historical verification below does not verify this
-policy correction or the current version of an external tool.
-
-The historical sweep exposed these tool limits. Check the installed version before
-assuming that a limit still applies:
-
-1. It did not perform needed integration in the captured cases. Main moving alone does not invalidate required checks.
+1. It does **not rebase** branches onto the current `main` -> PRs fail any required check that `main` has moved past.
 2. It pushes fix **commits** but does **not resolve the GitHub review-THREAD objects** -> with `required_review_thread_resolution=true` (the `homeric-main-baseline` ruleset) PRs stay `BLOCKED` with everything green.
 3. It does a plain `git push` after a history-rewriting rebase -> non-fast-forward rejection, **and** its worktrees auto-clean on exit, so the rebase fix is **lost**.
 4. It has **no `--repo` flag** — it operates on the CWD repo, so it must be invoked from inside each submodule/clone (not the Odysseus meta-repo root).
@@ -65,28 +68,21 @@ assuming that a limit still applies:
 The working pattern is the **rebase + resolve sweep**: dispatch **one sub-agent per repo** into a **fresh `/tmp/sweep-<repo>` clone** (never the shared submodule, whose branch state and worktrees are shared). Per PR the sub-agent:
 
 1. `git fetch origin`
-2. Inspect conflicts and dependencies. Rebase only when applicable, preserving signatures, authorship, and one matching final DCO trailer.
+2. Rebase the PR branch onto `origin/main`, **re-signing every replayed commit** via `--exec 'git commit --amend --no-edit -S -s --reset-author'`.
 3. Resolve conflicts **semantically** (understand both sides; do not blindly take theirs/ours).
 4. Fix any residual CI failures the rebase surfaces.
-5. Use a normal push for a fast-forward update. Use `git push --force-with-lease` only for an authorized history rewrite after checking the remote head.
-6. Resolve only threads that the review workflow authorizes after the exact-head response and review. A pushed fix alone is not authority to close a thread.
+5. `git push --force-with-lease` (NOT plain push; NOT `--force`).
+6. Resolve the GitHub review-thread objects via the GraphQL `resolveReviewThread` mutation.
 7. Verify the tip commit is signed: `gh api repos/<o>/<r>/commits/<sha> --jq .commit.verification.verified` returns `true`.
 
 The orchestrator then **strict-verifies** each PR and arms auto-merge:
 
-- Verify live repository policy, required checks, required approvals, exact-head review,
-  signatures, and applicable thread-resolution requirements. Do not require `CLEAN` merely
-  as a substitute for those gates, or assume that a named check is optional.
-- Use the repository-supported merge method or queue after all required gates pass.
-  An auto-merge command can merge immediately; confirm authority and the exact head first.
+- Strict-verify = `mergeStateStatus` CLEAN **AND** 0 unresolved review threads **AND** all signatures valid **AND** no **REQUIRED**-context failure. Non-required checks (Trivy, docker-build, markdownlint) do **not** block.
+- Arm `gh pr merge <n> --auto --squash` (these repos are squash-only). A fully-green PR merges immediately on arm.
 
-**Shared CI failure:** A failure on main can affect multiple PRs. Confirm that it applies
-to each candidate before choosing a shared fix. Use a separate authorized PR where needed;
-do not change unrelated dependencies merely because main is red.
+**RED-MAIN-FIRST:** if a repo's `main` itself fails a **required** check (notably `security` / `dependency-scan` via `pip-audit`), **every** PR is blocked. Fix `main` FIRST with a dep-bump PR, then the whole queue unblocks. Seen on Hermes / Agamemnon / Proteus / Odysseus this session.
 
-**Overlapping PRs:** Inspect actual conflicts as siblings merge. Integrate only where
-needed. Do not rebase and push solely to test whether a PR is redundant. Compare its full
-intended change with the target and preserve ambiguous work.
+**MERGE-TRAIN CASCADE:** arming N file-overlapping PRs at once — each merge advances `main`, so siblings touching shared files (CHANGELOG, pixi.lock, `_required.yml`, coverage.xml, test dep-count assertions) **re-conflict**. This needs repeated re-rebase passes; it converges as the queue shrinks. Empty/superseded PRs auto-close on push — rebase+push them to confirm they are truly superseded rather than manually closing. **REGRESSIVE** PRs (which would revert `main`'s newer work) must be **left untouched** for manual re-authoring — never force-merged.
 
 **CI-THROUGHPUT CEILING:** force-pushing ~80 PRs saturates GitHub's runner pool — armed PRs sit `BLOCKED` with all checks **QUEUED** (not stuck, just waiting); auto-merge fires as runners free up. This is the real rate limit once structural blockers are gone.
 
@@ -100,14 +96,14 @@ cd "/tmp/sweep-$REPO"
 # hephaestus-review-prs has NO --repo flag — must run from inside the clone (CWD):
 hephaestus-review-prs   # optional first pass; then fix its 3 gaps manually below
 
-# --- Only after a justified rebase decision: preserve signatures and use a lease ---
+# --- Per PR: rebase onto moved main, re-sign every commit, force-with-lease ---
 git fetch origin
 git checkout <pr-branch>
-git -c commit.gpgsign=true rebase origin/main
+git rebase origin/main --exec 'git commit --amend --no-edit -S -s --reset-author'
 # ...resolve conflicts semantically, fix residual CI...
 git push --force-with-lease
 
-# --- Inspect threads; resolve only with authority from the exact-head review workflow ---
+# --- Resolve the GitHub review THREAD objects (commits alone don't clear them) ---
 gh api graphql -f query='
   query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){
     pullRequest(number:$n){reviewThreads(first:50){nodes{id isResolved}}}}}' \
@@ -119,37 +115,37 @@ gh api graphql -f query='
 # --- Verify the tip commit signature is valid ---
 gh api repos/$ORG/$REPO/commits/<sha> --jq .commit.verification.verified   # -> true
 
-# --- After live policy gates and exact-head review pass, use the permitted merge method ---
+# --- Strict-verify (CLEAN + 0 unresolved threads + no required-check failure) then arm ---
 gh pr view <pr> --repo $ORG/$REPO \
-  --json mergeStateStatus,headRefOid,statusCheckRollup
-gh pr merge <pr> --auto --squash --repo $ORG/$REPO   # only if live policy permits squash
+  --json mergeStateStatus,reviewThreads,statusCheckRollup
+gh pr merge <pr> --auto --squash --repo $ORG/$REPO   # squash-only repos
 ```
 
 ### Detailed Steps
 
 1. **Discover** the author-scoped PR backlog per repo: `gh pr list --repo <o>/<r> --author <user> --json number,mergeStateStatus`.
-2. Inspect required-check failures and determine whether a shared cause affects the candidates.
+2. **Red-main-first:** check each repo's `main` for a failing **required** check; if red, land a dep-bump PR before touching the queue.
 3. **Fan out** one sub-agent per repo into `/tmp/sweep-<repo>` (fresh clone — never the shared submodule).
-4. Per PR: bind the head, inspect actual blockers, resolve necessary integration, publish the fix, and obtain exact-head review. Retain required CI and signing gates.
-5. Verify all live repository gates, then use the authorized merge method or queue. Target movement alone does not require another rebase.
+4. Per PR: fetch -> rebase onto `origin/main` re-signing via `--exec` -> resolve conflicts semantically -> fix residual CI -> `git push --force-with-lease` -> `resolveReviewThread` -> verify signature.
+5. **Orchestrator strict-verify + arm** `--auto --squash`; expect merge-train re-conflicts on shared files, so run repeated re-rebase passes until the queue drains.
 6. Leave **regressive** PRs untouched for manual re-authoring; let CI-throughput-throttled armed PRs merge as runners free.
 
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 |---------|----------------|---------------|----------------|
-| 1 | Ran `hephaestus-review-prs` alone and expected it to merge the backlog | 15/30 PRs "failed" — plain `git push` after rebase was rejected non-fast-forward, and the review THREADs were never resolved so PRs stayed BLOCKED-all-green; the loop's auto-cleaned worktrees LOST the fix | Preserve the worktree. Use a lease only for an authorized history rewrite, and resolve threads only under the exact-head review workflow. |
+| 1 | Ran `hephaestus-review-prs` alone and expected it to merge the backlog | 15/30 PRs "failed" — plain `git push` after rebase was rejected non-fast-forward, and the review THREADs were never resolved so PRs stayed BLOCKED-all-green; the loop's auto-cleaned worktrees LOST the fix | The loop has 3 gaps. Use `git push --force-with-lease` + the `resolveReviewThread` GraphQL mutation, and work in a persistent clone so the rebase survives. |
 | 2 | Ran the loop from the wrong CWD (the Odysseus meta-repo root) | `hephaestus-review-prs` has NO `--repo` flag — it targeted the wrong repo's issues/PRs | Always invoke it from inside each individual repo clone (CWD = that repo). |
 | 3 | Armed `--auto --squash` on all overlapping PRs simultaneously | Maximal merge-train cascade: every merge advanced `main`, re-conflicting siblings that touched shared files (CHANGELOG, pixi.lock, `_required.yml`, coverage.xml) | Serialize the arm, or expect and budget for multiple re-rebase passes; the cascade converges as the queue shrinks. |
-| 4 | Treated `BLOCKED`-all-green PRs as broken/stuck | They were not broken — either unresolved review threads (review-gate) OR a CI runner backlog with all checks QUEUED | Inspect unresolved threads and queued checks. Confirm that a shared failure affects each candidate before selecting a shared fix. |
+| 4 | Treated `BLOCKED`-all-green PRs as broken/stuck | They were not broken — either unresolved review threads (review-gate) OR a CI runner backlog with all checks QUEUED | Before assuming broken, check `reviewThreads` for unresolved nodes AND check the check-run QUEUED status; a red `main` on a required check blocks every PR — fix `main` first. |
 
 ## Results & Parameters
 
 - **Scale:** ~97/108 mvillmow PRs resolved across 13 HomericIntelligence repos in one session; **89 merged**.
 - **Repos where `main` was red on a required check (fixed first):** Hermes, Agamemnon, Proteus, Odysseus (`security`/`dependency-scan` via `pip-audit`).
-- **Required checks:** read live policy; historical check names do not establish current requirements.
-- **Merge method:** the captured repositories used squash. Check current repository settings and queue requirements.
-- **Ruleset:** the captured cases required thread resolution. Apply current policy and review authority before resolving a thread.
+- **Required vs. non-required:** only **required** contexts block the arm. Non-required (Trivy, docker-build, markdownlint) are ignored for the merge decision.
+- **Merge method:** all HI repos are **squash-only** -> `gh pr merge <n> --auto --squash`.
+- **Ruleset:** `homeric-main-baseline` sets `required_review_thread_resolution=true` — this is exactly why pushing commits is not enough and `resolveReviewThread` is mandatory.
 - **Signature email:** sign with the noreply email `4211002+mvillmow@users.noreply.github.com` so rewritten/re-signed commits stay `verified==true` and survive the GH007 email-privacy push block (see cross-link below).
 - **Throughput ceiling:** force-pushing ~80 PRs saturates the runner pool; armed PRs sit BLOCKED/QUEUED and auto-merge as runners free — this is the rate limit, not a failure.
 
@@ -161,3 +157,4 @@ gh pr merge <pr> --auto --squash --repo $ORG/$REPO   # only if live policy permi
 - `dependabot-lockfile-rebase-regenerate-resign` — regenerating + re-signing lockfiles when rebasing dependency PRs (the pixl.lock / CHANGELOG re-conflict case).
 - `multi-repo-pr-automation-loop-orchestration` — the driver-side honest-reporting / report-vs-live-state failures of the loop itself.
 - `reference_signed_commits_email_privacy` (Odysseus memory) — the noreply email `4211002+mvillmow@users.noreply.github.com` that keeps signatures valid past GH007.
+`````
