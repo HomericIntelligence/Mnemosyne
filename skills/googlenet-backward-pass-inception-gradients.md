@@ -380,7 +380,7 @@ verification_gates: [pre-commit, gradient-computation-structure]
 | SGD-momentum updates | 222/222 generated | All parameter names in order |
 | BN tuple patterns | 36/36 verified | [0]/[1]/[2] indexing correct |
 | Pre-commit checks | Pass | Mojo format, lint, trailing-ws |
-| Merge conflicts resolved | 1/1 | --strategy-option=ours |
+| Merge conflicts resolved | 1/1 | Per-conflict resolution retained required main changes and backward-pass changes |
 
 ### Implementation Snapshot
 
