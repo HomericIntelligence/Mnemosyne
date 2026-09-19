@@ -104,8 +104,9 @@ hephaestus-merge-prs --agent <agent>
 git log origin/main..HEAD --pretty=format:'%h %G? %s'
 git log origin/main..HEAD --format=%B | grep -q '^Signed-off-by: '
 
-# 6. To drive ALL existing open PRs to green (resolve actual integration blockers and fix CI)
-#    WITHOUT planning/implementing new issues — use --drive-green-all,
+# 6. To drive ALL existing open PRs to green, fix CI and rebase only when the
+#    task-phase rule permits it. Otherwise, use CI/CD or the merge queue. Use
+#    --drive-green-all without planning or implementing new issues; it
 #    which runs the full loop bootstrap first so the REPO stage is seeded:
 pixi run hephaestus-automation-loop \
   --repos <Repo> --drive-green-all --max-workers 4 --parallel-repos 1 --model <model>
@@ -176,8 +177,9 @@ pixi run hephaestus-automation-loop \
 
 ### Driving All Open PRs to Green (v1.1.0, verified-local)
 
-Correct invocation — drives existing open PRs to green (rebase + fix CI on PRs that
-already exist) without planning/implementing new issues:
+Correct invocation — drives existing open PRs to green by fixing CI and, only when the
+task-phase rule permits it, rebasing. Otherwise, CI/CD or the merge queue integrates the PR.
+It does not plan or implement new issues:
 
 ```bash
 pixi run hephaestus-automation-loop \

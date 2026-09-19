@@ -60,8 +60,9 @@ python3 scripts/generate_sgd_momentum_updates.py \
 # --- Run pre-commit before committing ---
 pixi run pre-commit run --all-files   # Must pass: mojo format, markdown lint, trailing whitespace
 
-# --- Rebase with conflict resolution (if merging to main) ---
-git rebase main --strategy-option=ours   # Use our version for Inception backward blocks
+# --- Rebase only when the active task needs main content or a host reports a conflict ---
+git rebase main
+# Resolve each conflict by keeping the required main changes and backward-pass changes.
 ```
 
 ### Detailed Steps
@@ -274,17 +275,19 @@ print(f"grad_input_total shape: {grad_input_total.shape}")  # Should match input
 
 #### Phase 6: Handle Merge Conflicts (Rebase Strategy)
 
-If the PR is rebased onto `main` and introduces merge conflicts:
+Rebase only when the active task needs `main` content or the host reports a merge conflict. If
+that permitted rebase introduces conflicts:
 
 1. **Identify conflict**: Check which files have conflicts (typically imports, forward pass references).
 
-2. **Use rebase with --strategy-option=ours**:
+2. **Resolve each conflict by intent**:
 
    ```bash
-   git rebase main --strategy-option=ours
+   git rebase main
    ```
 
-   This automatically resolves by keeping our version (the backward implementation) for conflicting sections.
+   Keep required changes from `main` and the backward implementation. Do not use a blanket side
+   selection, because it can discard required changes.
 
 3. **Verify no import loss**: After rebase, ensure:
    - All imports are still present (`from projectodyssey.models.googlenet import ...`)
@@ -348,7 +351,7 @@ Verification:
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 | --------- | ---------------- | --------------- | ---------------- |
 | Manual writing of 9 Inception backward blocks | Wrote each of the 9 Inception blocks' backward passes by hand | Error-prone due to subtle differences in channel counts per branch (e.g., inception_3a=[64,192,224,32] vs inception_5b=[384,768,896]); copy-paste errors introduced inconsistencies in BN tuple indexing | Use Python code generation for repetitive blocks (9+ similar structures); prevents copy-paste errors in 200+ lines of similar code |
-| Merge conflict during rebase to main | Rebased feature branch onto origin/main | Origin/main had updated Inception forward-pass imports and layer definitions; automatic merge conflict on imports and forward-pass references | Use `git rebase main --strategy-option=ours` to automatically resolve by keeping our version; manually verify no code loss afterward |
+| Merge conflict during rebase to main | Rebased feature branch onto origin/main | Origin/main had updated Inception forward-pass imports and layer definitions; automatic merge conflict on imports and forward-pass references | When a rebase is permitted, resolve each conflict by retaining required changes from main and the backward implementation; then verify that no code was lost |
 | Manual SGD update generation | Attempted to write 222 SGD calls for momentum updates by hand | Easy to miss parameter names, omit velocities, or break the initialization order; error-prone for 200+ lines | Use Python helper script to generate all SGD calls in correct order; validates against initialize_velocities() order |
 | BN backward tuple destructuring confusion | Mixed up which index holds grad_input vs grad_gamma vs grad_beta | Index swap [1]/[2] led to incorrect parameter updates (updating wrong gradients) | Create a verified table: [0]=grad_input, [1]=grad_gamma, [2]=grad_beta; use explicitly for all 36 BN backward calls (4 branches × 9 modules) |
 | Split_with_indices without cumulative-sum pre-computation | Calculated channel split indices on-the-fly in Mojo | Difficult to verify correctness; easy to off-by-one errors; no single source of truth | Pre-compute cumulative-sum table for each Inception module from forward-pass branches; document in code comments; verify against total channels |
@@ -410,7 +413,7 @@ var grad_beta = bn_backward_result[2]       # [2] = grad_beta
 
 - **Pre-commit checks**: PASS (Mojo formatting, markdown linting, trailing whitespace)
 - **Gradient computation gates**: PASS (shape matching, channel table validation, BN tuple indexing)
-- **Merge resolution**: PASS (rebase with --strategy-option=ours, no code loss)
+- **Merge resolution**: Resolve a permitted rebase conflict by retaining required changes from `main` and the backward implementation; do not use a blanket side selection.
 - **Full CI**: Pending (implementation complete, ready for CI validation)
 
 ## Quick Checklist
