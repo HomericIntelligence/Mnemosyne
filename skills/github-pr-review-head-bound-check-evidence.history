@@ -1,0 +1,19 @@
+# Version history
+
+## 1.0.0
+
+- Archive status: privacy-redacted.
+- The prior entry contained organization and session identifiers.
+- The exact snapshot is intentionally omitted.
+- Generalized prior rule: require immutable source identity for each required CI result.
+- Provenance: prior canonical knowledge entry inspected before amendment.
+
+## 1.1.0
+
+- Amendment date: 2026-09-18.
+
+- Change: distinguish a selected source from a moving branch and from workflow code.
+- Preserve eligible evidence and repeat validation only for changed applicable inputs.
+- Prefer provider records over duplicate handoff authority.
+- Provenance: operator correction during an immutable-source qualification discussion.
+- Verification limit: decision rule supported by source inspection and operator clarification; no deployment outcome or timing improvement is claimed.
