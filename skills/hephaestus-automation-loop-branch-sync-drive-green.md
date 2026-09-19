@@ -106,8 +106,8 @@ git log origin/main..HEAD --format=%B | grep -q '^Signed-off-by: '
 
 # 6. To drive ALL existing open PRs to green, fix CI and rebase only when the
 #    task-phase rule permits it. Otherwise, use CI/CD or the merge queue. Use
-#    --drive-green-all without planning or implementing new issues; it
-#    which runs the full loop bootstrap first so the REPO stage is seeded:
+#    --drive-green-all without planning or implementing new issues. It runs
+#    the full loop bootstrap first so the REPO stage is seeded:
 pixi run hephaestus-automation-loop \
   --repos <Repo> --drive-green-all --max-workers 4 --parallel-repos 1 --model <model>
 
