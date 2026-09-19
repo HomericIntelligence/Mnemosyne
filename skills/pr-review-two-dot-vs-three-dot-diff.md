@@ -58,8 +58,9 @@ Do not close a PR or discard work only because one file matches.
 
 ### 4. Keep review, integration, and cleanup separate
 
-Review the exact head. Check integration against the current target as policy requires.
-Rebase only for an actual conflict, a necessary dependency, or an explicit request.
+Review the exact head. Check integration against the current target as policy requires. During
+active work, rebase only for a blocker or required main content. After task completion, rebase only
+for a host-reported merge conflict; otherwise CI/CD or the merge queue integrates main.
 If the head changes, review the resulting candidate. Reuse validation only under the
 applicability rules in [verify-pr-ready](verify-pr-ready.md).
 

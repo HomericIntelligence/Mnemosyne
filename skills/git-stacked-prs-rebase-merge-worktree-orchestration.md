@@ -1,10 +1,10 @@
 ---
 name: git-stacked-prs-rebase-merge-worktree-orchestration
 license: BSD-3-Clause
-description: "End-to-end playbook for driving a stack of dependent PRs through a rebase-merge-ONLY GitHub repo (allow_merge_commit:false, allow_squash_merge:false) using parallel git worktrees. Use when: (1) a repo permits only rebase-merge and you must merge stacked PRs — retarget every still-open stacked PR to main BEFORE merging anything below it, because deleting a stack-base branch on merge makes GitHub CLOSE (not retarget) dependent PRs UNRECOVERABLY, (2) a stacked branch re-conflicts on its base's commits after those commits were rebase-merged into main with conflict resolutions — use `git rebase --onto origin/main <old-base-sha> <branch>` to replay only the branch's own commits, (3) preventing committed conflict markers from reaching main — check `git diff --name-only --diff-filter=U` AND `git grep -nE '^(<<<<<<< |>>>>>>> )'` before every `git rebase --continue`, plus a CI guard step, (4) parallel worktree agents on stacked branches keep conflicting on shared doc/registry/__init__/changelog files — resolve as chronological additive unions, never pick-one-side; regenerate (don't hand-merge) tool-generated report files, (5) `git worktree remove` fails on an agent-locked worktree (unlock first) or a chained checkout silently fails and later commands run on the wrong branch, (6) local main diverges patch-identically after rebase-merges — `git pull --rebase origin main` drops duplicates, (7) gh quirks: stale `gh pr diff` right after push, `--delete-branch` failing while a worktree holds the branch, GraphQL rate-limit exhaustion from tight CI-polling loops across many PRs."
+description: "End-to-end playbook for driving a stack of dependent PRs through a rebase-merge-ONLY GitHub repo (allow_merge_commit:false, allow_squash_merge:false) using parallel git worktrees. Use when: (1) a repo permits only rebase-merge and you must merge stacked PRs — retarget every still-open stacked PR to main BEFORE merging anything below it, because deleting a stack-base branch on merge makes GitHub CLOSE (not retarget) dependent PRs UNRECOVERABLY, (2) a retargeted stacked branch reports a merge conflict after its base's commits were rebase-merged into main with conflict resolutions — use `git rebase --onto origin/main <old-base-sha> <branch>` to replay only the branch's own commits, (3) preventing committed conflict markers from reaching main — check `git diff --name-only --diff-filter=U` AND `git grep -nE '^(<<<<<<< |>>>>>>> )'` before every `git rebase --continue`, plus a CI guard step, (4) parallel worktree agents on stacked branches keep conflicting on shared doc/registry/__init__/changelog files — resolve as chronological additive unions, never pick-one-side; regenerate (don't hand-merge) tool-generated report files, (5) `git worktree remove` fails on an agent-locked worktree (unlock first) or a chained checkout silently fails and later commands run on the wrong branch, (6) a new task needs a fresh main pin after rebase-merges, (7) gh quirks: stale `gh pr diff` right after push, `--delete-branch` failing while a worktree holds the branch, GraphQL rate-limit exhaustion from tight CI-polling loops across many PRs."
 category: tooling
 date: 2026-07-10
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-ci
 tags:
@@ -40,10 +40,10 @@ This skill is specifically the rebase-merge-only stack-orchestration workflow.
 
 - The target repo has `allow_merge_commit: false` and `allow_squash_merge: false` — every merge is a **rebase-merge that rewrites SHAs**, so stacked branches are never patch-identical to what lands on main.
 - You are about to merge the bottom PR of a stack and other stacked PRs are still open (the retarget-first rule below is MANDATORY — violation closes dependents unrecoverably).
-- A dependent branch's rebase onto `origin/main` re-conflicts on commits that belong to its already-merged base (the base was rebase-merged WITH conflict resolutions, so it is no longer patch-identical).
+- A retargeted dependent branch reports a merge conflict on commits that belong to its already-merged base (the base was rebase-merged WITH conflict resolutions, so it is no longer patch-identical).
 - Multiple parallel agents each own a worktree + branch, dependent work is stacked on its dependency's branch, and shared registry-style files (CLAUDE.md status docs, `__init__` re-exports, changelogs/followup ledgers, regenerated reports) conflict on every rebase.
 - You need to guarantee no conflict markers ever reach main (pre-`--continue` checks + CI guard).
-- After several rebase-merges, local main "diverges" from origin with patch-identical commits.
+- A new task needs a fresh pin to `origin/main` after several rebase-merges.
 - `gh pr diff` shows a stale diff right after a push, `gh pr merge --delete-branch` can't delete a worktree-held local branch, or CI-polling loops start hitting GraphQL rate limits.
 
 ## Verified Workflow
@@ -58,8 +58,8 @@ git worktree add /tmp/wt-featB -b featB featA   # NOT main, if B depends on A
 gh pr edit <dependent-PR> --base main           # for EVERY still-open stacked PR, FIRST
 gh pr merge <base-PR> --rebase --delete-branch  # only THEN merge the base
 
-# 2) After the base rebase-merges into main (with conflict resolutions), replay ONLY the
-#    dependent branch's own commits — plain `git rebase origin/main` re-conflicts on base commits
+# 2) Only if the retargeted dependent reports a merge conflict after the base
+#    rebase-merges into main, replay ONLY the dependent branch's own commits
 git fetch origin
 git rebase --onto origin/main <old-base-tip-sha> featB
 
@@ -84,8 +84,9 @@ git rebase --continue
 git worktree unlock /path/to/wt 2>/dev/null; git worktree remove /path/to/wt
 git branch --show-current                       # verify after ANY chained checkout
 
-# 7) Local main diverged patch-identically after rebase-merges
-git pull --rebase origin main                   # drops the duplicate local commits cleanly
+# 7) For a new task, pin its branch to the fetched main; do not rebase local main
+git fetch origin
+git rev-parse origin/main
 
 # 8) gh freshness check after push (gh pr diff can serve a STALE diff)
 git rev-parse HEAD
@@ -98,13 +99,13 @@ gh pr view <N> --json headRefOid --jq .headRefOid   # must match before trusting
 
 2. **Merge order: retarget first, merge second.** Because the repo is rebase-merge-only, merging a PR rewrites its commits' SHAs on main and (with `--delete-branch`) deletes the head branch. If any still-open PR uses that branch as its base, GitHub **CLOSES** the dependent PR when the base branch is deleted — it does **not** retarget it, and a closed PR's base cannot be changed (`Cannot change the base branch of a closed pull request`). The close is unrecoverable; you must open a brand-new PR. Rule exercised in the session: **before merging anything below it, run `gh pr edit <N> --base main` on every still-open stacked PR.**
 
-3. **Replay dependents with `--onto`.** After the base merges, the base's commits on main are new SHAs and — if conflicts were resolved during its final rebase — no longer patch-identical. A plain `git rebase origin/main featB` therefore re-conflicts on the base's commits. Instead:
+3. **Resolve dependent conflicts with `--onto`.** After the base merges, the base's commits on main are new SHAs and — if conflicts were resolved during its final rebase — no longer patch-identical. Retarget the dependent first. If the host then reports a merge conflict, a plain `git rebase origin/main featB` can re-conflict on the base's commits. In that case:
 
    ```bash
    git rebase --onto origin/main <old-base-tip-sha> featB
    ```
 
-   where `<old-base-tip-sha>` is the tip of the dependency branch as featB last saw it (recover via `git merge-base featB <old-base-branch>` before deletion, or from reflog/PR head SHA). This replays ONLY featB's own commits. This avoided a full conflict replay twice in the session. (If the base commits ARE still patch-identical, plain rebase auto-skips them, or see `git-rebase-skip-duplicate-merged-commits`.)
+   where `<old-base-tip-sha>` is the tip of the dependency branch as featB last saw it (recover via `git merge-base featB <old-base-branch>` before deletion, or from reflog/PR head SHA). This replays ONLY featB's own commits. This avoided a full conflict replay twice in the session. If the retargeted PR has no reported conflict, do not rebase it merely because the base merged; let CI/CD integrate it.
 
 4. **Conflict-marker hygiene (incident-driven, both preventions adopted).** A real incident put conflict markers on main: during a rebase, `git add -A` staged a file whose conflict was never resolved, because the operator checked only `git status --short | head -3` and the conflicted file was below the cutoff. Preventions:
    - Before every `git rebase --continue`: `git diff --name-only --diff-filter=U` must be empty AND `git grep -nE '^(<<<<<<< |>>>>>>> )'` must be empty. Run both, every time — never truncate status output.
@@ -114,7 +115,7 @@ gh pr view <N> --json headRefOid --jq .headRefOid   # must match before trusting
 
 6. **Worktree lifecycle safety.** `git worktree remove` fails on an agent-locked worktree — run `git worktree unlock <path>` first, then remove (no `--force`). After ANY chained checkout (`git checkout X && ...`), verify `git branch --show-current`: a checkout silently blocked by an untracked regenerated file leaves you on the previous branch, and subsequent rebase commands then run on the **wrong branch**.
 
-7. **Post-merge local-main hygiene.** After rebase-merges, local main holds patch-identical commits with different SHAs than origin. `git pull --rebase origin main` detects the duplicates and drops them cleanly (do not `pull --ff-only`, which just fails; do not reset unless you've confirmed nothing local is unpushed).
+7. **Post-merge task-base hygiene.** After rebase-merges, local main can hold patch-identical commits with different SHAs than origin. Do not rebase local main solely to remove those duplicates. Fetch `origin`, then let each new task pin its branch to `origin/main`; repository CI/CD owns ordinary integration for completed branches.
 
 8. **gh CLI quirks (all observed in-session):**
    - `gh pr merge N --rebase --delete-branch` fails to delete the **local** branch when a worktree holds it. Harmless — clean up the worktree first next time.
@@ -155,9 +156,9 @@ gh pr view <N> --json headRefOid --jq .headRefOid   # must match before trusting
       fi
   ```
 
-- **Dependent-branch replay:** `git rebase --onto origin/main <old-base-tip-sha> <branch>`.
+- **Dependent-branch replay:** use `git rebase --onto origin/main <old-base-tip-sha> <branch>` only to resolve a reported conflict after retargeting.
 - **Polling parameters:** 45–60 s interval, exponential backoff on `rate limit` / `i/o timeout`, one loop per PR.
-- **Local main after merges:** `git pull --rebase origin main`.
+- **New task base after merges:** fetch `origin` and pin the new branch to `origin/main`; do not rebase local main merely to remove patch-identical commits.
 
 ## Verified On
 

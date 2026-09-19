@@ -73,9 +73,10 @@ budget. Old invocations passing `--max-merge-attempts` now fail argparse.
 ### Current applicability
 
 Use [verify-pr-ready](verify-pr-ready.md) for live policy, affected validation, and evidence
-reuse. A branch behind main is not itself blocked. Rebase only for an actual conflict,
-a necessary dependency, or an explicit request. Keep required CI and exact-head review
-before merge. PR publication can precede validation if pending results are clear.
+reuse. A branch behind main is not itself blocked. During active work, rebase only for a blocker
+or required main content. After task completion, rebase only for a host-reported merge conflict;
+otherwise CI/CD or the merge queue integrates main. Keep required CI and exact-head review before
+merge. PR publication can precede validation if pending results are clear.
 Cleanup is separate from rebasing. Historical verification below does not verify this
 policy correction or the current version of an external tool.
 
@@ -103,9 +104,10 @@ hephaestus-merge-prs --agent <agent>
 git log origin/main..HEAD --pretty=format:'%h %G? %s'
 git log origin/main..HEAD --format=%B | grep -q '^Signed-off-by: '
 
-# 6. To drive ALL existing open PRs to green (rebase + fix CI on PRs that already
-#    exist) WITHOUT planning/implementing new issues — use --drive-green-all,
-#    which runs the full loop bootstrap first so the REPO stage is seeded:
+# 6. To drive ALL existing open PRs to green, fix CI and rebase only when the
+#    task-phase rule permits it. Otherwise, use CI/CD or the merge queue. Use
+#    --drive-green-all without planning or implementing new issues. It runs
+#    the full loop bootstrap first so the REPO stage is seeded:
 pixi run hephaestus-automation-loop \
   --repos <Repo> --drive-green-all --max-workers 4 --parallel-repos 1 --model <model>
 
@@ -123,8 +125,9 @@ pixi run hephaestus-automation-loop \
 
 2. **Preserve existing work.** Inspect `git log HEAD..origin/main`,
    `git diff --stat origin/main...HEAD`, and live PR review state. A commit subject alone
-   does not prove that a fix is complete or obsolete. Integrate only for an actual conflict,
-   necessary dependency, or explicit request. Review changed content and run affected checks.
+   does not prove that a fix is complete or obsolete. During active work, rebase only for a blocker
+   or required main content. After task completion, rebase only for a host-reported merge conflict.
+   Review changed content and run affected checks.
 
 3. **Make worktree ownership explicit.** Each implementation worker should own one issue and the PR that closes it. If the worker discovers an existing PR, sync to that PR head and account for comments, reviews, and thread state before deciding the implementation is done.
 
@@ -136,7 +139,7 @@ pixi run hephaestus-automation-loop \
 
 7. **Use live GitHub state as the completion gate.** Before reporting the loop complete, check the issue state, PR state, required checks, review/thread state, and auto-merge state live from GitHub. Local success logs are not enough.
 
-8. **To drive all existing open PRs to green, use `--drive-green-all` — never `--phases drive-green` standalone.** When the goal is to shepherd already-open PRs (rebase + fix CI on PRs that exist) rather than plan/implement new issues from scratch, use `--drive-green-all` with no `--phases`:
+8. **To drive all existing open PRs to green, use `--drive-green-all` — never `--phases drive-green` standalone.** When the goal is to shepherd already-open PRs (resolve actual integration blockers and fix CI) rather than plan or implement new issues from scratch, use `--drive-green-all` with no `--phases`:
 
    ```bash
    pixi run hephaestus-automation-loop \
@@ -174,8 +177,9 @@ pixi run hephaestus-automation-loop \
 
 ### Driving All Open PRs to Green (v1.1.0, verified-local)
 
-Correct invocation — drives existing open PRs to green (rebase + fix CI on PRs that
-already exist) without planning/implementing new issues:
+Correct invocation — drives existing open PRs to green by fixing CI and, only when the
+task-phase rule permits it, rebasing. Otherwise, CI/CD or the merge queue integrates the PR.
+It does not plan or implement new issues:
 
 ```bash
 pixi run hephaestus-automation-loop \

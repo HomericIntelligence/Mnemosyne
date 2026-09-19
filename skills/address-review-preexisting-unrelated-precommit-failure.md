@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Use when a local pre-merge/pre-push gate goes red on work your PR did not introduce. Covers two verified variants: (1) `pre-commit run --all-files` fails on an unrelated hook, where the durable proof is stash-verify (`git stash push <your-changed-file>` then rerun just the failing hook; identical failure means pre-existing/out-of-scope); (2) a post-rebase `git push` pre-push hook runs a broad pytest suite and fails on unrelated local host assumptions (for example macOS lacks `/usr/bin/bash` or uses Bash 3.2 without Bash 4 features) while PR-specific tests pass. The rule is: prove/classify the failure, run focused validation against the PR diff, do not expand scope to repair unrelated local gate debt, and document any `--no-verify` push exception with the exact full-hook failure and targeted-pass evidence."
 category: tooling
 date: 2026-07-04
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-local
 history: address-review-preexisting-unrelated-precommit-failure.history
@@ -100,7 +100,8 @@ gh pr view 327 --json headRefName,baseRefName,headRefOid,mergeStateStatus
 git symbolic-ref refs/remotes/origin/HEAD
 git ls-remote --heads origin main master
 
-# 2. Rebase onto the actual base and resolve only PR/base conflicts.
+# 2. Only if the host reports a PR/base conflict, or the active review task needs
+#    base content, rebase onto the actual base and resolve only those conflicts.
 git fetch origin
 git rebase origin/master
 git diff --check origin/master...HEAD

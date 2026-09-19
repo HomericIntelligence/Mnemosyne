@@ -3,7 +3,7 @@ name: parallel-pr-worktree-workflow
 description: "Use when executing or rescuing multiple independent PRs concurrently: each writer needs an isolated worktree, dependency-aware batching, current-head CI triage, explicit merge-method/base handling, exact-lease rebases, contamination rescue, and bounded cleanup."
 category: ci-cd
 date: 2026-07-01
-version: "2.1.0"
+version: "2.2.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-local
@@ -18,8 +18,9 @@ tags: [parallel-prs, git-worktree, agent-isolation, dependency-waves, current-he
 
 Parallelize independent PR work across isolated worktrees while preserving one writer per branch,
 explicit dependency order, and current-head evidence. Worktrees isolate `HEAD` and index state;
-waves isolate dependencies. Live PR metadata decides whether to rebase, fix CI, retarget, merge, or
-stop.
+waves isolate dependencies. A task can begin from a `main` pin. After it begins, evidence decides
+whether work is blocked, a main artifact is required, a conflict needs resolution, or CI/CD should
+integrate the branch without an agent rebase.
 
 Detailed examples are indexed in
 [`parallel-pr-worktree-workflow.notes.md`](parallel-pr-worktree-workflow.notes.md). The complete
@@ -30,7 +31,7 @@ superseded source is in
 
 - Two or more agents will commit or push in the same repository.
 - Five or more independent fixes/PRs can be batched for throughput.
-- Many stale PRs need rebase, conflict resolution, checks, and conditional merge.
+- Many PRs need conflict triage, checks, and conditional merge.
 - A shared prerequisite must land before a fan-out wave.
 - Branch/file contamination has already occurred and individual cleanup is becoming quadratic.
 - A stacked PR must be retargeted before auto-merge, or an earlier stacked merge was orphaned.
@@ -91,7 +92,7 @@ Partition work into:
 - dependents that branch from the prerequisite and target it temporarily; and
 - shared hot files that must be serialized.
 
-Use roughly three to four PRs per worker for repetitive rebase work, but one worktree and one writer
+Use roughly three to four PRs per worker for repetitive conflict work, but one worktree and one writer
 per writable branch. Give every worker exact PRs, branch/base, worktree path, owned files, validation,
 push lease, and merge policy. Never use the primary checkout when another session may move it.
 
@@ -116,12 +117,14 @@ Unique paths are permanent isolation boundaries for the run; do not recycle a pa
 ### 4. Triage current-head CI and mergeability
 
 Connect failures to `headRefOid`. If a check is red, inspect the actual job log. If a required check
-is absent and `mergeable=CONFLICTING`/`mergeStateStatus=DIRTY`, rebase first—waiting cannot create a
-merge ref. After a push, `mergeable=UNKNOWN` usually means recomputation; poll rather than inventing
-a new defect.
+is absent and `mergeable=CONFLICTING`/`mergeStateStatus=DIRTY`, the reported conflict permits a
+rebase—waiting cannot create a merge ref. After a push, `mergeable=UNKNOWN` usually means
+recomputation; poll rather than inventing a new defect.
 
-When stale branches fail on dependencies or workflows, inspect trunk history before editing branch
-code. If the fix is already on trunk, rebase the PR; do not duplicate it.
+When a branch fails on dependencies or workflows, inspect trunk history before editing branch code.
+For an active task, rebase only if the main fix is required to complete that task. A stale base alone
+does not permit a rebase. For a completed task without a conflict, let CI/CD or the merge queue
+perform integration.
 
 ```bash
 git fetch origin main <pr-branch>
@@ -139,11 +142,13 @@ failures from the repository's current-head CI evidence, but report both honestl
 
 Land a common blocker as its own PR. Branch dependents from that prerequisite and target the
 prerequisite branch only while it is genuinely expected to merge. Before arming auto-merge on a
-dependent, confirm the prerequisite content is on trunk, retarget the dependent to trunk, and rebase
-to remove redundant commits:
+dependent, confirm the prerequisite content is on trunk and retarget the dependent to trunk. Do not
+rebase a completed dependent merely to remove redundant commits; CI/CD owns ordinary integration.
+Rebase only if the retargeted PR reports a conflict:
 
 ```bash
 gh pr edit <dependent-pr> --base main
+# Run only when the retargeted PR reports a merge conflict.
 git rebase origin/main
 git push --force-with-lease=refs/heads/<branch>:<old-head> origin HEAD:<branch>
 ```
@@ -200,10 +205,10 @@ guarded cleanup policy; do not improvise destructive commands.
 | Concurrent work in primary checkout | Concurrent work in primary checkout | Shared HEAD/index contaminates branches | One explicit worktree per writer |
 | Check delivery capabilities after implementation | Increased a wave before verifying a required review capability | Published work could not complete its review | Verify each required stage before increasing the wave |
 | Branch all dependents from trunk | Branch all dependents from trunk | Shared prerequisite blocks every PR | Land prerequisite, then fan out |
-| Arm auto-merge while still stacked | Arm auto-merge while still stacked | May merge into a dead intermediate base | Retarget/rebase to trunk first |
+| Arm auto-merge while still stacked | Arm auto-merge while still stacked | May merge into a dead intermediate base | Retarget to trunk; rebase only if the retargeted PR conflicts |
 | Trust stale check table | Trust stale check table | Results may belong to an old head | Bind checks to `headRefOid` |
 | Wait for missing validate on conflict | Wait for missing validate on conflict | No merge ref exists | Rebase when mergeability is conflicting |
-| Fix branch code before checking trunk | Fix branch code before checking trunk | Duplicates already-landed CI/dependency fixes | Inspect logs and trunk history first |
+| Fix branch code before checking trunk | Fix branch code before checking trunk | Duplicates already-landed CI/dependency fixes | Inspect logs and trunk history; rebase only if an active task needs the main fix |
 | Bare force-with-lease | Bare force-with-lease | Does not pin the observed PR head explicitly | Lease exact branch and old OID |
 | Repair many contaminated PRs separately | Repair many contaminated PRs separately | Tangled commits create quadratic cleanup | Consolidate by cherry-pick in one fresh branch |
 | Reuse worktree paths | Reuse worktree paths | Risks stale state and ownership ambiguity | Unique path per writer/run |

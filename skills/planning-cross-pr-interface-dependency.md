@@ -3,7 +3,7 @@ name: planning-cross-pr-interface-dependency
 description: "Plan a capstone integration issue whose sibling interfaces are still unmerged. Use when new code depends on symbols described only in issue bodies, must preserve legacy dispatch, changes blocking or CLI semantics, or extracts from a coverage-omitted module. Separate verified facts from assumed contracts and make merged-base interface pinning the first implementation gate."
 category: architecture
 date: 2026-07-04
-version: "2.0.0"
+version: "2.1.0"
 license: BSD-3-Clause
 history: planning-cross-pr-interface-dependency.history
 user-invocable: false
@@ -66,7 +66,9 @@ and tick ordering assumed until their merged implementations can be read.
 
 ### 3. Make merged-base pinning Step 1
 
-Before any integration code:
+Before any integration code, pin the new integration task to a `main` revision that contains all
+sibling merges. If the task already started, the required sibling interface permits this rebase;
+do not rebase merely because main advanced:
 
 ```bash
 git fetch origin

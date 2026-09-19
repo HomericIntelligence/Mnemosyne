@@ -38,7 +38,7 @@ tags:
 
 - `hephaestus-review-prs` (the automation loop) ran but PRs are still open / `BLOCKED` with all checks green.
 - You have a big backlog of PRs **authored by one account** spread across many repos and want them merged, not just reviewed.
-- You need to decide between a **rebase-resolve sweep** (this skill) and the plain drive-prs-green loop.
+- You need to decide whether a documented task-phase exception permits a rebase or CI/CD should integrate the branch.
 - An armed `--auto --squash` PR sits `BLOCKED` and you must tell apart: unresolved review threads vs. CI runner backlog vs. a red `main` blocking every PR.
 - A **merge train** of PRs touching shared files (CHANGELOG, pixi.lock, `_required.yml`, coverage.xml) keeps re-conflicting as siblings merge.
 - After rebasing a PR branch onto a moved `main`, a plain `git push` is rejected non-fast-forward.
@@ -48,9 +48,10 @@ tags:
 ### Current applicability
 
 Use [verify-pr-ready](verify-pr-ready.md) for live policy, affected validation, and evidence
-reuse. A branch behind main is not itself blocked. Rebase only for an actual conflict,
-a necessary dependency, or an explicit request. Keep required CI and exact-head review
-before merge. PR publication can precede validation if pending results are clear.
+reuse. A branch behind main is not itself blocked. During active work, rebase only for a blocker
+or required main content. After task completion, rebase only for a host-reported merge conflict;
+otherwise CI/CD or the merge queue integrates main. Keep required CI and exact-head review before
+merge. PR publication can precede validation if pending results are clear.
 Cleanup is separate from rebasing. Historical verification below does not verify this
 policy correction or the current version of an external tool.
 
@@ -100,7 +101,7 @@ cd "/tmp/sweep-$REPO"
 # hephaestus-review-prs has NO --repo flag — must run from inside the clone (CWD):
 hephaestus-review-prs   # optional first pass; then fix its 3 gaps manually below
 
-# --- Only after a justified rebase decision: preserve signatures and use a lease ---
+# --- Only after an active-task blocker or required main content, or a reported completed-PR conflict ---
 git fetch origin
 git checkout <pr-branch>
 git -c commit.gpgsign=true rebase origin/main
@@ -130,7 +131,7 @@ gh pr merge <pr> --auto --squash --repo $ORG/$REPO   # only if live policy permi
 1. **Discover** the author-scoped PR backlog per repo: `gh pr list --repo <o>/<r> --author <user> --json number,mergeStateStatus`.
 2. Inspect required-check failures and determine whether a shared cause affects the candidates.
 3. **Fan out** one sub-agent per repo into `/tmp/sweep-<repo>` (fresh clone — never the shared submodule).
-4. Per PR: bind the head, inspect actual blockers, resolve necessary integration, publish the fix, and obtain exact-head review. Retain required CI and signing gates.
+4. Per PR: bind the head, inspect actual blockers, rebase only for a documented active-task exception or reported completed-PR conflict, publish the fix, and obtain exact-head review. Retain required CI and signing gates.
 5. Verify all live repository gates, then use the authorized merge method or queue. Target movement alone does not require another rebase.
 6. Leave **regressive** PRs untouched for manual re-authoring; let CI-throughput-throttled armed PRs merge as runners free.
 
@@ -140,7 +141,7 @@ gh pr merge <pr> --auto --squash --repo $ORG/$REPO   # only if live policy permi
 |---------|----------------|---------------|----------------|
 | 1 | Ran `hephaestus-review-prs` alone and expected it to merge the backlog | 15/30 PRs "failed" — plain `git push` after rebase was rejected non-fast-forward, and the review THREADs were never resolved so PRs stayed BLOCKED-all-green; the loop's auto-cleaned worktrees LOST the fix | Preserve the worktree. Use a lease only for an authorized history rewrite, and resolve threads only under the exact-head review workflow. |
 | 2 | Ran the loop from the wrong CWD (the Odysseus meta-repo root) | `hephaestus-review-prs` has NO `--repo` flag — it targeted the wrong repo's issues/PRs | Always invoke it from inside each individual repo clone (CWD = that repo). |
-| 3 | Armed `--auto --squash` on all overlapping PRs simultaneously | Maximal merge-train cascade: every merge advanced `main`, re-conflicting siblings that touched shared files (CHANGELOG, pixi.lock, `_required.yml`, coverage.xml) | Serialize the arm, or expect and budget for multiple re-rebase passes; the cascade converges as the queue shrinks. |
+| 3 | Armed `--auto --squash` on all overlapping PRs simultaneously | Maximal merge-train cascade: every merge advanced `main`, re-conflicting siblings that touched shared files (CHANGELOG, pixi.lock, `_required.yml`, coverage.xml) | Serialize the arm. Rebase only when the task-phase rule permits it; otherwise let CI/CD or the merge queue integrate the branch. |
 | 4 | Treated `BLOCKED`-all-green PRs as broken/stuck | They were not broken — either unresolved review threads (review-gate) OR a CI runner backlog with all checks QUEUED | Inspect unresolved threads and queued checks. Confirm that a shared failure affects each candidate before selecting a shared fix. |
 
 ## Results & Parameters

@@ -3,7 +3,7 @@ name: planning-unmerged-parent-contract-compile-smoke-gate
 description: "Plan against an approved but unmerged parent without treating proposed APIs as landed facts. Use when a child imports not-yet-present symbols, a reviewer flags unread APIs, a validation-only task depends on a parent script, a dispatch table needs concrete callables, or numeric/file-line claims may have drifted. Gate implementation on parent presence, read every cited API, and make compile smoke the first post-merge check."
 category: architecture
 date: 2026-07-04
-version: "2.0.0"
+version: "2.1.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: unverified
@@ -98,8 +98,10 @@ the test cannot pass vacuously.
 
 ### 5. Compile first after the parent merges
 
-Once the prerequisite exists, refresh the branch and run the repository’s strict compile command
-before dependent tests or implementation:
+Once the prerequisite exists, its API is main content required to complete the active child task.
+At implementation start, pin the child branch to that main revision. If the child task already
+started, this documented dependency need permits a rebase; do not rebase merely because main
+advanced. Then run the repository’s strict compile command before dependent tests or implementation:
 
 ```bash
 git fetch origin

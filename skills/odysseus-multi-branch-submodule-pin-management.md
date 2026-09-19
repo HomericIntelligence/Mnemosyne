@@ -17,7 +17,7 @@ description: >-
   submodule and `git add`-ing it, since it is a pointer that cannot fast-forward, not a code merge.
 category: ci-cd
 date: 2026-07-18
-version: "1.2.0"
+version: "1.3.0"
 user-invocable: false
 verification: verified-ci
 history: odysseus-multi-branch-submodule-pin-management.history
@@ -73,7 +73,8 @@ git add <submodule-path>
 git commit -m "chore(deps): update <submodule> submodule to include <feature>"
 git push origin <feature-branch>
 
-# --- Safe rebase + push workflow ---
+# --- Permitted rebase + push workflow: use only when the active pin task needs
+#     the submodule main content or the host reports a merge conflict. ---
 git fetch origin main
 git rebase origin/main
 # resolve conflicts (justfile most common), then:
@@ -131,7 +132,11 @@ grep "^install\b\|^install-dev\b\|^install-check\b" justfile
 
 If the name exists, prefix with a scope. For Odysseus ecosystem recipes: use `ecosystem-` prefix (e.g., `ecosystem-install`, `ecosystem-install-dev`, `ecosystem-install-check`).
 
-#### Step 4: Rebase feature branch onto main
+#### Step 4: Rebase the feature branch only for a permitted condition
+
+Do not rebase because the feature branch is old. Rebase only when the active
+pin task needs main content or the host reports a merge conflict. For a
+completed conflict-free branch, let CI/CD integrate it.
 
 ```bash
 git fetch origin main

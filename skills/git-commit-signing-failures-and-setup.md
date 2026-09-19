@@ -3,7 +3,7 @@ name: git-commit-signing-failures-and-setup
 description: "Use when required-signature policy blocks a conflict-free PR; GitHub reports unsigned, no_user, unknown_key, or bad signatures; local cryptographic checks disagree with GitHub; noninteractive workers silently fail to sign; a fresh headless host needs SSH signing; email privacy rejects a push; or amend produced a signed sibling that the PR did not adopt. Diagnose with REST, align identity and registered key, re-sign every introduced commit without changing content, and verify the exact remote PR head before merge."
 category: tooling
 date: 2026-07-13
-version: "2.0.0"
+version: "2.1.0"
 user-invocable: false
 license: BSD-3-Clause
 verification: mixed
@@ -104,6 +104,8 @@ Fetch the base, set the correct identity/key, preserve the old head, then rewrit
 commit rather than only the tip:
 
 ```bash
+# A signing failure blocks the active task. Do not use this rebase merely to
+# catch up with main; ordinary completed-branch integration belongs to CI/CD.
 git fetch origin
 old_head=$(git rev-parse HEAD)
 git rebase origin/main --exec 'git commit --amend --no-edit --reset-author -S'
@@ -127,6 +129,8 @@ Reconstruct content commits on the correct base:
 base=$(git merge-base origin/main <old-pr-head>)
 git format-patch --stdout "$base"..<old-pr-head> > /tmp/pr.patch
 git switch <owned-pr-branch>
+# Run this rebase only when the active signing task is blocked or the host
+# reports a merge conflict; do not use it solely for ordinary main integration.
 git rebase origin/main
 git am --gpg-sign=<signing-key> /tmp/pr.patch
 git log origin/main..HEAD --format='%H %G?'

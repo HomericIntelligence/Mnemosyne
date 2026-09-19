@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: Rescue Broken PRs
 category: ci-cd
 date: 2026-02-06
-version: 1.0.0
+version: 1.1.0
 user-invocable: false
 ---
 # Rescue Broken PRs
@@ -244,13 +244,15 @@ git push
 # 7. Move to next PR
 ```
 
-### 7. Rebase Against Main (If Requested)
+### 7. Resolve a Reported Merge Conflict (If Required)
 
 ```bash
-# Fetch latest main
+# Fetch latest main. Do not rebase every open branch because main advanced.
+# Rebase only a branch for which the host reports a merge conflict, or an active
+# task that requires a main artifact to complete.
 git fetch origin main
 
-# For each open PR branch
+# For one eligible PR branch
 git checkout <branch-name>
 git rebase origin/main
 git push --force-with-lease

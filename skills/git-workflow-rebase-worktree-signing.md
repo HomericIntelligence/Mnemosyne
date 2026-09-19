@@ -23,8 +23,10 @@ tags:
 
 ## Overview
 
-Preserve work first, isolate each branch, and resolve conflicts by intent. Rebase from a verified
-upstream only for an actual conflict, a necessary dependency, or an explicit request.
+Preserve work first, isolate each branch, and resolve conflicts by intent. A new task can pin its
+development branch to `main` for implementation, review, or other work. After task start, rebase
+only for a blocker or required main content. After task completion, rebase only for a host-reported
+merge conflict; otherwise CI/CD or the merge queue integrates main.
 Publish signed commits. Use lease protection for history rewrites. Treat cleanup as a separate
 phase. A valid local signature is only one part of hosted verification: key, commit/tag
 identity, account registration, and verified email must align.

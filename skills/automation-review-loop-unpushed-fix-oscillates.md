@@ -59,9 +59,10 @@ tags:
 ### Current applicability
 
 Use [verify-pr-ready](verify-pr-ready.md) for live policy, affected validation, and evidence
-reuse. A branch behind main is not itself blocked. Rebase only for an actual conflict,
-a necessary dependency, or an explicit request. Keep required CI and exact-head review
-before merge. PR publication can precede validation if pending results are clear.
+reuse. A branch behind main is not itself blocked. During active work, rebase only for a blocker
+or required main content. After task completion, rebase only for a host-reported merge conflict;
+otherwise CI/CD or the merge queue integrates main. Keep required CI and exact-head review before
+merge. PR publication can precede validation if pending results are clear.
 Cleanup is separate from rebasing. Historical verification below does not verify this
 policy correction or the current version of an external tool.
 
@@ -133,8 +134,8 @@ pushed, so every re-review fetches the unchanged remote and re-flags the same de
 
 4. **Check whether integration is necessary.** Compare the local and remote heads.
    Preserve the existing signed fix. Being behind main does not require a rebase.
-   If there is an actual conflict, necessary dependency, or explicit rebase request,
-   integrate in the isolated worktree and preserve signatures and matching DCO trailers.
+   During active work, rebase only for a blocker or required main content. After task completion,
+   rebase only for a host-reported merge conflict. Preserve signatures and matching DCO trailers.
 
 5. **Publish the real fix.** Use a normal push for a fast-forward update. If history was
    rewritten, verify the expected remote head and use `--force-with-lease`. Do not reset

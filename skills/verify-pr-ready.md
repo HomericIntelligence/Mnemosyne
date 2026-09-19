@@ -41,13 +41,14 @@ not create an extra human approval requirement.
 | State | Action |
 | --- | --- |
 | Behind the target, with no actual conflict or missing dependency | Continue when repository policy permits it. Do not rebase only for freshness. |
-| Actual merge conflict | Resolve the conflict in an isolated worktree. Use the repository-supported integration method. Review and validate affected content. |
-| Necessary dependency exists only on the target | Confirm that the task needs it, then integrate it with a supported method. Do not duplicate the missing implementation. |
+| Actual merge conflict | During an active task, resolve it only when it blocks completion. After task completion, resolve it with a permitted rebase in an isolated worktree. Review and validate affected content. |
+| Necessary dependency exists only on the target | Confirm that the active task needs it, then integrate it with a supported method. Do not duplicate the missing implementation. |
 | Mergeability is pending or unknown | Read the state again with a bounded wait. If it remains unknown, report the uncertainty and withhold merge. Do not infer a conflict. |
 | Policy requires current integration with the target | Satisfy that requirement through the supported update method or merge queue. The policy does not itself prescribe a rebase. |
 
-Use a rebase for an actual conflict, a necessary dependency, or an explicit request.
-A cleanup request is separate and does not imply a rebase request.
+During active work, use a rebase only for a blocker or required main content. After task completion,
+use a rebase only for a host-reported merge conflict. Otherwise CI/CD or the merge queue integrates
+main. A cleanup request is separate and does not imply a rebase request.
 
 ### 3. Select validation and retain honest evidence
 

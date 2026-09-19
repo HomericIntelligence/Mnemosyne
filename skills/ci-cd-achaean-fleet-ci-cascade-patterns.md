@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "AchaeanFleet Docker infrastructure CI cascade failure sequence and fixes. Use when: (1) running a myrmidon swarm on HomericIntelligence/AchaeanFleet, (2) diagnosing cascading CI failures in a Docker image build pipeline, (3) fixing base-image ENTRYPOINT, OCI multi-arch build, vendor download URL, YAML column-0, caddy overlay, branch-protection push, or required-signatures ruleset / signed-commit merge-block issues in AchaeanFleet vessels."
 category: ci-cd
 date: 2026-05-18
-version: "2.1.0"
+version: "2.2.0"
 history: ci-cd-achaean-fleet-ci-cascade-patterns.history
 user-invocable: false
 verification: verified-ci
@@ -381,7 +381,8 @@ git checkout <branch>
 # Find merge-base with main
 BASE=$(git merge-base HEAD origin/main)
 
-# Sign every commit in the PR (--amend --no-edit -S applied to each commit)
+# A missing signature blocks the active task. Sign every commit in this permitted
+# rewrite (--amend --no-edit -S applied to each commit); do not rebase merely for main drift.
 git rebase --exec 'git commit --amend --no-edit -S' "$BASE"
 
 # Verify all commits are signed locally

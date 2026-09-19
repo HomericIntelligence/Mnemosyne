@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "When a skill or guide teaches practices contradicting CLAUDE.md or other canonical docs, wholesale rewrite (not patching) is required to prevent contradiction persistence. Use when: (1) a skill teaches deprecated tools (flake8, black, requirements.txt, setup.py) contradicting CLAUDE.md Language Preference, (2) a skill references stale Python versions (3.8–3.9) contradicting current baseline (3.10+), (3) supporting files (session logs, references) contain the same stale practices as the main skill file, (4) patching individual sections would leave dangerous contradictions elsewhere, (5) stale guidance could mislead downstream consumers before they discover the newer canonical docs."
 category: tooling
 date: 2026-06-11
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-ci
 history: skill-teaching-stale-practices-contradicting-canonical-docs.history
@@ -118,8 +118,8 @@ pre-commit run markdownlint-cli2 --files skills/github-actions-python-cicd/SKILL
 ### Deleting a supporting file can resurface as a rebase conflict
 
 `git rm`-ing a stale supporting file (e.g. `references/notes.md`) is not the
-end of it: if main independently MODIFIES that same file before your PR
-merges, the rebase produces a **modify/delete conflict**
+end of it: if the host reports a merge conflict because main independently
+MODIFIES that same file before your PR merges, the permitted rebase produces a **modify/delete conflict**
 (`CONFLICT (modify/delete): <path> deleted in <commit> and modified in
 HEAD`). Resolve it the same way you decided to delete in the first place —
 re-confirm the base/main copy is still the stale content
