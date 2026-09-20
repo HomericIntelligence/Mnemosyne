@@ -1,10 +1,10 @@
 ---
 name: python-repo-modernization
 license: BSD-3-Clause
-description: 'Bring a Python utility package from C+ to production-grade quality in one session: fix package re-exports, raise test coverage to 75%+, create integration smoke tests, harden CI/CD pipeline, and produce an installable wheel. Also covers implementing a multi-phase audit plan when an existing audit report has Critical/Major findings. Use when: a shared utility repo is functional but not yet consumable by downstream projects, or an audit report exists with graded findings.'
+description: "Improve Python package usability when imports, distribution artifacts, tests, or CI prevent downstream use, or implement authorized findings from an existing audit."
 category: tooling
 date: 2026-03-13
-version: 1.1.0
+version: "1.2.0"
 user-invocable: false
 absorbed: [python-repo-audit-implementation]
 ---
@@ -290,7 +290,7 @@ branch = true
 
 ### Phase execution order (critical)
 
-1. Package Integrity — must come first; broken imports block all testing
+1. Package Integrity — prioritize broken imports when they prevent relevant tests
 2. Documentation — quick wins, unblock understanding
 3. Testing — most work, highest confidence impact
 4. Package Publishing — validate the wheel
@@ -437,7 +437,8 @@ Add `.editorconfig` (utf-8, lf, 4-space indent for Python, 2-space for YAML/TOML
 
 ### Phase Ordering Rationale
 
-Order by severity, then dependency (later phases must not break earlier ones):
+Use severity and actual dependencies to choose an order. This sequence worked for the
+recorded audit; it is not a required itinerary for every package:
 
 1. Security — highest risk, smallest diffs, sets baseline
 2. Subprocess DRY — no dependencies on constants yet
@@ -447,7 +448,7 @@ Order by severity, then dependency (later phases must not break earlier ones):
 6. API exports — after module changes are stable
 7. CI — independent; validates all prior changes across matrix
 8. Packaging — independent; additive only
-9. Polish — purely additive, always last
+9. Polish — consider only when it supports the requested outcome
 
 ### Estimated Score Impact
 

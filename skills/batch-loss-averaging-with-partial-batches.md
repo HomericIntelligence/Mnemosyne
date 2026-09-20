@@ -1,10 +1,10 @@
 ---
 name: batch-loss-averaging-with-partial-batches
 license: BSD-3-Clause
-description: "Use when: (1) computing average loss during model evaluation with uneven batch sizes, (2) handling the final partial batch when num_samples % batch_size != 0, (3) fixing over-weighted loss metrics from naive batch averaging, (4) implementing correct evaluation metrics for training frameworks. Proper batch loss averaging: track total_samples_processed, weight loss by batch_size during accumulation, divide by actual samples processed (not batch count)."
+description: "Compute average loss correctly when the last training batch is partial. Distinguish sample-weighted loss from averages over unequal batches."
 category: optimization
 date: 2026-07-05
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 verification: verified-local
 tags: [loss-computation, evaluation-metrics, batch-processing, numerical-correctness, partial-batches, training-loops, ResNet18]

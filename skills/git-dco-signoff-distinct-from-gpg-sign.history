@@ -172,3 +172,26 @@ gh run view --job <id> --log   # grep for "Check 4: DCO Signed-off-by"
 ## v1.0.0 (2026-06-26)
 
 **Initial version.**
+
+## v1.2.0: legacy privacy-redaction record
+
+Archive status: `privacy-redacted`. The prior content included private or
+personal context. The exact snapshot is intentionally omitted. This amendment
+generalizes that context and revises advisory guidance without copying private
+evidence. Provenance: the prior corpus entry reviewed during this migration.
+
+## v1.3.0: advisory guidance revision
+
+Revised workflow guidance and description for the user-approved completion-focused
+guidance migration. Existing verification evidence is unchanged. This record
+does not claim new execution or model-behavior validation.
+
+
+## Rebase integration (2026-09-20)
+
+Combined the advisory migration with upstream task-phase rebase guidance.
+The resulting skill version is `1.3.1`. The original migration archive remains
+unchanged. The upstream predecessor is preserved in Git at
+`1528432a1873e93e0c16609dd3c3cfd3c5f0d545:skills/git-dco-signoff-distinct-from-gpg-sign.md`.
+Upstream content SHA-256: `7e3be4c53e7ac5bc9b307407443e7d8a2e2828c45d1f9a0a5bcb8e8ec20b9f90`.
+No new execution verification is claimed.

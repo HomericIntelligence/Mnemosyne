@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Rename a Claude Code plugin directory, commands, and hooks across an entire codebase. Use when: (1) renaming a plugin from one name to another, (2) renaming a slash command, (3) bulk find-and-replace of plugin/command references across 40+ files."
 category: tooling
 date: 2026-03-26
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-ci
 tags: [rename, plugin, command, refactor, bulk-rename]
@@ -59,7 +59,7 @@ grep -rn "old-name" --include="*.md" --include="*.json" --include="*.py" . | gre
 
 **Phase 2: Content edits (single comprehensive agent)**
 
-Launch ONE agent to edit ALL files — do not split across parallel agents sharing a worktree (see Failed Attempts). The agent should:
+Prefer one editor for overlapping replacements. If parallel work helps, give editors separate files or isolated worktrees and reconcile references afterward. Suggested checks:
 1. Get full file list: `grep -rl "old-name" . --include="*.md" --include="*.json" --include="*.py"`
 2. Edit each file systematically with these replacements:
    - Plugin name: `old-name` → `new-name`

@@ -8,7 +8,7 @@ labels: enhancement
 
 ## Skill Description
 
-<!-- Describe the knowledge that the skill must contain. -->
+<!-- Describe the knowledge that would help with the task. -->
 
 ## Category
 
@@ -20,6 +20,6 @@ labels: enhancement
 
 ## Acceptance Criteria
 
-<!-- List the conditions that the skill must meet. -->
+<!-- List the observable outcomes that would address the need. -->
 
 - [ ]

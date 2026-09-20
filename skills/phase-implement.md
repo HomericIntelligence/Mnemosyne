@@ -5,7 +5,7 @@ description: Coordinate implementation phase by delegating tasks and ensuring co
   quality. Use during implementation phase to manage engineer tasks.
 category: tooling
 date: '2026-03-19'
-version: 1.0.0
+version: "1.1.0"
 mcp_fallback: none
 phase: Impl
 ---
@@ -53,7 +53,7 @@ just pre-commit-all
    - **Junior Engineer**: Boilerplate, simple helpers, type definitions
 4. **Monitor progress** - Check completion status, unblock issues
 5. **Code review** - Verify quality, standards, tests, documentation
-6. **Final checks** - Format, lint, test coverage, no warnings
+6. **Complete the task** - Correct relevant failures, use proportionate checks, and report remaining limits
 
 ## Delegation Matrix
 
@@ -97,16 +97,16 @@ fn modify(mut data: Tensor):
     pass
 ```
 
-## Quality Checklist
+## Suggested Quality Checks
 
-Before code review approval:
+Select checks for the changed behavior and the repository's current contract:
 
 - [ ] All tests passing
-- [ ] 80% test coverage minimum
-- [ ] No compiler warnings (zero-warnings policy)
+- [ ] Coverage of the changed behavior and applicable repository thresholds
+- [ ] Relevant compiler warnings investigated; actual repository warning policy satisfied
 - [ ] `pixi run mojo format` applied
 - [ ] Docstrings complete
-- [ ] No TODOs/FIXMEs (or documented)
+- [ ] Remaining work recorded accurately, without using unrelated TODOs as blockers
 - [ ] Performance meets requirements
 - [ ] Follows Mojo syntax standards (Mojo v0.26.1+)
 
@@ -126,11 +126,11 @@ Before code review approval:
 
 | Blocker | Resolution |
 | --------- | ----------- |
-| Unclear requirements | Escalate to Design for clarification |
+| Unclear requirements | Inspect context and resolve routine choices; ask about material ambiguity |
 | Performance issues | Consult Performance Specialist |
 | Test failures | Debug with Test Specialist |
 | Missing dependencies | Update Plan, communicate status |
-| Compiler warnings | Fix immediately (zero-warnings policy) |
+| Compiler warnings | Investigate affected warnings and follow the current repository policy |
 
 ## Failed Attempts
 

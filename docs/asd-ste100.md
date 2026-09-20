@@ -1,12 +1,12 @@
 # ASD-STE100 Writing Policy
 
-## Requirement
+## Writing Guidance
 
-Mnemosyne-authored technical prose must follow the current issue of
+For Mnemosyne-authored technical prose, use the current issue of
 [ASD-STE100 Simplified Technical English](https://www.asd-ste100.org/).
 This repository uses Issue 9, dated 15 January 2025, as its review baseline.
 
-This policy is a writing requirement. It is not a statement of ASD approval,
+This policy gives writing guidance. It is not a statement of ASD approval,
 certification, or endorsement.
 
 ## Scope
@@ -44,16 +44,15 @@ original text. Record the reason for the exception.
 Use the official copy of the standard as the primary source. Request a copy
 from the official download page. Keep that copy outside this repository.
 
-Before you publish a change, use the procedure that matches its scope.
-
-For a corpus-wide style change, complete these actions:
+Choose a review depth that fits the change. For a corpus-wide prose change,
+a complete inventory helps expose omissions. Useful review steps include:
 
 1. Review every active prose surface in the complete tracked-path inventory.
 2. Check changed descriptions, comments, labels, help text, and Markdown prose.
 3. For a style-only change, keep code, commands, configuration, identifiers, URLs, quotations, and evidence unchanged.
 4. Preserve technical meaning and protected historical or legal content.
-5. Run repository validation and the applicable tests.
-6. Ask a human reviewer to check the technical English.
+5. Seek relevant validation through the execution boundary in `AGENTS.md`.
+6. Consider a technical-English reviewer when one is available.
 
 For another change, review new, changed, or republished active prose. Apply the
 protected-content rules when the change is style-only.
@@ -88,13 +87,18 @@ technical terms when the context requires them.
 
 ## Review
 
-For each new or changed technical document, complete these steps:
+For new or changed prose, consider these review steps:
 
 1. Compare the prose with the current official ASD-STE100 issue.
 2. Confirm that protected content did not change only for style.
 3. Confirm that each instruction preserves its technical meaning.
-4. Run the repository validation and Markdown checks.
-5. Ask a human reviewer to examine the controlled English.
+4. Seek relevant Markdown and repository checks through the authorized validation boundary.
+5. Invite technical-English review when available.
+
+If the official standard, a reviewer, or a validation capability is unavailable,
+apply the available guidance and report the gap. Continue useful authorized
+work; these recommendations do not create a separate permission step. Avoid
+claims of conformance or human review that the evidence does not support.
 
 Automated checks can find some risks. They cannot prove full natural-language
 conformance.

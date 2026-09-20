@@ -1,10 +1,10 @@
 ---
 name: research-charter-amendment-governance-workflow
 license: BSD-3-Clause
-description: "Governance workflow for amending a pinned research-project charter (gate thresholds, phase criteria, outcome labels) when a trigger event fires mid-project — hardware pulled, policy pivot mid-run, acceptance-criteria realization. Use when: (1) a research project with pinned success criteria needs a threshold, phase gate, or label changed, (2) a trigger event (hardware allocation change, mid-run training-policy pivot, refuted dependency) forces replanning against a contract doc, (3) you must decide whether an edit is descriptive (lands now) vs contractual (waits for user approval), (4) defining a blocked:*/hold:* status label that must survive a strict audit, (5) an anchor number (wall-clock per-epoch cost, budget line) must trace to an observable artifact, (6) a run must be stopped mid-epoch because policy changed and its partial data must be classified."
+description: "Handle research-charter amendments when hardware, policy, or evidence changes. Distinguish descriptive updates from protected acceptance-criteria changes."
 category: documentation
 date: 2026-07-11
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-ci
 tags: [research-governance, charter-amendment, pinned-thresholds, trigger-matrix, descriptive-vs-contractual, status-labels, falsifiable-exit-conditions, mid-run-pivot, anchor-traceability, strict-audit, experiment-charter, failure-cascade]
@@ -52,12 +52,24 @@ git show --stat HEAD -- EXPERIMENT_CHARTER.md SHARED_PRELUDE.md   # must be empt
 ### Detailed Steps
 
 1. **Pin the governance before you need it.** The workflow only works because the project pre-committed three artifacts: (a) a pinned charter whose thresholds are explicitly contractual, (b) an amendment procedure — file a `[CHARTER-AMEND]` issue containing clause + new value + justification + affected-issues list; the amendment merges only after every listed issue is edited; original values are preserved as strikethrough, never deleted — and (c) a FAILURE_CASCADE trigger matrix mapping each trigger event to what cancels, what replans, what requires amendment, and whether to surface to the user. When the user pulled GPU hardware mid-project, the response was mechanical (look up the "hardware allocation differs" row), not improvised.
-2. **Classify every edit as descriptive vs contractual.** Descriptive edits — fired-trigger notes, measured-value rows, GPU-day budget re-estimates — may land immediately under existing precedent. Contractual edits — gate thresholds, phase criteria, outcome labels — must wait for user approval of the amendment issue. The amendment PR merges the PROPOSAL plus descriptive records only; the charter section edits land in a second pass after approval. Strict auditors verified this boundary with `git show --stat` confirming the pinned files were untouched in the proposal PR.
+2. **Distinguish descriptive records from changes to agreed criteria.** The recorded
+   charter amendment procedure reserved threshold, phase-criteria, and outcome-label
+   changes for user approval. That requirement protects the pinned research contract.
+   A current explicit user directive can supply that authority; do not ask again for
+   the same change. When authority is missing, prepare the concrete amendment and
+   continue descriptive updates or independent work while the decision is pending.
 3. **Give status labels falsifiable exit conditions.** A `blocked:hardware` label was rejected by audit until it defined all four: the setter (executor, on trigger-class events), the clearer (user only), the falsifiable un-block condition (a recorded strikethrough-and-repin of the hardware note in the pinned doc — an observable repo event, not "when hardware is back"), and the scope (pauses scheduling; assigns no outcome label). Precedent-match your label namespace: an existing `hold:*` label with a 5-day SLA was the in-repo pattern to mirror, and any deliberate asymmetry (no SLA for procurement, since procurement has no bounded timeline) must be stated explicitly, not left implicit.
 4. **Handle mid-run policy pivots without discarding or silently counting data.** When the user pivoted to 1-epoch-only training while a 12-epoch run was at epoch 7: stop the run (per-epoch metric writes mean data through epoch N is already on disk); the epoch-0 record becomes the policy-compliant datapoint; epochs 1..N are retained as a clearly-labeled pre-policy bonus trajectory — never silently discarded, never silently counted toward gates; the stop event is recorded with date + the directive quoted [sic] in config/notes/issue logs; any re-anchored gate values are PROPOSED with options and derivation shown, never silently picked by the executor.
 5. **Make every anchor number trace to an observable artifact.** State the derivation method (e.g., log start marker + file mtime divided by logged events), give an uncertainty band, and mark where a closed measurement will supersede the estimate. If an earlier figure is discredited, it may survive only as an uncertainty-band edge explicitly labeled superseded-history.
-6. **Route classification edge cases through the amendment, and say why.** "Additive annotation to a pinned section" appeared on neither the is-amendment nor the not-amendment list — route it through the amendment anyway, citing the reason (it changes the section's category). Conversely, resolving an `[ASSUMPTION — to validate]` marker is NOT an amendment: resolve it under normal precedent and do not bundle it into the amendment PR. Always cite the trigger-matrix row that makes the amendment "required by definition" (here: mid-work acceptance-criteria realization).
-7. **Run the loop to sign-off.** Trigger fired → proposal drafted → 2 internal review rounds → strict audit round 1 (2 majors) → fixes → round 2 confirmation (majors resolved, new scope re-audited) → pre-sign-off softenings → merge. The user retains a single approval decision with all consequences stated up front — including that a gate arithmetic change would refute an existing issue.
+6. **Resolve classification from the charter and the proposed effect.** An annotation
+   that changes contractual meaning follows the applicable amendment procedure; an
+   evidence update that resolves an assumption may fit ordinary documentation work.
+   Inspect the trigger matrix and precedent. Ask only when a material ambiguity
+   remains, naming the protected clause and the exact proposed change.
+7. **Continue through review and correction as needed.** Select review depth from the
+   consequences of the amendment. The recorded two-round audit is an example, not a
+   fixed quota. Present any genuinely missing approval as one concrete decision with
+   its consequences, and keep independent authorized work moving.
 
 ## Failed Attempts
 
@@ -76,7 +88,11 @@ git show --stat HEAD -- EXPERIMENT_CHARTER.md SHARED_PRELUDE.md   # must be empt
 - Full flow (trigger → proposal → 2 internal reviews → strict audit round 1 with 2 majors → fixes → round 2 confirmation → pre-sign-off softenings → merge) fit in one session, run alongside parallel implementation work.
 - User decision surface: exactly one approval, with all consequences enumerated up front.
 
-**Amendment issue template:**
+**Amendment issue template (recorded charter procedure):**
+
+Use this lifecycle only where the applicable charter requires it. Existing explicit
+authorization can satisfy its approval step; do not impose a second approval for the
+same action.
 
 ```markdown
 Title: [CHARTER-AMEND] <clause id>: <old value> -> <new value>

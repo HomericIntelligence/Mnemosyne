@@ -5,7 +5,7 @@ description: Create starter code from templates. Use when setting up new modules
   test files.
 category: tooling
 date: '2026-03-19'
-version: 1.0.0
+version: "1.1.0"
 mcp_fallback: none
 tier: 1
 ---
@@ -57,7 +57,7 @@ PYSCRIPT
 2. **Customize parameters**: Name, class structure, default content
 3. **Generate file**: Create from template with substitutions
 4. **Add to project**: Place in correct location
-5. **Validate structure**: Ensure imports and basic structure work
+5. **Check useful structure**: Confirm imports and basic syntax as appropriate; when implementation is requested, continue from the scaffold to working behavior
 
 ## Output Format
 

@@ -1,10 +1,10 @@
 ---
 name: skill-unify-config-structure
 license: BSD-3-Clause
-description: 'Skill: Unify Config Structure'
+description: "Consolidate duplicated configuration when production files, test fixtures, and documentation disagree about ownership or paths."
 category: architecture
 date: 2026-01-17
-version: 1.0.0
+version: "1.1.0"
 user-invocable: false
 ---
 # Skill: Unify Config Structure
@@ -59,7 +59,8 @@ Use this skill when you encounter:
 
 ### Phase 2: Fix Documentation First
 
-**Critical**: Always fix documentation before moving files - establishes target state.
+Describe the intended layout before or alongside file moves when it helps keep
+consumers aligned. Documentation need not be a separate prerequisite.
 
 1. **Update master config** (e.g., `config/tiers/tiers.yaml`):
    - Fix resource counts to match reality
@@ -214,8 +215,8 @@ pixi run python -c "from scylla.e2e.tier_manager import TierManager; print('OK')
 
 1. **Single Source of Truth**: Production config in `config/`, not duplicated elsewhere
 2. **Test Isolation**: Minimal fixtures in `tests/fixtures/` for stable, isolated tests
-3. **Documentation First**: Fix docs before moving files to establish target state
-4. **Verify Counts**: Always count actual resources, never trust comments
+3. **Documentation**: Keep docs and the resulting file layout consistent
+4. **Verify Counts**: Prefer current resource counts to stale comments
 5. **Prefix Test Configs**: Use `_` prefix for test-only production configs (e.g., `_test-model.yaml`)
 6. **Symlinks for Sharing**: When tests need production test fixtures, symlink them
 
@@ -233,8 +234,8 @@ pixi run python -c "from scylla.e2e.tier_manager import TierManager; print('OK')
 
 - **Don't delete fixtures without replacement**: Tests need isolation
 - **Don't assume test fixtures match production**: Different purposes, different structures
-- **Don't skip verification**: Always re-count and re-test after changes
-- **Don't batch fixes**: Fix docs → consolidate configs → verify, sequentially
+- **Verification**: Check affected references and behavior after changes
+- **Batching**: Group dependent config and documentation edits; verify each coherent change
 
 ## Related Skills
 

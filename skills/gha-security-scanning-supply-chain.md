@@ -1,9 +1,9 @@
 ---
 name: gha-security-scanning-supply-chain
-description: "Use when GitHub Actions needs CodeQL, Semgrep, Gitleaks, Bandit, zizmor, dependency scanning, immutable action pins, verified installers, or SARIF publication; when a scan is absent from pull requests, masked, falsely failing, or stuck before job start; or when a reviewed baseline must fail closed. Preserve least privilege, scan the same roots in local and CI gates, resolve tags to immutable SHAs, parse structured output structurally, and distinguish verified procedures from proposed baseline and composite-Action extensions."
+description: "Configure GitHub Actions security scanning and supply-chain checks with complete inputs, visible failures, and appropriate dependency scope."
 category: ci-cd
 date: 2026-08-07
-version: "2.0.0"
+version: "2.0.1"
 user-invocable: false
 license: BSD-3-Clause
 history: gha-security-scanning-supply-chain.history

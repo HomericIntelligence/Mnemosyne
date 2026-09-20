@@ -1,10 +1,10 @@
 ---
 name: mojo-srp-module-split-bottom-import
 license: BSD-3-Clause
-description: "Use when: (1) a Mojo file exceeds ~3,000 lines and needs SRP extraction into sibling modules in the same package directory, (2) you are splitting any_tensor.mojo or a similarly large Mojo module and need to avoid circular import type-identity issues, (3) you encounter 'type registered twice' or silent type-mismatch errors after placing sibling module imports at the top of a Mojo file, (4) you need to determine how many lines of Mojo code remain after mojo format runs (formatter adds whitespace that can push line counts over budget), (5) you want to access private struct fields from a sibling module within the same package."
+description: "Split large Mojo modules when circular imports, type identity, private-field access, or formatter expansion affects extraction."
 category: architecture
 date: 2026-06-20
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 tags: [mojo, srp, module-split, circular-import, bottom-of-file, refactoring, any-tensor]
 ---
@@ -124,7 +124,8 @@ When splitting `any_tensor.mojo` (Issue #5182), cluster functions by functional 
 6. Build: `pixi run mojo package src/<package>/ --Werror`
 7. Run `mojo format` on all changed files
 8. Recount lines in the original file — adjust if formatter pushed you over budget (trim verbose docstrings, not code)
-9. Run full test suite: `just test-mojo`
+9. Use affected import and behavior tests first; consider `just test-mojo` when the extraction
+   changes shared types or broad call paths.
 
 ### Line Count Budget After Format
 

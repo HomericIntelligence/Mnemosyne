@@ -1,10 +1,10 @@
 ---
 name: gha-slsa-docker-build-attestation
 license: BSD-3-Clause
-description: "Use when: (1) adding SLSA provenance or SBOM attestations to a Docker image publish GitHub Actions workflow, (2) choosing between provenance mode=min vs mode=max for supply-chain audit compliance, (3) writing structural regression tests for GHA workflow YAML flags using yaml.safe_load instead of regex, (4) deciding whether to use docker/build-push-action built-in attestation vs slsa-github-generator reusable workflow, (5) adding id-token: write and attestations: write permissions to a publish job with blast-radius analysis, (6) making pyyaml an explicit dev dependency instead of relying on it transitively."
+description: "Add Docker provenance and SBOM attestations to an existing GitHub Actions publisher; select attestation scope and check job permissions structurally."
 category: ci-cd
 date: 2026-06-20
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 tags:
   - slsa
@@ -206,7 +206,7 @@ dev = [
 
 #### E. ADR for `id-token: write` security tradeoff
 
-Create an ADR documenting the decision and its mitigations. Key sections:
+Document the permission tradeoff in the project's existing decision record; consider an ADR when the change warrants one. Useful sections:
 
 - **Status:** Accepted
 - **Context:** `id-token: write` is required for OIDC-based SLSA provenance signing. It grants any action in the job the ability to request an OIDC token exchangeable for short-lived cloud credentials.

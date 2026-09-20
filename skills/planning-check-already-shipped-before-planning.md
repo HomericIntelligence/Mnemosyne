@@ -1,9 +1,9 @@
 ---
 name: planning-check-already-shipped-before-planning
-description: "Use before planning follow-up, extraction, migration, or closeout work whose issue cites paths, counts, tests, or future-state acceptance criteria. Verify origin/main and every local worktree before assuming work remains; map each criterion to a command; establish the provenance of red tests before calling them unrelated; and emit a forward-looking closeout plan when implementation already exists. Split sibling-repository changes into their own PRs and reconcile every repeated count from one measured source."
+description: "Check whether follow-up work already exists before planning it. Use for stale issue paths, counts, uncommitted work, partial delivery, and closeout evidence."
 category: architecture
 date: 2026-06-19
-version: "2.0.0"
+version: "2.1.0"
 user-invocable: false
 license: BSD-3-Clause
 history: planning-check-already-shipped-before-planning.history
@@ -101,7 +101,7 @@ dependencies, test labels, and generated code. A green subset is not full-suite 
 Read repository wrappers before adding arguments. In the cited Python case, `pixi run mypy` already
 targeted the whole tree, so adding paths created duplicate modules; ad-hoc pytest subsets needed
 `--no-cov` to avoid interpreting an aggregate coverage gate as a test failure. These flags are
-repository-specific, but verifying the wrapper's argv contract is mandatory.
+repository-specific; inspect the wrapper's argument contract when selecting commands.
 
 When work is already present, test the current tree and, when relevant, `origin/main`. Distinguish:
 
@@ -132,7 +132,7 @@ actors and gates, for example:
 3. Run the scoped and repository-required checks.
 4. Publish evidence and close or update the issue only after gates pass.
 
-Run gates yourself; “reviewer will verify” is a stage handoff, not a plan. Emit the complete artifact
+Use the authorized validation path, including delegation where the host requires it. A future reviewer check is planned work rather than passing evidence. Emit the complete artifact
 from the evidence available at the deadline. If a long job is pending, mark that row pending and
 provide the rest; an empty placeholder is not a plan.
 

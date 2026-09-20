@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Test Python constants modules for type safety, immutability, and format string validity. Use when: (1) adding test coverage for a constants.py module, (2) verifying frozenset immutability and contents, (3) testing logging format strings."
 category: testing
 date: 2026-03-25
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags:
@@ -101,7 +101,9 @@ pixi run python -m pytest tests/unit/test_constants.py -v
 
 4. **Place test file** at the same level as the constants module in the test tree (e.g., `tests/unit/test_constants.py` for `hephaestus/constants.py`).
 
-5. **Run and verify**: All tests should pass on first attempt — no mocking needed since constants are pure values.
+5. **Verify meaningful contracts**: Run the applicable tests and investigate failures.
+   Pure values usually need no mocks; prefer consumer behavior or invariants over
+   assertions that merely repeat an implementation literal.
 
 ## Failed Attempts
 

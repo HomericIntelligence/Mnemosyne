@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Generate changelog from git commits with safe delimiter handling. Use when: (1) writing git log format strings that parse fields, (2) parsing conventional commit messages, (3) extracting scope from commit prefixes."
 category: tooling
 date: '2026-03-25'
-version: "2.0.0"
+version: "2.1.0"
 user-invocable: false
 verification: verified-local
 history: generate-changelog.history
@@ -66,7 +66,7 @@ git log v1.0.0..HEAD --pretty=format:"%h%x09%s%x09%an" --no-merges
    ```
    This correctly handles `feat(core(sub)): msg` → scope = `core(sub)`.
 
-5. **Test edge cases**: Always test parsers with:
+5. **Consider parser edge cases**, including:
    - Pipe characters in subject: `"abc\tfeat: add A|B toggle\tAuthor"`
    - Multiple colons: `"abc\tfix: url: handle https://example.com\tAuthor"`
    - Nested parentheses in scope: `"abc\tfeat(core(sub)): msg\tAuthor"`

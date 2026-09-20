@@ -335,3 +335,16 @@ Does your code run subprocess commands from a git worktree?
 - [`git-worktree-parallel-execution-lifecycle`](git-worktree-parallel-execution-lifecycle.md) — Comprehensive worktree lifecycle guide
 - [Python sys.path initialization](https://docs.python.org/3/library/sys.html#sys.path) — Official Python documentation
 - [pip editable installs (.pth files)](https://pip.pypa.io/en/stable/cli/pip_install/#editable-installs) — How .pth files are created and used
+
+## v1.3.0: legacy privacy-redaction record
+
+Archive status: `privacy-redacted`. The prior content included private or
+personal context. The exact snapshot is intentionally omitted. This amendment
+generalizes that context and revises advisory guidance without copying private
+evidence. Provenance: the prior corpus entry reviewed during this migration.
+
+## v1.4.0: advisory guidance revision
+
+Revised workflow guidance and description for the user-approved completion-focused
+guidance migration. Existing verification evidence is unchanged. This record
+does not claim new execution or model-behavior validation.

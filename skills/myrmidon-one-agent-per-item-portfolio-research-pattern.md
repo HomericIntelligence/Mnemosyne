@@ -1,10 +1,10 @@
 ---
 name: myrmidon-one-agent-per-item-portfolio-research-pattern
 license: BSD-3-Clause
-description: "Dispatch ONE Myrmidon agent per item (not 3-4 items per agent) when researching N independent items (10+ startup holdings, contractor invoices, paper citations, etc.). Each agent fully focuses on one item, picks up item-specific evidence, handles identity-disambiguation per-item, and writes a discrete evidence file. Commander synthesizes by reading files. Use when: (1) N >= 10 independent items, (2) each item needs ~5-6 web searches, (3) one-document-per-item is the natural output, (4) batching agents (3-4 items per agent) produced lower quality."
+description: "Partition portfolio research by entity when identity confusion or uneven coverage affects results. Choose delegation and batching from task size and host capacity."
 category: architecture
 date: 2026-05-30
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [myrmidon, swarm, parallel-agents, l0-commander, one-agent-per-item, portfolio-research, due-diligence, evidence-file-per-item, wave-dispatch, identity-disambiguation]
@@ -16,15 +16,14 @@ tags: [myrmidon, swarm, parallel-agents, l0-commander, one-agent-per-item, portf
 
 | Field | Value |
 | ------- | ------- |
-| **Date** | 2026-05-30 |
-| **Objective** | Establish the canonical granularity rule for Myrmidon swarms researching N independent items: one agent per item beats batching 3-4 items per agent |
-| **Outcome** | Verified locally during VillmowFutures portfolio due-diligence session (May 2026): 17 startup holdings → 17 discrete `Status_<Issuer>.md` files, 100% identity-match rate, nuanced per-item evidence caught across all holdings |
-| **Verification** | verified-local |
-| **Concrete example** | VillmowFutures research 2026-05-30: 17 holdings, 5 waves of 3-4 agents each, one agent per holding |
+| **Date** | Private session date omitted; creation metadata retained above |
+| **Objective** | Compare per-item research with multi-item batching when identity confusion affects results |
+| **Outcome** | A private research session produced separate evidence files and resolved similarly named entities. Exact portfolio scale, identities, dates, and item-specific findings are omitted. |
+| **Verification** | verified-local; no new execution evidence added |
 
 ## When to Use
 
-- N >= 10 **independent** items where each item needs ~5-6 web searches
+- Independent items with enough research depth to benefit from separate context
 - "One document per item" is the natural deliverable (holdings research, contractor invoice audit, paper citation check)
 - Items are amenable to identity-disambiguation per-item (e.g. distinguishing similarly-named entities)
 - You have previously tried batching (3-4 items/agent) and found lower recall or missed nuances
@@ -33,7 +32,7 @@ tags: [myrmidon, swarm, parallel-agents, l0-commander, one-agent-per-item, portf
 **Do NOT use when:**
 
 - Items have cross-item dependencies (e.g., corporate structure where subsidiary classification affects parent)
-- N < 5 — just handle directly in the main context
+- A small inventory that is clearer to handle directly in the main context
 - Research requires synthesizing relationships *across* items (use a single agent reading all evidence files after per-item agents complete)
 
 ## Verified Workflow
@@ -42,11 +41,10 @@ tags: [myrmidon, swarm, parallel-agents, l0-commander, one-agent-per-item, portf
 
 ```
 Step 1: Enumerate N independent items → list with item-specific facts injected per prompt
-Step 2: Build per-item agent prompt template
+Step 2: Build a per-item prompt when delegation is authorized and useful
          → inject: item name, known identifiers, output file path
-         → instruct: write to <dir>/Status_<Item>.md, cite >= 3 sources
-Step 3: Dispatch in waves of 4-5 agents (Myrmidon 5-agent-per-wave cap)
-         → 17 items = 4-5 waves of 3-5 agents each
+         → suggest: write to <dir>/Status_<Item>.md with sufficient independent evidence
+Step 3: Choose concurrency from the current host limits; review sequentially if needed
 Step 4: Each agent writes to predictable path: <dir>/Status_<Item>.md
 Step 5: Commander synthesizes by reading filenames + per-item verdicts
          → no re-prompting agents; just read output files
@@ -62,29 +60,22 @@ Known identifiers / disambiguation hints:
   - <ITEM_IDENTIFIER_2>
 
 Tasks:
-1. Search for current status, funding, legal issues, key news (5-6 WebSearch queries)
+1. Research the requested facts with enough sources to resolve material uncertainty
 2. Disambiguate identity if multiple entities share similar names — pick the correct one
 3. Write your complete findings to: <OUTPUT_DIR>/Status_<ITEM_SLUG>.md
 
-Output file must contain:
+Suggested output structure (preserve fields consumed by downstream tools):
 - ## Summary (2-3 sentences, status verdict)
-- ## Evidence (3+ cited sources with dates)
+- ## Evidence (cited sources with dates and remaining uncertainty)
 - ## Identity Disambiguation (if needed)
 - ## Verdict: [ACTIVE | INACTIVE | UNCERTAIN | INSOLVENT | ACQUIRED]
 ```
 
 ### Wave Dispatch Reference
 
-```
-Items: 17
-Wave 1: items  1- 4  (4 agents)
-Wave 2: items  5- 8  (4 agents)
-Wave 3: items  9-12  (4 agents)
-Wave 4: items 13-16  (4 agents)
-Wave 5: item  17     (1 agent)
-# Alternatively: 5 waves of 3-4 agents each — either is fine
-# Never dispatch all 17 in a single wave (Myrmidon 5-agent cap)
-```
+Use batches within the current host’s available capacity. Assign each item an output
+path and track completion. The historical wave layout is omitted because it exposed
+private portfolio scale; no particular item count or batch size is required.
 
 ### Commander Synthesis Pattern
 
@@ -102,51 +93,35 @@ for item in items:
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 | --------- | ---------------- | --------------- | ---------------- |
-| Plan A: 4 agents × 4 holdings each | Batch 17 holdings into 4 agents (4-4-4-5 items each) | User objected immediately; batching would have lost per-item disambiguation (Smart Tire Recycling vs SMART Tire Company are two separate StartEngine alumni with nearly identical names) | One-agent-per-item is the correct granularity for portfolio research; batching compromises recall |
-| Single-agent all-17 pass | One agent researching all 17 holdings sequentially | Context-window strain; per-item evidence trail lost; early items contaminate later item analysis; agent skips nuanced disambiguation | Parallel per-item agents avoid context bloat and maintain clean evidence trails |
-| Dispatch all 17 in a single wave | Launch 17 Myrmidon agents simultaneously | Violates Myrmidon 5-agent-per-wave cap; causes resource exhaustion and agent failures | Always respect the 5-agent-per-wave cap; 17 items = 4-5 waves |
+| Multi-item batching | Assigned several holdings to each research agent | Per-item disambiguation needed a clearer evidence trail for similarly named entities | Per-item focus can help disambiguation; choose granularity from evidence and task size |
+| Single-agent complete pass | One agent researching the full private inventory sequentially | Context-window strain; per-item evidence trail lost; early items contaminate later item analysis; agent skips nuanced disambiguation | Parallel per-item agents avoid context bloat and maintain clean evidence trails |
+| Dispatch the full inventory in a single wave | Launch all item agents simultaneously | Violates Myrmidon 5-agent-per-wave cap; causes resource exhaustion and agent failures | Respect the active host capacity; the recorded host used a five-agent cap |
 
 ## Results & Parameters
 
-### VillmowFutures Session (2026-05-30)
+The private session supports a reusable decision: per-item focus can help when similar
+names, distinct legal entities, and uneven source quality create confusion. Separate
+evidence files make the identity decision and remaining uncertainty easier to inspect.
+These observations do not establish a universal agent count or token-cost advantage.
 
-| Metric | Value |
-| ------- | ------- |
-| Holdings researched | 17 |
-| Agents dispatched | 17 (one per holding) |
-| Waves | 5 (4-4-4-4-1 or similar) |
-| Web searches per agent | ~5 queries |
-| Wall time per agent | ~80-120 seconds |
-| Total wall time | ~25-30 minutes |
-| Evidence files produced | 17 (one per holding) |
-| Identity-match rate | 100% |
-| Disambiguation issues caught | 2 (Smart Tire Recycling vs SMART Tire Company; Piestro CB-Insights-vs-PitchBook conflict) |
-| Nuanced evidence caught | BlueSky Energy Austrian Wels Regional Court insolvency; Island Brands fraud lawsuit + Bogmeyer brand-only acquisition |
-| Per-agent report size | 100-200 words back to commander (vs 600+ for batched agents) |
+### Identity-disambiguation example
 
-### Token Cost Comparison
+Two similarly named entities can operate different businesses. Compare stable
+identifiers and source dates before associating a finding with either entity. Keep
+uncertain matches explicit instead of accepting the most prominent search result.
 
-| Approach | Agents | Searches/Agent | Total Searches | Context per Agent | Quality |
-| -------- | ------ | --------------- | --------------- | ----------------- | ------- |
-| One-agent-per-item (17 items) | 17 | 5-6 | ~90 | Minimal (1 item) | High — per-item focus |
-| Batched (4 agents × 4 items) | 4 | 20-25 | ~90 | Heavy (4 items mixed) | Lower — context dilution |
+### Suggested output parameters
 
-Token cost is roughly equivalent; quality difference is significant because per-item agents have undivided context.
-
-### Identity-Disambiguation Nuance
-
-Per-item agents naturally surface disambiguation issues because they are asked about ONE entity and must confirm they have the right one. Batched agents face competing attention across multiple items and tend to accept the most prominent search result without disambiguation.
-
-Example from session:
-- **SMART Tire Company** — NASA shape-memory-alloy airless tire technology (StartEngine 2021)
-- **Smart Tire Recycling** — supercritical-water tire-to-oil process (separate StartEngine alumni)
-- A batched agent mixing these two items would likely conflate them; per-item agents correctly separated them
+- One stable item identifier and one predictable evidence-file path.
+- Sources sufficient for the requested claim, with dates and uncertainty.
+- An explicit identity match and a concise disposition.
+- Host-appropriate concurrency, or sequential review where that works better.
 
 ## Verified On
 
 | Project | Context | Details |
 | --------- | --------- | --------- |
-| VillmowFutures | 17 startup holdings due-diligence, May 2026 | 5 waves of per-item Myrmidon agents; 17 Status_*.md files produced; 100% identity-match rate |
+| Private project (identity withheld) | Per-item research comparison; session date and exact scale withheld | Local execution supported per-item evidence tracking and identity disambiguation; no public provenance is claimed |
 
 ## References
 

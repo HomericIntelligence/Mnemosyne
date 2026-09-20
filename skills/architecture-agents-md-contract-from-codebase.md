@@ -1,10 +1,10 @@
 ---
 name: architecture-agents-md-contract-from-codebase
 license: BSD-3-Clause
-description: "How to PLAN adding an AGENTS.md agent-behavior contract to a repo by DERIVING every rule from the real codebase + CLAUDE.md invariants instead of writing generic boilerplate, and how to surface the planning risks honestly. Use when: (1) planning/adding an AGENTS.md agent-behavior contract (scope-in/out, permitted/prohibited actions, --dangerously-skip-permissions policy, escalation, verification commands) to a repo; (2) deriving the permitted-tools / off-limits / escalation set from real pipeline/harness source (e.g. the --allowedTools flag in the runner) PLUS CLAUDE.md invariants (ADRs append-only, configs canonical, submodule pins matter) rather than aspiration; (3) wiring the new doc into an EXISTING markdownlint CI gate (extend the fixed file list, do not add a new job) and confirming .markdownlint.json disables the rules it would trip BEFORE claiming green; (4) adding a doc-to-source drift guard (a grep tying the documented tool contract to the runner code so they cannot silently diverge); (5) reusing an in-ecosystem sibling AGENTS.md as the structural template and scoping the new one so two AGENTS.md files do not diverge."
+description: "Derive AGENTS.md guidance from repository behavior, ownership, and host constraints; reuse existing documentation checks and identify unverified assumptions."
 category: architecture
 date: 2026-06-20
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags:
@@ -38,9 +38,10 @@ tags:
 | **Category** | architecture / planning |
 | **Related Issues** | Odysseus #186 |
 
-The win is not "write an AGENTS.md." It is: **derive the contract from what the
-code actually does, attach it to the enforcement that already exists, and guard it
-against drift — then be loud about the assumptions you never ran.**
+Base agent guidance on actual repository behavior. Distinguish host-enforced limits
+from workflow suggestions, and state unresolved assumptions. Existing authorization
+covers routine work; reserve permission requests for missing authority or a material
+ambiguity. Consider drift checks for technical contracts that can change.
 
 ---
 
@@ -91,8 +92,7 @@ Do NOT use this as a record of executed work — it is a plan with open assumpti
 1. **Find the in-ecosystem template first.** `Glob **/AGENTS.md` — if a sibling exists
    (here `provisioning/Myrmidons/AGENTS.md`), reuse its section set (Scope in/out table,
    Permitted/Prohibited Actions, `--dangerously-skip-permissions` Policy, Coordination,
-   Escalation, Verification Commands). Reusing keeps sibling docs consistent; do not
-   invent a brand-new structure.
+   Escalation, Verification Commands). Reuse relevant sections where they help; omit sections that do not apply.
 
 2. **Ground every rule in real code, not aspiration.** The permitted toolset and the
    danger flag come *verbatim* from the pipeline source — the runner's invocation line
@@ -130,7 +130,7 @@ Do NOT use this as a record of executed work — it is a plan with open assumpti
    (root + sibling), explicitly scope the root one to the meta-repo and do NOT duplicate
    the sibling's submodule-specific rules — divergence is the long-term failure mode.
 
-### Most uncertain assumptions / risks (the honest part a reviewer must see)
+### Assumptions and risks to communicate
 
 - **Unverified line numbers.** The plan cites exact lines (the runner's `--allowedTools`
   and danger-flag lines, the git/gh call sites, `ci.yml`'s markdownlint line, a `README.md`

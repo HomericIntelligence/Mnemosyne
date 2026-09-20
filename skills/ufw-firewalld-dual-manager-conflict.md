@@ -1,10 +1,10 @@
 ---
 name: ufw-firewalld-dual-manager-conflict
 license: BSD-3-Clause
-description: "Diagnose and fix a Linux host running TWO firewall managers at once (ufw AND firewalld both active), which produces nondeterministic netfilter rule ordering and can silently break DNS/outbound connectivity. Also covers why firewalld is present on Debian/PureOS (pulled by the pureos-standard metapackage, so it cannot be apt-removed cleanly) and the correct disable-not-uninstall fix. Use when: (1) outbound/DNS breaks after adding ufw, (2) `systemctl is-active ufw firewalld` shows both active, (3) deciding ufw vs firewalld on a Debian-family host, (4) a firewall package can't be removed because a distro metapackage depends on it."
+description: "Investigate DNS or outbound failures when UFW and firewalld both manage a host; preserve intended filtering while resolving manager and package dependencies."
 category: debugging
 date: 2026-07-04
-version: "1.0.0"
+version: "1.1.0"
 verification: verified-local
 user-invocable: false
 tags: [ufw, firewalld, firewall, netfilter, dns, connectivity, debian, pureos, nftables, iptables]
@@ -18,7 +18,7 @@ tags: [ufw, firewalld, firewall, netfilter, dns, connectivity, debian, pureos, n
 | ------- | ------- |
 | **Date** | 2026-07-04 |
 | **Objective** | Diagnose and fix a Linux host running both `ufw` and `firewalld` simultaneously, which yields nondeterministic netfilter rule ordering and can silently break DNS/outbound connectivity |
-| **Outcome** | Detected the dual-manager conflict on host `epimetheus` (PureOS 10 Byzantium, kernel 5.10), disabled `firewalld` without uninstalling it (metapackage dependency), and standardized on `ufw` alone — connectivity restored |
+| **Outcome** | Detected the dual-manager conflict on host `<workstation>` (PureOS 10 Byzantium, kernel 5.10), disabled `firewalld` without uninstalling it (metapackage dependency), and standardized on `ufw` alone — connectivity restored |
 | **Verification** | verified-local |
 
 An AI agent (Claude) lost outbound connectivity shortly after `ufw` was configured on the host. The instinct was to blame the newly added `ufw` inbound rules, but the `ufw` default policy was `allow outgoing` — which permits all outbound traffic, and stateful conntrack automatically allows replies to those connections. The `ufw` rules were never the problem.
@@ -41,7 +41,7 @@ The real root cause: **both `ufw` and `firewalld` were active at the same time.*
 systemctl is-active ufw firewalld
 ```
 
-If this prints `active` twice, you have two firewall managers running concurrently. Stop here — do not start editing `ufw` rules. The conflict, not the rules, is almost certainly the cause of nondeterministic breakage.
+If this prints `active` twice, you have two firewall managers running concurrently. Investigate the competing managers before changing individual rules. Continue with policy inspection and select the manager consistent with the host's intended protection.
 
 ### 2. Understand why firewalld is even installed (Debian/PureOS)
 
@@ -107,7 +107,7 @@ A `ufw` `default allow outgoing` policy does **not** block browsing, DNS, or AI-
 
 ## Results & Parameters
 
-Verified-local on host `epimetheus` (PureOS 10 Byzantium, kernel 5.10).
+Verified-local on host `<workstation>` (PureOS 10 Byzantium, kernel 5.10).
 
 **Detection (run first):**
 ```bash

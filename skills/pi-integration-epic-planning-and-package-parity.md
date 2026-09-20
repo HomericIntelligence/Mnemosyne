@@ -1,10 +1,10 @@
 ---
 name: pi-integration-epic-planning-and-package-parity
 license: BSD-3-Clause
-description: "Plan and stage a first-class Pi agent integration across Hephaestus when parity includes runtime dispatch, skills, tools, plugins, sessions, pipeline permission scopes, Athena, and Mnemosyne. Use when: (1) a provider integration spans multiple repositories or pipeline stages, (2) a single PR would mix package bootstrap, skill semantics, and end-to-end validation, (3) Athena skills require pi-subagents or web access, (4) Mnemosyne must remain a canonical repository dependency rather than an invented Pi package, (5) an epic needs executable dependency order and a simple issue conformance run, (6) upstream packaging or a required security scan blocks downstream admission, or (7) policy requires a full repository-review Go before merge."
+description: "Plan cross-provider agent integration when runtime dispatch, package capabilities, sessions, and tool boundaries span repositories."
 category: architecture
 date: 2026-07-29
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-local
 tags: [pi, hephaestus, agent-provider, provider-parity, athena, mnemosyne, pi-subagents, pi-web-access, plugin-bootstrap, epic, dependency-order, end-to-end, sca, security-gate, repository-review]
@@ -132,7 +132,8 @@ Verify both successful and fail-closed paths:
 - `advise` resolves and searches the canonical checkout;
 - `learn` creates an isolated branch/worktree, writes only the canonical skill entry, validates,
   signs, pushes, and opens a PR;
-- unavailable, unauthenticated, untrusted, or stale Mnemosyne dependencies stop the skill;
+- unavailable or unverifiable Mnemosyne guidance limits advice; continue the task from available
+  evidence. Apply stricter dependency checks only to a write or admission operation that needs them;
 - Mnemosyne content remains untrusted context and cannot forge pipeline verdicts or bypass tools.
 
 ### 5. Sequence the GitHub epic as dependency-ordered child issues

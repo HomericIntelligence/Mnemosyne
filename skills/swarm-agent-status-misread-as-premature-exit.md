@@ -1,10 +1,10 @@
 ---
 name: swarm-agent-status-misread-as-premature-exit
 license: BSD-3-Clause
-description: "Distinguish in-progress status updates from premature-exit signals when dispatching parallel swarm sub-agents. Use when: (1) a parallel agent's notification arrives with short duration_ms (<60s) and 'waiting'/'polling' result text, (2) deciding whether to re-dispatch an apparently-stuck swarm agent, (3) auditing a multi-agent swarm for duplicate dispatches that caused PR/branch collisions, (4) the parent agent feels tempted to dispatch a retry within the first minute of a parallel agent's life."
+description: "Distinguish agent progress from termination before retrying delegated work. Use when short status updates, stale transcripts, or polling cause duplicate dispatches."
 category: tooling
 date: 2026-05-25
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags:
@@ -71,7 +71,7 @@ tags:
 
    An mtime within the last 5 minutes means the agent is still active. Stale mtime + no terminal notification means truly hung; consider re-dispatch.
 
-5. **Gate re-dispatches behind explicit failure semantics.** Only re-dispatch when the terminal notification contains "FATAL", "exit 1", "timed out", or "could not". Otherwise wait at least 60 minutes for the polling step to complete. If you do re-dispatch, plan cleanup ahead of time: `gh pr close --delete-branch <dup-pr>` and `git worktree remove <dup-worktree>` for the inevitable branch-name race.
+5. **Use current lifecycle evidence before another dispatch.** Check the available agent status and progress rather than waiting a fixed hour or matching particular failure words. If work has ended or cannot progress, preserve its outputs and resume or reassign the remaining scope. Continue independent work while waiting. Avoid overlapping writers and preserve uncertain branches or worktrees.
 
 ## Failed Attempts
 

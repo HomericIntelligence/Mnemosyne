@@ -1,10 +1,10 @@
 ---
 name: testing-pragma-no-cover-error-path-coverage
 license: BSD-3-Clause
-description: "Safely remove or justify `# pragma: no cover` coverage exemptions by classifying each pragma into one of two kinds and applying the right fix: reachable-error-fallback (a `try/except` around an external call that logs and returns an empty collection / `False` — test it by mocking the inner call to raise via `side_effect`, assert the fallback value, THEN delete the pragma) vs unreachable-mypy-type-narrowing-guard (an `if x is None:` branch made dead by `__post_init__`/an invariant — KEEP the pragma, add an issue reference to its comment, and add an invariant test instead of faking coverage). Use when: (1) an audit flags `# pragma: no cover` carrying only a prose justification, (2) you must decide whether a coverage-exempted branch is honestly testable, (3) you need the correct patch target for an error-path test (patch the name in the namespace where it is USED, not where it is defined), (4) a type-narrowing `if x is None` guard cannot be covered honestly and you must avoid deleting it (deletion breaks mypy narrowing) or fake-covering it."
+description: "Classify coverage exemptions as reachable error paths or unreachable type guards, then test behavior without manufacturing coverage."
 category: testing
 date: 2026-07-17
-version: "2.0.0"
+version: "2.1.0"
 user-invocable: false
 verification: verified-local
 tags:
@@ -93,7 +93,7 @@ grep -rn "pragma: no cover" hephaestus/automation/github_api.py hephaestus/autom
    reachable fallback; an `if x is None:` whose `None` is provably never reached
    (because a constructor / `__post_init__` always assigns it) is a narrowing
    guard.
-3. **Reachable fallback → RED-first.** Before touching the pragma, add a test
+3. **Reachable fallback → behavior coverage.** Add or reuse a test
    that drives the except branch by mocking the inner call to raise, and assert
    the *documented* fallback value (empty collection, `False`). Mirror the
    repo's existing mocking idiom — do not invent a new one (in Hephaestus the
@@ -117,9 +117,9 @@ grep -rn "pragma: no cover" hephaestus/automation/github_api.py hephaestus/autom
    `hephaestus.automation.git_utils.get_repo_info`. Patching the definition
    module leaves the already-imported reference in `github_api` untouched and
    the mock silently never fires.
-5. **Confirm then delete.** Run the new test with
-   `--cov-report=term-missing` and confirm the formerly-pragma'd line is no
-   longer in the "Missing" column. *Only then* delete the `# pragma: no cover`.
+5. **Remove the exemption and check coverage.** Run the behavior test with
+   `--cov-report=term-missing` and confirm the branch is exercised after removing
+   `# pragma: no cover`.
    Removing the pragma before the test exists drops coverage and trips the 83%
    CI gate.
 6. **Unreachable narrowing guard → keep + annotate + invariant test.** Do NOT

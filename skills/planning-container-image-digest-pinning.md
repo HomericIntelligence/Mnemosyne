@@ -1,10 +1,10 @@
 ---
 name: planning-container-image-digest-pinning
 license: BSD-3-Clause
-description: "Planning-discipline for pinning floating container image tags (:latest, :alpine) in a Compose/e2e stack to immutable name:vX.Y.Z@sha256:<digest> references for reproducibility — WHAT a planner can and cannot verify offline. Use when: (1) planning a fix for an issue like ':latest image tags break reproducibility' in a docker-compose/e2e file, (2) you are about to write specific upstream version tags and sha256 digests into a plan without registry access, (3) you need to choose between pinning a multi-arch manifest-list digest vs a single-arch image digest, (4) you are tempted to cite an existing Actions SHA-pin convention as proof that container images should be digest-pinned, or to rely on `compose config` as the acceptance check."
+description: "Plan container digest pinning with verified registry metadata and architecture coverage. Keep guessed tags and digests explicit when registry access is unavailable."
 category: ci-cd
 date: 2026-06-20
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: unverified
 history: planning-container-image-digest-pinning.history
@@ -82,9 +82,16 @@ skopeo inspect docker://docker.io/grafana/grafana:11.4.0 >/dev/null && echo "tag
 2. **Treat the chosen version tag as unconfirmed too.** A tag may be EOL/yanked or simply not exist. The implementer must `skopeo inspect docker://.../<repo>:<tag>` to confirm existence, and should prefer a maintained LTS line over the newest tag.
 3. **Pin the multi-arch manifest-LIST digest, not a single-arch image digest.** `name@sha256:<digest>` can pin either. A single-platform digest breaks contributors on a different CPU arch (arm64 vs amd64). `skopeo inspect --format '{{.Digest}}' docker://<repo>:<tag>` and `docker buildx imagetools inspect --format '{{.Manifest.Digest}}'` return the manifest-list digest — use those. Call this out explicitly in the plan.
 4. **State verified-vs-extrapolated precisely when citing precedent.** Verified: the repo SHA-pins GitHub **Actions** (commit `2c8039c`, `ci.yml:16`). Extrapolation: "therefore container images should be digest-pinned." Actions are pinned by **git commit SHA**, images by **registry content digest** — related convention, not the same one. Do not present the extrapolation as a verified fact.
-5. **Wire the guard into CI in the SAME change, or drop it — a guard nothing runs is decorative (P3/TDD gap).** A guard a contributor must remember to run gives ZERO regression protection: the exact `:latest` regression it is meant to stop sails through CI. Verified here: CI's `yamllint` only covers `configs/` (`ci.yml:24`), so a `docker-compose.e2e.yml` regression is NOT caught. The plan MUST add the guard as a step in an existing CI job (here: the `validate` job of `.github/workflows/ci.yml`, right after the YAML-lint step, running `bash scripts/check_e2e_image_pins.sh`) and include a VERIFICATION step that greps the CI file to prove it (`grep -n 'check_e2e_image_pins.sh' .github/workflows/ci.yml`) — not merely that the script file exists. A reviewer treats a centerpiece guard that does not run in CI as a MAJOR finding (forces NOGO).
+5. **Connect a requested regression check to its real execution path.** If the task
+   calls for automatic enforcement, identify the existing CI job that will run it
+   and verify the wiring. A local script can still help inspection, but its existence
+   is not evidence that CI enforces the rule. Do not add a mandatory guard solely
+   because a planning example used one.
 6. **Lead with the CORRECT digest command; mark the broken one as wrong, not as an alternative (P7/POLA).** An implementer follows steps top-to-bottom and hits the first-listed command. The PRIMARY/first command must be the correct one: `skopeo inspect --format '{{.Digest}}' docker://docker.io/<ref>` (fallback `docker buildx imagetools inspect --format '{{.Manifest.Digest}}'`). `podman manifest inspect ... | sha256sum` is factually broken — it hashes the manifest JSON TEXT, not the registry-canonical digest, silently yielding a `@sha256:` that pulls nothing. Never present a known-broken command as the default path even when a correct alternative is mentioned nearby; explicitly label the wrong approach as wrong. A wrong-as-written command is a MAJOR finding.
-7. **Resolve the whole-file-guard vs scoped-issue tension explicitly.** A digest-presence guard scoped to ALL `image:` lines will also flag images outside the issue evidence (here `nats:alpine` at `docker-compose.e2e.yml:14`). Two coherent choices: (a) scope the guard to only the issue's services, or (b) make the guard whole-file AND pin the extra in-file image too. A half-guarded file invites the very regression you are preventing — prefer the whole-file guard + pin the extra in-file image, and RECORD the scope decision. Cross-file out-of-scope items (e.g. `nats:latest` in `e2e/docker-compose.cluster.yml:12,25`) stay out of scope; the guard's blast radius may legitimately expand scope WITHIN the same file but not across files.
+7. **Keep the guard aligned with authorized scope.** Select the requested services
+   or an already established whole-file policy. A guard should not silently expand
+   the task to additional images. Report unrelated pinning opportunities separately
+   and continue the requested work.
 8. **Name the `@sha256:[0-9a-f]{64}` grep as the authoritative gate; label `compose config` "best-effort, NOT a gate."** `podman compose -f ... config` resolves env-var interpolation (`${PROJECT_ROOT}`, `${ARGUS_DIR}`, `${HERMES_DIR}`, `${MYRMIDONS_DIR}`, ...) and can fail offline on unset vars for reasons unrelated to the pin; `podman compose` also delegates to the docker-compose plugin and may not pin-validate. The tooling/env-independent `grep` for `@sha256:[0-9a-f]{64}` is the AUTHORITATIVE acceptance check; if you keep `compose config`, supply the required env vars and mark it best-effort.
 9. **Self-audit for the two cheapest MAJORs before submitting (verdict-floor mechanics).** A single MAJOR forces NOGO regardless of otherwise A-grade requirements-alignment/concreteness/scope; two majors here (decorative guard + broken primary command) dropped an otherwise strong plan to grade C. Before submitting, audit for (1) a centerpiece deliverable that does not actually run, and (2) a command/step that is wrong as written — these are the two cheapest majors to self-catch.
 
@@ -119,7 +126,9 @@ grafana/grafana:latest   -> grafana/grafana:X.Y.Z@sha256:<RESOLVED_DIGEST>
 
 Candidate versions (UNVERIFIED — confirm at implementation time): Prometheus v2.55.1, Loki 3.3.2, Grafana 11.4.0. Prefer a maintained LTS line; do not paste these into the manifest without `skopeo inspect`-confirming both the tag and the manifest-list digest.
 
-**Scope decision (R1 refinement):** prefer a WHOLE-FILE guard, so also pin the extra in-file image `nats:alpine` (`docker-compose.e2e.yml:14`) in the same change and record the decision. **Out of scope (cross-file, documented, not changed):** `nats:latest` (`e2e/docker-compose.cluster.yml:12,25`).
+**Recorded scope decision (R1 refinement):** the plan chose a whole-file guard and
+included `nats:alpine` (`docker-compose.e2e.yml:14`). Transfer that scope only when
+the current request authorizes it. **Out of scope (cross-file, documented, not changed):** `nats:latest` (`e2e/docker-compose.cluster.yml:12,25`).
 
 **Resolution commands (implementation time) — PRIMARY first, broken one marked:**
 
@@ -142,7 +151,7 @@ grep -nE 'image:\s*\S+@sha256:[0-9a-f]{64}' docker-compose.e2e.yml
 # (fails offline on unset ${PROJECT_ROOT}/${ARGUS_DIR}/${HERMES_DIR}/${MYRMIDONS_DIR}).
 ```
 
-**CI wiring (REQUIRED in the same change — a guard nothing runs is decorative):**
+**CI wiring example (when automatic enforcement is requested):**
 
 ```bash
 # Add to the `validate` job of .github/workflows/ci.yml, after the YAML-lint step:

@@ -1,11 +1,10 @@
 ---
 name: mass-figure-documentation
 license: BSD-3-Clause
-description: Generate comprehensive documentation for multiple analysis figures using
-  parallel background agents
+description: "Document a large set of independent analysis figures from source code with a shared template and optional parallel authorship."
 category: documentation
 date: 2026-02-12
-version: 1.0.0
+version: "1.1.0"
 user-invocable: false
 ---
 # Skill: Mass Figure Documentation
@@ -89,9 +88,9 @@ create PR for #{issue.number}, enable auto-merge, cleanup."""
 
 **Key parameters**:
 - `subagent_type="general-purpose"` - Flexible agent for documentation tasks
-- `model="sonnet"` - Balance quality and cost (haiku for simpler docs)
+- Choose an available model suited to the technical interpretation needed
 - `run_in_background=true` - Essential for parallel execution
-- Detailed prompts with **all context** (agents don't see conversation history)
+- Give each agent the relevant source, output contract, and ownership scope
 
 ### 3. Monitoring Phase
 
@@ -133,7 +132,7 @@ gh pr merge --auto --rebase
 - All 30 PRs created ✅
 - All issues linked to PRs ✅
 - Naming conventions consistent ✅
-- Auto-merge enabled on all PRs ✅
+- Requested delivery complete; auto-merge only where authorized
 
 ## Overview
 

@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Use when duplicated or near-duplicated code, data, or control flow should be consolidated without changing behavior. Covers current-state discovery, exact-vs-intentional-variant classification, canonical placement, TDD, compatibility and patch-seam preservation, incremental migration, and anti-drift verification."
 category: architecture
 date: 2026-07-04
-version: "2.0.0"
+version: "2.1.0"
 user-invocable: false
 verification: mixed
 history: dry-refactoring-workflow.history
@@ -113,7 +113,7 @@ the structure itself is a durable public or anti-drift invariant.
 ### 5. Extract and migrate incrementally
 
 Create the canonical helper with explicit inputs and a result that preserves existing behavior. Migrate one
-consumer at a time and run its focused tests before continuing. Keep local wrappers where they preserve names,
+consumer at a time when that makes failures easier to isolate. Use focused tests at useful checkpoints. Keep local wrappers where they preserve names,
 error messages, logging, or patch seams. Delete the duplicate only after every consumer and reference has moved.
 
 After editing, re-derive imports, exports, allowlists, coverage configuration, docs, and test paths from the new
@@ -121,7 +121,7 @@ tree. Do not trust a plan's cleanup list to be exhaustive.
 
 ### 6. Verify the canonical source
 
-Run focused tests, affected suites, the full repository gate, lint, and type checks required by the project.
+Select focused tests and affected suites, plus lint, type checks, or broader checks required by the project or the changed contracts.
 Re-run the discovery queries and require results that falsify incomplete work: one canonical definition, no
 forbidden duplicate bodies, no orphan references, and only documented intentional variants.
 

@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: Check merge readiness against live repository policy when checks, reviews, conflicts, or branch freshness are uncertain.
 category: ci-cd
 date: 2025-12-30
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 history: verify-pr-ready.history
 ---
@@ -62,16 +62,18 @@ command, result, and reason for reuse. A historical run is not a new current-hea
 If relevant inputs changed or applicability is uncertain, run the affected check again.
 
 Required CI must satisfy the repository's current-head or merge-queue contract. Local
-results and reused evidence do not replace those required checks. Review must cover
-the exact candidate head before merge. Target movement alone does not change that
+results and reused evidence do not replace those required checks. Where review is required, its evidence needs to cover
+the candidate head before merge. Target movement alone does not change that
 head, but can require a new integration check under repository policy.
 
 ### 4. Separate publication from merge
 
 Publish a PR early when the task authorizes it, including while validation is pending.
 State pending checks and evidence limits accurately. Publication is not a merge-readiness
-claim. Before merge, require all applicable checks, exact-head review, required approvals,
-thread resolution, and other repository gates. Do not bypass a failed gate.
+claim. Before merge, satisfy the checks, review, approvals, and thread resolution required by
+the live repository policy. Do not invent additional gates from this checklist. If a
+required condition remains unresolved, continue useful fixes and report that specific
+merge dependency.
 
 ### Quick Reference
 

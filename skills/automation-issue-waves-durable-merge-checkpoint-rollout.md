@@ -1,10 +1,10 @@
 ---
 name: automation-issue-waves-durable-merge-checkpoint-rollout
 license: BSD-3-Clause
-description: "Design and verify durable repository-scoped issue waves that admit exact selections in 1, 2, 4, 8, then all phases. Use when: (1) an automation rollout must advance only after the prior exact issues merged normally, (2) restarts must replay immutable identifiers without rediscovery, (3) external or ambiguous merges must not authorize the next wave, (4) completed rollouts must become permanently audit-only, (5) implementation review must cover partial-wave resume and direct-recovery terminalization, or (6) the rollout's exact-head review-to-merge evidence needs auditing."
+description: "Design durable issue-wave rollouts with immutable selections, crash recovery, exact-head merge receipts, and audit-only completion."
 category: architecture
 date: 2026-08-06
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-ci
 history: automation-issue-waves-durable-merge-checkpoint-rollout.history
@@ -343,9 +343,9 @@ identifiers, explain drift, and exercise read-only ancestry diagnostics. It must
 selection, advance a wave, write receipts/outcomes, complete the rollout, provision labels, invoke
 agents, create PRs, or merge.
 
-### 14. Freeze the integration with adversarial tests
+### 14. Check rollout invariants with adversarial tests
 
-Required test groups:
+Suggested coverage for this checkpoint contract:
 
 - strict schema, repository, SHA, identifier, path-confinement, symlink, non-regular-file, and mode
   validation;

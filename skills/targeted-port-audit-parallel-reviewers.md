@@ -1,10 +1,10 @@
 ---
 name: targeted-port-audit-parallel-reviewers
 license: BSD-3-Clause
-description: "Targeted code-port audit using 3-5 parallel review agents instead of a full repo audit. Use when: (1) a script/module was rewritten from one language to another (bash→Python, Python→Rust, etc.), (2) you need feature parity verification vs. a previous implementation, (3) the change is narrowly scoped and the full /repo-analyze-strict-full skill would drown actionable findings in 14 irrelevant sections, (4) auditing a refactor against a deleted-or-archived prior version, (5) you have line-by-line side-by-side comparison material available."
+description: "Compare a port or rewrite with its prior implementation for behavior parity, domain semantics, concurrency, and test gaps."
 category: tooling
 date: 2026-05-26
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [port-audit, parallel-review, feature-parity, code-port, rewrite-audit, focused-review, bash-to-python, narrow-scope-audit]
@@ -72,7 +72,7 @@ Agent(description="Test coverage cross-reference audit",
 
 #### Step 1 — Preserve the prior implementation
 
-Always do this BEFORE dispatching agents. Concrete line-number citations on both sides make findings unambiguous.
+Make both implementations available to any reviewers. Concrete line-number citations on both sides make findings unambiguous.
 
 ```bash
 # If old version still in git history:
@@ -86,7 +86,7 @@ git show <deletion-commit>^:scripts/run_automation_loop.sh > /tmp/old_loop.sh
 cp <archive>/run_automation_loop.sh /tmp/old_loop.sh
 ```
 
-#### Step 2 — Pick 3-5 audit dimensions
+#### Step 2 — Select relevant audit dimensions
 
 Standard set for a port:
 
@@ -102,9 +102,9 @@ Each agent gets:
 - The full text of both old and new files (via absolute paths)
 - A **single-dimension charter** (one dimension only)
 - The expected **report format** (table with line-number citations, severity-tagged findings)
-- A **500-word output cap** so the agent doesn't drift into unrelated dimensions
+- A concise report focused on the assigned dimension
 
-Dispatch ALL agents in one message so they run in parallel.
+Parallelize independent reviews when available; a single reviewer can cover the same dimensions sequentially.
 
 #### Step 4 — Consolidate findings
 

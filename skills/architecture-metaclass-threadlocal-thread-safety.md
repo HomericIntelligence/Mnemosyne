@@ -1,10 +1,10 @@
 ---
 name: architecture-metaclass-threadlocal-thread-safety
 license: BSD-3-Clause
-description: "Thread-safe patterns for class-level access and shared caches, including a proposed terminal-color policy that layers process-wide NO_COLOR, force-color, CLICOLOR, and TTY detection beneath calling-thread overrides. Use when: (1) preserving Class.ATTR access, (2) adding accessible automatic CLI color, (3) testing TTY policy with PTYs, or (4) protecting shared caches under thread pools."
+description: "Choose thread-local overrides or synchronized keyed caches for shared state. Apply automatic terminal color policy without losing per-thread isolation."
 category: architecture
 date: 2026-08-06
-version: "2.0.0"
+version: "2.0.1"
 user-invocable: false
 verification: unverified
 history: architecture-metaclass-threadlocal-thread-safety.history

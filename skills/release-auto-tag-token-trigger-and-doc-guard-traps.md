@@ -1,10 +1,10 @@
 ---
 name: release-auto-tag-token-trigger-and-doc-guard-traps
 license: BSD-3-Clause
-description: "Three traps in tag-driven release preparation: GITHUB_TOKEN tag pushes do not trigger push workflows, immutable tags strand stale documentation guards, and pre-tag documentation must name the pending version without falsely claiming it is released while keeping regex-owned phrases physically contiguous. Use when: (1) a tag-triggered release workflow never fires, (2) a release test fails a doc-version drift guard, (3) preparing release-status prose before a signed tag exists, (4) Markdown blockquote wrapping breaks a release-gate regex, (5) recovering a stranded release tag."
+description: "Recover release pipelines when bot-created tags do not trigger workflows or tag-bound documentation guards fail. Preserve tag immutability and truthful release state."
 category: ci-cd
 date: 2026-08-07
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-local
 history: release-auto-tag-token-trigger-and-doc-guard-traps.history
@@ -68,7 +68,7 @@ each continuation line contributes a literal `>` marker.
 Why prior releases looked automatic: their tags were pushed by a human.
 
 ```text
-v0.9.7 taggeremail = 4211002+mvillmow@users.noreply.github.com        → push event fires
+v0.9.7 taggeremail = 12345+example-contributor@users.noreply.github.com        → push event fires
 v0.9.8 taggeremail = github-actions[bot]@users.noreply.github.com     → nothing fires
 ```
 

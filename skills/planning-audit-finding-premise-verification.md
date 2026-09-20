@@ -1,10 +1,10 @@
 ---
 name: planning-audit-finding-premise-verification
 license: BSD-3-Clause
-description: "When planning a fix for an audit/lint/reviewer finding, verify the finding's stated PREMISE against the CURRENT repo state before designing the fix — the premise can be factually stale, and a stale premise redirects the entire fix. A finding that says a file is 'committed' / 'in source' / cites `path:line` is a CLAIM: prove the file is actually TRACKED with `git ls-files | grep <path>` and `git log --all -- <path>` (empty = never committed) before planning any edit to it — editing an untracked file produces an un-reviewable, non-recurrence-preventing diff. Separately, when a file 'appears ignored' locally, distinguish REPO-level ignore from the developer's GLOBAL ignore with `git -c core.excludesFile=/dev/null check-ignore -v <path>` (rc=1 => the repo `.gitignore` does NOT defend the file; it is protected only on machines whose `~/.config/git/ignore` happens to match). Worked example (ProjectHephaestus #1494): the audit claimed three permission fragments cluttered a 'committed config' at `.claude/settings.local.json:11-13`; `git ls-files` and `git log --all` proved the file was NEVER tracked, and `core.excludesFile=/dev/null check-ignore` proved the repo `.gitignore` did not ignore it — only the dev's global `~/.config/git/ignore:1` did. The fix PIVOTED from 'scrub three entries out of the file' (untracked, un-reviewable, recurrence-prone) to 'add an explicit repo-level `.gitignore` rule + a subprocess regression test asserting `git -c core.excludesFile=/dev/null check-ignore -v <path>` returns 0'. Use when: (1) planning a fix for an audit/lint/reviewer finding that cites a file path + line numbers, (2) a finding describes a file as 'committed' / 'in source' — verify tracking first, (3) a file appears ignored locally but you need repo-level defense that survives a contributor lacking your global ignore."
+description: "Assess audit findings against current source before selecting repairs; distinguish stale premises, existing behavior, and genuine defects."
 category: architecture
 date: 2026-07-01
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [planning, audit-finding, premise-verification, git-ls-files, git-check-ignore, core-excludesfile, global-vs-repo-ignore, untracked-file, committed-config, gitignore, regression-test, stale-premise, verify-before-planning]
@@ -58,7 +58,7 @@ git check-ignore -v .claude/settings.local.json
 
 1. **Read the finding as a set of claims.** An audit body typically asserts (a) a file exists,
    (b) it is committed/tracked, (c) it lives at `path:line`, and (d) some content is wrong. Each
-   is independently falsifiable. Do NOT begin fix design until each load-bearing claim is checked.
+   is independently testable. Check claims that affect the proposed repair and continue work that does not depend on unresolved claims.
 
 2. **Verify tracking before verifying content.** Run `git ls-files | grep <path>` and
    `git log --all -- <path>`. Empty results mean the file is NOT under version control and was

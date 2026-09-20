@@ -1,10 +1,10 @@
 ---
 name: blocked-deletion-issue-unbuilt-prerequisites
 license: BSD-3-Clause
-description: "When PLANNING a cleanup/deletion/refactor issue that is part of a multi-PR epic and is gated on prior sub-issues (`Depends on #NNNN`, `Do not start until X has soaked >=1 release`, a `feat!:` cutover), the deletion issue body describes a FUTURE tree that LATER PRs were supposed to create — not the current one. Verify the prerequisite chain against the CURRENT tree BEFORE writing a deletion plan; when the premise is false the correct deliverable is a BLOCKED plan documenting the blocker with concrete resume gates, NOT a fabricated deletion plan against code that does not exist. Use when: (1) planning a `remove/delete/cutover/collapse` issue that names a dependency issue or a soak precondition, (2) the issue tells you to 'remove the shims left in PR-N' or 'delete everything in list X' and you have not yet grepped whether those symbols are shims or the live implementation, (3) the issue enumerates test files (test_seeding.py/test_admission.py/test_coordinator.py) or config symbols (a `--legacy-loop` flag, a `PipelineConfig`) that do not exist on `main` yet, (4) you are tempted to satisfy the plan output-contract by inventing edits to code that is not in the tree, (5) you need to decide whether a BLOCKED plan (blocker + runnable evidence + resume gates, no branch/PR) is an acceptable deliverable."
+description: "Check live callers and missing prerequisites before a staged cleanup or cutover; isolate unsafe deletion while continuing independent authorized work."
 category: architecture
 date: 2026-07-04
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags:
@@ -138,12 +138,11 @@ git -C <repo> grep -nE "run_phase|_PHASE_FLAGS|_resolve_phase_bin|_build_phase_a
    `_build_phase_argv`/`_resolve_phase_bin`/`run_phase`/`_run_post_loop_stages`; it surfaced via
    `git grep -nE "run_phase|_PHASE_FLAGS|_resolve_phase_bin" hephaestus/ tests/`.
 
-6. **Deliver a BLOCKED plan, and refuse to open a branch/PR.** A BLOCKED plan is a valid, reviewable
-   deliverable. It MUST: (a) state the blocker plainly; (b) back every blocker claim with a runnable
-   command AND its actual output against a named commit (`main @ 8143380`); (c) enumerate the exact
-   resume gates — dependency chain closed, soak complete, the re-homing test files actually present;
-   (d) refuse to open a branch/PR. Do NOT fabricate a plan that edits code that is not there just to
-   satisfy the output contract.
+6. **Report the blocked deletion and continue useful work.** Explain the missing technical
+   prerequisite with observed evidence and the conditions that make deletion safe. Complete
+   independent authorized work, such as caller analysis or preparation of a coherent partial
+   change. A dependency does not itself prohibit a branch or PR. Avoid inventing nonexistent
+   code or deleting the live implementation to satisfy a stale plan.
 
 ## Failed Attempts
 

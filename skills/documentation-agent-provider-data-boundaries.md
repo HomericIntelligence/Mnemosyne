@@ -1,10 +1,10 @@
 ---
 name: documentation-agent-provider-data-boundaries
 license: BSD-3-Clause
-description: "Document direct model-provider processing without making false local-only or universal-retention claims. Use when: (1) local automation dispatches repository prompts through provider CLIs, (2) several providers have different authentication and retention controls, (3) an optional adapter exposes only a bounded smoke path, or (4) privacy docs need closed inventory and processor tables with tested lifecycle ownership."
+description: "Document agent-provider data flows from source evidence. Separate local processing, provider requests, retention claims, and operator responsibilities."
 category: documentation
 date: 2026-08-07
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 verification: unverified
 tags: [privacy, data-inventory, external-processors, claude, codex, pi, retention, deletion, no-proxy]

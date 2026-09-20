@@ -1,10 +1,10 @@
 ---
 name: docker-traefik-network-loss-on-recreation
 license: BSD-3-Clause
-description: "Diagnose and fix Traefik 504 Gateway Timeout after container recreation caused by Docker network isolation. Use when: (1) Traefik returns 504 for all backends after being recreated, (2) backends show UP in Traefik dashboard but are unreachable, (3) direct curl to container works but Traefik cannot reach it, (4) planning ANY Traefik container recreate (image bump, major upgrade) and want to check proactively whether it's at risk before touching anything."
+description: "Diagnose Traefik 504 errors after container recreation or preserve undeclared live network attachments before a planned recreation."
 category: debugging
 date: 2026-07-06
-version: "1.1.0"
+version: "1.1.1"
 user-invocable: false
 verification: verified-local
 history: docker-traefik-network-loss-on-recreation.history

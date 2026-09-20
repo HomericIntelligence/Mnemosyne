@@ -1,10 +1,10 @@
 ---
 name: architecture-meta-repo-config-hardening-planning
 license: BSD-3-Clause
-description: "How to plan a config-security-hardening fix in a read-mostly docs/config meta-repo (Odysseus) that has NO test framework — config correctness is verified ONLY by `just validate-configs` (`nomad fmt -check` + `yamllint`) and the `_required.yml` lint job, so a planner must NOT invent a pytest/test scaffold; the durable pattern is a shell-grep guard recipe wired into `just ci` AND the lint job so it runs even when the binary (e.g. `nomad`) is absent on the runner. Security stanzas belong IN the canonical config under `configs/` with secrets provisioned at RUNTIME via documented deploy steps (precedent: NATS server.conf documents TLS cert provisioning rather than embedding certs); per CLAUDE.md principle 4, flipping a flag in the canonical file propagates to all hosts that copy/symlink it. Use when: (1) an audit/issue flags a fail-open infra default (e.g. Nomad `bind_addr = 0.0.0.0` with no `acl { enabled = true }`), (2) you are about to reach for pytest in a repo whose `just ci`/`pixi.toml` declares no test harness, (3) you plan to add a grep-based guard regex over an HCL/YAML config and must confirm the anchor matches `nomad fmt`/`yamllint`-canonicalized output, (4) you must decide whether a security flag ships enabled-by-default in the canonical config or commented-out with a documented enablement step, given the repo is 'read-mostly' and pins known-good integration points, (5) the plan asserts config-stanza syntax / tool behavior from training/vendor docs without running the tool against the actually-pinned version, (6) enabling the flag could break existing token-less `nomad status` calls in `just` recipes and the e2e harness."
+description: "Plan configuration hardening in a documentation or configuration repository with no test framework. Use when existing validators, runtime secret provisioning, and deployment compatibility determine the change."
 category: architecture
 date: 2026-06-20
-version: "1.1.0"
+version: "1.2.0"
 history: architecture-meta-repo-config-hardening-planning.history
 user-invocable: false
 verification: unverified
@@ -188,7 +188,7 @@ and `add-new-host.md`. **None of this was executed or validated.**
 | Deploy pins the Nomad agent image | `deployment.md` (`hashicorp/nomad:1.6`) |
 | Single-node bootstrap + cross-host client registration | `bootstrap_expect = 1`; client `servers = [...]` |
 
-### Most UNCERTAIN assumptions a reviewer MUST check (verbatim)
+### Uncertain assumptions for review (verbatim)
 
 These were asserted from training knowledge / HashiCorp docs, NOT verified against a
 running Nomad in this session:

@@ -1,10 +1,10 @@
 ---
 name: python-tarfile-secure-restore-canonical-members
 license: BSD-3-Clause
-description: "Harden manifest-driven Python tar restores by validating a canonical, inventory-authorized archive index before reading payloads or writing destinations. Use when: (1) restoring repository state from untrusted or self-consistent tar archives, (2) duplicate names or non-regular members could make tarfile lookup ambiguous, (3) symlinks beneath an allowed destination can redirect writes outside that destination."
+description: "Restore tar archives through canonical member validation and authorization. Reject unsafe paths and preserve state on validation failure."
 category: architecture
 date: 2026-08-07
-version: "1.1.0"
+version: "1.1.1"
 user-invocable: false
 verification: unverified
 history: python-tarfile-secure-restore-canonical-members.history

@@ -1,10 +1,10 @@
 ---
 name: dead-abstraction-investigate-before-removing
 license: BSD-3-Clause
-description: "Before removing a 'dead abstraction' (a centralized helper/registry with zero callers), INVESTIGATE rather than pre-emptively delete. A zero-caller module may be useful scaffolding waiting to be wired up OR a harmful orphan duplicate. Use when: (1) a strict review flags a well-built but unused module as a 'dead abstraction' removal candidate, (2) you are tempted to file a bare 'no callers -> delete' PR, (3) several parallel refactor PRs may have produced competing mechanisms for the same goal. The deciding factors for removal are an ALREADY-WIRED competing mechanism, an OPEN PR heading a different direction, and STALE defaults vs trunk (a footgun)."
+description: "Evaluate unused abstractions before removal. Compare actual consumers, competing mechanisms, pending work, and stale defaults to justify a scoped change."
 category: architecture
 date: 2026-06-27
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [yagni, dead-code, duplication, competing-mechanism, triage, refactor-hazard]
@@ -34,7 +34,8 @@ Apply this pattern when:
 - You are about to file a bare **"it has no callers, delete it"** PR. That justification alone is *insufficient*: a zero-caller module may be genuine scaffolding waiting to be wired up.
 - Several **parallel refactor PRs** may have landed competing mechanisms for the same goal, and you need to identify which one is canonical and which are orphans.
 
-The core insight: **"no callers" is necessary but not sufficient grounds to delete.** The deciding factors are (a) is there an ALREADY-WIRED competing mechanism, (b) is there an OPEN PR heading a different direction, (c) are the abstraction's defaults already STALE vs trunk. Removal is correct when at least one holds — and the PR must justify removal by the *duplication / footgun*, not by mere unusedness.
+The core insight: **"no callers" is necessary but not sufficient grounds to delete.** The deciding factors are (a) is there an ALREADY-WIRED competing mechanism, (b) is there an OPEN PR heading a different direction, (c) are the abstraction's defaults already STALE vs trunk. These factors can support removal, but assess compatibility and requested scope before
+acting. Explain the actual duplication or stale behavior in the change.
 
 ---
 
@@ -97,14 +98,17 @@ Compare each hardcoded default in the abstraction to the live value on `main`. H
 
 ### 6. Decide and execute correctly
 
-If any of (a) already-wired duplicate, (b) open PR moving away, (c) stale defaults hold, **REMOVE** — but:
+When the evidence supports removal within the requested scope:
 
 - Write a PR that **explains the N-way duplication** and points to the chosen canonical mechanism (do not say merely "unused").
 - `git rm` the module **and its test together** so the test-structure mirror invariant stays satisfied.
 - Verify zero external refs / no COMPATIBILITY-table entry / no `__init__` export *before* deleting.
-- **File a tracking issue** documenting the N-way duplication so the lesson outlives the PR.
+- Record useful rationale in the change. A separate tracking issue is optional and
+  needs publication authority; it is not a prerequisite to the removal.
 
-If NONE of the factors hold, do not delete: **wire it up** or **hold**. This is an instance of the parallel-refactor / competing-mechanism hazard that arises when many auto-generated refactor PRs land at once.
+If the evidence is inconclusive, retain the abstraction and report the uncertainty.
+Wiring it into production is a separate design choice, not an automatic fallback.
+Continue other supported work within scope.
 
 ---
 

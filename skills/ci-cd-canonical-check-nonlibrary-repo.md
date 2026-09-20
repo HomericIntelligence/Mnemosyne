@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Implement meaningful canonical CI check-runs for a non-library, content, manifest, dataset, or configuration repository. Use when: (1) an ecosystem status board requires a `package`, `release`, or `install` check that seems inapplicable, (2) the board derives state from live check-runs on main, (3) choosing a real distributable rather than forcing a wheel build or a no-op check, (4) adding hardened artifact, release, or clean-install validation to mirrored workflows."
 category: ci-cd
 date: 2026-07-17
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: ["canonical-check", "ci-naming", "nonlibrary", "manifest-repo", "dataset-repo", "package", "release", "install", "artifact", "branch-protection"]
@@ -83,8 +83,9 @@ have local tags.
 
 If a package artifact exists, make `install` download or build it, install it into a clean virtual
 environment, and import the installed top-level modules. If the prerequisite package job has not
-merged, first run `python -m build` as an explicit gate. Either stop as blocked or build inline;
-never emit a green “skip if not buildable” result. Derive import targets from the built wheel's
+merged, consider building the artifact inline when that is in scope. If it cannot be built,
+report the install check as unavailable and continue independent work; do not report a
+skipped build as a successful installation. Derive import targets from the built wheel's
 `top_level.txt` rather than guessing a future package layout.
 
 ## Failed Attempts

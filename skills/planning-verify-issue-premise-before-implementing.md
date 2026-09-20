@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Verify issue and plan premises against authoritative sources before acting. Use this when an issue, PR plan, review, CI fix, or enforcement change assumes an artifact exists, prior work merged, a live service still needs work, a full population was checked, a CI job gates, an implementation returns a shape, or an integration point exists. Convert the premise into deterministic checks before implementing, closing, gating, or declaring work complete. Includes the temporal check: a premise token absent from the current tree may mean the issue was valid at filing and later overtaken by a merged PR (half-zombie issue) — date the removal with git log --full-history and triage each ask separately."
 category: architecture
 date: 2026-06-20
-version: "3.1.0"
+version: "3.2.0"
 user-invocable: false
 verification: unverified
 history: planning-verify-issue-premise-before-implementing.history
@@ -66,10 +66,10 @@ git ls-files | rg '<population-pattern>'
 1. Name the premise before choosing a fix. Common premise classes are: artifact exists, prior PR merged, branch contains a helper, live work remains, all entities were checked, CI job gates, implementation returns a shape, or an enforcement integration point exists.
 2. Pick the authoritative source. Use `origin/main` or `HEAD` for branch-local artifacts, GitHub PR metadata for merge state, live APIs for rulesets and repository population, workflow/ruleset definitions for gates, and source code for return shapes.
 3. Convert the claim into a deterministic command. The command should be repeatable by the next agent and should return a result that changes the plan if false.
-4. Decide disposition from evidence, not intent. Valid dispositions are self-contained implementation, explicit dependency with a hard halt, verified close, verified already-complete, expanded scope, or partially complete with only the residual asks implemented. A no-op is forbidden when the premise is unverified.
+4. Choose the next action from evidence: implement remaining work, record an unresolved dependency, or report that the request is already satisfied. If the premise is uncertain, continue investigation and independent work; do not call it complete without supporting evidence.
 5. When a premise token has zero matches in the current tree, do not stop at "premise false" or "misrouted issue". Date the disappearance: `git log --full-history -- <deleted-or-renamed-path>` finds the removing commit, `git show <removing-sha>^:<path>` proves whether the premise held immediately before removal, and `gh issue view <n> --json createdAt` places the issue relative to that removal. Valid-at-filing plus later removal is overtaken-by-events — a different disposition from never-valid or misrouted, and it forbids "correcting" the premise surface back into existence.
 6. Triage per-ask, not per-issue. Enumerate every deliverable in the issue body and give each its own premise check and disposition. A half-zombie issue can have its primary ask verified already-complete while a secondary ask (a test, a guard, documentation) is still live; implement only the residual asks and record why the completed ask needs no re-implementation.
-7. If an artifact exists only on an unmerged branch and can be reproduced, make the PR self-contained. If it cannot be reproduced, encode the dependency explicitly and stop until the dependency is merged.
+7. If an artifact exists only on an unmerged branch, consider an authorized stacked branch or a self-contained change that avoids duplication. If dependent edits cannot proceed, record the dependency and continue independent work until the needed code is available.
 8. For enforcement and CI, prove consumption. A job that runs is not a gate unless the branch protection or ruleset requires its context. A guard cannot be added at an integration point that does not exist.
 9. For populations, enumerate the full set from the authority before sampling. Named issue examples are clues, not coverage.
 10. For implementation behavior, read the actual route/function/helper before asserting response shape, return keys, side effects, or test expectations.

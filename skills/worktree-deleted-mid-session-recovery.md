@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Use this skill when a linked Git worktree path is missing or the current directory is invalid. It classifies recoverable refs and per-worktree state before metadata cleanup, repair, or reconstruction."
 category: ci-cd
 date: 2026-06-23
-version: "2.0.0"
+version: "2.1.0"
 user-invocable: false
 verification: verified-local
 history: worktree-deleted-mid-session-recovery.history
@@ -124,7 +124,7 @@ git -C "<replacement-path>" status --short
    and can later be garbage-collected. Use approved object or backup recovery
    before metadata cleanup.
 
-4. **Stop for a locked or moved worktree.** A lock can indicate offline or
+4. **Defer pruning a locked or moved worktree.** A lock can indicate offline or
    removable storage. Locate or mount that storage first. If the worktree moved
    and is accessible, repair the registration:
 
@@ -138,11 +138,11 @@ git -C "<replacement-path>" status --short
 5. **Preview every prune candidate.** `git worktree prune` operates on all
    eligible missing entries, not only the target entry. `--expire now` includes
    a recently stale registration. Review every line from the dry run. If any
-   candidate has unclassified state, stop. Use the same `--verbose` and
+   candidate has unclassified state, defer pruning and continue safe inspection or backup recovery. Use the same `--verbose` and
    `--expire now` options for the actual prune.
 
 6. **Re-add only a verified shared branch.** Do not use `--force` to bypass a
-   live registration. If another existing worktree owns the branch, stop.
+   live registration. If another existing worktree owns the branch, use that checkout or a separate authorized branch.
    Re-adding creates a fresh index from the commit at `refs/heads/<branch>`.
 
 7. **Verify the reconstructed state.** Confirm the current branch, the

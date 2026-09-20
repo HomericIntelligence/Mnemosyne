@@ -1,10 +1,10 @@
 ---
 name: prompt-string-syntax-raw-vs-plain
 license: BSD-3-Clause
-description: "Raw string prefixes (r\"\"\") prevent backslash line continuation in prompt directives; use plain strings for multiline directives. Comments inside strings appear verbatim in rendered prompts. Use pytest.fail() instead of bare assert in tests — optimize builds strip assert statements."
+description: "Inspect multiline Python prompt strings for literal backslashes and accidentally embedded comments; select validation assertions for the actual runtime."
 category: debugging
 date: 2026-06-07
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [prompt-syntax, string-literals, test-assertions, automation]
@@ -195,7 +195,7 @@ def test_directive_in_implementation_prompt():
 |---------|----------------|---------------|----------------|
 | Raw string with backslash continuation | `r"""text \ continuation"""` | SyntaxError: EOL while scanning string literal; raw strings disable backslash-newline processing | Use plain strings (`"""..."""`) for multiline directives; raw strings are only needed for regex patterns or Windows paths with literal backslashes |
 | Comments inside string literals | `"""Text here.  # noqa: E501"""` | Comments appear verbatim in rendered prompt output, confusing agents | Move `# noqa` and other lint directives outside the string; they belong in code, not prompts |
-| Bare assert in tests | `assert get_result() is not None` | Assertions are stripped in optimized Python builds (`python -O`); tests pass locally but fail in CI | Always use `pytest.fail()`, `pytest.raises()`, or explicit error checks in tests; never rely on bare `assert` for validation |
+| Bare assert in tests | `assert get_result() is not None` | Assertions are stripped in optimized Python builds (`python -O`); tests pass locally but fail in CI | Choose assertion mechanisms for the actual test runner and interpreter mode; explicit failure checks are useful when Python optimization can remove an unchecked assertion |
 
 ## Results & Parameters
 

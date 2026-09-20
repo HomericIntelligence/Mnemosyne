@@ -1,10 +1,10 @@
 ---
 name: automation-loop-early-exit-zero-work-convergence
 license: BSD-3-Clause
-description: "How to wire and test early-exit in hephaestus-automation-loop when a full pass produces zero new work, and how to keep the human-facing per-loop summary consistent with the machine convergence signal. Use when: (1) implementing loop convergence detection in run_loop, (2) adding tests for early-exit stub placeholders, (3) diagnosing whether early-exit scaffold already exists before implementing, (4) auditing a per-loop/iteration summary that contradicts the early-exit message."
+description: "Implement automation-loop convergence and summaries using the same work signal; distinguish finite explicit selections from repeatable discovery."
 category: tooling
 date: 2026-08-05
-version: "1.2.0"
+version: "1.2.1"
 user-invocable: false
 verification: verified-local
 history: automation-loop-early-exit-zero-work-convergence.history

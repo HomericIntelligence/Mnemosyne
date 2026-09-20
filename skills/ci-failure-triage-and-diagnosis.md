@@ -1,9 +1,9 @@
 ---
 name: ci-failure-triage-and-diagnosis
-description: "Canonical workflow for triaging CI failures: log analysis, core dump capture, subprocess hang diagnosis, container forensics, libKGEN/JIT crash retrieval, GHA-only vs cross-environment failures, PR-specific vs systemic failure separation. Use when: (1) a CI run failed and you need to identify the root cause, (2) deciding whether a failure is PR-induced or pre-existing, (3) capturing core dumps from container environments, (4) reproducing a GHA-only crash locally, (5) GraphQL/REST rate-limited CI monitoring."
+description: "Diagnose CI failures from run logs and revision-specific workflows. Distinguish source defects, missing required contexts, infrastructure failures, and stale runs."
 category: ci-cd
 date: 2026-06-20
-version: "2.1.0"
+version: "2.1.1"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-local

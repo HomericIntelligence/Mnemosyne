@@ -1,10 +1,10 @@
 ---
 name: bash-trap-process-group-tree-kill
 license: BSD-3-Clause
-description: "Kill the entire descendant process tree of a bash orchestrator on Ctrl-C/SIGTERM by enabling job control (set -m), tracking backgrounded job PIDs, and signalling negative pgids in INT/TERM/HUP traps. Use when: (1) a bash script backgrounds work with & and those jobs spawn their own descendants (Python, gh, claude, subprocesses), (2) Ctrl-C leaves orphan processes alive, (3) trap kill $(jobs -p) only hits direct children."
+description: "Clean up subprocess trees with Bash traps and process-group ownership when interrupted scripts leave grandchildren running."
 category: tooling
 date: 2026-05-11
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 tags:
 - bash

@@ -1,10 +1,10 @@
 ---
 name: planning-epic-verify-live-child-state
 license: BSD-3-Clause
-description: "Before planning an epic/tracking/umbrella issue, query the LIVE state of every child issue with gh (state, stateReason, merged PRs, labels) instead of trusting the epic body's status table — the body is a snapshot and drifts. Most children may already be CLOSED+COMPLETED via merged PRs, reframing the epic from 'plan N fixes' to 'dispatch the few remaining state:plan-go children + close-out'. Use when: (1) planning an epic/tracking/umbrella issue, (2) re-planning after a NOGO on a tracking issue, (3) any issue whose body is a checklist of child issues, (4) deciding implementation order across linked issues."
+description: "Reconcile live child-issue status and current implementation before planning or completing an epic with a stale checklist."
 category: tooling
 date: 2026-06-19
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-local
 history: planning-epic-verify-live-child-state.history
@@ -23,9 +23,9 @@ tags: [epic, tracking-issue, child-issues, planning, gh-cli, state-plan-go, depe
 | **Verification** | verified-local — the read-only `gh`/`find`/`wc`/`grep` queries were executed this session and returned the cited results; the downstream child PRs are not yet merged, so end-to-end epic closure is not CI-confirmed |
 | **Source** | ProjectOdyssey epic #5191 (strict-mode audit, 13/12 child findings) planning session — R0 NOGO → R1 re-plan |
 
-The epic body is a **snapshot** that drifts as children move. The deliverable for an epic is
-**orchestration + close-out criteria**, not code — "Files to Create/Modify: None in this epic;
-changes live in the children's own approved plans."
+The epic body is a snapshot that can drift as child work progresses. Reconcile
+remaining work with the user's requested outcome. A tracking-only task may need
+only an update; an implementation request can include the remaining child changes.
 
 ## When to Use
 
@@ -107,8 +107,7 @@ grep -nE 'tmp|rename|atomic|resume|recover|--fresh|retry' path/to/target.mojo
    tests live under `tests/projectodyssey/tensor/` and `tests/projectodyssey/training/`), the
    reviewer ran the commands, hit file-not-found, and NOGO'd at grade C (major).
 
-7. **Run a FRESHNESS GATE on each approved child plan — don't trust the `state:plan-go` label
-   alone.** An approved-plan label is not proof the plan is still current; child plans CAN go stale
+7. **Check the relevant child plan against current source.** An approved-plan label is not proof the plan is still current; child plans CAN go stale
    (e.g. cite an old line count). Read each child's latest plan comment
    (`gh issue view <n> --comments --jq '.comments[-1].body'`) and confirm its cited paths/line-counts
    still resolve (`wc -l`, `grep -n`) before dispatching. In #5191 R1 the child plans WERE current
@@ -123,11 +122,9 @@ grep -nE 'tmp|rename|atomic|resume|recover|--fresh|retry' path/to/target.mojo
    work; `grep -nE 'tmp|rename|atomic|resume|recover|--fresh|retry'` confirmed the recovery
    primitives were absent and the issue was genuinely an extension.
 
-9. **Shape the epic plan as orchestration, not code.** Objective = "drive remaining approved
-   children to merged PRs + close-out". Files to Create/Modify = "None in this epic; changes live
-   in the children's own approved plans." Implementation Order = dispatch each open child via the
-   repo's `impl <n>` skill in dependency order, gate each dependent child behind its prerequisite's
-   merge; final step = re-verify all children CLOSED, then close the epic.
+9. **Complete the requested epic work.** Use current child status and dependencies to select
+   the remaining implementation or coordination. Continue independent work while a prerequisite
+   is pending, and reconcile actual child outcomes before closing the epic.
 
 ## Failed Attempts
 

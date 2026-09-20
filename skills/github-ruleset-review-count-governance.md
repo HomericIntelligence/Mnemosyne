@@ -1,9 +1,9 @@
 ---
 name: github-ruleset-review-count-governance
-description: "Use when setting or auditing required approving-review counts, diagnosing whether a PR is blocked by review or CI, reconciling committed ruleset JSON with live GitHub state, preventing automation self-approval deadlock, or writing a per-scope validation guard. Select the repository's human-review or automation-author regime first, inspect both classic protection and rulesets, and preserve all unrelated policy fields."
+description: "Diagnose GitHub review-count requirements from live rulesets and actor topology. Distinguish human-review policy from unsatisfiable self-approval."
 category: ci-cd
 date: 2026-07-13
-version: "2.0.0"
+version: "2.1.0"
 verification: verified-ci
 license: BSD-3-Clause
 user-invocable: false
@@ -76,8 +76,10 @@ their semantics without live evidence.
 8. **Keep rollout separate.** Do not alter `enforcement` while changing a review count unless the
    task explicitly includes activation.
 9. **Make surgical config diffs.** Do not rewrite full JSON formatting to change one field.
-10. **Align documentation.** In Regime B, human confirmations for tagging, force updates, or swarm
-    deployment remain agent-safety controls, not GitHub review gates.
+10. **Align documentation with actual authority.** Tagging, force updates, and deployment
+    may need separate authorization under host or repository policy. Name that policy
+    and action when it applies; reuse authorization already supplied by the task. A
+    zero-review ruleset does not itself add or remove those permissions.
 
 ## Verified Workflow
 

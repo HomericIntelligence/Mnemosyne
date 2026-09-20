@@ -1,10 +1,10 @@
 ---
 name: architecture-dip-constructor-injection-planning-risks
 license: BSD-3-Clause
-description: "Replacing module-level importlib monkeypatching with constructor injection in a class hierarchy (DIP refactor). Use when: (1) planning or executing a DIP refactor that removes _PATCHABLE_DEPENDENCIES / importlib test-seams, (2) reviewing an implementation plan that uses **kwargs forwarding in subclass __init__, (3) assessing risk before migrating 20+ test patch sites to direct injection."
+description: "Replace importlib-based test seams with constructor injection. Use when subclasses re-export collaborators for patching and tests need stable injected factories."
 category: architecture
 date: 2026-06-13
-version: "2.0.0"
+version: "2.0.1"
 user-invocable: false
 verification: verified-ci
 tags: [DIP, dependency-injection, constructor-injection, importlib, test-seam, monkeypatch, mypy, BaseReviewer, SOLID]

@@ -3,7 +3,7 @@ name: ruff-specific-rule-fixes
 description: "Fix concrete Ruff violations and systemic lint-policy gaps. Use for S101 guards, C901 extraction, Ruff/isort autofixes, D413 docstrings, formatter-only failures, stale ignores after tool upgrades, or repeated violations that reveal a missing enforcement rule."
 category: tooling
 date: 2026-06-30
-version: "2.0.0"
+version: "2.1.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-ci
@@ -27,9 +27,8 @@ tags:
 ## Overview
 
 Reproduce the exact rule, choose a semantic fix before suppression, let Ruff perform its own safe
-sorting and formatting, and run every CI lint surface—including tests and format checks. If the
-same policy violation appears independently more than once, repair the enforcement boundary as
-well as the instances.
+sorting and formatting, and check the relevant lint and formatting surfaces, including changed tests. Recurring
+violations can justify a shared enforcement improvement when it fits the requested scope.
 
 Case provenance and detailed outcomes are in
 [ruff-specific-rule-fixes.notes.md](ruff-specific-rule-fixes.notes.md). The complete superseded
@@ -166,7 +165,7 @@ Do not disable unused-ignore checks globally.
 
 ### 3. Decide whether the linter is the root cause
 
-If the same policy defect occurs in at least two independent artifacts:
+If repeated defects justify enforcement work within the requested scope, consider:
 
 1. Identify the single validator or lint rule that should own the invariant.
 2. Add or enable the narrow rule at error level.
@@ -197,7 +196,7 @@ or many files. Newly added tests are first-class lint inputs.
 - A formatter check is separate from a lint check.
 - Validate production and test files together.
 - A tool-floor bump requires a repository-wide discovery pass.
-- A repeated policy failure belongs in centralized enforcement.
+- Repeated policy failures can indicate a useful centralized enforcement improvement.
 - A `noqa` is valid only if the cited rule is selected and the suppression is narrowly justified.
 - Preserve exact string bytes when repairing implicit concatenation or line wrapping.
 

@@ -1,10 +1,10 @@
 ---
 name: objective-collapse-compute-diosi-penrose-gates
 license: BSD-3-Clause
-description: "Physics facts and no-go results for using objective wavefunction collapse (GRW/CSL/Diósi-Penrose) as a computational primitive in sci-fi mechanism design. Use when: (1) designing a fictional device that uses gravitational collapse as a compute gate, (2) citing real papers on collapse models for worldbuilding, (3) evaluating no-go cascades (FTL signaling, energy non-conservation, decoherence) for collapse-based compute proposals."
+description: "Evaluate objective-collapse compute proposals using explicit Diósi-Penrose assumptions, scale estimates, and falsifiable evidence."
 category: architecture
 date: 2026-06-01
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 verification: unverified
 tags: [physics, quantum-foundations, collapse-models, diosi-penrose, grw, csl, scifi, worldbuilding, mechanism-design]

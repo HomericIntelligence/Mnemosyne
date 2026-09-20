@@ -1,10 +1,10 @@
 ---
 name: recursive-plan-multi-month-projects
 license: BSD-3-Clause
-description: 'Recursive plan-file structure for multi-month research/engineering projects where the plan itself is composed of mini-plans, each composed of sub-plans, and downstream artifacts (issue bodies, code, docs) cite stable §-numbered subsection IDs that survive plan growth and reordering. Use when: (1) scoping a research project that will run for >1 month and span multiple sessions/PRs, (2) the plan must serve as a navigable reference (read non-linearly) rather than a one-shot input to execution, (3) downstream artifacts will cite §-numbers from the plan and refactoring the plan must not break those cites, (4) the same plan will be referenced by future agents (sub-agents, future Claude sessions, human collaborators) who need to jump to specific subsections, (5) a single planning session must produce 5+ independent deliverables (scoping docs, epic body, child issue bodies, GitHub-filing pass, commit pass).'
+description: "Structure long-lived plans with stable section references when multiple artifacts and sessions need a shared navigation scheme."
 category: documentation
 date: 2026-05-12
-version: 1.0.0
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [planning, plan-structure, recursive, multi-month, scoping, research-project, stable-ids, reading-guide, multi-pass, execution-model, divergence-escalation]
@@ -18,9 +18,9 @@ tags: [planning, plan-structure, recursive, multi-month, scoping, research-proje
 |-------|-------|
 | **Date** | 2026-05-12 |
 | **Objective** | Define a recursive plan-file structure that serves as a long-lived navigable reference across multiple execution sessions, with stable §-numbered subsection IDs that downstream artifacts can cite without breaking when sibling sections are added or reordered. |
-| **Outcome** | Verified end-to-end on a 25-issue research-project backlog (Predictive-Coding-in-Mojo Phase 0 scoping); produced two merged PRs (5 scoping docs + 25 issue bodies), one epic, and 25 child issues, all citing back into the plan by stable §-IDs. |
+| **Outcome** | Used in one research backlog to link plans, pull requests, and child issues through stable section identifiers. |
 | **Verification** | verified-local — used end-to-end in a single session; not yet validated across multiple distinct projects. |
-| **Source** | mvillmow/Random Predictive-Coding-in-Mojo Phase 0 scoping (PRs #2, #3; epic #4; child issues #5-#29) |
+| **Source** | A private research session; identifying details omitted. |
 
 This skill captures a **structural pattern** for the plan file itself, not a workflow for
 executing a plan. The pattern is recursive: the top-level Approach is an N-pass plan; each pass
@@ -89,7 +89,7 @@ grep -oE '^#+ §[0-9]+(\.[0-9]+)*' plan.md | awk '{print $2}' | sort -u
 ### Step 1: Open with a "Reading Guide"
 
 Most plans assume top-down reading. A recursive plan does not. The first paragraph of the
-file MUST explicitly say:
+file can briefly explain:
 
 1. "This plan is recursive."
 2. The reader can jump to any subsection by ID.
@@ -126,8 +126,8 @@ passes under §3:
 ## §3 Approach for the execution session
 
 ### §3.0 Per-artifact review loop (applies to every artifact)
-  Auto-review via sub-agents after each artifact; integrate feedback before moving on.
-  Reserve human input for DECISIONS, not AUDITS.
+  Use review where it reduces risk; integrate relevant feedback and continue.
+  Reserve human input for material decisions that cannot be resolved from context.
 
 ### §3.1 Pass 1 — Write 5 scoping docs
 ### §3.2 Pass 2 — Compose epic body referencing §1-§5 of each scoping doc
@@ -145,8 +145,8 @@ Each pass:
 
 ### Step 4: Pre-write a per-artifact plan under §4-§10
 
-Each deliverable gets a per-section plan **before execution begins**. The execution agent
-should never re-derive structure mid-pass.
+For complex deliverables, a per-section outline can reduce repeated planning. Adapt the
+outline as evidence changes while preserving section IDs already cited elsewhere.
 
 ```markdown
 ## §4 Per-section plan: DEPENDENCY_NOTES.md
@@ -166,24 +166,24 @@ subsection should contain.
 ### Step 5: Build a divergence-escalation register at §12
 
 §12 "Open risks and decision points the execution session may need to re-surface" is the
-explicit register of items the execution agent MUST surface to the user if hit, e.g.:
+register of material decisions and useful recovery options, for example:
 
 ```markdown
 ## §12 Open risks and decision points
 
-### §12.4 PC-12 (CIFAR PC AlexNet) refutation
-If you encounter the Han et al. 2022 result claiming PC-AlexNet matches BP-AlexNet on
-CIFAR-100 but cannot reproduce within 2 percentage points: STOP. Surface to user. Do not
-silently de-scope the comparison.
+### §12.4 Published result differs from the local experiment
+If a requested comparison falls outside the experiment's agreed tolerance, inspect
+the discrepancy and report the evidence. Continue independent work. Ask before
+dropping a comparison that the user requested.
 
 ### §12.5 Mojo nightly breaking change in `Tensor.dim`
-If the execution session lands during a Mojo nightly that has removed Tensor.dim: surface
-the API change before fixing in-place; the fix likely cascades through 4 of the 5 scoping
-docs.
+If a Mojo nightly removes Tensor.dim, inspect affected callers and update the authorized
+work consistently. Ask for input only if the repair changes a material design decision.
 ```
 
-This converts implicit "use judgment" into explicit "stop and ask if you hit X." Without §12,
-the execution agent silently makes scope decisions the user would have wanted to weigh in on.
+This makes scope changes and unresolved choices visible. Use context to resolve routine
+implementation details; reserve questions for decisions that materially change the requested
+outcome or require missing authorization.
 
 ### Step 6: Insert auto-review loops, not human pauses
 
@@ -191,12 +191,12 @@ Originally the plan had explicit "pause for user review" markers between Pass 1 
 user pushed back: *"don't pause for review, just update the plan to run the review using
 sub-agents and integrate the feedback."*
 
-The fix: §3.0 defines a **per-artifact review loop** — sub-agent reviews each artifact, the
-main agent integrates feedback, then proceeds. Human pauses are reserved for §12 escalations
-(actual decisions), not for correctness checks (audits).
+The recorded fix used a per-artifact review loop. More generally, choose review points by
+risk and available tools, integrate useful feedback, and continue. Independent review can
+help complex work; it is not an automatic prerequisite for every artifact.
 
-This is critical: a plan that pauses every step burns the user's attention budget on things
-sub-agents can validate. Keep human attention on §12 items only.
+Avoid repeated user pauses for routine correctness checks. Use existing authorization and
+seek input when a material decision cannot be resolved from the task context.
 
 ### Step 7: Append-only ID discipline
 
@@ -217,7 +217,7 @@ This is the same invariant as URL permalinks: you can deprecate but you cannot r
 | Initial flat plan | Wrote a flat plan with linear sections (§1, §2, §3...) and no per-artifact sub-plans | User explicitly requested "each section is itself a detailed plan, and each sub-section again is a detailed plan" — the flat plan could not be navigated non-linearly and downstream artifacts had no stable IDs to cite | Recursive plans must be recursive **from the start**; retrofitting requires a full rewrite. Decide on recursive-vs-flat in the first 5 minutes of plan-drafting, before writing any §1 content. |
 | Pause-for-user-review at every step | Original plan had explicit "PAUSE: wait for user review" markers between Pass 1 steps (Pass 1.1 → pause → Pass 1.2 → pause → ...) | User said "don't pause for review, just update the plan to run the review using sub-agents and integrate the feedback" — the pauses burned user attention on things sub-agents could validate | Insert auto review-loops (§3.0 per-artifact review via sub-agents) instead of human pauses for correctness checks. Reserve human input for **decisions** (§12 escalations), not **audits** (correctness checks). |
 | Order-derived IDs | Early drafts derived §-numbers from heading order (first ## under §4 was §4.1, second was §4.2, etc.) without writing the ID into the heading text | When a new subsection was inserted between §4.2 and §4.3, every downstream cite to §4.3+ silently broke — the IDs had been ambient, not explicit | Encode the §-ID into the heading **text** (`### §4.3.2 ALGORITHM.md → ...`), never derive it from position. Treat IDs as permalinks — append-only, never renumber. |
-| Implicit divergence handling | Initial plan trusted the execution agent to "use judgment" when assumptions failed (e.g., a paper's claim couldn't be reproduced) | The execution agent silently de-scoped the comparison and the user only discovered it during PR review, after the work had been committed | Build §12 as an explicit divergence-escalation register listing **named** open risks. Each entry says "if X happens, STOP and surface to user." Removes ambiguity about when judgment ends and escalation begins. |
+| Implicit divergence handling | Initial plan trusted the execution agent to "use judgment" when assumptions failed (e.g., a paper's claim couldn't be reproduced) | The execution agent silently de-scoped the comparison and the user only discovered it during PR review, after the work had been committed | Build §12 as an explicit divergence-escalation register listing **named** open risks. Each entry can distinguish routine recovery from a material scope choice. This preserves user intent without stopping independent work. |
 
 ## Results & Parameters
 
@@ -264,7 +264,7 @@ This is the same invariant as URL permalinks: you can deprecate but you cannot r
   ### §11.2 Cross-artifact consistency checks (e.g., every cite resolves)
 
 ## §12 Open risks and decision points the execution session may need to re-surface
-  ### §12.1 <named risk>: if <condition>, STOP and surface to user
+  ### §12.1 <named risk>: if <condition>, investigate; ask if a material decision remains
   ### §12.2 <named risk>: ...
   ...
 ```
@@ -277,10 +277,10 @@ This is the same invariant as URL permalinks: you can deprecate but you cannot r
 | §-ID in heading text | Every heading includes `§N.M.K` literally, e.g., `### §4.3.2 Foo` | Cites resolve by string match, not by position; reorderings don't break cites |
 | Append-only IDs | Never renumber existing §s; deprecate via `[SUPERSEDED → §X.Y]` | Every downstream cite is a permalink |
 | §3 = execution passes | Numbered passes §3.1...§3.N, each producing one artifact | Maps execution model to plan structure 1:1 |
-| §3.0 = review loop | Auto-review via sub-agents between artifacts | Reserves human attention for §12 escalations only |
+| §3.0 = review approach | Choose useful review points by risk | Reserves human input for material unresolved decisions |
 | §4-§10 = per-artifact plans | Each artifact has its own pre-written outline | Execution agent doesn't re-derive structure mid-pass |
 | §11 = verification | Cross-artifact consistency checks (cites resolve, IDs stable) | Catches plan-level drift |
-| §12 = escalation register | Named open risks with "STOP and surface" triggers | Converts implicit judgment into explicit escalation |
+| §12 = decision register | Named risks, recovery options, and material choices | Supports progress while making scope decisions visible |
 
 ### Cite-resolution check
 
@@ -315,4 +315,4 @@ Both are bugs.
 
 | Project | Context | Details |
 |---------|---------|---------|
-| mvillmow/Random | Predictive-Coding-in-Mojo Phase 0 scoping; produced PR #2 (5 scoping docs) + PR #3 (25 issue bodies) + epic #4 + child issues #5-#29 | Plan file at `~/.claude/plans/master-prompt-predictive-coding-majestic-harp.md`. All 25 child issues cite back into the 5 scoping docs by `§N.M` IDs; no cites broke during 5-pass execution. Auto-review loop at §3.0 caught 3 cite typos before commit. §12 surfaced 1 open risk (PC-12 refutation) that the user weighed in on before it was silently de-scoped. |
+| Private research project | Multi-session scoping and issue handoff | Stable section identifiers kept cross-references usable as the plan grew. Review exposed citation errors and a material research risk for user input. |

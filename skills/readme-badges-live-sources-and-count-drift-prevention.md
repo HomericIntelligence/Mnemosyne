@@ -1,10 +1,10 @@
 ---
 name: readme-badges-live-sources-and-count-drift-prevention
 license: BSD-3-Clause
-description: "Use when: (1) adding badges to a README and need live-source badge endpoints (shields.io, GitHub Actions status, PyPI JSON API) instead of hardcoded values; (2) adding missing PR-critical workflow badges to a README badge block; (3) automating README badge count validation to prevent drift when file/test counts grow; (4) verifying package names via PyPI before committing badge URLs; (5) replacing hardcoded test/file counts in README badges and prose with live commands users can run, preventing flakiness when counts change frequently."
+description: "Select live README badge sources and prevent count drift. Use when adding workflow or package badges, verifying endpoint names, or replacing frequently stale counts."
 category: documentation
 date: 2026-06-07
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 history: readme-badges-live-sources-and-count-drift-prevention.history
 tags:
@@ -89,7 +89,7 @@ Use when a README is missing a CI badge or a new PR-critical workflow should be 
    [![Build](https://github.com/HomericIntelligence/ProjectOdyssey/actions/workflows/build-validation.yml/badge.svg?branch=main)](https://github.com/HomericIntelligence/ProjectOdyssey/actions/workflows/build-validation.yml)
    ```
 
-4. Validate: `pixi run pre-commit run --files README.md` (markdownlint, trailing-whitespace, end-of-file-fixer must all pass). If a `justfile` shortcut like `just pre-commit-all` is documented, do not rely on it — `just` is frequently not on PATH; invoke `pixi run pre-commit run --files README.md` directly.
+4. Consider the focused Markdown checks through the authorized validation process. The command `pixi run pre-commit run --files README.md` is useful when a documented `just` wrapper is unavailable.
 5. Commit, push, PR with one `Closes #N` per line (never comma-separate issue refs).
 
 **Criteria for a "badge-worthy" workflow:** runs on every PR (`on: pull_request`), represents a critical quality gate (build/test/lint/security), and is not niche/supplemental (benchmarks, weekly scans). Always pin `?branch=main` for stable status.
@@ -247,7 +247,7 @@ pixi run pre-commit run --files README.md
 # Mojo Format is Skipped on .md files (no Mojo toolchain needed).
 ```
 
-### PR policy requirements
+### PR policy in the recorded repositories
 
 - PR body MUST contain literal line `Closes #<issue-number>` (capital C, no colon), one per line.
 - Commits signed where the repo enforces it (`git commit -S`); verify via GitHub API.

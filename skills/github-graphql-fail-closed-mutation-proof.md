@@ -1,10 +1,10 @@
 ---
 name: github-graphql-fail-closed-mutation-proof
 license: BSD-3-Clause
-description: "Centralize automation-owned GitHub GraphQL execution behind a typed, fail-closed, non-sleeping one-attempt boundary that distinguishes retryable reads from mutation outcomes that cannot be proven. Use when: (1) GraphQL calls validate status, envelopes, or payloads inconsistently, (2) a mutation might be replayed after an ambiguous transport failure, (3) durable workflows need correlation-bound receipts and resumable partial progress, or (4) restart recovery must reconcile read-only instead of reissuing mutations."
+description: "Verify GraphQL mutation outcomes from response data and errors. Use when HTTP success or CLI exit status does not prove the intended state changed."
 category: architecture
 date: 2026-08-08
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 verification: unverified
 tags:

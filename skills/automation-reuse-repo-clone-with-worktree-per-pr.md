@@ -1,15 +1,10 @@
 ---
 name: automation-reuse-repo-clone-with-worktree-per-pr
 license: BSD-3-Clause
-description: "Use when: (1) code clones the SAME repo once per PR/branch/item inside a loop,
-  (2) a fleet/batch tool re-clones a repo for every item causing redundant network+disk I/O
-  that scales with item count, (3) refactoring a per-item-clone hot loop to a single clone +
-  git worktree per item, (4) a per-item working dir is created in a temp subdir via full
-  `git clone`, (5) you need isolated per-item checkouts of one repo for rebase/conflict/agent
-  work."
+description: "Reuse a repository clone with isolated per-PR worktrees when automation repeatedly clones the same repository. Preserve ownership and cleanup boundaries."
 category: tooling
 date: 2026-06-08
-version: "1.1.0"
+version: "1.1.1"
 user-invocable: false
 verification: verified-ci
 history: automation-reuse-repo-clone-with-worktree-per-pr.history

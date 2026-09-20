@@ -1,9 +1,9 @@
 ---
 name: tooling-safety-wrapper-invocation-contract
-description: "Use this skill before the first execution of a safety-sensitive wrapper that validates one dependency and forwards the remaining arguments to another command. It prevents an incomplete wrapper call and defines the stop rule after a nonzero result."
+description: "Construct complete arguments for safety-sensitive wrappers and classify failures before a retry or recovery."
 category: tooling
 date: 2026-09-11
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 tags: [wrapper, cli, argparse, remainder, preflight, retry, cleanup, fail-closed]
 ---
@@ -35,8 +35,10 @@ python3 <wrapper-path> --help
 python3 <wrapper-path> <dependency-checkout> <forwarded-argument> ...
 ```
 
-If the first execution returns a nonzero status, stop. Do not add missing
-arguments and call the wrapper again until an authorized new operation starts.
+After a nonzero result, preserve the diagnostic and inspect whether the downstream action began.
+If the applicable wrapper contract explicitly forbids retries, withhold that retry and continue
+independent work. Otherwise, a corrected retry can use existing authorization when evidence shows
+that it is safe and within scope.
 
 ### Detailed Steps
 
@@ -48,9 +50,10 @@ arguments and call the wrapper again until an authorized new operation starts.
 6. Resolve and validate each wrapper-owned dependency before the operation.
 7. Construct the complete argument vector as a list. Do not infer it from the downstream command syntax.
 8. Keep standard input attached when the downstream command must ask the operator for a decision.
-9. Run the wrapper one time.
+9. Run the complete invocation within the operation contract.
 10. If the result is nonzero, preserve the status and diagnostic output.
-11. Classify the failure before a new operation. Do not treat an argument error as authority to retry.
+11. Classify the failure and side effects. Use existing authorization for a safe, permitted retry;
+    seek new authorization only when the operation contract or changed scope requires it.
 12. Confirm the final state before you report that cleanup or another state change is complete.
 
 For a Python wrapper that uses one dependency argument and
@@ -74,14 +77,15 @@ Do not call the wrapper as if it were the downstream command.
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 | --------- | ---------------- | --------------- | ---------------- |
 | Downstream-only call | The operator called the wrapper without its dependency-checkout argument. | The wrapper parser stopped with a missing positional-argument error before it started the downstream command. | Inspect the wrapper interface and include wrapper-owned arguments before forwarded arguments. |
-| Immediate corrected retry | The operator planned to add the missing argument and run the command again. | A no-retry contract makes the first nonzero result terminal for that operation. The initial failure does not prove that a second execution is safe. | Stop, preserve the state, and require an authorized new operation before another call. |
+| Immediate corrected retry | The operator planned to add the missing argument and run the command again. | A no-retry contract makes the first nonzero result terminal for that operation. The initial failure does not prove that a second execution is safe. | For that explicit no-retry cleanup contract, preserve state and obtain a new authorized operation; continue independent work. |
 | Infer syntax from the downstream command | The operator used only the downstream command documentation. | The downstream documentation does not describe dependency validation or the forwarding boundary in the wrapper. | Inspect both interfaces and construct one complete argument vector. |
 
 ## Results & Parameters
 
 ### Configuration
 
-Record these values before the first call:
+The recorded cleanup wrapper had an explicit no-retry contract. This example describes that
+wrapper, not a default for all commands. For another wrapper, use its actual retry policy:
 
 ```yaml
 wrapper:
@@ -105,7 +109,8 @@ A valid preflight gives these results:
 - The help output identifies each wrapper-owned argument.
 - The resolved dependency satisfies the wrapper's validation rule.
 - The first state-changing call contains the complete argument vector.
-- A nonzero result stops the operation without a hidden fallback or retry.
+- A nonzero result produces a clear diagnostic and a recovery choice based on side effects,
+  retry safety, and the applicable operation contract.
 - The completion report agrees with the observed final state.
 
 ## Verified On

@@ -1,10 +1,10 @@
 ---
 name: create-reusable-utilities-hephaestus-port
 license: BSD-3-Clause
-description: "Port project-local utilities into the shared Hephaestus automation repository. Use when: (1) project-local automation has a demonstrated cross-project use case, (2) equivalent behavior may already exist in Hephaestus and must be extended instead of duplicated, (3) a typed reusable interface must be separated from source-repository policy"
+description: "Port a utility into Hephaestus when a real cross-project consumer exists; find overlap and separate reusable behavior from local policy."
 category: tooling
 date: 2026-07-16
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 tags: [reuse, hephaestus, utilities, interface-design]
 ---
@@ -24,10 +24,10 @@ tags: [reuse, hephaestus, utilities, interface-design]
 - Project-local automation has a demonstrated cross-project use case and belongs in the shared Hephaestus automation repository.
 - Do NOT use for one-off scripts with a single consumer — reuse must be demonstrated, not speculative.
 
-## Required repository and authority
+## Repository and authority
 
-- Prepare Hephaestus at `$HOME/.agent_brain/automation` by following Athena's canonical dependency-resolution contract exactly (owner precedence, trust gates, checkout rules, revalidation). Report the exact repository, commit SHA, and trust basis. Any preparation or revalidation failure is blocking.
-- **External-write authority checkpoint:** a direct user request to port a utility authorizes the declared branch, edit, commit, push, and PR workflow. An indirect recommendation or invocation does not. Before creating mutable state, show the resolved repository/SHA/trust basis, proposed branch, owned files, validation, and PR target, then obtain explicit approval. Read-only overlap analysis never authorizes a later write.
+- Resolve the Hephaestus checkout through Athena's dependency-resolution contract and record its identity and revision. If a required write-boundary check fails, defer that write and continue useful source or overlap analysis.
+- A direct request to port a utility supplies authority for the scoped delivery workflow. Use that authority without a second permission request. If the task is only analysis or a recommendation, prepare the proposed change and ask before an external write outside that scope. Identify the target repository and protected action when authorization is missing.
 
 ## Verified Workflow
 
@@ -38,9 +38,9 @@ tags: [reuse, hephaestus, utilities, interface-design]
 3. Separate reusable behavior from source-repository policy, paths, global state, and output.
 4. Design a typed programmatic interface first. Make filesystem, environment, clock, network, and process dependencies injectable where useful.
 5. Follow the resolved checkout's current package layout and repository instructions; never assume example paths from a prior version.
-6. Write failing behavior and error-path tests in the resolved repository before implementation.
+6. Prefer focused behavior and error-path tests that expose the missing contract, then verify the implementation against them.
 7. Add a thin CLI only when a real command-line consumer exists. Keep parsing and presentation out of the reusable core.
-8. Run Hephaestus's repository-defined validation and focused/full tests.
+8. Use relevant Hephaestus checks and broaden testing when the affected surface warrants it.
 9. Deliver the Hephaestus change through its signed, DCO-attested PR workflow. Do not edit or pin another repository as part of the same unapproved operation.
 
 ## Failed Attempts

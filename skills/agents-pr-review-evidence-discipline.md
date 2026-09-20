@@ -1,10 +1,10 @@
 ---
 name: agents-pr-review-evidence-discipline
 license: BSD-3-Clause
-description: "Four codified rules for reviewing AI-agent authored PRs that drop a project prefix or rename a package. Use when reviewing chore/rename-* PRs, when claiming a PR is CLEAN/DIRTY, or when posting a verdict comment. Prevents false-positive NO-GO verdicts caused by inspecting the wrong branch."
+description: "Use PR-head evidence for rename reviews, distinguish local checks from observed CI, and avoid unnecessary follow-up commits."
 category: tooling
 date: 2026-07-11
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [pr-review, evidence-tagging, branch-vs-tip, dry-thrash, auto-merge, code-review, adr-014, verified-local, verified-ci, chore-rename]
@@ -53,7 +53,7 @@ gh pr merge <PR> --auto --rebase   # gates independently per PR
 
 ### Detailed Steps
 
-1. **Branch-vs-Tip Discipline.** Default-branch tip (`main`) shows the post-merge state, NOT the in-progress PR state. Always fetch the PR's actual head branch with `git fetch origin refs/heads/<branch>` and `git checkout <branch>` before claiming a residual. A "NO-GO" verdict based on `origin/main` is a false positive when the PR's chore branch is clean.
+1. **Branch-vs-Tip Discipline.** Default-branch tip (`main`) shows the post-merge state, NOT the in-progress PR state. Inspect the actual PR head before claiming a residual; fetch it if the required revision is not available locally. A "NO-GO" verdict based on `origin/main` is a false positive when the PR's chore branch is clean.
 
 **Concrete example from this session:** Agamemnon#444 was initially flagged NO-GO because `target_include_directories(ProjectAgamemnon_core ...)` appeared at `CMakeLists.txt:105` on the default-branch tip. Re-verifying the actual chore branch (`chore/rename-drop-project-prefix-r2`, HEAD `3de2053`) showed zero matches. The literal was on `main`, not the PR. Lesson: never trust the default-branch tip for in-progress PR review.
 
@@ -66,7 +66,7 @@ gh pr merge <PR> --auto --rebase   # gates independently per PR
 gh pr checks <PR> --repo <org>/<repo> --jq '.[] | select(.conclusion=="FAILURE") | .name'
 ```
 
-3. **DRY-Thrash Avoidance.** On strictly cosmetic PRs (e.g. chore-only renames, doc-only changes), post a clean verdict rather than push follow-up commits. Pushing noise commits risks merge conflict with the operator's working copy and creates PR pileup.
+3. **DRY-Thrash Avoidance.** On cosmetic PRs, avoid follow-up commits when the review finds no defect. Correct substantiated defects when that work is authorized. Pushing noise commits risks merge conflict with the operator's working copy and creates PR pileup.
 
 **Concrete example from this session:** Telemachy#300, Mnemosyne#3050, Odyssey#5584, and Keystone#603 had zero residuals on their chore branches. The 4 cosmetic PRs (plus 4 others) received clean verdict comments rather than follow-up commits, avoiding merge conflicts with the operators' in-progress work. Rule: if `grep -rnE "project<Name>" --exclude-dir=.git .` returns 0, post a clean verdict, do not commit.
 
@@ -86,7 +86,7 @@ gh pr merge 444 --auto --rebase --repo HomericIntelligence/Agamemnon
 |---------|----------------|---------------|----------------|
 | 1 | NO-GO on Agamemnon#444 based on `origin/main` HEAD showing `ProjectAgamemnon_core` literal | The chore branch (HEAD `3de2053`) was clean; the literal was on main, not on the PR | Always verify on the PR's head branch, not default-branch tip |
 | 2 | "CI is green" claim without `gh pr checks` | Speculative; risked approving a PR with a red gate | Tag evidence level: only `verified-ci` after observation |
-| 3 | Pushed follow-up cosmetic commits to a clean chore branch | Triggered merge conflict with operator's working copy | DRY-thrash: if the PR is clean, post the verdict and stop |
+| 3 | Pushed follow-up cosmetic commits to a clean chore branch | Triggered merge conflict with operator's working copy | If the PR is clean, report the verdict without a noise commit; continue remaining requested work |
 
 ## Results & Parameters
 

@@ -1,9 +1,9 @@
 ---
 name: planning-cross-pr-interface-dependency
-description: "Plan a capstone integration issue whose sibling interfaces are still unmerged. Use when new code depends on symbols described only in issue bodies, must preserve legacy dispatch, changes blocking or CLI semantics, or extracts from a coverage-omitted module. Separate verified facts from assumed contracts and make merged-base interface pinning the first implementation gate."
+description: "Plan integration across unmerged sibling interfaces while separating observed contracts from assumptions and preserving legacy behavior."
 category: architecture
 date: 2026-07-04
-version: "2.1.0"
+version: "2.1.1"
 license: BSD-3-Clause
 history: planning-cross-pr-interface-dependency.history
 user-invocable: false
@@ -17,7 +17,8 @@ tags: [planning, capstone, integration, serialized-epic, unmerged-siblings, inte
 
 A capstone plan can coordinate against sibling issue contracts, but it cannot present unmerged
 symbols as repository facts. Separate what was read from the current tree from what was transcribed
-from issue bodies, and convert every assumed interface into a merged-base pinning gate before code.
+from issue bodies. Check the actual interface before dependent integration; continue
+independent preparation while a dependency is unavailable.
 
 The skill remains `unverified`: its source is a reviewed plan, not an implemented capstone. Detailed
 review findings are indexed in
@@ -48,8 +49,8 @@ gh pr list --repo <owner>/<repo> --state all --search '<issue>'
 ```
 
 Add a dependency note that the capstone branch is cut from a base containing the last sibling merge.
-If the dependency sequence is not fully merged, implementation is blocked even when the plan is
-complete.
+If a needed interface is unavailable, defer the integration that depends on it.
+Independent implementation or an authorized stacked change can still proceed.
 
 ### 2. Split verified facts from assumptions
 
@@ -64,11 +65,12 @@ Only facts read from current source are verified. Grep every existing symbol to 
 caller does not establish module ownership. Keep sibling signatures, fake shapes, state transitions,
 and tick ordering assumed until their merged implementations can be read.
 
-### 3. Make merged-base pinning Step 1
+### 3. Check the integration base
 
-Before any integration code, pin the new integration task to a `main` revision that contains all
-sibling merges. If the task already started, the required sibling interface permits this rebase;
-do not rebase merely because main advanced:
+Before relying on a sibling interface, inspect a baseline that contains the required
+implementation. A new integration task can start from that revision. An existing task
+can update when it needs the sibling interface; main advancing alone is not a reason
+to repeat a rebase:
 
 ```bash
 git fetch origin
@@ -101,8 +103,8 @@ sibling types; do not redefine near-copies in the capstone. Show concrete constr
 downstream jobs/messages, preserve distinct counters/state fields with their increment/decrement
 sites, and order imported types/stages before routing logic.
 
-Every introduced predicate needs both branches wired. Every acceptance-criteria mechanism must have
-zero remaining design choices: function, caller, state mutation, error route, and named tests.
+Account for both predicate branches and important handoffs. Specify state ownership
+and failure behavior where ambiguity could cause an integration defect.
 Avoid fields whose only consumer is a future issue.
 
 ### 6. Protect shared entry points and extractions

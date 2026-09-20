@@ -1,6 +1,6 @@
 # Security Policy
 
-All active technical prose in this policy must follow the
+For active technical prose in this policy, use the
 [ASD-STE100 writing policy](docs/asd-ste100.md).
 
 ## Supported Versions

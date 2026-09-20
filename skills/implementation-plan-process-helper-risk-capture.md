@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Capture uncertain assumptions, unverified anchors, and reviewer focus for mechanical refactor plans that replace low-level process calls with shared helper APIs. Use when: (1) reviewing a plan that swaps direct subprocess/git probes for a shared helper, (2) the plan preserves an interactive Popen path while changing non-interactive probes, (3) helper behavior is inferred from nearby call sites instead of re-reading the helper contract."
 category: architecture
 date: 2026-06-26
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags: [planning, plan-review, refactoring, subprocess, process-helper, git-probes, risk-capture, unverified-assumptions]
@@ -76,7 +76,7 @@ Before approving a mechanical process-helper refactor plan, capture:
 3. **Treat import examples as weak evidence for layering safety.**
    A different module importing the helper does not prove this target module can import it without a
    cycle. If the plan depends on "this import pattern already exists elsewhere," capture that as an
-   assumption and require an import-cycle or import-smoke guard to run.
+   assumption and consider an import-cycle or import-smoke check through the authorized validation process.
 
 4. **Classify process calls before replacing anything.**
    Make an explicit inventory of:

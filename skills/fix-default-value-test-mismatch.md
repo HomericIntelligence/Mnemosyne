@@ -5,7 +5,7 @@ description: Fix test failures when default values change in source code but tes
   aren't updated
 category: testing
 date: 2026-02-13
-version: 1.0.0
+version: "1.1.0"
 user-invocable: false
 ---
 # Fix Default Value Test Mismatch
@@ -72,7 +72,11 @@ git log --oneline --all -S "enable_retrospective" | head -5
 - When was it changed (git blame)?
 - Was the test updated in the same commit?
 
-### 3. Update the Test
+### 3. Reconcile the Test with the Intended Default
+
+A source change alone does not prove the new default is correct. Check the issue
+or public contract: update a stale assertion when the default change is intended;
+otherwise repair the source.
 
 ```python
 # Read the test file to see exact line

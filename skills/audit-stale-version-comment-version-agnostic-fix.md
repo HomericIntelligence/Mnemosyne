@@ -1,10 +1,10 @@
 ---
 name: audit-stale-version-comment-version-agnostic-fix
 license: BSD-3-Clause
-description: "Use when planning a fix for an audit finding that flags a stale tool/dependency version inside a source COMMENT (e.g. pyproject.toml comment saying 'CI tests only mypy 1.x' while the lock resolves 2.x; a Dockerfile comment '# requires Node 16' while the base image is 20; a setup.cfg comment '# pinned for Python 3.8 compat' while ranges allow 3.10+). The replacement comment MUST be version-AGNOSTIC — embedding a new specific version number (`mypy 2.1.0`, `Node 20`, `Python 3.10`) re-creates the exact staleness anti-pattern the audit is fixing; it merely shifts the lie from the old number to the new one at the next bump. Trigger: (1) an audit / NITPICK / linter finding cites a `file:line` containing a stale version assertion in a comment, (2) the audit asserts what the 'real' resolved version is (e.g. 'lockfile resolves X.Y.Z') — verify that claim against `pixi.lock` / `uv.lock` / `poetry.lock` / `package-lock.json` AT PLANNING TIME before writing any replacement, (3) the audit asserts 'CI exercises Y' / 'CI tests Z' — grep `.github/workflows/` AND `.pre-commit-config.yaml` AT PLANNING TIME before repeating that claim, (4) the cited `file:LINE-LINE` coordinates came from an audit run that pre-dates the current HEAD — re-locate the comment by stable content substring (`grep -n`), not by line number, (5) you are tempted to write 'currently 2.1.0' or 'tested with Node 20' in the replacement — STOP and rewrite version-agnostically ('version is pinned via pixi.lock', 'version follows the base image'). This skill is the comment-specific specialization of `code-quality-enforcement-gates` §10 (ground-truth verification) and §11 (tracking-doc checkbox drift)."
+description: "Correct stale tool-version comments by checking current source and referring to the maintained version source instead of copying a resolved snapshot."
 category: documentation
 date: 2026-06-21
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: unverified
 tags:
@@ -48,8 +48,8 @@ This skill is the **comment-specific specialization** of the parent skill `code-
 - The audit asserts what the *real* resolved version is (e.g. "lockfile resolves mypy 2.1.0", "base image is Node 20"). **Do not trust this claim** — verify it against `pixi.lock` / `uv.lock` / `poetry.lock` / `package-lock.json` / Dockerfile FROM line at planning time.
 - The audit asserts "CI exercises X" or "CI tests Y". **Do not trust this claim** — grep `.github/workflows/` and `.pre-commit-config.yaml` (or your CI config) at planning time before repeating any CI claim in the replacement comment.
 - The audit's cited `file:LINE-LINE` may have drifted since the audit ran. Re-anchor the comment by a **stable content substring**, not by line number.
-- You are tempted to write the new resolved version into the replacement (`# CI tests mypy 2.1.0`). **STOP**. That re-creates the failure mode. Rewrite version-agnostically.
-- You are tempted to bundle in a "while we are here" dependency bump, surrounding comment polish, or pin tightening. **STOP**. The audit was scoped to a comment; expand scope only via a separate issue.
+- You are tempted to write the new resolved version into the replacement (`# CI tests mypy 2.1.0`). That can recreate the failure mode. Prefer a reference to the maintained version source.
+- You are tempted to bundle in a "while we are here" dependency bump, surrounding comment polish, or pin tightening. Keep unrelated dependency changes as suggestions unless the user expands the scope.
 
 ## Proposed Workflow
 
@@ -148,14 +148,12 @@ pixi run mypy --version   # optional: shows the actually-resolved version
 
 8. **Cross-reference the parent principle in the plan/PR body.** Note that this fix follows `code-quality-enforcement-gates` §10 (verify audit claims at planning time) and `audit-doc-consistency-fix-verify-coordinates-on-disk` (re-anchor coordinates on disk). This anchors the next reviewer / next planner against the same anti-pattern.
 
-### Same-turn learning-loop closure (mandatory for replanning rounds)
+### Apply relevant self-review findings
 
 When a self-critique step (`/learn`, plan-self-review, reviewer critique) flags
 that the plan body contains a stale-version-in-comment pattern, a positive-grep
-acceptance check, or an unverified CI claim, fix all three in the SAME planning
-turn before resubmission. The `/learn` output is not a footnote; it is a
-punch-list the same turn must execute against. A learning that doesn't change
-the artifact is not a learning, it's a confession. Specifically:
+acceptance check, or an unverified CI claim, correct the affected text while completing the task. Use findings to improve the artifact;
+a separate learning step or a fixed turn boundary is not necessary. Useful checks include:
 
 1. **Strip every digit-dot-digit token** from the proposed replacement comment.
    Add a property check in the Verification section:

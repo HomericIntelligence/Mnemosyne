@@ -1,11 +1,10 @@
 ---
 name: doc-update-blog
 license: BSD-3-Clause
-description: Update development blog with implementation milestones, learnings, and
-  progress. Use after completing major milestones or phases.
+description: "Record implementation milestones and technical lessons when a development blog update is requested."
 category: tooling
 date: '2026-03-19'
-version: 1.0.0
+version: "1.1.0"
 mcp_fallback: none
 ---
 # Update Progress Blog Skill
@@ -81,7 +80,7 @@ EOF
 
 ## Best Practices
 
-- Write regularly (weekly or per milestone)
+- Write when a milestone or lesson warrants a post
 - Be specific with metrics
 - Document learnings and challenges
 - Link to relevant code/issues
@@ -109,10 +108,10 @@ EOF
 
 | Issue | Fix |
 | ------- | ----- |
-| No metrics | Measure before/after with specific numbers |
+| No metrics | Include measurements when useful and available; otherwise state the evidence limit |
 | Vague accomplishments | List specific implementations or fixes |
 | Missing learnings | Add what was discovered/surprised you |
-| No next steps | Plan immediate next work |
+| No next steps | State that the milestone is complete if no further work is needed |
 
 ## Failed Attempts
 

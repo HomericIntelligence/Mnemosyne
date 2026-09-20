@@ -1,10 +1,10 @@
 ---
 name: nextcloud-slow-storage-upload-failure
 license: BSD-3-Clause
-description: "Diagnose Nextcloud 'I can't upload' reports by proving whether the cause is SLOW BACKING STORAGE (NFS / remote data dir) rather than Nextcloud itself, using a WebDAV chunked-vs-direct-PUT signature. Use when: (1) users report uploads that hang, time out, or take seconds for tiny files, (2) the Nextcloud data dir lives on NFS / a NAS / other remote storage, (3) you need to distinguish a storage I/O bottleneck from a Nextcloud config or brute-force-throttle problem before touching either."
+description: "Diagnose slow Nextcloud uploads on NFS or remote storage by comparing chunked WebDAV, direct PUT, and host I/O behavior."
 category: debugging
 date: 2026-06-25
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: []
@@ -35,7 +35,8 @@ Do NOT assume the app is at fault, and do NOT hammer WebDAV with repeated auth w
 
 ## Verified Workflow
 
-The core value of this skill is the CHUNKED-vs-DIRECT-PUT signature plus raw host benchmarks. Run in order.
+Compare chunked and direct uploads with host storage measurements. Select the
+checks needed to distinguish application delay from backing-storage delay.
 
 ### 0. Run occ as the container's web PUID (not www-data)
 

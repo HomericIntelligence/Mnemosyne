@@ -1,10 +1,10 @@
 ---
 name: planning-audit-doc-nitpick-stamp-and-document
 license: BSD-3-Clause
-description: "Use when planning a fix for a DOCUMENTATION-nitpick audit bundle (a docstring gap + a missing version/date stamp) where the issue asks only to DOCUMENT, not to change behavior. Triggers: (1) the finding wants a 'last reviewed' DATE stamp added to a policy/governance doc (CODE_OF_CONDUCT.md / SECURITY.md). When the requirement is 'version stamp OR last-reviewed date', prefer the VERSION STAMP ALONE — a hardcoded 'Last reviewed: <today>' is a [major] P7/POLA NOGO: it asserts a human governance review that never happened for a mechanical edit AND goes stale the moment the PR sits in the merge queue. A 'last reviewed' / 'reviewed on' date may ONLY be added when a HUMAN review actually occurred; a mechanical edit is not a review. When adding the version stamp, MIRROR an existing in-file source of truth (e.g. the Attribution footer) so the two cannot drift, instead of asserting a freshly-re-sourced value; (2) a docstring is wrong/incomplete about a fallback (e.g. any non-'json' value -> text) — DOCUMENT the actual existing behavior and PIN it with a unit test (KISS/YAGNI), do NOT add validation/error-raising the issue never requested; (3) a version number (e.g. Contributor Covenant 2.1) read from an existing footer is propagated into a new header WITHOUT independent verification against the upstream source; (4) cited file:line coordinates and assumed markdownlint (MD022 blanks-around-headings) outcomes were read/assumed at plan time but never re-derived or actually run; (5) your /learn captured a RISK in the FIRST plan — ACT on it in the plan, do not merely document it; the reviewer will hold you to your own flagged concern (a stale-date risk flagged-but-unresolved is exactly what got the first plan NOGO'd). Headline: for doc-nitpick findings, document-actual-behavior + pin-with-test + version-stamp-ALONE-not-date-stamp + mirror-an-existing-in-file-source, never fabricate a review date, and act on your own pre-flagged risks."
+description: "Clarify documented fallback behavior or policy-version metadata without changing product behavior or inventing review provenance."
 category: documentation
 date: 2026-06-22
-version: "1.1.0"
+version: "1.2.0"
 history: planning-audit-doc-nitpick-stamp-and-document.history
 user-invocable: false
 verification: unverified
@@ -134,13 +134,13 @@ tags:
 
 4. **Verify propagated upstream versions independently.** If a version number (e.g. Contributor Covenant `2.1`) is read from an existing Attribution footer, do NOT copy it into a new header on faith. Confirm it against the upstream source (contributor-covenant.org) before propagating. Footer values can be wrong or stale.
 
-5. **Document the actual behavior, then pin it.** Write the docstring to describe the real existing fallback. Immediately add or extend a unit test (e.g. `test_invalid_format_falls_back_to_text`) so the documented guarantee is enforced and cannot silently drift to a lie.
+5. **Document the actual behavior.** Reuse existing behavior tests. Add a focused regression when the fallback contract lacks useful coverage; avoid tests that merely pin prose.
 
 6. **Run the linter for real.** Do not assume markdownlint passes. Adding an italic metadata line directly under an H1 can trip MD022 (blanks-around-headings) if spacing is wrong. Run `markdownlint` (or the repo's `pixi run` lint task) locally and read the result.
 
 7. **Record the honest verification level.** If the plan was authored but never executed (no tests run, no markdownlint run), the verification level is `unverified`. Say so. Keep the workflow titled "Proposed Workflow" with the warning banner; never claim it "passes" CI you did not run.
 
-8. **Act on every risk you flagged — do not merely document it.** If your /learn captured a risk in the first plan, RESOLVE it in the plan rather than shipping the plan with a caveat next to it. The reviewer will hold you to your own pre-flagged concern. The v1 plan explicitly flagged the stale-date risk but kept the date stamp anyway; that flagged-but-unresolved risk is exactly what drew the [major] P7/POLA NOGO. Documenting a risk is necessary but not sufficient — close it.
+8. **Address risks in proportion to their effect.** Correct a known false provenance claim. For unresolved assumptions, state the evidence limit and continue independent work; not every uncertainty requires a new approval or a blocked plan.
 
 ## Failed Attempts
 

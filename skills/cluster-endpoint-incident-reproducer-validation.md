@@ -1,10 +1,10 @@
 ---
 name: cluster-endpoint-incident-reproducer-validation
 license: BSD-3-Clause
-description: "Build and harden cluster endpoint incident reproducer PRs after strict review. Use when: (1) a model-serving/HPC incident needs a checkout-to-validation reproducer, (2) a shell reproducer allocates Slurm or similar cluster resources, (3) artifacts may contain private prompts, responses, tokens, endpoint metadata, profiler traces, or control-plane evidence, (4) a strict PR review produced blockers around security, cleanup, reproducibility, shell quoting, tests, operator docs, or CI."
+description: "Prepare private cluster incident artifacts with non-launching previews, safe resource cleanup, quoted commands, and reproducible validation."
 category: debugging
 date: 2026-07-02
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-ci
 history: cluster-endpoint-incident-reproducer-validation.history
@@ -91,7 +91,7 @@ gh pr view <pr-number> --repo <owner>/<repo> --json mergeStateStatus,mergeable,s
 12. **Separate replay controls from production fixes.** For determinism investigations, document that slower global batch-invariant or deterministic kernels are replay/verification controls unless the serving engine owns a production path with measured performance. Do not present them as the default incident fix when the bug is local to cache shape or scheduler contracts.
 13. **Test the shell reproducer contract directly.** Add tests for bash syntax, private file modes, shell-safe replay logs, allocation cleanup behavior, Slurm evidence capture, prepare-only artifact generation, profiler `--print` output, enum/numeric validation, and operator docs coverage. Use fake control commands or temp fixtures so tests do not need a live cluster.
 14. **Add focused coverage for nearby Python behavior.** If review identified HTTP error logging gaps, parser edge cases, or profiler extractors, add targeted tests for those paths rather than relying on the reproducer integration path to exercise them indirectly.
-15. **Verify in layers.** Run focused pytest first, then `bash -n`, `git diff --check`, Ruff format/check only on touched Python files, direct mypy for touched Python scripts, pre-commit on staged files, full repo validation, and finally GitHub PR checks plus mergeability.
+15. **Verify the changed contracts.** Select relevant shell syntax, Python behavior, privacy, cleanup, and type checks. Broaden coverage when changes affect shared paths, and use repository-required delivery checks. Report unavailable cluster coverage separately.
 
 ## Failed Attempts
 

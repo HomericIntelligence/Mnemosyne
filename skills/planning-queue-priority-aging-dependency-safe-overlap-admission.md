@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Plan starvation-resistant priority aging for a queue whose admission path combines dependency ordering, file-overlap serialization, and worker-cap checks. Use when: (1) repeatedly overlap-deferred work must gain priority, (2) aging must never violate dependency edges, (3) deferral age must survive selection without actual admission, or (4) warning thresholds need persistent visibility above the boundary."
 category: architecture
 date: 2026-07-20
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags:
@@ -89,11 +89,11 @@ for item in dispatch_items:
 4. **Increment only real overlap deferrals.** Update the count only for issue numbers returned in the selector's `deferred` result. Do not age ambiguous items, shutdown-skipped items, or selected items blocked later by capacity.
 5. **Separate selection from admission.** A selected item can still fail the repository/global worker-cap gate. Retain its age in that case. Clear the payload key only after the admission predicate succeeds and immediately before dispatch.
 6. **Define the visibility boundary mathematically.** For threshold `10`, resulting counts `1..10` log at `INFO`; every resulting count `>10` logs at `WARNING`. Choose the logger on every deferral, rather than emitting a warning only when the count first crosses the threshold.
-7. **Write regression tests before production changes.** Run the focused tests and observe failures for absent age state, absent escalation, and absent aged-priority behavior before implementing the constants and drain logic.
+7. **Prefer focused regressions for missing behavior.** Check age retention, warning escalation, and priority ordering; a pre-fix failure can confirm the tests expose the defect.
 8. **Exercise the production selector.** Mock only the planned-file fetch so two issues return the same path. In round one, fill the worker cap after overlap selection: the preferred issue is selected but cannot dispatch, while its peer is genuinely overlap-deferred and ages. Open capacity in round two and assert the aged peer is dispatched first.
 9. **Pin dependency safety independently.** Give a highly aged issue a dependency on its peer, record the order passed to the overlap selector, and assert the dependency still comes first. This proves aging is ready-peer priority rather than a post-topology reorder.
 10. **Test the threshold as a boundary and an invariant.** Parameterize starting counts `9`, `10`, and `11`; after one deferral, assert counts `10`, `11`, and `12` log at `INFO`, `WARNING`, and `WARNING` respectively.
-11. **Verify narrowly, then broadly.** Run the focused aging, dependency, overlap, and logging tests first; then the complete pipeline unit suite and static checks for the touched files.
+11. **Verify relevant boundaries.** Check aging, dependencies, overlap, and logging; broaden to pipeline integration where the changed paths warrant it.
 
 ## Failed Attempts
 

@@ -1,10 +1,10 @@
 ---
 name: security-escape-untrusted-values-in-logs
 license: BSD-3-Clause
-description: "Untrusted free-text values (filenames, paths, branch names, agent output) logged or printed with a raw %s / f-string can forge log lines (embedded newline) or emit terminal escape sequences (embedded ESC/BEL) — log-injection & terminal-injection. Fix by rendering the untrusted value with %r (or !r in an f-string) so repr() C-escapes control characters into ONE quoted single-line record; do NOT change the stored/downstream value. Use when: (1) a %s/{value} log or print carries a value derived from a filename, VCS path, git status --porcelain payload, branch name, issue body, or agent output, (2) that payload can legally contain \\n, \\t, \\r, \\x1b (ESC), \\x07 (BEL), or other C0/C1 control bytes, (3) a parser upstream deliberately PRESERVES those bytes literally (e.g. NUL-delimited porcelain) so they reach the log verbatim, (4) you must keep path-selection / filtering / hashing semantics identical while only changing what the LOG renders. Distinct from stripping NUL for a subprocess crash: here you ESCAPE (repr) for a display sink, you do NOT delete — see subprocess-embedded-null-byte-sanitize."
+description: "Escape untrusted control characters at log and terminal rendering boundaries while preserving stored values and downstream path semantics."
 category: debugging
 date: 2026-07-17
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 verification: verified-local
 tags:

@@ -1,17 +1,16 @@
 ---
 name: phase-plan-generate
 license: BSD-3-Clause
-description: Generate comprehensive plan documentation following Template 1 format.
-  Use when creating plan.md files for new components or subsections.
+description: "Draft a component plan using ML Odyssey Template 1 when a plan.md deliverable is requested or consumed by repository tooling."
 category: tooling
 date: '2026-03-19'
-version: 1.0.0
+version: "1.1.0"
 mcp_fallback: none
 phase: Plan
 ---
 # Plan Generation Skill
 
-Generate plan documentation following ML Odyssey's standard 9-section Template 1 format.
+Use ML Odyssey’s Template 1 when the repository or requested deliverable calls for a component plan. Adapt planning depth to the decisions that implementation needs.
 
 ## When to Use
 
@@ -58,14 +57,14 @@ EOF
 
 ## Verified Workflow
 
-1. **Create plan.md** with all 9 required sections
+1. **Create plan.md** with the template sections needed by the current repository contract
 2. **Use relative paths** for links (e.g., `../plan.md`, not absolute)
 3. **Make inputs specific** (list dependencies clearly)
 4. **Make outputs measurable** (actual deliverables, not vague goals)
 5. **Make steps actionable** (numbered, clear sequence)
 6. **Make criteria verifiable** (checkboxes with specific outcomes)
 7. **Update parent plan's** "Child Plans" section after creation
-8. **Regenerate GitHub issues**: `python3 scripts/regenerate_github_issues.py --section <section>`
+8. **Regenerate GitHub issues when requested**: `python3 scripts/regenerate_github_issues.py --section <section>`
 
 ## Template 1 Format (9 Sections)
 
@@ -109,7 +108,7 @@ Additional context, assumptions, or considerations.
 
 ## Phase Dependencies
 
-- **Precedes**: Test, Implementation, Package phases (plan must complete first)
+- **Supports**: Test, Implementation, and Package work; continue into authorized implementation once the relevant decisions are clear
 - **Receives input from**: Design phase (specifications, architecture decisions)
 - **Produces for**: All subsequent phases (implementation specifications)
 

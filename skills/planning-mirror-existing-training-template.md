@@ -1,10 +1,10 @@
 ---
 name: planning-mirror-existing-training-template
 license: BSD-3-Clause
-description: "Uncertain assumptions and reviewer risks baked into a PLAN that adds a manual backward-pass training loop to a Mojo ML model by mirroring an existing sibling training script in the same repo (MobileNetV1 mirroring VGG16 in ProjectOdyssey). Planning done by reading source files only — nothing was built, compiled, or run. The core lesson: a working reference implementation in the same repo is NOT a verified spec — sibling backward primitives return different types (GradientTriple vs bare Tuple), the reference's loss-call convention may not match the dataset it's paired with, and issue-body parameter counts routinely disagree with the actual model struct. Use when: (1) writing a training-loop plan that mirrors an existing per-block forward-with-caching + reverse backward + in-place SGD-momentum script in the same repo, (2) enumerating trainable parameters for a manual backward pass where the GitHub issue's parameter count disagrees with the model struct, (3) about to copy a sibling training script's `cross_entropy(logits, labels)` or similar loss call verbatim without independently verifying the dataset's label shape, (4) mirroring backward-primitive call sites where sibling primitives (conv2d_backward vs batch_norm2d_backward vs linear_backward) may return DIFFERENT types (GradientTriple field access vs bare Tuple index unpack), (5) the training loop discards mutating state returned by a primitive (BN running_mean/running_var, dropout masks) — this is a correctness gap for inference, not just a code comment, (6) putting a new smoke test under `tests/<newdir>/` and unsure whether the runner discovers it."
+description: "Plan a training loop from a sibling implementation while checking actual primitive and dataset contracts. Use for return-type drift, parameter counts, dropped state, and test discovery."
 category: architecture
 date: 2026-07-02
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags:
@@ -167,10 +167,8 @@ echo "Issue said 136; struct enumeration gives 110. Document the delta (BN runni
 6. **A "working reference implementation in the same repo" is not a verified spec.** The four
    traps above (return-type drift, loss-input-contract drift, dropped mutating state, undiscovered
    test path) all follow from treating a sibling script as a specification. It is a starting
-   point — every callee it uses must be re-verified in the callee's source, and every input it
-   consumes must be re-verified against the source of that input. Hold this as an explicit review
-   gate: "reference-implementation-not-spec: verified every callee and every input contract
-   independently — Y/N per item."
+   point. Inspect the callee and input contracts relevant to the proposed change. Record which
+   assumptions remain unverified and use focused checks where they reduce risk.
 
 7. **Do NOT claim verification for planning-only work.** If the plan was produced by reading
    source only and `mojo build` / `just test-mojo` / `just shell -c ...` was never executed, the
@@ -202,7 +200,7 @@ echo "Issue said 136; struct enumeration gives 110. Document the delta (BN runni
 ### Plan-review checklist a future planner can paste
 
 ```markdown
-### Mirror-a-training-template review gate (paste into plan review)
+### Suggested review questions for a mirrored training loop
 
 - [ ] Parameter count enumerated from the model struct (NOT the issue text). Delta vs issue documented.
 - [ ] For every backward primitive called, its `fn` signature was opened and the return type recorded.

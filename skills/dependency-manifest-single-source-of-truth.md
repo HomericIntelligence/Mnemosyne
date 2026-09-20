@@ -1,10 +1,10 @@
 ---
 name: dependency-manifest-single-source-of-truth
 license: BSD-3-Clause
-description: "Use when: (1) Python dependencies are declared in multiple manifests (pixi.toml, pyproject.toml, requirements*.txt) with divergent version constraints, (2) aligning floor constraints (e.g., >=9.0 vs >=9.0.0) or upper-cap constraints (e.g., <2 vs <3) across manifests for packages with API-incompatible major versions, (3) removing a duplicated version field from pixi.toml [workspace] that pyproject.toml already owns, (4) implementing semantic-version-aware (PEP 440) regression guards that detect manifest drift in CI, (5) ensuring pip-install users and pixi dev-env users see the same tested package versions, (6) an unbounded python = \">=3.10\" in pixi.toml [dependencies] lets the dev/lint env resolve to an untested/experimental interpreter (e.g. Python 3.14 free-threaded cp314t) outside the classifier/CI support matrix."
+description: "Reconcile dependency and interpreter constraints across Python manifests and lockfiles. Use for divergent floors or caps, duplicated metadata, and untested interpreter selection."
 category: ci-cd
 date: 2026-06-13
-version: "1.2.0"
+version: "1.2.1"
 user-invocable: false
 history: dependency-manifest-single-source-of-truth.history
 tags:

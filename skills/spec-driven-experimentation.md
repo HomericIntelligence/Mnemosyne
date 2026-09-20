@@ -1,14 +1,14 @@
 ---
 name: spec-driven-experimentation
 license: BSD-3-Clause
-description: TECHSPEC.md pattern for structured ML experiments
+description: "Use a concise experiment specification to clarify hypotheses, metrics, constraints, and evidence when experimentation has uncertain design choices."
 category: training
 date: 2025-12-29
-version: 1.0.0
+version: "1.1.0"
 ---
 # Spec-Driven Experimentation
 
-Structure ML experiments with TECHSPEC.md before running them.
+Use a concise experiment specification when it helps clarify goals and avoid wasted compute.
 
 ## Overview
 
@@ -25,11 +25,11 @@ Structure ML experiments with TECHSPEC.md before running them.
 - Defining success criteria before expensive training runs
 - Budget-constrained experiment design
 - Architecture ablation studies
-- When you want Claude to understand *why* each experiment exists
+- When you want an agent to understand *why* each experiment exists
 
 ## Verified Workflow
 
-### 1. Create TECHSPEC.md Before Experiments
+### 1. Consider a concise experiment specification
 
 ```markdown
 # TECHSPEC: Addition Task Parameter Scaling
@@ -64,14 +64,14 @@ Determine minimum viable model size for integer addition (0-999).
 - Max experiments: 50
 - Priority: depth/width ablation > RoPE sweep
 
-## Context for Claude
+## Context for the Agent
 This continues Phase 1 baseline work. Prior finding: 3.18M params achieved 91.5%.
 Focus on finding minimum viable size while maintaining >70% accuracy.
 ```
 
-### 2. Run /advise with TECHSPEC Context
+### 2. Consult available prior work
 
-Before running experiments, `/advise` pulls from the spec AND existing skills:
+When available, `/advise` can connect the spec with existing skills. Missing advice does not block otherwise authorized experiments:
 
 ```
 User: /advise I'm running the addition task experiments from TECHSPEC.md
@@ -86,7 +86,7 @@ Skip RoPE sweep initially (prior work shows theta=100 works for short seq).
 
 ### 3. Generate Controlled Ablation from Spec
 
-Claude can generate experiment configs directly from the spec:
+An agent can generate experiment configs directly from the spec:
 
 ```python
 # Auto-generated from TECHSPEC: width/depth ablation at 1M params
@@ -100,7 +100,7 @@ experiments = [
 
 ### 4. Capture Results Back to Skills Registry
 
-After experiments, `/learn` saves findings with TECHSPEC reference:
+For reusable findings, consider `/learn` with a reference to the experiment specification:
 
 ```markdown
 ## Results vs TECHSPEC Predictions
@@ -128,7 +128,7 @@ techspec_sections:
   - budget_constraints: "GPU hours, max experiments"
   - context_for_claude: "Why this matters, prior work"
 
-# Experiment lifecycle
+# Suggested experiment lifecycle; adapt to the experiment and available tools
 workflow:
   1. Write TECHSPEC.md
   2. Run /advise to check prior work

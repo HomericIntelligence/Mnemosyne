@@ -1,10 +1,10 @@
 ---
 name: deprecated-api-removal-plan-review
 license: BSD-3-Clause
-description: "Plan-review checklist for removing deprecated public APIs without trusting a grep-only caller inventory. Use when: (1) a plan deletes deprecated shims or aliases, (2) public exports, lazy imports, __all__, or subpackage surfaces change, (3) warning tests become removal guards, (4) the plan cites session memory, file paths, line numbers, or issue scope without a current freshness pass."
+description: "Review deprecated-API removal plans against current callers, migration policy, and compatibility evidence."
 category: architecture
 date: 2026-06-26
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 verification: unverified
 tags:

@@ -1,10 +1,10 @@
 ---
 name: dependabot-lockfile-rebase-regenerate-resign
 license: BSD-3-Clause
-description: "Use when: (1) a Dependabot/bot dependency-bump PR (pixi/pip) reports DIRTY/CONFLICTING on its lockfile (pixi.lock) plus its manifest (pyproject.toml/pixi.toml), or its active security task needs main dependency content, (2) fleet-sync / @me-scoped rebase tooling silently SKIPS the bot PR because its discovery is author-scoped to @me and bot PRs are not yours, (3) you must semantically merge a dependency CONSTRAINT change onto a manifest whose layout main has since refactored — keeping main's new structure and re-applying only the bump, (4) you need to resolve a generated pixi.lock conflict without hand-merging it — regenerate instead, (5) a re-signed/--locked CI gate must pass before a bot dep PR can land."
+description: "Resolve dependency-bot manifest and lock conflicts by preserving intended constraints, regenerating locks, and following repository signing policy."
 category: ci-cd
 date: 2026-06-11
-version: "1.1.0"
+version: "1.1.1"
 user-invocable: false
 verification: verified-ci
 tags:
@@ -58,7 +58,7 @@ integration.
 # 0. Isolated worktree (never rebase a bot PR in the shared checkout)
 REPO=HomericIntelligence/ProjectHephaestus
 BRANCH=dependabot/pip/python-dependencies-6615f4149c
-KEY_EMAIL=4211002+mvillmow@users.noreply.github.com
+KEY_EMAIL='<signing-email>'
 git fetch origin
 git worktree add /tmp/pr-1032 -b rebase/dependabot-1032 "origin/$BRANCH"
 cd /tmp/pr-1032
@@ -120,7 +120,7 @@ Layout note:   main consolidated mypy into [feature.shared.dependencies];
                re-applied the bump there, dropped the PR's reintroduced
                [feature.dev.dependencies]/[feature.lint.dependencies] block
 Lockfile:      "Lock-file was already up-to-date" — mypy 1.20.2 already satisfied <3, no lock change
-Re-sign email: 4211002+mvillmow@users.noreply.github.com
+Re-sign email: <signing-email>
 Validation:    pixi install --locked  (must succeed before push)
 Push:          git push --force-with-lease
 Result:        auto-merge retained (state:implementation-go); CI green; MERGED

@@ -1,10 +1,10 @@
 ---
 name: github-issue-forms-cannot-auto-apply-labels-from-fields
 license: BSD-3-Clause
-description: "GitHub issue *forms* (`.github/ISSUE_TEMPLATE/*.yml`) cannot themselves apply a label from a dropdown/field answer — only the static `labels:` key applies labels, and only unconditionally. To turn a form field (e.g. a `severity` dropdown) into a label you MUST build a consumer Action that parses the rendered issue body. Use when: (1) a planning/triage issue-form proposal adds a dropdown or input whose answer nobody reads — a reviewer NOGOs an inert field, (2) you are tempted to embed the body-parsing `grep` directly in a workflow `run:` block — it is untestable and silently no-ops on a rendering-format mismatch, (3) the consumer triggers on `issues: [opened, edited]` and a plain POST of the label leaves a stale same-family label, (4) you need to bind `${{ github.event.issue.body }}` safely without opening a CWE-94 Actions-injection hole, (5) the issue names a second linkage (an 'audit-section' field) you decline to build and you must scope it out explicitly rather than silently drop it, (6) you must keep the EXACT GitHub body-rendering format honest — a fixture test encodes the assumption but the only true closure is opening one throwaway issue and capturing the real rendered body."
+description: "Connect GitHub issue-form answers to labels when static form labels are insufficient and edited answers need reconciliation."
 category: architecture
 date: 2026-06-12
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags:
@@ -120,7 +120,10 @@ RIGHT (GO):    form dropdown ─► run: python -m pkg.mod ─► parse_severity
 
 8. **Be honest about scope under a MINOR issue.** When the issue names a linkage you decline to build (the "audit-section" field, for which no label vocabulary exists, so it would be inert), scope it out EXPLICITLY in the plan, the form description, and the doc — with the reason. Silently dropping half a named criterion is itself a requirements-alignment finding.
 
-9. **Close the format-assumption loop manually before relying on it.** The fixture test encodes the rendering assumption; if the real rendering differs, the tests pass against a wrong fixture while production no-ops. The only true closure: open one throwaway issue via the real form, `gh issue view <n> --json body`, and confirm `parse_severity` returns the selected value. Add this as an explicit implementation step.
+9. **Compare the fixture with authentic form output.** Prefer an existing suitable issue body.
+   If an authorized end-to-end check needs a new issue, create one through the real form and
+   inspect it with `gh issue view <n> --json body`. If live output is unavailable, report
+   that evidence limit and continue independent implementation.
 
 ## Failed Attempts
 
@@ -194,7 +197,8 @@ def reconcile_label(issue_number: int, target: str | None) -> None:
 
 ### STILL-UNCERTAIN (flag for the reviewer)
 
-The EXACT GitHub body-rendering format remains an **assumption** even after the refactor. The fixture test now *encodes* that assumption, so if the real rendering differs the tests pass against a wrong fixture while production no-ops. The ONLY true closure is the manual step: open one throwaway issue via the real form, capture `gh issue view <n> --json body`, and confirm the parser returns the selected value before relying on it. A fixture test reduces but does not eliminate the unverified-format risk; the plan added this manual verification as an explicit implementation step.
+The EXACT GitHub body-rendering format remains an **assumption** even after the refactor. The fixture test now *encodes* that assumption, so if the real rendering differs the tests pass against a wrong fixture while production no-ops. An authentic existing issue body can verify the rendering shape; a new test issue is useful
+when the task authorizes that external write and requires an end-to-end check. A fixture test reduces but does not eliminate the unverified-format risk; the plan added this manual verification as an explicit implementation step.
 
 ### What was grounded during planning (verified-during-planning, not executed)
 

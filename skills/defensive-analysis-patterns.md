@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: Defensive programming patterns for statistical analysis pipelines to handle data quality issues gracefully
 category: testing
 date: 2026-02-01
-version: 1.0.0
+version: "1.1.0"
 user-invocable: false
 ---
 # Defensive Analysis Patterns
@@ -222,7 +222,7 @@ def test_compute_statistical_results_empty_df(tmp_path):
 
 ### Step 8: Create Separate PRs
 
-One PR per improvement for easier review:
+Consider separate PRs for independent improvements when publication is in scope. Keep coupled changes together; the commands below illustrate the historical split:
 
 ```bash
 # P2-3: Config centralization
@@ -314,8 +314,8 @@ pixi run pytest tests/unit/analysis/ -v
 3. **Use NaN for undefined** - Distinguishes "no data" from "zero effect"
 4. **Centralize configuration** - Easier to experiment without code changes
 5. **Verify statistical behavior** - Run functions with test inputs before writing test expectations
-6. **Separate PRs** - One improvement per PR for easier review and revert
-7. **Run tests individually AND in suite** - Catch order dependencies early
+6. **Reviewable changes** - Consider separate PRs for independently useful improvements
+7. **Check test interactions when relevant** - Suite runs can expose order dependencies
 
 ## Related Skills
 

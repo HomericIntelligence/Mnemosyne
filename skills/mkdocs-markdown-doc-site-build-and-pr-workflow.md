@@ -1,10 +1,10 @@
 ---
 name: mkdocs-markdown-doc-site-build-and-pr-workflow
 license: BSD-3-Clause
-description: "Use when: (1) MkDocs build failures from nav or cross-references pointing at deleted files — run a pre-deletion audit, fix mkdocs.yml nav, repair --strict out-of-tree links; (2) markdownlint CI reports MD056/table-column-count from pipes inside backtick spans, MD060/table-column-style from compact (unspaced) table separators, MD012/no-multiple-blanks caused by a trailing double newline at EOF, MD040/MD031 from a language-tagged closing code fence, or MD013/MD032/MD022 on docs; or mkdocs --strict fails with relative links escaping docs/, or a systemic main-branch markdownlint regression is blocking a PR queue; (3) adding a CI pre-commit script to detect drift between documented metric values (CLAUDE.md, README.md) and pyproject.toml config sources (coverage threshold, test counts); (4) starting any documentation-only PR task — detect already-done work, handle a review fix plan that concludes no changes are needed, merge overlapping markdown docs, validate markdown for formatting/links/style, reconcile stale agent-hierarchy counts, document pre-commit hook incompatibilities in CONTRIBUTING.md."
+description: "Repair MkDocs navigation, Markdown rendering, and documentation drift; use when deleted pages, lint failures, or stale documentation block a requested change."
 category: documentation
 date: 2026-06-07
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 history: mkdocs-markdown-doc-site-build-and-pr-workflow.history
 tags:
@@ -212,12 +212,11 @@ counts, Level Summaries text, the count table total, and the breakdown list.
 - MD040 on a fenced block with no language → add a language to the *opening* fence
   (`` ```bash ``/`` ```python ``); MD031 → ensure a blank line before AND after the fence.
 
-**Systemic queue block.** When the same `file:line` fails across unrelated PRs, the bug
-is in `main`. Verify uniform failure mode per PR via `statusCheckRollup` before any bulk
-action, then run a two-track recovery: Track A lands the escape fix (admin-merge it — its
-merge-base still has the bad file, so it will also fail, expected); Track B drains the
-stuck queue by admin-merging each verified-uniform PR **sequentially** (parallel
-admin-merges race on the base branch).
+**Systemic queue block.** Compare failures across affected PRs and the base branch before
+attributing a shared Markdown error to each PR. Repair the common cause through the normal
+repository path. Administrative merge bypasses require actual authorization and an applicable
+policy exception; a lint failure alone does not provide either. Continue independent repairs
+while any protected merge remains unavailable.
 
 #### 4 — Doc/config drift detection script
 
@@ -241,22 +240,21 @@ Patch `subprocess.run` in the script's own namespace
 
 #### 5 — Documentation-only PR workflow
 
-**Always run orientation first** — `git log --oneline -5`, `git status`,
-`gh pr list --head <branch>` — before touching any file.
+**Orient to the relevant state** — `git log --oneline -5`, `git status`,
+`gh pr list --head <branch>` — when the branch or publication state is uncertain.
 
 - **Already-committed detection:** clean status + log commit matching the issue title →
   read target files to confirm content (do not trust the commit message), confirm the
-  open PR has auto-merge + `Closes #<N>`, then stop. Do not create a duplicate
+  open PR matches the requested delivery state. Continue any unfinished verification or delivery; avoid a duplicate
   commit/PR. Judge completeness against Success Criteria, not plan notes.
 - **No-op review confirmation:** if `.claude-review-fix-*.md` says "no fixes required",
   verify the CI failures pre-exist on `main`, confirm a clean tree, and report — do not
   create an empty commit or redundant push.
-- **Docs-only security triage:** classify every changed file; if all are `.md` / static
-  `.json` / `.txt` / `.rst` there is no attack surface — issue the clean no-findings
-  report. YAML/Actions examples inside `.md` code blocks are documentation, not workflows.
-- **Small doc edit:** read the issue + target file, anchor the Edit's `old_string` to the
-  lines before AND after the insert point, `pre-commit run --all-files`, commit only the
-  modified file with `Closes #<N>`, push, `gh pr merge --auto --rebase`.
+- **Docs-only security triage:** assess the actual content and use. Documentation can expose
+  secrets or unsafe operational advice, and plugin metadata can affect execution. Review
+  proportionately rather than declaring no attack surface from extensions alone.
+- **Small doc edit:** inspect the target, apply a scoped change, and select relevant checks.
+  Commit, publish, or enable auto-merge when the requested delivery scope authorizes it.
 - **Merge overlapping docs:** read both in parallel, grep all cross-references
   (`grep -rn "old-filename\.md" --include="*.md" .`), append unique content into the
   canonical, `git rm` the duplicate, repoint every reference (including self-referential
@@ -267,10 +265,9 @@ Patch `subprocess.run` in the script's own namespace
   with OS/library range, exact warning text, what the hook does automatically, the CI
   guarantee, and a link to the full compat doc.
 
-**GLIBC caveat:** if `mojo-format` fails with `GLIBC_2.3x not found` and no `.mojo` files
-changed, `SKIP=mojo-format git commit ...`. All other hooks must pass. Prefer
-`pixi run pre-commit run --all-files` over `just pre-commit-all` (the latter fails with
-unrelated "Text file busy" errors).
+**GLIBC caveat:** a formatter may be unavailable on an older host. Use a compatible
+authorized environment or report the check gap. A documented applicable exception can govern
+an unrelated hook; this skill does not authorize bypassing required checks.
 
 ## Failed Attempts
 
@@ -284,12 +281,12 @@ unrelated "Text file busy" errors).
 | Ran `markdownlint-cli2 --fix` for MD056 | Hoped autofix would handle the table-column error | MD056 has no autofix — 0 modifications, error persists | Manual `\|` escape; triage by `line:col` (column lands on the surplus pipe) |
 | Adding columns to the header / removing the pipe to absorb MD056 | Bumped header arity or rewrote the command without the pipe | Destroyed table semantics or lost the documented behavior | Never change table arity; escape the pipe and preserve the example verbatim |
 | HTML-entity / bracket-removal for MD033, reword to `[here]` for MD059, leading space for MD018 | Tried `&lt;version&gt;`, dropped angle brackets, `[here]`, indented `#NNN` | Entities render literally; brackets carry substitution-slot meaning; `here`/`click`/`this` are also non-descriptive; the ATX parser strips leading whitespace | Backtick-wrap placeholders, use the real subject as link text, reflow or `\#NNN` |
-| Parallel admin-merge of a stuck markdownlint queue | Ran `gh pr merge --admin` against 17 PRs concurrently | 13 hit "base branch was modified" races | Admin-merge stuck queues sequentially, one at a time, after a per-PR `statusCheckRollup` audit |
+| Parallel admin-merge of a stuck markdownlint queue | Ran `gh pr merge --admin` against 17 PRs concurrently | 13 hit "base branch was modified" races | When an authorized policy exception permits admin merges, serialize them and inspect each PR state |
 | Trusted `.history` snapshots to be lint-safe | Snapshotted skill files into `.history` without pre-flight lint | Absorbed Failed Attempts tables carry unescaped pipes; `.history` IS linted by CI | Pre-flight markdownlint on BOTH the `.md` AND `.history` before pushing |
 | Patched `subprocess.run` globally in drift-check tests | `patch("subprocess.run", ...)` for `collect_actual_test_count` | The script already imported `subprocess`; patching the stdlib location has no effect on the bound reference | Patch in the module's own namespace: `scripts.check_doc_config_consistency.subprocess.run` |
 | Used `pytest.raises(SystemExit)` for drift-check `main()` tests | Expected `main()` to call `sys.exit()` | `main()` returns `int`; only the `__main__` block exits | Call `main()` directly and assert the return value |
 | Creating an empty commit / duplicate PR on a no-op or already-done branch | Committed review files or re-edited targets "to have something"; ran `gh pr create` without checking | Adds history noise / opens a second PR causing CI confusion | Only commit real changes; always check `gh pr list --head <branch>` and read target files first |
-| Performing full multi-phase security review on a docs-only PR | Ran Phase 1-3 review on a PR of only `.md` + `plugin.json` | All findings excluded by the hard docs exclusion rule; YAML inside `.md` code blocks is documentation, not a workflow | Classify file types first; if all docs/metadata, issue the no-findings report immediately |
+| Performing full multi-phase security review on a docs-only PR | Ran Phase 1-3 review on a PR of only `.md` + `plugin.json` | All findings excluded by the hard docs exclusion rule; YAML inside `.md` code blocks is documentation, not a workflow | Use file types to scope review, then inspect relevant content and metadata behavior |
 | Closing fenced blocks with ```` ```text ```` after a doc merge / pasting long lines | Used a language-tagged closing fence; pasted 150-241 char source lines | markdownlint treats ```` ```text ```` as opening a new block; lines failed MD013 | Close fences with a plain ```` ``` ````; run markdownlint after every merge to catch line length and MD032 |
 | Running `just pre-commit-all` / `pixi run npx markdownlint-cli2` for validation | Used `just` or `npx` as the validation entrypoint | `just`/`npx` not on PATH on this host; `just` also throws unrelated "Text file busy" | Use `pixi run pre-commit run --all-files` (or `markdownlint-cli2 --all-files`) directly |
 | Editing the main repo instead of the active worktree | Made CLAUDE.md edits in the main repo path | The worktree tracks a different commit on the feature branch | Edit the worktree directly or `cp` changes into the worktree path |

@@ -1,9 +1,9 @@
 ---
 name: adr-authoring-indexing-and-maintenance
-description: "Use when creating or maintaining Architecture Decision Records, their index and status lifecycle, consolidating duplicated design notes, correcting directory trees, documenting in-flight epic work, citing cross-repository evidence, or adding an ADR membership guard. Match the repository's local ADR format, verify every frozen claim against tracked/live evidence, and update the document plus every consumer together."
+description: "Create or maintain architecture decision records when index entries, status, implementation claims, or cross-repository references drift."
 category: documentation
 date: 2026-07-04
-version: "2.0.0"
+version: "2.1.0"
 verification: mixed
 license: BSD-3-Clause
 user-invocable: false
@@ -239,8 +239,8 @@ git diff -- docs/adr
 ```
 
 Use the repository’s actual tool wrapper. Wrap long linked list items after the link when line-length
-lint applies. Before delivery, repeat file enumeration, index equality, tracked-symbol checks, child
-PR state reads, and cross-repository citations.
+lint applies. At delivery, check the affected index entries, symbols, PR state, and citations. Repeat earlier
+checks when the source changed or a concern remains unresolved.
 
 ## Examples
 

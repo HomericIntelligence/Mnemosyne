@@ -1,10 +1,10 @@
 ---
 name: tooling-portable-shared-repo-fork-resolution
 license: BSD-3-Clause
-description: "Resolve a trusted shared repository through an explicit override, an eligible same-owner fork, or canonical-upstream fallback without treating every probe failure as absence. Use when: (1) repository selection depends on remote metadata, (2) a missing optional fork is expected but authentication and network failures must block, (3) shell code uses or proposes `|| true`, which is banned unless a human explicitly signs off and the exception is documented at its call site, (4) a checkout must be origin-verified, clean, synchronized, and revision-bound before use."
+description: "Resolve executable shared-repository dependencies through verified identity and explicit failure classification. Use when optional fork absence must be distinguished from access or network errors; use local evidence with stated limits for read-only knowledge retrieval."
 category: tooling
 date: 2026-06-27
-version: "2.0.0"
+version: "2.1.0"
 user-invocable: false
 verification: verified-local
 tags:
@@ -54,7 +54,7 @@ tags:
      ERROR  -> stop; do not reinterpret the failure as absence.
 4. Verify checkout origin and cleanliness, fetch, fast-forward, and bind the exact SHA.
 5. Revalidate automatically selected fork identity immediately before use.
-6. Ban failure swallowing by default; any exception requires human signoff and call-site documentation.
+6. Classify failures explicitly; use existing authorization for known harmless recovery.
 ```
 
 ### 1. Define a closed result type for repository probes
@@ -110,7 +110,7 @@ else
 fi
 ```
 
-The exact not-found classifier must match the provider CLI's stable structured status or documented exit contract. Prefer structured status metadata over parsing human prose. If the CLI cannot distinguish not-found from other failures reliably, use a lower-level API that can; otherwise stop.
+The exact not-found classifier must match the provider CLI's stable structured status or documented exit contract. Prefer structured status metadata over parsing human prose. If the CLI cannot distinguish not-found from other failures reliably, use a lower-level API that can; otherwise report unresolved selection and continue independent work.
 
 Run network-dependent probes in an execution context that has explicit network authorization. A sandbox denial or DNS failure is `ERROR`, not evidence that the candidate does not exist.
 
@@ -118,7 +118,7 @@ Run network-dependent probes in an execution context that has explicit network a
 
 When several read-only probes are printed together, the overall exit status should represent the trust decision, not whichever command happened to run last. Expected `ABSENT` should print the selected fallback and exit zero. `ERROR` should print a bounded diagnostic and exit nonzero.
 
-### 5. Ban `|| true` and equivalent failure swallowing by default
+### 5. Classify tolerated failures
 
 Do not append `|| true`, `|| :`, or an unconditional zero-status wrapper to any command merely to keep a script moving. The construct discards the command's failure class and makes later success indistinguishable from partial execution.
 
@@ -133,7 +133,10 @@ else
 fi
 ```
 
-An exception is permitted only when a human explicitly signs off. The call site must document all of the following immediately above the suppression:
+For a known harmless failure, prefer explicit status handling and a short explanation
+of the tolerated condition, safe continuation, and observable result. Reuse existing task
+authorization. A separate human signoff is needed only when an applicable external
+policy requires it. The historical approval annotation below illustrates such a policy:
 
 ```bash
 # failure-swallow-approved: human-reviewed
@@ -143,13 +146,20 @@ An exception is permitted only when a human explicitly signs off. The call site 
 <command> || true
 ```
 
-The signoff is scoped to that call site and exact failure class. It is not permission to suppress future failures from the same command. If the tool cannot distinguish the approved failure from authentication, corruption, partial mutation, data loss, or other unsafe outcomes, the exception is invalid and the command must fail.
+Keep any tolerated failure specific to the call site and distinguishable from
+authentication failure, corruption, partial mutation, or data loss. If those outcomes
+cannot be distinguished, retain the error and continue work that does not depend on it.
 
-Repository checks should add a static guard that rejects `|| true`, `|| :`, and equivalent known suppression forms unless the adjacent approval block is present. Review must still validate the reason; a comment marker is evidence of the required review, not self-authorization.
+Consider a behavioral regression test when failure classification protects state or
+evidence. Do not add an approval-marker gate merely to enforce a preferred shell spelling.
+Existing security policy remains applicable; a comment does not grant authority.
 
 ### 6. Verify and revision-bind the checkout
 
-Before consuming the selected repository:
+For executable dependencies or durable writes, verify the selected repository before use.
+For read-only knowledge retrieval, use available local content, bind its revision, and
+report freshness limits without requiring network access or a clean tree. The stricter
+execution path is:
 
 1. Require the configured origin to identify the resolved repository.
 2. Refuse local changes; never overwrite them or silently rewrite the remote.
@@ -158,7 +168,8 @@ Before consuming the selected repository:
 5. Record the exact resulting commit SHA and trust basis.
 6. For an automatically selected fork, re-query owner type, permission, ancestry, repository identity, default branch, and tip immediately before use.
 
-Any mismatch between the reported trust decision, checkout origin, or checked-out revision is blocking.
+A mismatch blocks use as a trusted executable dependency or write target. It need not
+block the primary task when another authorized path or read-only evidence is available.
 
 ### 7. Test every branch of the trust decision
 
@@ -176,8 +187,8 @@ candidate wrong ancestry      -> canonical upstream or policy error, never selec
 dirty checkout                -> error
 origin mismatch               -> error
 fork moves before use         -> revalidation error
-unapproved `|| true`          -> static guard failure
-approved suppression          -> exact adjacent rationale plus human-review evidence required
+unclassified suppression      -> report the loss of failure information
+classified harmless failure   -> continue with rationale and observable outcome
 ```
 
 Assert both target selection and command exit status. A test that checks only printed text can miss a correct fallback followed by an unintended nonzero shell result.
@@ -188,7 +199,7 @@ Assert both target selection and command exit status. A test that checks only pr
 | ------- | -------------- | ------------- | -------------- |
 | Leave the optional probe as the last command | Ran identity checks followed by a candidate lookup expected to return not-found | The useful fallback decision was known, but the composed command still returned the lookup's nonzero status | Handle expected absence inside an explicit conditional and return the trust decision's status |
 | Swallow every lookup failure | Added `2>/dev/null || true` around the candidate check | Authentication, rate limits, network failures, and malformed responses became indistinguishable from confirmed absence | Model `FOUND`, `ABSENT`, and `ERROR`; only confirmed absence authorizes fallback |
-| Treat `|| true` as harmless shell glue | Used it for cleanup, optional discovery, or best-effort reporting without review | The same spelling also hid permission errors, partial mutations, and broken evidence collection; callers could not tell which operation completed | Ban failure swallowing by default; require human signoff and an adjacent exact-failure, safety, and observability explanation for every exception |
+| Treat `|| true` as harmless shell glue | Used it for cleanup, optional discovery, or best-effort reporting without review | The same spelling also hid permission errors, partial mutations, and broken evidence collection; callers could not tell which operation completed | Prefer explicit failure classification and explain why continuation is safe; follow any applicable external approval policy |
 | Approve a command family globally | Documented that one tool is generally “best effort” | Different call sites have different state and evidence consequences, and future tool versions can add new failure modes | Scope approval to one call site and one distinguishable failure class |
 | Trust a same-named repository | Selected `<current-owner>/<shared-name>` when it existed | Naming does not prove fork ancestry, maintenance, or authority | Verify owner type, viewer permission, canonical ancestry, branch, and immutable tip |
 | Fall back after an invalid explicit override | Treated an inaccessible override like a missing optional candidate | The user explicitly chose a trust target; silently substituting another repository violates that decision | Explicit override failure is fatal |
@@ -209,8 +220,8 @@ Assert both target selection and command exit status. A test that checks only pr
 | Candidate exists but ancestry is wrong | Never select automatically |
 | Dirty checkout or origin mismatch | Stop |
 | Automatic fork changes before use | Stop during revalidation |
-| Unapproved failure swallowing | Reject through review and static checks |
-| Human-approved call-site exception | Continue only for the documented, distinguishable failure; retain an observable failure signal |
+| Unclassified failure swallowing | Preserve the error until its consequences are understood |
+| Known harmless call-site failure | Continue within task authorization; retain an observable failure signal |
 
 ### Required Report
 

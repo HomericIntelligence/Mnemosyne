@@ -5,7 +5,7 @@ description: Systematic approach to adopting Claude Code v2.1.0 features. Use wh
   upgrading to new Claude Code version or analyzing CHANGELOG for feature adoption.
 category: tooling
 date: '2026-03-19'
-version: 1.0.0
+version: "1.1.0"
 user-invocable: false
 ---
 # Claude Code v2.1.0 Feature Adoption
@@ -33,7 +33,8 @@ Systematic workflow for analyzing the Claude Code CHANGELOG and adopting new fea
 
 ### 1. Research Phase: Use Athena `/advise`
 
-Start with Athena `/advise` to search existing skills about Claude Code features:
+Consider Athena `/advise` for relevant prior integration lessons. If unavailable,
+inspect the current schema, source, and release notes and continue:
 
 ```text
 /advise Analyze the release notes https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md
@@ -64,7 +65,8 @@ curl -L https://raw.githubusercontent.com/anthropics/claude-code/main/CHANGELOG.
 
 ### 3. Create Implementation Plan
 
-Break down into separate PRs:
+The recorded release used the following PR breakdown. Group current changes by
+dependency and reviewability rather than repeating this fixed split:
 
 1. **PR1: user-invocable field**
    - Add to internal sub-skills
@@ -159,9 +161,9 @@ Update `CLAUDE.md` with new field usage:
   - `agent`: Optional agent type (e.g., mojo-specialist)
 ```
 
-### 7. Create Learn
+### 7. Consider reusable lessons
 
-After completing all PRs:
+When the task includes knowledge capture and there is new evidence:
 
 ```text
 /learn
@@ -244,7 +246,7 @@ skills/<feature-name>.notes.md  # Optional implementation details
 
 ## Key Insights
 
-1. **Start with /advise**: Leverage existing team knowledge about Claude Code integration before implementing
+1. **Use relevant knowledge**: Available advice can reduce repeated integration mistakes; missing advice does not block authorized work
 
 2. **CHANGELOG analysis critical**: WebFetch the CHANGELOG to extract features with examples and version info
 
@@ -256,7 +258,7 @@ skills/<feature-name>.notes.md  # Optional implementation details
 
 6. **Documentation skills pattern**: Create skills for complex features (agent-hooks-pattern, skills-agent-field)
 
-7. **Template updates essential**: New fields must appear in templates with inline documentation
+7. **Template updates**: Add supported fields when they help the template’s intended users
 
 8. **Incremental adoption**: 5 separate PRs easier to review than monolithic change
 

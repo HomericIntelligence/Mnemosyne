@@ -1,10 +1,10 @@
 ---
 name: release-tag-drift-recut-on-fixed-commit
 license: BSD-3-Clause
-description: "Diagnose and fix a tag-time version-currency drift guard that silently skips PyPI publish, then re-cut the release tag on a fixed commit. Use when: (1) a vX.Y.Z git tag exists but the package was never published to PyPI even though main's push-CI is green; (2) a Release GitHub Actions run shows the `test` job failing and `build-and-publish` SKIPPED (not failed); (3) a drift-guard unit test (e.g. test_migration_md_version_does_not_trail_latest_git_tag) fails inside the tag-triggered Release workflow because a doc's 'latest released version' line trails the new tag; (4) you need to delete and re-create a release tag on a corrected commit without reproducing the same failure (land-on-main-then-recut, never recut-in-place); (5) a failing CI run's headBranch is a vX.Y.Z tag and you must tell a tag-triggered Release run apart from a push-to-main run; (6) an UNRELATED open PR (incl. a Dependabot PR) suddenly fails test_version_currency / required-checks-gate right after a vX.Y.Z tag was pushed — the stale tag's blast radius reaches every open PR, not just the Release run."
+description: "Diagnose release-tag version drift that skips package publication, then recover an authorized release on a corrected commit."
 category: ci-cd
 date: 2026-06-20
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-ci
 history: release-tag-drift-recut-on-fixed-commit.history
@@ -46,13 +46,18 @@ tags:
 
 ## Verified Workflow
 
+Release-tag deletion changes a shared release identifier. Use existing authorization
+for the exact tag and version; ask if that authority or target remains unclear.
+Continue diagnosis and the corrective patch while tag mutation is unavailable.
+The deletion examples below apply only within that authorized recovery scope.
+
 ### Quick Reference
 
 ```bash
 # 0. BLAST RADIUS FIRST: if the tag was cut prematurely / is stale, DELETE the remote
 #    tag immediately. It is failing the drift guard on EVERY open PR, not just Release.
 #    Deleting it unblocks all open PRs at once — do this before preparing the doc PR.
-git push origin :refs/tags/vX.Y.Z    # outward-facing; confirm w/ user if published
+git push origin :refs/tags/vX.Y.Z    # outward-facing; use existing tag-deletion authority
 # then re-run CI on any PR that already failed:
 #   Dependabot PR:  comment "@dependabot rebase"
 #   normal PR:      git commit --amend --no-edit && git push -f  (or re-run failed checks)
@@ -90,7 +95,7 @@ git rev-parse --short HEAD            # e.g. d3cef75  <- fixed commit
 pytest tests/unit/docs/test_version_currency.py --no-cov
 
 # 6. Delete the old tag (remote + local) and re-create on the FIXED commit
-git push origin :refs/tags/vX.Y.Z    # delete remote (outward-facing; confirm w/ user)
+git push origin :refs/tags/vX.Y.Z    # delete remote (outward-facing; use existing tag-deletion authority)
 git tag -d vX.Y.Z                    # delete local -- BLOCKED by CC Safety Net; USER runs this
 git tag -s vX.Y.Z <fixed-sha> -m "$(printf 'Release vX.Y.Z\n\nRe-cut on fixed commit <sha>: clears the version-currency drift guard that previously skipped the PyPI publish.')"
 git push origin vX.Y.Z               # re-triggers Release on the FIXED commit
@@ -121,12 +126,12 @@ read `0.9.6`. An **unrelated Dependabot PR (#1540, an actions bump)** was blocke
 exactly that failure — its CI saw the latest tag as `v0.9.7` and the assertion
 `0.9.6 >= 0.9.7` failed, cascading to `required-checks-gate: FAILURE`.
 
-**The fast global unblock is to delete the stale remote tag immediately**
+**When tag removal is authorized, deleting the stale remote tag can unblock affected checks**
 (`git push origin :refs/tags/vX.Y.Z`). The moment the tag is gone, every open PR's
 checkout resolves the *prior* tag (`v0.9.6`) and the assertion passes
 (`0.9.6 >= 0.9.6`), or — for a tagless/shallow checkout — the test skips. Either way
-all open PRs are unblocked at once. Do this **before** you start preparing the doc-bump
-PR; do not leave the stale tag sitting while you work. After deletion, re-run CI on any
+affected PRs can be unblocked. Prepare the corrective patch independently if tag
+removal is not available. After deletion, re-run CI on any
 PR that already failed: comment `@dependabot rebase` on Dependabot PRs; push an
 empty/amend commit or re-run failed checks on normal PRs.
 
@@ -162,10 +167,9 @@ Verified by reading the test source this session:
 
 3. **Check the blast radius and clear it fast.** If the tag was cut prematurely (the doc
    bump never landed first), the stale tag is failing the drift guard on **every open
-   PR** whose checkout resolves tags, not just the Release run. Delete the remote tag
-   immediately (`git push origin :refs/tags/vX.Y.Z`) to unblock all of them, then re-run
+   PR** whose checkout resolves tags, not just the Release run. With scoped authority, delete the remote tag (`git push origin :refs/tags/vX.Y.Z`) to unblock all of them, then re-run
    CI on any PR that already failed (`@dependabot rebase` for Dependabot PRs; re-run /
-   push for normal PRs). Do this before preparing the doc-bump PR.
+   push for normal PRs). Corrective patch preparation can proceed independently.
 
 4. **Fix the doc on a normal PR branch off main and verify locally.**
    Bump `docs/MIGRATION.md`'s "latest released version is **X.Y.Z**" line to match the
@@ -192,8 +196,8 @@ Verified by reading the test source this session:
    `documented >= prior_tag`).
 
 7. **Delete the old tag and re-create it on the fixed commit.**
-   - `git push origin :refs/tags/vX.Y.Z` deletes the remote tag (outward-facing — confirm
-     with the user before deleting a published tag).
+   - `git push origin :refs/tags/vX.Y.Z` deletes the remote tag (outward-facing — use explicit existing authority
+     for this tag, or ask when that authority is missing).
    - `git tag -d vX.Y.Z` deletes the local tag — **CC Safety Net blocks `git tag -d`**;
      hand this to the user to run manually. You cannot override the hook even with
      in-conversation approval.
@@ -235,9 +239,9 @@ Verified by reading the test source this session:
 - **Annotated/signed tags have a tag-object SHA distinct from the commit they point to.**
   `git rev-parse vX.Y.Z` returns the *tag object*. To get the underlying commit, use
   `git for-each-ref refs/tags/vX.Y.Z --format='%(*objectname:short)'`.
-- **"Delete the tag and launch a new tag" is ambiguous.** Clarify with the user whether to
+- **"Delete the tag and launch a new tag" is ambiguous.** Use the request and release state to determine whether to
   RE-CREATE the same version (premature/bad tag redo) or BUMP to the next patch. This
-  changes which version you write into `MIGRATION.md`.
+  changes which version you write into `MIGRATION.md`; ask if the intended version remains unclear.
 - **Auto-merge pre-arming is repo- and gate-dependent.** It works on a fresh PR only when
   the `auto-merge-policy` check is already SUCCESS; in GO-label-gated repos pre-arming
   trips the gate. Check `gh pr checks <num>` before deciding. Squash-only repos use

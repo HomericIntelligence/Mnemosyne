@@ -1,10 +1,10 @@
 ---
 name: nats-subscriber-ack-atmost-once-design
 license: BSD-3-Clause
-description: "Document and pin the at-most-once delivery contract for NATSSubscriberThread._subscribe_loop in ProjectHephaestus. Use when: (1) the unconditional msg.ack() placement after a handler raise looks like a bug — it is intentional poison-message defense; (2) adding a class docstring Delivery semantics section to explain why ack is outside the except block; (3) writing a pinning test to make the three-way contract (acked even on raise, last_error set, success counter untouched) executable so prose comments cannot drift; (4) reviewing whether to move ack into the else: branch — NOGO, it switches to at-least-once and re-enables redelivery loops."
+description: "Explain and test subscriber acknowledgment after handler failure. Use when preserving poison-message protection, error reporting, and success-counter behavior."
 category: architecture
 date: 2026-06-23
-version: "1.0.0"
+version: "1.1.0"
 verification: verified-local
 user-invocable: false
 tags:
@@ -127,7 +127,7 @@ def test_ack_is_awaited_even_when_handler_raises(tmp_path):
    - `thread.last_error is not None` — failure surfaced via the error channel.
    - `thread.last_message_at is None` — success counter was not incremented (the handler never succeeded).
 
-6. **Run the full test suite for the nats subpackage** to confirm no regressions: `pixi run pytest tests/unit/nats/ -v`. All tests must pass before committing.
+6. **Run the full test suite for the nats subpackage** to confirm no regressions: `pixi run pytest tests/unit/nats/ -v`. Investigate failures and report the actual result.
 
 7. **Run ruff check, format, and mypy** to confirm no linting issues are introduced.
 

@@ -1,10 +1,10 @@
 ---
 name: atlas-go-dashboard-milestone-delivery
 license: BSD-3-Clause
-description: "Deliver a final Go service milestone: implement auth middleware, hand-rolled Prometheus metrics, golangci-lint CI, e2e tests, docker build, review wave, and close an epic. Use when: (1) completing the last milestone of a Go dashboard service in HomericIntelligence, (2) adding auth middleware (none/basic/bearer) with timing-safe comparisons to a Go HTTP service, (3) implementing a hand-rolled Prometheus /metrics endpoint without external dependencies, (4) wiring golangci-lint + e2e build tags into CI, (5) posting multi-commit branch protection statuses for all milestones on every new PR SHA."
+description: "Complete a Go dashboard milestone involving auth middleware, Prometheus metrics, CI, and end-to-end tests; includes milestone-status and epic-reconciliation cases."
 category: architecture
 date: 2026-05-04
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-ci
 tags:
@@ -191,13 +191,12 @@ git commit -m "chore: bump ProjectArgus submodule to latest main (Atlas M6)"
    image: ghcr.io/homericintelligence/atlas:0.6.0
    ```
 
-7. **Run 6-dimension Myrmidon review wave post-implementation**
-
-   After all implementation PRs are merged, dispatch a review wave against the final code (not the plan). Fix all `blocking` findings before closing the epic. The 5 blocking findings in Atlas M6 were: empty-token guard missing, histogram bucket logic not cumulative, `/metrics` inside auth group, MD024 not configured, and `:latest` tag in compose.
+7. **Consider specialist review for the completed milestone**
+   Review the implemented behavior at a depth that matches its risk. Resolve substantiated defects within scope and report remaining limitations before claiming the epic is complete. The 5 blocking findings in Atlas M6 were: empty-token guard missing, histogram bucket logic not cumulative, `/metrics` inside auth group, MD024 not configured, and `:latest` tag in compose.
 
 8. **Post all M1–M6 statuses on every new PR SHA**
 
-   When a branch ruleset requires `atlas / review-wave (M1)` through `atlas / review-wave (M6)`, ALL 6 statuses must exist on the HEAD SHA of every PR — not just the current milestone's. Each new commit SHA starts with no statuses. Must post all 6:
+   When a branch ruleset requires `atlas / review-wave (M1)` through `atlas / review-wave (M6)`, ALL 6 statuses must exist on the HEAD SHA of every PR — not just the current milestone's. Each new commit SHA starts with no statuses. Publish statuses only from actual review evidence for that SHA, using the repository-authorized workflow:
 
    ```bash
    SHA=$(gh pr view $PR --repo "$REPO" --json headRefOid -q .headRefOid)

@@ -3,7 +3,7 @@ name: planning-unmerged-dep-pure-classifier-extraction
 description: "Plan a stage against an unmerged dependency while extracting a pure classifier from a blocking poll loop. Use when epic prose is the temporary interface, a coordinator must timer-park instead of sleep, overloaded sentinels need separation, or wall-clock budgets risk becoming poll-count budgets."
 category: architecture
 date: 2026-07-04
-version: "2.0.0"
+version: "2.1.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: unverified
@@ -61,9 +61,10 @@ gh pr list --repo "$REPO" --state all --search 'issue-number'
 Record the observations. Only after source, branch, and PR discovery confirm absence should the plan
 use an epic's frozen contract. Label every borrowed symbol as assumed and cite its dependency issue.
 
-### 2. Make compatibility probing implementation step one
+### 2. Check compatibility before dependent integration
 
-After the dependency merges, read the real modules before authoring stage code:
+Read available dependency definitions before integrating against them. If they are
+unavailable, continue independent classifier work and label assumed interfaces:
 
 ```bash
 rg -n 'class (WorkItem|Stage|StageOutcome|AgentJob)|ROUTES|fail_routes' src/package/pipeline

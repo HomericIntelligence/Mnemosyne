@@ -1,10 +1,10 @@
 ---
 name: planning-follower-issue-unmerged-dependency-assumptions
 license: BSD-3-Clause
-description: "You are planning a FOLLOWER issue that `Depends on #<N>` where #N is NOT YET MERGED (state: `plan-go`, `in-progress`, open PR pending, or no branch at all). Every claim you make about the dependency's public surface — struct field names, constructor signatures, function argument orders, exported symbol names, parameter counts — is a HYPOTHESIS, not a fact. Grep proves absence but never proves that a symbol WILL exist with a specific shape. Use when: (1) planning an issue whose `Depends on #<N>` target is unmerged and unimplemented (distinct from `planning-dependent-issue-unverified-upstream`, which handles the case where the dependency IS already merged and just needs to be read), (2) you are inventing struct fields, constructor signatures, or exact parameter counts against a dep whose body only describes them in prose, (3) the dep's issue body itself flags stale numbers in the codebase (e.g. 'comment says 84 but real count is 81') and you might copy the wrong number, (4) you are about to write helpers that call functions in the dependency's expected surface (e.g. `initialize_velocities(model)`) without checking whether the constructor is `@fieldwise_init` (positional per-field) vs a hand-written `fn __init__(out self, model: T)`."
+description: "Plan work against an unmerged dependency. Separate assumed APIs from observed source and isolate uncertain interfaces so independent implementation can proceed."
 category: architecture
 date: 2026-07-02
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags:
@@ -67,7 +67,7 @@ REPO=HomericIntelligence/ProjectOdyssey
 gh issue view $DEP --repo $REPO --json state,labels,title,body
 gh pr list --repo $REPO --search "$DEP in:body OR $DEP in:title" --state all \
   --json number,title,state,headRefName
-# If any PR is merged: STOP — use planning-dependent-issue-unverified-upstream instead.
+# If the dependency is readable, inspect it; the merged-dependency companion may help.
 
 # 2. Inventory EVERY symbol your plan invents against the dep.
 #    Write a table with columns: symbol | source | verification status.
@@ -83,12 +83,9 @@ grep -rn "fn initialize_velocities" .
 #    Do not copy the old (wrong) count or the new (claimed) count on faith.
 grep -cE "var .*_kernel|var .*_bias|var .*_gamma|var .*_beta" src/.../model.mojo
 
-# 5. Recommend a scaffold-first implementation order in the plan:
-#    - Step 1: implementer defines a LOCAL shim matching the assumed surface (struct with
-#      guessed fields, factory with guessed signature). This makes integration failure surface
-#      as a rename pass when the dep merges, not as a rewrite.
-#    - Step 2: implement follower against the shim.
-#    - Step 3: when dep merges, delete the shim, run the compiler, fix rename/signature drift.
+# 5. Consider a narrow local shim if it isolates an uncertain interface.
+#    Work on stable parts without a shim when that is simpler. If a shim helps,
+#    record its assumptions and reconcile it when the dependency becomes readable.
 
 # 6. For every library call in the follower (backward-pass helpers, tensor ops), read the
 #    IMPLEMENTATION (not just the signature) of the branch you are exercising. Parameter names
@@ -105,11 +102,16 @@ grep -cE "var .*_kernel|var .*_bias|var .*_gamma|var .*_beta" src/.../model.mojo
 3. **Grep-prove absence, not presence.** `grep -rn "struct <Name>"` can only tell you the symbol does not exist YET. It cannot tell you it will exist with the shape you invented. Document that limitation next to every grep in the plan.
 4. **Count against source when the dep body flags a stale number.** The dep's body may say "the comment on line X says 84 but the real count is 81." Do NOT copy either number. Grep `src/.../model.mojo` for the actual field declarations and count. Every downstream count in the follower plan ("~72 SGD update calls", "~20 BN write-back lines") must be derived from a grep result, not from the dep body.
 5. **Recognize `@fieldwise_init` constructor semantics.** In Mojo, `@fieldwise_init` on a struct with N fields generates a constructor taking N positional args (one per field). A follower plan that calls `initialize_velocities(model) → ResNet18Velocities(model)` — assuming a one-arg constructor — will not compile against a `@fieldwise_init` struct with ~81 fields. The factory function must either (a) construct each parameter tensor and pass all N positionally, or (b) the dep must expose a separate hand-written constructor. This is a coordination point with the dep — flag it in the plan.
-6. **Prescribe a scaffold-first implementation order.** In the follower plan's "Implementation Order" section, step 1 MUST be: "implementer defines a local shim struct matching the assumed surface until the dep merges." This means the follower compiles independently and integration failure surfaces as a rename/signature pass (localized to the shim boundary), not a rewrite of ~500 lines of business logic. Without this step, an implementer who jumps to step 2 writes code against invented fields.
+6. **Isolate the uncertain interface when useful.** A small local shim can let independent
+   follower logic compile while the dependency is unavailable. Use one when it limits
+   integration changes; avoid inventing a large duplicate API. Work on stable parts
+   and reconcile assumed names and signatures when the dependency becomes readable.
 7. **Read the IMPLEMENTATION of every library call in the follower, not just the signature.** Parameter names in a function signature can mislead — especially in dtype/training-mode branches. If the follower calls `batch_norm2d_backward(..., running_mean, running_var, training=True, ...)`, read the `training=True` branch of the implementation to confirm whether the positional slots labeled `running_mean, running_var` are actually consumed as running stats or as saved batch stats. The signature parameter names are contract-adjacent; the branch implementation is the contract.
 8. **Verify the semantics of "gradient splitting" in residual paths.** In a residual block, `add(main, skip)` in forward pairs with `add_backward(grad_out)` in backward. For a shape-matching add (no broadcasting), `add_backward` returns two IDENTICAL gradients (both equal to grad_out) — not a "split" of one gradient into two streams. The "two-stream summation" pattern in a ResNet is the sum of the MAIN branch's `conv1_backward.grad_input` and the SKIP branch's independent gradient at the residual junction — not a split of the `add_backward` output. Plan prose that says "split the gradient into two streams" conflates these and misleads implementers.
 9. **Cite exact line ranges, not 400-line spans, for every "verified from" claim.** A plan that says "Verified from `model.mojo:568-970`" is unfalsifiable — a reviewer cannot tell what was actually read. Cite the specific decl or call site: `model.mojo:608 (add(bn2_out, block_input))` or `normalization.mojo:519 (batch_norm2d_backward signature)`. This forces the planner to actually read the line, and lets the reviewer spot-check.
-10. **Label the plan `unverified` and keep the honesty gate.** No downstream code has been compiled; every invented symbol against the unmerged dep is a hypothesis. Mark the plan `unverified` and list the assumptions in a dedicated section so the reviewer can consent to them explicitly.
+10. **Label evidence accurately.** Mark uncompiled interfaces as assumptions and describe
+    what will confirm them. Ask for input only when an unresolved interface decision
+    materially changes the task; a reviewer does not need to approve every routine assumption.
 
 ## Failed Attempts
 
@@ -128,9 +130,11 @@ grep -cE "var .*_kernel|var .*_bias|var .*_gamma|var .*_beta" src/.../model.mojo
 
 - **Status:** Planning-discipline methodology distilled from ProjectOdyssey plan for issue #5515 (ResNet-18 backward pass) which depends on unmerged issue #5514 (`forward_with_cache`, `IdentityCache`, `ProjectionCache`, `ResNet18Velocities`, `initialize_velocities`). The plan was written and reviewed; the code has NOT been compiled. Every invented surface against the dep is a hypothesis.
 - **The trap:** treating dep-body prose as a schema. A dep issue's body describes intended fields, methods, and counts — but those are DESIGN INTENT written before implementation. Grepping for absence proves the symbol does not exist YET; it does not prove it will exist with the shape you invented.
-- **The distinction from the sibling skill:** `planning-dependent-issue-unverified-upstream` handles the MERGED-BUT-UNREAD case: `git show origin/<branch>:path` eliminates every fork. THIS skill handles the UNMERGED case: there is nothing to read, so the plan must (a) inventory every invented symbol, (b) label each as an assumption, (c) prescribe a scaffold-first implementation order so integration failure is a rename pass, not a rewrite.
+- **The distinction from the sibling skill:** `planning-dependent-issue-unverified-upstream` handles the MERGED-BUT-UNREAD case: `git show origin/<branch>:path` eliminates every fork. THIS skill handles the UNMERGED case: there is nothing to read, so the plan must (a) inventory every invented symbol, (b) label each as an assumption, (c) consider a narrow integration seam so later interface changes stay local.
 
-### Reviewer / Author Pre-Flight Checklist for a Follower-Issue Plan (copy-paste)
+### Review aids for a follower-issue plan
+
+Select questions that address the uncertain interface; these are not approval gates.
 
 ```text
 [ ] Confirmed the dep is genuinely unmerged (no linked PR is merged).
@@ -141,9 +145,8 @@ grep -cE "var .*_kernel|var .*_bias|var .*_gamma|var .*_beta" src/.../model.mojo
 [ ] Recognized `@fieldwise_init` semantics: any factory calling a `@fieldwise_init`
     struct constructor lists all N positional args or requires the dep to expose a
     separate hand-written __init__.
-[ ] Implementation Order step 1 = "define local shim struct in the follower matching
-    assumed surface until dep merges." No downstream step depends on the real dep
-    struct existing.
+[ ] Consider whether a narrow shim would isolate uncertainty. Continue stable
+    independent work; do not create a shim merely to satisfy this checklist.
 [ ] For every library backward call used, read the IMPLEMENTATION of the branch being
     exercised (not just the signature). Documented which stats/inputs the branch
     actually consumes, not just what the parameter names claim.
@@ -151,8 +154,8 @@ grep -cE "var .*_kernel|var .*_bias|var .*_gamma|var .*_beta" src/.../model.mojo
     NOT "add_backward splits one gradient into two."
 [ ] Every "Verified from X" citation is a specific line (or short range < 20 lines),
     not a 100+ line span.
-[ ] Plan is labeled `unverified`; assumptions listed in a dedicated section so the
-    reviewer can consent to them explicitly.
+[ ] Plan distinguishes source evidence from unverified assumptions. Ask for input
+    only when an unresolved interface decision materially changes the task.
 ```
 
 ### Prescriptive Recommendations for Future Planners

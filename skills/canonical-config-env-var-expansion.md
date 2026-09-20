@@ -1,10 +1,10 @@
 ---
 name: canonical-config-env-var-expansion
 license: BSD-3-Clause
-description: "De-hardcode developer-specific values (IPs, hostnames, paths) from CANONICAL config files (NATS .conf, Nomad HCL) that hosts copy or symlink. CRITICAL: NATS expands a WHOLE-VALUE bare token only (url = $NATS_LEAF_URL) — NOT a substring inside a quoted URL; Nomad agent HCL does NOT expand OS env at all (use envsubst). Use when: (1) a canonical config in configs/ has a dev-specific literal like a Tailscale IP, (2) the file is deployed by copy/symlink so no launcher can inject values, (3) you need to verify env-var expansion actually resolves at runtime (run the daemon, not just -t)."
+description: "Replace developer-specific values in deployed NATS or Nomad configuration; verify each engine's whole-value expansion or pre-rendering behavior."
 category: architecture
 date: 2026-06-19
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-local
 history: canonical-config-env-var-expansion.history
@@ -15,7 +15,7 @@ tags: [nats, nomad, env-var-expansion, config, leaf-node, envsubst, daemon-verif
 
 ## Overview
 
-This skill captures a durable learning from re-planning Odysseus GitHub issue #181 after a NOGO: a developer-specific Tailscale IP (`100.92.173.32`) was hardcoded in `configs/nats/leaf.conf` and `configs/nomad/client.hcl`. The prior plan assumed each config engine would natively expand `$VAR`/`${VAR}`. Running the actual NATS daemon (nats-server v2.10.24) DISPROVED that assumption for the quoted-substring form, and Nomad docs disproved it for agent HCL entirely.
+This skill captures a durable learning from re-planning Odysseus GitHub issue #181 after a NOGO: a developer-specific Tailscale IP (represented here by `192.0.2.10`) was hardcoded in `configs/nats/leaf.conf` and `configs/nomad/client.hcl`. The prior plan assumed each config engine would natively expand `$VAR`/`${VAR}`. Running the actual NATS daemon (nats-server v2.10.24) DISPROVED that assumption for the quoted-substring form, and Nomad docs disproved it for agent HCL entirely.
 
 | Field | Value |
 | --- | --- |

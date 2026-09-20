@@ -1,10 +1,10 @@
 ---
 name: debugging-podman-wsl2-netavark-hostnetwork-workaround
 license: BSD-3-Clause
-description: "Bypass podman-compose network creation failures on WSL2 rootless podman by running one-off host-network containers. Use when: (1) podman-compose up -d fails with netavark/nftables errors ('Could not process rule: No such file or directory', 'IPAM error: failed to get ips', 'nft did not return successfully') on WSL2/rootless podman; (2) a Makefile/CI recipe wrapping podman-compose exec -T dev fails with 'can only create exec sessions on running containers' because the compose network silently failed; (3) you need to replicate a compose dev-service environment for a one-off in-container command without the compose network."
+description: "Diagnose Podman networking failures on WSL2. Evaluate a host-network workaround against the observed netavark failure and deployment exposure."
 category: debugging
 date: 2026-07-02
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags:
@@ -36,7 +36,7 @@ tags:
   - `Could not process rule: No such file or directory`
   - `IPAM error: failed to get ips`
   - `nft did not return successfully`
-  - `IPAM error: failed to find ip for subnet 10.89.0.0/24`
+  - `IPAM error: failed to find ip for subnet <compose-subnet>`
 - A Makefile or CI recipe that wraps `podman-compose exec -T dev <cmd>` fails with `can only create exec sessions on running containers: container state improper` — often because an earlier `podman-compose up -d ... || true` guard silently swallowed the real network-creation failure
 - You need to replicate a compose dev-service environment (image, working dir, bind mount, env vars, user namespace) for a one-off in-container command without the compose network
 - Note: image builds are unaffected — `podman-compose build dev` (buildah) still works; only network/container creation fails
@@ -50,7 +50,7 @@ tags:
 podman-compose up -d dev
 # -> netavark: nftables errors ("Could not process rule: No such file or directory",
 #    "nft did not return successfully")
-# -> IPAM error: failed to find ip for subnet 10.89.0.0/24
+# -> IPAM error: failed to find ip for subnet <compose-subnet>
 # Downstream symptom (root cause hidden by `up -d ... || true` guards):
 podman-compose exec -T dev true
 # -> Error: can only create exec sessions on running containers: container state improper
@@ -67,7 +67,7 @@ podman run --rm \
 
 ### Detailed Steps
 
-1. **Surface the real error.** If a Makefile CONTAINER_CHECK (or similar wrapper) does `podman-compose up -d dev || true` and downstream `exec` calls fail with "can only create exec sessions on running containers", run `podman-compose up -d dev` manually. On the affected WSL2 host this shows netavark failing to program nftables rules and an IPAM error for the compose subnet (`10.89.0.0/24`) — the compose network cannot be created at all.
+1. **Surface the real error.** If a Makefile CONTAINER_CHECK (or similar wrapper) does `podman-compose up -d dev || true` and downstream `exec` calls fail with "can only create exec sessions on running containers", run `podman-compose up -d dev` manually. On the affected WSL2 host this shows netavark failing to program nftables rules and an IPAM error for the compose subnet (`<compose-subnet>`) — the compose network cannot be created at all.
 
 2. **Confirm the image is fine.** `podman-compose build dev` succeeds — buildah does not use netavark, so the failure is scoped to network/container creation only. No rebuild is needed.
 
@@ -96,7 +96,7 @@ podman run --rm \
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 | --------- | ---------------- | --------------- | ---------------- |
-| Plain compose up | `podman-compose up -d dev` on the WSL2 host | netavark could not program nftables rules ("Could not process rule: No such file or directory", "nft did not return successfully") and IPAM failed for subnet 10.89.0.0/24 — the compose network cannot be created on this WSL2 kernel/rootless setup | Compose networking is the broken layer; image builds (buildah) are unaffected |
+| Plain compose up | `podman-compose up -d dev` on the WSL2 host | netavark could not program nftables rules ("Could not process rule: No such file or directory", "nft did not return successfully") and IPAM failed for subnet <compose-subnet> — the compose network cannot be created on this WSL2 kernel/rootless setup | Compose networking is the broken layer; image builds (buildah) are unaffected |
 | Trusting the Makefile guard | Relying on the Makefile's CONTAINER_CHECK, which runs `podman-compose up -d dev \|\| true` before `podman-compose exec -T dev ...` | The `\|\| true` swallowed the network-creation failure, so the visible error was the misleading downstream "can only create exec sessions on running containers: container state improper" | When exec-session errors appear, run `podman-compose up -d dev` manually to surface the real root cause |
 | Fixing nftables on WSL2 | NOT attempted — repairing nftables kernel-module support on the WSL2 kernel was out of scope for the session | (not tried) | The `--network=host` bypass was sufficient for the build workflow; a kernel-level fix may still be the proper long-term solution |
 
@@ -112,7 +112,7 @@ network_backend: netavark (nftables)
 compose_error: |
   netavark: nftables: "Could not process rule: No such file or directory",
   "nft did not return successfully";
-  IPAM error: failed to find ip for subnet 10.89.0.0/24
+  IPAM error: failed to find ip for subnet <compose-subnet>
 downstream_error: "can only create exec sessions on running containers: container state improper"
 unaffected: "podman-compose build dev (buildah) — image builds still work"
 

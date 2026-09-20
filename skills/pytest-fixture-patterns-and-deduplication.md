@@ -1,10 +1,10 @@
 ---
 name: pytest-fixture-patterns-and-deduplication
 license: BSD-3-Clause
-description: "Use when: (1) pytest.mark.parametrize lists hardcode fixture filenames that must be manually updated when new fixtures are added — replace with glob-based auto-discovery; (2) test fixtures have duplicated YAML configs — find | md5sum shows 40+ duplicates and runtime block-based composition eliminates them; (3) duplicated test fixture configs should be migrated to a centralized shared location; (4) a schema validation test parametrizes over tier fixture files but only early tiers exist (e.g. t0/t1) and new tiers need coverage across the full range; (5) YAML fixture files and test parametrize lists must be expanded when new tiers are added to the tier registry; (6) a second division's fixture set is added to a flat tests/fixtures/ directory and capture-fixtures CLI needs named subdirs; (7) testing multi-level directory nesting in shutil.copytree migrations where deep paths must survive migration; (8) fixture and implementation symmetry must be validated — fixture YAML keys must match tested interface fields; (9) checkpoint state machine fixtures encode multi-state test scenarios and need refactoring for reuse; (10) an autouse fixture in conftest.py must reset module-level singleton state (asyncio objects, circuit breakers) at the broadest scope."
+description: "Consolidate pytest fixtures when discovery, shared configuration, schema coverage, or mutable singleton state causes drift."
 category: testing
 date: 2026-06-07
-version: "1.1.0"
+version: "1.1.1"
 user-invocable: false
 history: pytest-fixture-patterns-and-deduplication.history
 tags:

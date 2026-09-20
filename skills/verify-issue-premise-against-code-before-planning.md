@@ -1,10 +1,10 @@
 ---
 name: verify-issue-premise-against-code-before-planning
 license: BSD-3-Clause
-description: "An issue body that asserts 'the current code does X' is a CLAIM, not ground truth — before writing a plan, grep the repo for the distinctive tokens in the issue's premise and confirm WHICH file/job actually matches, and ENUMERATE EVERY site that matches before scoping. Issues drift from code; follow-up issues especially describe a since-changed state, and CI/workflow issues are dangerous because the same step pattern appears in several workflow files AND in several jobs of one file. In ProjectAgamemnon #248 the premise said the repo used `setup-pixi` with `cache: false` skipping built-in save; grepping `cache: false` (the issue's OWN premise token) showed the scenario lived in TWO jobs of `_required.yml` (`lint` AND `pixi-check`), plus a look-alike `security-dependency-scan` with a DIFFERENT defect. A first plan that grepped the INCIDENTAL token `pixi install --locked` (which the issue never named) matched only `pixi-check`, silently dropped `lint`, and earned a NOGO. Use when: (1) planning any issue whose description asserts current code structure/config, (2) the issue is a follow-up to a prior issue, (3) CI/workflow issues where similar steps appear in multiple workflow files OR multiple jobs, (4) the premise tokens may have already been fixed, (5) the issue fixes a recurring code pattern likely present in more than one place — especially after a single-site plan or when a sibling/look-alike site exists."
+description: "Check issue claims against current code and enumerate matching sites so a stale premise or incidental search token does not misdirect the change."
 category: documentation
 date: 2026-06-19
-version: "1.1.0"
+version: "1.2.0"
 history: verify-issue-premise-against-code-before-planning.history
 user-invocable: false
 verification: unverified
@@ -70,8 +70,7 @@ an incidental token from your first-found site.
 - **(v1.1.0)** Planning any issue that fixes a RECURRING code pattern — a CI workflow step
   repeated across jobs, a lint rule, a config key — where the same pattern likely appears in
   more than ONE place. Especially after you have already written a SINGLE-site plan, and
-  especially when a sibling or look-alike site exists in the same file/dir. The choice of which
-  sites to fix is a scope DECISION the reviewer must ratify; enumerate them all first.
+  especially when a sibling or look-alike site exists in the same file/dir. Use the requested outcome and observed defect to select scope; explain excluded look-alikes.
 
 ## Verified Workflow
 
@@ -167,14 +166,14 @@ grep -rn 'cache: false' .github/workflows/_required.yml   # the issue's premise 
    jobs (`lint` and `pixi-check`) in the SAME file; the incidental-token grep matched only one,
    dropped `lint`, and earned a NOGO.
 
-8. **(v1.1.0) Classify each candidate in-scope vs look-alike, and RATIFY the scope explicitly.**
+8. **Classify each candidate in-scope vs look-alike and explain the scope.**
    For each match, decide: does it have the issue's EXACT defect (in-scope), or does it merely
    share the token while having a DIFFERENT defect (look-alike, out of scope)? In #248
    `security-dependency-scan` matched the area but had the built-in setup-pixi cache ON (no
    `cache:` key) — a separate broken-`cache:true` problem, not #248's "`cache:false` skips save."
    In the plan, list every in-scope site to fix AND every excluded look-alike WITH the reason
    ("excluded because it has defect Y, not the issue's defect X"). Which sites to fix is a
-   DECISION the reviewer must ratify; a silent omission of a matching site reads as an oversight
+   decision to resolve from the request and evidence; a silent omission of a matching site reads as an oversight
    (NOGO), an explicit ratified deferral does not.
 
 9. **(v1.1.0) Check per-site DIVERGENCE before applying a templated fix.** Sites matching the

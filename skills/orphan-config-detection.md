@@ -1,10 +1,10 @@
 ---
 name: orphan-config-detection
 license: BSD-3-Clause
-description: "Orphan Config Detection"
+description: "Detect resource configurations that no experiment or test references, while preserving intentional fixtures and warning-only behavior."
 category: tooling
 date: 2026-03-19
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 ---
 # Orphan Config Detection

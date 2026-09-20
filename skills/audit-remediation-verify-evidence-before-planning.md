@@ -6,7 +6,7 @@ description: >-
   limits the edit; or when a document mixes verifiable membership with inferred history.
 category: architecture
 date: 2026-07-01
-version: "2.0.0"
+version: "2.1.0"
 user-invocable: false
 verification: verified-local
 license: BSD-3-Clause
@@ -45,7 +45,7 @@ as CI evidence.
 ## Verified Workflow
 
 1. **Bind the implementation base.** Record the immutable commit and read the current issue.
-   Re-run the evidence checks immediately before editing.
+   Refresh evidence when the source changes or the prior observation is uncertain.
 2. **Relocate by content, not coordinates.** Search for the described section, action name,
    symbol, or semantic marker. A stale line cite does not imply a stale finding.
 3. **Verify every target independently.** For each named path, test both existence and the

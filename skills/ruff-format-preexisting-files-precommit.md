@@ -1,10 +1,10 @@
 ---
 name: ruff-format-preexisting-files-precommit
 license: BSD-3-Clause
-description: "ruff-format reformats pre-existing files (not authored by you) when you run `pre-commit run --all-files` on a feature branch — those reformats land in the working tree and must be staged and committed (or amended into the feature commit). Use when: (1) you ran `pre-commit run --all-files` after completing a feature and the hook reports 'Failed' + 'N files reformatted' for files you never touched; (2) the hook then reports 'Passed' on a second run but `git diff --name-only` still shows those files as modified (unstaged); (3) you only staged your own authored files and are about to commit, risking a pre-commit failure in CI because the reformatted files are still in the working tree unstaged. The fix is NOT to create a separate PR — stage the reformatted files and fold them into the feature commit (amend or a new style commit)."
+description: "Handle formatter edits to pre-existing files after pre-commit; inspect unstaged changes and preserve unrelated work when selecting commit scope."
 category: tooling
 date: 2026-06-20
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [pre-commit, ruff-format, staging, git-add, amend, style-drift, preexisting-files]
@@ -28,22 +28,23 @@ tags: [pre-commit, ruff-format, staging, git-add, amend, style-drift, preexistin
 - Running `pre-commit run --all-files` a second time immediately reports `Passed` (the hook already applied its changes to the working tree), but `git diff --name-only` shows those files as modified and unstaged.
 - This is NOT the same as `ci-precommit-whole-dir-format-drift-blocks-unrelated-commits`, where `origin/main` itself has drift and blocks every commit — here, main is clean and the drift is accumulated minor style inconsistency in pre-existing files (trailing whitespace, quote style, etc.) that ruff has newly flagged.
 - This is NOT the same as `ci-ruff-format-collapses-handwrapped-comprehensions`, where YOUR OWN edit changed a comprehension's rendered length.
-- The correct resolution is to **stage the reformatted files and include them in the commit** (amend or a separate `style:` commit) — not to create a separate PR, not to bypass pre-commit.
+- Inspect formatter changes and choose an appropriate delivery scope: include necessary formatting in the current change or isolate independent drift. Preserve unrelated user edits and applicable hooks.
 
 ## Verified Workflow
 
 ### Quick Reference
 
 ```bash
-# 1. After implementation, run pre-commit on all files:
+# 1. If an authorized repository-wide check selected all files:
 pre-commit run --all-files
 
 # If ruff-format reports "Failed" and lists files you did not author:
 # 2. Check what was modified in the working tree:
 git diff --name-only
 
-# 3. Stage everything that was reformatted (including files you didn't author):
-git add tests/test_cli.py tests/test_release_workflow.py  # or: git add -u
+# 3. Inspect the diff and stage only reviewed formatter changes in scope:
+git diff -- tests/test_cli.py tests/test_release_workflow.py
+git add -- tests/test_cli.py tests/test_release_workflow.py
 
 # 4. Fold into the feature commit (if not yet pushed):
 git commit --amend --no-edit
@@ -70,7 +71,7 @@ pre-commit run --all-files  # should show all Passed now
 
 3. **Check what is modified.** Run `git diff --name-only` to see the full list of files ruff touched. Do not rely on memory — ruff may have touched more files than the hook output listed. Compare against `git diff --cached --name-only` (staged files) to identify the gap.
 
-4. **Stage all reformatted files.** Run `git add <all files listed by git diff --name-only>`. Using `git add -u` (update tracked files) is safe here and captures everything ruff modified. Do not use `git add -A` if there are intentionally untracked files you do not want to commit.
+4. **Stage reviewed changes explicitly.** Compare the diff with the pre-format state and stage only the intended formatter edits. Broad staging can include unrelated tracked or untracked work.
 
 5. **Amend or create a style commit.** If the feature commit has not been pushed:
    ```bash
@@ -83,13 +84,13 @@ pre-commit run --all-files  # should show all Passed now
 
 6. **Re-run to confirm clean.** `pre-commit run --all-files` should now report all `Passed`. This is the state CI will see.
 
-7. **Run tests.** Ruff-format changes are purely stylistic — no logic change — but always confirm tests still pass: `pytest` (or equivalent). The reformatted files produce identical behavior.
+7. **Verify proportionately.** Inspect the formatter diff for semantic changes. Use relevant tests when the diff or formatter behavior leaves uncertainty.
 
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 | ------- | -------------- | ------------- | -------------- |
-| Only stage authored files and commit | `git add src/telemachy/mcp_server.py tests/test_mcp_server.py && git commit` | Pre-commit (or CI) will re-run `ruff-format --check` on all files; the unstaged reformats are still in the working tree as unclean changes and will fail the next check | Always check `git diff --name-only` after `pre-commit run --all-files` and stage everything ruff modified, even files you did not author |
+| Only stage authored files and commit | `git add src/telemachy/mcp_server.py tests/test_mcp_server.py && git commit` | Pre-commit (or CI) will re-run `ruff-format --check` on all files; the unstaged reformats are still in the working tree as unclean changes and will fail the next check | Inspect formatter changes after the run and stage only reviewed changes within the chosen scope |
 | Run `pre-commit run --all-files` a second time and assume clean | Saw `Passed` on the second run and concluded nothing needed to be done | The second run passes because ruff already reformatted the files in-place, but those changes are **unstaged** and invisible to the commit; CI will reformat them again and fail | A second-run `Passed` does not mean the changes are staged — check `git diff --name-only` |
 | Skip or bypass pre-commit | Considered `git commit --no-verify` to avoid the hook | Bypassing hooks hides the problem from CI; the CI pre-commit job will fail with the same reformats | Stage the reformatted files; never use `--no-verify` unless explicitly authorised |
 
@@ -114,7 +115,7 @@ pre-commit run --all-files  # all Passed
 
 **Distinction from related skills:**
 
-- `ci-precommit-whole-dir-format-drift-blocks-unrelated-commits` — `origin/main` ITSELF has committed drift; a separate `chore(lint)` PR is required to re-green main first, then stack feature PRs on it. Here, main is clean and the drift is only in the local working tree after ruff runs.
+- `ci-precommit-whole-dir-format-drift-blocks-unrelated-commits` — `origin/main` ITSELF has committed drift; a separate `chore(lint)` PR can isolate independent drift; include minimal formatting in the current change when necessary. Here, main is clean and the drift is only in the local working tree after ruff runs.
 - `ci-ruff-format-collapses-handwrapped-comprehensions` — YOUR OWN edit (clause deletion) caused a comprehension to shorten, triggering ruff to collapse it. Here, you did not touch the reformatted files at all.
 - `pre-commit-hooks-and-linting-config` — Comprehensive reference for hook configuration; section "PRE-COMMIT FORMATTER RE-STAGE" covers the same action at a glance but without the diagnostic steps or failure modes documented here.
 

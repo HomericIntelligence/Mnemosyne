@@ -1,10 +1,10 @@
 ---
 name: debugging-silent-pipeline-stage-via-argparse-required-grep
 license: BSD-3-Clause
-description: "Diagnose silent stages in fan-out orchestrators (shell driving N Python CLIs, Makefile driving N tools, CI workflow driving N jobs) via a 3-command source-grep that compares argparse `required=True` flags against the flags the orchestrator actually passes, OR via a 2-command grep that identifies unguarded infrastructure commands in a backgrounded orchestrator function running under `set -euo pipefail`. Use when: (1) a multi-stage pipeline reports success but a downstream stage produced no visible output, (2) only the first phase of run_automation_loop.sh / similar orchestrator runs, (3) orchestrator logs show generic `Warning: ... exited non-zero` with no underlying error detail, (4) you are tempted to re-run with `tee` + banner greps to reproduce a silent-stage bug, (5) the orchestrator uses `|| echo`, `|| true`, `set +e`, or `continue-on-error: true` to swallow exit codes, (6) the symptom returned AFTER a prior fix to a different silent-stage cause in the same orchestrator — there is often a SECOND silent-stage cause hiding behind the first."
+description: "Diagnose missing pipeline stages by comparing child CLI arguments and shell error handling when fan-out orchestration hides failures."
 category: debugging
 date: 2026-05-25
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-local
 history: debugging-silent-pipeline-stage-via-argparse-required-grep.history
@@ -43,7 +43,7 @@ tags:
 - A multi-stage orchestrator (shell, Makefile, CI workflow) reports success or only generic warnings, but a stage produced no visible output
 - Only the first phase of a multi-phase pipeline appears to run (e.g., "planning ran but PR review didn't")
 - Orchestrator stdout shows lines like `Warning: repo job exited non-zero` with no underlying cause
-- You are about to set up `tee` + grep banners + a long dry-run to reproduce — STOP and try this first
+- A long rerun would be costly, and source inspection may reveal an argument mismatch or swallowed exit status first
 - Orchestrator contains exit-code suppressors: `|| echo`, `|| true`, `set +e`, `continue-on-error: true`, `ignore_errors: yes`
 - The failing CLI is argparse-based (Python), click-based, typer-based, or any framework that exits before any of the CLI's own logging fires
 - The orchestrator function is backgrounded with `&` and inherits `set -euo pipefail` from the script header — any unguarded non-zero return inside the function will silently abort it. Symptom looks identical to v1.0.0's argparse-required cause.
@@ -82,7 +82,7 @@ Any flag the orchestrator does NOT pass that the CLI marks `required=True` = roo
    - Node commander: `.requiredOption(`
    - Rust clap: `.required(true)`
 
-3. **Diff the required-by-CLI set against the passed-by-orchestrator set.** Any flag in (required ∩ ¬passed) is a contract violation. The CLI will exit at parse-time before its own logging or banners run. This is decidable from source — do not run anything.
+3. **Diff the required-by-CLI set against the passed-by-orchestrator set.** Any flag in (required ∩ ¬passed) is a contract violation. The CLI will exit at parse-time before its own logging or banners run. Source inspection can establish a direct mismatch; use a scoped authorized reproduction if runtime behavior remains uncertain.
 
 4. **Locate the swallow point in the orchestrator.** The orchestrator MUST be suppressing the failing exit code, or you would have seen the failure directly. Common patterns:
 

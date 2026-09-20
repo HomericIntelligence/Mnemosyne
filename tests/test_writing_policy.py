@@ -255,8 +255,8 @@ def test_all_active_guidance_surfaces_reference_or_delegate_to_policy() -> None:
     assert missing == []
 
 
-def test_pull_request_template_requires_complete_writing_review() -> None:
-    """Require the pull-request checklist to cover scope, literals, and attribution."""
+def test_pull_request_template_covers_writing_review_considerations() -> None:
+    """Keep scope, literals, and attribution visible as review considerations."""
     template = _read(".github/PULL_REQUEST_TEMPLATE.md")
     for phrase in (
         "complete `git ls-files` inventory",
@@ -754,12 +754,12 @@ def test_root_claude_is_exact_pointer_bytes() -> None:
     assert data == ROOT_CLAUDE_POINTER
 
 
-def test_legacy_claude_guidance_is_preserved() -> None:
+def test_shared_guidance_entrypoint_is_preserved() -> None:
     agents = _read("AGENTS.md")
 
     assert "This file is the sole authoritative agent contract for Mnemosyne." in agents
     assert "Claude Code" in agents
-    assert "other agents must follow this contract." in agents
+    assert "other agents use it for repository context and task-specific guidance." in agents
 
 
 @pytest.mark.parametrize(

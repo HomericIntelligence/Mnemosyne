@@ -1,10 +1,10 @@
 ---
 name: architecture-ocp-dip-abc-protocol-planning-risks
 license: BSD-3-Clause
-description: "Plan and implement safe Python ABC/Protocol refactors by verifying real hierarchy and test constraints first, then combining abstract inheritance enforcement with structural Protocol coverage. Use when: (1) adding abc.ABC or typing.Protocol to an existing hierarchy, (2) adding an abstract method to a base class with concrete or test-only subclasses, (3) introducing a shared interface across mixed-inheritance classes, (4) protecting lazy package-import boundaries and contract tests during an OCP/DIP refactor."
+description: "Plan Python ABC or Protocol refactors when subclass construction, structural conformance, test doubles, or lazy imports may change."
 category: architecture
 date: 2026-07-17
-version: "2.0.0"
+version: "2.1.0"
 user-invocable: false
 verification: verified-ci
 tags: ["ocp", "dip", "protocol", "abc", "abstractmethod", "runtime-checkable", "contract-test", "planning", "refactoring"]
@@ -72,7 +72,8 @@ Keep a protocol in a private interface module when package exports are lazy or i
 2. Give every test-only subclass a minimal implementation of the new abstract method so its test reaches the behavior it was meant to exercise.
 3. Add Protocol conformance tests for each required class, including standalone classes that cannot be covered by the ABC.
 4. Add required test-function docstrings and run linting before commit when the project enforces them.
-5. Run affected contract and interface tests synchronously, then type-check and run the full affected test directory. Do not commit before checking background-task output.
+5. Prefer affected contract and interface tests first, then expand verification for the change risk
+   and repository requirements. Read background results before claiming they passed.
 
 ### Worked Example — Mixed reviewer hierarchy
 

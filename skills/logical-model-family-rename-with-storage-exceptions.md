@@ -1,10 +1,10 @@
 ---
 name: logical-model-family-rename-with-storage-exceptions
 license: BSD-3-Clause
-description: "Rename logical reference surfaces (model-family names, or org/repo names when dropping a prefix) without breaking physical storage paths or package identity, AND execute the deferred breaking package rename correctly. Use when: (1) replacing old names in manifests, docs, tests, scripts, routes, and repo/URL references, (2) preserving real external paths or package names that still contain the old name, (3) splitting a safe reference-only sweep now from a breaking package/source rename deferred to a tracked issue, (4) adding a guard that blocks old logical names while allowing storage references, (5) a rename PR fails coverage/build because refs were renamed but package DIRECTORIES were not git mv'd, (6) completing a projectX->X package rename (git mv dirs + fix post-branch-merged files), (7) an active whole-tree rename needs post-start main files inside the renamed tree or reports a merge conflict."
+description: "Rename logical repository or model references while preserving real storage and package identities; reconcile directory moves and newer files in a package rename."
 category: tooling
 date: 2026-07-12
-version: "1.3.0"
+version: "1.3.1"
 user-invocable: false
 verification: verified-ci
 tags: [model-family, rename, manifests, h200-slurm, storage-exceptions, ruff, repo-rename, url-sweep, package-rename, deferred-breaking-change, git-mv, whole-tree-rename, rebase, coverage-validator, mojo]
@@ -84,11 +84,11 @@ just validate
 
 6. **Avoid self-matching placeholder tokens during bulk replacement.** If temporarily protecting text before a bulk rewrite, do not use placeholders containing the old or new target names. The replacement pass can mutate the placeholder itself and prevent restoration. Use neutral placeholders, or restore the affected files from `HEAD` and redo the replacement more narrowly.
 
-7. **Verify filenames, content, and CI.** Require `git diff --check` to be clean, tracked filenames to have no old logical names, repo-wide search to show only physical storage exceptions, full local validation to pass, and PR CI to pass before calling the rename done.
+7. **Verify the requested rename.** Check tracked paths and content for unintended old logical names, account for storage exceptions, and run relevant build or compatibility checks. Report CI and local coverage separately.
 
 ### Org/Repo Rename: Split Safe-Now From Deferred-Breaking
 
-When an org renames a repo by dropping a prefix (`HomericIntelligence/ProjectOdyssey` -> `HomericIntelligence/Odyssey`), the same logical-vs-physical discipline applies, but here "physical" means **package/source identity**. Do NOT conflate renaming a repo with renaming its package.
+When an org renames a repo by dropping a prefix (`HomericIntelligence/ProjectOdyssey` -> `HomericIntelligence/Odyssey`), the same logical-vs-physical discipline applies, but here "physical" means **package/source identity**. Treat repo references and package identity as separate scopes; include both only when the task calls for both.
 
 1. **Point your local remote at the canonical URL.** The GitHub rename is usually already live and old URLs redirect, so existing git remotes and `gh` commands keep working through the redirect — but still update to canonical:
 
@@ -111,7 +111,7 @@ When an org renames a repo by dropping a prefix (`HomericIntelligence/ProjectOdy
 3. **DEFERRED-BREAKING — file a tracked issue, own atomic PR: the package/source rename.** Renaming the repo does NOT rename the package. The Mojo package `projectodyssey` (~546 imports), the pip/pixi/pyproject `name = "ProjectOdyssey"` fields, and `version('ProjectOdyssey')` refs in workflows all encode package identity. Rewriting them inline creates a massive half-renamed breaking change. File a `state:needs-plan` issue that scopes the package rename separately (`git mv` + scripted import rewrite + lockstep downstream update).
 
 4. **EXCLUSIONS when running the URL sweep (keeps blast radius safe):**
-   - Exclude `.github/workflows/` — workflow edits are human-review-gated per repo AGENTS.md, and they often carry the *package* name `version('ProjectOdyssey')` (belongs to the deferred package rename).
+   - Inspect `.github/workflows/` separately: the recorded repo policy required human review, and workflow values can encode package identity. Apply current authorization and policy; a URL-only task does not authorize a package rename.
    - Exclude `.mojo` source and `mojo.toml` / `pixi.toml` `name=` fields (package identity → deferred issue).
    - Distinguish URL refs (`github.com/Org/ProjectRepo`) from the project `name` field: sed the URL form + repo-name prose only; NEVER the `name = "..."` package field.
    - **Verify after:** `git diff --name-only | grep '\.mojo$'` must be EMPTY, and `git diff --name-only | grep '\.github/workflows'` must be EMPTY.
@@ -128,12 +128,12 @@ validator looks under the renamed path while the code still lives at the old pat
 `precommit-benchmark` -> `Validate Test Coverage` -> "❌ Found 267 uncovered test file(s)" all
 under `tests/projectodyssey/...`, plus a ruff-format failure.
 
-**A whole-tree rename PR is ATOMIC and is sensitive to later changes inside the renamed tree.**
-Keep its task base stable after task start. If the active rename needs those later files, or the
-host reports a merge conflict, rebase to resolve that concrete condition. Do not rebase merely
-because another PR merged. For a completed conflict-free PR, let CI/CD integrate it. Verify with
-`git grep -l <oldname>` == 0 AND a build AND the coverage/manifest validator — not just
-"references look renamed."
+**Keep a whole-tree rename coherent as its base changes.** Prefer a stable task base.
+Reconcile later files when the active rename needs them or a reported merge conflict
+requires it. For a completed conflict-free PR, prefer CI/CD integration unless the user
+requests a rebase. A quiet merge window can reduce conflicts, but an empty queue is not
+an independent prerequisite. Use the applicable build and coverage/manifest checks, and
+inspect remaining old-name references against intentional storage exceptions.
 
 #### Quick Reference
 

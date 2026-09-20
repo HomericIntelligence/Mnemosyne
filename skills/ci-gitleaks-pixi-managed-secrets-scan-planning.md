@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Plan a safe replacement of ad hoc Gitleaks release-tarball downloads in required GitHub Actions workflows with pixi-managed lint-environment tooling. Use when: (1) a required secrets-scan job downloads gitleaks directly from GitHub Releases, (2) moving scanner trust to pixi.lock / conda-forge, (3) reviewing whether pixi setup changes preserve gitleaks detect behavior."
 category: ci-cd
 date: 2026-07-04
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags: [github-actions, gitleaks, secrets-scan, pixi, pixi-lock, conda-forge, required-workflow, supply-chain, planning, projecthephaestus]
@@ -62,7 +62,7 @@ git diff -- pixi.toml pixi.lock .github/workflows/_required.yml tests/unit/ci
 
 2. **Keep scanner policy out of scope unless the issue asks for it.** `.gitleaks.toml` conditionals and allowlists are scanner behavior, not installation mechanics. A tarball-to-pixi change should leave that file unchanged unless a runtime test proves the package changes config interpretation.
 
-3. **Verify conda package availability before committing to the design.** The critical assumption is that the configured pixi channels can solve `gitleaks>=8.30.0,<9` for every platform already present in the repository lockfile. If they cannot, either pick a verified available version with reviewer approval or keep the release-download path.
+3. **Verify conda package availability before committing to the design.** The critical assumption is that the configured pixi channels can solve `gitleaks>=8.30.0,<9` for every platform already present in the repository lockfile. If they cannot, either choose an available version within the authorized compatibility range or keep the release-download path. Ask only if changing that range needs a user decision.
 
 4. **Regenerate and inspect `pixi.lock` deliberately.** The lockfile should gain the supported platform artifacts and hashes for Gitleaks without broad unrelated resolver churn. Review `git diff -- pixi.lock` for unexpected platform removals, lock-format changes, or dependency movement unrelated to the scanner.
 

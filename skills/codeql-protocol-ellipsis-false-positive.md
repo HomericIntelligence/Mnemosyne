@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "CodeQL bot incorrectly flags Protocol `...` (Ellipsis) method bodies as 'Statement has no effect' — a false positive per PEP 544. Teaches correct response workflow: (1) identify Protocol context, (2) do NOT apply bot's suggested fix, (3) resolve false-positive threads via GraphQL mutation. Use when: (1) CodeQL flags Protocol method `...` as dead code, (2) linter suggests replacing Protocol `...` with `raise NotImplementedError`/`pass`, (3) need to resolve false-positive bot threads without code changes, (4) unresolved threads blocking PR merge despite green CI."
 category: ci-cd
 date: 2026-07-12
-version: "1.0.1"
+version: "1.1.0"
 verification: verified-ci
 tags: ["codeql", "protocol", "pep-544", "ellipsis", "false-positive", "bot-automation", "review-threads", "github-graphql", "typing", "structural-typing"]
 ---
@@ -218,7 +218,7 @@ done
 
 - **Classification:** This is a **false positive** — not a bug in the code, but a false alarm in the static analyzer. The code is correct per PEP 544. Do not "fix" it.
 
-- **Branch protection gate:** GitHub's `required_review_thread_resolution` setting requires all review threads to be resolved before merge, regardless of whether they are real findings or false positives. This is by design — humans must explicitly confirm each finding. Unresolved threads block merge even with green CI and armed auto-merge.
+- **Branch protection gate:** GitHub's `required_review_thread_resolution` setting requires all review threads to be resolved before merge, regardless of whether they are real findings or false positives. This is a repository setting; resolving a thread does not inherently require another human approval when the task already authorizes that resolution. Unresolved threads block merge even with green CI and armed auto-merge.
 
 ### GraphQL Mutations
 

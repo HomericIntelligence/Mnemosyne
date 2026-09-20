@@ -1,10 +1,10 @@
 ---
 name: template-migration
 license: BSD-3-Clause
-description: 'Skill: template-migration. Use when working with template migration.'
+description: "Migrate templates while preserving rendered command syntax, placeholder types, caller parameters, and test coverage."
 category: tooling
 date: 2026-01-01
-version: 1.0.0
+version: "1.0.1"
 user-invocable: false
 ---
 # Template Migration Pattern: F-Strings to Template Files

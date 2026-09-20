@@ -1,10 +1,10 @@
 ---
 name: testing-deterministic-clock-vs-thread-sleep-classification
 license: BSD-3-Clause
-description: "Eliminate scheduler-sensitive timing assertions from tests by classifying what a wait proves. Mock the exact production clock for timer boundaries, use synchronization primitives for thread ordering, and patch sleep to raise when a branch must never wait. Use when: (1) tests measure elapsed time to prove a fast or disabled path, (2) time.sleep appears near timeout logic, (3) threads rely on scheduler delays, (4) a token bucket or backoff path should return without sleeping."
+description: "Replace scheduler-sensitive timing assertions with the production clock, synchronization, or no-wait assertions according to what the test proves."
 category: testing
 date: 2026-08-05
-version: "2.1.0"
+version: "2.1.1"
 history: testing-deterministic-clock-vs-thread-sleep-classification.history
 user-invocable: false
 verification: verified-local

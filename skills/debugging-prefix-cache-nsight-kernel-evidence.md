@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Capture and interpret Nsight and active-row evidence for vLLM, AltLLM, or SGLang prefix-cache nondeterminism. Use when: (1) cache hits change output despite deterministic settings, (2) warm prefix-cache paths may select different GEMM tiling, (3) bit-exact cache replay still leaves garbled text, (4) sampling or token selection may be the real corruption source."
 category: debugging
 date: 2026-07-09
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-local
 history: debugging-prefix-cache-nsight-kernel-evidence.history
@@ -96,7 +96,7 @@ python docs/runbooks/<incident>/extract_nsys_kernel_names.py \
 10. **Treat bit-exact cache replay as a narrowing result, not a fix.** If the same garbled output class survives after cache-shape replay is bit-exact, run direct engine/HF sampling comparisons and pivot toward sampling or token selection. Do not keep forcing the prefix-cache hypothesis after the evidence moves.
 11. **Avoid over-broad deterministic-kernel fixes.** Batch-invariant or deterministic kernels are good replay controls, but they may be slower and broader than the cache-shape bug. Prefer an engine-owned, shape-stable fast path when the evidence points to a local cache-hit tiling transition.
 12. **Document limitations.** Endpoint traces can show that the warm path entered a smaller-tile regime. They do not automatically prove which layer produced a bad token, which cuBLASLt algorithm ID was selected, or that a named kernel caused corruption. A bit-exact cache replay also does not prove sampling is correct. State those limits explicitly.
-13. **Verify helper code and docs through CI.** Add tests for profiler print mode, invalid profiler rejection, nonnumeric controls, markdown escaping in extractors, shell syntax/operator contract coverage, cache-shape segmentation, and sampling/token-selection pivots. Run focused tests, full validation, pre-push hooks, and GitHub checks.
+13. **Verify helper code and docs through CI.** Add tests for profiler print mode, invalid profiler rejection, nonnumeric controls, markdown escaping in extractors, shell syntax/operator contract coverage, cache-shape segmentation, and sampling/token-selection pivots. Select focused tests and broader checks according to the changed helpers and applicable repository policy.
 
 ## Failed Attempts
 

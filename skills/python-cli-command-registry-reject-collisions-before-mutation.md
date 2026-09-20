@@ -1,10 +1,10 @@
 ---
 name: python-cli-command-registry-reject-collisions-before-mutation
 license: BSD-3-Clause
-description: "Make decorator-based CLI command registration reject primary-name and alias collisions atomically. Use when: (1) a registry maps both names and aliases into one namespace, (2) registration can overwrite an existing command, (3) duplicate aliases can partially mutate state before failure, (4) tests must cover every collision direction and unchanged-state guarantees."
+description: "Reject CLI command-name and alias collisions before registry mutation. Test collision combinations and unchanged state after refusal."
 category: architecture
 date: 2026-08-06
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 verification: unverified
 tags: [python, cli, command-registry, aliases, collisions, atomicity, decorators]

@@ -6,7 +6,7 @@ description: 'Fix slash commands not appearing in Claude Code autocomplete by mo
   unregistered plugin directory and are not discoverable.'
 category: tooling
 date: 2026-03-15
-version: 1.0.0
+version: "1.1.0"
 user-invocable: false
 ---
 # Claude Code Slash Command Discovery
@@ -57,17 +57,20 @@ cp .claude/plugins/<plugin-name>/commands/*.md .claude/commands/
 cp .claude/commands/*.md ~/.claude/commands/
 ```
 
-### 4. Remove the dead plugin directory
+### 4. Consider obsolete-directory cleanup
 
 ```bash
-# Project-level (safe — within cwd)
+# Project-level (after checking contents and cleanup authorization)
 rm -rf .claude/plugins/<plugin-name>/
 
-# User-level (outside cwd — run manually or with explicit permission)
+# User-level (only within authorized cleanup scope and host permissions)
 rm -rf ~/.claude/plugins/<plugin-name>/
 ```
 
-> **Note**: Safety hooks may block `rm -rf` on paths outside the working directory. Run the `~/.claude/plugins/` removal manually if blocked.
+> Cleanup is optional for discovery. Preserve files that may still be used. Host
+> filesystem permissions and safety hooks protect deletion; if they deny removal,
+> continue registration and verification without bypassing the restriction.
+> Reuse existing cleanup authorization; ask only if destructive scope is missing.
 
 ### 5. Commit the migration
 

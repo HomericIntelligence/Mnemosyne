@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Safely parameterise GitHub GraphQL calls without query injection or gh CLI file expansion. Use when: (1) binding dynamic strings or integers with gh api graphql, (2) handling agent-generated bodies or other strings that may begin with @, (3) centralising GraphQL argv construction, (4) testing the exact -f versus -F transport contract."
 category: tooling
 date: 2026-08-07
-version: "2.0.0"
+version: "2.1.0"
 user-invocable: false
 verification: verified-local
 history: automation-graphql-parameterisation-prevent-injection.history
@@ -109,9 +109,9 @@ gh api graphql \
    assert argv[argv.index("number=7") - 1] == "-F"
    ```
 
-7. **Run the focused regression, the owning adapter suite, lint, type checks, and
-   repository-wide guards.** A centralized transport change can affect every caller,
-   and line-count or architecture budgets may sit outside the focused module.
+7. **Select checks for the shared transport.** Start with the focused regression and owning
+   adapter suite; broader caller, lint, type, and architecture checks can expose effects outside
+   the changed module.
 
 ## Failed Attempts
 

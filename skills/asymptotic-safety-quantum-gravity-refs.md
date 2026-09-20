@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Key papers, formulas, and physical facts for asymptotic safety quantum gravity and spectral dimension flow in sci-fi mechanism design. Use when: (1) designing a fictional device based on Planck-scale RG-flow physics, (2) citing real quantum gravity results about dimensional reduction to d_s=2, (3) grounding a sci-fi simulation engine in asymptotic-safety or CDT results."
 category: architecture
 date: 2026-06-01
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags: [physics, quantum-gravity, asymptotic-safety, spectral-dimension, CDT, Planck-scale, renormalization-group, scifi, worldbuilding, mechanism-design]
@@ -31,7 +31,7 @@ tags: [physics, quantum-gravity, asymptotic-safety, spectral-dimension, CDT, Pla
 
 ## Verified Workflow
 
-> **Warning (Proposed Workflow):** This workflow has not been validated end-to-end. Treat as a hypothesis until CI confirms. Verification level: `unverified` — reference collection only.
+> **Warning (Proposed Workflow):** This workflow has not been validated end-to-end. Check scientific claims against the cited primary sources. Verification level: `unverified` — reference collection only; CI cannot establish scientific accuracy.
 
 ### Quick Reference
 

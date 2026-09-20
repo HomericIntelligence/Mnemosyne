@@ -1,15 +1,10 @@
 ---
 name: tooling-dry-run-smoke-full-profile-dispatcher
 license: BSD-3-Clause
-description: 'Ship long-running training/inference/experiment scripts behind a single-file
-  bash dispatcher exposing three named execution profiles (dry-run, smoke, full).
-  Use when: (1) a script has a wall-clock budget ranging from seconds (verify pipeline)
-  to hours (real experiment), (2) users need an unambiguous CI-friendly verification
-  command separate from the real run, (3) per-user improvised flag bundles are drifting
-  apart and need to be co-located.'
+description: "Provide dry-run, smoke, and full budgets around long-running experiment commands. Preserve shared settings, signal handling, and argument pass-through."
 category: tooling
 date: 2026-05-25
-version: 1.0.0
+version: "1.1.0"
 user-invocable: false
 ---
 # Dry-Run / Smoke / Full Profile Dispatcher
@@ -46,13 +41,13 @@ user-invocable: false
 
 | Profile | Wall clock | Purpose | When run |
 | ------- | ---------- | ------- | -------- |
-| `dry-run` | Seconds (target ~30s) | Compile + load + 1 batch + write 1 checkpoint + exit 0 | After ANY code change, before commit. CI-friendly. |
+| `dry-run` | Seconds (target ~30s) | Compile + load + 1 batch + write 1 checkpoint + exit 0 | After changes that affect this pipeline; suitable for CI. |
 | `smoke` | 5–15 min | Reach an early milestone (memorization complete, first eval, first val accuracy bump) | After non-trivial code changes. Verifies training *dynamics* start correctly. |
 | `full` | Hours+ | The real experiment | When you actually want a result |
 
-**Naming is load-bearing.** Use exactly `dry-run`, `smoke`, `full` — these are the
-ecosystem-standard names. Do not invent synonyms (`quick`, `fast`, `real`, `prod`); users
-must be able to switch between projects without re-learning the vocabulary.
+Prefer established profile names such as `dry-run`, `smoke`, and `full` for predictable
+usage across projects. Preserve names that scripts already consume; naming style alone
+is not a reason to block the task.
 
 ## Verified Workflow
 
@@ -66,13 +61,14 @@ must be able to switch between projects without re-learning the vocabulary.
    milestone (first eval bump). `full` is whatever the experiment actually needs.
 4. **Write the dispatcher** using the template below.
 5. **Test all four edge cases** from the "Bash Gotchas" section below.
-6. **Wire into CI.** Add a `./train.sh dry-run` job with a 2-minute timeout.
+6. **Consider CI coverage.** When requested or useful for regression risk, add a
+   `./train.sh dry-run` job with a timeout suited to its measured budget.
 
 ## Results & Parameters
 
 | Parameter | Value | Why |
 | --------- | ----- | --- |
-| Profile names | `dry-run`, `smoke`, `full` | Ecosystem standard; do not invent synonyms. |
+| Profile names | `dry-run`, `smoke`, `full` | Familiar names; preserve existing consumer compatibility. |
 | Profile arg position | Positional `$1` | Shorter, naturally forces explicit choice. |
 | Usage-error exit code | `2` | Unix convention; distinguishes from runtime failure (`1`). |
 | Pass-through args | `"$@"` after `shift` | Lets users override single settings. |

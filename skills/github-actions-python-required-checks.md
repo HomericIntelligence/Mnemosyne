@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Create or repair required GitHub Actions checks and tag releases for a Python repository using Hephaestus as the control-pattern reference. Use when: (1) a Python repo needs a required merge gate, (2) CI must be brought up to fail-closed policy, (3) a tag-only release workflow is needed"
 category: ci-cd
 date: 2026-07-16
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 tags: [github-actions, python, ci, required-checks, release]
 ---
@@ -41,7 +41,8 @@ Read `AGENTS.md`, manifests, lockfiles, task runners, existing workflows, suppor
 - Artifact and publication channel.
 - Required PR policy and branch-protection contexts.
 
-Ask when these sources conflict; never substitute Hephaestus package paths.
+Resolve routine differences from current source and repository policy. Ask when a material
+conflict remains; use the target package paths rather than copying Hephaestus paths.
 
 ### Required workflow design
 

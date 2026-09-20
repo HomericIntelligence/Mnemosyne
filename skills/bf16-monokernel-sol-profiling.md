@@ -1,9 +1,9 @@
 ---
 name: bf16-monokernel-sol-profiling
-description: "Build and optimize a reproducible BF16 CUDA monokernel benchmark. Use when workload normalization may duplicate cases, semantic outputs and intermediate-state parity need separate acceptance policies, a cooperative launch needs phase attribution without external counters, GPU profiling needs provenance and isolation, tiny grids underfill the GPU, multi-position acceptance needs a minimax rule, compiler/resource changes disagree with composed-kernel correctness and latency, or memory-layout changes affect alignment and workspace fit."
+description: "Profile BF16 CUDA monokernels when workload normalization, output parity, GPU isolation, layout, or launch behavior affects correctness and latency."
 category: optimization
 date: 2026-08-09
-version: "2.2.0"
+version: "2.2.1"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-local

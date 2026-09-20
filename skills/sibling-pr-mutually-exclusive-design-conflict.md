@@ -1,10 +1,10 @@
 ---
 name: sibling-pr-mutually-exclusive-design-conflict
 license: BSD-3-Clause
-description: "Use when: (1) two OPEN pull requests each individually pass CI and diff cleanly against `main`, but implement mutually incompatible designs for the same subsystem (e.g. one PR removes an aggregator job another PR's tests assert must exist); (2) reviewing/landing a PR that touches a shared architectural surface (a CI aggregator/gate job, a shared config schema, a ruleset/branch-protection contract) and a sibling PR touching the same surface is also open; (3) deciding whether standard two-dot (`origin/main..branch`) review is sufficient before merging when a sibling PR on the same subsystem exists — it is NOT, because that view only proves compatibility with `main`, never with the sibling; (4) planning to merge one of two competing-design PRs and needing to prove the OTHER one doesn't silently rot into a design the merged one just invalidated; (5) a merge-queue, aggregator-job, or gate-workflow redesign is in flight via multiple parallel PRs from different authors or sessions."
+description: "Review compatibility between open PRs that change the same subsystem; compare their combined behavior when separate green CI results hide a design conflict."
 category: ci-cd
 date: 2026-07-19
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags:
@@ -88,10 +88,10 @@ git branch -D sim-merge
    file) while still being a real design conflict.
 4. **Abort the simulation cleanly afterward** (`git merge --abort`, delete the scratch branch) — it
    exists only to surface the conflict, not to become a real merge commit.
-5. **Once a genuine design conflict is confirmed, it needs a human decision, not an automated
-   resolution.** Which design wins is an architectural choice (which aggregator pattern, which
-   ruleset semantics), not something a reviewer should silently pick a side on. Present both designs
-   and their tradeoffs, then act on the explicit choice — in the verified case, the user chose to
+5. **Resolve a design conflict from the requested outcome and existing decisions.** If those
+   sources select a design, continue within that authorization. Ask for a choice when material
+   architectural intent remains unclear; explain the alternatives and continue independent work.
+   In the verified case, the user chose to
    keep the already-landed aggregator pattern (#724) and close the conflicting PR (#725) as
    superseded, rather than trying to reconcile the two designs into a hybrid.
 6. **After resolving, re-verify the KEPT PR still passes cleanly** — closing the conflicting sibling

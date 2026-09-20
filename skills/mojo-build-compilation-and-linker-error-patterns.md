@@ -1,10 +1,10 @@
 ---
 name: mojo-build-compilation-and-linker-error-patterns
 license: BSD-3-Clause
-description: "Use when: (1) adding --Werror to a Mojo build system and auditing all files for hidden warnings, (2) CI fails with Mojo import errors after module renames, mojo-format pre-commit hook line-length failures, or stable vs nightly version mismatch, (3) mojo build fails with 'undefined reference to fmaxf/sincos/libm' symbols from AOT compilation of example or benchmark files, (4) enabling ASAN/TSAN for Mojo CI and diagnosing tcmalloc/sanitizer incompatibility or AVX-512 codegen asymmetry, (5) resolving git rebase conflicts in Mojo test files by converting invalid Python syntax to valid Mojo Bool flag patterns, (6) fixing out-of-bounds List access from DynamicVector→List migration where index assignment was not converted to append."
+description: "Diagnose Mojo build warnings, imports, linker errors, sanitizer crashes, and migration-related bounds failures using the observed toolchain signature."
 category: ci-cd
 date: 2026-06-07
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 history: mojo-build-compilation-and-linker-error-patterns.history
 tags: [mojo, build, compilation, linker, werror, mojo-format, sanitizer, asan, tsan, avx512, libm, rebase, dynamicvector, ci-cd]
@@ -60,8 +60,8 @@ grep -n "<<<<<<<\|=======\|>>>>>>>" tests/shared/test_serialization.mojo
 
 #### 1. `--Werror` Compilation Audit (parallel sweep + triage)
 
-For large codebases (400+ files), split into ~6 parallel Haiku agents (~80 files each, divided by
-directory). Each agent greps for `^fn main` first (SKIP library files), then runs the `--Werror`
+For a large codebase, consider disjoint directory batches with concurrency suited to
+the available resources. Each worker identifies executable entry points before the `--Werror`
 compile and emits a `FILE/STATUS/MESSAGE` block. Use `mojo --Werror` for test files (they use
 `raises`/assertions), `mojo build --Werror` only for examples/scripts with `main()`. Use 90s
 timeouts for model e2e tests, 60s for unit/shared.
@@ -149,7 +149,8 @@ tsan)    FLAGS="-g1 --sanitize thread  $STRICT" ; JOBS="-j1" ;;
 TSAN binaries abort at startup (`FATAL: ThreadSanitizer: unexpected memory mapping` from tcmalloc
 shadow-memory overlap) — a Modular-side fix is required; `-j1` fixes the compile crash, not the
 runtime abort. If user code is ASAN-clean but a `libKGEN` crash persists, the bug is in the Mojo
-runtime — escalate upstream, stop editing user code.
+runtime — record upstream evidence, avoid unrelated user-code changes, and continue
+independent fixes or a supported workaround.
 
 **AVX-512 driver-vs-sanitizer asymmetry**: the modular/modular#6413 driver fix (xgetbv-gated
 AVX-512 emission, Mojo 1.0.0b2.dev2026052306+) does NOT propagate through sanitizer codegen. Strip
@@ -215,7 +216,7 @@ shape.append(size)
 
 Find candidates with `grep -B2 -A2 'List\[Int\]()' **/*.mojo | grep -A2 '\[0\] ='`. Note: the correct
 migration of `DynamicVector[Int](N)` is `List[Int]()` + N `append()` calls, NOT `List[Int](N)`
-(different semantics in Mojo). Always investigate "execution crashed" as a source bug first.
+(different semantics in Mojo). Inspect source ownership and bounds alongside the runtime signature before selecting a cause.
 
 ## Failed Attempts
 

@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Planning-risk checklist for JSON automation state, including fail-closed persisted agent-session resume. Use when: (1) extracting repeated prefix-<issue>.json load/save mechanics, (2) mixing raw session probes with Pydantic validation, (3) requiring explicit supported provider metadata before resuming a durable session, or (4) preserving monkeypatch seams and corrupt-file logging contracts."
 category: architecture
 date: 2026-08-06
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: unverified
 history: state-file-persistence-refactor-planning-risks.history
@@ -137,7 +137,7 @@ uv run mypy hephaestus/agents/runtime.py hephaestus/automation
 7. **Separate corrupt-file handling from caller log semantics.**
    A central `load_state_file()` may catch missing, malformed, unreadable, validation-failing,
    and non-dict raw payloads, but each caller's prior log level, message shape, and retry behavior
-   must be preserved or deliberately changed with reviewer signoff.
+   should remain stable unless the requested behavior change includes them. Ask for input only when the intended observable behavior remains materially ambiguous.
 
 8. **Treat `save_state_file()` as a layering decision, not just a helper.**
    If the helper accepts only Pydantic `BaseModel` instances and writes via `write_secure()` from
@@ -147,7 +147,7 @@ uv run mypy hephaestus/agents/runtime.py hephaestus/automation
 9. **Keep test monkeypatch seams as wrappers until proven unnecessary.**
    Methods such as `_load_impl_session_id`, `_load_review_state`, `_get_worktree_path`, and
    `_save_state` may look redundant after helper extraction, but tests and downstream automation
-   may patch them. Make them delegate first; remove them only in a separate compatibility review.
+   may patch them. Make them delegate first; consider removal when caller and compatibility evidence shows they are unnecessary; a separate review can help for broad API changes.
 
 10. **Run type checks before trusting overloads and literals.**
    Helper overloads involving `BaseModel` and raw `dict[str, object]` returns are type-sensitive.

@@ -3,7 +3,7 @@ name: pr-rebase-conflict-resolution-patterns
 description: "Use when a pull request reports DIRTY or CONFLICTING, an active task needs a main artifact to continue, a permitted stacked or same-file rebase needs serialization, conflict status is ambiguous (AA/UU/modify-delete), or a textually clean rebase may hide semantic, test, lint, policy, or inventory drift."
 category: ci-cd
 date: 2026-07-12
-version: "2.1.0"
+version: "2.1.1"
 license: BSD-3-Clause
 user-invocable: false
 history: pr-rebase-conflict-resolution-patterns.history
@@ -56,9 +56,9 @@ gh pr view <N> --json headRefName,baseRefName,mergeStateStatus,mergeable,statusC
 gh run list --branch main --limit 10
 ```
 
-Do not rebase a queue onto a red trunk. If unrelated PRs all fail the same test,
-run that test on an isolated checkout of bare trunk. A failure there is a broken-
-trunk problem: fix trunk once, then restart the queue.
+If unrelated PRs fail the same check, investigate whether the failure comes from trunk.
+Prefer one shared repair when the cause is confirmed and the task authorizes it. Continue
+independent work; a red trunk alone is not a reason to stop the whole queue or rebase every PR.
 
 Record the original remote head. Create a fresh isolated worktree from that exact
 head; preserve dirty local work before touching a reused checkout.
@@ -217,7 +217,8 @@ Fix trunk once rather than patching every trailing branch.
 
 ### Clean merge, new semantic failure
 
-Run whole-tree lint and tests. Common causes are stale mocks, a byte-identical test
+Start with the affected behavior and expand checks when the integration risk warrants it.
+Common causes are stale mocks, a byte-identical test
 whose shared contract changed elsewhere, two clean edits combining past a
 complexity limit, or deleted files left in an inventory table.
 

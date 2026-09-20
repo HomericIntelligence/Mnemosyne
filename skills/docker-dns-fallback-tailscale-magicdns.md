@@ -1,10 +1,10 @@
 ---
 name: docker-dns-fallback-tailscale-magicdns
 license: BSD-3-Clause
-description: "Make Docker container DNS resilient when the host resolver is Tailscale MagicDNS (a single point of failure for every container). Use when: (1) bursts of 'Could not resolve host' / 'Connection could not be established' errors hit MULTIPLE containers at once, (2) the host /etc/resolv.conf has only 'nameserver 100.100.100.100' with systemd-resolved inactive and no fallback, (3) DNS works now but app logs show a historical concentrated outage window that self-recovered."
+description: "Investigate concurrent Docker DNS failures when the host relies on Tailscale MagicDNS without fallback; account for container restart policies."
 category: debugging
 date: 2026-06-25
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 verification: verified-local
 tags: []

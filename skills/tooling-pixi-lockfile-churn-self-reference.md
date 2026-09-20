@@ -1,10 +1,10 @@
 ---
 name: tooling-pixi-lockfile-churn-self-reference
 license: BSD-3-Clause
-description: "Stop perpetual `pixi.lock` regeneration in Python projects that combine a self-referential `[pypi-dependencies]` editable path entry with `hatch-vcs` dynamic versioning. Use when: (1) every `pixi install` / `pixi run` rewrites `pixi.lock` even on a clean tree with no manifest edits, (2) pre-commit hooks fail because `pixi.lock` is perpetually dirty, (3) `pixi.toml` declares the package itself under `[pypi-dependencies]` with `path = \".\"` and `editable = true`, and (4) `pyproject.toml` uses `dynamic = [\"version\"]` with `[tool.hatch.version] source = \"vcs\"` (hatch-vcs). The combination makes pixi treat the source-of-truth version as changed on every invocation."
+description: "Diagnose repeated Pixi lock changes caused by editable self-dependencies and VCS versions; compare localized install changes with compatible lock-format migration."
 category: tooling
 date: 2026-05-28
-version: "1.1.0"
+version: "1.1.1"
 user-invocable: false
 verification: verified-ci
 history: tooling-pixi-lockfile-churn-self-reference.history

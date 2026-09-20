@@ -1,10 +1,10 @@
 ---
 name: planning-generated-doc-from-source-headers
 license: BSD-3-Clause
-description: "When planning a task that generates a doc/index/matrix by parsing a convention out of many source files (e.g. a README from per-file headers), the load-bearing assumption is the textual convention itself — and it is almost always UNENFORCED. Citing this skill is NOT applying it: the deliverable of the 'run the parser over ALL inputs' rule is pasted command OUTPUT (e.g. 37/37 conform, count=65, T4=7), not the sentence 'verified across all files' — a reviewer can falsify a prose claim against the real repo in minutes. Use when: (1) planning a task that generates a doc/index/matrix by parsing a convention out of many source files, (2) a plan quotes counts derived from grep/sed spot-checks as if they were facts, (3) adding a `--check`/drift gate over a committed generated artifact, (4) a plan adds a `python3`/tool CI step assuming the interpreter is present on the runner. Headline lessons: (a) run the REAL parser over ALL inputs and PASTE the output asserting 100% parse coverage before trusting any count; (b) `grep -rl <phrase>` over-matches (catches runtime strings, not just the header line) — extract from the exact positional line; (c) labeled ID ranges are non-contiguous — enumerate tokens, never assume density; (d) a committed generated artifact + a `--check` drift gate must be sequenced so the committed file is produced by the exact generator version CI runs, compared structurally (not byte-exact)."
+description: "Generate documentation from source headers with explicit parsing coverage, enumerated counts, and reproducible artifact drift checks."
 category: documentation
 date: 2026-06-20
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-local
 history: planning-generated-doc-from-source-headers.history
@@ -58,7 +58,7 @@ Use this skill when:
 
 ### Quick Reference
 
-The headline checks before trusting a header-driven generator plan — each must produce PASTED OUTPUT in the plan, not a prose claim:
+Useful checks for a header-driven generator plan; retain concise results or artifact links that support coverage claims:
 
 ```bash
 # 1. PARSE-COVERAGE PROOF — run the REAL parser over ALL inputs, PASTE the output.
@@ -98,10 +98,10 @@ grep -E 'python' pixi.toml || echo "declare python = '>=3.11' for the local just
 ### Detailed Steps (planning checklist)
 
 1. **Treat the convention as the load-bearing assumption.** Write the plan as if the convention will be violated, because it is unenforced. Identify every textual feature the parser relies on (line count, line *position*, delimiter character, ordering, ID format).
-2. **Run the real parser over ALL inputs and PASTE its output.** Citing this rule is not satisfying it. The plan must contain the actual `--validate` run output (`37/37 conform`, the named offender on failure), the actual `count=65` from enumeration, the actual `T4=7`. A sentence like "verified across all files" is exactly the kind of unfalsified prose claim that earned the prior plan a NOGO.
+2. **Check parser coverage across the intended input set.** Record the actual parsed count and rejected inputs. A concise result or linked artifact is sufficient; avoid claiming complete coverage from a spot check.
 3. **Extract positional flags from their exact line, never a whole-file grep.** A flag defined by its position (line 2 header) must be read with `sed -n '2p' | grep -q`, not `grep -rl <phrase> <dir>/` — the latter conflates documentation with runtime strings and over-counts (8 vs the true 7).
 4. **Enumerate tokens for any count; never assume a labeled range is dense.** Compute counts with `grep -ohE '<idpat>' | sort -u | wc -l` and let the number fall out. Writing "X01–Xnn" in a plan implies a density you have not verified — the real IDs were non-contiguous (true unique count 65, not the 64 the dense-range reading implied).
-5. **Dump ALL N lines of every parsed field** to surface the 1-in-N exception (the no-colon `subject-routing.sh:3`). A spot-check of the first few files is exactly what misses it; this is the concrete payoff of the "run over ALL inputs" rule.
+5. **Inspect exceptions and representative field shapes.** A parser-wide coverage report can locate missing fields without requiring a manual dump of every input.
 6. **Add a `--validate` mode that asserts every file parses** (non-empty title AND non-empty description) and exits non-zero NAMING the offender — and SHOW its output over the real tree in the plan. Position-based parsing (line 2 / line 3) is fragile to any inserted license header or blank line, which shifts every field.
 7. **Cross-check every quoted count against an INDEPENDENT enumeration.** Do not let the verification step grep for the same numbers the plan derived by grep — that is circular and passes vacuously.
 8. **Sequence the committed-artifact + drift-gate explicitly.** Generate the committed file with the exact final generator version in the same PR as the `--check` gate, and compare structurally (or normalize newlines/CRLF/locale) rather than byte-exact — otherwise `--check` red-flags on the first PR.

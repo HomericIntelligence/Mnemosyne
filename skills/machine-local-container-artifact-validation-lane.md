@@ -1,10 +1,10 @@
 ---
 name: machine-local-container-artifact-validation-lane
 license: BSD-3-Clause
-description: "Keep a local validation lane containerized against a machine-local, digest-verified image artifact while hosted CI uses a host lane, fail closed when the artifact is missing, and isolate long-lived runtime inputs with least-privilege mounts. Use when: (1) `just validate` (or equivalent) must run in a reviewed container locally but hosted runners lack that container runtime, (2) a validation wrapper must bootstrap before the normal language/private helpers can be trusted, (3) a build/run tool does NOT fetch or build the runtime image so it must be materialized per machine, (4) a digest check only validates manifest text rather than the actual image bytes, (5) strict review flags stale rootfs reuse, unsafe shell interpolation, broad writable mounts, host-checkout imports, linked-worktree assumptions, or a PR bundling unrelated scope."
+description: "Design a machine-local container validation lane when runtime image provenance, isolated mounts, or hosted-CI differences affect execution."
 category: ci-cd
 date: 2026-07-24
-version: "1.2.0"
+version: "1.2.1"
 verification: verified-ci
 tags: [ci-cd, validation, container, image-artifact, digest, fail-closed, host-vs-local-lane, materialization, runtime-isolation, least-privilege-mounts, linked-worktree, shell-wrapper, strict-review, scope-reduction]
 user-invocable: false
@@ -54,7 +54,10 @@ just --dry-run _validate-host
 
 ### Detailed Steps
 
-1. **Keep the task base stable.** Do not rebase before fixing review findings merely because the target base advanced. Rebase only if a reported merge conflict blocks the work or an active task needs a target-base artifact. If a permitted rebase drops a patch-equivalent commit already on base, that is legitimate scope reduction — then prove the branch is not behind (`git rev-list --left-right --count base...HEAD`). For a completed conflict-free PR, let CI/CD integrate it.
+1. **Inspect base drift.** Prefer a stable task base. Update it when a reported conflict,
+   a required target-base artifact, or an explicit request calls for a rebase. For a completed
+   conflict-free PR, prefer CI/CD integration. If a rebase drops a patch-equivalent commit,
+   compare the resulting change with the requested scope; a behind count alone is not a defect.
 2. **Reduce unrelated scope.** If the PR bundles changes unrelated to the validation wrapper (lifecycle logging, progress docs, unrelated evidence), restore those files to base. Strict reviewers block on bundled scope; a focused diff merges.
 3. **Preserve the CI/local split.** Keep a containerized local lane and a separate host lane for hosted runners that lack the container runtime. Do not "simplify" by collapsing the local lane into the host lane — that silently drops the reviewed-container guarantee. Document why the wrapper bootstraps before the normal language/private helpers, so a future maintainer does not replace it with broader host calls that run before validation.
 4. **Verify image bytes by digest, fail closed.** Require the configured image digest to match `sha256:<64 hex>`; compute the actual image artifact's digest and exit on mismatch **before** any container create/start. A digest check that only validates manifest text is false assurance — validate the bytes that will actually run.

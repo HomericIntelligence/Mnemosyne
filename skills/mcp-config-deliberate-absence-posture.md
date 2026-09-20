@@ -1,10 +1,10 @@
 ---
 name: mcp-config-deliberate-absence-posture
 license: BSD-3-Clause
-description: "How to respond to a repo audit finding of 'no MCP server configuration'. Use when: (1) an audit reports a missing .mcp.json / mcpServers key, (2) deciding whether to add live MCP servers vs an empty placeholder, (3) distinguishing Claude Code plugin marketplaces from MCP servers. Recommends a TRACKED .mcp.json with empty mcpServers:{} — NOT a git-ignored file or a .example twin."
+description: "Assess audit findings about absent MCP configuration; distinguish actual MCP servers from plugins and document deliberate absence when useful."
 category: tooling
 date: 2026-06-12
-version: "2.0.0"
+version: "2.1.0"
 user-invocable: false
 verification: unverified
 history: mcp-config-deliberate-absence-posture.history
@@ -92,16 +92,14 @@ These are the durable, official-doc-verified learnings (code.claude.com/docs/en/
    audit-checklist prose), there is no MCP usage today.
 2. Identify the real integration substrate (plugin marketplaces, NATS, HTTP REST).
    None of these is MCP.
-3. Create a **TRACKED** `.mcp.json` at repo root containing `{"mcpServers": {}}`.
+3. If project-scoped MCP configuration is part of the requested contract, use a tracked `.mcp.json`. An empty map records deliberate absence; otherwise, explain why no configuration is needed instead of adding a placeholder solely for an audit.
 4. Document the posture in a runbook + AGENTS-style doc; explain non-blocking +
    approval-gated startup so future contributors know that adding a server is safe.
 5. Add a structural regression test: `.mcp.json` exists + valid JSON + `mcpServers`
    is a dict; every declared server has a string `command` or `url`. Do NOT assert
    the map is empty (so adding a real server later needs no test edit).
-6. When writing the runbook, keep every fenced code block at the **top document
-   level** with blank lines around it — never nest a fence inside a
-   numbered/bulleted list item (markdownlint MD031 is commonly enabled via
-   `default: true` and is a PR-blocking gate).
+6. Use the repository's Markdown conventions, including suitable blank lines and
+   indentation around fenced blocks.
 
 ## Failed Attempts
 

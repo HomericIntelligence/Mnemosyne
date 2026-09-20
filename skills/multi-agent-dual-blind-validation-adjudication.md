@@ -1,10 +1,10 @@
 ---
 name: multi-agent-dual-blind-validation-adjudication
 license: BSD-3-Clause
-description: "Validate every field/item of a structured dataset with TWO independent, mutually blind agents (one may edit in place, one is strictly read-only) and reconcile them with a deterministic merge plus a third adjudicator for high-stakes disagreements. Use when: (1) per-field validation accuracy matters and a single LLM pass is demonstrably unreliable on a large fraction of items, (2) you need 'fully confirmed' to mean two independent confirmations rather than one agent's say-so, (3) you must distinguish genuinely-unconfirmable fields from confirmable ones instead of asserting either way."
+description: "Compare independent field reviews and adjudicate disagreements when a second opinion improves confidence. Separate source independence from agent agreement."
 category: testing
 date: 2026-06-19
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [multi-agent, validation, dual-blind, adjudication, cross-check, deterministic-merge, provenance]
@@ -33,7 +33,9 @@ Do NOT reach for this when a single pass is good enough, when the dataset is sma
 
 ## Verified Workflow
 
-The core idea: validate EVERY field twice, independently and blindly, then reconcile deterministically and escalate only the few genuine conflicts.
+When independent review is useful and delegation is authorized, compare field-level
+evidence without sharing prior verdicts. Cover the agreed inventory. A smaller or
+sequential review is suitable when it provides proportionate confidence.
 
 ### Step 1: Define two agent roles — one editing, one read-only
 
@@ -71,13 +73,17 @@ After both finish, diff every field. The disagreements fall into two buckets:
 
 The merge is a deterministic script encoding two rules:
 - **Union of field coverage** — keep every field either agent reported.
-- **Stronger-verdict-on-agreement** — when both agents independently arrive at the same value, upgrade to the stronger verdict. Two independent confirmations *is* the corroboration that earns "fully confirmed."
+- **Stronger-verdict-on-agreement** — when both agents independently arrive at the same value, upgrade to the stronger verdict. Check source independence before assigning "fully confirmed"; two agents citing
+  the same source do not create two independent sources.
 
-Do NOT make the merge an agent. Only true divergences become agent work.
+Prefer a deterministic merge for mechanical rules. Use judgment for unresolved
+semantic differences; an unavailable adjudicator need not block independent fields.
 
 ### Step 8: Route only high-stakes conflicts to a third adjudicator agent
 
-For each high-stakes disagreement, dispatch a THIRD adjudicator agent that re-reads the underlying sources itself (it does not trust A or B) and issues the deciding verdict.
+For a consequential unresolved disagreement, consider an independent reviewer or
+inspect the underlying sources directly. Report uncertainty when evidence cannot
+resolve it; continue with unaffected fields.
 
 ### Step 9: Pass the adjudication work-list correctly
 
@@ -94,12 +100,12 @@ TIERS:  fully-confirmed = 2 sources OR 1 source + recompute
 DIFF A vs B per field:
   benign  (~95%, coverage/confidence) → deterministic merge:
         • union of coverage
-        • both-agree-on-value ⇒ upgrade to fully-confirmed
+        • both agree on value + independent supporting evidence ⇒ fully-confirmed
   high-stakes (~5%, value conflict OR crosses confirmed/cannot line)
         → 3rd adjudicator re-reads sources, decides
 OUTPUT: each agent writes {rows:[{field,value,verdict,sources_count}]}  (also = skip-cache)
-MERGE:  deterministic script, NOT an agent
-ARGS:   embed adjudication list as a const in the script, NOT a big args object
+MERGE:  prefer deterministic rules for mechanical reconciliation
+ARGS:   use an explicit work-list transport that the host reliably supports
 ```
 
 ## Failed Attempts
@@ -127,7 +133,7 @@ Parameters:
 - Batch cap: ~12 items per agent batch, batched by natural grouping.
 - Verdict tiers: fully-confirmed (2 sources OR 1 source + recompute) > single-source > cannot-confirm.
 - Disagreement routing: ~95% benign → deterministic merge; ~5% high-stakes → third adjudicator agent.
-- Merge rules: union of field coverage; both-agree-on-value upgrades to fully-confirmed.
+- Merge rules: union of field coverage; agreement supported by independent evidence can upgrade to fully-confirmed.
 - Per-item output: `{rows:[{field, value, verdict, sources_count, ...}]}`, doubling as a resumable skip-cache.
 - Orchestration: adjudication work-list embedded as a `const` in the script, never via a large `args` object.
 

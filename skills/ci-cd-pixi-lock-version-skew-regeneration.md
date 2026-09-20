@@ -1,10 +1,10 @@
 ---
 name: ci-cd-pixi-lock-version-skew-regeneration
 license: BSD-3-Clause
-description: "Regenerate pixi.lock with the exact pixi version CI pins so the lock-file format version does not silently skew. Use when: (1) regenerating pixi.lock in a repo whose CI pins a specific pixi version (e.g. `pixi-version:` in prefix-dev/setup-pixi), (2) a pixi.lock diff is unexpectedly huge or structurally rewritten (hundreds of lines, new top-level `platforms:` block, re-sorted URL lists) after a small manifest change, (3) CI `pixi install --locked` fails or is at risk after a local lock regeneration, (4) `head -1 pixi.lock` shows a different `version:` than the committed lock after running `pixi lock` locally."
+description: "Regenerate pixi.lock with the CI-pinned Pixi version when local regeneration changes the lock format or breaks locked installation."
 category: ci-cd
 date: 2026-07-03
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 verification: verified-local
 tags:

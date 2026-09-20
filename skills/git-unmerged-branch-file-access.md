@@ -1,10 +1,10 @@
 ---
 name: git-unmerged-branch-file-access
 license: BSD-3-Clause
-description: "Access and plan fixes for files that are absent from your checkout — they may live on an unmerged feature branch, OR on origin/main when your checked-out branch simply predates them — and never declare a cited file 'phantom' until you have searched all branches. Also covers git-archaeology for changelog maintenance: attributing lines of a collapsed CHANGELOG/doc entry to the commits that introduced them. Use when: (1) Read/Glob/Grep return not-found for a file an issue references, so you are tempted to call it non-actionable / phantom code, (2) planning a 'follow-up from #NNN' bug whose cited file/symbol is absent from the default branch (it likely came from a parent PR that has not merged), (3) a PR fix must target a feature branch rather than main, (4) an issue cites a raw line number or literal entry text that no longer matches the branch tip (drift — issue text goes stale relative to main), (5) you must attribute lines of a collapsed CHANGELOG/doc entry to the commits that introduced them."
+description: "Locate cited files on current base or unmerged branches when they are absent locally; bind planning evidence to the correct source revision."
 category: architecture
 date: 2026-07-10
-version: "2.1.0"
+version: "2.2.0"
 user-invocable: false
 verification: verified-local
 history: git-unmerged-branch-file-access.history
@@ -49,7 +49,7 @@ tags:
 ## When to Use
 
 - `Read`, `Glob`, or `Grep` returns "not found" for a file you expect to exist, and you are
-  about to conclude the issue is **non-actionable / references phantom code** — STOP and run
+  about to conclude the issue is **non-actionable / references phantom code** — inspect other relevant refs with
   this workflow first.
 - An issue references a **file/line that doesn't exist in your checkout** — the current branch
   may simply PREDATE the file. Check `git ls-tree origin/main` before concluding the issue is

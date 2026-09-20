@@ -8,7 +8,7 @@ description: >-
   test wiring may be stale.
 category: architecture
 date: 2026-07-26
-version: "2.0.0"
+version: "2.1.0"
 user-invocable: false
 verification: unverified
 license: BSD-3-Clause
@@ -241,8 +241,9 @@ moving code.
    autofix.
 5. Run structural guards for line budgets, import acyclicity, coverage allowlists, entry points, and
    privileged call-site count where applicable.
-6. Run the full suite and repository-required checks. Report local, CI, and proposed-only evidence
-   separately.
+6. Expand checks for affected shared contracts and repository requirements. A full suite is
+   useful when the refactor has broad integration risk; report local, CI, and proposed-only
+   evidence separately.
 
 ## Representative Patterns
 

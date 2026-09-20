@@ -1,10 +1,10 @@
 ---
 name: blog-writer
 license: BSD-3-Clause
-description: Write development blog posts in episodic story-arc format with day numbering anchored to project start. Produces self-contained, narrative-driven posts where the root cause arrives near the end, every rejected hypothesis gets its own paragraph, and primary-source quotes are mined from Claude session logs. Use after a milestone, bug hunt, or multi-day investigation worth a narrative retrospective.
+description: "Write an episodic development retrospective after a milestone or investigation when the decisions and failed hypotheses help the reader."
 category: documentation
 date: 2026-05-13
-version: 2.0.0
+version: "2.1.0"
 user-invocable: "false"
 verification: verified-local
 tags: [blog, narrative, documentation, retrospective, story-arc]
@@ -35,7 +35,7 @@ Write episodic, story-arc development blog posts. v2 supersedes the v1.0.0 templ
 - Internal status updates that belong in a GitHub issue comment, not a blog post.
 - Posts that need to lead with the answer (release announcements, security advisories) — use a different format.
 
-## Methodology — Core Rules
+## Methodology — Suggested Structure
 
 ### 1. Episodic Day Numbering
 
@@ -74,9 +74,9 @@ After the H1 title, every post has the same structural opening:
 > is not at the top; you have to earn it.*
 ```
 
-### 3. Story Arc — Root Cause Goes LAST
+### 3. Story Arc — Choose Where the Answer Helps
 
-The cold-open should be **the moment of pivot** (the experiment or capture that broke the case open), not the answer. Then the post rewinds: "to understand why that mattered, you have to go back to April." The technical root cause arrives in chapter ~10 of ~14, near the end. Readers earn it.
+For a narrative retrospective, consider opening with the experiment that changed the investigation and explaining the root cause later. Lead with the answer when that better serves the intended reader.
 
 ### 4. TL;DR is a Journey Preview, Not the Answer
 
@@ -90,11 +90,11 @@ that survived contact with `/proc/cpuinfo` reframed the entire problem.
 This post is the journey, not the answer.
 ```
 
-The TL;DR **must not** contain the technical root cause. Every prior draft that included it killed the rest of the post.
+A journey preview can support suspense. Include the technical result when readers need a quick factual summary.
 
-### 5. Every Rejected Hypothesis Gets a Full Paragraph
+### 5. Explain Decision-Changing Hypotheses
 
-Each dead end is a ~250–300 word chapter:
+Give useful failed hypotheses enough space to explain:
 
 - What we believed at the start of the hypothesis
 - What evidence we gathered
@@ -109,20 +109,20 @@ The post must be readable end-to-end without opening any external link. Verbatim
 
 Sweep test: comment out every link in the rendered post. Can you still follow the story? If not, the link is load-bearing and its content needs to be inlined.
 
-### 7. Mine Claude Session Logs for Primary-Source Quotes
+### 7. Consider Available Primary-Source Quotes
 
-The Claude session jsonl logs at `~/.claude/projects/<encoded-project-path>/*.jsonl` hold the actual verbatim back-and-forth that drove the investigation. Mine them for 2–4 short verbatim quotes per post — one per chapter that pivoted on a specific exchange.
+When session logs are available and authorized for this use, consider short quotes that explain a decision. Review quotes for private information before publication. Claude JSONL logs at `~/.claude/projects/<encoded-project-path>/*.jsonl` are one possible source; missing logs do not prevent a useful post.
 
 ```bash
 # List session logs for the project.
-ls ~/.claude/projects/-home-mvillmow-Projects-ProjectOdyssey/*.jsonl
+ls ~/.claude/projects/-home-user-Projects-ProjectOdyssey/*.jsonl
 
 # Files are 2–7 MB each — DO NOT cat them. Filter first.
-grep -l 'avx512\|AVX-512\|cpuid' ~/.claude/projects/-home-mvillmow-Projects-ProjectOdyssey/*.jsonl
+grep -l 'avx512\|AVX-512\|cpuid' ~/.claude/projects/-home-user-Projects-ProjectOdyssey/*.jsonl
 
 # Extract just the matching user/assistant messages.
 jq -r 'select(.message.content | type == "string") | select(.message.content | test("avx512"; "i")) | .message.content' \
-  ~/.claude/projects/-home-mvillmow-Projects-ProjectOdyssey/<hash>.jsonl | head -100
+  ~/.claude/projects/-home-user-Projects-ProjectOdyssey/<hash>.jsonl | head -100
 ```
 
 Pick quotes that capture a pivot moment ("wait, what does `/proc/cpuinfo` say?") rather than generic banter.
@@ -211,8 +211,8 @@ ls notes/blog/
 wc -w notes/blog/*/README.md | sort -n
 
 # 3. Mine Claude session logs.
-ls ~/.claude/projects/-home-mvillmow-Projects-*/*.jsonl
-grep -l 'KEYWORD' ~/.claude/projects/-home-mvillmow-Projects-*/*.jsonl
+ls ~/.claude/projects/-home-user-Projects-*/*.jsonl
+grep -l 'KEYWORD' ~/.claude/projects/-home-user-Projects-*/*.jsonl
 # Filter with jq, never cat the full file.
 
 # 4. Draft notes/blog/MM-DD-YYYY/README.md following the chapter outline.
@@ -222,10 +222,9 @@ $EDITOR notes/blog/MM-DD-YYYY/README.md
 # 5. Verify markdown and word-count target.
 pixi run npx markdownlint-cli2 notes/blog/MM-DD-YYYY/README.md
 wc -w notes/blog/MM-DD-YYYY/README.md
-# Target: >= longest recent post (Day 187 = 6,814).
-# Floor: >= immediate prior post in series.
+# Choose length for the current story; prior posts are style references.
 
-# 6. Open PR with auto-merge (squash) enabled.
+# 6. When publication and auto-merge are authorized, these commands illustrate them.
 gh pr create --title "blog: Day N — Subtitle" --body "..."
 gh pr merge --auto --squash
 ```
@@ -255,7 +254,7 @@ Posts produced or anchored by this methodology:
 | 04-20-2026 | 2026-04-20 | 165 | 2,223 | The 3.6 GB Virtual Ghost |
 | 05-12-2026 | 2026-05-12 | 187 | 6,814 | The AVX-512 Phantom in the Hypervisor (PR #5402) |
 
-Word-count guidance: target ≥ the immediate prior post; for capstone investigations target ≥ the longest prior (Day 187 at 6,814 is the current ceiling).
+Choose length from the reader’s needs and the evidence. Earlier word counts are examples, not minimums.
 
 ## Verified On
 
@@ -265,7 +264,7 @@ Word-count guidance: target ≥ the immediate prior post; for capstone investiga
 
 Verification level: **verified-local**. Methodology applied end-to-end to one capstone post. Escalate to `verified-ci` once PR #5402 merges cleanly.
 
-## Honesty Gate
+## Verification Evidence
 
 - Workflow executed end-to-end for ProjectOdyssey PR #5402 (Day 187, 6,814 words).
 - Markdownlint passed when invoked explicitly on the file. (`notes/blog/` is in `.markdownlint-cli2.jsonc` ignores per project convention, so CI does not lint it; the file was linted manually and passed.)

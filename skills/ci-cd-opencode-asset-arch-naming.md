@@ -7,7 +7,7 @@ description: 'Documents that opencode (sst/opencode) release assets use x64 (not
   assets in CI, and getting 404 errors for asset downloads.'
 category: ci-cd
 date: 2026-04-24
-version: 1.0.0
+version: "1.1.0"
 user-invocable: false
 ---
 # ci-cd-opencode-asset-arch-naming
@@ -48,7 +48,7 @@ not the Linux tool convention used by most Go/Rust binaries.
 | yq | Go | `yq_linux_amd64` | `yq_linux_arm64` |
 | goose | Rust | `x86_64-unknown-linux-gnu` | `aarch64-unknown-linux-gnu` |
 
-**Rule**: Always verify release asset names with `gh api` before hardcoding any download URL
+**Recommendation**: Check the selected release asset names with `gh api` before constructing a download URL
 in a Dockerfile or CI script.
 
 ## When to Use
@@ -62,7 +62,7 @@ in a Dockerfile or CI script.
 
 ### Step 1: Verify release asset names
 
-Always check the actual asset names before writing the Dockerfile:
+Check the selected release asset names when writing or changing the download URL:
 
 ```bash
 gh api "repos/sst/opencode/releases/tags/v1.4.3" --jq '.assets[].name'

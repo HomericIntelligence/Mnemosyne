@@ -1,10 +1,10 @@
 ---
 name: cpp-logger-init-race
 license: BSD-3-Clause
-description: "A SIGABRT / 'Subprocess aborted' that appears only under -O0 --coverage (or TSan) builds, with a CI log line like `terminate called after throwing an instance of 'spdlog::spdlog_ex'  what(): logger with name '<name>' already exists`, is a check-then-act data race in a lazy logger singleton — NOT a flaky assertion. Use when: (1) a unit test intermittently aborts (SIGABRT) only in coverage/TSan CI builds, (2) CI logs show spdlog_ex / 'already exists' / 'terminate called', (3) a prior PR relaxed an assertion tolerance to 'fix flakiness' but the abort persisted, (4) any lazily-initialized C++ singleton (logger, registry) is created from multiple threads without synchronization."
+description: "Diagnose lazy C++ logger initialization races. Use when coverage or TSan builds abort with spdlog duplicate-name exceptions, especially after assertion changes fail to help."
 category: debugging
 date: 2026-05-29
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-ci
 tags:
@@ -38,7 +38,7 @@ tags:
 - CI logs contain `terminate called after throwing an instance of 'spdlog::spdlog_ex'` and/or `what(): logger with name '<name>' already exists`.
 - A previous PR "fixed flakiness" by **relaxing an assertion tolerance** (e.g., widening `EXPECT_LE`/`EXPECT_NEAR` bounds) but the abort kept happening.
 - Any C++ code that **lazily initializes a singleton** (logger, registry, cache) from multiple threads via an unsynchronized `if (!ptr) ptr = create();` pattern.
-- You are tempted to re-run a "flaky" job — STOP and read this first.
+- A repeated abort suggests that another retry alone will not explain the failure.
 
 ## Verified Workflow
 
@@ -165,7 +165,7 @@ void Logger::shutdown() {
   2. A function-local (`static`) `std::mutex` guarding init/shutdown.
   3. Register the singleton **once at startup**, before any threads spin up, avoiding
      lazy init entirely.
-- Always reproduce thread-safety fixes under the **widest-window build** available
+- Prefer reproducing thread-safety fixes under the **widest-window build** available
   (`-O0 --coverage` or TSan) with `ctest --repeat until-fail:N` before declaring victory.
 
 **Build that reproduces deterministically:** `-O0 --coverage` (coverage instrumentation

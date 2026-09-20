@@ -1,10 +1,10 @@
 ---
 name: planning-follow-up-issue-line-number-drift
 license: BSD-3-Clause
-description: "Use when planning a fix for an externally-filed issue (follow-up, refinement, audit, doc-audit) that cites specific line numbers or per-line claims. Re-verify the issue's cited lines AND each claim against the CURRENT file state before planning — the file may have been partially fixed since filing, so one of two 'broken' lines may already be correct. Grep module-level AND function-level docstrings separately; for command/recipe-reference fixes, source every documented command from the justfile (which may mix multiple live naming conventions) before editing; check git log to confirm which PR last touched the file."
+description: "Resolve stale audit or follow-up citations by current content; distinguish partial fixes and verify documented commands against the live task runner."
 category: documentation
 date: 2026-06-19
-version: "1.1.0"
+version: "1.1.1"
 user-invocable: false
 verification: verified-local
 history: planning-follow-up-issue-line-number-drift.history

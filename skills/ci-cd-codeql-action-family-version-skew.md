@@ -1,10 +1,10 @@
 ---
 name: ci-cd-codeql-action-family-version-skew
 license: BSD-3-Clause
-description: "The github/codeql-action family (init / analyze / upload-sarif) enforces internal version consistency — mixing sub-action versions in one workflow hard-fails the CodeQL job with a configuration error. Dependabot files SEPARATE PRs per sub-action, so merging any one alone breaks scanning; the CodeQL check is often non-required, so branch protection lets the broken merge through and scanning silently stops. Use when: (1) a dependabot PR bumps any github/codeql-action sub-action (init, analyze, upload-sarif), (2) a CodeQL job fails with 'Loaded a configuration file for version X, but running version Y' or 'CodeQL job status was configuration error', (3) you see multiple sibling dependabot PRs each bumping one codeql-action sub-action, (4) you need to verify a codeql-action SHA pin matches its release tag (annotated-tag double-deref)."
+description: "Diagnose CodeQL sub-action version skew or review coordinated init, analyze, and upload-sarif updates."
 category: ci-cd
 date: 2026-07-16
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags:
@@ -78,7 +78,9 @@ gh pr checks <PR> --repo <owner>/<repo>   # name the CodeQL check run explicitly
 2. **Understand why dependabot makes this worse.** Dependabot files a SEPARATE PR per sub-action. Merging any one of them alone introduces skew. Worse, the CodeQL check is often **not** in the required status checks, so branch protection will happily merge the broken bump and scanning silently stops for every language (C++/JS in the observed case).
 3. **Pick one dependabot PR as the carrier** and push a family-alignment commit to its branch that moves every family pin to ONE commit SHA.
 4. **Verify the SHA against the release tag with a double deref.** `gh api repos/github/codeql-action/git/ref/tags/vX.Y.Z` returns an object; if `object.type == "tag"` it is an **annotated tag object**, not the commit — dereference again via `gh api repos/github/codeql-action/git/tags/<sha> --jq '.object.sha'` to get the commit SHA that belongs in `uses:`. (Alternative: the `/tags` list endpoint's `.commit.sha`.)
-5. **Require proof before merge:** the CodeQL job must run **green on the aligned head**, and you must be able to name the specific check run. Do not rely on the overall PR state — the CodeQL check may be non-required and easy to overlook.
+5. **Check the aligned head:** prefer a successful CodeQL run for the updated action family.
+   Report its actual status separately from the overall PR state, since CodeQL may be optional.
+   Merge readiness follows the repository policy and the user's authorization.
 6. **Resolve the sibling PR deterministically.** After alignment, the other dependabot PR's diff is identical/empty. First merge wins; the sibling auto-closes when dependabot rebase-pushes it, or close it manually with a supersession comment referencing the merged PR to avoid a race.
 7. **Do not rely on partial-bump tolerance.** `upload-sarif` tolerated being newer than `init` in at least one observed combination (a lone upload-sarif bump passed) — but this is undocumented behavior; always move the family together.
 

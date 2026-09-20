@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: Systematically identify and close duplicate or resolved GitHub issues
 category: ci-cd
 date: 2026-02-15
-version: 1.0.0
+version: "1.1.0"
 user-invocable: false
 ---
 # Skill: Deduplicate GitHub Issues
@@ -186,12 +186,12 @@ Closing as duplicate of #<kept-issue>. [Brief explanation of why they're duplica
 
 ## Best Practices
 
-1. **Always comment before closing** - Explain the decision for future reference
+1. **Explain closures** - Prefer a concise reason and canonical link when closing within the requested scope
 2. **Link to the kept issue** - Make it easy to find the canonical issue
 3. **Keep older issues** - Maintains issue number continuity and references
 4. **Verify resolution claims** - Search codebase before closing as "completed"
 5. **Document patterns** - If duplicates came from a workflow, note it for fixing
-6. **Be conservative** - When unsure if it's truly a duplicate, leave open or ask
+6. **Resolve uncertainty proportionately** - Inspect differing acceptance criteria; leave ambiguous candidates open and continue confirmed cleanup. Ask when a material scope decision remains.
 
 ## Integration with Other Skills
 

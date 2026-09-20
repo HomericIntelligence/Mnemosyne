@@ -1,10 +1,10 @@
 ---
 name: academic-paper-validation-and-publication
 license: BSD-3-Clause
-description: "Canonical workflow for academic paper validation and publication readiness: data accuracy checks, iterative accuracy review, peer-review prep, LaTeX section-adding patterns, paper-readiness epic management. Use when: (1) preparing a manuscript for submission, (2) running an iterative-accuracy review pass, (3) adding architecture/methodology sections to a LaTeX paper, (4) managing a paper-readiness epic with sub-tasks."
+description: "Review research papers against source data, reconcile claims and figures, and prepare publication artifacts when a manuscript is nearing submission."
 category: documentation
 date: 2026-05-18
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 history: academic-paper-validation-and-publication.history
@@ -88,8 +88,8 @@ data/judges.csv               # Judge evaluations
 data/criteria.csv             # Criteria scores
 ```
 
-**Read data sources in parallel before making any edits** — front-loading verification catches
-all errors upfront instead of incrementally.
+Read the data relevant to each claim before changing it. Independent sources can be
+read in parallel; continue supported corrections while other evidence is pending.
 
 Create a verification table:
 
@@ -134,7 +134,8 @@ grep '\\ref{' paper.tex
 
 ### Phase 3: Implement Fixes Atomically
 
-**Always `Read` immediately before `Edit`** — exact string matching is required.
+Read the current target before an exact-match edit when concurrent changes or stale
+context could invalidate the match.
 
 ```python
 # Read the section first
@@ -184,9 +185,10 @@ are priced at \$0.10/M (10\% of input price). Since 97\% of tokens in our
 experiments are cache reads, the effective per-token cost is significantly lower.} \\
 ```
 
-### Phase 5: 10-Category GO/NO-GO Assessment
+### Phase 5: Submission review aids
 
-Evaluate before final submission:
+Use relevant categories to identify material publication defects. The table is a
+review aid, not a mandatory ten-part gate:
 
 | \# | Category | What to Check |
 | --- | ---------- | --------------- |
@@ -206,7 +208,9 @@ Evaluate before final submission:
 - ⚠️ CONDITIONAL GO — minor non-blocking issues
 - ❌ NO-GO — must fix before publication
 
-**Decision:** Any NO-GO grade → overall NO-GO. All GO → overall GO. Mix → CONDITIONAL GO.
+Use the venue’s actual submission requirements and the scientific effect of a finding
+to decide readiness. Continue corrections and independent preparation when a material
+publication issue remains; cosmetic suggestions need not block the task.
 
 **Citation completeness check:**
 

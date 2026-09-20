@@ -1,10 +1,10 @@
 ---
 name: github-actions-cli-required-env-var-guard
 license: BSD-3-Clause
-description: "Guard pattern for required GitHub Actions env vars in Python CLI main() functions. Use when: (1) a console-script reads a required workflow env var with bare os.environ[\"VAR\"] and crashes with KeyError outside the workflow, (2) adding validation for GITHUB_REPOSITORY or similar vars that are always set in Actions but absent locally, (3) the tool has a sibling env-var guard to mirror."
+description: "Validate required CLI environment variables in GitHub Actions before invoking a command that cannot run without them."
 category: architecture
 date: 2026-06-13
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 verification: verified-local
 tags:

@@ -5,7 +5,7 @@ description: When Babylon.js Havok physics fails in Vite dev server with WASM MI
 user-invocable: false
 category: debugging
 date: 2026-03-03
-version: "1.0.0"
+version: "1.1.0"
 ---
 
 # babylonjs-havok-vite-wasm
@@ -32,7 +32,7 @@ Fix Havok WASM loading failures in Babylon.js projects using Vite dev server, pl
 
 ### Step 1: Add debug logging to catch silent failures
 
-Before anything else, add `console.log` at every stage of your async `_init()` method so you can see exactly where initialization hangs:
+If the failing initialization stage is unclear, add temporary logs around the relevant async `_init()` stages:
 
 ```typescript
 private async _init(): Promise<void> {

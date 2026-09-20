@@ -1,10 +1,10 @@
 ---
 name: planning-bounded-queue-eviction-durability-ordering
 license: BSD-3-Clause
-description: "Planning-discipline meta-pattern: before deciding how to remediate a bounded in-memory collection (deque(maxlen=N), ring buffer, LRU cache) that 'drops'/'evicts' items, READ THE SOURCE to determine whether a DURABLE write precedes the in-memory append. If durable-write-precedes-eviction, the eviction is NOT data loss — it is loss of an inspection/view cache only — so the correct fix is a distinct WARNING + metric (log-and-continue), NOT rejecting the caller with an error (fail-fast / HTTP 503), which would falsely signal failure for an operation that already succeeded durably and may violate the service's documented contract. Ordering of durable-write vs in-memory mutation decides whether 'queue full' is a failure or a benign rollover. Detection subtlety: a deque(maxlen=N) never exceeds N, so a POST-append len() cannot detect eviction — you must capture fullness (len()==maxlen) BEFORE the append. Use when: (1) planning a fix for a 'queue/buffer full', 'backpressure', 'eviction', or 'dropped events' issue against a bounded in-memory structure, (2) choosing between fail-fast (reject/503) and log-and-continue remediation, (3) an issue offers option-a (reject request) vs option-b (warn + metric) and you must pick, (4) adding an eviction counter/metric to a maxlen deque, (5) the plan asserts an HTTP/contract behavior (e.g. '200 OK for accepted events') that the remediation might contradict, (6) the plan relies on unverified test seams (monkeypatching get_settings + cache_clear, prometheus_client private _value.get(), an assumed publish() signature) or drift-prone file:line citations."
+description: "Choose bounded-queue eviction behavior from durable-write ordering. Distinguish inspection-cache rollover from real data loss and use public metric test seams."
 category: architecture
 date: 2026-06-19
-version: "1.1.0"
+version: "1.2.0"
 history: planning-bounded-queue-eviction-durability-ordering.history
 user-invocable: false
 verification: unverified
@@ -46,7 +46,8 @@ tags:
 - You are about to add an eviction counter/metric to a `deque(maxlen=N)`.
 - The plan asserts (or the service documents, e.g. in an ADR) an HTTP/API contract such as "200 OK for accepted/dead-lettered events" that a fail-fast remediation might silently break.
 - The plan leans on test seams or APIs you have NOT executed: monkeypatching a cached `get_settings()` (+ `cache_clear()`), reading a `prometheus_client` Counter via the private `._value.get()`, or an assumed function signature.
-- **The plan's OWN notes/learnings flag a risk (e.g. "this test uses a private API; prefer the public one") — that self-flagged risk MUST be resolved in the plan body, not merely noted.** A reviewed-but-not-fixed gap is graded as a defect (B/NOGO) even when the rest of the plan is A-grade. If you must defer it, say so explicitly with a justification.
+- A plan identifies a risk but leaves the affected decision unclear. Use the evidence
+  to correct the proposal or state the specific unresolved limitation.
 
 ## Proposed Workflow
 
@@ -75,7 +76,10 @@ The load-bearing decision is a single source-level fact. Find it before writing 
    ```
 5. **Avoid alert redundancy AND account for total log volume on the hot path.** If a threshold alert (e.g. fires at 80% of maxlen) ALREADY logs on every call once the queue is full, adding a second "100% full" warning per call is redundant and noisy. Decide whether the new signal is the eviction *event* (preferred: fires only on an actual eviction) vs another fullness *level* (redundant). Prefer signalling the eviction event. Then **enumerate the TOTAL log lines emitted per call at steady-state-full** and state whether the overlap is intentional — in #533, an evicting call now emits THREE WARNING lines (new eviction + existing 80%-threshold alert + existing "no subject mapping" notice); the re-plan documented this as intentional so the implementer isn't surprised by log volume.
 6. **Verify every test seam before trusting it** (see Failed Attempts). Do not assume the injection point, the metric-read API, or the function signature — open the `def` and run the test. For `prometheus_client`, assert via the public `REGISTRY.get_sample_value("metric_name")` (guard `... or 0.0`, use a before/after delta to tolerate the process-global counter singleton across tests), NOT the private `._value.get()`. Confirm the convention already exists in-repo before adopting it.
-7. **Resolve self-flagged risks in the plan body — do not just note them.** Before declaring the plan done, re-read your OWN notes/learnings: any risk you surfaced (e.g. "the test uses a private prometheus API; prefer the public read") MUST be folded into the shipped plan body, or explicitly deferred with justification. A reviewer treats a reviewed-but-not-fixed gap as a defect (B/NOGO) even when the rest of the plan is A-grade.
+7. **Use known risks to improve the plan.** Correct supported defects where feasible;
+   when evidence is unavailable, name the affected decision and how to resolve it.
+   A useful risk note does not require stopping independent implementation or adding
+   a review round merely to meet a grading convention.
 8. **State the load-bearing assumption explicitly.** Because the recommendation flips entirely on step 2's ordering, write in the plan: "Recommendation assumes durable write at <file:line> precedes the in-memory append at <file:line>; if reversed, fail-fast becomes correct." Make the reviewer verify exactly that.
 
 ### Quick Reference
