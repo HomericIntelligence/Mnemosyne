@@ -355,3 +355,11 @@ unchanged. The upstream predecessor is preserved in Git at
 `1528432a1873e93e0c16609dd3c3cfd3c5f0d545:skills/workaround-demolition-wave-strategy.md`.
 Upstream content SHA-256: `24e148d528d27d89d02d3f286a524d01daefbd92fb34edec229c8a9fac5064d6`.
 No new execution verification is claimed.
+
+
+## Review correction (2026-09-20)
+
+Version `1.2.2` aligns copyable examples with the advisory guidance or corrects
+Markdown rendering. The immutable predecessor is
+`ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3:skills/workaround-demolition-wave-strategy.md`.
+No new execution evidence is claimed by this amendment.

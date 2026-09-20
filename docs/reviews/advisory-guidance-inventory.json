@@ -2662,10 +2662,11 @@
       "review_scope": "description and active instruction prose; literal code and raw historical evidence preserved except explicit privacy placeholders; no validation run",
       "baseline_bytes": 17998,
       "old_version": "1.1.0",
-      "new_version": "1.2.0",
-      "result_bytes": 17239,
+      "new_version": "1.2.1",
+      "result_bytes": 17411,
       "archive": "complete snapshot",
-      "result_sha256": "17fcc935d2c30b0f551fae6d0f4f393bef700f6863e283ace9ee8bfec5ffb33d"
+      "result_sha256": "08129bfd2fdcd9f2cbda3a07a683670f160e2edd8682ef22879acb9a8cc61382",
+      "review_correction": "Aligned quick reference with proportionate authorized verification."
     },
     {
       "path": "skills/ci-cd-load-bearing-filename-nitpick-document-dont-rename.history",
@@ -2817,10 +2818,11 @@
       "baseline_bytes": 12486,
       "review_scope": "description and active instruction prose",
       "old_version": "1.0.0",
-      "new_version": "1.1.0",
-      "result_bytes": 12089,
+      "new_version": "1.1.1",
+      "result_bytes": 12119,
       "archive": "complete snapshot",
-      "result_sha256": "4bc49141bd8538b4e3677d019b505a791a1f26b92dd09e8c791c143dfe32d324"
+      "result_sha256": "c1f4e578913057a70f02b731f5e8cb67d11815a74d33f34b121dd0ef2a588ebe",
+      "review_correction": "Aligned active examples or Markdown rendering after source review and hosted lint feedback."
     },
     {
       "path": "skills/ci-coverage-path-remapping.md",
@@ -4519,10 +4521,11 @@
       "privacy_note": "Original contains personal identity, host/network, or private portfolio examples; active copies use equivalent placeholders. Use privacy-redacted history, not a verbatim archive.",
       "baseline_bytes": 8343,
       "old_version": "1.0.0",
-      "new_version": "1.1.0",
-      "result_bytes": 7877,
+      "new_version": "1.1.1",
+      "result_bytes": 7879,
       "archive": "privacy-redacted",
-      "result_sha256": "f1cc4f9113332f7131a3caf39e0160327773d7aba20a6bf2c2b2e51dd6d93b14"
+      "result_sha256": "ffb40fc519521a2c881a9cc0bbe3cd7f8694ce0130c835457eba63ac6c4b913d",
+      "review_correction": "Aligned active examples or Markdown rendering after source review and hosted lint feedback."
     },
     {
       "path": "skills/debugging-prefix-cache-nsight-kernel-evidence.history",
@@ -5226,10 +5229,11 @@
       "baseline_bytes": 20881,
       "review_scope": "description and active instruction prose",
       "old_version": "1.0.0",
-      "new_version": "1.1.0",
-      "result_bytes": 20564,
+      "new_version": "1.1.1",
+      "result_bytes": 20359,
       "archive": "complete snapshot",
-      "result_sha256": "e860e6f93e860325324ff30ec747f834c3f2d9788161a5a9d3c2250ba1e9ce4e"
+      "result_sha256": "09d4bbf04aa01fb43e1f597cdf5297b488338bba955db97bbf7f843b908b1f2b",
+      "review_correction": "Aligned active examples or Markdown rendering after source review and hosted lint feedback."
     },
     {
       "path": "skills/e2e-experiment-runner-bug-patterns.history",
@@ -5613,10 +5617,11 @@
       "review_scope": "description and active instruction prose; literal code and raw historical evidence preserved except explicit privacy placeholders; no validation run",
       "baseline_bytes": 8379,
       "old_version": "1.0.0",
-      "new_version": "1.1.0",
-      "result_bytes": 7853,
+      "new_version": "1.1.1",
+      "result_bytes": 7929,
       "archive": "complete snapshot",
-      "result_sha256": "d245732b8f379c92e29e0c19b8a041c4a84e067ef8723e0d536dafd8a913c584"
+      "result_sha256": "582dda44d1c5ae27ae8b08be8ecd4e10849d30f4787df3a828f4e3f774815165",
+      "review_correction": "Aligned quick reference with proportionate authorized verification."
     },
     {
       "path": "skills/generate-boilerplate.md",
@@ -6321,10 +6326,11 @@
       "review_scope": "description and active instruction prose; literal code and raw historical evidence preserved except explicit privacy placeholders; no validation run",
       "baseline_bytes": 18287,
       "old_version": "1.0.0",
-      "new_version": "1.1.0",
-      "result_bytes": 17673,
+      "new_version": "1.1.1",
+      "result_bytes": 17641,
       "archive": "complete snapshot",
-      "result_sha256": "0c690c65bc2f8a7d2fd8d84438dea5ee68fabb09e3754efdba0e75a0057a4cfa"
+      "result_sha256": "0070184618b1f2202fa0a968388df9f0c6f3ae63a2206dc94a0b34a1e2d546ed",
+      "review_correction": "Aligned active example or heading with existing authorization and task scope."
     },
     {
       "path": "skills/github-graphql-batch-query-optimization.md",
@@ -8536,16 +8542,17 @@
       "baseline_bytes": 23570,
       "review_scope": "description and active instruction prose",
       "old_version": "1.1.0",
-      "new_version": "1.2.1",
-      "result_bytes": 22554,
+      "new_version": "1.2.2",
+      "result_bytes": 22552,
       "archive": "complete snapshot",
-      "result_sha256": "beee97e5dc73b08194dd2373eadb6cef716c7fa05da05580c59500b4e0ada4c8",
+      "result_sha256": "96f40f8a5c7d03b008206945ce2acb1a3bd52185abe8baeb9eba3fae5507d920",
       "rebase_integration": {
         "upstream_commit": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545",
         "upstream_version": "1.2.0",
         "provenance": "immutable Git predecessor and appended history amendment"
       },
-      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545",
+      "review_correction": "Aligned active examples or Markdown rendering after source review and hosted lint feedback."
     },
     {
       "path": "skills/parallel-agent-research-and-swarm-orchestration.history",
@@ -9203,10 +9210,11 @@
       "review_scope": "description and all active prose; literal code and historical raw evidence preserved; active prompt templates reviewed",
       "baseline_bytes": 18876,
       "old_version": "1.1.0",
-      "new_version": "1.2.0",
-      "result_bytes": 17362,
+      "new_version": "1.2.1",
+      "result_bytes": 17313,
       "archive": "complete snapshot",
-      "result_sha256": "d38c18fffb99c4af31ac78ebe84d39ac20b311e843bd0b98a8db3d7fb5736228"
+      "result_sha256": "90c4c8423b26fe7889dc075a1bdc85aee14e38b0f87e3460cb36c3563b5533d5",
+      "review_correction": "Aligned active examples or Markdown rendering after source review and hosted lint feedback."
     },
     {
       "path": "skills/planning-cpp-sibling-submodule-test-mirroring.md",
@@ -11310,10 +11318,11 @@
       "baseline_bytes": 21239,
       "review_scope": "description and active instruction prose",
       "old_version": "1.1.0",
-      "new_version": "1.2.0",
-      "result_bytes": 20736,
+      "new_version": "1.2.1",
+      "result_bytes": 20660,
       "archive": "complete snapshot",
-      "result_sha256": "bd12082a8c02fbc2a5c1461ad15ca609fb2686fc48cd7060608061e3eb017404"
+      "result_sha256": "7df2c961c5ef7b3ce6a05c886cb8aee01a41132efc6b75cf524d3a5b2e69cc13",
+      "review_correction": "Aligned active examples or Markdown rendering after source review and hosted lint feedback."
     },
     {
       "path": "skills/release-version-verification-tag-wheel-exact-match.history",
@@ -11487,10 +11496,11 @@
       "review_scope": "description and all active prose; literal code and historical raw evidence preserved; active prompt templates reviewed",
       "baseline_bytes": 11788,
       "old_version": "1.0.0",
-      "new_version": "1.1.0",
-      "result_bytes": 10952,
+      "new_version": "1.1.1",
+      "result_bytes": 11264,
       "archive": "complete snapshot",
-      "result_sha256": "3a585f510d2ab255851d994549269000deb3bcabe91305d5075096b4ab324996"
+      "result_sha256": "694399725c69877e239705c57be6cbcf362a5b3903213303ecbac512356a650e",
+      "review_correction": "Aligned active example or heading with existing authorization and task scope."
     },
     {
       "path": "skills/resilience-circuit-breaker-error-translation.md",
@@ -11891,10 +11901,11 @@
       "baseline_bytes": 8094,
       "review_scope": "description and active instruction prose",
       "old_version": "1.0.0",
-      "new_version": "1.1.0",
-      "result_bytes": 7687,
+      "new_version": "1.1.1",
+      "result_bytes": 7839,
       "archive": "complete snapshot",
-      "result_sha256": "64627e151843a3e068c2525e6917c678390122c186fdf6ef3551ca073e9ad27f"
+      "result_sha256": "a80c239dac0c9052a1a636bbd9a55f3f99d0da4491d2a7472fbde1ce6e6955a2",
+      "review_correction": "Aligned active examples or Markdown rendering after source review and hosted lint feedback."
     },
     {
       "path": "skills/sgd-momentum-initialization-convergence.history",
@@ -12496,10 +12507,11 @@
       "baseline_bytes": 8680,
       "review_scope": "description and active instruction prose",
       "old_version": "1.0.0",
-      "new_version": "1.1.0",
-      "result_bytes": 8338,
+      "new_version": "1.1.1",
+      "result_bytes": 6637,
       "archive": "complete snapshot",
-      "result_sha256": "653978a2653953f3a74580d236d580fb75ed4c992f46ee5b151e0de865ebc513"
+      "result_sha256": "f5ef79e02ec13183f59079037a5da5d12af8c19efa02b2bf820efafc222b9bd8",
+      "review_correction": "Aligned active examples or Markdown rendering after source review and hosted lint feedback."
     },
     {
       "path": "skills/symbol-scoped-import-exemptions.md",
@@ -12568,11 +12580,12 @@
       "baseline_bytes": 9784,
       "review_scope": "description and active instruction prose",
       "old_version": "1.0.0",
-      "new_version": "1.1.0",
-      "result_bytes": 9391,
+      "new_version": "1.1.1",
+      "result_bytes": 9399,
       "archive": "privacy-redacted",
       "coordinator_review": "Corrected cross-review findings in active prompt scope, technical meaning, privacy, or example syntax; prior archive still represents the unchanged baseline.",
-      "result_sha256": "43e3e7077a4a3a1602dc5812c509abd12bb4512a92fa5e2d248b2beeee083945"
+      "result_sha256": "07acdb789b43297b765990f5b848ae832eb5217c2263283fa46921bf919decaf",
+      "review_correction": "Aligned active examples or Markdown rendering after source review and hosted lint feedback."
     },
     {
       "path": "skills/targeted-port-audit-parallel-reviewers.md",
@@ -13009,10 +13022,11 @@
       "review_scope": "description and active instruction prose; literal code and raw historical evidence preserved except explicit privacy placeholders; no validation run",
       "baseline_bytes": 13964,
       "old_version": "2.0.0",
-      "new_version": "2.1.0",
-      "result_bytes": 13983,
+      "new_version": "2.1.1",
+      "result_bytes": 13837,
       "archive": "complete snapshot",
-      "result_sha256": "04b1b6cc980384d47cac6802d66c684d40e5e844e9cd1adf9124dc65887b0263"
+      "result_sha256": "efd9b2117c1f57b5b26fe4d6ca535caa678b59089be5f3a7114f82ea3e30c6d1",
+      "review_correction": "Preserve all intended test edits during conflict resolution."
     },
     {
       "path": "skills/testing-newton-schulz-orthogonality-band-assertions.md",
@@ -14487,16 +14501,17 @@
       "baseline_bytes": 20299,
       "review_scope": "description and active instruction prose",
       "old_version": "1.1.0",
-      "new_version": "1.2.1",
-      "result_bytes": 19689,
+      "new_version": "1.2.2",
+      "result_bytes": 19617,
       "archive": "complete snapshot",
-      "result_sha256": "6294183930aaba1763dc612e660705ee0b68cadb4b1c0076a52c39f15748cce8",
+      "result_sha256": "a32ca0d5edd3f9cd333817cd53ffa9c42ba64317c9396f46cdf0a72e19287528",
       "rebase_integration": {
         "upstream_commit": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545",
         "upstream_version": "1.2.0",
         "provenance": "immutable Git predecessor and appended history amendment"
       },
-      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545",
+      "review_correction": "Aligned active examples or Markdown rendering after source review and hosted lint feedback."
     },
     {
       "path": "skills/workflow-batched-validation-resume-rate-limits.md",

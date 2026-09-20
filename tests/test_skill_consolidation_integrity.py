@@ -75,7 +75,7 @@ CONSOLIDATIONS: list[Consolidation] = [
     },
     {
         "canonical": "testing-module-patch-target-after-extraction",
-        "version": "2.1.0",
+        "version": "2.1.1",
         "absorbed": ["testing-dual-patch-multiple-call-paths"],
     },
     {

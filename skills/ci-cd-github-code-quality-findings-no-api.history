@@ -252,3 +252,11 @@ gh api repos/OWNER/REPO/pulls/N/update-branch -X PUT
 Revised workflow guidance and description for the user-approved completion-focused
 guidance migration. Existing verification evidence is unchanged. This record
 does not claim new execution or model-behavior validation.
+
+
+## Review correction (2026-09-20)
+
+Version `1.2.1` aligns the quick reference with authorized, proportionate
+verification and available evidence. The immutable predecessor is
+`ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3:skills/ci-cd-github-code-quality-findings-no-api.md`.
+No new execution evidence is claimed by this amendment.

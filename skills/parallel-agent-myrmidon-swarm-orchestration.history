@@ -1244,3 +1244,11 @@ unchanged. The upstream predecessor is preserved in Git at
 `1528432a1873e93e0c16609dd3c3cfd3c5f0d545:skills/parallel-agent-myrmidon-swarm-orchestration.md`.
 Upstream content SHA-256: `19cd02af513d7a2d9c570a75b4b3655b95fc1f1988163e19301fb6d5979c9b0b`.
 No new execution verification is claimed.
+
+
+## Review correction (2026-09-20)
+
+Version `1.2.2` aligns copyable examples with the advisory guidance or corrects
+Markdown rendering. The immutable predecessor is
+`ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3:skills/parallel-agent-myrmidon-swarm-orchestration.md`.
+No new execution evidence is claimed by this amendment.

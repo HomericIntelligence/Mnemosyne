@@ -105,4 +105,3 @@ required-checks-gate rerun-the-failed-run, operator-GO churn path.
 FIRST ACTION: run `pgrep -af hephaestus.automation` to catch orphan
 processes before starting.
 ```
-

@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Diagnose release-tag version drift that skips package publication, then recover an authorized release on a corrected commit."
 category: ci-cd
 date: 2026-06-20
-version: "1.2.0"
+version: "1.2.1"
 user-invocable: false
 verification: verified-ci
 history: release-tag-drift-recut-on-fixed-commit.history
@@ -58,9 +58,8 @@ The deletion examples below apply only within that authorized recovery scope.
 #    tag immediately. It is failing the drift guard on EVERY open PR, not just Release.
 #    Deleting it unblocks all open PRs at once — do this before preparing the doc PR.
 git push origin :refs/tags/vX.Y.Z    # outward-facing; use existing tag-deletion authority
-# then re-run CI on any PR that already failed:
-#   Dependabot PR:  comment "@dependabot rebase"
-#   normal PR:      git commit --amend --no-edit && git push -f  (or re-run failed checks)
+# Re-run the affected failed check without rewriting another PR branch:
+gh run rerun <affected-run-id> --failed
 
 # 1. Identify it's the Release workflow on the TAG, not main CI
 gh run view <run-id> --json name,workflowName,headBranch,headSha,conclusion

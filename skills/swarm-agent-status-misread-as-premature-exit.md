@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Distinguish agent progress from termination before retrying delegated work. Use when short status updates, stale transcripts, or polling cause duplicate dispatches."
 category: tooling
 date: 2026-05-25
-version: "1.1.0"
+version: "1.1.1"
 user-invocable: false
 verification: verified-local
 tags:
@@ -42,45 +42,30 @@ tags:
 
 ### Quick Reference
 
-```text
-1. On notification arrival: read <duration_ms> FIRST.
-2. If duration_ms < 60000 AND result contains wait/poll/monitor/stand-by  -> STILL RUNNING. Do NOT retry.
-3. The harness fires ONE terminal notification per agent. Trust only that one.
-4. If unsure, check transcript mtime:
-     ls -la /tmp/claude-*/-home-*/$SESSION_ID/tasks/agent-$AGENT_ID.output
-     ls -la /home/*/.claude/projects/-home-*/$SESSION_ID/subagents/agent-$AGENT_ID.jsonl
-   mtime within last 5 minutes => agent is still active.
-5. Re-dispatch ONLY when result contains explicit failure semantics
-   ("FATAL", "exit 1", "timed out", "could not"). Otherwise wait >= 60 minutes.
-```
+Use the host's current agent status and progress records to distinguish ongoing
+work, completion, and failure. Notification wording, elapsed time, and file
+modification times are clues; none alone proves the lifecycle state.
 
-### Detailed Steps
+### Suggested Approach
 
-1. **Read `duration_ms` before reading `result`.** Any task notification with `duration_ms` under 60,000 is almost certainly an intermediate status update, not a terminal exit. Terminal completions for swarm agents that wait on PRs typically run 20-75 minutes (~1,200,000-4,500,000 ms).
-
-2. **Classify the `result` text.** Phrases like "waiting", "polling", "monitoring", "stand by", "I'll notify when", "Monitor is already running" indicate the agent is still alive and has merely surfaced a status string. A real terminal result either contains a concrete PR URL, an explicit no-op detection ("already closed", "no work to do"), or an explicit failure phrase ("FATAL", "exit 1", "timed out", "could not").
-
-3. **Trust the single terminal notification.** The harness fires exactly one notification per agent at terminal state. There is no "ping" notification mechanism — if you appear to receive a "second" notification from the same agent-id, that is the terminal one and the first was an intermediate harness flush, OR a different agent (a retry you launched) is reporting.
-
-4. **If uncertain, check the transcript file's mtime.** The JSONL is for forensics, not for live reading — the parent context overflows if you `cat` it. Use `ls -la` only:
-
-   ```bash
-   ls -la /tmp/claude-*/-home-*/$SESSION_ID/tasks/agent-$AGENT_ID.output
-   ls -la /home/*/.claude/projects/-home-*/$SESSION_ID/subagents/agent-$AGENT_ID.jsonl
-   ```
-
-   An mtime within the last 5 minutes means the agent is still active. Stale mtime + no terminal notification means truly hung; consider re-dispatch.
-
-5. **Use current lifecycle evidence before another dispatch.** Check the available agent status and progress rather than waiting a fixed hour or matching particular failure words. If work has ended or cannot progress, preserve its outputs and resume or reassign the remaining scope. Continue independent work while waiting. Avoid overlapping writers and preserve uncertain branches or worktrees.
+1. Read the host's documented lifecycle state and available task result. The
+   historical timing and notification patterns below may differ on other hosts.
+2. If the task is running, wait according to its expected work and continue
+   independent work. A short update or a stale transcript alone is not a reason
+   to start an overlapping writer.
+3. If work has ended or cannot progress, inspect its output and preserve its
+   branches and worktrees. Resume or reassign only the remaining scope.
+4. When state is unclear, inspect bounded progress metadata or contact the
+   existing worker. Resolve ownership before another writer uses its files.
 
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 | --------- | ---------------- | --------------- | ---------------- |
-| Re-dispatching after a "waiting" result | Treated "background poll is running, I'll wait" as a completion and launched a retry | The agent was still polling — both originals and retries ran concurrently, producing duplicate PRs and branch collisions | A "waiting" result means alive, not done; do not retry |
-| Treating short-duration notification as completion | Read `result` text without checking `duration_ms`; under-60s status flush mistaken for terminal exit | Intermediate harness flushes can surface a `result` string while the agent is still running; only terminal notifications mean exit | Read `duration_ms` first; <60,000 ms is almost never terminal for a wait-on-PR agent |
-| Assuming same agent-id reported twice | Believed the harness emits multiple notifications per agent | The harness fires ONE terminal notification per agent-id; a "second" one is actually a different agent (the retry you dispatched) | One agent-id = one terminal notification; multiple notifications mean multiple agents |
-| Reading transcript JSONL to "check progress" | Opened the subagent JSONL file to see what the agent was doing | The JSONL is forensic, not live status; reading it overflows the parent context and tells you nothing about whether the agent is still running | Use `ls -la` for mtime only; never `cat` the transcript from the parent |
+| Re-dispatching after a "waiting" result | Treated "background poll is running, I'll wait" as a completion and launched a retry | The agent was still polling — both originals and retries ran concurrently, producing duplicate PRs and branch collisions | Check the current lifecycle state before retrying; wording alone does not prove liveness |
+| Treating short-duration notification as completion | Read `result` text without checking `duration_ms`; under-60s status flush mistaken for terminal exit | Intermediate harness flushes can surface a `result` string while the agent is still running; only terminal notifications mean exit | Use timing as context for this harness, not as a general completion rule |
+| Assuming same agent-id reported twice | Believed the harness emits multiple notifications per agent | The harness fires ONE terminal notification per agent-id; a "second" one is actually a different agent (the retry you dispatched) | Correlate host lifecycle events by task identity; notification semantics depend on the host |
+| Reading transcript JSONL to "check progress" | Opened the subagent JSONL file to see what the agent was doing | The JSONL is forensic, not live status; reading it overflows the parent context and tells you nothing about whether the agent is still running | Prefer bounded progress metadata; inspect a limited transcript excerpt when it helps resolve uncertainty |
 
 ## Results & Parameters
 

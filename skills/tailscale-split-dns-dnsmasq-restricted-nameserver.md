@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Configure split DNS for a tailnet service when public DNS causes a WAN hairpin and a restricted nameserver can supply the local address."
 category: tooling
 date: 2026-07-04
-version: "1.1.0"
+version: "1.1.1"
 user-invocable: false
 verification: verified-local
 tags: []
@@ -109,7 +109,7 @@ dig svc.example.com +short                          # via MagicDNS -> <tailnet-i
 
 ## Results & Parameters
 
-**Before/after (live homelab, <host>, tailnet IP <tailnet-ip>, 2026-07):**
+**Before/after (live homelab, `<host>`, tailnet IP `<tailnet-ip>`, 2026-07):**
 
 | Path | How isolated | DAV upload throughput |
 |------|--------------|-----------------------|
@@ -159,4 +159,4 @@ docker run -d --name tailscale-dns --restart unless-stopped \
 
 | Project | Context | Details |
 |---------|---------|---------|
-| homelab (<host>) | Live homelab NextCloud, tailnet IP <tailnet-ip>, 2026-07 — verified ~30 MB/s tailnet vs ~5.7 MB/s public hairpin | verified-local |
+| homelab (`<host>`) | Live homelab NextCloud, tailnet IP `<tailnet-ip>`, 2026-07 — verified ~30 MB/s tailnet vs ~5.7 MB/s public hairpin | verified-local |

@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Patch mocks at every module import binding after extracting collaborators, including direct and delegated dual call paths. Use when: (1) a refactor moves code from a god-class to collaborators, (2) tests have unexpected mock call counts or exhausted side effects, (3) the same symbol is called by both a driver and a collaborator, (4) resolving rebase conflicts in patch targets, (5) distinguishing shared stdlib module-object patches from named-function bindings that must move."
 category: testing
 date: 2026-07-17
-version: "2.1.0"
+version: "2.1.1"
 user-invocable: false
 verification: verified-ci
 tags:
@@ -188,14 +188,14 @@ When rebasing a test file after parallel cluster extraction, you may encounter a
 **Resolve each patch target against the combined code.** The base branch may contain updated targets after extraction, while the incoming branch can add new call paths. Follow the actual lookup binding rather than selecting one side for all conflicts.
 
 ```bash
-# During rebase conflict in test files:
-# Take HEAD's version for any patch target that references the old vs new module conflict:
-git show HEAD:tests/unit/automation/test_new_module.py > tests/unit/automation/test_new_module.py
-# Then verify that your branch's UNIQUE test classes are present; if not, merge them in manually
-grep "^class " tests/unit/automation/test_new_module.py   # check all classes present
+# Inspect both versions without overwriting the conflicted test file:
+git show HEAD:tests/unit/automation/test_new_module.py
+git show REBASE_HEAD:tests/unit/automation/test_new_module.py
 ```
 
-**Exception**: if your branch adds NEW test classes not present on HEAD, append those classes after taking HEAD's version — don't drop them.
+Resolve individual bindings against the combined implementation. Preserve intended
+changes to existing tests, functions, imports, and fixtures as well as new classes.
+The branch name alone does not establish the correct lookup target.
 
 ### Systematic audit after any extraction
 
@@ -222,7 +222,7 @@ grep -rn 'patch("pkg.old_module\.' tests/
 | Single `side_effect` list for one patch | Assumed one `@patch` covers all call sites | Collaborator module had its own binding; side_effect consumed by only one path, leaving the other to call the real function | Count distinct import sites, not call sites |
 | Left `@patch("ci_driver.logger")` after extraction | Assumed logger patch target unchanged | Logger is instantiated at module level in the new collaborator; the old binding was no longer the one emitting the warning | After extracting a class/function, grep all test patches for module-level logger, constant, and utility patches and retarget them |
 | Retargeted `subprocess.run` patches after extraction | Moved `@patch("old_module.subprocess.run")` to `@patch("new_module.subprocess.run")` assuming all patches need moving | Both reference the same underlying `subprocess` module object; the original patch still intercepted calls from the new module | Apply the module-object exception: `import subprocess; subprocess.run()` patches work across module boundaries; only named-function patches (`from old_module import named_fn`) require retargeting |
-| Took branch's patch targets during rebase conflict on test file | During an add/add rebase conflict, took REBASE_HEAD's version of patch targets instead of HEAD's | Branch's version used stale `old_module.*` targets; HEAD (main's already-merged PR) had already corrected them to `new_module.*` | During rebase conflict resolution on test files, prefer HEAD for patch target decisions; the first-to-merge PR already fixed them |
+| Took branch's patch targets during rebase conflict on test file | During an add/add rebase conflict, took REBASE_HEAD's version of patch targets instead of HEAD's | Branch's version used stale `old_module.*` targets; HEAD (main's already-merged PR) had already corrected them to `new_module.*` | Inspect the combined lookup binding and both versions; preserve intended test changes while correcting stale targets |
 
 ## Results & Parameters
 

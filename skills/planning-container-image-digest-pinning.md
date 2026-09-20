@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Plan container digest pinning with verified registry metadata and architecture coverage. Keep guessed tags and digests explicit when registry access is unavailable."
 category: ci-cd
 date: 2026-06-20
-version: "1.2.0"
+version: "1.2.1"
 user-invocable: false
 verification: unverified
 history: planning-container-image-digest-pinning.history
@@ -62,15 +62,15 @@ docker buildx imagetools inspect --format '{{.Manifest.Digest}}' prom/prometheus
 # WRONG — do NOT use: `podman manifest inspect ... | sha256sum` hashes the JSON TEXT,
 # not the registry digest, and silently yields a @sha256: that pulls nothing.
 
-# --- AUTHORITATIVE, tooling/env-INDEPENDENT acceptance check: every image digest-pinned ---
+# Inspect the image lines within the requested pinning scope:
 grep -nE 'image:\s*\S+@sha256:[0-9a-f]{64}' docker-compose.e2e.yml   # must match each pinned line
 # Guard-script regex to reject any remaining floating tag (WHOLE-FILE):
 grep -nE 'image:\s*\S+:(latest|alpine)\b|image:\s*[^@[:space:]]+:[^@[:space:]]+$' docker-compose.e2e.yml
 
-# --- Wire the guard into CI in the SAME change, then PROVE the wiring exists: ---
-# add `bash scripts/check_e2e_image_pins.sh` as a step in the `validate` job of ci.yml,
-# right after the YAML-lint step, then verify:
-grep -n 'check_e2e_image_pins.sh' .github/workflows/ci.yml   # MUST return a hit
+# If the task or repository policy calls for automatic enforcement, connect
+# the guard to the appropriate CI job and inspect that execution path:
+grep -n 'check_e2e_image_pins.sh' .github/workflows/ci.yml
+# Otherwise, propose CI enforcement separately without expanding the task.
 
 # --- Confirm the chosen tag actually EXISTS / is not yanked before pinning ---
 skopeo inspect docker://docker.io/grafana/grafana:11.4.0 >/dev/null && echo "tag exists"

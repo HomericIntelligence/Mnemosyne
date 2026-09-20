@@ -139,7 +139,6 @@ expansion. The inventory records those exceptions and technical concerns found
 outside this migration. This change does not certify those legacy procedures or
 claim to correct every technical defect in the corpus.
 
-
 ## Rebase Integration
 
 On 2026-09-20, the branch was rebased onto `1528432a1873e93e0c16609dd3c3cfd3c5f0d545`
@@ -154,3 +153,13 @@ The inventory retains its original review baseline and records the new target,
 inherited changes, and current result hashes. The original review does not claim
 to certify upstream additions. No execution validation ran during this rebase;
 the previously documented runner limitation remains.
+
+## Pre-Merge Corrections
+
+Fresh source review found residual examples that contradicted the advisory prose.
+Corrections align cleanup, CI reruns, environment selection, endpoint reuse, agent
+lifecycle handling, PR grouping, charter authority, and fleet scope with the task.
+A separate reviewer examined the correction diff. Hosted Markdown lint identified
+blank-line and placeholder-rendering errors; those locations were corrected.
+Changed main skills have patch versions and immutable predecessor references.
+These edits do not claim new local execution evidence.
