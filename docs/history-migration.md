@@ -20,8 +20,10 @@ notes now point to the same historical content at the pre-cleanup commit.
 
 ## Stack and preservation decisions
 
-This change starts at the exact head of
+This change originally started at the exact head of
 [advisory-guidance PR 3420](https://github.com/HomericIntelligence/Mnemosyne/pull/3420).
+That PR is now merged. This migration targets `main` and includes its separate
+CI and consolidation-test cleanup.
 It preserves that PR's revised lesson descriptions, workflow guidance, and current
 versions. The original migration commit remains available on its separate branch.
 The added advisory archives preserve the prior text; their current main lessons
