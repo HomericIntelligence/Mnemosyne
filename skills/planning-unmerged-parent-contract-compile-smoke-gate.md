@@ -3,13 +3,13 @@ name: planning-unmerged-parent-contract-compile-smoke-gate
 description: "Plan dependent work against an unmerged parent without treating proposed interfaces as implemented facts; identify available work and verify interfaces when they become available."
 category: architecture
 date: 2026-07-04
-version: "2.1.0"
+version: "2.1.1"
 license: BSD-3-Clause
 user-invocable: false
 verification: unverified
 tags: [planning, unmerged-parent, prerequisite-gate, contract, compile-smoke, assumption-audit]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/planning-unmerged-parent-contract-compile-smoke-gate.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/planning-unmerged-parent-contract-compile-smoke-gate.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Planning Against an Unmerged Parent
@@ -25,7 +25,7 @@ This skill remains `unverified`: its rules were learned from plan reviews, but t
 does not claim an end-to-end implementation result. Project cases are indexed in
 [`planning-unmerged-parent-contract-compile-smoke-gate.notes.md`](planning-unmerged-parent-contract-compile-smoke-gate.notes.md),
 and the complete prior source is archived in
-[`planning-unmerged-parent-contract-compile-smoke-gate.history`](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/planning-unmerged-parent-contract-compile-smoke-gate.history).
+[`planning-unmerged-parent-contract-compile-smoke-gate.history`](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/planning-unmerged-parent-contract-compile-smoke-gate.history).
 
 ## When to Use
 
@@ -100,8 +100,10 @@ the test cannot pass vacuously.
 
 ### 5. Compile first after the parent merges
 
-Once the prerequisite exists, refresh the branch and run the repository’s strict compile command
-before dependent tests or implementation:
+Once the prerequisite exists, its API is main content required to complete the active child task.
+At implementation start, pin the child branch to that main revision. If the child task already
+started, this documented dependency need permits a rebase; do not rebase merely because main
+advanced. Then run the repository’s strict compile command before dependent tests or implementation:
 
 ```bash
 git fetch origin

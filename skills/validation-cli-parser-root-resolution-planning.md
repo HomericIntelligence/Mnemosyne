@@ -8,8 +8,8 @@ version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags: [planning, cli, argparse, validation, repo-root, parser-refactor, hephaestus]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/validation-cli-parser-root-resolution-planning.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/validation-cli-parser-root-resolution-planning.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Validation CLI Parser/Root-Resolution Planning Review

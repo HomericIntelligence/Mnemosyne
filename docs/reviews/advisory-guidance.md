@@ -142,3 +142,19 @@ Security-sensitive operational material was retained without capability
 expansion. The inventory records those exceptions and technical concerns found
 outside this migration. This change does not certify those legacy procedures or
 claim to correct every technical defect in the corpus.
+
+
+## Rebase Integration
+
+On 2026-09-20, the branch was rebased onto `1528432a1873e93e0c16609dd3c3cfd3c5f0d545`
+at the user's request. Nineteen skills had textual conflicts. Resolutions retain
+short descriptions and advisory guidance while preserving upstream distinctions
+between active tasks, completed tasks, and ordinary CI/CD integration. Upstream
+immutable-candidate evidence guidance is retained.
+
+34 migration skills also changed upstream. Their versions and history
+amendments identify the combined content and immutable upstream predecessors.
+The inventory retains its original review baseline and records the new target,
+inherited changes, and current result hashes. The original review does not claim
+to certify upstream additions. No execution validation ran during this rebase;
+the previously documented runner limitation remains.

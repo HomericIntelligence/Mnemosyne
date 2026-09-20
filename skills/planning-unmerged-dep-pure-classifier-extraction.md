@@ -16,8 +16,8 @@ tags:
   - sentinel-separation
   - compatibility-probe
   - state-machine
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/planning-unmerged-dep-pure-classifier-extraction.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/planning-unmerged-dep-pure-classifier-extraction.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Planning an Unmerged Dependency and Pure Classifier Extraction
@@ -34,7 +34,7 @@ This is an unimplemented planning artifact from ProjectHephaestus issue #1816. E
 links are in
 [planning-unmerged-dep-pure-classifier-extraction.notes.md](planning-unmerged-dep-pure-classifier-extraction.notes.md),
 and the complete prior version is in
-[planning-unmerged-dep-pure-classifier-extraction.history](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/planning-unmerged-dep-pure-classifier-extraction.history).
+[planning-unmerged-dep-pure-classifier-extraction.history](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/planning-unmerged-dep-pure-classifier-extraction.history).
 
 ## When to Use
 

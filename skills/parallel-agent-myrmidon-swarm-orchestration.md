@@ -4,12 +4,12 @@ license: BSD-3-Clause
 description: "Coordinate independent agent tasks across repositories when ownership, resource limits, shared files, or stalled work needs management."
 category: tooling
 date: 2026-06-13
-version: "1.2.0"
+version: "1.2.1"
 user-invocable: false
 verification: verified-local
 tags: [merged, myrmidon, swarm, parallel-agent, l0-orchestrator, wave-execution]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/parallel-agent-myrmidon-swarm-orchestration.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/parallel-agent-myrmidon-swarm-orchestration.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Parallel-Agent and Myrmidon Swarm Orchestration — Canonical Guide
@@ -125,9 +125,9 @@ for PR in $(gh pr list --state open --author "@me" --json number --jq '.[].numbe
 done
 
 # Phase A.2 — categories:
-#   DIRTY                   -> rebase (Haiku agent)
+#   DIRTY                   -> reported conflict; permitted rebase (Haiku agent)
 #   BLOCKED + FAILURE       -> CI fix needed (Sonnet agent)
-#   BLOCKED + 0 failures    -> stale; rebase to retrigger
+#   BLOCKED + 0 failures    -> inspect policy and let CI/CD integrate ordinary main movement
 #   UNKNOWN                 -> wait 30s, re-check
 
 # Phase A.3 — dispatch one agent per PR, isolation=worktree

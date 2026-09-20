@@ -4,12 +4,12 @@ license: BSD-3-Clause
 description: "Distinguish DCO Signed-off-by trailers from cryptographic Git signatures. Diagnose policy failures and preserve configured signing identity."
 category: ci-cd
 date: 2026-07-16
-version: "1.3.0"
+version: "1.3.1"
 user-invocable: false
 verification: verified-ci
 tags: []
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/git-dco-signoff-distinct-from-gpg-sign.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/git-dco-signoff-distinct-from-gpg-sign.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Git DCO Signed-off-by Is Distinct from GPG Signing
@@ -49,8 +49,9 @@ signed) and still fail Check 4 for lack of the trailer.
 # 1. ALWAYS commit with BOTH the DCO trailer (-s) and the GPG signature (-S):
 git commit -s -S -m "feat(scope): message"
 
-# 2. Retroactively add the DCO trailer to EVERY commit on a branch while
-#    PRESERVING GPG signing (works because commit.gpgsign=true):
+# 2. A missing DCO trailer blocks the active task. Retroactively add it to EVERY
+#    commit while PRESERVING GPG signing (works because commit.gpgsign=true).
+#    Do not use this rebase merely because main advanced:
 git rebase --exec "git commit --amend --no-edit -s -S" origin/main
 git push --force-with-lease
 
@@ -152,8 +153,10 @@ git config user.name "Example Contributor"
 
 **Recovery if trailers are already duplicated.** Do NOT run `git commit -s`
 again — that risks adding a THIRD variant if `user.name` still isn't
-reconciled. Instead run a second `--exec` pass with a message-rewrite script
-that keeps only the first trailer:
+reconciled. A duplicate is not a merge blocker, so leave it unchanged unless
+an independently permitted rebase is already necessary. During that permitted
+rebase, use a second `--exec` pass with a message-rewrite script that keeps
+only the first trailer:
 
 ```bash
 git rebase --exec '
@@ -180,7 +183,8 @@ script itself already writes the canonical trailer into the rewritten
 message, so re-adding `-s` would risk re-triggering the same
 literal-string-mismatch dedup failure if `user.name` still isn't reconciled.
 This recovery is a pure commit-MESSAGE rewrite (no file content changes), so
-it runs with zero working-tree conflicts. Verify with:
+it runs with zero working-tree conflicts. It does not itself authorize a
+rebase. Verify with:
 
 ```bash
 git log origin/main..HEAD --format='%h %(trailers:key=Signed-off-by)'
@@ -195,7 +199,7 @@ git log origin/main..HEAD --format='%h %(trailers:key=Signed-off-by)'
 | Treated a cryptographically signed legacy branch as policy-complete | Every old commit had `%G?` = `G`, but none had a `Signed-off-by` trailer | DCO validates the text trailer independently of SSH/GPG signature status, so a good signature alone still fails DCO | Require both `%G?` = `G` or `U` and a non-empty trailer; use one fresh `git commit -S -s` when rewriting is disallowed |
 | Fixed the mypy/lint error and assumed the gate would pass | Treated required-checks-gate as a single-cause failure | Gate still red — a second independent DCO failure remained | A required-checks-gate failure can aggregate multiple independent causes; enumerate ALL failing pr-policy sub-checks before re-pushing |
 | Re-signed only the new commit, left the original auto-impl commit untouched | Thought only my own commit needed the trailer | Check 4 validates EVERY commit on the PR, including bot/automation-authored ones | Use `git rebase --exec ... -s -S origin/main` to cover every commit, not just HEAD |
-| Ran `--exec "git commit --amend --no-edit -s -S" origin/main` twice with different `user.name` between passes | Expected `-s` to dedupe an already-present trailer on the second pass | Produced duplicate `Signed-off-by` trailers instead of deduping — `-s` matches the whole trailer line literally, not just the email | Reconcile `user.name` (local + global) to one canonical value before the first pass; recover via a message-rewrite `--exec` pass keeping only the first trailer |
+| Ran `--exec "git commit --amend --no-edit -s -S" origin/main` twice with different `user.name` between passes | Expected `-s` to dedupe an already-present trailer on the second pass | Produced duplicate `Signed-off-by` trailers instead of deduping — `-s` matches the whole trailer line literally, not just the email | Reconcile `user.name` (local + global) to one canonical value before the first pass. Leave a duplicate unchanged unless another permitted rebase already exists; then use a message-rewrite `--exec` pass that keeps only the first trailer. |
 
 ## Results & Parameters
 

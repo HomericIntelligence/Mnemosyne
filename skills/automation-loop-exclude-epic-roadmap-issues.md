@@ -8,8 +8,8 @@ version: "1.1.1"
 user-invocable: false
 verification: verified-ci
 tags: [epic, roadmap, tracking-issue, automation-loop, issue-discovery, gh-cli, state-skip, partition, label-and-title-signal, planner-filter, dry-chokepoints, pure-function-contract]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/automation-loop-exclude-epic-roadmap-issues.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/automation-loop-exclude-epic-roadmap-issues.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Automation Loop: Exclude Epic/Roadmap Tracking Issues from Discovery

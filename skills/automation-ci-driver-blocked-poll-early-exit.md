@@ -8,8 +8,8 @@ version: "1.1.0"
 user-invocable: false
 verification: verified-ci
 tags: [automation, ci-driver, drive-green, blocked, mergeStateStatus, poll, early-exit, branch-protection, wait-for-pr-terminal, review-threads, thread-resolution, address-review, progress-guard, attempt-cap, false-positive, github-code-quality, dip-lambda, re-export-shim]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/automation-ci-driver-blocked-poll-early-exit.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/automation-ci-driver-blocked-poll-early-exit.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Automation CI Driver: BLOCKED PR Poll Early-Exit
@@ -22,7 +22,7 @@ history-cleanup-date: "2026-09-19"
 | **Objective** | (1) Make `_wait_for_pr_terminal` exit early when `mergeStateStatus=BLOCKED` is caused by a branch-protection gate rather than spinning for the full 1800s. (2) Diagnose and resolve BLOCKED state on green+armed PRs by identifying and clearing unresolved review threads rather than waiting for a non-existent human approval gate. (3) Prevent drive-green from yielding `WorkerResult(success=True)` on a PR that is armed but unmergeable forever because review threads are still unresolved. |
 | **Outcome** | Successful — early-exit fires only when BOTH failing and pending required checks are empty; returns `"BLOCKED"` which callers treat as armed success. Confirmed: green+armed PRs blocked by `required_review_thread_resolution` unblock and auto-merge fires within seconds of thread clearance. The drive-green remediation pattern routes BLOCKED through `_resolve_blocked_pr`, reusing `address_review.py` with a shrink-or-stop progress guard and `_BLOCKED_ADDRESS_MAX_ATTEMPTS = 2`. |
 | **Verification** | verified-ci (PRs #1283 and #1358, ProjectHephaestus, merged once threads cleared) |
-| **History** | See [prior Git source](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/automation-ci-driver-blocked-poll-early-exit.history) |
+| **History** | See [prior Git source](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/automation-ci-driver-blocked-poll-early-exit.history) |
 
 ## When to Use
 

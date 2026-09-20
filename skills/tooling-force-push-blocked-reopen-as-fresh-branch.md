@@ -16,8 +16,8 @@ tags:
   - sandbox
   - pull-request
   - worktree
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/tooling-force-push-blocked-reopen-as-fresh-branch.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/tooling-force-push-blocked-reopen-as-fresh-branch.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Force-Push Blocked: Preserve the PR or Reopen Safely
@@ -32,7 +32,7 @@ identity does not need to survive.
 
 Verification remains `verified-ci`. Detailed incidents and state transitions are in the
 [notes](./tooling-force-push-blocked-reopen-as-fresh-branch.notes.md); the byte-preserved source and
-prior changelog are in [history](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/tooling-force-push-blocked-reopen-as-fresh-branch.history).
+prior changelog are in [history](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/tooling-force-push-blocked-reopen-as-fresh-branch.history).
 
 ## When to Use
 
@@ -244,4 +244,4 @@ to cleanup. Never claim a plain push is safe without the remote-tip ancestry pro
 ## Companions
 
 - [Case notes](./tooling-force-push-blocked-reopen-as-fresh-branch.notes.md)
-- [Version history and superseded snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/tooling-force-push-blocked-reopen-as-fresh-branch.history)
+- [Version history and superseded snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/tooling-force-push-blocked-reopen-as-fresh-branch.history)

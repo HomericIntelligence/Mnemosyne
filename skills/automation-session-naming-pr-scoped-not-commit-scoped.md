@@ -21,8 +21,8 @@ tags:
   - fail-closed
   - same-slug-collision
   - provider-isolation
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/automation-session-naming-pr-scoped-not-commit-scoped.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/automation-session-naming-pr-scoped-not-commit-scoped.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Artifact-Stable Session IDs with Checkout-Scoped Transcript Lookup
@@ -35,7 +35,7 @@ history-cleanup-date: "2026-09-19"
 | **Objective** | Preserve artifact-stable session UUIDs while allowing repo-root and registered-worktree callers in one Git checkout to find the same Claude transcript without exposing transcripts from unrelated same-slug checkouts. |
 | **Outcome** | Proposed v2 design: keep the session key unchanged, discover only `git worktree list` roots for the explicit invocation cwd, select existing same-family transcripts deterministically, and fail closed to the exact cwd path. |
 | **Verification** | unverified — implementation and CI validation are pending |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/automation-session-naming-pr-scoped-not-commit-scoped.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/automation-session-naming-pr-scoped-not-commit-scoped.history) |
 
 ## When to Use
 

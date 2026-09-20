@@ -2,7 +2,7 @@
 
 Supporting evidence for
 [`git-commit-signing-failures-and-setup`](./git-commit-signing-failures-and-setup.md). The complete
-prior main is archived in [history](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/git-commit-signing-failures-and-setup.history).
+prior main is archived in [history](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/git-commit-signing-failures-and-setup.history).
 
 ## Case Index
 

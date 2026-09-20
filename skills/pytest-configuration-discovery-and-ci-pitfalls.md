@@ -8,8 +8,8 @@ license: BSD-3-Clause
 user-invocable: false
 verification: verified-local
 tags: [pytest, configuration, discovery, testpaths, markers, pythonpath, coverage, ci]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/pytest-configuration-discovery-and-ci-pitfalls.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/pytest-configuration-discovery-and-ci-pitfalls.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Pytest Configuration, Discovery, and CI Pitfalls
@@ -23,7 +23,7 @@ and inherited `addopts`. Diagnose each layer with collection evidence before edi
 Detailed incidents are indexed in
 [`pytest-configuration-discovery-and-ci-pitfalls.notes.md`](pytest-configuration-discovery-and-ci-pitfalls.notes.md).
 The complete prior source is in
-[`pytest-configuration-discovery-and-ci-pitfalls.history`](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/pytest-configuration-discovery-and-ci-pitfalls.history).
+[`pytest-configuration-discovery-and-ci-pitfalls.history`](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/pytest-configuration-discovery-and-ci-pitfalls.history).
 
 ## When to Use
 

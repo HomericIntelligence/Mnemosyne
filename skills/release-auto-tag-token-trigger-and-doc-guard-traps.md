@@ -26,13 +26,13 @@ tags:
   - release-status
   - markdown-blockquote
   - regex-owned-prose
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/release-auto-tag-token-trigger-and-doc-guard-traps.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/release-auto-tag-token-trigger-and-doc-guard-traps.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Release Pipeline and Pre-Tag Documentation Guard Traps
 
-**History:** [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/release-auto-tag-token-trigger-and-doc-guard-traps.history)
+**History:** [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/release-auto-tag-token-trigger-and-doc-guard-traps.history)
 
 ## Overview
 

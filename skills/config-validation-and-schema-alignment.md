@@ -8,8 +8,8 @@ version: "1.2.0"
 user-invocable: false
 verification: verified-local
 tags: [merged, config-validation, json-schema, pydantic, config-loader, duplicate-detection, section-scoped-parser, last-write-wins]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/config-validation-and-schema-alignment.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/config-validation-and-schema-alignment.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Config Validation and Schema Alignment
@@ -22,7 +22,7 @@ history-cleanup-date: "2026-09-19"
 | **Objective** | Canonical reference for config validation and schema alignment across ProjectScylla, ProjectHephaestus, and related repos |
 | **Outcome** | Consolidated 16 skills (tooling × 14, architecture × 3, testing × 3) |
 | **Verification** | verified-local |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/config-validation-and-schema-alignment.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/config-validation-and-schema-alignment.history) |
 
 ## When to Use
 

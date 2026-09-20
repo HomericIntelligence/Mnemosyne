@@ -4,12 +4,12 @@ license: BSD-3-Clause
 description: "Diagnose AchaeanFleet Docker CI failures involving YAML, Compose overlays, multi-arch images, release assets, and branch rulesets."
 category: ci-cd
 date: 2026-05-18
-version: "2.2.0"
+version: "2.2.1"
 user-invocable: false
 verification: verified-ci
 tags: [achaeanfleet, docker, ci-cascade, multi-arch, oci, opencode, goose, entrypoint, qemu, caddy, yaml, branch-protection, required-signatures, branch-rulesets, signed-commits, force-with-lease, auto-merge-disarm]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/ci-cd-achaean-fleet-ci-cascade-patterns.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/ci-cd-achaean-fleet-ci-cascade-patterns.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # CI/CD: AchaeanFleet CI Cascade Patterns
@@ -381,7 +381,8 @@ git checkout <branch>
 # Find merge-base with main
 BASE=$(git merge-base HEAD origin/main)
 
-# Sign every commit in the PR (--amend --no-edit -S applied to each commit)
+# A missing signature blocks the active task. Sign every commit in this permitted
+# rewrite (--amend --no-edit -S applied to each commit); do not rebase merely for main drift.
 git rebase --exec 'git commit --amend --no-edit -S' "$BASE"
 
 # Verify all commits are signed locally

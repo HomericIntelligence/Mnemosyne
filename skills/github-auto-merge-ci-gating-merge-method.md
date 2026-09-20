@@ -11,15 +11,15 @@ user-invocable: false
 verification: verified-ci
 license: BSD-3-Clause
 tags: [auto-merge, github, ci-cd, merge-method, required-checks, rulesets, review-threads, current-head-checks, merge-queue, toctou]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/github-auto-merge-ci-gating-merge-method.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/github-auto-merge-ci-gating-merge-method.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # GitHub Auto-Merge: CI Gating, Branch Protection, and Merge Method
 
 **Supporting cases:** [notes](./github-auto-merge-ci-gating-merge-method.notes.md)
 
-**Superseded content:** [history](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/github-auto-merge-ci-gating-merge-method.history)
+**Superseded content:** [history](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/github-auto-merge-ci-gating-merge-method.history)
 
 ## Overview
 

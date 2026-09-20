@@ -8,8 +8,8 @@ version: "1.0.1"
 user-invocable: false
 verification: verified-local
 tags: []
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/stale-version-comment-version-agnostic-fix.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/stale-version-comment-version-agnostic-fix.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Stale Version Comment: Version-Agnostic Fix Pattern
@@ -22,7 +22,7 @@ history-cleanup-date: "2026-09-19"
 | **Objective** | Replace hardcoded version snapshots in code comments with version-agnostic language that won't re-stale on dependency bumps |
 | **Outcome** | verified-local |
 | **Verification** | All 7 verification criteria passed; false claim removed; CI integration pending when PR merges |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/stale-version-comment-version-agnostic-fix.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/stale-version-comment-version-agnostic-fix.history) |
 
 ## When to Use
 

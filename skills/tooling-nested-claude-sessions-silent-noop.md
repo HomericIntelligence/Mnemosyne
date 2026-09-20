@@ -18,8 +18,8 @@ tags:
   - claude-subprocess
   - uv
   - plan-reuse
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/tooling-nested-claude-sessions-silent-noop.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/tooling-nested-claude-sessions-silent-noop.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Nested Claude Sessions Make Agent-Spawning Automation Silently No-Op

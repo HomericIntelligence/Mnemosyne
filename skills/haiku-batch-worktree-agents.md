@@ -4,10 +4,10 @@ license: BSD-3-Clause
 description: "Coordinate independent issue batches in isolated worktrees when delegation is available; resume unfinished work and preserve ownership, dependencies, and validation boundaries."
 category: ci-cd
 date: 2026-03-15
-version: "1.1.0"
+version: "1.1.1"
 user-invocable: false
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/haiku-batch-worktree-agents.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/haiku-batch-worktree-agents.history"
+history-cleanup-date: "2026-09-20"
 ---
 ## Overview
 
@@ -45,10 +45,11 @@ Inspect existing work before reusing a worktree. The source session used `git sw
 host policy; use currently authorized operations and preserve unfinished changes.
 
 ```bash
-# Agent-1 worktree can switch to main directly
+# Create a new task branch from current main. Do not rebase a prior task branch
+# merely to reuse this worktree.
 cd worktrees/agent-1-batch
-git switch main
-git fetch origin && git rebase origin/main
+git fetch origin
+git switch -c batch-agent1-reset origin/main
 
 # Agents 2-4 can't switch to main if agent-1 is already on it
 # Create fresh branches from origin/main instead:

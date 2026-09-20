@@ -3,7 +3,7 @@
 Supporting evidence for
 [`planning-check-already-shipped-before-planning`](./planning-check-already-shipped-before-planning.md).
 The exact prior skill is archived in
-[history](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/planning-check-already-shipped-before-planning.history).
+[history](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/planning-check-already-shipped-before-planning.history).
 
 ## Case Index
 

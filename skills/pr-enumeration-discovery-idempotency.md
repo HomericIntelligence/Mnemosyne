@@ -3,13 +3,13 @@ name: pr-enumeration-discovery-idempotency
 description: "Enumerate and reconcile PRs without pagination loss or duplicate mutations. Bind routing and mutation to verified repository, branch, and issue identity."
 category: ci-cd
 date: 2026-06-15
-version: "2.0.1"
+version: "2.1.1"
 user-invocable: false
 license: BSD-3-Clause
 verification: verified-ci
 tags: [github, pagination, pull-requests, idempotency, dependabot, discovery, merge-state, subprocess, zombie-issue, stale-branch]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/pr-enumeration-discovery-idempotency.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/pr-enumeration-discovery-idempotency.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # PR Enumeration, Discovery, and Idempotency
@@ -23,7 +23,7 @@ Every phase that can create work repeats the same idempotency gate.
 This skill remains `verified-ci`. The reusable interfaces and failure modes are retained here;
 project-specific incidents are indexed in
 [the notes](./pr-enumeration-discovery-idempotency.notes.md), and the exact superseded content is in
-[history](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/pr-enumeration-discovery-idempotency.history).
+[history](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/pr-enumeration-discovery-idempotency.history).
 
 ## When to Use
 
@@ -117,14 +117,14 @@ the top-level queue discovery.
 ### 5. Classify state for routing
 
 Use check conclusions for test health and `mergeStateStatus` for branch/ruleset health. A BEHIND or
-BLOCKED PR is not automatically failing; route it to rebase/update or policy handling. Treat UNKNOWN
-as indeterminate and refresh rather than green. Preserve distinctions among pending, failing,
-behind, blocked, conflict, approved, and mergeable.
+BLOCKED PR is not automatically failing; route it to policy or CI/CD integration handling, not an
+automatic rebase. Treat UNKNOWN as indeterminate and refresh rather than green. Preserve distinctions
+among pending, failing, behind, blocked, conflict, approved, and mergeable.
 
 In the cited bulk synchronizer, a red MERGEABLE PR was treated as PR-specific failure only when
-`mergeStateStatus == CLEAN`; every other red mergeable state was stale and routed to refresh/rebase.
-Adopt that exact rule only when the repository state machine has the same semantics, but never
-collapse branch staleness into test failure.
+`mergeStateStatus == CLEAN`; every other red mergeable state was treated as stale and routed to
+refresh/rebase. Do not adopt that rebase routing. Branch staleness is not a test failure or rebase
+authority; retain the state distinction and let CI/CD integrate ordinary base movement.
 
 Avoid requesting expensive rollups until after identity pagination. This keeps a single pathological
 PR from turning the whole queue into a silent no-op.
@@ -194,4 +194,4 @@ work; abort the reuse path and inspect main instead of resolving by replacement.
 ## Companions
 
 - [Case notes](./pr-enumeration-discovery-idempotency.notes.md)
-- [Version history and exact superseded snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/pr-enumeration-discovery-idempotency.history)
+- [Version history and exact superseded snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/pr-enumeration-discovery-idempotency.history)

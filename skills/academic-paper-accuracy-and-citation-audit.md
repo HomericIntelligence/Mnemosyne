@@ -7,8 +7,8 @@ date: 2026-06-07
 version: "1.2.0"
 user-invocable: false
 tags: [latex, audit, paper, academic, citation, bibtex, arxiv, data-consistency, cross-reference, numerical-accuracy, parallel-agents, scientific-rigor, writing-quality, fabrication-detection, webfetch, web-search, pandas, pivot-table, idxmax, underscore-escape, missing-dollar]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/academic-paper-accuracy-and-citation-audit.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/academic-paper-accuracy-and-citation-audit.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Academic Paper Accuracy and Citation Audit
@@ -241,7 +241,7 @@ Describe one member of a Pareto frontier as one option, not as a unique optimum.
 Do not infer an unobserved mechanism from a numerical result. Confirm that all
 scripts required to reproduce reported results are tracked and available.
 
-History cleanup: 2026-09-19. The [prior source](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/latex-paper-accuracy-review.history)
+History cleanup: 2026-09-20. The [prior source](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/latex-paper-accuracy-review.history)
 retains its original evidence limits. This migration does not establish new
 operational verification.
 

@@ -8,8 +8,8 @@ version: "2.1.0"
 user-invocable: false
 verification: verified-local
 tags: [pytest, local-vs-ci, env-pollution, os-environ-copy, path-pollution, stale-console-script, heph-env-vars, shutil-which, false-failure, test-isolation]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/testing-env-leak-local-fail-ci-pass.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/testing-env-leak-local-fail-ci-pass.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Testing: Local-Fail CI-Pass Environment Pollution

@@ -8,8 +8,8 @@ version: "2.0.0"
 user-invocable: false
 verification: verified-ci
 tags: ["idx", "image-conversion", "png", "jpeg", "pillow", "batch", "emnist", "mojo"]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/png-jpeg-to-idx-conversion.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/png-jpeg-to-idx-conversion.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # PNG/JPEG to IDX Conversion
@@ -22,7 +22,7 @@ history-cleanup-date: "2026-09-19"
 | **Objective** | Provide a dependable PNG/JPEG-to-IDX CLI for one image or an ordered batch of images |
 | **Outcome** | One conversion workflow with single-image and directory/glob batch examples |
 | **Verification** | verified-ci — ProjectOdyssey PRs #3702 and #4775 |
-| **History** | [absorbed batch-conversion source](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/png-jpeg-to-idx-conversion.history) |
+| **History** | [absorbed batch-conversion source](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/png-jpeg-to-idx-conversion.history) |
 
 ## When to Use
 

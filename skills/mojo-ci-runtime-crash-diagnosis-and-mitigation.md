@@ -18,8 +18,8 @@ tags:
   - uid-mismatch
   - cpu-features
   - retry
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/mojo-ci-runtime-crash-diagnosis-and-mitigation.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/mojo-ci-runtime-crash-diagnosis-and-mitigation.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Mojo CI Runtime Crash Diagnosis and Mitigation
@@ -33,7 +33,7 @@ the response.
 
 Verification remains `verified-ci`. Project cases, measurements, and upstream links are in the
 [notes](./mojo-ci-runtime-crash-diagnosis-and-mitigation.notes.md); the byte-preserved source and
-prior changelog are in [history](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/mojo-ci-runtime-crash-diagnosis-and-mitigation.history).
+prior changelog are in [history](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/mojo-ci-runtime-crash-diagnosis-and-mitigation.history).
 
 ## When to Use
 
@@ -251,11 +251,11 @@ entry-point syntax. Historical test-count limits and compiler versions are case
 evidence, not universal limits. Do not infer a compiler defect from a stack-frame
 name or retry a deterministic source failure.
 
-History cleanup: 2026-09-19. Prior sources:
+History cleanup: 2026-09-20. Prior sources:
 
-- [investigate-mojo-heap-corruption](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/investigate-mojo-heap-corruption.history)
-- [mojo-bitcast-always-inline-crash-fix](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/mojo-bitcast-always-inline-crash-fix.history)
-- [mojo-jit-crash-diagnosis-and-retry](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/mojo-jit-crash-diagnosis-and-retry.history)
+- [investigate-mojo-heap-corruption](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/investigate-mojo-heap-corruption.history)
+- [mojo-bitcast-always-inline-crash-fix](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/mojo-bitcast-always-inline-crash-fix.history)
+- [mojo-jit-crash-diagnosis-and-retry](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/mojo-jit-crash-diagnosis-and-retry.history)
 
 The source records retain their original verification limits. This migration
 does not establish new operational verification.
@@ -298,4 +298,4 @@ message alone.
 ## Companions
 
 - [Case notes](./mojo-ci-runtime-crash-diagnosis-and-mitigation.notes.md)
-- [Version history and superseded snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/mojo-ci-runtime-crash-diagnosis-and-mitigation.history)
+- [Version history and superseded snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/mojo-ci-runtime-crash-diagnosis-and-mitigation.history)

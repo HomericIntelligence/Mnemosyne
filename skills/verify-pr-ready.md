@@ -6,8 +6,8 @@ category: ci-cd
 date: 2025-12-30
 version: "1.2.0"
 user-invocable: false
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/verify-pr-ready.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/verify-pr-ready.history"
+history-cleanup-date: "2026-09-20"
 ---
 # Verify PR Ready for Merge
 
@@ -42,13 +42,14 @@ not create an extra human approval requirement.
 | State | Action |
 | --- | --- |
 | Behind the target, with no actual conflict or missing dependency | Continue when repository policy permits it. Do not rebase only for freshness. |
-| Actual merge conflict | Resolve the conflict in an isolated worktree. Use the repository-supported integration method. Review and validate affected content. |
-| Necessary dependency exists only on the target | Confirm that the task needs it, then integrate it with a supported method. Do not duplicate the missing implementation. |
+| Actual merge conflict | During an active task, resolve it only when it blocks completion. After task completion, resolve it with a permitted rebase in an isolated worktree. Review and validate affected content. |
+| Necessary dependency exists only on the target | Confirm that the active task needs it, then integrate it with a supported method. Do not duplicate the missing implementation. |
 | Mergeability is pending or unknown | Read the state again with a bounded wait. If it remains unknown, report the uncertainty and withhold merge. Do not infer a conflict. |
 | Policy requires current integration with the target | Satisfy that requirement through the supported update method or merge queue. The policy does not itself prescribe a rebase. |
 
-Use a rebase for an actual conflict, a necessary dependency, or an explicit request.
-A cleanup request is separate and does not imply a rebase request.
+During active work, use a rebase only for a blocker or required main content. After task completion,
+use a rebase only for a host-reported merge conflict. Otherwise CI/CD or the merge queue integrates
+main. A cleanup request is separate and does not imply a rebase request.
 
 ### 3. Select validation and retain honest evidence
 
@@ -109,7 +110,7 @@ An access error is not evidence that there are no requirements.
 ## Evidence Boundary
 
 The prior entry recorded a ProjectOdyssey merge-validation workflow. That record and
-the complete prior text remain in [history](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/verify-pr-ready.history). The current policy
+the complete prior text remain in [history](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/verify-pr-ready.history). The current policy
 correction does not add operational verification or certify technical-English conformance.
 
 ## References

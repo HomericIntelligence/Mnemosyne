@@ -6,8 +6,8 @@ date: 2026-09-11
 version: "1.1.0"
 user-invocable: false
 tags: [wrapper, cli, argparse, remainder, preflight, retry, cleanup, fail-closed]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/tooling-safety-wrapper-invocation-contract.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/tooling-safety-wrapper-invocation-contract.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Safety-Sensitive Wrapper Invocation Contract

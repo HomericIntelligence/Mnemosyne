@@ -8,8 +8,8 @@ version: "1.3.1"
 user-invocable: false
 verification: verified-ci
 tags: [github, pull-request, code-quality, review-threads, noqa, automated-suggestions, F821, E501, full-repo-lint, behavior-preservation]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/code-quality-bot-ignores-noqa.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/code-quality-bot-ignores-noqa.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Triage github-code-quality Bot Findings and Suggested Patches

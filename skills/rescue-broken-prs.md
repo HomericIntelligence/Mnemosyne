@@ -4,10 +4,10 @@ license: BSD-3-Clause
 description: Rescue Broken PRs
 category: ci-cd
 date: 2026-02-06
-version: "1.1.0"
+version: "1.1.1"
 user-invocable: false
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/rescue-broken-prs.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/rescue-broken-prs.history"
+history-cleanup-date: "2026-09-20"
 ---
 # Rescue Broken PRs
 
@@ -246,13 +246,15 @@ git push
 # 7. Move to next PR
 ```
 
-### 7. Rebase Against Main (If Requested)
+### 7. Resolve a Reported Merge Conflict (If Required)
 
 ```bash
-# Fetch latest main
+# Fetch latest main. Do not rebase every open branch because main advanced.
+# Rebase only a branch for which the host reports a merge conflict, or an active
+# task that requires a main artifact to complete.
 git fetch origin main
 
-# For each open PR branch
+# For one eligible PR branch
 git checkout <branch-name>
 git rebase origin/main
 git push --force-with-lease

@@ -8,8 +8,8 @@ version: "1.4.0"
 user-invocable: false
 verification: verified-local
 tags: []
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/ci-precommit-whole-dir-format-drift-blocks-unrelated-commits.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/ci-precommit-whole-dir-format-drift-blocks-unrelated-commits.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Pre-commit Whole-Directory Hook Blocks Unrelated Commits (Format Drift OR Lint Violation on Main)

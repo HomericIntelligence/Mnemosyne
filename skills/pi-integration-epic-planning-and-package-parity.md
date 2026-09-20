@@ -8,8 +8,8 @@ version: "1.2.0"
 user-invocable: false
 verification: verified-local
 tags: [pi, hephaestus, agent-provider, provider-parity, athena, mnemosyne, pi-subagents, pi-web-access, plugin-bootstrap, epic, dependency-order, end-to-end, sca, security-gate, repository-review]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/pi-integration-epic-planning-and-package-parity.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/pi-integration-epic-planning-and-package-parity.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Pi Integration: Epic Planning and Package Parity

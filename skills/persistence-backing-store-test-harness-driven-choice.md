@@ -8,8 +8,8 @@ license: BSD-3-Clause
 user-invocable: false
 verification: unverified
 tags: [persistence, backing-store, sqlite, test-harness, conan, cmake, durability, planning]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/persistence-backing-store-test-harness-driven-choice.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/persistence-backing-store-test-harness-driven-choice.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Persistence Backing-Store Choice from the Test Harness
@@ -24,7 +24,7 @@ gates, durable path, complete restore surface, and observable acceptance criteri
 This skill remains unverified. Planning cases are indexed in
 [`persistence-backing-store-test-harness-driven-choice.notes.md`](persistence-backing-store-test-harness-driven-choice.notes.md),
 and the complete prior source is in
-[`persistence-backing-store-test-harness-driven-choice.history`](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/persistence-backing-store-test-harness-driven-choice.history).
+[`persistence-backing-store-test-harness-driven-choice.history`](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/persistence-backing-store-test-harness-driven-choice.history).
 
 ## When to Use
 

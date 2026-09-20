@@ -16,8 +16,8 @@ tags:
   - signed-tags
   - required-checks
   - supply-chain
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/release-workflow-planning-assumptions-and-risks.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/release-workflow-planning-assumptions-and-risks.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Release Workflow Planning Assumptions and Risks
@@ -34,7 +34,7 @@ lockfile skills. All guidance here remains `unverified`: its source cases were p
 not executed release implementations. Case provenance is in
 [release-workflow-planning-assumptions-and-risks.notes.md](release-workflow-planning-assumptions-and-risks.notes.md),
 and the complete prior content is in
-[release-workflow-planning-assumptions-and-risks.history](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/release-workflow-planning-assumptions-and-risks.history).
+[release-workflow-planning-assumptions-and-risks.history](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/release-workflow-planning-assumptions-and-risks.history).
 
 ## When to Use
 

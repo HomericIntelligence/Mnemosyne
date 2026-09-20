@@ -4,10 +4,10 @@ license: BSD-3-Clause
 description: "Migrate flat skills into plugin packages when the target repository owns that plugin architecture; preserve discovery and references."
 category: ci-cd
 date: 2026-02-22
-version: "1.1.0"
+version: "1.1.1"
 user-invocable: true
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/skills-to-plugins-migration.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/skills-to-plugins-migration.history"
+history-cleanup-date: "2026-09-20"
 ---
 # Skills-to-Plugins Migration
 
@@ -50,7 +50,9 @@ PRs that show `skills/<name>/SKILL.md` instead of `plugins/<category>/<name>/...
 
 ```bash
 git switch <branch-name>
-git rebase origin/main  # Bring up to date first
+# Do not rebase merely to bring an existing task up to date. Rebase only if the
+# host reports a merge conflict or the active migration needs main content;
+# otherwise CI/CD integrates the PR.
 
 # Check what files exist
 find skills/ -type f 2>/dev/null
@@ -214,7 +216,7 @@ python3 scripts/validate_plugins.py plugins/
 ### PR migration checklist
 
 For each PR:
-- [ ] `git switch <branch>` + `git rebase origin/main`
+- [ ] `git switch <branch>`; keep the task base stable unless a blocker or required main artifact permits a rebase
 - [ ] Read existing SKILL.md and plugin.json content
 - [ ] Create `plugins/<category>/<name>/.claude-plugin/plugin.json` (standard fields only)
 - [ ] Create `plugins/<category>/<name>/skills/<name>/SKILL.md` with frontmatter + all required sections
@@ -222,7 +224,7 @@ For each PR:
 - [ ] `git rm -r skills/<name>/`
 - [ ] Restore root `.claude-plugin/plugin.json` if clobbered (PR #155 pattern)
 - [ ] `python3 scripts/validate_plugins.py plugins/` — ALL VALIDATIONS PASSED
-- [ ] `git push --force-with-lease origin <branch>`
+- [ ] Use `git push origin <branch>` without a rewrite; use `git push --force-with-lease origin <branch>` only after a permitted rebase
 - [ ] `gh pr merge <n> --auto --rebase`
 
 ## Verified On

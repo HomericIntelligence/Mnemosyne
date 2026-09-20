@@ -18,8 +18,8 @@ tags:
   - crash-recovery
   - fail-closed
   - migration-safety
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/automation-prefix-match-plan-detection.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/automation-prefix-match-plan-detection.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Automation Plan Detection: Exact Leading Marker Boundary
@@ -32,7 +32,7 @@ history-cleanup-date: "2026-09-19"
 | **Objective** | Make an actor-owned mutable comment identifiable only when its raw body begins at byte zero with an exact opaque marker line, while preserving display headings and inert historical comments. |
 | **Outcome** | v1's verified substring-to-prefix correction is retained as history. v2 generalizes the boundary across plan/review recognition, mutation, admission, and recovery, and replaces display-heading identity with an opaque canonical marker. The v2 implementation was not executed in this session. |
 | **Verification** | unverified — the v2 workflow is based on an implementation-ready ProjectHephaestus plan, but its production changes and acceptance suites have not run. |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/automation-prefix-match-plan-detection.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/automation-prefix-match-plan-detection.history) |
 
 ## When to Use
 

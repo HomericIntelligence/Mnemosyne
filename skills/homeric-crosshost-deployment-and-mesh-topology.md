@@ -22,8 +22,8 @@ tags:
   - retry
   - e2e
   - process-boundary
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/homeric-crosshost-deployment-and-mesh-topology.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/homeric-crosshost-deployment-and-mesh-topology.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # HomericIntelligence Cross-Host Deployment and Mesh Topology
@@ -34,7 +34,7 @@ Use this skill to choose and verify a HomericIntelligence service topology, or t
 NATS security/restart plan without promoting assumptions to evidence. It retains the reusable
 operator decisions; project transcripts and case-specific file maps are in the
 [notes](./homeric-crosshost-deployment-and-mesh-topology.notes.md), and the full superseded
-content is in [history](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/homeric-crosshost-deployment-and-mesh-topology.history).
+content is in [history](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/homeric-crosshost-deployment-and-mesh-topology.history).
 
 The overall skill remains `unverified` because the NATS authentication, Grafana hardening,
 TLS-runbook, and Telemachy mTLS workflows are plans. Cross-host deployments were verified
@@ -234,7 +234,7 @@ publish can be retried after an uncertain ACK.
 ## References
 
 - [Detailed cases and provenance](./homeric-crosshost-deployment-and-mesh-topology.notes.md)
-- [Version history and superseded full content](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/homeric-crosshost-deployment-and-mesh-topology.history)
+- [Version history and superseded full content](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/homeric-crosshost-deployment-and-mesh-topology.history)
 - [nats-py](https://github.com/nats-io/nats.py)
 - [NATS connection resilience](./nats-py-connection-resilience-patterns.md)
 - [Transient-error retry](./retry-transient-errors.md)

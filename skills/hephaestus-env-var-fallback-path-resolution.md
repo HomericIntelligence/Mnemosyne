@@ -22,8 +22,8 @@ tags:
   - pep660
   - marker-file-walkup
   - verification-fidelity
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/hephaestus-env-var-fallback-path-resolution.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/hephaestus-env-var-fallback-path-resolution.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # ProjectHephaestus: Env-Var + Fallback Path Resolution
@@ -36,7 +36,7 @@ history-cleanup-date: "2026-09-19"
 | **Objective** | (v1.0.0) Replace 5 identical __file__.parents[N] patterns with centralized repo_root()/scripts_dir(). (v1.1.0) Capture the worktree+editable-install failure mode where a __file__-anchored marker walk-up resolves to the PARENT meta-repo and a checker reads the WRONG pyproject.toml, plus the `python -m pkg.mod` fix and the verification-fidelity lesson |
 | **Outcome** | ✅ (v1.0.0) 5 patterns centralized, 3175 tests pass, PR #931. (v1.1.0) Root-caused a "checker passes on injected violation" bug to repo-root resolution reading the parent meta-repo; switched the CI step to `python -m hephaestus.scripts_lib.check_version_single_source`; `deps/version-sync` passed in CI (13s) |
 | **Verification** | verified-ci (deps/version-sync gate passed in CI after the `-m` fix; PR #1266) |
-| **History** | [prior Git source](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/hephaestus-env-var-fallback-path-resolution.history) (v1.0.0 archived) |
+| **History** | [prior Git source](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/hephaestus-env-var-fallback-path-resolution.history) (v1.0.0 archived) |
 | **Project** | ProjectHephaestus |
 | **Issue** | [#741](https://github.com/HomericIntelligence/ProjectHephaestus/issues/741), [#1181](https://github.com/HomericIntelligence/ProjectHephaestus/issues/1181) |
 | **PR** | [#931](https://github.com/HomericIntelligence/ProjectHephaestus/pull/931), [#1266](https://github.com/HomericIntelligence/ProjectHephaestus/pull/1266) |

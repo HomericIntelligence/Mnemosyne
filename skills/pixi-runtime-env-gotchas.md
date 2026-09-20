@@ -25,8 +25,8 @@ tags:
   - linker
   - conda-forge
   - sysroot
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/pixi-runtime-env-gotchas.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/pixi-runtime-env-gotchas.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Pixi Runtime Environment Gotchas
@@ -39,7 +39,7 @@ history-cleanup-date: "2026-09-19"
 | **Objective** | Diagnose and recover from pixi runtime environment bugs that manifest AFTER install: env re-solve wiping the editable install in swarm worktrees, unreliable GHA caching (`Saved cache with ID -1`) and locked-env cache poisoning, pre-commit hooks resolving to the wrong pixi env binary, and GLIBC_PRIVATE linker errors mixing system OpenSSL with a conda-forge toolchain |
 | **Outcome** | Each failure mode has a confirmed root cause and a copy-paste recovery: `pixi run dev-install` restores a wiped editable install; explicit `actions/cache` (non-locked) or built-in-only caching (locked) fixes GHA caching; `pixi run dev-install` populates the correct pre-commit binary; `openssl >= 3` from conda-forge resolves the linker errors |
 | **Verification** | verified-ci |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/pixi-runtime-env-gotchas.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/pixi-runtime-env-gotchas.history) |
 
 ## When to Use
 

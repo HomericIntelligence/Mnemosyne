@@ -19,8 +19,8 @@ tags:
   - D413
   - E501
   - mypy
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/ruff-specific-rule-fixes.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/ruff-specific-rule-fixes.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Ruff-Specific Rule Fixes
@@ -33,7 +33,7 @@ violations can justify a shared enforcement improvement when it fits the request
 
 Case provenance and detailed outcomes are in
 [ruff-specific-rule-fixes.notes.md](ruff-specific-rule-fixes.notes.md). The complete superseded
-content is in [ruff-specific-rule-fixes.history](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/ruff-specific-rule-fixes.history).
+content is in [ruff-specific-rule-fixes.history](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/ruff-specific-rule-fixes.history).
 
 ## When to Use
 

@@ -17,8 +17,8 @@ tags:
   - jinja
   - behavior-contracts
   - projecthephaestus
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/prompt-fencing-refactor-plan-risks.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/prompt-fencing-refactor-plan-risks.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Prompt Tests Should Exercise Parsers, Fences, and Routing
@@ -31,7 +31,7 @@ history-cleanup-date: "2026-09-19"
 | **Objective** | Replace tests that freeze prompt prose with contracts over machine-consumed schemas, adversarial payload containment, provider selection, iteration routing, and host-produced job wiring. |
 | **Outcome** | Proposed workflow now also covers commit-message and PR-message prompts: allocate one fencer per rendered prompt, fence every GitHub/Git string including empty fallbacks, keep only host-owned policy and numeric identifiers outside fences, and preserve JSON-only response contracts. The implementation plan was not executed. |
 | **Verification** | `unverified` — the supplied ProjectHephaestus plan was consolidated here, but no templates or tests were changed and no focused suite or CI run was observed. |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/prompt-fencing-refactor-plan-risks.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/prompt-fencing-refactor-plan-risks.history) |
 
 Prompt text is an implementation detail unless a downstream consumer parses it. Tests that
 pin headings, phrases, rubric markers, example counts, or builder docstrings make harmless

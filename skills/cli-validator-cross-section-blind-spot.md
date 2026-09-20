@@ -8,8 +8,8 @@ version: "3.0.0"
 user-invocable: false
 verification: verified-local
 tags: [validation, markdown-parser, state-machine, cli-tier-docs, duplicate-section, cross-section, break-vs-continue, return-shape]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/cli-validator-cross-section-blind-spot.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/cli-validator-cross-section-blind-spot.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # CLI Validator Cross-Section Blind Spot

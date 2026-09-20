@@ -7,8 +7,8 @@ date: 2026-06-07
 version: "1.1.0"
 user-invocable: false
 tags: [mojo-packaging, mojopkg, modular-community, prefix-dev, rattler-build, conda, python-wheel, github-actions, release, distribution]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/mojo-package-build-and-distribution.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/mojo-package-build-and-distribution.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Mojo Package Build and Distribution
@@ -21,7 +21,7 @@ history-cleanup-date: "2026-09-19"
 | **Objective** | Document the end-to-end pattern for building a Mojo library into a `.mojopkg`, packaging it for distribution (conda channel via rattler-build, Python wheel, or git dependency), and automating builds/releases with GitHub Actions |
 | **Outcome** | Verified — `src/<pkg>/` layout, `conda.recipe/recipe.yaml`, `.mojopkg` build, install-local, Python wheel, and release-artifact attachment all executed end-to-end in ProjectOdyssey (issue #5413). Channel install pending modular/modular-community#274 merge. |
 | **Verification** | verified-ci |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/mojo-package-build-and-distribution.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/mojo-package-build-and-distribution.history) |
 
 ## When to Use
 

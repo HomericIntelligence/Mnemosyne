@@ -8,8 +8,8 @@ version: "1.2.0"
 user-invocable: false
 verification: verified-ci
 tags: []
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/dependency-floor-near-tested-version.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/dependency-floor-near-tested-version.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Dependency Floor Near Tested Version
@@ -22,7 +22,7 @@ history-cleanup-date: "2026-09-19"
 | **Objective** | Raise a dev tool's floor (e.g., `ruff>=0.1.0`) to match the tested minor (`>=0.15`) and add a cross-manifest regression guard; or add two-sided bounds for load-bearing packages (e.g., pip `>=23.0,<27`) |
 | **Outcome** | verified-ci |
 | **Verification** | verified-ci |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/dependency-floor-near-tested-version.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/dependency-floor-near-tested-version.history) |
 
 ## When to Use
 
@@ -85,7 +85,7 @@ pixi run ruff check hephaestus scripts tests
 | `dep.startswith("ruff")` | Simple prefix check to find ruff in dev_deps list | Would match `ruff-lsp` or other ruff-prefixed packages | Use PEP 508 specifier splitting via the existing `_find_dep(dev_deps, name)` helper |
 | Copying `_find_dep` as new per-class helper | Defined `_find_ruff_dep` as verbatim copy of `TestPytestConsistency._find_dep` with `"ruff"` hardcoded | DRY violation; reviewer NOGO'd; `_find_dep` already takes `name` parameter | Call `TestPytestConsistency._find_dep(dev_deps, "ruff")` directly |
 | Separate pre-commit script | `scripts/check_ruff_floor_consistency.py` + pre-commit hook | Disproportionate for a single constraint; unit tests already run in CI | The existing `test_dependency_floor_consistency.py` gate is sufficient |
-| Rebasing onto main after sibling issue landed | Branch based on older main without `TestRuffConsistency` (from #1201, which landed first) | Rebase conflict in `test_dependency_floor_consistency.py` — add/add conflict on the test class | Rebase onto origin/main, keep both test classes (`TestRuffConsistency` from #1201 and `TestPipPinning` from #1202), then apply ruff auto-fixes surfaced by the rebase |
+| Rebasing onto main after sibling issue landed | Branch based on older main without `TestRuffConsistency` (from #1201, which landed first) | Rebase conflict in `test_dependency_floor_consistency.py` — add/add conflict on the test class | Rebase only when the active task needs `TestRuffConsistency` from main or the host reports a conflict. Then keep both test classes (`TestRuffConsistency` and `TestPipPinning`) and apply ruff auto-fixes surfaced by the permitted rebase. |
 
 ## Results & Parameters
 

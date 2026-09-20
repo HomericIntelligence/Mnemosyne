@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Regenerate a stale uv lock after dependency constraints or platform markers change; inspect branch drift, normalized metadata, and the actual freshness check."
 category: ci-cd
 date: 2026-07-17
-version: "1.1.0"
+version: "1.1.1"
 user-invocable: false
 verification: verified-local
 tags:
@@ -27,8 +27,8 @@ tags:
   - nogo
   - pep508
   - pre-commit
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/uv-lock-stale-after-constraint-regenerate-verify-marker.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/uv-lock-stale-after-constraint-regenerate-verify-marker.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # uv.lock Stale After a Constraint Change: Regenerate and Verify the Lock Signals
@@ -39,7 +39,7 @@ history-cleanup-date: "2026-09-19"
 |-------|-------|
 | **Date** | 2026-07-17 |
 | **Objective** | Fix a deterministic lock-freshness NOGO where `pyproject.toml` gained/changed a dependency constraint (a version specifier on a Windows-only `tzdata` entry) but `uv.lock` was not regenerated, and verify the fix with concrete lock-file signals rather than "looks right". |
-| **Outcome** | Root cause was branch drift, not a source bug: the stale PR branch was 27 commits behind `main`, and its committed `uv.lock` did not reflect the `pyproject.toml` specifier. `main` already carried both the constraint and a fresh lock (`uv lock --check` exit 0, "Resolved 88 packages"). Fix = regenerate `uv.lock` on a branch cut fresh from `main`, then assert the specifier landed in `requires-dist` and the marker normalized to `sys_platform == 'win32'`. |
+| **Outcome** | Root cause was branch drift, not a source bug: the stale PR branch was 27 commits behind `main`, and its committed `uv.lock` did not reflect the `pyproject.toml` specifier. `main` already carried both the constraint and a fresh lock (`uv lock --check` exit 0, "Resolved 88 packages"). For a new remediation task, pin a branch to current `main`, regenerate `uv.lock`, then assert the specifier landed in `requires-dist` and the marker normalized to `sys_platform == 'win32'`. |
 | **Verification** | verified-local — `uv lock --check` reproduced the fresh/stale distinction; marker normalization and `requires-dist` specifier confirmed by inspecting `uv.lock`. CI GO on the successor PR is a separate gated step. |
 
 ## When to Use
@@ -47,7 +47,7 @@ history-cleanup-date: "2026-09-19"
 - A `pyproject.toml` dependency line gained a version specifier or a platform/environment marker (e.g. `"tzdata; platform_system == 'Windows'"` → `"tzdata>=2026.2,<2027; platform_system == 'Windows'"`) and `uv.lock` was committed **without regeneration**.
 - CI / a plan review issues a **deterministic NOGO for a stale lockfile**, or the `uv-pre-commit` `uv-lock --check` hook (the read-only freshness gate, `args: [--check]`) fails locally.
 - You need to prove the lock now matches metadata by **specific signals**, not by eyeballing the diff.
-- The offending PR branch is far behind `main` and you must choose rebase vs. fresh-branch regeneration.
+- An active task needs a constraint and fresh lock from `main`, or a new remediation task needs a fresh main pin for regeneration.
 - You are tempted to hand-edit `uv.lock` (never do this — it is resolver-owned output).
 
 ## Root Cause (the non-obvious part)
@@ -60,7 +60,7 @@ git show main:pyproject.toml | grep -n <package>
 git rev-list --left-right --count origin/main...origin/<pr-branch>   # e.g. 27  2  → branch is 27 behind
 ```
 
-If `main` already has the constraint and `uv lock --check` on `main` returns exit 0, the defect is scoped to the drifted branch. Regenerating on a fresh branch off `main` is cleaner than resolving a generated-lock merge conflict on the stale branch.
+If `main` already has the constraint and `uv lock --check` on `main` returns exit 0, the defect is scoped to the drifted branch. Do not rebase it solely because it is old. An active task can rebase only when it needs that main content to continue. For a new remediation task, pin a fresh branch to `main`; this is cleaner than resolving a generated-lock merge conflict on the drifted branch. For a completed PR without a reported conflict, let CI/CD integrate with main.
 
 ## uv Marker Normalization (verify, don't assume)
 
@@ -76,7 +76,10 @@ uv rewrites PEP 508 markers into its own canonical form in `uv.lock`. `platform_
    uv lock --check        # on main: expect "Resolved N packages", exit 0
    ```
 
-2. **Choose rebase or a fresh branch** based on which preserves the intended work with less conflict. A fresh branch can avoid a generated-lock conflict:
+2. **Choose the branch for the task.** A new remediation task can start from current
+   `main` to avoid the old branch's generated-lock conflict. For an existing task, rebase
+   when required dependency content, a reported conflict, or an explicit request calls
+   for it; preserve the task's intended work:
 
    ```bash
    git checkout -b <issue>-regenerate-uv-lock origin/main

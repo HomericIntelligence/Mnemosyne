@@ -4,12 +4,12 @@ license: BSD-3-Clause
 description: "Reconcile skills with current repository guidance. Use when obsolete tools, versions, or examples conflict with the active contract; distinguish recommendations from historical evidence."
 category: tooling
 date: 2026-06-11
-version: "1.2.0"
+version: "1.2.1"
 user-invocable: false
 verification: verified-ci
 tags: [skill-quality, contradiction-resolution, canonical-docs, wholesale-rewrite, skill-maintenance]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/skill-teaching-stale-practices-contradicting-canonical-docs.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/skill-teaching-stale-practices-contradicting-canonical-docs.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Resolving Canonical Contradictions in Skills
@@ -120,8 +120,8 @@ pre-commit run markdownlint-cli2 --files skills/github-actions-python-cicd/SKILL
 ### Deleting a supporting file can resurface as a rebase conflict
 
 `git rm`-ing a stale supporting file (e.g. `references/notes.md`) is not the
-end of it: if main independently MODIFIES that same file before your PR
-merges, the rebase produces a **modify/delete conflict**
+end of it: if the host reports a merge conflict because main independently
+MODIFIES that same file before your PR merges, the permitted rebase produces a **modify/delete conflict**
 (`CONFLICT (modify/delete): <path> deleted in <commit> and modified in
 HEAD`). Resolve it the same way you decided to delete in the first place —
 re-confirm the base/main copy is still the stale content

@@ -23,8 +23,8 @@ tags:
   - github-actions
   - dependency-automation
   - supply-chain
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/dependency-update-automation-bot-prs.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/dependency-update-automation-bot-prs.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Dependency Update Automation and Bot PR Review
@@ -235,7 +235,7 @@ the redundant commit. Otherwise, preserve both sets of intended changes without
 duplicate entries. Use the repository's supported merge method. Implement a
 replacement dependency fix on a feature branch; do not edit protected `main`.
 
-History cleanup: 2026-09-19. The [prior source](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/ci-cd-dependabot-conflict-resolution-pattern.history)
+History cleanup: 2026-09-20. The [prior source](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/ci-cd-dependabot-conflict-resolution-pattern.history)
 retains its original evidence limits. This migration does not establish new
 operational verification.
 

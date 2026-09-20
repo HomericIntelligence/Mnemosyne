@@ -18,8 +18,8 @@ tags:
   - unit-conversion
   - auth-security
   - dead-code-removal
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/planning-backward-compat-config-primitive-extension.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/planning-backward-compat-config-primitive-extension.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Planning: Backward-Compatible Extension of a Config/Auth Primitive
@@ -32,7 +32,7 @@ history-cleanup-date: "2026-09-19"
 | **Objective** | Make implementation plans for "make a hardcoded constant configurable via env var" and "extend a config-driven config/auth primitive" tasks in a C++ service trustworthy, by codifying the assumptions a reviewer MUST re-verify before approving. |
 | **Outcome** | Planning methodology only — distilled from two ProjectAgamemnon plans: issue #260 (add comma-separated `AGAMEMNON_API_KEYS`, unioned with the single `AGAMEMNON_API_KEY` in the C++ `AuthMiddleware`) and issue #275 (expose input-length limits as an `AGAMEMNON_*`-driven `RouteLimits` struct threaded through `register_routes()`). Neither plan was executed end-to-end. The v1.2.0 amendment captures the issue #275 session's *self-correcting* second pass, which verified two first-draft assumptions were WRONG: there is NO `src/CMakeLists.txt` (the `ProjectAgamemnon_core` STATIC lib is defined in the ROOT `CMakeLists.txt:84-99`), and a full caller census found exactly 9 `register_routes` call sites (1 in `server_main.cpp` + 8 in test files), with NO integration/benchmark callers. |
 | **Verification** | unverified |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/planning-backward-compat-config-primitive-extension.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/planning-backward-compat-config-primitive-extension.history) |
 
 ## When to Use
 

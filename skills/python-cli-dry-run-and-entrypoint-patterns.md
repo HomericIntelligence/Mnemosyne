@@ -21,8 +21,8 @@ tags:
   - failure-gates
   - standalone-scripts
   - subprocess-testing
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/python-cli-dry-run-and-entrypoint-patterns.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/python-cli-dry-run-and-entrypoint-patterns.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Python CLI Advisory Modes and Entry-Point Patterns
@@ -35,7 +35,7 @@ history-cleanup-date: "2026-09-19"
 | **Objective** | Capture the shared Python CLI developer-tooling surface: advisory output with explicit failure gates, the `--dry-run` flag idiom, testable parser construction, and realistic subprocess coverage |
 | **Outcome** | MIXED — the original dry-run and packaged-entry-point patterns are verified in CI; the standalone `--fail-on-*` extension is a reviewed implementation design awaiting execution |
 | **Verification** | unverified overall; Sections A–D retain their recorded `verified-ci` evidence, while Section E is unverified |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/python-cli-dry-run-and-entrypoint-patterns.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/python-cli-dry-run-and-entrypoint-patterns.history) |
 
 ## When to Use
 

@@ -8,8 +8,8 @@ version: "1.2.0"
 user-invocable: false
 verification: verified-local
 tags: [github, rulesets, branch-protection, enforcement, drift, rollback, evaluate, active, integration_id, required-signatures, ci-policy-retirement, fail-closed]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/github-ruleset-enforcement-drift.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/github-ruleset-enforcement-drift.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # GitHub Ruleset Enforcement Drift
@@ -22,7 +22,7 @@ history-cleanup-date: "2026-09-19"
 | **Objective** | Keep repository policy aligned with live GitHub rulesets and retire duplicate CI enforcement without opening a protection gap |
 | **Outcome** | Existing drift remediation remains verified locally; v1.1.0 adds a fail-closed retirement workflow whose live ruleset precondition was verified locally, while the planned code and workflow changes remain unverified |
 | **Verification** | verified-local — the original pre-commit/jq checks passed, and the v1.1.0 Hephaestus ruleset query confirmed an active branch ruleset covering `main` with `required_signatures`; the retirement implementation and CI were not executed |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/github-ruleset-enforcement-drift.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/github-ruleset-enforcement-drift.history) |
 
 ## When to Use
 

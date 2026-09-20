@@ -421,10 +421,16 @@
       "baseline_bytes": 20084,
       "review_scope": "description and active instruction prose",
       "old_version": "1.1.0",
-      "new_version": "1.2.0",
-      "result_bytes": 19584,
+      "new_version": "1.2.1",
+      "result_bytes": 19678,
       "archive": "privacy-redacted",
-      "result_sha256": "ee3da624c913f0fb41989e7023dec991004c62cbf656829a7cd59f3410283162"
+      "result_sha256": "c912964fa14f40ecd299dc6fbbb45997277853d84a03000d4d919e02ee18530a",
+      "rebase_integration": {
+        "upstream_commit": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545",
+        "upstream_version": "1.2.0",
+        "provenance": "immutable Git predecessor and appended history amendment"
+      },
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
     },
     {
       "path": "skills/adr-authoring-indexing-and-maintenance.history",
@@ -1793,9 +1799,15 @@
       "review_scope": "description and active instruction prose",
       "old_version": "1.1.0",
       "new_version": "1.2.0",
-      "result_bytes": 11426,
+      "result_bytes": 11639,
       "archive": "privacy-redacted",
-      "result_sha256": "933afaf4a35b6516f1fd9093e4f268433bc683a82ecebe1344a0dcc6988f14a6"
+      "result_sha256": "eed4f48936fa6623859c7862f5a46811ad80a10252450ae7353c1ce3b322fee0",
+      "rebase_integration": {
+        "upstream_commit": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545",
+        "upstream_version": "1.1.0",
+        "provenance": "immutable Git predecessor and appended history amendment"
+      },
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
     },
     {
       "path": "skills/automation-parser-state-refactor-planning-risks.md",
@@ -1949,8 +1961,9 @@
       ],
       "baseline_bytes": 9338,
       "review_scope": "description and active instruction prose",
-      "result_bytes": 9338,
-      "result_sha256": "baf37cca9868807c25821e6303698fe224ee5b131efa596f2553da18b3707b74"
+      "result_bytes": 9545,
+      "result_sha256": "ab3270b3eaf2b0fc858272a169f297a439d3e5293164fd6cd67deea072a614e6",
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
     },
     {
       "path": "skills/automation-review-authorization-ci-boundary.notes.md",
@@ -1996,11 +2009,17 @@
       "baseline_bytes": 14631,
       "old_version": "1.2.0",
       "new_version": "1.3.0",
-      "result_bytes": 14689,
+      "result_bytes": 14822,
       "archive": "privacy-redacted",
       "archive_privacy_redacted": true,
       "coordinator_review": "Generalized private examples found during integration; omitted their original snapshot.",
-      "result_sha256": "a8a52d0be30c69412d9746e049236a4e52eb43405b81697d94c7b1d860745c73"
+      "result_sha256": "45b547bd725cfcaa013d75fb731363b21e566ec9579d7441dd2fea013b2a2a97",
+      "rebase_integration": {
+        "upstream_commit": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545",
+        "upstream_version": "1.2.0",
+        "provenance": "immutable Git predecessor and appended history amendment"
+      },
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
     },
     {
       "path": "skills/automation-session-naming-pr-scoped-not-commit-scoped.history",
@@ -2485,10 +2504,16 @@
       "baseline_bytes": 23048,
       "review_scope": "description and active instruction prose",
       "old_version": "2.1.0",
-      "new_version": "2.2.0",
-      "result_bytes": 22680,
+      "new_version": "2.2.1",
+      "result_bytes": 22780,
       "archive": "complete snapshot",
-      "result_sha256": "2ce5bc7166678b7c9c8e42455eb569a665d19d5c2ed5967397ee3b39c07ac29e"
+      "result_sha256": "5baf1de9dbf6fedd8ef012f601c17ca4c157ad3a17bd375101ae1131fc10cbbd",
+      "rebase_integration": {
+        "upstream_commit": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545",
+        "upstream_version": "2.2.0",
+        "provenance": "immutable Git predecessor and appended history amendment"
+      },
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
     },
     {
       "path": "skills/ci-cd-canonical-check-nonlibrary-repo.history",
@@ -2687,8 +2712,9 @@
       "retained_boundaries": [],
       "baseline_bytes": 4589,
       "review_scope": "description and active instruction prose",
-      "result_bytes": 4589,
-      "result_sha256": "2ba4fb85a5f215dd8c8b4f224f28ab581d5c2eae8946de6dd510e1bf2c2ca824"
+      "result_bytes": 4660,
+      "result_sha256": "924df6b97028f51d0cbcbab34796f37415440f6e9960b7152817d1804683e1e1",
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
     },
     {
       "path": "skills/ci-cd-opencode-asset-arch-naming.md",
@@ -2841,10 +2867,16 @@
       "review_scope": "description and all active prose; literal code and historical raw evidence preserved; active prompt templates reviewed",
       "baseline_bytes": 9974,
       "old_version": "2.0.0",
-      "new_version": "2.0.1",
-      "result_bytes": 9625,
+      "new_version": "2.1.1",
+      "result_bytes": 9824,
       "archive": "complete snapshot",
-      "result_sha256": "bd7795fcfc77984bb511b5dc6bfdd88e62e1a7f7468d95259d1973b1f536519d"
+      "result_sha256": "5b6c94ce0ca8af84f537d9f0e216c681d97c5ffd691bc0bdff6d7695b2aaa631",
+      "rebase_integration": {
+        "upstream_commit": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545",
+        "upstream_version": "2.1.0",
+        "provenance": "immutable Git predecessor and appended history amendment"
+      },
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
     },
     {
       "path": "skills/ci-failure-triage-and-diagnosis.notes.md",
@@ -2977,10 +3009,16 @@
       "review_scope": "description and all active prose; literal code and historical raw evidence preserved; active prompt templates reviewed",
       "baseline_bytes": 8468,
       "old_version": "1.0.0",
-      "new_version": "1.0.1",
-      "result_bytes": 7868,
+      "new_version": "1.1.1",
+      "result_bytes": 8068,
       "archive": "complete snapshot",
-      "result_sha256": "68200af0d1e4e045b405f167c3610ef59d9e86620761ca699ab1052df1d9d259"
+      "result_sha256": "30cd36cbe947050a6829e5d1f8e152cab7ab5112ada38ef83fbe7ef6a07ae807",
+      "rebase_integration": {
+        "upstream_commit": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545",
+        "upstream_version": "1.1.0",
+        "provenance": "immutable Git predecessor and appended history amendment"
+      },
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
     },
     {
       "path": "skills/ci-matrix-yaml-multiformat-regex-fallback.history",
@@ -4604,10 +4642,16 @@
       "archive_privacy_redacted": true,
       "baseline_bytes": 9736,
       "old_version": "1.0.0",
-      "new_version": "1.1.0",
-      "result_bytes": 9128,
+      "new_version": "1.1.1",
+      "result_bytes": 9479,
       "archive": "privacy-redacted",
-      "result_sha256": "0f19d44ae24b418eb4c3d516206ebed17db1a4e2c728321c385e6da65eb1668a"
+      "result_sha256": "7fae61d1144954781b356ca1e58684fa029600d26b4e57656bdb48204eaf3ab2",
+      "rebase_integration": {
+        "upstream_commit": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545",
+        "upstream_version": "1.1.0",
+        "provenance": "immutable Git predecessor and appended history amendment"
+      },
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
     },
     {
       "path": "skills/dependency-floor-near-tested-version.history",
@@ -4624,8 +4668,9 @@
       "retained_boundaries": [],
       "baseline_bytes": 8996,
       "review_scope": "description and active instruction prose",
-      "result_bytes": 8996,
-      "result_sha256": "401034c05435d15b3bdd9302d85c6ede1024f22d5af3fa05c957a0621250c7bd"
+      "result_bytes": 9066,
+      "result_sha256": "01e8f7f279ce57381cec3d922cc97efd01835d704cce25a409859d51f5ed1a50",
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
     },
     {
       "path": "skills/dependency-manifest-single-source-of-truth.history",
@@ -5897,10 +5942,16 @@
       "baseline_bytes": 9783,
       "review_scope": "description and active instruction prose",
       "old_version": "2.0.0",
-      "new_version": "2.1.0",
-      "result_bytes": 9843,
+      "new_version": "2.1.1",
+      "result_bytes": 10153,
       "archive": "complete snapshot",
-      "result_sha256": "e5897197c3cce975ed8aff81be9765d528c3266958a0ca04e98f7decbbb1d509"
+      "result_sha256": "f1ac6bde0eda9dcb56f4c21198307ad53ec5cfe161f7c011dba0963ced5c7513",
+      "rebase_integration": {
+        "upstream_commit": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545",
+        "upstream_version": "2.1.0",
+        "provenance": "immutable Git predecessor and appended history amendment"
+      },
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
     },
     {
       "path": "skills/git-commit-signing-failures-and-setup.notes.md",
@@ -5929,10 +5980,16 @@
       "privacy_note": "Original contains personal identity, host/network, or private portfolio examples; active copies use equivalent placeholders. Use privacy-redacted history, not a verbatim archive.",
       "baseline_bytes": 16810,
       "old_version": "1.2.0",
-      "new_version": "1.3.0",
-      "result_bytes": 15324,
+      "new_version": "1.3.1",
+      "result_bytes": 15662,
       "archive": "privacy-redacted",
-      "result_sha256": "600447de6f1bf7e41717595a2ee3c9f0c465d85ecbe3f9e8e4bf57bcd306f617"
+      "result_sha256": "5822a1712e79892482ca41a48f0b5874e5963950b083748e9d1f535d13ceb3f7",
+      "rebase_integration": {
+        "upstream_commit": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545",
+        "upstream_version": "1.3.0",
+        "provenance": "immutable Git predecessor and appended history amendment"
+      },
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
     },
     {
       "path": "skills/git-rebase-signing-ci.history",
@@ -5951,8 +6008,9 @@
       ],
       "baseline_bytes": 16424,
       "review_scope": "description and active instruction prose",
-      "result_bytes": 16424,
-      "result_sha256": "8238534255a6767adb6398cca451cda29839ca23f0f251bcbe003b7124095545"
+      "result_bytes": 16609,
+      "result_sha256": "a0e507b7f1d34addb83babdec78b416913550bad333608a07e7c07bb47f6f215",
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
     },
     {
       "path": "skills/git-rebase-skip-duplicate-merged-commits.md",
@@ -5963,10 +6021,16 @@
       "review_scope": "description and active instruction prose; literal code and raw historical evidence preserved except explicit privacy placeholders; no validation run",
       "baseline_bytes": 13465,
       "old_version": "1.0.0",
-      "new_version": "1.0.1",
-      "result_bytes": 12914,
+      "new_version": "1.1.1",
+      "result_bytes": 13092,
       "archive": "complete snapshot",
-      "result_sha256": "fc81eae80ee4064f9781cd73a4b6d2fc90cb365a163be44b435befb8912e1dac"
+      "result_sha256": "d0d7aaf6085194a664bf62026201a0c61148932f4246640481a193bfe31ae4da",
+      "rebase_integration": {
+        "upstream_commit": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545",
+        "upstream_version": "1.1.0",
+        "provenance": "immutable Git predecessor and appended history amendment"
+      },
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
     },
     {
       "path": "skills/git-stacked-prs-rebase-merge-worktree-orchestration.md",
@@ -5977,10 +6041,16 @@
       "baseline_bytes": 15353,
       "review_scope": "description and active instruction prose",
       "old_version": "1.0.0",
-      "new_version": "1.0.1",
-      "result_bytes": 13897,
+      "new_version": "1.1.1",
+      "result_bytes": 14046,
       "archive": "complete snapshot",
-      "result_sha256": "5cf63de6f298af04219ded79e230b4f8e9ebfd61a26915f2c9bde88d039f91dc"
+      "result_sha256": "433ac0aec4ccce56504fdfb02882ebc22deee66fe89338568c015c6eb5daab23",
+      "rebase_integration": {
+        "upstream_commit": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545",
+        "upstream_version": "1.1.0",
+        "provenance": "immutable Git predecessor and appended history amendment"
+      },
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
     },
     {
       "path": "skills/git-submodule-cd-persists-wrong-repo.md",
@@ -6048,8 +6118,9 @@
       "retained_boundaries": [],
       "baseline_bytes": 12185,
       "review_scope": "description and active instruction prose",
-      "result_bytes": 12185,
-      "result_sha256": "67c4203b4b823a1fb8b5f164aa69a44111a2108622169644085a44c3bed8cf0b"
+      "result_bytes": 12364,
+      "result_sha256": "e295e040ab9a41ac3808e0e6c442a45ac2740dbbec446de9eb5e6e1636ba884e",
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
     },
     {
       "path": "skills/git-workflow-rebase-worktree-signing.notes.md",
@@ -6404,8 +6475,9 @@
       ],
       "baseline_bytes": 5651,
       "review_scope": "description and active instruction prose",
-      "result_bytes": 5651,
-      "result_sha256": "63677e8b4e4b7d1861a12a3e8d2b64647df5b16d799237c852ec13223f30e240"
+      "result_bytes": 4729,
+      "result_sha256": "93c071d78f92219fea9a7b964f03654e1f6d3ba0e4c55ca4ed062ce6bb862db7",
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
     },
     {
       "path": "skills/github-relative-doc-links-resolve-to-file-location.md",
@@ -6548,8 +6620,9 @@
       "review_scope": "description and active instruction prose; literal code and raw historical evidence preserved except explicit privacy placeholders; no validation run",
       "technical_accuracy_followup": "Pre-existing technical claims warrant separate review; migration is not new verification evidence.",
       "baseline_bytes": 20142,
-      "result_bytes": 20142,
-      "result_sha256": "cfd974134edfd0f0d4abfbc0bc5724a3da0e6d4b46c1eaaf1632ad3f52c5d133"
+      "result_bytes": 20459,
+      "result_sha256": "1073103615ce675d3ec5d840ea66509dc2ea134720667a3e2c9bac5fdcf58220",
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
     },
     {
       "path": "skills/grpo-external-vllm.md",
@@ -6578,10 +6651,16 @@
       "review_scope": "description and active instruction prose; literal code and raw historical evidence preserved except explicit privacy placeholders; no validation run",
       "baseline_bytes": 9410,
       "old_version": "1.0.0",
-      "new_version": "1.1.0",
-      "result_bytes": 10103,
+      "new_version": "1.1.1",
+      "result_bytes": 10172,
       "archive": "complete snapshot",
-      "result_sha256": "83525da58bdea4bf904347a06956c2eaeeeac9b32e4e78503d84c7f2a75f3895"
+      "result_sha256": "ead2357279522830cc72288e687170bca999ba6141bebee2461628f103f8504b",
+      "rebase_integration": {
+        "upstream_commit": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545",
+        "upstream_version": "1.1.0",
+        "provenance": "immutable Git predecessor and appended history amendment"
+      },
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
     },
     {
       "path": "skills/haiku-batch-worktree-agents.notes.md",
@@ -6652,9 +6731,15 @@
       "baseline_bytes": 17181,
       "old_version": "1.3.0",
       "new_version": "1.4.0",
-      "result_bytes": 17109,
+      "result_bytes": 17488,
       "archive": "complete snapshot",
-      "result_sha256": "dff6373436c114cf08a33b0f5ef1dbd718bae219d29f77d55408c34bfe7a6d94"
+      "result_sha256": "3c7b5ef3c4f2f4d2ca994c4b8de1d8c29b6658bb1652ea0f16b9079302d2b18f",
+      "rebase_integration": {
+        "upstream_commit": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545",
+        "upstream_version": "1.3.0",
+        "provenance": "immutable Git predecessor and appended history amendment"
+      },
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
     },
     {
       "path": "skills/hephaestus-default-state-dir-planning-risk-capture.md",
@@ -6711,10 +6796,16 @@
       "baseline_bytes": 18042,
       "review_scope": "description and active instruction prose",
       "old_version": "1.1.0",
-      "new_version": "1.2.0",
-      "result_bytes": 17024,
+      "new_version": "1.2.1",
+      "result_bytes": 17082,
       "archive": "complete snapshot",
-      "result_sha256": "7a26da51970fbe9b9104ed2624194ebd1e42951c14a709790a2eae6191006626"
+      "result_sha256": "571638722efe504880b167020ff08305cbe6b73377d1ce8702653e9879275061",
+      "rebase_integration": {
+        "upstream_commit": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545",
+        "upstream_version": "1.2.0",
+        "provenance": "immutable Git predecessor and appended history amendment"
+      },
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
     },
     {
       "path": "skills/hephaestus-planning-review-risk-capture.md",
@@ -7157,8 +7248,9 @@
       "retained_boundaries": [],
       "review_scope": "description and active instruction prose; literal code and raw historical evidence preserved except explicit privacy placeholders; no validation run",
       "baseline_bytes": 8397,
-      "result_bytes": 8397,
-      "result_sha256": "2801ff20ebeacba414e13d7b1031e6bc51187725c6cb2afac2ed428c3ec20690"
+      "result_bytes": 8521,
+      "result_sha256": "d42a5aeaaefc3941ae2331c71be0e98eb26e38a94872ca9002b3664bcdfc9565",
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
     },
     {
       "path": "skills/lockfile-and-release-pipeline-management.notes.md",
@@ -7244,10 +7336,16 @@
       "baseline_bytes": 23814,
       "review_scope": "description and active instruction prose",
       "old_version": "1.2.0",
-      "new_version": "1.3.0",
-      "result_bytes": 23170,
+      "new_version": "1.3.1",
+      "result_bytes": 23477,
       "archive": "complete snapshot",
-      "result_sha256": "18c1b74d55eb053a37829985d7e9386a8607c61451b5665025dfc2254a2e816c"
+      "result_sha256": "3e1961c6bd4cfd7840d79a3d170fb1173778ee8fb6457661f061d494b5015806",
+      "rebase_integration": {
+        "upstream_commit": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545",
+        "upstream_version": "1.3.0",
+        "provenance": "immutable Git predecessor and appended history amendment"
+      },
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
     },
     {
       "path": "skills/luks-encrypted-drive-readonly-recovery.md",
@@ -7273,10 +7371,16 @@
       "baseline_bytes": 12589,
       "review_scope": "description and active instruction prose",
       "old_version": "1.1.0",
-      "new_version": "1.2.0",
-      "result_bytes": 11861,
+      "new_version": "1.2.1",
+      "result_bytes": 12056,
       "archive": "complete snapshot",
-      "result_sha256": "929a1390a79488de135596e4d62247c7d9c94b5ad79d9b8fd490fcbaa4dc8020"
+      "result_sha256": "70021e1f03fc6e95228b68bfcaa3f7a6c0ee1dc4bfd5e814e4a95c04ba751226",
+      "rebase_integration": {
+        "upstream_commit": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545",
+        "upstream_version": "1.2.0",
+        "provenance": "immutable Git predecessor and appended history amendment"
+      },
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
     },
     {
       "path": "skills/manifests-config-derived-limits-digest-hardening.md",
@@ -7852,10 +7956,16 @@
       "baseline_bytes": 6131,
       "review_scope": "description and active instruction prose",
       "old_version": "1.0.0",
-      "new_version": "1.1.0",
-      "result_bytes": 6247,
+      "new_version": "1.1.1",
+      "result_bytes": 6384,
       "archive": "complete snapshot",
-      "result_sha256": "5bebc02fe12b9fb53e29424f7218c787fc94171cfc5debaa6694f33198c44fba"
+      "result_sha256": "03a578a38ed7d4d3737e9b0bf278b0b09ca8a64a4ca6c7043e21f1f2396b9a0a",
+      "rebase_integration": {
+        "upstream_commit": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545",
+        "upstream_version": "1.1.0",
+        "provenance": "immutable Git predecessor and appended history amendment"
+      },
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
     },
     {
       "path": "skills/multi-pr-issue-triage.notes.md",
@@ -8312,10 +8422,16 @@
       "review_scope": "description and active instruction prose; literal code and raw historical evidence preserved except explicit privacy placeholders; no validation run",
       "baseline_bytes": 18829,
       "old_version": "1.2.0",
-      "new_version": "1.3.0",
-      "result_bytes": 17779,
+      "new_version": "1.3.1",
+      "result_bytes": 18127,
       "archive": "complete snapshot",
-      "result_sha256": "f5f0a45e07fc1b83ba2e57e488ec50d863ff33af192eca3d0b0a38433b1a36ed"
+      "result_sha256": "c7288c7df5f8abd3286f93ee3d9d74a5369f9000bc829c13c6cfce69d4eb4742",
+      "rebase_integration": {
+        "upstream_commit": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545",
+        "upstream_version": "1.3.0",
+        "provenance": "immutable Git predecessor and appended history amendment"
+      },
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
     },
     {
       "path": "skills/odyssey-audit-migration-coverage.md",
@@ -8420,10 +8536,16 @@
       "baseline_bytes": 23570,
       "review_scope": "description and active instruction prose",
       "old_version": "1.1.0",
-      "new_version": "1.2.0",
-      "result_bytes": 22490,
+      "new_version": "1.2.1",
+      "result_bytes": 22554,
       "archive": "complete snapshot",
-      "result_sha256": "6b6e9857d64d52dd8d3d85941901ae9d9b60c29285837bc3127138a3e9c4de7e"
+      "result_sha256": "beee97e5dc73b08194dd2373eadb6cef716c7fa05da05580c59500b4e0ada4c8",
+      "rebase_integration": {
+        "upstream_commit": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545",
+        "upstream_version": "1.2.0",
+        "provenance": "immutable Git predecessor and appended history amendment"
+      },
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
     },
     {
       "path": "skills/parallel-agent-research-and-swarm-orchestration.history",
@@ -8475,10 +8597,16 @@
       "baseline_bytes": 9715,
       "review_scope": "description and active instruction prose",
       "old_version": "2.1.0",
-      "new_version": "2.2.0",
-      "result_bytes": 9966,
+      "new_version": "2.2.1",
+      "result_bytes": 10233,
       "archive": "complete snapshot",
-      "result_sha256": "e58226eda471d1fc0d078f889606e5f61b52e469277122ba9a35da0f0aec8005"
+      "result_sha256": "c72c8218044c43fb4b57b066b88adfb1e02e8b7066f294fd0b5fbcca8fcc9404",
+      "rebase_integration": {
+        "upstream_commit": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545",
+        "upstream_version": "2.2.0",
+        "provenance": "immutable Git predecessor and appended history amendment"
+      },
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
     },
     {
       "path": "skills/parallel-agent-swarm-dispatch-patterns.notes.md",
@@ -8502,8 +8630,9 @@
       "retained_boundaries": [],
       "baseline_bytes": 11771,
       "review_scope": "description and active instruction prose",
-      "result_bytes": 11771,
-      "result_sha256": "2eb2da526f8254e70c8d0f041fe3eb3bb2a0aa10606360b04dd08bd6b0014bf3"
+      "result_bytes": 12320,
+      "result_sha256": "76ca89559283be01d2c980e7f08d375b4cdb5fc53c115d0f8be7d0e467cab44e",
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
     },
     {
       "path": "skills/parallel-pr-worktree-workflow.notes.md",
@@ -9109,10 +9238,16 @@
       "baseline_bytes": 7969,
       "review_scope": "description and active instruction prose",
       "old_version": "2.0.0",
-      "new_version": "2.1.0",
-      "result_bytes": 7793,
+      "new_version": "2.1.1",
+      "result_bytes": 8030,
       "archive": "complete snapshot",
-      "result_sha256": "4edc8a0566f433d209e8ac7054852042f43ede3c5fd8c8275f644c87a01af014"
+      "result_sha256": "25116f2c84afc134f0dc98b0d366d6f3b85f48fddf918f8a4e9ad6d190bd446e",
+      "rebase_integration": {
+        "upstream_commit": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545",
+        "upstream_version": "2.1.0",
+        "provenance": "immutable Git predecessor and appended history amendment"
+      },
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
     },
     {
       "path": "skills/planning-cross-pr-interface-dependency.notes.md",
@@ -9754,10 +9889,16 @@
       "review_scope": "description and active instruction prose; literal code and raw historical evidence preserved except explicit privacy placeholders; no validation run",
       "baseline_bytes": 8089,
       "old_version": "2.0.0",
-      "new_version": "2.1.0",
-      "result_bytes": 7915,
+      "new_version": "2.1.1",
+      "result_bytes": 8163,
       "archive": "complete snapshot",
-      "result_sha256": "dd987be6b7859d093149a075da02f7c25673e44da8b6dae4cdf73e2afdcb5095"
+      "result_sha256": "381bcf842be3e2b2907266cb9da7f162eca325d99a04afd26bac850ba372c339",
+      "rebase_integration": {
+        "upstream_commit": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545",
+        "upstream_version": "2.1.0",
+        "provenance": "immutable Git predecessor and appended history amendment"
+      },
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
     },
     {
       "path": "skills/planning-unmerged-parent-contract-compile-smoke-gate.notes.md",
@@ -9943,8 +10084,9 @@
       ],
       "baseline_bytes": 10080,
       "review_scope": "description and active instruction prose",
-      "result_bytes": 10080,
-      "result_sha256": "913a13a861fe560880347791c9d80ff57de0205b505ddaf2be8acaf9d3c6ed9f"
+      "result_bytes": 10432,
+      "result_sha256": "960c3ef40f8cb24ebb11adb54c2c7931b19fbabff4964271b44c4f3ba0d0b1d6",
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
     },
     {
       "path": "skills/pr-enumeration-discovery-idempotency.history",
@@ -9962,10 +10104,16 @@
       "review_scope": "description and all active prose; literal code and historical raw evidence preserved; active prompt templates reviewed",
       "baseline_bytes": 10954,
       "old_version": "2.0.0",
-      "new_version": "2.0.1",
-      "result_bytes": 10578,
+      "new_version": "2.1.1",
+      "result_bytes": 10649,
       "archive": "complete snapshot",
-      "result_sha256": "25ea5f68160fc50f8171616b8d7cd83a81ae9a5c047794979177d66931222596"
+      "result_sha256": "0a85e65dbf9e0fbd2ab809f754e652292237b4d1d454a0a0d4d80d2d1238a564",
+      "rebase_integration": {
+        "upstream_commit": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545",
+        "upstream_version": "2.1.0",
+        "provenance": "immutable Git predecessor and appended history amendment"
+      },
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
     },
     {
       "path": "skills/pr-enumeration-discovery-idempotency.notes.md",
@@ -9992,10 +10140,16 @@
       "baseline_bytes": 11616,
       "review_scope": "description and active instruction prose",
       "old_version": "2.0.0",
-      "new_version": "2.1.0",
-      "result_bytes": 11731,
+      "new_version": "2.1.1",
+      "result_bytes": 12303,
       "archive": "complete snapshot",
-      "result_sha256": "f4b3c1d319274e80cf1b5caa62b69194543908140fe8b7e3c1ae86c4ec6b2399"
+      "result_sha256": "79e89046e4c3d51d7d9796e31ca9b2f8ea85b3560558d6d231add5e16a9bf4f7",
+      "rebase_integration": {
+        "upstream_commit": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545",
+        "upstream_version": "2.1.0",
+        "provenance": "immutable Git predecessor and appended history amendment"
+      },
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
     },
     {
       "path": "skills/pr-rebase-conflict-resolution-patterns.notes.md",
@@ -10022,10 +10176,16 @@
       "review_scope": "description and all active prose; literal code and historical raw evidence preserved; active prompt templates reviewed",
       "baseline_bytes": 11004,
       "old_version": "2.0.0",
-      "new_version": "2.1.0",
-      "result_bytes": 11331,
+      "new_version": "2.1.1",
+      "result_bytes": 11412,
       "archive": "complete snapshot",
-      "result_sha256": "0d684d9ba1afd448836b8cb76cbed0eedb579bd3c5d292ccdc03cab7312198cb"
+      "result_sha256": "786503a61b7857ddb8887ea6418ad7fb8754cac1c7ccc52d9c20cf61baccd492",
+      "rebase_integration": {
+        "upstream_commit": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545",
+        "upstream_version": "2.1.0",
+        "provenance": "immutable Git predecessor and appended history amendment"
+      },
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
     },
     {
       "path": "skills/pr-review-loop-orchestration-agent-patterns.notes.md",
@@ -10083,8 +10243,9 @@
       "retained_boundaries": [],
       "baseline_bytes": 5095,
       "review_scope": "description and active instruction prose",
-      "result_bytes": 5095,
-      "result_sha256": "b4a4438024652cb5de7fae99e4b5ec52d3ec35ca0a136ba55ad7b1efa6494672"
+      "result_bytes": 5206,
+      "result_sha256": "b11c4b9426bca3a9a2cd46ed2207ab975e41b4639ee33531385521dcb4d9702b",
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
     },
     {
       "path": "skills/pre-commit-hooks-and-linting-config.history",
@@ -10861,10 +11022,16 @@
       "review_scope": "description and all active prose; literal code and historical raw evidence preserved; active prompt templates reviewed",
       "baseline_bytes": 16744,
       "old_version": "1.1.0",
-      "new_version": "1.2.0",
-      "result_bytes": 16256,
+      "new_version": "1.2.1",
+      "result_bytes": 16452,
       "archive": "complete snapshot",
-      "result_sha256": "cc5aad750bc798049d2db0ab71541ab67ed2bd582a73201209dfd4ea5cf8c38a"
+      "result_sha256": "88a25185a9dae2a97418d25057a12429b8e8e4a562e640f4ff285cbc9b32647f",
+      "rebase_integration": {
+        "upstream_commit": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545",
+        "upstream_version": "1.2.0",
+        "provenance": "immutable Git predecessor and appended history amendment"
+      },
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
     },
     {
       "path": "skills/python-scaffolding-avoid-fabricated-behavior-stubs.md",
@@ -10972,10 +11139,16 @@
       "archive_privacy_redacted": true,
       "baseline_bytes": 18655,
       "old_version": "1.1.0",
-      "new_version": "1.2.0",
-      "result_bytes": 18060,
+      "new_version": "1.2.1",
+      "result_bytes": 18796,
       "archive": "privacy-redacted",
-      "result_sha256": "5acc6b4b5cebb95254dd43a4282e13bf57a62221d322e3af910caea962b6db0d"
+      "result_sha256": "51d343efb891c3903da90b1754a5b70b9315eb5bb52d3c1e7ebddf2a2d22e528",
+      "rebase_integration": {
+        "upstream_commit": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545",
+        "upstream_version": "1.2.0",
+        "provenance": "immutable Git predecessor and appended history amendment"
+      },
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
     },
     {
       "path": "skills/rebase-stale-automation-pr-onto-refactored-main.notes.md",
@@ -11285,10 +11458,16 @@
       "review_scope": "description and all active prose; literal code and historical raw evidence preserved; active prompt templates reviewed",
       "baseline_bytes": 11987,
       "old_version": "1.0.0",
-      "new_version": "1.1.0",
-      "result_bytes": 12179,
+      "new_version": "1.1.1",
+      "result_bytes": 12382,
       "archive": "complete snapshot",
-      "result_sha256": "c05c308c3c13927b3080a465c7d8d28061b13df7178efa21ef74b6c52e1caf91"
+      "result_sha256": "4ec48442eabd4ea273621d1150458f75bd0dd31b44ba635a395d700613d9ce81",
+      "rebase_integration": {
+        "upstream_commit": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545",
+        "upstream_version": "1.1.0",
+        "provenance": "immutable Git predecessor and appended history amendment"
+      },
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
     },
     {
       "path": "skills/rescue-broken-prs.notes.md",
@@ -11999,10 +12178,16 @@
       "baseline_bytes": 13295,
       "review_scope": "description and active instruction prose",
       "old_version": "1.1.0",
-      "new_version": "1.2.0",
-      "result_bytes": 12967,
+      "new_version": "1.2.1",
+      "result_bytes": 13019,
       "archive": "complete snapshot",
-      "result_sha256": "5b6b385d8b27f0a04b8901c9be7b84f13a32d70a730f189991ed3a01203a8af4"
+      "result_sha256": "38607279ac89d1e86ca6cded58f85fc89e87cf3618f59b6563b25f0d56d9fa9a",
+      "rebase_integration": {
+        "upstream_commit": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545",
+        "upstream_version": "1.2.0",
+        "provenance": "immutable Git predecessor and appended history amendment"
+      },
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
     },
     {
       "path": "skills/skill-unify-config-structure.md",
@@ -12034,10 +12219,16 @@
       "baseline_bytes": 6802,
       "review_scope": "description and active instruction prose",
       "old_version": "1.0.0",
-      "new_version": "1.1.0",
-      "result_bytes": 6896,
+      "new_version": "1.1.1",
+      "result_bytes": 7184,
       "archive": "complete snapshot",
-      "result_sha256": "f1887903e699e0ea33e965bf9a6058e232c7c40b093c715d65c461adf27d9c0c"
+      "result_sha256": "93bebcb22ca8fa9b671302e4ce567bf24d0e09981189d32f8931369f02ac4fb8",
+      "rebase_integration": {
+        "upstream_commit": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545",
+        "upstream_version": "1.1.0",
+        "provenance": "immutable Git predecessor and appended history amendment"
+      },
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
     },
     {
       "path": "skills/skills-to-plugins-migration.notes.md",
@@ -12239,8 +12430,9 @@
       "retained_boundaries": [],
       "baseline_bytes": 21755,
       "review_scope": "description and active instruction prose",
-      "result_bytes": 21755,
-      "result_sha256": "ad9ea52b9017cd945de128c5006a6fb53d9f4f02202e4c95de4420037524295a"
+      "result_bytes": 21864,
+      "result_sha256": "83acebb8bbc02b761b0fcf5f45cf0260ec3b21d410146eec7a456d4ef8978939",
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
     },
     {
       "path": "skills/statistical-claim-verification.md",
@@ -13712,10 +13904,16 @@
       "baseline_bytes": 12789,
       "review_scope": "description and active instruction prose",
       "old_version": "2.0.0",
-      "new_version": "2.0.1",
-      "result_bytes": 11991,
+      "new_version": "2.1.1",
+      "result_bytes": 12090,
       "archive": "complete snapshot",
-      "result_sha256": "0dac8445fc3a8c41a736aa2059122ba45730f0ee0fdc50a2a948ea9318998ec0"
+      "result_sha256": "2eb0e662fcf15a91b4c5660f1c53d4c14ecceb8e0d439f40ce1bd3908dbad8f1",
+      "rebase_integration": {
+        "upstream_commit": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545",
+        "upstream_version": "2.1.0",
+        "provenance": "immutable Git predecessor and appended history amendment"
+      },
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
     },
     {
       "path": "skills/tooling-subprocess-json-fail-closed-result-validation.md",
@@ -13964,10 +14162,16 @@
       "review_scope": "description and active instruction prose; literal code and raw historical evidence preserved except explicit privacy placeholders; no validation run",
       "baseline_bytes": 9714,
       "old_version": "1.0.1",
-      "new_version": "1.1.0",
-      "result_bytes": 8958,
+      "new_version": "1.1.1",
+      "result_bytes": 9379,
       "archive": "complete snapshot",
-      "result_sha256": "6d1d5270797bfad77e0fea2be46bc0b79d0ab4f18d05608af94e197f13ed2196"
+      "result_sha256": "78e872954b34ad4296e192ba4ae839a71e4c9f5d9b1217c0fb119d8da81af32e",
+      "rebase_integration": {
+        "upstream_commit": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545",
+        "upstream_version": "1.1.0",
+        "provenance": "immutable Git predecessor and appended history amendment"
+      },
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
     },
     {
       "path": "skills/uv-offline-validation-sync-first.md",
@@ -14174,9 +14378,15 @@
       "baseline_bytes": 5882,
       "old_version": "1.1.0",
       "new_version": "1.2.0",
-      "result_bytes": 6028,
+      "result_bytes": 6211,
       "archive": "complete snapshot",
-      "result_sha256": "48dccbcc7cacea9f3eedf2a6795cb92494882b2455a34b0a424134cd1c6c1a2c"
+      "result_sha256": "b38df7093d23df782871377dd84e1b4ca41fbf7335e1e6072794d6e3b4abafa4",
+      "rebase_integration": {
+        "upstream_commit": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545",
+        "upstream_version": "1.1.0",
+        "provenance": "immutable Git predecessor and appended history amendment"
+      },
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
     },
     {
       "path": "skills/vite-wasm-havok-fix.md",
@@ -14277,10 +14487,16 @@
       "baseline_bytes": 20299,
       "review_scope": "description and active instruction prose",
       "old_version": "1.1.0",
-      "new_version": "1.2.0",
-      "result_bytes": 19515,
+      "new_version": "1.2.1",
+      "result_bytes": 19689,
       "archive": "complete snapshot",
-      "result_sha256": "514d2826a1ada36b77d130a367975a36dcbd5662110888f5ef01315849953387"
+      "result_sha256": "6294183930aaba1763dc612e660705ee0b68cadb4b1c0076a52c39f15748cce8",
+      "rebase_integration": {
+        "upstream_commit": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545",
+        "upstream_version": "1.2.0",
+        "provenance": "immutable Git predecessor and appended history amendment"
+      },
+      "upstream_changes_inherited_from": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545"
     },
     {
       "path": "skills/workflow-batched-validation-resume-rate-limits.md",
@@ -16584,5 +16800,47 @@
       "reason": "Prior-version snapshot or privacy record, supporting notes, or migration coverage evidence.",
       "review_scope": "artifact role and provenance"
     }
-  ]
+  ],
+  "rebase": {
+    "target_commit": "1528432a1873e93e0c16609dd3c3cfd3c5f0d545",
+    "previous_pr_head": "e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f",
+    "date": "2026-09-20",
+    "integrated_migration_skills": [
+      "skills/address-review-preexisting-unrelated-precommit-failure.md",
+      "skills/automation-multi-repo-pr-sweep-rebase-resolve.md",
+      "skills/automation-review-loop-unpushed-fix-oscillates.md",
+      "skills/ci-cd-achaean-fleet-ci-cascade-patterns.md",
+      "skills/ci-failure-triage-and-diagnosis.md",
+      "skills/ci-markdownlint-all-files-repo-wide-blocks-prs.md",
+      "skills/dependabot-lockfile-rebase-regenerate-resign.md",
+      "skills/git-commit-signing-failures-and-setup.md",
+      "skills/git-dco-signoff-distinct-from-gpg-sign.md",
+      "skills/git-rebase-skip-duplicate-merged-commits.md",
+      "skills/git-stacked-prs-rebase-merge-worktree-orchestration.md",
+      "skills/haiku-batch-worktree-agents.md",
+      "skills/hephaestus-automation-loop-branch-sync-drive-green.md",
+      "skills/hephaestus-implement-issues-bulk-implementer.md",
+      "skills/logical-model-family-rename-with-storage-exceptions.md",
+      "skills/machine-local-container-artifact-validation-lane.md",
+      "skills/multi-pr-issue-triage.md",
+      "skills/odysseus-multi-branch-submodule-pin-management.md",
+      "skills/parallel-agent-myrmidon-swarm-orchestration.md",
+      "skills/parallel-agent-swarm-dispatch-patterns.md",
+      "skills/planning-cross-pr-interface-dependency.md",
+      "skills/planning-unmerged-parent-contract-compile-smoke-gate.md",
+      "skills/pr-enumeration-discovery-idempotency.md",
+      "skills/pr-rebase-conflict-resolution-patterns.md",
+      "skills/pr-review-loop-orchestration-agent-patterns.md",
+      "skills/python-sca-pip-audit-update-transitive-lock.md",
+      "skills/rebase-stale-automation-pr-onto-refactored-main.md",
+      "skills/rescue-broken-prs.md",
+      "skills/skill-teaching-stale-practices-contradicting-canonical-docs.md",
+      "skills/skills-to-plugins-migration.md",
+      "skills/tooling-state-skip-label-recovers-skip-capped-prs.md",
+      "skills/uv-lock-stale-after-constraint-regenerate-verify-marker.md",
+      "skills/verify-pr-ready.md",
+      "skills/workaround-demolition-wave-strategy.md"
+    ],
+    "note": "Original baseline and migration dispositions retained; result hashes describe the rebased tree. Upstream-only changes are identified separately."
+  }
 }

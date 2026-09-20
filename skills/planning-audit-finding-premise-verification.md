@@ -8,8 +8,8 @@ version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [planning, audit-finding, premise-verification, git-ls-files, git-check-ignore, core-excludesfile, global-vs-repo-ignore, untracked-file, committed-config, gitignore, regression-test, stale-premise, verify-before-planning]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/planning-audit-finding-premise-verification.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/planning-audit-finding-premise-verification.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Verify an Audit Finding's Premise Against the Current Repo Before Fixing

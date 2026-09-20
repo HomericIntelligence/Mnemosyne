@@ -17,8 +17,8 @@ tags:
   - shared-fixtures
   - copytree
   - checkpoint
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/pytest-fixture-patterns-and-deduplication.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/pytest-fixture-patterns-and-deduplication.history"
+history-cleanup-date: "2026-09-20"
 ---
 # pytest-fixture-patterns-and-deduplication
 
@@ -420,6 +420,6 @@ pixi run python -m pytest tests/scripts/test_migrate_odyssey_skills.py::TestMigr
 
 | Project | Context | Details |
 | --------- | --------- | --------- |
-| ProjectScylla | Auto-discovery #1433/#1458; dedup; shared migration; tier coverage #1381/#1423; symmetry #808/#950; checkpoint fixtures #815/#1149/#1312/#1485 | [history](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/pytest-fixture-patterns-and-deduplication.history) |
-| ProjectOdyssey | copytree nesting #3769/#4790; Mojo DataLoader reset #3687/#4770 | [history](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/pytest-fixture-patterns-and-deduplication.history) |
-| TitanSchedule | Multi-division AES fixture management (Python 3.14, pytest 9.0.2) | [history](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/pytest-fixture-patterns-and-deduplication.history) |
+| ProjectScylla | Auto-discovery #1433/#1458; dedup; shared migration; tier coverage #1381/#1423; symmetry #808/#950; checkpoint fixtures #815/#1149/#1312/#1485 | [history](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/pytest-fixture-patterns-and-deduplication.history) |
+| ProjectOdyssey | copytree nesting #3769/#4790; Mojo DataLoader reset #3687/#4770 | [history](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/pytest-fixture-patterns-and-deduplication.history) |
+| TitanSchedule | Multi-division AES fixture management (Python 3.14, pytest 9.0.2) | [history](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/pytest-fixture-patterns-and-deduplication.history) |

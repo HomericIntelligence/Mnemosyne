@@ -12,8 +12,8 @@ tags:
   - changelog
   - parsing
   - conventional-commits
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/generate-changelog.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/generate-changelog.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Generate Changelog
@@ -26,7 +26,7 @@ history-cleanup-date: "2026-09-19"
 | **Objective** | Generate formatted changelogs from git commit history using safe delimiter parsing |
 | **Outcome** | Operational — delimiter bug fixed, edge-case tests added |
 | **Verification** | verified-local |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/generate-changelog.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/generate-changelog.history) |
 
 ## When to Use
 

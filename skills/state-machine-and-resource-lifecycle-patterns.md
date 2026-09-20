@@ -25,8 +25,8 @@ tags:
   - multiprocessing
   - threading
   - python
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/state-machine-and-resource-lifecycle-patterns.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/state-machine-and-resource-lifecycle-patterns.history"
+history-cleanup-date: "2026-09-20"
 ---
 # State Machine and Resource Lifecycle Patterns
 
@@ -361,7 +361,8 @@ grep -rn "ProcessPoolExecutor\|from multiprocessing import Manager\|BrokenProces
 
 **Key decision** — threads are sufficient when workers run external CLI subprocesses (`subprocess.run()`/`Popen()`), because the GIL is released during I/O and the real work happens in external processes.
 
-**Semantic rebase strategy** when the final commit subsumes earlier incremental fixes:
+**Semantic rebase strategy** only when an active task is blocked by reviewable history that the
+final commit subsumes. Do not use it merely because main advanced; CI/CD integrates completed work:
 
 ```bash
 # Edit rebase todo to drop superseded intermediate commits

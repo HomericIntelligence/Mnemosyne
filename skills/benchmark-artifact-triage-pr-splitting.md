@@ -8,8 +8,8 @@ version: "1.5.0"
 user-invocable: false
 verification: verified-local
 tags: [benchmark, artifacts, triage, results, pareto, pr-splitting, git, reproducibility, concurrency, capacity, provenance, artifact-index, live-sweep, runner-compatibility, pr-head, redaction, coverage-forecast]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/benchmark-artifact-triage-pr-splitting.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/benchmark-artifact-triage-pr-splitting.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Benchmark Artifact Triage and PR Splitting

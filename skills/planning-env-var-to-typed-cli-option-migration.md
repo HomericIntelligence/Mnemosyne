@@ -8,8 +8,8 @@ version: "1.2.0"
 user-invocable: false
 verification: unverified
 tags: [planning, env-var-migration, typed-options, cli-design, argparse, fan-out-refactor, call-site-mapping, pola, per-knob-granularity, free-function-threading, blast-radius-verification, constants-module, provider-type-verification, options-type-inference, hephaestus]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/planning-env-var-to-typed-cli-option-migration.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/planning-env-var-to-typed-cli-option-migration.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Planning an Env-Var to Typed CLI-Option Migration Across a Fan-Out of Call Sites

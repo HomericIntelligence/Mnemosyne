@@ -8,8 +8,8 @@ version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags: [privacy, gdpr, retention, deletion-policy, compliance, data-inventory, structural-guard, doc-rot, audit-remediation, security-policy]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/privacy-policy-code-grounded-inventory-guard.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/privacy-policy-code-grounded-inventory-guard.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Privacy Policy Authoring: Code-Grounded Inventory + Structural Guard

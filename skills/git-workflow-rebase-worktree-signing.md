@@ -16,16 +16,18 @@ tags:
   - recovery
   - cherry-pick
   - stash
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/git-workflow-rebase-worktree-signing.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/git-workflow-rebase-worktree-signing.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Git Workflow: Rebase, Worktree, and Signing
 
 ## Overview
 
-Preserve work first, isolate each branch, and resolve conflicts by intent. Rebase from a verified
-upstream only for an actual conflict, a necessary dependency, or an explicit request.
+Preserve work first, isolate each branch, and resolve conflicts by intent. A new task can pin its
+development branch to `main` for implementation, review, or other work. After task start, rebase
+only for a blocker or required main content. After task completion, rebase only for a host-reported
+merge conflict; otherwise CI/CD or the merge queue integrates main.
 Publish signed commits. Use lease protection for history rewrites. Treat cleanup as a separate
 phase. A valid local signature is only one part of hosted verification: key, commit/tag
 identity, account registration, and verified email must align.
@@ -33,7 +35,7 @@ identity, account registration, and verified email must align.
 Detailed case provenance is in
 [git-workflow-rebase-worktree-signing.notes.md](git-workflow-rebase-worktree-signing.notes.md).
 The complete superseded guide is in
-[git-workflow-rebase-worktree-signing.history](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/git-workflow-rebase-worktree-signing.history).
+[git-workflow-rebase-worktree-signing.history](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/git-workflow-rebase-worktree-signing.history).
 
 ## When to Use
 

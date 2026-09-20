@@ -29,8 +29,8 @@ tags:
   - queued-push
   - sigterm-retry
   - out-of-scope-review
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/automation-review-loop-unpushed-fix-oscillates.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/automation-review-loop-unpushed-fix-oscillates.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Automation Review Loop Oscillates on an Unpushed (Made-But-Not-Pushed) Fix
@@ -43,7 +43,7 @@ history-cleanup-date: "2026-09-19"
 | **Objective** | Diagnose and recover a `hephaestus-automation-loop` run against an existing PR that cycles forever — each pass logs `R0: Verdict=GO threads=0` then "did not reach GO" -> NOGO -> repeats — without re-doing the one-word fix that was already made but never pushed |
 | **Outcome** | Root cause was PERSISTENCE, not the edit: a local-only fix can fail to reach the PR, while an out-of-scope draft can be queued for coordinator commit/push even after its agent receives SIGTERM. In both cases, compare the isolated worktree and remote branch before deciding whether to recover or discard. |
 | **Verification** | verified-local (the fix was applied and pushed THIS session; PR #977 was NOT yet merged at capture time) |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/automation-review-loop-unpushed-fix-oscillates.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/automation-review-loop-unpushed-fix-oscillates.history) |
 
 ## When to Use
 
@@ -60,9 +60,10 @@ history-cleanup-date: "2026-09-19"
 ### Current applicability
 
 Use [verify-pr-ready](verify-pr-ready.md) for live policy, affected validation, and evidence
-reuse. A branch behind main is not itself blocked. Rebase only for an actual conflict,
-a necessary dependency, or an explicit request. Keep required CI and exact-head review
-before merge. PR publication can precede validation if pending results are clear.
+reuse. A branch behind main is not itself blocked. During active work, rebase only for a blocker
+or required main content. After task completion, rebase only for a host-reported merge conflict;
+otherwise CI/CD or the merge queue integrates main. Keep required CI and exact-head review before
+merge. PR publication can precede validation if pending results are clear.
 Cleanup is separate from rebasing. Historical verification below does not verify this
 policy correction or the current version of an external tool.
 
@@ -134,8 +135,8 @@ pushed, so every re-review fetches the unchanged remote and re-flags the same de
 
 4. **Check whether integration is necessary.** Compare the local and remote heads.
    Preserve the existing signed fix. Being behind main does not require a rebase.
-   If there is an actual conflict, necessary dependency, or explicit rebase request,
-   integrate in the isolated worktree and preserve signatures and matching DCO trailers.
+   During active work, rebase only for a blocker or required main content. After task completion,
+   rebase only for a host-reported merge conflict. Preserve signatures and matching DCO trailers.
 
 5. **Publish the real fix.** Use a normal push for a fast-forward update. If history was
    rewritten, verify the expected remote head and use `--force-with-lease`. Do not reset

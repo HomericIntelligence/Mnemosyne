@@ -6,7 +6,7 @@ description: Triage a backlog of open GitHub issues, close resolved ones with co
   facing a batch of open issues that need classification and implementation.
 category: testing
 date: '2026-03-19'
-version: "1.1.0"
+version: "1.1.1"
 tags:
 - github
 - pr-workflow
@@ -14,8 +14,8 @@ tags:
 - bats
 - graphql
 - shell-testing
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/multi-pr-issue-triage.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/multi-pr-issue-triage.history"
+history-cleanup-date: "2026-09-20"
 ---
 # Multi-PR Issue Triage Workflow
 
@@ -91,8 +91,10 @@ isolated git worktree. Without this, agents switching branches will block each o
 # This lets you work before the predecessor merges
 git checkout -b 913-914-feature predecessor-branch
 
-# After predecessor merges, rebase onto updated main
+# After predecessor merges, retarget this PR to main. Rebase only if the host
+# reports a merge conflict; otherwise CI/CD integrates the completed branch.
 git fetch origin main
+# If a merge conflict is reported:
 git rebase origin/main
 ```
 

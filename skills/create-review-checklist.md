@@ -5,8 +5,8 @@ description: Suggest focused review questions when a change spans unfamiliar cod
 category: testing
 date: 2025-12-30
 version: "1.1.0"
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/create-review-checklist.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/create-review-checklist.history"
+history-cleanup-date: "2026-09-20"
 ---
 # Create Review Checklists
 

@@ -6,12 +6,12 @@ description: >-
   Also use it when a stopped worker must start another task.
 category: tooling
 date: 2026-05-31
-version: "2.2.0"
+version: "2.2.1"
 license: BSD-3-Clause
 user-invocable: false
 tags: [swarm, dispatch, worktree, ownership, dependency, verification, orchestration]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/parallel-agent-swarm-dispatch-patterns.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/parallel-agent-swarm-dispatch-patterns.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Parallel Agent Swarm Dispatch Patterns
@@ -26,7 +26,7 @@ artifacts; an agent’s success message is not evidence.
 Campaign cases and quantitative observations are indexed in
 [`parallel-agent-swarm-dispatch-patterns.notes.md`](parallel-agent-swarm-dispatch-patterns.notes.md).
 The complete prior source is archived in
-[`parallel-agent-swarm-dispatch-patterns.history`](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/parallel-agent-swarm-dispatch-patterns.history).
+[`parallel-agent-swarm-dispatch-patterns.history`](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/parallel-agent-swarm-dispatch-patterns.history).
 
 ## When to Use
 
@@ -57,6 +57,7 @@ Every dispatch includes:
 ```text
 objective and exact issue/PR identity
 isolated worktree and branch
+task-start base SHA when the branch is pinned to `main`
 exclusive writable paths
 explicit out-of-scope paths
 dependency/precondition and what to do if it fails
@@ -155,9 +156,12 @@ only its mergeable flag—to the requested intent.
 ### 8. Merge in dependency-aware waves
 
 Start dependent work when its required artifacts are available in the agreed baseline.
-If delivery policy requires merged predecessors, check that state before dependent publication. Rebase queued work when its base changes, rerun scoped checks, and update the wave
-graph for new conflicts or already-landed work. Preserve isolated worktrees for failures and report
-their paths rather than discarding evidence.
+If delivery policy requires merged predecessors, check that state before dependent publication.
+A new task can pin current main; prefer a stable base for an existing task. Rebase when a
+blocker or required main artifact prevents completion, a reported merge conflict needs
+resolution, or the user requests it. Otherwise, prefer CI/CD integration of completed work.
+Select scoped checks for changed content and update the wave graph for conflicts or
+already-landed work. Preserve isolated worktrees for failures and report their paths.
 
 ## Failed Attempts
 

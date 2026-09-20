@@ -8,8 +8,8 @@ version: "1.2.0"
 user-invocable: false
 verification: verified-local
 tags: [epic, tracking-issue, child-issues, planning, gh-cli, state-plan-go, dependency-ordering, orchestration, audit-remediation, stale-body, verification-block, path-audit, freshness-gate]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/planning-epic-verify-live-child-state.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/planning-epic-verify-live-child-state.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Planning: Re-Verify Live Child-Issue State Before Planning an Epic

@@ -11,15 +11,15 @@ user-invocable: false
 verification: verified-local
 license: BSD-3-Clause
 tags: [audit, remediation, evidence, stale-finding, stale-line-cite, scope-control, verification-boundary]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/audit-remediation-verify-evidence-before-planning.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/audit-remediation-verify-evidence-before-planning.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Audit Remediation: Verify Evidence Before Planning
 
 **Supporting cases:** [notes](./audit-remediation-verify-evidence-before-planning.notes.md)
 
-**Superseded content:** [history](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/audit-remediation-verify-evidence-before-planning.history)
+**Superseded content:** [history](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/audit-remediation-verify-evidence-before-planning.history)
 
 ## Overview
 

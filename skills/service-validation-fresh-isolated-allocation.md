@@ -7,8 +7,8 @@ date: 2026-07-18
 version: "1.1.0"
 user-invocable: false
 tags: [validation, reproduction, isolation, fresh-allocation, teardown, cleanup-evidence, control-plane, artifact-validation, ablation, scheduler, gpu, service-lifecycle]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/service-validation-fresh-isolated-allocation.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/service-validation-fresh-isolated-allocation.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Service Validation on a Fresh, Isolated Allocation

@@ -3,7 +3,7 @@
 Supporting case evidence for
 [`docstring-api-doc-generation-and-comment-hygiene`](docstring-api-doc-generation-and-comment-hygiene.md).
 The exact 30,530-byte v1.2.0 main is archived once in
-[`docstring-api-doc-generation-and-comment-hygiene.history`](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/docstring-api-doc-generation-and-comment-hygiene.history),
+[`docstring-api-doc-generation-and-comment-hygiene.history`](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/docstring-api-doc-generation-and-comment-hygiene.history),
 with SHA-256 `b61f3ef3127af173828449a3513260b8efed6c30ab964e7974b8d03488776379`.
 
 ## Case Index

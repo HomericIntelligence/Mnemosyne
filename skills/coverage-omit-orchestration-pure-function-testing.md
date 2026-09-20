@@ -8,8 +8,8 @@ version: "2.0.0"
 user-invocable: false
 verification: unverified
 tags: [coverage, hermetic-tests, orchestration, cobertura]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/coverage-omit-orchestration-pure-function-testing.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/coverage-omit-orchestration-pure-function-testing.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Promoting Omitted Orchestration Modules to Executable Coverage
@@ -22,7 +22,7 @@ history-cleanup-date: "2026-09-19"
 | **Objective** | Replace whole-module coverage omissions and import/test-name proxies with hermetic behavior tests and explicit per-module coverage floors |
 | **Outcome** | Reviewed implementation contract captured; execution and CI validation remain pending |
 | **Verification** | unverified |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/coverage-omit-orchestration-pure-function-testing.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/coverage-omit-orchestration-pure-function-testing.history) |
 
 ## When to Use
 

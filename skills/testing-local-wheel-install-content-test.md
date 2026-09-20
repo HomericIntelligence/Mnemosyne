@@ -22,8 +22,8 @@ tags:
   - ci-gating
   - hatch-vcs
   - uv-venv
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/testing-local-wheel-install-content-test.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/testing-local-wheel-install-content-test.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Deterministic Python Artifact Integrity and Lifecycle Tests
@@ -36,7 +36,7 @@ history-cleanup-date: "2026-09-19"
 | **Objective** | Replace sampled wheel checks with a dedicated, fail-closed artifact lane covering reproducible wheel/sdist builds, complete safe manifests, every wheel `RECORD` row, and the installed package lifecycle. |
 | **Outcome** | A behavior-complete, reusable implementation contract was produced. It keeps packaging metadata authoritative, shares controlled builds across tests, and separates current-wheel, current-sdist, upgrade, and uninstall environments. |
 | **Verification** | `unverified` — the workflow is based on a reviewed implementation design; its end-to-end tests and CI run have not yet been observed. |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/testing-local-wheel-install-content-test.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/testing-local-wheel-install-content-test.history) |
 
 ## When to Use
 

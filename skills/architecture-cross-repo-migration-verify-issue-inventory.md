@@ -8,8 +8,8 @@ version: "1.2.0"
 user-invocable: false
 verification: verified-ci
 tags: [cross-repo, submodule, migration, planning, issue-inventory, stale-docs, adr, ground-truth, git-history, nats-contract, orphan-consumers, dangling-references, frozen-count-assertions, tree-wide-guards, entry-points, precommit-hooks, ci-workflows, cmake, package-config, public-api, re-exports, incomplete-migration]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/architecture-cross-repo-migration-verify-issue-inventory.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/architecture-cross-repo-migration-verify-issue-inventory.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Cross-Repo Migration: Verify Issue Inventory Before Planning
@@ -22,7 +22,7 @@ history-cleanup-date: "2026-09-19"
 | **Objective** | Two halves of one lifecycle: (a) plan a Python-layer move from ProjectKeystone→ProjectAgamemnon across submodule boundaries (issue #143); (b) execute a real cross-repo surface migration (ProjectHephaestus ADR-016 / #2063 — move skills/, plugins/, .claude-plugin/, .codex-plugin/, .agents/, assets/ out to a new "Athena" repo) and keep `main` green. |
 | **Outcome** | (a) The issue's inventory/counts/ADR diverged from disk; the plan was rebuilt from verified ground truth. (b) Removing the source dirs alone turned `main` RED — every orphaned CONSUMER still referenced the moved surface; the systematic sweep (PR #2070, merged `7cc097d6`) reconciled all of them and main returned to green. |
 | **Verification** | verified-ci — the post-move orphan-consumer sweep was executed end-to-end; PR #2070 merged as `7cc097d6`, main returned to green, subsequent PRs merged cleanly. (The pre-move inventory-check half remains a planning-derived hypothesis.) |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/architecture-cross-repo-migration-verify-issue-inventory.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/architecture-cross-repo-migration-verify-issue-inventory.history) |
 
 ## When to Use
 

@@ -23,8 +23,8 @@ tags:
   - shared-state
   - signature-verification
   - complexity
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/python-module-decomposition-and-refactor-patterns.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/python-module-decomposition-and-refactor-patterns.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Python Module Decomposition and Refactor Patterns
@@ -42,7 +42,7 @@ This is a contract-preservation exercise, not a line-moving exercise. The safe u
 cohesive slice whose callers, state, imports, exceptions, and test seams have been mapped. Detailed
 case evidence is in the [notes](./python-module-decomposition-and-refactor-patterns.notes.md); the
 complete superseded v1.16.0 is in the
-[history](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/python-module-decomposition-and-refactor-patterns.history).
+[history](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/python-module-decomposition-and-refactor-patterns.history).
 
 ## When to Use
 
@@ -306,9 +306,9 @@ a dependency leaf, preserve required compatibility exports, and patch each name
 where the consumer looks it up. A function-local import is not sufficient if the
 cycle still accesses a partially initialized module.
 
-History cleanup: 2026-09-19. Prior sources:
+History cleanup: 2026-09-20. Prior sources:
 
-- [python-circular-import-symbol-extraction](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/python-circular-import-symbol-extraction.history)
+- [python-circular-import-symbol-extraction](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/python-circular-import-symbol-extraction.history)
 
 The source records retain their original verification limits. This migration
 does not establish new operational verification.

@@ -18,8 +18,8 @@ tags:
   - oom
   - retry
   - nats
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/concurrency-and-process-reliability-patterns.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/concurrency-and-process-reliability-patterns.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Concurrency and Process Reliability Patterns
@@ -34,7 +34,7 @@ Most patterns have local or CI case evidence, but the generalized finite-timeout
 ProjectHephaestus issue #2398 remains unverified design guidance. Case provenance is indexed in
 [concurrency-and-process-reliability-patterns.notes.md](concurrency-and-process-reliability-patterns.notes.md),
 and complete prior content is in
-[concurrency-and-process-reliability-patterns.history](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/concurrency-and-process-reliability-patterns.history).
+[concurrency-and-process-reliability-patterns.history](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/concurrency-and-process-reliability-patterns.history).
 
 ## When to Use
 

@@ -8,8 +8,8 @@ version: "1.0.1"
 user-invocable: false
 verification: verified-local
 tags: [integration-tests, gtest, ctest-labels, docker-compose, nats, jetstream, env-gated, skip-when-unset, hard-fail-when-set, broker-bounce, run-serial, ctest-scheduling, readiness-polling, raii-guard, port-collision, ci-job]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/testing-env-gated-live-broker-gtest-suite.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/testing-env-gated-live-broker-gtest-suite.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Testing: Env-Gated Live-Broker GTest Suite

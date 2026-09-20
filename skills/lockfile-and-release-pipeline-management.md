@@ -8,8 +8,8 @@ license: BSD-3-Clause
 user-invocable: false
 verification: verified-ci
 tags: [lockfile, release, pixi, npm, cargo, versioning, renovate, dependabot]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/lockfile-and-release-pipeline-management.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/lockfile-and-release-pipeline-management.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Lockfile and Release Pipeline Management
@@ -24,7 +24,7 @@ when files already contain the target version.
 Detailed incidents are indexed in
 [`lockfile-and-release-pipeline-management.notes.md`](lockfile-and-release-pipeline-management.notes.md).
 The complete prior source is in
-[prior Git source](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/lockfile-and-release-pipeline-management.history).
+[prior Git source](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/lockfile-and-release-pipeline-management.history).
 
 ## When to Use
 
@@ -114,8 +114,9 @@ properties:
 - required features/sources remain present.
 
 Do not delete the contract test. When packages have exact peer coupling, update them in one grouped
-PR and regenerate one coherent lock. After the stabilization change lands, refresh/rebase open bot
-branches so they run against the new structural contract.
+PR and regenerate one coherent lock. After the stabilization change lands, start a new bot task
+from a current main pin when remediation is necessary. Keep active bot-task bases stable unless a
+blocker or required main artifact permits a rebase; let CI/CD integrate completed PRs.
 
 ### 8. Verify release and dependency outcomes
 
@@ -133,7 +134,7 @@ current package manager and verify the resulting dependency diff. Fetch and
 inspect remote divergence before rewriting an existing branch. Do not rebase
 only to trigger CI or because `main` advanced.
 
-History cleanup: 2026-09-19. The [prior source](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/ci-cd-dependabot-pixi-lock-drift-fix.history)
+History cleanup: 2026-09-20. The [prior source](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/ci-cd-dependabot-pixi-lock-drift-fix.history)
 retains its original evidence limits. This migration does not establish new
 operational verification.
 

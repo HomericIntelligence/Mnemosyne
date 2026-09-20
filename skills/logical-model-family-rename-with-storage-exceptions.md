@@ -4,12 +4,12 @@ license: BSD-3-Clause
 description: "Rename logical repository or model references while preserving real storage and package identities; reconcile directory moves and newer files in a package rename."
 category: tooling
 date: 2026-07-12
-version: "1.3.0"
+version: "1.3.1"
 user-invocable: false
 verification: verified-ci
 tags: [model-family, rename, manifests, h200-slurm, storage-exceptions, ruff, repo-rename, url-sweep, package-rename, deferred-breaking-change, git-mv, whole-tree-rename, rebase, coverage-validator, mojo]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/logical-model-family-rename-with-storage-exceptions.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/logical-model-family-rename-with-storage-exceptions.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Logical Model Family Rename With Storage Exceptions
@@ -34,7 +34,7 @@ history-cleanup-date: "2026-09-19"
 - Ruff reformats a stale-token guard in a way that defeats the guard.
 - **A "rename package X->Y" PR fails CI coverage or build** because it rewrote every text *reference* but never `git mv`'d the actual package *directories* — the manifest points at a nonexistent dir and the coverage validator sees the old-path files as "uncovered."
 - **You are now executing the previously-deferred breaking package rename** (the atomic PR the issue tracked): move the source/test/python package dirs and fix references in files that merged AFTER the branch was cut.
-- **You must rebase a stale whole-tree rename** onto current main: the branch is N commits behind, other work merged inside a renamed dir, and `git rebase` produces content conflicts plus `CONFLICT (file location)` for files added on main inside the renamed tree.
+- **An active whole-tree rename needs current main content inside the renamed tree, or its host reports a merge conflict:** files added there after task start must receive the rename, and a permitted `git rebase` can produce content conflicts plus `CONFLICT (file location)`.
 
 ## Verified Workflow
 
@@ -120,7 +120,7 @@ When an org renames a repo by dropping a prefix (`HomericIntelligence/ProjectOdy
 
 5. **Companion repos:** for package-producing siblings (e.g. Hephaestus) whose rename affects a published package or plugin, file a parallel package-rename issue on each rather than sweeping their source inline.
 
-### Execute the Deferred Breaking Package Rename (git mv the DIRS, then rebase)
+### Execute the Deferred Breaking Package Rename (git mv the DIRS, then resolve a permitted conflict)
 
 This is the atomic PR the deferred issue tracked. A rename PR that rewrites every *reference*
 (`mojo.toml` already maps `odyssey = "src/odyssey"`, configs say `odyssey`, `check_coverage.py`
@@ -130,10 +130,12 @@ validator looks under the renamed path while the code still lives at the old pat
 `precommit-benchmark` -> `Validate Test Coverage` -> "❌ Found 267 uncovered test file(s)" all
 under `tests/projectodyssey/...`, plus a ruff-format failure.
 
-**Keep a whole-tree rename coherent as its base changes.** Reconcile newly merged files
-that affect renamed paths. A quiet merge window can reduce conflicts, but an empty queue
-is not an independent prerequisite. Verify with `git grep -l <oldname>` == 0 AND a build AND the coverage/manifest validator —
-not just "references look renamed."
+**Keep a whole-tree rename coherent as its base changes.** Prefer a stable task base.
+Reconcile later files when the active rename needs them or a reported merge conflict
+requires it. For a completed conflict-free PR, prefer CI/CD integration unless the user
+requests a rebase. A quiet merge window can reduce conflicts, but an empty queue is not
+an independent prerequisite. Use the applicable build and coverage/manifest checks, and
+inspect remaining old-name references against intentional storage exceptions.
 
 #### Quick Reference
 
@@ -162,10 +164,11 @@ pixi run mojo build -I src tests/${NEW}/base/test_base_imports.mojo -o /tmp/x -X
 python3 scripts/validate_test_coverage.py          # rc 0
 ```
 
-#### Rebasing the stale whole-tree rename (the critical part)
+#### Resolving a permitted whole-tree-rename rebase (the critical part)
 
 The branch was 16 commits behind main; other work had merged into `src/projectodyssey/**`
-AFTER the branch was cut. `git rebase origin/main` produces two distinct conflict classes:
+AFTER the branch was cut. The active rename needed those files, and its host reported a conflict.
+The permitted `git rebase origin/main` produced two distinct conflict classes:
 
 - **(a) Content conflicts** in files both sides touched. Resolve by taking **main's newer
   content** (`git checkout --ours <file>` during the rebase — during a rebase, "ours" is the
@@ -192,8 +195,8 @@ post-branch) still carrying old refs. `sed` those too, then re-verify build + va
 | Edited workflow files in the sweep | Included `.github/workflows/` in the URL substitution | Workflow edits are human-review-gated per repo AGENTS.md, and they often carry the deferred package name anyway | Exclude `.github/workflows` from the sweep; verify `git diff --name-only \| grep '.github/workflows'` is empty. |
 | Renamed references only, not the dirs | Rewrote every `projectodyssey`->`odyssey` reference (`mojo.toml` mapped `odyssey = "src/odyssey"`, configs, `check_coverage.py`) but never `git mv`'d `src/`, `tests/`, `python/` package dirs | `mojo.toml` pointed at a non-existent `src/odyssey`; the coverage validator looked under the renamed path but code was at the old path -> "❌ Found 267 uncovered test file(s)" + build failure | A rename is only half-done until the DIRECTORIES move. `git mv` the package dirs; verify with `git grep -l <old>` == 0 AND `find -type d -name '*<old>*'` == none AND a build AND the coverage validator, not just "references look renamed." |
 | Whole-file reformat churn | Let the formatter rewrite whole files (json.dump-style) so the rename diff drowned in reformatting noise | Massive unrelated churn makes the rename PR unreviewable and can hide real changes | Run the repo's own formatter (`pixi run ruff format .`) so only the genuinely-flagged files change; keep the rename diff focused on moves + import lines. |
-| Rebased the stale whole-tree rename blind | Ran `git rebase origin/main` on a 16-commits-behind whole-tree rename and tried to auto-resolve | Two conflict classes appeared: content conflicts (files both sides touched) and `CONFLICT (file location)` for files ADDED on main inside a renamed dir; naive resolution dropped main's newer work or left files at the old path | Take main's newer content (`--ours` during rebase) then re-`sed` the rename onto it; `git mv` the file-location conflicts into the renamed tree + sed imports; then re-`git grep` (7 more `*_autograd.mojo` files that merged post-branch still had old refs). |
-| Assumed a passed rebase == complete rename | Called the rename done once `git rebase` finished cleanly | Files that merged onto main AFTER the branch was cut carried old refs the branch never touched | A whole-tree rename is atomic and stales on every merge; after rebase, re-run `git grep -l <old>` and expect new hits from post-branch merges. Merge it in an empty-merge-queue window or re-rebase. |
+| Rebased the whole-tree rename blind | Ran `git rebase origin/main` on a 16-commits-behind whole-tree rename without first establishing that active work needed the main files or that the host reported a conflict | Two conflict classes appeared: content conflicts (files both sides touched) and `CONFLICT (file location)` for files ADDED on main inside a renamed dir; naive resolution dropped main's newer work or left files at the old path | Rebase only for the active-task main-content need or a reported conflict. Then take main's newer content (`--ours` during rebase), re-`sed` the rename, `git mv` file-location conflicts, and re-run `git grep`. |
+| Assumed a permitted rebase == complete rename | Called the rename done once `git rebase` finished cleanly | Files that merged onto main AFTER the branch was cut carried old refs the branch never touched | After a permitted rebase, re-run `git grep -l <old>` and address the required main files. Do not repeat the rebase merely because main advances; CI/CD integrates a completed conflict-free PR. |
 
 ## Results & Parameters
 
@@ -278,12 +281,12 @@ completeness_verify:      # ALL must be clean before calling it done
   - "find . -type d -name '*<old>*'      -> none"
   - "mojo build -I src tests/<new>/base/test_base_imports.mojo -> binary runs"
   - "python3 scripts/validate_test_coverage.py -> rc 0"
-rebase_stale_whole_tree_rename:
+permitted_whole_tree_rename_rebase:
   - "content conflict (both sides touched): take main's newer content (--ours during rebase) then sed the rename onto it"
   - "CONFLICT (file location) (file added on main inside renamed dir): git mv it into the renamed tree + sed imports"
-  - "AFTER rebase: re-run git grep; expect NEW hits from files merged post-branch (this session: 7 *_autograd.mojo entrypoints)"
-merge_window:
-  - "atomic: stales on every merge into a renamed dir; merge in an empty-merge-queue window or re-rebase"
+  - "AFTER rebase: re-run git grep; address required files from main (this session: 7 *_autograd.mojo entrypoints)"
+integration:
+  - "completed and conflict-free: let CI/CD integrate; do not rebase solely because main advanced"
 ```
 
 ### Verification Evidence

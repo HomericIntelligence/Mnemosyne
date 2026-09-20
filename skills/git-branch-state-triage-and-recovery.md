@@ -14,8 +14,8 @@ tags: [git, branch, triage, recovery, stale, superseded, orphan, diverged, merge
   cherry-pick, unrelated-histories, consolidation, squash-merge, stash, auto-merge,
   follow-up-branch, force-with-lease, closed-pr, replacement-pr, stacked-pr, backup-ref,
   exact-head, concurrent-trunk, artifact-provenance]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/git-branch-state-triage-and-recovery.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/git-branch-state-triage-and-recovery.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Git Branch State Triage and Recovery
@@ -30,7 +30,7 @@ not final authority.
 Case evidence is indexed in
 [`git-branch-state-triage-and-recovery.notes.md`](git-branch-state-triage-and-recovery.notes.md).
 The complete superseded source is archived in
-[`git-branch-state-triage-and-recovery.history`](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/git-branch-state-triage-and-recovery.history).
+[`git-branch-state-triage-and-recovery.history`](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/git-branch-state-triage-and-recovery.history).
 
 ## When to Use
 

@@ -24,8 +24,8 @@ tags:
   - draft7
   - schema-map
   - structured-diagnostics
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/tooling-cli-batch-terminal-outcome-contracts.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/tooling-cli-batch-terminal-outcome-contracts.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Batch CLI Terminal Outcome Contracts
@@ -38,7 +38,7 @@ history-cleanup-date: "2026-09-19"
 | **Objective** | Give every requested or discovered batch item an explicit terminal outcome, distinguish work counters from diagnostic counts, derive the command exit code from those outcomes, and emit one stable structured summary on every path |
 | **Outcome** | Proposed design for manual batch drivers and file validators, including per-item failure isolation, atomic map validation, invalid Draft 7 definition diagnostics, human/JSON error parity, unmapped-input policy, interruption handling, domain-specific dry-run semantics, complete aggregation, compatibility aliases, and single-line untrusted details |
 | **Verification** | unverified — derived from reviewed ProjectHephaestus implementation plans for `hephaestus-merge-prs` and schema validation; the implementations, focused tests, and CI validation are pending |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/tooling-cli-batch-terminal-outcome-contracts.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/tooling-cli-batch-terminal-outcome-contracts.history) |
 
 ## When to Use
 

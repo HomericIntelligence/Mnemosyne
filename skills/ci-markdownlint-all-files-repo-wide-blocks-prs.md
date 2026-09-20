@@ -4,12 +4,12 @@ license: BSD-3-Clause
 description: "Diagnose repository-wide Markdown lint failures on clean-diff PRs. Locate shared main-branch debt before changing an unrelated PR."
 category: ci-cd
 date: 2026-06-12
-version: "1.0.1"
+version: "1.1.1"
 user-invocable: false
 verification: verified-ci
 tags: [ci-cd, markdownlint, pre-commit, all-files, repo-wide, ci-blocked, required-checks, stray-file, ci-debug, github-actions]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/ci-markdownlint-all-files-repo-wide-blocks-prs.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/ci-markdownlint-all-files-repo-wide-blocks-prs.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # CI markdownlint / pre-commit `--all-files` is repo-wide and blocks every PR
@@ -72,8 +72,10 @@ gh pr create --title "[Fix] Unblock CI: remove stray markdownlint-failing file" 
   --body "$(printf 'Removes a stray file failing the repo-wide markdownlint gate.\n\nCloses #<n>\n')"
 gh pr merge --auto --squash
 
-# 5. After the cleanup PR lands on main, rebase your PR onto the new main.
-git fetch origin && git rebase origin/main && git push --force-with-lease
+# 5. After the cleanup PR lands, keep this task's base stable. CI/CD integrates
+#    the PR. Rebase only if the host reports a merge conflict or active work
+#    requires the cleanup content to continue.
+git fetch origin
 ```
 
 ### Detailed Steps
@@ -89,8 +91,9 @@ git fetch origin && git rebase origin/main && git push --force-with-lease
 4. **Fix it in its own small cleanup PR** that deletes/repairs the offending file.
    Because the gate is repo-wide, one cleanup PR unblocks *every* queued PR at
    once — not just yours.
-5. **Rebase your PR** onto the new main after the cleanup lands; the gate goes
-   green.
+5. **Keep your task base stable** after the cleanup lands. The gate can go green
+   through CI/CD integration. Rebase only if the host reports a merge conflict
+   or active work needs the cleanup content to continue.
 6. **Caveat — trust the CI log, not local all-files output.** A local
    `pre-commit run --all-files` may *also* report failures (e.g. skill-catalog,
    dependency-sync) that actually PASS in CI due to environment differences.

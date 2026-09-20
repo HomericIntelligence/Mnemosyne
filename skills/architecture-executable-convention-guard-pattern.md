@@ -12,15 +12,15 @@ user-invocable: false
 verification: verified-local
 license: BSD-3-Clause
 tags: [executable-convention, invariant-guard, fail-safe, read-only-verification, ci-gate, bidirectional-invariant, scoped-membership, negative-branch-test, docs-catalog-completeness]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/architecture-executable-convention-guard-pattern.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/architecture-executable-convention-guard-pattern.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Architecture: Executable Convention Guard Pattern
 
 **Supporting cases:** [notes](./architecture-executable-convention-guard-pattern.notes.md)
 
-**Superseded content:** [history](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/architecture-executable-convention-guard-pattern.history)
+**Superseded content:** [history](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/architecture-executable-convention-guard-pattern.history)
 
 ## Overview
 

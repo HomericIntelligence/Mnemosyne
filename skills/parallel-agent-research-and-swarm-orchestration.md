@@ -17,8 +17,8 @@ tags:
   - worktrees
   - evidence
   - feedback-loop
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/parallel-agent-research-and-swarm-orchestration.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/parallel-agent-research-and-swarm-orchestration.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Parallel Agent Research and Swarm Orchestration
@@ -34,7 +34,7 @@ The patterns have CI and operational evidence across research corpora and softwa
 metrics and domain-specific findings are indexed in
 [parallel-agent-research-and-swarm-orchestration.notes.md](parallel-agent-research-and-swarm-orchestration.notes.md),
 and the full superseded version is in
-[parallel-agent-research-and-swarm-orchestration.history](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/parallel-agent-research-and-swarm-orchestration.history).
+[parallel-agent-research-and-swarm-orchestration.history](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/parallel-agent-research-and-swarm-orchestration.history).
 
 ## When to Use
 

@@ -19,8 +19,8 @@ tags:
   - fail-closed
   - outcome-manifest
   - rollback
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/gha-required-checks-branch-protection.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/gha-required-checks-branch-protection.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # GitHub Actions Required Checks and Branch Protection
@@ -32,7 +32,7 @@ policy must require that exact context, and every event GitHub evaluates must be
 it. This skill covers design, safe policy updates, merge-queue behavior, and trustworthy aggregate
 reports. Detailed incidents and evidence live in
 [notes](./gha-required-checks-branch-protection.notes.md); superseded full content lives in
-[history](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/gha-required-checks-branch-protection.history).
+[history](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/gha-required-checks-branch-protection.history).
 
 The core patterns are `verified-ci`, including the summary aggregator, API read-back, live queue
 behavior, coupled merge-group contexts, and fail-closed reporting. Some planning patterns were only
@@ -283,7 +283,7 @@ SHA emits the final required set.
 ## References
 
 - [Detailed cases and provenance](./gha-required-checks-branch-protection.notes.md)
-- [Version history and superseded full content](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/gha-required-checks-branch-protection.history)
+- [Version history and superseded full content](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/gha-required-checks-branch-protection.history)
 - [GitHub: rulesets](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets)
 - [GitHub: merge queues](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue)
 - [GitHub REST: branch protection](https://docs.github.com/en/rest/branches/branch-protection?apiVersion=2022-11-28#update-branch-protection)

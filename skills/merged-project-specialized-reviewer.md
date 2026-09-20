@@ -8,8 +8,8 @@ version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [reviewer, subagent, agent-merge, project-pinned-context, webfetch, citation-verification, read-only, agent-extension]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/merged-project-specialized-reviewer.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/merged-project-specialized-reviewer.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Merged Project-Specialized Reviewer

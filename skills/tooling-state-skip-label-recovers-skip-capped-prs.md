@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Diagnose automation loops stranded by state:skip. Use for incorrect label addition, issue-level failure attribution, and operator-authorized recovery after a blocker is fixed."
 category: tooling
 date: 2026-06-23
-version: "2.0.1"
+version: "2.1.1"
 user-invocable: false
 verification: verified-ci
 tags:
@@ -23,8 +23,8 @@ tags:
   - genuinely-stuck-pr
   - dirty-pr-rebase
   - recovery
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/tooling-state-skip-label-recovers-skip-capped-prs.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/tooling-state-skip-label-recovers-skip-capped-prs.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # `state:skip`: Self-Perpetuating Cycle (Root Cause) and Skip-Capped PR Recovery
@@ -37,7 +37,7 @@ history-cleanup-date: "2026-09-19"
 | **Objective** | Stop the hephaestus automation loop from wrongly ADDING `state:skip` in a self-perpetuating cycle (re-tagging everything every loop, converging on nothing), AND recover PRs already stranded by the label. |
 | **Outcome** | Root cause fixed in PR #1584: `state:skip` is now operator-only and absolute (read live, never auto-added, never auto-removed). A clean end-to-end run (after #1584 + companions #1572/#1575/#1589) merged PR #1590 with 0 errors, 0 skips. |
 | **Verification** | verified-ci |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/tooling-state-skip-label-recovers-skip-capped-prs.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/tooling-state-skip-label-recovers-skip-capped-prs.history) |
 
 ## When to Use
 
@@ -73,7 +73,7 @@ gh issue view <N> --json labels | grep state:skip
 # 2. Remove the label by hand (ONLY after the original blocker is genuinely fixed)
 gh issue edit <N> --remove-label state:skip
 
-# 3. If the PR is also DIRTY, rebase onto current origin/main
+# 3. If DIRTY reports a merge conflict, rebase onto current origin/main
 git fetch origin
 git rebase origin/main          # resolve conflicts, resign with key email
 git push --force-with-lease
@@ -105,7 +105,7 @@ hephaestus-automation-loop --issues <N>
    - **loop_runner:** `_filter_open_issues` drops CLOSED issues from an explicit `--issues` batch before the phase loop; `_issue_owns_genuinely_failing_pr` gates the `state:skip` tag on the issue actually OWNING a genuinely-stuck PR (conflict/red CI), verified live.
    - **pr_manager.pr_is_genuinely_stuck:** shared classifier (DIRTY/CONFLICTING/red = stuck; BLOCKED-on-review/green = NOT stuck) — single source of truth for `ci_driver` + `loop_runner`. NOTE: a `BLOCKED` `mergeStateStatus` alone is NOT stuck (it's the awaiting-review state); only a conflict or a red `statusCheckRollup` conclusion is.
 
-5. **Recover an already-stranded PR (operator action).** Because the script never removes `state:skip`, an operator must do it: confirm the label, `gh issue edit <N> --remove-label state:skip` ONLY after the original blocker is genuinely fixed, rebase the PR if DIRTY, then re-run the loop scoped to the issue. If you remove the label while the blocker still exists, the work will simply not converge.
+5. **Recover an already-stranded PR (operator action).** Because the script never removes `state:skip`, an operator must do it: confirm the label, `gh issue edit <N> --remove-label state:skip` ONLY after the original blocker is genuinely fixed, rebase the PR only if DIRTY reports a merge conflict, then re-run the loop scoped to the issue. If you remove the label while the blocker still exists, the work will simply not converge.
 
 ## Failed Attempts
 
@@ -151,7 +151,7 @@ gh issue view <N> --json labels | grep state:skip
 ```bash
 gh issue view <N> --json labels | grep state:skip       # confirm
 gh issue edit <N> --remove-label state:skip             # ONLY after blocker is fixed
-git fetch origin && git rebase origin/main && git push --force-with-lease  # if DIRTY
+git fetch origin && git rebase origin/main && git push --force-with-lease  # only if DIRTY reports a merge conflict
 hephaestus-automation-loop --issues <N>                  # re-run scoped
 ```
 
@@ -162,7 +162,7 @@ blocker is genuinely resolved.
 ### Related
 
 - Pair with the unpushed-fix-oscillation recovery (the loop may carry an unpushed fix commit).
-- Pair with rebasing DIRTY PRs before the loop will touch them.
+- Pair with resolving DIRTY PRs that report merge conflicts before the loop will touch them.
 
 ## Verified On
 

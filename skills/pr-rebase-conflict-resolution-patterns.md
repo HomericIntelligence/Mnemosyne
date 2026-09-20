@@ -1,35 +1,38 @@
 ---
 name: pr-rebase-conflict-resolution-patterns
-description: "Use when a pull request is DIRTY or CONFLICTING after its base advances, a stacked or same-file PR queue needs serialized rebasing, conflict status is ambiguous (AA/UU/modify-delete), or a textually clean rebase may hide semantic, test, lint, policy, or inventory drift."
+description: "Use when a pull request reports DIRTY or CONFLICTING, an active task needs a main artifact to continue, a permitted stacked or same-file rebase needs serialization, conflict status is ambiguous (AA/UU/modify-delete), or a textually clean rebase may hide semantic, test, lint, policy, or inventory drift."
 category: ci-cd
 date: 2026-07-12
-version: "2.1.0"
+version: "2.1.1"
 license: BSD-3-Clause
 user-invocable: false
 tags: [git, rebase, merge-conflict, pull-request, worktree, force-with-lease, semantic-conflict, stacked-pr, ci]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/pr-rebase-conflict-resolution-patterns.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/pr-rebase-conflict-resolution-patterns.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # PR Rebase and Conflict Resolution Patterns
 
 ## Overview
 
-Use this playbook to re-parent a pull-request branch onto current trunk without
-dropping either side's intent. Git's conflict markers cover only textual overlap;
-the required result is a current-base branch whose unique delta, runtime behavior,
-tests, policy prose, generated state, and repository inventories remain coherent.
+Use this playbook only for a permitted rebase: a host-reported merge conflict, or
+an active task that cannot continue without a main artifact. After task start,
+keep the selected main base stable. Do not rebase because main advanced, review
+started, or a branch is old. After task completion, rebase only to resolve a
+reported merge conflict; repository CI/CD owns other integration with main.
+Git's conflict markers cover only textual overlap; preserve each side's intent,
+runtime behavior, tests, policy prose, generated state, and inventories.
 
 - Verification: `verified-ci` overall. Individual cases retain their original
   status in [the case notes](./pr-rebase-conflict-resolution-patterns.notes.md).
-- Full prior versions: [history](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/pr-rebase-conflict-resolution-patterns.history).
+- Full prior versions: [history](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/pr-rebase-conflict-resolution-patterns.history).
 
 ## When to Use
 
 - GitHub reports `mergeStateStatus=DIRTY` or `mergeable=CONFLICTING`, even when
   every check is green.
-- A prerequisite or sibling refactor merged and the feature must be ported to a
-  new layout or API.
+- An active task must use a layout, API, workflow, or other artifact that a
+  prerequisite or sibling refactor changed on main.
 - Several PRs edit the same hot files, or two PRs independently added the same
   source/test module.
 - Rebase reports `AA`, `UU`, or modify/delete; an `AA` file may contain no markers.
@@ -113,9 +116,11 @@ the policy or use destructive reset commands.
 ### 3. Handle queue topology deliberately
 
 For same-file sibling PRs, rank the remaining branches by smallest meaningful
-diff and land them serially. Rebase PR `k` only after PR `k-1` has merged and
-trunk has been fetched. Union reusable helpers, leave duplicated consumers as
-thin delegates, merge imports, and let lint remove now-unused symbols.
+diff and land them serially. After PR `k-1` merges, rebase PR `k` only if it
+reports a merge conflict or its active task needs main content. Otherwise keep
+its task base stable and let CI/CD integrate it. Union reusable helpers, leave
+duplicated consumers as thin delegates, merge imports, and let lint remove
+now-unused symbols.
 
 For stacked PRs, verify the new base contains the prerequisite. Retargeting does
 not automatically copy later fix commits. Cherry-pick orphaned CI/lint fixes only
@@ -201,8 +206,9 @@ the blocker; rebase instead of hunting for a nonexistent failing job.
 
 Inspect required contexts and check runs. If a required job has `needs:` on a lint
 job rejected for stale workflow policy (for example an unpinned action), an empty
-commit reruns the same broken workflow. Rebase to inherit trunk's corrected YAML,
-then push and re-arm.
+commit reruns the same broken workflow. An active task can rebase to use trunk's
+corrected YAML because that artifact is required to continue. For a completed PR
+without a reported conflict, let CI/CD perform ordinary integration.
 
 ### Same failure across unrelated rebased PRs
 
@@ -226,7 +232,7 @@ complexity limit, or deleted files left in an inventory table.
 | Marker-only review | Trusted no markers or a clean rebase | Semantic conflicts are outside Git's model | Run tests, lint, policy, inventory, and runtime checks |
 | Parallel hot-file rebases | Rebased the same-file cluster concurrently | Each merge re-conflicts the remaining branches | Use a smallest-diff-first serial train |
 | Self-report acceptance | Trusted a rebase success report | Stale refs or a later push can preserve old ancestry | Compare merge base and inherited trunk behavior |
-| Empty workflow retrigger | Pushed an empty commit for stale workflow policy | Reruns the same rejected workflow | Rebase to inherit corrected workflow files |
+| Empty workflow retrigger | Pushed an empty commit for stale workflow policy | Reruns the same rejected workflow | An active task can rebase only when corrected workflow files are required; otherwise let CI/CD integrate |
 | Scoped hook evidence | Ran hooks only on conflict-touched files | Misses whole-tree complexity and inventory checks | Run the full hook suite and tests |
 | Unqualified force-push | Rewrote the remote without an explicit lease | Can overwrite new remote work | Pin the lease to the observed old SHA |
 
@@ -247,4 +253,4 @@ new head.
 ## References
 
 - [Detailed case index and evidence](./pr-rebase-conflict-resolution-patterns.notes.md)
-- [Version history and full superseded content](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/pr-rebase-conflict-resolution-patterns.history)
+- [Version history and full superseded content](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/pr-rebase-conflict-resolution-patterns.history)

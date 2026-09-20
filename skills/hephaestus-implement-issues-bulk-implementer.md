@@ -4,12 +4,12 @@ license: BSD-3-Clause
 description: "Use the Hephaestus bulk issue implementer with explicit scope, available worker capacity, resume state, and checks for dependency-expansion bugs."
 category: tooling
 date: 2026-07-06
-version: "1.2.0"
+version: "1.2.1"
 user-invocable: false
 verification: verified-ci
 tags: [hephaestus, implementer, bulk-issues, max-workers, worktree, claude-session-quota, signal-main-thread, workflow-subagent, automation, pixi, depends-on-scope-leak, dependency-resolver, closed-issue-reimplement, duplicate-pr, zombie-issue, review-prs, scoped-chain]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/hephaestus-implement-issues-bulk-implementer.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/hephaestus-implement-issues-bulk-implementer.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # hephaestus-implement-issues Bulk Implementer — Usage and Failure Modes
@@ -22,7 +22,7 @@ history-cleanup-date: "2026-09-19"
 | **Objective** | Use ProjectHephaestus's purpose-built bulk issue-implementer to implement many GitHub issues per repo, rather than hand-rolling agent prompts, worktree isolation, and PR merge logic — AND safely drive a serial `Depends on` cleanup chain without the tool re-implementing already-CLOSED dependencies. |
 | **Outcome** | The console entry `hephaestus-implement-issues` does worktree isolation, signed commits, squash auto-merge, learn/follow-up, and per-issue state persistence out of the box. Four concrete failure modes were observed live and are documented below — including bug #1940, where `--issues N` expands N through its `Depends on #M` chain and re-implements CLOSED deps, making DUPLICATE PRs. The verified workaround (sub-agent impl + `hephaestus-review-prs`) drove ProjectHephaestus epic #1809's #1819→#1823 cleanup wave to a clean merge. |
 | **Verification** | verified-ci — the sub-agent-per-issue + `hephaestus-review-prs` workaround landed all 5 cleanup-wave PRs (epic #1809, issues #1819–#1823) through CI to merge. Bug #1940 is filed against ProjectHephaestus. |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/hephaestus-implement-issues-bulk-implementer.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/hephaestus-implement-issues-bulk-implementer.history) |
 
 ## When to Use
 
@@ -133,7 +133,7 @@ gh pr merge <PR#> --auto --squash
 | `--issues N` for a `Depends on` chain (bug #1940) | `hephaestus-implement-issues --issues 1819` on an issue whose `Depends on #1817/#1818` were already CLOSED/merged | Logged `Loaded 3 issues`; the recursive `_load_dependencies` (~impl.py:427) adds `Depends on` targets to the work graph WITHOUT the skip-closed filter that `_load_issues` (~impl.py:401) applies only to the INPUT numbers — so it re-implemented CLOSED #1817/#1818 and made DUPLICATE PRs #1938/#1939 on stale `*-auto-impl` branches (rebase conflicts; even ran `/learn` on merged #1817) | Do NOT use `--issues N` for a `Depends on` chain. The skip-closed filter does not reach resolver-expanded deps. |
 | Re-run `--issues N` after closing the deps | Closed the CLOSED dep issues, then re-ran `hephaestus-implement-issues --issues 1819` expecting scope of 1 | STILL `Loaded 3 issues` — the bug is in `_load_dependencies` (resolver expansion), NOT the input filter, so closing/filtering inputs doesn't help | The workaround (sub-agent impl + `hephaestus-review-prs`, which has no dependency-resolver) is the reliable path until #1940 lands. |
 | Trust auto-close for the dep issue | Assumed a dependency issue whose PR merged was CLOSED | It was a ZOMBIE — OPEN despite its PR merged (never auto-closed), so even the input-level skip-closed filter would miss it | Pre-flight `gh issue view N --json state`; if OPEN but PR merged → `gh issue close N` BEFORE any chained run. |
-| Reuse existing worktrees/branches for a chained run | Let a chained run reuse `build/.worktrees/issue-N` and local `*-auto-impl` branches | `Branch X already exists, reusing it` → `git rebase --force-rebase` conflict on stale content | Prune stale worktrees/branches before each chained per-issue run; create the worktree off CURRENT `origin/main` with the previous dep merged. |
+| Reuse existing worktrees/branches for a chained run | Let a chained run reuse `build/.worktrees/issue-N` and local `*-auto-impl` branches | `Branch X already exists, reusing it` → `git rebase --force-rebase` conflict on stale content | For each new issue task, create a worktree from current `origin/main`; do not let a reused branch trigger an automatic rebase. Preserve an active task base unless it is blocked or needs main content. |
 
 ## Results & Parameters
 

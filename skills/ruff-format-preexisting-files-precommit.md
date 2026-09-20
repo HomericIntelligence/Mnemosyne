@@ -8,8 +8,8 @@ version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [pre-commit, ruff-format, staging, git-add, amend, style-drift, preexisting-files]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/ruff-format-preexisting-files-precommit.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/ruff-format-preexisting-files-precommit.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Ruff-Format Reformats Pre-existing Files — Stage and Commit Them

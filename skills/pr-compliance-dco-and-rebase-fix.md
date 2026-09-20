@@ -1,15 +1,15 @@
 ---
 name: pr-compliance-dco-and-rebase-fix
 license: BSD-3-Clause
-description: "Repair a failing Hephaestus pr-policy gate by rewriting every offending PR commit with a verified cryptographic signature, DCO trailer, and Conventional Commit subject. Use when: (1) pr-policy reports unsigned, invalidly signed, or DCO-missing commits, (2) one or more historical PR commits have non-conventional subjects, (3) a final compliance commit would leave invalid commits in the PR range, or (4) a rebase requires conflict resolution."
+description: "Repair an active PR blocked by a failing Hephaestus pr-policy gate by rewriting every offending PR commit with a verified cryptographic signature, DCO trailer, and Conventional Commit subject. Use when: (1) pr-policy reports unsigned, invalidly signed, or DCO-missing commits, (2) one or more historical PR commits have non-conventional subjects, (3) a final compliance commit would leave invalid commits in the PR range, or (4) a permitted rebase requires conflict resolution."
 category: ci-cd
 date: 2026-07-18
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: unverified
 tags: [dco-signoff, pr-policy, merge-conflict, ci-fix, commit-signing, conventional-commits, rebase]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/pr-compliance-dco-and-rebase-fix.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/pr-compliance-dco-and-rebase-fix.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # PR Policy: Rewrite and Re-sign the Whole PR Range
@@ -22,12 +22,15 @@ history-cleanup-date: "2026-09-19"
 | **Objective** | Repair a PR-policy failure without leaving earlier non-compliant commits hidden beneath a later fix commit |
 | **Outcome** | Procedure expanded from a last-commit DCO fix to a whole-range rewrite; the PR #2280 application remains unverified until its new `pr-policy` check succeeds |
 | **Verification** | unverified for the PR #2280 extension; v1.0.0's last-commit/rebase procedure was previously verified in CI |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/pr-compliance-dco-and-rebase-fix.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/pr-compliance-dco-and-rebase-fix.history) |
 | **Context** | HomericIntelligence/Hephaestus PR #2280, whose required `pr-policy` check failed at 2026-07-18T17:01:14Z |
 
 > **Warning:** The procedure below is the exact remediation directed by the live
 > `pr-policy` workflow, but its PR #2280 application has not yet passed CI.
 > The GitHub `pr-policy` result, not a local approximation, is the final verdict.
+> A failing required `pr-policy` check blocks the active task and permits this
+> rewrite. Do not use it merely because `main` advanced; CI/CD integrates a
+> completed PR without a reported merge conflict.
 
 ## When to Use
 
@@ -47,7 +50,8 @@ PR=2280
 REPO=HomericIntelligence/Hephaestus
 gh pr checks "$PR" --repo "$REPO" --required
 
-# Fetch the PR's current base and rewrite *the complete PR range*.
+# The active pr-policy blocker permits this rewrite. Fetch the PR's current base
+# and rewrite *the complete PR range*.
 git fetch origin main
 BASE=origin/main
 git rebase -i --rebase-merges --exec 'git commit --amend --no-edit -S -s' "$BASE"
@@ -102,10 +106,10 @@ gh pr checks "$PR" --repo "$REPO" --required
    the current check output and hashes immediately before rewriting because a
    force-push changes every commit ID.
 
-4. Rewrite the entire offending range. Start interactive rebase at the current
-   base, leave the topology intact with `--rebase-merges` when applicable, and
-   add an `exec` that amends **each** rewritten commit with both required forms
-   of attestation:
+4. Rewrite the entire offending range. The active pr-policy failure is the
+   required authorization. Start interactive rebase at the current base, leave
+   the topology intact with `--rebase-merges` when applicable, and add an `exec`
+   that amends **each** rewritten commit with both required forms of attestation:
 
    ```bash
    git rebase -i --rebase-merges \

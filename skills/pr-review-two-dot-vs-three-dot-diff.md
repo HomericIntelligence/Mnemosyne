@@ -8,8 +8,8 @@ version: "1.2.0"
 user-invocable: false
 verification: verified-local
 tags: [pr-review, git-diff, two-dot, three-dot, merge-base, stale-branch, merge-readiness]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/pr-review-two-dot-vs-three-dot-diff.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/pr-review-two-dot-vs-three-dot-diff.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # PR Review: Two-Dot and Three-Dot Diffs
@@ -59,8 +59,9 @@ Do not close a PR or discard work only because one file matches.
 
 ### 4. Keep review, integration, and cleanup separate
 
-Review the exact head. Check integration against the current target as policy requires.
-Rebase only for an actual conflict, a necessary dependency, or an explicit request.
+Review the exact head. Check integration against the current target as policy requires. During
+active work, rebase only for a blocker or required main content. After task completion, rebase only
+for a host-reported merge conflict; otherwise CI/CD or the merge queue integrates main.
 If the head changes, review the resulting candidate. Reuse validation only under the
 applicability rules in [verify-pr-ready](verify-pr-ready.md).
 
@@ -100,6 +101,6 @@ git show HEAD:path/to/file
 
 The `verified-local` metadata describes the retained historical diff observations.
 The complete earlier text and case evidence remain in
-[history](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/pr-review-two-dot-vs-three-dot-diff.history). Its old interpretation of an
+[history](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/pr-review-two-dot-vs-three-dot-diff.history). Its old interpretation of an
 endpoint diff as a merge prediction is superseded. This documentation correction does
 not claim a new merge experiment or a new operational verification result.

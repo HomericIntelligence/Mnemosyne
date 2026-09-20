@@ -8,8 +8,8 @@ license: BSD-3-Clause
 verification: verified-local
 user-invocable: false
 tags: [multi-repo, pr-automation, github, orchestration, live-state, scope, merge-queue]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/multi-repo-pr-automation-loop-orchestration.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/multi-repo-pr-automation-loop-orchestration.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Multi-Repo PR Automation Loop Orchestration
@@ -24,7 +24,7 @@ checks.
 Detailed campaigns and project-specific evidence are in
 [`multi-repo-pr-automation-loop-orchestration.notes.md`](multi-repo-pr-automation-loop-orchestration.notes.md).
 The complete prior source is in
-[`multi-repo-pr-automation-loop-orchestration.history`](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/multi-repo-pr-automation-loop-orchestration.history).
+[`multi-repo-pr-automation-loop-orchestration.history`](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/multi-repo-pr-automation-loop-orchestration.history).
 
 ## When to Use
 

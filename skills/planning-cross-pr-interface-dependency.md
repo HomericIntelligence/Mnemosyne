@@ -3,13 +3,13 @@ name: planning-cross-pr-interface-dependency
 description: "Plan integration across unmerged sibling interfaces while separating observed contracts from assumptions and preserving legacy behavior."
 category: architecture
 date: 2026-07-04
-version: "2.1.0"
+version: "2.1.1"
 license: BSD-3-Clause
 user-invocable: false
 verification: unverified
 tags: [planning, capstone, integration, serialized-epic, unmerged-siblings, interface-gate]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/planning-cross-pr-interface-dependency.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/planning-cross-pr-interface-dependency.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Planning Cross-PR Interface Dependencies
@@ -25,7 +25,7 @@ The skill remains `unverified`: its source is a reviewed plan, not an implemente
 review findings are indexed in
 [`planning-cross-pr-interface-dependency.notes.md`](planning-cross-pr-interface-dependency.notes.md),
 and the complete prior source is archived in
-[`planning-cross-pr-interface-dependency.history`](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/planning-cross-pr-interface-dependency.history).
+[`planning-cross-pr-interface-dependency.history`](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/planning-cross-pr-interface-dependency.history).
 
 ## When to Use
 
@@ -68,7 +68,10 @@ and tick ordering assumed until their merged implementations can be read.
 
 ### 3. Check the integration base
 
-Before relying on a sibling interface:
+Before relying on a sibling interface, inspect a baseline that contains the required
+implementation. A new integration task can start from that revision. An existing task
+can update when it needs the sibling interface; main advancing alone is not a reason
+to repeat a rebase:
 
 ```bash
 git fetch origin

@@ -8,8 +8,8 @@ version: "1.0.1"
 user-invocable: false
 verification: verified-local
 tags: [testing, parametrize, short-circuit, tautology, dead-test, argparse, invalid-input, coverage]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/testing-dead-parametrize-short-circuit-tautology.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/testing-dead-parametrize-short-circuit-tautology.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Dead Parametrized Test Case: Short-Circuit Before Code Under Test

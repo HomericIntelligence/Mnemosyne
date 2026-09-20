@@ -8,8 +8,8 @@ user-invocable: false
 license: BSD-3-Clause
 verification: mixed
 tags: [nats, authentication, authorization, tls, token, leafnode, cluster-route, config-validation, fail-closed, adr]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/nats-server-auth-authz-hardening.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/nats-server-auth-authz-hardening.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # NATS Server Authentication and Authorization Hardening
@@ -25,7 +25,7 @@ Verification is `mixed`: dual-listener token hardening was CI-verified; cluster-
 and its six validator tests were verified locally with CI pending; earlier `verify_and_map`, accounts,
 and certificate-role planning retained unresolved syntax and mapping risks. Details are in
 [the notes](./nats-server-auth-authz-hardening.notes.md); exact prior content is in
-[history](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/nats-server-auth-authz-hardening.history).
+[history](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/nats-server-auth-authz-hardening.history).
 
 ## When to Use
 
@@ -182,4 +182,4 @@ no credential values, only listener and rejection classification.
 ## Companions
 
 - [Case notes](./nats-server-auth-authz-hardening.notes.md)
-- [Version history and exact superseded snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/nats-server-auth-authz-hardening.history)
+- [Version history and exact superseded snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/nats-server-auth-authz-hardening.history)

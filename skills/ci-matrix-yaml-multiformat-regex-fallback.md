@@ -8,8 +8,8 @@ version: "1.2.1"
 user-invocable: false
 verification: verified-local
 tags: [yaml, regex, python-version, ci-matrix, github-actions, multiformat]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/ci-matrix-yaml-multiformat-regex-fallback.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/ci-matrix-yaml-multiformat-regex-fallback.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # CI Matrix YAML Multiformat Regex Fallback
@@ -22,7 +22,7 @@ history-cleanup-date: "2026-09-19"
 | **Objective** | Extend `extract_ci_matrix_python_versions` to handle both inline bracket and multiline YAML sequence formats |
 | **Outcome** | Implemented and all 56 tests pass; PR #1308 open (CI pending) |
 | **Verification** | verified-local |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/ci-matrix-yaml-multiformat-regex-fallback.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/ci-matrix-yaml-multiformat-regex-fallback.history) |
 
 GitHub Actions CI matrix workflows express `python-version` lists in two common formats:
 

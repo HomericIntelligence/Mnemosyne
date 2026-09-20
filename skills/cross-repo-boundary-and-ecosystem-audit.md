@@ -25,8 +25,8 @@ tags:
   - ai-maestro
   - nats
   - remediation
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/cross-repo-boundary-and-ecosystem-audit.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/cross-repo-boundary-and-ecosystem-audit.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Cross-Repo Boundary and Ecosystem Audit
@@ -212,7 +212,7 @@ remaining authorized delivery steps and verify the resulting remote artifacts.
 For rename conflicts, inspect each conflict before applying a common resolution;
 similar conflict markers do not prove that all files have the same intent.
 
-History cleanup: 2026-09-19. The [prior source](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/ci-cd-cross-repo-skill-maintenance.history)
+History cleanup: 2026-09-20. The [prior source](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/ci-cd-cross-repo-skill-maintenance.history)
 retains its original evidence limits. This migration does not establish new
 operational verification.
 

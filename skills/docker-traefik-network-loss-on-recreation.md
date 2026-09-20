@@ -8,8 +8,8 @@ version: "1.1.1"
 user-invocable: false
 verification: verified-local
 tags: [traefik, docker, networking, "504", gateway-timeout, network-isolation]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/docker-traefik-network-loss-on-recreation.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/docker-traefik-network-loss-on-recreation.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Docker Traefik Network Loss on Recreation
@@ -22,7 +22,7 @@ history-cleanup-date: "2026-09-19"
 | **Objective** | Diagnose and fix Traefik 504 Gateway Timeout for all backends after Traefik container recreation; catch the risk proactively before recreating |
 | **Outcome** | Successful — immediate hotfix and permanent compose fix identified (v1.0.0); reconfirmed working through a real Traefik v2->v3 major upgrade, plus a proactive pre-recreate detection method added (v1.1.0) |
 | **Verification** | verified-local |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/docker-traefik-network-loss-on-recreation.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/docker-traefik-network-loss-on-recreation.history) |
 
 ## When to Use
 

@@ -18,8 +18,8 @@ tags:
   - uv
   - pixi
   - bind-mount
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/container-ci-uid-permissions-rootless.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/container-ci-uid-permissions-rootless.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Container CI UID Permissions and Rootless Patterns
@@ -35,7 +35,7 @@ The consolidated patterns have CI evidence, and the uv/container gotchas were re
 Podman builds. Case links and platform detail are in
 [container-ci-uid-permissions-rootless.notes.md](container-ci-uid-permissions-rootless.notes.md),
 with the full prior version in
-[container-ci-uid-permissions-rootless.history](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/container-ci-uid-permissions-rootless.history).
+[container-ci-uid-permissions-rootless.history](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/container-ci-uid-permissions-rootless.history).
 
 ## When to Use
 

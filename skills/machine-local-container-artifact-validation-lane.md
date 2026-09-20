@@ -4,12 +4,12 @@ license: BSD-3-Clause
 description: "Design a machine-local container validation lane when runtime image provenance, isolated mounts, or hosted-CI differences affect execution."
 category: ci-cd
 date: 2026-07-24
-version: "1.2.0"
+version: "1.2.1"
 verification: verified-ci
 tags: [ci-cd, validation, container, image-artifact, digest, fail-closed, host-vs-local-lane, materialization, runtime-isolation, least-privilege-mounts, linked-worktree, shell-wrapper, strict-review, scope-reduction]
 user-invocable: false
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/machine-local-container-artifact-validation-lane.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/machine-local-container-artifact-validation-lane.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Machine-Local Container-Artifact Validation Lane
@@ -56,9 +56,10 @@ just --dry-run _validate-host
 
 ### Detailed Steps
 
-1. **Inspect base drift.** Update the branch when conflicts or changed dependencies make it
-   useful. A rebase is not a prerequisite for every review fix. If an update drops a
-   patch-equivalent commit, compare the resulting change with the requested scope.
+1. **Inspect base drift.** Prefer a stable task base. Update it when a reported conflict,
+   a required target-base artifact, or an explicit request calls for a rebase. For a completed
+   conflict-free PR, prefer CI/CD integration. If a rebase drops a patch-equivalent commit,
+   compare the resulting change with the requested scope; a behind count alone is not a defect.
 2. **Reduce unrelated scope.** If the PR bundles changes unrelated to the validation wrapper (lifecycle logging, progress docs, unrelated evidence), restore those files to base. Strict reviewers block on bundled scope; a focused diff merges.
 3. **Preserve the CI/local split.** Keep a containerized local lane and a separate host lane for hosted runners that lack the container runtime. Do not "simplify" by collapsing the local lane into the host lane — that silently drops the reviewed-container guarantee. Document why the wrapper bootstraps before the normal language/private helpers, so a future maintainer does not replace it with broader host calls that run before validation.
 4. **Verify image bytes by digest, fail closed.** Require the configured image digest to match `sha256:<64 hex>`; compute the actual image artifact's digest and exit on mismatch **before** any container create/start. A digest check that only validates manifest text is false assurance — validate the bytes that will actually run.
@@ -95,7 +96,7 @@ just --dry-run _validate-host
 - **Runtime isolation**: exclude host checkout code/imports; stage resolved inputs owner-only and mount them read-only; normalize container paths to absolute paths.
 - **Mount policy**: only dedicated state is writable; shared and scheduler inputs are read-only; use a delimiter that preserves comma-bearing mount options.
 - **Linked worktrees**: reuse mounted metadata without adding Git to the production image; tests create explicit fixtures.
-- **Review discipline**: rebase to minimize drift, restore unrelated files to base, keep the diff focused.
+- **Review discipline**: keep the task base stable; rebase only for a permitted active-task exception or reported merge conflict. Restore unrelated files to base and keep the diff focused.
 
 ## Attribution
 

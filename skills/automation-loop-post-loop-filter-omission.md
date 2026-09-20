@@ -8,8 +8,8 @@ version: "1.2.0"
 user-invocable: false
 verification: verified-ci
 tags: [automation, loop-runner, post-loop, filter-omission, early-exit, aggregation, loops-run]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/automation-loop-post-loop-filter-omission.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/automation-loop-post-loop-filter-omission.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Automation Loop: Post-Loop Filter Omission Bug
@@ -23,7 +23,7 @@ history-cleanup-date: "2026-09-19"
 | **Outcome** | Successful — one-word inline fix + regression test; PR #1278 merged green |
 | **Verification** | verified-ci — ProjectHephaestus PR #1278, all CI gates passed |
 | **Source** | ProjectHephaestus issue #1153 |
-| **History** | [prior Git source](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/automation-loop-post-loop-filter-omission.history) |
+| **History** | [prior Git source](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/automation-loop-post-loop-filter-omission.history) |
 
 ## When to Use
 

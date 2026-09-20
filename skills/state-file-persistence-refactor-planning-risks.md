@@ -22,8 +22,8 @@ tags:
   - session-resume
   - provider-metadata
   - fail-closed
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/state-file-persistence-refactor-planning-risks.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/state-file-persistence-refactor-planning-risks.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # State-File Persistence Refactor Planning Risks
@@ -36,7 +36,7 @@ history-cleanup-date: "2026-09-19"
 | **Objective** | Capture planning risks for automation state-file refactors and for fail-closed persisted agent sessions: a resumable non-empty session ID must carry explicit metadata naming the same supported provider currently selected. |
 | **Outcome** | Planning artifacts only. ProjectHephaestus issues #1395 and #2476 were analyzed, but the described implementations and behavioral suites were not executed during these captures. |
 | **Verification** | unverified — the proposed provider invariant, boundary validation, pytest suites, Ruff, mypy, and CI results remain to be observed. |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/state-file-persistence-refactor-planning-risks.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/state-file-persistence-refactor-planning-risks.history) |
 
 ## When to Use
 

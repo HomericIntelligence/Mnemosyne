@@ -8,8 +8,8 @@ version: "1.2.0"
 user-invocable: false
 verification: verified-local
 tags: [planning, definition-of-done, convention-gate, pre-commit, commit-msg-hook, conventional-commits, graphql, required-ci-job, plan-verification, nogo-to-go, load-bearing-assumption]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/planning-mechanize-dod-convention-gate.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/planning-mechanize-dod-convention-gate.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Planning a Mechanized Definition-of-Done / Convention Gate

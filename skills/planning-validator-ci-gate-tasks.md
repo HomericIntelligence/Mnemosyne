@@ -35,8 +35,8 @@ tags:
   - two-sided-validation
   - tdd-negative-test
   - tool-install-in-job
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/planning-validator-ci-gate-tasks.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/planning-validator-ci-gate-tasks.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Planning: Risk Assessment for "Add a Build-Free Validator + CI Gate" Tasks
@@ -50,7 +50,7 @@ history-cleanup-date: "2026-09-19"
 | **Outcome** | RE-PLAN (the first plan was NOGO'd) for issue #198 ("No unit or integration tests for justfile recipes or configs"). The verified winning design: BINARY-FREE pure-Python validators (HOCON brace/string-balance for NATS `.conf`; `yaml.safe_load` + structural assertions for docker-compose), committed `tests/test-config-validators.sh` (positive + negative), strengthen `just validate-configs`, strengthen the existing NATS step IN PLACE inside the pinned `integration-tests` job, and ADD `setup-just` + `pip install pyyaml` to that job so the steps actually run. |
 | **Verification** | **verified-local** — the VALIDATOR BEHAVIOR claims were confirmed by local execution during planning: good configs pass, injected-broken fixtures fail, and the `nats-server -c configs/nats/server.conf -t` exit-1-on-valid-config misbehavior was reproduced. The FULL PLAN and CI were NOT executed end-to-end; the broader plan/CI-wiring steps remain proposed. |
 | **Category** | ci-cd / planning |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/planning-validator-ci-gate-tasks.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/planning-validator-ci-gate-tasks.history) |
 
 > **Verified vs proposed — read this distinction.** What is `verified-local` is the
 > **validator behavior**: the pure-Python brace/YAML validators were run (known-good

@@ -8,8 +8,8 @@ user-invocable: false
 license: BSD-3-Clause
 verification: verified-local
 tags: [planning, already-shipped, stale-premise, extraction, migration, provenance, closeout, cross-repo, acceptance-criteria, replan]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/planning-check-already-shipped-before-planning.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/planning-check-already-shipped-before-planning.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Planning: Check If Already Shipped Before Writing a Plan
@@ -23,7 +23,7 @@ forward-looking verification-and-closeout plan; it does not eliminate the need f
 
 The operational rules are retained here. Session transcripts and case-specific counts are in
 [the notes](./planning-check-already-shipped-before-planning.notes.md); the exact superseded skill is
-in [history](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/planning-check-already-shipped-before-planning.history). Verification remains
+in [history](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/planning-check-already-shipped-before-planning.history). Verification remains
 `verified-local`: the provenance and investigation commands were exercised, while cited downstream
 plans and sibling-repository CI retain their documented evidence limits.
 
@@ -185,4 +185,4 @@ If code comments attribute work to an ADR, open the ADR itself; comments are not
 ## Companions
 
 - [Case notes](./planning-check-already-shipped-before-planning.notes.md)
-- [Version history and exact superseded snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/planning-check-already-shipped-before-planning.history)
+- [Version history and exact superseded snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/planning-check-already-shipped-before-planning.history)

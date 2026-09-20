@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Classify unrelated pre-commit or pre-push failures against a clean base, verify the changed behavior, and document any authorized local-hook exception."
 category: tooling
 date: 2026-07-04
-version: "1.2.0"
+version: "1.2.1"
 user-invocable: false
 verification: verified-local
 tags:
@@ -22,8 +22,8 @@ tags:
   - repo-wide-debt
   - signed-commit
   - pr-policy
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/address-review-preexisting-unrelated-precommit-failure.history"
-history-cleanup-date: "2026-09-19"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/address-review-preexisting-unrelated-precommit-failure.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Address-Review: Pre-Existing / Unrelated Local Gate Failure
@@ -42,7 +42,7 @@ and avoid expanding scope into unrelated local gate debt.
 | **Objective** | Land tightly-scoped PR work when broad local gates fail for unrelated reasons: ProjectHephaestus PR #1743 hit an unrelated `pre-commit run --all-files` hook; Inference Service PR #327 hit a local pre-push `pytest -q` failure caused by macOS/Bash host assumptions after a clean rebase |
 | **Outcome** | Verified-local. ProjectHephaestus: stash-verified the hook failure as pre-existing/out-of-scope, then committed only the in-scope files after focused tests and ruff checks passed. Inference Service: rebased PR #327 onto its real base `origin/master` (the repo has no `origin/main`), resolved `AGENTS.md`, passed `git diff --check` and 14 PR-specific tests, documented the unrelated full pre-push failure (`1108 passed, 1 skipped, 30 failed` from `/usr/bin/bash` missing and Bash-4-only constructs under macOS `/bin/bash` 3.2), then updated the PR branch with `git push --force-with-lease --no-verify` |
 | **Verification** | verified-local |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/address-review-preexisting-unrelated-precommit-failure.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/address-review-preexisting-unrelated-precommit-failure.history) |
 
 ## When to Use
 
@@ -101,7 +101,8 @@ gh pr view 327 --json headRefName,baseRefName,headRefOid,mergeStateStatus
 git symbolic-ref refs/remotes/origin/HEAD
 git ls-remote --heads origin main master
 
-# 2. Rebase onto the actual base and resolve only PR/base conflicts.
+# 2. Only if the host reports a PR/base conflict, or the active review task needs
+#    base content, rebase onto the actual base and resolve only those conflicts.
 git fetch origin
 git rebase origin/master
 git diff --check origin/master...HEAD
