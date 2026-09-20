@@ -16,6 +16,8 @@ tags:
   - fail-fast
   - numeric-invariants
   - value-error
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/resilience-construction-reject-invalid-numeric-config.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Fail Fast on Invalid Resilience Construction Configuration

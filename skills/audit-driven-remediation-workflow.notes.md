@@ -2,7 +2,7 @@
 
 Supporting evidence for
 [`audit-driven-remediation-workflow`](./audit-driven-remediation-workflow.md). The complete prior main
-is in [history](./audit-driven-remediation-workflow.history).
+is in [history](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/audit-driven-remediation-workflow.history).
 
 ## Case Index
 

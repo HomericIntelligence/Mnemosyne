@@ -8,6 +8,8 @@ version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags: [adr, audit, planning, architecture-decision-record, remediation]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/audit-finding-read-adr-before-planning.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Audit Finding: Read the ADR Before Planning

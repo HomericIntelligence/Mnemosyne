@@ -18,6 +18,8 @@ tags:
   - default-patch
   - existing-tests-green
   - unittest-mock
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/testing-autouse-default-patch-for-new-batched-call.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Testing: Autouse Default-Patch for a New Batched Call

@@ -24,7 +24,8 @@ tags:
   - cluster-extraction
   - dual-patch
   - call-paths
-history: testing-module-patch-target-after-extraction.history
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/testing-module-patch-target-after-extraction.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Testing: Module-Level Patch Target After Extraction

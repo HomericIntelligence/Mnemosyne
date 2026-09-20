@@ -6,7 +6,6 @@ category: ci-cd
 date: 2026-06-20
 version: "1.1.1"
 user-invocable: false
-history: logging-downgrade-noisy-happy-path.history
 verification: verified-ci
 tags:
   - python
@@ -19,6 +18,8 @@ tags:
   - happy-path-logging
   - verbose-gating
   - debug-level
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/logging-downgrade-noisy-happy-path.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Logging: Downgrade Noisy Messages in Happy Path

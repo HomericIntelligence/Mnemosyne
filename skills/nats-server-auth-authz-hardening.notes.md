@@ -2,7 +2,7 @@
 
 Supporting evidence for
 [`nats-server-auth-authz-hardening`](./nats-server-auth-authz-hardening.md). The complete prior main is
-in [history](./nats-server-auth-authz-hardening.history).
+in [history](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/nats-server-auth-authz-hardening.history).
 
 ## Case Index
 

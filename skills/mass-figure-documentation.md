@@ -6,6 +6,8 @@ category: documentation
 date: 2026-02-12
 version: "1.1.0"
 user-invocable: false
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/mass-figure-documentation.history"
+history-cleanup-date: "2026-09-19"
 ---
 # Skill: Mass Figure Documentation
 

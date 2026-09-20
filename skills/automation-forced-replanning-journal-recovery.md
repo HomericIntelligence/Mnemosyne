@@ -247,7 +247,7 @@ uv run ruff check \
 Promote this skill to `verified-local` only after the focused stage, journal,
 coordinator, and lint commands pass against the implementation. Promote it to
 `verified-ci` only after the corresponding Hephaestus PR's required CI passes.
-When promoting, archive this version in a `.history` file and record the exact
+When promoting, link the prior version by immutable Git commit and record the exact
 test counts, PR, and commit SHA.
 
 ## Verified On

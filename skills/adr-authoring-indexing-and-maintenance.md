@@ -7,7 +7,6 @@ version: "2.1.0"
 verification: mixed
 license: BSD-3-Clause
 user-invocable: false
-history: adr-authoring-indexing-and-maintenance.history
 tags:
   - adr
   - architecture-decision-record
@@ -16,6 +15,8 @@ tags:
   - provenance
   - append-only
   - membership-guard
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/adr-authoring-indexing-and-maintenance.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # ADR Authoring, Indexing, and Maintenance
@@ -30,7 +31,7 @@ Verification is `mixed`: the core authoring/index/status/consolidation workflow 
 tracked-symbol anchoring and the bidirectional Nygard-format guard were recorded `verified-local`
 with hosted CI pending. Case details are in the
 [notes](./adr-authoring-indexing-and-maintenance.notes.md); the byte-preserved source and prior
-changelog are in [history](./adr-authoring-indexing-and-maintenance.history).
+changelog are in [history](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/adr-authoring-indexing-and-maintenance.history).
 
 ## When to Use
 
@@ -291,4 +292,4 @@ and outcomes, and every remaining unverified claim. Never mark `mixed` evidence 
 ## Companions
 
 - [Case notes](./adr-authoring-indexing-and-maintenance.notes.md)
-- [Version history and superseded snapshot](./adr-authoring-indexing-and-maintenance.history)
+- [Version history and superseded snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/adr-authoring-indexing-and-maintenance.history)

@@ -53,7 +53,7 @@ for f in skills/*.md; do [[ "$f" == *.notes*.md || "$f" == *.history* ]] && cont
 1. Understand the three file types that coexist in `skills/`:
    - `<name>.md` — the actual skill document (counts toward corpus size)
    - `<name>.notes*.md` — raw session notes companion files (do NOT count)
-   - `<name>.history*` — changelog snapshots (do NOT count)
+   - `<name>.history*` — legacy changelog snapshots (do NOT count)
 
 2. Always exclude `*.notes*.md` and `*.history*` (with `grep -v` or `find ! -name`) from any enumeration of `skills/*.md`.
 
@@ -61,7 +61,7 @@ for f in skills/*.md; do [[ "$f" == *.notes*.md || "$f" == *.history* ]] && cont
 
 4. If using `git ls-tree`, apply the same notes/history filters after selecting `.md` files.
 
-5. Cross-check: `find skills/ -maxdepth 1 -name "*.notes*.md" | wc -l` should be close to the number of skills (every skill may have a companion); `find skills/ -maxdepth 1 -name "*.history*" | wc -l` is typically smaller.
+5. Cross-check: `find skills/ -maxdepth 1 -name "*.notes*.md" | wc -l` should be close to the number of skills (every skill may have a companion); `find skills/ -maxdepth 1 -name "*.history*" | wc -l` is zero after the Git-history migration.
 
 ## Failed Attempts
 

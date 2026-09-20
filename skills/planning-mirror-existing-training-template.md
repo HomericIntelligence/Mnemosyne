@@ -22,6 +22,8 @@ tags:
   - projectodyssey
   - mojo
   - unverified
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/planning-mirror-existing-training-template.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Planning: Mirror an Existing Training-Loop Template — a Working Reference Is Not a Verified Spec

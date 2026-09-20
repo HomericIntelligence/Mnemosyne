@@ -6,7 +6,6 @@ category: testing
 date: 2026-07-19
 version: "1.2.1"
 user-invocable: false
-history: mojo-tensor-unit-test-and-gradient-checking.history
 tags:
   - mojo
   - tensor
@@ -21,6 +20,8 @@ tags:
   - conv2d
   - batch-norm
   - layer-norm
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/mojo-tensor-unit-test-and-gradient-checking.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Mojo Tensor Unit Test and Gradient Checking

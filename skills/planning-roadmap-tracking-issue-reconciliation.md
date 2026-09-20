@@ -8,6 +8,8 @@ version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags: [roadmap, tracking-issue, epic, checkbox, reconcile, audit-vs-issue, issue-body-edit, gh-cli, grep-wiring, schema-version, emit-vs-negotiate, partial-shipped, negative-grep, planning, unverified]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/planning-roadmap-tracking-issue-reconciliation.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Planning: Reconcile a Roadmap Tracking Issue Against Shipped Code

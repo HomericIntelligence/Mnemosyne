@@ -9,8 +9,9 @@ date: 2026-05-31
 version: "2.2.0"
 license: BSD-3-Clause
 user-invocable: false
-history: parallel-agent-swarm-dispatch-patterns.history
 tags: [swarm, dispatch, worktree, ownership, dependency, verification, orchestration]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/parallel-agent-swarm-dispatch-patterns.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Parallel Agent Swarm Dispatch Patterns
@@ -25,7 +26,7 @@ artifacts; an agent’s success message is not evidence.
 Campaign cases and quantitative observations are indexed in
 [`parallel-agent-swarm-dispatch-patterns.notes.md`](parallel-agent-swarm-dispatch-patterns.notes.md).
 The complete prior source is archived in
-[`parallel-agent-swarm-dispatch-patterns.history`](parallel-agent-swarm-dispatch-patterns.history).
+[`parallel-agent-swarm-dispatch-patterns.history`](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/parallel-agent-swarm-dispatch-patterns.history).
 
 ## When to Use
 

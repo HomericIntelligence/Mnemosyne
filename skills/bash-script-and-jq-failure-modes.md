@@ -7,8 +7,9 @@ version: "2.0.1"
 license: BSD-3-Clause
 verification: verified-ci
 user-invocable: false
-history: bash-script-and-jq-failure-modes.history
 tags: [bash, pipefail, set-euo, grep, array, exit-127, shell-function, jq, boolean, cwd, worktree, set-m, job-control, subshell, stderr, command-substitution, gh-cli, integration-test, ruff, D401]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/bash-script-and-jq-failure-modes.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Bash Script and jq Failure Modes Under Strict Error Checking
@@ -223,4 +224,4 @@ name begins with an underscore.
 ## Companions
 
 - [Case index and detailed verification](bash-script-and-jq-failure-modes.notes.md)
-- [Version history and superseded content](bash-script-and-jq-failure-modes.history)
+- [Version history and superseded content](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/bash-script-and-jq-failure-modes.history)

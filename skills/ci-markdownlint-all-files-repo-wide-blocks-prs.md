@@ -8,6 +8,8 @@ version: "1.0.1"
 user-invocable: false
 verification: verified-ci
 tags: [ci-cd, markdownlint, pre-commit, all-files, repo-wide, ci-blocked, required-checks, stray-file, ci-debug, github-actions]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/ci-markdownlint-all-files-repo-wide-blocks-prs.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # CI markdownlint / pre-commit `--all-files` is repo-wide and blocks every PR

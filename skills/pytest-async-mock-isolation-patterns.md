@@ -7,7 +7,6 @@ version: "2.0.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-ci
-history: pytest-async-mock-isolation-patterns.history
 tags:
   - pytest
   - asyncio
@@ -18,6 +17,8 @@ tags:
   - importlib-reload
   - fastapi
   - threadpool
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/pytest-async-mock-isolation-patterns.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Pytest Async Mock Isolation Patterns
@@ -31,7 +32,7 @@ background workers from escaping the test, and run the full suite before declari
 Case-level provenance is in
 [pytest-async-mock-isolation-patterns.notes.md](pytest-async-mock-isolation-patterns.notes.md).
 The byte-complete superseded version is in
-[pytest-async-mock-isolation-patterns.history](pytest-async-mock-isolation-patterns.history).
+[pytest-async-mock-isolation-patterns.history](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/pytest-async-mock-isolation-patterns.history).
 
 ## When to Use
 

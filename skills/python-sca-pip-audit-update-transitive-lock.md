@@ -7,7 +7,6 @@ date: 2026-06-28
 version: "1.2.0"
 user-invocable: false
 verification: verified-ci
-history: python-sca-pip-audit-update-transitive-lock.history
 tags:
   - github-actions
   - python-sca
@@ -26,6 +25,8 @@ tags:
   - cachecontrol
   - msgpack
   - pydantic-settings
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/python-sca-pip-audit-update-transitive-lock.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Python SCA Pip-Audit Transitive Lockfile Remediation

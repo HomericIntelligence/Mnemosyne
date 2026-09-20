@@ -7,8 +7,9 @@ date: 2026-07-30
 version: "1.3.1"
 user-invocable: false
 verification: verified-ci
-history: code-quality-bot-ignores-noqa.history
 tags: [github, pull-request, code-quality, review-threads, noqa, automated-suggestions, F821, E501, full-repo-lint, behavior-preservation]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/code-quality-bot-ignores-noqa.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Triage github-code-quality Bot Findings and Suggested Patches

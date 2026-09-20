@@ -7,7 +7,6 @@ date: 2026-08-07
 version: "2.0.1"
 user-invocable: false
 verification: unverified
-history: release-version-verification-tag-wheel-exact-match.history
 tags:
   - python-packaging
   - hatch-vcs
@@ -23,6 +22,8 @@ tags:
   - github-actions
   - pypi
   - fail-closed
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/release-version-verification-tag-wheel-exact-match.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Release Version Boundaries: Dynamic Refusal and Exact Tag-to-Wheel Match
@@ -35,7 +36,7 @@ tags:
 | **Objective** | Preserve one version authority per project type: allow aggregate static-file bumps only for static projects, refuse dynamic/tag-derived projects before canonical reads or writes, and prove tag-derived releases against the built distribution before publication. |
 | **Outcome** | Proposed a two-layer mutation preflight, deterministic human and JSON refusal contracts, byte-preservation regressions, exact Git-to-wheel comparisons, and a signed-workflow handoff. No implementation or CI run was observed. |
 | **Verification** | `unverified` — this is a design captured from reviewed implementation plans. Treat it as a hypothesis until the criterion-specific tests and release CI pass. |
-| **History** | [changelog](./release-version-verification-tag-wheel-exact-match.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/release-version-verification-tag-wheel-exact-match.history) |
 
 ## When to Use
 

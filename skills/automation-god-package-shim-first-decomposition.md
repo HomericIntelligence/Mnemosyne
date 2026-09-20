@@ -7,7 +7,6 @@ version: "3.1.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-local
-history: automation-god-package-shim-first-decomposition.history
 tags:
   - python
   - refactoring
@@ -17,6 +16,8 @@ tags:
   - circular-imports
   - patch-seam
   - optional-extra
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/automation-god-package-shim-first-decomposition.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Automation God-Package Shim-First Decomposition
@@ -32,7 +33,7 @@ The small merge and three-module split were verified locally; the proposed 52-fi
 was not executed. Case details are in
 [automation-god-package-shim-first-decomposition.notes.md](automation-god-package-shim-first-decomposition.notes.md),
 and the complete prior version is in
-[automation-god-package-shim-first-decomposition.history](automation-god-package-shim-first-decomposition.history).
+[automation-god-package-shim-first-decomposition.history](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/automation-god-package-shim-first-decomposition.history).
 
 ## When to Use
 

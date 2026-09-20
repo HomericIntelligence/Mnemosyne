@@ -17,6 +17,8 @@ tags:
   - error-handling
   - python
   - testability
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/mcp-boundary-missing-argument-keyerror-translation.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # MCP Boundary: Missing Required Argument — KeyError to ValueError Translation

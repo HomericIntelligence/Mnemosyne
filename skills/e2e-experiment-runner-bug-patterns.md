@@ -7,8 +7,9 @@ version: "2.0.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: mixed
-history: e2e-experiment-runner-bug-patterns.history
 tags: [e2e, state-machine, checkpoint, resume, judge, rate-limit, path-resolution, rerun]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/e2e-experiment-runner-bug-patterns.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # E2E Experiment Runner Bug Patterns
@@ -23,7 +24,7 @@ with validation/write logic.
 Detailed ProjectScylla/ProjectHephaestus cases are indexed in
 [`e2e-experiment-runner-bug-patterns.notes.md`](e2e-experiment-runner-bug-patterns.notes.md). The
 complete prior source is in
-[`e2e-experiment-runner-bug-patterns.history`](e2e-experiment-runner-bug-patterns.history).
+[`e2e-experiment-runner-bug-patterns.history`](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/e2e-experiment-runner-bug-patterns.history).
 
 ## When to Use
 

@@ -7,7 +7,6 @@ date: 2026-06-19
 version: "1.2.0"
 user-invocable: false
 verification: unverified
-history: actions-cache-restore-save-split-on-success.history
 tags:
   - github-actions
   - actions-cache
@@ -27,6 +26,8 @@ tags:
   - self-consistent-verification
   - verify-linchpin
   - regression-guard
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/actions-cache-restore-save-split-on-success.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Planning: Split actions/cache into restore + save Gated on success()

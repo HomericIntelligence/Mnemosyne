@@ -7,7 +7,6 @@ date: 2026-07-01
 version: "1.1.0"
 user-invocable: false
 verification: verified-local
-history: ci-release-pipeline-must-mirror-required-pr-gate.history
 tags:
   - ci-cd
   - release-pipeline
@@ -26,6 +25,8 @@ tags:
   - sdist
   - manual-trigger-bypass
   - hephaestus
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/ci-release-pipeline-must-mirror-required-pr-gate.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # CI Release Pipeline Must Mirror the Required PR Gate

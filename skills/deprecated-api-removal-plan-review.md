@@ -19,6 +19,8 @@ tags:
   - grep-inventory
   - unverified-assumptions
   - migration-docs
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/deprecated-api-removal-plan-review.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Deprecated API Removal: Plan Review Risk Capture

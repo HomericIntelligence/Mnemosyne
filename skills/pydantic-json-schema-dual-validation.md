@@ -6,6 +6,8 @@ category: tooling
 date: 2026-03-07
 version: "1.0.1"
 user-invocable: false
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/pydantic-json-schema-dual-validation.history"
+history-cleanup-date: "2026-09-19"
 ---
 # pydantic-json-schema-dual-validation
 

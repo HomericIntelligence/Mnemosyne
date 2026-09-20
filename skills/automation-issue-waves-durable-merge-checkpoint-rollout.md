@@ -7,7 +7,6 @@ date: 2026-08-06
 version: "1.2.0"
 user-invocable: false
 verification: verified-ci
-history: automation-issue-waves-durable-merge-checkpoint-rollout.history
 tags:
   - automation-loop
   - issue-waves
@@ -21,6 +20,8 @@ tags:
   - restart-recovery
   - audit-only
   - dry-run
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/automation-issue-waves-durable-merge-checkpoint-rollout.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Automation Issue Waves: Durable Merge-Checkpoint Rollout

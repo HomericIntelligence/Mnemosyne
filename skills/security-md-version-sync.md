@@ -8,7 +8,8 @@ version: "3.1.1"
 user-invocable: false
 verification: verified-local
 tags: ["security", "versioning", "documentation", "SECURITY.md", "hatch-vcs", "release-tags", "pre-commit", "ci-matrix", "compatibility", "support-policy", "guard-retirement"]
-history: security-md-version-sync.history
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/security-md-version-sync.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # SECURITY.md Version and Compatibility Sync
@@ -21,7 +22,7 @@ history: security-md-version-sync.history
 | **Objective** | Keep release-support rows and interpreter-support prose synchronized with explicit support policy, release facts, CI, and justified executable guards |
 | **Outcome** | Source-aware workflow covers static and VCS-derived versions; v3.1.0 adds a proposed path for retiring a guard when latest-release identity is no longer the support-policy authority |
 | **Verification** | verified-local — the v3.0.0 direct guard plus 19 targeted ProjectHephaestus tests passed; the v3.1.0 guard-retirement workflow is planning-only and unverified |
-| **History** | [changelog](./security-md-version-sync.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/security-md-version-sync.history) |
 
 ## When to Use
 

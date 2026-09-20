@@ -8,6 +8,8 @@ version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [hephaestus, slurm, verification, git-worktree, pixi]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/hephaestus-slurm-verification-shared-worktree.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Hephaestus Slurm Verification in a Shared Worktree

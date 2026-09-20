@@ -3,7 +3,7 @@
 Supporting evidence for
 [`architecture-god-function-decomposition-planning-risks`](./architecture-god-function-decomposition-planning-risks.md).
 The exact prior content is in
-[history](./architecture-god-function-decomposition-planning-risks.history).
+[history](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/architecture-god-function-decomposition-planning-risks.history).
 
 ## Case Index
 

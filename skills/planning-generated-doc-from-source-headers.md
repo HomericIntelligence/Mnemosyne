@@ -7,7 +7,6 @@ date: 2026-06-20
 version: "1.2.0"
 user-invocable: false
 verification: verified-local
-history: planning-generated-doc-from-source-headers.history
 tags:
   - planning
   - documentation-generation
@@ -22,6 +21,8 @@ tags:
   - grep-rl-overmatch
   - non-contiguous-ranges
   - paste-output-not-claims
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/planning-generated-doc-from-source-headers.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Planning: Generate a Doc/Matrix by Parsing a Source-File Convention
@@ -34,7 +35,7 @@ tags:
 | **Objective** | Capture the durable planning pattern for tasks that generate a doc/index/matrix by parsing a textual convention out of many source files — and the unverified assumptions that silently corrupt the output |
 | **Outcome** | An R0 plan that *cited this skill* still earned a NOGO because it applied the lessons as prose claims and shipped three falsified facts. The session converged only after each NOGO finding was re-derived against ground truth. Distilled meta-lesson: citing the skill ≠ applying it; the deliverable is pasted command OUTPUT, not assertions |
 | **Verification** | verified-local |
-| **History** | [changelog](./planning-generated-doc-from-source-headers.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/planning-generated-doc-from-source-headers.history) |
 
 The concrete trigger was a plan to generate a test-coverage matrix README for the `e2e/tests` directory (Odysseus issue #199): every test file was claimed to carry a deterministic 2-line header, and a generator would parse those headers into a table. The plan asserted the convention held based on a `sed -n '2,4p'` spot-check of a couple files plus a `grep` count — it never ran the actual parser regex over all files, so nothing proved the regex parses them.
 

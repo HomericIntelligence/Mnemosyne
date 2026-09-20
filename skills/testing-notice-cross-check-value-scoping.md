@@ -8,6 +8,8 @@ version: "1.0.1"
 user-invocable: false
 verification: verified-ci
 tags: ["testing", "notice", "spdx", "cross-check", "value-scoping", "false-pass", "license", "assertion-pattern"]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/testing-notice-cross-check-value-scoping.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Scope NOTICE Value Assertions to Per-Package Lines

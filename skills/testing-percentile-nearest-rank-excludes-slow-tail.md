@@ -16,6 +16,8 @@ tags:
   - latency-gate
   - regression-test
   - performance-testing
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/testing-percentile-nearest-rank-excludes-slow-tail.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Skill: Nearest-rank percentile silently excludes the slow tail

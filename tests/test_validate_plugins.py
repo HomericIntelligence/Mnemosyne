@@ -12,7 +12,6 @@ Covers:
 - validate_plugin: integration tests with valid and invalid skill files
 """
 
-import subprocess
 from typing import Any
 from unittest.mock import patch
 
@@ -474,55 +473,15 @@ class TestValidatePlugin:
         assert len(errors) == 1
         assert "Cannot read file" in errors[0]
 
-    def test_oversized_retrievable_skill_always_reports_path_measured_and_allowed_bytes(self, tmp_path, monkeypatch):
+    def test_editorial_size_guideline_does_not_reject_valid_skill(self, tmp_path):
         skills = tmp_path / "skills"
         skills.mkdir()
-        skill_path = skills / "oversized.md"
-        oversized_content = b"x" * 30_001
-        skill_path.write_bytes(oversized_content)
-
-        subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
-        subprocess.run(["git", "add", skill_path], cwd=tmp_path, check=True, capture_output=True)
-        subprocess.run(
-            [
-                "git",
-                "-c",
-                "user.name=Test",
-                "-c",
-                "user.email=test@localhost",
-                "commit",
-                "-m",
-                "base",
-            ],
-            cwd=tmp_path,
-            check=True,
-            capture_output=True,
-        )
-        subprocess.run(
-            ["git", "update-ref", "refs/remotes/origin/main", "HEAD"],
-            cwd=tmp_path,
-            check=True,
-            capture_output=True,
-        )
-        monkeypatch.chdir(tmp_path)
-
-        with patch("validate_plugins.SKILLS_DIR", skills):
-            errors = validate_plugin(skill_path.name)
-
-        size_errors = [error for error in errors if "30,000 bytes" in error]
-        assert size_errors == [f"Skill file {skill_path} is 30,001 bytes; allowed maximum is 30,000 bytes"]
-
-    def test_size_limit_is_inclusive(self, tmp_path):
-        skills = tmp_path / "skills"
-        skills.mkdir()
-        skill_path = skills / "at-limit.md"
+        skill_path = skills / "long-guidance.md"
         content = CLEAN_SKILL_MD.encode()
-        skill_path.write_bytes(content + (b" " * (30_000 - len(content))))
-
-        with patch("validate_plugins.SKILLS_DIR", skills):
-            errors = validate_plugin(skill_path.name)
-
-        assert not any("allowed maximum" in error for error in errors)
+        for size in (29_999, 30_000, 30_001, 90_000):
+            skill_path.write_bytes(content + (b" " * (size - len(content))))
+            with patch("validate_plugins.SKILLS_DIR", skills):
+                assert validate_plugin(skill_path.name) == []
 
     def test_oversized_notes_file_is_excluded_from_retrieval_and_size_validation(self, tmp_path):
         skills = tmp_path / "skills"

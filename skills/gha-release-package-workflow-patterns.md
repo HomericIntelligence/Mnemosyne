@@ -6,7 +6,6 @@ date: 2026-07-17
 version: "1.4.0"
 user-invocable: false
 verification: verified-ci
-history: gha-release-package-workflow-patterns.history
 tags:
   - github-actions
   - releases
@@ -21,6 +20,8 @@ tags:
   - package-publishing
   - merge-queue
   - protected-main
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/gha-release-package-workflow-patterns.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # GitHub Actions Release and Package Workflow Patterns

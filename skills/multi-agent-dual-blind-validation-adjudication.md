@@ -8,6 +8,8 @@ version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [multi-agent, validation, dual-blind, adjudication, cross-check, deterministic-merge, provenance]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/multi-agent-dual-blind-validation-adjudication.history"
+history-cleanup-date: "2026-09-19"
 ---
 # Skill: multi-agent-dual-blind-validation-adjudication
 

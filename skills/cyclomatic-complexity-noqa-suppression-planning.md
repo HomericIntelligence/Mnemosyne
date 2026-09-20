@@ -7,7 +7,6 @@ date: 2026-06-13
 version: "1.3.0"
 user-invocable: false
 verification: verified-ci
-history: cyclomatic-complexity-noqa-suppression-planning.history
 tags:
   - ruff
   - C901
@@ -21,6 +20,8 @@ tags:
   - threshold
   - RUF100
   - unused-noqa
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/cyclomatic-complexity-noqa-suppression-planning.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Cyclomatic Complexity noqa Suppression Planning

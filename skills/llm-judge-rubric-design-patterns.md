@@ -6,7 +6,6 @@ category: evaluation
 date: 2026-05-19
 version: "1.0.0"
 user-invocable: false
-history: llm-judge-rubric-design-patterns.history
 tags:
   - llm-judge
   - rubric
@@ -18,6 +17,8 @@ tags:
   - variance
   - hybrid-scoring
   - processpool
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/llm-judge-rubric-design-patterns.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # LLM Judge Rubric Design Patterns

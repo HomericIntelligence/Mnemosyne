@@ -8,6 +8,8 @@ version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags: [pydantic, dataclass, basemodel, behavioral-parity, dependency-strip, coercion, audit-remediation, config-loading, tdd]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/pydantic-basemodel-to-dataclass-behavioral-parity.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Pydantic BaseModel -> Stdlib @dataclass Is Not a Behavioral Drop-In

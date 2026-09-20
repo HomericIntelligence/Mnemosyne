@@ -5,10 +5,11 @@ description: "When an author-filter guard silently drops items with a missing RE
 category: debugging
 date: 2026-06-13
 version: "1.2.0"
-history: ci-driver-silent-filter-missing-login-observability.history
 user-invocable: false
 verification: verified-ci
 tags: []
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/ci-driver-silent-filter-missing-login-observability.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # CI Driver Silent Filter Missing Login Observability
@@ -19,7 +20,7 @@ tags: []
 |-------|-------|
 | **Date** | 2026-06-13 |
 | **Version** | 1.2.0 |
-| **History** | [ci-driver-silent-filter-missing-login-observability.history](ci-driver-silent-filter-missing-login-observability.history) |
+| **History** | [ci-driver-silent-filter-missing-login-observability.history](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/ci-driver-silent-filter-missing-login-observability.history) |
 | **Objective** | Add warning-level logs at author-filter sites in `hephaestus/automation/ci_driver.py` so PRs with a missing `user.login` REST field are surfaced rather than silently dropped (issue #1152) |
 | **Outcome** | Implemented and merged — ProjectHephaestus commit `d54bd678`, PR #1152 |
 | **Verification** | verified-ci |

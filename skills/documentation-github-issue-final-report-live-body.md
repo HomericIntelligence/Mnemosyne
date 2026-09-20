@@ -7,8 +7,9 @@ date: 2026-07-06
 version: "1.2.0"
 user-invocable: false
 verification: verified-ci
-history: documentation-github-issue-final-report-live-body.history
 tags: [github, issues, pull-requests, comments, final-report, implementation-plan, go-review, provenance, live-body, redaction, concurrent-edits]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/documentation-github-issue-final-report-live-body.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # GitHub Issue Final Report Live Body

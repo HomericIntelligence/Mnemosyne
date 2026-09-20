@@ -7,7 +7,6 @@ date: 2026-08-06
 version: "2.0.0"
 user-invocable: false
 verification: verified-local
-history: hephaestus-agent-timeout-refactor-planning-risks.history
 tags:
   - timeout
   - environment-variable
@@ -18,6 +17,8 @@ tags:
   - malformed-value
   - regression-testing
   - hephaestus
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/hephaestus-agent-timeout-refactor-planning-risks.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Canonical Timeout Environment Variable Contracts
@@ -30,7 +31,7 @@ tags:
 | **Objective** | Remove deprecated phase-specific timeout aliases and the shared reader's alias parameter while preserving every canonical override, default, per-call read, and malformed-value fallback. |
 | **Outcome** | Successful in a disposable ProjectHephaestus checkout: the helper accepts one environment-variable name, six former alias mappings are ignored, canonical behavior remains unchanged, and documentation names the exact supported variables. |
 | **Verification** | `verified-local` — 81 focused unit tests passed; Ruff and mypy passed on all modified Python surfaces. CI validation is pending. |
-| **History** | [changelog](./hephaestus-agent-timeout-refactor-planning-risks.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/hephaestus-agent-timeout-refactor-planning-risks.history) |
 
 ## When to Use
 

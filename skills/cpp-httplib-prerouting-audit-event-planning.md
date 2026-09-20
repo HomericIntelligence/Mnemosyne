@@ -5,10 +5,11 @@ description: "Plan cpp-httplib audit events at pre-routing boundaries. Check han
 category: architecture
 date: 2026-06-19
 version: "1.1.1"
-history: cpp-httplib-prerouting-audit-event-planning.history
 user-invocable: false
 verification: unverified
 tags: [cpp, cpp-httplib, pre-routing, nats, audit, rate-limiter, pii, planning, lambda-capture, agamemnon]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/cpp-httplib-prerouting-audit-event-planning.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # C++ cpp-httplib Pre-Routing Audit-Event Emission: Planning Skill

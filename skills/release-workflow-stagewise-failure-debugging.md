@@ -26,6 +26,8 @@ tags:
   - tag-policy
   - homericintelligence
   - hephaestus
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/release-workflow-stagewise-failure-debugging.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Release Workflow: Debug Stage-by-Stage, and Fix AT the Tagged Commit

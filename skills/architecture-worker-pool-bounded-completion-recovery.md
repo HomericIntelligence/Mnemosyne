@@ -17,6 +17,8 @@ tags:
   - durable-recovery
   - graceful-shutdown
   - observability
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/architecture-worker-pool-bounded-completion-recovery.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Worker-Pool Pipelines: Bounded Completion Recovery

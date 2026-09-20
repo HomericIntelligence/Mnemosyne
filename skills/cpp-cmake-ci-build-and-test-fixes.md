@@ -6,7 +6,6 @@ category: ci-cd
 date: 2026-05-19
 version: "1.0.0"
 user-invocable: false
-history: cpp-cmake-ci-build-and-test-fixes.history
 tags:
   - cmake
   - cpp20
@@ -30,6 +29,8 @@ tags:
   - github-actions
   - concurrentqueue
   - tsan-suppression
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/cpp-cmake-ci-build-and-test-fixes.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # C++/CMake CI Build and Test Fixes

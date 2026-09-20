@@ -18,6 +18,8 @@ tags:
   - fieldwise-init
   - verify-before-planning
   - mojo
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/planning-follower-issue-unmerged-dependency-assumptions.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Planning a Follower Issue Against an Unmerged Dependency: Every Claim About the Dep Is a Hypothesis

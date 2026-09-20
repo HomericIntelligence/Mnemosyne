@@ -7,8 +7,9 @@ date: 2026-08-05
 version: "1.2.0"
 user-invocable: false
 verification: verified-local
-history: comet-cli-offline-review-evidence-reporting.history
 tags: [comet, cli, dashboard, incident, offline, code-review, no-cluster, issue-reporting, pytest]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/comet-cli-offline-review-evidence-reporting.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Offline Comet Review and Incident Evidence Reporting
@@ -21,7 +22,7 @@ tags: [comet, cli, dashboard, incident, offline, code-review, no-cluster, issue-
 | **Objective** | Review Comet's CLI surfaces without issuing cluster, database, or gateway operations, and turn bounded user-supplied dashboard evidence into actionable incident tracking. |
 | **Outcome** | Four confirmed CLI defects were reported individually after local review, and one multi-view dashboard incident was consolidated into a single issue without speculative reproduction. |
 | **Verification** | verified-local — CLI help, focused tests, lint, formatting, and type checks passed; GitHub issue creation/comment succeeded; CI, a completed full suite, and dashboard-endpoint validation were not observed. |
-| **History** | [changelog](./comet-cli-offline-review-evidence-reporting.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/comet-cli-offline-review-evidence-reporting.history) |
 
 ## When to Use
 

@@ -21,6 +21,8 @@ tags:
   - doc-drift
   - red-test
   - planning-risk
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/planning-validator-false-assurance-flatten-duplicate-guard.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Planning a Fix for a Validator That Cannot See Its Own Contradiction

@@ -18,6 +18,8 @@ tags:
   - debugging
   - incident-response
   - hephaestus-automation
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/silent-boundary-observability-exception-classification.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Silent Boundary Observability - Exception Classification Pattern

@@ -9,7 +9,6 @@ category: ci-cd
 date: 2026-05-19
 version: "1.0.0"
 user-invocable: false
-history: justfile-and-local-build-verification.history
 tags:
   - justfile
   - just
@@ -18,6 +17,8 @@ tags:
   - local-verification
   - pre-commit
   - ci
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/justfile-and-local-build-verification.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 ## Overview

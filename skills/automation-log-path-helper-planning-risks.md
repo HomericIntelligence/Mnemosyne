@@ -18,6 +18,8 @@ tags:
   - grep-inventory
   - filename-contract
   - projecthephaestus
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/automation-log-path-helper-planning-risks.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Automation Log Path Helper - Planning Risks

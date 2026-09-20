@@ -18,6 +18,8 @@ tags:
   - layered-config
   - runtime-error
   - fleet-sync
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/config-explicit-path-fail-closed.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Explicit Config Path Must Fail Closed; Auto-Discovery May Fall Through

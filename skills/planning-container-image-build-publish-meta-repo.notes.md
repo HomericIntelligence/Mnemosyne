@@ -2,7 +2,7 @@
 
 Supporting evidence for
 [`planning-container-image-build-publish-meta-repo`](./planning-container-image-build-publish-meta-repo.md).
-The complete prior main is in [history](./planning-container-image-build-publish-meta-repo.history).
+The complete prior main is in [history](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/planning-container-image-build-publish-meta-repo.history).
 
 ## Case Index
 

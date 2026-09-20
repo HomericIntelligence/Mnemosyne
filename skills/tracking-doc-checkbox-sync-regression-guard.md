@@ -7,8 +7,9 @@ date: 2026-06-20
 version: "2.2.0"
 user-invocable: false
 verification: verified-local
-history: tracking-doc-checkbox-sync-regression-guard.history
 tags: [tracking-doc, remediation-plan, roadmap, checkbox, doc-sync, regression-guard, invariant-table, committed-fixture, hermetic-test, shimmed-test, static-analysis-not-runtime, deterministic, offline-ci, no-network, no-silent-failures, forbid-suppressions, bidirectional-coverage, seen-set, missing-sentinel, stable-key, bundle-line, pr-group-scoped, re-verify-same-pr, verify-ground-truth, audit, property-not-snapshot, planning, verified-local, unverified-subpattern]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/tracking-doc-checkbox-sync-regression-guard.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Tracking-Doc Checkbox Sync + Regression Guard
@@ -21,7 +22,7 @@ tags: [tracking-doc, remediation-plan, roadmap, checkbox, doc-sync, regression-g
 | **Objective** | Keep `- [ ]` / `- [x]` checkbox state in a tracking markdown FILE (`docs/audit-2026-04-28/remediation-plan.md`) honest, and add a regression guard that (a) the committed file itself passes, and (b) actually protects in a required-CI runner that has NO issue-read token |
 | **Outcome** | R1 (re-plan) of ProjectProteus issue #183. The R0 live-`gh` guard got a NOGO (offline-SKIP = zero CI protection; committed artifact failed its own test). R1 replaces it with a committed-fixture INVARIANT TABLE that runs with no network and PASSES deterministically. The embedded test logic was executed this session: PASS on a matching fixture, FAIL on each of 3 negative fixtures (drift / new line / deleted line) as designed |
 | **Verification** | verified-local for the v2.0.0 EXPECT-table test logic. The v2.1.0 additions (a re-planning session for **ProjectProteus issue #186**) are a DESIGN: the offline-fixture test was NOT implemented or CI-run this session, so the v2.1.0 sub-pattern is **unverified** until the PR lands and CI runs |
-| **History** | [changelog](./tracking-doc-checkbox-sync-regression-guard.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/tracking-doc-checkbox-sync-regression-guard.history) |
 | **Related** | `code-quality-enforcement-gates` §5 (assert the property via static analysis, NOT a live runtime check) and §10 (verify findings vs ground truth); `planning-roadmap-tracking-issue-reconciliation` (issue-BODY checklists); `automation-moot-issue-regression-guard-pattern` (property-as-test). The repo's anti-silent-failure policy — `forbid-suppressions` job (`.github/workflows/_required.yml:53-105`) + `docs/runbooks/no-silent-failures.md` — is the REASON the live-`gh` skip-on-unauth design is disallowed |
 
 ## When to Use

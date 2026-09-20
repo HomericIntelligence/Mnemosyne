@@ -14,6 +14,8 @@ tags:
 - bats
 - graphql
 - shell-testing
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/multi-pr-issue-triage.history"
+history-cleanup-date: "2026-09-19"
 ---
 # Multi-PR Issue Triage Workflow
 

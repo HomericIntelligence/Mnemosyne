@@ -25,6 +25,8 @@ tags:
   - scaffold-first
   - unmerged-dependency
   - path-gradient-vs-double-count
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/planning-revising-after-nogo-verify-impl-not-signature.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Planning: Revising After a NOGO — Verify Implementation Bodies, Not Signatures

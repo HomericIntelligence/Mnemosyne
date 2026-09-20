@@ -7,7 +7,6 @@ date: 2026-07-20
 version: "1.2.0"
 user-invocable: false
 verification: unverified
-history: rebase-stale-automation-pr-onto-refactored-main.history
 tags:
   - rebase
   - merge-conflict
@@ -30,6 +29,8 @@ tags:
   - exact-head-review
   - homericintelligence
   - hephaestus
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/rebase-stale-automation-pr-onto-refactored-main.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Rebasing a Stale Automation PR onto a Heavily-Refactored Main
@@ -41,7 +42,7 @@ tags:
 | **Date** | 2026-07-20 |
 | **Objective** | Preserve valid PR intent across a refactored `main`, including the case where the stale branch history is contaminated by an unrelated duplicated commit and must be rebuilt rather than replayed. |
 | **Outcome** | The original semantic-rebase workflow is verified in CI. The new contaminated-history rebuild, explicit path-scope proof, rollback lease, and exact-head review gate are proposed from a reviewed implementation plan but have not been executed end-to-end. |
-| **Verification** | unverified for the v1.1.0 rebuild extension; the inherited v1.0.0 semantic conflict catalog remains verified-ci. See the [changelog](./rebase-stale-automation-pr-onto-refactored-main.history). |
+| **Verification** | unverified for the v1.1.0 rebuild extension; the inherited v1.0.0 semantic conflict catalog remains verified-ci. See the [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/rebase-stale-automation-pr-onto-refactored-main.history). |
 
 ## When to Use
 

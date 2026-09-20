@@ -7,8 +7,9 @@ date: 2026-07-29
 version: "1.4.0"
 user-invocable: false
 verification: verified-local
-history: repo-audit-triage-fix-and-issue-workflow.history
 tags: [audit, triage, remediation, github-issues, dead-code, ci, requirements, parallel-execution, swarm-audit, false-positive, trust-but-verify, cross-version, runtime-compatibility, live-policy, security-scanning]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/repo-audit-triage-fix-and-issue-workflow.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Repo Audit: Triage, Fix, and Issue Workflow
@@ -21,7 +22,7 @@ tags: [audit, triage, remediation, github-issues, dead-code, ci, requirements, p
 | **Objective** | Run a strict repo audit, triage findings by complexity, batch-fix scoped items, and reconcile complex work against the existing GitHub issue backlog before creating focused gaps. |
 | **Outcome** | Successful across Mnemosyne and Metrics Service: one audit cleanup PR pattern, existing issues updated/commented/labeled first, and only missing focused gaps filed as new issues. The skill now includes a finding-verification gate (Phase 1.5) that confirms each CRITICAL/MAJOR finding is true before triage — catching swarm-audit false positives. |
 | **Verification** | verified-local |
-| **History** | [changelog](./repo-audit-triage-fix-and-issue-workflow.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/repo-audit-triage-fix-and-issue-workflow.history) |
 
 ## When to Use
 

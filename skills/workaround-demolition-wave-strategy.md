@@ -8,6 +8,8 @@ version: "1.2.0"
 user-invocable: false
 verification: verified-ci
 tags: [workaround-removal, multi-pr-strategy, upstream-fix, wave-sequencing, ci-discipline, demolition, rollback-strategy]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/workaround-demolition-wave-strategy.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Workaround Demolition: Multi-Wave PR Strategy

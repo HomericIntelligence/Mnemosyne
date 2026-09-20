@@ -5,6 +5,8 @@ description: "Turn observed test or build errors into prioritized fix suggestion
 category: testing
 date: 2025-12-30
 version: "1.0.1"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/generate-fix-suggestions.history"
+history-cleanup-date: "2026-09-19"
 ---
 # Generate Fix Suggestions from Errors
 

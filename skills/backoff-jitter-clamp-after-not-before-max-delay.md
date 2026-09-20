@@ -8,6 +8,8 @@ version: "1.0.1"
 user-invocable: false
 verification: verified-local
 tags: [backoff, jitter, retry, max-delay, clamp, hard-ceiling, exponential-backoff, thundering-herd, rate-limit, python, hephaestus]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/backoff-jitter-clamp-after-not-before-max-delay.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Backoff Jitter: Clamp AFTER Jitter, Keep the Pre-Jitter Clamp Too

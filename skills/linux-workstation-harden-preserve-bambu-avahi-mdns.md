@@ -25,6 +25,8 @@ tags:
   - ipp
   - linux-mint
   - ubuntu
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/linux-workstation-harden-preserve-bambu-avahi-mdns.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Linux Workstation Hardening: Preserve Bambu Lab mDNS Discovery via avahi

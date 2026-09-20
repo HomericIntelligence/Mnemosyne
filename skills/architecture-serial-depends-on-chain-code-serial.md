@@ -18,6 +18,8 @@ tags:
   - do-not-parallelize
   - launch-after-merge
   - prerequisite-verification
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/architecture-serial-depends-on-chain-code-serial.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # A Serial `Depends on #prev` Epic Chain Is CODE-Serial, Not Just Order-Serial

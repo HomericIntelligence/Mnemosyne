@@ -7,8 +7,9 @@ date: 2026-06-19
 version: "1.1.0"
 user-invocable: false
 verification: unverified
-history: planning-slo-sla-adr-meta-repo.history
 tags: []
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/planning-slo-sla-adr-meta-repo.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Planning SLO/SLA Definitions in a Read-Mostly ADR-Driven Meta-Repo

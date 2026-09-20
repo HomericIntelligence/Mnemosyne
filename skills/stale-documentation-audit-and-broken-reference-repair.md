@@ -10,15 +10,16 @@ version: "2.0.0"
 user-invocable: false
 verification: verified-ci
 license: BSD-3-Clause
-history: stale-documentation-audit-and-broken-reference-repair.history
 tags: [doc-drift, broken-references, phantom-path, anchor-validation, count-disambiguation, source-of-truth, living-documentation, markdownlint]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/stale-documentation-audit-and-broken-reference-repair.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Stale Documentation Audit and Broken Reference Repair
 
 **Supporting cases:** [notes](./stale-documentation-audit-and-broken-reference-repair.notes.md)
 
-**Superseded content:** [history](./stale-documentation-audit-and-broken-reference-repair.history)
+**Superseded content:** [history](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/stale-documentation-audit-and-broken-reference-repair.history)
 
 ## Overview
 

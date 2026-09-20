@@ -7,7 +7,6 @@ date: 2026-08-06
 version: "2.0.0"
 user-invocable: false
 verification: unverified
-history: automation-graphql-batch-comment-fetch.history
 tags:
   - graphql
   - batch-fetch
@@ -20,6 +19,8 @@ tags:
   - completeness-boundary
   - plan-discovery
   - fail-closed
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/automation-graphql-batch-comment-fetch.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Bounded GraphQL Comment Context
@@ -32,7 +33,7 @@ tags:
 | **Objective** | Retain the useful one-call GraphQL context optimization without allowing a capped or failed batch to become authoritative absence. |
 | **Outcome** | The original batch optimization shipped and passed CI; this v2 boundary proposes moving all absence-sensitive plan discovery to complete paginated REST reads. |
 | **Verification** | unverified — PR #670 verified the v1 performance optimization, but the v2 authority split and Hephaestus migration were not implemented or run in this learning session. |
-| **History** | [changelog](./automation-graphql-batch-comment-fetch.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/automation-graphql-batch-comment-fetch.history) |
 
 Aliased GraphQL remains useful when a caller explicitly wants recent context and
 can tolerate caps or missing data. It is unsafe as a source for a negative fact.

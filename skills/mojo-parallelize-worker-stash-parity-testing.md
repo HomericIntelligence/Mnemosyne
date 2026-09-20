@@ -16,6 +16,8 @@ tags:
   - perf-counter
   - interval-sweep
   - data-race
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/mojo-parallelize-worker-stash-parity-testing.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Mojo parallelize: Worker Error Stashing, Timing, and Parity Testing

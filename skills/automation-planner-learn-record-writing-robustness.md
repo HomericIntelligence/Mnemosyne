@@ -7,8 +7,9 @@ date: 2026-06-13
 version: "2.0.0"
 user-invocable: false
 verification: verified-ci
-history: automation-planner-learn-record-writing-robustness.history
 tags: ["planner", "learn-record", "write-order", "json", "schema", "prompt-design", "build_learn_prompt"]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/automation-planner-learn-record-writing-robustness.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Automation Planner Learn Record Writing Robustness

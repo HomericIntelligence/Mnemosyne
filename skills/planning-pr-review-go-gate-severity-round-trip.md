@@ -7,7 +7,6 @@ date: 2026-07-05
 version: "1.1.1"
 user-invocable: false
 verification: unverified
-history: planning-pr-review-go-gate-severity-round-trip.history
 tags:
   - planning-methodology
   - severity-aware-gate
@@ -28,6 +27,8 @@ tags:
   - by-severity-tuple
   - plan-artifact-not-learn-recap
   - "1809"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/planning-pr-review-go-gate-severity-round-trip.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Planning a Severity-Aware GO Gate That Survives a Pipeline Round-Trip
@@ -40,7 +41,7 @@ tags:
 | **Objective** | Plan a severity-aware GO gate for the pipeline `pr_review` stage to fix the re-introduced #1554 minor-thread deadlock (ProjectHephaestus #1856, epic #1809): only critical/major automation threads should block a GO; minor/nitpick automation threads should be tolerated. |
 | **Outcome** | Plan only — unverified. No code written, no tests run, no CI. Verification during planning found the plan's core assumption (a `severity` field present on `review_threads`) is currently FALSE/unwired. The plan de-risks this with a fail-safe default. v1.1.0: the v1.0.0 open design question (merge-stage re-deadlock) is RESOLVED by reading `merge_wait.py:427-434` and resolving waved automation threads upstream via `gh_pr_resolve_thread`. |
 | **Verification** | unverified |
-| **History** | [changelog](./planning-pr-review-go-gate-severity-round-trip.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/planning-pr-review-go-gate-severity-round-trip.history) |
 
 ## When to Use
 

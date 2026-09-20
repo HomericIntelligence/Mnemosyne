@@ -7,8 +7,9 @@ date: 2026-07-03
 version: "1.3.0"
 user-invocable: false
 verification: verified-ci
-history: automation-529-overload-not-retried-classifier-gap.history
 tags: []
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/automation-529-overload-not-retried-classifier-gap.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Automation 529 Overload Not Retried — Classifier Gap

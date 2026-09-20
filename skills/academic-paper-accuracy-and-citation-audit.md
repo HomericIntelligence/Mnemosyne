@@ -6,8 +6,9 @@ category: documentation
 date: 2026-06-07
 version: "1.2.0"
 user-invocable: false
-history: academic-paper-accuracy-and-citation-audit.history
 tags: [latex, audit, paper, academic, citation, bibtex, arxiv, data-consistency, cross-reference, numerical-accuracy, parallel-agents, scientific-rigor, writing-quality, fabrication-detection, webfetch, web-search, pandas, pivot-table, idxmax, underscore-escape, missing-dollar]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/academic-paper-accuracy-and-citation-audit.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Academic Paper Accuracy and Citation Audit
@@ -214,6 +215,35 @@ No text pattern can catch a fabricated range or a real-paper misquote — only d
 - **Parallel agents** (3+ with distinct data sources): Agent A data consistency, Agent B figure/table files, Agent C cross-references; add statistics/figure-spec agents for deeper passes. **Pre-flight recomputation**: run ONE pandas script before spawning agents and embed its JSON in each prompt, so agents don't diverge on aggregation logic.
 - **Multiple passes find DIFFERENT bugs**: Pass 1 structural (refs/data/LaTeX), Pass 2 scientific rigor, Pass 3 writing quality + systematic code-bug scan, Post-correction pass (after major narrative changes) for residual old-narrative language, figure/caption alignment, and causal framing. Model tiering works well: Opus for high-value sections (abstract, conclusions), Sonnet for data-dense (results, statistics), Haiku for structural (cross-refs, appendices).
 - **Writing quality** (Pass 3): flag non-academic citations in formal sections, redundant restatements, undefined coined terms on first use, and confusing parenthetical qualifiers.
+
+### Guidance retained from an absorbed history
+
+After correcting a claim, inspect the abstract, conclusions, captions, and related
+sections for inconsistent copies. A non-significant result does not eliminate a
+possible effect; an uncorrected confidence interval cannot reverse a conclusion
+that uses a multiple-comparison correction. Use associative language for
+observational results unless the design supports causation.
+
+Before comparing statistics, confirm degrees of freedom, aggregation dimensions,
+and the sample unit. Compute agreement on the intended observations, rather than
+experiment averages, and report the resulting sample count. Check whether a
+bootstrap method is defined for the actual small or binary sample; do not copy a
+method name from a different analysis. Reproduce values with the same documented
+variance convention (`ddof`) before reporting a discrepancy.
+
+Compare the manuscript's grading scale, pass thresholds, and consensus algorithm
+with the implementation. Majority voting and thresholding an average score can
+classify the same observations differently. Recompute and disclose any changed
+classifications; agreement about an aggregate value does not prove that the
+stated classification rule is correct.
+
+Describe one member of a Pareto frontier as one option, not as a unique optimum.
+Do not infer an unobserved mechanism from a numerical result. Confirm that all
+scripts required to reproduce reported results are tracked and available.
+
+History cleanup: 2026-09-19. The [prior source](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/latex-paper-accuracy-review.history)
+retains its original evidence limits. This migration does not establish new
+operational verification.
 
 ## Failed Attempts
 

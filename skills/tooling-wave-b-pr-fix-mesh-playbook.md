@@ -7,8 +7,9 @@ date: 2026-05-31
 version: "1.2.0"
 user-invocable: false
 verification: verified-ci
-history: tooling-wave-b-pr-fix-mesh-playbook.history
 tags: []
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/tooling-wave-b-pr-fix-mesh-playbook.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Wave-B PR Fix-Mesh Playbook
@@ -22,7 +23,7 @@ tags: []
 | **Outcome** | All 22 target PRs green; signed commits verified by GitHub API; auto-merge eligible. |
 | **Verification** | verified-ci — every check observed `conclusion=success` in real CI on host `aeolus`. |
 | **Host** | `aeolus` (account uses GitHub email-privacy noreply identity for pushes). |
-| **History** | [changelog](./tooling-wave-b-pr-fix-mesh-playbook.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/tooling-wave-b-pr-fix-mesh-playbook.history) |
 | **Cross-links** | [Odysseus#299](https://github.com/HomericIntelligence/Odysseus/pull/299) · `<run-report-path>` |
 
 ## When to Use

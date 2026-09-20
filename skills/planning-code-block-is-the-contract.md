@@ -7,7 +7,6 @@ date: 2026-07-04
 version: "1.2.0"
 user-invocable: false
 verification: unverified
-history: planning-code-block-is-the-contract.history
 tags:
   - planning
   - plan-review
@@ -23,6 +22,8 @@ tags:
   - pr-policy-compliance
   - hephaestus
   - myrmidons
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/planning-code-block-is-the-contract.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Planning: The Plan's Own Code Block Is the Contract

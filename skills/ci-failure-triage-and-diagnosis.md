@@ -7,8 +7,9 @@ version: "2.0.1"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-local
-history: ci-failure-triage-and-diagnosis.history
 tags: [ci-failure, triage, log-analysis, core-dump, forensics, gdb, podman, mojo, libkgen, github-actions, rate-limit, subprocess, signal, cpu-survey, workflow-dispatch]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/ci-failure-triage-and-diagnosis.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # CI Failure Triage and Diagnosis
@@ -188,4 +189,4 @@ the current head SHA.
 ## Companions
 
 - [Case evidence and detailed verification](ci-failure-triage-and-diagnosis.notes.md)
-- [Version history and superseded content](ci-failure-triage-and-diagnosis.history)
+- [Version history and superseded content](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/ci-failure-triage-and-diagnosis.history)

@@ -6,8 +6,9 @@ category: ci-cd
 date: 2026-06-07
 version: "1.1.0"
 user-invocable: false
-history: mojo-build-compilation-and-linker-error-patterns.history
 tags: [mojo, build, compilation, linker, werror, mojo-format, sanitizer, asan, tsan, avx512, libm, rebase, dynamicvector, ci-cd]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/mojo-build-compilation-and-linker-error-patterns.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Mojo Build, Compilation, and Linker Error Patterns

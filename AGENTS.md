@@ -107,40 +107,34 @@ hooks, shared plugin directions, or copies of Athena skills. The
 
 ## Validation Delegation
 
-The execution conditions below protect the host from repository-controlled
-validation commands when a compliant runner is available. It is separate from recommendations about which checks are useful.
-Select checks for the changed behavior and risk; repeat them when new changes
-or unresolved failures justify it. A missing validation capability leaves a
-coverage gap, not a reason to abandon independent implementation or review.
+The coordinator selects applicable validation commands and delegates them to a
+bounded executor when the host supports delegation. Otherwise, run them
+sequentially. Use the least capable available executor that can run the selected
+checks. The executor runs only those commands and does not edit product files.
 
-This section has priority over general Athena directions for testing.
+Native validation under host permissions is sufficient. Record the source commit
+and the candidate changes, including uncommitted changes. A clean commit and a
+special isolation boundary are not prerequisites. Refresh affected results if
+the candidate changes. Respect actual host permissions and resource limits.
 
-The main agent must not run validation commands. Validation commands include
-tests, lint checks, format checks, type checks, and builds. The main agent
-selects commands from a fixed command plan from trusted host policy. The main
-agent must use a validation sub-agent for each validation run. A suitable
-validation sub-agent can do more than one validation run. The main agent does
-not have to create a new sub-agent for each run. The main agent gives the
-validation sub-agent the exact source commit. The source tree must be clean.
+For each command, report a pass or the failed check, exit status, relevant output,
+and likely cause. Classify a failure as a product defect, environment failure,
+or flaky or unknown. Track pre-existing failures in an existing or new issue
+and continue independent work. If permissions prevent a check, attempt supported
+permission escalation. If access remains unavailable, report the exact manual
+command and continue the work that is possible.
 
-Use `gpt-5.6-luna` with `xhigh` reasoning for the validation sub-agent. If that
-model is not available, use the weakest available model with at least `medium`
-reasoning. Report the model substitution.
+## Authorized Work
 
-The validation sub-agent must run commands only in a host-enforced validation
-boundary. The boundary must make the source read-only and permit writes only
-to declared disposable outputs. It must deny network, credentials, external
-writes, the home directory, parent checkouts, and host temporary directories.
-It must use an unprivileged user, a scrubbed environment, and resource limits.
-If the boundary is not available, do not run validation. Report a validation
-coverage gap.
+Honor the task's existing authority. Recover and continue useful work. Stop only
+the affected action when a specific unresolved decision or actual constraint
+prevents progress. Keep architecture review, accurate evidence, existing work,
+and actual forge merge requirements.
 
-The validation sub-agent must not change files or fix failures. For a pass,
-report the tested commit, clean-tree state, commands, and successful results.
-For a failure, report the tested commit, clean-tree state, command, exit
-status, failed checks, relevant concise output, likely cause or subsystem, and
-the next investigation step. Report a validation coverage gap if the tested
-commit or clean-tree state does not match the requested source.
+Create new feature worktrees and additional clones under the primary project's
+ignored `.worktrees/` directory. Existing checkouts elsewhere remain valid.
+Use feature branches. Do not implement on `main`. For competing knowledge PRs,
+use a dependency-ordered stack and preserve each change.
 
 ## Skill Standards
 
@@ -149,7 +143,6 @@ commit or clean-tree state does not match the requested source.
 ```text
 skills/<name>.md             # Main skill file with YAML frontmatter + markdown content
 skills/<name>.notes.md       # (Optional) Additional context from development session
-skills/<name>.history        # Version and provenance archive for /learn writes
 ```
 
 Each skill is a flat file in `skills/`. Each skill stores its metadata in YAML
@@ -199,10 +192,12 @@ Lesson Learned.
 2. **Useful failures**: Explain known failure causes in the format-compatible table. Do not invent evidence.
 3. **Decision value**: Keep parameters, conditions, and configurations that affect the result.
 4. **General guidance**: Prefer one reusable rule over repeated process. Link to detail when it helps a specific decision.
-5. **Bounded retrieval**: Keep each retrievable main skill at or below 30,000
-   bytes. Move raw evidence and long examples to the notes file. Move prior
-   versions and provenance to the history file. Keep no more than three
-   examples that cover different decisions in the main skill.
+5. **Concise retrieval**: Use 30,000 bytes as an editorial guideline for a main
+   skill, not a validity limit. Keep useful decision rules in the main skill.
+   Put long, privacy-safe evidence in notes. Read large sources in bounded
+   batches. Use Git commits for prior versions and provenance; do not create
+   companion history files. Preserve useful current guidance before removing
+   obsolete text. Do not copy secrets or protected data into notes or provenance.
 
 The principles below guide design choices. Apply those relevant to the task;
 they are not a checklist, a fixed sequence, or additional approval stages.
@@ -346,7 +341,8 @@ Prefer skills that users can adapt across repositories. Useful approaches includ
    ```
 4. **Move specifics to companions**: Put project-specific commands, paths,
    transcripts, and verification details in `skills/<name>.notes.md`. Put
-   version and provenance records in `skills/<name>.history`.
+   version and provenance records in Git history. Link the immutable source
+   commit when a source is removed.
 5. **Generic workflows**: Write workflows that users can adapt to each
    repository structure.
 

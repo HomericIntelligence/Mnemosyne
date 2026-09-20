@@ -7,8 +7,9 @@ date: 2026-08-07
 version: "1.1.1"
 user-invocable: false
 verification: unverified
-history: python-tarfile-secure-restore-canonical-members.history
 tags: [python, tarfile, restore, archive, manifest, path-traversal, symlink, sha256, fail-closed]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/python-tarfile-secure-restore-canonical-members.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Secure Python Tar Restore with Canonical Members
@@ -21,7 +22,7 @@ tags: [python, tarfile, restore, archive, manifest, path-traversal, symlink, sha
 | **Objective** | Make a manifest-driven tier-3 restore accept only uniquely named regular files strictly beneath configured inventory roots, while preserving legitimate backup and verification behavior plus a no-write guarantee for validation failures. |
 | **Outcome** | A proposed fail-closed design validates the complete tar index, strict manifest, exact membership, header sizes, and resolved destinations before reading state payloads, then stages verified bytes before writing. Its untouched-repository guarantee applies to pre-write validation failures, not filesystem failures after the write phase begins. |
 | **Verification** | unverified — derived from a reviewed ProjectHephaestus implementation plan; the implementation, local tests, and CI were not executed in the source session. |
-| **History** | [changelog](./python-tarfile-secure-restore-canonical-members.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/python-tarfile-secure-restore-canonical-members.history) |
 
 ## When to Use
 

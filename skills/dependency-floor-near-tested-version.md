@@ -7,8 +7,9 @@ date: 2026-06-14
 version: "1.2.0"
 user-invocable: false
 verification: verified-ci
-history: dependency-floor-near-tested-version.history
 tags: []
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/dependency-floor-near-tested-version.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Dependency Floor Near Tested Version
@@ -21,7 +22,7 @@ tags: []
 | **Objective** | Raise a dev tool's floor (e.g., `ruff>=0.1.0`) to match the tested minor (`>=0.15`) and add a cross-manifest regression guard; or add two-sided bounds for load-bearing packages (e.g., pip `>=23.0,<27`) |
 | **Outcome** | verified-ci |
 | **Verification** | verified-ci |
-| **History** | [changelog](./dependency-floor-near-tested-version.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/dependency-floor-near-tested-version.history) |
 
 ## When to Use
 

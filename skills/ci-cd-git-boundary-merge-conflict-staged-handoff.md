@@ -22,6 +22,8 @@ tags:
   - mergestatestatus-dirty
   - convention-rollout
   - union-resolution
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/ci-cd-git-boundary-merge-conflict-staged-handoff.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Git-Boundary Merge Conflict: Staged `--no-commit` Merge Handoff to the Orchestrator

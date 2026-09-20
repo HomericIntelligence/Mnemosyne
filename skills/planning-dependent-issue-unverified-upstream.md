@@ -7,7 +7,6 @@ date: 2026-06-20
 version: "1.1.0"
 user-invocable: false
 verification: unverified
-history: planning-dependent-issue-unverified-upstream.history
 tags:
   - planning
   - dependent-issue
@@ -18,6 +17,8 @@ tags:
   - no-conditional-forks
   - assumptions
   - milestone
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/planning-dependent-issue-unverified-upstream.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Planning a Dependent Issue: Read the Merged Dependency, Eliminate the Forks

@@ -7,6 +7,8 @@ date: 2026-07-16
 version: "1.0.2"
 verification: verified-local
 tags: []
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/codeql-exclude-vendored-deps-false-criticals.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # CodeQL — Exclude Vendored `_deps/` To Kill False Criticals

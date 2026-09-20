@@ -16,6 +16,8 @@ tags:
   - sibling-asymmetry
   - planning
   - hephaestus
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/testing-non-vacuous-regression-guards-behavior-unchanged.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Non-Vacuous Regression Guards for Behavior-Unchanged (Docstring/Doc-Only) Fixes

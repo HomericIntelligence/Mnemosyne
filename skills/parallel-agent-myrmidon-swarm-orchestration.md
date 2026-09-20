@@ -7,8 +7,9 @@ date: 2026-06-13
 version: "1.2.0"
 user-invocable: false
 verification: verified-local
-history: parallel-agent-myrmidon-swarm-orchestration.history
 tags: [merged, myrmidon, swarm, parallel-agent, l0-orchestrator, wave-execution]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/parallel-agent-myrmidon-swarm-orchestration.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Parallel-Agent and Myrmidon Swarm Orchestration — Canonical Guide

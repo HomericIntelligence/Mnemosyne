@@ -7,7 +7,6 @@ date: 2026-07-04
 version: "1.0.1"
 user-invocable: false
 verification: verified-ci
-history: null
 tags:
   - import-guard
   - zero-io-imports
@@ -19,6 +18,8 @@ tags:
   - pure-function
   - constraint-enforcement
   - test-validation
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/symbol-scoped-import-exemptions.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Symbol-Scoped Import Exemptions

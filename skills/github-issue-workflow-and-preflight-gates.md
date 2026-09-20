@@ -7,8 +7,9 @@ date: 2026-06-17
 version: "1.4.0"
 user-invocable: false
 verification: verified-ci
-history: github-issue-workflow-and-preflight-gates.history
 tags: [github, issues, preflight, duplicate-prevention, workflow, bulk-filing, tracker, audit, progress-update, upstream, feature-request, safety-gates, automation, validation-artifacts, bug-template]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/github-issue-workflow-and-preflight-gates.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # GitHub Issue Workflow and Preflight Gates
@@ -21,7 +22,7 @@ tags: [github, issues, preflight, duplicate-prevention, workflow, bulk-filing, t
 | **Objective** | Consolidate GitHub issue lifecycle disciplines: preflight duplicate-prevention checks, automated safety gates, bulk audit-to-issue filing, doc-push-before-filing ordering, structured progress updates, and upstream OSS feature requests |
 | **Outcome** | Covers the full operational workflow around GitHub issues — from "verify before starting" to "post structured completion update"; now includes converting transient validation transcripts into durable bug issues without committing the transcript |
 | **Verification** | verified-ci |
-| **History** | [changelog](./github-issue-workflow-and-preflight-gates.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/github-issue-workflow-and-preflight-gates.history) |
 | **Key Learning** | Always run preflight checks (~6 s) before any implementation; stage issue bodies as local files before bulk filing; push repo-internal docs to `origin/main` before filing issues that cite them; unresolved bugs from validation artifacts belong in GitHub issues using the repo template |
 
 Consolidates: `preflight-verify-before-implementing`, `preflight-script-integration-patterns`,

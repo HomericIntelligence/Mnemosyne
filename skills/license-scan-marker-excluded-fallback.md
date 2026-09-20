@@ -8,7 +8,8 @@ version: "3.0.1"
 user-invocable: false
 verification: verified-ci
 tags: ["license", "pep508", "markers", "fallback", "ci-coverage", "fail-closed", "static-map", "staleness-mitigation", "notice"]
-history: license-scan-marker-excluded-fallback.history
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/license-scan-marker-excluded-fallback.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # License Scan Marker-Excluded Fallback
@@ -21,7 +22,7 @@ history: license-scan-marker-excluded-fallback.history
 | **Objective** | Eliminate license-coverage holes for distributed dependencies excluded from a single CI environment by PEP 508 markers |
 | **Outcome** | A single fail-closed fallback-map workflow with source-specific tests for coverage and value staleness |
 | **Verification** | verified-ci — ProjectHephaestus issues #1256/#1258, PRs #1303/#1304 |
-| **History** | [prior canonical and absorbed source snapshots](./license-scan-marker-excluded-fallback.history) |
+| **History** | [prior canonical and absorbed source snapshots](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/license-scan-marker-excluded-fallback.history) |
 
 ## When to Use
 

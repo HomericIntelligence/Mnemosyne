@@ -7,7 +7,6 @@ date: 2026-08-06
 version: "1.2.1"
 user-invocable: false
 verification: unverified
-history: python-cli-dry-run-and-entrypoint-patterns.history
 tags:
   - python
   - cli
@@ -22,6 +21,8 @@ tags:
   - failure-gates
   - standalone-scripts
   - subprocess-testing
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/python-cli-dry-run-and-entrypoint-patterns.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Python CLI Advisory Modes and Entry-Point Patterns
@@ -34,7 +35,7 @@ tags:
 | **Objective** | Capture the shared Python CLI developer-tooling surface: advisory output with explicit failure gates, the `--dry-run` flag idiom, testable parser construction, and realistic subprocess coverage |
 | **Outcome** | MIXED — the original dry-run and packaged-entry-point patterns are verified in CI; the standalone `--fail-on-*` extension is a reviewed implementation design awaiting execution |
 | **Verification** | unverified overall; Sections A–D retain their recorded `verified-ci` evidence, while Section E is unverified |
-| **History** | [changelog](./python-cli-dry-run-and-entrypoint-patterns.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/python-cli-dry-run-and-entrypoint-patterns.history) |
 
 ## When to Use
 

@@ -17,6 +17,8 @@ tags:
 - coercion
 - field_validator
 - checkpoint
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/pydantic-none-coercion-pattern.history"
+history-cleanup-date: "2026-09-19"
 ---
 # Pydantic None Coercion Pattern
 

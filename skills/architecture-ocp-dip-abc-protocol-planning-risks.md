@@ -8,7 +8,8 @@ version: "2.1.0"
 user-invocable: false
 verification: verified-ci
 tags: ["ocp", "dip", "protocol", "abc", "abstractmethod", "runtime-checkable", "contract-test", "planning", "refactoring"]
-history: architecture-ocp-dip-abc-protocol-planning-risks.history
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/architecture-ocp-dip-abc-protocol-planning-risks.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Safe Python ABC/Protocol Refactoring
@@ -21,7 +22,7 @@ history: architecture-ocp-dip-abc-protocol-planning-risks.history
 | **Objective** | Introduce ABC and Protocol contracts without inventing APIs, breaking subclasses, or weakening package boundaries |
 | **Outcome** | One verified lifecycle covering planning risks, structural interface design, and contract-test regression prevention |
 | **Verification** | verified-ci — ProjectHephaestus issue #1193 |
-| **History** | [absorbed planning and implementation sources](./architecture-ocp-dip-abc-protocol-planning-risks.history) |
+| **History** | [absorbed planning and implementation sources](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/architecture-ocp-dip-abc-protocol-planning-risks.history) |
 
 ## When to Use
 

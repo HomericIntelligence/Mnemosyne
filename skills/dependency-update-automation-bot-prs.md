@@ -4,9 +4,8 @@ license: BSD-3-Clause
 description: "Configure dependency-update bots and review generated PRs for supported managers, scope, grouping, and meaningful CI coverage."
 category: ci-cd
 date: 2026-06-07
-version: "1.1.1"
+version: "1.2.0"
 user-invocable: false
-history: dependency-update-automation-bot-prs.history
 tags:
   - dependabot
   - renovate
@@ -24,6 +23,8 @@ tags:
   - github-actions
   - dependency-automation
   - supply-chain
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/dependency-update-automation-bot-prs.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Dependency Update Automation and Bot PR Review
@@ -224,6 +225,19 @@ git log --format="%h %s" --since="6 months ago" -- bases/Dockerfile.* \
       git show --name-only --format= "$sha" | grep -q '^versions\.yml$' || echo "DRIFT: $sha $msg"
     done
 ```
+
+### Guidance retained from an absorbed history
+
+For an add/add dependency-configuration conflict, compare the complete branch
+change with the destination configuration. If the destination already contains
+all intended behavior, verify that no other unique change remains before skipping
+the redundant commit. Otherwise, preserve both sets of intended changes without
+duplicate entries. Use the repository's supported merge method. Implement a
+replacement dependency fix on a feature branch; do not edit protected `main`.
+
+History cleanup: 2026-09-19. The [prior source](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/ci-cd-dependabot-conflict-resolution-pattern.history)
+retains its original evidence limits. This migration does not establish new
+operational verification.
 
 ## Failed Attempts
 

@@ -8,6 +8,8 @@ version: "2.1.0"
 user-invocable: "false"
 verification: verified-local
 tags: [blog, narrative, documentation, retrospective, story-arc]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/blog-writer.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 ## Overview
@@ -278,4 +280,4 @@ Verification level: **verified-local**. Methodology applied end-to-end to one ca
 - Project markdown rules: `.markdownlint-cli2.jsonc` (note: `notes/blog/` is in the ignore list, but well-formedness is still expected).
 - Day-numbering anchor: ProjectOdyssey commit "feat: complete 4-level hierarchical planning structure" on 2025-11-07.
 - Related skill: `doc-validate-markdown` for markdown validation outside the blog tree.
-- Superseded: v1.0.0 of this skill (template-only; see `.history` file for the v1 snapshot pointer).
+- Superseded: v1.0.0 of this skill (template-only; see the linked Git source for the v1 snapshot pointer).

@@ -7,8 +7,9 @@ date: 2026-08-05
 version: "1.2.1"
 user-invocable: false
 verification: verified-local
-history: automation-loop-early-exit-zero-work-convergence.history
 tags: [automation, loop-runner, early-exit, convergence, testing, summary, work-units]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/automation-loop-early-exit-zero-work-convergence.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Automation Loop Early-Exit on Zero-Work Pass
@@ -21,7 +22,7 @@ tags: [automation, loop-runner, early-exit, convergence, testing, summary, work-
 | **Objective** | Break `run_loop` when a full pass produces 0 new work AND keep the human-facing per-loop summary (`_summarize_loop`) reading the same `work_units` signal the early-exit predicate reads, so the two never contradict each other |
 | **Outcome** | Successful — convergence, summary consistency, and discovery-only reseeding behavior verified locally. |
 | **Verification** | verified-local (pre-commit + pytest; CI pending for #1564) |
-| **History** | [changelog](./automation-loop-early-exit-zero-work-convergence.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/automation-loop-early-exit-zero-work-convergence.history) |
 
 ## When to Use
 

@@ -6,7 +6,6 @@ category: architecture
 date: 2026-07-05
 version: "1.0.1"
 user-invocable: false
-history: architecture-pipeline-durable-state-ac3.history
 tags:
   - pipeline
   - durable-state
@@ -17,6 +16,8 @@ tags:
   - ledger
   - dedupe
   - arm-records
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/architecture-pipeline-durable-state-ac3.history"
+history-cleanup-date: "2026-09-19"
 ---
 # architecture-pipeline-durable-state-ac3
 

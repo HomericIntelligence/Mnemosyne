@@ -7,7 +7,6 @@ date: 2026-05-25
 version: "1.2.0"
 user-invocable: false
 verification: verified-local
-history: debugging-silent-pipeline-stage-via-argparse-required-grep.history
 tags:
   - argparse
   - orchestrator
@@ -25,6 +24,8 @@ tags:
   - subshell
   - process-repo
   - second-cause
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/debugging-silent-pipeline-stage-via-argparse-required-grep.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Debugging Silent Pipeline Stages via argparse `required=True` Grep

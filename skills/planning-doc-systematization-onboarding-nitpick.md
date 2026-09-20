@@ -7,7 +7,6 @@ date: 2026-06-24
 version: "1.3.0"
 user-invocable: false
 verification: verified-local
-history: planning-doc-systematization-onboarding-nitpick.history
 tags:
   - planning
   - documentation
@@ -37,6 +36,8 @@ tags:
   - kiss-yagni
   - pola
   - unverified-assumption
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/planning-doc-systematization-onboarding-nitpick.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Planning a Doc-Systematization + Onboarding-Path Audit Nitpick

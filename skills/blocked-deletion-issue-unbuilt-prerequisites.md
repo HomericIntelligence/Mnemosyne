@@ -25,6 +25,8 @@ tags:
   - verify-before-planning
   - assumptions
   - nogo-lessons
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/blocked-deletion-issue-unbuilt-prerequisites.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Blocked Deletion Issue — Unbuilt Prerequisites

@@ -7,8 +7,9 @@ date: 2026-06-11
 version: "1.2.0"
 user-invocable: false
 verification: verified-ci
-history: skill-teaching-stale-practices-contradicting-canonical-docs.history
 tags: [skill-quality, contradiction-resolution, canonical-docs, wholesale-rewrite, skill-maintenance]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/skill-teaching-stale-practices-contradicting-canonical-docs.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Resolving Canonical Contradictions in Skills

@@ -8,6 +8,8 @@ version: "1.1.0"
 user-invocable: false
 verification: verified-ci
 tags: [delegation, sub-agent, rebase, verification, full-suite, worktree, merge-base, ci-cost]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/verify-delegated-agent-claims-run-full-suite.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Verify Delegated Agent Claims and Run the Full Suite Before Pushing

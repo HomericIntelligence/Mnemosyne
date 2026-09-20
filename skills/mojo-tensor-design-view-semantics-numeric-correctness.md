@@ -6,7 +6,6 @@ category: architecture
 date: 2026-07-11
 version: "1.2.1"
 user-invocable: false
-history: mojo-tensor-design-view-semantics-numeric-correctness.history
 tags:
   - mojo
   - tensor
@@ -24,6 +23,8 @@ tags:
   - bfloat16
   - numeric-correctness
   - dataloader
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/mojo-tensor-design-view-semantics-numeric-correctness.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Mojo Tensor Design, View Semantics, and Numeric Correctness

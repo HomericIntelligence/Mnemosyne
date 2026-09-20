@@ -21,6 +21,8 @@ tags:
   - task-mandated-merge-method
   - no-silent-fallback
   - block-on-method-mismatch
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/planning-pr-open-load-bearing-assumption-hygiene.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Planning: Load-Bearing Assumption Hygiene in PR-Open Plans

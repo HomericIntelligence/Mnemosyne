@@ -19,6 +19,8 @@ tags:
   - 693-nogo-exhaustion
   - empty-plan-block
   - serialization-handoff-bug
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/tooling-plan-artifact-delivery-nogo.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Tooling: The Plan-Artifact-Delivery NOGO (summary overwrote the plan)

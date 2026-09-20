@@ -7,8 +7,9 @@ date: 2026-07-16
 version: "1.3.0"
 user-invocable: false
 verification: verified-ci
-history: git-dco-signoff-distinct-from-gpg-sign.history
 tags: []
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/git-dco-signoff-distinct-from-gpg-sign.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Git DCO Signed-off-by Is Distinct from GPG Signing

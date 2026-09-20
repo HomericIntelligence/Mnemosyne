@@ -17,7 +17,8 @@ tags:
   - mock-side-effect
   - hephaestus
   - invariant-test
-history: testing-pragma-no-cover-error-path-coverage.history
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/testing-pragma-no-cover-error-path-coverage.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Removing & Justifying `# pragma: no cover` (Error-Path Coverage)
@@ -30,7 +31,7 @@ history: testing-pragma-no-cover-error-path-coverage.history
 | **Objective** | Decide what to do with each `# pragma: no cover` flagged by an audit: classify it as a reachable error-fallback handler (testable — drive the branch then delete the pragma) or an unreachable mypy type-narrowing guard (untestable honestly — keep the pragma, annotate it with the tracking issue, and add an invariant test instead). |
 | **Outcome** | Four reachable exception-handler pragmas removed after fallback tests; one genuinely unreachable narrowing guard retained with an issue reference and invariant test. |
 | **Verification** | verified-local — ProjectHephaestus issue #1426, 252 affected tests passed. |
-| **History** | [absorbed verified fallback-test source](./testing-pragma-no-cover-error-path-coverage.history) |
+| **History** | [absorbed verified fallback-test source](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/testing-pragma-no-cover-error-path-coverage.history) |
 
 `# pragma: no cover` tells the coverage tool "don't count this line as
 uncovered." It is a coverage *exemption*, not a correctness statement. An audit

@@ -7,6 +7,8 @@ date: '2026-03-19'
 version: "1.1.0"
 mcp_fallback: none
 phase: Plan
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/phase-plan-generate.history"
+history-cleanup-date: "2026-09-19"
 ---
 # Plan Generation Skill
 

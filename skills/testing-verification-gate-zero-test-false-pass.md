@@ -7,8 +7,9 @@ date: 2026-08-06
 version: "1.2.0"
 user-invocable: false
 verification: unverified
-history: testing-verification-gate-zero-test-false-pass.history
 tags: [testing, pytest, ctest, cmake, gtest, verification-gate, false-pass, exit-code-5, no-tests-collected, subprocess, fail-closed, pre-push, signal, timeout, test-count, collect-only, show-only, orphaned-test, planning, plan-review]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/testing-verification-gate-zero-test-false-pass.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Verification Gate: Zero-Test False Pass
@@ -21,7 +22,7 @@ tags: [testing, pytest, ctest, cmake, gtest, verification-gate, false-pass, exit
 | Objective | Ensure a verification wrapper cannot treat an invoked test process that ran no tests as evidence that a change is safe |
 | Outcome | Proposed fail-closed boundary: decide any intentionally inapplicable gate before invocation; after pytest starts, only return code 0 succeeds. Code 5 means no tests were collected and must block the guarded push or merge. Name-filtered and orphaned-target gates still need an explicit non-empty-selection proof when their runner can otherwise report success. |
 | Verification | unverified — the Hephaestus fix and regression matrix were planned but not implemented or run; the unsafe pre-fix code-5 acceptance and pytest 9.1.1 code-5 behavior were reproduced locally |
-| History | [changelog](./testing-verification-gate-zero-test-false-pass.history) |
+| History | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/testing-verification-gate-zero-test-false-pass.history) |
 
 ## When to Use
 

@@ -7,7 +7,6 @@ date: 2026-08-07
 version: "1.2.0"
 user-invocable: false
 verification: verified-local
-history: release-auto-tag-token-trigger-and-doc-guard-traps.history
 tags:
   - release
   - auto-tag
@@ -27,11 +26,13 @@ tags:
   - release-status
   - markdown-blockquote
   - regex-owned-prose
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/release-auto-tag-token-trigger-and-doc-guard-traps.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Release Pipeline and Pre-Tag Documentation Guard Traps
 
-**History:** [changelog](./release-auto-tag-token-trigger-and-doc-guard-traps.history)
+**History:** [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/release-auto-tag-token-trigger-and-doc-guard-traps.history)
 
 ## Overview
 

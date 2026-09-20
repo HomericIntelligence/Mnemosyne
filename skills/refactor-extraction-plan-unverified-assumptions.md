@@ -7,7 +7,6 @@ version: "2.1.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: unverified
-history: refactor-extraction-plan-unverified-assumptions.history
 tags:
   - refactoring
   - extraction
@@ -17,6 +16,8 @@ tags:
   - circular-import
   - planning
   - verification
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/refactor-extraction-plan-unverified-assumptions.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Refactor Extraction Plan: Unverified Assumptions
@@ -32,7 +33,7 @@ This is planning guidance only. The source issue #1360 and #1814 plans were revi
 implemented, so `verification` remains `unverified`. Case evidence is indexed in
 [refactor-extraction-plan-unverified-assumptions.notes.md](refactor-extraction-plan-unverified-assumptions.notes.md),
 and the complete prior version is in
-[refactor-extraction-plan-unverified-assumptions.history](refactor-extraction-plan-unverified-assumptions.history).
+[refactor-extraction-plan-unverified-assumptions.history](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/refactor-extraction-plan-unverified-assumptions.history).
 
 ## When to Use
 

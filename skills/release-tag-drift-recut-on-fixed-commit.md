@@ -7,7 +7,6 @@ date: 2026-06-20
 version: "1.2.0"
 user-invocable: false
 verification: verified-ci
-history: release-tag-drift-recut-on-fixed-commit.history
 tags:
   - release
   - git-tags
@@ -22,6 +21,8 @@ tags:
   - blast-radius
   - pr-unblock
   - dependabot-rebase
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/release-tag-drift-recut-on-fixed-commit.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Release Tag Drift: Re-cut the Tag on a Fixed Commit

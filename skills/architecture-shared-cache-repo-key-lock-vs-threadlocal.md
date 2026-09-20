@@ -7,7 +7,6 @@ date: 2026-07-05
 version: "1.2.0"
 user-invocable: false
 verification: unverified
-history: architecture-shared-cache-repo-key-lock-vs-threadlocal.history
 tags:
   - planning-methodology
   - thread-safety
@@ -24,6 +23,8 @@ tags:
   - encapsulation
   - test-reset-seam
   - hephaestus
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/architecture-shared-cache-repo-key-lock-vs-threadlocal.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Planning: Reuse the Existing ThreadSafeCache (NOT a hand-rolled dict+Lock, NOT threading.local)
@@ -49,7 +50,7 @@ repo-keyed `dict` + `threading.Lock`; R1 discovered the repo ALREADY had a sanct
 | **Objective** | Plan a thread-safe fix for a shared-across-threads label cache by REUSING the existing `ThreadSafeCache` primitive keyed by repo slug — not hand-rolling a lock, not mis-applying a per-thread isolation pattern, and not fixing only the audit-named adapter line while the real hazard sits in the library helper |
 | **Outcome** | R1 plan produced: reuse `hephaestus/utils/cache.py::ThreadSafeCache` keyed by the verified `(owner, repo)` tuple from `get_repo_info()`; add a small `add_to_entry` method to the primitive for the set-augment mutation; migrate 5 test reset/seed sites (`= None` → `.clear()`/keyed-seed); add concurrency + distinct-repos + empty-key + `add_to_entry` tests. NOT executed — no code run, no CI. |
 | **Verification** | unverified (planning learning; no code was run, no tests executed, no CI) |
-| **History** | v1.0.0 = R0 plan (NOGO). v1.1.0 = R1 re-plan (this version); see the `.history` file for the full R0 snapshot and the correction rationale. |
+| **History** | v1.0.0 = R0 plan (NOGO). v1.1.0 = R1 re-plan (this version); see the linked Git source for the full R0 snapshot and the correction rationale. |
 
 ## When to Use
 

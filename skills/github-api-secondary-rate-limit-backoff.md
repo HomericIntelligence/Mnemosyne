@@ -14,7 +14,6 @@ description: 'Fix rate-limit message phrasings that no regex matches falling thr
 category: debugging
 date: 2026-06-13
 version: 1.1.0
-history: github-api-secondary-rate-limit-backoff.history
 user-invocable: false
 tags:
 - github-api
@@ -28,6 +27,8 @@ tags:
 - backoff
 - retry
 - hephaestus
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/github-api-secondary-rate-limit-backoff.history"
+history-cleanup-date: "2026-09-19"
 ---
 # Skill: github-api-secondary-rate-limit-backoff
 

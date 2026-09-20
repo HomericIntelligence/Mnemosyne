@@ -8,6 +8,8 @@ version: "1.0.1"
 user-invocable: false
 verification: unverified
 tags: [python, cli, command-registry, aliases, collisions, atomicity, decorators]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/python-cli-command-registry-reject-collisions-before-mutation.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Python CLI Command Registry Atomic Collision Validation

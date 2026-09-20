@@ -29,6 +29,8 @@ tags:
   - firewalld
   - firewall
   - worker-provisioning
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/e2e-crosshost-doctor-prerequisite-checker.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # E2E Cross-Host Doctor Prerequisite Checker

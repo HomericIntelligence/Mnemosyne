@@ -7,7 +7,6 @@ version: "2.1.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-ci
-history: cross-repo-script-and-library-porting.history
 tags:
   - porting
   - cross-repo
@@ -17,6 +16,8 @@ tags:
   - licensing
   - sequential-prs
   - skills
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/cross-repo-script-and-library-porting.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Cross-Repository Script and Library Porting
@@ -32,7 +33,7 @@ The workflow has CI evidence across library, script, and skill migrations. Detai
 source links are in
 [cross-repo-script-and-library-porting.notes.md](cross-repo-script-and-library-porting.notes.md),
 and the complete previous guide is in
-[cross-repo-script-and-library-porting.history](cross-repo-script-and-library-porting.history).
+[cross-repo-script-and-library-porting.history](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/cross-repo-script-and-library-porting.history).
 
 ## When to Use
 

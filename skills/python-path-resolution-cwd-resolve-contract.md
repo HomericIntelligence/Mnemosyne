@@ -7,8 +7,9 @@ date: 2026-06-13
 version: "1.3.0"
 user-invocable: false
 verification: verified-local
-history: python-path-resolution-cwd-resolve-contract.history
 tags: []
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/python-path-resolution-cwd-resolve-contract.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Python Path Resolution: CWD Resolve Contract

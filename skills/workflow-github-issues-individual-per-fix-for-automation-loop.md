@@ -8,6 +8,8 @@ version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [github-issues, automation-loop, pr-policy, homericintelligence, issue-scoping, workflow, closes-n, multi-fix, audit-finding]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/workflow-github-issues-individual-per-fix-for-automation-loop.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Workflow: One GitHub Issue Per Fix for the Automation Loop

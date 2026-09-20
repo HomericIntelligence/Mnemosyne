@@ -11,15 +11,16 @@ version: "3.0.0"
 user-invocable: false
 verification: unverified
 license: BSD-3-Clause
-history: python-import-patterns-and-compatibility-guards.history
 tags: [import-strategy, circular-dependency, lazy-loading, sdk-surface, version-guard, cross-platform, pep-562, compatibility, runtime-import-graph, ast]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/python-import-patterns-and-compatibility-guards.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Python Import Patterns and Compatibility Guards
 
 **Supporting cases:** [notes](./python-import-patterns-and-compatibility-guards.notes.md)
 
-**Superseded content:** [history](./python-import-patterns-and-compatibility-guards.history)
+**Superseded content:** [history](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/python-import-patterns-and-compatibility-guards.history)
 
 ## Overview
 

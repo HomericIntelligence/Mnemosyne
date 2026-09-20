@@ -6,7 +6,6 @@ category: documentation
 date: 2026-06-07
 version: "1.2.0"
 user-invocable: false
-history: readme-badges-live-sources-and-count-drift-prevention.history
 tags:
   - documentation
   - badges
@@ -16,6 +15,8 @@ tags:
   - count-drift
   - shields-io
   - pre-commit
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/readme-badges-live-sources-and-count-drift-prevention.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 ## Overview

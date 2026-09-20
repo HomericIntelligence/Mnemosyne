@@ -7,7 +7,6 @@ date: 2026-08-06
 version: "1.1.0"
 user-invocable: false
 verification: unverified
-history: pr-review-threadless-nogo-verdict-retry-wedge.history
 tags:
   - pr-review
   - nogo-verdict
@@ -33,6 +32,8 @@ tags:
   - reply-lifecycle
   - root-cause-clustering
   - homericintelligence
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/pr-review-threadless-nogo-verdict-retry-wedge.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # PR Review Threadless NOGO Verdict Retry Wedge
@@ -45,7 +46,7 @@ tags:
 | **Objective** | Prevent deterministic threadless-review wedges while allowing an actionable host-verification failure to return to implementation without weakening the strict reply lifecycle for real review threads. |
 | **Outcome** | The original wedge diagnosis remains verified in CI. A distinct verification-only remediation contract is now documented as a proposed extension: carry a bounded exact-head diagnostic, bypass thread reply state, validate push receipts, then re-enter fresh verification, required CI, review, and exact-head merge admission. |
 | **Verification** | unverified for the new host-verification workflow; the original zero-artifact wedge diagnosis remains verified-ci via ProjectHephaestus bug #2079 and PR #2105. |
-| **History** | [changelog](./pr-review-threadless-nogo-verdict-retry-wedge.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/pr-review-threadless-nogo-verdict-retry-wedge.history) |
 
 ## When to Use
 

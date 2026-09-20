@@ -6,6 +6,8 @@ category: ci-cd
 date: 2026-07-06
 version: "1.0.1"
 verification: verified-local
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/git-rebase-skip-duplicate-merged-commits.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Git Rebase Skip for Duplicate Merged Commits

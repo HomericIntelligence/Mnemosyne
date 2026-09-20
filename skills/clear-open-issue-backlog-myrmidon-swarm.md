@@ -18,6 +18,8 @@ tags:
   - issue-triage
   - re-grade
   - squash-merge
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/clear-open-issue-backlog-myrmidon-swarm.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Clear Open Issue Backlog with Myrmidon Swarm — End-to-End Orchestrator Recipe

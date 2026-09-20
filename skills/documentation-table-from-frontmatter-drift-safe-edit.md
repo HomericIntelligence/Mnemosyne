@@ -21,6 +21,8 @@ tags:
   - argument-hint
   - claude-md-catalog
   - hephaestus
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/documentation-table-from-frontmatter-drift-safe-edit.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Adding a Frontmatter-Derived Column to a Markdown Doc Table (Drift-Safe)

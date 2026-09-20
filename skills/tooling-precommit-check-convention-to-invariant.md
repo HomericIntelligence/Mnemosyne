@@ -7,7 +7,6 @@ date: 2026-06-23
 version: "1.2.0"
 user-invocable: false
 verification: unverified
-history: tooling-precommit-check-convention-to-invariant.history
 tags:
   - planning
   - pre-commit
@@ -34,6 +33,8 @@ tags:
   - audit-nitpick
   - kiss-beats-cleverness
   - adversarial-tests
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/tooling-precommit-check-convention-to-invariant.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Planning: Convert a Documentation Convention into a Machine-Checked Invariant

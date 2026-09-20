@@ -10,15 +10,16 @@ version: "2.1.0"
 user-invocable: false
 verification: verified-local
 license: BSD-3-Clause
-history: audit-remediation-verify-evidence-before-planning.history
 tags: [audit, remediation, evidence, stale-finding, stale-line-cite, scope-control, verification-boundary]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/audit-remediation-verify-evidence-before-planning.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Audit Remediation: Verify Evidence Before Planning
 
 **Supporting cases:** [notes](./audit-remediation-verify-evidence-before-planning.notes.md)
 
-**Superseded content:** [history](./audit-remediation-verify-evidence-before-planning.history)
+**Superseded content:** [history](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/audit-remediation-verify-evidence-before-planning.history)
 
 ## Overview
 

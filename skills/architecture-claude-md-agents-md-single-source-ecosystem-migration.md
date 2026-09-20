@@ -7,7 +7,6 @@ date: 2026-07-21
 version: "2.1.0"
 user-invocable: false
 verification: unverified
-history: architecture-claude-md-agents-md-single-source-ecosystem-migration.history
 tags:
   - claude-md
   - agents-md
@@ -21,6 +20,8 @@ tags:
   - stale-reference-audit
   - atomic-migration
   - ecosystem-migration
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/architecture-claude-md-agents-md-single-source-ecosystem-migration.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Consolidating Repository Agent Guidance into AGENTS.md Without Orphaning Consumers
@@ -38,7 +39,7 @@ tags:
 | **Objective** | Make `AGENTS.md` the sole authoritative agent contract, reduce `CLAUDE.md` to an exact compatibility pointer, and migrate every live authority-bearing consumer without losing directives. |
 | **Outcome** | The lightweight document migration was previously verified locally across an ecosystem. The stronger policy-consumer workflow is planned for Hephaestus but has not been executed end-to-end. |
 | **Verification** | unverified — v2.0.0 changes the core recommendation; the comprehensive workflow and its CI result are pending. |
-| **History** | [changelog](./architecture-claude-md-agents-md-single-source-ecosystem-migration.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/architecture-claude-md-agents-md-single-source-ecosystem-migration.history) |
 
 The dangerous failure mode is not a broken Markdown link. It is successfully replacing
 `CLAUDE.md` with a three-line pointer while code, tests, workflows, prompt templates, or

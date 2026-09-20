@@ -15,6 +15,8 @@ tags:
   - launch-identity
   - replica-admission
   - fail-closed
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/autoscaling-template-promotion-evidence.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Autoscaling Template Promotion Evidence

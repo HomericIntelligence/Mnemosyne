@@ -6,7 +6,6 @@ category: ci-cd
 date: 2026-07-03
 version: "1.1.0"
 user-invocable: false
-history: null
 tags:
   - github-pr-review
   - parallel-dispatch
@@ -29,6 +28,8 @@ tags:
   - difficulty-based-routing
   - backward-pass
   - ml-implementation
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/review-coordination-parallel-serial-subagent-dispatch.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Review Coordination: Parallel-Serial Sub-Agent Dispatch

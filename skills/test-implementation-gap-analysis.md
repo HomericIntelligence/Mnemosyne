@@ -6,8 +6,9 @@ category: testing
 date: 2026-04-24
 version: "1.2.0"
 verification: verified-ci
-history: test-implementation-gap-analysis.history
 user-invocable: false
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/test-implementation-gap-analysis.history"
+history-cleanup-date: "2026-09-19"
 ---
 # Test-Implementation Gap Analysis
 

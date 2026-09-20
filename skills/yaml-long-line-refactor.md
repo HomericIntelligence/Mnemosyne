@@ -6,6 +6,8 @@ category: architecture
 date: 2026-01-01
 version: "1.1.0"
 user-invocable: false
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/yaml-long-line-refactor.history"
+history-cleanup-date: "2026-09-19"
 ---
 # YAML Long Line Refactor
 

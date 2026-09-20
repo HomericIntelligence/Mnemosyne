@@ -8,7 +8,8 @@ version: "1.0.0"
 user-invocable: false
 verification: unverified
 tags: ["fault-injection", "chaos", "recovery", "real-server", "nats", "red-green", "placeholder-test", "reconnect", "integration-test"]
-history: testing-real-server-fault-test-recovery.history
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/testing-real-server-fault-test-recovery.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Real-Server Fault-Test Recovery
@@ -21,7 +22,7 @@ history: testing-real-server-fault-test-recovery.history
 | **Objective** | Replace false-pass fault tests with isolated kill/degrade/restart/recover tests that demonstrate real system behavior |
 | **Outcome** | One planning workflow for placeholder remediation and real broker-recovery testing, with explicit assumption gates |
 | **Verification** | unverified — source plans were reviewed but not executed end-to-end |
-| **History** | [absorbed placeholder and real-server planning sources](./testing-real-server-fault-test-recovery.history) |
+| **History** | [absorbed placeholder and real-server planning sources](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/testing-real-server-fault-test-recovery.history) |
 
 ## When to Use
 

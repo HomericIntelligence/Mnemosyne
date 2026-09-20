@@ -6,7 +6,6 @@ category: tooling
 date: 2026-07-06
 version: "1.1.0"
 user-invocable: false
-history: tooling-docker-headless-build-credential-helper.history
 verification: verified-local
 tags:
   - docker
@@ -18,6 +17,8 @@ tags:
   - sudo
   - dbus
   - credsstore
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/tooling-docker-headless-build-credential-helper.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Tooling: Docker Headless Build Credential Helper

@@ -7,7 +7,6 @@ date: 2026-06-12
 version: "1.1.1"
 user-invocable: false
 verification: unverified
-history: gha-dedup-jobs-trigger-scope-vs-workflow-call.history
 tags:
   - github-actions
   - workflow-deduplication
@@ -23,6 +22,8 @@ tags:
   - runner-cost
   - kiss
   - planning
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/gha-dedup-jobs-trigger-scope-vs-workflow-call.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # GitHub Actions: De-Duplicating Jobs — Trigger-Scope vs workflow_call vs Deletion
@@ -35,7 +36,7 @@ tags:
 | **Objective** | Pick the RIGHT fix when two workflows run identical jobs on every PR: a decision rule among (a) trigger-scoping the `on:` block, (b) job-level `if:` scoping, (c) `workflow_call` extraction, and (d) outright deletion — instead of defaulting to extraction or to a workflow-wide trigger change |
 | **Outcome** | For ProjectHephaestus issue #1182 (`security.yml` vs `_required.yml` both running `pip-audit`/`sast` on every PR), the KISS fix is to **add `if: github.event_name != 'pull_request'` to ONLY the duplicate jobs** — because `security.yml` also contains a THIRD job (`license-scan`) that is BLOCKING only on `pull_request`. A workflow-wide trigger change would have silently dropped that gate (got a NOGO). Captured as a planning artifact. |
 | **Verification** | unverified — planning artifact only; the plan was NOT executed or confirmed in CI |
-| **History** | [changelog](./gha-dedup-jobs-trigger-scope-vs-workflow-call.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/gha-dedup-jobs-trigger-scope-vs-workflow-call.history) |
 
 ## When to Use
 

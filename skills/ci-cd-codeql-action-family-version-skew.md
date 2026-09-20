@@ -19,6 +19,8 @@ tags:
   - github-actions
   - non-required-check
   - family-alignment
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/ci-cd-codeql-action-family-version-skew.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # CI/CD: Align the github/codeql-action Family in One PR (Version Skew Breaks Scanning)

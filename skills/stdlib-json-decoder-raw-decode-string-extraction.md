@@ -7,8 +7,9 @@ date: 2026-06-20
 version: "1.1.0"
 user-invocable: false
 verification: verified-ci
-history: stdlib-json-decoder-raw-decode-string-extraction.history
 tags: [json, stdlib, parsing, jsondecoderraw_decode, robustness, edge-cases, refactoring, json-repair, single-quote-guard, llm-output, trailing-comma]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/stdlib-json-decoder-raw-decode-string-extraction.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # stdlib: json.JSONDecoder.raw_decode() for String Extraction

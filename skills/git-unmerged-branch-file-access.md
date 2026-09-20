@@ -7,7 +7,6 @@ date: 2026-07-10
 version: "2.2.0"
 user-invocable: false
 verification: verified-local
-history: git-unmerged-branch-file-access.history
 tags:
   - unmerged-branch
   - follow-up-issue
@@ -23,11 +22,13 @@ tags:
   - pickaxe
   - plan-grounding
   - stale-issue-text
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/git-unmerged-branch-file-access.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Git Unmerged Branch File Access
 
-**History:** [changelog](./git-unmerged-branch-file-access.history)
+**History:** [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/git-unmerged-branch-file-access.history)
 
 ## Overview
 

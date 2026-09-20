@@ -16,6 +16,8 @@ tags:
   - tuple-literal
   - contract-defer
   - test-driven-validation
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/architecture-import-time-assert-anti-pattern.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Architecture: Import-time `assert ...` is an Anti-pattern

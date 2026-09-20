@@ -6,8 +6,9 @@ category: architecture
 date: 2026-06-07
 version: "1.2.0"
 user-invocable: false
-history: mojo-type-api-migration-and-import-patterns.history
 tags: [mojo, type-migration, api-migration, parametric-dtype, implicitlycopyable, import-ambiguity, trait, dtype-native]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/mojo-type-api-migration-and-import-patterns.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Mojo Type API Migration and Import Patterns

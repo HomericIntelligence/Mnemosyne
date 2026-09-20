@@ -7,7 +7,6 @@ date: 2026-05-28
 version: "1.1.1"
 user-invocable: false
 verification: verified-ci
-history: tooling-pixi-lockfile-churn-self-reference.history
 tags:
   - pixi
   - pixi-lock
@@ -23,6 +22,8 @@ tags:
   - ci-pin-completeness
   - composite-action
   - requires-pixi
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/tooling-pixi-lockfile-churn-self-reference.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Pixi Lockfile Churn from Self-Reference + hatch-vcs

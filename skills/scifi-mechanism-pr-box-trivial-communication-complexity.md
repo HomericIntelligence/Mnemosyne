@@ -8,6 +8,8 @@ version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [scifi, physics, pr-box, quantum-foundations, communication-complexity, nonlocality, planck-scale, mechanism-design]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/scifi-mechanism-pr-box-trivial-communication-complexity.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Sci-Fi Mechanism: PR-Box Trivial Communication Complexity

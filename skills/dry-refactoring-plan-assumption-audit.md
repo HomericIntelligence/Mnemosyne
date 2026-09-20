@@ -7,8 +7,9 @@ date: 2026-06-30
 version: "2.2.1"
 user-invocable: false
 verification: unverified
-history: dry-refactoring-plan-assumption-audit.history
 tags: [dry, refactoring, module-consolidation, planning, assumptions, shim, __all__, packaging, test-delegation, signature-collision, getattr, test-seam, stale-mechanism]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/dry-refactoring-plan-assumption-audit.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # DRY Refactoring — Plan Assumption Audit
@@ -21,7 +22,7 @@ tags: [dry, refactoring, module-consolidation, planning, assumptions, shim, __al
 | **Objective** | Capture the hidden assumptions that invalidated parts of the plan for consolidating `hephaestus/scripts_lib/check_python_version_consistency.py` into `hephaestus/validation/python_version.py` (issue #1189) |
 | **Outcome** | Plan produced; NOGO on first version; revised plan addresses all 5 failure modes |
 | **Verification** | unverified — plan not yet implemented or CI-confirmed |
-| **History** | v1.0.0: initial 5-assumption capture. v2.0.0: revised with concrete fix patterns for signature collision and test delegation. v2.1.0: add R2 findings — DOTALL regex crosses TOML sections, wrong test count stated in plan. v2.2.0 (planning-only, unverified): add stale-PROPOSED-MECHANISM failure mode + test-seam survival verification + scope-out-the-risky-half pattern (issue #1439). See [changelog](./dry-refactoring-plan-assumption-audit.history). |
+| **History** | v1.0.0: initial 5-assumption capture. v2.0.0: revised with concrete fix patterns for signature collision and test delegation. v2.1.0: add R2 findings — DOTALL regex crosses TOML sections, wrong test count stated in plan. v2.2.0 (planning-only, unverified): add stale-PROPOSED-MECHANISM failure mode + test-seam survival verification + scope-out-the-risky-half pattern (issue #1439). See [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/dry-refactoring-plan-assumption-audit.history). |
 
 ## When to Use
 

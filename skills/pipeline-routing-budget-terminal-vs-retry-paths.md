@@ -6,7 +6,6 @@ category: testing
 date: 2026-07-04
 version: "1.0.0"
 user-invocable: false
-history: pipeline-routing-budget-terminal-vs-retry-paths.history
 tags:
   - pipeline
   - routing
@@ -17,6 +16,8 @@ tags:
   - hypothesis
   - queue-automation
   - budget-attribution
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/pipeline-routing-budget-terminal-vs-retry-paths.history"
+history-cleanup-date: "2026-09-19"
 ---
 # pipeline-routing-budget-terminal-vs-retry-paths
 

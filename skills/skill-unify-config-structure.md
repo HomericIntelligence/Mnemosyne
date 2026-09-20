@@ -6,6 +6,8 @@ category: architecture
 date: 2026-01-17
 version: "1.1.0"
 user-invocable: false
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/skill-unify-config-structure.history"
+history-cleanup-date: "2026-09-19"
 ---
 # Skill: Unify Config Structure
 

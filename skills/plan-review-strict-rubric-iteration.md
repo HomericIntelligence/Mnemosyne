@@ -8,6 +8,8 @@ version: "1.2.0"
 user-invocable: false
 verification: verified-local
 tags: [plan-review, architecture, github-issues, design-docs, rubric]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/plan-review-strict-rubric-iteration.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Iterative Plan Review with Strict Rubric

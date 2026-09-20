@@ -6,7 +6,6 @@ category: documentation
 date: 2026-06-07
 version: "1.2.0"
 user-invocable: false
-history: mkdocs-markdown-doc-site-build-and-pr-workflow.history
 tags:
   - mkdocs
   - markdownlint
@@ -23,6 +22,8 @@ tags:
   - documentation-workflow
   - pre-commit
   - ci-unblocking
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/mkdocs-markdown-doc-site-build-and-pr-workflow.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 ## Overview
@@ -142,8 +143,8 @@ inside backticks, escape each `|` as `\|` (CommonMark renders `\|` back to `|`);
 the table itself is structurally wrong — restructure, do not escape. Same fix for any
 content: shell pipelines, jq filters (`[.comments[]\|select(.body\|test(...))]`), GHA
 expressions (`${{ a && '1' \|\| '0' }}`), CLI syntax (`{dry-run\|smoke\|full}`), regex
-alternations. Apply to BOTH the `.md` and any `.history` snapshot — `.history` is linted
-by CI and inherits unescaped pipes from absorbed Failed Attempts tables. Do NOT use
+alternations. Apply the check to all changed Markdown files, including notes.
+Git preserves older snapshots; do not create history companions. Do NOT use
 `&#124;` inside backticks (renders verbatim) and do NOT change table arity.
 
 **MD060 (table-column-style).** "Table pipe is missing space to the right/left for style
@@ -221,7 +222,7 @@ while any protected merge remains unavailable.
 #### 4 — Doc/config drift detection script
 
 Add a pre-commit gate that reads authoritative values from `pyproject.toml` and asserts
-docs match. Place `scripts/check_doc_config_consistency.py` (full source in `.history`)
+docs match. Place `scripts/check_doc_config_consistency.py` (full source in the linked Git history)
 with checks: coverage `fail_under` vs. `CLAUDE.md` `(\d+)%\+?\s+test coverage`; `--cov=`
 path vs. `README.md`; and README test-count claims within a 10% tolerance of
 `pytest --collect-only -q`. `main()` returns `int` (the `__main__` block does
@@ -282,7 +283,7 @@ an unrelated hook; this skill does not authorize bypassing required checks.
 | Adding columns to the header / removing the pipe to absorb MD056 | Bumped header arity or rewrote the command without the pipe | Destroyed table semantics or lost the documented behavior | Never change table arity; escape the pipe and preserve the example verbatim |
 | HTML-entity / bracket-removal for MD033, reword to `[here]` for MD059, leading space for MD018 | Tried `&lt;version&gt;`, dropped angle brackets, `[here]`, indented `#NNN` | Entities render literally; brackets carry substitution-slot meaning; `here`/`click`/`this` are also non-descriptive; the ATX parser strips leading whitespace | Backtick-wrap placeholders, use the real subject as link text, reflow or `\#NNN` |
 | Parallel admin-merge of a stuck markdownlint queue | Ran `gh pr merge --admin` against 17 PRs concurrently | 13 hit "base branch was modified" races | When an authorized policy exception permits admin merges, serialize them and inspect each PR state |
-| Trusted `.history` snapshots to be lint-safe | Snapshotted skill files into `.history` without pre-flight lint | Absorbed Failed Attempts tables carry unescaped pipes; `.history` IS linted by CI | Pre-flight markdownlint on BOTH the `.md` AND `.history` before pushing |
+| Trusted `.history` snapshots to be lint-safe | Snapshotted skill files into `.history` without pre-flight lint | Absorbed Failed Attempts tables carry unescaped pipes; `.history` IS linted by CI | Check all changed Markdown files before pushing; Git now preserves old snapshots |
 | Patched `subprocess.run` globally in drift-check tests | `patch("subprocess.run", ...)` for `collect_actual_test_count` | The script already imported `subprocess`; patching the stdlib location has no effect on the bound reference | Patch in the module's own namespace: `scripts.check_doc_config_consistency.subprocess.run` |
 | Used `pytest.raises(SystemExit)` for drift-check `main()` tests | Expected `main()` to call `sys.exit()` | `main()` returns `int`; only the `__main__` block exits | Call `main()` directly and assert the return value |
 | Creating an empty commit / duplicate PR on a no-op or already-done branch | Committed review files or re-edited targets "to have something"; ran `gh pr create` without checking | Adds history noise / opens a second PR causing CI confusion | Only commit real changes; always check `gh pr list --head <branch>` and read target files first |

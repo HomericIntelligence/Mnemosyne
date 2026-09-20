@@ -8,6 +8,8 @@ version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [myrmidon, swarm, parallel-agents, l0-commander, one-agent-per-item, portfolio-research, due-diligence, evidence-file-per-item, wave-dispatch, identity-disambiguation]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/myrmidon-one-agent-per-item-portfolio-research-pattern.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Myrmidon One-Agent-Per-Item Portfolio Research Pattern

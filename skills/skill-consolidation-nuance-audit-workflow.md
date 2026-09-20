@@ -4,9 +4,8 @@ license: BSD-3-Clause
 description: "Audit consolidated skills for missing actionable knowledge. Compare source history with canonical content and restore material omissions without reversing useful generalization."
 category: tooling
 date: '2026-06-07'
-version: "1.2.0"
+version: "2.0.0"
 verification: verified-ci
-history: skill-consolidation-nuance-audit-workflow.history
 tags:
   - audit
   - consolidation
@@ -16,6 +15,8 @@ tags:
   - parallel-swarm
   - amendment
   - skills
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/skill-consolidation-nuance-audit-workflow.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Skill Consolidation Nuance Audit Workflow
@@ -69,9 +70,10 @@ These are explicitly NOT losses:
 - Deduplication of content already present elsewhere in the canonical
 - DELIBERATE scope-narrowing during the merge
 
-Because every absorbed body is preserved verbatim in the `.history` `## Superseded from` blocks,
-"lost" means "not surfaced in the canonical body" — i.e. **recoverable, not destroyed**. The fix is
-always to re-surface from `.history`, never to reconstruct from memory.
+Use the recorded immutable Git source to distinguish missing guidance from
+intentional consolidation. Recover useful current guidance from that source.
+Do not reconstruct details from memory or restore superseded instructions.
+Missing older history limits provenance; it does not block a supported amendment.
 
 ## Verified Workflow
 
@@ -132,25 +134,25 @@ bundle. Otherwise review sequentially. For each assigned comparison:
 **Swarm shape (audit→fix loop, refined pass-2 form)**: The audit/fix loop is itself a swarm:
 
 - **Audit phase** — one **read-only Explore agent per bundle**, with concurrency suited to the current host.
-  Each agent reads the canonical `.md` plus its `.history`, and emits a per-skill `OK`/`LOST`
+  Each agent reads the canonical `.md` plus its recorded Git source, and emits a per-skill `OK`/`LOST`
   verdict for every contributing skill followed by a single `VERDICT:` line for the bundle.
 - **Fix phase** — one **general-purpose amend agent per bundle that has a material loss**. The agent
   restores the nuance into the canonical body (as new Detailed Steps and/or Failed-Attempts rows),
-  updates the version and privacy-safe history under corpus conventions, and delivers
+  updates the version and immutable Git provenance under corpus conventions, and delivers
   the reviewable change. Publication and auto-merge depend on the task’s scope.
 - **Clean bundles get NO PR.** A bundle whose every contributing skill verdicts `OK` produces no
   branch, no amend, no PR — only bundles with at least one material `LOST` are amended.
 
 This refines the earlier "Haiku per pair / Sonnet per bundle" wording: the auditor is now a
-read-only Explore agent scoped to one whole bundle (reads canonical + `.history`) rather than one
+read-only Explore agent scoped to one whole bundle (reads canonical and recorded Git source) rather than one
 isolated source→bundle pair, and the amender is a general-purpose agent. Both forms are valid; the
-per-bundle read-only Explore form is preferred because it reads the verbatim `.history` body
+per-bundle read-only Explore form is preferred because it reads the immutable prior source
 directly, which is required to tell omission apart from generalization.
 
 ### Common Loss Shapes (auditor checklist)
 
 When auditing a bundle, specifically hunt for these recurring loss shapes — they are the ones that
-most often vanish from the canonical body while remaining only in `.history`:
+most often vanish from the canonical body while remaining only in Git history:
 
 - Exception / type mapping tables
 - Specific CLI flags (e.g. `--force-with-lease`, a `message=` keyword argument)
@@ -219,10 +221,9 @@ gh pr merge --auto --squash
 **Important**: Do not add generated catalog files to an amendment PR branch. The repository
 does not use a marketplace index; generated files can create merge conflicts between branches.
 
-**Pre-commit helper**: When the authorized validation process runs mutating hooks,
-inspect their changes and re-stage the intended files before committing. The
-end-of-file fixer modifies the `.history` file on its first pass, which aborts the real commit if
-not pre-run; running it once and re-staging avoids the abort. (Same lesson as the merge pass.)
+**Validation and staging:** Use the authorized validation process for applicable checks on the changed main and
+notes files. If a formatting hook changes a file, inspect the result and stage
+that file again. Do not create a history companion to satisfy a validation step.
 
 ## Failed Attempts
 
@@ -233,8 +234,8 @@ not pre-run; running it once and re-staging avoids the abort. (Same lesson as th
 | Including generated catalog files in amendment PRs | Let `git add -A` or `git add .` stage generated files along with the skill file | Every amendment branch can have a different generated-file state, causing merge conflicts between branches | Stage only the specific skill file by name (`git add skills/<name>.md`) |
 | Flagging cosmetic differences as "lost nuance" | Audit agents flagged reworded trigger conditions and paraphrased lessons as lost knowledge | This generated false positives and unnecessary amendment work; bundles correctly paraphrased the lesson without losing the substance | Only flag as "lost" when: a specific error message/command is literally absent; a trigger condition covers a genuinely different scenario; do NOT flag reformulations |
 | Audited only the 13 largest bundles, then declared the consolidation sound | A first pass covered just the 8+-skill merges and the 5 absorb-into-existing bundles, skipping the 37 mid-size (3–7 skill) bundles | A second pass over the 37 mid-size bundles found 22 of 36 had genuine body-not-surfaced losses — ~60% of the real losses lived in the merges that were skipped | Audit EVERY bundle on the merge worklist; size is not a proxy for risk and the biggest-bundles-only heuristic misses the majority of losses |
-| Treated a bundle as clean because the canonical "generalized" the content | Auditor read only the canonical body, saw the topic was covered at a higher level, and verdicted OK | Generalization is fine, but several canonicals had dropped the concrete commands/flags entirely while keeping only the abstract statement — omission was mistaken for generalization | Distinguish generalization from omission by reading the verbatim `.history` `## Superseded from` body, not just the canonical; if a concrete command/flag exists in `.history` but nowhere in the body, it is a LOSS |
-| Committed the amend without pre-running pre-commit | Staged the `.md` and `.history` then ran `git commit` directly | The end-of-file fixer hook modified the `.history` file on its first pass and aborted the commit | Run `pre-commit run --files <skill>.md <skill>.history` once, re-stage both files, then commit |
+| Treated a bundle as clean because the canonical "generalized" the content | Auditor read only the canonical body, saw the topic was covered at a higher level, and verdicted OK | Generalization is fine, but several canonicals had dropped the concrete commands/flags entirely while keeping only the abstract statement — omission was mistaken for generalization | Distinguish generalization from omission by reading the immutable prior source, not just the canonical; if a concrete command/flag exists in the prior source but nowhere in the body, it is a LOSS |
+| Committed the amend without pre-running pre-commit | Staged the `.md` and `.history` then ran `git commit` directly | The end-of-file fixer hook modified the `.history` file on its first pass and aborted the commit | Inspect hook edits, re-stage the affected files, then commit; history companions are no longer required |
 
 ## Results & Parameters
 

@@ -7,7 +7,6 @@ date: 2026-06-23
 version: "2.1.0"
 user-invocable: false
 verification: verified-local
-history: worktree-deleted-mid-session-recovery.history
 tags:
   - git
   - worktree
@@ -20,6 +19,8 @@ tags:
   - detached-head
   - index
   - checkpoint
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/worktree-deleted-mid-session-recovery.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Worktree Deleted Mid-Session Recovery

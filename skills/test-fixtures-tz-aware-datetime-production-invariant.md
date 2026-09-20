@@ -6,7 +6,6 @@ category: testing
 date: 2026-07-04
 version: "1.0.1"
 user-invocable: false
-history: test-fixtures-tz-aware-datetime-production-invariant.history
 tags:
   - testing
   - datetime
@@ -17,6 +16,8 @@ tags:
   - python-datetime
   - production-invariants
   - coordination-layer
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/test-fixtures-tz-aware-datetime-production-invariant.history"
+history-cleanup-date: "2026-09-19"
 ---
 # test-fixtures-tz-aware-datetime-production-invariant
 

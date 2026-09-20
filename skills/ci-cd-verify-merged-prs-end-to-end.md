@@ -5,10 +5,11 @@ description: "Assess whether merged implementation PRs compose into the requeste
 category: ci-cd
 date: 2026-07-13
 version: "1.2.0"
-history: ci-cd-verify-merged-prs-end-to-end.history
 user-invocable: false
 verification: verified-ci
 tags: [verification, merged-prs, acceptance-criteria, end-to-end, release-pipeline, defect-cascade, umbrella-issue, smoke-test, green-proxy, tag-gated, pipefail, grep-exit-code, exact-failing-path, premature-victory]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/ci-cd-verify-merged-prs-end-to-end.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Verifying Merged PRs End-to-End ("merged ≠ verified")
@@ -21,7 +22,7 @@ tags: [verification, merged-prs, acceptance-criteria, end-to-end, release-pipeli
 | **Objective** | Establish that closing an umbrella issue tracking N sequential implementation PRs requires actually running the composed artifacts/pipeline — not assuming merged-green PRs compose into a working whole |
 | **Outcome** | Successful — ProjectOdyssey issue #5413 ("Ship ProjectOdyssey as an installable Mojo package") had 4 implementation PRs already merged green, yet driving the 5 acceptance criteria end-to-end surfaced 12 sequential defects, each fixed in its own follow-up PR. Issue closed completed. |
 | **Verification** | verified-ci — all 12 follow-up fix PRs landed with green CI; the release pipeline reached the `create-release` job for the first time |
-| **History** | [changelog](./ci-cd-verify-merged-prs-end-to-end.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/ci-cd-verify-merged-prs-end-to-end.history) |
 
 ## When to Use
 

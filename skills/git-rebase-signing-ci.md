@@ -7,8 +7,9 @@ date: 2026-07-17
 version: "1.4.0"
 user-invocable: false
 verification: verified-ci
-history: git-rebase-signing-ci.history
 tags: [git, signing, rebase, ci, gpg, exec, conflict-resolution, update-branch, force-with-lease, stale-info, branch-protection, up-to-date, stacked-pr, squash-merge, merge-queue]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/git-rebase-signing-ci.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Git Rebase Signing for CI
@@ -21,7 +22,7 @@ tags: [git, signing, rebase, ci, gpg, exec, conflict-resolution, update-branch, 
 | **Objective** | Sign all PR commits to pass CI pr-policy checks that require GPG signatures, avoid commit corruption when a `--exec` rebase stops on a real conflict, and avoid the server-side branch updater that silently strips signatures |
 | **Outcome** | Successful — all commits show 'G' (good signature) after rebase; corrupted-commit failure mode documented with a safe recovery + redo procedure; server-side `update-branch` signature-stripping confirmed red-then-green in CI across two PRs |
 | **Verification** | verified-ci |
-| **History** | [changelog](./git-rebase-signing-ci.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/git-rebase-signing-ci.history) |
 
 ## When to Use
 

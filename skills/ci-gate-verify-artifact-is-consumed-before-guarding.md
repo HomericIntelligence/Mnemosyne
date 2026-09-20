@@ -20,6 +20,8 @@ tags:
   - gate-theater
   - planning
   - unverified-assumptions
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/ci-gate-verify-artifact-is-consumed-before-guarding.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # CI Gate: Verify the Artifact Is Actually Consumed Before Guarding It

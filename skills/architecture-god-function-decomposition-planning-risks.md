@@ -6,9 +6,10 @@ date: 2026-06-30
 version: "2.1.0"
 user-invocable: false
 license: BSD-3-Clause
-history: architecture-god-function-decomposition-planning-risks.history
 verification: unverified
 tags: [architecture, python, refactoring, god-function, god-class, extraction, planning, sentinel, delegation, circular-import, test-seams]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/architecture-god-function-decomposition-planning-risks.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Architecture: God-Function Decomposition — Planning Risks
@@ -24,7 +25,7 @@ decomposition. Use current source and relevant tests to check whether the advice
 measurements are indexed in
 [the notes](./architecture-god-function-decomposition-planning-risks.notes.md), and the exact
 superseded content is in
-[history](./architecture-god-function-decomposition-planning-risks.history).
+[history](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/architecture-god-function-decomposition-planning-risks.history).
 
 ## When to Use
 
@@ -198,4 +199,4 @@ for both modules and an architectural assertion that the leaf does not import ei
 ## Companions
 
 - [Case notes](./architecture-god-function-decomposition-planning-risks.notes.md)
-- [Version history and exact superseded snapshot](./architecture-god-function-decomposition-planning-risks.history)
+- [Version history and exact superseded snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/architecture-god-function-decomposition-planning-risks.history)

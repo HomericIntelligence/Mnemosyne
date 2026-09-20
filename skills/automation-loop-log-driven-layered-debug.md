@@ -5,7 +5,6 @@ description: "Debug layered automation-loop failures from phase logs, verify the
 category: debugging
 date: 2026-06-20
 version: "1.2.0"
-history: automation-loop-log-driven-layered-debug.history
 verification: verified-ci
 user-invocable: false
 tags:
@@ -25,6 +24,8 @@ tags:
   - artifact-chain-signals
   - merged-pr-closed-issue
   - zero-error-health-check
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/automation-loop-log-driven-layered-debug.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Automation-Loop Log-Driven Layered Debugging

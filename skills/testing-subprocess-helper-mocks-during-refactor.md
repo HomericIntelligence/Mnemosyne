@@ -18,6 +18,8 @@ tags:
   - unittest-mock
   - helper-functions
   - function-extraction
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/testing-subprocess-helper-mocks-during-refactor.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Testing: Subprocess Helper Mocks During Refactoring

@@ -17,6 +17,8 @@ tags:
   - worker-cap
   - deferral-visibility
   - tdd-planning
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/planning-queue-priority-aging-dependency-safe-overlap-admission.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Planning Queue Priority Aging Without Breaking Dependencies or Overlap Serialization

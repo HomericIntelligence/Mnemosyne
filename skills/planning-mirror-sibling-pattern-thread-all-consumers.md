@@ -19,6 +19,8 @@ tags:
   - nats
   - odysseus
   - adr-mutability
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/planning-mirror-sibling-pattern-thread-all-consumers.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Planning: Mirror-a-Sibling-Pattern → Thread the New Identifier Through ALL Consumers

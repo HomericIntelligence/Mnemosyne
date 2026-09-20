@@ -16,6 +16,8 @@ tags:
   - config
   - line-replacement
   - formatting-preserving
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/tooling-edit-denied-bash-python-line-replace.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Formatting-Preserving Edits Through an Authorized Alternate Tool

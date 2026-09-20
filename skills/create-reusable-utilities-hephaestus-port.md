@@ -7,6 +7,8 @@ date: 2026-07-16
 version: "1.1.0"
 user-invocable: false
 tags: [reuse, hephaestus, utilities, interface-design]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/create-reusable-utilities-hephaestus-port.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Create Reusable Utilities (Hephaestus Port)

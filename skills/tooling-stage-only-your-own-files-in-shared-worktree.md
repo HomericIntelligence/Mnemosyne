@@ -5,10 +5,11 @@ description: "Stage only owned changes in shared worktrees. Preserve other contr
 category: tooling
 date: 2026-06-15
 version: "1.2.0"
-history: tooling-stage-only-your-own-files-in-shared-worktree.history
 user-invocable: false
 verification: verified-ci
 tags: [git, git-add, staging, git-add-all, address-review, automation-loop, shared-worktree, dirty-working-tree, commit-scope, git-reset-soft, signed-commit, pr-hygiene, clobber, salvage-commit, reused-worktree, cherry-pick, git-add-u]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/tooling-stage-only-your-own-files-in-shared-worktree.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Stage Only Your Own Files in a Shared Worktree

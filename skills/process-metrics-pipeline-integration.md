@@ -6,7 +6,6 @@ category: evaluation
 date: 2026-05-19
 version: "1.0.1"
 user-invocable: false
-history: process-metrics-pipeline-integration.history
 tags:
   - process-metrics
   - r-prog
@@ -18,6 +17,8 @@ tags:
   - figures
   - statistical-tests
   - ProjectScylla
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/process-metrics-pipeline-integration.history"
+history-cleanup-date: "2026-09-19"
 ---
 # process-metrics-pipeline-integration
 

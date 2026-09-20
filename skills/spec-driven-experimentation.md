@@ -5,6 +5,8 @@ description: "Use a concise experiment specification to clarify hypotheses, metr
 category: training
 date: 2025-12-29
 version: "1.1.0"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/spec-driven-experimentation.history"
+history-cleanup-date: "2026-09-19"
 ---
 # Spec-Driven Experimentation
 

@@ -5,7 +5,6 @@ description: "Diagnose multi-repository circuit-breaker cascades caused by GitHu
 category: debugging
 date: 2026-07-17
 version: "1.1.1"
-history: automation-ambient-cwd-repo-resolution-breaker-cascade.history
 user-invocable: false
 verification: verified-ci
 tags:
@@ -21,6 +20,8 @@ tags:
   - hephaestus-automation
   - 404-wrong-repo
   - get_repo_info
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/automation-ambient-cwd-repo-resolution-breaker-cascade.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Automation: Ambient-CWD Repo Resolution Opens a Shared Breaker (Cascade)

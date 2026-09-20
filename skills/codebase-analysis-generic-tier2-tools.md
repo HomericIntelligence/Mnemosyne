@@ -11,7 +11,6 @@ category: evaluation
 date: '2026-05-19'
 version: "1.1.0"
 user-invocable: false
-history: codebase-analysis-generic-tier2-tools.history
 tags:
   - code-analysis
   - benchmarking
@@ -23,6 +22,8 @@ tags:
   - paper-extraction
   - optimization
   - input-validation
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/codebase-analysis-generic-tier2-tools.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Codebase Analysis Generic Tier-2 Tools

@@ -5,7 +5,6 @@ description: "Check issue claims against current code and enumerate matching sit
 category: documentation
 date: 2026-06-19
 version: "1.2.0"
-history: verify-issue-premise-against-code-before-planning.history
 user-invocable: false
 verification: unverified
 tags:
@@ -26,6 +25,8 @@ tags:
   - under-scoping
   - self-fulfilling-narrowing
   - multi-site
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/verify-issue-premise-against-code-before-planning.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Verify the Issue Premise Against the Code Before Planning

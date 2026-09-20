@@ -213,7 +213,7 @@ The retrievable main skill was compacted in
 [Mnemosyne issue #3330](https://github.com/HomericIntelligence/Mnemosyne/issues/3330).
 Its complete v1.21.0 state remains available at immutable Mnemosyne revision
 `f7ef2968f89f138bd9e217b2c88b105bcec4a2d6`; the amendment trail and earlier snapshots remain in
-[`dry-refactoring-workflow.history`](./dry-refactoring-workflow.history).
+[`dry-refactoring-workflow.history`](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/dry-refactoring-workflow.history).
 
 Use these case records only when the generalized workflow needs supporting detail:
 

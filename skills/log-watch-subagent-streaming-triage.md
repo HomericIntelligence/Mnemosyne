@@ -16,6 +16,8 @@ tags:
   - hypothesis-vs-evidence
   - automation-loop
   - background-agent
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/log-watch-subagent-streaming-triage.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Log-Watch Subagent with Streaming Triage

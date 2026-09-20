@@ -6,8 +6,9 @@ category: testing
 date: 2026-06-07
 version: "1.2.0"
 user-invocable: false
-history: pytest-test-splitting-matrix-and-parametrization.history
 tags: [pytest, test-splitting, ci-matrix, parametrize, coverage-tracking, stale-detection, weekly-workflow, e2e, glob-pattern]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/pytest-test-splitting-matrix-and-parametrization.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Pytest Test Splitting, Matrix, and Parametrization

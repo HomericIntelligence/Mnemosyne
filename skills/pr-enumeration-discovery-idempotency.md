@@ -6,9 +6,10 @@ date: 2026-06-15
 version: "2.0.1"
 user-invocable: false
 license: BSD-3-Clause
-history: pr-enumeration-discovery-idempotency.history
 verification: verified-ci
 tags: [github, pagination, pull-requests, idempotency, dependabot, discovery, merge-state, subprocess, zombie-issue, stale-branch]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/pr-enumeration-discovery-idempotency.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # PR Enumeration, Discovery, and Idempotency
@@ -22,7 +23,7 @@ Every phase that can create work repeats the same idempotency gate.
 This skill remains `verified-ci`. The reusable interfaces and failure modes are retained here;
 project-specific incidents are indexed in
 [the notes](./pr-enumeration-discovery-idempotency.notes.md), and the exact superseded content is in
-[history](./pr-enumeration-discovery-idempotency.history).
+[history](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/pr-enumeration-discovery-idempotency.history).
 
 ## When to Use
 
@@ -193,4 +194,4 @@ work; abort the reuse path and inspect main instead of resolving by replacement.
 ## Companions
 
 - [Case notes](./pr-enumeration-discovery-idempotency.notes.md)
-- [Version history and exact superseded snapshot](./pr-enumeration-discovery-idempotency.history)
+- [Version history and exact superseded snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/pr-enumeration-discovery-idempotency.history)

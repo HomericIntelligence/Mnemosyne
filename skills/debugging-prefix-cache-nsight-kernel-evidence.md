@@ -7,7 +7,6 @@ date: 2026-07-09
 version: "1.2.0"
 user-invocable: false
 verification: verified-local
-history: debugging-prefix-cache-nsight-kernel-evidence.history
 tags:
   - inference
   - vllm
@@ -21,6 +20,8 @@ tags:
   - slurm
   - determinism
   - sampling
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/debugging-prefix-cache-nsight-kernel-evidence.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Prefix-Cache Shape and Kernel Evidence
@@ -33,7 +34,7 @@ tags:
 | **Objective** | Prove whether a warm prefix-cache path changes the executed GPU kernel regime, then separate real cache-shape numerical drift from downstream sampling or token-selection corruption. |
 | **Outcome** | Successful as a diagnostic. Nsight evidence showed different GEMM families on warm cache paths, and local cache-shape replay made the tested cold and cache-hit computation bit-exact. The same output class still appeared under direct AltLLM/HF sampling, so the garbled-text investigation pivoted to sampling/token selection. |
 | **Verification** | verified-local for the 2026-07-09 cache-shape replay and sampling pivot; earlier helper/extractor work was verified-ci. |
-| **History** | [changelog](./debugging-prefix-cache-nsight-kernel-evidence.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/debugging-prefix-cache-nsight-kernel-evidence.history) |
 
 ## When to Use
 

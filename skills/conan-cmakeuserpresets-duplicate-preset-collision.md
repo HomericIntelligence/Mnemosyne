@@ -16,6 +16,8 @@ tags:
   - ninja
   - toolchain
   - build-system
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/conan-cmakeuserpresets-duplicate-preset-collision.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Conan CMakeUserPresets Duplicate Preset Collision

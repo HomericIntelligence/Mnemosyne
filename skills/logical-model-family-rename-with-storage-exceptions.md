@@ -8,6 +8,8 @@ version: "1.3.0"
 user-invocable: false
 verification: verified-ci
 tags: [model-family, rename, manifests, h200-slurm, storage-exceptions, ruff, repo-rename, url-sweep, package-rename, deferred-breaking-change, git-mv, whole-tree-rename, rebase, coverage-validator, mojo]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/logical-model-family-rename-with-storage-exceptions.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Logical Model Family Rename With Storage Exceptions

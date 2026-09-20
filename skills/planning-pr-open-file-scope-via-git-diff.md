@@ -15,6 +15,8 @@ tags:
   - hardcoded-paths-hazard
   - allow-list
   - branch-state
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/planning-pr-open-file-scope-via-git-diff.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Planning: Ground PR File-Scope Claims in the Actual Diff

@@ -7,7 +7,6 @@ version: "2.1.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-local
-history: git-workflow-rebase-worktree-signing.history
 tags:
   - git
   - rebase
@@ -17,6 +16,8 @@ tags:
   - recovery
   - cherry-pick
   - stash
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/git-workflow-rebase-worktree-signing.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Git Workflow: Rebase, Worktree, and Signing
@@ -32,7 +33,7 @@ identity, account registration, and verified email must align.
 Detailed case provenance is in
 [git-workflow-rebase-worktree-signing.notes.md](git-workflow-rebase-worktree-signing.notes.md).
 The complete superseded guide is in
-[git-workflow-rebase-worktree-signing.history](git-workflow-rebase-worktree-signing.history).
+[git-workflow-rebase-worktree-signing.history](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/git-workflow-rebase-worktree-signing.history).
 
 ## When to Use
 

@@ -7,7 +7,6 @@ date: 2026-08-07
 version: "1.2.0"
 user-invocable: false
 verification: verified-ci
-history: automation-review-comment-validation-host-receipts.history
 tags:
   - automation-loop
   - pr-review
@@ -21,6 +20,8 @@ tags:
   - claimed-test-results
   - path-triggered-verification
   - tag-integrity
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/automation-review-comment-validation-host-receipts.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Automation Review Comment Validation with Host Receipts
@@ -33,7 +34,7 @@ tags:
 | **Objective** | Preserve host-bound test evidence when an automation loop validates implementation replies on existing review threads. |
 | **Outcome** | Validation-only review received fresh immutable host-verification receipts without dispatching a second broad review, then advanced through the normal exact-head merge path. PR #2611 also showed that prose-only test totals are not receipts: validation kept the thread unresolved until a current-head review could authorize the merge path. PR #2699 added the path-triggered docs-only guard and fail-closed tagless version check, then completed the same exact-head GO, required-check, and conditional-merge path. |
 | **Verification** | verified-ci |
-| **History** | [changelog](./automation-review-comment-validation-host-receipts.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/automation-review-comment-validation-host-receipts.history) |
 
 ## When to Use
 

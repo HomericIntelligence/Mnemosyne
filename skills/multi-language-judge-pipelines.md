@@ -6,6 +6,8 @@ category: testing
 date: 2026-01-09
 version: "1.1.0"
 user-invocable: false
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/multi-language-judge-pipelines.history"
+history-cleanup-date: "2026-09-19"
 ---
 # Multi-Language Judge Pipelines
 

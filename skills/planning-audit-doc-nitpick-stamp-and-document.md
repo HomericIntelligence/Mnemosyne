@@ -5,7 +5,6 @@ description: "Clarify documented fallback behavior or policy-version metadata wi
 category: documentation
 date: 2026-06-22
 version: "1.2.0"
-history: planning-audit-doc-nitpick-stamp-and-document.history
 user-invocable: false
 verification: unverified
 tags:
@@ -29,6 +28,8 @@ tags:
   - line-number-drift
   - markdownlint-md022
   - code-of-conduct
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/planning-audit-doc-nitpick-stamp-and-document.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Planning a Documentation-Nitpick Audit Fix: Stamp and Document

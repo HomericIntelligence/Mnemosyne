@@ -7,8 +7,9 @@ version: "2.1.0"
 user-invocable: false
 license: BSD-3-Clause
 verification: verified-ci
-history: audit-driven-remediation-workflow.history
 tags: [audit, remediation, triage, github, verification, producer-consumer, cross-module, strict-review, provenance]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/audit-driven-remediation-workflow.history"
+history-cleanup-date: "2026-09-19"
 ---
 
 # Audit-Driven Remediation Workflow
@@ -21,7 +22,7 @@ verification, and independent review according to the finding and its risk.
 
 This workflow remains `verified-ci`. Case-specific fleet limits, corpus passes, and incident details
 are in [the notes](./audit-driven-remediation-workflow.notes.md); exact prior content is in
-[history](./audit-driven-remediation-workflow.history).
+[history](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/audit-driven-remediation-workflow.history).
 
 ## When to Use
 
@@ -199,4 +200,4 @@ actionable overlap instead of forcing consolidation to an arbitrary count.
 ## Companions
 
 - [Case notes](./audit-driven-remediation-workflow.notes.md)
-- [Version history and exact superseded snapshot](./audit-driven-remediation-workflow.history)
+- [Version history and exact superseded snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/audit-driven-remediation-workflow.history)

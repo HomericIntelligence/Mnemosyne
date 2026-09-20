@@ -6,7 +6,6 @@ category: tooling
 date: 2026-07-05
 version: "1.0.0"
 user-invocable: false
-history: tooling-pipeline-invalid-jobrequest.history
 tags:
   - pipeline
   - jobrequest
@@ -15,6 +14,8 @@ tags:
   - type-safety
   - job-routing
   - timer-park
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/e98a4da5d67f0766bc6b4bfaed1ab399fca90e9f/skills/tooling-pipeline-invalid-jobrequest.history"
+history-cleanup-date: "2026-09-19"
 ---
 # tooling-pipeline-invalid-jobrequest
 
