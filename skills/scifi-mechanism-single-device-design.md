@@ -8,7 +8,7 @@ version: "1.5.0"
 user-invocable: false
 verification: verified-local
 tags: [scifi, worldbuilding, mechanism-design, physics, citations, hard-walls, m-series, homeric-intelligence, speculative-science, laws-broken, parsimony, capability, monopole, topological-soliton, exotic-particles, false-vacuum, higgs, vacuum-decay, coleman-bounce, lloyd, wheeler, it-from-bit, computational-universe, offload-architecture, bekenstein, holevo, landauer, reality-computes, tqc, anyons, topological-quantum-computation]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/scifi-mechanism-single-device-design.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/scifi-mechanism-single-device-design.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -22,7 +22,7 @@ history-cleanup-date: "2026-09-20"
 | **Objective** | Design one rigorous speculative-physics mechanism for a fictional sci-fi device (e.g., a Planck-scale reality simulator), following the HomericIntelligence Story M-series file format: real cited papers, Laws-Broken Ledger, 14 Hard Walls table, Parsimony/Capability scores, Failure Modes, and Feasibility tags — pure science, no narrative. |
 | **Outcome** | Successful: M15 (String/T-Duality Minimum-Length Substrate), M43 (Magnetic-Monopole Register), and M55 (Reality-Computes-Itself Offload) produced. M55 introduced the "offload to reality" class: mechanism with only 4 new-physics postulates that defeats Wall 4 (Feynman exponential) by refusing to simulate the region and running the region itself. |
 | **Verification** | verified-local (files written and confirmed at target paths; not CI-gated). |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/scifi-mechanism-single-device-design.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/scifi-mechanism-single-device-design.history) |
 
 ## When to Use
 

@@ -8,7 +8,7 @@ license: BSD-3-Clause
 user-invocable: false
 verification: verified-local
 tags: [code-quality, quality-gate, mypy, ruff, markdownlint, deprecation, audit, regression]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/code-quality-enforcement-gates.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/code-quality-enforcement-gates.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -22,7 +22,7 @@ claims and documentation state against code, live CI, and GitHub before changing
 
 Detailed remediation cases are indexed in
 [`code-quality-enforcement-gates.notes.md`](code-quality-enforcement-gates.notes.md). The complete
-prior source is in [`code-quality-enforcement-gates.history`](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/code-quality-enforcement-gates.history).
+prior source is in [`code-quality-enforcement-gates.history`](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/code-quality-enforcement-gates.history).
 
 ## When to Use
 

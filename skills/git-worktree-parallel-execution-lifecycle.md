@@ -11,7 +11,7 @@ tags: [worktree, git, parallel-agents, wave-execution, cleanup, branch-collision
   locked-worktree, staged-files, rebase-merge, myrmidon, safety-net, lifecycle, submodule,
   squash-merge, hand-to-user, first-writer-wins, branch-ownership, superseded, porcelain,
   nul-delimited, path-safety]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/git-worktree-parallel-execution-lifecycle.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/git-worktree-parallel-execution-lifecycle.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -30,7 +30,7 @@ contracts. Do not treat proposed helpers as shipped APIs without checking the ta
 Supporting cases and provenance are in
 [`git-worktree-parallel-execution-lifecycle.notes.md`](git-worktree-parallel-execution-lifecycle.notes.md).
 The complete superseded source is in
-[`git-worktree-parallel-execution-lifecycle.history`](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/git-worktree-parallel-execution-lifecycle.history).
+[`git-worktree-parallel-execution-lifecycle.history`](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/git-worktree-parallel-execution-lifecycle.history).
 
 ## When to Use
 

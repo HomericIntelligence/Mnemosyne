@@ -8,7 +8,7 @@ version: "1.2.0"
 user-invocable: false
 verification: unverified
 tags: [dco-signoff, pr-policy, merge-conflict, ci-fix, commit-signing, conventional-commits, rebase]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/pr-compliance-dco-and-rebase-fix.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pr-compliance-dco-and-rebase-fix.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -22,7 +22,7 @@ history-cleanup-date: "2026-09-20"
 | **Objective** | Repair a PR-policy failure without leaving earlier non-compliant commits hidden beneath a later fix commit |
 | **Outcome** | Procedure expanded from a last-commit DCO fix to a whole-range rewrite; the PR #2280 application remains unverified until its new `pr-policy` check succeeds |
 | **Verification** | unverified for the PR #2280 extension; v1.0.0's last-commit/rebase procedure was previously verified in CI |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/pr-compliance-dco-and-rebase-fix.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pr-compliance-dco-and-rebase-fix.history) |
 | **Context** | HomericIntelligence/Hephaestus PR #2280, whose required `pr-policy` check failed at 2026-07-18T17:01:14Z |
 
 > **Warning:** The procedure below is the exact remediation directed by the live

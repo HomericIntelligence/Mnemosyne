@@ -36,7 +36,7 @@ tags:
   - curses
   - ansi-accessibility
   - shell-installer
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/architecture-metaclass-threadlocal-thread-safety.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/architecture-metaclass-threadlocal-thread-safety.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -50,7 +50,7 @@ history-cleanup-date: "2026-09-20"
 | **Objective** | Capture three related state-policy shapes: (A) verified per-thread class state via metaclass + `threading.local()`; (A2) proposed automatic terminal-color capability beneath explicit per-thread overrides; (B) proposed shared cache protection via a `threading.Lock`-guarded keyed dict |
 | **Outcome** | (A) Success — backward-compatible, thread-safe, 15 tests pass (verified-local). (A2) Architecture-first implementation plan completed with full Python, curses, Bash/PTY, and accessibility coverage specified, but no code or tests executed. (B) Plan-only R1 design with its deepest risks resolved from source evidence, but no implementation or tests. |
 | **Verification** | Mixed: only the original pattern (A) is **verified-local**. Patterns (A2) and (B) are **unverified** and live under `## Proposed Workflow`. Top-level frontmatter remains `unverified`; do not treat either proposed extension as proven until implementation and CI complete. |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/architecture-metaclass-threadlocal-thread-safety.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/architecture-metaclass-threadlocal-thread-safety.history) |
 
 ## When to Use
 

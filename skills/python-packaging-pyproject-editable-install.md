@@ -8,7 +8,7 @@ license: BSD-3-Clause
 user-invocable: false
 verification: mixed
 tags: [python-packaging, pyproject, hatch-vcs, editable-install, entry-points, package-data, pypi]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/python-packaging-pyproject-editable-install.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/python-packaging-pyproject-editable-install.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -23,7 +23,7 @@ must agree. Validate the installed and built artifacts, not merely the source tr
 Cases and verification boundaries are indexed in
 [`python-packaging-pyproject-editable-install.notes.md`](python-packaging-pyproject-editable-install.notes.md).
 The complete prior source is in
-[`python-packaging-pyproject-editable-install.history`](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/python-packaging-pyproject-editable-install.history).
+[`python-packaging-pyproject-editable-install.history`](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/python-packaging-pyproject-editable-install.history).
 
 ## When to Use
 

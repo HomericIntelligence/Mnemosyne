@@ -8,7 +8,7 @@ version: "2.1.0"
 user-invocable: false
 verification: mixed
 tags: [dry, refactoring, duplication, tdd, canonical-source, behavior-preservation, patch-seams, intentional-variants, anti-drift]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/dry-refactoring-workflow.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/dry-refactoring-workflow.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -23,7 +23,7 @@ Consolidate repeated behavior into one authority while preserving each consumer'
 | **Objective** | Remove duplication without flattening intentional differences or breaking callers |
 | **Outcome** | A reusable discovery, classification, TDD, migration, and verification workflow |
 | **Verification** | Mixed: the core workflow has verified-CI and verified-local uses; label each cited case independently |
-| **History** | [Version history and pre-compaction detail](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/dry-refactoring-workflow.history) |
+| **History** | [Version history and pre-compaction detail](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/dry-refactoring-workflow.history) |
 | **Notes** | [Session notes and case index](./dry-refactoring-workflow.notes.md) |
 
 ## When to Use
@@ -182,7 +182,7 @@ post_refactor_search: <command and expected count>
 
 ## References
 
-- [Version history and pre-compaction evidence](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/dry-refactoring-workflow.history)
+- [Version history and pre-compaction evidence](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/dry-refactoring-workflow.history)
 - [Session notes and case index](./dry-refactoring-workflow.notes.md)
 - [Verify issue premises before planning](./planning-verify-issue-premise-before-implementing.md)
 - [Cross-repository migration inventory](./architecture-cross-repo-migration-verify-issue-inventory.md)

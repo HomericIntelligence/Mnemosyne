@@ -8,7 +8,7 @@ version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: ["protocol", "typing", "ellipsis", "stub-body", "pass-vs-ellipsis", "pep8", "lint-nitpick", "ast-verification", "edit-anchoring", "in-repo-precedent", "dry", "pola"]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/python-protocol-stub-ellipsis-not-pass.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/python-protocol-stub-ellipsis-not-pass.history"
 history-cleanup-date: "2026-09-20"
 ---
 

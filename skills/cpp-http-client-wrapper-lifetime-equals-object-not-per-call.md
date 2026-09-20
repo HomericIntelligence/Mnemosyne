@@ -15,7 +15,7 @@ tags:
   - clang-tidy
   - mutable
   - design-pattern
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/cpp-http-client-wrapper-lifetime-equals-object-not-per-call.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/cpp-http-client-wrapper-lifetime-equals-object-not-per-call.history"
 history-cleanup-date: "2026-09-20"
 ---
 

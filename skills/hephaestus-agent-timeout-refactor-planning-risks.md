@@ -17,7 +17,7 @@ tags:
   - malformed-value
   - regression-testing
   - hephaestus
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/hephaestus-agent-timeout-refactor-planning-risks.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/hephaestus-agent-timeout-refactor-planning-risks.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -31,7 +31,7 @@ history-cleanup-date: "2026-09-20"
 | **Objective** | Remove deprecated phase-specific timeout aliases and the shared reader's alias parameter while preserving every canonical override, default, per-call read, and malformed-value fallback. |
 | **Outcome** | Successful in a disposable ProjectHephaestus checkout: the helper accepts one environment-variable name, six former alias mappings are ignored, canonical behavior remains unchanged, and documentation names the exact supported variables. |
 | **Verification** | `verified-local` — 81 focused unit tests passed; Ruff and mypy passed on all modified Python surfaces. CI validation is pending. |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/hephaestus-agent-timeout-refactor-planning-risks.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/hephaestus-agent-timeout-refactor-planning-risks.history) |
 
 ## When to Use
 

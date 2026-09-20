@@ -8,7 +8,7 @@ license: BSD-3-Clause
 user-invocable: false
 verification: verified-ci
 tags: [skill-merge, deduplication, consolidation, history, migration, salvage, corpus]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/skill-corpus-merge-consolidation-workflow.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/skill-corpus-merge-consolidation-workflow.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -23,7 +23,7 @@ unique commands and failure modes, and validate that discovery/count interfaces 
 Detailed migrations and salvage cases are indexed in
 [`skill-corpus-merge-consolidation-workflow.notes.md`](skill-corpus-merge-consolidation-workflow.notes.md).
 The complete prior source is archived in
-[prior Git source](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/skill-corpus-merge-consolidation-workflow.history).
+[prior Git source](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/skill-corpus-merge-consolidation-workflow.history).
 
 ## When to Use
 

@@ -16,7 +16,7 @@ tags:
   - build-testing
   - werror
   - ctest
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/natsc-fetchcontent-cpp20-integration.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/natsc-fetchcontent-cpp20-integration.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -30,7 +30,7 @@ history-cleanup-date: "2026-09-20"
 | **Objective** | Add NATS JetStream support to C++20 services via nats.c FetchContent without polluting ctest with 300+ natsc tests or leaking -Werror into natsc's own test code |
 | **Outcome** | Successful — CI green on ProjectKeystone PRs #272 and #198; nats_static links correctly, ctest clean |
 | **Verification** | verified-ci |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/natsc-fetchcontent-cpp20-integration.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/natsc-fetchcontent-cpp20-integration.history) |
 
 ## When to Use
 

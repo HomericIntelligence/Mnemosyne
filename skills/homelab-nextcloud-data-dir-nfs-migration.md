@@ -8,7 +8,7 @@ version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: []
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/homelab-nextcloud-data-dir-nfs-migration.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/homelab-nextcloud-data-dir-nfs-migration.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -22,7 +22,7 @@ history-cleanup-date: "2026-09-20"
 | **Objective** | Relocate Nextcloud's `/data` directory between storage tiers in HomelabOS — local NVMe/USB <-> NFS NAS — keeping core (webroot, config, apps, DB) on fast storage, with a reboot-safe live cutover |
 | **Outcome** | Successful in both directions: 271 GB moved local NVMe -> NFS NAS (v1.0.0); `/data` moved OFF a slow NFS share onto a fast local disk to fix upload timeouts (v1.1.0) |
 | **Verification** | verified-local (executed end-to-end on a live HomelabOS v1.0 host; CI validation pending) |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/homelab-nextcloud-data-dir-nfs-migration.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/homelab-nextcloud-data-dir-nfs-migration.history) |
 
 ## When to Use
 

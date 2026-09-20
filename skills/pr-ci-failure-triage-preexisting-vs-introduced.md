@@ -17,7 +17,7 @@ tags:
   - stale-commit
   - merge-preview
   - e2big
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/pr-ci-failure-triage-preexisting-vs-introduced.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pr-ci-failure-triage-preexisting-vs-introduced.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -33,7 +33,7 @@ known flake, repair main separately, or create an explicit follow-up.
 This workflow is verified in CI across the indexed cases. Detailed run links and edge cases are in
 [pr-ci-failure-triage-preexisting-vs-introduced.notes.md](pr-ci-failure-triage-preexisting-vs-introduced.notes.md),
 and the complete prior version is in
-[pr-ci-failure-triage-preexisting-vs-introduced.history](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/pr-ci-failure-triage-preexisting-vs-introduced.history).
+[pr-ci-failure-triage-preexisting-vs-introduced.history](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pr-ci-failure-triage-preexisting-vs-introduced.history).
 
 ## When to Use
 
@@ -157,7 +157,7 @@ invocation. An old failure at one version does not establish a permanent ban on
 that action or on commit-based pins. Preserve required-check coverage when changing
 the tool invocation.
 
-History cleanup: 2026-09-20. The [prior source](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/ci-cd-pipeline-maintenance-patterns.history)
+History cleanup: 2026-09-20. The [prior source](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/ci-cd-pipeline-maintenance-patterns.history)
 retains its original evidence limits. This migration does not establish new
 operational verification.
 

@@ -8,7 +8,7 @@ version: "1.2.1"
 user-invocable: false
 verification: unverified
 tags: [physics, holography, adscft, scifi, worldbuilding, mechanism-design, ctc, closed-timelike-curves, deutsch, causality, pspace, tsvf, weak-values, retrocausality, post-selection]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/holographic-adscft-mechanism-design.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/holographic-adscft-mechanism-design.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -22,7 +22,7 @@ history-cleanup-date: "2026-09-20"
 | **Objective** | Design scientifically rigorous (but fiction-licensed) exotic physics computation devices for sci-fi stories; three covered domains: AdS/CFT holographic, Deutsch CTC oracle, and TSVF/weak-value retrocausal oracle |
 | **Outcome** | Complete mechanism documents written; AdS/CFT defeats 10/14 walls; Deutsch CTC oracle defeats walls 4, 5, 7, 13, 14 with a single physics break (causality); TSVF oracle defeats 10–11/14 walls cascading from a single causality break |
 | **Verification** | unverified — theoretical design exercise, not implemented |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/holographic-adscft-mechanism-design.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/holographic-adscft-mechanism-design.history) |
 
 ## When to Use
 

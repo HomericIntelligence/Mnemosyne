@@ -16,7 +16,7 @@ tags:
   - tuple
   - source-count
   - verification
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/mojo-planning-verify-type-semantics-and-source-counts.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/mojo-planning-verify-type-semantics-and-source-counts.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -33,7 +33,7 @@ claims locally; the planned feature itself was not implemented or CI-verified. C
 in
 [mojo-planning-verify-type-semantics-and-source-counts.notes.md](mojo-planning-verify-type-semantics-and-source-counts.notes.md),
 and the complete prior version is in
-[mojo-planning-verify-type-semantics-and-source-counts.history](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/mojo-planning-verify-type-semantics-and-source-counts.history).
+[mojo-planning-verify-type-semantics-and-source-counts.history](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/mojo-planning-verify-type-semantics-and-source-counts.history).
 
 ## When to Use
 

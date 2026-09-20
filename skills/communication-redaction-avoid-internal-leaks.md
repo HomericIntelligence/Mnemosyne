@@ -8,7 +8,7 @@ version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [communication, redaction, documentation, reporting, reproducibility, artifacts, security]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/communication-redaction-avoid-internal-leaks.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/communication-redaction-avoid-internal-leaks.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -22,7 +22,7 @@ history-cleanup-date: "2026-09-20"
 | **Objective** | Keep operational reporting and reproducibility artifacts useful while preventing internal infrastructure identifiers from appearing in user-facing or durable artifacts unless explicitly requested. |
 | **Outcome** | Use neutral placeholders for commands, endpoints, logs, checkpoints, prompts, golden files, cluster debug paths, and launch details by default. |
 | **Verification** | verified-local - Inference Service repro artifacts were redaction-scanned locally and passed their PR CI; this skill amendment has local validation only until its own PR CI passes. |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/communication-redaction-avoid-internal-leaks.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/communication-redaction-avoid-internal-leaks.history) |
 
 ## When to Use
 

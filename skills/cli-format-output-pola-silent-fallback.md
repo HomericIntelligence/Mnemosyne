@@ -8,7 +8,7 @@ version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags: [cli, output-format, pola, validation, compatibility]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/cli-format-output-pola-silent-fallback.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/cli-format-output-pola-silent-fallback.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -22,7 +22,7 @@ history-cleanup-date: "2026-09-20"
 | **Objective** | Choose an explicit invalid-format contract for `format_output()` after auditing callers, without changing supported rendering or the separate table/non-sequence fallback. |
 | **Outcome** | The earlier fallback-documentation workflow was CI-verified. The v1.1.0 strict-validation successor is an implementation plan only; ProjectHephaestus code and tests were not changed in this session. |
 | **Verification** | unverified for v1.1.0; the v1.0.0 fallback workflow remains archived as verified-ci |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/cli-format-output-pola-silent-fallback.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/cli-format-output-pola-silent-fallback.history) |
 
 ## When to Use
 

@@ -8,7 +8,7 @@ license: BSD-3-Clause
 user-invocable: false
 verification: unverified
 tags: [planning, capstone, integration, serialized-epic, unmerged-siblings, interface-gate]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/planning-cross-pr-interface-dependency.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/planning-cross-pr-interface-dependency.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -25,7 +25,7 @@ The skill remains `unverified`: its source is a reviewed plan, not an implemente
 review findings are indexed in
 [`planning-cross-pr-interface-dependency.notes.md`](planning-cross-pr-interface-dependency.notes.md),
 and the complete prior source is archived in
-[`planning-cross-pr-interface-dependency.history`](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/planning-cross-pr-interface-dependency.history).
+[`planning-cross-pr-interface-dependency.history`](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/planning-cross-pr-interface-dependency.history).
 
 ## When to Use
 

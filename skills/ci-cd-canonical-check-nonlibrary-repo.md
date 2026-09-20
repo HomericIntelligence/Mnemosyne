@@ -8,7 +8,7 @@ version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: ["canonical-check", "ci-naming", "nonlibrary", "manifest-repo", "dataset-repo", "package", "release", "install", "artifact", "branch-protection"]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/ci-cd-canonical-check-nonlibrary-repo.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/ci-cd-canonical-check-nonlibrary-repo.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -22,7 +22,7 @@ history-cleanup-date: "2026-09-20"
 | **Objective** | Give non-library repositories an honest, useful canonical CI check rather than a no-op or a forced Python package build |
 | **Outcome** | One decision workflow for package, release, and install check-runs with real artifacts and fail-loud validation |
 | **Verification** | verified-local for the reproducible-package branch; release/install branches remain implementation plans |
-| **History** | [absorbed package, release, and install sources](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/ci-cd-canonical-check-nonlibrary-repo.history) |
+| **History** | [absorbed package, release, and install sources](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/ci-cd-canonical-check-nonlibrary-repo.history) |
 
 ## When to Use
 

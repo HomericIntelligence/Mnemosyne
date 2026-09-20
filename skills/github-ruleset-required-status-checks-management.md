@@ -8,7 +8,7 @@ license: BSD-3-Clause
 user-invocable: false
 verification: verified-ci
 tags: [github, rulesets, branch-protection, required-status-checks, emit-before-require]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/github-ruleset-required-status-checks-management.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/github-ruleset-required-status-checks-management.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -24,7 +24,7 @@ required.
 Detailed rollout cases are indexed in
 [`github-ruleset-required-status-checks-management.notes.md`](github-ruleset-required-status-checks-management.notes.md).
 The complete prior source is in
-[`github-ruleset-required-status-checks-management.history`](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/github-ruleset-required-status-checks-management.history).
+[`github-ruleset-required-status-checks-management.history`](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/github-ruleset-required-status-checks-management.history).
 
 ## When to Use
 

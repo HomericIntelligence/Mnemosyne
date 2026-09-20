@@ -8,7 +8,7 @@ version: "2.1.0"
 user-invocable: false
 verification: verified-ci
 tags: ["ocp", "dip", "protocol", "abc", "abstractmethod", "runtime-checkable", "contract-test", "planning", "refactoring"]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/architecture-ocp-dip-abc-protocol-planning-risks.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/architecture-ocp-dip-abc-protocol-planning-risks.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -22,7 +22,7 @@ history-cleanup-date: "2026-09-20"
 | **Objective** | Introduce ABC and Protocol contracts without inventing APIs, breaking subclasses, or weakening package boundaries |
 | **Outcome** | One verified lifecycle covering planning risks, structural interface design, and contract-test regression prevention |
 | **Verification** | verified-ci — ProjectHephaestus issue #1193 |
-| **History** | [absorbed planning and implementation sources](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/architecture-ocp-dip-abc-protocol-planning-risks.history) |
+| **History** | [absorbed planning and implementation sources](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/architecture-ocp-dip-abc-protocol-planning-risks.history) |
 
 ## When to Use
 

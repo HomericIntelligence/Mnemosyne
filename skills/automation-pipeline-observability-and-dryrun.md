@@ -8,7 +8,7 @@ license: BSD-3-Clause
 user-invocable: false
 verification: verified-precommit
 tags: [dry-run, automation, observability, logs, composition-root, argparse, orchestrator]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/automation-pipeline-observability-and-dryrun.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/automation-pipeline-observability-and-dryrun.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -24,7 +24,7 @@ Repeated shell-control surprises are an architecture signal to move orchestratio
 Detailed cases are indexed in
 [`automation-pipeline-observability-and-dryrun.notes.md`](automation-pipeline-observability-and-dryrun.notes.md).
 The complete prior source is in
-[`automation-pipeline-observability-and-dryrun.history`](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/automation-pipeline-observability-and-dryrun.history).
+[`automation-pipeline-observability-and-dryrun.history`](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/automation-pipeline-observability-and-dryrun.history).
 
 ## When to Use
 

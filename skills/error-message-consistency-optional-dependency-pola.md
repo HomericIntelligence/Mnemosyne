@@ -16,7 +16,7 @@ tags:
   - lazy-import
   - capability-resolver
   - testing
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/error-message-consistency-optional-dependency-pola.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/error-message-consistency-optional-dependency-pola.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -33,7 +33,7 @@ The misleading-error and documented-fallback repairs are verified locally. The s
 design is plan-only and remains unverified. Case evidence is indexed in
 [error-message-consistency-optional-dependency-pola.notes.md](error-message-consistency-optional-dependency-pola.notes.md),
 with the complete prior version in
-[error-message-consistency-optional-dependency-pola.history](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/error-message-consistency-optional-dependency-pola.history).
+[error-message-consistency-optional-dependency-pola.history](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/error-message-consistency-optional-dependency-pola.history).
 
 ## When to Use
 

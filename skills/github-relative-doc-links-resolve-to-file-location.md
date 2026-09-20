@@ -8,7 +8,7 @@ version: "1.2.0"
 user-invocable: false
 verification: verified-precommit
 tags: [github, markdown, relative-links, pull-request-template, issue-template, markdownlint, pre-commit, doc-links, blob-url, planning, review, definition-of-done, pr-size]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/github-relative-doc-links-resolve-to-file-location.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/github-relative-doc-links-resolve-to-file-location.history"
 history-cleanup-date: "2026-09-20"
 ---
 

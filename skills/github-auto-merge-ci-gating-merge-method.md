@@ -11,7 +11,7 @@ user-invocable: false
 verification: verified-ci
 license: BSD-3-Clause
 tags: [auto-merge, github, ci-cd, merge-method, required-checks, rulesets, review-threads, current-head-checks, merge-queue, toctou]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/github-auto-merge-ci-gating-merge-method.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/github-auto-merge-ci-gating-merge-method.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -19,7 +19,7 @@ history-cleanup-date: "2026-09-20"
 
 **Supporting cases:** [notes](./github-auto-merge-ci-gating-merge-method.notes.md)
 
-**Superseded content:** [history](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/github-auto-merge-ci-gating-merge-method.history)
+**Superseded content:** [history](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/github-auto-merge-ci-gating-merge-method.history)
 
 ## Overview
 

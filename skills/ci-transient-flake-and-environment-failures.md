@@ -30,7 +30,7 @@ tags:
   - dependency-install
   - runner-hang
   - gh-run-rerun
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/ci-transient-flake-and-environment-failures.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/ci-transient-flake-and-environment-failures.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -44,7 +44,7 @@ history-cleanup-date: "2026-09-20"
 | **Objective** | Diagnose and resolve CI failures that are transient network flakes, environment-only, developer-local health checks, or dependency-install hangs before tests start - without reaching for banned suppressions. |
 | **Outcome** | Verified across ProjectAgamemnon (#368), ProjectOdyssey (#5347), ProjectOdyssey local repro, ProjectMyrmidons (#350), and Metrics Service (#897/#904). |
 | **Verification** | verified-ci |
-| **History** | Previous versions archived in [prior Git source](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/ci-transient-flake-and-environment-failures.history) |
+| **History** | Previous versions archived in [prior Git source](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/ci-transient-flake-and-environment-failures.history) |
 
 ## When to Use
 

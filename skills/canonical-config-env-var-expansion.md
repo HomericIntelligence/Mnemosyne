@@ -8,7 +8,7 @@ version: "1.2.0"
 user-invocable: false
 verification: verified-local
 tags: [nats, nomad, env-var-expansion, config, leaf-node, envsubst, daemon-verification, negative-control, tailscale, planning]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/canonical-config-env-var-expansion.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/canonical-config-env-var-expansion.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -24,7 +24,7 @@ This skill captures a durable learning from re-planning Odysseus GitHub issue #1
 | Objective | De-hardcode a dev-specific Tailscale IP from canonical NATS/Nomad config files deployed by copy/symlink, and verify the expansion actually resolves at runtime |
 | Outcome | NATS path proven by running the daemon; Nomad path corrected via docs (latent bug found in prior precedent) |
 | Verification | verified-local (NATS=daemon-verified-local; Nomad=doc-verified-only) |
-| History | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/canonical-config-env-var-expansion.history) |
+| History | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/canonical-config-env-var-expansion.history) |
 
 ## When to Use
 

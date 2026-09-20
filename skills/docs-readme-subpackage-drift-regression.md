@@ -16,7 +16,7 @@ tags:
   - published-artifacts
   - count-drift
   - prose-pinning
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/docs-readme-subpackage-drift-regression.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/docs-readme-subpackage-drift-regression.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -30,7 +30,7 @@ history-cleanup-date: "2026-09-20"
 | **Objective** | Prevent documentation regressions without turning README inventories, headings, editorial phrases, dates, emails, source comments, or docstrings into frozen APIs. |
 | **Outcome** | Proposed replacement: discover links from the documents, validate that local targets resolve, prove public artifacts are reachable from actual indexes, and bind normative documentation to executable source contracts. The implementation plan was not executed in this session. |
 | **Verification** | `unverified` — source and test targets were identified, but no Hephaestus implementation, focused test run, pre-commit run, or CI result was produced. |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/docs-readme-subpackage-drift-regression.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/docs-readme-subpackage-drift-regression.history) |
 
 The original version correctly fixed a missing README entry, but it recommended an exact
 subpackage inventory and manually synchronized counts. That creates editorial coupling:

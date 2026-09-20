@@ -8,7 +8,7 @@ license: BSD-3-Clause
 verification: verified-local
 user-invocable: false
 tags: [github-actions, workflow, yaml, injection, permissions, concurrency, reusable-workflow]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/gha-workflow-authoring-pitfalls.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/gha-workflow-authoring-pitfalls.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -23,7 +23,7 @@ workflow scope when it protects all jobs.
 
 Detailed cases are indexed in
 [`gha-workflow-authoring-pitfalls.notes.md`](gha-workflow-authoring-pitfalls.notes.md). The complete
-prior source is in [`gha-workflow-authoring-pitfalls.history`](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/gha-workflow-authoring-pitfalls.history).
+prior source is in [`gha-workflow-authoring-pitfalls.history`](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/gha-workflow-authoring-pitfalls.history).
 
 ## When to Use
 

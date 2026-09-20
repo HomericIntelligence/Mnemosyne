@@ -19,7 +19,7 @@ tags:
   - orphaned-lineage
   - history-replacement
   - planning-methodology
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/verify-audit-issue-reproduces-before-fixing.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/verify-audit-issue-reproduces-before-fixing.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -33,7 +33,7 @@ history-cleanup-date: "2026-09-20"
 | **Objective** | Before planning a fix for (or closing) an audit-filed issue, determine whether the cited content is genuinely a phantom or whether it EXISTED and was removed — by searching the correct refs (`origin/main`, full `--all` history) with the exact audited strings, and classifying the removal mechanism |
 | **Outcome** | A repeatable planning discipline. For issue #26 the corrected outcome was **already-resolved, citing provenance commit `a3878c3`** — the audit was ACCURATE at filing; the terminology existed and was removed by history replacement. This OVERTURNS the v1.0.0 conclusion of "non-reproducible / never existed" |
 | **Verification** | verified-local |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/verify-audit-issue-reproduces-before-fixing.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/verify-audit-issue-reproduces-before-fixing.history) |
 
 **Verified locally only — CI validation pending.** Every git command in the Verified Workflow
 (`git fetch`, `git show origin/main:README.md`, `git rev-list --count <pin>..origin/main`,

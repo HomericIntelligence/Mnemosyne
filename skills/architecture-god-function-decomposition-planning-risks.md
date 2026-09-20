@@ -8,7 +8,7 @@ user-invocable: false
 license: BSD-3-Clause
 verification: unverified
 tags: [architecture, python, refactoring, god-function, god-class, extraction, planning, sentinel, delegation, circular-import, test-seams]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/architecture-god-function-decomposition-planning-risks.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/architecture-god-function-decomposition-planning-risks.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -25,7 +25,7 @@ decomposition. Use current source and relevant tests to check whether the advice
 measurements are indexed in
 [the notes](./architecture-god-function-decomposition-planning-risks.notes.md), and the exact
 superseded content is in
-[history](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/architecture-god-function-decomposition-planning-risks.history).
+[history](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/architecture-god-function-decomposition-planning-risks.history).
 
 ## When to Use
 
@@ -199,4 +199,4 @@ for both modules and an architectural assertion that the leaf does not import ei
 ## Companions
 
 - [Case notes](./architecture-god-function-decomposition-planning-risks.notes.md)
-- [Version history and exact superseded snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/architecture-god-function-decomposition-planning-risks.history)
+- [Version history and exact superseded snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/architecture-god-function-decomposition-planning-risks.history)

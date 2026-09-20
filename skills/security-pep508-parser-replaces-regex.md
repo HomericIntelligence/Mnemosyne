@@ -13,7 +13,7 @@ tags:
   - pip
   - packaging
   - pep508
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/security-pep508-parser-replaces-regex.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/security-pep508-parser-replaces-regex.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -31,7 +31,7 @@ history-cleanup-date: "2026-09-20"
 | **Issue (regex-specific)** | HomericIntelligence/ProjectHephaestus#62 |
 | **PR (PEP 508 parser)** | HomericIntelligence/ProjectHephaestus#69 |
 | **PR (regex tightening)** | HomericIntelligence/ProjectHephaestus#126 |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/security-pep508-parser-replaces-regex.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/security-pep508-parser-replaces-regex.history) |
 
 ## When to Use
 

@@ -22,13 +22,13 @@ tags:
   - pickaxe
   - plan-grounding
   - stale-issue-text
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/git-unmerged-branch-file-access.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/git-unmerged-branch-file-access.history"
 history-cleanup-date: "2026-09-20"
 ---
 
 # Git Unmerged Branch File Access
 
-**History:** [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/git-unmerged-branch-file-access.history)
+**History:** [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/git-unmerged-branch-file-access.history)
 
 ## Overview
 

@@ -8,7 +8,7 @@ version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags: [pydantic, dataclass, basemodel, behavioral-parity, dependency-strip, coercion, audit-remediation, config-loading, tdd]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/pydantic-basemodel-to-dataclass-behavioral-parity.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pydantic-basemodel-to-dataclass-behavioral-parity.history"
 history-cleanup-date: "2026-09-20"
 ---
 

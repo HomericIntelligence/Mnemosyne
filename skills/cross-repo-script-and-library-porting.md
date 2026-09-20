@@ -16,7 +16,7 @@ tags:
   - licensing
   - sequential-prs
   - skills
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/cross-repo-script-and-library-porting.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/cross-repo-script-and-library-porting.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -33,7 +33,7 @@ The workflow has CI evidence across library, script, and skill migrations. Detai
 source links are in
 [cross-repo-script-and-library-porting.notes.md](cross-repo-script-and-library-porting.notes.md),
 and the complete previous guide is in
-[cross-repo-script-and-library-porting.history](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/cross-repo-script-and-library-porting.history).
+[cross-repo-script-and-library-porting.history](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/cross-repo-script-and-library-porting.history).
 
 ## When to Use
 

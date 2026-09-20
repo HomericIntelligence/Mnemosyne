@@ -16,7 +16,7 @@ tags:
   - redaction
   - credential-rotation
   - security-boundary
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/architecture-container-secret-cmdline-leak-fix.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/architecture-container-secret-cmdline-leak-fix.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -30,7 +30,7 @@ history-cleanup-date: "2026-09-20"
 | **Objective** | Keep a service credential out of every observable and retained surface, not only the launcher command line. |
 | **Outcome** | Model the complete secret flow, choose the least-exposed transport each consumer supports, redact at serialization boundaries, restrict retained artifacts, and prove absence using a sentinel through the real launch path. |
 | **Verification** | verified-local — a container launch kept a credential out of its constructed command line, but inspection of actual runtime output found that the framework serialized the parsed configuration, including the credential, into retained startup logs. |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/architecture-container-secret-cmdline-leak-fix.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/architecture-container-secret-cmdline-leak-fix.history) |
 
 ## When to Use
 

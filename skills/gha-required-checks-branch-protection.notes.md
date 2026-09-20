@@ -2,7 +2,7 @@
 
 These notes retain project-specific incidents, identifiers, and verification records moved out of
 the retrievable [skill](./gha-required-checks-branch-protection.md). The complete v1.14.0 main is
-stored once in [history](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/gha-required-checks-branch-protection.history), not duplicated here.
+stored once in [history](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/gha-required-checks-branch-protection.history), not duplicated here.
 
 ## Case Index
 

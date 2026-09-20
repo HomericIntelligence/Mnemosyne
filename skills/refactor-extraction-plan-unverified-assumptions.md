@@ -16,7 +16,7 @@ tags:
   - circular-import
   - planning
   - verification
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/refactor-extraction-plan-unverified-assumptions.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/refactor-extraction-plan-unverified-assumptions.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -33,7 +33,7 @@ This is planning guidance only. The source issue #1360 and #1814 plans were revi
 implemented, so `verification` remains `unverified`. Case evidence is indexed in
 [refactor-extraction-plan-unverified-assumptions.notes.md](refactor-extraction-plan-unverified-assumptions.notes.md),
 and the complete prior version is in
-[refactor-extraction-plan-unverified-assumptions.history](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/refactor-extraction-plan-unverified-assumptions.history).
+[refactor-extraction-plan-unverified-assumptions.history](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/refactor-extraction-plan-unverified-assumptions.history).
 
 ## When to Use
 

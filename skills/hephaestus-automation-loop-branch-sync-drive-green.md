@@ -17,7 +17,7 @@ tags:
   - signed-commits
   - dco
   - pr-scope
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/hephaestus-automation-loop-branch-sync-drive-green.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/hephaestus-automation-loop-branch-sync-drive-green.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -31,7 +31,7 @@ history-cleanup-date: "2026-09-20"
 | **Objective** | Make automation-loop workers finish their owned issue/PR reliably instead of reusing stale branches, ignoring review/comment state, or letting broad drive-green phases act on unrelated PRs — and invoke a repo-wide "drive all open PRs to green" run correctly. |
 | **Outcome** | Core fix landed in ProjectHephaestus PR #1646 for issue #1645 (merged 2026-06-26, verified-ci). v1.1.0 adds the `--drive-green-all` vs `--phases drive-green` invocation finding (verified-local: dry-run caught the crash; `--drive-green-all` confirmed on a live ~3-minute run driving 14 open PRs). |
 | **Verification** | verified-ci (core); verified-local (v1.1.0 drive-green-all invocation finding) |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/hephaestus-automation-loop-branch-sync-drive-green.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/hephaestus-automation-loop-branch-sync-drive-green.history) |
 
 ## When to Use
 

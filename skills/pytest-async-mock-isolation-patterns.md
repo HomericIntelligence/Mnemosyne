@@ -17,7 +17,7 @@ tags:
   - importlib-reload
   - fastapi
   - threadpool
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/pytest-async-mock-isolation-patterns.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pytest-async-mock-isolation-patterns.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -32,7 +32,7 @@ background workers from escaping the test, and run the full suite before declari
 Case-level provenance is in
 [pytest-async-mock-isolation-patterns.notes.md](pytest-async-mock-isolation-patterns.notes.md).
 The byte-complete superseded version is in
-[pytest-async-mock-isolation-patterns.history](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/pytest-async-mock-isolation-patterns.history).
+[pytest-async-mock-isolation-patterns.history](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pytest-async-mock-isolation-patterns.history).
 
 ## When to Use
 

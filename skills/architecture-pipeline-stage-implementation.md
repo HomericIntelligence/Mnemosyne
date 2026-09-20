@@ -20,7 +20,7 @@ tags:
   - durable-mutations
   - timer-park
   - rebase-conflicts
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/architecture-pipeline-stage-implementation.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/architecture-pipeline-stage-implementation.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -34,7 +34,7 @@ history-cleanup-date: "2026-09-20"
 | **Objective** | Implement stages against the landed queue-pipeline API and make worker failures observable by translating expected negative helper returns into complete `JobResult` values. |
 | **Outcome** | The canonical stage skill now matches the current API and adds the invariant that every non-interrupted failure has an actionable `error`. The ProjectHephaestus mechanical-rebase mapping was exercised locally for clean and conflict returns. |
 | **Verification** | **verified-local** — both parameterized worker-pool cases passed with `--no-cov`; Ruff passed for the implementation and test files. CI validation is pending. |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/architecture-pipeline-stage-implementation.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/architecture-pipeline-stage-implementation.history) |
 
 ## When to Use
 

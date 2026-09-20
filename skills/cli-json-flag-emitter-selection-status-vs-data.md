@@ -19,7 +19,7 @@ tags:
   - reserved-fields
   - envelope-integrity
   - hephaestus
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/cli-json-flag-emitter-selection-status-vs-data.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/cli-json-flag-emitter-selection-status-vs-data.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -33,7 +33,7 @@ history-cleanup-date: "2026-09-20"
 | **Objective** | Choose the right JSON emitter, carry the real exit code, and keep framework-owned status-envelope fields authoritative while allowing non-reserved extensions. |
 | **Outcome** | Planning heuristics captured for ProjectHephaestus issues. The v1.1.0 reserved-field validation remains a plan; no implementation or CI was run in this session. |
 | **Verification** | unverified — proposed plan only; edits and tests not executed, CI not run |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/cli-json-flag-emitter-selection-status-vs-data.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/cli-json-flag-emitter-selection-status-vs-data.history) |
 
 ## When to Use
 

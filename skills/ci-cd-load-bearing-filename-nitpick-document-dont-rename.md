@@ -30,7 +30,7 @@ tags:
   - false-mechanism-as-docs
   - pixi-task-verification
   - forbid-suppressions-guard
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/ci-cd-load-bearing-filename-nitpick-document-dont-rename.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/ci-cd-load-bearing-filename-nitpick-document-dont-rename.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -44,7 +44,7 @@ history-cleanup-date: "2026-09-20"
 | **Objective** | Resolve a "rename `.github/workflows/_required.yml` for discoverability" NITPICK (issue #215, sole open child of Epic #174) in the Odysseus meta-repo, where `_required.yml` is a deliberate org-wide convention shared across ~15 repos |
 | **Outcome** | Plan executed and PR opened (Odysseus PR #302). Both files edited: 19-line header comment prepended to `.github/workflows/_required.yml`; "Why the filename is `_required.yml`" subsection appended to `configs/github/canonical-checks.md`. yamllint clean, GPG-signed commit `bc675e7`, all policy checks passed. |
 | **Verification** | `verified-local` — plan executed; yamllint + job-name checks passed locally; Odysseus PR #302 CI pending |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/ci-cd-load-bearing-filename-nitpick-document-dont-rename.history) — amended 1.0.0 → 1.1.0 (planning) → 1.2.0 (execution verified) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/ci-cd-load-bearing-filename-nitpick-document-dont-rename.history) — amended 1.0.0 → 1.1.0 (planning) → 1.2.0 (execution verified) |
 
 ## When to Use
 

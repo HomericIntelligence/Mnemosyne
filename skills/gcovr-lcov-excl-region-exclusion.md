@@ -4,11 +4,11 @@ license: BSD-3-Clause
 description: "Replace broad C++ coverage exclusions with justified LCOV regions when external dependencies make specific paths unavailable to unit tests."
 category: ci-cd
 date: 2026-07-02
-version: "1.1.0"
+version: "1.1.1"
 user-invocable: false
 verification: verified-local
 tags: [gcovr, lcov-excl, coverage-threshold, cpp, ctest, fail-under-line, coverage-exclusion, live-dependency-code, review-driven]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/gcovr-lcov-excl-region-exclusion.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/gcovr-lcov-excl-region-exclusion.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -35,7 +35,8 @@ history-cleanup-date: "2026-09-20"
 ### Quick Reference
 
 ```bash
-# Mandatory pre-flight: run the EXACT CI gate invocation locally, require exit 0
+# Through the authorized validation boundary, use the applicable CI invocation.
+# If execution is unavailable, report the gap and continue independent work.
 gcovr --root . --filter include --filter src \
   --exclude src/server_main.cpp \
   --gcov-ignore-parse-errors=negative_hits.warn \

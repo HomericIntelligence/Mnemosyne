@@ -8,7 +8,7 @@ version: "2.2.1"
 user-invocable: false
 verification: verified-ci
 tags: [achaeanfleet, docker, ci-cascade, multi-arch, oci, opencode, goose, entrypoint, qemu, caddy, yaml, branch-protection, required-signatures, branch-rulesets, signed-commits, force-with-lease, auto-merge-disarm]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/ci-cd-achaean-fleet-ci-cascade-patterns.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/ci-cd-achaean-fleet-ci-cascade-patterns.history"
 history-cleanup-date: "2026-09-20"
 ---
 

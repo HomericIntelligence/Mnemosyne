@@ -8,7 +8,7 @@ version: "1.1.0"
 user-invocable: false
 verification: verified-ci
 tags: [ci-cd, markdownlint, readme, blockquote, md028, md018, atx-heading, issue-reference, line-wrap, blank-line, pre-commit, ci-debug]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/ci-readme-blockquote-markdownlint-break.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/ci-readme-blockquote-markdownlint-break.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -22,7 +22,7 @@ history-cleanup-date: "2026-09-20"
 | **Objective** | Drive PR ProjectHephaestus#1570 to green CI |
 | **Outcome** | CI passed after adding missing `>` continuation marker to a blank line inside a README blockquote |
 | **Verification** | verified-ci |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/ci-readme-blockquote-markdownlint-break.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/ci-readme-blockquote-markdownlint-break.history) |
 
 A multi-paragraph blockquote in Markdown requires every blank separator line between
 paragraphs to start with `>`. Without it, the renderer (and markdownlint) treats the

@@ -23,7 +23,7 @@ tags:
   - genuinely-stuck-pr
   - dirty-pr-rebase
   - recovery
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/tooling-state-skip-label-recovers-skip-capped-prs.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/tooling-state-skip-label-recovers-skip-capped-prs.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -37,7 +37,7 @@ history-cleanup-date: "2026-09-20"
 | **Objective** | Stop the hephaestus automation loop from wrongly ADDING `state:skip` in a self-perpetuating cycle (re-tagging everything every loop, converging on nothing), AND recover PRs already stranded by the label. |
 | **Outcome** | Root cause fixed in PR #1584: `state:skip` is now operator-only and absolute (read live, never auto-added, never auto-removed). A clean end-to-end run (after #1584 + companions #1572/#1575/#1589) merged PR #1590 with 0 errors, 0 skips. |
 | **Verification** | verified-ci |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/tooling-state-skip-label-recovers-skip-capped-prs.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/tooling-state-skip-label-recovers-skip-capped-prs.history) |
 
 ## When to Use
 

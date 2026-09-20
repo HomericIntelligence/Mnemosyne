@@ -7,7 +7,7 @@ category: tooling
 date: 2026-01-11
 version: "1.2.0"
 user-invocable: false
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/tone-matched-documentation.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/tone-matched-documentation.history"
 history-cleanup-date: "2026-09-20"
 ---
 # Tone-Matched Documentation Skill

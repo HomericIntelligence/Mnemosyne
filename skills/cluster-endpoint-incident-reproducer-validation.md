@@ -21,7 +21,7 @@ tags:
   - profiler
   - shell-quoting
   - operator-contract
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/cluster-endpoint-incident-reproducer-validation.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/cluster-endpoint-incident-reproducer-validation.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -35,7 +35,7 @@ history-cleanup-date: "2026-09-20"
 | **Objective** | Turn a strict PR review of a cluster endpoint incident reproducer into a concrete fix list and a reusable validation contract. |
 | **Outcome** | Checkout-to-validation reproducers and issue-local profiler helpers were hardened for private artifacts, non-launching testability, allocation-safe cleanup, shell-safe command construction, reproducibility evidence, operator docs, tests, and CI. |
 | **Verification** | verified-ci |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/cluster-endpoint-incident-reproducer-validation.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/cluster-endpoint-incident-reproducer-validation.history) |
 
 ## When to Use
 

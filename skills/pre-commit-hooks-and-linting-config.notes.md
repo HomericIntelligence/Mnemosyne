@@ -2,23 +2,23 @@
 
 These notes retain repository-specific evidence from version 2.6.0. The complete
 v2.6.0 retrievable file is archived once in the
-[history file](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/pre-commit-hooks-and-linting-config.history).
+[history file](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pre-commit-hooks-and-linting-config.history).
 
 ## Case Index
 
 | Case | Source | Status | Retained lesson |
 | --- | --- | --- | --- |
-| Consolidated lint corpus | [Archived 53-skill cross-project corpus](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/pre-commit-hooks-and-linting-config.history) | verified-ci overall | Pre-commit is the common local/CI entry point |
+| Consolidated lint corpus | [Archived 53-skill cross-project corpus](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pre-commit-hooks-and-linting-config.history) | verified-ci overall | Pre-commit is the common local/CI entry point |
 | Ruff format false green | Hephaestus [PR #707](https://github.com/HomericIntelligence/Hephaestus/pull/707) / [PR #913](https://github.com/HomericIntelligence/Hephaestus/pull/913) | verified-ci | `ruff check` and `ruff format` are separate gates |
 | Dual lint/pre-commit red | Hephaestus [PR #1058](https://github.com/HomericIntelligence/Hephaestus/pull/1058), [issue #814](https://github.com/HomericIntelligence/Hephaestus/issues/814) | verified-local | One formatter drift can fail two jobs |
-| TOML and locked Ruff parity | [Archived Inference Service PR #157 evidence](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/pre-commit-hooks-and-linting-config.history) | verified-ci | Parse TOML and pin Ruff hook to lockfile version |
+| TOML and locked Ruff parity | [Archived Inference Service PR #157 evidence](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pre-commit-hooks-and-linting-config.history) | verified-ci | Parse TOML and pin Ruff hook to lockfile version |
 | Full PR-diff scope | [Odyssey PR #5453](https://github.com/HomericIntelligence/Odyssey/pull/5453) | verified-ci | Per-file checks missed delegated Mojo files; run from merge base |
 | Cross-editor baseline | [Scylla PR #1556](https://github.com/HomericIntelligence/Scylla/pull/1556), audit S13 | verified-ci | Add a root `.editorconfig` with file-specific whitespace rules |
 | Review scope for forced churn | Hephaestus [PR #1019](https://github.com/HomericIntelligence/Hephaestus/pull/1019), [issue #1017](https://github.com/HomericIntelligence/Hephaestus/issues/1017), review on [PR #1015](https://github.com/HomericIntelligence/Hephaestus/pull/1015) | verified-ci | Tool-required formatting is not unrelated scope creep |
 | Commit-message stage | [Mnemosyne closed PR #2353](https://github.com/HomericIntelligence/Mnemosyne/pull/2353) | verified-ci | Install and invoke `commit-msg`; `--all-files` does not cover it |
 | Bandit target ownership | [Telemachy issue #157](https://github.com/HomericIntelligence/Telemachy/issues/157) | verified-local | Directory scan plus INI requires `pass_filenames: false` |
 | Pixi policy checker | Hephaestus [issue #1550](https://github.com/HomericIntelligence/Hephaestus/issues/1550) / [PR #1586](https://github.com/HomericIntelligence/Hephaestus/pull/1586) | verified-precommit | Anchor task regexes, ignore comments, and wire before claiming enforcement |
-| Hook abort mistaken for signing failure | [Archived Hephaestus session evidence](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/pre-commit-hooks-and-linting-config.history) | verified-precommit | Prove `HEAD` advanced before debugging the displayed parent signature |
+| Hook abort mistaken for signing failure | [Archived Hephaestus session evidence](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pre-commit-hooks-and-linting-config.history) | verified-precommit | Prove `HEAD` advanced before debugging the displayed parent signature |
 | No-skip required gate | [Odyssey PR #5584](https://github.com/HomericIntelligence/Odyssey/pull/5584) | verified-ci | Advisory `SKIP=mojo-format` passed while a separate required fail-fast step failed; exact no-skip run went green after formatting |
 | Duplicate markdownlint job planning | [Hephaestus issue #1199](https://github.com/HomericIntelligence/Hephaestus/issues/1199) | partially verified planning only | Check required contexts, new file scope, and docs before deletion; implementation was pending at capture |
 | mypy sees untracked staged-work companion | Hephaestus [PR #670](https://github.com/HomericIntelligence/Hephaestus/pull/670), [issue #615](https://github.com/HomericIntelligence/Hephaestus/issues/615) / [issue #616](https://github.com/HomericIntelligence/Hephaestus/issues/616) | verified-ci | Keep multi-commit work outside the tree until its implementation commit exists |

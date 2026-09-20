@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Plan container digest pinning with verified registry metadata and architecture coverage. Keep guessed tags and digests explicit when registry access is unavailable."
 category: ci-cd
 date: 2026-06-20
-version: "1.2.0"
+version: "1.2.1"
 user-invocable: false
 verification: unverified
 tags:
@@ -20,7 +20,7 @@ tags:
   - guard-script
   - ci-wiring
   - plan-review
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/planning-container-image-digest-pinning.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/planning-container-image-digest-pinning.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -34,11 +34,11 @@ history-cleanup-date: "2026-09-20"
 | **Objective** | Produce a PLAN (not an implementation) for Odysseus issue #188 "[MAJOR] E2E compose stack uses :latest image tags": pin `prom/prometheus:latest`, `grafana/loki:latest`, `grafana/grafana:latest` in `docker-compose.e2e.yml` to immutable `name:vX.Y.Z@sha256:<digest>` references and add a guard script. |
 | **Outcome** | PLAN ONLY — never executed. The durable learning is planning discipline: a planner with no registry access must defer every digest/version choice to implementation time with explicit resolution commands, and must distinguish what was verified from what was extrapolated. |
 | **Verification** | unverified (plan only — no registry was queried, no `compose up`/CI ran; the local `grep`/file inspections of the repo WERE run and are real) |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/planning-container-image-digest-pinning.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/planning-container-image-digest-pinning.history) |
 
 > **Warning:** This workflow has not been validated end-to-end. Treat as a hypothesis until CI confirms.
 
-**History:** [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/planning-container-image-digest-pinning.history)
+**History:** [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/planning-container-image-digest-pinning.history)
 
 ## When to Use
 
@@ -63,15 +63,15 @@ docker buildx imagetools inspect --format '{{.Manifest.Digest}}' prom/prometheus
 # WRONG — do NOT use: `podman manifest inspect ... | sha256sum` hashes the JSON TEXT,
 # not the registry digest, and silently yields a @sha256: that pulls nothing.
 
-# --- AUTHORITATIVE, tooling/env-INDEPENDENT acceptance check: every image digest-pinned ---
+# Inspect the image lines within the requested pinning scope:
 grep -nE 'image:\s*\S+@sha256:[0-9a-f]{64}' docker-compose.e2e.yml   # must match each pinned line
 # Guard-script regex to reject any remaining floating tag (WHOLE-FILE):
 grep -nE 'image:\s*\S+:(latest|alpine)\b|image:\s*[^@[:space:]]+:[^@[:space:]]+$' docker-compose.e2e.yml
 
-# --- Wire the guard into CI in the SAME change, then PROVE the wiring exists: ---
-# add `bash scripts/check_e2e_image_pins.sh` as a step in the `validate` job of ci.yml,
-# right after the YAML-lint step, then verify:
-grep -n 'check_e2e_image_pins.sh' .github/workflows/ci.yml   # MUST return a hit
+# If the task or repository policy calls for automatic enforcement, connect
+# the guard to the appropriate CI job and inspect that execution path:
+grep -n 'check_e2e_image_pins.sh' .github/workflows/ci.yml
+# Otherwise, propose CI enforcement separately without expanding the task.
 
 # --- Confirm the chosen tag actually EXISTS / is not yanked before pinning ---
 skopeo inspect docker://docker.io/grafana/grafana:11.4.0 >/dev/null && echo "tag exists"

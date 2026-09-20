@@ -14,7 +14,7 @@ tags:
   - sca
   - exceptions
   - ci-policy
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/scan-vulnerabilities.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/scan-vulnerabilities.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -28,7 +28,7 @@ history-cleanup-date: "2026-09-20"
 | **Objective** | Scan source and dependency inventories, fail closed on actionable findings, and govern unavoidable exceptions narrowly. |
 | **Outcome** | Operational: Athena PR #14 passed required CI with a locked Grype scan over a native Syft inventory and a narrowly approved, expiring exception. |
 | **Verification** | verified-ci |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/scan-vulnerabilities.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/scan-vulnerabilities.history) |
 
 ## When to Use
 

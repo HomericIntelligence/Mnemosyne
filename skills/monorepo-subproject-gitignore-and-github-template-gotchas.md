@@ -8,7 +8,7 @@ version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [monorepo, gitignore, git-check-ignore, github-templates, issue-template, subproject, claude-config]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/monorepo-subproject-gitignore-and-github-template-gotchas.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/monorepo-subproject-gitignore-and-github-template-gotchas.history"
 history-cleanup-date: "2026-09-20"
 ---
 

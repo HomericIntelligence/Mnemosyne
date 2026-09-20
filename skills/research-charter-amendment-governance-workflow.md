@@ -4,11 +4,11 @@ license: BSD-3-Clause
 description: "Handle research-charter amendments when hardware, policy, or evidence changes. Distinguish descriptive updates from protected acceptance-criteria changes."
 category: documentation
 date: 2026-07-11
-version: "1.1.0"
+version: "1.1.1"
 user-invocable: false
 verification: verified-ci
 tags: [research-governance, charter-amendment, pinned-thresholds, trigger-matrix, descriptive-vs-contractual, status-labels, falsifiable-exit-conditions, mid-run-pivot, anchor-traceability, strict-audit, experiment-charter, failure-cascade]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/research-charter-amendment-governance-workflow.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/research-charter-amendment-governance-workflow.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -35,6 +35,11 @@ history-cleanup-date: "2026-09-20"
 ## Verified Workflow
 
 ### Quick Reference
+
+The example below describes the recorded charter procedure. Use it when the
+current charter calls for an amendment and the needed authority is missing.
+Existing explicit authorization can permit the specified edits in the current
+pass; do not create a duplicate approval pause or issue solely for this example.
 
 ```bash
 # 1. Confirm the trigger maps to a pre-committed matrix row

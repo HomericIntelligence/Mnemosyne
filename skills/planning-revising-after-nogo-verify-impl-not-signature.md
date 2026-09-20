@@ -25,7 +25,7 @@ tags:
   - scaffold-first
   - unmerged-dependency
   - path-gradient-vs-double-count
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/planning-revising-after-nogo-verify-impl-not-signature.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/planning-revising-after-nogo-verify-impl-not-signature.history"
 history-cleanup-date: "2026-09-20"
 ---
 

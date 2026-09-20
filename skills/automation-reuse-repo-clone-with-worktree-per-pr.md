@@ -10,7 +10,7 @@ verification: verified-ci
 tags: [git-worktree, clone-reuse, fleet-sync, batch-automation, performance, per-pr-checkout,
   idempotent-clone, dry-run-real-step, github-automation, branch-collision, worktree-reuse,
   dirty-working-tree]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/automation-reuse-repo-clone-with-worktree-per-pr.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/automation-reuse-repo-clone-with-worktree-per-pr.history"
 history-cleanup-date: "2026-09-20"
 ---
 # Automation: Reuse One Repo Clone with a Git Worktree Per PR

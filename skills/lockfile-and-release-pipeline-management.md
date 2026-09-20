@@ -8,7 +8,7 @@ license: BSD-3-Clause
 user-invocable: false
 verification: verified-ci
 tags: [lockfile, release, pixi, npm, cargo, versioning, renovate, dependabot]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/lockfile-and-release-pipeline-management.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/lockfile-and-release-pipeline-management.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -24,7 +24,7 @@ when files already contain the target version.
 Detailed incidents are indexed in
 [`lockfile-and-release-pipeline-management.notes.md`](lockfile-and-release-pipeline-management.notes.md).
 The complete prior source is in
-[prior Git source](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/lockfile-and-release-pipeline-management.history).
+[prior Git source](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/lockfile-and-release-pipeline-management.history).
 
 ## When to Use
 
@@ -134,7 +134,7 @@ current package manager and verify the resulting dependency diff. Fetch and
 inspect remote divergence before rewriting an existing branch. Do not rebase
 only to trigger CI or because `main` advanced.
 
-History cleanup: 2026-09-20. The [prior source](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/ci-cd-dependabot-pixi-lock-drift-fix.history)
+History cleanup: 2026-09-20. The [prior source](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/ci-cd-dependabot-pixi-lock-drift-fix.history)
 retains its original evidence limits. This migration does not establish new
 operational verification.
 

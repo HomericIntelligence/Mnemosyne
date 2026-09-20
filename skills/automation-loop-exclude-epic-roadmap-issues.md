@@ -8,7 +8,7 @@ version: "1.1.1"
 user-invocable: false
 verification: verified-ci
 tags: [epic, roadmap, tracking-issue, automation-loop, issue-discovery, gh-cli, state-skip, partition, label-and-title-signal, planner-filter, dry-chokepoints, pure-function-contract]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/automation-loop-exclude-epic-roadmap-issues.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/automation-loop-exclude-epic-roadmap-issues.history"
 history-cleanup-date: "2026-09-20"
 ---
 

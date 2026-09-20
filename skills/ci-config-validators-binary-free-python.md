@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Validate CI configuration structure without service binaries when NATS certificate dependencies or missing compose tools prevent direct validation."
 category: ci-cd
 date: 2026-06-20
-version: "1.1.0"
+version: "1.1.1"
 user-invocable: false
 verification: verified-local
 tags:
@@ -26,7 +26,7 @@ tags:
   - validation
   - odysseus
   - issue-198
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/ci-config-validators-binary-free-python.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/ci-config-validators-binary-free-python.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -215,8 +215,8 @@ jobs:
 
 ### PyYAML Availability Note
 
-PyYAML is a transitive dependency of `yamllint`. If a CI job already installs `yamllint`, PyYAML is available at no extra cost. For jobs that don't install `yamllint`, add `pip install --user pyyaml` explicitly. Choose the install scope supported by the runner or managed environment; see
-`ci-pip-install-user-pep668` for the recorded runner-specific case.
+PyYAML is a transitive dependency of `yamllint`. If a CI job already installs `yamllint`, PyYAML is available at no extra cost. For jobs that do not install `yamllint`, declare PyYAML in the repository's supported dependency environment. Use `--user` only when that environment supports user-site installation; see
+[the runner-specific installation case](ci-pip-install-user-pep668.md).
 
 ### Detailed Steps
 

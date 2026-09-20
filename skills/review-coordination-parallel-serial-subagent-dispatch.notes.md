@@ -214,4 +214,3 @@ Orchestrator aggregates all into:
 5. **Aggregation Before Commit**: Collect all results in a single table, verify compilation/tests, then create one atomic commit.
 
 6. **One-Liner Summaries**: Thread_id + one-liner enables quick spot-checking of what was fixed and why.
-

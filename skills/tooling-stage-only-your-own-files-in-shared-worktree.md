@@ -8,7 +8,7 @@ version: "1.2.0"
 user-invocable: false
 verification: verified-ci
 tags: [git, git-add, staging, git-add-all, address-review, automation-loop, shared-worktree, dirty-working-tree, commit-scope, git-reset-soft, signed-commit, pr-hygiene, clobber, salvage-commit, reused-worktree, cherry-pick, git-add-u]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/tooling-stage-only-your-own-files-in-shared-worktree.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/tooling-stage-only-your-own-files-in-shared-worktree.history"
 history-cleanup-date: "2026-09-20"
 ---
 

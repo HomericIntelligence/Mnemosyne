@@ -22,7 +22,7 @@ tags:
   - first-match-vs-last-match
   - parser-unification-regression
   - input-contract
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/llm-output-verdict-parse-last-line-not-substring.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/llm-output-verdict-parse-last-line-not-substring.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -36,7 +36,7 @@ history-cleanup-date: "2026-09-20"
 | **Objective** | Prevent false-positive verdict reads when a Python/shell consumer parses a discrete classification marker (`**Verdict: APPROVED**` etc.) from LLM output. Also prevent the complementary infinite-re-review loop when the verdict is malformed and never parseable, and the inverse regression where a persisted-comment gate's last-wins guarantee is silently dropped by collapsing it onto a first-match parser. |
 | **Outcome** | SUCCESS — regex fix shipped in PR #552; bounded-retry cap + WARNING diagnostic logging shipped in PR #670 (Issues #615/#616); two-parser distinction (gate last-match vs in-loop first-match) preserved during the GO/NOGO vocabulary unification in PR #679 (issue #678). 53-pass infinite loop for issues #455/#468/#484 eliminated. |
 | **Verification** | verified-ci — PR #670 passed all pre-commit hooks and CI. (v1.2.0 two-parser content: verified-local — 845 automation tests + mypy + pre-commit green; PR #679 CI in flight.) |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/llm-output-verdict-parse-last-line-not-substring.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/llm-output-verdict-parse-last-line-not-substring.history) |
 
 ## When to Use
 

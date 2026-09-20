@@ -22,7 +22,7 @@ tags:
   - pr-review
   - exact-head
   - host-receipt
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/automation-codex-jsonl-fail-closed-routing.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/automation-codex-jsonl-fail-closed-routing.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -36,7 +36,7 @@ history-cleanup-date: "2026-09-20"
 | **Objective** | Make automation recognize fatal failures reported through Codex's structured JSONL and stderr channels, including a nested macOS child-sandbox initialization failure, and route them through the existing provider-neutral agent-error path. |
 | **Outcome** | ProjectHephaestus PR #2637 implemented the classifier, neutral exception boundary, WorkerPool mapping, and stage regressions. Reviews across three distinct heads corrected the proposed finite allowlist, preserved the documented stream-lag exception, and required an executed host receipt before GO. |
 | **Verification** | `verified-ci` — final head `4daac9b4` passed required checks and was conditionally squash-merged as `5f10af3b`. |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/automation-codex-jsonl-fail-closed-routing.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/automation-codex-jsonl-fail-closed-routing.history) |
 
 ## When to Use
 

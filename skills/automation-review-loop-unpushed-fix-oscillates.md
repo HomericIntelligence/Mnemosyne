@@ -29,7 +29,7 @@ tags:
   - queued-push
   - sigterm-retry
   - out-of-scope-review
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/automation-review-loop-unpushed-fix-oscillates.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/automation-review-loop-unpushed-fix-oscillates.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -43,7 +43,7 @@ history-cleanup-date: "2026-09-20"
 | **Objective** | Diagnose and recover a `hephaestus-automation-loop` run against an existing PR that cycles forever — each pass logs `R0: Verdict=GO threads=0` then "did not reach GO" -> NOGO -> repeats — without re-doing the one-word fix that was already made but never pushed |
 | **Outcome** | Root cause was PERSISTENCE, not the edit: a local-only fix can fail to reach the PR, while an out-of-scope draft can be queued for coordinator commit/push even after its agent receives SIGTERM. In both cases, compare the isolated worktree and remote branch before deciding whether to recover or discard. |
 | **Verification** | verified-local (the fix was applied and pushed THIS session; PR #977 was NOT yet merged at capture time) |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/automation-review-loop-unpushed-fix-oscillates.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/automation-review-loop-unpushed-fix-oscillates.history) |
 
 ## When to Use
 

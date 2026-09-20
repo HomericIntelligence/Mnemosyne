@@ -3,7 +3,7 @@
 These notes retain project-specific provenance and detailed verification boundaries moved out of
 the retrievable skill during Mnemosyne issue #3335. They do not duplicate the complete v1.16.0
 snapshot, which is preserved in
-[`python-module-decomposition-and-refactor-patterns.history`](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/python-module-decomposition-and-refactor-patterns.history).
+[`python-module-decomposition-and-refactor-patterns.history`](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/python-module-decomposition-and-refactor-patterns.history).
 
 ## Case Index
 
@@ -24,7 +24,7 @@ snapshot, which is preserved in
 | Stale lifecycle counter | [Hermes PR #522](https://github.com/HomericIntelligence/Hermes/pull/522) | Remove manual accounting after context-manager ownership moves | Project tests verified expected `[1]` rather than `[2]` |
 | Legacy-code deletion | [Hephaestus PR #745](https://github.com/HomericIntelligence/Hephaestus/pull/745) | Prove zero callers and remove stale references with the dead code | Merged: 587-line script, helper, 480 test lines, and 8 stale references removed; 1093 Python + 26 shell tests passed |
 | Substrate-first estimate | [Odyssey PR #5457](https://github.com/HomericIntelligence/Odyssey/pull/5457) | Read current implementation before accepting rewrite estimates | Verified-ci: estimate revised from about 5000 to 1400 lines; implementation added 937 |
-| Parallel-phase cleanup | [Archived ecosystem evidence](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/python-module-decomposition-and-refactor-patterns.history) | Integrate first, then remove temporary duplication and debt | General practice; no single run identified |
+| Parallel-phase cleanup | [Archived ecosystem evidence](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/python-module-decomposition-and-refactor-patterns.history) | Integrate first, then remove temporary duplication and debt | General practice; no single run identified |
 | God-class planning audit | [Hephaestus issue #1179](https://github.com/HomericIntelligence/Hephaestus/issues/1179) | Map state ownership, cross-calls, exports, type mode, and guard files | Unverified plan; implementation not part of that issue session |
 | Provider dispatch plan | [Hephaestus issue #1196](https://github.com/HomericIntelligence/Hephaestus/issues/1196) | Prefer a helper for two providers and verify actual result/error contracts | Initial plan unverified; source review corrected false assumptions |
 | Provider dispatch implementation | [Hephaestus issue #1196](https://github.com/HomericIntelligence/Hephaestus/issues/1196) | Check return codes at every caller and count nested mock calls | Verified-local: 157 focused tests, ruff, and mypy; CI pending in captured session |
@@ -36,7 +36,7 @@ snapshot, which is preserved in
 | Dynamic host path | Hephaestus closed [PR #2400](https://github.com/HomericIntelligence/Hephaestus/pull/2400) / [issue #1269](https://github.com/HomericIntelligence/Hephaestus/issues/1269) | Inject `Callable[[], Path]` when fixtures reassign a path after construction | Salvaged verified-local result; closed PR lost; four sibling tests exposed defect |
 | Cohesive first slice | Hephaestus closed [PR #2396](https://github.com/HomericIntelligence/Hephaestus/pull/2396) | Pick the cluster with one shared field and defer C901 carriers | Partial/unverified; salvaged from closed PR |
 | Three guard files | Hephaestus closed [PR #2418](https://github.com/HomericIntelligence/Hephaestus/pull/2418) | Discover and update every omit/smoke guard before adding a module | Partial/unverified; salvaged from closed PR |
-| Budgeted façades and authority | [Archived reviewed design](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/python-module-decomposition-and-refactor-patterns.history) | Apply family budgets, acyclic operation collaborators, and one approval mutation site | Unverified reviewed design; no implementation or CI run |
+| Budgeted façades and authority | [Archived reviewed design](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/python-module-decomposition-and-refactor-patterns.history) | Apply family budgets, acyclic operation collaborators, and one approval mutation site | Unverified reviewed design; no implementation or CI run |
 
 ## Detailed Verification Boundaries
 

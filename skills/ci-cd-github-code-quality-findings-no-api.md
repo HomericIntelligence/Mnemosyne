@@ -4,11 +4,11 @@ license: BSD-3-Clause
 description: "Investigate GitHub Code Quality findings when code-scanning APIs do not expose them, or analyzer rules disagree about unused names and compatibility re-exports."
 category: ci-cd
 date: 2026-06-30
-version: "1.2.0"
+version: "1.2.1"
 user-invocable: false
 verification: verified-ci
 tags: [github-code-quality, codeql, ruff, code-quality, static-analysis, re-export, shim, __all__, backward-compat]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/ci-cd-github-code-quality-findings-no-api.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/ci-cd-github-code-quality-findings-no-api.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -52,15 +52,17 @@ history-cleanup-date: "2026-09-20"
 gh api repos/OWNER/REPO/code-scanning/alerts            # 0 Code Quality findings
 gh api repos/OWNER/REPO/code-quality/analysis           # 404 — no public API
 
-# 2. Get the real findings: ask the user to paste the /security/quality UI list (gives file:line),
-#    OR reconstruct approximately with ruff (NOT authoritative — see semantic gap below):
+# 2. Inspect /security/quality through an available authorized UI capability.
+#    Ask for missing findings only if they cannot be obtained directly. Ruff can
+#    provide clues, but cannot replace the actual finding (see semantic gap below):
 ruff check --select F811,F841,F822,S110,SIM105 hephaestus/ tests/
 
 # 3. Fix per rule (see patterns below), then verify behaviour is unchanged:
-pixi run pytest tests/unit          # all 2320 tests must pass
+pixi run pytest tests/unit          # example: select applicable tests through authorized validation
 
-# 4. If an AI-autofix PR's check fails, first check the branch is not behind main:
-gh api repos/OWNER/REPO/pulls/N/update-branch -X PUT
+# 4. Inspect a failed autofix check before changing the branch.
+#    Update its base only for a relevant dependency, conflict, or explicit request:
+gh pr view N --repo OWNER/REPO --json headRefOid,baseRefOid,mergeable
 ```
 
 ### Per-rule fix patterns

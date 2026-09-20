@@ -24,7 +24,7 @@ tags:
   - learn-model
   - implementer-model
   - model-parameter
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/tooling-hephaestus-implementer-no-changes-state-skip.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/tooling-hephaestus-implementer-no-changes-state-skip.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -38,7 +38,7 @@ history-cleanup-date: "2026-09-20"
 | **Objective** | (1) Fix `_implement_issue` in `implementer_phase_runner.py` so that a `RuntimeError("No changes produced...")` is treated as success + state:skip, not failure. (2) Fix `run_learn()` to accept a `model=` parameter so `_run_learn()` in `ImplementationPhaseRunner` can pass `implementer_model()` instead of hardcoded `learn_model()` (Haiku). |
 | **Outcome** | Successful — PR #1090 (no-changes fix) and PR #1100 (learn model fix); pre-commit hooks + mypy (320 files) + ruff + tests all pass. |
 | **Verification** | verified-precommit |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/tooling-hephaestus-implementer-no-changes-state-skip.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/tooling-hephaestus-implementer-no-changes-state-skip.history) |
 
 ## When to Use
 

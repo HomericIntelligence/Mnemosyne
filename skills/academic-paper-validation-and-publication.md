@@ -8,7 +8,7 @@ version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [merged, academic, paper, latex, publication, validation]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/academic-paper-validation-and-publication.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/academic-paper-validation-and-publication.history"
 history-cleanup-date: "2026-09-20"
 ---
 # Academic Paper Validation and Publication
@@ -427,6 +427,6 @@ After:  Haiku hands out S grades like candy—5 out of 7 tiers got perfect score
 
 | Project | Context | Details |
 | --------- | --------- | --------- |
-| ProjectScylla | Paper-readiness epic \#330 (6 issues), paper revision PR \#335 | [history](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/academic-paper-validation-and-publication.history) |
-| ProjectScylla | Paper validation workflow 2026-02-07, publication readiness review | [history](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/academic-paper-validation-and-publication.history) |
-| ProjectScylla | Iterative accuracy review branch 1048-haiku-analysis-paper | [history](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/academic-paper-validation-and-publication.history) |
+| ProjectScylla | Paper-readiness epic \#330 (6 issues), paper revision PR \#335 | [history](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/academic-paper-validation-and-publication.history) |
+| ProjectScylla | Paper validation workflow 2026-02-07, publication readiness review | [history](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/academic-paper-validation-and-publication.history) |
+| ProjectScylla | Iterative accuracy review branch 1048-haiku-analysis-paper | [history](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/academic-paper-validation-and-publication.history) |

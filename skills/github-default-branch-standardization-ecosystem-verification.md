@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Inspect default-branch migration across a requested repository fleet; verify live defaults, stale references, and safe branch disposition."
 category: tooling
 date: 2026-06-20
-version: "1.1.0"
+version: "1.1.1"
 user-invocable: false
 tags:
   - github
@@ -21,7 +21,7 @@ tags:
   - false-green
   - documentation-drift
   - multi-repo
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/github-default-branch-standardization-ecosystem-verification.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/github-default-branch-standardization-ecosystem-verification.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -108,7 +108,7 @@ gh api "repos/$ORG/$repo/rulesets" \
 
 ### Detailed Steps
 
-#### 1. Full fleet scan — scan ALL repos, not just the ones named in the issue
+#### 1. Inspect the fleet covered by the request
 
 For a fleet-wide migration claim, enumerate the fleet covered by the request. A smaller check supports
 only a correspondingly scoped claim; the source session’s five-repository sample missed a stale ref.

@@ -22,7 +22,7 @@ tags:
   - github-actions
   - pypi
   - fail-closed
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/release-version-verification-tag-wheel-exact-match.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/release-version-verification-tag-wheel-exact-match.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -36,7 +36,7 @@ history-cleanup-date: "2026-09-20"
 | **Objective** | Preserve one version authority per project type: allow aggregate static-file bumps only for static projects, refuse dynamic/tag-derived projects before canonical reads or writes, and prove tag-derived releases against the built distribution before publication. |
 | **Outcome** | Proposed a two-layer mutation preflight, deterministic human and JSON refusal contracts, byte-preservation regressions, exact Git-to-wheel comparisons, and a signed-workflow handoff. No implementation or CI run was observed. |
 | **Verification** | `unverified` — this is a design captured from reviewed implementation plans. Treat it as a hypothesis until the criterion-specific tests and release CI pass. |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/release-version-verification-tag-wheel-exact-match.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/release-version-verification-tag-wheel-exact-match.history) |
 
 ## When to Use
 

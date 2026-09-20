@@ -26,7 +26,7 @@ tags:
   - pinned-required-context
   - nogo-revision
   - yagni
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/required-check-noop-fix-via-tested-script.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/required-check-noop-fix-via-tested-script.history"
 history-cleanup-date: "2026-09-20"
 ---
 

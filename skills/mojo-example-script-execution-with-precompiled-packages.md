@@ -8,7 +8,7 @@ version: "1.0.1"
 user-invocable: false
 verification: verified-local
 tags: [mojo-execution, example-scripts, package-imports, build-artifacts, mojo-run, import-resolution, dataset-loading]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/mojo-example-script-execution-with-precompiled-packages.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/mojo-example-script-execution-with-precompiled-packages.history"
 history-cleanup-date: "2026-09-20"
 ---
 

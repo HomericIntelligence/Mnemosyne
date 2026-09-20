@@ -4,11 +4,11 @@ license: BSD-3-Clause
 description: "Coordinate independent agent tasks across repositories when ownership, resource limits, shared files, or stalled work needs management."
 category: tooling
 date: 2026-06-13
-version: "1.2.1"
+version: "1.2.2"
 user-invocable: false
 verification: verified-local
 tags: [merged, myrmidon, swarm, parallel-agent, l0-orchestrator, wave-execution]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/parallel-agent-myrmidon-swarm-orchestration.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/parallel-agent-myrmidon-swarm-orchestration.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -106,8 +106,6 @@ unresolved decision or missing authority. Keep related improvement ideas separat
 completion requirements.
 
 For multiline GitHub bodies, prefer a body file so shell quoting does not alter content.
-
-
 
 ### 5. Session Resume — Drain In-Flight PRs First
 

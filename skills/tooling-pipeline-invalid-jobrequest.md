@@ -14,7 +14,7 @@ tags:
   - type-safety
   - job-routing
   - timer-park
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/tooling-pipeline-invalid-jobrequest.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/tooling-pipeline-invalid-jobrequest.history"
 history-cleanup-date: "2026-09-20"
 ---
 # tooling-pipeline-invalid-jobrequest

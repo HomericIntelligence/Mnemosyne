@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Diagnose Podman networking failures on WSL2. Evaluate a host-network workaround against the observed netavark failure and deployment exposure."
 category: debugging
 date: 2026-07-02
-version: "1.1.0"
+version: "1.1.1"
 user-invocable: false
 verification: verified-local
 tags:
@@ -17,7 +17,7 @@ tags:
   - host-network
   - dev-container
   - keep-id
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/debugging-podman-wsl2-netavark-hostnetwork-workaround.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/debugging-podman-wsl2-netavark-hostnetwork-workaround.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -98,7 +98,7 @@ podman run --rm \
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 | --------- | ---------------- | --------------- | ---------------- |
-| Plain compose up | `podman-compose up -d dev` on the WSL2 host | netavark could not program nftables rules ("Could not process rule: No such file or directory", "nft did not return successfully") and IPAM failed for subnet <compose-subnet> — the compose network cannot be created on this WSL2 kernel/rootless setup | Compose networking is the broken layer; image builds (buildah) are unaffected |
+| Plain compose up | `podman-compose up -d dev` on the WSL2 host | netavark could not program nftables rules ("Could not process rule: No such file or directory", "nft did not return successfully") and IPAM failed for subnet `<compose-subnet>` — the compose network cannot be created on this WSL2 kernel/rootless setup | Compose networking is the broken layer; image builds (buildah) are unaffected |
 | Trusting the Makefile guard | Relying on the Makefile's CONTAINER_CHECK, which runs `podman-compose up -d dev \|\| true` before `podman-compose exec -T dev ...` | The `\|\| true` swallowed the network-creation failure, so the visible error was the misleading downstream "can only create exec sessions on running containers: container state improper" | When exec-session errors appear, run `podman-compose up -d dev` manually to surface the real root cause |
 | Fixing nftables on WSL2 | NOT attempted — repairing nftables kernel-module support on the WSL2 kernel was out of scope for the session | (not tried) | The `--network=host` bypass was sufficient for the build workflow; a kernel-level fix may still be the proper long-term solution |
 

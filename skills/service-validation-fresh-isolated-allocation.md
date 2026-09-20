@@ -4,10 +4,10 @@ license: BSD-3-Clause
 description: "Validate service launch and cleanup in an isolated allocation. Use for launch defects, environment-sensitive regressions, or matched A/B experiments."
 category: debugging
 date: 2026-07-18
-version: "1.1.0"
+version: "1.1.1"
 user-invocable: false
 tags: [validation, reproduction, isolation, fresh-allocation, teardown, cleanup-evidence, control-plane, artifact-validation, ablation, scheduler, gpu, service-lifecycle]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/service-validation-fresh-isolated-allocation.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/service-validation-fresh-isolated-allocation.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -35,8 +35,10 @@ history-cleanup-date: "2026-09-20"
 ### Quick Reference
 
 ```text
-Rule: do NOT reuse an existing allocation/endpoint for validation unless the
-user explicitly approves reuse. Default to a fresh, isolated allocation.
+Prefer a fresh allocation when testing launch or cleanup behavior. Reuse an
+endpoint when existing authority covers the probe and reuse fits the test.
+Ask only when resource ownership, disruption, or authority remains unclear.
+The allocation and teardown steps below apply when a fresh unit is needed.
 
 1. Read the surface's own contract/docs before acting.
 2. Enumerate resources already in use and EXCLUDE them from the new allocation.

@@ -18,7 +18,7 @@ tags:
   - do-not-parallelize
   - launch-after-merge
   - prerequisite-verification
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/architecture-serial-depends-on-chain-code-serial.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/architecture-serial-depends-on-chain-code-serial.history"
 history-cleanup-date: "2026-09-20"
 ---
 

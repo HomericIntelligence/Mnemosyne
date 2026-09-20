@@ -8,7 +8,7 @@ user-invocable: false
 license: BSD-3-Clause
 verification: verified-ci
 tags: [ci, validation, regression-guard, required-check, schema, deprecation, stale-script, gitignore, two-sided-test]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/ci-hygiene-and-validation-gates.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/ci-hygiene-and-validation-gates.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -22,7 +22,7 @@ be wired; a heuristic detector should warn while a true invariant must fail.
 
 The patterns remain `verified-ci`. Reusable decisions are here, project incidents in
 [the notes](./ci-hygiene-and-validation-gates.notes.md), and exact prior content in
-[history](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/ci-hygiene-and-validation-gates.history).
+[history](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/ci-hygiene-and-validation-gates.history).
 
 ## When to Use
 
@@ -162,4 +162,4 @@ the repository required suite after restoring all synthetic changes.
 ## Companions
 
 - [Case notes](./ci-hygiene-and-validation-gates.notes.md)
-- [Version history and exact superseded snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/ci-hygiene-and-validation-gates.history)
+- [Version history and exact superseded snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/ci-hygiene-and-validation-gates.history)

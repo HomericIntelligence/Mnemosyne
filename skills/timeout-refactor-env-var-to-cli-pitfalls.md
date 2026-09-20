@@ -32,7 +32,7 @@ tags:
   - hephaestus
   - positive-integer
   - zero-semantics
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/timeout-refactor-env-var-to-cli-pitfalls.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/timeout-refactor-env-var-to-cli-pitfalls.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -46,7 +46,7 @@ history-cleanup-date: "2026-09-20"
 | **Objective** | Document timeout CLI migration failures and define explicit positive-domain versus zero-disables contracts for shared timeout options. |
 | **Outcome** | The original migration fixes were CI-verified. The v1.1.0 positive-integer hardening is a source-reviewed plan only; it was not implemented or run in this session. |
 | **Verification** | unverified for v1.1.0; the v1.0.0 migration workflow remains archived as verified-ci |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/timeout-refactor-env-var-to-cli-pitfalls.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/timeout-refactor-env-var-to-cli-pitfalls.history) |
 
 ## When to Use
 

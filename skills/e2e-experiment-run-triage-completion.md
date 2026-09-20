@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Triage partial E2E experiment batches, distinguish framework failures from model outcomes, repair checkpoint resumes, and verify completion counts."
 category: evaluation
 date: 2026-05-19
-version: "1.1.0"
+version: "1.1.1"
 user-invocable: false
 tags:
   - e2e
@@ -15,7 +15,7 @@ tags:
   - ablation
   - swe-bench
   - experiment-lifecycle
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/e2e-experiment-run-triage-completion.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/e2e-experiment-run-triage-completion.history"
 history-cleanup-date: "2026-09-20"
 ---
 # E2E Experiment Run, Triage, and Completion
@@ -114,19 +114,11 @@ for repo_dir in <results-dir>/repos/*/; do
   git -C "$repo_dir" worktree list 2>/dev/null | grep -v "bare"
 done
 
-# Remove stale worktrees for broken tests
-BROKEN="test-001|test-003"
-for repo_dir in <results-dir>/repos/*/; do
-  git -C "$repo_dir" worktree list 2>/dev/null | \
-    grep -E "($BROKEN)/" | awk '{print $1}' | while read wt; do
-      git -C "$repo_dir" worktree remove --force "$wt" 2>/dev/null || true
-    done
-  git -C "$repo_dir" worktree prune 2>/dev/null || true
-  git -C "$repo_dir" branch 2>/dev/null | grep -E "($BROKEN)_" | \
-    sed 's/[+* ]*//' | while read b; do
-      git -C "$repo_dir" branch -D "$b" 2>/dev/null || true
-    done
-done
+# After inspecting ownership, active use, and uncommitted/unmerged work,
+# use exact targets within the authorized cleanup scope. Do not select
+# deletion targets solely by a test-name match or suppress removal failures.
+git -C <repo-dir> worktree remove <confirmed-stale-worktree>
+git -C <repo-dir> branch -d <confirmed-merged-unused-branch>
 
 # Re-run broken experiments
 pixi run python scripts/manage_experiment.py run \

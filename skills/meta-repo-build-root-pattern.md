@@ -8,7 +8,7 @@ version: "1.2.1"
 user-invocable: false
 verification: verified-local
 tags: [cmake, justfile, meta-repo, build-root, out-of-tree, pixi, submodule, mojo, compose, dashboard, planning, reviewer-risk]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/meta-repo-build-root-pattern.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/meta-repo-build-root-pattern.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -22,7 +22,7 @@ history-cleanup-date: "2026-09-20"
 | **Objective** | Add `just build` to the Odysseus meta-repo that compiles C++/CMake submodules into `<root>/build/<Name>/` using CMake's native out-of-tree support, without adding cmake/ninja/etc. to root pixi.toml |
 | **Outcome** | Successful. PR #67 added just build/test/lint/clean recipes. PR #68 fixed e2e gaps. All 5 targets build; 489/489 Keystone tests pass. |
 | **Verification** | verified-local — CI only validates configs/YAML, not actual cmake execution |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/meta-repo-build-root-pattern.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/meta-repo-build-root-pattern.history) |
 
 ## When to Use
 

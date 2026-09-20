@@ -6,7 +6,7 @@ category: ci-cd
 date: 2025-12-30
 version: "1.2.0"
 user-invocable: false
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/verify-pr-ready.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/verify-pr-ready.history"
 history-cleanup-date: "2026-09-20"
 ---
 # Verify PR Ready for Merge
@@ -110,7 +110,7 @@ An access error is not evidence that there are no requirements.
 ## Evidence Boundary
 
 The prior entry recorded a ProjectOdyssey merge-validation workflow. That record and
-the complete prior text remain in [history](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/verify-pr-ready.history). The current policy
+the complete prior text remain in [history](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/verify-pr-ready.history). The current policy
 correction does not add operational verification or certify technical-English conformance.
 
 ## References

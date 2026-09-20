@@ -31,7 +31,7 @@ tags:
   - markdownlint
   - git-push
   - auto-merge
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/mesh-dispatch-pipeline-debugging.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/mesh-dispatch-pipeline-debugging.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -45,7 +45,7 @@ history-cleanup-date: "2026-09-20"
 | **Objective** | Dispatch GitHub issues through the live HomericIntelligence agent mesh (Agamemnon → NATS → claude-myrmidon Python workers → GitHub PRs) AND, when the mesh contends with your own manual PR work, detect it and drain the offending repo's tasks without decapitating the org-wide control plane |
 | **Outcome** | SUCCESS — original dispatch (v1.0.0) closed issues #22/#69 via PR #147; v1.1.0 detected + drained a concurrent mesh that force-pushed a failing rebase over the operator's Hephaestus PR #2056 fix; the operator's fix held at sha 79f9ebb3 after draining |
 | **Verification** | verified-local (v1.1.0 detection + drain performed live; not a CI-gated claim) |
-| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/mesh-dispatch-pipeline-debugging.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/mesh-dispatch-pipeline-debugging.history) |
 
 ## When to Use
 

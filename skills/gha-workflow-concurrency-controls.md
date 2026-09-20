@@ -32,13 +32,13 @@ tags:
   - typed-input
   - stable-entity-key
   - verified-local
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/gha-workflow-concurrency-controls.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/gha-workflow-concurrency-controls.history"
 history-cleanup-date: "2026-09-20"
 ---
 
 # GitHub Actions Workflow Concurrency Controls (Group Key + Cancel-in-Progress Selection)
 
-**History:** [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/gha-workflow-concurrency-controls.history)
+**History:** [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/gha-workflow-concurrency-controls.history)
 
 ## Overview
 

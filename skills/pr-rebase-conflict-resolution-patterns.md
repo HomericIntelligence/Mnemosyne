@@ -7,7 +7,7 @@ version: "2.1.1"
 license: BSD-3-Clause
 user-invocable: false
 tags: [git, rebase, merge-conflict, pull-request, worktree, force-with-lease, semantic-conflict, stacked-pr, ci]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/pr-rebase-conflict-resolution-patterns.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pr-rebase-conflict-resolution-patterns.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -25,7 +25,7 @@ runtime behavior, tests, policy prose, generated state, and inventories.
 
 - Verification: `verified-ci` overall. Individual cases retain their original
   status in [the case notes](./pr-rebase-conflict-resolution-patterns.notes.md).
-- Full prior versions: [history](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/pr-rebase-conflict-resolution-patterns.history).
+- Full prior versions: [history](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pr-rebase-conflict-resolution-patterns.history).
 
 ## When to Use
 
@@ -253,4 +253,4 @@ new head.
 ## References
 
 - [Detailed case index and evidence](./pr-rebase-conflict-resolution-patterns.notes.md)
-- [Version history and full superseded content](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/pr-rebase-conflict-resolution-patterns.history)
+- [Version history and full superseded content](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pr-rebase-conflict-resolution-patterns.history)

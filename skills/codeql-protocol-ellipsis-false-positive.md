@@ -7,7 +7,7 @@ date: 2026-07-12
 version: "1.1.0"
 verification: verified-ci
 tags: ["codeql", "protocol", "pep-544", "ellipsis", "false-positive", "bot-automation", "review-threads", "github-graphql", "typing", "structural-typing"]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/codeql-protocol-ellipsis-false-positive.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/codeql-protocol-ellipsis-false-positive.history"
 history-cleanup-date: "2026-09-20"
 ---
 

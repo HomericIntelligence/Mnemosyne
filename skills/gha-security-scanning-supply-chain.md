@@ -8,7 +8,7 @@ user-invocable: false
 license: BSD-3-Clause
 verification: verified-local
 tags: [github-actions, codeql, semgrep, gitleaks, bandit, zizmor, sarif, sast, supply-chain, sha-pinning, least-privilege, fail-closed]
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/gha-security-scanning-supply-chain.history"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/gha-security-scanning-supply-chain.history"
 history-cleanup-date: "2026-09-20"
 ---
 
@@ -21,7 +21,7 @@ write permissions only to the job that needs them, pin every action and download
 machine formats with a machine parser. This compact reference retains the reusable decisions and
 copy-ready commands. Detailed case evidence is in
 [the notes](./gha-security-scanning-supply-chain.notes.md); the exact superseded content is in
-[history](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/gha-security-scanning-supply-chain.history).
+[history](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/gha-security-scanning-supply-chain.history).
 
 Verification remains `verified-local`. Established scanning, pinning, SARIF, and triage procedures
 were exercised locally or in their cited cases. The fail-closed Bandit LOW-baseline design and the
@@ -207,4 +207,4 @@ complete JSON. The checker, not Bandit's ordinary finding exit, becomes the poli
 ## Companions
 
 - [Case notes](./gha-security-scanning-supply-chain.notes.md)
-- [Version history and exact superseded snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3/skills/gha-security-scanning-supply-chain.history)
+- [Version history and exact superseded snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/gha-security-scanning-supply-chain.history)
