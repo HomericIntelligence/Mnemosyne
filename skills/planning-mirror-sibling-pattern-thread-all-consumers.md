@@ -1,10 +1,10 @@
 ---
 name: planning-mirror-sibling-pattern-thread-all-consumers
 license: BSD-3-Clause
-description: "Planning discipline for 'mirror-a-sibling-pattern' fixes: when you copy a hardening/config pattern (a new token/env-var/identifier) from one listener/handler block to a PARALLEL block, the new identifier must be threaded through EVERY consumer of that config in the SAME plan — not just the config file. Adding a `$NEW_TOKEN` reference to a config block silently breaks any tool that PARSES that config (CI `nats-server -t` parse step, validators, deploy scripts) unless the env var is also set in THAT invocation, and the var must resolve NON-EMPTY even on single-host deploys where the parallel block has no routes/remotes. The convention-guard corollary: a new config identifier gets THREE synchronized homes — the validator gets a new check, the parse/CI step gets the new env var, and the docs get the var documented. Use when: (1) planning a fix that mirrors a sibling hardening across parallel config blocks (cluster{} mirroring leafnodes{}, one IAM/OPA block mirroring another), (2) you add a `$VAR`/token to a config that a CI step parses with a structural validator (nats-server -t, nomad fmt, opa parse), (3) a brace-depth-aware or section-scoped validator already guards a sibling block and you add a Nth check, (4) you assert an ADR is editable because its Status is 'Proposed', (5) you assume one config engine's env-substitution behavior carries over to a parallel block of the SAME engine, (6) you grep for the consumers of the original pattern's identifiers and must confirm enumeration is COMPLETE before scoping the plan."
+description: "Extend a sibling configuration pattern across its parser, validator, deployment, and documentation consumers; check environment substitution at the actual use site."
 category: architecture
 date: 2026-06-20
-version: "1.0.1"
+version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags:
@@ -63,8 +63,8 @@ or you ship a config that validates STRUCTURALLY but breaks a downstream parse g
   parallel block of the SAME engine without running the daemon to confirm.
 
 **Key trigger:** you find yourself saying "this just mirrors what #176 did for the leafnode block"
-— STOP and enumerate every place #176's token is consumed, then thread the new token through ALL of
-them in this plan.
+— inspect the sibling token's consumers and include the new token where those consumers need it.
+Continue independent work while resolving any uncertain consumer behavior.
 
 ## Proposed Workflow
 
@@ -135,8 +135,8 @@ NATS_CLUSTER_TOKEN=z nats-server -c configs/nats/server.conf -t   # 'z' = non-em
 5. **Treat ADR mutability as an ASSUMPTION, not a fact.** If extending an ADR (here ADR-009, Status
    "Proposed"), state explicitly that you are relying on the documented principle that ADRs freeze
    only once "Accepted" (CLAUDE.md principle 3). If the project treats even Proposed ADRs as
-   append-only, the plan must write a NEW ADR instead of editing the existing one. Flag this for the
-   reviewer rather than silently editing.
+   append-only, the plan must write a NEW ADR instead of editing the existing one. Use repository policy and history to resolve this choice; ask for input only if material
+   governance ambiguity remains.
 
 6. **Do not assume env-substitution parity across parallel blocks of the same engine.** `token =
    "$NATS_CLUSTER_TOKEN"` in `cluster{} authorization{}` is ASSUMED to expand the same way the

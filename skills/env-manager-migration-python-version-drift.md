@@ -1,10 +1,10 @@
 ---
 name: env-manager-migration-python-version-drift
 license: BSD-3-Clause
-description: "Migrating between Python environment managers (pixi->uv, conda->uv, poetry->uv) can make the new resolver pick a DIFFERENT interpreter version, silently re-exposing latent version-dependent bugs the old version masked. Use when: (1) migrating a repo's Python env manager (pixi->uv, conda->uv, poetry->uv), (2) CI goes red right after an env-manager swap even though nothing 'real' changed, (3) a test that was green before the migration now fails on the same source, (4) you must decide whether a newly-surfaced failure is a real bug or a version regression, (5) a repo policy forbids a top-level pyproject.toml but the uv migration needs one to lock the build toolchain."
+description: "Diagnose interpreter and dependency drift during Python environment-manager migrations; separate toolchain changes from version changes."
 category: ci-cd
 date: 2026-07-18
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-ci
 tags:
@@ -73,8 +73,9 @@ cat .python-version
    *version* change. This stops uv from silently grabbing a newer/older Python and lets you land
    the manager swap and the version bump as separate, reviewable steps.
 
-4. **Treat every newly-exposed failure as a REAL bug and fix it in source.** Never weaken, skip,
-   `xfail`, or delete the test. Two latent bugs surfaced only under py3.12 in ProjectScylla:
+4. **Classify newly exposed failures against the supported contract.** Repair genuine source
+   regressions; correct a stale test only when evidence establishes the intended behavior.
+   Avoid weakening tests to hide defects. Two latent bugs surfaced under py3.12 in ProjectScylla:
 
    - `scipy.stats.mannwhitneyu(identical, identical)` returns `p=NaN` in newer scipy (zero rank
      variance), so a test asserting `p > 0.05` failed as `assert nan > 0.05`. **Real fix:** add an

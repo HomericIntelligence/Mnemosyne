@@ -1,10 +1,10 @@
 ---
 name: verification-evidence-audit
 license: BSD-3-Clause
-description: "Verify completion, fix, passing-check, metric, CI, or benchmark claims with fresh runnable evidence. Use when: (1) about to claim work is complete/fixed/passing/ready, (2) a measured value, CI result, benchmark, or training loss is posted, (3) a success claim cites a committed file or badge instead of a live gate"
+description: "Verify completion, fix, passing-check, metric, CI, or benchmark claims with applicable evidence. Use when: (1) about to claim work is complete/fixed/passing/ready, (2) a measured value, CI result, benchmark, or training loss is posted, (3) a success claim cites a committed file or badge instead of a live gate"
 category: testing
 date: 2026-07-16
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 tags: [verification, evidence, ci, claims, integrity]
 ---
@@ -23,25 +23,28 @@ tags: [verification, evidence, ci, claims, integrity]
 
 - Before any claim that work is complete, fixed, passing, or ready.
 - Whenever a measured value, CI result, benchmark, training loss, or successful-run claim is posted.
-- For a completion claim, discover and freshly run the repository-defined relevant validation; a prior run, badge, or implementation diff is not evidence of the current state.
+- For a completion claim, inspect relevant validation evidence. Reuse a prior run when
+  its source inputs, command, configuration, and environment still apply; otherwise run
+  the affected checks or report the coverage gap. A badge or diff alone does not prove success.
 - The audit does not automatically reproduce an expensive or side-effecting run; it queries current read-only evidence and may re-execute safe, bounded verification commands.
 
 ## Inputs
 
 1. **The claim.** A sentence like "the build passed in 4m12s" or "epoch 1 loss = 0.4123". Quoted verbatim.
-2. **The evidence pointer.** A path, a URL, or a CI run id. If absent, ask before proceeding.
+2. **The evidence pointer.** A path, URL, or CI run ID. If absent, search available records
+   first. Ask for missing information only when it materially affects the claim.
 
 ## Verified Workflow
 
 ### Detailed Steps
 
 1. **Classify the claim type.**
-   - **Completion/fix claim**: evidence is fresh output from the repository-defined relevant tests, validation, lint, type, build, or package commands at the claimed revision.
+   - **Completion/fix claim**: evidence is applicable output from relevant checks, with the tested revision and any reason for reuse stated.
    - **CI gate result** ("all checks pass"): evidence is the `gh pr checks` JSON, not a PR body line.
    - **Measured metric / benchmark**: evidence is a CI-produced artifact or an independently-reproduced log; a file committed into a PR does NOT count.
    - **Training/optimization result**: accepted evidence is a CI-produced artifact or a detached-execution run record bound to the reviewed revision.
    - **Operational status** ("the daemon is running"): `systemctl status` or `podman ps` output.
-2. **Locate the evidence.** Use read-only file inspection for workspace evidence. Run read-only commands such as `gh pr checks`, `systemctl status`, or `podman ps` directly when the host grants Bash. Quote user-provided identifiers, reject values beginning with `-`, and prefer structured output. Delegate an independent or long-running check when the host grants subagents. If neither execution nor delegation is available, return `CONDITIONAL` or `NO-GO` with the exact command the caller must run; never present an unexecuted command as evidence. Any command with side effects, credentials beyond read access, or material cost requires explicit user authority.
+2. **Locate the evidence.** Use read-only file inspection for workspace evidence. Run read-only commands such as `gh pr checks`, `systemctl status`, or `podman ps` directly when the host grants Bash. Quote user-provided identifiers, reject values beginning with `-`, and prefer structured output. Delegate an independent or long-running check when the host grants subagents. If execution is unavailable, report the evidence gap and a suggested verification command; continue independent work. Never present an unexecuted command as evidence. Use existing task authorization for routine checks. Seek additional authority only when a proposed action exceeds that scope, such as a costly external run.
 3. **Apply the evidence audit table.**
 
    | Claim type | Accepted evidence | Default verdict |
@@ -51,7 +54,8 @@ tags: [verification, evidence, ci, claims, integrity]
    | Committed `epoch*.log` file in PR | n/a | **NEVER** independent evidence |
    | Training result on slow path | detached-execution run record | NO-GO unless a follow-up evidence-collection task has landed |
 
-4. **Report** using the output contract below. **Do not soften the verdict.** A NO-GO with a clear "here is what would change it" answer is the right outcome for a fabricated claim.
+4. **Report** the evidence and limits clearly. The format below is optional. An unsupported
+   claim needs correction or qualification; it does not require stopping unrelated work.
 
 ## Failed Attempts
 

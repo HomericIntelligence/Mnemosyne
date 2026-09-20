@@ -1,10 +1,10 @@
 ---
 name: planning-self-identified-defects-must-be-fixed-not-noted
 license: BSD-3-Clause
-description: "When a planning agent writes a plan that includes both (a) load-bearing content (fabricated file paths, illustrative numeric values, tensor arithmetic, benchmark tables, verification transcripts) AND (b) a self-authored 'Learnings captured during planning' / 'Known Issues' / 'Caveats' addendum that flags the SAME content as defective (wrong arithmetic, guessed paths, unverified assumptions), the plan is a NOGO regardless of how carefully the addendum is worded. The addendum is a CONFESSION, not a FIX. Reviewers observe the confession and reject; executors may skip the addendum and ship the defective content. The self-identification proves the planner could have fixed the defect — declining to do so and shifting the burden to the reader is what causes the NOGO. RULE: if you (the planner) identify a defect in your own plan, you have exactly two acceptable paths — (1) FIX the defect in the plan body before submitting (replace fabricated content with a placeholder token + structural gate that blocks execution until resolved, or delete the section and mark scope as reduced), OR (2) DOWNGRADE the plan verdict to `BLOCKED` and mark the affected section `## TODO: BLOCKED ON <specific missing input>` with no defective content in that section. NEVER emit BOTH a defect note AND the defective content in the plan body; NEVER present a defect note as 'transparency' — transparency is not a substitute for correctness. Use when: (1) you are writing a 'Learnings' / 'Caveats' / 'Known Gaps' section in your own plan, (2) a reviewer asks you to revise a plan they NOGO'd where your prior revision self-flagged defects but did not fix them, (3) you are tempted to add a hedging note ('the executor must overwrite these values before creating the PR') alongside illustrative content in a plan template, (4) you are drafting any plan where you notice you cannot verify something a section claims — decide FIX or BLOCK before writing that section, not after."
+description: "Correct self-identified plan defects when caveats leave inaccurate values, paths, or unsupported claims in actionable sections."
 category: architecture
 date: 2026-07-02
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags:
@@ -19,7 +19,7 @@ tags:
   - meta-rule
 ---
 
-# Planning: Self-Identified Defects Must Be Fixed Or Blocked — Never Noted
+# Planning: Correct Self-Identified Defects
 
 ## Overview
 
@@ -35,7 +35,7 @@ tags:
 - You are drafting a "Learnings captured during planning" / "Known Gaps" / "Caveats" / "Assumptions" section in your OWN plan document (not another person's plan; a caveats section calling out load-bearing risks is fine; a caveats section calling out defects YOU introduced and did not fix is not).
 - A reviewer has NOGO'd a plan you authored with a list of concrete defects, and your revision plan involves "adding a note explaining the defect" rather than fixing or blocking on it.
 - You catch yourself writing prose of the form "these numbers are illustrative; the executor must replace them before creating the PR" — this is exactly the pattern this skill warns against; the illustrative content plus hedge is worse than either alone.
-- You are producing a plan where a section makes a claim you cannot verify (an API surface, a file path, a numeric value, a compat script's behavior) — decide `FIX` or `BLOCK` BEFORE writing that section, not after.
+- A plan depends on an API, path, value, or helper behavior that has not yet been verified.
 - Any planning session where the deliverable is "a plan a reviewer will approve or NOGO" — reviewers evaluate the plan body, not the confession addendum; a self-identified defect is a defect.
 
 ## Verified Workflow
@@ -48,76 +48,55 @@ tags:
 
 ### Quick Reference
 
-```text
-Before submitting a plan, for every section you drafted:
-  1. Does the section contain a claim, number, path, or arithmetic result?
-     - NO → done.
-     - YES → continue.
-  2. Can you verify the claim from a source available at plan time?
-     - YES → verify it now, edit the section to match ground truth, done.
-     - NO  → continue.
-  3. Choose FIX or BLOCK:
-     - FIX:   replace the unverifiable content with a placeholder token
-              (`<<TOKEN>>`) AND add a render-script structural gate that
-              fails if the token is unresolved at execute time
-              (see planning-pr-body-extract-sibling-artifact-at-runtime).
-     - BLOCK: mark the section `## TODO: BLOCKED ON <specific missing input>`
-              with NO defective content in it; downgrade plan verdict to
-              `BLOCKED | Reason: <what is missing>`.
-  4. FORBIDDEN: keep the unverifiable content in the section AND add a
-     separate note (in a "Learnings" / "Known Issues" / "Caveats" section
-     or as inline prose) saying the content is wrong.
+Correct inaccurate claims in the section that a reader will act on. If evidence is missing,
+use a clear placeholder, remove the unsupported assertion, or describe the assumption and
+how it will be checked. Continue work that does not depend on that missing input.
 
-Self-review check before submit:
-  grep -inE 'illustrative|example.*overwrite|executor.*replace|these values are|actual values will|placeholder for now' plan.md
-  # Any hit → either fix, block, or convert to a `<<TOKEN>>` with a gate.
-```
+### Suggested Approach
 
-### Detailed Steps
+1. Identify the specific inaccurate value, path, calculation, or behavior claim.
+2. Inspect available source and correct the claim where possible. A separate caveat does
+   not make an incorrect actionable instruction correct.
+3. If evidence comes from later work, describe its source and use a clearly marked
+   placeholder. For a report generator, consider a check that prevents unresolved
+   placeholders from being published as real results.
+4. Separate an uncertain design assumption from a known defect. An assumption can support
+   continued work when its consequences and fallback are clear; fabricated evidence cannot.
+5. Keep the missing input local to the affected step. Continue independent implementation,
+   investigation, or review. Seek user input only for a material unresolved decision or
+   an action outside current authorization.
+6. In review, suggest the concrete correction and its effect on dependent work. Use an
+   existing GO/NOGO protocol only when the active workflow actually requires one; do not
+   invent a new approval round for every self-review finding.
 
-1. **Recognize the trap early.** The temptation to write "here is illustrative content, and here is a note explaining it's illustrative" comes from wanting to LOOK complete without BEING complete. Reviewers see through it; executors miss the note. There is no reader for whom this pattern is a net positive.
-2. **Transparency about a defect is not a fix for the defect.** A confession disclosure ("I acknowledge the tensor arithmetic below is wrong") is honesty about a flaw, not a repair of it. Only two things count as repairs: (a) editing the plan body so the flaw is gone, (b) marking the section BLOCKED so the flaw is not shipped downstream.
-3. **The addendum-is-not-a-fix rule is content-type-independent.** It applies equally to fabricated file paths (see `planning-pr-open-file-scope-via-git-diff`), illustrative numeric values (see `planning-pr-body-numeric-claims-source-derived`), sibling-artifact placeholders (see `planning-pr-body-extract-sibling-artifact-at-runtime`), and unverified load-bearing assumptions (see `planning-pr-open-load-bearing-assumption-hygiene`). Those skills cover the domain-specific fixes; this skill covers the meta-rule that binds them.
-4. **When BLOCK is correct, use it.** A plan whose verdict is `BLOCKED | Reason: cannot verify <X> without <Y>` is a GO signal in disguise: it tells the reviewer exactly what unblocks the plan. A plan that ships defective content with a caveat is a NOGO whose only path forward is another revision cycle.
-5. **When FIX is correct, use a structural gate — not a conditional prose instruction.** "If the numbers above differ from reality, the executor must overwrite them" is a conditional prose gate: it fires only if the executor NOTICES the mismatch. Replace with `<<TOKEN>>` + a render-time `grep -q '<<' && exit 1` gate that fires regardless of executor attention (see `planning-pr-body-extract-sibling-artifact-at-runtime` §Structural gates > conditional overrides).
-6. **In review**, treat a plan's "Learnings captured during planning" section as a reviewer signal: if it flags defects, the plan should be NOGO'd back for repair even if the reviewer had not independently noticed the defects. The planner's own signal is authoritative.
+The recorded case used render-time placeholder checks. That is one useful mechanism for
+preventing fabricated evidence, not a required plan format or a reason to stop the whole task.
 
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 | --------- | ---------------- | --------------- | ---------------- |
-| Attempt 1 | ProjectOdyssey #5527 R0 plan: include fabricated tensor arithmetic and guessed file paths in the plan body, add a "Learnings captured during planning" section flagging F1/F2/F3/F4 as self-identified defects, submit the plan for review. | Reviewer NOGO'd on the exact defects the planner self-flagged. The addendum did not shield the plan body; it advertised the plan body's flaws. The revision cycle cost a full R1 round-trip that would have been unnecessary if R0 had either fixed or blocked on the flagged items. | Self-identified defects are grounds for internal revision BEFORE submitting, not for adding a caveat AFTER writing the defective content. Fix or block — never note. |
+| Attempt 1 | ProjectOdyssey #5527 R0 plan: include fabricated tensor arithmetic and guessed file paths in the plan body, add a "Learnings captured during planning" section flagging F1/F2/F3/F4 as self-identified defects, submit the plan for review. | Reviewer NOGO'd on the exact defects the planner self-flagged. The addendum did not shield the plan body; it advertised the plan body's flaws. The revision cycle cost a full R1 round-trip that would have been unnecessary if R0 had either fixed or blocked on the flagged items. | Self-identified defects are grounds for internal revision BEFORE submitting, not for adding a caveat AFTER writing the defective content. Correct the actionable content or identify the affected dependency; continue independent work. |
 | Attempt 2 | Same R0 plan: include an "illustrative" loss log block inline with a hedging note ("the executor will overwrite these before creating the PR"). | The hedging note is a conditional gate — it depends on the executor reading and honoring it. Reviewers may skim the hedge and treat the numbers as real; executors may skip the hedge and ship the illustrative values. Silent enforcement is not enforcement. | Replace illustrative content + hedge with a `<<TOKEN>>` placeholder + a render-time structural gate that fails when the token is unresolved. See `planning-pr-body-extract-sibling-artifact-at-runtime` §Structural gates. |
-| Attempt 3 | Same R0 plan: assert `just precommit` will pass without `SKIP=mojo-format` based on a claim about a compat wrapper the planner had not read; call out the unread status of the wrapper in the "Learnings" section. | The claim is load-bearing (the plan's PR-open step depends on it); calling out that the claim is unverified while still making the claim is the same anti-pattern in a different domain. Reviewer NOGO'd on the unverified assumption. | Either read the wrapper (verify) or hedge the claim explicitly with a documented fallback (see `planning-pr-open-load-bearing-assumption-hygiene`). Do not both make an unverified claim and disclose it as unverified. |
+| Attempt 3 | Same R0 plan: assert `just precommit` will pass without `SKIP=mojo-format` based on a claim about a compat wrapper the planner had not read; call out the unread status of the wrapper in the "Learnings" section. | The claim is load-bearing (the plan's PR-open step depends on it); calling out that the claim is unverified while still making the claim is the same anti-pattern in a different domain. Reviewer NOGO'd on the unverified assumption. | Either read the wrapper (verify) or hedge the claim explicitly with a documented fallback (see `planning-pr-open-load-bearing-assumption-hygiene`). Distinguish a labeled assumption from a verified behavior claim. |
 
 ## Results & Parameters
 
-### Configuration
+### Suggested Configuration
 
-```yaml
-plan-pattern:
-  self-identified-defect-policy:
-    forbidden:
-      - "defective content in plan body + caveat noting defect elsewhere"
-      - "illustrative values + hedging note telling executor to replace"
-      - "unverified load-bearing claim + disclosure that it is unverified"
-    allowed:
-      - fix:
-          replace: "<<TOKEN>> placeholder"
-          gate: "render-time structural gate (grep -q '<<' && exit 1)"
-      - block:
-          section-marker: "## TODO: BLOCKED ON <specific missing input>"
-          plan-verdict: "BLOCKED | Reason: <what is missing>"
-    self-review-command: |
-      grep -inE 'illustrative|example.*overwrite|executor.*replace|these values are|actual values will|placeholder for now' plan.md
-      # Any hit MUST be resolved to FIX or BLOCK before submit.
-```
+Record the affected claim, its evidence source, the correction or remaining uncertainty,
+and the work that depends on it. Use a placeholder check when a generated report could
+otherwise present missing evidence as a real result.
 
 ### Expected Output
 
-- Plans submitted to review contain no self-identified defects in the plan body. Any defect the planner identifies is either fixed in place (via placeholder + gate) or the section is marked BLOCKED.
-- Reviewers do not need to read a "Learnings captured during planning" section to know whether the plan body is defective — the plan body is either correct or explicitly blocked.
-- R0 → R1 revision cycles caused by "planner flagged the defect but did not fix it" drop to zero.
+- The actionable plan text reflects known corrections.
+- Missing evidence is visible at the point of use.
+- Independent work continues while a dependency is resolved.
+- The final report separates completed results, assumptions, and unresolved inputs.
+
+The historical case below supports the defect-correction lesson. It does not establish
+that one format eliminates all future review cycles.
 
 ## Verified On
 

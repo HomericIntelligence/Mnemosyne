@@ -433,3 +433,26 @@ with `git show <sha> -- <path>` and `grep` on disk.
 | ProjectHephaestus | PR #977 (issue #794) — `hephaestus-automation-loop` oscillating on `794-auto-impl` | Loop's address sub-agent committed the one-word `.github/workflows/test.yml` fix locally (`b8b1a803` in `build/.worktrees/issue-794`) but never pushed; remote stayed at `d0de3521`, re-opening the thread every pass. Recovered by rebase + re-sign (committer `4211002+mvillmow@users.noreply.github.com`) + `--force-with-lease` push as `9cc5f307`, then a single loop re-run. verified-local (PR not yet merged at capture time). |
 | ProjectHephaestus | PR #2280 — scope containment | An out-of-scope review draft was committed locally after its agent was stopped; the remote remained at safe `621ebc29` because the queued push was stopped, and local `563d7d81` was discarded from the detached review worktree. |
 `````
+
+## v1.2.0: legacy privacy-redaction record
+
+Archive status: `privacy-redacted`. The prior content included personal or
+private research details. The exact snapshot is intentionally omitted.
+The amendment preserves the reusable workflow while generalizing that context.
+Provenance: the prior corpus entry reviewed during this migration.
+
+## v1.3.0: advisory guidance revision
+
+Revised active guidance for task completion and appropriate use of existing
+authorization. Generalized private examples without copying their evidence.
+Existing verification status is unchanged; no new execution is claimed.
+
+
+## Rebase integration (2026-09-20)
+
+Combined the advisory migration with upstream task-phase rebase guidance.
+The resulting skill version is `1.3.0`. The original migration archive remains
+unchanged. The upstream predecessor is preserved in Git at
+`1528432a1873e93e0c16609dd3c3cfd3c5f0d545:skills/automation-review-loop-unpushed-fix-oscillates.md`.
+Upstream content SHA-256: `af5750977a6a87919824aaff4e575cf1245bd40a84df72c4c43d292f133341dc`.
+No new execution verification is claimed.

@@ -1,10 +1,10 @@
 ---
 name: github-ruleset-write-scope-404
 license: BSD-3-Clause
-description: "Use when: (1) `gh api --method PATCH repos/<o>/<r>/rulesets/<id>` returns `404 Not Found` even though `GET` on the identical URL succeeds and `gh api repos/<o>/<r> --jq .permissions` shows `admin:true`; (2) diagnosing whether a ruleset-write failure is a real permission gap or a `gh` CLI / request-shape bug before trying workarounds; (3) planning a batch ruleset mutation (e.g. flipping `required_status_checks` across many repos) and need to pre-flight whether the current token can actually write, not just read; (4) a classic OAuth token (`gho_...`) with `repo`+`workflow` scopes and confirmed repo-admin role still cannot PATCH/PUT a repository ruleset; (5) deciding the correct remediation — `gh auth refresh -h github.com -s admin:org` vs. a fine-grained PAT vs. the GitHub UI — for a ruleset-write permission gap."
+description: "Diagnose GitHub ruleset writes that return 404 despite readable rulesets and repo-admin metadata; distinguish request errors from missing write authority."
 category: ci-cd
 date: 2026-07-19
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags:
@@ -111,10 +111,10 @@ gh auth refresh -h github.com -s admin:org     # interactive: browser or device-
 5. **The fix requires an interactive step an agent cannot complete unattended.**
    `gh auth refresh -h github.com -s admin:org` opens a browser or prints a device code — there is no
    headless/scripted equivalent. When operating as an agent without a human present to complete that
-   flow, the correct move is to **stop and report the exact blocker plus the exact remediation
-   command**, staging the intended mutation payload (via `GET`, verified, and saved to a file) so it
-   is ready to execute the instant the credential is refreshed — not to retry variations of the same
-   call hoping a different flag succeeds.
+   flow, report the missing authorization and the operator remediation
+   command, while preparing the intended mutation payload (via `GET`, verified, and saved to a file) so it
+   is ready after authorization is restored. Continue independent work; repeated writes with
+   the same insufficient credentials do not resolve the boundary.
 
 6. **A fine-grained PAT or the GitHub UI are equally valid alternatives to the OAuth scope refresh.**
    If an interactive `gh auth refresh` session is inconvenient, a fine-grained personal access token

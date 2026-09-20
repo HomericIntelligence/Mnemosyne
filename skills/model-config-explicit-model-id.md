@@ -1,10 +1,10 @@
 ---
 name: model-config-explicit-model-id
 license: BSD-3-Clause
-description: "Skill: model-config-explicit-model-id"
+description: "Check explicit model IDs and loader fallbacks in YAML configuration. Use when issue claims are stale or comments disagree with the configured identifier."
 category: tooling
 date: 2026-03-19
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 ---
 # Skill: model-config-explicit-model-id
@@ -100,7 +100,7 @@ Key tests:
 pixi run python -m pytest tests/ -v
 ```
 
-The coverage failure (`3.29% < 73%`) when running `tests/unit/config/test_loader.py` alone is expected — the coverage threshold is computed across the entire codebase. Always run `tests/` (full suite) for final verification.
+The coverage failure (`3.29% < 73%`) when running `tests/unit/config/test_loader.py` alone is expected — the coverage threshold is computed across the entire codebase. Use the full suite when measuring that aggregate threshold; focused tests remain useful for the changed loader behavior.
 
 ## Failed Attempts
 

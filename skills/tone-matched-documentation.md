@@ -5,7 +5,7 @@ description: Fill placeholder sections while preserving the author's narrative s
   matching the existing writing style and tone
 category: tooling
 date: 2026-01-11
-version: 1.1.0
+version: "1.2.0"
 user-invocable: false
 ---
 # Tone-Matched Documentation Skill
@@ -48,9 +48,9 @@ Use this skill when:
 
 ## Verified Workflow
 
-### Phase 1: Analyze Existing Style (CRITICAL)
+### Phase 1: Inspect the Existing Style
 
-**Before writing anything, read multiple existing sections to identify:**
+Read representative existing sections to identify:
 
 1. **Sentence Structure Patterns**
    - Length: Short punchy sentences vs. longer complex ones?
@@ -89,14 +89,15 @@ Use this skill when:
 
 ### Phase 3: Fill Sections Incrementally
 
-**Do NOT fill all sections at once.** Work in batches:
+For a long document, consider batches that make style comparison easier:
 
 1. **Batch 1: Similar sections** (e.g., all methodology sections)
    - Fill 3-4 related sections
    - Apply same style rules consistently
    - Mark todos as you go
 
-2. **User feedback checkpoint**: Wait for correction if tone is off
+2. **Style check**: Compare the draft with the author's examples and adjust it. Continue
+   the requested sections; ask only when the intended voice is materially unclear.
 
 3. **Batch 2: Different type** (e.g., results/discussion sections)
    - Adjust style guide if needed for different content type
@@ -130,13 +131,13 @@ register for dense provenance details so the main narrative remains readable.
 
 Copy-paste ready configurations and expected outputs.
 
-## Failed Attempts & Lessons
+## Failed Attempts
 
-| Attempt | Why It Failed | Key Lesson |
-| --------- | --------------- | ------------ |
-| **Fill all sections with standard academic tone** | Produced overly formal, stiff language ("We present", "Our methodology employs", passive voice, formal transitions) that clashed with author's conversational intro/summary sections | **ALWAYS read existing sections first** to identify author's voice before writing anything |
-| **Mixed first/third person inconsistently** | Some sections used "I" while others used "the framework" or "we", creating jarring inconsistency across the document | **Pick one perspective** and stick to it throughout - if author uses first person in existing sections, use it everywhere |
-| **Over-simplified technical content** | Tried to make EVERYTHING conversational, which oversimplified complex technical concepts (e.g., changed "Hierarchical Bayesian models" to "fancy statistical models") and lost precision | **Keep technical terms technical** - conversational tone doesn't mean dumbing down, it means explaining clearly while avoiding unnecessary formality |
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | --------------- | --------------- | ------------ |
+| **Fill all sections with standard academic tone** | Used generic formal prose throughout | Produced overly formal, stiff language ("We present", "Our methodology employs", passive voice, formal transitions) that clashed with author's conversational intro/summary sections | **ALWAYS read existing sections first** to identify author's voice before writing anything |
+| **Mixed first/third person inconsistently** | Changed narrative perspective between sections | Some sections used "I" while others used "the framework" or "we", creating jarring inconsistency across the document | **Pick one perspective** and stick to it throughout - if author uses first person in existing sections, use it everywhere |
+| **Over-simplified technical content** | Replaced precise technical terms with casual substitutes | Tried to make EVERYTHING conversational, which oversimplified complex technical concepts (e.g., changed "Hierarchical Bayesian models" to "fancy statistical models") and lost precision | **Keep technical terms technical** - conversational tone doesn't mean dumbing down, it means explaining clearly while avoiding unnecessary formality |
 
 ---
 

@@ -1,10 +1,10 @@
 ---
 name: agent-background-task-failure-recovery
 license: BSD-3-Clause
-description: "Detect and recover from silent background agent failures caused by API connection errors. Use when: (1) a background agent completes but its result shows 'API Error: Unable to connect to API', (2) files appear untouched after a background agent run, (3) deciding whether to use run_in_background vs foreground for a multi-file task."
+description: "Recover unfinished agent work when completion messages contain API failures or expected edits are missing."
 category: tooling
 date: 2026-04-17
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [background-agent, run_in_background, api-error, connection-refused, recovery, foreground-agent]
@@ -50,12 +50,9 @@ grep -rn "<pattern-agent-was-fixing>" <target-directory>/
 
 3. **Audit what was actually changed**: Re-run the grep or search pattern the agent was supposed to fix to see which files it touched vs. which remain unchanged.
 
-4. **Launch a fresh foreground agent** (no `run_in_background`) scoped only to the remaining unfixed files. Foreground agents are more reliable for tasks involving many sequential tool calls across many files.
+4. **Continue the unfinished work** directly or with a fresh agent scoped to the remaining files. Consider foreground execution when background connectivity has failed.
 
-5. **For mid-flight instruction changes**: `SendMessage` is not available in the main conversation context to redirect a running background agent. Options are:
-   - Wait for it to complete, then launch a corrective agent to undo/redo the work.
-   - Accept that the in-flight agent will use the old instructions.
-   - **Prevention**: Keep agents in the foreground when requirements might change, so the user can see progress and intervene before launching follow-up agents.
+5. **For changed requirements**, use available agent messaging or interruption controls. If those controls are unavailable, reconcile the returned work with the latest request before integration. Continue independent work while waiting.
 
 ## Failed Attempts
 

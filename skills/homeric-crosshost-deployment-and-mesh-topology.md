@@ -1,10 +1,10 @@
 ---
 name: homeric-crosshost-deployment-and-mesh-topology
 license: BSD-3-Clause
-description: "Deploy and diagnose the HomericIntelligence mesh across Tailscale hosts using NATS JetStream, compose overlays, native launchers, and resilient process boundaries. Use for cross-host topology, NATS leaf/auth/TLS planning, Grafana hardening, Telemachy client-certificate wiring, publish retry, dual-runtime health checks, and NATS SIGKILL/restart failures."
+description: "Document cross-host deployment and mesh topology from host-specific evidence. Distinguish service binding, routing, and deployment ownership."
 category: architecture
 date: 2026-06-20
-version: "2.0.0"
+version: "2.0.1"
 user-invocable: false
 verification: unverified
 history: homeric-crosshost-deployment-and-mesh-topology.history

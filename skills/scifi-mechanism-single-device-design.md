@@ -1,10 +1,10 @@
 ---
 name: scifi-mechanism-single-device-design
 license: BSD-3-Clause
-description: "Design a single speculative-but-rigorous physics mechanism for a fictional sci-fi device, grounded in real cited science, with a Laws-Broken Ledger, Walls Defeated table, Parsimony/Capability scores, and Failure Modes. Use when: (1) a Myrmidon swarm agent is assigned one mechanism (MNN-name) to design in isolation, (2) the mechanism file must follow the HomericIntelligence/Story M-series template, (3) you need real cited papers (URL+date, ≥4) anchoring speculative extrapolations, (4) the prompt says 'pure science — no story/plot/character content'."
+description: "Design a fictional physics mechanism using cited science, explicit speculative assumptions, limits, and failure modes; adapt the M-series format when requested."
 category: documentation
 date: 2026-06-01
-version: "1.4.0"
+version: "1.5.0"
 user-invocable: false
 verification: verified-local
 history: scifi-mechanism-single-device-design.history
@@ -29,7 +29,7 @@ tags: [scifi, worldbuilding, mechanism-design, physics, citations, hard-walls, m
 - The output path is `Story/Research/Mechanisms/MNN-<slug>.md` (HomericIntelligence/Story repo).
 - The prompt includes the 14 Hard Walls list and requires all 14 to be addressed.
 - The mechanism is **physics-grounded speculative fiction** — real science anchor + clearly labeled departures, no narrative prose.
-- You need ≥4 real cited papers (URL + access date) sourced via WebSearch/WebFetch before writing.
+- You need traceable scientific sources to distinguish known physics from speculation.
 
 **Do NOT use when:**
 
@@ -72,9 +72,9 @@ Step 5: Run /hephaestus:learn after writing the file (this skill).
 
 ### Detailed Steps
 
-**Step 1 — Parallel WebSearches (run all at once):**
+**Step 1 — Find relevant scientific sources:**
 
-Run 4 independent searches simultaneously:
+Select useful searches from these examples; independent searches can run together:
 1. `"<mechanism core concept> review <key author>"` — for canonical review papers
 2. `"<specific foundational paper> <author> <journal>"` — for primary sources
 3. `"<mechanism> computation register quantum information"` — for computational reinterpretation
@@ -96,7 +96,7 @@ Prompt: "Extract title, authors, year, journal/volume/pages, and key claims abou
 **Step 3 — Read format reference (M14 is the richest template):**
 
 ```
-Read /home/mvillmow/HomericIntelligence/Story/Research/Mechanisms/M14-lqg-spin-network.md
+Read /path/to/workspace/Story/Research/Mechanisms/M14-lqg-spin-network.md
 ```
 
 Key format observations:
@@ -108,11 +108,13 @@ Key format observations:
 - Power source is a required subsection inside How It Works
 - Feasibility Tags is a table (Claim | Tag), not a bullet list
 
-**Step 4 — Write the file.** Key discipline rules:
+**Step 4 — Write the file.** The following conventions belong to the recorded M-series task.
+Use the current request to select format, length, and research depth; template details
+are not general prerequisites for other mechanism-design tasks:
 
 | Rule | Detail |
 |------|--------|
-| Premise Correction | ALWAYS address "Planck constant (h, J·s) ≠ Planck length (ℓ_P, ~1.6×10⁻³⁵ m)" |
+| Premise Correction | When the premise confuses them, explain "Planck constant (h, J·s) ≠ Planck length (ℓ_P, ~1.6×10⁻³⁵ m)" |
 | All 14 walls | Address every wall; never skip; mark each with explicit status |
 | No narrative | Zero story/character/plot content; pure physics mechanism prose |
 | Word count | 1500–2500 words (longer for complex mechanisms acceptable) |
@@ -124,7 +126,7 @@ Key format observations:
 |---------|----------------|---------------|----------------|
 | Searching for "string winding modes computation register" | Expected to find explicit string-theoretic computation papers | Results returned generic quantum harmonic oscillator papers, not string-theory-specific registers | The computational-register reinterpretation of string modes is novel — cite oscillator/Fock-space QC papers + string theory separately, then bridge explicitly |
 | WebFetch on full PDF URL (arxiv.org/pdf/...) | Attempted to get full paper text for equation extraction | PDFs return raw text hard to parse cleanly; abstracts page (/abs/) gives cleaner metadata | Always WebFetch the `/abs/` page not the `/pdf/` page for citation metadata |
-| Relying only on search summaries for citation details | Used WebSearch text summaries for paper metadata | Summaries sometimes omit page numbers, exact volumes, or conflate multiple papers | Always WebFetch at least 2 key papers directly for precise citation data |
+| Relying only on search summaries for citation details | Used WebSearch text summaries for paper metadata | Summaries sometimes omit page numbers, exact volumes, or conflate multiple papers | Read the sources that support key claims directly for precise citation data |
 | WebFetch on Nature.com article (SSL error) | Attempted to fetch https://www.nature.com/articles/nature06433 for Castelnovo 2008 | SSL certificate validation failure on nature.com | For Nature.com articles, use arXiv preprint URL or ADS abstract instead; Castelnovo 2008 preprint: https://arxiv.org/abs/0710.5515 |
 | Attempting to cite Parker 1970 from original journal | Searched for "Parker 1970 Astrophys J 160 383 monopole flux" | Predates open-access archives; original paper paywalled and not on arXiv | For foundational pre-arXiv papers, cite via journal info from review papers, verify key claim via modern review |
 | Claiming the offload architecture defeats Wall 7 (irreducibility) | M55: argued that running the region bypasses computational irreducibility | Irreducibility applies to the computation itself, not to who runs it; the physical region still runs every step | Wall 7 is inviolable even for the most elegant offload. M55 sidesteps SIMULATION cost, not COMPUTATION cost |
@@ -136,7 +138,7 @@ Key format observations:
 ### Target File Path Pattern
 
 ```
-/home/mvillmow/HomericIntelligence/Story/Research/Mechanisms/M<NN>-<slug>.md
+/path/to/workspace/Story/Research/Mechanisms/M<NN>-<slug>.md
 ```
 
 ### The 14 Hard Walls (reference list for all M-series files)

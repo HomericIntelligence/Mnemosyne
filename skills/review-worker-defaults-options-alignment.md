@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Keep automation worker-count defaults aligned when rebasing across shared Pydantic option base-class refactors. Use when: (1) CI fails after a behavior PR rebases over shared options/base-model changes, (2) CLI parser defaults/help drift from Pydantic defaults, (3) tests need to pin shared option inheritance and parser defaults."
 category: ci-cd
 date: 2026-06-27
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-ci
 tags:
@@ -70,7 +70,7 @@ python -m pytest \
 
 4. Pin the parser contract separately. Add a regression test that builds a parser with `add_max_workers_arg()`, parses an omitted flag, and asserts both the parsed default and rendered help text use `DEFAULT_WORKER_COUNT`.
 
-5. Fix incidental CI compatibility exposed by the same run without mixing it into the core design. PR #1617 also adjusted `tests/unit/validation/test_mypy_incremental_config.py` to fall back to `tomli` when `tomllib` is unavailable, preserving Python 3.10 test compatibility.
+5. Include incidental CI compatibility repair when it is necessary for the requested change; report unrelated repairs separately. PR #1617 also adjusted `tests/unit/validation/test_mypy_incremental_config.py` to fall back to `tomli` when `tomllib` is unavailable, preserving Python 3.10 test compatibility.
 
 6. Run focused tests locally, then rely on the PR's required CI for end-to-end verification. The local evidence for this capture was the PR branch commit; the user confirmed PR #1617 reached green CI.
 

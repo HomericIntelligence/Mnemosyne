@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Capture reviewer-checkable risks for implementation plans when an issue title, body, or acceptance text point at different surfaces. Use when: (1) the title and body appear to ask for different changes, (2) a DRY/refactor plan depends on private import aliases or inherited option fields, (3) a plan intentionally excludes adjacent fields or call sites, (4) the plan was written from grep evidence and has not been executed."
 category: architecture
 date: 2026-06-26
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags: [planning, review-risk, issue-scope, requirements-alignment, dry-refactor, pydantic-options, logging, import-alias, unverified-assumptions]
@@ -60,17 +60,17 @@ PY
 
 ### Detailed Steps
 
-1. **Name each requirement surface separately.** If a title says "centralize logging setup" but the body says "deduplicate Options models," write both as acceptance surfaces. Do not silently collapse one into the other. Ask the reviewer to confirm whether implementing both is correct or over-scoped.
+1. **Name each requirement surface separately.** If a title says "centralize logging setup" but the body says "deduplicate Options models," write both as acceptance surfaces. Do not silently collapse one into the other. Resolve the scope from the task and current evidence. Ask for clarification only if the remaining ambiguity materially changes the work; continue independent investigation.
 
 2. **Separate evidence from assumptions.** Put grep-derived file lists, symbols, and line locations under "evidence read." Put issue title/body, unexecuted test commands, and inferred module ownership under "assumptions to verify." A reviewer should not have to infer which claims are facts.
 
-3. **Make helper-location choices reviewable.** If the proposed shared helper lives in a module whose name suggests narrower ownership, call that out. The reviewer should decide whether the location is an acceptable home or whether a new general module is cleaner.
+3. **Make helper-location choices reviewable.** If the proposed shared helper lives in a module whose name suggests narrower ownership, call that out. Choose the home from existing ownership and dependencies, and explain the tradeoff for review.
 
 4. **Preserve compatibility intentionally, then test identity.** When private call sites stay alive through `from new_home import _helper as _helper`, add an identity/import smoke test. Import aliases preserve object identity only if every old lookup still resolves through the old module attribute.
 
 5. **Treat model inheritance as an API change until proven otherwise.** Pydantic/dataclass base-class extraction can change schema field order, inherited field exposure, defaults, validation, or generated docs. Add tests for exact public fields only when those details are intentionally part of the contract; otherwise prefer targeted behavioral assertions.
 
-6. **Ratify exclusions.** If nearby fields such as `state_dir` or `verbose` are intentionally excluded from the shared base, state why and ask the reviewer to confirm against the current models and issue text.
+6. **Explain exclusions.** If nearby fields such as `state_dir` or `verbose` are excluded from the shared base, give the reason from current models and task scope. Routine scope-preserving choices need no extra approval.
 
 7. **Label verification commands as guardrails unless run.** A plan can contain good commands without having executed them. Do not present proposed grep, schema, CLI, or unit-test commands as passing evidence until they actually run.
 

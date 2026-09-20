@@ -5,7 +5,7 @@ description: Safe pattern for moving test files from a root test directory into 
   sub-packages, including fixture path correction
 category: testing
 date: 2026-02-22
-version: 1.0.0
+version: "1.1.0"
 user-invocable: false
 ---
 # Move Loose Test Files Into Sub-packages
@@ -94,7 +94,7 @@ Apply the `+1 parent` rule from Step 3 for each directory level gained.
 pixi run pytest tests/unit/<subpackage>/ -v --tb=short --no-cov
 ```
 
-All tests in the sub-package must pass before moving to the next file.
+Sub-package tests can reveal path or discovery regressions early. Group related moves when that makes the change easier to inspect.
 
 ### Step 7 — Full Suite Verification
 
@@ -102,7 +102,7 @@ All tests in the sub-package must pass before moving to the next file.
 pixi run pytest tests/unit/ -v --tb=short 2>&1 | tail -5
 ```
 
-The final pass count MUST be identical to the baseline from Step 1.
+Compare the final collected cases and results with the baseline. Investigate missing tests or new failures rather than relying on a count alone.
 
 ### Step 8 — Pre-commit Hooks
 

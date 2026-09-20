@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Fix CI failures in Codex plugin directory/listing PRs where branch policy, materialized marketplace wrappers, scanner configuration, and no-isolation sdist tests drift from the source plugin payload. Use when: (1) a Codex plugin listing PR fails after adding catalog metadata or scanner workflow files, (2) a materialized plugins/PLUGIN_NAME wrapper may be stale relative to the root .codex-plugin payload, (3) sdist tests build with --no-isolation and backend dependencies are missing from dev extras."
 category: ci-cd
 date: 2026-06-29
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-ci
 tags: [codex, plugin, ci, scanner, sdist, signed-commits, manifest-drift, symlink]
@@ -59,7 +59,8 @@ python -m build --sdist --no-isolation --outdir /tmp/sdist-check .
 4. Write regression tests for content equality, not symlink identity. The durable invariant is that the wrapper manifest and assets match the root payload; the implementation can be materialized without being a symlink.
 5. Configure the plugin scanner deliberately. Pin the scanner action by SHA, point it at a checked-in config file, set the score/severity thresholds explicitly, and ignore only known non-plugin fixtures that trigger false positives.
 6. If an sdist test uses `--no-isolation`, add every `build-system.requires` package to the dev extra used by CI. Add a regression test that normalizes requirement names and asserts build requirements are a subset of dev dependencies.
-7. Re-run the targeted plugin/listing tests plus the repository's required CI gates before pushing.
+7. Use targeted plugin/listing tests and applicable repository checks. Repeat them after relevant
+   changes or unresolved failures; report any unavailable verification.
 
 ## Failed Attempts
 

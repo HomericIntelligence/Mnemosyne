@@ -1,10 +1,10 @@
 ---
 name: automation-log-path-helper-planning-risks
 license: BSD-3-Clause
-description: "Planning-risk checklist for extracting standard automation log path naming into a shared helper. Use when: (1) a plan consolidates repeated per-issue log filename construction into hephaestus.automation._review_utils.log_file_path(...), (2) issue text hints at one scope but examples/affected files imply another, (3) standard .log filenames and diagnostic parse-error filenames must stay distinct, (4) reviewers need to re-grep drift-prone call-site inventories before implementation."
+description: "Review shared log-path helper plans for scope, filename consumers, iteration numbering, and import dependencies."
 category: architecture
 date: 2026-06-26
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags:
@@ -72,7 +72,7 @@ rg -n 'f\".*\\{.*issue.*\\}.*\\.log|\\.with_suffix\\(\"\\.log\"\\)|Path\\([^)]*\
 
 1. **Re-read the live issue before locking scope.** If the title appears to mention
    `gh_json` but the body/examples/affected files point at log path construction,
-   make that a reviewer-confirmed scope decision. Do not silently broaden the plan
+   resolve scope from the requested outcome and current source. Ask only if a material ambiguity remains. Do not silently broaden the plan
    into JSON parsing changes such as `json.loads(result.stdout...)` unless the live
    issue body actually asks for that.
 
@@ -84,7 +84,7 @@ rg -n 'f\".*\\{.*issue.*\\}.*\\.log|\\.with_suffix\\(\"\\.log\"\\)|Path\\([^)]*\
    `log_file_path(prefix, issue_number, iteration)` that always appends `.log` and
    standardizes `{prefix}-{issue_number}-r{iteration}.log` should not automatically
    absorb parse-error diagnostics if those filenames intentionally carry different
-   detail. Reviewers must confirm diagnostic names are contractually different, not
+   detail. Compare diagnostic consumers to distinguish an intentional contract from
    missed standard logs.
 
 4. **Prove naming parity with tests and consumers.** Expected standard names should
@@ -98,8 +98,8 @@ rg -n 'f\".*\\{.*issue.*\\}.*\\.log|\\.with_suffix\\(\"\\.log\"\\)|Path\\([^)]*\
    module that imports them back, and smoke-test the relevant imports.
 
 6. **Match verification depth to filename-consumer risk.** Targeted helper tests are
-   not enough if downstream automation reads artifacts by exact name. Require a grep
-   audit plus affected workflow tests. Run full pytest and ruff when feasible.
+   not enough if downstream automation reads artifacts by exact name. Inspect those consumers and consider affected workflow tests. Broaden verification
+   when the change or repository requirements justify it.
 
 ## Failed Attempts
 

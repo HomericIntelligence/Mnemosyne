@@ -1,10 +1,10 @@
 ---
 name: library-product-import-boundary-enforcement-test
 license: BSD-3-Clause
-description: "Enforce a library-vs-product import boundary with regression tests and CI install-string guards. Use when: (1) gating a heavy product subpackage (curses/pydantic/fcntl) behind an optional extra so base `import pkg` stays lean, (2) writing a test that asserts `import pkg` does not pull forbidden modules, (3) a CI import-surface test gives false failures because pytest itself preloads the forbidden dependency, (4) pip-based CI jobs collect product-layer tests and must install the product extra after moving deps out of base."
+description: "Test that library imports do not pull product-layer or optional dependencies into the base package. Use isolated import evidence and explicit allowed boundaries."
 category: testing
 date: 2026-07-01
-version: "1.1.0"
+version: "1.1.1"
 user-invocable: false
 verification: verified-ci
 history: library-product-import-boundary-enforcement-test.history

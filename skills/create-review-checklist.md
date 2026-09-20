@@ -1,14 +1,14 @@
 ---
 name: create-review-checklist
 license: BSD-3-Clause
-description: Generate customized review checklists based on type of change
+description: Suggest focused review questions when a change spans unfamiliar code, tests, documentation, or configuration
 category: testing
 date: 2025-12-30
-version: 1.0.0
+version: "1.1.0"
 ---
 # Create Review Checklists
 
-Generate customized review checklists based on type of change.
+Suggest focused review questions when a change spans unfamiliar code, tests, documentation, or configuration.
 
 ## Overview
 
@@ -24,6 +24,9 @@ Generate customized review checklists based on type of change.
 - (4) Ensuring consistent review quality
 
 ## Verified Workflow
+
+Use the following steps as a review aid. Select questions that apply to the change;
+the checklist does not add approval gates or replace technical judgment.
 
 1. **Analyze PR**: Determine file types changed
 2. **Categorize**: Group changes by type
@@ -105,10 +108,10 @@ Copy-paste ready configurations and expected outputs.
 
 ## Priority Levels
 
-**Critical** (must fix):
+**Critical** (likely to affect correctness or security):
 - Syntax errors, test failures, security issues
 
-**High** (should fix):
+**High** (assess against the task and measured impact):
 - Code style, missing tests, performance
 
 **Medium** (nice to have):

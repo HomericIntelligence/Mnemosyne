@@ -1,9 +1,9 @@
 ---
 name: architecture-god-function-decomposition-planning-risks
-description: "Use when planning extraction of oversized functions or classes from issue-cited paths and counts. Re-measure the AST on disk; prove subtraction arithmetic and call-site wiring; enumerate every control-flow sentinel; preserve patch.object(instance, '_method') seams with thin delegates; select an internal helper versus injected collaborator from sibling self-call coupling; and prevent circular imports by relocating shared helpers to a cycle-free leaf and re-exporting them. Planning guidance remains unverified until implementation and tests run."
+description: "Plan function or class extraction when source coordinates, control-flow signals, patch seams, or import dependencies may invalidate the proposed decomposition."
 category: architecture
 date: 2026-06-30
-version: "2.0.0"
+version: "2.1.0"
 user-invocable: false
 license: BSD-3-Clause
 history: architecture-god-function-decomposition-planning-risks.history
@@ -20,7 +20,7 @@ call-site wiring. Issue line numbers drift; helper prose omits returns; class co
 cycles; and deleting a method can break extensive `patch.object(instance, "_method")` test seams.
 
 This skill intentionally remains `unverified`: it records planning and review lessons, not a shipped
-decomposition. Implementers must re-read the target and run the resulting tests. Detailed case
+decomposition. Use current source and relevant tests to check whether the advice applies. Detailed case
 measurements are indexed in
 [the notes](./architecture-god-function-decomposition-planning-risks.notes.md), and the exact
 superseded content is in
@@ -40,8 +40,8 @@ superseded content is in
 
 ## Verified Workflow
 
-The workflow is proposed and unverified. Treat every step as a planning gate that implementation and
-tests must confirm.
+The workflow is proposed and unverified. Select the checks relevant to the extraction; continue through
+implementation and verification when those actions are in scope.
 
 ### Quick Reference
 
@@ -158,7 +158,7 @@ for both modules and an architectural assertion that the leaf does not import ei
 5. List patch/subclass/direct-call compatibility requirements.
 6. Show dependency direction and any re-export.
 7. Label unexecuted signatures, thresholds, and collaborator boundaries unverified.
-8. Require targeted tests, full relevant suite, lint/type checks, and post-extraction AST counts.
+8. Select targeted tests and applicable lint/type checks; broaden coverage when the extraction changes shared behavior. Compare AST counts when a line cap is part of the requirement.
 
 ## Failed Attempts
 

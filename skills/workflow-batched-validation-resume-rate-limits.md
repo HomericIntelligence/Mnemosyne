@@ -1,10 +1,10 @@
 ---
 name: workflow-batched-validation-resume-rate-limits
 license: BSD-3-Clause
-description: "Run multi-hour, multi-agent document validation/migration sweeps in Claude Code so they survive session death and API usage-limit resets. Patterns: batch by section instead of per-field (stay under the 1,000-agent workflow cap and avoid re-reading sources), make per-item output JSONs double as a skip-cache for idempotent reruns, resume with Workflow resumeFromRunId so completed agents replay from the journal cache, and persist all scratch state beside the data instead of /tmp. Use when: (1) a validation fan-out may outlive a session or hit usage limits, (2) deciding agent granularity for per-field/per-item sweeps, (3) Workflow-tool orchestration must be resumable/idempotent."
+description: "Resume long document-validation or migration sweeps after interruption. Use persistent per-item results, bounded batches, and available orchestration journals."
 category: tooling
 date: 2026-06-12
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [workflow, orchestration, batching, resume, rate-limits, skip-cache, subagents]
@@ -41,7 +41,7 @@ Apply this skill when:
 
 - A literal agent-per-field design was ~4,500 agents — over the 1,000-agent/workflow cap. An agent-per-item design was 224 agents that re-read the same source PDFs dozens of times.
 - Batching whole sections at ~12 items/agent (chunk sections >14 items into chunks of 12) gave 22 agents with identical coverage.
-- Each batch agent runs the full per-item procedure sequentially and is explicitly told **"do not get lazier on later items in the batch"** — without this, quality degrades on the tail of the batch.
+- Give each batch a clear output contract and record a disposition for every assigned item. Smaller follow-up batches can recover incomplete work without repeating completed items.
 
 ### 2. Make per-item output files double as a skip-cache
 
@@ -68,7 +68,7 @@ Apply this skill when:
 
 1. Chunk items into batches of ~12 per agent (split sections >14 items); keep total agents well under the 1,000/workflow cap.
 2. Prompt STEP 0 = skip-cache check on per-item JSON; agents write one JSON per item to a persistent scratch dir.
-3. Tell each batch agent to run the full per-item procedure sequentially and not get lazier on later items.
+3. Define per-item output and coverage expectations; recover incomplete items in smaller batches.
 4. Persist all scratch state in a hidden dir beside the data (e.g. `<repo>/.pass3/`), never `/tmp`.
 5. On session death or usage-limit failure, relaunch with `Workflow({scriptPath, resumeFromRunId: "wf_..."})` — cached agents replay, failed agents re-run.
 6. Embed data as `const` literals in the persisted script file; do not pass large `args` objects to the Workflow tool.

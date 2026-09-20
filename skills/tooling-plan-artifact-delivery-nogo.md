@@ -1,10 +1,10 @@
 ---
 name: tooling-plan-artifact-delivery-nogo
 license: BSD-3-Clause
-description: "A plan-review round can NOGO the WRONG artifact instead of your plan: (a) the harness pipes your post-work reviewer-bullet SUMMARY into the issue AS THE PLAN BODY, or (b) the plan-loop driver's serialization/handoff delivers a ZERO-LENGTH Current Plan block even though the full plan was the prior turn's final message — either way the reviewer grades what landed ('risk memo, not a plan' / 'empty artifact'), defaults to F, and NOGOs. A false NOGO caused by artifact delivery, not design. Use when: (1) a planning step is chained with a /learn, /retrospective, or summary step and the plan lands in the wrong channel, (2) a reviewer NOGO'd a plan that reads as 3-5 bullets / a risk register with no full sections, (3) the review says the plan block is EMPTY while noting a detailed plan existed in prior context, (4) you are re-planning after a NOGO and must decide whether to emit a diff or the whole plan, (5) you see the #693 R0/R1 NOGO-exhaustion failure mode where the plan body is empty/bulletized, (6) you need to reason about which OUTPUT goes to which CHANNEL when one turn produces both a plan artifact and a reviewer summary."
+description: "Repair plan delivery when a reviewer receives a summary, delta, or empty body. Use for channel selection and serialization failures before changing the design."
 category: tooling
 date: 2026-07-17
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: unverified
 tags:
@@ -76,8 +76,8 @@ Before submitting a plan for review — the three-line self-check:
 3. On a re-plan: did I re-emit ALL sections, or only the delta?
 ```
 
-If any answer is "summary / bullets / delta," STOP and re-emit the full plan as the turn's
-final, posted message before submitting.
+If the consumer received a summary or delta instead of the plan, deliver the complete
+artifact through the expected channel and continue the task.
 
 ### The failure mode (why a sound plan gets an F)
 

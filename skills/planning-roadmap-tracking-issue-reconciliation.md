@@ -1,10 +1,10 @@
 ---
 name: planning-roadmap-tracking-issue-reconciliation
 license: BSD-3-Clause
-description: "When a GitHub issue carries `epic`+`roadmap` labels it is a TRACKING issue, not a code task — the correct 'implementation' is to reconcile its checklist against the ACTUAL shipped state of the codebase and edit the issue body, NOT to write source code. Audit each roadmap item against three independent sources of truth before flipping a checkbox: (1) the implementing source file AND its wiring (grep for the endpoint/decorator/symbol, not just `test -f`), (2) the linked tracking issue's state via `gh issue view <n> --json state`, and (3) dependency pinning in the manifest. Distinguish FULLY shipped from PARTIAL: a wire field that is only EMITTED (e.g. `schema_version` present) without consumer-side NEGOTIATION (`grep -rn 'schema_version >'`) stays unchecked with an inline annotation. Confirm genuinely unstarted phases with a NEGATIVE grep. Use when: (1) an issue is labelled epic/roadmap and its body is a checkbox checklist, (2) you are tempted to write code for a tracking issue, (3) a checklist item links to another issue (`— #NNN`), (4) a checklist item names a registry/version/negotiation feature, (5) producing a verbatim replacement issue body to apply via `gh issue edit`."
+description: "Reconcile roadmap checkboxes against shipped behavior, linked issues, and dependency state; distinguish partial implementation from completion."
 category: documentation
 date: 2026-06-19
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags: [roadmap, tracking-issue, epic, checkbox, reconcile, audit-vs-issue, issue-body-edit, gh-cli, grep-wiring, schema-version, emit-vs-negotiate, partial-shipped, negative-grep, planning, unverified]
@@ -22,16 +22,14 @@ tags: [roadmap, tracking-issue, epic, checkbox, reconcile, audit-vs-issue, issue
 | **Verification** | unverified — PLANNING learning only. The plan was produced but NOT executed end-to-end: the `gh issue edit` body edit was never applied and no CI ran. The audit/evidence commands below were read at plan time and may drift before apply |
 | **Source** | ProjectHermes — `epic`+`roadmap` tracking issue planning session |
 
-A `roadmap` issue is a **snapshot** of intent that drifts as PRs merge underneath it. Its body is the
-deliverable, not source code: "Files to Create/Modify: none — this is a tracking issue; the change is
-the issue body itself." The hard part is deciding *truthfully* which boxes to tick, which is why each
-item must be checked against **three independent sources of truth** and a FULLY-vs-PARTIAL distinction
-applied.
+A roadmap records intent and can drift as work lands. For a reconciliation request,
+update its body from relevant source, linked-issue, and dependency evidence. Distinguish
+fully shipped behavior from partial work; a label alone does not determine task scope.
 
 ## When to Use
 
 - An issue carries `epic` and/or `roadmap` labels and its body is a markdown checkbox checklist.
-- You are about to write source code for a tracking issue — stop; the deliverable is a body edit.
+- You need to distinguish a tracking-only update from a request to implement remaining roadmap work.
 - A checklist item links to another issue (`— #NNN`) whose completion gates the checkbox.
 - A checklist item names a "schema registry / version negotiation / version" style feature where a
   field may be *emitted* without the *negotiation* half existing.
@@ -72,9 +70,9 @@ gh issue edit <n> --body-file -   # piped the replacement body
 
 ### Detailed Steps
 
-1. **Classify the issue before doing anything.** Read its labels. `epic`/`roadmap` ⇒ this is a TRACKING
-   issue and the deliverable is an edited issue body — there is no source change. Writing code here
-   duplicates already-merged work and fails review. State explicitly: "Files to Create/Modify: none."
+1. **Identify the requested outcome.** Labels suggest a tracking role, but the request determines
+   whether to reconcile the body, implement remaining work, or both. Inspect current state to
+   avoid duplicating completed work.
 
 2. **For each checklist item, find the implementing symbol AND grep its wiring.** File existence is
    necessary but NOT sufficient — a module can exist unwired. Grep for the actual endpoint/decorator/
@@ -95,10 +93,9 @@ gh issue edit <n> --body-file -   # piped the replacement body
    `! grep -rqiE "replay|plugin|multi.tenant" src/` and cite the empty result. A negative grep is the
    evidence that justifies leaving a box unchecked; "I didn't see it" is not.
 
-6. **Emit the verbatim replacement issue body and hand off the apply.** Output the full new body so a
-   reviewer can diff it. Application (`gh issue edit <n> --body-file -`) is run by the operator or
-   pipeline, NOT by the planner. Add a re-confirm step to the plan: linked-issue states and the issue
-   body may drift between plan time and apply time, so re-run steps 2–4 immediately before the edit.
+6. **Deliver the requested update.** For planning-only work, provide the replacement body.
+   When issue editing is already authorized, apply it and read back the result. Refresh
+   evidence that changed before the write; no extra permission is needed for the same scope.
 
 ## Failed Attempts
 

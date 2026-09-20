@@ -6,7 +6,7 @@ description: Triage a backlog of open GitHub issues, close resolved ones with co
   facing a batch of open issues that need classification and implementation.
 category: testing
 date: '2026-03-19'
-version: 1.1.0
+version: "1.1.1"
 tags:
 - github
 - pr-workflow
@@ -57,7 +57,7 @@ Close these immediately so the issue count is accurate for planning.
 
 Map issues into a DAG:
 - Independent issues → can run in parallel
-- Dependent issues → must wait for predecessor PR to merge
+- Dependent issues → coordinate against the predecessor interface; defer only work that cannot safely proceed before it is available
 
 Example:
 ```
@@ -157,7 +157,7 @@ Note: ShellCheck SC2016 will flag `$q` in single-quoted GraphQL strings. Add:
 # shellcheck disable=SC2016  # $q is a GraphQL variable, not a shell variable
 ```
 
-Always add REST fallback:
+Consider a REST fallback when the supported environments need it:
 ```bash
 if [[ -n "$REPO_FULL" ]] && _graphql_check3 "$REPO_FULL" "$ISSUE"; then
     : # GraphQL succeeded

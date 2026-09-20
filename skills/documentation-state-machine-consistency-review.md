@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Review design documents for state machine self-consistency. Use when: (1) a design doc defines a state type and diagram, (2) reviewing API lifecycle designs, (3) verifying all states appear in transition diagram."
 category: documentation
 date: 2026-06-12
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [design-doc, state-machine, review, consistency, endpoint]
@@ -61,4 +61,6 @@ tags: [design-doc, state-machine, review, consistency, endpoint]
 Before: 5 of 8 EndpointStatus values in diagram
 After: All 8 values present plus exclusive modifier
 
-Key principle: every non-terminal state must have direct transitions to all 3 terminal states
+Compare each state with the intended lifecycle. Add direct terminal transitions when
+the contract calls for them; a valid state machine need not connect every non-terminal
+state directly to every terminal state.

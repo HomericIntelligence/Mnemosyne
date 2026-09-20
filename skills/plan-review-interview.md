@@ -1,11 +1,10 @@
 ---
 name: plan-review-interview
 license: BSD-3-Clause
-description: Structured interview workflow for reviewing implementation plans and
-  capturing decisions
+description: "Resolve material choices in an implementation plan through focused questions and recorded decisions."
 category: evaluation
 date: 2025-12-30
-version: 1.0.0
+version: "1.1.0"
 ---
 # Plan Review Interview
 
@@ -27,16 +26,18 @@ Systematically review implementation plans, identify gaps, and capture decisions
 
 ## Verified Workflow
 
+Use the phases that help resolve the current plan. A completed interview is
+not a stopping point when implementation is part of the authorized task.
+
 ### Phase 1: Prepare Context
 
-1. Read all existing plan documents
-2. List all GitHub issues with `gh issue list --limit 50`
-3. Group issues by phase/category
-4. Create a review prompt document with issue references
+1. Read the plan and issue context relevant to the requested decision.
+2. Inspect the implementation to resolve discoverable facts.
+3. Identify material choices that remain uncertain; use existing context for routine choices.
 
 ### Phase 2: Conduct Structured Interview
 
-1. **Batch questions by topic** (3-4 questions per batch):
+1. **Group related questions when useful**, for example:
    - Core execution model
    - Configuration specifics
    - Judge/evaluation system
@@ -45,22 +46,22 @@ Systematically review implementation plans, identify gaps, and capture decisions
 2. **For each question**:
    - State the gap clearly
    - Reference affected GitHub issues
-   - Propose 2-3 solutions
+   - Explain the meaningful alternatives
    - Record user's decision
 
-3. Use `AskUserQuestion` tool with multiple related questions per batch
+3. Use the available question interface for material unresolved choices. Avoid another approval request for already-authorized work. Continue independent work while an answer is pending.
 
 ### Phase 3: Update Artifacts
 
 1. Update plan document with decisions table at top
-2. Add comments to GitHub issues:
+2. When issue updates are in scope, add relevant decision comments:
    ```bash
    gh issue comment <number> --body "## Decision Update
 
    - **Key decision**: value
    - **Rationale**: reason"
    ```
-3. Create new issues for gaps discovered:
+3. When authorized, create issues for gaps that need separate work:
    ```bash
    gh issue create --title "[Category] Title" --body "..." --label "category"
    ```
@@ -68,9 +69,10 @@ Systematically review implementation plans, identify gaps, and capture decisions
 
 ### Phase 4: Commit and Document
 
-1. Create feature branch
-2. Commit all updated files
-3. Create PR with summary of decisions
+Use the requested delivery channel. If the task includes a pull request,
+prepare a branch, commit only the task changes, and summarize the decisions.
+Otherwise, keep the decision record local or in the response. Continue
+authorized implementation once the material decisions are clear.
 
 ## Results
 

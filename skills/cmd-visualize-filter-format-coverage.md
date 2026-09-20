@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "cmd_visualize Filter × Format Coverage Tests"
 category: testing
 date: 2026-03-19
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 ---
 # cmd_visualize Filter × Format Coverage Tests
@@ -33,7 +33,7 @@ Use this skill when:
 
 ### Step 1: Read the Existing Test Class
 
-Before writing anything, read the existing test class to understand:
+Inspect the existing test class when selecting coverage, including:
 - The `_make_checkpoint_file()` helper signature (what fields are required/optional)
 - Which combinations are **already** tested
 - Which format produces what output (tree, table, JSON)

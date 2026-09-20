@@ -1,10 +1,10 @@
 ---
 name: planning-hephaestus-atomic-parser-risk-review
 license: BSD-3-Clause
-description: "Review-risk checklist for ProjectHephaestus issue plans that combine automation atomic-write migrations with validation CLI parser helper extraction. Use when: (1) reviewing a plan to replace Path.write_text calls with write_secure, (2) centralizing validation CLI flags such as --repo-root, --json, and --version, (3) checking issue title/body mismatch, stale grep counts, or unverified file/API assumptions before implementation."
+description: "Review plans that combine atomic writes and shared validation parsers for scope, API, import, and CLI compatibility risks."
 category: architecture
 date: 2026-06-26
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 verification: unverified
 tags:

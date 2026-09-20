@@ -1,23 +1,10 @@
 ---
 name: odysseus-multi-branch-submodule-pin-management
 license: BSD-3-Clause
-description: >-
-  Manage submodule pins across multiple Odysseus branches with rebase, cherry-pick avoidance,
-  and justfile recipe collision resolution. Use when: (1) updating a submodule SHA on a feature
-  branch while main has a different pin, (2) rebasing an Odysseus feature branch onto main after
-  justfile changes on both sides, (3) cherry-picking a submodule pointer update between branches
-  fails with CONFLICT (submodule), (4) CI "Harden checks" job fails with justfile recipe
-  redefinition error after rebase, (5) branch-switching causes missing files/directories in the
-  working tree, (6) running `git submodule update --remote <path>` produces unexpected
-  modifications to OTHER submodules in `git status` (the selective-vs-all foot-gun), (7) doing
-  a partial pin bump where only some submodules are eligible because others have open PRs,
-  (8) a `git cherry-pick` of a pin-bump commit onto a fresh branch off main fails with
-  `CONFLICT (submodule): ... commits don't follow merge-base` and you WANT to keep the
-  cherry-picked commit (not abort) — resolve by checking out the target SHA inside the
-  submodule and `git add`-ing it, since it is a pointer that cannot fast-forward, not a code merge.
+description: "Update submodule pins across active branches while preserving existing changes, avoiding redundant cherry-picks, and resolving task-recipe collisions."
 category: ci-cd
 date: 2026-07-18
-version: "1.3.0"
+version: "1.3.1"
 user-invocable: false
 verification: verified-ci
 history: odysseus-multi-branch-submodule-pin-management.history
@@ -217,7 +204,7 @@ git commit -m "chore(submodules): refresh pins ..."
 1. **ALWAYS** `git submodule update --init --recursive` BEFORE `--remote` on a long-lived clone — never trust the working tree to be on pinned SHAs.
 2. **ALWAYS** inspect `git status --short` before staging — if you see modified entries you didn't intend to bump, reset them individually.
 3. **NEVER** `git add .` for submodule bumps. Always stage explicit paths.
-4. Cross-reference [[multi-repo-pr-orchestration-swarm-pattern]] for the broader guardrail: do NOT bump a submodule pin while that submodule has an open PR in flight (defer it).
+4. Check open submodule work for relevant dependencies. An unrelated open PR need not delay an authorized pin update; defer only when the requested target depends on unfinished work.
 
 ### Resolve a Cherry-Pick Submodule Pointer Conflict (keep the commit)
 

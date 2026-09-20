@@ -1,10 +1,10 @@
 ---
 name: doc-comment-count-drift-verify-frozen-test
 license: BSD-3-Clause
-description: "When an issue reports 'doc says X but config says Y', trust neither — find the frozen test that enforces the canonical count. Use when: (1) issue claims doc/config count mismatch but actual code count differs from both, (2) multiple files repeat the same stale count and all need synchronizing, (3) a frozen allowlist or validation test is the real enforcer."
+description: "Resolve documented count drift when source, configuration, and frozen tests disagree about the canonical inventory."
 category: ci-cd
 date: 2026-06-13
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-ci
 tags: []
@@ -62,7 +62,8 @@ pixi run pytest tests/unit/validation/test_omit_allowlist.py tests/integration/t
 
 5. **Update all locations to the canonical count.** Make every reference agree with what the frozen test enforces.
 
-6. **Run the test suite to confirm.** Both the frozen unit test and any integration tests that reference the count.
+6. **Check the affected count contract.** Prefer the frozen unit test and integration cases
+   that consume the changed inventory.
 
 ## Failed Attempts
 

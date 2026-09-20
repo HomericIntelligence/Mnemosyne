@@ -1,10 +1,10 @@
 ---
 name: github-issue-stale-plan-comment-cleanup
 license: BSD-3-Clause
-description: "Clean up stale GitHub issue plan/review/task comments after revalidating the issue against the current architecture. Use when: (1) issue bodies are current but older authored plan comments contradict them, (2) a user asks to remove existing plans or stale planning artifacts, (3) issue comments have headings like '# Implementation Plan', '## Plan Review', '# Task #', or older superseded notes, (4) an issue is superseded by a newer architecture path and needs a disposition comment plus closure."
+description: "Remove user-authorized stale issue plan comments after checking current architecture, authorship, and exact comment IDs."
 category: tooling
 date: 2026-07-09
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags:
@@ -74,13 +74,13 @@ gh issue view 83 --repo "$REPO" --json number,title,state,comments \
 
 ### Detailed Steps
 
-1. **Read the repo contract and live issue state first.** In Inference Service, the safe order was `AGENTS.md`, `README.md`, `docs/inference_service-design.md`, then live `gh issue view` readback for each issue. Treat both the architecture doc and the current GitHub issue state as live inputs; do not modify comments from an old local snapshot.
+1. **Inspect applicable guidance and live issue state.** Read the architecture sections needed to judge whether the plan is stale. Use current issue comments to select deletion targets rather than relying on an old snapshot.
 
 2. **Classify each issue before touching comments.** Decide whether the issue body is still architecture-aligned, already closed and aligned, or superseded by the current architecture. In the verified Inference Service run, #83 and #85-#88 were aligned but had stale June plan/review/task comments; #84 was closed and aligned; #89 was superseded by the digest-verified Enroot/SquashFS WardenRuntime validation path.
 
 3. **Post one canonical current comment before deletion.** If the issue remains open, add a concise architecture-aligned disposition comment first. If the issue should close, post the rationale in the close comment. This preserves an audit trail before removing obsolete planning artifacts.
 
-4. **Delete narrowly and only after explicit ID review.** List comments per issue, inspect the author and first heading/body, and delete only comments that are both authored by the current identity (`viewerDidAuthor` or the known author) and clearly obsolete plan artifacts. Good deletion candidates are headings beginning `# Implementation Plan`, `## Plan Review`, `# Task #`, or an older superseded note. Keep the issue body, unrelated comments, comments by other authors, and the newest architecture-aligned disposition comment.
+4. **Inspect exact IDs before the authorized deletion.** List comments per issue, inspect the author and first heading/body, and delete only comments that are both authored by the current identity (`viewerDidAuthor` or the known author) and clearly obsolete plan artifacts. Good deletion candidates are headings beginning `# Implementation Plan`, `## Plan Review`, `# Task #`, or an older superseded note. Keep the issue body, unrelated comments, comments by other authors, and the newest architecture-aligned disposition comment.
 
 5. **Use simple per-issue listings, not clever candidate predicates.** A complex jq filter failed with `expected an object but got: boolean (false)` on #84/#89. The safer workflow is one issue at a time: list comments, review IDs, delete the reviewed obsolete IDs, then read back.
 

@@ -1,15 +1,10 @@
 ---
 name: stale-plan-already-resolved
 license: BSD-3-Clause
-description: 'Detect when a stale point-in-time artifact (issue plan, captured LOG,
-  error report, CI failure, audit finding) describes a defect that was already fixed.
-  Use when: the plan references specific line numbers that don''t match current code;
-  the requested change is already satisfied by a broader fix already in place; or a
-  captured LOG / error report drives a root-cause analysis but the log reflects an older
-  main — verify each finding reproduces on current origin/main before fixing.'
+description: "Check whether current source already satisfies a stale issue, plan, or log finding; avoid redundant fixes and close tracked work only within authorized scope."
 category: ci-cd
 date: 2026-06-14
-version: 1.2.0
+version: "1.3.0"
 user-invocable: false
 verification: verified-ci
 history: stale-plan-already-resolved.history
@@ -100,8 +95,8 @@ git show origin/main:<file> | grep -n "<buggy snippet from the log>"
 # If no output → the code changed since the log; the defect may already be fixed.
 ```
 
-For an external-facing or command-driven bug, do a LIVE reproduction — re-run the exact
-failing command from the log:
+For an external-facing or command-driven bug, use a safe authorized reproduction when
+needed. Inspect side effects before reusing a command from an old log:
 
 ```bash
 # Re-run the exact command the log shows failing. If it now SUCCEEDS, the bug is already fixed.
@@ -146,8 +141,8 @@ When a clarifying comment IS warranted:
 ```
 
 When there is genuinely **nothing to change** — no functional change and no comment/doc
-edit belongs anywhere — do not open an empty PR. Close the issue directly and cite the
-commit/PR that already did the work:
+edit belongs anywhere — avoid an empty PR. Report the satisfying evidence; when issue
+cleanup is authorized, close it with the commit/PR that already did the work:
 
 ```bash
 gh issue close <N> --reason completed \

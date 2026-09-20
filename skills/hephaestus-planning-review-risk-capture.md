@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Plan-review checklist for ProjectHephaestus automation refactors that centralize repeated state-directory path construction. Use when: (1) an issue title and body appear to disagree, (2) a plan introduces DEFAULT_STATE_DIR or ensure_state_dir(), (3) repeated state_dir literals are being collapsed, (4) reviewer confidence depends on grep coverage over hephaestus/automation."
 category: architecture
 date: 2026-06-26
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags:
@@ -77,10 +77,10 @@ rg -n "parents=True|exist_ok=True|AuditReviewer\\(state_dir=" hephaestus/automat
 5. **Do not collapse explicit injection behavior.**
    `AuditReviewer(state_dir=...)` and similar explicit arguments are a contract. A central helper may supply defaults, but it must not erase caller-provided paths or silently redirect injected state directories.
 
-6. **Use import-cycle checks as a gate.**
+6. **Consider import-cycle checks.**
    If the helper lives in `_review_utils.py`, prove that importing the modules that consume it does not introduce cycles. If a narrower module is chosen, prove the same. Static reasoning is not enough for this kind of shared automation utility.
 
-7. **Require tests that catch behavioral regressions.**
+7. **Prefer tests that catch behavioral regressions.**
    A weak test only checks that duplicated literals are gone or that one constant name exists. Stronger tests exercise default directory creation, injected directory preservation, and the production call paths that previously built the directory themselves.
 
 ## Failed Attempts

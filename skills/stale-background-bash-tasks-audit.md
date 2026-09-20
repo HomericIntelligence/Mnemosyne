@@ -1,10 +1,10 @@
 ---
 name: stale-background-bash-tasks-audit
 license: BSD-3-Clause
-description: "Background Bash tasks (via run_in_background) have no built-in completion timeout. If their command hangs (tmpdir cleanup, missing dependency, polling loop with no deadline), they stay 'running' indefinitely with no parent notification. Use when: (1) a parent agent realizes it dispatched a background bash task hours ago and never heard back, (2) the user reports 'X is still running' from their UI panel, (3) writing a polling loop that needs to wait on an external condition, (4) writing a repro harness that depends on transient tmpdirs."
+description: "Diagnose stale background tasks or unbounded polling without discarding useful work."
 category: tooling
 date: 2026-05-25
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags:
@@ -72,7 +72,10 @@ ls -lat /tmp/claude-*/-home-*/$SESSION_ID/tasks/b*.output 2>/dev/null | head -20
    ```
    Old mtimes on tasks that were never followed up are candidates. False positives possible (completed tasks also have old mtimes); the user's UI panel is the authoritative source.
 
-2. **When the user reports a stale task**, identify it by the command text shown in their UI panel, then stop it with `TaskStop`. Do not try to "let it finish" — if it has run far past expectation, the terminal condition is not coming.
+2. **When the user reports a stale task**, identify it from the host state and command text.
+   Inspect progress and ownership before cancelling. If the owned task is hung, use the host
+   cancellation mechanism and preserve useful output; if it is still progressing, choose a
+   bounded continuation consistent with the user's request.
 
 3. **For repro harnesses specifically**: prefer foreground invocation with explicit `timeout`:
    ```bash

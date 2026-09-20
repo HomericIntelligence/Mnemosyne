@@ -1,7 +1,40 @@
 # AGENTS.md
 
 This file is the sole authoritative agent contract for Mnemosyne. Claude Code
-and other agents must follow this contract.
+and other agents use it for repository context and task-specific guidance.
+
+## Working Guidance
+
+Continue toward the user's requested outcome. Use relevant design principles
+and proportionate verification. Resolve routine, reversible choices from the
+request, prior authorization, repository context, and available evidence.
+There is no separate permission step for work that the user already authorized.
+
+Treat corpus workflows as advice to adapt, not a sequence of mandatory gates.
+Prefer the simplest approach that preserves the intended behavior. Read linked
+documents when they help the current task. Use known failures and technical
+constraints to select useful steps; omit process that adds no decision value.
+
+Work through implementation, useful verification, and corrections within scope.
+A plan, first implementation, review round, or optional tool failure is not a
+completion point. When one action is blocked, try an appropriate alternative or
+continue independent work. Explain unresolved dependencies and verification gaps
+without claiming completion of work that remains undone.
+
+Ask for input when a material ambiguity cannot be resolved from evidence, or
+when an action lacks necessary authorization. Examples include an external
+commitment or a destructive action outside the requested scope. Explain the
+specific action and missing decision. Avoid asking again for permission already
+given. Suggest unrelated improvements separately rather than making them a
+prerequisite or expanding the task automatically.
+
+Host permissions, security boundaries, external policies, and technical
+preconditions still apply. A skill cannot grant authority over them. If a
+retained permission boundary is unclear, identify its source and the action it
+protects. Prefer continued useful work within that boundary.
+
+These recommendations apply across supported models, including Astra. They do
+not require a particular model to use the corpus.
 
 ## Project Overview
 
@@ -28,7 +61,7 @@ repeated mistakes.
 
 ## Writing Standard
 
-All active skill prose and repository guidance must follow
+All active skill prose and repository guidance use
 [ASD-STE100 Simplified Technical English](https://www.asd-ste100.org).
 Use the current official issue. This repository uses Issue 9, dated 15 January
 2025, as its review baseline.
@@ -39,8 +72,9 @@ only. The Simplified Technical English Maintenance Group (STEMG) maintains
 the standard. ASD and STEMG do not approve, certify, or endorse Hephaestus or
 Mnemosyne.
 
-Read the repository [ASD-STE100 writing policy](docs/asd-ste100.md). Apply the
-policy to all content in its scope.
+Read the repository [ASD-STE100 writing policy](docs/asd-ste100.md).
+Use it when authoring or reviewing prose; unrelated edits do not need a
+separate writing-policy review.
 Use the [official download page](https://www.asd-ste100.org/STE_downloads.html)
 to request the current official copy. Keep the copy outside the repository.
 The policy applies to new prose and to prose that you change or republish. It
@@ -57,19 +91,27 @@ Treat established project terms as approved technical terms. For a style-only
 edit, keep all development-principles text unchanged.
 
 Automated checks can confirm that the policy is present. They cannot certify
-that prose conforms to ASD-STE100. Authors and reviewers must check the prose.
+that prose conforms to ASD-STE100. Technical-English review is useful, but
+unavailable review need not stop other authorized work. Report its limits.
 
 ## Athena Integration
 
-Athena owns all agent workflow skills and Claude plugin infrastructure. Follow
-the installed Athena skill for `/advise`, `/learn`, reviews, planning, testing,
-worktrees, debugging, and cleanup.
+Athena owns agent workflow skills and Claude plugin infrastructure. Consult an
+applicable installed Athena skill when it helps the task or the user invokes
+it. Mnemosyne does not require every workflow for every change. External skill
+instructions retain their own authority and are not changed by this document.
 
 Mnemosyne contains only the knowledge corpus. Do not add local Claude plugins,
 hooks, shared plugin directions, or copies of Athena skills. The
 `.claude/settings.json` file enables the single `athena@Athena` plugin.
 
 ## Validation Delegation
+
+The execution conditions below protect the host from repository-controlled
+validation commands when a compliant runner is available. It is separate from recommendations about which checks are useful.
+Select checks for the changed behavior and risk; repeat them when new changes
+or unresolved failures justify it. A missing validation capability leaves a
+coverage gap, not a reason to abandon independent implementation or review.
 
 This section has priority over general Athena directions for testing.
 
@@ -102,7 +144,7 @@ commit or clean-tree state does not match the requested source.
 
 ## Skill Standards
 
-### Required Structure
+### Compatible Structure
 
 ```text
 skills/<name>.md             # Main skill file with YAML frontmatter + markdown content
@@ -111,9 +153,10 @@ skills/<name>.history        # Version and provenance archive for /learn writes
 ```
 
 Each skill is a flat file in `skills/`. Each skill stores its metadata in YAML
-frontmatter.
+frontmatter. The existing parser and validator define the format below. These
+are compatibility constraints, not a prescribed agent workflow.
 
-### Required Fields
+### Format Fields
 
 **YAML Frontmatter** (in `skills/<name>.md`):
 
@@ -150,16 +193,20 @@ Lesson Learned.
 | `testing` | Test strategies and patterns |
 | `documentation` | Paper writing, academic reviews, knowledge docs |
 
-### Quality Rules
+### Authoring Suggestions
 
-1. **Specific descriptions**: Include trigger conditions. Do not use vague summaries.
-2. **Failures required**: Record failed methods. Explain each failure.
-3. **Ready to use**: Give parameters and configurations that users can copy.
-4. **No duplication**: Link to external documents. Do not copy their content.
+1. **Precise retrieval**: Prefer a short capability description with narrow trigger conditions.
+2. **Useful failures**: Explain known failure causes in the format-compatible table. Do not invent evidence.
+3. **Decision value**: Keep parameters, conditions, and configurations that affect the result.
+4. **General guidance**: Prefer one reusable rule over repeated process. Link to detail when it helps a specific decision.
 5. **Bounded retrieval**: Keep each retrievable main skill at or below 30,000
    bytes. Move raw evidence and long examples to the notes file. Move prior
    versions and provenance to the history file. Keep no more than three
    examples that cover different decisions in the main skill.
+
+The principles below guide design choices. Apply those relevant to the task;
+they are not a checklist, a fixed sequence, or additional approval stages.
+Their original text is preserved for compatibility and provenance.
 
 ### Key Development Principles
 
@@ -283,7 +330,7 @@ Relevant links:
 
 ### Cross-Repository Compatibility
 
-Write skills that users can apply in multiple repositories:
+Prefer skills that users can adapt across repositories. Useful approaches include:
 
 1. **No `source:` in frontmatter**: Remove repository-specific source fields.
 2. **Use placeholders**: Replace hardcoded paths with `<project-root>`,
@@ -305,6 +352,9 @@ Write skills that users can apply in multiple repositories:
 
 ## Contributing a Skill
 
+A typical contribution uses the steps below. Adapt the process to the task;
+format compatibility and actual publication permissions remain relevant.
+
 1. After a session contains useful knowledge, run `/learn`.
 2. To create a skill manually, copy `templates/skill-template.md` to
    `skills/<name>.md`.
@@ -312,11 +362,11 @@ Write skills that users can apply in multiple repositories:
 4. Complete all required Markdown sections.
 5. If raw details are necessary, create `skills/<name>.notes.md`.
 6. Use a flat Markdown file with YAML frontmatter. Do not use nested directories.
-7. Use this filename format:
-   `<topic>-<subtopic>-<short-4-word-summary>.md`.
+7. Prefer a concise filename that identifies the reusable decision or capability.
 8. Use lowercase kebab-case for the filename.
-9. If you add tests, use the Validation Delegation workflow to run and validate
-   each new test before you create a pull request.
+9. For added tests, seek relevant execution evidence through Validation
+   Delegation. If execution is unavailable, report the gap in the pull request
+   and continue independent work; creating a draft does not claim a passing check.
 10. Before a merge, let CI validate the frontmatter, sections, and complete test
     suite. Pre-commit does not run pytest.
 
@@ -330,7 +380,8 @@ reproducible lockfile.
 
 - Install all dependencies with `uv sync`. You can add `--group dev` explicitly.
 - In CI, add `--locked` to the installation command.
-- Run tasks with `just validate`, `just test`, `just check`, or `just package`.
+- Through Validation Delegation, available task recipes are `just validate`,
+  `just test`, `just check`, and `just package`.
 - Each recipe uses `uv run`. You do not need to activate an environment.
 - Equivalent commands are `uv run python scripts/validate_plugins.py`,
   `uv run python -m pytest tests/`, and `uv build`.

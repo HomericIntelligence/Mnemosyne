@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Diagnose and fix Codex plugin marketplace installs that report enabled while the plugin cache is empty because the marketplace target contains symlinked .codex-plugin or skills directories. Use when: (1) a Codex plugin installs but exposes no skills, (2) the plugin cache is empty after marketplace install, (3) a repo-side materialized wrapper is needed while filing an upstream installer fix."
 category: tooling
 date: 2026-06-29
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-ci
 tags: [codex, plugin, marketplace, symlink, cache, packaging, drift]
@@ -71,7 +71,7 @@ bash scripts/check-symlinks.sh
    - wrapper skill files match the canonical `skills/` tree byte-for-byte;
    - copying the wrapper into an install-cache-shaped temp directory leaves advertised skills present.
 6. Run targeted validation and the repo's required checks.
-7. File or update an upstream issue/comment for the installer behavior. The long-term fix should either safely dereference symlinks into the plugin cache or reject symlinked plugin payloads with a clear diagnostic instead of reporting an enabled empty plugin.
+7. Suggest an upstream issue for the installer behavior; publish it when the task authorizes that communication. The long-term fix should either safely dereference symlinks into the plugin cache or reject symlinked plugin payloads with a clear diagnostic instead of reporting an enabled empty plugin.
 
 ### Upstream Installer Requirements
 

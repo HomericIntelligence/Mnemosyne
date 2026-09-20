@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Patterns for removing defensive gating when upstream bug is fixed. Use when: (1) removing a gate function that guards against an upstream issue, (2) making previously-gated CLI flags optional, (3) cleaning up environment variable injections that are no longer needed, (4) synchronizing shell script invocations with CLI changes."
 category: tooling
 date: 2026-06-06
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-ci
 tags: [automation, loop-runner, argparse, gating, refactoring, cli]
@@ -141,7 +141,8 @@ sed -i 's/ --force-run//' scripts/shell/drive_prs_green_ecosystem.sh
    ```
    Update all invocations to remove deleted flags.
 
-8. **Run full test suite** — Verify no orphaned references or behavior regressions:
+8. **Check affected behavior** — Select tests for CLI semantics and removed references.
+   Broaden checks when risk or current repository policy warrants it; examples:
    ```bash
    pixi run pytest tests/unit/automation/ -v
    pixi run pytest tests/integration/ -v

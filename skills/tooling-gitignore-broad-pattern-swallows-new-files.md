@@ -1,10 +1,10 @@
 ---
 name: tooling-gitignore-broad-pattern-swallows-new-files
 license: BSD-3-Clause
-description: "An unanchored .gitignore directory pattern (install/, build/, dist/, out/, target/) matches EVERY directory with that name at ANY depth and silently swallows newly created source files — they never appear in git status, not even as untracked, and nothing errors. Use when: (1) files you just created never appear in `git status` (not even as untracked) — suspect an ignore rule, not a tooling bug; (2) adding new source/test files whose path shares a name with a build-output ignore pattern (install/, build/, dist/, out/, target/); (3) writing a .gitignore negation to re-include a directory that a broad unanchored directory pattern excludes."
+description: "Find broad gitignore patterns that hide newly created nested files and choose a narrow negation or a root-anchored pattern."
 category: tooling
 date: 2026-07-02
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 verification: verified-local
 tags: [gitignore, check-ignore, untracked-files, negation-pattern, silent-failure, new-files]

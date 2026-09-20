@@ -1,10 +1,10 @@
 ---
 name: ci-pip-install-user-pep668
 license: BSD-3-Clause
-description: "Use pip install --user in GitHub Actions to guard against PEP 668 externally-managed-environment errors. Use when: (1) writing a pip install step in a GitHub Actions workflow that does NOT use actions/setup-python first, (2) the job installs pyyaml, yamllint, or any other package on ubuntu-latest, (3) you see 'error: externally-managed-environment' from pip on a CI runner, (4) reviewing workflow run: steps that use bare pip install <pkg>, (5) future-proofing pip installs against runner image upgrades that enforce PEP 668."
+description: "Select a supported Python install environment when CI package installation encounters externally-managed-environment errors."
 category: ci-cd
 date: 2026-06-20
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags:
@@ -45,6 +45,10 @@ tags:
 ## Verified Workflow
 
 ### Quick Reference
+
+These examples record a particular runner configuration. They do not establish that `--user`
+works in every externally managed environment. Prefer the repository's supported Python
+environment and inspect the actual installation error before selecting an install scope.
 
 ```yaml
 # WRONG — works today but not future-proof against PEP 668
@@ -94,13 +98,18 @@ steps:
 grep -n "pip install" .github/workflows/*.yml
 ```
 
-2. **For each `pip install` step without `actions/setup-python` before it, add `--user`.**
+2. **Choose the supported install scope.** Consider a managed Python environment or the
+   repository's existing environment tool. Use `--user` only where that environment supports it.
 
-3. **Verify `--user` is present in every affected job.** If a reviewer flags one job and you fix only that one, the review will be re-opened for the others. Fix all at once.
+3. **Inspect affected jobs for the same cause.** Apply a consistent fix where their environment
+   contracts match; do not change unrelated jobs merely to satisfy a wording pattern.
 
 4. **Do not add `--user` to pip install steps that run inside `actions/setup-python`'s managed environment** — there it is unnecessary (and slightly awkward). Only add it to bare `pip install` steps that target the runner's system Python.
 
-### Why `--user` Works
+### Recorded Runner Assumptions
+
+The following claims were recorded in the original case. Treat their portability as unverified;
+use the current runner and interpreter behavior when choosing an installation method.
 
 - `pip install --user <pkg>` installs into `~/.local/lib/python3.x/site-packages/`, which is not managed by the OS package manager and is not subject to PEP 668 restrictions.
 - PEP 668 allows distros to mark system Python as "externally managed" to prevent pip from corrupting system packages. When enforced, bare `pip install` fails with: `error: externally-managed-environment`.
@@ -115,6 +124,8 @@ grep -n "pip install" .github/workflows/*.yml
 | Fixing only one job | Fixed `--user` in the `validate-configs` job after review comment | Reviewer re-opened because `validate-recipes` job also had bare `pip install yamllint` | When a reviewer flags a pattern, fix it in ALL occurrences in the workflow file, not just the one cited |
 
 ## Results & Parameters
+
+Historical configuration, not a universal installation requirement:
 
 ```yaml
 # Pattern to follow for all pip install steps in GitHub Actions

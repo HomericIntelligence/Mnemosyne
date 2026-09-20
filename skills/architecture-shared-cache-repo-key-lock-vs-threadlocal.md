@@ -1,10 +1,10 @@
 ---
 name: architecture-shared-cache-repo-key-lock-vs-threadlocal
 license: BSD-3-Clause
-description: "Planning discipline for making a module-global cache thread-safe when the cache must be SHARED and COHERENT (not per-thread) under a newly-multithreaded coordinator. The R1 core lesson: before hand-rolling a dict + threading.Lock, GREP THE REPO for an existing thread-safe cache/lock primitive and for a sibling that already solved the same bug class — the codebase already had hephaestus/utils/cache.py::ThreadSafeCache (a lock-guarded, per-key, TTL cache built to replace ad-hoc dict caches with a TOCTOU race) and git_utils already reused it for the identical bug shape; the KISS fix reuses that primitive keyed by repo slug, not a hand-rolled lock. Also: a 'load-bearing unverified assumption' about a helper's return SHAPE is almost always cheaply verifiable by reading 3 lines of its signature (get_repo_info returns a (owner, repo) tuple accessed by unpack and RAISES on failure — NOT an object with .owner/.name), so resolve it in the plan rather than shipping it as a caveat; to mutate one cached entry without poking the primitive's privates, ADD a small public method to the primitive; a pre-selected thread-safety skill can prescribe the WRONG variant (per-thread threading.local) for genuinely shared state; an audit that names a line may point at an unreachable path while the real hazard sits one layer down in a shared library helper; and migrating a module-global's TYPE breaks every test reset/seed seam. Use when: (1) fixing a shared-mutable-state/TOCTOU bug and tempted to hand-roll dict+Lock — search for an existing primitive first, (2) a pre-selected skill prescribes threading.local for state that must be shared-coherent not per-thread, (3) an audit names a line but the shared-state hazard is a layer down in a library helper, (4) migrating a module-global's type (set|None -> a keyed cache) breaks the test reset seam, (5) you need to mutate one entry of a shared cache primitive without reaching into its internals."
+description: "Repair shared caches when concurrent callers need coherent repository-keyed state, existing lock primitives can be reused, or a cache type change affects test seams."
 category: architecture
 date: 2026-07-05
-version: "1.1.1"
+version: "1.2.0"
 user-invocable: false
 verification: unverified
 history: architecture-shared-cache-repo-key-lock-vs-threadlocal.history
@@ -54,7 +54,7 @@ repo-keyed `dict` + `threading.Lock`; R1 discovered the repo ALREADY had a sanct
 ## When to Use
 
 - You are fixing a **shared-mutable-state / TOCTOU bug** and are tempted to hand-roll a
-  `dict` + `threading.Lock`. **STOP and grep the repo first** for (a) an existing thread-safe
+  `dict` + `threading.Lock`. **Prefer a repository search** for (a) an existing thread-safe
   cache/lock primitive and (b) a sibling module that already solved this exact bug class. The
   sibling's usage is both the pattern and the proof it is the sanctioned approach.
 - A **pre-selected skill** points you at `threading.local()` / a metaclass-per-thread pattern, but
@@ -72,7 +72,7 @@ repo-keyed `dict` + `threading.Lock`; R1 discovered the repo ALREADY had a sanct
   primitive instead.
 
 **Key trigger:** you catch yourself writing `_lock = threading.Lock()` next to a new module dict —
-STOP and `grep -rn 'ThreadSafeCache\|threading.Lock\|_cache' hephaestus/` for an existing primitive
+Consider `grep -rn 'ThreadSafeCache\|threading.Lock\|_cache' hephaestus/` for an existing primitive
 and a sibling that already solved the same TOCTOU shape.
 
 ## Proposed Workflow
@@ -164,10 +164,9 @@ class ThreadSafeCache(Generic[K, V]):
    (`git_utils.py:73`) and `_repo_slug_cache` (`git_utils.py:131`, with a comment noting "a process
    that iterates multiple repositories gets the right slug per repo instead of the first-cached
    one"). The KISS fix reuses this primitive keyed by repo slug, NOT a hand-rolled repo-keyed
-   `dict` + `threading.Lock` (what R0 planned). **Durable rule: when fixing a shared-mutable-state /
-   TOCTOU bug, grep the repo for an existing thread-safe cache/lock primitive AND for a sibling that
-   already solved the same bug class before writing your own locking — the sibling's usage is both
-   the pattern and the proof it's the sanctioned approach.**
+   `dict` + `threading.Lock` (what R0 planned). **Reusable advice: look for an existing cache primitive and a sibling use case. Reuse it when
+   its ownership, key, and lifetime semantics match the task; otherwise choose the smallest
+   suitable synchronization design.**
 
 2. **Diagnose which code path the audit actually names vs which is reachable.** The issue pointed at
    the org-scoped `_label_names()` path (`pipeline_github.py:192` → `github_api.gh_list_labels()`),

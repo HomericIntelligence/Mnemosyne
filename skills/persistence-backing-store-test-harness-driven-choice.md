@@ -3,7 +3,7 @@ name: persistence-backing-store-test-harness-driven-choice
 description: "Plan durable backing for an existing C++ in-memory store by choosing technology from the real test harness and de-risking dependency, warning, path, error, and restore contracts. Use when embedded versus networked storage, Conan versus fetched C code, per-target -Werror, silent writes, or partial restart reconstruction are unresolved."
 category: architecture
 date: 2026-06-20
-version: "2.0.0"
+version: "2.1.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: unverified
@@ -36,8 +36,8 @@ and the complete prior source is in
 
 ## Verified Workflow
 
-> Status: proposed and unverified. Run every verify-first gate and build/test step before claiming the
-> design works.
+> Status: proposed and unverified. Select checks for the chosen store and affected contracts;
+> distinguish design assumptions from observed implementation results.
 
 ### 1. Inventory the actual harness and ownership model
 

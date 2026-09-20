@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: Add language-specific build pipelines to E2E test judge systems
 category: testing
 date: 2026-01-09
-version: 1.0.0
+version: "1.1.0"
 user-invocable: false
 ---
 # Multi-Language Judge Pipelines
@@ -265,7 +265,7 @@ if not config_dict["language"]:
 - [ ] Update all serialization methods (`to_dict()`, `load()`)
 - [ ] Update all test fixtures with language field
 - [ ] Update test files (fixtures, unit tests)
-- [ ] Run pre-commit and tests to verify
+- [ ] Use relevant build and judge tests, plus checks required by the target repository
 
 ## Key Takeaways
 

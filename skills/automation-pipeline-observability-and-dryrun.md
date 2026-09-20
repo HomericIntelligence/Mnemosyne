@@ -3,7 +3,7 @@ name: automation-pipeline-observability-and-dryrun
 description: "Make multi-phase automation observable, dry-run safe, and compositionally live. Use when dry-run leaks into PR/learning phases, curses hides errors, cleanup deletes logs, issue implementers fail on Git/branch/import state, constructors are never wired, phase CLIs disagree on required scope arguments, or layered Bash silently aborts and should become a typed Python orchestrator."
 category: debugging
 date: 2026-05-26
-version: "2.0.0"
+version: "2.1.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-precommit
@@ -136,8 +136,8 @@ Each new layer creates another implicit control-flow contract.
 
 ### 8. Rewrite unstable fan-out as a Python module
 
-When multiple safety-layer fixes have each exposed a new abort, stop patching Bash. Model phases as
-data with executable, supported/required flags, timeout, concurrency, and dependencies. Use
+When repeated shell-control fixes expose new aborts, consider a typed orchestrator rather than more
+control-flow layers. Model phases as data with executable, supported/required flags, timeout, concurrency, and dependencies. Use
 `subprocess.run`/managed processes with explicit argv lists, capture output, bounded waits, structured
 results, and one aggregate exit policy.
 

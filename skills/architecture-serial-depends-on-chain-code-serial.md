@@ -1,10 +1,10 @@
 ---
 name: architecture-serial-depends-on-chain-code-serial
 license: BSD-3-Clause
-description: "A strictly-serialized `Depends on #prev` epic chain is CODE-serial, not just order-serial: each issue N+1 builds on issue N's MERGED code (new symbols, patterns, scope wiring), so you MUST launch N+1's implementation only AFTER issue N's PR merges to main — never parallelize the chain even when the files look disjoint. Use when: (1) executing an epic whose sub-issues each carry `Depends on #prev` (e.g. a cleanup wave converting legacy CLIs into pipeline wrappers and deleting the legacy module), (2) you are tempted to parallelize consecutive chain issues to save wall-clock because their touched files look non-overlapping, (3) a sub-agent launched for issue N+1 REFUSES / makes zero changes citing a 'false premise' (the prerequisite symbol or wiring isn't on main yet), (4) you need the per-issue serialized loop (worktree off current origin/main -> dev-install -> focused implement+verify+signed commit -> PR -> review -> resolve threads -> state:implementation-go -> arm auto-merge -> WATCH CI to merge -> only then start N+1)."
+description: "Sequence changes with real code dependencies. Use when an issue consumes symbols or wiring from an earlier unmerged change, even when the edited files are separate."
 category: architecture
 date: 2026-07-06
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-ci
 tags:
@@ -49,9 +49,15 @@ A `Depends on #prev` chain is not merely an *ordering* preference (do #1820 befo
   2. #1820's coordinator scope-injection code to exist ON MAIN — `PipelineConfig.scope`, `_clamp_seed_stage_to_scope`, and `scope.trimmed_routes()`.
 - A sub-agent launched for #1821 off a base WITHOUT #1820 correctly REFUSED — it reported a "false premise: planner never converted, PipelineScope not wired into coordinator" — and made zero changes. That refusal is the correct behavior, and it is the signal that the chain was parallelized wrongly.
 
-Therefore: **launch issue N+1's implementation only AFTER issue N's PR MERGES to main**, and VERIFY the prerequisite actually landed before creating the N+1 worktree.
+Prefer a base that contains the actual prerequisite before implementing its consumer. If the task permits stacked branches, an unmerged prerequisite can supply that base. Where the epic explicitly requires merged predecessors, respect that dependency and continue independent preparation while it is pending.
 
 ### Quick Reference
+
+This example is for an epic that requires merged predecessors. For an authorized
+stacked branch, inspect the exact prerequisite revision and its actual API on
+that base instead. Label assumptions where the API is unavailable; do not claim
+that hypothetical symbols are source facts. Continue independent work while
+resolving the dependency.
 
 ```bash
 # BEFORE creating issue N+1's worktree, prove issue N's prerequisite is on main.
@@ -68,18 +74,15 @@ cd "/tmp/wt-issue-$NEXT" && pixi run dev-install
 
 ### Detailed Steps (the per-issue loop that worked)
 
-Run this loop once per issue, fully, before touching the next issue:
+For each dependent issue, inspect the prerequisite code and select a compatible base.
+Implement and verify the requested behavior, then publish through the repository's
+applicable review and merge process when authorized. Use signing, labels, or auto-merge
+only where that process calls for them. Confirm a merge when downstream work requires
+merged code; a green check or an armed merge request is not the merge itself.
 
-1. Create a clean worktree off **CURRENT** `origin/main` (which now has issue N-1 merged).
-2. `pixi run dev-install` inside the worktree so `import hephaestus` resolves the new code.
-3. Launch a focused sub-agent that: implements the change, runs the FULL test suite to green, makes a signed + DCO commit whose body contains `Closes #N`, and pushes the branch. **No PR yet.**
-4. Open the PR.
-5. Review the PR.
-6. Resolve all review threads.
-7. Label the PR `state:implementation-go`.
-8. Arm auto-merge (`gh pr merge --auto --squash`).
-9. WATCH CI through to the actual merge — do not assume; confirm the merge landed on main.
-10. ONLY THEN start issue N+1 (return to step 1, which will now pick up issue N's merged code).
+Independent investigation, tests, and plan refinement can continue while a dependency
+is pending. Avoid recreating the prerequisite or treating its absence as a reason to
+end the whole task.
 
 ## Failed Attempts
 

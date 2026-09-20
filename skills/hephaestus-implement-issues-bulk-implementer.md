@@ -1,10 +1,10 @@
 ---
 name: hephaestus-implement-issues-bulk-implementer
 license: BSD-3-Clause
-description: "How to use ProjectHephaestus's canonical bulk issue-implementer (hephaestus-implement-issues) to implement many GitHub issues per repo instead of hand-rolling agent prompts — flags, worker-cap math, and the failure modes that actually bite (signal-not-main-thread, 429 session-quota, blocking-inside-a-schema'd-Workflow-subagent, AND the --issues N Depends-on scope-leak that re-implements already-CLOSED dependency issues, bug #1940). Use when: (1) you need to implement N GitHub issues across one or more repos and are tempted to write your own agent loop, (2) you hit 'ValueError: signal only works in main thread', (3) you hit HTTP 429 'session limit' mid-batch, (4) a Workflow subagent wrapping the implementer fails with 'subagent completed without calling StructuredOutput', (5) you need to size --max-workers to a per-CPU-core cap, (6) cleaning up orphaned .worktrees/issue-N after an interrupted run, (7) --issues N logs 'Loaded 3 issues' / re-implements a CLOSED 'Depends on #M' dependency and makes DUPLICATE PRs for merged work, (8) you must drive a serial 'Depends on' cleanup chain safely (sub-agent impl + hephaestus-review-prs, which has no dependency-resolver)."
+description: "Use the Hephaestus bulk issue implementer with explicit scope, available worker capacity, resume state, and checks for dependency-expansion bugs."
 category: tooling
 date: 2026-07-06
-version: "1.2.0"
+version: "1.2.1"
 user-invocable: false
 verification: verified-ci
 history: hephaestus-implement-issues-bulk-implementer.history
@@ -25,7 +25,7 @@ tags: [hephaestus, implementer, bulk-issues, max-workers, worktree, claude-sessi
 
 ## When to Use
 
-- You need to implement a batch of GitHub issues (by number, by epic, or all open) in one or more repos and are about to write your own per-issue agent loop — don't; this tool already exists.
+- You need to implement a batch of GitHub issues and want to assess whether the existing bulk implementer fits the authorized scope.
 - You hit `ValueError: signal only works in main thread of the main interpreter`.
 - You hit HTTP 429 `You've hit your session limit · resets <time>` partway through a batch.
 - A Workflow `agent({schema})` wrapping the implementer fails with `subagent completed without calling StructuredOutput`.
@@ -89,12 +89,13 @@ work graph WITHOUT the `is_done`/`state:skip` filter. Observed: `--issues 1819 -
 PRs #1938/#1939 on stale `*-auto-impl` branches, hit rebase conflicts, and even ran `/learn` on
 merged #1817.
 
-**Pre-flight for ANY serial chain (do this first):**
+**Checks for a serial dependency chain on affected tool versions:**
 
 1. **Close zombie issues.** An issue OPEN despite its PR merged (never auto-closed) defeats even the
    input-level filter: `gh issue view N --json state` — if OPEN but the PR is merged, `gh issue close N`.
-2. **Prune stale worktrees/branches.** `build/.worktrees/issue-N` and local `*-auto-impl` branches get
-   REUSED (`Branch X already exists, reusing it` → `git rebase --force-rebase` conflict). Remove them first.
+2. **Inspect reused worktrees and branches.** `build/.worktrees/issue-N` and local `*-auto-impl`
+   branches can retain stale state. Preserve active or uncommitted work; clean up only confirmed
+   stale artifacts within the authorized scope, or select a fresh isolated branch.
 3. **`--dry-run` and read the `Loaded N issues` line.** For a truly-scoped single-issue run it should be
    `1`. It currently isn't (that's the bug) — which is your signal to fall back to the workaround below.
 

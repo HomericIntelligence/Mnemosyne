@@ -1,10 +1,10 @@
 ---
 name: ci-required-check-path-filter-pitfall
 license: BSD-3-Clause
-description: "Use when: (1) an issue asks you to run a build/job ONLY on PRs that touch certain paths (e.g. a Dockerfile, a subdirectory) and the target workflow is a REQUIRED status check — adding a workflow-level on.pull_request.paths: filter is a trap that makes path-irrelevant PRs un-mergeable, (2) planning a smoke/build gate that you are tempted to soft-fail with continue-on-error: true (a repo may have a forbid-suppressions guard that fails CI on it), (3) tempted to rewrite a digest-pinned Dockerfile FROM to an mcr.microsoft.com mirror to dodge Docker Hub rate limits (this changes the shipped image digest), (4) deciding base-image arch for a pixi/conda smoke build (linux-64 workspace cannot build linux/arm64), (5) writing a CI implementation plan and you need an uncertain-assumptions checklist a reviewer can verify (is the workflow actually a required check? are cited line numbers fresh? is the action SHA verified upstream?)."
+description: "Choose CI path filters after inspecting actual required-check policy. Prevent skipped workflows from leaving required contexts unreported."
 category: ci-cd
 date: 2026-06-19
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: unverified
 history: ci-required-check-path-filter-pitfall.history
@@ -47,7 +47,7 @@ tags:
 
 ## When to Use
 
-> **DO THIS FIRST — before any reasoning about required-check / path-filter interactions.**
+> **Establish the applicable merge policy when selecting path filters.**
 > Query branch protection to learn whether your workflow's check name is actually required:
 >
 > ```bash
@@ -170,8 +170,9 @@ reviewer doesn't misread "issue asked for path scoping, plan added no `paths:`" 
 A repo can have an active "forbid-suppressions" guard that fails CI when it finds
 `continue-on-error: true` anywhere in `.github/workflows/`. Before proposing ANY advisory /
 soft-fail CI step, grep the workflows AND the test suite for such a guard. If one exists, the new
-step MUST be blocking. (A smoke/build gate should be blocking anyway — an advisory build that
-never fails the PR provides no protection.)
+step needs to satisfy that policy or use an explicitly authorized policy change.
+Without such a requirement, choose advisory or blocking behavior from the requested
+coverage and risk; this skill does not make every smoke build a merge prerequisite.
 
 ```bash
 grep -rnE "continue-on-error|forbid.?suppress|no.?suppress|advisory" .github/ tests/
@@ -232,7 +233,7 @@ the full instantiated list):
 | **Chosen design** | Always-run cheap smoke job (Resolution A), single-arch `linux/amd64`, blocking (no `continue-on-error`), digest-pinned base kept as-is |
 | **Verification status** | **unverified** — plan only; CI never confirmed; required-check status never queried |
 
-### Branch-protection verification (copy-paste) — DO THIS FIRST
+### Branch-protection verification (copy-paste)
 
 ```bash
 # List the required status-check contexts for a branch:

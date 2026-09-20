@@ -1,10 +1,10 @@
 ---
 name: checkpoint-state-machine-resume
 license: BSD-3-Clause
-description: "Canonical patterns for checkpoint-based resume and recovery across long-running workflows: state-machine guards, intermediate-state recovery, until-resume past-state fixes, experiment-recovery tools, housekeeping verification, completion verification. Use when: (1) building a workflow that must resume mid-run after failure, (2) diagnosing a resume that loads a stale or non-terminal checkpoint, (3) adding completion-verification gates to issue/experiment workflows, (4) integrating retrospective hooks after a recovery operation."
+description: "Recover resumable workflows and interrupted experiments; reconcile state ordering, completed issues, and remaining housekeeping work."
 category: tooling
 date: 2026-05-18
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 history: checkpoint-state-machine-resume.history
@@ -229,7 +229,9 @@ gh pr view <PR-number> --json state,mergedAt,mergeCommit
 git fetch origin
 ```
 
-If not yet merged, post a blocking comment and stop.
+If the prerequisite is not merged, defer cleanup that depends on it. Continue
+independent inspection or authorized work and report the dependency. Publish a
+comment only when communication is part of the task.
 
 #### C2. Check All Artifacts
 
@@ -263,7 +265,10 @@ EOF
 )"
 ```
 
-#### C5. Empty Verification Commit + PR
+#### C5. Optional Verification Commit + PR
+
+Prefer a concise evidence report when no files changed. An empty commit and PR
+are useful only when the requested delivery workflow needs that artifact.
 
 ```bash
 git commit --allow-empty -m "chore(cleanup): verify <description>

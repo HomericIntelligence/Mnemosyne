@@ -1,11 +1,10 @@
 ---
 name: yaml-long-line-refactor
 license: BSD-3-Clause
-description: 'Skill: yaml-long-line-refactor. Use when working with yaml long line
-  refactor.'
+description: "Wrap long YAML values without changing parsed content; choose scalar folding and chomping behavior when line-length checks fail."
 category: architecture
 date: 2026-01-01
-version: 1.0.0
+version: "1.1.0"
 user-invocable: false
 ---
 # YAML Long Line Refactor
@@ -230,7 +229,7 @@ text: >
 2. **Choose the right block scalar** - Folded (`>`) for paragraphs, Literal (`|`) for formatted text
 3. **Test fixture consistency** - Apply identical changes to both production and test files
 4. **Line breaking strategy** - Break at natural boundaries (sentence endings) for better readability
-5. **Validation workflow** - yamllint → pre-commit → tests → semantic verification
+5. **Validation options** - Compare parsed values and use applicable YAML or repository checks; select additional tests according to the changed configuration.
 
 ## References
 

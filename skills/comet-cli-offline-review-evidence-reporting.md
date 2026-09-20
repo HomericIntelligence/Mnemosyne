@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Review Comet CLI behavior without cluster access and report bounded evidence for offline defects or user-observed dashboard incidents. Use when: (1) reviewing comet or comet-admin commands in a workstation-only environment, (2) a CLI issue must be filed without exercising Slurm, gateways, or databases, (3) users report several dashboard views failing with the same validation error, (4) local validation is complete but the full test suite has no reliable terminal result."
 category: testing
 date: 2026-08-05
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-local
 history: comet-cli-offline-review-evidence-reporting.history
@@ -78,7 +78,7 @@ gh issue comment 540 --repo LLM360/comet --body-file /tmp/comet-dashboard-affect
 12. **Find the shared failure shape.** If several views have the same query shape and the same validation error, file one incident after a duplicate search. Enumerate every known affected view in that issue so ownership, triage, and a regression test cover the shared navigation/query contract.
 13. **Bound the root-cause statement.** An error that reports `int_parsing` for relative time strings is evidence of a likely client/backend query-contract mismatch, not source-level proof of which side is wrong. State the hypothesis and compatible remedies, such as emitting integer timestamps in the frontend or accepting documented relative-time expressions in the backend, until code or endpoint validation confirms the cause.
 14. **Update the same incident as scope grows.** When a user identifies an additional view that fails with the identical parameters and payload, add a comment to the existing incident rather than creating a duplicate. Include the new URL and explicitly say why it belongs to the same issue.
-15. **Prefer the GitHub connector for tracker operations.** Use the connector for duplicate searches and comments when available. If it lacks issue creation, use the GitHub CLI as a fallback; preserve the returned issue URL and comment identifier as local verification evidence.
+15. **Use the authorized tracker interface.** Choose an available connector or CLI according to the user and repository instructions. Preserve returned issue URLs and comment identifiers as publication evidence.
 
 ## Failed Attempts
 

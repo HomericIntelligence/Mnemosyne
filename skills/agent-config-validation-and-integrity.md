@@ -1,10 +1,10 @@
 ---
 name: agent-config-validation-and-integrity
 license: BSD-3-Clause
-description: "Design, validate, and maintain agent configuration integrity in the HomericIntelligence agentic hierarchy. Use when: (1) consolidating redundant junior/senior agent tiers or multiple specialist agents into a parent tier with overlapping scope, (2) adding CI validation that delegates_to frontmatter fields map to real .md files (referential integrity), (3) fixing stale cross-references in agent configs or docs after specialist consolidation deletes agent files, (4) validating YAML frontmatter correctness before committing agent configuration changes, (5) routing pipeline phases to the correct Claude model tier via centralized module with env-var overrides."
+description: "Maintain agent configuration integrity during tier consolidation, reference cleanup, and runtime model selection; preserve delegation targets and configuration contracts."
 category: architecture
 date: 2026-06-07
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 history: agent-config-validation-and-integrity.history
 tags:
@@ -162,8 +162,8 @@ def learn_model()       -> str: return os.environ.get("HEPH_LEARN_MODEL",       
 
 **Per-phase model selection (CLI automation pipelines):**
 
-1. Map phases to model tiers by token shape (Planner → Opus, Implementer → Haiku,
-   Reviewer/advise/learn → Sonnet).
+1. Select phase models from task complexity, context, reliability, and available runtime support.
+   The model assignments below record one historical configuration, not a universal tier rule.
 2. Create `<pkg>/automation/claude_models.py` with per-phase **functions** (not constants)
    so env-var lookup happens at call time.
 3. Wire `--model <id>` at every site that **creates** a new Claude session.
@@ -267,7 +267,8 @@ Resource-prompt output reference:
 #### E. REST API + Pydantic Config Integration (httpx)
 
 1. Add `httpx>=0.27,<1` to **both** `pixi.toml` and `pyproject.toml`.
-2. Create the module in this order: `errors.py` → `models.py` → `client.py` → `__init__.py`.
+2. A useful module layout is `errors.py`, `models.py`, `client.py`, and `__init__.py`.
+   Let import dependencies determine implementation order.
 3. `client.py`: context manager, central `_request()` helper; health-check returns `None`
    on failure while other operations raise.
 4. Use the `import X as X` pattern in `__init__.py` and config re-exports when
@@ -397,8 +398,8 @@ HAIKU  = "claude-haiku-4-5"
 ### Stale cross-ref cleanup — environment notes
 
 - Markdownlint MD013 enforces 120-char max; count chars before committing merged bullets.
-- `mojo-format` pre-commit hook fails on hosts with GLIBC < 2.32; skip with
-  `SKIP=mojo-format` or rely on it auto-skipping when only `.md` files are staged.
+- `mojo-format` can fail on hosts with GLIBC < 2.32. Use a compatible authorized
+  environment or report the coverage gap; apply a documented exception only when it applies.
 - `validate_configs.py` reports pre-existing warnings (missing recommended sections);
   zero **errors** = passing.
 

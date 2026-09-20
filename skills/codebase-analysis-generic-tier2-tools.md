@@ -9,7 +9,7 @@ description: "Use when: (1) analyzing code structure, module hierarchy, or depen
   \ (5) validating function inputs for correctness and suggesting optimization strategies."
 category: evaluation
 date: '2026-05-19'
-version: 1.0.0
+version: "1.1.0"
 user-invocable: false
 history: codebase-analysis-generic-tier2-tools.history
 tags:
@@ -126,7 +126,7 @@ pixi info && pixi task list
 ### D — Quality Assurance
 
 1. **Coverage**: Run `pytest --cov`; generate HTML report; identify uncovered lines
-   and branches; meet ≥80 % threshold.
+   and branches; use the repository’s coverage policy where one applies.
 2. **Code smells**: Run `pylint`/`radon`; classify by severity; map to SOLID
    principle violations; prioritize refactoring by impact.
 3. **Lint**: Run `pylint`/`flake8`/`black`/`pixi run mojo format`; fix in severity
@@ -151,7 +151,7 @@ pixi info && pixi task list
 
 ## Results & Parameters
 
-### Coverage thresholds
+### Example coverage thresholds
 
 | Metric | Recommended minimum |
 | -------- | ------------------- |
@@ -166,7 +166,7 @@ pixi info && pixi task list
 | `timeit` repeats (`-r`) | 5 |
 | Warm-up runs | 10–100 (discard) |
 
-### Cyclomatic complexity thresholds (radon)
+### Example complexity signals (radon)
 
 | Grade | CC score | Action |
 | ------- | -------- | ------ |

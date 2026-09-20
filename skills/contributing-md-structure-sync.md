@@ -1,10 +1,10 @@
 ---
 name: contributing-md-structure-sync
 license: BSD-3-Clause
-description: "contributing-md-structure-sync"
+description: "Update a CONTRIBUTING.md project-structure listing when packages were added, removed, or renamed; check the current tree before editing."
 category: tooling
 date: 2026-03-19
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 ---
 # contributing-md-structure-sync

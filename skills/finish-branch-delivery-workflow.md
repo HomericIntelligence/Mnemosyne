@@ -1,10 +1,10 @@
 ---
 name: finish-branch-delivery-workflow
 license: BSD-3-Clause
-description: "Finish a development branch with repository-defined validation, signed DCO Conventional Commits, and explicit delivery choices. Use when: (1) implementation on a feature branch is complete, (2) a branch is ready for PR creation or preservation, (3) commit hygiene must be verified before delivery"
+description: "Complete feature-branch delivery with relevant verification, repository-specific commit hygiene, and the user's existing PR or merge authorization."
 category: tooling
 date: 2026-07-16
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 tags: [git, branch, delivery, pull-request, dco]
 ---
@@ -21,21 +21,21 @@ tags: [git, branch, delivery, pull-request, dco]
 
 ## When to Use
 
-- Implementation on a branch is complete and verification has already passed (run the verification evidence audit first; do not proceed while relevant repository-defined checks fail).
+- A branch needs verification, a pull request, or a clear account of remaining delivery work.
 
 ## Verified Workflow
 
 ### Detailed Steps
 
 1. Read the target repository's `AGENTS.md` and development policy.
-2. Prepare Hephaestus at `$HOME/.agent_brain/automation` under Athena's canonical dependency-resolution contract. Report repository, SHA, and trust basis; any preparation or revalidation failure is blocking.
+2. Use repository-local delivery tools where available. Resolve Hephaestus only if a needed helper depends on it; unavailable optional tooling need not block other delivery work.
 3. Discover the default branch and repository-defined validation commands from the target's task runner, manifests, and required workflow. Do not substitute Hephaestus-specific commands.
-4. Run the relevant tests, validation, formatting, linting, and build/package checks. Report exact commands and results.
+4. Select checks for the changed behavior and applicable repository gates. Report results and unresolved coverage; continue correcting in-scope failures.
 5. Review `git log <base>..HEAD` and both the merge-base and current-base diffs.
-6. Verify every commit is cryptographically signed, has a DCO `Signed-off-by` trailer, and follows Conventional Commits. Fix violations before offering delivery.
-7. Present three choices: create/update a pull request, preserve the branch and worktree, or request a separate read-only worktree-cleanup audit. Do not represent a cleanup request as removal authority.
-8. For a PR, push only the feature branch and create a body containing `Closes #N` when a tracking issue exists. Do not enable auto-merge or merge without explicit user authority.
-9. Never remove a worktree directly. Route each candidate through the worktree-cleanup audit, which requires a fresh audit and separate explicit approval for the exact path and audited HEAD.
+6. Check commit signing, DCO trailers, and message format where the target repository requires them. Correct applicable violations as part of delivery.
+7. Complete the delivery the user requested without asking them to select it again. If delivery scope is genuinely unclear, preserve the branch while resolving that decision.
+8. For authorized PR delivery, push the feature branch and link an existing tracking issue when appropriate. Merge or enable auto-merge when the user's authorization covers it; otherwise leave the PR ready for review.
+9. Treat cleanup as a separate scope decision. When already authorized, inspect current worktree state and use the applicable cleanup workflow without requesting the same permission again. Preserve active or uncommitted work.
 
 ### Merge-method helper
 
@@ -46,7 +46,7 @@ Use the resolved Hephaestus checkout's current merge-method helper when the targ
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 | --------- | ---------------- | --------------- | ---------------- |
 | Direct merge to default | Merging locally to the protected default branch | Bypasses required checks and review | Always deliver through a PR against the protected branch |
-| Cleanup as side effect | Removing worktrees while finishing the branch | Deleted work the user had not authorized losing | Worktree removal always goes through a separate audited approval |
+| Cleanup as side effect | Removing worktrees while finishing the branch | Deleted work the user had not authorized losing | Inspect cleanup scope and preserve active work; request approval only when existing authority does not cover deletion |
 
 ## Results & Parameters
 

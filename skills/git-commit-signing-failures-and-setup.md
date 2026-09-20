@@ -3,7 +3,7 @@ name: git-commit-signing-failures-and-setup
 description: "Use when required-signature policy blocks a conflict-free PR; GitHub reports unsigned, no_user, unknown_key, or bad signatures; local cryptographic checks disagree with GitHub; noninteractive workers silently fail to sign; a fresh headless host needs SSH signing; email privacy rejects a push; or amend produced a signed sibling that the PR did not adopt. Diagnose with REST, align identity and registered key, re-sign every introduced commit without changing content, and verify the exact remote PR head before merge."
 category: tooling
 date: 2026-07-13
-version: "2.1.0"
+version: "2.1.1"
 user-invocable: false
 license: BSD-3-Clause
 verification: mixed
@@ -81,7 +81,7 @@ account. The canonical private-email-safe identity is
 
 Pin the signing subkey when multiple secret keys exist. In a noninteractive shell, export a valid
 `GPG_TTY` when available and perform a harmless signing/agent-availability preflight before rewriting
-history. Fail immediately if `%G?` is not `G`.
+history. If `%G?` is not `G`, investigate the signing failure before rewriting; continue independent work.
 
 For SSH signing on a headless host:
 

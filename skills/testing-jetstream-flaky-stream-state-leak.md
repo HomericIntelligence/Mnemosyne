@@ -1,10 +1,10 @@
 ---
 name: testing-jetstream-flaky-stream-state-leak
 license: BSD-3-Clause
-description: "Planning-reasoning checklist for diagnosing flaky NATS/JetStream integration tests that assert an exact message count and intermittently OVER-count (e.g. `assert 2 == 1`) only under full-suite or repeated runs. Key correction: classify the subscriber type FIRST — a core NATS push subscriber (`nc.subscribe(...)`) receives live fan-out only and NEVER reads a JetStream stream, so purging streams is inert for it; only a JetStream consumer (`js.pull_subscribe`/`js.subscribe`) reads stream history. Use when: (1) a test asserts `len(received) == N` on a `nc.subscribe(...)` callback and flakes; (2) you are tempted to purge a JetStream stream to fix it — STOP and classify first; (3) tests use broad wildcard subjects (`hi.agents.>`, `hi.>`) and/or a fixed `asyncio.sleep` before the count assert."
+description: "Diagnose intermittent NATS message over-counts by subscriber type. Use for core live fan-out, JetStream history, broad subjects, and fixed-sleep timing."
 category: testing
 date: 2026-06-19
-version: "2.0.0"
+version: "2.1.0"
 verification: unverified
 user-invocable: false
 history: testing-jetstream-flaky-stream-state-leak.history
@@ -41,7 +41,7 @@ tags:
 ## When to Use
 
 - An integration test asserts `len(received) == N` on a `nc.subscribe(...)` callback and flakes only under full-suite / repeated runs (passes in isolation), surfacing as an over-count like `assert 2 == 1`.
-- You are tempted to "purge the JetStream stream" to fix it — **STOP** and first classify the subscriber type. Purging a stream is INERT for a core NATS push subscriber.
+- Before selecting a stream purge as a fix, classify the subscriber type. Purging a stream is INERT for a core NATS push subscriber.
 - Tests use broad wildcard subjects (`hi.agents.>`, `hi.>`) and/or a fixed `asyncio.sleep(0.x)` before the count assert.
 - A plan (or an issue) claims "streams persist and deliver stale messages" — treat that as a hypothesis and verify the subscriber type against the code before acting on it.
 

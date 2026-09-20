@@ -1,10 +1,10 @@
 ---
 name: ci-release-guard-crlf-marker-matching
 license: BSD-3-Clause
-description: "A whole-line fixed-string guard (`grep -Fqx needle`) that validates a marker embedded in externally-stored text (a GitHub Release body fetched back through the API) yields FALSE REFUSALS when the stored text uses CRLF line endings — GitHub may persist CRLF even when your writer sent LF, so the marker line ends `-->\\r` and never equals an LF-only needle. Strip carriage returns BEFORE the match: `printf '%s\\n' \"$BODY\" | tr -d '\\r' | grep -Fqx \"$MARKER\"`. Use when: (1) a release/publish workflow's unsafe-retry guard refuses a re-dispatch with 'lacks provenance' even though PyPI, artifacts, attestations, and the marker itself are all intact, (2) you write any guard that matches an exact line inside text fetched from GitHub (release/issue/PR bodies, API JSON string fields), (3) you are tempted to trust exit status alone when probing CLI capabilities — pre-2.31 git ECHOES unknown flags with exit 0, so output shape must be asserted too, (4) auditing existing `-Fqx`/`-Fx` guards for line-ending sensitivity."
+description: "Normalize transport line endings for whole-line release markers. Check capability-probe output shape when exit status alone gives false support."
 category: ci-cd
 date: 2026-08-23
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 verification: verified-ci
 tags:

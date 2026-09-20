@@ -6,7 +6,7 @@ description: >-
   when branch identity, ancestry, PR ownership, or the unique patch is uncertain.
 category: tooling
 date: 2026-07-13
-version: "2.0.0"
+version: "2.1.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-local
@@ -134,8 +134,8 @@ git stash pop
 git status --short
 ```
 
-Re-run the complete validation suite, make a signed/DCO commit if required, and open a linked new
-PR. Never append a new change to a branch whose PR is already merged.
+Run affected checks and any repository-required validation, make a signed/DCO commit if
+required, and open a linked new PR when publication is authorized. Never append a new change to a branch whose PR is already merged.
 
 #### Closed PR cannot reopen
 

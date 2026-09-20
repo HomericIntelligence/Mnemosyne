@@ -1,10 +1,10 @@
 ---
 name: atlas-dashboard-dockerfile-embed-distroless
 license: BSD-3-Clause
-description: "Package a Go HTTP service into a tiny distroless image with assets baked in via //go:embed. Use when: (1) writing a Dockerfile/.dockerignore/Makefile for a Go service that must ship static web assets inside the binary, (2) targeting gcr.io/distroless/static:nonroot (no shell, nonroot UID, non-privileged port) with a ≤30MB image budget, (3) injecting a build-time version string when .dockerignore excludes .git so `git describe` cannot run inside the build."
+description: "Plan Go static-asset embedding and distroless packaging. Resolve embed paths, multi-stage build arguments, and host-derived version metadata."
 category: ci-cd
 date: 2026-06-20
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 verification: unverified
 tags:

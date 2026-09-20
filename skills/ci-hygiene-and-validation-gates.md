@@ -1,9 +1,9 @@
 ---
 name: ci-hygiene-and-validation-gates
-description: "Use when adding lightweight CI guards for deprecated identifiers, schema drift, stale scripts, tracked files under ignored build directories, or local-to-CI discoverability; or when a named required check is green but asserts nothing. Verify the premise first, preserve pinned check contexts, choose warning versus hard failure from the invariant, mirror the exact CI environment, and prove enforcement with both clean-pass and synthetic-fail tests."
+description: "Design lightweight CI guards or diagnose checks that pass without enforcing their intended invariant."
 category: ci-cd
 date: 2026-06-20
-version: "2.0.0"
+version: "2.1.0"
 user-invocable: false
 license: BSD-3-Clause
 verification: verified-ci
@@ -97,7 +97,7 @@ declared dependency in `pip install -e .`; `--no-deps` can turn a policy asserti
 crash under `set -e`. Use the repository-pinned tool version and a proven command such as
 `pixi install --locked`, not a newer local flag.
 
-Two-sided verification is mandatory:
+Two-sided verification is useful when adding or changing enforcement:
 
 1. clean fixture exits zero;
 2. inject one targeted violation and require nonzero;

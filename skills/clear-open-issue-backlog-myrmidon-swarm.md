@@ -1,10 +1,10 @@
 ---
 name: clear-open-issue-backlog-myrmidon-swarm
 license: BSD-3-Clause
-description: "End-to-end orchestrator recipe for clearing an entire open GitHub issue backlog with a single myrmidon-swarm session: preflight the whole backlog, re-grade each issue against current code, map file ownership, dispatch wave-based parallel agents, trust-but-verify each PR, and close out. Use when: (1) an open-issue backlog has 5+ issues to triage and implement in one session, (2) planning a myrmidon swarm to close out accumulated issues, (3) managing file-ownership collisions across parallel agents, (4) deciding which issues to flag to the user vs dispatch to agents."
+description: "Coordinate an authorized issue backlog with live issue triage, explicit edit ownership, dependency-aware parallel work, and evidence-based delivery."
 category: tooling
 date: 2026-05-28
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags:
@@ -79,7 +79,7 @@ pixi run mypy
 
 **Step 1 — PREFLIGHT THE WHOLE BACKLOG**
 
-Before any dispatch:
+For the backlog selected by the user:
 
 1. Run `gh issue list --state open` to enumerate all open issues.
 2. For each issue, check whether prior PRs already reference or closed it:
@@ -100,7 +100,7 @@ Issue text reflects filing-time state, not current repo state. Before dispatchin
   - **DONE-ALREADY**: The issue's goal is fully achieved in current `main`. Action: verify with evidence, then close with `gh issue close <N> --comment "Verified done: <evidence>"` — no PR needed.
   - **PARTIAL**: Scaffolding is present; full implementation is not. Action: note what remains, scope a targeted agent task.
   - **KEEP**: Issue is still valid and unaddressed. Action: dispatch agent.
-  - **MOOT**: The issue describes work that is no longer relevant (e.g., a refactor the codebase already outgrew). Action: post evidence, let human close — do NOT dispatch.
+  - **MOOT**: The issue no longer describes useful work. Record the evidence; close it when issue management is authorized, or report the proposed disposition.
 
 Real examples from 2026-05-28 session:
 - A "revert OS matrix" issue was already done in main → DONE-ALREADY, closed with no PR
@@ -126,15 +126,13 @@ Before dispatch, list every file each KEEP/PARTIAL issue touches. Detect collisi
 **Step 4 — DISPATCH WAVES**
 
 Agent dispatch parameters:
-- Model: `sonnet` (never Haiku for judgment work — Haiku for bulk mechanical transforms only)
-- Isolation: `worktree`
-- Max agents per wave: 5
-- File-ownership line FIRST in each prompt (prevents scope creep)
-- Include hard LOC budget if refactoring (e.g., "do not increase file beyond N lines")
-- Include signed commits requirement: `git commit -S`
-- PRECOMMIT_STALL abort clause: "if pre-commit hooks hang >60s, skip them, commit, push, let CI validate"
-- EXECUTE directive: "Do NOT return a plan, do NOT ask for approval. Execute immediately."
-- Each agent runs `/advise` before work and `/learn` after
+- Select available agents and concurrency to match task complexity and host limits.
+- Prefer isolated worktrees for independent edits and state file ownership clearly.
+- Describe the expected result and relevant design constraints, rather than a fixed line budget.
+- Follow the target repository's commit-signing policy.
+- If a check stalls, diagnose it or use an authorized alternative; report missing coverage.
+- Continue already-authorized implementation without another planning approval.
+- Consult relevant prior knowledge when useful and preserve new lessons when evidence supports them.
 
 Auto-merge command (squash-only org):
 ```bash
@@ -142,10 +140,11 @@ gh pr merge "$PR_NUMBER" --auto --squash --repo ORG/REPO
 ```
 NOT `--rebase` even if CLAUDE.md documents `--rebase` — always check actual repo merge settings first.
 
-Flag to user (do NOT dispatch) any issue that is:
-- Admin/security config (branch ruleset edits, org settings — needs repo-admin)
-- Environment-bound (e.g., lockfile regen requiring running `pixi update`)
-- High-regression-risk refactors the user should scope/approve first
+Assess authority and feasibility for each issue. Admin settings need the relevant
+repository permissions. Environment setup and refactoring risk alone do not require
+a new user approval: inspect dependencies, use existing authorization, and select
+proportionate review. Ask only when scope or authority remains materially unclear;
+continue other backlog work while that question is unresolved.
 
 The user may resolve some flagged issues in parallel during the run (e.g., closed a branch ruleset issue mid-run).
 
@@ -213,18 +212,18 @@ Post-merge: main green, ruff clean (286 files), mypy clean, 762 automation tests
 ```bash
 gh api repos/ORG/REPO --jq '{rebase:.allow_rebase_merge,squash:.allow_squash_merge,merge:.allow_merge_commit}'
 # HomericIntelligence repos: {"rebase": false, "squash": true, "merge": false}
-# → Always use: gh pr merge --auto --squash
+# → When auto-merge is authorized, the supported strategy is --squash
 ```
 
 **Agent prompt template (file-ownership line first):**
 ```
 FILE OWNERSHIP: You own ONLY these files: <list>. Do not modify any other files.
-EXECUTE: Do NOT return a plan, do NOT ask for approval. Implement immediately.
-PRECOMMIT_STALL: If pre-commit hooks hang >60s, abort them, commit, push, let CI validate.
-Signed commits: git commit -S
-Auto-merge: gh pr merge --auto --squash (NOT --rebase)
-PR body must contain on its own line: Closes #<N>
-Run /advise before starting. Run /learn after completing.
+EXECUTE: Continue through implementation and proportionate verification within task authority.
+BLOCKERS: Diagnose stalled checks; preserve applicable gates and continue independent work.
+COMMITS: Use the repository signing convention when committing is authorized.
+DELIVERY: Use the permitted merge strategy when merge is authorized.
+TRACEABILITY: Link the relevant issue when one exists.
+KNOWLEDGE: Consult available advice or record reusable findings when useful.
 <task description>
 ```
 

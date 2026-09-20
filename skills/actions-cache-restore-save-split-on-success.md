@@ -1,10 +1,10 @@
 ---
 name: actions-cache-restore-save-split-on-success
 license: BSD-3-Clause
-description: "Plan converting combined actions/cache@vN (which uses the action's built-in post-job save, firing unconditionally even after a failed build) into explicit actions/cache/restore@vN (early, unconditional) + actions/cache/save@vN (gated on if: success()), so a failed or partial build never poisons a build-output (FetchContent / build/_deps / Conan) cache. Use when: (1) planning or implementing finer cache-write control in GitHub Actions, (2) preventing a failed build from saving a corrupt build/_deps or Conan cache, (3) a CI-hardening review touches actions/cache blocks, (4) you must enumerate EVERY combined block on a 'fix all N occurrences' issue and prove the per-file accounting sums to N before claiming coverage, (5) you must decide which cache blocks to split and how to AND the success() gate with an existing skip guard. PLANNING learning — captures completeness/sum-check discipline, the rule that a plan's acceptance command must pass against the artifact the plan produces, verifying design linchpins (cache-primary-key) against the action docs rather than shipping them as assumptions, and stating decisions (split all) with rationale instead of leaving options."
+description: "Split GitHub Actions cache restoration from saving when failed builds can poison reusable artifacts. Preserve keys, paths, conditions, and action versions."
 category: ci-cd
 date: 2026-06-19
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: unverified
 history: actions-cache-restore-save-split-on-success.history
@@ -219,9 +219,9 @@ python3 scripts/check_cache_save_gating.py
    `if: success() && steps.detect.outputs.skip == 'false'`. A bare `if: success()` would run the
    save on jobs the restore deliberately skipped.
 
-9. **Do all YAML edits in a SINGLE Python pass.** Never use parallel Edit calls or unquoted `rm`
-   for the bulk conversion — a prior KB failure mode lost/garbled edits. Drive the conversion from
-   one script that reads, transforms, and writes each file once.
+9. **Avoid competing writes during bulk YAML edits.** A single transformation script can
+   make the conversion easier to inspect. Sequential edits or isolated file ownership
+   also work; choose a method that preserves the existing blocks and quoting.
 
 10. **Validate before commit.** Run `actionlint` and `check-jsonschema` (GitHub workflow schema)
     over every edited workflow, plus the regression guard, plus the count-assertions from step 2.
@@ -255,7 +255,7 @@ python3 scripts/check_cache_save_gating.py
 - **Per-block version matching:** never bulk-bump; a `@v4` block → `restore@v4`/`save@v4`, a SHA-pinned `@v5` block → `restore@v5`/`save@v5`.
 - **Compound condition (pixi-check variant):** `if: success() && steps.detect.outputs.skip == 'false'` when the restore already had a skip guard.
 - **Scope decision:** split ALL combined blocks (including the low-risk Conan cache) — rationale: any remaining combined `actions/cache@` fails the grep-zero acceptance check, and a failed `conan install` can partially poison `~/.conan2`.
-- **Bulk edit:** single Python pass, never parallel Edit calls or unquoted `rm`. Validate with `actionlint` + `check-jsonschema`.
+- **Bulk edit:** use one writer per file and preserve quoting. Consider `actionlint` and `check-jsonschema` for changed workflows.
 - **Regression guard:** `scripts/check_cache_save_gating.py` (PyYAML) fails CI if any `cache/save@` lacks `success()` in `if:`, or if a combined `actions/cache@` reappears (snippet in Quick Reference).
 - **Inventory (point-in-time, DRIFTS):** issue #244 cited combined cache blocks across the workflow files. Re-grep before implementing — counts and per-block line numbers change as workflows change.
 
@@ -279,9 +279,9 @@ These are the durable PLANNING learnings — each remaining item is an open revi
    prior STEPS in the job succeeding (exit 0). Cache poisoning can STILL occur if a build step
    exits 0 while producing a partial/corrupt artifact — `success()` will not catch that. The gate
    reduces, not eliminates, poisoning risk.
-5. **Scope boundary (out of scope) — confirm with reviewer.** The plan intentionally leaves
-   `setup-pixi cache: true` and composite-action extraction OUT of scope. Confirm the reviewer
-   agrees this boundary is correct before implementing.
+5. **Scope boundary:** the recorded plan leaves `setup-pixi cache: true` and composite-action
+   extraction out of scope. Use the current task and source to resolve this boundary;
+   ask only if a material ambiguity remains.
 
 ## Verified On
 

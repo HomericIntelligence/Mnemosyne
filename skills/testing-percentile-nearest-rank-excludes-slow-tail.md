@@ -1,10 +1,10 @@
 ---
 name: testing-percentile-nearest-rank-excludes-slow-tail
 license: BSD-3-Clause
-description: "A hand-rolled p95/p99 latency gate that computes the percentile with the nearest-rank formula `index = ceil(n * p) - 1` (clamped to [0, n-1]) SILENTLY EXCLUDES the slow tail, so an `assert measured.p95 <= budget` gate passes even when a full p*n fraction of requests are catastrophically slow. Proof (a real NOGO'd perf suite, Hephaestus #2229 repairing PR #2212): for n=100 samples where the slowest 5 are 9999ms and the rest 10ms, nearest-rank p95 = ordered[ceil(100*0.95)-1] = ordered[94] = 10.0 — it lands BELOW all 5 tail samples, so a 500ms p95 gate reports PASS while 5% of traffic is 20x over budget. The fix is linear interpolation between closest ranks (numpy's default `linear` method, equivalently `statistics.quantiles(..., method='inclusive')`): `rank = p*(n-1); return o[lo] + frac*(o[lo+1]-o[lo])`, which returns 509.45 on that same input and 554.5 for [10]*9+[1000]. Use when: (1) reviewing or writing ANY test/CI gate that asserts a measured p95/p99/tail-latency against a budget, (2) you see a hand-written percentile using `ceil`/`floor`/`round` + integer indexing instead of interpolation, (3) an issue says a latency gate 'underreports tail latency' or 'the suite passes but tail is slow', (4) porting a percentile helper that has no dependency on numpy/statistics. The regression test that PROVES the defect must assert the OLD formula's wrong value (==tail-excluding number) AND the NEW formula's tail-inclusive value on the SAME fixed sample array — a deterministic unit test on a literal list, never a measured/timed run."
+description: "Inspect percentile definitions and deterministic boundary samples when latency checks disagree with expected tail behavior."
 category: testing
 date: 2026-07-17
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified
 tags:
@@ -136,11 +136,11 @@ test asserting `1000.0`. Under interpolation those become `9.55` and `554.5`. Re
 them would re-freeze the underreporting bug into the test suite. A test named after the *buggy
 algorithm* ("uses_nearest_rank") is a smell: it locks in the method, not the property.
 
-### 4. Also fix the latent forward-reference surfaced while reading
+### 4. Keep unrelated helper ordering separate
 
-The tail test called `_latency_summary` defined *below* it in the module — it worked only because
-pytest imports the module fully before calling tests. Move `_percentile`/`_latency_summary` above
-their callers; drop the now-unused `from math import ceil` (ruff F401).
+Python permits a function to call a helper defined later when the helper exists at call time.
+Reordering is an optional readability change, not a prerequisite to a percentile correction.
+Remove an unused `ceil` import if the chosen implementation no longer uses it.
 
 ## Failed Attempts
 

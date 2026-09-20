@@ -1,19 +1,10 @@
 ---
 name: process-metrics-pipeline-integration
 license: BSD-3-Clause
-description: "Use when: (1) emitting R_Prog, CFP, strategic_drift, or pr_revert_rate\
-  \ from a stage-based E2E runner into run_result.json; (2) loading process_metrics\
-  \ from run_result.json into the ProjectScylla loader → dataframes → figures stack;\
-  \ (3) persisting progress_steps/change_results through crash-resume cycles; (4)\
-  \ surfacing process metrics in per-run report.md and report.json; (5) exporting\
-  \ mean_r_prog / mean_cfp / mean_pr_revert_rate to summary.json; (6) adding metric\
-  \ aggregations to build_subtests_df() or model_comparison(); (7) adding figure functions\
-  \ to process_metrics.py and wiring them into generate_figures.py; (8) extending\
-  \ compute_statistical_results() with new per-run process metrics; (9) renaming\
-  \ figure functions to the fig{NN}_description convention."
+description: "Integrate process metrics across run state, aggregation, export, and figures when persistence or fixture contracts drift."
 category: evaluation
 date: 2026-05-19
-version: 1.0.0
+version: "1.0.1"
 user-invocable: false
 history: process-metrics-pipeline-integration.history
 tags:

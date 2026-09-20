@@ -1,10 +1,10 @@
 ---
 name: github-issue-workflow-and-preflight-gates
 license: BSD-3-Clause
-description: "Use when: (1) starting work on any GitHub issue — run preflight checks to avoid duplicate implementation, (2) building or maintaining automated preflight safety gates in issue-implementation workflows, (3) filing 10–40 audit findings as a tracked GitHub issue queue with a parent tracker, (4) filing issues that cite repo-internal markdown docs — push docs to origin/main first so URLs resolve on first render, (5) posting structured progress updates or completion summaries to GitHub issues, (6) filing a feature request against a third-party OSS repo with a proposed patch and duplicate check, (7) verifying an already-resolved issue and closing it with grep evidence, (8) the duplicate-search before filing often reshapes scope — finding an existing issue may convert 'file N issues' into 'comment on K existing + file (N-K) new', (9) a transient validation transcript captures a real unresolved bug and should become a durable GitHub bug issue instead of a checked-in artifact"
+description: "Inspect issue state and existing work to avoid duplicate implementation. Use for preflight automation, audit issue batches, durable bug reports, and linked documentation."
 category: tooling
 date: 2026-06-17
-version: "1.3.0"
+version: "1.4.0"
 user-invocable: false
 verification: verified-ci
 history: github-issue-workflow-and-preflight-gates.history
@@ -194,21 +194,27 @@ rg -n "<old-artifact-stem-1>|<old-artifact-stem-2>|validation-transcript" .
 
 | Commits on branch | PR exists | Action |
 | ------------------- | ----------- | -------- |
-| Yes (issue ref) | Yes (open) | Report done, stop — do NOT re-implement |
+| Yes (issue ref) | Yes (open) | Report the existing implementation and continue any remaining requested work |
 | Yes (issue ref) | No | Create PR, do NOT re-commit |
 | No | No | Proceed with implementation |
-| No | Yes (merged) | STOP — issue complete, do not duplicate |
+| No | Yes (merged) | Reuse the merged result and continue any remaining requested work |
 
 ### Automated Preflight Exit Code Discipline
 
+These exit codes describe the recorded duplicate-implementation checker, not
+permission to stop the whole task. Compare the requested outcome with the
+existing changes and remaining issue criteria. Reuse completed work, then
+continue any authorized work that remains. Existing commits or a PR alone do
+not require another user decision.
+
 | Exit | Check | Reason |
 | ------ | ------- | -------- |
-| 1 | Issue CLOSED | Never proceed — work complete or abandoned |
+| 1 | Issue CLOSED | The recorded checker rejects a new duplicate implementation attempt |
 | 1 | PR MERGED (via `closingIssuesReferences`) | Duplicate work risk |
 | 1 | Worktree exists | Git prevents two worktrees on same branch |
-| 0 | Existing commits | May be partial — user decides |
-| 0 | Open PR exists | May be collaborative — user decides |
-| 0 | Existing branch | Orphaned — user should review, not blocked |
+| 0 | Existing commits | Inspect and reuse partial work within task authority |
+| 0 | Open PR exists | Inspect ownership and remaining requested work |
+| 0 | Existing branch | Inspect its state; branch existence alone does not block work |
 
 ### Bulk Filing Principles
 
@@ -399,9 +405,9 @@ Key parameters: `--limit 100` for PR fetch; `grep -qx "$ISSUE"` for full-line ma
 
 | Parameter | Value | Notes |
 | ----------- | ------- | ------- |
-| Issues filed (verified run) | 26 | 1 epic + 25 children (`mvillmow/Random` 2026-05) |
-| PR cycles | 3 | docs → issue-bodies → file-issues registry |
-| Cross-link references resolved on first render | 25 | Zero backfill needed |
+| Issues filed (verified run) | Epic and child issues | Private project; identifiers and counts omitted |
+| PR sequence | Documentation, issue bodies, registry | Sequence reflects link dependencies |
+| Cross-link references resolved on first render | All child references | Zero child-link backfill needed |
 | `gh issue edit` for backfill | 1 | Only the epic; children correct first time |
 | Sleep between `gh issue create` | 1 s | Sufficient for ≤30 issues |
 
@@ -435,7 +441,7 @@ Use secret gists for proposed patches on third-party repos.
 | ProjectScylla | Issue #802 false-positive fix | PR #912, 6 bash tests passing |
 | ProjectScylla | Issue #803 propagate to worktree-create | PR #917, docs-only propagation |
 | ProjectScylla | 2026-05-07 audit filing | Filed 26 issues (#1934 tracker + #1935–#1959); 0 rate-limit errors |
-| mvillmow/Random | Predictive-Coding-in-Mojo Pass 4 | Filed epic #4 + 25 child issues #5–#29; all 25 cross-links resolved on first render |
+| Private research project | Documentation and issue filing | Filed an epic and child issues; all child cross-links resolved on first render |
 | HaywardMorihara/gh-tidy | `--auto-delete` feature request | Issue #62 filed; gist created; throwaway clone cleaned up |
 | ProjectHephaestus | Issue #539 verify-and-close | `grep -rn "macos-latest\|windows-latest" .github/` → exit 1; `.github/workflows/test.yml:58: os: [ubuntu-latest]` confirmed; issue closed via `gh issue close 539 --reason completed` |
 | H200 Slurm inference stack | PR #155 validation-artifact cleanup | Durable bug issue #158 created from the unresolved validation finding; PR #155 checks passed after transient artifacts were removed and stale artifact names were replaced with issue references |

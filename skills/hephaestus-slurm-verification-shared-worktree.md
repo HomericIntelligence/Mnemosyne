@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Run long ProjectHephaestus verification safely on Slurm. Use when jobs need the submitted script and Git worktree after allocation, or when recovering changes from a pruned temporary worktree."
 category: testing
 date: 2026-07-15
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [hephaestus, slurm, verification, git-worktree, pixi]
@@ -51,7 +51,8 @@ pixi run mypy
 4. If a `/tmp` linked worktree is pruned while its files are still present, create a fresh shared worktree from the intended base. Compare each changed tracked file byte-for-byte (`cmp -s`) and copy only the exact matching intended edits into the new worktree. Re-run `git diff --check` before testing.
 5. Run the full unit suite in the shared worktree. In this session it completed with `6226 passed, 24 skipped` and `85.28%` coverage.
 6. Run follow-on Pixi tasks separately. Read `pixi.toml` first: ProjectHephaestus's `mypy` task already expands `hephaestus/ scripts/ tests/`, so use `pixi run mypy`, not `pixi run mypy hephaestus/`.
-7. Retain the Slurm log and job exit status as verification evidence. Only commit after the complete requested sequence succeeds.
+7. Retain the Slurm log and job exit status as verification evidence. Report which requested checks ran and which remain. An authorized checkpoint commit
+   need not wait for unrelated checks, but it does not prove verification succeeded.
 
 ## Failed Attempts
 

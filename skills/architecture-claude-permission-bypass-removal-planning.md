@@ -1,10 +1,10 @@
 ---
 name: architecture-claude-permission-bypass-removal-planning
 license: BSD-3-Clause
-description: "Plan and review removal of Claude --dangerously-skip-permissions from autonomous automation paths without losing unattended operation. Use when: (1) a Claude automation path must stop passing the bypass flag, (2) permission-mode dontAsk plus allowedTools is being substituted for full bypass, (3) tests need AST guards against reintroducing unsafe Claude argv or extra_args, (4) compact/resume/print Claude CLI behavior is inferred from local patterns rather than verified end-to-end."
+description: "Plan removal of blanket permission bypasses while preserving unattended operation through scoped tool access. Use for helper, subprocess, compact, and resume invocation paths."
 category: architecture
 date: 2026-07-02
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 verification: unverified
 tags:

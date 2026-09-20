@@ -1,10 +1,10 @@
 ---
 name: plan-mode-blocks-subagent-writes
 license: BSD-3-Clause
-description: "Sub-agents launched while the parent conversation is in plan mode inherit plan-mode and silently stop at planning, refusing to write/commit/push. Use when: (1) launching Agent() sub-agents that must perform write actions, (2) seeing sub-agents return plan files instead of executing, (3) building skills that delegate /learn, /implement, or any write workflow."
+description: "Diagnose delegated write tasks that return plans because they inherit a host-enforced planning mode. Use when execution prompts conflict with the active mode or repeated dispatches cannot edit."
 category: tooling
 date: 2026-05-26
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [claude-code, sub-agents, plan-mode, isolation]
@@ -95,7 +95,9 @@ Agent(
 - /finish-branch — sub-agent does git push + PR open
 - Any "implement plan X" follow-up dispatch
 
-For all of these, ExitPlanMode must complete BEFORE the Agent() call.
+Write work depends on the host leaving plan mode through its supported control. While
+that restriction remains active, continue useful inspection and planning. Once the host
+permits execution and the task authorizes it, continue without an extra workflow approval.
 
 ## Verified On
 

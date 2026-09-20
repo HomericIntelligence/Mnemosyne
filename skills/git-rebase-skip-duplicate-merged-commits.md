@@ -1,19 +1,10 @@
 ---
 name: git-rebase-skip-duplicate-merged-commits
 license: BSD-3-Clause
-description: >-
-  Use when: (1) a PR branch has commits that duplicate work already merged upstream,
-  (2) a rebase onto origin/main encounters conflicts from commits whose content is
-  identical to already-merged work, (3) you want to land the branch cleanly on top
-  of main with no duplicate commits, (4) a branch was created before upstream completed
-  the same work and now both exist—skip deduplicates automatically, (5) you have
-  validated that the conflicts are solely from duplicate/superseded content, not new work.
-  During a permitted rebase, use `git rebase --skip` to skip those duplicate
-  commits instead of manually resolving conflicts that would delete/undo changes
-  main already has.
+description: "Identify already-merged duplicate commits during rebase while preserving branch-specific changes and the intended final diff."
 category: ci-cd
 date: 2026-07-06
-version: "1.1.0"
+version: "1.1.1"
 verification: verified-local
 ---
 

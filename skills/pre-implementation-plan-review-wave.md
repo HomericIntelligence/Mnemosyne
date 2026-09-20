@@ -1,15 +1,10 @@
 ---
 name: pre-implementation-plan-review-wave
 license: BSD-3-Clause
-description: "Run a multi-agent pre-implementation review wave (R0/R1) against an Epic
-  plan file and its child GitHub issues, catching regressions before implementation
-  begins. Use when: (1) a plan file and child issues must be kept consistent, (2) a
-  prior review wave (R0) claims fixes but artifacts may not all be updated, (3) you
-  need 6 parallel specialist reviews with structured output contracts and idempotent
-  GitHub posting."
+description: "Review an epic plan and child issues for inconsistent fixes or assumptions; use relevant specialist perspectives and avoid duplicate review comments."
 category: evaluation
 date: 2026-04-26
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags: [review-wave, pre-impl, plan-review, second-opinion, r0, r1, multi-agent-review]
@@ -37,6 +32,10 @@ tags: [review-wave, pre-impl, plan-review, second-opinion, r0, r1, multi-agent-r
 ## Verified Workflow
 
 > **Warning:** This workflow has not been validated end-to-end by automated CI. Treat as a hypothesis until confirmed by a full implementation run. Verification level: unverified.
+
+Review-only requests authorize inspection and a report. Publish comments or edit
+issues when the current task authorizes those actions; otherwise provide the
+proposed text and continue the requested review.
 
 ### Quick Reference
 
@@ -76,7 +75,7 @@ done
 
 ### Detailed Steps
 
-#### Phase 1: Scout Pass (do this before spawning agents)
+#### Phase 1: Ground the review in current artifacts
 
 1. Read the epic issue body and all prior review-wave comments (`gh issue view <N> --json body,comments`).
 2. Read the plan file (the single `.md` containing the full implementation blueprint).
@@ -87,9 +86,9 @@ done
 
 The scout pass is cheap (minutes) and prevents agents from debating wrong ground truth.
 
-#### Phase 2: Launch 6 Parallel Reviewer Agents
+#### Phase 2: Consider specialist reviews
 
-Launch in a single `Agent()` call with shared inputs:
+Select relevant dimensions and available reviewers; share the current artifacts:
 
 **Agent dimensions**: arch / code / security / ux / ops / docs
 
@@ -97,9 +96,9 @@ Launch in a single `Agent()` call with shared inputs:
 - Plan file path
 - R0 checklist (explicit per-item verification instructions)
 - Scope boundaries
-- Mandatory output format (enforced upfront — agents that skip the table make synthesis much harder)
+- A concise output format that supports synthesis
 
-**Mandatory output contract** (every agent must follow):
+**Suggested output contract:**
 
 ```markdown
 ## <dim>-review (R1)

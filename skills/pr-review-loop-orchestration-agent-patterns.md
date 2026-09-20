@@ -3,7 +3,7 @@ name: pr-review-loop-orchestration-agent-patterns
 description: "Use when implementing or debugging an agent-driven PR review/fix loop: progress must be commit-gated, GO convergence bounded, inline comments diff-valid, review evidence fully paginated, branch/head identity live-bound, non-blocking threads correctly dispositioned, and merge conditional on the reviewed head."
 category: ci-cd
 date: 2026-08-08
-version: "2.1.0"
+version: "2.1.1"
 license: BSD-3-Clause
 verification: verified-ci
 user-invocable: false
@@ -44,6 +44,11 @@ The full superseded source is in
 - The reviewed head changes, becomes behind/conflicting, or is merged from a queue.
 
 ## Verified Workflow
+
+The state transitions below describe the recorded automation protocol. Preserve its
+machine-consumed outcomes when maintaining that loop; they are not additional
+approval or commit gates for unrelated interactive work. Reuse task authorization,
+and continue independent work when one PR lacks evidence or a required decision.
 
 ### 1. Bind the loop to the live PR and head
 

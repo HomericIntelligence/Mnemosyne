@@ -1,10 +1,10 @@
 ---
 name: ci-cd-achaean-fleet-ci-cascade-patterns
 license: BSD-3-Clause
-description: "AchaeanFleet Docker infrastructure CI cascade failure sequence and fixes. Use when: (1) running a myrmidon swarm on HomericIntelligence/AchaeanFleet, (2) diagnosing cascading CI failures in a Docker image build pipeline, (3) fixing base-image ENTRYPOINT, OCI multi-arch build, vendor download URL, YAML column-0, caddy overlay, branch-protection push, or required-signatures ruleset / signed-commit merge-block issues in AchaeanFleet vessels."
+description: "Diagnose AchaeanFleet Docker CI failures involving YAML, Compose overlays, multi-arch images, release assets, and branch rulesets."
 category: ci-cd
 date: 2026-05-18
-version: "2.2.0"
+version: "2.2.1"
 history: ci-cd-achaean-fleet-ci-cascade-patterns.history
 user-invocable: false
 verification: verified-ci
@@ -29,7 +29,6 @@ observed order and exact fix for each layer.
 
 ## When to Use
 
-- Starting a myrmidon swarm or implementation sprint on AchaeanFleet
 - CI is red and the error message points to Docker build, ENTRYPOINT check, version pin test, or multi-arch build
 - A vessel Dockerfile's tool download URL returns 404
 - Multi-arch build fails with `oci-layout://` reference errors
@@ -72,7 +71,7 @@ gh api repos/HomericIntelligence/AchaeanFleet/rules/branches/main \
 
 ### Detailed Steps
 
-**The cascade failure order** (fix each in sequence — each fix reveals the next):
+**Observed failure layers** (start with the current evidence; a fix can expose a later failure):
 
 #### Level 1: YAML Syntax Errors
 

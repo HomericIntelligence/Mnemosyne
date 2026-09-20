@@ -1,9 +1,9 @@
 ---
 name: bash-script-and-jq-failure-modes
-description: "Diagnose and fix silent failures in bash scripting and jq under strict error-checking modes. Use when: (1) a bash script with set -euo pipefail exits unexpectedly mid-loop or mid-function, (2) grep finds no matches and kills the script via pipefail, (3) bash arrays crash with 'unbound variable' despite being declared, (4) exit 127 appears and all binaries are installed, (5) jq // operator silently drops boolean false values, (6) jq fails with syntax errors on array concatenation with conditionals, (7) Bash cwd drifts from absolute-path editing in multi-worktree sessions, (8) set -m plus a single-command subshell silently loses continuation, (9) gh API stderr corrupts JSON captured for jq."
+description: "Diagnose Bash and jq failures involving quoting, pipelines, field access, empty values, and shell status. Use concrete exit and output evidence."
 category: debugging
 date: 2026-06-13
-version: "2.0.0"
+version: "2.0.1"
 license: BSD-3-Clause
 verification: verified-ci
 user-invocable: false

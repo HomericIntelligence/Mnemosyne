@@ -1,0 +1,22 @@
+# History: tailscale-split-dns-dnsmasq-restricted-nameserver
+
+## v1.0.0: legacy privacy-redaction record
+
+Archive status: `privacy-redacted`. The prior content included private or
+personal context. The exact snapshot is intentionally omitted. This amendment
+generalizes that context and revises advisory guidance without copying private
+evidence. Provenance: the prior corpus entry reviewed during this migration.
+
+## v1.1.0: advisory guidance revision
+
+Revised workflow guidance and description for the user-approved completion-focused
+guidance migration. Existing verification evidence is unchanged. This record
+does not claim new execution or model-behavior validation.
+
+
+## Review correction (2026-09-20)
+
+Version `1.1.1` aligns copyable examples with the advisory guidance or corrects
+Markdown rendering. The immutable predecessor is
+`ed1bd4f54fd4aaba446af92c8b3ab9aff2589ae3:skills/tailscale-split-dns-dnsmasq-restricted-nameserver.md`.
+No new execution evidence is claimed by this amendment.

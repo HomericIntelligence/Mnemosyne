@@ -1,10 +1,10 @@
 ---
 name: scifi-mechanism-pr-box-trivial-communication-complexity
 license: BSD-3-Clause
-description: "Documents the PR-box / super-quantum correlation processor mechanism for a Planck-scale reality simulator, including the van Dam trivial communication complexity theorem, information causality (Tsirelson bound), NPA hierarchy characterization, and the M-file writing style used in the HomericIntelligence/Story research corpus. Use when: (1) writing a new M-file mechanism for the Story project, (2) researching super-quantum correlations or PR-boxes, (3) applying communication complexity theory to distributed computation design."
+description: "Examine speculative PR-box computation and communication-complexity claims for a fictional mechanism document."
 category: architecture
 date: 2026-06-01
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [scifi, physics, pr-box, quantum-foundations, communication-complexity, nonlocality, planck-scale, mechanism-design]
@@ -64,7 +64,9 @@ OUTPUT="/path/to/Story/Research/Mechanisms/M33-pr-box-processor.md"
 
 1. **WebSearch the key papers** — search for Popescu-Rohrlich 1994 (Foundations of Physics), van Dam 2005 (arXiv quant-ph/0501159), Pawlowski et al. 2009 (Nature), Tsirelson 1980, Brassard et al. 2006 (PRL), NPA hierarchy 2008 (NJP). Fetch arXiv abstract pages to confirm DOIs and publication details.
 
-2. **State the premise correction** — every M-file must distinguish "Planck LENGTH scale (~1.6 × 10⁻³⁵ m)" from "Planck constant h". This is mandatory boilerplate in the corpus.
+2. **Clarify the premise when needed** — distinguish "Planck LENGTH scale (~1.6 × 10⁻³⁵ m)"
+   from "Planck constant h" when the document could confuse them. Avoid repeating boilerplate
+   where the terms are already clear.
 
 3. **Design the mechanism around van Dam's theorem** — the core insight is: PR-box correlations trivialize distributed communication complexity to 1 classical bit per Boolean function evaluation, regardless of problem size. This specifically defeats walls 8 (data-movement/memory-wall) and 13 (Thompson AT²=Ω(n²)).
 

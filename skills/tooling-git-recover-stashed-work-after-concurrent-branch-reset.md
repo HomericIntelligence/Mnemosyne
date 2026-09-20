@@ -1,10 +1,10 @@
 ---
 name: tooling-git-recover-stashed-work-after-concurrent-branch-reset
 license: BSD-3-Clause
-description: "Recover uncommitted work that 'vanished' because a CONCURRENT agent/automation process switched branches and stashed your dirty tree in a SHARED git checkout. Use when: (1) you were editing a working tree on a feature branch and suddenly `git status` is clean and your files are gone from disk, (2) you suspect data loss but never actually committed (you only edited the working tree), (3) multiple agents / automation-loops share ONE git checkout and one of them ran `git checkout main` + `git reset` + `git pull --ff-only` under you, (4) `git stash list` shows an entry labeled 'PRESERVED ... (not mine)' created by the concurrent tooling, (5) you need to confirm the checkout/reset/pull sequence via reflog and re-apply the stash onto a fresh branch."
+description: "Recover missing edits from stashes and reflogs after a concurrent checkout reset. Preserve backup evidence and restore work into a stable editing context."
 category: tooling
 date: 2026-06-27
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [git, stash, reflog, concurrent, multi-agent, shared-checkout, lost-work, recovery, branch-reset, preserved-stash, automation-loop, stash-apply, commit-early]
@@ -76,20 +76,20 @@ git commit -S -m "<message>"            # commit promptly — you are still in a
    `pull --ff-only origin main: Fast-forward` → `reset: moving to HEAD` →
    `checkout: moving from <my-branch> to main`. This proves an external process moved off
    your branch to update main, and explains why your working tree was carried away.
-4. **Create a fresh branch off the updated main.** `git checkout -b <newbranch>`. Do NOT
-   try to revive the original `<my-branch>` — it never held a commit, so it has no value;
-   branching from the freshly-pulled main gives you the latest base.
+4. **Restore into an isolated worktree or appropriate branch.** Inspect the original
+   branch before deciding whether to reuse it; absence of a new commit does not make
+   its identity worthless. Choose a base that preserves the requested work and avoids
+   the process that reset the shared checkout.
 5. **`git stash apply stash@{0}` (apply, not pop).** Apply restores all files. If main moved
    while your changes were stashed, git performs a clean three-way auto-merge as long as your
    files don't overlap the incoming changes. Verify with `git status` and a smoke import/test
    that the expected files and content are present.
-6. **Re-run verification, then commit immediately.** Run the repo's lint/type/test gates,
-   then `git add` + `git commit` (signed if required) right away. You are still in a shared
-   checkout — every minute of uncommitted work is exposed to the same concurrent-reset hazard
-   that just hit you.
+6. **Preserve a durable recovery point.** Inspect restored content and select checks
+   affected by the new base. An authorized checkpoint commit or isolated copy can
+   protect work promptly; report verification separately and continue to completion.
 7. **Leave the backup stash in place.** Use `apply`, not `pop`, so the stash survives until
    your work is committed and pushed. Do not try to clean it up — `git stash drop` is blocked
-   by the CC Safety Net hook (requires a manual user run), and a leftover backup stash is
+   by the CC Safety Net hook (the recorded host policy required a manual user run), and a leftover backup stash is
    harmless.
 
 ## Failed Attempts

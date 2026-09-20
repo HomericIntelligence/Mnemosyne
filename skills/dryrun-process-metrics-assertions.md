@@ -1,10 +1,10 @@
 ---
 name: dryrun-process-metrics-assertions
 license: BSD-3-Clause
-description: "Skill: Dryrun process_metrics Assertions in Integration Tests"
+description: "Test process_metrics JSON artifacts with isolated fixtures. Use when dry-run reports need presence, type, and populated-value checks without external execution."
 category: tooling
 date: 2026-03-19
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 ---
 # Skill: Dryrun process_metrics Assertions in Integration Tests

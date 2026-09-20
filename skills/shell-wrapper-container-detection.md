@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Implement shell script wrappers that detect container context and route commands via container orchestrator (podman/docker) when on host. Use when: (1) wrapping CLI tools that must run inside containers, (2) dev environment uses podman compose with detached environments, (3) same script must work both on host (via podman compose exec) and inside container (direct execution)."
 category: tooling
 date: 2026-07-03
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [shell-script, podman, container, routing, mojo, automation, dev-environment]
@@ -76,7 +76,7 @@ main "$@"
 
 **Step 1: Choose container detection method**
 
-Use all three methods (belt-and-suspenders) to maximize compatibility:
+Select detection methods supported by the target runtimes; the example combines three signals:
 
 ```bash
 is_in_container() {
@@ -178,7 +178,7 @@ Include comments on service names and working directories:
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 |---------|----------------|---------------|----------------|
-| Used docker compose instead of podman | `docker compose exec ...` | Host may have only podman, causing "docker: command not found" | Always use `podman compose` explicitly; verify in CLAUDE.md for project orchestrator choice |
+| Used docker compose instead of podman | `docker compose exec ...` | Host may have only podman, causing "docker: command not found" | Use the orchestrator configured for the project; the recorded environment used `podman compose` |
 | Forgot `-T` flag | `podman compose exec service bash ...` | TTY allocation (`-t` default) fails in CI headless environments; pre-commit hooks hang | Always use `-T` for any automated/CI context; test in CI before landing |
 | Used non-login shell | `bash -c` instead of `bash -lc` | Pixi environment not activated; Mojo not in PATH; training fails with "mojo: command not found" | Login shell (`-lc`) essential for pixi/environment activation; single-char typo breaks everything |
 | Separated cd and cmd | `bash -lc "cd /workspace; mojo ..."` | If cd fails (bad workspace path), mojo still executes in wrong directory; silently corrupts state | Use atomic `cd /workspace && cmd` (with `&&`); failures propagate immediately |

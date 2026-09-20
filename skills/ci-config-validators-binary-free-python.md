@@ -1,10 +1,10 @@
 ---
 name: ci-config-validators-binary-free-python
 license: BSD-3-Clause
-description: "Binary-free Python validators for CI config syntax gates (NATS HOCON, docker-compose). Use when: (1) adding a CI job that validates NATS server.conf / leaf.conf syntax without running nats-server, (2) validating a docker-compose YAML structurally without docker/podman compose installed, (3) nats-server -t exits non-zero on a valid config due to missing TLS cert files (the TLS-cert trap), (4) podman compose config is not installed on the CI runner (skip-everywhere trap), (5) writing a stdlib-only HOCON brace/string depth checker in Python, (6) needing a PyYAML compose validator that runs on any runner with python3."
+description: "Validate CI configuration structure without service binaries when NATS certificate dependencies or missing compose tools prevent direct validation."
 category: ci-cd
 date: 2026-06-20
-version: "1.0.0"
+version: "1.1.1"
 user-invocable: false
 verification: verified-local
 tags:
@@ -213,7 +213,8 @@ jobs:
 
 ### PyYAML Availability Note
 
-PyYAML is a transitive dependency of `yamllint`. If a CI job already installs `yamllint`, PyYAML is available at no extra cost. For jobs that don't install `yamllint`, add `pip install --user pyyaml` explicitly. Always use `--user` — see the `ci-pip-install-user-pep668` skill.
+PyYAML is a transitive dependency of `yamllint`. If a CI job already installs `yamllint`, PyYAML is available at no extra cost. For jobs that do not install `yamllint`, declare PyYAML in the repository's supported dependency environment. Use `--user` only when that environment supports user-site installation; see
+[the runner-specific installation case](ci-pip-install-user-pep668.md).
 
 ### Detailed Steps
 

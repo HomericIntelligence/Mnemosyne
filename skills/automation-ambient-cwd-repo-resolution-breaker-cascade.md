@@ -1,10 +1,10 @@
 ---
 name: automation-ambient-cwd-repo-resolution-breaker-cascade
 license: BSD-3-Clause
-description: "Diagnose why a handful of wrong-repo 404s silently opens a SHARED circuit breaker and poisons an ENTIRE multi-repo automation run. Use when: (1) a multi-repo loop aborts with hundreds of 'poisoned' items, CircuitBreakerOpenError, or 'FAIL:poisoned' and near-zero useful work, (2) you see 'Could not resolve to an Issue with the number of N' 404s in a cross-repo run, (3) a caught/swallowed exception still trips a breaker ('WARNING: ...using cache' next to 'ERROR: Non-transient error'), (4) a GitHub helper takes a bare issue NUMBER with no owning repo, (5) triaging a multi-repo abort and deciding how many DISTINCT root-cause bugs to file, (6) labels/comments/state appear on the WRONG repo's issues with no error anywhere — the silent WRITE twin (verified: epic state:skip tags landed on the cwd repo's colliding issue numbers)."
+description: "Diagnose multi-repository circuit-breaker cascades caused by GitHub calls resolving the wrong repository from ambient working-directory state."
 category: debugging
 date: 2026-07-17
-version: "1.1.0"
+version: "1.1.1"
 history: automation-ambient-cwd-repo-resolution-breaker-cascade.history
 user-invocable: false
 verification: verified-ci

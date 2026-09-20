@@ -1,10 +1,10 @@
 ---
 name: ci-cd-github-code-quality-findings-no-api
 license: BSD-3-Clause
-description: "Fixing GitHub Code Quality (/security/quality) findings — a product distinct from CodeQL code-scanning, with NO public REST API. Use when: (1) a /security/quality/rules/py%2F... URL reports open findings, (2) deciding how to locate Code Quality violations when the code-scanning alerts API returns them empty, (3) reconciling ruff vs CodeQL semantic differences for py/unused-local-variable, py/unused-global-variable, py/repeated-import, py/import-and-import-from, py/empty-except, py/undefined-export, (4) a Copilot/AI-findings autofix PR fails to merge, (5) a Code Quality finding is a false positive and you must refactor working code to satisfy the analyser without changing behaviour, (6) consolidating or moving Python modules and leaving a thin re-export backward-compat shim, (7) a CodeQL/static-analyzer flags re-exported names as unused/dead imports even though the shim uses the `name as name` redundant-alias idiom that Ruff already accepts."
+description: "Investigate GitHub Code Quality findings when code-scanning APIs do not expose them, or analyzer rules disagree about unused names and compatibility re-exports."
 category: ci-cd
 date: 2026-06-30
-version: "1.1.0"
+version: "1.2.1"
 user-invocable: false
 verification: verified-ci
 tags: [github-code-quality, codeql, ruff, code-quality, static-analysis, re-export, shim, __all__, backward-compat]
@@ -38,7 +38,7 @@ tags: [github-code-quality, codeql, ruff, code-quality, static-analysis, re-expo
 
 - **GitHub Code Quality is a separate product from CodeQL code-scanning.** The `/security/quality` UI tab is *not* the same as the code-scanning alerts surface. `gh api repos/OWNER/REPO/code-scanning/alerts` returns **only** code-scanning alerts (e.g. `actions/missing-workflow-permissions`) and shows **0** for Code Quality findings. There is **no public REST API** for Code Quality findings — `repos/.../code-quality/analysis` returns **404**.
 - **Locate the violations yourself.** Two reliable methods:
-  - (a) Ask the user to paste the findings list from the `/security/quality` UI — it gives exact `file:line`.
+  - (a) Inspect the findings through an available authorized UI; request the list only if it is inaccessible and needed for the task.
   - (b) Run `ruff`, whose rules approximately map to the CodeQL Code Quality rules (see mapping table below).
 - **CRITICAL semantic difference:** `ruff` treats a leading-underscore name (`_major`, `_modified`, `_unused`) as *intentionally* unused and does **not** flag it. CodeQL's `py/unused-local-variable` **does** flag underscore-prefixed names. A clean `ruff` run is therefore **not proof** that the Code Quality rules are satisfied.
 - **CodeQL scoping for `py/repeated-import` is narrower than naive scans assume.** A single module-level `import X` *plus* a function-local `import X` inside a function **is** flagged by `py/repeated-import`. But two function-local `import X` statements in two **different** functions are **not** flagged. Docstring `import` examples are never violations. Always verify a suspected violation against the actual UI finding rather than guessing CodeQL scoping.
@@ -50,15 +50,17 @@ tags: [github-code-quality, codeql, ruff, code-quality, static-analysis, re-expo
 gh api repos/OWNER/REPO/code-scanning/alerts            # 0 Code Quality findings
 gh api repos/OWNER/REPO/code-quality/analysis           # 404 — no public API
 
-# 2. Get the real findings: ask the user to paste the /security/quality UI list (gives file:line),
-#    OR reconstruct approximately with ruff (NOT authoritative — see semantic gap below):
+# 2. Inspect /security/quality through an available authorized UI capability.
+#    Ask for missing findings only if they cannot be obtained directly. Ruff can
+#    provide clues, but cannot replace the actual finding (see semantic gap below):
 ruff check --select F811,F841,F822,S110,SIM105 hephaestus/ tests/
 
 # 3. Fix per rule (see patterns below), then verify behaviour is unchanged:
-pixi run pytest tests/unit          # all 2320 tests must pass
+pixi run pytest tests/unit          # example: select applicable tests through authorized validation
 
-# 4. If an AI-autofix PR's check fails, first check the branch is not behind main:
-gh api repos/OWNER/REPO/pulls/N/update-branch -X PUT
+# 4. Inspect a failed autofix check before changing the branch.
+#    Update its base only for a relevant dependency, conflict, or explicit request:
+gh pr view N --repo OWNER/REPO --json headRefOid,baseRefOid,mergeable
 ```
 
 ### Per-rule fix patterns
@@ -210,7 +212,7 @@ gh api repos/OWNER/REPO/pulls/N/update-branch -X PUT
 
 - **Never** trust `gh api .../code-scanning/alerts` as a Code Quality inventory — it covers a different product.
 - **Never** delete a name flagged `py/unused-*` without confirming it is not used by a closure or another module's tests.
-- **Always** re-run the full unit suite (`pixi run pytest tests/unit`) after a Code Quality fix to prove behaviour is unchanged.
+- Prefer focused behavioral checks after a Code Quality fix; broaden to the unit suite when shared imports or runtime behavior may be affected.
 - Suppression (`--ignore-vuln`, `# noqa`) is a last resort — fix the root cause or explicitly document why no fix exists.
 
 ## Related Skills

@@ -1,10 +1,10 @@
 ---
 name: tooling-wave-b-pr-fix-mesh-playbook
 license: BSD-3-Clause
-description: "Wave-B autonomous fix-mesh playbook: green 20+ failing PRs across multiple HomericIntelligence repos by applying mechanical autofixes (markdownlint, clang-format, pixi lock, pre-commit autofixes) with signed/verified commits, AND reliably verifying/finishing a Wave-B auto-fix run whose own log over-reports success. Use when: (1) running an autonomous PR-sweep where many fully-auto PRs are red on the same mechanical checks, (2) a Myrmidon swarm Wave-B auto-fix executor exited claiming PRs pass but you need to confirm/finish them, (3) re-signing previously unsigned commits to satisfy branch-protection signature policies, (4) applying a single shared-doc fix across N PRs that all inherit the same defect from main."
+description: "Repair mechanical CI failures across an authorized PR backlog and verify actual head, signing, and check state."
 category: tooling
 date: 2026-05-31
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-ci
 history: tooling-wave-b-pr-fix-mesh-playbook.history
@@ -23,7 +23,7 @@ tags: []
 | **Verification** | verified-ci — every check observed `conclusion=success` in real CI on host `aeolus`. |
 | **Host** | `aeolus` (account uses GitHub email-privacy noreply identity for pushes). |
 | **History** | [changelog](./tooling-wave-b-pr-fix-mesh-playbook.history) |
-| **Cross-links** | [Odysseus#299](https://github.com/HomericIntelligence/Odysseus/pull/299) · `/home/mvillmow/pr-mesh-run/report.md` |
+| **Cross-links** | [Odysseus#299](https://github.com/HomericIntelligence/Odysseus/pull/299) · `<run-report-path>` |
 
 ## When to Use
 
@@ -60,8 +60,8 @@ git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
 git fetch origin --depth=50
 
 # 2. Force noreply identity on aeolus (email-privacy is enabled)
-git config user.email '4211002+mvillmow@users.noreply.github.com'
-git config user.name 'mvillmow'
+git config user.email '<account-noreply-email>'
+git config user.name '<operator-name>'
 # Signing is global: gpg.format=ssh, signingkey=~/.ssh/id_signing_ed25519.pub, commit.gpgsign=true
 
 # 3. Shared-doc fan-out fix across N PRs (one base worktree, loop branches)
@@ -222,9 +222,11 @@ gh api "repos/ORG/REPO/commits/$SHA/check-runs" \
   --jq '.check_runs[] | select(.name=="<check-name>") | .conclusion'
 ```
 
-AchaeanFleet workflows run 15-30 minutes wall-clock. Bound polls to once-per-90s and cap total at 35 min before paging a human.
+The recorded AchaeanFleet workflows took 15-30 minutes. Choose bounded waits from actual
+progress and host capabilities. A timeout is a reason to inspect state and continue other
+work, not an automatic request for human intervention.
 
-#### Step 7 — Aeolus noreply email is mandatory
+#### Step 7 — Use the account's configured author identity
 
 The account has GitHub's email-privacy "Block command line pushes that expose my email" enabled. Pushes that author with `<private-email>` are rejected with:
 
@@ -235,7 +237,7 @@ remote: error: GH007: Your push would publish a private email address.
 Mitigation (set per-clone OR globally):
 
 ```bash
-git config user.email '4211002+mvillmow@users.noreply.github.com'
+git config user.email '<account-noreply-email>'
 ```
 
 The SSH signing key (`~/.ssh/id_signing_ed25519.pub`) is registered on GitHub under that noreply identity, so signatures verify only when the author email matches. Setting `user.email` to anything else simultaneously breaks pushes AND signature verification.
@@ -246,8 +248,9 @@ A red `lint` / `clang-format` check is NOT always autofixable locally. If the ho
 `clang-format -i` disagrees with CI's **pinned** clang-format version (common around
 lambda formatting and `<< " "` stream-operator spacing), running the host tool produces
 output CI still rejects — you ping-pong red forever. When the host formatter and CI
-formatter disagree, stop re-thrashing: **demote that PR to manual** and leave the targeted
-check for a human (or a correctly-pinned environment) rather than burning cycles.
+formatter disagree, use the pinned environment when available. Otherwise, record the exact
+version mismatch, retain the work, and continue other PRs. Seek input only if obtaining the
+needed environment or changing the target policy requires it.
 
 A "fix" that turns the **targeted** check green is success even if the PR still has OTHER
 unrelated pre-existing red checks (a separate security/dependency-scan, CodeQL, etc.).
@@ -265,7 +268,7 @@ block recording the targeted check as resolved.
 | Narrow markdownlint fix | Fixed only the one shared file (`branch-protection.md`) the analysis named | The same MD013 rule also failed in `CONTRIBUTING.md`, so the check stayed red. | Re-run the linter on ALL flagged files from the live log, not just the headline one. |
 | pre-commit markdownlint for MD060 | Relied on the original `pre-commit` run output | A different rule (`MD060` table-column-style) wasn't covered by that run. | Read the live `--log-failed` for the actual rule and fix it specifically — MD060 IS `--fix`-able (normalize table pipe spacing); MD013 is not. |
 | `gh pr checkout <n>` in shallow clone | Used it to switch to the PR branch before committing | Silently stayed on `main`; commits/pushes went to main and were rejected by branch protection (`push declined due to repository rule violations` / `src refspec ... does not match`). | Resolve `headRefName` and `git fetch origin "$BR" && git checkout "$BR"` by explicit name; verify `git rev-parse --abbrev-ref HEAD` is the branch, not main. |
-| `clang-format -i` on build host | Ran the host's clang-format to green a `lint` / `clang-format` check | CI's pinned clang-format version disagreed (lambda + `<< " "` spacing); check stayed red no matter how many times it was re-run. | Host/CI formatter version mismatch = genuinely manual. Demote the PR rather than re-thrashing. |
+| `clang-format -i` on build host | Ran the host's clang-format to green a `lint` / `clang-format` check | CI's pinned clang-format version disagreed (lambda + `<< " "` spacing); check stayed red no matter how many times it was re-run. | Use the pinned formatter when available; otherwise report the environment gap and continue independent work. |
 
 ## Results & Parameters
 
@@ -284,8 +287,8 @@ block recording the targeted check as resolved.
 
 ```ini
 [user]
-    email = 4211002+mvillmow@users.noreply.github.com
-    name  = mvillmow
+    email = <account-noreply-email>
+    name  = <operator-name>
 # Inherited from global:
 # [gpg]      format     = ssh
 # [user]     signingkey = ~/.ssh/id_signing_ed25519.pub
@@ -323,7 +326,7 @@ fix-mesh run.
 ### Cross-links
 
 - PR: [HomericIntelligence/Odysseus#299](https://github.com/HomericIntelligence/Odysseus/pull/299)
-- Run report: `/home/mvillmow/pr-mesh-run/report.md` on `aeolus`
+- Run report: `<run-report-path>` on `<build-host>`
 
 ## Verified On
 

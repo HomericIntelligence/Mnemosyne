@@ -1,10 +1,10 @@
 ---
 name: ci-cd-verify-merged-prs-end-to-end
 license: BSD-3-Clause
-description: "Treat closing an umbrella issue that tracks N sequential implementation PRs as a distinct end-to-end verification task: merged-and-green PRs do not compose. Each PR's CI exercises only its own changed files, so the full pipeline (e.g. packaging: rename → recipe → wheel → release.yml) has never run as a whole. Also: to prove a CI fix works you must verify fix against the EXACT failing job/step/command, not a look-alike green proxy — a tag-gated build (docker-publish on release tags) is not in the PR check set so the PR can go green while the real build stays broken, and 'cmd | grep' means grep masks exit code of the build (use pipefail or check the build's own markers). Reproduce exact failing path (the real container build), never a native/local stand-in, to avoid premature victory. Use when: (1) an umbrella issue stays OPEN after all its child PRs merged, (2) acceptance criteria have not been driven end-to-end, (3) a tag-triggered or rarely-run workflow (release.yml, nightly, weekly E2E) has never actually fired, (4) you suspect 'all PRs merged green so it must work', (5) budgeting effort for a verification pass that uncovers a sequential defect cascade, (6) a green check made you declare a CI fix done but you have not confirmed it was the SAME job/step that was failing."
+description: "Assess whether merged implementation PRs compose into the requested end-to-end outcome; inspect cross-phase contracts and authorized live evidence."
 category: ci-cd
 date: 2026-07-13
-version: "1.1.0"
+version: "1.2.0"
 history: ci-cd-verify-merged-prs-end-to-end.history
 user-invocable: false
 verification: verified-ci
@@ -132,19 +132,18 @@ gh issue close <ISSUE> --comment "All N acceptance criteria verified end-to-end.
 3. **Run the composed pipeline / artifact for real.**
    - Packaging: actually build the `.conda` / `.mojopkg` / `.whl`, install it into a clean env,
      import the package.
-   - Release: actually push a tag (throwaway pre-release tag) and watch every job run.
+   - Release: exercise the workflow through an authorized trigger and observe its jobs; a tag push can publish artifacts and is not inherently disposable.
 
 4. **Expect and budget for a defect cascade.** Fix the first failure, re-run, observe the next.
    Each fix is its own small follow-up PR. Do not try to predict defect N+1 before defect N is
    fixed — you literally cannot reach that code path yet.
 
-5. **Force tag-triggered / rarely-run workflows to fire.** Use `workflow_dispatch` if the workflow
-   declares an input; otherwise push a throwaway pre-release tag and delete it afterward. A
-   never-triggered job is an unverified job.
+5. **Choose an appropriate workflow trigger.** Prefer a supported test or dispatch path when it
+   supplies the needed evidence. Use release tags only within existing publication authorization.
+   If that path cannot run, report the verification gap and continue independent work.
 
-6. **File issues for defects you choose not to fix in-pass.** A genuinely out-of-scope or
-   lower-priority defect (e.g. a too-strict version regex) gets its own tracked issue rather than
-   blocking the verification pass.
+6. **Report deferred defects.** Continue the requested verification where possible. Create tracking
+   issues when external issue updates are in scope; otherwise include actionable follow-up suggestions.
 
 7. **Close the umbrella issue only when every criterion is observed passing**, and reference the
    follow-up fix PRs in the closing comment for an audit trail.

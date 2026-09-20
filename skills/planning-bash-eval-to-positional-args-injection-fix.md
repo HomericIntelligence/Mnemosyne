@@ -1,21 +1,10 @@
 ---
 name: planning-bash-eval-to-positional-args-injection-fix
 license: BSD-3-Clause
-description: >-
-  Methodology for planning a bash shell-injection remediation that replaces
-  `eval "$cmd"` with positional-parameter expansion `"$@"` in a retry/wrapper
-  helper. Use when: (1) planning a fix that swaps `eval "$cmd"` for `"$@"` in a
-  retry, with-timeout, or generic command-wrapper helper; (2) the plan reorders
-  a helper signature so the command becomes a trailing varargs slot
-  (`func MAX SLEEP COMMAND...`); (3) the plan claims a helper has "zero call
-  sites" so the signature reorder is "free" — the single highest-risk assumption;
-  (4) deciding whether to add a new CI lint guard or lean on an existing
-  shellcheck gate; (5) proving injection-safety of a bash command wrapper before
-  writing implementation code; (6) reviewing such a plan that was authored but
-  NOT executed against the working tree.
+description: "Plan replacing Bash eval with positional arguments while preserving command behavior and removing unsafe reinterpretation of input."
 category: architecture
 date: 2026-06-20
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 verification: unverified
 tags:

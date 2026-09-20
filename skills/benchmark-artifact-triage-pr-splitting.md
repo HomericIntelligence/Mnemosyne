@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Triage and incrementally publish generated benchmark result artifacts. Use when: (1) benchmark/report runs leave many untracked files, (2) result PRs must include durable reports and exact current records without logs or scratch residue, (3) live sweeps need consistency-checked report snapshots with stable record identities, (4) a new result must be integrated into an existing PR without regressing its newer snapshot, (5) Pareto/report assets need validation before staging."
 category: tooling
 date: 2026-09-15
-version: "1.4.0"
+version: "1.5.0"
 history: benchmark-artifact-triage-pr-splitting.history
 user-invocable: false
 verification: verified-local
@@ -81,8 +81,8 @@ git diff --cached --check
 
 ### Detailed Steps
 
-1. **Sync trunk before analyzing artifacts.**
-   Fetch, switch to the real trunk branch, and fast-forward it before inspecting branches or untracked files. Result triage depends on the current ignore rules and the current report layout.
+1. **Identify the relevant revision and working state.**
+   Inspect current ignore rules, report layout, and existing work before choosing a checkout. Fetch or use an isolated worktree when current trunk evidence is needed; artifact inspection does not require switching a dirty working tree.
 
 2. **Inspect branch state separately from artifact state.**
    First decide whether old branches are merged, stale, or still carrying independent work. Do not mix branch cleanup with result artifact commits. If a branch contains a large unrelated archive or old experiment corpus, split that decision from the benchmark result PRs.
@@ -145,14 +145,14 @@ git diff --cached --check
 17. **Stage from the reviewed file lists.**
    Use `git add --pathspec-from-file=/tmp/<list>.txt` so the staged set exactly matches the reviewed set. After staging, compare `git diff --cached --name-only` to the list and investigate any mismatch.
 
-18. **Run a pre-commit staged audit for every PR.**
-   Before each commit, run staged stats, staged file count, a transient-pattern scan, `git diff --cached --check`, data-specific validation, and an added-line privacy scan. Rewriting an aggregate JSONL or table row can expose an old sensitive value even when the newly integrated record is clean. Fix that value at the generator or import boundary, add a regression check, regenerate the affected consumers, and rescan; do not hand-edit generated output.
+18. **Review the staged publication surface.**
+   Select data-specific checks appropriate to the artifacts. Staged paths, transient-pattern scans, diff checks, and an added-line privacy scan help prevent accidental publication. Rewriting an aggregate JSONL or table row can expose an old sensitive value even when the newly integrated record is clean. Fix that value at the generator or import boundary, add a regression check, regenerate the affected consumers, and rescan; do not hand-edit generated output.
 
 19. **Split PRs by dataset and review size.**
    Prefer one PR per endpoint/model family/report surface. For large structured JSON sets, split by model family or experiment group so each PR remains reviewable. State exact included counts and excluded categories in every PR body.
 
-20. **Return to trunk and inspect leftovers.**
-   After opening PRs, switch back to trunk and run `git status --short --untracked-files=all`. The remaining untracked files should all be intentionally excluded categories, not forgotten report assets.
+20. **Inspect leftovers.**
+   After preparing or publishing changes, inspect `git status --short --untracked-files=all` in the relevant worktree. Return to trunk only if appropriate for the ongoing work. The remaining untracked files should all be intentionally excluded categories, not forgotten report assets.
 
 ## Failed Attempts
 

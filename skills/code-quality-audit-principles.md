@@ -1,10 +1,10 @@
 ---
 name: code-quality-audit-principles
 license: BSD-3-Clause
-description: "Use when reviewing, planning, or implementing repository changes that must apply KISS, YAGNI, TDD, DRY, SOLID, modularity, and POLA without creating brittle prose tests or maintenance-only artifacts, including CLI help tests that distinguish public argument grammar from editorial explanation."
+description: "Use design principles to assess complexity, duplication, interfaces, test value, and proposed audit artifacts during repository changes or reviews."
 category: tooling
 date: 2026-07-25
-version: "2.1.0"
+version: "2.2.0"
 user-invocable: false
 verification: verified-ci
 tags:
@@ -58,11 +58,11 @@ rubrics.
 ### Quick Reference
 
 1. Identify the current requirement, affected consumer, and executable failure.
-2. Apply KISS, YAGNI, TDD, DRY, SOLID, modularity, and POLA to the proposed remedy.
+2. Use the relevant design principles to choose a proportionate remedy.
 3. Add an artifact only when it directly implements, verifies, distributes, operates, secures, or
    explains the current product.
-4. For executable defects, prove a focused RED test, make the smallest GREEN change, then refactor.
-5. Run the repository's focused checks, complete required gate, and current-head CI.
+4. Prefer a focused regression test for executable defects, then make the smallest useful repair.
+5. Select checks that address the changed behavior and applicable repository constraints.
 6. Report evidence in the review or PR. Create another persistent artifact only when a demonstrated
    consumer or explicit repository policy requires it.
 
@@ -88,12 +88,12 @@ an arbitrary metric when the code remains simple, tested, and unsurprising in it
 | Modularity | Give independent modules explicit inputs, outputs, ownership, and tests; avoid ambient state and hidden working-directory contracts. |
 | POLA | Make defaults, names, failures, side effects, and authority boundaries match a reasonable user's expectations. Fail closed when safety or identity is ambiguous. |
 
-These principles constrain the review process too. A quality audit should not create the complexity,
+These principles guide the review process too. A quality audit should not create the complexity,
 duplication, speculative machinery, or surprising side effects it criticizes.
 
-### 3. Use the durable-artifact gate
+### 3. Evaluate the value of an artifact
 
-Before adding a file, require a clear answer to both questions:
+When a new artifact adds maintenance work, consider:
 
 1. Which current product or contributor workflow consumes this artifact?
 2. Who or what keeps it correct when the underlying behavior changes?
@@ -115,8 +115,8 @@ consumer and update mechanism rather than inferring a generic best practice.
 
 ### 4. Test behavior and executable contracts
 
-For a code or automation defect, the regression test must fail for the reported defect before the
-fix and pass after it. Assert computable outcomes such as return values, state transitions, parsed
+For a code or automation defect, a regression test is useful when it detects the defect and passes
+after the repair. Where practical, observe both outcomes. Assert computable outcomes such as return values, state transitions, parsed
 data, exit status, security boundaries, archive membership, schema validity, or filesystem effects.
 
 For CLI help, distinguish public argument grammar from editorial explanation. A stable, copyable
@@ -140,8 +140,8 @@ consumes it as executable data; test the parser or schema contract, not editoria
 
 ### 5. Verify proportionally and report in place
 
-Run the focused regression first, then the repository's formatter, linter, type checks, complete
-test suite, packaging or distribution checks, and required CI as applicable. Record exact commands,
+Prefer focused regression checks first. Add suite, lint, type, packaging, or CI checks according to
+the affected contracts and repository requirements. Record exact commands,
 results, revision, and any authorized deferral in the PR or review response.
 
 Create a GitHub issue only for genuinely deferred work that needs ownership and only when the user or
@@ -172,7 +172,7 @@ Do not create a separate audit document merely to restate the review.
 | Audit report file | Reject | Existing repository policy names a consumer, owner, location, and update lifecycle |
 | Changelog entry | Reject unless required | Release tooling or documented release policy consumes it |
 | Registry, catalog, or generated index | Reject unless required | A current runtime or contributor workflow consumes one authority with an automated update path |
-| Tracking issue | Ask or follow explicit policy | Deferred actionable work needs ownership and external-write authority |
+| Tracking issue | Use existing authorization; ask only if it is missing | Deferred actionable work needs ownership and external-write authority |
 
 ### Evidence recorded from the verified implementation
 

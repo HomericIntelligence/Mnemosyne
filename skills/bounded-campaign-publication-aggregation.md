@@ -1,9 +1,9 @@
 ---
 name: bounded-campaign-publication-aggregation
-description: "Use when an append-only, multi-cycle public report projection approaches its hard total-size cap because each cycle repeats cumulative aggregates, while prior-cycle bytes and hash evidence must stay immutable. Promote the newest cumulative aggregates once at the campaign root, record the per-cycle omission, and verify the atomic extension instead of raising the cap or deleting bound evidence."
+description: "Avoid duplicate cumulative reports when extending a size-bounded campaign publication. Preserve immutable cycle evidence and manifest bindings."
 category: documentation
 date: 2026-09-11
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags:
@@ -45,7 +45,8 @@ earlier source evidence.
 ### Quick Reference
 
 ```text
-bind existing payload -> classify cumulative files -> verify RED -> promote latest files
+bind existing payload -> classify cumulative files -> consider a focused regression
+-> promote latest files
 -> record omission -> rebuild tree hash and byte count -> verify prior bytes and atomic rollback
 ```
 
@@ -58,9 +59,9 @@ bind existing payload -> classify cumulative files -> verify RED -> promote late
 3. Classify each large repeated report. Require evidence that the newest file is cumulative and
    that the campaign root is its canonical public location. Keep independent cycle reports inside
    their cycle.
-4. Add a behavior-first regression test. The test must initially fail because the extension puts
-   the cumulative files in both the new cycle and the campaign root.
-5. Require the test to verify these observable results:
+4. Consider a focused regression for duplicate cumulative files in the new cycle and
+   campaign root. Demonstrating the defect first helps establish that the check detects it.
+5. Useful observable results to cover include:
 
    - every existing cycle file is byte-for-byte unchanged;
    - the new cycle does not contain the redundant cumulative copy;

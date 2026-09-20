@@ -5,7 +5,7 @@ description: "Inspect an authorized PR backlog across repositories when review a
 history: automation-multi-repo-pr-sweep-rebase-resolve.history
 category: tooling
 date: 2026-06-28
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-ci
 tags:
@@ -30,8 +30,8 @@ tags:
 | Field | Value |
 |-------|-------|
 | **Date** | 2026-06-28 |
-| **Objective** | Drive a large backlog of author-scoped (mvillmow) PRs to green + merged across many HomericIntelligence repos in one session, when `hephaestus-review-prs` alone leaves them unmerged. |
-| **Outcome** | Successful. One session resolved ~97/108 mvillmow PRs across 13 repos; 89 merged. Remaining were regressive PRs left for manual re-authoring or CI-throughput-throttled (merged as runners freed). |
+| **Objective** | Drive a large backlog of operator-authored PRs to green + merged across many HomericIntelligence repos in one session, when `hephaestus-review-prs` alone leaves them unmerged. |
+| **Outcome** | Successful. One session resolved ~97/108 operator-authored PRs across 13 repos; 89 merged. Remaining were regressive PRs left for manual re-authoring or CI-throughput-throttled (merged as runners freed). |
 | **Verification** | verified-ci (PRs went green in CI and squash-merged on `main`; commit signatures verified `verified==true`). |
 
 ## When to Use
@@ -133,7 +133,9 @@ gh pr merge <pr> --auto --squash --repo $ORG/$REPO   # only if live policy permi
 3. **Fan out** one sub-agent per repo into `/tmp/sweep-<repo>` (fresh clone — never the shared submodule).
 4. Per PR: bind the head, inspect actual blockers, rebase only for a documented active-task exception or reported completed-PR conflict, publish the fix, and obtain exact-head review. Retain required CI and signing gates.
 5. Verify all live repository gates, then use the authorized merge method or queue. Target movement alone does not require another rebase.
-6. Leave **regressive** PRs untouched for manual re-authoring; let CI-throughput-throttled armed PRs merge as runners free.
+6. Investigate regressive PRs and repair them when the authorized scope is clear. Otherwise,
+   report the specific design or ownership decision and continue other PRs. Queued checks
+   need bounded monitoring, not repeated changes to the branch.
 
 ## Failed Attempts
 
@@ -146,12 +148,12 @@ gh pr merge <pr> --auto --squash --repo $ORG/$REPO   # only if live policy permi
 
 ## Results & Parameters
 
-- **Scale:** ~97/108 mvillmow PRs resolved across 13 HomericIntelligence repos in one session; **89 merged**.
+- **Scale:** ~97/108 operator-authored PRs resolved across 13 HomericIntelligence repos in one session; **89 merged**.
 - **Repos where `main` was red on a required check (fixed first):** Hermes, Agamemnon, Proteus, Odysseus (`security`/`dependency-scan` via `pip-audit`).
 - **Required checks:** read live policy; historical check names do not establish current requirements.
 - **Merge method:** the captured repositories used squash. Check current repository settings and queue requirements.
 - **Ruleset:** the captured cases required thread resolution. Apply current policy and review authority before resolving a thread.
-- **Signature email:** sign with the noreply email `4211002+mvillmow@users.noreply.github.com` so rewritten/re-signed commits stay `verified==true` and survive the GH007 email-privacy push block (see cross-link below).
+- **Signature email:** sign with the noreply email `<account-noreply-email>` so rewritten/re-signed commits stay `verified==true` and survive the GH007 email-privacy push block (see cross-link below).
 - **Throughput ceiling:** force-pushing ~80 PRs saturates the runner pool; armed PRs sit BLOCKED/QUEUED and auto-merge as runners free — this is the rate limit, not a failure.
 
 ### Related skills (cross-links)
@@ -161,4 +163,4 @@ gh pr merge <pr> --auto --squash --repo $ORG/$REPO   # only if live policy permi
 - `automation-review-loop-unpushed-fix-oscillates` — narrower review-loop failure mode (unpushed fix oscillation).
 - `dependabot-lockfile-rebase-regenerate-resign` — regenerating + re-signing lockfiles when rebasing dependency PRs (the pixl.lock / CHANGELOG re-conflict case).
 - `multi-repo-pr-automation-loop-orchestration` — the driver-side honest-reporting / report-vs-live-state failures of the loop itself.
-- `reference_signed_commits_email_privacy` (Odysseus memory) — the noreply email `4211002+mvillmow@users.noreply.github.com` that keeps signatures valid past GH007.
+- `reference_signed_commits_email_privacy` (Odysseus memory) — the noreply email `<account-noreply-email>` that keeps signatures valid past GH007.

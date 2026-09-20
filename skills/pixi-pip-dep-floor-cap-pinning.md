@@ -1,10 +1,10 @@
 ---
 name: pixi-pip-dep-floor-cap-pinning
 license: BSD-3-Clause
-description: "Use when: (1) pixi.toml has pip listed as `\"*\"` (unbounded) in [dependencies] while all other deps are pinned, (2) planning a floor/cap constraint for conda-managed pip to guard PEP 660 editable-install compatibility, (3) adding a regression test to ensure pip stays within a safe range after a version bump, (4) checking whether pixi.lock needs to be committed after constraining pip."
+description: "Set a tested pip version range in Pixi. Use for editable-install compatibility, floor and cap tests, or deciding whether a constraint change alters the lockfile."
 category: ci-cd
 date: 2026-06-13
-version: "1.2.0"
+version: "1.3.0"
 user-invocable: false
 history: pixi-pip-dep-floor-cap-pinning.history
 tags:
@@ -118,9 +118,9 @@ pip = "*"
 pip = ">=23.0,<27"
 ```
 
-#### 5. Re-solve and lockfile check — MANDATORY EXPLICIT STEP
+#### 5. Inspect lockfile impact
 
-This is the most common landability gap for pixi.toml edits. When any `[dependencies]` constraint changes, `pixi install` re-solves `pixi.lock`. The plan **must** include all three sub-steps:
+This is the most common landability gap for pixi.toml edits. When any `[dependencies]` constraint changes, `pixi install` re-solves `pixi.lock`. Consider these three steps when the lock no longer satisfies the new constraint:
 
 ```bash
 # (a) Re-solve the environment
@@ -143,9 +143,9 @@ Add a `TestPipPinning` class to the **existing** test file:
 tests/unit/scripts/test_dependency_floor_consistency.py
 ```
 
-Do NOT create a new file. The existing file already exercises pixi.toml dependency constraints — `TestPipPinning` extends that coverage.
+Prefer extending the existing dependency-constraint tests when they provide the right context.
 
-**Use the existing `_floor()` and `_upper_cap()` module-level helpers** — do not write substring checks inline. Every other class in the file delegates to these helpers. Using them is required for DRY compliance.
+**Use the existing `_floor()` and `_upper_cap()` module-level helpers** — do not write substring checks inline. Every other class in the file delegates to these helpers. Reuse keeps the parsing rule in one place.
 
 ```python
 class TestPipPinning:
@@ -214,7 +214,7 @@ class TestPipPinning:
 | Cap | `<installed_major + 1` | Blocks the next major version; requires an explicit bump when the new major is tested |
 | Example (2026-06-13) | `>=23.0,<27` | pip 26.1.2 installed → cap = 27 |
 
-### Implementation Order checklist (mandatory for any pixi.toml edit)
+### Suggested checks when a pixi.toml edit changes dependency resolution
 
 1. Edit `pixi.toml` — change `pip = "*"` to `pip = ">=23.0,<27"`
 2. Run `pixi install` — re-solves `pixi.lock` as a side effect

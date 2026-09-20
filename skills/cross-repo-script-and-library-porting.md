@@ -3,7 +3,7 @@ name: cross-repo-script-and-library-porting
 description: "Port scripts, libraries, or skills between repositories without downgrading the destination. Use for dependency-layer migrations, diverged implementations, dependency elimination, source shims, licensed upstream skill adaptation, or staged code absent from the target."
 category: tooling
 date: 2026-05-19
-version: "2.0.0"
+version: "2.1.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-ci
@@ -154,10 +154,10 @@ provides it. Hook behavior is a product decision, not part of content porting by
 
 ### 8. Verify both repositories
 
-In the destination, run focused tests, full relevant suite, lint, format, type checks, package build,
-install/import/CLI smoke tests, and CI. In the source, run shim identity/import tests and downstream
-checks. Confirm the lockfile corresponds to the canonical manifest and no private paths or credentials
-entered copied content.
+In the destination, select checks for the affected behavior, packaging, and supported runtimes.
+In the source, check retained shims and affected consumers. Expand verification for integration
+risk and actual repository requirements. Inspect manifest/lock consistency and keep private paths
+and credentials out of copied content.
 
 ## Failed Attempts
 
@@ -178,8 +178,8 @@ entered copied content.
 - Record immutable source and destination SHAs for every migration.
 - Keep PRs dependency-ordered and independently testable; source cleanup is final.
 - Destination behavior and conventions win unless the port intentionally changes them.
-- Required gates: supported-runtime test matrix, lint/format, types, package/install smoke, lockfile,
-  and CI.
+- Useful checks depend on the port: supported runtimes, package/install behavior, imports,
+  manifest/lock consistency, and the repositories' actual CI requirements.
 - Source shims use explicit re-exports and remain only while consumers need them.
 - External skills require overlap search, license audit, format adaptation, and attribution.
 

@@ -1,10 +1,10 @@
 ---
 name: monorepo-subproject-gitignore-and-github-template-gotchas
 license: BSD-3-Clause
-description: "Two related gotchas when adding per-subproject config to a project that lives in a SUBDIRECTORY of a monorepo. (1) A monorepo-root .gitignore rule silently blocks committing files in a subproject — `git add` does nothing, `git status` shows nothing — and un-ignoring requires re-including the parent directory FIRST before any file negation takes effect. (2) GitHub issue/PR templates are NOT auto-wired from a monorepo subdirectory; GitHub reads templates only from the repository-root .github/, root, or docs/. Use when: (1) adding a .claude/, .vscode/, or other tool-config directory to a monorepo subproject and `git add` appears to do nothing; (2) `git status` does not show new files you just created inside a monorepo subproject; (3) adding GitHub issue or PR templates to one subproject of a monorepo; (4) writing a CONTRIBUTING.md for a monorepo subproject."
+description: "Diagnose root ignore rules and GitHub template discovery when adding configuration inside a monorepo subproject."
 category: tooling
 date: 2026-05-19
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [monorepo, gitignore, git-check-ignore, github-templates, issue-template, subproject, claude-config]
@@ -152,4 +152,4 @@ GitHub template-location rule: GitHub auto-wires `ISSUE_TEMPLATE/` and `pull_req
 
 | Project | Context | Details |
 |---------|---------|---------|
-| predictive-coding research project (a subdirectory of the `mvillmow/Random` 5-project monorepo) | Adding project-scoped `.claude/` config and GitHub templates to a monorepo subproject, 2026-05-19 | The monorepo-root `.gitignore` `.claude/` rule silently blocked the subproject's `.claude/settings.json` + `.claude/agents/*.md`; fixed with a directory-first negation block. GitHub did not surface the subproject's `.github/` templates; resolved by documenting `gh ... --body-file` usage in `CONTRIBUTING.md` |
+| predictive-coding research project (a subdirectory of the `<owner>/<monorepo>` 5-project monorepo) | Adding project-scoped `.claude/` config and GitHub templates to a monorepo subproject, 2026-05-19 | The monorepo-root `.gitignore` `.claude/` rule silently blocked the subproject's `.claude/settings.json` + `.claude/agents/*.md`; fixed with a directory-first negation block. GitHub did not surface the subproject's `.github/` templates; resolved by documenting `gh ... --body-file` usage in `CONTRIBUTING.md` |

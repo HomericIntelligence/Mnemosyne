@@ -1,10 +1,10 @@
 ---
 name: testing-gtest-skip-inside-helper-keeps-test-running
 license: BSD-3-Clause
-description: "GTEST_SKIP() called inside a helper/fixture method only aborts THAT function (it uses the fatal-assertion mechanism), so the test is marked skipped but the TEST body keeps executing every statement after the helper returns. Use when: (1) you factor an env-var/precondition skip into a fixture helper like require_X() and call it from test bodies, (2) a test reports SKIPPED yet its side effects (docker commands, file writes, crashes) still happen, (3) a 'skipped' test dies with std::logic_error/segfault from std::string(nullptr) built from an unset getenv, or with std::terminate because an exception unwound through a throwing RAII guard, (4) reviewing gtest code where GTEST_SKIP/ASSERT_* live in non-void helpers or subroutines. Fix: inline GTEST_SKIP() directly in the TEST body, or follow every possibly-skipping helper call with `if (::testing::Test::IsSkipped()) return;`. Same rule applies to ASSERT_* in helpers (gtest docs: fatal assertions abort only the current function)."
+description: "Prevent skipped GoogleTest helpers from leaving caller side effects active. Use when GTEST_SKIP or fatal assertions return only from a helper and the test body continues."
 category: testing
 date: 2026-07-03
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 verification: verified-local
 tags: [gtest, gtest-skip, skip-semantics, fixture-helper, fatal-assertion, undefined-behavior, std-terminate, raii-guard, getenv-null, integration-tests, code-review]

@@ -1,10 +1,10 @@
 ---
 name: testing-non-vacuous-regression-guards-behavior-unchanged
 license: BSD-3-Clause
-description: "Discipline for proving that 'regression guard' tests added alongside a BEHAVIOR-UNCHANGED fix (documents an existing fallback, adds a docstring `Raises:`, clarifies a contract) are NON-VACUOUS — i.e. that each test would actually FAIL if the guarded branch were removed or altered. Such tests are NOT RED-GREEN TDD: they encode the CURRENT behavior and can pass vacuously, so a reviewer will correctly NOGO a plan that claims 'no behavior change, tests encode the contract' without naming the mutation each test catches. Teaches: (1) a per-test mutation table (Test | Asserts | Mutation it catches); (2) pairing each positive substring assertion with a DISCRIMINATING negative assertion (e.g. `assert '{' not in result`) that excludes the sibling code paths; (3) exploiting a real sibling asymmetry (one function case-SENSITIVE, the other case-INSENSITIVE) as a deliberate discriminator probe; (4) a cheap manual non-vacuity spot-check (temporarily apply the mutation, confirm the test fails, revert). Use when: (1) the fix changes NO logic but adds/clarifies docs and you add tests to 'guard' the now-documented behavior; (2) you wrote a docstring-only / doc-only fix whose regression tests could pass vacuously; (3) a reviewer NOGOs a plan for an un-proven 'tests encode the contract' claim; (4) you assert only a positive substring (`'name: hephaestus' in result`) and need to make it non-vacuous; (5) you are tempted to propose a 'wording alignment' doc edit to text that already states the contract."
+description: "Assess whether regression guards distinguish meaningful behavior changes when the implementation stays unchanged; use discriminating inputs and optional mutation checks."
 category: testing
 date: 2026-06-27
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags:
@@ -99,10 +99,9 @@ For a behavior-UNCHANGED (docstring/doc-only) fix whose tests "guard" the contra
    first fails. Green-from-the-start tests can be vacuous: they may assert
    something that is true regardless of the branch you intend to guard.
 
-2. **Build the mutation table.** For every new test, write down the smallest
-   realistic code change that would break it. If you cannot name such a mutation,
-   the test guards nothing — delete it or strengthen its assertions. Ship the
-   table IN THE PLAN so the reviewer can check each row.
+2. **Reason about a discriminating failure.** Identify a realistic behavior change
+   each proposed guard should catch. Strengthen redundant or vacuous assertions.
+   A mutation table can make a complex review easier; it is not a required artifact.
 
 3. **Add a discriminating negative assertion.** A positive substring is satisfied
    by multiple renderings (text, a mis-rendered table, etc.). Add a negative
@@ -141,8 +140,8 @@ For a behavior-UNCHANGED (docstring/doc-only) fix whose tests "guard" the contra
 
 ### Per-test mutation table (the artifact that turns NOGO → GO)
 
-Ship this table IN THE PLAN. Each row proves the test discriminates a real
-mutation rather than restating current behavior.
+Use a table when it clarifies the intended failure cases. Rows explain the reasoning;
+executed checks provide evidence that a test detects the mutation.
 
 | Test | Asserts | Mutation it catches |
 |------|---------|---------------------|

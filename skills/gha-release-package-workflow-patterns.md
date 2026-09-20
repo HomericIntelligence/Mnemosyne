@@ -1,9 +1,9 @@
 ---
 name: gha-release-package-workflow-patterns
-description: "Use when: (1) creating a tag-triggered release workflow with keepachangelog CHANGELOG format and semver version consistency checks across manifests, (2) implementing automated package building via GitHub Actions with artifact publication and GitHub Release creation, (3) cutting a protected-branch release through a merge queue and proving the remote signed tag and published assets, (4) adding pre-commit script validation of Python version drift between pyproject.toml classifiers and Dockerfile FROM line, (5) adding CI steps that replace fragile shell printf emoji byte-escape encoding with dedicated Python scripts for better portability."
+description: "Build tag-triggered package releases with changelog extraction, manifest consistency, protected-branch tagging, and published-asset verification."
 category: ci-cd
 date: 2026-07-17
-version: "1.3.0"
+version: "1.4.0"
 user-invocable: false
 verification: verified-ci
 history: gha-release-package-workflow-patterns.history
@@ -72,14 +72,14 @@ tags:
 
 Right: `v1.0.0`, `v0.1.0`, `v2.1.3`. Wrong: `v1.0.0-alpha`, `v1.0.0+build`, `1.0.0`, `version-1.0.0`.
 
-**Implementation order for a first release (do not skip):**
+**Suggested preparation for a first release; adapt to existing release infrastructure:**
 
 1. Create/update `CHANGELOG.md` (keepachangelog: `[Unreleased]` + dated sections).
 2. Write bash regression tests for tag format, manifest consistency, dispatch contract.
 3. Create `release.yml` triggered on semver tags; validate then publish.
 4. Place bash regression tests in a dedicated job (NOT the lint job).
 5. Add pre-commit hooks: signed commits + version consistency.
-6. Integration-test locally before opening the PR.
+6. Exercise the relevant integration path when available; report gaps in the PR.
 
 ### Detailed Steps
 

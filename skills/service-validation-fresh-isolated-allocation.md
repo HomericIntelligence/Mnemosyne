@@ -1,10 +1,10 @@
 ---
 name: service-validation-fresh-isolated-allocation
 license: BSD-3-Clause
-description: "Validate or reproduce a service on a FRESH, isolated compute allocation instead of reusing a running one, and treat teardown + cleanup proof as part of the validation. Use when: (1) proving a service/endpoint launch end-to-end when other instances are already running, (2) reproducing a corruption/regression that needs a clean environment, (3) a manifest- or config-driven launch fails and you must separate control-plane failures from missing-artifact and probe failures, (4) running an A/B ablation where baseline and treatment must differ in exactly one variable, (5) you need evidence that the run allocated its own resources and released them afterward."
+description: "Validate service launch and cleanup in an isolated allocation. Use for launch defects, environment-sensitive regressions, or matched A/B experiments."
 category: debugging
 date: 2026-07-18
-version: "1.0.0"
+version: "1.1.1"
 user-invocable: false
 tags: [validation, reproduction, isolation, fresh-allocation, teardown, cleanup-evidence, control-plane, artifact-validation, ablation, scheduler, gpu, service-lifecycle]
 ---
@@ -33,8 +33,10 @@ tags: [validation, reproduction, isolation, fresh-allocation, teardown, cleanup-
 ### Quick Reference
 
 ```text
-Rule: do NOT reuse an existing allocation/endpoint for validation unless the
-user explicitly approves reuse. Default to a fresh, isolated allocation.
+Prefer a fresh allocation when testing launch or cleanup behavior. Reuse an
+endpoint when existing authority covers the probe and reuse fits the test.
+Ask only when resource ownership, disruption, or authority remains unclear.
+The allocation and teardown steps below apply when a fresh unit is needed.
 
 1. Read the surface's own contract/docs before acting.
 2. Enumerate resources already in use and EXCLUDE them from the new allocation.
@@ -53,7 +55,7 @@ user explicitly approves reuse. Default to a fresh, isolated allocation.
 ### Detailed Steps
 
 1. **Read the contract first.** Read the service's README/AGENTS/product-contract/runbook docs for the exact surface under test before allocating anything — the launch contract (manifest schema, required artifacts, control API) is where most failures originate.
-2. **Fresh-by-default.** Treat a running endpoint or job as off-limits for validation unless the user explicitly approves reuse. Reusing a warm allocation hides launch, allocation, and cleanup defects — the very things validation is supposed to prove.
+2. **Prefer a fresh allocation for launch and cleanup tests.** A warm allocation cannot prove those behaviors. Reuse an endpoint when existing authorization covers the probe and reuse fits the test; request input only when ownership, disruption, or resource authority is unclear.
 3. **Exclude occupied resources.** Enumerate what is already allocated and explicitly exclude it, so the fresh allocation cannot accidentally land on or contend with in-use resources. Label the new allocation with its purpose so it is auditable and reclaimable.
 4. **Isolate failure layers.** When a launch fails, classify the failure before retrying:
    - **Control-plane**: bring-up failed before any resource was allocated. Confirm no partial allocation was created; if one was, release it before retrying. Fall back to a simpler/foreground control path only after confirming the clean state.
@@ -66,7 +68,7 @@ user explicitly approves reuse. Default to a fresh, isolated allocation.
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 |---------|----------------|---------------|----------------|
-| Probe an already-running endpoint as the validation path | Reused a warm allocation to save setup time | It proves nothing about launch/allocation/cleanup and can be contaminated by prior state | Allocate fresh and isolated unless the user explicitly approves reuse |
+| Probe an already-running endpoint as the validation path | Reused a warm allocation to save setup time | It proves nothing about launch/allocation/cleanup and can be contaminated by prior state | Use a fresh allocation to prove launch and cleanup; use existing task-scoped authorization for suitable reuse probes |
 | Relaunch immediately after a manifest launch failed | Retried without checking the referenced artifacts | The manifest pointed at a missing/renamed checkpoint; the retry failed the same way | Verify every referenced artifact path/digest against the real filesystem before relaunch |
 | Trust a control-plane failure left nothing behind | Switched to a fallback control path without checking | A partial allocation could leak and contend with the fresh run | After a control-plane failure, confirm no partial allocation exists (and release it) before falling back |
 | Probe with the status helper's tiny default output budget | Used a minimal `max_tokens`/output limit | Reasoning-heavy or slow-first-token services returned blank/empty output that looked like a failure | Probe with realistic parameters; distinguish "empty because too small a budget" from a real fault |
@@ -74,7 +76,7 @@ user explicitly approves reuse. Default to a fresh, isolated allocation.
 
 ## Results & Parameters
 
-- **Default posture**: fresh, isolated, labeled allocation per validation run; reuse only on explicit user approval.
+- **Default posture**: prefer a fresh, isolated allocation for launch tests; use existing authorization for a suitable non-disruptive reuse probe.
 - **Failure taxonomy**: control-plane vs artifact vs probe/parameter — classify before retrying.
 - **Ablation rule**: exactly one variable differs; confirm the intended variant bound from logs.
 - **Cleanup proof**: the allocation is observed leaving the scheduler/queue; a leaked allocation fails the run.

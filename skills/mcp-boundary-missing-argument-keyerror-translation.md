@@ -1,10 +1,10 @@
 ---
 name: mcp-boundary-missing-argument-keyerror-translation
 license: BSD-3-Clause
-description: "Translate bare KeyError from missing MCP tool arguments into a typed, actionable ValueError subclass. Use when: (1) an MCP tool handler accesses arguments['key'] without a guard and a client omits that argument, (2) the mcp>=1.0 SDK does NOT validate arguments against inputSchema before calling the handler so bare dict access raises KeyError whose str() is just \"'key_name'\" — opaque to clients, (3) you want the error path to be symmetric with UnknownToolError (raise ValueError subclass, let SDK convert to structured isError response) rather than returning a TextContent error manually, (4) any MCP dispatcher that uses call_tool() decorator patterns where KeyError would surface as an opaque string."
+description: "Translate missing MCP dispatcher arguments into actionable typed errors before client I/O, preserving the underlying KeyError cause."
 category: architecture
 date: 2026-06-20
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags:
@@ -141,7 +141,7 @@ async def test_dispatch_missing_team_id_raises(mock_client: AsyncMock) -> None:
 
 The `assert_not_awaited()` assertion confirms the guard fires before any I/O.
 
-#### 5. Verify lint and full test suite
+#### 5. Verify affected dispatcher behavior
 
 ```bash
 pixi run ruff check src/ tests/ --fix
@@ -149,7 +149,7 @@ pixi run ruff format src/ tests/
 pixi run pytest -v
 ```
 
-Expected: all tests pass; ruff reports no issues.
+Check missing-argument errors and unaffected dispatch routes. Include broader checks when the changed exception boundary affects other callers.
 
 ### SDK Behavior Clarification: Does the Server Crash?
 

@@ -1,10 +1,10 @@
 ---
 name: plan-review-strict-rubric-iteration
 license: BSD-3-Clause
-description: "Iterative multi-round plan review with strict rubric applying 7 software engineering principles (KISS, YAGNI, TDD, DRY, SOLID, Modularity, POLA). Use when: (1) reviewing implementation plans for GitHub issues, (2) design docs need GO/NOGO gating, (3) plans must evolve through multiple review rounds until all findings are resolved."
+description: "Improve implementation plans with relevant engineering principles and actionable review findings. Use for design tradeoffs, incomplete handoffs, and revisions that need another review."
 category: architecture
 date: 2026-06-11
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-local
 tags: [plan-review, architecture, github-issues, design-docs, rubric]
@@ -17,7 +17,7 @@ tags: [plan-review, architecture, github-issues, design-docs, rubric]
 | Field | Value |
 |-------|-------|
 | **Date** | 2026-06-11 |
-| **Objective** | Review implementation plans for GitHub issues using a strict, principle-based rubric with GO/NOGO verdicts, iterating through multiple rounds until all plans pass |
+| **Objective** | Improve implementation plans through relevant design principles, actionable findings, and review proportionate to unresolved risks |
 | **Outcome** | Successfully reviewed 6 interrelated issues across 4 rounds — 3 plans approved at round 2, 3 needed revision and were approved at round 3 |
 | **Verification** | verified-local |
 
@@ -25,7 +25,7 @@ tags: [plan-review, architecture, github-issues, design-docs, rubric]
 
 - Reviewing implementation plans for GitHub issues before coding begins
 - An epic has multiple interrelated child issues that need coordinated plan approval
-- Plans must pass a quality gate (GO/NOGO) before implementation
+- A plan has material risks or missing decisions that review could clarify
 - You want to apply software engineering principles as concrete review criteria
 - You need iterative refinement: write plan → review → fix findings → re-review
 
@@ -50,7 +50,7 @@ gh issue comment {issue_number} --repo {owner}/{repo} --body-file /tmp/plan{issu
 
 #### Phase 1: Prepare the Rubric
 
-1. Define 7 principle-based dimensions:
+1. Select the relevant principle-based questions; use them to guide judgment:
    - **P1 KISS**: Is the solution as simple as possible?
    - **P2 YAGNI**: Is everything in the plan required by the issue?
    - **P3 TDD**: Are tests named and defined before implementation?
@@ -67,39 +67,39 @@ gh issue comment {issue_number} --repo {owner}/{repo} --body-file /tmp/plan{issu
    - Verification plan: copy-paste-run commands
    - Stage handoff: implementer has everything needed
 
-3. Define grading: every dimension starts at F; A must be earned. Default is F.
+3. Assess the evidence and tradeoffs directly. Avoid default-failure grading or a score threshold unless an external consumer requires it.
 
 #### Phase 2: First Review Round
 
 1. Fetch all issue bodies and titles via `gh issue view`
-2. Spawn one `code-reviewer-mimo-pro` per issue with:
+2. When independent review is useful and available, provide the reviewer with:
    - The issue requirements (acceptance criteria)
    - The proposed plan
    - The strict rubric dimensions
-   - Instruction to output EXACTLY ONE verdict line: `Verdict: GO` or `Verdict: NOGO`
-3. Collect verdicts: binary GO/NOGO gate
-4. Post review comments to each issue
+   - A request for actionable findings, reasons, and verification limits
+3. Use a GO/NOGO format only if the consuming workflow requires it.
+4. Publish review comments when authorized; otherwise keep the review local.
 
 #### Phase 3: Revision Loop
 
-1. For each NOGO issue:
+1. For each issue with material findings:
    - Extract specific, actionable findings from the review
-   - Spawn a sub-agent to write a revised plan fixing those findings
+   - Revise the plan to address those findings, locally or through available delegation
    - Bump the plan version (v1 → v2 → v3...)
-   - Post the revised plan as a new issue comment
+   - Update the canonical plan when publication is authorized
 2. Re-review ONLY the revised plans (not the GO plans)
-3. Repeat until all plans are GO
+3. Re-review when revisions or unresolved material findings justify it. Continue authorized implementation once its decisions are sufficiently clear; avoid rounds that add no useful evidence.
 
 #### Phase 4: Final Compilation
 
 1. Compile comprehensive task descriptions for each issue:
    - Full final plan with code snippets
    - Review history summary (how findings were resolved per round)
-2. Post as final issue comments
+2. Deliver the complete handoff through the authorized channel and continue implementation if it is part of the task.
 
 ### Plan Artifact Boundaries
 
-A plan must be complete enough to implement, but it must also remain reviewable.
+Aim for a plan with enough detail to implement and a structure that is easy to review.
 Maintain one canonical, standalone plan artifact and make all review rounds refer to
 that artifact rather than reproducing it.
 
@@ -108,19 +108,18 @@ that artifact rather than reproducing it.
    algorithm, or a test assertion. A snippet that merely restates a named edit or
    repeats code already present in the canonical plan adds review surface without
    adding evidence.
-2. **Do not post diffs in plan-review responses.** A review should state the
-   finding, why it blocks approval, and the required plan-level correction. The
+2. **Prefer findings over repeated diffs in plan-review responses.** State the
+   finding, its effect, and a suggested plan-level correction. The
    next canonical plan revision incorporates the correction; it does not need a
    second copy in the review comment.
 3. **Keep revision history out of the implementation handoff.** When a planning
    thread becomes too large to review, preserve only the latest complete plan in
-   the durable issue description, remove superseded planner/reviewer discussion
-   according to repository policy, and reset the plan state to NOGO for a fresh
-   review. Never retain a partial amendment or a review as the canonical plan.
-4. **Review artifact quality explicitly.** Reject a plan that is difficult to
-   navigate because it contains repeated code, a pasted diff, or redundant
-   snippets. The remedy is to simplify the plan artifact, not to relax review
-   standards or approve an unreadable handoff.
+   the authorized handoff. Preserve historical discussion unless its removal is
+   authorized and consistent with repository policy. Request another review when material decisions
+   changed; shortening the document alone need not reset its status. Never retain a partial amendment or a review as the canonical plan.
+4. **Improve artifact quality where it helps.** Simplify repeated code, pasted
+   diffs, or redundant snippets that obscure a decision. Continue independent
+   implementation when the affected design choices are already clear.
 
 ### Orchestration Pattern
 
@@ -139,7 +138,7 @@ Round 4: Fix minor findings → post final task descriptions
 |---------|----------------|---------------|----------------|
 | Inheriting prior reviews as plans | Code-reviewer-mimo-pro confused prior review text as the plan | Agent treated the review verdict text as the plan artifact | Always clearly label the PLAN artifact and instruct agents to never treat review text as the plan |
 | Spawning all agents in single JSON string | Tool call with JSON string instead of parsed object | Invalid parameters error | Use proper spawn_agents format with agents array |
-| Single round review | Reviewing plans once without iteration | Plans had major findings that needed revision | Always plan for at least 2 review rounds |
+| Single round review | Reviewing plans once without iteration | Plans had major findings that needed revision | Re-review material revisions; choose rounds from unresolved findings |
 | Repeated code and review diffs | Reposted large snippets in the plan and then repeated them in review/amendment comments | The canonical handoff became hard to navigate and reviewers spent rounds comparing duplicate artifacts rather than the decision | Keep one canonical plan; use prose-first planning and reference corrections from reviews instead of reposting diffs |
 
 ## Results & Parameters
@@ -164,9 +163,10 @@ Round 4: Fix minor findings → post final task descriptions
 <for round N-1: how each finding from round N-1 was addressed>
 ```
 
-### Verdict Contract
+### Optional Verdict Format
 
-The review MUST end with EXACTLY ONE of:
+When a consuming workflow expects GO/NOGO, use its required format. Otherwise,
+a concise assessment with actionable findings is sufficient. The source workflow used:
 ```
 Verdict: GO — Plan is sound and ready to implement.
 Verdict: NOGO — Plan needs changes before implementation (explain what in the review above).

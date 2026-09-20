@@ -1,10 +1,10 @@
 ---
 name: git-stacked-prs-rebase-merge-worktree-orchestration
 license: BSD-3-Clause
-description: "End-to-end playbook for driving a stack of dependent PRs through a rebase-merge-ONLY GitHub repo (allow_merge_commit:false, allow_squash_merge:false) using parallel git worktrees. Use when: (1) a repo permits only rebase-merge and you must merge stacked PRs — retarget every still-open stacked PR to main BEFORE merging anything below it, because deleting a stack-base branch on merge makes GitHub CLOSE (not retarget) dependent PRs UNRECOVERABLY, (2) a retargeted stacked branch reports a merge conflict after its base's commits were rebase-merged into main with conflict resolutions — use `git rebase --onto origin/main <old-base-sha> <branch>` to replay only the branch's own commits, (3) preventing committed conflict markers from reaching main — check `git diff --name-only --diff-filter=U` AND `git grep -nE '^(<<<<<<< |>>>>>>> )'` before every `git rebase --continue`, plus a CI guard step, (4) parallel worktree agents on stacked branches keep conflicting on shared doc/registry/__init__/changelog files — resolve as chronological additive unions, never pick-one-side; regenerate (don't hand-merge) tool-generated report files, (5) `git worktree remove` fails on an agent-locked worktree (unlock first) or a chained checkout silently fails and later commands run on the wrong branch, (6) a new task needs a fresh main pin after rebase-merges, (7) gh quirks: stale `gh pr diff` right after push, `--delete-branch` failing while a worktree holds the branch, GraphQL rate-limit exhaustion from tight CI-polling loops across many PRs."
+description: "Coordinate stacked PR rebases when rewritten base commits, branch deletion, shared-file conflicts, or worktree ownership complicate delivery."
 category: tooling
 date: 2026-07-10
-version: "1.1.0"
+version: "1.1.1"
 user-invocable: false
 verification: verified-ci
 tags:

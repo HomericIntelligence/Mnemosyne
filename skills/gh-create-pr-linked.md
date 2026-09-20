@@ -1,10 +1,10 @@
 ---
 name: gh-create-pr-linked
 license: BSD-3-Clause
-description: "Create linked GitHub PRs"
+description: "Create a GitHub pull request and link an existing tracking issue when appropriate."
 category: ci-cd
 date: 2026-03-19
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 ---
 
@@ -36,13 +36,13 @@ gh issue view <issue-number>  # Check Development section
 4. **Verify link**: Check issue's Development section on GitHub
 5. **Monitor CI**: Watch checks with `gh pr checks`
 
-## PR Requirements
+## PR Preparation
 
-- PR must be linked to GitHub issue
+- Link the PR to an existing issue when it tracks the requested work
 - All changes committed and pushed
 - Branch has upstream tracking
 - Clear, descriptive title
-- Do NOT create PR without issue link
+- If no tracking issue exists, a self-contained PR description can state the problem and verification
 
 ## Error Handling
 
@@ -55,7 +55,7 @@ gh issue view <issue-number>  # Check Development section
 
 ## Branch Naming Convention
 
-Format: `<issue-number>-<description>`
+Example format when the repository uses issue-based branches: `<issue-number>-<description>`
 
 Examples:
 

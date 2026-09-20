@@ -1,20 +1,10 @@
 ---
 name: github-default-branch-standardization-ecosystem-verification
 license: BSD-3-Clause
-description: "Verify, remediate, and document GitHub default-branch standardization across
-  a multi-repo fleet. Use when: (1) confirming all repos in an org have migrated from
-  `master` to `main` as the default branch, (2) scanning for stale `refs/heads/master`
-  orphan branches after a default-branch rename, (3) safely deleting an unprotected orphan
-  branch that has no open PRs targeting it and no common ancestor with main, (4) classifying
-  `master` literals in workflow YAML to distinguish stale branch refs from legitimate
-  third-party action pins or pre-commit guards, (5) verifying a branch-protection ruleset
-  is active across all fleet repos after migration, (6) writing migration records in standing
-  docs with historical framing that does not drift as point-in-time facts, or (7) a branch
-  has 0 commits ahead of main and GitHub refuses to open a PR — forcing a minimal doc artifact
-  to give the branch a real commit."
+description: "Inspect default-branch migration across a requested repository fleet; verify live defaults, stale references, and safe branch disposition."
 category: tooling
 date: 2026-06-20
-version: "1.0.0"
+version: "1.1.1"
 user-invocable: false
 tags:
   - github
@@ -116,9 +106,10 @@ gh api "repos/$ORG/$repo/rulesets" \
 
 ### Detailed Steps
 
-#### 1. Full fleet scan — scan ALL repos, not just the ones named in the issue
+#### 1. Inspect the fleet covered by the request
 
-The instinct is to check only the repos explicitly mentioned in the issue or ticket. This produces false confidence: a 5-repo scan missed ProjectKeystone's stale `master` ref. Always enumerate the complete fleet.
+For a fleet-wide migration claim, enumerate the fleet covered by the request. A smaller check supports
+only a correspondingly scoped claim; the source session’s five-repository sample missed a stale ref.
 
 Build the full repo list from `gh repo list` or an authoritative source (e.g., Odysseus `.gitmodules`):
 
@@ -159,7 +150,8 @@ gh api "repos/$ORG/$repo/git/refs/heads" --jq 'any(.ref=="refs/heads/master")'
 
 #### 4. Safety checks before deletion
 
-A stale orphan branch is safe to delete when ALL three conditions hold:
+Before an authorized deletion, establish that the branch contains no work that must be preserved.
+The following observations help investigation but do not by themselves prove deletion is safe:
 1. **Unprotected** — `protected: false` from `/branches/<name>`
 2. **No open PRs target it** — `gh pr list ... --base master --jq 'length'` returns `0`
 3. **No common ancestor with main** — the orphan has diverged or is entirely separate (optional but informative: `git merge-base origin/master origin/main` returns nothing)
@@ -241,12 +233,13 @@ Key rules:
 
 When the entire implementation is remote API operations (no local file edits), the feature branch has 0 commits ahead of `main` and `gh pr create` fails with "nothing to compare."
 
-Fix: produce a minimal, accurate documentation artifact that:
+If a durable migration record is useful, consider an accurate documentation change that:
 - Records the migration as a historical fact (not a permanent assertion)
 - Adds runbook-style verification commands so readers can confirm current state
 - Is genuinely useful (not padding)
 
-The conventions doc is a natural home for this artifact. A migration record section fits naturally in `docs/repo-conventions.md` or an equivalent.
+An existing conventions document can hold that record. If no source change is useful, report the
+completed remote work directly; a PR is not necessary solely to create an artifact.
 
 ## Failed Attempts
 

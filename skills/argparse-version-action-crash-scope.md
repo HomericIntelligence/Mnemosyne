@@ -1,10 +1,10 @@
 ---
 name: argparse-version-action-crash-scope
 license: BSD-3-Clause
-description: "Identify the true crash scope when an issue blames --version for a script crash. Use when: (1) an issue claims --version flag causes a crash, (2) a script uses argparse action='version' and also accesses os.environ, (3) debugging KeyError or missing env var crashes in CLI scripts."
+description: "Diagnose CLI environment-variable crashes around argparse help and version exits."
 category: debugging
 date: 2026-06-13
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags: []
@@ -73,7 +73,7 @@ print('This line never runs')
    - If env access is AFTER `parse_args()`: `--version` and `--help` are SAFE; crash happens on normal invocations without the env var
    - If env access is BEFORE `parse_args()`: ALL invocations crash if env var missing
 
-5. **Verify independently**: Run the argparse version behavior check (Quick Reference above) to confirm understanding before writing the fix.
+5. **Confirm uncertain behavior**: Use the small argparse check above when source inspection leaves the crash scope unclear.
 
 6. **Fix accordingly**: The fix is to guard the env var access, NOT to change the `--version` handling:
    ```python

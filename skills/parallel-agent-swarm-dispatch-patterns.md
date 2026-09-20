@@ -6,7 +6,7 @@ description: >-
   Also use it when a stopped worker must start another task.
 category: tooling
 date: 2026-05-31
-version: "2.2.0"
+version: "2.2.1"
 license: BSD-3-Clause
 user-invocable: false
 history: parallel-agent-swarm-dispatch-patterns.history
@@ -18,7 +18,7 @@ tags: [swarm, dispatch, worktree, ownership, dependency, verification, orchestra
 ## Overview
 
 Parallelism is safe when the coordinator owns the dependency graph and every executor owns a
-disjoint artifact set. Prompts must define an executable outcome, stop conditions, verification,
+disjoint artifact set. Prefer prompts that define an executable outcome, real boundaries, useful verification,
 publication protocol, and a compact report. The coordinator independently checks remote state and
 artifacts; an agent’s success message is not evidence.
 
@@ -67,7 +67,7 @@ required report: URL, head SHA, checks, residual risks
 ```
 
 Scope work to one coherent artifact or bounded set. State a practical change budget and instruct the
-agent to stop and report if correctness requires crossing ownership. For a partial fix use
+agent to report ownership conflicts and continue independent work within its assignment. For a partial fix use
 `Refs #N`; reserve `Closes #N` for the PR that satisfies the entire issue.
 
 ### 3. Match executor capability to work
@@ -106,7 +106,8 @@ context. Include copy-ready commands only when they are repository-correct. Requ
 for documentation or generated reports; forbid invented issue numbers, logs, metrics, and links.
 
 For pre-commit, define a bounded diagnostic path. If a hook appears hung, inspect its process and
-output, wait only within the stated budget, then stop and report the exact command/state. Do not
+output, use a bounded wait, and report the exact command/state if it remains blocked. Continue
+independent work and investigate a safe recovery. Do not
 bypass required hooks or let every low-risk executor spend the wave repeatedly running a redundant
 global suite when CI is the declared gate; still run all checks required by repository policy.
 
@@ -124,16 +125,17 @@ done
 test "$ready" = true || { echo 'BLOCKED: dependency not ready'; exit 2; }
 ```
 
-Immediately after the gate, state: “Do not stop here; proceed to Step 1.” Finish with an absolute
-rule that success means the implementation PR exists and is verified, not that the gate passed.
+After a dependency becomes ready, continue the assigned implementation and relevant verification.
+If it remains unavailable, report the affected dependency and continue independent work. Define
+completion by the requested artifact; a PR is needed only when it is part of the assignment.
 When many tasks wait on the same chain, one sequential agent is usually better than N polling agents.
 
-### 6. Gate phase transitions
+### 6. Check dependency artifacts
 
-For a bulk transformation followed by implementation, stop between phases. Verify artifact count,
-schema/parsing, expected diff scope, duplicates, and source coverage before dispatching consumers.
-Treat malformed or missing artifacts as a blocked wave, not something downstream agents should
-guess around.
+For a bulk transformation followed by implementation, check the artifact properties that consumers
+need: parsing, expected scope, duplicates, and source coverage. Continue directly when these
+dependencies are ready. Repair malformed inputs or hold only their dependent work; other tasks
+can proceed.
 
 ### 7. Verify every report independently
 
@@ -152,13 +154,13 @@ only its mergeable flag—to the requested intent.
 
 ### 8. Merge in dependency-aware waves
 
-Do not open the next dependent wave until predecessor artifacts are merged and revalidated on
-current main. A newly started task can pin its branch to that main revision. Keep the base of an
-existing task stable when its base changes. Rebase it only when a blocker or required main artifact
-prevents completion, or after completion when a reported merge conflict needs resolution. Otherwise,
-let CI/CD integrate the queued branch. Rerun scoped checks and update the wave graph for new
-conflicts or already-landed work. Preserve isolated worktrees for failures and report their paths
-rather than discarding evidence.
+Start dependent work when its required artifacts are available in the agreed baseline.
+If delivery policy requires merged predecessors, check that state before dependent publication.
+A new task can pin current main; prefer a stable base for an existing task. Rebase when a
+blocker or required main artifact prevents completion, a reported merge conflict needs
+resolution, or the user requests it. Otherwise, prefer CI/CD integration of completed work.
+Select scoped checks for changed content and update the wave graph for conflicts or
+already-landed work. Preserve isolated worktrees for failures and report their paths.
 
 ## Failed Attempts
 

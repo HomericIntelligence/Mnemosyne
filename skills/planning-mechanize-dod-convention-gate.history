@@ -1,0 +1,14 @@
+# History: planning-mechanize-dod-convention-gate
+
+## v1.1.0: legacy privacy-redaction record
+
+Archive status: `privacy-redacted`. The prior content included private or
+personal context. The exact snapshot is intentionally omitted. This amendment
+generalizes that context and revises advisory guidance without copying private
+evidence. Provenance: the prior corpus entry reviewed during this migration.
+
+## v1.2.0: advisory guidance revision
+
+Revised workflow guidance and description for the user-approved completion-focused
+guidance migration. Existing verification evidence is unchanged. This record
+does not claim new execution or model-behavior validation.

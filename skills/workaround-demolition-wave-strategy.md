@@ -1,10 +1,10 @@
 ---
 name: workaround-demolition-wave-strategy
 license: BSD-3-Clause
-description: "Multi-PR sequencing framework for safely ripping out workarounds after an upstream library/compiler bug is fixed. Use when: (1) an upstream dependency (compiler, runtime, library) just shipped a fix for a bug your repo has accumulated workarounds for, (2) workarounds are spread across CI retry loops, continue-on-error flags, build flags, debug infrastructure, ADRs, dev docs, reproducer files, test-file comments, and agent-facing skills/memory, (3) you need to avoid one giant unreviewable demolition PR and instead want a safe, bisectable, reviewable sequence, (4) you have to decide between scorched-earth deletion vs preservation-with-Superseded-markers for documentation/ADRs, (5) some workaround-removals are risky one-liners not exercised by your validation matrix and need their own CI gate, (6) Wave 2 scorched-earth targets a directory (e.g. `repro/`) where files may correspond to DISTINCT upstream bugs sharing only symptom surface — partition by bug, not by directory, before deletion."
+description: "Remove obsolete workarounds in reviewable batches after an upstream fix. Use for dependency validation, distinct bug identities, runtime changes, documentation, and agent guidance."
 category: ci-cd
 date: 2026-05-26
-version: "1.2.0"
+version: "1.2.2"
 user-invocable: false
 verification: verified-ci
 tags: [workaround-removal, multi-pr-strategy, upstream-fix, wave-sequencing, ci-discipline, demolition, rollback-strategy]
@@ -40,9 +40,9 @@ Do NOT use if:
 ### Quick Reference
 
 ```text
-Wave 0: validation gate PR    — bump pin + unavoidable API fixes only. Kept OPEN as canary.
+Wave 0: dependency evidence  — bump pin + necessary API fixes; preserve results and revision.
 Wave 1: CI/infra demolition   — retry loops, continue-on-error, debug wrappers, re-enable disabled jobs + add guardrail note.
-Wave 1.5: risky one-line strips — anything not exercised by Wave 0's CI gets its own PR.
+Wave 1.5: distinct-risk removals — separate when verification or review benefits from isolation.
 Wave 2: scorched-earth purge  — ADRs, dev docs, repro files, workflow YAML, test-file comments.
 Wave 3: agent memory updates  — user-context-specific feedback files, NOT a PR (edit directly).
 Wave 4: cross-repo skills     — amend team-knowledge skills in Mnemosyne's flat corpus.
@@ -51,7 +51,7 @@ Wave 4: cross-repo skills     — amend team-knowledge skills in Mnemosyne's fla
 ### Sequencing Dependency Graph
 
 ```text
-Wave 0 (validation gate) ─────────────────────► kept OPEN as canary
+Wave 0 (dependency evidence) ─────────────────► preserve results and revision
    │
    ▼
 Wave 1 (CI demolition + guardrails) ──► merge ──► main
@@ -68,7 +68,7 @@ Wave 4 (cross-repo skills) ─► independent timeline, no dep on Waves 0-3
 
 ### Detailed Steps
 
-#### Wave 0 — Validation Gate (separate PR, kept open as canary)
+#### Wave 0 — Establish Dependency Evidence
 
 Goal: prove the new pin is operational on your full required-check matrix, in isolation from any demolition.
 
@@ -76,7 +76,7 @@ Goal: prove the new pin is operational on your full required-check matrix, in is
 2. Bump the dependency pin past the upstream fix's shipped version.
 3. Apply ONLY changes that are unavoidable for the bump to compile (e.g., stdlib API regressions that came with the new version). NO workaround removal yet.
 4. Open as a DRAFT PR. Run the full required-check matrix.
-5. Keep this PR OPEN until at least Wave 1 has merged. It is durable evidence the new pin works on your workload — and a fallback if Wave 1 breaks for unrelated reasons.
+5. Preserve the validation results and a recoverable revision. Keeping a draft PR open can help coordination, but is not a prerequisite for independent progress.
 
 #### Wave 1 — CI Infrastructure Demolition + Guardrails
 
@@ -91,15 +91,13 @@ Single PR including:
 - Add a CLAUDE.md / AGENTS.md / `notes/` entry: "`<dep>` is stable as of `<version>`; execution crashes are real bugs, do NOT add retry loops"
 - (Recommended) Pre-commit guard that grep-fails on workaround marker strings (e.g., the issue number, the retry loop's signature comment)
 
-EXCLUDE from Wave 1: any change that is workaround-removal-shaped but was not exercised by Wave 0's CI. Those belong in Wave 1.5.
+For removals not exercised by Wave 0, identify applicable checks. A separate Wave 1.5 PR can isolate distinct risk; group related changes when they remain reviewable.
 
-#### Wave 1.5 — Risky One-Line Strips (separate PR, depends on Wave 1)
+#### Wave 1.5 — Assess Distinct-Risk Removals
 
-When the bulk Wave 1 PR would otherwise include a change Wave 0's CI didn't exercise (e.g., stripping a build flag still applied throughout Wave 0's runs), split that change into its own PR off Wave 1's branch (or off `main` post-Wave-1-merge).
+A change that Wave 0 did not exercise, such as removing a build flag used in those runs, needs evidence for its changed behavior. A separate PR can make that evidence easier to assess. Its branch depends on Wave 1 only when it needs Wave 1's content.
 
-Wave 1.5's whole purpose is to be the INDEPENDENT CI gate for the risky change.
-
-Rule: any workaround removal you can't point to GREEN CI evidence for should be its own PR.
+Consider a separate PR when a removal has distinct risk or verification needs. Group related low-risk removals when they remain reviewable.
 
 #### Wave 2 — Scorched-Earth Doc/Repro/Test-Comment Purge
 

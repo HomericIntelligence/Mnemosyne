@@ -1,10 +1,10 @@
 ---
 name: testing-env-gated-skip-fail-installed-cli-lane
 license: BSD-3-Clause
-description: "Stop console-script test suites from silently pytest.skip-ping when binaries are absent from PATH: extract one env-gated resolver (skip by default, pytest.fail when REQUIRE env var is set), enable the gate in every CI lane whose install step guarantees the scripts exist, and add a required installed-artifact lane that builds the wheel, installs it into a fresh non-editable venv, prepends its bin/ to PATH, and reruns the entry-point tests with skipping forbidden. Use when: (1) parametrized CLI tests guard shutil.which(cmd) with pytest.skip and nothing proves the skip never fires in CI, (2) an audit flags 'help/version/JSON checks skip when scripts are absent from PATH', (3) adding an installed-artifact lane and deciding what makes the subprocess genuinely exercise the wheel instead of the checkout, (4) the repo has a required-checks aggregator gate whose needs list is test-enforced, so a new job must be wired in, (5) tempted to test wheel *contents* instead — that is a different lesson (see testing-local-wheel-install-content-test)."
+description: "Detect installed CLI test skips when CI promises an installation but missing commands silently remove coverage."
 category: testing
 date: 2026-07-17
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 verification: unverified
 tags:

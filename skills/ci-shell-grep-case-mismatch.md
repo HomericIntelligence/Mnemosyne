@@ -6,7 +6,7 @@ description: 'Skill: ci-shell-grep-case-mismatch. Use when a shell-tests or smok
   vs the actual content in a source file — especially with org names or proper nouns.'
 category: ci-cd
 date: 2026-04-23
-version: 1.0.0
+version: "1.1.0"
 user-invocable: false
 ---
 # Skill: ci-shell-grep-case-mismatch
@@ -67,7 +67,7 @@ grep -q 'HomericIntelligence' scripts/notify-proteus.sh
 ### Key Rules
 
 - GitHub org names are CapitalCase (`HomericIntelligence`); kebab-case is for package names, URLs, and slugs — not necessarily the org display name
-- Always run `grep <string> <file>` locally before writing a CI assertion to verify the match
+- Check the intended match against representative file content when adding a CI assertion
 - The "fast smoke test" pattern for shell scripts (grep for a magic string) is fragile if the string form does not match the actual content
 - Use `grep -qi` (case-insensitive) as a safer fallback when the assertion intent is just "this org name appears somewhere"
 - Use exact `grep -q` when the assertion must verify a specific canonical form

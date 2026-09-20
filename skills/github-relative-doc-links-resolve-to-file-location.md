@@ -1,10 +1,10 @@
 ---
 name: github-relative-doc-links-resolve-to-file-location
 license: BSD-3-Clause
-description: "GitHub resolves a relative markdown link RELATIVE TO THE FILE'S OWN LOCATION, not the repo root. A doc link added to a file in a subdirectory (e.g. `.github/pull_request_template.md`) needs `../docs/X.md`, not `docs/X.md` — and the rule is easy to get wrong from memory. The robust fix is an ABSOLUTE `https://github.com/<owner>/<repo>/blob/<branch>/docs/X.md` URL that resolves identically from any file location. Also: markdownlint does NOT validate that relative link targets resolve, so a grep + lint pass is green even with a broken link — add an explicit `test -f <target>`. And: do not cite `pixi run markdownlint` without confirming the task exists; in some repos markdown is gated only by a `markdownlint-cli2` pre-commit hook. Use when: (1) adding a doc link inside a markdown file that lives in a subdirectory (`.github/`, `docs/`, `.github/ISSUE_TEMPLATE/`); (2) a plan or PR asserts how GitHub resolves a relative link from a non-root file; (3) an acceptance criterion is 'references doc X' and you need to actually verify the link resolves; (4) a reviewer flags an ambiguous `../docs/...` vs `docs/...` relative link; (5) deciding which lint command actually gates markdown in a repo."
+description: "Repair relative Markdown links using the containing file as the base; use for templates, nested documentation, and safe content splits."
 category: documentation
 date: 2026-06-23
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-precommit
 tags: [github, markdown, relative-links, pull-request-template, issue-template, markdownlint, pre-commit, doc-links, blob-url, planning, review, definition-of-done, pr-size]
@@ -83,13 +83,13 @@ grep -n markdownlint .pre-commit-config.yaml   # often the real gate (markdownli
 
 ### PR Size Bands
 
-When adding PR size guidance to a PR template or CONTRIBUTING.md, use this standard band:
+When size guidance is useful, these historical bands can serve as examples:
 
 ```
 XS <10 lines · S <50 · M <250 · L <500 · XL 500+
 ```
 
-PRs over ~500 changed lines should be split unless the change is inherently atomic.
+Consider splitting a large PR when independent review units exist; line count alone does not determine scope.
 
 ### PR Template Summary Comment Pattern
 
@@ -97,7 +97,7 @@ PRs over ~500 changed lines should be split unless the change is inherently atom
 <!-- Brief description of what this PR accomplishes.
      Keep PRs small — prefer one issue per PR (see CONTRIBUTING.md → "Planning artifacts").
      Rough size guidance: XS <10 lines · S <50 · M <250 · L <500 · XL 500+.
-     PRs over ~500 changed lines should be split unless inherently atomic. -->
+     Split when independent review units help; line count is only a rough signal. -->
 ```
 
 ### PR Template Checklist DoD Entry
@@ -105,7 +105,7 @@ PRs over ~500 changed lines should be split unless the change is inherently atom
 Add as an absolute blob URL (file lives under `.github/`, so root-relative would resolve wrong):
 
 ```markdown
-- [ ] Change meets the [Definition of Done](https://github.com/mvillmow/ProjectHephaestus/blob/main/docs/DEFINITION_OF_DONE.md)
+- [ ] Change meets the [Definition of Done](https://github.com/OWNER/REPOSITORY/blob/main/docs/DEFINITION_OF_DONE.md)
 ```
 
 ### CONTRIBUTING.md "Keep PRs Small" Paragraph Pattern
@@ -116,7 +116,7 @@ Files at the repo root can use root-relative paths:
 Keep PRs small: prefer one issue per PR so each change can be reviewed
 and reverted independently. As a rough guide, aim to keep PRs under
 ~500 changed lines (XS <10 · S <50 · M <250 · L <500 · XL 500+); split
-larger PRs unless the change is inherently atomic. Every PR is reviewed
+larger PRs when independent units help review. Use the repository policy for review
 against the [Definition of Done](docs/DEFINITION_OF_DONE.md).
 ```
 

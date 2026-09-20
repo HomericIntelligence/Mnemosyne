@@ -1,10 +1,10 @@
 ---
 name: hephaestus-write-secure-planning-guardrails
 license: BSD-3-Clause
-description: "Planning guardrails for migrating ProjectHephaestus automation state writers from deprecated github_api.write_secure imports to hephaestus.io.utils.write_secure while preserving compatibility aliases and patch seams. Use when: (1) planning a canonical import migration from a compatibility wrapper, (2) retaining an old module symbol as an identity re-export, (3) writing AST guards for deprecated imports and attribute usage."
+description: "Plan migration to canonical write_secure imports while preserving compatibility aliases, patch seams, atomic writes, and private file modes."
 category: architecture
 date: 2026-06-26
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 verification: unverified
 tags:

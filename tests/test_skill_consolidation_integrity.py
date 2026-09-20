@@ -27,7 +27,7 @@ class Consolidation(TypedDict):
 CONSOLIDATIONS: list[Consolidation] = [
     {
         "canonical": "planning-verify-issue-premise-before-implementing",
-        "version": "3.1.0",
+        "version": "3.2.0",
         "absorbed": [
             "planning-verify-assumptions-before-enforcement-gate",
             "planning-verify-full-population-not-just-named-entities",
@@ -53,7 +53,7 @@ CONSOLIDATIONS: list[Consolidation] = [
     },
     {
         "canonical": "testing-env-leak-local-fail-ci-pass",
-        "version": "2.0.0",
+        "version": "2.1.0",
         "absorbed": [
             "local-test-failures-env-pollution-not-ci",
             "pytest-local-false-failure-inherited-heph-env-vars",
@@ -62,12 +62,12 @@ CONSOLIDATIONS: list[Consolidation] = [
     },
     {
         "canonical": "license-scan-marker-excluded-fallback",
-        "version": "3.0.0",
+        "version": "3.0.1",
         "absorbed": ["license-scan-static-fallback-marker-excluded-deps"],
     },
     {
         "canonical": "architecture-ocp-dip-abc-protocol-planning-risks",
-        "version": "2.0.0",
+        "version": "2.1.0",
         "absorbed": [
             "architecture-ocp-dip-verify-before-planning",
             "python-abc-protocol-contract-test-regression",
@@ -75,7 +75,7 @@ CONSOLIDATIONS: list[Consolidation] = [
     },
     {
         "canonical": "testing-module-patch-target-after-extraction",
-        "version": "2.0.0",
+        "version": "2.1.1",
         "absorbed": ["testing-dual-patch-multiple-call-paths"],
     },
     {
@@ -85,17 +85,17 @@ CONSOLIDATIONS: list[Consolidation] = [
     },
     {
         "canonical": "security-md-version-sync",
-        "version": "3.1.0",
+        "version": "3.1.1",
         "absorbed": ["security-md-version-sync-planning-gaps"],
     },
     {
         "canonical": "testing-pragma-no-cover-error-path-coverage",
-        "version": "2.0.0",
+        "version": "2.1.0",
         "absorbed": ["testing-pragma-no-cover-exception-handler-fallback-tests"],
     },
     {
         "canonical": "ci-cd-canonical-check-nonlibrary-repo",
-        "version": "1.0.0",
+        "version": "1.1.0",
         "requires_major_bump": False,
         "absorbed": [
             "ci-cd-canonical-install-check-inline-build",

@@ -1,10 +1,10 @@
 ---
 name: verify-audit-issue-reproduces-before-fixing
 license: BSD-3-Clause
-description: "When an audit issue's cited content is ABSENT from the current file, do NOT conclude 'never existed / non-reproducible' until you have searched the CORRECT refs (live origin/main, not a stale pin) with the EXACT audited strings across `git log --all`. Content may have existed and been REMOVED — and the disposition 'already-resolved, provenance commit X' is materially different and better than 'phantom finding.' Use `git merge-base --is-ancestor` to distinguish removal-by-a-main-lineage-commit from an orphaned/abandoned lineage. Use when: (1) an audit/auto-generated issue cites file:line + quoted offending strings that are not in the file now, (2) you inspected a submodule pin / detached HEAD instead of origin/main, (3) your `git log -S` came back empty and you are tempted to call the finding phantom, (4) deciding how to close an audit issue."
+description: "Investigate stale audit findings when cited content is absent from the current checkout but may exist in another revision."
 category: documentation
 date: 2026-06-19
-version: "2.0.0"
+version: "2.0.1"
 user-invocable: false
 verification: verified-local
 history: verify-audit-issue-reproduces-before-fixing.history

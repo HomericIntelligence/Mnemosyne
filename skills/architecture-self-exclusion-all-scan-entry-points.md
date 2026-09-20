@@ -1,10 +1,10 @@
 ---
 name: architecture-self-exclusion-all-scan-entry-points
 license: BSD-3-Clause
-description: "When a scanning guard excludes its OWN policy/pattern file so it does not flag itself, that self-skip must be applied at EVERY scan entry point (working-tree, tracked, AND staged/index), not just the ones you happened to notice — a self-skip enforced on some code paths but missing on one is a silent trap. It bites the moment the policy file becomes git-TRACKED (e.g. promoting a gitignored local denylist to a committed project-level denylist): the loader reads the newly-added token from the working tree, the staged blob of the policy file IS that token, and the un-guarded staged path flags the file against its own pattern — so `git add`+commit of the pattern fails the very guard the file feeds. With `--no-verify` banned, the central list can never be populated: a self-lock. Use when: (1) planning to make an optional/local denylist/allowlist/secret-scanner into a committed, centrally-enforced control; (2) a guard script has multiple scan modes (`--staged`/`--tracked`/path args) and only some call a shared self-skip; (3) you add a shared `_is_denylist_file`-style predicate and must audit that every finder path calls it; (4) a plan reviewer flags that a self-exclusion covers `scan_paths()` but not the `--staged` index loop; (5) any guard whose enforced data lives in a file the guard itself scans. Fix: centralize the exclusion in ONE predicate and call it from EVERY entry point; add a test that stages the policy file containing its own token and asserts exit 0. PLANNING learning — the staged-path gap and self-lock were verified against repo source by a plan reviewer; the fix was NOT executed end-to-end in CI."
+description: "Prevent a scanner from rejecting its own policy data. Use when promoting an ignored policy file to tracked state or checking self-exclusion across working-tree, tracked, and staged scan paths."
 category: architecture
 date: 2026-07-17
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 tags:
   - planning

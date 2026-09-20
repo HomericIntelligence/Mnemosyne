@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Review completed implementation work for correctness, regressions, maintainability, security, and test quality before merge. Use when: (1) a substantial change or complex fix is complete, (2) a branch is about to merge, (3) the author claims readiness and the claim needs independent technical review"
 category: tooling
 date: 2026-07-16
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 tags: [code-review, workflow, evidence, merge-gate]
 ---
@@ -44,15 +44,17 @@ git diff "${base}...HEAD" --stat
 git diff "${base}...HEAD"
 ```
 
-Stop if the remote or default branch cannot be resolved unambiguously.
+If the base is unclear, inspect branch tracking and the requested review scope. Continue
+reviewing independently understood changes; report the diff coverage limit until the base
+is resolved.
 
 ### Detailed Steps
 
 1. Read the target repository's `AGENTS.md`, the requirements, and relevant plans or issues.
 2. Keep the target repository as the current working directory and produce the merge-base diff (quick reference above).
-3. Delegate to one independent reviewer when the host supports subagents; do not prescribe a vendor model. If delegation is unavailable, review sequentially in the current agent.
-4. Inspect correctness, requirement alignment, security boundaries, error handling, public API compatibility, tests, documentation, and unnecessary complexity. Apply KISS, YAGNI, TDD, DRY, SOLID, modularity, least-astonishment, durable-artifact, and behavior-test rules. Flag tests that pin prose or flaky implementation detail, and artifacts that create ongoing manual synchronization without a demonstrated product consumer.
-5. Run the repository-defined focused tests and quality gates. Never invent successful output.
+3. Consider an independent reviewer for complex or high-risk changes when delegation is available and authorized. Otherwise review sequentially.
+4. Inspect correctness, requirement alignment, security boundaries, error handling, public API compatibility, tests, documentation, and unnecessary complexity. Use the relevant design philosophies to guide judgment about simplicity, boundaries, and observable behavior. Flag tests that pin prose or flaky implementation detail, and artifacts that create ongoing manual synchronization without a demonstrated product consumer.
+5. Use relevant existing validation evidence and run affected checks when inputs changed or confidence is insufficient. Observe actual repository requirements and report coverage limits honestly.
 6. Rank findings as critical, important, or suggestion. Include a path and line, impact, evidence, and concrete remediation for each finding.
 7. Verify reviewer claims before changing code. Push back with evidence when a finding is incorrect.
 
@@ -60,8 +62,8 @@ Stop if the remote or default branch cannot be resolved unambiguously.
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 | --------- | ---------------- | --------------- | ---------------- |
-| Diff against local main | Reviewing `git diff main...HEAD` without fetching | Stale local base hides or fabricates changes | Always fetch the remote default branch and diff from the merge-base |
-| Trusting author confidence | Accepting "it works" from the implementer | Confidence is not evidence | Review runs the gates itself and ranks findings from observed behavior |
+| Diff against local main | Reviewing `git diff main...HEAD` without fetching | Stale local base hides or fabricates changes | Prefer a verified merge-base; disclose stale remote evidence when a fetch is unavailable |
+| Trusting author confidence | Accepting "it works" from the implementer | Confidence is not evidence | Rank findings from source and applicable observed validation evidence |
 
 ## Results & Parameters
 
@@ -77,7 +79,9 @@ A review report containing:
 - Verification commands and results
 - Verdict: ready, ready after listed fixes, or not ready
 
-Do not post review comments or mutate GitHub state unless the user explicitly requests it.
+Publish review comments or change GitHub state only within the task’s authorization.
+Use existing authorization without asking again for the same action. If publication is
+not authorized, deliver the review locally and continue other requested work.
 
 ## Verified On
 

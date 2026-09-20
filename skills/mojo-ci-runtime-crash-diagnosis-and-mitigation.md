@@ -3,7 +3,7 @@ name: mojo-ci-runtime-crash-diagnosis-and-mitigation
 description: "Use when Mojo CI crashes with VMA allocation errors, SIGSEGV in libKGENCompilerRTShared, SIGILL on selected CPUs, or exit 134 near $HOME/.modular; when auditing compiling invocations; or when deciding whether an upstream bump permits workaround removal. Classify the signature first, reproduce the correct resource/UID/ISA boundary, and use bounded retry only for a verified immovable pre-fix toolchain."
 category: ci-cd
 date: 2026-07-10
-version: "2.0.0"
+version: "2.1.0"
 verification: verified-ci
 license: BSD-3-Clause
 user-invocable: false
@@ -67,8 +67,9 @@ prior changelog are in [history](./mojo-ci-runtime-crash-diagnosis-and-mitigatio
 4. **Probe all four ISA layers.** `/proc/cpuinfo`, raw CPUID/XCR0, compiler runtime builtins, and the
    compiler driver answer different questions. Omitting raw CPUID cannot distinguish absent silicon
    from hypervisor masking.
-5. **Verify the pinned version before workaround removal.** If the dependency predates the shipped
-   fix, stop. Passing a different version proves nothing.
+5. **Verify the pinned version before workaround removal.** If it predates the shipped fix,
+   retain the workaround and continue other authorized work. Passing a different version
+   does not establish that removal is safe.
 6. **Preserve fail-closed behavior.** A retry is not permission to ignore a failed second attempt,
    delete the job, or mark it continue-on-error.
 7. **Retry only the verified exception.** Prefer an upstream bump. If the pin is truly immovable,

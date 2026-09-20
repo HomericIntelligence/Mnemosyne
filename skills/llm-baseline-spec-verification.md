@@ -1,10 +1,10 @@
 ---
 name: llm-baseline-spec-verification
 license: BSD-3-Clause
-description: "Verify LLM baseline model specs from authoritative sources before any quantitative analysis. Use when: (1) starting any research/review task that involves computing KV cache sizes, FLOPs, or memory bandwidth for specific models, (2) using a shared context document with model specs, (3) comparing multiple LLM baselines quantitatively."
+description: "Check model architecture specifications against primary configuration when calculating KV-cache size, FLOPs, memory use, or quantitative baseline comparisons."
 category: architecture
 date: 2026-04-13
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: []
@@ -77,7 +77,7 @@ curl -s "https://huggingface.co/Qwen/<model-name>/raw/main/config.json" | python
    - Which downstream calculations are affected
    - The magnitude of the error (e.g., "8x overestimate")
 
-6. **Inject canonical specs verbatim** into all agent prompts as "use these, override any prelude values."
+6. **Share relevant verified specifications** with delegated work. Cite their source and identify which earlier numerical assumptions they correct; avoid copying unrelated model context into every prompt.
 
 ### KV Cache Formula Reference
 

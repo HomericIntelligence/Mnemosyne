@@ -1,10 +1,10 @@
 ---
 name: regex-value-strip-before-finite-check
 license: BSD-3-Clause
-description: "A validity/sentinel check that runs AFTER a numeric-extraction step is dead code — the extraction strips the sentinel characters (nan/inf) before the check ever sees them, so a broken run passes green. Use when: (1) writing a validity/sentinel check right after a value-extraction step, (2) a nan/inf or bounds check that never fires, (3) reviewing your own CI assertion/gate code, (4) a smoke gate that passes on obviously-broken output."
+description: "Check raw numeric tokens for NaN and infinity before stripping nonnumeric text so validation cannot hide instability markers."
 category: debugging
 date: 2026-07-11
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 verification: verified-local
 tags: [regex, grep, ci, smoke-gate, sentinel, nan-inf, bash, dead-code, adversarial-review]

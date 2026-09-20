@@ -1,9 +1,9 @@
 ---
 name: nats-server-auth-authz-hardening
-description: "Use when hardening NATS client, leafnode, or cluster-route listeners; choosing token versus mTLS certificate mapping versus operator/NKey/JWT; validating nested NATS configuration; or proving authentication fails closed. Protect each listener separately, map leaf remotes to port 7422 and routes to 6222, extract nested blocks by brace depth with word-boundary anchors, wire validator tests into both local and CI gates, enumerate clients before rollout, and preserve unverified certificate/account assumptions until parse and functional tests run."
+description: "Harden NATS client, leaf, and route listeners when authentication, authorization, nested configuration, or existing clients affect rollout."
 category: architecture
 date: 2026-06-20
-version: "2.0.0"
+version: "2.0.1"
 user-invocable: false
 license: BSD-3-Clause
 verification: mixed

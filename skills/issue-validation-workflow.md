@@ -6,11 +6,11 @@ description: Validate GitHub issue state against codebase reality before impleme
   issues.
 category: evaluation
 date: 2026-02-12
-version: 1.0.0
+version: "1.1.0"
 ---
 # Issue Validation Workflow
 
-Systematically validate GitHub issue state against codebase reality before starting implementation work.
+Compare issue claims with current source to avoid duplicate or misdirected implementation.
 
 ## Overview
 
@@ -25,7 +25,7 @@ Use this workflow when:
 - (2) Issues were filed weeks/months ago and may be stale
 - (3) You want to avoid duplicate work
 - (4) Triaging a batch of issues for parallel implementation
-- (5) **Before invoking /advise** to search for relevant skills
+- (5) Refining a knowledge search after current source shows that an issue is stale
 
 ## Verified Workflow
 
@@ -40,7 +40,8 @@ done
 
 ### Phase 2: Parallel Codebase Exploration
 
-Launch **parallel explore agents** to verify issue claims against codebase reality:
+For a large batch with independent domains, consider parallel explore agents. For a small batch,
+inspect the relevant source directly. The recorded campaign used:
 
 ```
 Task tool with subagent_type=Explore (2-3 parallel agents recommended)
@@ -73,9 +74,10 @@ For each issue, categorize:
 | **Split Required** | Break into sub-issues | Issue #421: Split into 8 module-specific PRs |
 | **Valid** | Proceed with implementation | Issue #340: Create missing scylla.judge.runner |
 
-### Phase 4: Use /advise After Validation
+### Phase 4: Refine the knowledge search
 
-**CRITICAL**: Only invoke `/advise` **after** validating issues:
+Use `/advise` when prior knowledge can help investigation or implementation. Refine the query as
+current evidence clarifies the objective:
 
 ```
 /advise <validated objective>
@@ -88,7 +90,10 @@ Example:
 
 **Why**: `/advise` searches the tracked skill corpus for relevant patterns. Searching with stale or incorrect issue descriptions wastes time.
 
-### Phase 5: Close Resolved Issues
+### Phase 5: Report resolved issues
+
+When issue maintenance is authorized, close resolved issues with evidence. Otherwise, include the
+proposed disposition in the report and continue implementation of the remaining valid work.
 
 ```bash
 # Close each resolved issue with evidence
@@ -158,10 +163,9 @@ Evidence: <grep/file content>
 
 ## Integration with Other Skills
 
-This skill **must run before**:
-- `/advise` - Search the skill corpus with validated objectives
-- `parallel-issue-implementation` - Implement validated issues in parallel
-- `git-worktree-workflow` - Create worktrees only for valid issues
+This workflow can help refine `/advise` queries, select independent implementation tasks, and
+avoid unnecessary worktrees. It does not impose a fixed order on those activities. Continue
+authorized implementation as the relevant issue claims are resolved.
 
 This skill **builds on**:
 - `gh-read-issue-context` - Read issue body and comments

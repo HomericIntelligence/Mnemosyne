@@ -1,6 +1,6 @@
 ---
 name: <skill-name>
-description: "<When condition one or condition two occurs, use this skill. State the skill purpose.>"
+description: "<Capability>. Use when <specific trigger>."
 category: <category>
 date: YYYY-MM-DD
 version: "1.0.0"
@@ -10,14 +10,20 @@ tags: []
 
 # Skill Title
 
-<!-- Use [ASD-STE100](../docs/asd-ste100.md) for all prose. Do not rewrite documented software-development principles. -->
+<!-- Use [ASD-STE100](../docs/asd-ste100.md) for prose. The headings and table columns
+below preserve corpus compatibility. Omit optional detail that adds no decision value.
+Prefer generalized advice and task-specific conditions over fixed process gates.
+Preserve technical prerequisites and actual authorization boundaries. Explain their
+source and protected action when relevant. Avoid permission requests for work already
+authorized, and continue useful work when an optional step is unavailable.
+Do not rewrite documented software-development principles. -->
 
 ## Overview
 
 | Field | Value |
 | ------- | ------- |
 | **Date** | YYYY-MM-DD |
-| **Objective** | What must this skill do? |
+| **Objective** | What outcome does this skill help achieve? |
 | **Outcome** | State the outcome: successful, operational, or deprecated. |
 
 ## When to Use
@@ -32,18 +38,23 @@ List the conditions in which to use this skill:
 
 ### Quick Reference
 
-Provide commands or steps that users can copy:
+Give the shortest useful rule or command, with its applicability conditions:
 
 ```bash
 # Example command
 command --flag value
 ```
 
-### Detailed Steps
+### Suggested Approach
 
-1. Describe step 1.
-2. Describe step 2.
-3. Describe step 3.
+Describe the decision criteria, relevant design principles, and techniques that
+help reach the outcome. Use ordered steps only when a technical dependency
+makes their order useful. Link to notes for supporting detail and explain when
+that detail is useful.
+
+Describe how to continue when a suggested step is unavailable. Reserve requests
+for input for material ambiguity or missing authorization. Define completion
+by the requested outcome and available evidence, not a plan or review stage.
 
 ## Failed Attempts
 
@@ -54,11 +65,14 @@ Document each unsuccessful attempt:
 | Attempt 1 | Describe the approach. | Explain the failure. | State what you learned. |
 | Attempt 2 | Describe the approach. | Explain the failure. | State what you learned. |
 
-If no failures occurred, write:
+If the evidence records a successful direct attempt with no failures, use:
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 | --------- | ---------------- | --------------- | ---------------- |
 | N/A | The direct approach was successful. | N/A | No change was necessary. |
+
+If failure evidence is unavailable, state that limitation in the table instead
+of claiming that no failures occurred.
 
 ## Results & Parameters
 
