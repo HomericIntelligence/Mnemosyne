@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Coordinating a small batch (2-5) of independent PR review-thread fixes by dispatching one sub-agent per thread. Use when: (1) a PR has multiple open review comments/threads and you want to fix them without one sub-agent stepping on another's edit, (2) two or more of the threads touch the SAME file — dispatch those sequentially, not in parallel, (3) a thread's fix is a one-line test-assertion or docstring change that a cheap (haiku-tier) sub-agent can safely execute, (4) you need to verify each sub-agent's edit landed correctly before running the full test/lint/type-check gate and committing, (5) deciding between running N agents in parallel Task calls vs. one after another for a small (<=5) review-comment batch."
 category: tooling
 date: 2026-07-04
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags:
@@ -57,9 +57,9 @@ tags:
        logically independent fixes.
 3. After each sub-agent reports done, Read the file it touched and confirm the
    exact line changed as described — do not trust a "done" report alone.
-4. Once all threads are addressed, run the full integration gate ONCE
-   (unit tests + mypy + ruff), not per-thread.
-5. Commit all fixes together with one signed commit.
+4. Consider combined integration checks (unit tests + mypy + ruff) through
+   the authorized validation process when the combined changes warrant them.
+5. Group related fixes into reviewable commits and use the repository signing policy.
 ```
 
 ### Detailed Steps
@@ -85,7 +85,7 @@ Had two threads landed in the same file, those two would have been serialized: d
 first, wait for it to complete and be verified, THEN dispatch the second against the
 now-updated file.
 
-#### 2. Model tier: haiku is fine for a single, explicitly-scoped mechanical fix
+#### 2. Match available review capacity to the fix
 
 Each of the four fixes was a single-line or single-block, unambiguous change with the exact
 before/after text known up front (from the reviewer's comment):
@@ -104,7 +104,7 @@ before/after text known up front (from the reviewer's comment):
   conflated the two layers.
 
 This is the model-tier decision axis from `parallel-agent-swarm-dispatch-patterns.md` Part 4
-applied at small scale: MECHANICAL fix with explicit rules -> haiku is fine. None of these
+applied at small scale: a bounded mechanical fix can use a lower-cost available model. None of these
 required judgment about what the RIGHT fix is (the reviewer already specified it); the
 sub-agent's job was purely to apply it and re-verify.
 
@@ -121,10 +121,11 @@ Do this BEFORE running the full test suite — a bad edit surfaces immediately a
 mismatch, rather than as a confusing test failure 5 minutes later after all 4 agents have
 already run.
 
-#### 4. Run the full integration gate ONCE, after all threads are addressed
+#### 4. Verify the combined changes
 
-Do not run the gate suite per-thread. Batch all fixes, verify each individually via `Read`,
-then run:
+Prefer batching related checks across the combined diff. Run a focused check earlier
+when it resolves uncertainty; choose broader verification according to the change.
+The source workflow used:
 
 ```bash
 pixi run pytest tests/unit -v

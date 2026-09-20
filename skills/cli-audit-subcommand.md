@@ -1,10 +1,10 @@
 ---
 name: cli-audit-subcommand
 license: BSD-3-Clause
-description: "Skill: cli-audit-subcommand"
+description: "Expose an existing validation function through a Click audit subcommand with useful output and exit codes. Use when adding a CLI without duplicating library validation."
 category: architecture
 date: 2026-03-19
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 ---
 # Skill: cli-audit-subcommand

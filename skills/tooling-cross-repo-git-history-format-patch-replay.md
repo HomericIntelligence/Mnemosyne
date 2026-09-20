@@ -1,10 +1,10 @@
 ---
 name: tooling-cross-repo-git-history-format-patch-replay
 license: BSD-3-Clause
-description: "Move a file/package between two INDEPENDENT git repos (e.g. submodules) while preserving its real `git log --follow` commit history. Plain `git mv` only preserves history WITHIN one repo; across submodule boundaries it strands the history. The technique that works: per-file `git format-patch --root --follow --stdout` piped through `sed` (path rewrite) into `git am -3` in the destination. Use when: (1) relocating code from one submodule/repo to another, (2) the issue/plan requires keeping commit history or `git blame`/`--follow`, (3) you assumed `git mv` would carry history across the boundary."
+description: "Evaluate a scoped format-patch and git-am replay when moving files across independent repositories must preserve provenance; the recorded technique remains unverified."
 category: tooling
 date: 2026-06-20
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 verification: unverified
 tags: [git, history-preservation, format-patch, git-am, cross-repo, submodule, migration, follow, planning]

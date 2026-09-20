@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Relocate large artifact trees through Slurm and shared storage without exposing a partial destination or deleting the only good copy. Use when: (1) a quota-bound checkpoint, model, dataset, or image tree must move to shared storage, (2) cross-parent rename may fail with EXDEV even though stat reports equal st_dev values, (3) login, sandbox, and compute nodes can see different mount or identity metadata, (4) an interrupted copy must resume by verified content, or (5) source retirement needs a separate destructive-authorization gate."
 category: tooling
 date: "2026-07-31"
-version: "1.0.0"
+version: "1.1.0"
 verification: verified-local
 user-invocable: false
 tags: [slurm, shared-storage, filesystem, exdev, renameat2, artifact-relocation, resumable-copy, atomic-promotion, integrity, quota]
@@ -126,8 +126,8 @@ The worker contract is:
 5. Copy or resume through exclusive temporary files and independently validate every accepted staging file.
 6. Verify the complete staging tree, normalize destination metadata, and durably sync the normalized tree.
 7. Promote staging with a same-parent, non-replacing rename; reconcile both names on any reported error.
-8. Reverify the final tree and stop with the source still present.
-9. Retire the source only in a later, explicitly authorized operation.
+8. Reverify the final tree and preserve the source until retirement is authorized.
+9. Treat retirement as a separate destructive transaction; use existing explicit authorization when it covers the exact source and destination.
 
 The exact probes, fresh copy, promotion, final rehash, and source retention were exercised. The stronger binding, whole-tree locking, pre-promotion independent rehash, durability sweep, and error-reconciliation details are review-derived hardening; retain that evidence distinction until they are exercised end to end.
 
@@ -201,15 +201,15 @@ The exact probes, fresh copy, promotion, final rehash, and source retention were
 
    On any error or timeout, freeze the operation and inspect both staging and final with anchored `lstat`. Never retry or clean up blindly: a network filesystem can perform a server-side rename and still report failure after a retry. Staging-only means not committed but requires revalidation before a deliberate retry; final-only may mean committed and requires full manifest/configuration verification; both or neither is inconsistent and requires operator investigation. Classify success only from a coherent verified state and durable operation record.
 
-10. **Reverify the published tree and stop.**
+10. **Reverify the published tree.**
 
     Walk final from scratch and compare it to the canonical manifest. Record root identity, exact paths, bytes, digests, ownership/modes, operation/configuration/manifest digests, and parent-sync result. Run any non-destructive consumer smoke required by the artifact format.
 
-    Finish with the source intact. A successful copy is not implicit authority to delete data.
+    Keep the source intact unless the task already explicitly authorizes its retirement. A successful copy alone is not authority to delete data. Continue other requested work.
 
 11. **Make source retirement a separate destructive transaction.**
 
-    Require explicit instruction naming the exact source and verified final destination. Re-establish the writer/cutover boundary, rehash final, re-check source and stable root identity against the bound manifest/configuration, and abort immediately on any mismatch. Resolve every deletion target beneath the pinned source descriptor without globs, symlink traversal, or unresolved environment variables.
+    Use explicit authorization naming the source and verified destination, including authorization already given in the task. Ask only if that destructive action is not yet authorized. Re-establish the writer/cutover boundary, rehash final, re-check source and stable root identity against the bound manifest/configuration, and abort immediately on any mismatch. Resolve every deletion target beneath the pinned source descriptor without globs, symlink traversal, or unresolved environment variables.
 
     This capture verified separation and source retention; it did not execute deletion. Keep retirement mechanics and evidence distinct from the copy/promotion record.
 

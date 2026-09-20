@@ -1,10 +1,10 @@
 ---
 name: cpp-http-client-wrapper-lifetime-equals-object-not-per-call
 license: BSD-3-Clause
-description: "Keep connection/handle members in wrapper classes — never construct heavy resources per call. Use when: (1) reviewing a PR that rewrites a Client/Connection wrapper from member-owned to per-call construction, (2) the rewrite is justified by 'make methods const' or 'satisfy clang-tidy on mutable members', (3) designing a new wrapper around any connection-holding handle (httplib::Client, TCP socket, DB connection, file handle)."
+description: "Preserve reusable connection ownership when C++ wrapper refactors introduce expensive per-call construction to satisfy constness or lint preferences."
 category: architecture
 date: 2026-05-10
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-ci
 tags:
@@ -70,9 +70,9 @@ public:
 
 ### Detailed Steps
 
-1. **Identify the resource being wrapped.** If the constructor of that resource establishes a connection (TCP handshake, file open, DB auth), it is "heavy" — never construct per-call.
+1. **Identify resource costs and ownership.** For a reusable connection, prefer member ownership to repeated setup. Choose per-call ownership only when isolation or lifetime requirements justify that cost.
 
-2. **Hold the resource as a member.** The resource's lifetime must equal the wrapper object's lifetime:
+2. **Prefer member ownership for a reusable resource.** This ties its lifetime to the wrapper:
    ```cpp
    class HttpTestClient {
      httplib::Client client_;  // member, not local variable
@@ -93,7 +93,7 @@ public:
    mutable httplib::Client client_;  // NOLINT(cppcoreguidelines-avoid-non-const-member-variables)
    ```
 
-5. **Take only the static-analysis hardening from a PR that rewrites the design** (e.g., `WarningsAsErrors: '*'`, suppressor lists, anchored `HeaderFilterRegex` in `.clang-tidy`) — reject the structural rewrite.
+5. **Assess a structural rewrite on its requirements and measured effects.** Static-analysis preferences alone do not justify repeated connection setup; retain useful hardening independently.
 
 6. **Verify test suite runtime** did not regress. Per-call construction multiplies TCP setup cost across every test invocation.
 

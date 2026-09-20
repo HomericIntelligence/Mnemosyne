@@ -5,7 +5,7 @@ description: Fix Pydantic ValidationError when None flows into non-Optional dict
   via dict.get() with a default value
 category: debugging
 date: 2026-02-19
-version: 1.0.0
+version: "1.1.0"
 user-invocable: false
 tags:
 - pydantic
@@ -228,7 +228,8 @@ def test_criteria_scores_null_in_checkpoint_data() -> None:
 
 ## Key Learnings
 
-1. **`dict.get(key, default)` trap**: The default is only used when the **key is absent**. If the key exists with value `None`, the default is ignored and `None` is returned. Always use `dict.get(key) or default` when the stored value can be `null`.
+1. **`dict.get(key, default)` trap**: The default is only used when the **key is absent**. If the key exists with value `None`, the default is ignored and `None` is returned. Consider `dict.get(key) or default` when all falsey values should use the default. If valid
+   falsey values need preservation, check for `None` explicitly.
 
 2. **Audit all 3 vulnerability types**: `.get()` calls, direct assignments from Optional sources, and missing writes in update functions.
 

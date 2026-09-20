@@ -1,10 +1,10 @@
 ---
 name: stale-version-comment-version-agnostic-fix
 license: BSD-3-Clause
-description: "Version-agnostic comment pattern replaces hardcoded snapshot versions that go stale on dependency bumps. Use when: (1) a code comment claims a specific version constraint ('tests only 1.x') that no longer matches the spec/lock, (2) updating dependency documentation that references major/minor versions, (3) preventing re-staleness when dependency versions bump."
+description: "Replace stale version-specific comments with stable API rationale when the behavior no longer depends on that version."
 category: ci-cd
 date: 2026-06-21
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 verification: verified-local
 history: stale-version-comment-version-agnostic-fix.history

@@ -1,10 +1,10 @@
 ---
 name: planning-validator-false-assurance-flatten-duplicate-guard
 license: BSD-3-Clause
-description: "Planning lesson for fixing a validator that gives false assurance because its parser flattens repeated entries into a dict (last-write-wins), making it structurally unable to detect duplicate/conflicting rows it is supposed to forbid. The fix must preserve ALL occurrences before the flatten, then add an explicit duplicate/conflict check. Captures the planning risks: a breaking return-type API change with un-grepped blast radius, stale plan line numbers, an unverified doc-promise claim, a verify-clean-day-one gate risk, a scope-policy assumption about exact-duplicates, and the need for a RED test that reproduces the exact false-OK. Use when: (1) planning a fix for a markdown/config/table parser that builds dict[key]=value from repeated rows and a validator over it never reports duplicates; (2) a self-contradiction guard reports OK on a self-contradictory document; (3) a plan changes a loader's return type and you must bound the caller blast radius; (4) strengthening a validator that gates CI and you must avoid a day-one merge failure."
+description: "Plan duplicate-detection repairs when a parser discards repeated entries before validation can inspect them."
 category: tooling
 date: 2026-06-12
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags:
@@ -77,7 +77,7 @@ Reach for this skill when **planning** (not yet implementing) a fix and any of t
 - You are **strengthening a validator that gates CI** and need to avoid a day-one merge
   failure if the live artifact already contains a newly-detected violation.
 
-### The six planning risks a reviewer MUST check (the heart of this skill)
+### Six useful planning risk checks
 
 These are the riskiest unverified assumptions baked into a plan of this shape. They are
 where reviews of these plans should spend their attention.
@@ -167,8 +167,9 @@ python3 -m hephaestus.validation.cli_tier_docs   # or the module's `main` entry 
    must fail before the fix and pass after.
 9. **Run the strengthened validator against the live artifact (RISK 4)** before enabling
    the stricter gate, to confirm the live doc is clean day-one.
-10. **Confirm scope policy (RISK 5)** with the issue/owner: is an exact-duplicate row a
-    violation, or only a conflicting one?
+10. **Resolve scope from the contract (RISK 5).** Check whether exact duplicates or only
+    conflicting rows are invalid. Ask the owner only if that material distinction remains
+    unresolved after inspecting the issue, callers, and tests.
 
 ## Failed Attempts
 

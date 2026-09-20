@@ -1,10 +1,10 @@
 ---
 name: pytest-patch-decorator-to-shared-fixture-conversion
 license: BSD-3-Clause
-description: "Behavior-preserving conversion of many duplicated stacked @patch(...) decorator pairs into a single opt-in pytest fixture (yield from a context-manager generator returning a small dataclass of started mocks), and the two non-obvious pitfalls that break it. Use when: (1) a test module stacks the SAME 2+ @patch(...) decorators on dozens of methods (DRY smell — '30+ duplicated decorators') and you want one shared fixture instead; (2) you are replacing decorator-injected positional mock args with a pytest fixture parameter and hit `fixture '<mockname>' not found` because a leftover @patch decorator and the fixture parameter collide on the same test; (3) a bulk/scripted signature rewrite silently fails to insert a new first parameter into MULTI-LINE def signatures (params on a continuation line, so `self` is not adjacent to the opening paren); (4) you must decide opt-in (parameter-requested) vs autouse for the new fixture when patch targets differ per module or some test classes must run real subprocesses unmocked; (5) a global text-replace of mock variable names also rewrites decorator-injected param NAMES in unrelated single-decorator methods, producing invalid signatures; (6) you need the correct ordering rule when a @patch decorator survives alongside a fixture param — decorator-injected mocks must come BEFORE fixture params after self."
+description: "Consolidate repeated pytest patch decorators into opt-in fixtures while preserving mock argument order, multiline signatures, and intentionally unmocked tests."
 category: testing
 date: 2026-06-29
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 tags:
   - pytest
@@ -19,7 +19,7 @@ tags:
 ---
 # pytest-patch-decorator-to-shared-fixture-conversion
 
-Behavior-preserving conversion of many duplicated stacked `@patch(...)` decorator pairs into one opt-in pytest fixture. The fixture `yield from`s a context-manager generator that starts the patches and returns a small dataclass of started mocks; tests request the fixture by parameter and read `mocks.run` / `mocks.repo_root` instead of decorator-injected positional args. Two pitfalls dominate: (a) decorator-injected mocks are positional and must come BEFORE any fixture param after `self`, and (b) scripted signature rewrites must use an AST pass, not a `(self,` regex, because multi-line signatures put params on a continuation line.
+Behavior-preserving conversion of many duplicated stacked `@patch(...)` decorator pairs into one opt-in pytest fixture. The fixture `yield from`s a context-manager generator that starts the patches and returns a small dataclass of started mocks; tests request the fixture by parameter and read `mocks.run` / `mocks.repo_root` instead of decorator-injected positional args. Two pitfalls dominate: (a) decorator-injected mocks are positional and must come BEFORE any fixture param after `self`, and (b) scripted signature rewrites benefit from an AST-aware pass because a `(self,` regex misses multiline signatures, because multi-line signatures put params on a continuation line.
 
 ## Overview
 
@@ -127,7 +127,7 @@ grep -cE '@patch\("[^"]*\.(run|get_repo_root)"\)' tests/unit/automation/test_git
 5. **Leave single-symbol methods UNCHANGED.** A method that patches only one of the two symbols (and patches the other via an inner `with patch(...)`) is NOT a target. If a bulk pass touched it, restore its original parameter names.
 6. **If scripting the rewrite,** insert the new first param via AST (find the `self` arg node, insert `, <fixture>: Any` right after its `end_col_offset`), applying edits bottom-to-top so offsets stay valid. Then `ruff format` to re-wrap.
 7. **Audit** with `grep -cE '@patch\("[^"]*\.(run|get_repo_root)"\)' <file>`: it should drop to ~0 for fully converted files. Document any intentional residual (the single-decorator carve-outs).
-8. **Gates:** `ruff format`, `ruff check`, `mypy`, then re-run the suites. The passing count MUST equal the baseline (+N for any net-new tests).
+8. **Verification:** Select relevant formatting, type, and test checks. Compare collected cases and behavior with the baseline; investigate unexplained count changes. Count parity alone does not establish equivalent coverage.
 
 #### Opt-in vs autouse
 

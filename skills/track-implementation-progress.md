@@ -5,7 +5,7 @@ description: Track implementation progress against plan. Use to monitor componen
   delivery and identify blockers.
 category: tooling
 date: '2026-03-19'
-version: 1.0.0
+version: "1.1.0"
 mcp_fallback: none
 ---
 # Track Implementation Progress
@@ -53,7 +53,7 @@ gh api repos/OWNER/REPO/issues/<number> --jq '.state, .closed_at'
 
 ## Progress Tracking Workflow
 
-1. **Collect data**: Get all issue statuses from GitHub
+1. **Collect relevant data**: Get issue statuses for the requested project or milestone
 2. **Categorize issues**: By phase (plan, test, implementation, package, cleanup)
 3. **Calculate metrics**: Completion rate by phase and component
 4. **Identify blockers**: Issues in progress but not moving
@@ -191,9 +191,9 @@ Report progress with:
 
 **Escalate**:
 
-- Inform team of blocker
-- Request help if needed
-- Update issue status
+- Explain the unresolved dependency in the requested status report
+- Request help when necessary input or authorization is missing
+- Continue useful work that does not depend on the blocker
 
 **Track**:
 
@@ -208,7 +208,7 @@ Report progress with:
 | Can't access issues | Check gh auth status |
 | Issues not updated | Filter for last updated date |
 | Missing data | Check issue descriptions and labels |
-| Unclear status | Ask issue owner for update |
+| Unclear status | Inspect current evidence; request an owner update only when the missing information matters |
 | Too many issues | Filter by label or milestone |
 
 ## Tracking Best Practices

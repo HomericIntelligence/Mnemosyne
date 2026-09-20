@@ -1,10 +1,10 @@
 ---
 name: skill-consolidation-nuance-audit-workflow
 license: BSD-3-Clause
-description: "Use when: (1) a bulk skill consolidation (10+ skills merged into bundles) has just completed and you need to verify no knowledge was lost, (2) a canonical skill was absorbed into a larger bundle and the bundle must preserve all failed attempts, trigger conditions, and copy-paste commands, (3) you need to run a parallel swarm audit across many source→bundle pairs and automatically generate amendment PRs for any detected gaps"
+description: "Audit consolidated skills for missing actionable knowledge. Compare source history with canonical content and restore material omissions without reversing useful generalization."
 category: tooling
 date: '2026-06-07'
-version: "1.1.0"
+version: "1.2.0"
 verification: verified-ci
 history: skill-consolidation-nuance-audit-workflow.history
 tags:
@@ -77,6 +77,10 @@ always to re-surface from `.history`, never to reconstruct from memory.
 
 ### Quick Reference
 
+The shell sequence below is a historical delivery example. Use PR creation and
+auto-merge only within existing task authorization. Model names are historical,
+not required worker choices.
+
 ```bash
 # Phase 0: Verify how main removed a source file (was it intentional consolidation?)
 git log --diff-filter=D --oneline origin/main -- skills/<source-name>.md
@@ -115,7 +119,8 @@ git log --diff-filter=D --oneline origin/main -- skills/<source>.md
 
 #### Phase 1: Parallel Audit Swarm
 
-Launch one Haiku agent per source→bundle pair. For each agent:
+When delegation is available and authorized, consider independent audit tasks per
+bundle. Otherwise review sequentially. For each assigned comparison:
 
 1. Read the source skill: `git show HEAD:skills/<source>.md` (or `origin/<branch>:skills/...`)
 2. Read the destination bundle: `git show origin/main:skills/<bundle>.md`
@@ -126,12 +131,13 @@ Launch one Haiku agent per source→bundle pair. For each agent:
 
 **Swarm shape (audit→fix loop, refined pass-2 form)**: The audit/fix loop is itself a swarm:
 
-- **Audit phase** — one **read-only Explore agent per bundle**, capped at **≤5 agents per wave**.
+- **Audit phase** — one **read-only Explore agent per bundle**, with concurrency suited to the current host.
   Each agent reads the canonical `.md` plus its `.history`, and emits a per-skill `OK`/`LOST`
   verdict for every contributing skill followed by a single `VERDICT:` line for the bundle.
 - **Fix phase** — one **general-purpose amend agent per bundle that has a material loss**. The agent
   restores the nuance into the canonical body (as new Detailed Steps and/or Failed-Attempts rows),
-  bumps the version **MINOR**, appends a `.history` changelog entry, and opens an auto-merge PR.
+  updates the version and privacy-safe history under corpus conventions, and delivers
+  the reviewable change. Publication and auto-merge depend on the task’s scope.
 - **Clean bundles get NO PR.** A bundle whose every contributing skill verdicts `OK` produces no
   branch, no amend, no PR — only bundles with at least one material `LOST` are amended.
 
@@ -164,7 +170,7 @@ Collect all `{has_lost_nuance, lost_items, summary}` outputs. Prioritize by seve
 
 #### Phase 3: Amendment Swarm
 
-For each bundle with high/medium items, launch one Sonnet agent:
+For each bundle with material losses, use one editor or isolated editing task:
 
 1. Read the bundle file fully
 2. Read all contributing source files for that bundle
@@ -175,7 +181,9 @@ For each bundle with high/medium items, launch one Sonnet agent:
 
 #### Phase 4: PR Creation and Auto-Merge
 
-For each amended bundle:
+When the task authorizes publication, these commands illustrate delivery for an
+amended bundle. Auto-merge needs authority for that action; preparing a local change
+does not depend on publishing it.
 
 ```bash
 # Create a branch off main
@@ -211,8 +219,8 @@ gh pr merge --auto --squash
 **Important**: Do not add generated catalog files to an amendment PR branch. The repository
 does not use a marketplace index; generated files can create merge conflicts between branches.
 
-**Pre-commit helper (run-once-and-re-stage)**: Before the real commit, have the amend agent run
-`pre-commit run --files <skill>.md <skill>.history` ONCE and then re-stage both files. The
+**Pre-commit helper**: When the authorized validation process runs mutating hooks,
+inspect their changes and re-stage the intended files before committing. The
 end-of-file fixer modifies the `.history` file on its first pass, which aborts the real commit if
 not pre-run; running it once and re-staging avoids the abort. (Same lesson as the merge pass.)
 

@@ -1,10 +1,10 @@
 ---
 name: automation-codex-jsonl-fail-closed-routing
 license: BSD-3-Clause
-description: "Fail closed when a headless Codex invocation reports fatal provider, sandbox, or tool events inside JSONL even if the CLI exits zero or writes a plausible final answer. Use when: (1) Codex reports `error`, `turn.failed`, or any failed/declined completed item but orchestration treats the run as successful, (2) nested macOS execution emits `sandbox_apply: Operation not permitted`, (3) a timeout-recovered final message could hide an earlier fatal event, (4) documented recoverable command or stream-lag events need narrow exceptions, or (5) provider failures must reach a provider-neutral worker/stage error path without broadening sandbox access."
+description: "Classify fatal Codex JSONL events at the provider adapter and preserve worker failure routing. Use when a successful exit or final message hides a tool or sandbox failure."
 category: debugging
 date: 2026-08-04
-version: "2.0.1"
+version: "2.1.0"
 user-invocable: false
 verification: verified-ci
 history: automation-codex-jsonl-fail-closed-routing.history
@@ -146,10 +146,11 @@ Classification contract:
     a bounded failed agent result. A stage test proves tool-error plus no-diff output remains on
     the retry/error path and never reaches commit, skip, or successful cleanup.
 
-11. **Require an executed host receipt before GO.** Registering a WorkerPool regression or
-    proving that immutable host validation selects it does not prove the boundary executed.
-    Keep NOGO until a reviewed-head receipt shows the test passing and demonstrates that
-    `AgentExecutionError` becomes `agent_error:`.
+11. **Distinguish selected tests from executed evidence.** A registered WorkerPool
+    regression does not prove the reviewed revision executed it. Where host policy
+    requires an execution receipt for release or merge, keep that action pending
+    until the receipt proves `AgentExecutionError` becomes `agent_error:`. Continue
+    independent diagnosis and report missing evidence accurately.
 
 12. **Re-run safety-contract tests.** Keep CLI command construction unchanged: preserve the
     requested working directory, sandbox mode, approval policy, and workspace-write-only
@@ -171,7 +172,7 @@ Classification contract:
 | Let the generic worker catch handle it | The typed provider failure fell into a broad exception boundary. | The result may lose a stable `agent_error` prefix or become indistinguishable from worker bugs. | Catch the neutral execution error explicitly before the generic handler and preserve bounded diagnostics. |
 | Enumerate known fatal item types | The first implementation recognized only selected failed tool kinds. | A failed web-search item fell through to `None`, so later no-edit output could be classified as success. | Default every failed/declined completed item to fatal; allow only explicit, tested exceptions. |
 | Treat every error item as fatal | The follow-up classifier rejected any completed error item. | Codex can emit a documented nonfatal app-server stream-lag notice and then complete successfully. | Match the exact prefix, suffix, and numeric count; leave every other error item fatal. |
-| Treat host-plan selection as execution evidence | The remediation registered and selected the WorkerPool regression. | Review still lacked a passing receipt proving the error crossed the WorkerPool boundary on the reviewed SHA. | Keep NOGO until the host receipt shows that exact boundary test passing. |
+| Treat host-plan selection as execution evidence | The remediation registered and selected the WorkerPool regression. | Review still lacked a passing receipt proving the error crossed the WorkerPool boundary on the reviewed SHA. | Where host policy requires a receipt, retain that release or merge boundary until execution is proved; report the evidence gap and continue independent work. |
 
 ## Results & Parameters
 

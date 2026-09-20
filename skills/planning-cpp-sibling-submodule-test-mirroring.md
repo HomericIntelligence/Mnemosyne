@@ -1,10 +1,10 @@
 ---
 name: planning-cpp-sibling-submodule-test-mirroring
 license: BSD-3-Clause
-description: "The uncertain assumptions and reviewer risks baked into a PLAN that adds C++ GTest unit tests to one HomericIntelligence submodule by mirroring a sibling submodule that already solved the same problem (ProjectAgamemnon mirroring ProjectNestor). Planning done by reading source files only — nothing built or run. Use when: (1) planning to add GTest tests for store/routes/NATS-client code in a C++ submodule because a sibling repo already has them, (2) an issue says 'apply the same test pattern to repo X' and you must check X does not already have it, (3) the test binary cannot link the code under test because store/routes/nats compile only into the _server executable not a library, (4) you are about to copy a sibling repo's HTTP response-shape assertions (error/detail JSON, empty-body status) verbatim, (5) the meta-repo (Odysseus) builds submodules with cmake -S/-B bypassing CMakePresets so you must verify two build contexts."
+description: "Plan C++ test coverage from a sibling repository when link targets, response contracts, or local and parent builds differ."
 category: testing
 date: 2026-06-20
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 verification: unverified
 tags: [planning, cpp, gtest, cmake, submodule, sibling-mirroring, agamemnon, nestor, core-library-extraction, response-shape-drift, reviewer-risks, unverified, odysseus-meta-repo, natsc, two-build-contexts]

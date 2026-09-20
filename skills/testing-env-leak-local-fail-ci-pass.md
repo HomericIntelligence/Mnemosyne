@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Diagnose tests that fail locally but pass in CI because the local environment differs: inherited variables copied by os.environ.copy(), stale console scripts resolved by PATH or shutil.which(), or sibling checkout artifacts. Use when local pytest is red, CI is green, and the failure could be ambient shell/PATH pollution rather than a code regression."
 category: testing
 date: 2026-06-11
-version: "2.0.0"
+version: "2.1.0"
 user-invocable: false
 verification: verified-local
 history: testing-env-leak-local-fail-ci-pass.history
@@ -60,12 +60,12 @@ export PATH="$PWD/.pixi/envs/default/bin:$PATH"
 hash -r
 ```
 
-1. Confirm the asymmetry. If CI is green and only the local shell is red, classify the failure as environmental until proven otherwise.
+1. Confirm the asymmetry. If CI is green and only the local shell is red, investigate environment divergence alongside code differences.
 2. Read the failing assertion. For `assert "X" not in env`, check whether the function starts with `os.environ.copy()` and only conditionally adds keys.
 3. Inspect the ambient environment with `env | grep`. If the asserted-absent key is exported, re-run with `env -u` before changing anything.
 4. For console-script or subprocess tests, verify both `which <binary>` and the module `__file__` from a neutral cwd. The current Python import path can differ from the console-script wrapper's import path.
 5. If cleaned-env or worktree-first PATH makes the failure pass, leave production code and tests untouched. Record the local environment issue instead.
-6. If the failure remains after env/PATH cleanup and CI is also red, then investigate as a genuine regression.
+6. If the failure remains after env/PATH cleanup, investigate a regression even when CI is green; CI may cover different conditions.
 7. Future hardening is separate scope: use `monkeypatch.delenv(..., raising=False)` or `mock.patch.dict(os.environ, clear=True)` only when the task is to harden tests against ambient state.
 
 ### Worked Examples

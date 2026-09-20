@@ -1,10 +1,10 @@
 ---
 name: automation-moot-issue-regression-guard-pattern
 license: BSD-3-Clause
-description: "Use when a follow-up or auto-generated issue's concrete premises (file names, class names, function names, PR references) do not match the actual codebase state — i.e. the code described never existed or was never merged. Instead of fabricating the missing modules (YAGNI/KISS violation) or closing with no artifact, convert the already-satisfied invariant into a machine-checkable regression-guard test using ast.parse. Use when: (1) every grep for issue-cited symbols returns zero hits; (2) the upstream PR the issue references does not exist (gh pr view → 'Could not resolve'); (3) the issue describes a refactor across modules that a grep confirms live in only one place already; (4) implementing the literal request would create dead code or phantom modules."
+description: "Investigate stale or unsupported issue premises when named code is absent or the requested invariant already holds; decide whether any implementation or regression guard is useful."
 category: testing
 date: 2026-06-14
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-ci
 tags:
@@ -35,10 +35,11 @@ Auto-generated follow-up issues (e.g., issues spawned from PR review threads of 
 never merged) describe code that does not exist. A planner that trusts the issue body will either:
 
 1. **Fabricate the missing modules** — creating dead code that the codebase never needed (YAGNI/KISS violation).
-2. **Close with no artifact** — leaving the "already-satisfied" invariant unchecked; a future PR can re-introduce the duplication with zero CI gate.
+2. **Add an unnecessary artifact** — creating a test or module solely because the issue expected a change.
 
-The correct response is a third path: **verify premises first, then convert the already-satisfied
-invariant into an AST-level regression guard** that fails CI if the invariant is ever violated.
+Verify the current behavior first. When the requested outcome already holds, report that evidence.
+Consider an AST regression guard only when a durable architecture contract needs protection that
+existing tests do not provide.
 
 ## When to Use
 
@@ -97,8 +98,8 @@ grep -rn "<CITED_CONSTANT>\s*=" hephaestus/
 gh pr view <N> --json number,state,title 2>&1
 ```
 
-If **every** check returns zero hits or a resolution error, the issue's premises are false.
-Stop here. Do not start any implementation.
+If searches do not find the named entities, check for renames, branch drift, or unavailable remote
+evidence. Avoid implementing nonexistent premises; continue toward the actual requested outcome.
 
 #### Step 2 — Verify the actual state of the invariant
 
@@ -114,7 +115,7 @@ grep -rn "<CONSTANT_NAME>\s*=" hephaestus/ --include="*.py"  # count assignments
 If the count is already 1 (or otherwise satisfies the issue's desired end-state), the invariant
 is satisfied but there is no CI gate preventing future drift.
 
-#### Step 3 — Write AST regression-guard tests
+#### Step 3 — Consider a useful regression guard
 
 Use `ast.parse` (not regex or grep) to scan the package and assert the already-satisfied
 invariant. `ast.parse` handles renames, is immune to comment noise, and is self-documenting.
@@ -192,7 +193,7 @@ class TestFailingCheckPredicateSingleDefinition:
 
 #### Step 4 — Place the tests in the appropriate existing test class
 
-Do not create a new test file unless there is truly no appropriate existing class.
+Prefer an existing test module when its responsibility matches the invariant.
 Look for the test class that already covers the module containing the one true definition:
 
 ```bash
@@ -214,8 +215,7 @@ pixi run pytest tests/unit/automation/ -v --tb=short
 
 ### Comment on the issue
 
-After the PR is created, post a comment explaining what was found and why the approach differs
-from a literal implementation:
+When issue updates are in scope, explain the current evidence and any necessary change in approach:
 
 ```bash
 gh issue comment <N> --body "$(cat <<'EOF'

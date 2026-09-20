@@ -1,10 +1,10 @@
 ---
 name: python-protocol-stub-ellipsis-not-pass
 license: BSD-3-Clause
-description: "Convention + planning pattern for the S4 lint nitpick of replacing `pass` with `...` (Ellipsis) in Python typing.Protocol / abc / .pyi method stub bodies. Use when: (1) a lint/audit nitpick asks to change empty Protocol/ABC/stub method bodies from `pass` to `...`, (2) planning any mechanical multi-occurrence token replacement where the token repeats and you must anchor each edit unambiguously, (3) you need an AST-based acceptance check that no Protocol method body still contains an ast.Pass node (more robust than `grep pass`), (4) you want the in-repo precedent rule: grep the SAME package for the existing idiom before importing an external style preference. Headline: in Protocol/stub bodies `...` is the canonical interface marker and `pass` is a runtime-statement smell, but the two are behaviorally identical (bodies never execute under structural typing) so it is purely a readability nitpick — anchor edits on the unique preceding docstring, verify with AST not grep, and mark verification verified-local (ruff/pytest/mypy were reasoned-not-run)."
+description: "Apply established Python stub-body conventions to scoped Protocol or interface edits; distinguish AST inspection from unexecuted lint and tests."
 category: architecture
 date: 2026-06-24
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: ["protocol", "typing", "ellipsis", "stub-body", "pass-vs-ellipsis", "pep8", "lint-nitpick", "ast-verification", "edit-anchoring", "in-repo-precedent", "dry", "pola"]
@@ -21,12 +21,12 @@ tags: ["protocol", "typing", "ellipsis", "stub-body", "pass-vs-ellipsis", "pep8"
 | **Outcome** | Convention is well-established and the AST acceptance check is sound; the ProjectHephaestus #1546 application is **plan-stage / unverified** — the specific ruff/pytest/mypy commands in the plan were NOT executed this session |
 | **Verification** | verified-local — convention + AST check are sound; the repo-specific lint/test run was reasoned, not executed |
 
-> **Warning (honesty gate):** The convention itself is verified-local (well-established
+> **Evidence limit:** The convention itself is verified-local (well-established
 > idiom, AST check is correct). The application to ProjectHephaestus #1546 is plan-stage:
 > ruff-clean, pytest-clean, and mypy-clean were *assumed from convention, not run* in the
 > session that produced this skill. Treat the "Verified Workflow" below as verified for the
-> convention and acceptance check only — re-run the repo's actual lint/test suite before
-> claiming the #1546 edit is done.
+> convention and acceptance check only. Use proportionate checks for a new edit and report
+> which checks actually ran.
 
 ## When to Use
 
@@ -111,11 +111,10 @@ sys.exit(1 if bad else 0)"
    sys.exit(1 if bad else 0)"
    ```
 
-5. **Run the repo's real lint/test suite before claiming done (NOT done this session).**
+5. **Select relevant checks and report their limits (NOT done this session).**
 
    The plan assumed ruff (`D`/`B`/`SIM`/`RUF` selected) does not flag docstring-then-`...`,
-   and that no test asserts on the stub body. Both were reasoned, not executed. Close the gate
-   by actually running:
+   and that no test asserts on the stub body. Both were reasoned, not executed. Relevant commands for that repository included:
 
    ```bash
    pixi run ruff check path/to/pkg/module.py

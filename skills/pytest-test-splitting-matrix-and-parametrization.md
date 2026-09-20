@@ -1,10 +1,10 @@
 ---
 name: pytest-test-splitting-matrix-and-parametrization
 license: BSD-3-Clause
-description: "Use when: (1) a monolithic test file exceeds the Edit tool's ~25K token limit and must be split into focused sub-modules preserving test count and git history; (2) coverage tracking is needed for _partN.mojo test files split from a single logical test — validate_test_coverage.py must group part files by base name using regex; (3) adding or splitting test groups in a CI matrix — group splitting by filesystem structure, glob pattern evolution, zero-discovery guards, matrix status checks; (4) a CI matrix sub-pattern level silently goes stale when space-separated multi-pattern strings are used and a subset stops matching files; (5) building E2E workspace lifecycle code with staged parallel test generation; (6) pytest-asyncio with auto mode where fixture and test both run in the same event loop and parametrize interacts with async fixtures; (7) creating a weekly GitHub Actions workflow for Mojo training tests excluded from per-PR CI because they are in the validate_test_coverage.py exclusion list; (8) a test file was split across part files and a CI workflow pattern must be updated to match the new filenames."
+description: "Split test files and CI groups while preserving test discovery, fixture behavior, matrix status names, and coverage of every intended pattern."
 category: testing
 date: 2026-06-07
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 history: pytest-test-splitting-matrix-and-parametrization.history
 tags: [pytest, test-splitting, ci-matrix, parametrize, coverage-tracking, stale-detection, weekly-workflow, e2e, glob-pattern]
@@ -138,8 +138,8 @@ functional area matching the source module's command/function groups.
 7. **Per-file collect-only smoke test**, then run all split files together, then the full
    suite — counts must sum to baseline N exactly.
 
-8. **Pre-commit twice** (ruff reformats/strips unused imports in new file headers on first
-   run), then commit + PR.
+8. **Run applicable checks.** Repeat when a formatter changes files or failures remain,
+   then complete the authorized delivery.
 
 #### B. Part-File Coverage Tracking (`_partN.mojo`)
 
@@ -178,8 +178,9 @@ cross-dir not merged.
 1. Count actual files per glob (patterns hide true count — one `test_x_*.mojo` may expand
    to 26 files).
 2. Design sub-groups by functional domain, ≤25-30 files each, using glob patterns.
-3. Edit workflow YAML via Bash + Python `str.replace` (the Edit tool is blocked by a
-   pre-commit security hook on workflow files):
+3. Edit workflow YAML through an authorized write path. If the host denies the
+   protected edit, report the exact missing capability and continue independent work;
+   another tool is not a way around that restriction. The recorded transformation is:
 
    ```python
    content = open('.github/workflows/comprehensive-tests.yml').read()

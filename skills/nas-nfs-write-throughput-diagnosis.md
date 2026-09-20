@@ -1,10 +1,10 @@
 ---
 name: nas-nfs-write-throughput-diagnosis
 license: BSD-3-Clause
-description: "Diagnose slow NFS write throughput to a NAS by separating the bottleneck by LAYER (network / CPU / disk-array), because 'slow NFS writes' is ambiguous and may have multiple independent root causes. Use when: (1) NFS writes to a NAS are far slower than the link can carry (e.g. ~8 MB/s on 1GbE), (2) you see intermittent 'nfs: server not responding, timed out' errors mixed in with slowness, (3) you must decide whether the floor is network, CPU (parity/checksum), or disk before recommending any tuning."
+description: "Locate an NFS write bottleneck across network, client CPU, server CPU, and storage before changing mount or RAID settings."
 category: debugging
 date: 2026-06-25
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: []
@@ -150,7 +150,7 @@ Diagnostic-script pattern: write a root-run, NO-`sudo`-inside, fully-logged, REA
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 |---------|----------------|---------------|----------------|
 | Attributed the whole slowdown to RAID5 parity CPU alone | Only looked at the CPU/parity layer | Missed that the unplugged `eth1` (degraded bond) was causing the intermittent NFS TIMEOUTS — a separate symptom from the slowness | Timeouts and slowness can have DIFFERENT root causes; diagnose each symptom separately by layer |
-| Probed the NAS with multiple SSH usernames (root/admin/mvillmow) to find access | Guessed accounts to get in | Blocked by the environment safety classifier as credential-probing | Confirm host + user with the operator and copy your key via `ssh-copy-id`; do not guess accounts |
+| Probed the NAS with multiple SSH usernames (root/admin/example-user) to find access | Guessed accounts to get in | Blocked by the environment safety classifier as credential-probing | Confirm host + user with the operator and copy your key via `ssh-copy-id`; do not guess accounts |
 | Expected disabling services to free lots of RAM | Disabled SMB/AFP/DLNA/FTP/Bonjour/UPnP and expected a memory win | The daemons were only ~1-2 MB RAM each — almost no memory freed | The real benefit is CPU/scheduling relief on a single core, not RAM; state the correct rationale |
 | `rm -rf "$VAR/..."` in a test cleanup | Used a variable path in a throwaway cleanup step | Blocked by the safety net (variable in an `rm -rf`) | Use literal fixed paths with `rm -f` in throwaway test scripts |
 

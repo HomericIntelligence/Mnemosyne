@@ -1,10 +1,10 @@
 ---
 name: ci-release-pipeline-must-mirror-required-pr-gate
 license: BSD-3-Clause
-description: "A required PR gate (integration tests, lint, schema check) only protects the auto-tag-from-merged-PR path — a workflow_dispatch/manual release can target an ARBITRARY commit that never passed that gate, so the release/publish pipeline must run the SAME gate itself. Use when: (1) auditing or hardening a release.yml / publish pipeline and a required PR-gate job (e.g. `_required.yml` `integration-tests`) enforces an invariant the release path does NOT re-run, (2) a workflow has BOTH a tag-push trigger AND a `workflow_dispatch`/manual trigger and you must reason about which commits actually passed the PR gates, (3) you are tempted to justify a missing release-time check with 'the PR gate already covers it' — true only for merged-PR tags, false for dispatch, (4) you are adding the missing check and must decide between a NEW parallel CI job vs a STEP in an existing job, (5) you must mirror the required gate's exact invocation (including addopts overrides like `--override-ini` and marker flags) so the release run cannot drift from the merged-PR guarantee, (6) proving an integration/e2e suite is actually COLLECTED by a new command and that build-backend-dependent tests do not silently skip in the release env."
+description: "Check release paths that can target commits outside the required PR checks, and reuse the relevant validation on those paths."
 category: ci-cd
 date: 2026-07-01
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 history: ci-release-pipeline-must-mirror-required-pr-gate.history
@@ -106,7 +106,7 @@ pixi run pytest tests/integration/test_sdist_contents.py --override-ini="addopts
 
 2. **Confirm the release workflow has a bypass trigger.** Grep `release.yml` for `on:`. If it has BOTH `push.tags` (or an auto-tag path) AND `workflow_dispatch:` (or any manual/scheduled trigger), then a release can be cut against an **arbitrary commit** that never went through a PR — the required gate does NOT cover it. This is the whole reason the release must self-enforce. "The PR gate covers it" is true only for the auto-tag-from-merged-PR path.
 
-3. **Reuse the already-wired publish-gating job; do NOT add a new job.** Grep the publish job's `needs:`. If it already `needs: [test, ...]` and that `test` job already performs the required setup (here `pixi run dev-install`, the editable install the integration tests need), add a STEP to `test` rather than a parallel `integration` job. Because `build-and-publish` already `needs: [test]`, gating integration INSIDE `test` blocks the publish with ZERO wiring changes. Adding a new job would require new `needs:` wiring and re-do the `dev-install` setup — more surface, no benefit. (This is the "reuse the already-wired gate" convention.)
+3. **Prefer an existing publish-gating job when its environment and ownership fit.** Grep the publish job's `needs:`. If it already `needs: [test, ...]` and that `test` job already performs the required setup (here `pixi run dev-install`, the editable install the integration tests need), add a STEP to `test` rather than a parallel `integration` job. Because `build-and-publish` already `needs: [test]`, gating integration INSIDE `test` blocks the publish with ZERO wiring changes. Adding a new job would require new `needs:` wiring and re-do the `dev-install` setup — more surface, no benefit. (This is the "reuse the already-wired gate" convention.)
 
 4. **Mirror the required gate's invocation VERBATIM — do NOT invent a variant.** Copy the flags exactly:
    - `--override-ini="addopts="` clears the repo's default coverage `addopts` so the integration run is NOT subject to the unit-coverage gate (integration tests don't produce the unit coverage the addopts expect).
@@ -114,7 +114,9 @@ pixi run pytest tests/integration/test_sdist_contents.py --override-ini="addopts
 
 5. **Rename the existing test step for clarity when you add a sibling.** The prior single `Run tests` step becomes `Run unit tests`, and the new step is `Run integration tests`. Two clearly-named steps beat one ambiguous one once the job runs two suites.
 
-6. **Bump the job `timeout-minutes` as cheap insurance for a publish pipeline.** Adding a second suite to a job that gates a PUBLISH means a first-run integration slowdown (cold caches, extra collection) must never abort the pipeline. Bump `timeout-minutes` (here 15 → 20). This is free insurance — a publish pipeline aborting on a timing hiccup is far worse than a slightly longer wall-clock ceiling.
+6. **Size the timeout from observed work.** Consider cold setup and the added suite. Adjust
+   `timeout-minutes` when evidence shows that the current bound is insufficient; keep a finite
+   limit so a hung job remains recoverable. The recorded change used 15 to 20 minutes.
 
 7. **PROVE collection, not just a green run (verification proof pattern).** A green run does not prove the intended guards RAN — a mis-scoped path or a silent skip can pass vacuously. Two proofs:
    - **Collection proof:** `pytest tests/integration --override-ini="addopts=" --collect-only -q | grep -E "NAMED_GUARDS"` must list the specific integration guards you care about (here `test_sdist_contents`, `test_package_import`, `test_cli_entry_points`).

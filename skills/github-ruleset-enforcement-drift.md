@@ -1,10 +1,10 @@
 ---
 name: github-ruleset-enforcement-drift
 license: BSD-3-Clause
-description: "Canonical config file says `evaluate` but live GitHub ruleset is already `active`; idempotent re-apply would silently downgrade enforcement. Use when: (1) flipping a GitHub branch ruleset from evaluate to active mode and the on-disk JSON carries `evaluate`, (2) confirming whether a canonical config file matches its live deployed state before re-applying, (3) preserving a rollback/shadow-test path after the base config file changes enforcement mode, (4) aligning variant apply-target files (e.g. `*-active.json`) that were not updated when the base file was fixed, (5) auditing required_status_checks context strings for the correct bare-name + integration_id form vs stale prefixed form, (6) retiring a duplicate CI policy check only after proving an active branch ruleset still enforces the same invariant on the default branch."
+description: "Reconcile live GitHub ruleset enforcement with committed configuration. Detect policy drift without removing unrelated protections."
 category: ci-cd
 date: 2026-07-20
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-local
 history: github-ruleset-enforcement-drift.history
@@ -130,7 +130,7 @@ assert any(rule.get("type") == "required_signatures" for rule in r.get("rules", 
 2. **Run the proof twice.** Execute the live precondition immediately before editing and again
    immediately before shipping. If the first check fails, leave the CI check intact. If the final
    check fails, restore the removed workflow query/step and its documentation attribution, then
-   stop without shipping.
+   withhold only that policy-removal change while continuing independent work.
 3. **Remove only the duplicated assertion.** If other checks still need the same fetched metadata,
    preserve that query. For example, removing signature fields from a commit query must not remove
    full commit messages still consumed by Conventional Commit or DCO validation.

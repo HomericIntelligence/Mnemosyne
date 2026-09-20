@@ -1,11 +1,10 @@
 ---
 name: doc-issue-readme
 license: BSD-3-Clause
-description: Post structured documentation to GitHub issue as a comment. Use when
-  starting work on an issue to document approach and track progress.
+description: "Draft or post issue-specific approach, progress, or completion notes when issue documentation is requested."
 category: tooling
 date: '2026-03-19'
-version: 1.0.0
+version: "1.1.0"
 ---
 # Issue Documentation Skill
 
@@ -137,7 +136,7 @@ EOF
 ## Verified Workflow
 
 1. **Read issue context**: `gh issue view <number> --comments`
-2. **Post documentation**: Use templates above to document approach
+2. **Document the approach**: Use relevant template sections; post when issue updates are within the requested scope
 3. **Update as work progresses**: Post progress updates
 4. **Summarize on completion**: Post completion summary with PR link
 
@@ -154,7 +153,7 @@ EOF
 
 - Post overly long updates (split if needed)
 - Duplicate content across issues
-- Leave work undocumented
+- Add documentation that does not help the task or its readers
 - Forget completion summary
 
 ## Common Sections
@@ -171,7 +170,7 @@ Bad: "Code stuff"
 
 ### Success Criteria
 
-Must be measurable checkboxes:
+Prefer verifiable outcomes, expressed as checkboxes when useful:
 
 - "All 15 unit tests pass"
 - "Coverage > 90%"
@@ -181,8 +180,8 @@ Must be measurable checkboxes:
 
 | Issue | Fix |
 | ------- | ----- |
-| Issue locked | Contact maintainer |
-| Rate limited | Wait and retry |
+| Issue locked | Keep the draft locally and continue independent work; request maintainer help if posting is necessary |
+| Rate limited | Use bounded retries or retain a local draft while continuing other work |
 | Content too long | Split into multiple comments |
 | Missing context | Run `gh issue view <number> --comments` first |
 

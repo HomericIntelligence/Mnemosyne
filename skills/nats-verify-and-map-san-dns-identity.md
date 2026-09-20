@@ -1,10 +1,10 @@
 ---
 name: nats-verify-and-map-san-dns-identity
 license: BSD-3-Clause
-description: "Mechanics of NATS verify_and_map cert→user identity matching. Use when: (1) mapping TLS client certs to NATS users via verify_and_map and wondering what field is matched, (2) debugging silent client rejection where every cert-presenting client is refused, (3) setting the accounts{} user= field and unsure whether to use CN, SAN-DNS, or full DN, (4) issuing role certs with step ca and needing the correct --san flag pattern, (5) writing a deny clause in accounts{} permissions and needing to know when deny overrides allow, (6) validating allow-list enforcement via a permissions-violation test."
+description: "Diagnose NATS verify-and-map identity from certificate SAN DNS entries. Keep certificate identity, account mapping, and authorization aligned."
 category: architecture
 date: 2026-06-19
-version: "1.0.0"
+version: "1.1.0"
 verification: verified-local
 user-invocable: false
 history: nats-verify-and-map-san-dns-identity.history
@@ -48,13 +48,13 @@ tags:
 
 ```bash
 # 1. Issue a role cert WITH a DNS SAN (required for verify_and_map to match)
-step ca certificate hermes.homeric \
+step ca certificate service.example.test \
   hermes-cert.pem hermes-key.pem \
-  --san hermes.homeric
+  --san service.example.test
 
-# 2. Verify the SAN is embedded — this MUST show DNS:hermes.homeric
+# 2. Verify the SAN is embedded — this MUST show DNS:service.example.test
 openssl x509 -noout -ext subjectAltName -in hermes-cert.pem
-# Expected output: DNS:hermes.homeric
+# Expected output: DNS:service.example.test
 
 # 3. Parse-check the config before deploying
 nats-server -t -c configs/nats/server.conf
@@ -81,8 +81,8 @@ tls {
 accounts {
   HERMES {
     users = [ {
-      # user= MUST be the cert's DNS SAN string, NOT "CN=hermes.homeric" or "hermes"
-      user = "hermes.homeric"
+      # user= MUST be the cert's DNS SAN string, NOT "CN=service.example.test" or "hermes"
+      user = "service.example.test"
       permissions {
         publish   { allow = ["hi.>", "$JS.API.>"] }
         subscribe { allow = ["hi.>", "$JS.API.>", "_INBOX.>"] }
@@ -92,7 +92,7 @@ accounts {
 
   AGENTS {
     users = [ {
-      user = "agent.homeric"   # cert DNS SAN "agent.homeric"
+      user = "worker.example.test"   # cert DNS SAN "worker.example.test"
       permissions {
         publish   { allow = ["hi.agents.>", "hi.tasks.>"] }
         # Correct: omit hi.research.> from allow-list — it is simply absent.
@@ -110,7 +110,7 @@ accounts {
 1. **Understand the match-precedence chain.** `verify_and_map` inspects the client certificate in this exact order to produce the identity string it compares against `accounts{} user=`:
    1. SAN email (rfc822Name extension)
    2. SAN DNS (dNSName extension) — **use this; set via `--san` in step CLI**
-   3. RFC-2253 Subject DN (full string, e.g. `CN=hermes.homeric,O=HomericIntelligence`) — order-sensitive, fragile
+   3. RFC-2253 Subject DN (full string, e.g. `CN=service.example.test,O=HomericIntelligence`) — order-sensitive, fragile
    4. Bare CN — **never matched**; if no SAN is present NATS falls to full-DN, not bare CN
 
 2. **Issue every role cert with BOTH a CN AND a matching DNS SAN.** The canonical pattern for HomericIntelligence role certs:
@@ -119,7 +119,7 @@ accounts {
    ```
    Where `<role>` is `hermes`, `agent`, `keystone`, etc. Verify the SAN is present with `openssl x509 -noout -ext subjectAltName`.
 
-3. **Set `accounts{} user=` to the exact SAN-DNS string.** If the cert carries `DNS:hermes.homeric` in its SAN extension, then `user = "hermes.homeric"`. No prefix, no scheme, no slashes — just the raw DNS name.
+3. **Set `accounts{} user=` to the exact SAN-DNS string.** If the cert carries `DNS:service.example.test` in its SAN extension, then `user = "service.example.test"`. No prefix, no scheme, no slashes — just the raw DNS name.
 
 4. **Write `deny` clauses only when the subject is in the `allow` list.** A `deny` clause overrides an existing `allow` entry. If a subject is already absent from the allow-list, adding it to `deny` has no effect — the subject was already implicitly denied. Remove the no-op `deny` to keep configs readable and tests accurate.
 
@@ -131,7 +131,7 @@ accounts {
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 | --- | --- | --- | --- |
-| Bare CN as match key | Set `user = "hermes.homeric"` assuming `verify_and_map` would match the cert's `CN=hermes.homeric` field | `verify_and_map` NEVER matches a bare CN. Match order is SAN-email → SAN-DNS → full RFC-2253 Subject DN. A cert with only `CN=hermes.homeric` and no SAN falls through to the full-DN step, which requires the complete string (e.g. `CN=hermes.homeric,O=HomericIntelligence`). Every client was silently rejected. | Always issue certs with a DNS SAN equal to the intended identity string, and set `user=` to that SAN-DNS value. Verify the SAN with `openssl x509 -noout -ext subjectAltName`. |
+| Bare CN as match key | Set `user = "service.example.test"` assuming `verify_and_map` would match the cert's `CN=service.example.test` field | `verify_and_map` NEVER matches a bare CN. Match order is SAN-email → SAN-DNS → full RFC-2253 Subject DN. A cert with only `CN=service.example.test` and no SAN falls through to the full-DN step, which requires the complete string (e.g. `CN=service.example.test,O=HomericIntelligence`). Every client was silently rejected. | Always issue certs with a DNS SAN equal to the intended identity string, and set `user=` to that SAN-DNS value. Verify the SAN with `openssl x509 -noout -ext subjectAltName`. |
 | No-op deny clause | Added `deny = ["hi.research.>"]` to the AGENTS subscribe block to "block research subjects" | `hi.research.>` was not in the AGENTS subscribe allow-list, so it was already implicitly denied. The `deny` clause had no effect — it can only override an existing allow, not re-deny an absence. | Use deny only to narrow an overly broad allow entry. If the subject is absent from allow, omit the deny entirely. |
 | Testing deny clause to prove scoping | Runbook acceptance test subscribed to a subject in the deny clause to expect a permissions violation | The deny clause was a no-op (see above), so the test proved nothing about actual scoping. Worse, if the deny clause was later removed the test would still pass for the wrong reason. | Test allow-list enforcement by subscribing to a subject that is ABSENT from the allow-list — that guarantees a permissions violation regardless of deny clauses. |
 
@@ -144,24 +144,24 @@ cert_convention:
   verify_san: "openssl x509 -noout -ext subjectAltName -in cert.pem"
   expected_san_output: "DNS:<role>.homeric"
   roles:
-    - hermes.homeric   # stream-creator (highest blast radius)
-    - agent.homeric
-    - keystone.homeric
+    - service.example.test   # stream-creator (highest blast radius)
+    - worker.example.test
+    - scheduler.example.test
 
 # verify_and_map match precedence (from NATS docs)
 match_precedence:
   1: "SAN email (rfc822Name)"
   2: "SAN DNS (dNSName)  ← USE THIS"
-  3: "full RFC-2253 Subject DN (e.g. CN=hermes.homeric,O=HomericIntelligence)  ← fragile"
-  never: "bare CN (e.g. hermes.homeric extracted from the CN field)  ← NEVER matched"
+  3: "full RFC-2253 Subject DN (e.g. CN=service.example.test,O=HomericIntelligence)  ← fragile"
+  never: "bare CN (e.g. service.example.test extracted from the CN field)  ← NEVER matched"
 
 # accounts{} user= value rule
 accounts_user_field:
-  rule: "Must equal the exact SAN-DNS string from the cert (e.g. 'hermes.homeric')"
+  rule: "Must equal the exact SAN-DNS string from the cert (e.g. 'service.example.test')"
   wrong_examples:
-    - "CN=hermes.homeric"          # full DN — only works if no SAN present AND order matches
+    - "CN=service.example.test"          # full DN — only works if no SAN present AND order matches
     - "hermes"                     # bare label — never matches
-  correct_example: "hermes.homeric"  # exact DNS SAN value
+  correct_example: "service.example.test"  # exact DNS SAN value
 
 # deny clause semantics
 deny_clause:
@@ -174,7 +174,7 @@ acceptance_test:
   goal: "Prove that a low-priv role cannot subscribe to out-of-scope subjects"
   pattern: "Subscribe as <role> to a subject ABSENT from its allow-list"
   example_for_agents:
-    test: "nats sub 'hi.tasks.>' as agent.homeric"
+    test: "nats sub 'hi.tasks.>' as worker.example.test"
     expected: "nats: Permissions Violation for Subscription to hi.tasks.>"
     why: "hi.tasks.> is not in AGENTS subscribe allow-list"
   anti_pattern: "Testing a deny clause subject — no-op deny makes this prove nothing"

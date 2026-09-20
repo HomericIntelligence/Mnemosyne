@@ -15,7 +15,7 @@
     "description": {
       "type": "string",
       "minLength": 1,
-      "description": "The ASD-STE100 description states when to use the skill."
+      "description": "A concise capability and specific trigger, using ASD-STE100 guidance."
     },
     "category": {
       "type": "string",

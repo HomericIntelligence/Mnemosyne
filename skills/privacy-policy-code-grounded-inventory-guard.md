@@ -1,10 +1,10 @@
 ---
 name: privacy-policy-code-grounded-inventory-guard
 license: BSD-3-Clause
-description: "Author a privacy / data-retention / deletion policy (GDPR audit finding) for a code repository by grounding the data inventory in grep-verified persistence constants and freezing it with a structural guard test. Use when: (1) an audit finding says no privacy/retention/deletion policy exists for a repo that handles third-party content or developer credentials, (2) writing any compliance/policy doc whose claims can be derived from code (state dirs, cache dirs, crash-dump paths), (3) a policy doc needs protection against silent rot or deletion, (4) tempted to paste a boilerplate GDPR template that overstates the project's data-controller role."
+description: "Build privacy-policy inventories from actual persistence and data flows. Use when retention, deletion, or processing claims need source-backed documentation."
 category: documentation
 date: 2026-07-17
-version: "1.0.1"
+version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags: [privacy, gdpr, retention, deletion-policy, compliance, data-inventory, structural-guard, doc-rot, audit-remediation, security-policy]
@@ -63,7 +63,10 @@ ls scripts/ | grep -i "policy\|date"
 
 4. **Place the policy where governance docs already live.** Root-level, sibling to SECURITY.md and CODE_OF_CONDUCT.md — GitHub surfaces root community-health files. Cross-link from SECURITY.md and the docs index so it is discoverable from both entry points.
 
-5. **Freeze it with a structural guard test** in the repo's docs test suite (pattern: existing ADR structural guard). Assert: file exists; required section headings present (Scope, Data Inventory, Retention, Deletion Procedures, Data Subject Requests, Sub-processors); the real persistence paths appear verbatim; SECURITY.md and the docs index both link to it; no `As of \d{4}-\d{2}-\d{2}` stamp. TDD order: guard test first (RED), then the doc (GREEN).
+5. **Consider semantic drift checks where policy maintenance needs them.** Link
+   documented persistence paths to source authority and check discoverability. Use
+   existing documentation tests when they protect a real contract; avoid freezing
+   editorial headings or requiring a RED-GREEN sequence for every prose edit.
 
 6. **Retention claims must be enforceable.** For ephemeral local caches, the honest retention statement is "operator-deletable at any time; no fixed obligation because GitHub is the system of record" — not an invented N-day schedule nobody enforces. Reserve fixed windows (e.g. 30-day crash-bundle review) for genuinely secret-bearing artifacts, and label them as operator guidance.
 

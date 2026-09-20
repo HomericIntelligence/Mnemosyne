@@ -1,10 +1,10 @@
 ---
 name: mnemosyne-skill-pr-ci-gate-first-pass-green
 license: BSD-3-Clause
-description: "Use when authoring a Mnemosyne /learn skill PR and you want it to pass CI on the FIRST push instead of bouncing on a red gate: (1) before committing a new or amended skills/*.md so you run the SAME two checks the Mnemosyne branch-protection requires — validate (ruff + scripts/validate_plugins.py over the WHOLE skills/ dir + mypy + pytest) and markdownlint (markdownlint-cli2 with .markdownlint.yaml); (2) when a markdown table in your skill has an inline pipe (regex, shell pipe, a|b) that markdownlint MD056/table-column-count rejects but validate_plugins.py silently passes; (3) when /learn emits a skill missing one of the five required ## sections and validate fails on your own new file; (4) when parallel /learn runs fork fresh origin/main against the SAME skill and become mutually DIRTY, so you need the open-PR amend-lock; (5) when a pre-existing broken file already on main reddens validate for files you never touched; (6) before claiming verified-ci, to confirm the gate is actually green and not just your local run."
+description: "Prepare Mnemosyne skill changes for existing validation and Markdown checks. Use for required sections, table pipes, overlapping amendments, and pre-existing corpus failures."
 category: tooling
 date: 2026-06-13
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags:
@@ -104,7 +104,7 @@ VERIFIED-CI HONESTY:
 
 ### Quick Reference
 
-- **The gate is exactly two contexts.** Mnemosyne `main` branch protection requires `["validate","markdownlint"]`. `validate` = ruff + `python3 scripts/validate_plugins.py` (whole `skills/` dir) + mypy + pytest. `markdownlint` = `markdownlint-cli2 --config .markdownlint.yaml`. Reproduce BOTH locally or the PR bounces.
+- **The gate is exactly two contexts.** Mnemosyne `main` branch protection requires `["validate","markdownlint"]`. `validate` = ruff + `python3 scripts/validate_plugins.py` (whole `skills/` dir) + mypy + pytest. `markdownlint` = `markdownlint-cli2 --config .markdownlint.yaml`. Use the authorized validation process to cover both checks and report any coverage gap.
 - **MD056 is the #1 failure and `validate_plugins.py` cannot catch it.** An unescaped literal pipe inside a table cell (a regex, a shell pipe, an `a|b` alternative) is parsed as a column separator, so the data row has more cells than the header. Escape inline pipes as backslash-pipe, or balance the row. Only `markdownlint` flags this.
 - **markdownlint flags ALL rules.** MD012/no-multiple-blanks (two or more consecutive blank lines) was also seen on real PRs. Do not assume MD056 is the only rule that can redden the gate.
 - **The required `##` section set is five headers.** `## Overview`, `## When to Use`, `## Verified Workflow`, `## Failed Attempts`, `## Results & Parameters`. `validate_plugins.py` accepts ONLY `## Verified Workflow` — for an unverified/verified-local skill keep that exact header and add a `> Proposed Workflow` warning subtitle under it. A missing header fails `validate` on the PR's own new file.
@@ -117,7 +117,7 @@ VERIFIED-CI HONESTY:
 
 - **Not yet verified in CI.** Verification level is `verified-local`. The carrier ProjectHephaestus PR #1323 was OPEN/BLOCKED awaiting a GO label at capture time; confirm its `validate`/`markdownlint` gate goes green before upgrading this skill to `verified-ci`.
 - **Branch-protection contexts can drift.** `["validate","markdownlint"]` was read at capture time. Re-confirm with `gh api repos/HomericIntelligence/Mnemosyne/rulesets` (or branch-protection) before assuming the gate is still exactly those two checks.
-- **markdownlint rule set is config-driven.** `.markdownlint.yaml` disables many rules (MD013, MD022, MD031, MD032, etc.) but NOT MD056 or MD012. If the config changes, re-derive which rules can redden the gate; always run the actual `markdownlint-cli2` rather than reasoning about it.
+- **markdownlint rule set is config-driven.** `.markdownlint.yaml` disables many rules (MD013, MD022, MD031, MD032, etc.) but NOT MD056 or MD012. If the config changes, re-derive which rules can redden the gate; prefer results from the configured `markdownlint-cli2` through the authorized validation process over an inferred pass.
 - **The duplicate-cluster counts (117 PRs, ~35 DIRTY, ~9 / ~14 per skill) were a point-in-time scan.** They illustrate the failure mode, not a stable metric; re-run the amend-lock query for the current open-PR state.
 
 ### Related skills

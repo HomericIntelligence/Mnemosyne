@@ -1,9 +1,9 @@
 ---
 name: tdd-workflow-and-test-coverage-expansion
-description: "Use when writing tests before implementation, expanding coverage for scripts or subprocess-heavy modules, auditing whether requested tests already exist, repairing tests after a refactor, adding import-boundary guards, or coordinating isolated coverage shards. Audit first, preserve a red-green-refactor proof, mock where the code looks up dependencies, and verify CI actually discovers every new test."
+description: "Design behavior tests and coverage improvements for scripts, subprocesses, and refactors. Use for existing-test audits, correct mock seams, isolated shards, and CI discovery."
 category: testing
 date: 2026-06-15
-version: "2.0.0"
+version: "2.1.0"
 verification: verified-ci
 license: BSD-3-Clause
 user-invocable: false
@@ -49,8 +49,8 @@ changelog are in [history](./tdd-workflow-and-test-coverage-expansion.history).
 1. **Audit before writing.** Search all tests for the target symbol, class, behavior, and likely
    sibling filename. Build a requirement-to-test matrix. If every requirement is covered, add only
    a concise coverage mapping when the repository consumes it; do not invent redundant tests.
-2. **Prove red before green.** A new behavior test must fail for the expected reason before the
-   implementation is changed. A test that began green does not prove the change.
+2. **Prefer a regression before repair when practical.** An observed failure for the expected
+   reason helps show that the test detects the defect. A test that began green does not prove this.
 3. **Patch the lookup binding.** Inspect how the target imports the dependency. Patch the consumer
    namespace when `from x import y` binds `y` there; patch a definition module only when the code
    performs the lookup there. Never guess from the dependency’s origin.
@@ -105,8 +105,8 @@ python3 -m pytest tests/unit/test_component.py -v  # GREEN
 ```
 
 Use Arrange-Act-Assert. Test normal, edge, and error behavior rather than private line structure.
-When an audit is already fully covered, stop: update the requirement mapping only if it has a
-consumer, run the relevant suite, and report zero new tests.
+When an audit is already fully covered, avoid duplicate tests. Update the requirement mapping
+when it has a consumer, run relevant checks, and continue any remaining requested work.
 
 ### 3. Select the correct test seam
 

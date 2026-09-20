@@ -1,9 +1,9 @@
 ---
 name: pr-enumeration-discovery-idempotency
-description: "Use when GitHub list commands silently truncate, bot PRs lack issue-closing links, automation creates duplicate PRs, bulk status discovery times out, planner and implementer skip semantics diverge, merged closing PRs leave zombie issues, soft-fail gh wrappers omit timeout/OS errors, or a stale local branch appears to contain already-merged work. Paginate exhaustive discovery, separate bulk identity from per-PR status, deduplicate by stable issue keys, verify merged state against fetched refs, and guard every creation phase."
+description: "Enumerate and reconcile PRs without pagination loss or duplicate mutations. Bind routing and mutation to verified repository, branch, and issue identity."
 category: ci-cd
 date: 2026-06-15
-version: "2.0.0"
+version: "2.0.1"
 user-invocable: false
 license: BSD-3-Clause
 history: pr-enumeration-discovery-idempotency.history

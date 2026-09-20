@@ -1,10 +1,10 @@
 ---
 name: logging-downgrade-noisy-happy-path
 license: BSD-3-Clause
-description: "Downgrade noisy WARNING and ERROR log levels for happy-path scenarios that are not failures — to INFO when the message is still worth surfacing, or to DEBUG (verbose-only) when it describes a CORRECT automatic fallback the operator rarely needs to see. Use when: (1) a script checks for optional files/configs and logs WARNING when they're absent (but this is an acceptable skip path), (2) a validation function logs ERROR on format mismatch but continues successfully, (3) test suites log WARNING for expected fallback behavior, (4) any logging statement fires in scenarios that return True/success and are not genuine failures, (5) a benign fallback message logs at WARNING on every run or once per loop iteration and the user wants it shown only under -v/--verbose, (6) you need to downgrade WARNING->DEBUG so a benign-fallback message is silent by default but visible in verbose mode. KEY discriminator: keep genuinely-actionable misconfiguration (a human supplied a wrong value) at WARNING while downgrading the benign default (an unset value that falls back correctly) to DEBUG."
+description: "Reduce noisy logs when an expected fallback or successful optional path is reported as a warning or error."
 category: ci-cd
 date: 2026-06-20
-version: "1.1.0"
+version: "1.1.1"
 user-invocable: false
 history: logging-downgrade-noisy-happy-path.history
 verification: verified-ci

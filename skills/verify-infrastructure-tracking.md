@@ -6,7 +6,7 @@ description: 'Verify a known environment incompatibility is tracked as an open i
   skips due to host constraints, or an issue asks you to ''verify X is tracked''.'
 category: ci-cd
 date: 2026-03-07
-version: 1.0.0
+version: "1.1.0"
 user-invocable: false
 ---
 # Verify Infrastructure Tracking
@@ -45,7 +45,8 @@ user-invocable: false
 
 3. **Evaluate the findings**:
    - If a tracking issue exists (open or closed): no new issue needed — proceed to update docs
-   - If no tracking issue exists: create one with labels `infrastructure`, `environment`
+   - If no tracking issue exists and issue creation is authorized: create one with
+     labels `infrastructure`, `environment`; otherwise provide the finding in the report
 
 4. **Update the tracking reference** in `.pre-commit-config.yaml` to include all relevant issues:
 
@@ -53,13 +54,15 @@ user-invocable: false
    # See docs/dev/<topic>-compatibility.md for details. Tracked: #NNN (closed), #NNN2, #NNN3
    ```
 
-5. **Post a comment on the originating issue** summarizing findings:
+5. **If the task authorizes issue updates, consider a comment** summarizing findings:
 
    ```bash
    gh issue comment <ISSUE_NUMBER> --body "..."
    ```
 
-6. **Commit, push, and create PR** — even for comment-only changes, all changes go through PR.
+6. **Deliver the requested result.** Use the repository’s change process when edits are
+   needed and publication is authorized. A tracking-only task can finish with the existing
+   issue references; it does not need an otherwise unnecessary commit or PR.
 
 ## Key Patterns
 

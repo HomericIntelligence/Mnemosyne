@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Inspect reused issue worktrees and incomplete automation runs. Keep each worker within its PR scope, check publication and signing, and diagnose drive-green invocation failures."
 category: tooling
 date: 2026-07-17
-version: "1.3.0"
+version: "1.4.0"
 user-invocable: false
 verification: verified-local
 history: hephaestus-automation-loop-branch-sync-drive-green.history
@@ -74,7 +74,7 @@ budget. Old invocations passing `--max-merge-attempts` now fail argparse.
 
 Use [verify-pr-ready](verify-pr-ready.md) for live policy, affected validation, and evidence
 reuse. A branch behind main is not itself blocked. Rebase only for an actual conflict,
-a necessary dependency, or an explicit request. Keep required CI and exact-head review
+a necessary dependency, or an explicit request. Respect CI and revision-bound review where the actual repository policy requires them
 before merge. PR publication can precede validation if pending results are clear.
 Cleanup is separate from rebasing. Historical verification below does not verify this
 policy correction or the current version of an external tool.
@@ -130,7 +130,7 @@ pixi run hephaestus-automation-loop \
 
 4. **Scope drive-green inside a worker to the owned issue/PR.** A per-issue worker should not run a broad repo-wide drive-green phase that can fail because of unrelated PRs, arm unrelated PRs, or attribute unrelated CI failures back to the worker's issue. Pass the issue/PR scope through all worker-local drive-green calls.
 
-5. **Run a final catch-all drive-green pass after all workers finish.** The catch-all pass belongs at the end of the orchestration, not inside every worker. It catches repo-level stragglers, newly green PRs that still need arming, and state that legitimately requires a broad sweep after all per-issue work has settled.
+5. **Consider a final broad pass when fleet or repository-wide delivery is requested.** A per-issue repair does not authorize arming unrelated PRs. Continue within the selected issue scope unless the existing task includes the broader sweep.
 
 6. **Handle Codex commit policy explicitly.** When Codex is the selected agent, ensure commits satisfy the repo policy for both signed commits and `Signed-off-by` trailers. Verify the commit range before pushing or enabling auto-merge, and repair the commit history if either policy gate would fail.
 
@@ -147,7 +147,7 @@ pixi run hephaestus-automation-loop \
 
 9. **Expect a correct `--drive-green-all` run to be FAST, and read a non-zero exit code carefully.** A correct run shepherds existing PRs (review + route to CI) rather than planning/implementing from scratch, so short runtime is normal (observed: ~3 minutes over 14 open PRs — 7 reviews requested, 5 already-GO'd PRs adopted → CI, 0 new GO verdicts). A short run is EXPECTED, not a sign of a no-op. An `exit_code=1` in this mode typically reflects item-level review non-GOs, not a crash — distinguish it from the `--phases drive-green` KeyError crash above.
 
-10. **Dry-run any novel flag combination first.** A `--dry-run` of `--phases drive-green` surfaces the `KeyError` before any live invocation. Always dry-run an unfamiliar flag combination to catch stage-seeding crashes before they poison a live run.
+10. **Consider a dry-run for unfamiliar flag combinations.** It can expose stage-seeding errors before an authorized live run; parser inspection and focused tests can also establish the relevant prerequisite.
 
 ## Failed Attempts
 

@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Keep queue-pipeline loop re-seeding limited to discovery. Use when an automation loop accepts explicit --issues or --prs selections, when a reviewed or merged item reappears after a full drain, or when writing regression tests for loop admission and retry boundaries."
 category: tooling
 date: 2026-08-05
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-ci
 tags:
@@ -58,7 +58,7 @@ def _reseed_if_converged(self) -> bool:
 3. Keep multi-loop re-seeding only for unscoped discovery, subject to the configured loop budget and zero-work convergence behavior.
 4. Leave retry and fail-back behavior to the individual stage queues. The outer loop should not turn a completed review or merge-path item into a new admission.
 5. Parameterize tests over one explicit issue selection and one explicit PR selection. Patch `_seed_pass` to fail if called, then assert the coordinator stops after one loop with one ledger entry.
-6. Verify the merged change with focused tests, architecture tests, type checks, Ruff, formatting, and the repository's full pre-push suite.
+6. Start with focused admission and retry tests. Add architecture, type, formatting, and broader checks where the changed coordinator contract or repository policy calls for them.
 
 ## Failed Attempts
 

@@ -1,7 +1,9 @@
 # Contributing to Mnemosyne
 
 This guide explains how to contribute skills to Mnemosyne. It also gives the
-quality requirements and the pull request process.
+format constraints and a suggested pull request process. The
+[working guidance](AGENTS.md#working-guidance) describes how to adapt workflows,
+use existing authorization, and continue toward the requested outcome.
 
 ## Table of Contents
 
@@ -27,7 +29,8 @@ instructions.
 2. After a session contains verified knowledge, run `/learn`.
 3. Follow the installed Athena skill.
 4. Review the pull request.
-5. Merge the pull request.
+5. Maintainers can merge when the applicable repository controls permit it.
+   This suggested workflow does not grant merge authority.
 
 ### Option 2: Manual Creation
 
@@ -36,7 +39,8 @@ instructions.
 3. Complete the YAML frontmatter. See [Skill Structure](#skill-structure).
 4. Complete all required Markdown sections.
 5. You can create `skills/<name>.notes.md` for privacy-safe session details.
-6. If you add tests, run and validate each new test.
+6. For new tests, seek relevant execution evidence through the validation
+   boundary in `AGENTS.md`. Report any coverage gap and continue independent work.
 7. Create a pull request. Follow the
    [branch conventions](#branch-and-commit-conventions).
 
@@ -71,7 +75,7 @@ from normal retrieval.
 ```yaml
 ---
 name: skill-name-here
-description: "When a specific condition occurs, use this skill. When another condition occurs, use it again."
+description: "<Capability>. Use when <specific trigger>."
 category: training
 date: 2026-03-24
 version: "1.0.0"
@@ -92,7 +96,7 @@ tags: [optional, searchable, keywords]
 
 ### Required Markdown Sections
 
-Each skill must contain these sections:
+The existing validator expects these sections for retrieval compatibility:
 
 1. **Overview table** -- Date, objective, outcome.
 2. **When to Use** -- Specific trigger conditions.
@@ -105,11 +109,8 @@ Each skill must contain these sections:
 
 ### Filename Convention
 
-```
-<topic>-<subtopic>-<short-4-word-summary>.md
-```
-
-Use lowercase kebab-case. For example:
+Prefer a concise lowercase kebab-case filename that identifies the reusable
+decision or capability. There is no fixed word count. For example:
 
 - `mojo-parametric-dtype-migration.md`
 - `docker-pixi-isolation.md`
@@ -117,12 +118,21 @@ Use lowercase kebab-case. For example:
 
 ## Quality Standards
 
-1. **Specific descriptions**: Include trigger conditions. Do not use vague
-   summaries. State when to use the skill.
+Prefer outcomes and decision criteria over rigid recipes. Recommend useful
+steps with their conditions and reasons. Keep technical ordering when later
+steps depend on earlier results. A plan, first implementation, review round,
+or optional tool failure is not a reason to stop useful work.
+
+Use existing task authorization for routine choices. Reserve permission
+questions for a concrete missing authority, and identify its source and the
+action it protects. Suggest unrelated improvements separately.
+
+1. **Precise descriptions**: Prefer a short capability and specific trigger.
+   Avoid broad descriptions that match unrelated tasks.
 2. **Failures required**: Record each method that did not work. Explain why it
    did not work. The Failed Attempts table is mandatory.
-3. **Ready to use**: Parameters, configurations, and commands must work when
-   users copy them.
+3. **Useful guidance**: Explain the relevant conditions for commands and
+   parameters. Preserve technical prerequisites and state verification limits.
 4. **No duplication**: Link to external documents. Do not copy their content.
    If a skill overlaps an existing skill, extend the existing skill.
 5. **Bounded retrieval**: Keep `skills/<name>.md` at or below 30,000 bytes.
@@ -183,10 +193,15 @@ docs: update migration status - 100% complete
 
 ## Pull Request Process
 
+The steps below describe a typical contribution. Adapt them to the task rather
+than treating each step as a permission gate. Continue work already authorized
+by the user; a draft pull request can expose unresolved verification without
+claiming that the change is ready to merge.
+
 1. Create a branch following the naming conventions above.
 2. Make the required changes.
-3. Before you push, run local validation. See [Validation](#validation).
-4. If you add tests, run and validate each new test.
+3. Select relevant checks. See [Validation](#validation).
+4. Record results for changed behavior and any checks that could not run.
 5. Push your branch.
 6. Create a pull request.
 7. Let CI validate these requirements:
@@ -212,14 +227,14 @@ does not prove that a pull request entered the queue.
 CI validates all pull requests. Pre-commit does not run pytest. CI is the
 automated authority for the complete test suite.
 
-Before you submit a pull request, run local validation:
+The skill validator checks the corpus format. Through the execution boundary
+in [AGENTS.md](AGENTS.md#validation-delegation), a useful command is:
 
 ```bash
 python3 scripts/validate_plugins.py
 ```
 
-If you add tests, run and validate each new test before you create the pull
-request:
+For new tests, a focused command can provide useful evidence:
 
 ```bash
 uv run python -m pytest path/to/new_test.py
@@ -235,26 +250,28 @@ The validator does these checks:
 - Enforces the 30,000-byte main skill limit
 - Excludes notes and history files.
 
-Authors and reviewers must confirm that each description has specific trigger
-conditions.
+Review descriptions for specific trigger conditions. Select further checks
+according to the changed behavior and risk. If execution is unavailable,
+continue independent work and report the coverage gap. Do not describe an
+unexecuted check as successful.
 
 ## Code Style
 
 ### Technical prose
 
-All active technical prose must follow the
+Use the
 [ASD-STE100 writing policy](docs/asd-ste100.md). Use the official copy as the
 primary source. Request that copy from the [official download page](https://www.asd-ste100.org/STE_downloads.html)
 and keep it outside the repository.
 
-Before you open a pull request, review changed prose in Markdown, frontmatter,
+For prose changes, review the affected Markdown, frontmatter,
 schemas, JSON, YAML, and other mixed files. Preserve commands, identifiers,
 facts, legal text, quotations, and technical meaning.
 
-For a corpus-wide change, use `git ls-files` and record the inventory digest,
-class counts, reviewed counts, and zero unresolved prose findings in the pull
-request description. Automated checks cannot prove natural-language
-conformance. Ask a human reviewer to check the technical English.
+For a corpus-wide change, `git ls-files` can support a complete inventory.
+Record coverage and unresolved findings honestly. Automated checks cannot
+prove natural-language conformance. Consider technical-English review when
+available; its absence need not block other authorized work.
 
 ### Markdown
 

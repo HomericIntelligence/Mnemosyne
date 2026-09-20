@@ -1,10 +1,10 @@
 ---
 name: testing-dead-parametrize-short-circuit-tautology
 license: BSD-3-Clause
-description: "Use when: (1) a parametrized test contains a conditional ternary/if-else that returns a hardcoded value for certain parametrize inputs instead of calling the function under test; (2) a test asserts a trivially-true condition (e.g. `assert 1 != 0`) because the ternary short-circuited before the real call; (3) a code reviewer flags a parametrize case as 'dead test weight' or 'tautological assertion'; (4) testing invalid inputs in a CLI tool where some inputs trigger argparse's own error path rather than the application validator."
+description: "Detect parametrized tests that short-circuit around the system under test. Ensure edge cases exercise real behavior and meaningful assertions."
 category: testing
 date: 2026-06-22
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 verification: verified-local
 tags: [testing, parametrize, short-circuit, tautology, dead-test, argparse, invalid-input, coverage]

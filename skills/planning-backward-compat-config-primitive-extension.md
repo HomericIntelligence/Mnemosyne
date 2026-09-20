@@ -1,10 +1,10 @@
 ---
 name: planning-backward-compat-config-primitive-extension
 license: BSD-3-Clause
-description: "Reusable checklist for writing TRUSTWORTHY implementation plans that make a hardcoded constant configurable via an env var, or extend a config-driven auth/config primitive, in a C++ service WITHOUT breaking old behavior. Covers both the auth case (add comma-separated AGAMEMNON_API_KEYS unioned with single AGAMEMNON_API_KEY) and the general 'make constant env-configurable' case (e.g. a RouteLimits struct read from AGAMEMNON_* and threaded through register_routes()). Use when: (1) planning to add a new env var / config knob (single OR multi-value) that must coexist with existing behavior, (2) a plan adds a source file to a build target but did not READ the build file that DEFINES the target, (3) a plan claims a trailing defaulted-parameter signature change is non-breaking, (4) a plan cites exact file:line locations as ground truth, (5) a plan opportunistically fixes an adjacent bug or deprecates an existing env knob, (6) a plan consolidates two env knobs that use different units, (7) a plan changes a security-critical == compare into set membership or RELAXES a fail-secure startup invariant, (8) a plan proposes DELETING a file it calls dead code based on a source grep alone."
+description: "Extend environment-driven C++ configuration or authentication without breaking legacy values, units, callers, build targets, or rejection semantics."
 category: architecture
 date: 2026-06-20
-version: "1.2.0"
+version: "1.3.0"
 user-invocable: false
 verification: unverified
 history: planning-backward-compat-config-primitive-extension.history
@@ -138,8 +138,8 @@ grep -rn 'kMax' src/routes.cpp   # expect: 0 results -> proves no hardcoded limi
    — must be an explicit, tested invariant, not an emergent accident.
 
 6. **If you RELAX a fail-secure invariant, add the negative/abort test for it.** Allowing startup
-   with only the new `*_KEYS` var relaxes the previous "abort unless `*_KEY` is set" rule. Confirm
-   with the issue owner that this relaxation is intended, AND add a test proving that an
+   with only the new `*_KEYS` var relaxes the previous "abort unless `*_KEY` is set" rule. Use the request and current contract to establish whether this relaxation is intended;
+   ask only if that material security decision remains unclear. Add a test proving that an
    all-empty / all-whitespace `*_KEYS` (which yields an empty accepted set) STILL aborts startup.
    A relaxed rule without an explicit abort test is a silent path to insecure startup.
 
@@ -193,11 +193,10 @@ grep -rn 'kMax' src/routes.cpp   # expect: 0 results -> proves no hardcoded limi
     re-find by symbol/string at edit time, and add a post-edit invariant that grep can check
     (e.g. once all hardcoded limits are removed, `grep -rn 'kMax' src/routes.cpp` MUST return 0).
 
-13. **Flag adjacent-bug fixes and deprecations as SCOPE EXPANSION for sign-off.** If the plan
+13. **Separate adjacent improvements from the requested change.** If the plan
     goes beyond the issue's ask — e.g. also fixing a latent body-cap override bug, or silently
     deprecating `SERVER_REQUEST_SIZE_LIMIT_MB` in favor of `AGAMEMNON_MAX_BODY_BYTES` with a
-    back-compat fallback — call it out explicitly as out-of-issue scope requiring reviewer
-    sign-off. Opportunistic fixes folded silently into a "make it configurable" plan inflate
+    back-compat fallback — offer it as a follow-up unless the current authorization includes that scope. Opportunistic fixes folded silently into a "make it configurable" plan inflate
     blast radius and review risk.
 
 14. **Make the code sample match the prose EXACTLY.** A classic source of

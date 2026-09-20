@@ -1,10 +1,10 @@
 ---
 name: zero-count-division-guard
 license: BSD-3-Clause
-description: "Skill: Zero-Count Division Guard in Metric Collection Functions"
+description: "Handle zero counts in metric collection without division errors. Use when callers already treat None as an unavailable measurement."
 category: tooling
 date: 2026-03-19
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 ---
 # Skill: Zero-Count Division Guard in Metric Collection Functions
@@ -142,7 +142,7 @@ This bug only surfaces in CI (not locally) because:
 - In CI, the pre-commit hook or unit step runs in an environment where pytest cannot import all test modules (missing conftest, import errors, or restricted path), returning `"0 selected"`
 - The regex correctly matches `"0 selected"` — the bug is that `0` is treated as valid
 
-Always test collection functions with `0` as a possible output, especially when they shell out to external tools.
+Include a zero-count case when testing collection functions whose external tools can report no results.
 
 ## Files Modified
 

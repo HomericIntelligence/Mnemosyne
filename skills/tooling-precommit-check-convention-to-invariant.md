@@ -1,10 +1,10 @@
 ---
 name: tooling-precommit-check-convention-to-invariant
 license: BSD-3-Clause
-description: "Convert a comment-only documentation convention into a machine-checked invariant by mirroring an EXISTING repo-local pre-commit check script. Use when: (1) an audit flags that a prose/comment convention has no automated enforcement (e.g. a pip-audit `--ignore-vuln` suppression ledger says 'Re-review quarterly' but nothing verifies each suppression carries a `Re-review:` trigger line); (2) you are planning a stdlib-only `scripts/check_*.py` and want to copy the structure of a sibling check in the same repo (`get_repo_root()` walking up to pyproject.toml + a pure findings-returning helper + `main()` returning an exit code) wired as a `repo: local` pre-commit hook (`language: system`, `pass_filenames: false`, `files: ^<target>$`) plus a unit test importing the helper via `sys.path.insert(0, scripts_dir)`; (3) the metadata you must check lives in `#` comments that a TOML/JSON parser would DISCARD — parse the file as TEXT and regex/walk the comment block, do not load it semantically; (4) you are tempted to add a new CI cron when a weekly `schedule:` already exists — reuse it; (5) you are expanding a doc (SECURITY.md) and an existing doc-content pre-commit check (e.g. an `As of YYYY-MM-DD` hard-coded-date regex) will reject absolute date stamps in your OWN edit. ProjectHephaestus precedents: scripts/check_security_policy_no_hardcoded_date.py, scripts/check_security_version_consistency.py."
+description: "Add a semantic check for security-exception review metadata when repository policy calls for enforcement. Handle comment regions and unsupported parser shapes visibly."
 category: tooling
 date: 2026-06-23
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: unverified
 history: tooling-precommit-check-convention-to-invariant.history
@@ -53,6 +53,10 @@ tags:
 > **R1 redesign (v1.1.0):** A plan reviewer NOGO'd v1.0.0's per-ID contiguous-comment-block walk (`_ledger_block_for`, graded B) because that walk stops at any bare `#` (blank-comment) line, so a legal ledger layout where a bare `#` separates the header from a vuln's paragraph would FALSE-POSITIVE on a valid ledger. The R1 fix (below) **parses the whole contiguous comment REGION above the task line** (including bare `#` separator lines) and per suppressed ID requires (a) the ID appears in the region AND (b) a `Re-review:` line appears at-or-after the ID's first mention. It also **fails CLOSED on an unparseable (multi-line / triple-quoted) task value** by scanning the RAW file text for `--ignore-vuln`. Planning meta-lesson: when a reviewer NOGOs on parser brittleness, the converging fix usually REMOVES the clever per-item logic and validates a coarser whole-region invariant — simpler and more robust at once (KISS beat cleverness).
 
 ## When to Use
+
+Use an enforcement check when an actual policy or material security risk warrants
+it. Routine documentation preferences can remain guidance; a missing prose checklist
+is not itself a reason to block otherwise authorized work.
 
 - An audit / strict review flags that a CONVENTION expressed only in prose or `#` comments has no automated enforcement — e.g. a suppression ledger annotation that says "Re-review quarterly" with nothing checking that each suppression actually carries the trigger metadata.
 - You are about to write a `scripts/check_*.py` enforcement gate and the repo ALREADY has sibling check scripts — copy their exact structure (`get_repo_root()` walking up to `pyproject.toml`, a pure findings-returning helper, a thin `main()` returning an exit code) rather than inventing a new shape.

@@ -1,10 +1,10 @@
 ---
 name: planning-code-block-is-the-contract
 license: BSD-3-Clause
-description: "In a TASK/PLAN/REVIEW pipeline the plan reviewer and the downstream implementer both treat the plan's fenced code blocks as the CONTRACT — more authoritative than the surrounding prose — so any prose/code contradiction, self-contradictory/placeholder example code, mis-specified import (TYPE_CHECKING vs runtime), under-specified hardest artifact, or false 'mirrors sibling X' parity claim is a first-class defect that draws a NOGO even when the DESIGN is sound. Use when: (1) you are writing an implementation plan whose fenced code blocks will be graded by a plan reviewer and handed verbatim to an implementer, (2) your prose describes an import as TYPE_CHECKING-only but you have not confirmed the name is used only in annotations (a name used as a default field value / base class / decorator / isinstance target must be a RUNTIME import), (3) one test or artifact in the plan is materially harder (graph traversal, hypothesis property strategies, non-trivial algorithm) than the others and you are tempted to specify it at a LOWER altitude (prose-only) than the trivial ones, (4) you wrote 'mirrors sibling X' / 'like Y' / 'AST-based as in Z' without reading X's ACTUAL mechanism, (5) you left a placeholder or known-broken snippet with a 'the linter will catch this / replace if mypy flags it' fix-it note, (6) the target repo has a pr-policy gate and your plan omits the exact `Closes #<n>` close line and the `git commit -S -s` (GPG + DCO) signing requirement from the Implementation Order."
+description: "Review implementation-plan examples for agreement with prose, runtime import semantics, and meaningful assertions. Use when snippets become a handoff contract."
 category: documentation
 date: 2026-07-04
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: unverified
 history: planning-code-block-is-the-contract.history
@@ -88,13 +88,13 @@ snippet is a NOGO magnet.
 2. import correctness      -> annotation-only name => TYPE_CHECKING (+ from __future__ import annotations);
                               runtime-value name (default arg, base class, decorator, isinstance)
                               => REAL runtime import. Verify the cycle you claim to avoid EXISTS.
-3. hardest-artifact altitude -> the artifact with non-trivial algorithm/strategies needs a FULL
-                              code block MORE than the trivial ones, not less.
+3. risky artifact detail   -> give enough invariants, decisions, or example code to resolve
+                              material uncertainty; a full implementation is optional.
 4. no known-broken snippets -> never ship code you know is red with a "linter will catch it" note.
 5. honest parity claims    -> read sibling X before writing "mirrors X"; if you use a STRONGER
                               mechanism (real ast.parse/ast.walk vs a text .splitlines() scan), SAY so.
-6. pr-policy in the plan   -> Implementation Order must state the exact `Closes #<n>` line and
-                              `git commit -S -s` (GPG + DCO).
+6. applicable policy       -> identify actual publication requirements and their source;
+                              use exact syntax only where a consumer requires it.
 ```
 
 Import decision rule, stated once:
@@ -120,7 +120,11 @@ class WorkItem:
 
 2. **Get the import mechanism right, and verify the cycle you claim.** The rule: a name used ONLY in annotations → `TYPE_CHECKING`-only import (requires `from __future__ import annotations`); a name used as a runtime VALUE (default arg, base class, decorator, `isinstance`) → a real runtime import. In #1811 the correct answer was a RUNTIME import, because `StageName` is a default field value (`stage: StageName = StageName.REPO`) evaluated at class-definition time — a `TYPE_CHECKING`-only import would `NameError`. Also verify the cycle you claim to avoid actually exists: in #1811, `routing.py` imports nothing from `work_item.py`, so there was never a cycle — the stated "TYPE_CHECKING to avoid a cycle" justification was itself wrong. Do NOT invoke `TYPE_CHECKING` as a reflex; prove the cycle first.
 
-3. **Specify the HARDEST artifact at the HIGHEST altitude.** When some artifacts get full code blocks, the one with non-trivial algorithmic logic needs a full code block MORE than the trivial ones, not less. In #1811 R0, four production files and three simple test files got full or near-full treatment, but `test_routing_properties.py` — the `hypothesis` property test requiring graph traversal (every cycle passes through a budget key; budget+1 failures land at the fail target) — was left as a letter-reference to the issue with NO code. The MOST complex, highest-risk test was the LEAST specified, forcing the implementer to independently derive graph algorithms and hypothesis strategies — a MAJOR finding. Ship the explicit strategies (`st.sampled_from(...)`, `st.lists(..., unique=True)`), the graph helpers, and enumerate the concrete facts a reviewer can hand-check (e.g. "the only cycles are PLANNING↔PLAN_REVIEW, IMPLEMENTATION↔PR_REVIEW, IMPLEMENTATION↔CI, each guarded by budget key X").
+3. **Give the riskiest artifact enough detail to resolve its uncertainty.** Prefer
+   decision criteria, invariants, and representative cases. Add a complete algorithm
+   or test strategy only when a shorter explanation leaves a material design gap.
+   For routing properties, name the cycles, budget keys, and expected failure target
+   so the implementer can choose and verify the mechanism.
 
 4. **Never ship a known-broken snippet with a fix-it footnote — a footnote fix does NOT clear a code-block defect.** The code block is the contract, so it must be green-able as written. In #1811 R1 the property-(c) test still contained a tautological assertion `assert current != stage or route.fail_routes["*"] == stage and False` — the `and False` makes the right disjunct always false, so the whole assert collapses to `assert current != stage` and silently DROPS the intended "landed at the declared fail target" check — papered over with a prose "note for the implementer: if mypy/ruff flags this, replace with …". This re-triggered the SAME NOGO: R1 was graded **B / NOGO** on a single blocking finding that named this skill, because moving the correction into surrounding prose while leaving the broken code in the fence is not a fix — the reviewer treats the fence as the contract and NOGOs again. R2 converged only by DELETING the broken line entirely and writing property (c) correct-first with direct, self-contained assertions: `assert attempts == budget + 1`, `assert current == fail_target`, `assert fail_target != stage` — carrying NO fix in prose. Two specific smells to recognize and refuse: (a) **`X and False` / `... or <always-false>` tautologies** — a compound boolean whose intent is "landed at target AND target differs from source" must be TWO separate `assert` statements, never one `or`/`and` expression whose short-circuit semantics silently neuter half the check; prefer multiple simple asserts over one clever compound assert. (b) **A "the linter will catch this" placeholder** in any plan code block. Both cost an ENTIRE extra review round (R1→R2) that a correct-first R0/R1 code block would have avoided.
 
@@ -139,8 +143,10 @@ mode the `planning-code-block-is-the-contract` skill was created to prevent … 
 is being asked to confirm this finding, not override it." Two further durable lessons the
 R2 fix surfaced:
 
-- **When a plan reviewer cites the very skill that predicts the defect, do not argue — apply the skill's prescription verbatim (correct-first code, no footnote).** A reviewer's citation of a named skill is a convergence signal, not a debate opening. The convergent move is to edit the fenced code so it is correct as written, then resubmit; anything else re-triggers the same NOGO.
-- **Ambiguous test helpers invite the exact fuzz the property is meant to catch — enumerate the domain explicitly.** R1's `_budget_key_for` / `_stage_has_budget` helpers looped over a key list and could pick a NON-loop-guarding budget for a stage, so the hypothesis strategy could sample stages the property does not actually cover. R2 replaced them with an explicit mapping — `_LOOP_GUARDED = {PLAN_REVIEW: "plan_review_iter", PR_REVIEW: "pr_review_iter", CI: "ci_fix"}` — so the strategy samples ONLY genuinely loop-guarded stages and the simulation is unambiguous. When a property test's domain is "the loop-guarded stages," ENUMERATE them explicitly rather than deriving them with a heuristic that can misfire.
+- **Assess review findings against the source and intended behavior.** A skill citation
+  can point to a known failure mode. Correct a supported defect in the fenced example
+  itself; if the finding does not apply, explain the evidence instead of copying a
+  prescription without checking it.
 
 ## Failed Attempts
 

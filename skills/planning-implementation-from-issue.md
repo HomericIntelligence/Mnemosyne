@@ -1,11 +1,10 @@
 ---
 name: planning-implementation-from-issue
 license: BSD-3-Clause
-description: 'Skill: planning-implementation-from-issue. Use when working with planning
-  implementation from issue.'
+description: "Plan implementation from issue evidence when an error, missing behavior, or migration needs investigation and a bounded repair."
 category: tooling
 date: 2026-01-01
-version: 1.0.0
+version: "1.0.1"
 user-invocable: false
 ---
 # Planning Implementation from GitHub Issues

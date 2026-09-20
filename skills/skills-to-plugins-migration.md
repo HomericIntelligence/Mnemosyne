@@ -1,13 +1,10 @@
 ---
 name: skills-to-plugins-migration
 license: BSD-3-Clause
-description: Migrate PRs that add skills to the flat skills/ directory into the correct
-  plugins/<category>/<name>/ structure so CI triggers and the validate check passes.
-  Use when a PR branch puts files under skills/ instead of plugins/, or when the validate
-  CI check never appears on a PR.
+description: "Migrate flat skills into plugin packages when the target repository owns that plugin architecture; preserve discovery and references."
 category: ci-cd
 date: 2026-02-22
-version: 1.0.0
+version: "1.1.0"
 user-invocable: true
 ---
 # Skills-to-Plugins Migration
@@ -28,6 +25,10 @@ user-invocable: true
 - A skill PR has been open for a long time with no CI feedback
 
 **Root cause**: CI workflow has a path filter like `paths: ['plugins/**']`. Files committed to `skills/` never trigger the workflow, so the `validate` check is never posted, and the PR cannot merge through branch protection.
+
+This applies to a repository whose requested architecture uses plugin packages.
+Mnemosyne currently stores flat knowledge skills and does not own Athena plugin
+infrastructure; do not infer a migration request from this historical example.
 
 ## Verified Workflow
 

@@ -1,10 +1,10 @@
 ---
 name: license-compatibility-ci-gate-pip-licenses
 license: BSD-3-Clause
-description: "Plan a machine-enforced license-compatibility CI gate / NOTICE-drift / SPDX-allowlist check for a pixi+pip Python repo using the stdlib (importlib.metadata + packaging) instead of pip-licenses. Use when: (1) building a CI job that blocks PRs introducing license-incompatible dependencies, (2) deciding HOW to install the package+extras in CI so the gate can import them — bare actions/setup-python + plain pip vs pip-into-a-pixi-locked-env, (3) a license gate false-fails the clean tree because an env scan surfaced GPL dev tools (yamllint, bats-core) that NOTICE permits dev-only, (4) a metadata-reading gate silently passes because the package isn't installed or a runtime extra (nats-py) is absent, (5) license metadata is inconsistent across packages (trove classifier vs License-Expression vs freeform License) and an exact-string match false-fails, (6) scoping the gate to DISTRIBUTED deps (Requires-Dist) excluding the dev extra, (7) a platform-gated dependency (tzdata on Windows) is silently dropped from a Linux-runner scan, (8) an editable pip install of a hatch-vcs dynamic-version package fails because the checkout is shallow."
+description: "Plan license scanning over distributed dependencies rather than the whole tool environment. Reconcile declared extras, platform markers, metadata, and NOTICE exceptions."
 category: ci-cd
 date: 2026-06-12
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags: []
@@ -288,8 +288,10 @@ the tables — a deliberate false-fail over false-pass for a gate.
 - **Isolated sibling CI job** — one scan's failure must not block other CI checks.
 - **Advisory on main, blocking on PR** — branch on `GITHUB_EVENT_NAME`: exit `1` on
   `pull_request`, exit `0` otherwise. (Coverage/blindness errors exit `2` **always**.)
-- **Edit `.github/workflows/*.yml` via `sed`/append, not the Edit tool** — the pre-commit
-  security hook blocks Edit-tool writes to workflow files.
+- **Respect host restrictions on workflow edits.** If an edit is denied, inspect the
+  protected scope and existing task authority. Use the authorized host process; do
+  not switch tools to evade the denial. Continue independent design or inspection
+  while any genuinely missing authorization is resolved.
 - **CI invocation**: plain `python3 scripts/check_license_compatibility.py` after the bare
   `pip install -e ".[all]"` (no pixi task).
 - **Pre-commit hook**: `entry: pixi run --environment default python3
@@ -374,7 +376,7 @@ install step        : pip install -e ".[all]"   (test.yml:92 / _required.yml:548
 invocation          : python3 scripts/check_license_compatibility.py   (plain; no pixi task)
 exit code           : 2 always on blind/coverage-gap; else 1 on pull_request, 0 otherwise
 isolation           : sibling job (independent of other CI checks)
-workflow edits      : via sed/append, NOT the Edit tool (pre-commit security hook blocks it)
+workflow edits      : authorized host process; a denied tool is not permission to evade the restriction
 ```
 
 ### Pre-commit hook (proposed)

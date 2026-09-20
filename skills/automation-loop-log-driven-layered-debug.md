@@ -1,10 +1,10 @@
 ---
 name: automation-loop-log-driven-layered-debug
 license: BSD-3-Clause
-description: "Use when: (1) debugging hephaestus-automation-loop / a multi-stage plan→implement→drive-green pipeline from its output.log, (2) a single symptom ('PR not reviewed/implemented') turns out to be a stack of layered bugs revealed one at a time as each prior blocker is removed, (3) a fix 'didn't work' because the loop runs editable working-tree code and the fix wasn't dev-installed, (4) --issues was given PR numbers instead of issue numbers, (5) validating an automation-loop fix with a scoped re-run, (6) verifying automation-loop fixes by driving a single issue end-to-end to a merged PR + closed issue (scoped plan→implement re-run, artifact-chain success signals, zero-error health-check grep, live GitHub cross-check)."
+description: "Debug layered automation-loop failures from phase logs, verify the executed revision, and select scoped checks that respect live publication authorization."
 category: debugging
 date: 2026-06-20
-version: "1.1.0"
+version: "1.2.0"
 history: automation-loop-log-driven-layered-debug.history
 verification: verified-ci
 user-invocable: false
@@ -150,8 +150,9 @@ rule.)
 
 #### 6. Verifying a fix: single-issue end-to-end drive
 
-The strongest form of step-5 validation is to drive ONE real issue all the way
-through the loop to a MERGED PR + CLOSED issue. "No errors in the log" is NOT a
+When a live implementation-and-merge run is authorized, one real issue can provide
+end-to-end evidence through a merged PR and closed issue. Otherwise use scoped tests
+and read-only evidence, report the missing live coverage, and continue independent work. "No errors in the log" is NOT a
 pass; a real artifact chain is. Pick one small, real, ready issue — e.g. an
 audit-finding `severity:minor` already at `state:plan-go`, or a fresh
 `state:needs-plan` one — and scope the loop tightly:
@@ -174,7 +175,7 @@ Scope notes:
 - The loop runs ONLY the current repo by default (no `--org`) — exactly what you
   want for a single-repo verify.
 - It operates on the clone under `--projects-dir` (default
-  `/home/mvillmow/Projects/<repo>`), NOT necessarily your CWD, and reports
+  `/home/<user>/Projects/<repo>`), NOT necessarily your CWD, and reports
   `trunk=<sha>` — CONFIRM that sha contains your merged fixes before trusting the
   run (same liveness discipline as step 3, but for the projects-dir clone).
 

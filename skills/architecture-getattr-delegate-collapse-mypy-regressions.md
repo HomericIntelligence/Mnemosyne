@@ -1,21 +1,10 @@
 ---
 name: architecture-getattr-delegate-collapse-mypy-regressions
 license: BSD-3-Clause
-description: >-
-  Use when: (1) collapsing pure-forward delegate/wrapper methods (each just
-  `return self._inner._same_name(...)`) on a facade class into the class's
-  existing `__getattr__` + dynamic-delegate frozenset machinery, (2) replacing
-  typed facade shims with dynamic `__getattr__` forwarding, (3) after deleting
-  typed delegate methods a mypy run surfaces `[no-any-return]` ("Returning Any
-  from function declared to return X") or `[attr-defined]`/`[unused-ignore]`
-  errors, (4) auditing every internal call site and every test `# type: ignore`
-  code before claiming a delegate-collapse refactor is type-clean. Runtime
-  test-seam safety (patch.object, instance-assignment shadowing, shared-stdlib
-  subprocess patching) survives the collapse, but `__getattr__ -> Any` is
-  type-checker-visible and creates static regressions the runtime audit misses.
+description: "Check static typing and runtime test seams when replacing typed facade methods with dynamic __getattr__ forwarding."
 category: architecture
 date: 2026-06-30
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 tags:
   - python
@@ -85,10 +74,10 @@ Collapsing typed pure-forward delegates into __getattr__:
   Facade class with __getattr__ + DYNAMIC_DELEGATES frozenset,
   and N typed methods that just `return self._inner._same(...)`?
   └─ YES → Delegate-Collapse (this skill)
-       ├─ Step 1 (RED first): add the N names to the TEST-MIRROR frozenset
+       ├─ Step 1 (optional regression-first check): add the N names to the TEST-MIRROR frozenset
        │    (e.g. PHASE_DELEGATES in the test file) and run the guard tests
-       │    — they MUST FAIL (source frozenset lacks them; methods still in
-       │    __dict__). This proves the tests guard the change.
+       │    — expected failures (source frozenset lacks them; methods still in
+       │    __dict__) can show that the tests guard the change.
        ├─ Step 2: add the N names to the SOURCE frozenset; delete the N
        │    typed methods. Guard tests go GREEN.
        ├─ Step 3: run mypy — expect TWO regression classes (below), NOT clean.
@@ -108,7 +97,7 @@ Runtime-safe ≠ mypy-clean. __getattr__ returns Any: invisible at runtime,
 visible to the type checker.
 ```
 
-### Step 1: RED-First — extend the test-mirror frozenset BEFORE touching source
+### Step 1: Consider a regression test for the delegate change
 
 The guard tests typically mirror the source frozenset (e.g. a `PHASE_DELEGATES`
 constant in the test file) and assert two invariants:
@@ -118,10 +107,9 @@ constant in the test file) and assert two invariants:
 - `test_removed_delegates_are_not_class_methods` — none of those names appear in
   the class `__dict__` (they must be dynamic-only).
 
-Add the N names to the **test-mirror** frozenset first and run both tests. They
-MUST FAIL: the source frozenset does not yet contain them, and the methods are
-still in `__dict__`. A failing RED here proves the tests actually guard the
-change before you edit the source.
+A useful regression test adds the names to the test mirror before the refactor.
+Expected failures show that the source table and class methods still differ from
+the intended contract. Use this evidence to check that the test detects the change.
 
 ### Step 2: Collapse — add names to the source frozenset, delete the methods
 
@@ -206,7 +194,8 @@ pixi run mypy
 pixi run pytest tests/unit/automation/ -q
 ```
 
-Only after both are green is the delegate-collapse refactor type-clean.
+Use mypy to support a type-clean claim and relevant tests to check runtime behavior.
+Broaden the test run when the changed call surface warrants it; report coverage gaps.
 
 ### Test-seam safety facts that DID hold (the "what worked" baseline)
 

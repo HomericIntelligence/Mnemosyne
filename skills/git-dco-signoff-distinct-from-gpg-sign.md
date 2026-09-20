@@ -1,10 +1,10 @@
 ---
 name: git-dco-signoff-distinct-from-gpg-sign
 license: BSD-3-Clause
-description: "The DCO Signed-off-by trailer (git commit -s) is a SEPARATE requirement from GPG/SSH cryptographic signing (git commit -S); a commit can be -S signed yet still fail the pr-policy DCO check because it lacks the trailer. Use when: (1) a PR is BLOCKED and the pr-policy / required-checks-gate CI gate fails with 'missing Signed-off-by: Name <email> trailer' even though git log --show-signature shows a valid GPG signature, (2) automation/agent-generated commits (auto-impl branches) lack the DCO trailer because the generator ran `git commit -S` without `-s`, (3) you need to retroactively add Signed-off-by to every commit on a branch WITHOUT losing GPG signatures, (4) lint passes but required-checks-gate still fails — check pr-policy sub-checks (Check 4 is DCO), (5) you fixed only one blocker (mypy/lint) but the gate is still red on a second independent DCO failure, (6) `git log` shows TWO (or more) `Signed-off-by` trailers on the same commit after the retroactive fix-all recipe was run more than once — this is a DUPLICATE trailer, not a missing one, caused by `--exec ... -s -S` being run twice with different `user.name` config values, since `-s` dedups by literal string match on the whole trailer line, not by email, (7) you are about to run `git rebase --exec \"git commit --amend --no-edit -s -S\" origin/main` on a branch that may ALREADY carry a Signed-off-by trailer (e.g. a resumed/interrupted rebase session) — reconcile `git config user.name` first to avoid producing a duplicate trailer, (8) rewriting or force-pushing a legacy branch is disallowed, so you must reproduce only the intended change as one fresh `git commit -S -s` from current `origin/main`."
+description: "Distinguish DCO Signed-off-by trailers from cryptographic Git signatures. Diagnose policy failures and preserve configured signing identity."
 category: ci-cd
 date: 2026-07-16
-version: "1.2.0"
+version: "1.3.0"
 user-invocable: false
 verification: verified-ci
 history: git-dco-signoff-distinct-from-gpg-sign.history
@@ -121,14 +121,14 @@ differs between the two passes. Instead of one trailer, the commit ends up
 with two:
 
 ```text
-Signed-off-by: Micah Villmow <noreply@users.noreply.github.com>
-Signed-off-by: mvillmow <noreply@users.noreply.github.com>
+Signed-off-by: Example Contributor <noreply@users.noreply.github.com>
+Signed-off-by: example-contributor <noreply@users.noreply.github.com>
 ```
 
 **Root cause.** `-s`/`--signoff` dedups by a LITERAL STRING match on the whole
 trailer line (`Signed-off-by: <exact name> <exact email>`), not by email
-alone. If pass 1 ran under `user.name=mvillmow` and pass 2 ran under
-`user.name="Micah Villmow"` (same email, different display name), git does not
+alone. If pass 1 ran under `user.name=example-contributor` and pass 2 ran under
+`user.name="Example Contributor"` (same email, different display name), git does not
 recognize the second as "the same person already signed off" — it appends a
 new line instead of skipping.
 
@@ -146,7 +146,7 @@ especially across an interrupted/resumed session:
 git config user.name            # local override, if any
 git config --global user.name   # global default
 # pick one canonical value and set it before rebasing
-git config user.name "Micah Villmow"
+git config user.name "Example Contributor"
 ```
 
 **Recovery if trailers are already duplicated.** Do NOT run `git commit -s`
@@ -240,7 +240,7 @@ git log origin/main..HEAD --format='%h %(trailers:key=Signed-off-by)'
 - **Duplicate-trailer dedup mechanism**: `-s`/`--signoff` dedups by a LITERAL
   STRING match on the whole `Signed-off-by: Name <email>` line, not by email
   alone. Running the retroactive fix-all recipe twice with different
-  `user.name` config values (e.g. `mvillmow` vs `Micah Villmow`, same email)
+  `user.name` config values (e.g. `example-contributor` vs `Example Contributor`, same email)
   produces two trailers instead of one deduplicated trailer.
 - **Duplicate-trailer recovery recipe** (copy-paste; keeps only the first
   trailer, re-signs with `-S` only — no `-s` — to avoid re-triggering the same

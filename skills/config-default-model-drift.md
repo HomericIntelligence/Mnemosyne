@@ -1,11 +1,10 @@
 ---
 name: config-default-model-drift
 license: BSD-3-Clause
-description: 'Skill: config-default-model-drift. Use when working with config default
-  model drift.'
+description: "Find model-default drift between configuration, documentation, and agent launch sites when different entry points select inconsistent models."
 category: tooling
 date: 2026-01-01
-version: 1.0.0
+version: "1.0.1"
 user-invocable: false
 ---
 # Skill: config-default-model-drift

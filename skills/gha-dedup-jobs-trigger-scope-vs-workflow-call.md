@@ -1,10 +1,10 @@
 ---
 name: gha-dedup-jobs-trigger-scope-vs-workflow-call
 license: BSD-3-Clause
-description: "Use when: (1) two GitHub Actions workflows run the SAME job on every PR (double-billed runner minutes) and you are deciding HOW to de-duplicate — before reflexively reaching for workflow_call extraction, (2) planning a CI DRY-deduplication issue and need a decision rule between trigger-scoping vs workflow_call extraction vs outright deletion, (3) a 'duplicate' workflow ALSO carries a unique schedule:/workflow_dispatch trigger that naive deletion would silently kill, (4) you must confirm whether a duplicated job NAME is even a required branch-protection context before assuming a deletion is safe."
+description: "Choose job filtering, trigger scoping, or workflow reuse for duplicate GitHub Actions jobs while preserving unique scheduled jobs and required checks."
 category: ci-cd
 date: 2026-06-12
-version: "1.1.0"
+version: "1.1.1"
 user-invocable: false
 verification: unverified
 history: gha-dedup-jobs-trigger-scope-vs-workflow-call.history

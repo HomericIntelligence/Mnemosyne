@@ -1,10 +1,10 @@
 ---
 name: repo-audit-triage-fix-and-issue-workflow
 license: BSD-3-Clause
-description: "Full workflow for strict repo audit triage: run audit, verify each finding is true before acting on it, classify findings by complexity, batch-fix simple items in one PR, file GitHub issues for complex work. Use when: (1) running a comprehensive repository quality audit and acting on all findings, (2) needing to triage audit results into immediate fixes vs tracked issues, (3) remediating dead code, stale docs, broken CI, or missing requirements files, (4) acting on a multi-agent swarm audit (`/repo-analyze-strict-full`) whose section reports may contain false positives that must be verified before triage, (5) reconciling declared runtime support with APIs used by the implementation, (6) checking security suppressions and live GitHub controls rather than trusting a green default-environment scan or committed policy file."
+description: "Triage repository audit findings against source evidence and existing backlog; repair authorized defects and separate unrelated improvement suggestions."
 category: tooling
 date: 2026-07-29
-version: "1.3.0"
+version: "1.4.0"
 user-invocable: false
 verification: verified-local
 history: repo-audit-triage-fix-and-issue-workflow.history
@@ -91,7 +91,7 @@ Run `/repo-analyze-strict`. This produces a graded report across 15 dimensions. 
 #### Phase 1.5: Verify Findings Before Triage
 
 **A swarm-audit finding is a claim, not an observation.** Multi-agent audits dispatch
-one Sonnet agent per section (`/repo-analyze-strict-full` runs one agent per audit
+one agent per section (`/repo-analyze-strict-full` runs one agent per audit
 section). Individual section agents make confident-sounding factual errors — they can
 even miss context they were explicitly given in the dispatch prompt. Acting on a
 false-positive finding wastes work, produces misleading commits, or — worst case — runs
@@ -172,7 +172,7 @@ Use these criteria to decide between **fix-now** and **file-as-issue**:
 
 #### Phase 3: Batch-Execute Simple Fixes
 
-Group all independent fix-now items and execute them in parallel tool calls within a single message. This dramatically reduces round-trips:
+For authorized repairs, group independent changes when useful. Parallel execution can reduce round-trips when ownership and tools support it:
 
 ```
 Parallel batch example:
@@ -204,7 +204,7 @@ python3 -m pytest tests/ -v 2>&1 | grep -E "PASSED|FAILED|ERROR|ImportError"
 git stash pop
 ```
 
-If failures exist on the stashed (original) codebase, they are pre-existing. Document this in the PR description and scope CI to skip the broken test files.
+If the same failures occur on the original revision, report them as pre-existing with the observed evidence. A focused diagnostic subset can support progress, but does not authorize weakening required CI.
 
 **Pattern for broken test files that import non-existent modules**:
 
@@ -217,7 +217,7 @@ pytest tests/test_working_file.py -v
 # Do NOT run: pytest tests/  (picks up broken files)
 ```
 
-File a GitHub issue for the broken test files rather than deleting them (they may contain valuable test logic once the missing module is created).
+Preserve potentially useful tests. Record unrelated repair suggestions separately; create an issue only when issue publication is authorized.
 
 #### Phase 5: File GitHub Issues for Complex Items
 
@@ -244,7 +244,7 @@ Classify each audit finding:
 | Existing issue covers adjacent but not exact scope | Comment to clarify boundary, then open a focused gap issue |
 | No issue found | Create a new issue with orchestrator kickoff, evidence, and acceptance criteria |
 
-For each new file-as-issue item, create a GitHub issue with:
+When issue publication is in scope, useful details for each new item include:
 - Clear title stating the problem
 - Background: what the audit found
 - Acceptance criteria: what "done" looks like

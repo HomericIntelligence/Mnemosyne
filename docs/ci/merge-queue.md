@@ -7,7 +7,7 @@ rollout on `main`. This repository does not activate or modify the live queue.
 and the Odysseus repository tools are the only authorities for future
 activation.
 
-All active technical prose in this document must follow the
+For active technical prose in this document, use the
 [ASD-STE100 writing policy](../asd-ste100.md).
 
 ## Readiness Contract

@@ -1,10 +1,10 @@
 ---
 name: projecthephaestus-queue-pipeline-strict-review-remediation
 license: BSD-3-Clause
-description: "Review and repair ProjectHephaestus queue-pipeline PRs after strict review. Use when: (1) review-pr-strict reports sandbox coverage gaps, (2) queue-only automation docs drift from code, (3) worker attribution must prove different workers claim different queue entries, (4) logging basicConfig migrations need direct CLI-main delegation tests."
+description: "Repair queue-pipeline documentation, worker attribution, and logging delegation after review; distinguish unavailable audit access from source defects."
 category: architecture
 date: 2026-07-09
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags:
@@ -66,7 +66,7 @@ pixi run python -m mypy hephaestus/
 
 ### Detailed Steps
 
-1. **Separate audit-tool failure from PR defects.** If dimension agents report that they could not spawn `/bin/bash` or `/bin/sh`, treat that as a coverage gap in the audit environment, not as code evidence. Rerun essential read-only commands with approved escalation and require every dimension to re-grade from direct evidence.
+1. **Separate audit-tool failure from PR defects.** If dimension agents report that they could not spawn `/bin/bash` or `/bin/sh`, treat that as a coverage gap in the audit environment, not as code evidence. Use available authorized read-only access to fill material gaps. Reassess affected findings from direct evidence and continue independent repairs while access remains unavailable.
 
 2. **Recompute the strict-review verdict after evidence is available.** In PR #2029, the first strict review was NO-GO because Dimension 3 and Dimension 5 could not read the diff. After escalated read-only access, `gh pr view`, `gh pr checks`, `git diff`, `rg`, and targeted file reads succeeded; code quality and security regraded to B- and the overall verdict moved to CONDITIONAL.
 
@@ -80,7 +80,7 @@ pixi run python -m mypy hephaestus/
 
 7. **Cover changed CLI mains directly.** When a CLI `main()` changes from `logging.basicConfig(...)` to `configure_cli_logging(...)`, add a direct test that patches the module-local `configure_cli_logging`, invokes the main function with a safe mode such as `["--dry-run", "--verbose"]`, and asserts `configure_cli_logging(verbose=True)`.
 
-8. **Keep verification scoped but broad enough.** Run the targeted docs/CLI tests first, then the full unit suite and static checks. Use full PR CI as the current-state hygiene gate, but do not claim Mnemosyne skill CI until that separate PR's CI passes.
+8. **Keep verification scoped but broad enough.** Start with relevant docs/CLI tests and broaden checks when shared behavior or remaining uncertainty warrants it. Use full PR CI as the current-state hygiene gate, but do not claim Mnemosyne skill CI until that separate PR's CI passes.
 
 ## Failed Attempts
 

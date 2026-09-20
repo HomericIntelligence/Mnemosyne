@@ -1,10 +1,10 @@
 ---
 name: tooling-config-placeholder-grep-guard
 license: BSD-3-Clause
-description: "When a config file replaces a hardcoded value with a ${PLACEHOLDER}, add a fixed-string grep guard in the config-validation recipe/CI so the placeholder cannot be silently re-hardcoded — and audit EVERY placeholder-bearing config, not just the one named in the issue. Syntax/lint validators (nomad fmt -check, yamllint) do NOT detect a placeholder being replaced by a literal value; presence is a separate concern needing its own grep check. Use grep -qF '${PLACEHOLDER}' (fixed-string, single-quoted) so the shell does not expand ${...} and grep does not regex-interpret braces. Use when: (1) a config keeps an unresolved ${VAR} placeholder, (2) you want CI to fail if someone re-bakes a literal value, (3) you are tempted to trust an issue's claim that a sibling guard already exists or its cited line numbers."
+description: "Check preservation of runtime placeholders in configuration. Use when syntax validation accepts both placeholders and incorrectly hardcoded values."
 category: ci-cd
 date: 2026-06-20
-version: "1.1.0"
+version: "1.1.1"
 user-invocable: false
 verification: verified-local
 tags: ["config-validation", "grep-guard", "placeholder", "ci", "justfile", "anti-regression"]

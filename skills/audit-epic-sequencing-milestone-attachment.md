@@ -1,10 +1,10 @@
 ---
 name: audit-epic-sequencing-milestone-attachment
 license: BSD-3-Clause
-description: "Implement a GitHub audit epic that sequences remediation across many child issues in dependency order using GitHub milestones, wave structure, and verify-and-close patterns. Use when: (1) you have a completed strict audit with 20+ findings filed as child issues and need to coordinate their implementation order, (2) you need to attach all child issues to a GitHub milestone in bulk, (3) deciding wave dependency structure (Foundation → Critical → Hygiene), (4) closing child issues that are already fixed before implementing any PR, (5) batching Wave-3 hygiene items by co-located files to prevent merge conflicts, (6) verifying PR policy (body, auto-merge, signature) before declaring an epic done."
+description: "Coordinate audit findings through dependency waves and milestones. Use for large child-issue queues, already-fixed findings, and batches that share files."
 category: tooling
 date: 2026-06-19
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [audit, epic, milestone, remediation, wave-structure, gh-api, verify-and-close, batch-pr, dependency-order, file-target-verification, pr-policy, squash-merge]
@@ -127,7 +127,7 @@ grep -rn "continue-on-error" .github/workflows/
 # Result shows the job is actually in _required.yml, NOT ci.yml
 ```
 
-File an issue or update the `remediation-plan.md` with the corrected path BEFORE implementing.
+Record the corrected path in the existing tracking artifact when useful, then continue the implementation.
 
 #### Step 6 — Design the wave structure
 
@@ -172,18 +172,18 @@ Add an "Audit Remediation Tracking" section:
 The 2026-04-28 STRICT audit (#81) is being remediated in three waves.
 See `docs/audit-2026-04-28/remediation-plan.md` for current status.
 
-Agents picking up an audit child issue MUST:
+For an audit child issue, consider these useful steps:
 1. Read the audit context in #81 and the relevant child issue.
 2. Confirm the file target listed in `remediation-plan.md` matches the
    actual file (grep to verify).
 3. Link the child in the PR body via `Refs #81`.
-4. Add a regression test under `tests/` for any bug fix.
+4. Prefer a focused regression test when practical for the defect.
 5. Tick the matching checkbox in `docs/audit-2026-04-28/remediation-plan.md`.
 ```
 
 #### Step 9 — Three PR policy checks before declaring done
 
-For every PR (your own and Wave-N children) run all three checks:
+Check the repository policy that applies to each PR. The source workflow used these three checks; auto-merge is an action, not a universal prerequisite:
 
 1. **Closes line**: `gh pr view N --json body --jq '.body' | grep -E '^Closes #[0-9]+'`
 2. **Auto-merge**: `gh pr merge N --auto --squash` (use `--squash` if rebase merging is disabled on the repo — check under repo Settings → General → Allow merge commits)

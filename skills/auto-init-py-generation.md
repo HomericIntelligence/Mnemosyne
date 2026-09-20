@@ -6,7 +6,7 @@ description: 'TRIGGER CONDITIONS: Auto-generating __init__.py files with __all__
   with mypy implicit_reexport=false compliance.'
 category: tooling
 date: 2026-03-11
-version: 1.0.0
+version: "1.1.0"
 user-invocable: false
 tags:
 - python
@@ -86,7 +86,7 @@ from .subpkg import SubClass as SubClass
 
 ### 5. Pre-commit Validation
 
-Always run after generation:
+Consider these checks after generation, according to the changed exports and repository policy:
 ```bash
 pre-commit run --all-files  # ruff will sort imports, fix formatting
 pixi run python -m pytest tests/ -x  # verify no import breakage

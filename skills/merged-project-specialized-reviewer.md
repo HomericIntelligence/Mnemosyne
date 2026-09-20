@@ -1,10 +1,10 @@
 ---
 name: merged-project-specialized-reviewer
 license: BSD-3-Clause
-description: "Create a project-specialized read-only reviewer subagent by merging an existing general-review-specialist agent with WebFetch/WebSearch/Bash capabilities and project-pinned context (gate thresholds, dependency SHAs, friction inventory, citation-discipline rules). Use when: (1) a project has artifacts that cite primary sources (papers, model cards, API specs) and citation correctness matters, (2) the project has pinned thresholds/SHAs/invariants that must not drift across documents, (3) a generic reviewer would either miss project-specific drift or re-derive context every invocation, (4) you want read-only review with WebFetch capability rather than the standard Read/Grep/Glob-only specialist."
+description: "Adapt a read-only reviewer to project-specific contracts and primary-source checks. Use when a generic review lacks context for cross-document drift or pinned interfaces."
 category: evaluation
 date: 2026-05-12
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [reviewer, subagent, agent-merge, project-pinned-context, webfetch, citation-verification, read-only, agent-extension]
@@ -18,7 +18,7 @@ tags: [reviewer, subagent, agent-merge, project-pinned-context, webfetch, citati
 | ------- | ------- |
 | **Date** | 2026-05-12 |
 | **Objective** | Define a repeatable pattern for producing a project-specialized read-only reviewer subagent that fuses a general-review-specialist's breadth with WebFetch/WebSearch capability and project-pinned context (gate thresholds, dependency SHAs, friction-inventory rows, citation-discipline rules), so the reviewer can audit cross-claim drift without re-deriving project context every invocation. |
-| **Outcome** | Successful on Predictive-Coding-in-Mojo Phase 0 scoping (mvillmow/Random): the merged reviewer caught a finding that two earlier reviewers (one citation-focused, one code-focused) missed — namely that the cited 26.21% SOTA number from ASGE is on VGG11, but the same paper has a 51.58% result on ResNet18-CHx4, so the project's 51.5% stretch goal is already exceeded by the same paper in a different architecture family. The earlier reviewers verified the citation but lacked the gate-threshold pin in context. |
+| **Outcome** | Successful during early scoping for a private research project (identity redacted): the merged reviewer caught a finding that two earlier reviewers (one citation-focused, one code-focused) missed — namely that the cited 26.21% SOTA number from ASGE is on VGG11, but the same paper has a 51.58% result on ResNet18-CHx4, so the project target is already exceeded by the same paper in a different architecture family. The earlier reviewers verified the citation but lacked the gate-threshold pin in context. |
 | **Verification** | verified-local (used in one session against one project; pattern not yet validated across additional projects). |
 
 ## When to Use
@@ -62,11 +62,11 @@ tags: [reviewer, subagent, agent-merge, project-pinned-context, webfetch, citati
 
 3. **DROP irrelevant references.** Remove orchestrator hand-off references, sibling-agent name-drops, or repository-path assumptions from the base agent that don't apply to your project. The merged agent should stand alone for the new project.
 
-4. **ADD project-pinned context section.** At the bottom of the system prompt, add a `## Project pins (load-bearing context)` section enumerating: gate thresholds (with units and architecture/dataset scope), pinned dependency SHAs (e.g., `ProjectOdyssey SHA e3e0de83`), friction-inventory rows (a compact table of known issues the reviewer should treat as priors), and project-specific citation-discipline rules (cite-format requirements, what counts as an unsourced claim). The pins are stated as authoritative — the reviewer audits against them rather than re-deriving them.
+4. **ADD project-pinned context section.** At the bottom of the system prompt, add a `## Project pins (load-bearing context)` section enumerating: gate thresholds (with units and architecture/dataset scope), pinned dependency SHAs (e.g., `dependency SHA <commit>`), friction-inventory rows (a compact table of known issues the reviewer should treat as priors), and project-specific citation-discipline rules (cite-format requirements, what counts as an unsourced claim). The pins are stated as authoritative — the reviewer audits against them rather than re-deriving them.
 
-5. **Pin the output format.** Mandate four sections in the report: `## Critical findings`, `## High-confidence concerns`, `## Worth checking before <next-milestone>`, `## Verdict`. Per-finding structure: title with confidence score (0-100), `file:line` evidence, fetched URL or quoted text, suggested fix in one sentence. This makes triage mechanical for the orchestrator.
+5. **Suggest a useful output format.** For example, use four sections in the report: `## Critical findings`, `## High-confidence concerns`, `## Worth checking before <next-milestone>`, `## Verdict`. Per-finding structure: title with confidence score (0-100), `file:line` evidence, fetched URL or quoted text, suggested fix in one sentence. This makes triage mechanical for the orchestrator.
 
-6. **Pin confidence-scoring thresholds.** Each finding carries a 0-100 confidence score. Below 70: report as "Worth checking" rather than "Critical." Above 95: include the literal fetched evidence so the orchestrator can verify the verification. This bounds false-positive critical findings.
+6. **Explain confidence from evidence.** Separate confirmed defects from uncertain concerns. Use numeric scores only if a consumer needs them; cite the evidence and limits that support each finding.
 
 7. **Install the merged agent at user scope.** Write the file to `~/.claude/agents/<project>-reviewer.md`.
 
@@ -141,7 +141,7 @@ the project conventions you'll need.
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 |---------|----------------|---------------|----------------|
 | Bare ProjectOdyssey general-review-specialist for citation review | Used the upstream agent unmodified | Tools list is `Read,Grep,Glob` only — no WebFetch, can't verify arXiv IDs against the live abs page | Citation-correctness review needs WebFetch; the base agent must be extended, not used as-is |
-| Generic feature-dev:code-reviewer for citation review | Has WebFetch but no project pins | Reviewer verified citations are real but missed the architecture-scoping issue with the SOTA gate threshold (couldn't connect "26.21% is VGG11" to "51.5% stretch goal already exceeded by same paper's ResNet18-CHx4") | Project pins (gate thresholds, SHAs) must be in the reviewer's system prompt for cross-claim audits to work |
+| Generic feature-dev:code-reviewer for citation review | Has WebFetch but no project pins | Reviewer verified citations are real but missed the architecture-scoping issue with the SOTA gate threshold (couldn't connect "26.21% is VGG11" to "project target already exceeded by same paper's ResNet18-CHx4") | Project pins (gate thresholds, SHAs) must be in the reviewer's system prompt for cross-claim audits to work |
 | Direct invocation of user-scoped agent in same session | Wrote agent to `~/.claude/agents/<name>.md`, then tried `subagent_type: "<name>"` | Harness's agent registry is fixed for the session; agents added mid-session aren't discoverable | Use a registered agent + "operate as X per ~/.claude/agents/<name>.md" prompt as a workaround until next session |
 
 ## Results & Parameters
@@ -154,28 +154,28 @@ the project conventions you'll need.
 
 3. **Bash gated by system prompt, not by tool.** The Bash tool itself doesn't differentiate read-only from mutating commands. The gate must be in the agent's Authority section: enumerate the allowed read-only subset; explicitly forbid mutating commands; rely on the model's instruction-following discipline. Findings include suggested fixes; the orchestrator decides whether to apply them.
 
-4. **Output format pinned for triageability.** Mandate the four sections (Critical / High-confidence / Worth checking / Verdict) and the per-finding structure (title + confidence 0-100, file:line evidence, URL or quoted text, one-sentence fix). This makes the orchestrator's triage step mechanical rather than judgement-heavy.
+4. **Output format for triage.** Consider Critical / High-confidence / Worth checking / Verdict sections. Give each finding evidence and a suggested fix; adapt the format to the receiving workflow.
 
-5. **Confidence-scoring thresholds.** Below 70: "Worth checking" not "Critical." Above 95: include the literal fetched evidence so the orchestrator can verify the verification. Bounds false-positive critical findings.
+5. **Confidence from evidence.** Explain uncertainty and evidence limits. Numeric thresholds are useful only when the receiving workflow consumes them.
 
 6. **Harness registry limitation.** User-scoped agents at `~/.claude/agents/<name>.md` written after harness startup are NOT discoverable in the current session — only in the next. Workaround: invoke a registered agent with a prompt that says "operate as <name> per ~/.claude/agents/<name>.md; read that file first."
 
-### Concrete example: pc-research-reviewer
+### Concrete example: project-reviewer
 
-The session that produced this skill created `~/.claude/agents/pc-research-reviewer.md` with:
+The session that produced this skill created `~/.claude/agents/project-reviewer.md` with:
 
 - Base: HomericIntelligence/ProjectOdyssey `general-review-specialist`
 - Added tools: `WebFetch`, `WebSearch`, `Bash` (read-only subset)
 - Project pins:
-  - Gate thresholds: ASGE 26.21% (VGG11) and 51.5% stretch goal
-  - ProjectOdyssey SHA: `e3e0de83`
+  - Gate thresholds: ASGE 26.21% (VGG11) and project target
+  - Dependency SHA: `<commit>`
   - Friction inventory: known Phase 0 issues (table)
   - Citation discipline: every numeric claim must cite a primary source with arXiv ID + page/section
 
-The merged reviewer caught the architecture-scoping finding that two earlier reviewers missed: the 51.5% stretch goal was already exceeded by ASGE's 51.58% result on ResNet18-CHx4 (same paper, different architecture family) — a connection only possible with both the gate threshold and the citation in the reviewer's pinned context.
+The merged reviewer caught the architecture-scoping finding that two earlier reviewers missed: the project target was already exceeded by ASGE's 51.58% result on ResNet18-CHx4 (same paper, different architecture family) — a connection only possible with both the gate threshold and the citation in the reviewer's pinned context.
 
 ## Verified On
 
 | Project | Context | Details |
 |---------|---------|---------|
-| mvillmow/Random | Predictive-Coding-in-Mojo Phase 0 scoping; merged ProjectOdyssey general-review-specialist + WebFetch + project pins (ASGE 26.21%/51.5% gate thresholds, ProjectOdyssey SHA `e3e0de83`, friction inventory) | Agent at `~/.claude/agents/pc-research-reviewer.md`; caught the ASGE VGG11/ResNet18-CHx4 architecture-scoping finding that two prior reviewers missed |
+| private research repository (identity redacted) | Early research scoping; merged ProjectOdyssey general-review-specialist + WebFetch + project pins (public baseline and project target, dependency SHA `<commit>`, friction inventory) | Agent at `~/.claude/agents/project-reviewer.md`; caught the ASGE VGG11/ResNet18-CHx4 architecture-scoping finding that two prior reviewers missed |

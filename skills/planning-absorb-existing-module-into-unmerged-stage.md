@@ -1,10 +1,10 @@
 ---
 name: planning-absorb-existing-module-into-unmerged-stage
 license: BSD-3-Clause
-description: "Planning discipline for a MID-CHAIN sub-issue of a strictly-serialized epic whose job is to ABSORB / MIGRATE an EXISTING covered module into a pipeline stage FILE that does not exist yet because it is PRODUCED by an EARLIER, UNMERGED sibling issue. The acceptance criteria name symbols (`PipelineConfig`, `PipelineScope`, `run_pipeline`) and destination paths (`.../pipeline/stages/plan_review.py`, `tests/unit/.../pipeline/test_stage_plan_review.py`) that are ABSENT on the current tree — the tell is the issue's OWN wording 'absorbed into stages/plan_review.py IN THE EPIC', which reveals the target is created by a prior sub-issue, not by this one. The load-bearing move is a SPLIT-ANCHOR plan: SOURCE-side facts (the existing module's patch-seam sweep surface, `main()` line, `class X` line, the shared arg-parser home, and every `patch.object`/`mock` seam a test suite pins) are VERIFIED against the current tree and DO NOT drift while the dep is unmerged, so they anchor the plan usefully NOW; DESTINATION-side pipeline symbol names DO drift and must be marked 'match whatever the merged API exports — verify before writing'. State BLOCKED up front with the evidence greps, still deliver the full executable spec, make implementation Step 1 an explicit 'GATE — confirm dependency merged; if not, STOP', and warn that all destination `file:line` anchors re-grep after the dep lands. A structural assertion in an existing test (e.g. an agent-wiring assertion) that guards behavior the migration preserves must be RE-HOMED to the new test module, NOT deleted. Use when: (1) planning a sub-issue of a serialized epic whose `Depends on #N` chain is not yet merged and whose ACCEPTANCE CRITERIA reference symbols/files/modules that do not exist on the current tree; (2) the issue asks you to MOVE/ABSORB an existing (often coverage-COVERED) module into a not-yet-existing stage file; (3) you must decide implement-now vs. write a forward-referencing 'execute after #N merges' plan; (4) you must avoid hallucinating an entire dependency's API surface while STILL anchoring the plan to real current-tree facts on the source side; (5) an existing structural/wiring test assertion would be orphaned by the migration and must be re-homed rather than dropped."
+description: "Plan migration into an unmerged dependency without inventing its API. Use when source code exists but destination symbols or files will come from an earlier change."
 category: architecture
 date: 2026-07-04
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags:
@@ -90,8 +90,8 @@ subsection below carries the real semantics. Do NOT read this heading as a warra
 > chain #1810–#1819 was unmerged at plan time). The SOURCE-side line anchors cited were `Read` from
 > disk and are real; the DESTINATION (pipeline) surface is un-verifiable by construction because its
 > producing PR (#1814) is unmerged. The only mechanism that empirically discharges the destination
-> assumptions is the Step-1 "confirm dependency merged, else STOP" gate plus a re-grep of every
-> destination anchor after the dep lands. Treat every checklist item as a hypothesis until CI confirms.
+> assumptions is inspection of the actual dependency API and a fresh search for destination
+> anchors when that code is available. Treat every checklist item as a hypothesis until CI confirms.
 
 ### Quick Reference
 
@@ -128,7 +128,7 @@ grep -rn "build_automation_parser" hephaestus/automation/_review_utils.py
 
 ### Detailed Steps
 
-1. **Grep and `ls` EVERY symbol and path the acceptance criteria name — BEFORE planning.** Absence is
+1. **Inspect the symbols and paths named by the acceptance criteria.** Absence is
    the whole diagnosis. If `find <root> -type d | grep <pkg>` is empty, `grep -rln "<Symbol>"` returns
    ZERO, and `ls <exact/named/file.py>` is not-found, the destination does not exist on the current
    tree. Combined with an unmerged `Depends on` chain, that means the target is produced by an EARLIER
@@ -159,11 +159,11 @@ grep -rn "build_automation_parser" hephaestus/automation/_review_utils.py
    `run_pipeline`, `seed_*`) DO drift — mark each "match whatever the merged API exports — verify before
    writing," never invent them as if real. Put the two classes of fact in visibly separate lists.
 
-6. **Make implementation Step 1 an explicit GATE — "confirm dependency merged; if not, STOP."** The
-   first item of the implementation order is a hard gate: re-run the Step-1 greps on the merged base and
-   confirm the destination package/file now exists and the dependency PR is merged. If not, STOP — do
-   not begin the migration on a base where the destination is absent. This converts the blocked state
-   into a mechanical precondition the implementer checks, not a surprise import error.
+6. **Check the dependency where the migration needs it.** Confirm that the selected base
+   supplies the destination package and actual API. If the epic requires a merged predecessor,
+   wait for that predecessor before dependent edits. Continue source-side analysis, test design,
+   and other independent work. Where authorized, a stacked branch may supply the prerequisite;
+   do not invent or duplicate the missing implementation.
 
 7. **Warn that all DESTINATION `file:line` anchors will DRIFT once the dep lands — re-grep them.** Any
    line number on the pipeline side (the new stage file, the new test module, the coordinator) is a
@@ -266,7 +266,7 @@ the destination file is produced by an EARLIER unmerged sub-issue (#1814), not b
 [ ] Plan still ships the FULL executable spec ("execute after #N merges"), not a stub.
 [ ] Anchors are SPLIT: SOURCE-side facts line-anchored + marked stable; DESTINATION-side names
     marked "verify against merged API — re-grep after dep lands."
-[ ] Implementation Step 1 is a hard GATE: "confirm dependency merged; if not, STOP."
+[ ] Check whether the required dependency API is available; continue independent work while it is unavailable.
 [ ] Every orphaned structural/wiring assertion is flagged to RE-HOME, not delete.
 [ ] A "Risks / What to verify" section enumerates every prose-sourced (not Read) assumption.
 [ ] Plan is labeled `unverified`; the destination contract is a hypothesis until CI confirms post-merge.
@@ -281,7 +281,7 @@ the destination file is produced by an EARLIER unmerged sub-issue (#1814), not b
    the plan to its sweep seams, `main()`, class, and arg-parser home. Only the destination side drifts;
    mark it "verify against the merged API."
 3. **A forward-referencing plan is still a full plan.** BLOCKED ≠ empty. Ship the complete migration spec
-   plus a Step-1 "confirm dep merged, else STOP" gate so it executes mechanically once the dep lands.
+   with the actual dependency condition and useful independent preparation, so dependent work can proceed when the API is available.
 4. **Re-home orphaned invariant assertions; never delete them.** A structural/wiring assertion guards
    behavior the migration preserves — it moves to the new stage's test module.
 5. **Every prose-sourced claim is a risk, not a fact.** CLI-flag→behavior mappings, guessed symbol names,

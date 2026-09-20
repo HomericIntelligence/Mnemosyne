@@ -1,10 +1,10 @@
 ---
 name: git-worktree-sys-path-precedence-issue
 license: BSD-3-Clause
-description: "Document Python path-order failures in git worktrees and spawned child phases. Use when: (1) console scripts load stale code from a main checkout, (2) direct imports work but subprocess entry points do not, (3) an editable install points to the worktree but `sys.path` does not, (4) a generated console-script shebang selects another environment, (5) verification must bind the loaded module file, or (6) a child phase must replace a hostile inherited `PYTHONPATH` with the intended checkout root."
+description: "Diagnose imports resolving to the parent checkout instead of a Git worktree. Inspect sys.path order and test runner configuration."
 category: tooling
 date: 2026-08-07
-version: "1.3.0"
+version: "1.4.0"
 history: git-worktree-sys-path-precedence-issue.history
 user-invocable: false
 verification: verified-local
@@ -57,8 +57,8 @@ Do NOT use this skill when:
 # 0. Diagnose which file is actually loaded (NEW — do this first)
 pixi run python -c "import hephaestus.validation.python_version as m; import inspect; print(inspect.getfile(m))"
 # If the path shown is NOT in the current worktree directory, the editable install is stale.
-# Example bad output: /home/mvillmow/Projects/ProjectHephaestus/hephaestus/validation/python_version.py
-# Example good output: /home/mvillmow/Projects/ProjectHephaestus/build/.worktrees/issue-1189/hephaestus/validation/python_version.py
+# Example bad output: /home/example-user/Projects/ProjectHephaestus/hephaestus/validation/python_version.py
+# Example good output: /home/example-user/Projects/ProjectHephaestus/build/.worktrees/issue-1189/hephaestus/validation/python_version.py
 
 # 1. Check what sys.path subprocess sees (run from worktree)
 python3 -c 'import sys; print(sys.path)'
@@ -153,8 +153,8 @@ python3 -c 'import sys; [print(i, path) for i, path in enumerate(sys.path)]'
 ```
 
 Look for:
-- `/home/mvillmow/Projects/ProjectHephaestus` (main repo) — appears EARLY
-- `/home/mvillmow/Projects/ProjectHephaestus/build/.worktrees/issue-724` (worktree) — appears LATER
+- `/home/example-user/Projects/ProjectHephaestus` (main repo) — appears EARLY
+- `/home/example-user/Projects/ProjectHephaestus/build/.worktrees/issue-724` (worktree) — appears LATER
 
 If main repo path comes BEFORE worktree path, that's Failure Mode 1.
 
@@ -163,7 +163,7 @@ If main repo path comes BEFORE worktree path, that's Failure Mode 1.
 ```bash
 # Check which editable install was registered
 find .pixi/envs/default/lib/python*/site-packages/ -name '_editable_impl_*.pth' -exec cat {} \;
-# Output should be: /home/mvillmow/Projects/ProjectHephaestus/build/.worktrees/issue-724
+# Output should be: /home/example-user/Projects/ProjectHephaestus/build/.worktrees/issue-724
 #                   (the worktree path, NOT the main repo)
 ```
 
@@ -236,7 +236,7 @@ If you must use raw subprocess invocation (not pixi run), prepend the worktree t
 
 ```bash
 # From worktree or parent, set PYTHONPATH explicitly
-export PYTHONPATH="/home/mvillmow/Projects/ProjectHephaestus/build/.worktrees/issue-724:$PYTHONPATH"
+export PYTHONPATH="/home/example-user/Projects/ProjectHephaestus/build/.worktrees/issue-724:$PYTHONPATH"
 /path/to/bin/hephaestus-agent-stage --version
 # Loads from worktree
 ```
@@ -247,7 +247,7 @@ In Python:
 import os
 import subprocess
 
-worktree_path = '/home/mvillmow/Projects/ProjectHephaestus/build/.worktrees/issue-724'
+worktree_path = '/home/example-user/Projects/ProjectHephaestus/build/.worktrees/issue-724'
 env = os.environ.copy()
 env['PYTHONPATH'] = f"{worktree_path}:{env.get('PYTHONPATH', '')}"
 
@@ -338,15 +338,15 @@ pixi run python -c "import hephaestus.validation.python_version as m; import ins
 python3 -c 'import sys; [print(i, path) for i, path in enumerate(sys.path)]'
 # Output example:
 #   0
-#   1 /home/mvillmow/Projects/ProjectHephaestus
-#   2 /home/mvillmow/Projects/ProjectHephaestus/build/.worktrees/issue-724
+#   1 /home/example-user/Projects/ProjectHephaestus
+#   2 /home/example-user/Projects/ProjectHephaestus/build/.worktrees/issue-724
 #   3 /path/to/.pixi/envs/default/lib/python3.14t/site-packages
 #   ...
 # Main repo at [1], worktree at [2] = PROBLEM
 
 # Check which directory the editable install .pth file points to
 find .pixi/envs/default/lib/python*/site-packages/ -name '_editable_impl_*.pth' -exec cat {} \;
-# Output should be: /home/mvillmow/Projects/ProjectHephaestus/build/.worktrees/issue-724
+# Output should be: /home/example-user/Projects/ProjectHephaestus/build/.worktrees/issue-724
 
 # Verify that direct imports work (same worktree context)
 pixi run python3 -c "import hephaestus; print(hephaestus.__version__)"
@@ -357,7 +357,7 @@ pixi run hephaestus-agent-stage --version
 # If this shows old version (from main repo), the issue is reproduced
 
 # Test subprocess after PYTHONPATH fix
-export PYTHONPATH="/home/mvillmow/Projects/ProjectHephaestus/build/.worktrees/issue-724:$PYTHONPATH"
+export PYTHONPATH="/home/example-user/Projects/ProjectHephaestus/build/.worktrees/issue-724:$PYTHONPATH"
 pixi run hephaestus-agent-stage --version
 # Should now show current version (if fix works)
 ```
@@ -396,7 +396,7 @@ pixi run hephaestus-check-python-version --json
 
 # Diagnosed with inspect.getfile():
 pixi run python -c "import hephaestus.validation.python_version as m; import inspect; print(inspect.getfile(m))"
-# Output: /home/mvillmow/Projects/ProjectHephaestus/hephaestus/validation/python_version.py
+# Output: /home/example-user/Projects/ProjectHephaestus/hephaestus/validation/python_version.py
 # (main worktree path — NOT the issue-1189 worktree)
 
 # Workaround: invoke via python -c instead of console script:

@@ -1,10 +1,10 @@
 ---
 name: planning-shared-state-io-helper-refactor-risks
 license: BSD-3-Clause
-description: "Capture reviewer risks for unverified plans that extract duplicated JSON state-file read/write code into shared helpers. Use when: (1) a plan centralizes state I/O behind helper functions, (2) callers mix raw dict compatibility with Pydantic validation, (3) filename compatibility, malformed JSON handling, secure writes, or logging behavior must be preserved, (4) plan evidence came from grep inventories or issue context that was not refreshed live."
+description: "Review shared state I/O refactors for typed and legacy payloads, filename contracts, logging, circular imports, and stable test seams."
 category: architecture
 date: 2026-06-26
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 verification: unverified
 tags: [planning, refactoring, state-io, json, pydantic, secure-write, reviewer-risks, compatibility, line-number-drift]

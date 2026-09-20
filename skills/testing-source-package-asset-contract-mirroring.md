@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Prevent source and packaged runtime asset drift. Use when: (1) a Python package ships manifests or scripts as package data, (2) a strict audit finds source/package contract differences, (3) model manifests must validate from both source and installed-asset locations, (4) container-backed validation is required for a full release gate."
 category: testing
 date: 2026-07-13
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [testing, package-data, asset-mirroring, manifests, scripts, strict-audit, container-validation]
@@ -60,7 +60,8 @@ just validate
 
 5. When adding a runbook or operational document, update the repository routing guide in the same change. Add a focused test that every documentation file has an explicit route where the repository enforces that contract.
 
-6. Run formatter, linter, type checks, targeted asset and manifest tests, and the full test suite. Keep the checks scoped until the regression tests pass, then expand to the release gate.
+6. Prefer targeted asset and manifest tests. Expand verification when packaging or integration
+   changes justify it, and satisfy the actual release checks before a release.
 
 7. Run the container-backed release command when host validation lacks a required system binary. Record the host limitation separately; container success is local evidence, not CI evidence.
 

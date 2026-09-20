@@ -1,18 +1,10 @@
 ---
 name: github-issue-state-label-rank-at-or-past
 license: BSD-3-Clause
-description: >-
-  Use when: (1) classifying issues by mutually-exclusive state labels into a pipeline
-  queue (e.g. state:needs-plan, state:plan-go, state:implementation-go), (2) routing
-  work based on label progression through a fixed rank sequence where some transitions
-  are allowed but others must skip stages, (3) preventing re-queueing of issues that
-  have already reached or passed a given state rank (e.g. prevent re-planning an issue
-  already at state:plan-go), (4) building a dispatcher that uses RANK COMPARISON (>=)
-  not label equality (==) to route issues, (5) debugging "issue keeps re-entering phase X
-  despite already being past it" failures in an automated pipeline.
+description: "Prevent repeat processing in an ordered issue-label pipeline by routing on reached-or-passed state rank rather than equality."
 category: architecture
 date: 2026-07-04
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 verification: verified-local
 tags:

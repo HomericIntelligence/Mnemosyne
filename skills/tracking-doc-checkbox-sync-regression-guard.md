@@ -1,10 +1,10 @@
 ---
 name: tracking-doc-checkbox-sync-regression-guard
 license: BSD-3-Clause
-description: "When a tracking DOCUMENT (remediation plan, roadmap, status table, audit-checklist markdown FILE) encodes issue/PR state as `- [ ]` / `- [x]` checkboxes, that state silently rots. The PREFERRED guard is a self-contained COMMITTED-FIXTURE INVARIANT TABLE: embed an explicit `declare -A EXPECT=([key]=state ...)` in the test, derive ONE stable key per line (leading `#NNN`, else `PR-X`, else a phrase), and diff each line's actual checkbox char against the expected char — no network, no `gh`, no auth, no SKIP path, deterministic everywhere (including required-CI runners with no issue-read token). Add bidirectional coverage cross-checks via a SEEN set: fail `__MISSING__` if a tracked line's key is absent from EXPECT, and fail if any EXPECT key was never SEEN (deleted/renamed line). Key by the line's STABLE PRIMARY TOKEN, not by scanning every `#NNN`, so an open bundle line with a closed child never false-FAILs. Do NOT use a live `gh issue view` guard: it SKIPs to a no-op when unauthenticated — exactly the required-CI state — giving ZERO protection, and it is non-deterministic. Use when: (1) editing a markdown tracking/remediation/roadmap doc whose checkboxes claim issue state, (2) adding a guard against checkbox drift, (3) a doc line bundles multiple `#NNN`, (4) you need a guard that the committed file itself passes deterministically in offline/sandboxed CI. This applies code-quality-enforcement-gates §5 ('assert the property via static analysis, NOT a live runtime check'); for ISSUE-BODY checklists see planning-roadmap-tracking-issue-reconciliation; for verify-findings-vs-ground-truth see code-quality-enforcement-gates §10."
+description: "Check a tracking document against a dated offline fixture when deterministic CI is needed; distinguish snapshot consistency from current issue-state freshness."
 category: documentation
 date: 2026-06-20
-version: "2.1.0"
+version: "2.2.0"
 user-invocable: false
 verification: verified-local
 history: tracking-doc-checkbox-sync-regression-guard.history
@@ -95,7 +95,7 @@ declare -A EXPECT=(
    Cite the target by its recipe NAME and grep for it — never hard-code a `justfile` line number, which
    drifts on any edit above it.
 
-7. **(Future enhancement, NOT part of this guard) Add a SEPARATE non-required tokened nightly job** that
+7. **Optional separate improvement:** A non-required tokened nightly job could
    diffs the EXPECT table against live `gh` issue state and opens an issue on drift. This is the
    belt-and-suspenders complement that restores freshness-detection without sacrificing the determinism
    of the required guard.
@@ -125,10 +125,9 @@ declare -A EXPECT=(
     issues and surfaced TWO stale entries (#92, #100) that the issue body never mentioned — exactly the
     drift a body-trusting plan would have missed. The committed map is a snapshot; the test reads no network.
 
-11. **Mitigate snapshot staleness with a `# RE-VERIFY:` comment + the same-PR rule.** Annotate the fixture
-    with `# RE-VERIFY: ran gh issue view <YYYY-MM-DD>` and enforce the rule "**the fixture and the doc change
-    land in the SAME PR**". This bounds the window in which a reopened issue (e.g. a `[x]` issue that gets
-    reopened) can desync the snapshot from reality.
+11. **Record snapshot freshness.** A dated source note and an atomic fixture/doc update help
+    explain the observation window. They do not guarantee freshness after publication; reopened
+    issues can still make both copies stale.
 
 12. **Tick Wave-3 / PR-GROUP lines only when EVERY issue on the line is CLOSED.** PR-group lines are
     group-scoped, not per-issue: a group box stays `[ ]` until ALL of its bundled issues are CLOSED. For

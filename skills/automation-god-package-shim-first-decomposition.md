@@ -3,7 +3,7 @@ name: automation-god-package-shim-first-decomposition
 description: "Reorganize a flat Python god-package or consolidate always-co-imported modules without breaking imports. Use for shim-first moves, leaf-to-root ordering, __all__ audits, optional-extra boundaries, circular-import review, and whole-suite patch-seam migration."
 category: architecture
 date: 2026-07-04
-version: "3.0.0"
+version: "3.1.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-local
@@ -117,8 +117,8 @@ Patch where the runtime caller looks up the object:
 - a symbol imported into another module is patched in that consumer;
 - reload and `caplog` logger names follow the canonical implementation module.
 
-A shim preserves imports, not arbitrary mocking semantics. Run the whole test tree because a moved
-function can be reached transitively from tests outside its original module.
+A shim preserves imports, not arbitrary mocking semantics. Consider broader tests when a moved
+function is reached transitively outside its original module.
 
 ### 6. Validate boundaries and cycles
 
@@ -136,7 +136,7 @@ For each leaf-to-root slice:
 4. update canonical internal imports;
 5. repair all patch/logger/reload seams;
 6. run identity, cycle, lint, type, focused, and full-suite checks;
-7. commit before proceeding to the next dependency layer.
+7. consider a commit at a useful recovery boundary; continue through the requested migration.
 
 ## Failed Attempts
 

@@ -1,10 +1,10 @@
 ---
 name: automation-529-overload-not-retried-classifier-gap
 license: BSD-3-Clause
-description: "Use when: (1) an agent/API call hits 529 Overloaded or 5xx and is treated as fatal despite max_retries being set; (2) a retry loop only fires on quota/429-with-reset-epoch and ignores server-overload; (3) auditing whether retryability covers ALL transient failure families; (4) a subprocess hard-codes a timeout that bypasses a centralized timeout module; (5) a reviewer/agent path records a synthetic ERROR verdict and IMMEDIATELY retries against an exhausted 429 session-limit quota instead of waiting until reset; (6) a transient-failure (429/529/timeout) handler exists in ONE agent-call path but a SIBLING path that calls the same invoker lacks it — audit every sibling path that calls the same invoker; (7) a CLI exits 0 but returns an `is_error:true` JSON envelope carrying api_error_status 429 that a caller silently treats as a real result; (8) a 429 carries a remediation hint (switch models with /model) instead of a reset epoch — needs a model-switch fallback, not wait-until-reset."
+description: "Diagnose agent API overload failures omitted by a retry classifier; distinguish transient server overload from quota-reset and fatal errors."
 category: debugging
 date: 2026-07-03
-version: "1.2.0"
+version: "1.3.0"
 user-invocable: false
 verification: verified-ci
 history: automation-529-overload-not-retried-classifier-gap.history
@@ -168,7 +168,7 @@ _capped_models: set[str] = set()   # sticky per-process registry
 
 9. **Classify by REMEDIATION, not just by status code**: a 429 whose message offers a remediation hint ("switch models with /model") instead of a "resets &lt;time&gt;" clause is a DIFFERENT failure family from a quota-wait — `resolve_quota_reset_epoch` returns None and every wait-until-reset handler hard-fails it. In the 2026-07-03 run, ~48 doomed calls failed across planner/reviewer/implementer/advise/learn until the loop degraded to no-ops, in BOTH failure shapes (non-zero exit AND exit-0 `is_error:true` envelope with `api_error_status` 429). Fix at the ONE chokepoint (`invoke_claude_with_session`), not per-path: add `detect_model_usage_cap(*texts)`, a sticky per-process `_capped_models` registry that substitutes `agent_config.fallback_model()` up front once a model caps, and a once-only retry of the SAME request on the fallback (never when the effective model already IS the fallback). Take the fallback model from config (`HEPH_FALLBACK_MODEL` env override), never a hardcoded literal at the call site. Scan the exit-0 envelope only for `output_format="json"` — plain-text output can legitimately contain the phrases.
 
-10. **Validate**: run `pixi run pytest tests/unit -v` — confirm new unit tests pass and existing retry tests are unaffected. Then re-run the live automation loop end-to-end and confirm zero 429/ERROR/Traceback lines.
+10. **Verify the affected failure families** with focused classifier and retry tests, broadening when shared behavior changes. A live loop can provide additional evidence when its side effects are authorized; unavailable live coverage does not block independent work.
 
 ## Failed Attempts
 

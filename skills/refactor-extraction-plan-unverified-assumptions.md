@@ -3,7 +3,7 @@ name: refactor-extraction-plan-unverified-assumptions
 description: "Review plans that extract a function cluster into a sibling module while re-exporting old paths. Use to challenge patch-path claims, line anchors, frozen invariants, cycle/import assumptions, unmerged dependency APIs, and promoted-helper verification."
 category: architecture
 date: 2026-07-04
-version: "2.0.0"
+version: "2.1.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: unverified
@@ -101,11 +101,12 @@ ruff check path/to/old_module.py path/to/new_module.py
 Inspect both directions of the proposed import graph. Let the interpreter and linter determine
 cycles and unused imports; comments are not evidence.
 
-### 5. Gate unmerged dependencies with a compatibility probe
+### 5. Reconcile uncertain dependencies with a compatibility probe
 
 List every assumed symbol with its source issue: base classes, result types, route constants,
-budget keys, context methods, constructors, and test fakes. Make implementation step one read the
-landed modules and pin their exact signatures before writing extraction code.
+budget keys, context methods, constructors, and test fakes. Inspect readable modules
+and record their signatures before relying on them. If a dependency has not landed,
+continue independent extraction work and keep the affected interface assumption explicit.
 
 ```bash
 rg -n 'class (WorkItem|StageOutcome|AgentJob|Stage)|ROUTES|def (advance|retry|fail_back)' src
@@ -142,7 +143,7 @@ call order. Add focused behavior tests for the new pure helper and canonical imp
 ### 8. Execute in reversible slices
 
 Move one coherent cluster, add the explicit shim, retarget internal callers, repair patch seams,
-then run focused and full checks. When scenario rows must exist for both legacy and new systems,
+then select focused checks and broaden them when risk or repository policy calls for it. When scenario rows must exist for both legacy and new systems,
 say `copy then adapt`; ambiguous “move/migrate” instructions contradict a legacy-stays-green rule.
 
 ## Failed Attempts
@@ -163,10 +164,10 @@ say `copy then adapt`; ambiguous “move/migrate” instructions contradict a le
 - Bind every plan to an immutable base SHA.
 - Search the whole repository, not only the source file and its nearest test.
 - Preserve explicit `name as name` shims where backward compatibility is required.
-- Require identity smoke tests for every re-exported symbol.
+- Consider identity smoke tests for re-exports whose identity is a compatibility contract.
 - Inventory every assumed dependency API and fake before implementation.
 - Keep promoted policy helpers pure unless effect ownership is itself the shared contract.
-- Run focused tests, import smoke tests, Ruff, type checking, and the full affected suite.
+- Select focused tests, import checks, lint, types, and wider checks for the affected contracts.
 
 ## Evidence Boundary
 

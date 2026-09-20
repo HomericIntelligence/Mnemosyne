@@ -14,8 +14,8 @@ ecosystem. It preserves team knowledge as searchable flat skill files in
 
 ## Writing standard
 
-All active technical prose in Mnemosyne must follow the
-[ASD-STE100 writing policy](docs/asd-ste100.md). This requirement applies to
+For active technical prose in Mnemosyne, use the
+[ASD-STE100 writing policy](docs/asd-ste100.md). This guidance applies to
 skills, agent directions, contributor instructions, templates, and technical
 policies.
 
@@ -36,9 +36,15 @@ git clone https://github.com/HomericIntelligence/Mnemosyne.git
 Athena owns the agent workflows that use this corpus. Use Athena `/advise` to
 find knowledge. Use Athena `/learn` to save verified knowledge.
 
-Follow the authoritative skill instructions in
+Consult the applicable installed skill instructions in
 [Athena](https://github.com/HomericIntelligence/Athena). Mnemosyne does not
 copy or implement those skills.
+
+Treat corpus workflows as advice to adapt to the task. Prefer general decision
+rules, precise triggers, and useful failure evidence. Continue toward the
+requested result without repeated permission for already-authorized work.
+The [working guidance](AGENTS.md#working-guidance) explains how to apply design
+principles, handle genuine boundaries, and report unresolved work.
 
 ## Repository Structure
 
@@ -89,7 +95,8 @@ Athena searches the corpus and returns relevant skills.
 2. Complete the YAML frontmatter.
 3. Complete all required Markdown sections.
 4. Include the required **Failed Attempts** table.
-5. If you add tests, run and validate each new test.
+5. For new tests, seek relevant execution evidence through the validation
+   boundary in `AGENTS.md`. Report gaps and continue independent work.
 6. Create a pull request.
 
 ### Required Sections in Skill Files
@@ -114,16 +121,18 @@ CI validates all pull requests:
 - Each retrievable main skill is at or below 30,000 bytes.
 
 Pre-commit does not run pytest. CI is the automated authority for the complete
-test suite. Before you create a pull request, run and validate each new test:
+test suite. For a new test, a focused command can provide useful evidence:
 
 ```bash
 uv run python -m pytest path/to/new_test.py
 ```
 
-Authors and reviewers must confirm that each description contains specific trigger
-conditions.
+Review descriptions for precise trigger conditions. Select checks for the
+changed behavior and risk. Use the validation boundary in
+[AGENTS.md](AGENTS.md#validation-delegation) for these commands. If that boundary
+is unavailable, report the gap and continue useful independent work.
 
-Run validation locally:
+The corpus format command is:
 
 ```bash
 python3 scripts/validate_plugins.py

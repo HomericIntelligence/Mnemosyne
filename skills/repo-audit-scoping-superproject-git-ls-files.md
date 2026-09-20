@@ -1,10 +1,10 @@
 ---
 name: repo-audit-scoping-superproject-git-ls-files
 license: BSD-3-Clause
-description: "Scope a full-coverage repo audit correctly when the target is a git SUPERPROJECT (contains submodules). Use when: (1) running /repo-analyze-strict-full or any full-coverage audit on a meta-repo/superproject like Odysseus, (2) a naive `find . -type f` inventory returns tens of thousands of files (it descended into submodule working trees), (3) you must bucket the repo's OWN tracked files by section and swarm them without overflowing context, (4) the working tree is on a feature branch behind origin/main and you need to grade against the shipped state, (5) grading a coordination/meta-repo fairly (no product source, but configs/schema/e2e are still gradeable)."
+description: "Scope superproject audits to tracked files and gitlinks. Record revision and coverage without accidentally auditing every submodule."
 category: testing
 date: 2026-07-02
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags:
@@ -73,8 +73,14 @@ git show origin/main:path/to/file                                        # grade
    `git ls-files --stage | awk '$1=="160000"{print $4}'`. If this prints paths, each is a submodule that appears in the index as ONE entry, not as its contents.
 2. **Inventory the repo's OWN files with `git ls-files`**, never `find`. In a superproject `git ls-files` lists only the superproject's tracked files (246 for Odysseus) and leaves each submodule as a single gitlink; `find . -type f` descends into all 14 submodule working trees and returns ~31,000 files (14 unrelated repos).
 3. **Bucket by top-level section**: `git ls-files | awk -F/ '{print $1}' | sort | uniq -c | sort -rn`. Save the full file list to the scratchpad dir and pass its path to every agent so all agents share ONE inventory.
-4. **Dispatch one read-only general-purpose sub-agent per audit section, in WAVES of ≤3 concurrent.** Even though audit agents are read-only and light, honor the hermes WSL ceiling (16 GB / 8 core) — see [[reference_wsl_overload_multiagent]] and [[debugging-wsl-host-hang-oom-forensic-diagnosis]]. Wait for each wave's task-notifications before launching the next wave.
-5. **Each agent reads EVERY file in its bucket** (no sampling cap) and, if the branch is stale, cross-checks `git show origin/main:<path>` before recording a file as "missing" or "stale". Grade against origin/main (the shipped state), not the local branch.
+4. **Choose review partitions and concurrency from the host and task.** When delegation
+   is available and authorized, assign independent inventory sections with clear
+   ownership. The recorded WSL host supported waves of at most three agents; use
+   current capacity rather than transferring that limit to every host. Sequential
+   review remains suitable when delegation is unavailable.
+5. **Cover the agreed inventory.** For a full audit, read each in-scope file and record
+   exclusions. Bind findings to the requested revision. If a stale branch explains
+   a missing file, compare the appropriate remote revision and state which was reviewed.
 6. **Grade meta-repo-fair.** Tell each agent the repo is a coordination hub with NO product source, so criteria like "package registry publishing" are justified N/A — but the NATS subject schema IS a gradeable contract, and `configs/`, install scripts, and `e2e/` ARE gradeable. Then synthesize a weighted overall grade from the section grades.
 
 *Verified locally — no CI gate on audit output.*

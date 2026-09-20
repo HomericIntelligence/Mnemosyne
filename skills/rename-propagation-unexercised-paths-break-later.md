@@ -1,10 +1,10 @@
 ---
 name: rename-propagation-unexercised-paths-break-later
 license: BSD-3-Clause
-description: "A deliberately PARTIAL rename (references renamed now, directory/path renames DEFERRED) is a latent landmine: consumers that were rewritten to the aspirational future name pass the rename PR's CI only because they aren't in the required-check set, then detonate LATER on unrelated PRs. Use when: (1) planning or reviewing a 'drop the prefix' / dir-rename PR where the on-disk path rename is upstream-gated or deferred, (2) some references now point at a short/new name while .gitmodules (or the real dir) still uses the old name, (3) install/build/deploy scripts or non-required matrix legs fail LATER with 'submodule failed to initialize / still empty', a missing conan profile, or a path that resolves to nothing, (4) you're tempted to trust a green rename PR as proof the rename is complete, (5) you fixed ONE consumer (e.g. a justfile recipe) as a follow-up without grepping siblings for the same class of bug."
+description: "Propagate renamed APIs, flags, and files across rarely executed consumers. Use when focused tests pass but scripts or secondary paths still use old names."
 category: tooling
 date: 2026-07-13
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-ci
 tags:
@@ -106,8 +106,8 @@ for f in scripts/install/*.sh scripts/install/dev/*.sh; do bash -n "$f" || echo 
    matrix legs.
 
 6. **When you find one instance of the bug, grep for the WHOLE class.** The justfile recipe and
-   the install scripts had the IDENTICAL mismatch. Fixing one and filing the rest as "later"
-   guarantees the siblings surface on the next innocent PR. Fix the class in one sweep.
+   the install scripts had the IDENTICAL mismatch. Inspect sibling paths for the same defect and repair the ones within the requested
+   scope. Report unrelated improvements separately; they need not block the rename.
 
 ## Failed Attempts
 

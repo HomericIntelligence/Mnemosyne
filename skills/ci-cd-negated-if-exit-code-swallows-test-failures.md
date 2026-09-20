@@ -1,10 +1,10 @@
 ---
 name: ci-cd-negated-if-exit-code-swallows-test-failures
 license: BSD-3-Clause
-description: "A CI test harness using `if ! cmd; then rc=$?; fi` reads $? AFTER the negated condition, so rc is always 0 and every failure counts as a pass — the job reports Passed: N, Failed: 0, SUCCESS while tests fail to even compile. Use when: (1) a CI summary says all tests pass but you suspect some never ran or never compiled, (2) auditing shell test-runner loops for exit-code capture bugs, (3) fixing a false-green harness and handling the wave of newly exposed failures, (4) writing a red-green proof that a harness fix actually detects failures."
+description: "Repair false-green shell test harnesses that capture the status of a negated condition instead of the failed command."
 category: ci-cd
 date: 2026-07-16
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: []
@@ -81,10 +81,10 @@ fi
 5. **Add the accounting guard.** After the loop:
    `[ $((passed+failed)) -eq $total ] || exit 1`. This makes a third silent state
    ("neither counted as pass nor fail") structurally impossible.
-6. **MANDATORY red-green proof of the harness fix.** Commit a deliberately broken scratch
-   test file. Show the OLD recipe reports `Passed: 1 / exit 0` on it and the FIXED recipe
-   reports `Failed: 1 / exit 1`. Then remove the scratch file. Document both run IDs in the
-   PR — without this proof you have no evidence the fix detects anything.
+6. **Exercise the failure path.** Prefer a disposable failing fixture that shows the old
+   harness reporting success and the corrected harness reporting failure. Capture the
+   results through the authorized validation process. A deliberately broken commit is
+   not necessary when a local fixture or existing regression proves the same behavior.
 7. **Aftermath protocol — do NOT mask the exposed failures.** The fix exposes every
    previously masked failure at once (Odyssey: 9 files that had never compiled, including
    broken imports like `from any_tensor import zeros` where `zeros` actually lives in

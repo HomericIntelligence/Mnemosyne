@@ -6,7 +6,7 @@ description: 'Port an implementation from a stale feature branch worktree when t
   functionality that exists only in a worktree branch, not in main.'
 category: testing
 date: 2026-03-05
-version: 1.0.0
+version: "1.1.0"
 user-invocable: false
 ---
 ## Overview
@@ -57,7 +57,7 @@ ls shared/core/dtype_ordinal.mojo   # must exist
 Insert the function into the current `extensor.mojo` at the same logical location
 (after the last `__dunder__` method, before the utility section).
 
-Use `Edit` tool — do NOT copy-paste via bash.
+Use an available authorized editing method that preserves the surrounding code.
 
 ### 5. Activate the blocked test
 
@@ -65,8 +65,8 @@ Replace commented-out test body with real assertions. Remove the `pass  # Placeh
 
 ### 6. Add the companion test from the issue plan
 
-The issue plan (read via `gh issue view NNN --comments`) specifies exact test code.
-Follow it precisely — do not improvise.
+Use the issue plan to identify intended behavior, then adapt its test to the current
+API and repository conventions. Prefer behavior assertions to a literal copy of stale code.
 
 ### 7. Fix imports in the test file
 

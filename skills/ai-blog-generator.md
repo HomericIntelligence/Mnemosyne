@@ -5,7 +5,7 @@ description: Generate AI-authored blog posts from git commit history to fill doc
   gaps
 category: tooling
 date: 2025-12-30
-version: 1.0.0
+version: "1.1.0"
 ---
 # AI Blog Generator
 
@@ -41,7 +41,7 @@ Generate blog posts retroactively based on git commit history, with proper AI-ge
 
 ### Phase 2: Template
 
-Use this exact template for AI-generated posts:
+Adapt this template to the project's blog format and attribution policy:
 
 ```markdown
 # Day [Number]: [Title]
@@ -103,7 +103,7 @@ Use this exact template for AI-generated posts:
 
 ### Phase 3: Commit with Backdated Timestamps
 
-Use both `GIT_AUTHOR_DATE` and `GIT_COMMITTER_DATE` to preserve authentic timeline:
+If the task explicitly calls for historical commit timestamps, set both `GIT_AUTHOR_DATE` and `GIT_COMMITTER_DATE`. Otherwise, keep current commit timestamps and put the historical date in the post:
 
 ```bash
 git add notes/blog/MM-DD-YYYY.md && \
@@ -129,6 +129,8 @@ for i, f in enumerate(files_sorted, 1):
 ```
 
 ### Phase 5: PR Creation
+
+When publication is authorized, use the repository delivery workflow. Auto-merge is optional and depends on merge authorization.
 
 1. Run pre-commit: `just pre-commit-all`
 2. Push branch: `git push -u origin blog/fill-missing-posts`
@@ -174,7 +176,7 @@ Copy-paste ready configurations and expected outputs.
 
 ## Key Learnings
 
-1. **Always analyze first**: Check all existing posts before generating new ones
+1. **Check the relevant history**: Compare existing posts with the requested date range to avoid duplicates
 2. **Sequential numbering is global**: Day numbers must be unique across ALL posts
 3. **Backdating requires both dates**: Set both `GIT_AUTHOR_DATE` and `GIT_COMMITTER_DATE`
 4. **AI attribution twice**: Put notice at top (visible immediately) AND bottom (footer)

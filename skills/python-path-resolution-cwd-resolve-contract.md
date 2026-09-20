@@ -1,10 +1,10 @@
 ---
 name: python-path-resolution-cwd-resolve-contract
 license: BSD-3-Clause
-description: "Path resolution contract for get_repo_root and similar helpers: Path.cwd() must always be followed by .resolve(), and test assertions comparing resolved paths must call .resolve() on expected values. Use when: (1) implementing path-returning helpers, (2) writing tests for functions that return resolved paths, (3) diagnosing symlink-fragile test failures."
+description: "Preserve resolved-path contracts when repository-root helpers or expected test paths cross symlinked directories."
 category: testing
 date: 2026-06-13
-version: "1.2.0"
+version: "1.3.0"
 user-invocable: false
 verification: verified-local
 history: python-path-resolution-cwd-resolve-contract.history
@@ -52,7 +52,8 @@ assert result == mock_git_repo
 
 1. When writing a helper that returns a resolved `Path`, ensure ALL branches call `.resolve()` — including the `Path.cwd()` fallback case.
 2. Document the return contract in the docstring: "Returns an absolute, resolved Path."
-3. When writing tests for such helpers, always call `.resolve()` on expected values in equality assertions.
+3. For helpers whose contract returns resolved paths, call `.resolve()` on expected values
+   in equality assertions. Preserve lexical paths when that is the actual API contract.
 4. To find existing fragile assertions: `grep -n "assert result ==" tests/` and check if the expected value calls `.resolve()`.
 5. Add an explicit `is_absolute()` check to the `None`/fallback test case: `assert get_repo_root(None).is_absolute()`.
 

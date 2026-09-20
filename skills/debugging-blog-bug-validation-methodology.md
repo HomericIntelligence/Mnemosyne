@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Methodology for systematically validating that bugs documented in blog posts have been fixed in the codebase. Use when: (1) reviewing blog posts that document bugs, (2) verifying historical bug fixes are still in place, (3) auditing codebase against documented issues."
 category: debugging
 date: 2026-04-09
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [blog-posts, bug-validation, verification, codebase-audit]
@@ -54,7 +54,7 @@ tags: [blog-posts, bug-validation, verification, codebase-audit]
    - **Guard verification**: A safety check was added
    - **API migration**: Old API replaced by new API
 
-3. **Launch parallel Explore agents** for independent bugs:
+3. **Consider parallel review** for independent bugs when delegation is available:
    - One agent per bug category
    - Each agent gets specific grep patterns and file paths to check
    - Agents report: FIXED / PARTIALLY FIXED / NOT FIXED with evidence

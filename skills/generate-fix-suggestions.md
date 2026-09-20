@@ -1,10 +1,10 @@
 ---
 name: generate-fix-suggestions
 license: BSD-3-Clause
-description: Generate fix suggestions based on error patterns and best practices
+description: "Turn observed test or build errors into prioritized fix suggestions with causal evidence and concrete examples."
 category: testing
 date: 2025-12-30
-version: 1.0.0
+version: "1.0.1"
 ---
 # Generate Fix Suggestions from Errors
 

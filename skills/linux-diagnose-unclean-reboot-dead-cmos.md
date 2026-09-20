@@ -1,10 +1,10 @@
 ---
 name: linux-diagnose-unclean-reboot-dead-cmos
 license: BSD-3-Clause
-description: "Diagnose why a Linux server rebooted unexpectedly and came back up degraded, working backward from limited log evidence to distinguish a genuine power-loss/dead-CMOS-battery event from a software crash. Use when: (1) a server rebooted unexpectedly overnight and came back up degraded, (2) journalctl -b -1 fails with insufficient permissions or only one boot is listed, (3) diagnosing an unclean shutdown with no persistent journal available."
+description: "Investigate an unclean Linux reboot without persistent prior-boot journals; compare RTC resets, power-loss evidence, and software-crash alternatives."
 category: debugging
 date: 2026-07-13
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 verification: verified-local
 tags: []

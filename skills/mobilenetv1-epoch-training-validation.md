@@ -1,10 +1,10 @@
 ---
 name: mobilenetv1-epoch-training-validation
 license: BSD-3-Clause
-description: "Verified workflow for running long-duration ML training validation (35+ minutes on CPU) in CI-constrained environments with timeout limits. Captures real training-loop behavior by executing full epoch with detached nohup process, polling log output, and committing authentic loss-progression evidence. Use when: (1) training runs exceed 2-minute foreground timeout and require background execution, (2) validating backward-pass implementations by confirming monotone-decreasing loss over full epoch, (3) capturing verification evidence for PR closure without re-running in CI, (4) handling download/data-prep as pre-training subprocess tasks, (5) need to validate loss values fall monotonically to gate PR approval."
+description: "Collect evidence from long-running model training when foreground time limits require background execution and durable logs."
 category: optimization
 date: 2026-07-04
-version: "1.0.1"
+version: "1.1.0"
 user-invocable: true
 verification: verified-local
 tags:
@@ -40,9 +40,11 @@ tags:
 ## When to Use
 
 1. **Timeout-constrained foreground execution**: Training runs exceed 2–3 minute foreground timeout; need background execution to capture full epoch (35–45 min on CPU).
-2. **Backward-pass correctness validation**: Implement manual backward pass + gradient descent loop; require monotone-decreasing loss over full epoch as proof of correctness.
-3. **Verification checkpoint for PR closure**: Avoid re-running long training in CI; capture offline evidence, commit to PR, use as proof that gradient flow is correct.
-4. **Loss monotonicity gating**: Before approving PR, validate extracted loss values fall continuously (no spikes/NaN) — serves as gate for reviewer sign-off.
+2. **Backward-pass investigation**: Inspect the loss trend after a manual backward-pass or optimizer change. A decreasing trend is useful evidence, but does not prove gradient correctness.
+3. **Long-run evidence for review**: Capture a relevant training run for the requested review. Report its limits alongside focused gradient or numerical checks.
+4. **Inspect training behavior**: Compare the loss trend with the experiment's intended
+   convergence criterion. Record spikes and non-finite values for diagnosis. Strict monotonic
+   decrease was a case-specific check, not a general PR approval rule or smoke-test requirement.
 5. **Dataset prep / download as subprocess**: If data download or preprocessing is separate, run as async subprocess before training to avoid blocking epoch polling.
 6. **Real-world training flow without simulation**: Need to see actual batch-by-batch loss values (not mocked/simplified), confirming implementation matches paper's numerical trajectory.
 
@@ -68,7 +70,8 @@ until grep -q "^# Finished:" "$LOGFILE" && grep -q "^# Mojo exit code:" "$LOGFIL
 done
 ```
 
-**Extract and validate loss values are monotone-decreasing**:
+**Extract loss values and check the recorded experiment's monotonicity criterion**
+(case-specific evidence, not a general correctness or approval test):
 
 ```bash
 grep -oE "^Epoch 1, Batch [0-9]+.*Loss: [0-9]+\.[0-9]+" "$LOGFILE" \

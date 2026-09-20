@@ -1,10 +1,10 @@
 ---
 name: explicit-false-schema-fixture-tests
 license: BSD-3-Clause
-description: "Skill: Explicit-False Schema Fixture Tests"
+description: "Test explicit false values in schema fixtures and loaders. Use when absent fields and false values could be confused or defaults need separate coverage."
 category: tooling
 date: 2026-03-19
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 ---
 # Skill: Explicit-False Schema Fixture Tests

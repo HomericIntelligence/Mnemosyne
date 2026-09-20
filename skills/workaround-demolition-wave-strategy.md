@@ -1,10 +1,10 @@
 ---
 name: workaround-demolition-wave-strategy
 license: BSD-3-Clause
-description: "Multi-PR sequencing framework for safely ripping out workarounds after an upstream library/compiler bug is fixed. Use when: (1) an upstream dependency (compiler, runtime, library) just shipped a fix for a bug your repo has accumulated workarounds for, (2) workarounds are spread across CI retry loops, continue-on-error flags, build flags, debug infrastructure, ADRs, dev docs, reproducer files, test-file comments, and agent-facing skills/memory, (3) you need to avoid one giant unreviewable demolition PR and instead want a safe, bisectable, reviewable sequence, (4) you have to decide between scorched-earth deletion vs preservation-with-Superseded-markers for documentation/ADRs, (5) some workaround-removals are risky one-liners not exercised by your validation matrix and need their own CI gate, (6) Wave 2 scorched-earth targets a directory (e.g. `repro/`) where files may correspond to DISTINCT upstream bugs sharing only symptom surface — partition by bug, not by directory, before deletion."
+description: "Remove obsolete workarounds in reviewable batches after an upstream fix. Use for dependency validation, distinct bug identities, runtime changes, documentation, and agent guidance."
 category: ci-cd
 date: 2026-05-26
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-ci
 tags: [workaround-removal, multi-pr-strategy, upstream-fix, wave-sequencing, ci-discipline, demolition, rollback-strategy]
@@ -76,7 +76,7 @@ Goal: prove the new pin is operational on your full required-check matrix, in is
 2. Bump the dependency pin past the upstream fix's shipped version.
 3. Apply ONLY changes that are unavoidable for the bump to compile (e.g., stdlib API regressions that came with the new version). NO workaround removal yet.
 4. Open as a DRAFT PR. Run the full required-check matrix.
-5. Keep this PR OPEN until at least Wave 1 has merged. It is durable evidence the new pin works on your workload — and a fallback if Wave 1 breaks for unrelated reasons.
+5. Preserve the validation results and a recoverable revision. Keeping a draft PR open can help coordination, but is not a prerequisite for independent progress.
 
 #### Wave 1 — CI Infrastructure Demolition + Guardrails
 
@@ -99,7 +99,7 @@ When the bulk Wave 1 PR would otherwise include a change Wave 0's CI didn't exer
 
 Wave 1.5's whole purpose is to be the INDEPENDENT CI gate for the risky change.
 
-Rule: any workaround removal you can't point to GREEN CI evidence for should be its own PR.
+Consider a separate PR when a removal has distinct risk or verification needs. Group related low-risk removals when they remain reviewable.
 
 #### Wave 2 — Scorched-Earth Doc/Repro/Test-Comment Purge
 

@@ -1,10 +1,10 @@
 ---
 name: academic-paper-writing-and-publication-workflow
 license: BSD-3-Clause
-description: "Use when: (1) assembling a large LaTeX research paper from parallel-agent-written parts and need to merge sections into a compilable .tex with unified bibliography; (2) performing pre-submission quality validation of a LaTeX paper covering data accuracy, statistical methodology, statistical power analysis, and arXiv build preparation; (3) polishing an arXiv paper for submission — voice normalization, pronoun changes, duplicate heading removal, BibTeX deduplication, inline arXiv href removal; (4) conducting a final publication-readiness review checklist pass before camera-ready; (5) preparing a LaTeX arXiv paper for final review with a myrmidon swarm of specialist reviewers; (6) wiring a pipeline-computed power analysis to interpret null results as small effects vs underpower; (7) consolidating scattered verdict codes into a Future Work longtable section and fixing \\verb/\\texttt underscore and cite-key-collision issues during parallel assembly."
+description: "Assemble, check, and prepare LaTeX research papers for arXiv; use for bibliography collisions, numerical claims, statistical framing, or cross-section consistency."
 category: documentation
 date: 2026-06-07
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 history: academic-paper-writing-and-publication-workflow.history
 tags: [latex, arxiv, paper, publication, validation, bibtex, assembly, review, statistical-rigor, swarm]
@@ -59,10 +59,10 @@ grep -P "[\x80-\xFF]" paper.tex                 # find non-ASCII first
 
 **Core principles that span all phases**:
 
-1. **Data accuracy is non-negotiable and comes first** — recompute every number from source CSV/JSON before accepting it.
+1. **Ground quantitative claims in source data** — prioritize changed claims and numbers that affect the conclusions.
 2. **Fix the pipeline, not the paper** — when claims come from a Python pipeline, fix the generator, regenerate data, then update text. Never hand-patch generated numbers or tables.
 3. **Edit by category with unique `old_string`, never by line number** — line numbers shift after each edit; default `replace_all=false` with surrounding context.
-4. **Grep ALL sections after any fix** — Abstract / Intro / Contributions / Discussion / Conclusions / Appendix / Future Work routinely retain the old phrasing.
+4. **Check affected sections after shared terminology or claim changes** — summaries and appendices can retain old phrasing.
 5. **Verify the verifier** — reviewer checklists and automated agent findings may be wrong; recompute against the actual source file before acting.
 
 ### Detailed Steps
@@ -136,7 +136,7 @@ Use when a single agent cannot write the whole paper. Partition into independent
 
 Run before submission whenever the paper presents experimental results, especially small-N studies.
 
-1. **Plan first, do not fix immediately.** Read the whole paper; build a severity-ordered issue list (CRITICAL data/path errors → IMPORTANT stats/consistency → MINOR style). Consult prior `.notes.md` review rounds.
+1. **Prioritize findings by impact.** For a broad review, consider a severity-ordered issue list. Read related sections and prior review notes when they help; make clear, authorized corrections as evidence supports them.
 2. **Data accuracy (CRITICAL, first)** — recompute every numeric claim from `find . -name "*.csv" -o -name "*.json"`. Common errors: broad ranges where all values are identical, rounding that obscures precision, percentages that don't match. Document `Location | Current | Ground Truth | Fix`.
 3. **Verify statistical test NAMES against data field names** — the JSON field is ground truth:
 
@@ -230,7 +230,7 @@ Run after validation, on a paper that has passed initial review, to apply a stru
    | 10 | Completeness | no TODOs/placeholders |
 
 8. **Verify reproducibility paths against the real repo** — authors write from memory. `ls config/models/` and `ls tests/fixtures/tests/` to confirm filenames (dashes vs dots, nesting).
-9. **Fix everything in one atomic commit**, rebuild, then grep-verify all fixes resolve to 0 matches; confirm page count and PDF size are sane.
+9. **Complete the requested corrections in coherent changes.** Rebuild affected outputs and check for remaining defects; use page count and PDF size as supporting signals.
 
 ## Failed Attempts
 

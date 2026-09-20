@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Run Python project validation with uv when network access is unavailable. Use when: (1) `uv run --offline` still tries to synchronize a locked environment, (2) a missing locked wheel blocks offline tests, or (3) `--no-sync` may select the wrong pytest executable."
 category: tooling
 date: 2026-08-05
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags:
@@ -59,11 +59,11 @@ uv run --offline --no-sync python -m pytest --version
 
 ### Detailed Steps
 
-1. Start with the intended project extra, not an ad-hoc system install. For a repository that declares its test and lint tools in a `dev` extra, bootstrap it with `uv sync --extra dev`.
+1. Use the intended project environment. When network access is authorized, a repository with tools in a `dev` extra can prepare it with `uv sync --extra dev`. Offline, use available cached artifacts and report missing dependencies while continuing useful independent work.
 2. If `uv run --offline` fails before the requested command starts, inspect the synchronization error. A missing lockfile artifact means the environment was not fully materialized; offline mode cannot download the missing wheel.
 3. Do not treat `--no-sync` as a fix. It suppresses synchronization, which can cause the command to resolve a global `pytest` or another incompatible interpreter when the project virtual environment is absent or incomplete.
 4. When using `--no-sync` for diagnosis, run Python through uv and print `sys.executable`; then invoke `python -m pytest --version`. Confirm both resolve to the expected project environment before trusting results.
-5. After a successful sync, rerun only the intended checks with `--offline`: focused tests first, then Ruff lint, Ruff format check, and Ty type checking.
+5. After a successful sync, run the relevant checks with `--offline`. Focused tests, Ruff, and Ty are examples; select tools that the repository actually uses.
 6. Report collection and execution separately. A successful collection count is not a full-suite success unless the run returns a final passing result.
 
 ## Failed Attempts

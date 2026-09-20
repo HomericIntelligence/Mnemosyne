@@ -1,10 +1,10 @@
 ---
 name: skill-teaching-stale-practices-contradicting-canonical-docs
 license: BSD-3-Clause
-description: "When a skill or guide teaches practices contradicting CLAUDE.md or other canonical docs, wholesale rewrite (not patching) is required to prevent contradiction persistence. Use when: (1) a skill teaches deprecated tools (flake8, black, requirements.txt, setup.py) contradicting CLAUDE.md Language Preference, (2) a skill references stale Python versions (3.8–3.9) contradicting current baseline (3.10+), (3) supporting files (session logs, references) contain the same stale practices as the main skill file, (4) patching individual sections would leave dangerous contradictions elsewhere, (5) stale guidance could mislead downstream consumers before they discover the newer canonical docs."
+description: "Reconcile skills with current repository guidance. Use when obsolete tools, versions, or examples conflict with the active contract; distinguish recommendations from historical evidence."
 category: tooling
 date: 2026-06-11
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-ci
 history: skill-teaching-stale-practices-contradicting-canonical-docs.history
@@ -50,15 +50,16 @@ find skills/github-actions-python-cicd/ -type f | grep -v .git
 # flake8 removed → no flake8 tokens anywhere in directory
 # src/ layout removed → only "hephaestus/" references in examples
 
-# 5. Delete contradictory supporting files (wholesale removal, not patching)
-git rm skills/github-actions-python-cicd/references/notes.md
+# 5. Distinguish obsolete active advice from historical evidence.
+# Revise active advice; retain useful records with their historical context.
+# Remove a file only when removal is authorized and no useful consumer depends on it.
 
 # 6. Rewrite the main skill file with CLAUDE.md cross-references
 # Include quotations: See CLAUDE.md § Language Preference
 # Document why EACH choice contradicted the old version
 
-# 7. Verify comprehensively (directory-level, not file-level)
-! grep -rnE 'flake8|black|requirements.txt|setup.py|src/' skills/github-actions-python-cicd/
+# 7. Inspect current active advice; historical evidence may retain old terms.
+! grep -nE 'flake8|black|requirements.txt|setup.py|src/' skills/github-actions-python-cicd/SKILL.md
 grep -n 'ruff check' skills/github-actions-python-cicd/SKILL.md
 grep -n 'python-version.*3\.1[0-3]' skills/github-actions-python-cicd/SKILL.md
 pre-commit run markdownlint-cli2 --files skills/github-actions-python-cicd/SKILL.md
@@ -66,29 +67,29 @@ pre-commit run markdownlint-cli2 --files skills/github-actions-python-cicd/SKILL
 
 ### Detailed Steps
 
-1. **Identify the contradiction**: Diff the skill's recommended practices against CLAUDE.md
+1. **Identify the contradiction**: Compare the skill with the repository's current canonical instructions
    - Read CLAUDE.md § Language Preference and § Python Development Guidelines
    - Note every tool, version, and pattern that differs from the skill
-   - Classify: How many sections contradict? (1–2 sections = patch candidate; 3+ = rewrite)
+   - Choose a targeted edit or coherent rewrite from the extent of the contradiction, not a fixed section count.
 
 2. **Find ALL supporting files**: Don't assume skill is a single .md file
    ```bash
    find skills/github-actions-python-cicd/ -type f
    # May find: SKILL.md, references/notes.md, examples/, session_log.md, etc.
    ```
-   **Every supporting file must be audited** — stale session logs are the most common vector for contradiction persistence.
+   Inspect supporting files that consumers can load as advice. Label historical session logs so they do not become current instructions.
 
-3. **Plan verification BEFORE editing**: Map each contradiction to a testable criterion
+3. **Select useful verification**: Map relevant contradictions to observable criteria
    - Python 3.8/3.9 removed → grep confirms matrix is 3.10–3.13 only
    - flake8 removed → `! grep -rn 'flake8'` returns exit 0 (no matches)
    - src/ layout removed → only "hephaestus/" references in examples
    - requirements.txt removed → `! grep -rn 'requirements'` returns exit 0
    - All changes logged as verification commands (copy-paste ready)
 
-4. **Delete contradictory supporting files**: A stale session log that contradicts CLAUDE.md cannot be "fixed in place"
-   - If `references/notes.md` teaches flake8, **delete it entirely** (`git rm`)
-   - If `examples/` contains setup.py, **delete it entirely** (`git rm examples/`)
-   - Do NOT try to patch — wholesale removal is cleaner and leaves no residue
+4. **Separate active advice from historical evidence.** Revise obsolete recommendations
+   that consumers still follow. Preserve session records as evidence and identify their
+   historical context. Consider removal only when the task covers it and no useful
+   consumer or provenance depends on the material.
 
 5. **Rewrite the main skill file**: Use CLAUDE.md sections as the single source of truth
    - Include quotations: `See CLAUDE.md § Language Preference`
@@ -99,7 +100,7 @@ pre-commit run markdownlint-cli2 --files skills/github-actions-python-cicd/SKILL
 6. **Verify comprehensively**: Directory-level verification, not file-level
    ```bash
    # Check ENTIRE directory for stale tokens (critical — catches hidden files)
-   ! grep -rnE 'flake8|black|requirements.txt|setup.py|src/' skills/github-actions-python-cicd/
+   ! grep -nE 'flake8|black|requirements.txt|setup.py|src/' skills/github-actions-python-cicd/SKILL.md
    # Exit 0 ✓ (no stale tokens found)
 
    # Positive match: confirm correct version/pattern is present
@@ -203,7 +204,7 @@ This skill reflects **ProjectHephaestus CLAUDE.md as the single source of truth*
 
 ### Checklist for Wholesale Skill Rewrite
 
-When you encounter a skill contradicting canonical docs, apply this checklist:
+For a skill that contradicts canonical docs, use the relevant review prompts:
 
 ```markdown
 ## Checklist for Wholesale Skill Rewrite
@@ -212,11 +213,11 @@ When you encounter a skill contradicting canonical docs, apply this checklist:
 - [ ] Find ALL supporting files (use `find`, not just .md filenames)
 - [ ] Audit each supporting file for contradictions
 - [ ] Plan verification commands (map contradictions to testable criteria)
-- [ ] Delete contradictory supporting files (use `git rm`, not patching)
+- [ ] Revise contradictory active advice; preserve historical evidence and provenance
 - [ ] Rewrite main skill file with CLAUDE.md section references
 - [ ] Add Canonical References table with verification dates
-- [ ] Run directory-level verification (`grep -rn` over entire skill dir)
-- [ ] Run all verification commands before committing
+- [ ] Inspect the main skill and active supporting advice, excluding historical records from stale-advice checks
+- [ ] Seek relevant verification and report checks that could not run
 - [ ] Commit with verification evidence
 - [ ] Push and create PR
 ```

@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: Deep-audit CLI scripts across 8 dimensions (bugs, dead code, duplication, validation placement, error messaging, exception safety, test coverage gaps, argparse resolution) then fix in dependency order with complementary tests.
 category: testing
 date: 2026-02-24
-version: 1.0.0
+version: "1.1.0"
 user-invocable: false
 ---
 # Skill: CLI Deep Audit and Fix
@@ -51,7 +51,7 @@ gh issue view <number> --comments
 
 ### Phase 2: Implement Fixes in Dependency Order
 
-Fix issues in this order to avoid cascading breakage:
+Use actual dependencies to order fixes. The following order worked for the recorded audit:
 
 1. **Extract shared constants** — e.g., pull `MODEL_ALIASES` dict out of a function so it can be reused and tested independently
 2. **Fix argparse defaults** — change `default=<value>` → `default=None` for any option that the config/YAML layer is also responsible for setting; add the fallback explicitly in the resolution function
@@ -76,7 +76,7 @@ Write tests that cover the gaps exposed by the audit:
 - **Fallback tests** — omit the CLI flag entirely and assert the config-layer default is used
 - **Override tests** — pass the flag explicitly and assert the override wins
 - **Early-exit tests** — assert on return code (`sys.exit` captured via `pytest.raises(SystemExit)`) not on file side-effects
-- **Extraction tests** — for any newly extracted constant/function, add a unit test directly
+- **Extraction tests** — test the extracted behavior when it has an independent contract or regression risk
 
 ```python
 # Pattern: test fallback (flag omitted)

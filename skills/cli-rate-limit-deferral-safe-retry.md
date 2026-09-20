@@ -1,10 +1,10 @@
 ---
 name: cli-rate-limit-deferral-safe-retry
 license: BSD-3-Clause
-description: "Design a CLI discovery wrapper that reports external rate-limit deferrals as retryable EX_TEMPFAIL (75), preserves unknown affected scope without inventing identifiers, and safely resumes from durable completed work. Use when: (1) pre-dispatch API discovery is rate-limited, (2) a CLI currently returns success for deferred work, (3) JSON callers need reset and incomplete-scope metadata, or (4) retry must not replay already completed batch items."
+description: "Handle CLI rate-limit deferral with bounded retries, retry hints, and mutation-aware recovery. Distinguish temporary quota exhaustion from permanent errors."
 category: architecture
 date: 2026-08-06
-version: "1.1.0"
+version: "1.1.1"
 user-invocable: false
 verification: verified-ci
 history: cli-rate-limit-deferral-safe-retry.history

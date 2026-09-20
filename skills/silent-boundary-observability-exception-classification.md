@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Add observability to broad exception boundaries in orchestrator code without changing fail-safe behavior. Use when: (1) a broad `except Exception` boundary is designed for fail-safe/non-blocking behavior but swallows errors silently making bugs hard to debug, (2) you need to surface exceptions to observability systems (logging, monitoring) while preserving the safety contract (returns None, never blocks), (3) exception classification (expected vs unexpected) enables aggregation in log analysis, (4) modules like run_follow_up_issues, planner, or ci_driver need better observability for post-mortem debugging. Pattern: define a module-level tuple of expected exception types, use isinstance() to route to WARNING (expected) or ERROR (unexpected) severity, capture full traceback with exc_info=True, and include exception type as discrete log argument for aggregation."
 category: architecture
 date: 2026-06-06
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: true
 verification: verified-local
 tags:
@@ -392,7 +392,7 @@ pixi run pytest tests/unit/automation/test_follow_up.py -v
 
 3. **Severity routing enables sane alerting** — WARNING for expected (CalledProcessError, OSError) won't trigger pages. ERROR for unexpected (AttributeError, TypeError) will. Ops team gets signal instead of noise.
 
-4. **Traceback capture is non-negotiable** — exc_info=True is mandatory for post-mortem debugging. When a bug manifests in production, the stack trace is essential for root-cause analysis.
+4. **Consider traceback capture** — `exc_info=True` can help explain unexpected failures. Match detail to diagnostic need and the applicable privacy policy.
 
 5. **Discrete exception_type argument enables aggregation** — Don't embed the exception type in the message string. Use `extra={"exception_type": ...}` so log analysis tools can group and count by exception type across the fleet.
 

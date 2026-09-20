@@ -1,10 +1,10 @@
 ---
 name: academic-paper-accuracy-and-citation-audit
 license: BSD-3-Clause
-description: "Use when: (1) performing a multi-pass LaTeX paper audit covering data consistency, cross-references, scientific rigor, and writing quality before submission; (2) verifying every numerical claim in a research paper against source data files (CSV, JSON) with parallel agents and fixing errors; (3) finding academic citations for unsupported claims via parallel web searches and filling citation gaps with real published papers including full BibTeX metadata; (4) verifying every numeric claim in a corpus citation against the cited paper's arXiv abstract via parallel WebFetch agents — distinguishing fabricated papers from misquoted real ones; (5) fixing LaTeX build errors from unescaped underscores in table cells (Missing $ inserted)."
+description: "Audit research-paper numbers, citations, LaTeX references, and scientific claims against source evidence; use for paper accuracy reviews and citation corrections."
 category: documentation
 date: 2026-06-07
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 history: academic-paper-accuracy-and-citation-audit.history
 tags: [latex, audit, paper, academic, citation, bibtex, arxiv, data-consistency, cross-reference, numerical-accuracy, parallel-agents, scientific-rigor, writing-quality, fabrication-detection, webfetch, web-search, pandas, pivot-table, idxmax, underscore-escape, missing-dollar]
@@ -76,7 +76,7 @@ grep "^!" paper.log                            # must be empty
 
 **Principle**: check BOTH directions — every number in the paper has a matching value in a data file, AND every important result in a data file is actually reported.
 
-1. Read all data sources (`summary.json`, `statistical_results.json`, `runs.csv`, `criteria.csv`, `subtests.csv`, `judges.csv`).
+1. Identify the data sources for the claims under review, such as `summary.json`, `runs.csv`, and `judges.csv`.
 2. Extract every hardcoded number from the paper text (percentages, dollar amounts, counts, test statistics).
 3. Cross-check each against its source; build a verification table:
 
@@ -119,7 +119,7 @@ Checking label existence alone is insufficient — you must verify the file cont
 
 #### D. Numerical Correctness — Common Code/Data Bug Patterns
 
-These survive multiple narrative-only passes; at least one agent must recompute from raw data with independent code.
+These can survive narrative-only review. Consider independent recomputation from raw data for claims affected by these patterns.
 
 | Pattern | Detection | Fix |
 | ------- | --------- | --- |
@@ -181,8 +181,8 @@ pivot = df.pivot_table(index=['experiment', 'tier', 'subtest', 'run_number'],
 No text pattern can catch a fabricated range or a real-paper misquote — only direct primary-source verification does.
 
 1. **Enumerate** every citation with a specific numeric claim (`grep -n 'arXiv:[0-9]{4}\.[0-9]{4,5}'` then filter for adjacent %, ×, PPL, GB, tokens, accuracy points).
-2. **Partition** the corpus into ~6 non-overlapping file groups (~6-7 files each, sized to a ~30-WebFetch budget per agent).
-3. **Dispatch parallel agents** (`subagent_type: general-purpose`, `run_in_background: true`), each READ-ONLY with its file list. Skip bibliography-completeness and pre-2024 foundational papers (Transformer, Mamba, LoRA, RoPE) unless the claim is surprising.
+2. **Partition when useful** into non-overlapping groups sized to the available review capacity.
+3. **Consider independent reviewers** for a large corpus when delegation is available. Give each a bounded read-only scope; prioritize uncertain and consequential claims.
 4. **Per citation**, `WebFetch https://arxiv.org/abs/<ID>` and verify 5 dimensions:
    (a) paper exists, (b) title/authors match, (c) numeric claim supported by abstract, (d) direction/polarity not reversed, (e) ranges not fabricated precision ("2.9–4.1×" vs abstract "~3×").
 
@@ -198,7 +198,7 @@ No text pattern can catch a fabricated range or a real-paper misquote — only d
    - Fabricated/polarity-reversed → replace with abstract's actual claim verbatim.
    - Wrong author list/title → correct from arXiv metadata.
    - Blanket `UNVERIFIED`/`POST-CUTOFF` flag on a real paper → replace with verified abstract-grounded language; post-cutoff-ness alone says nothing about existence or accuracy.
-6. **Re-sweep** after remediation — the verification pass is the only gate for this defect class.
+6. **Check corrected claims** against their primary sources. Repeat broader review when corrections expose a systematic problem.
 
 #### G. LaTeX Build Fixup — `! Missing $ inserted` from Underscores
 

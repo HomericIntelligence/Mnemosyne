@@ -1,10 +1,10 @@
 ---
 name: python-sca-pip-audit-update-transitive-lock
 license: BSD-3-Clause
-description: "Resolve GitHub Actions Python SCA / security-dependency-scan pip-audit failures caused by vulnerable transitive dependencies in a uv.lock OR pixi.lock file, including stale-lock propagation across sibling PRs after a red-main dep-fix merges. Use when: (1) python-sca or pip-audit fails with only a summary in the job log, (2) the failing package is transitive through a dev tool, (3) uv --locked reproduction needs cache paths redirected in a restricted sandbox, (4) a red-main dependency fix merged but sibling PRs branched before it still fail pip-audit on the OLD vulnerable lock (a plain rebase does not regenerate the lock), (5) a pixi.lock at format v7 fails CI's older pinned pixi with 'Lock-file version 7 is newer than supported'."
+description: "Remediate pip-audit findings with targeted transitive lockfile updates. Check artifact evidence and package-manager lock-format compatibility."
 category: ci-cd
 date: 2026-06-28
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-ci
 history: python-sca-pip-audit-update-transitive-lock.history
@@ -112,7 +112,8 @@ When a red `main` is fixed by a dependency-bump PR that adds/raises a constraint
 - **Constraint already allows the patched version** (e.g. `pydantic-settings >=2.0`, but the lock pins `2.13.1` which has `GHSA-4xgf-cpjx-pc3j`). A plain `pixi lock` re-solves with locked content and does **NOT** bump — you must run `pixi update <package>` (e.g. `pixi update pydantic-settings` → `2.14.2`) for a minimal targeted bump.
 - **Fix added an explicit pin in `pixi.toml`** (e.g. an explicit `msgpack >= 1.2.1` for `GHSA-6v7p-g79w-8964`, transitive via `cachecontrol`). Here, rebasing onto the fixed `main` brings the pin in, and a `pixi install` / `pixi lock` re-solve picks it up. (Even so, confirm the lock actually changed — a no-op rebase leaves the old pin.)
 
-**Batch this as one lock-regen sub-agent per repo** across the open PRs.
+Consider one isolated lock-regeneration task per repository when delegation is available
+and authorized. Sequential work is also suitable; preserve each repository’s lock context.
 
 ```bash
 # Reproduce the advisory (table is in $GITHUB_STEP_SUMMARY, not stdout):

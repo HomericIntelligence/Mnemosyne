@@ -1,10 +1,10 @@
 ---
 name: parallel-agent-myrmidon-swarm-orchestration
 license: BSD-3-Clause
-description: "Canonical guide to parallel-agent and Myrmidon swarm orchestration: wave-based dispatch, hierarchical tier assignment (Opus L0 → Sonnet L1/L2 → Haiku L4), agent prompt patterns, dispatcher discipline, multi-repo coordination. Use when: (1) dispatching 5+ parallel agents on independent tasks, (2) coordinating a multi-repo swarm operation, (3) designing tier assignments (Opus vs Sonnet vs Haiku), (4) ensuring deterministic dispatch without orchestrator hand-holding."
+description: "Coordinate independent agent tasks across repositories when ownership, resource limits, shared files, or stalled work needs management."
 category: tooling
 date: 2026-06-13
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-local
 history: parallel-agent-myrmidon-swarm-orchestration.history
@@ -50,6 +50,10 @@ tags: [merged, myrmidon, swarm, parallel-agent, l0-orchestrator, wave-execution]
 
 ### Quick Reference
 
+The command examples below record the original campaign. Its fixed wave and green-main
+comments are historical defaults; use the dependency and resource guidance below for the
+current task. Examples do not authorize publication or merge.
+
 ```bash
 # Pre-flight: main must be green before any dispatch
 gh run list --branch main --limit 5 --json conclusion,name,status
@@ -70,61 +74,39 @@ gh pr list --state open --author "@me" \
   --jq '.[] | "PR#\(.number):" + (.files | map(.path) | join(","))'
 ```
 
-### 1. Tier Assignment
+### 1. Match Capability to Work
 
-| Tier | Levels | Model | Role |
-|------|--------|-------|------|
-| L0 Commander | L0 | `opus` | Strategic decisions, wave sequencing |
-| Orchestrators | L1 | `sonnet` | Section coordination, classification |
-| Specialists | L2, L3 | `sonnet` | Design, analysis, code review, judgment |
-| Executors | L4, L5 | `haiku` | Mechanical fixes, bulk filing, format-only tasks |
+Choose an available executor suited to the task. Mechanical edits can use a smaller model;
+architecture and ambiguous diagnosis can benefit from a stronger one. Check actual tool
+capabilities rather than assuming that a model or role name implies write access.
 
-**Tier selection heuristics:**
+### 2. Size Waves by Independence and Resources
 
-- Use **Haiku** for mechanical tasks: ruff fix, format fix, single-file edits, `gh issue create`, `.gitignore` additions
-- Use **Sonnet** for tasks requiring judgment: classification, multi-file analysis, PR review, worktree recovery
-- Use **Opus** for L0 only — wave planning, gate decisions, cross-repo coordination
-- `subagent_type: general-purpose` is the ONLY type that has the full tool palette (Bash, Read, Edit, Write). Never use `feature-dev:code-reviewer` for audit or fix agents — they are read-only.
+Prefer disjoint file ownership and isolated worktrees for concurrent edits. Stage owned
+files so unrelated work stays intact. Size waves to the host, CI capacity, and API limits;
+five agents was a useful campaign setting, not a universal maximum.
 
-### 2. Wave Sizing and Dispatch Rules
+### 3. Inspect the Shared Baseline
 
-- **Max 5 agents per wave** when runner pool may be capped (GitHub free-tier: ~10-12 concurrent CIs saturates the pool)
-- **Single parallel batch** (all agents in one message) when harness concurrency is uncapped and tasks are file-disjoint
-- Each agent must get its own `isolation="worktree"` — never have two agents share a working tree
-- **Never `git add -A`** — stage specific files only
-- **Never `--no-verify`** — fix hook failures; pre-commit auto-fixers converge in 2-3 cycles
+Before dispatch, inspect relevant branch state, existing work, overlapping files, and
+resource use. A failing base or an open PR can affect a dependency without preventing
+independent investigation or implementation. Track the affected work explicitly.
 
-### 3. Pre-Dispatch Checklist
+### 4. Give Agents a Concrete Outcome
 
-Before launching any wave:
+A useful prompt states the requested result, owned paths, relevant context, actual
+constraints, and expected evidence. Give known APIs or commands when they reduce
+rediscovery, but let the executor investigate and adapt within scope. Continue through
+implementation and useful verification instead of returning only a plan.
 
-- [ ] `gh run list --branch main --limit 5` — all required checks SUCCESS
-- [ ] `gh pr list --state open --author "@me" --limit 50` — 0 stale PRs in BLOCKED/DIRTY (or drain first — see §5)
-- [ ] File disjointness verified against every in-flight PR's diff (see §6)
-- [ ] Runner pool not saturated: `gh run list --status in_progress --limit 20`
-- [ ] Wave size ≤5 (or confirmed uncapped harness)
+Include commit, push, PR, or merge steps only when the assignment authorizes those actions.
+Use the existing authorization for routine reversible work; ask only about a material
+unresolved decision or missing authority. Keep related improvement ideas separate from
+completion requirements.
 
-### 4. Agent Prompt Pattern (Anti-Stall)
+For multiline GitHub bodies, prefer a body file so shell quoting does not alter content.
 
-```
-IMPORTANT: DO NOT PLAN. EXECUTE IMMEDIATELY.
 
-1. Run: cat path/to/file
-2. Run: [exact edit]
-3. Run: pre-commit run --files path/to/changed/file
-4. Run: git checkout -b NNN-slug
-5. Run: git add path/to/changed/file
-6. Run: git commit -m "type(scope): description (Closes #NNN)"
-7. Run: git push -u origin NNN-slug
-8. Run: gh pr create --title "..." --body "Closes #NNN"
-9. Run: gh pr merge --auto --squash
-```
-
-- Use imperative `Run:` commands, never descriptive "Steps:" or "Plan:" sections
-- Use **Haiku** for mechanical tasks — Haiku over-plans far less than Sonnet
-- Start every mechanical prompt with `IMPORTANT: DO NOT PLAN. EXECUTE IMMEDIATELY.`
-- Include the current API signatures / correct values in every agent prompt — agents without this context waste tokens re-discovering what you already know
-- For body strings with apostrophes/single quotes: `--body-file /tmp/issue-body.md` not `--body '...'`
 
 ### 5. Session Resume — Drain In-Flight PRs First
 
@@ -151,8 +133,9 @@ done
 # Phase A.4 — only after 0 in-flight PRs, dispatch new waves
 ```
 
-**Rule:** Phase A (drain) must complete to 0 in-flight PRs before Phase B/C/D begins.
-New work atop unresolved PRs inherits broken state and saturates the runner pool.
+Prefer resolving overlapping or blocked PRs before adding dependent work. Independent tasks can
+proceed when their source and file ownership are clear and resources are available. An empty PR
+queue is not a prerequisite for useful progress.
 
 ### 6. File Disjointness Gate (Mid-Cascade Dispatch)
 
@@ -170,7 +153,7 @@ gh pr list --state open --author "@me" \
 | File class | Default risk | Action |
 |------------|--------------|--------|
 | `src/**`, core C++/Mojo source | High | Serialize if any in-flight PR touches `src/` |
-| `.github/workflows/*.yml` | Very high | Always queue |
+| `.github/workflows/*.yml` | Very high | Serialize overlapping workflow edits |
 | `docs/**`, OpenAPI specs | Low | Usually safe to parallelize |
 | Client SDK packages | Low | Usually safe |
 | Lockfiles (`pixi.lock`, `Cargo.lock`) | High | Serialize |
@@ -198,7 +181,7 @@ find . -type f \
 # 4. Assemble: weighted overall grade, GO/NO-GO
 ```
 
-GO/NO-GO criteria:
+Recorded campaign grading criteria (adapt to the current review purpose):
 
 | Verdict | Criteria |
 |---------|----------|
@@ -228,7 +211,8 @@ git diff --staged --stat
 | MM (auto-fixer cycle) | `MM src/...` | Re-stage: `git add -u && git commit -m "..."` (may need 2-3 cycles) |
 | Mid-investigation | (empty) but summary captured | Treat like Empty, use insight to drive manual fix |
 
-**NEVER read the agent's transcript file** — it will overflow context.
+Prefer compact reports and targeted transcript excerpts when diagnosing a stalled agent; avoid
+loading an entire long transcript without a concrete need.
 **NEVER use `--no-verify`** — auto-fixers converge after 2-3 cycles.
 
 Token heuristic: `< 500 tokens` → empty worktree → restart; `> 60k tokens` → recover-and-finish.
@@ -258,7 +242,8 @@ gh issue create \
 
 ### 10. Pre-Classification for Large Backlogs (20+ issues)
 
-Before fix waves, classify all issues using 3 parallel Sonnet agents (~22 issues each):
+For a large backlog, consider a small classification pass grouped by independent domains.
+The recorded campaign used three agents, each handling about 22 issues:
 
 ```
 Classify each issue LOW / MEDIUM / HIGH / N/A:
@@ -271,9 +256,9 @@ Return a markdown table:
 | #N | Title | LOW/MEDIUM/HIGH/N/A | one-sentence rationale |
 ```
 
-Run all 3 classifier agents in a single message; wait for all 3 before proceeding to fix waves.
-
-Fix waves run in order A → B → C → D (docs → config → code → tests). Wave A PRs often merge before Wave D starts, minimizing CI queue contention.
+Start authorized fixes as their scope and dependencies become clear. Independent work need not
+wait for every classification result. Choose ordering from actual dependencies; the recorded
+docs/config/code/tests sequence was a campaign choice.
 
 ### 11. Multi-Repo / Submodule Swarm
 
@@ -327,7 +312,9 @@ grep -n '<symbol>' <claimed-file>
 # Step 5 — Write plan as deliverable (NOT ExitPlanMode — that's for implementation plans only)
 ```
 
-Sub-agent claims must be spot-verified — ~3 of 4 agents will have at least one inverted or already-mitigated finding. Budget ~2-5 verifications per agent claim.
+Check agent findings against their cited evidence before acting on them. Sample low-impact
+claims when appropriate and inspect consequential claims directly; avoid assuming a universal
+agent error rate or a fixed number of checks.
 
 ### 14. Agent Lifecycle Hooks
 
@@ -364,17 +351,17 @@ dynamic branching based on discovered state.
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 |---------|----------------|---------------|----------------|
-| 1 | Dispatched new waves while 6 PRs still BLOCKED | New PRs inherited broken state; runner pool saturated at 14 concurrent CIs; cascade rebase required for every PR | Drain ALL in-flight PRs to MERGED before launching new waves. Token cost of waiting < cost of rebase chaos. |
+| 1 | Dispatched new waves while 6 PRs still BLOCKED | New PRs inherited broken state; runner pool saturated at 14 concurrent CIs; cascade rebase required for every PR | Resolve overlapping dependencies and watch runner capacity; independent work can continue. |
 | 2 | Skipped pre-flight main-is-green check | Main was broken; all 6 downstream PRs inherited the failure; 90+ min to detect | Always `gh run list --branch main --limit 3` before any rebase or new wave. |
 | 3 | Trusted agent-reported PR numbers | Two parallel agents both reported "PR \#120"; actual PRs had different numbers | After every wave: `gh pr list --author "@me" --state all --limit 50` for ground truth. |
-| 4 | Read stalled agent's JSONL transcript | System reminder forbids it: would overflow context | Inspect stalled agent state via `git status --short` and `git diff --staged`, never via transcript |
+| 4 | Read stalled agent's JSONL transcript | System reminder forbids it: would overflow context | Prefer worktree state and compact reports; read targeted transcript excerpts only when useful. |
 | 5 | `rm -rf` cleanup in stalled worktree | Safety Net blocked: "rm -rf outside cwd is blocked" | Use `git rm` or trust `.gitignore` — `__pycache__` is gitignored anyway |
 | 6 | Spawned fresh agent for stalled task with 60k+ tokens | Wasted tokens for work the worktree already had ~50% done | Inspect worktree first; recover-and-finish usually cheaper than restart |
-| 7 | Used `feature-dev:code-reviewer` for audit agents | Read-only subagent; lacks Bash tool; cannot run `find`, `gh issue list`, `git log` | Always use `subagent_type: general-purpose` for audit agents — full tool palette is non-negotiable |
+| 7 | Used `feature-dev:code-reviewer` for audit agents | Read-only subagent; lacks Bash tool; cannot run `find`, `gh issue list`, `git log` | Choose an available agent with the tools the assignment needs. |
 | 8 | Launched all 15 audit agents at once on a capped harness | Extras queued or failed on harnesses capping at 5 concurrent agents | Check harness limits first; fall back to 3 waves of 5 if needed |
 | 9 | Dispatching same-file remediations in parallel | Second PR required two manual rebases before merge | Same-file = serialize. File-level disjointness is the only reliable signal — line ranges don't matter. |
 | 10 | Re-snapshot skipped before dispatch | Two in-flight PRs merged in the interim; new cluster claimed a file now in-flight | Re-snapshot in-flight PRs IMMEDIATELY before dispatch, not from a 30-min-old snapshot |
-| 11 | Used Sonnet agents with descriptive "Steps:" prompts | Agents paused to present plans instead of executing | Rewrite prompts as explicit `Run: <shell command>` lines with `IMPORTANT: DO NOT PLAN.` header; use Haiku for mechanical tasks |
+| 11 | Used Sonnet agents with descriptive "Steps:" prompts | Agents paused to present plans instead of executing | Specify the concrete implementation outcome and let the agent adapt its method within scope. |
 | 12 | Bulk `gh issue create` with commas in a single `--label` | Labels silently not applied or rejected | Pass one `--label` flag per label; use `--body-file` for apostrophe-containing bodies |
 | 13 | Committing submodule changes from parent repo root | "Pathspec is in submodule" error | Submodule commits must happen inside the submodule's own git context |
 | 14 | Letting audit agents pick their own files (no bucket list) | Overlap (same file audited twice) and gaps (files audited zero times) | Pre-bucket every file into exactly one section list before dispatch |
@@ -418,7 +405,7 @@ Pre-commit MM cycle (staged + unstaged after auto-fixer) is normal — re-stage 
 | Tier | Cap | Action |
 |------|-----|--------|
 | GitHub free-tier ubuntu runners | ~10-12 concurrent CIs | Stay below; beyond this, jobs sit in `queued` |
-| Wave size (safe) | ≤5 agents | Default for all swarm operations |
+| Recorded bounded wave | ≤5 agents | Adjust to current resources and task independence |
 | Wave size (uncapped harness) | 15 agents | Verified on ProjectAgamemnon 2026-05-17 |
 
 ### Auto-Merge Flags by Repo Policy

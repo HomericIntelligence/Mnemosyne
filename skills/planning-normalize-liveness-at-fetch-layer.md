@@ -1,10 +1,10 @@
 ---
 name: planning-normalize-liveness-at-fetch-layer
 license: BSD-3-Clause
-description: "When a pure classifier / state-machine consumes a fact object assembled from an external API, derive the minimal orthogonal signals at the FETCH / normalization layer so no contradictory or ambiguous combination can reach the classifier — don't push a raw over-rich fact bag (e.g. `pr_number` + `pr_is_open` + `pr_is_merged` as three independent fields) into the classifier and then rely on it to guard every impossible combination. Use when: (1) designing a pure classifier that consumes a facts dataclass built from GitHub / a DB / any external API, (2) the fact object carries an identifier field PLUS separate boolean liveness flags that can combine into a state the classifier doesn't explicitly handle, (3) a plan reviewer flags a 'falls through / silently misclassifies' path for an edge combination (closed PR, draft PR, deleted-but-cached row), (4) you are tempted to add a guard clause inside a pure function to reject an 'impossible' input — normalize upstream instead, (5) reconstructing in-memory queues from a durable journal (GitHub-as-journal) where the fetch layer already exists and can collapse states cheaply, (6) any 'make illegal states unrepresentable' boundary-normalization decision. This is a plan-review NOGO finding on ProjectHephaestus #1813 (pipeline seeding + admission control), not a shipped fix."
+description: "Normalize external facts before classification when identifiers and independent state flags can represent contradictory states."
 category: architecture
 date: 2026-07-04
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags:
@@ -85,7 +85,8 @@ RULE:   normalize at the producer boundary; defend nothing at the consumer.
 
 5. **Apply the same collapse to every consumer path.** The normalization lives once in the fetcher, so both seeding AND restart reconstruction (queue rebuild from the GitHub journal) inherit it for free. Do not re-derive liveness at each call site.
 
-6. **Watch for the recurring smell in review.** If you find yourself adding `if pr_number is not None but not open and not merged` (or any "reject the impossible input") guard inside a pure function, stop — that guard must be repeated at every consumer. Move the collapse to the fetch layer instead.
+6. **Watch for the recurring smell in review.** If you find yourself adding `if pr_number is not None but not open and not merged` (or any "reject the impossible input") guard inside a pure function, consider whether the guard would recur at other consumers. Prefer normalization at the shared
+   fetch boundary when it preserves the required distinctions.
 
 This pattern complements `architecture-github-labels-as-state-vocabulary` — that skill covers the ordered-rank pure-classifier that reads mutually-exclusive `state:*` labels; this skill covers making the OTHER inputs to that same classifier (the PR liveness signals) unable to express a contradiction. Where a consumer must instead branch on a genuinely closed sum type, see `exception-discriminator-enums-state-machine-pola` for keeping that dispatch total and POLA-compliant.
 

@@ -1,10 +1,10 @@
 ---
 name: pydantic-basemodel-to-dataclass-behavioral-parity
 license: BSD-3-Clause
-description: "Swapping a pydantic BaseModel for a stdlib @dataclass is NOT a behavioral drop-in: pydantic v2 silently IGNORES unknown kwargs and COERCES str/int -> float, while a dataclass raises TypeError on both. Use when: (1) removing pydantic from a package's base dependencies to satisfy an import/automation boundary, (2) replacing a BaseModel config/event model with @dataclass, (3) a loader does Model(**yaml_dict) with possibly-extra keys or string-typed numeric fields, (4) planning an audit-remediation that claims a validation-library swap has no behavior change."
+description: "Preserve configuration behavior when replacing Pydantic models with dataclasses, especially coercion, extra fields, and callers."
 category: architecture
 date: 2026-07-01
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags: [pydantic, dataclass, basemodel, behavioral-parity, dependency-strip, coercion, audit-remediation, config-loading, tdd]
@@ -74,7 +74,8 @@ grep -rn "pydantic\|BaseModel" hephaestus/ | grep -v "hephaestus/automation/"
 
 1. **Map the blast radius.** To drop a package from base deps, ALL library-layer (non-product)
    usages must go first. `grep -rn "pydantic\|BaseModel" <pkg>/ | grep -v <product-layer>`
-   to confirm exactly which files change. Do not start editing until this number is known.
+   to identify affected consumers. Keep the migration inventory current as implementation
+   reveals more callers; an exact initial file count is not a prerequisite for useful work.
 2. **Handle unknown-key tolerance (parity gap #1).** pydantic v2 `BaseModel` silently
    IGNORES extra/unknown kwargs by default. A stdlib `@dataclass` raises `TypeError` on any
    unexpected keyword. If any loader does `Model(**arbitrary_dict)`, filter the dict to known

@@ -1,10 +1,10 @@
 ---
 name: ci-cd-load-bearing-filename-nitpick-document-dont-rename
 license: BSD-3-Clause
-description: "Use when: (1) an audit/lint/review NITPICK proposes renaming a file or symbol 'for discoverability/clarity' — first check whether the name is a load-bearing CROSS-REPO convention before planning the rename, (2) the candidate name is wired into branch-protection rulesets, CI status-check contexts, runbooks, canonical-checks docs, or sibling/fleet repos — the right fix is to make the name self-documenting (header comment + rationale at the source-of-truth doc), NOT to rename, (3) you must SCOPE the blast radius of a rename and need to distinguish a FILENAME change (cosmetic: breaks docs/runbook references + fleet uniformity) from a JOB-NAME change (load-bearing: breaks ruleset status-check contexts, which key off the BARE JOB NAME, not the workflow filename), (4) you are about to claim N files are 'identical across the fleet' from a single-line grep match — matching a workflow NAME or a header line is NOT byte-identity; the convention is the job-name CONTRACT, not literal file equality. Headline: a discoverability rename against a cross-repo convention has disproportionate blast radius and can deadlock ruleset rollout — DOCUMENT the rationale instead of renaming."
+description: "Assess clarity-driven renames when filenames or job names participate in cross-repository CI, documentation, or branch-protection contracts."
 category: ci-cd
 date: 2026-06-19
-version: "1.2.0"
+version: "1.3.0"
 user-invocable: false
 verification: verified-local
 history: ci-cd-load-bearing-filename-nitpick-document-dont-rename.history
@@ -47,7 +47,7 @@ tags:
 
 ## When to Use
 
-- An **audit/lint/review NITPICK** says "rename file X / symbol Y **for discoverability** (or clarity)" and X/Y looks arbitrary — STOP and check whether the name is a load-bearing convention before you plan the rename.
+- An **audit/lint/review NITPICK** says "rename file X / symbol Y **for discoverability** (or clarity)" and X/Y looks arbitrary — inspect its consumers to decide whether a rename or a short explanation better serves the task.
 - The candidate name appears in **branch-protection rulesets, CI status-check contexts, runbooks, canonical-checks docs, or sibling/fleet repos**. If so, prefer making the name self-documenting (header comment + rationale doc) over renaming.
 - You need to **scope the blast radius** of a rename and must separate FILENAME impact (cosmetic) from JOB-NAME impact (load-bearing) — they are NOT the same in GitHub Actions branch protection.
 - You are about to assert "these N files are identical across the fleet" from a **single grep line match** (workflow `name:`, a header line) — that is a NAME/CONTRACT match, not byte identity.
@@ -102,7 +102,7 @@ for d in */*/; do
       | sed "s|^|$d: |"
 done
 
-# 2. If ANY of (a)/(b)/(c) is true => DO NOT RENAME. Instead DOCUMENT:
+# 2. When preserving a useful convention, documentation may suffice:
 #    - Add a self-documenting header comment to the file explaining WHY the name
 #      is canonical and load-bearing (and that renaming has cross-repo blast radius).
 #    - Add/strengthen the rationale at the SOURCE-OF-TRUTH doc (canonical-checks
@@ -134,19 +134,17 @@ grep -nE 'markdownlint' .github/workflows/ci.yml   # confirm the real md-lint sc
 
 ### Detailed Steps
 
-1. **Pause on the word "discoverability."** A rename-for-clarity nitpick against an
-   inscrutable-looking name is a trap: the name is often inscrutable *because* it is a
-   terse, load-bearing convention. Treat "rename for discoverability" as a prompt to
-   *investigate the name's role*, not as an approved task.
+1. **Inspect the name's role.** A clarity request may be satisfied by a rename or a short
+   explanation. Existing conventions and consumers help identify the least disruptive
+   change that fulfills the request.
 2. **Establish whether the name is a cross-repo convention.** Check the three carriers:
    (a) branch-protection rulesets / required status-check contexts, (b) runbooks +
    canonical-checks / onboarding docs, (c) sibling repos in the fleet. Any hit means the
    name is part of a contract.
-3. **If it is a convention → DOCUMENT, do not rename.** The correct resolution of a
-   discoverability nitpick against a cross-repo convention is to make the name
-   *self-documenting*: a header comment in the file explaining why the name is canonical
-   and load-bearing, plus a rationale paragraph at the source-of-truth doc. This delivers
-   the discoverability the nitpick wanted, at near-zero blast radius.
+3. **Consider documenting a useful convention.** A short explanation can satisfy a
+   discoverability request with less disruption. When a rename better serves the requested
+   outcome, update affected consumers and distinguish filename references from job-name
+   contracts.
 4. **Scope blast radius precisely — separate filename from job names (VERIFIED).** In
    GitHub Actions branch protection, the required status-check context is **derived from
    each job's `name:` value**, NOT the workflow filename. Renaming the **file** breaks

@@ -1,13 +1,10 @@
 ---
 name: haiku-batch-worktree-agents
 license: BSD-3-Clause
-description: 'Run 4 parallel Haiku sub-agents in persistent git worktrees to implement
-  60-80 GitHub issues in one session. Use when: (1) closing a large backlog of 50+
-  low-complexity issues, (2) persistent worktrees already exist, (3) agents need resume-loop
-  to overcome token limits.'
+description: "Coordinate independent issue batches in isolated worktrees when delegation is available; resume unfinished work and preserve ownership, dependencies, and validation boundaries."
 category: ci-cd
 date: 2026-03-15
-version: 1.0.0
+version: "1.1.0"
 user-invocable: false
 ---
 ## Overview
@@ -42,7 +39,8 @@ user-invocable: false
 
 ### Step 1: Reset Worktrees
 
-**Critical**: Use `git switch` not `git checkout` (safety net hook blocks `git checkout`).
+Inspect existing work before reusing a worktree. The source session used `git switch` under its
+host policy; use currently authorized operations and preserve unfinished changes.
 
 ```bash
 # Agent-1 worktree can switch to main directly
@@ -69,15 +67,15 @@ git switch -c batch-agent4-reset origin/main
 tracking branches. Creating a fresh `batch-agentN-reset` branch from `origin/main` achieves
 the same clean state.
 
-### Step 2: Launch 4 Haiku Agents in Parallel
+### Step 2: Delegate Independent Batches When Useful
 
-Send a single orchestrator message with all 4 `Agent` tool calls using `model: "haiku"` and
-`run_in_background: true`.
+Choose agent count, model, and batch size from task complexity and available capacity. The source
+session used four Haiku agents; that configuration is an example, not a prerequisite.
 
-**Agent prompt must include**:
+**Useful context for each agent**:
 1. Exact worktree path (`/path/to/worktrees/agent-N-batch`)
 2. Current branch state (e.g., "already on `batch-agent2-reset` tracking `origin/main`")
-3. Issue list (20 issues per agent)
+3. A bounded issue list sized to the work
 4. Dependency ordering (e.g., "do #3906 before #3907")
 5. File contention warnings
 6. Complete per-issue workflow (see template below)
@@ -87,14 +85,16 @@ Send a single orchestrator message with all 4 `Agent` tool calls using `model: "
 ```bash
 # For each issue N:
 gh issue view {N} --comments                    # Read the issue
-gh pr list --search "#{N}" --state all          # Skip if PR exists
+gh pr list --search "#{N}" --state all          # Inspect existing PR and continue unfinished work
 git fetch origin
-git switch -c {N}-description origin/main       # Fresh branch from main
+# If no suitable branch/PR exists, create one; otherwise use the existing work:
+git switch -c {N}-description origin/main
 # ... make changes ...
-cd /path/to/main/repo && pixi run pre-commit run --files <files>
+cd /path/to/worktrees/agent-N-batch && pixi run pre-commit run --files <files>
 cd /path/to/worktrees/agent-N-batch
 git add <specific-files>                        # NEVER git add -A
 git commit -m "type(scope): description"
+# When publication is authorized and a new PR is needed:
 git push -u origin {N}-description
 gh pr create --title "..." --body "$(cat <<'EOF'
 Brief description.
@@ -102,19 +102,21 @@ Brief description.
 Closes #{N}
 EOF
 )"
+# When auto-merge is authorized and the repository permits this method:
 gh pr merge --auto --rebase
 ```
 
-**Critical rules to include in every agent prompt**:
-- `NEVER use git add -A or git add .`
-- `NEVER use --no-verify`
-- `Each Closes #N on its own line in PR body`
-- `Use Write tool (not Edit) for .github/workflows/*.yml files`
-- `pre-commit runs from main repo dir, not worktree`
+**Preserve the applicable boundaries**:
+- Prefer explicit staging paths to keep unrelated files and secrets out of commits.
+- Keep required repository checks enabled; report unavailable checks accurately.
+- Use the current repository’s closing-reference and commit conventions.
+- Respect host tool restrictions rather than changing tools to evade a restriction.
+- Run checks against the actual edited source through the authorized validation mechanism.
 
 ### Step 3: Resume Loop
 
-Haiku agents exhaust their context window after 10-15 issues. Orchestrator must resume:
+If an agent exhausts its context or stops with unfinished work, inspect its result and resume or
+reassign the remaining scope. The source session observed this after roughly 10–15 issues:
 
 ```python
 # When agent completes notification arrives:
@@ -133,7 +135,8 @@ Remaining issues to process:
 #X1, #X2, #X3, ...
 
 For each issue: [same workflow as original prompt]
-Process ALL of them. Skip only if PR already exists or requires >50 lines of complex new algorithm.
+Work toward completion of the remaining authorized issues. Reuse existing PR work where useful.
+Resolve routine design choices from the repository; report material blockers and continue independent work.
 ```
 
 **Typical resume count**: 3-5 resumes per agent to complete 20 issues.
@@ -154,21 +157,18 @@ the dependency in both agents' prompts.
 
 ### Step 5: Handle Skipped Issues
 
-Some issues will be skipped as "too complex" on first pass. On resume, push agents harder:
-
-- "Read the issue again — many are simpler than they appear"
-- "Even a partial implementation counts"
-- "Creating a new script is fine"
-- "Skip only if there is genuinely an open PR already or requires >50 lines"
+Re-examine skipped issues using current code and requirements. Complexity or a line count alone
+does not make an issue complete or blocked. Continue useful implementation, reuse existing work,
+and distinguish partial progress from completion.
 
 Typical skip reasons and responses:
 
 | Agent Says | Orchestrator Response |
 | ------------ | ---------------------- |
 | "References non-existent files" | "The issue may be asking to CREATE those files" |
-| "Requires extensive auditing" | "A partial audit with findings documented is valid" |
+| "Requires extensive auditing" | Break the remaining review into bounded scopes and record what remains |
 | "Complex algorithm" | "Read the issue — may want validation/error only, not full impl" |
-| "Requires design decisions" | "Implement the minimal version, create issue comment for design" |
+| "Requires design decisions" | Resolve routine choices from evidence; ask only about consequential unresolved intent |
 
 ## Results & Parameters
 
@@ -212,8 +212,8 @@ Typical skip reasons and responses:
 ### Pre-commit Configuration
 
 ```bash
-# Run pre-commit from main repo dir, not worktree
-cd /path/to/main/repo
+# Run applicable checks against the edited source worktree
+cd /path/to/worktrees/agent-N-batch
 pixi run pre-commit run --files <specific-files>
 
 # Workflow files (.github/workflows/*.yml) — use Write tool due to safety hook
@@ -226,6 +226,6 @@ pixi run pre-commit run --files <specific-files>
 | --------- | ---------------- | --------------- | ---------------- |
 | `git checkout main` in worktrees 2-4 | Reset all worktrees to main using checkout | Safety net hook blocked `git checkout` with branch args; also only one worktree can be on main | Use `git switch -c batch-agentN-reset origin/main` for worktrees that can't be on main |
 | Single large agent prompt (20 issues, no resume plan) | Expected one agent invocation to handle all 20 issues | Haiku exhausts context after ~10 issues and stops | Build in resume loop from the start; expect 3-5 resumes per agent |
-| Treating all "skipped" issues as truly complex | Accepting agent's first pass skip classification | Many "complex" issues were actually simple when re-read with better framing | Resume with explicit framing: "even partial implementation counts", "creating scripts is fine" |
+| Treating all "skipped" issues as truly complex | Accepting agent's first pass skip classification | Many "complex" issues were actually simple when re-read with better framing | Resume with the unfinished outcome and relevant context; preserve partial work while continuing toward completion |
 | `git add -A` in agent prompts | Convenience shorthand for staging | Could accidentally include `.env`, caches, build artifacts | Always explicitly list files in `git add <specific-files>` |
 | Using `git rebase origin/main` on worktrees with prior branch | Rebasing `3897-glob-discovery` branch instead of clean main | Picked up in-progress commits from prior round causing conflicts | Always create fresh `origin/main` tracking branch, not rebase old branches |

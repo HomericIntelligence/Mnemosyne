@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Profile and bound Hephaestus automation-loop cost for large issue backlogs. Use when: (1) launching an audit-sized issue sweep, (2) a loop seems slow and tests may be blamed, (3) choosing worker count or phase scope, (4) automatic learn work dominates wall time."
 category: tooling
 date: 2026-07-15
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [hephaestus, automation-loop, performance, backlog, codex, observability, batching]
@@ -58,7 +58,9 @@ rg -n 'completed|implementation|test|learn|failed|duration' build/.issue_impleme
 4. **Break down the slowest jobs by phase.** Inspect implementation/test and automatic `/learn` jobs separately. A slow test-labelled agent job often contains implementation, analysis, review, and tool time; it is not evidence that the repository test suite itself is slow.
 5. **Run the actual test suite as a separate measurement.** Use a direct unit-suite invocation and retain its elapsed time/output. Compare it with the job-level phase timings rather than attributing the whole loop duration to tests.
 6. **Decide the next wave from evidence.** If automatic `/learn` or complex implementation work dominates, reduce scope, group homogeneous issues, and defer or disable optional learning work through the applicable loop policy/configuration. Do not merely raise worker count: it increases concurrent agent spend and may not improve the serial slow-job path.
-7. **Only then expand.** Launch the next bounded wave after the prior wave's failures have been turned into concrete, deduplicated GitHub issues and its timing data has been reviewed.
+7. **Expand from evidence.** Use timing and failure information to size the next wave.
+   Track unresolved failures when useful and authorized; issue publication need not
+   block unrelated work.
 
 ## Failed Attempts
 

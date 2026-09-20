@@ -1,10 +1,10 @@
 ---
 name: gcovr-lcov-excl-region-exclusion
 license: BSD-3-Clause
-description: "Replace file-level gcovr excludes with fine-grained LCOV_EXCL_START/STOP region markers so complex C++ files stay inside the coverage gate, excluding only regions provably unreachable without a live external dependency. Use when: (1) removing a file-level `--exclude foo.cpp` from a gcovr coverage gate and replacing it with fine-grained LCOV_EXCL_START/STOP markers, (2) deciding which regions to exclude vs leave measured when code requires a live external service (broker/DB) to execute, (3) a reviewer flags measured-but-provably-unreachable lines or 'covered by integration tests' comments that assert nonexistent coverage, (4) coverage numbers must be evidenced reviewer-visibly (PR body / --print-summary)."
+description: "Replace broad C++ coverage exclusions with justified LCOV regions when external dependencies make specific paths unavailable to unit tests."
 category: ci-cd
 date: 2026-07-02
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [gcovr, lcov-excl, coverage-threshold, cpp, ctest, fail-under-line, coverage-exclusion, live-dependency-code, review-driven]
@@ -51,7 +51,7 @@ gcovr --root . --filter include --filter src --json -o /tmp/cov.json build/cover
 pip install 'gcovr==8.6'
 ```
 
-Marker form (the "why" comment is mandatory):
+Suggested marker form with an explanation of the excluded region:
 
 ```cpp
 // LCOV_EXCL_START — <why unreachable in unit tests>
@@ -66,11 +66,11 @@ Marker form (the "why" comment is mandatory):
 3. **Apply the exclusion-boundary rules learned from review:**
    - If a function's ONLY caller is itself excluded, exclude the WHOLE function including its entry/guard. Verify the call graph yourself — do not trust a plan's claim that teardown paths exercise it (a plan claimed `close()` exercised a guard; `close()` never called that function).
    - Library callbacks that fire only for an established connection (e.g. nats.c `ClosedCB` when `conn_` is always `nullptr` in unit tests) are provably unreachable — exclude them rather than leaving ~20 measured-but-uncovered lines.
-   - Exclusion comments must NOT assert "covered by integration tests" when no such suite exists. Write future tense with a tracking issue — "to be covered by integration tests (#NNN)" — and create the follow-up issue if it is missing.
+   - Exclusion comments must NOT assert "covered by integration tests" when no such suite exists. Describe missing coverage honestly. Link an existing tracking issue if available; propose a follow-up separately and publish it only within authorized scope.
 4. **Pin gcovr in CI** via `pip install 'gcovr==8.6'` and remove the apt gcovr package (Ubuntu 24.04's apt version drifts from the version the marker placement was tested against). Add `--print-summary` to the gate step.
-5. **Mandatory pre-flight before pushing:** run the EXACT CI gate invocation locally (see Quick Reference) and require exit 0. Never lower the threshold, never re-add the file exclude — widen markers only for genuinely live-only regions.
+5. **Check the actual coverage contract:** use the CI invocation where the environment permits it, and report any coverage gap. Keep the threshold and meaningful measurement intact; widen exclusions only for evidenced live-only regions.
 6. **Marker-effectiveness check:** generate gcovr JSON and assert the file has `gcovr/excluded` lines > 0 (catches syntactically-wrong markers being silently ignored); keep `grep -c LCOV_EXCL_START` equal to `grep -c LCOV_EXCL_STOP`.
-7. **Post evidence reviewer-visibly:** paste the `--print-summary` numbers and the green workflow-run link into the PR body. Reviewers WILL block on unverified threshold claims.
+7. **Report coverage evidence:** include available `--print-summary` results and workflow links in the requested review artifact. Distinguish measured results from pending verification.
 8. **Re-anchor every region semantically at edit time.** Plan line numbers go stale (the file drifted ~75 lines between plan and implementation) — grep for the function name instead; never edit by line number.
 
 ## Failed Attempts
@@ -87,7 +87,7 @@ Marker form (the "why" comment is mandatory):
 ### Configuration
 
 ```bash
-# CI gate invocation (the exact command that must exit 0 locally before pushing)
+# Recorded CI invocation; use applicable authorized validation and report coverage gaps
 gcovr --root . --filter include --filter src \
   --exclude src/server_main.cpp \
   --gcov-ignore-parse-errors=negative_hits.warn \

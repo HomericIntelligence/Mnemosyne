@@ -1,10 +1,10 @@
 ---
 name: planning-pr-body-extract-sibling-artifact-at-runtime
 license: BSD-3-Clause
-description: "When planning a PR-open task whose body must embed content produced by an UPSTREAM sibling issue (loss log, benchmark table, verification transcript, dataset checksum), the plan MUST specify a run-time extraction pipeline that pulls the artifact from `gh issue view <sibling> --comments` at execute time, via an explicit placeholder token (e.g. `<<LOSS_LOG>>`) that the create-PR step substitutes; the plan MUST NOT include an illustrative numeric example inline with a hedging note telling the executor to overwrite it. Illustrative values leak into shipped PRs when the hedging note is skimmed. The dependency guard is a TWO-part check: (a) `gh issue view <sibling> --json state -q .state == \"CLOSED\"` AND (b) the sibling's comments contain a well-defined sentinel section (e.g. `## Loss Log`, `## Verification Transcript`, `## Benchmark Results`) that carries the artifact; a CLOSED-as-duplicate or CLOSED-as-wontfix sibling passes (a) but fails (b), and the plan must abort with a specific verdict message on either failure. Use when: (1) planning a `Closes #N` PR-open task where the PR body must cite quantitative evidence produced by a sibling verification/validation task, (2) the PR body template has a section (loss log, benchmark table, checksum) whose CONTENT lives in a dependent issue's comments not in the branch, (3) any planning session where you catch yourself writing example numbers inline with a note saying 'the executor must replace these before creating the PR', (4) a dependent PR-open task where the sibling is `CLOSED` but you have not confirmed the required artifact section actually exists in its comments."
+description: "Populate PR evidence from dependent artifacts when placeholders, missing results, or unchecked numerical claims could produce a misleading report."
 category: architecture
 date: 2026-07-02
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: unverified
 tags:
@@ -41,9 +41,9 @@ tags:
 - The PR body is authored by an EXECUTING agent that runs `gh pr create --body-file <path>`; the body template needs a slot filled from data outside the branch.
 - You catch yourself in a plan writing "example: epoch 0 | step 0 | loss = 6.9412 …" followed by "the executor must overwrite this with real values from `gh issue view <N> --comments` before creating the PR."
 - The dependent sibling issue is `CLOSED` but you have not confirmed the specific artifact section is present in its comments (guards against duplicate/wontfix closures).
-- You are tempted to write a **conditional prose override** ("if the numeric values above differ from what #N captured, the executing agent must overwrite this block") — this is the exact anti-pattern this skill's v1.1.0 amendment addresses: replace conditional overrides with unconditional structural gates.
+- You are tempted to write a **conditional prose override** ("if the numeric values above differ from what #N captured, the executing agent must overwrite this block") — prefer inserting the actual artifact directly. Add a structural check when the consumer needs that property.
 - You are extracting a sentinel section from the sibling's comment stream using a next-heading heuristic (`sed -n '/## Loss Log/,/^## /p'`) — this greedily runs to the next `##` or EOF and silently swallows adjacent content. Use a **paired begin/end sentinel** (`## Loss Log` … `## End Loss Log`) instead.
-- The plan's PR body asserts a **property** of the extracted artifact ("loss is monotone-decreasing", "N tensors were validated", "exit code was 0", "no warnings emitted") — that property must be verified by a structural check on the extracted artifact BEFORE embedding, not asserted in prose after.
+- The plan's PR body asserts a **property** of the extracted artifact ("loss is monotone-decreasing", "N tensors were validated", "exit code was 0", "no warnings emitted") — support that claim with evidence from the actual artifact. An automated check can help when the property is machine-verifiable; otherwise state the evidence and its limits.
 
 ## Verified Workflow
 
@@ -55,6 +55,10 @@ tags:
 > each against your specific sibling issue's comment structure before trusting it.
 
 ### Quick Reference
+
+This historical example has a closed-sibling requirement and a monotonic-loss claim. Use those
+checks only when the actual task requires them. A failed extraction holds the dependent report
+step; it does not stop independent implementation or require another user approval.
 
 ```bash
 # 1. Dependency guard — TWO parts (both must pass):
@@ -111,8 +115,11 @@ gh pr create --body-file pr-body.md --title "..." --label "..."
 ### Detailed Steps
 
 1. **In the plan document**, define the PR body template as a file the executing agent will materialize. Every value the executor cannot derive from the branch itself becomes a `<<TOKEN>>` placeholder (all-caps, angle-bracketed twice, distinct from `${VAR}` shell syntax).
-2. **Never** include example numeric values inline. Not even with a hedging note. Reviewers may skim the hedge and treat the example as truth; executors may forget to replace it. A missing placeholder MUST fail the create-PR step, so the failure mode is loud.
-3. Define the **sibling-artifact extraction** as a two-part guard: (a) state check (`state == CLOSED`), (b) sentinel-section presence in comments. Both must pass — a CLOSED-as-duplicate or CLOSED-as-wontfix sibling passes (a) but fails (b).
+2. Keep example values separate from report-ready evidence. Prefer a clear placeholder or an
+   explicit missing-evidence statement so a reader cannot mistake examples for measurements.
+3. Check that the intended artifact exists and matches the dependency contract. Issue closure
+   alone does not prove this. Check for `CLOSED` only if the current workflow requires that
+   state; otherwise use the artifact's actual completeness and provenance.
 4. Choose the **sentinel section heading** to match what the sibling task's PLAN specifies as its deliverable — e.g. if the sibling is a "validation task" whose deliverable is "post a `## Loss Log` comment on the issue," the sentinel is `## Loss Log`. Sentinel names should be documented in a plan glossary so upstream planners know the expected section names.
 5. Add a **final substitution guard** that greps the assembled body for any surviving `<<` before invoking `gh pr create` — a leaked placeholder is a broken PR body, not a shipping incident.
 6. **In review**, the substitution log (which artifact came from which sibling comment) should be captured in the PR body itself as a footnote so the merge reviewer can audit provenance without re-running the pipeline.
@@ -121,7 +128,8 @@ gh pr create --body-file pr-body.md --title "..." --label "..."
 
 An instruction of the form "*if X differs from Y, the executor MUST do Z*" is a **conditional-override** gate: it only fires if the executor NOTICES the mismatch. Executors skim. Reviewers skim. Conditional gates fail silently the moment attention lapses.
 
-Replace every conditional-override in the plan with an **unconditional structural gate** — a check that fires regardless of executor attention:
+For generated evidence, consider structural checks where they prevent misleading output.
+The recorded examples below illustrate that approach, not a rule for every conditional instruction:
 
 | Conditional (weak) | Structural (strong) |
 | ---- | ---- |
@@ -129,7 +137,9 @@ Replace every conditional-override in the plan with an **unconditional structura
 | "if the file list above is not exhaustive, the executor MUST update it" | `<<CHANGED_FILES>>` + render step `git diff --name-only <base>...HEAD > /tmp/files` + gate on token |
 | "if the referenced compat wrapper is missing, the executor MUST use SKIP=" | `[ -x scripts/compat.sh ] || export SKIP=HOOK_ID` up-front, no conditional prose |
 
-The rule: if you catch yourself writing "if X, the executor MUST Y" in a plan, either **remove the illustrative differing content entirely** (so nothing NEEDS to be replaced) OR **replace it with a placeholder + gate that fails when unresolved**.
+Prefer removing misleading example content or using clear placeholders. Add automated checks
+when report generation makes an unnoticed substitution error likely; simple prose can be
+sufficient for an ordinary implementation choice.
 
 ### Paired Sentinel Boundaries (v1.1.0)
 
@@ -144,7 +154,9 @@ Fix: require the sibling task's plan to emit a **paired begin + end sentinel** (
 
 Any prose claim in the PR body about a **property** of the extracted artifact — "loss is monotone-decreasing", "all N tensors passed", "exit code was 0", "no warnings emitted", "the checksum matches", "count of failures is 0" — is a claim that will be evaluated by the merge reviewer as fact. If the property does not hold on the actual extracted artifact, the PR body is lying (even if unintentionally), and the reviewer will NOGO.
 
-Fix: for every property claim, add a **structural check** on the extracted artifact BEFORE substituting it into the PR body. If the check fails, ABORT with `Verdict: BLOCKED | Reason: <property> does not hold on artifact from #<sibling>`.
+Check each material property claim against the extracted evidence. If it is false, correct
+the report or investigate the affected behavior. Missing evidence limits the claim, not all
+progress; continue independent work and report the unresolved dependency.
 
 Common structural checks:
 
@@ -188,7 +200,10 @@ plan-pattern:
         - "no `<<` tokens remain in assembled body"
 ```
 
-### Expected Output
+### Historical Example Output
+
+These messages belong to the specific script above. Adapt recovery to the current task;
+withhold unsupported claims and continue work that does not depend on them.
 
 - If sibling is OPEN → abort with `ABORT: sibling #<N> not CLOSED (state=OPEN)`.
 - If sibling is CLOSED but sentinel absent → abort with `ABORT: sibling #<N> closed but sentinel '## Loss Log' not found in comments`.

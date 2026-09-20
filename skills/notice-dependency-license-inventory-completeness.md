@@ -3,7 +3,7 @@ name: notice-dependency-license-inventory-completeness
 license: BSD-3-Clause
 category: documentation
 date: 2026-06-12
-version: "1.1.0"
+version: "1.1.1"
 history: notice-dependency-license-inventory-completeness.history
 user-invocable: false
 verification: verified-local
@@ -20,7 +20,7 @@ tags:
   - spdx
   - documentation-completeness
   - conditional-dependency
-description: 'Keep a legal NOTICE / third-party-license inventory in sync with [project].dependencies, and guard the sync with a regression test. Use when: (1) a NOTICE / ATTRIBUTION / license-inventory file claims to be a complete runtime dependency-license list but a conditional/platform-gated dependency (e.g. "tzdata; platform_system == \"Windows\"") is declared in pyproject.toml yet missing from the doc; (2) writing a license string into a legal doc — lead with the verified SPDX token from authoritative metadata (PyPI info.license), not a colloquial string like "Public domain"; (3) building a doc-vs-pyproject drift guard test that must use exact PEP 508 name parsing + PEP 503 normalization, NOT substring matching; (4) a section-scoped text parser silently returns an empty block because it matched the section header''s OWN underline rule instead of the terminating one.'
+description: "Keep third-party dependency notices complete when conditional dependencies, license metadata, or name normalization can hide omissions."
 ---
 
 # NOTICE: Dependency License Inventory Completeness

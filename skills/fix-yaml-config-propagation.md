@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: Debug pattern for fixing YAML config fields that aren't propagating to execution, plus eliminating DRY violations in config dataclasses
 category: debugging
 date: 2026-02-05
-version: 1.0.0
+version: "1.1.0"
 user-invocable: false
 ---
 # Fix YAML Config Propagation
@@ -126,9 +126,9 @@ SubTestConfig(
 )
 ```
 
-### Step 4: Eliminate DRY Violations (Bonus)
+### Step 4: Consider related duplication
 
-If you find duplicates during tracing:
+If duplication causes the propagation defect, consider consolidating it. Record unrelated cleanup as a suggestion rather than expanding the fix:
 
 ```bash
 # Find all uses of the field
@@ -274,7 +274,7 @@ system_prompt_mode: default  # ← Key field
 
 ## References
 
-- Conversation: `/home/mvillmow/.claude/projects/-home-mvillmow-ProjectScylla/*.jsonl`
+- Conversation: `/home/<user>/.claude/projects/-home-<user>-ProjectScylla/*.jsonl`
 - Original issue: T0 subtest 00 missing `--system-prompt ""` flag
 - Root cause: `system_prompt_mode` not propagated from YAML to command building
 - Bonus fix: Eliminated `TierConfig.system_prompt_mode` duplicate field

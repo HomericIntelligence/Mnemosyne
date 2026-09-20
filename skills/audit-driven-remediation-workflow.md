@@ -1,9 +1,9 @@
 ---
 name: audit-driven-remediation-workflow
-description: "Use when turning repository or ecosystem audit findings into verified fixes: reproduce each finding, classify severity and ownership, deduplicate existing issues/PRs, batch only independent low-risk changes, implement in isolated branches, trace every new producer signal through downstream consumers, search sibling modules for the same defect pattern, and finish with an independent strict audit against the authoritative remote tree. Never file or fix from stale checkout evidence, scanner assertion alone, or unsynthesized swarm output."
+description: "Turn audit findings into scoped fixes. Use for source verification, duplicate detection, independent batches, downstream consumers, and evidence-based completion reports."
 category: tooling
 date: 2026-07-06
-version: "2.0.0"
+version: "2.1.0"
 user-invocable: false
 license: BSD-3-Clause
 verification: verified-ci
@@ -15,10 +15,9 @@ tags: [audit, remediation, triage, github, verification, producer-consumer, cros
 
 ## Overview
 
-An audit finding becomes actionable only after reproduction, scope/ownership classification, and a
-runnable acceptance test. The remediation loop is: establish source of truth, verify and deduplicate,
-plan batches, implement with evidence, audit downstream consumers and sibling copies, then commission
-an independent strict review.
+Use current source evidence to confirm an audit finding and identify its owner. A focused
+reproduction or acceptance test can help when practical. Select investigation, batching,
+verification, and independent review according to the finding and its risk.
 
 This workflow remains `verified-ci`. Case-specific fleet limits, corpus passes, and incident details
 are in [the notes](./audit-driven-remediation-workflow.notes.md); exact prior content is in
@@ -114,9 +113,9 @@ not a silent omission.
 
 ### 5. Implement and verify incrementally
 
-For behavior changes, write a failing test or reproduction first. For documents/configuration, use
-the existing validator and behavior checks rather than wording snapshots. After each coherent phase,
-run focused tests, static checks, and then the repository-required gate. Review `git diff` for exact
+For behavior changes, prefer a focused failing test or reproduction when practical. For
+documents/configuration, use relevant existing checks rather than wording snapshots. Select
+focused or broader verification according to the change and applicable repository policy. Review `git diff` for exact
 scope and unintended generated/lockfile changes.
 
 Count reconciliation derives entities from the canonical source, then updates all consuming docs or
@@ -140,9 +139,9 @@ templates. Inspect each hit; do not bulk-rewrite semantically different code. Ad
 shared regression when one invariant applies across implementations. This step is especially
 important after swarm/bundle work where agents copied a pattern independently.
 
-### 8. Independent post-completion strict audit
+### 8. Independent review when useful
 
-Use reviewers separate from the implementers and bind them to the fetched final SHA. Divide work by
+For broad or high-risk remediation, consider reviewers separate from the implementers and bind them to the final SHA. Divide work by
 nonoverlapping concerns/files. Require evidence and severity for every candidate. Synthesize results:
 deduplicate, reproduce against the same SHA, reject stale/unsupported claims, resolve conflicts, and
 only then file issues or reopen the implementation.

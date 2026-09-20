@@ -3,7 +3,7 @@ name: concurrency-and-process-reliability-patterns
 description: "Debug Python concurrency and process failures: blocked stdin, broken signal delivery, worker-thread terminal calls, global parallelism, OOM, optional-import traps, transient subprocess errors, leaked child trees, and finite timeout cleanup."
 category: debugging
 date: 2026-08-06
-version: "2.0.0"
+version: "2.1.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-local
@@ -288,7 +288,8 @@ for issue #2398 is recorded.
 - Test retry success, permanent failure, exhausted attempts, and timeout.
 - Spawn a real sleeping descendant and prove shutdown completes within a fixed bound.
 - Confirm no owned PID or process group remains after timeout or cancellation.
-- Run focused tests plus the repository's full concurrency/process suite.
+- Prefer focused checks for the changed lifetime or resource contract. Expand to the relevant
+  concurrency/process suite when integration risk or repository policy warrants it.
 
 ## Evidence Boundary
 

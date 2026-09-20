@@ -1,9 +1,9 @@
 ---
 name: planning-unmerged-parent-contract-compile-smoke-gate
-description: "Plan against an approved but unmerged parent without treating proposed APIs as landed facts. Use when a child imports not-yet-present symbols, a reviewer flags unread APIs, a validation-only task depends on a parent script, a dispatch table needs concrete callables, or numeric/file-line claims may have drifted. Gate implementation on parent presence, read every cited API, and make compile smoke the first post-merge check."
+description: "Plan dependent work against an unmerged parent without treating proposed interfaces as implemented facts; identify available work and verify interfaces when they become available."
 category: architecture
 date: 2026-07-04
-version: "2.0.0"
+version: "2.1.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: unverified
@@ -16,8 +16,9 @@ tags: [planning, unmerged-parent, prerequisite-gate, contract, compile-smoke, as
 ## Overview
 
 An approved parent plan is a contract to coordinate against, not evidence that its code exists. A
-child plan may use the proposed names and signatures, but must stop before implementation until the
-parent lands, then compile against the actual merge before tests or dependent edits proceed.
+child plan may use proposed names and signatures while identifying them as assumptions. Continue
+independent implementation; defer only work that needs an unavailable interface, then check that
+interface against the actual parent source.
 
 This skill remains `unverified`: its rules were learned from plan reviews, but the compacted corpus
 does not claim an end-to-end implementation result. Project cases are indexed in
@@ -47,9 +48,9 @@ test -d <path-created-by-parent>
 gh pr list --state all --search '<parent>'
 ```
 
-An empty PR search or absent path means the dependency is not implementation-ready. Put a literal
-step zero in the child plan: stop if the required path/symbol is absent; do not write importing
-tests or implementation until the parent has merged. A prose `Depends on #N` note is insufficient.
+An empty PR search or absent path is a reason to inspect the dependency state, not proof that all
+work must stop. Use an available parent branch when authorized and technically suitable, or record
+the missing interface and continue independent work. Keep dependent verification explicitly pending.
 
 ### 2. Separate contracts from facts
 
@@ -107,8 +108,8 @@ git rebase origin/main
 pixi run mojo build --Werror <entrypoint>
 ```
 
-Any failure means the approved contract drifted. Re-read merged source, update the assumption map,
-and revise the child plan before proceeding. Also smoke-run the example’s own `main()` with minimal
+A failure can expose contract drift or an environment problem. Diagnose it, update affected
+assumptions, and continue work whose prerequisites are available. Consider smoke-running the example’s own `main()` with minimal
 inputs; an importing test does not exercise CLI parsing, loader defaults, or top-level wiring.
 
 ### 6. Harden validation-only plans

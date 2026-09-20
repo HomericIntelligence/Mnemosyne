@@ -1,10 +1,10 @@
 ---
 name: nextcloud-talk-hpb-standalone-deploy
 license: BSD-3-Clause
-description: "Deploy the Nextcloud Talk High-Performance Backend (standalone spreed-signaling server + Janus SFU + coturn) as Docker containers behind a reverse proxy and wire it into Nextcloud via occ to clear the admin 'High-performance backend' warning. Use when: (1) Talk calls break down beyond 2-3 participants, (2) the Nextcloud admin 'High-performance backend' row is red/missing, (3) you need a single-instance HPB without a separate NATS/Redis cluster."
+description: "Deploy a standalone Nextcloud Talk high-performance backend and diagnose its signaling, proxy, and service configuration."
 category: tooling
 date: 2026-06-25
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 verification: verified-local
 tags: []

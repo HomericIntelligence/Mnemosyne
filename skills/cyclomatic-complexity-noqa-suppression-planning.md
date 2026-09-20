@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Planning patterns for auditing and addressing accumulated # noqa: C901 suppressions in a Python codebase. Use when: (1) an issue asks you to reduce or document C901 suppressions across multiple files, (2) deciding between raising max-complexity threshold vs. refactoring vs. adding rationale text to surviving suppressions, (3) the suppression count in an issue differs from what a codebase grep finds (count discrepancy risk), (4) planning a threshold change in pyproject.toml and needing to verify the impact before committing."
 category: ci-cd
 date: 2026-06-13
-version: "1.2.0"
+version: "1.3.0"
 user-invocable: false
 verification: verified-ci
 history: cyclomatic-complexity-noqa-suppression-planning.history
@@ -77,9 +77,9 @@ pixi run pytest tests/unit -x -q
 
 ### Detailed Steps
 
-#### Phase 0 — Measure FIRST (Critical: before writing any plan)
+#### Phase 0 — Measure the relevant complexity
 
-**Do not write a single keep/drop decision before running this command.** A plan written before measuring is a hypothesis, not a plan — it will be NOGO'd.
+Prefer measured complexity when choosing which suppressions to remove or retain. If the command is unavailable, inspect the code, mark the measurement gap, and continue useful planning without presenting estimates as observed results.
 
 ```bash
 pixi run ruff check hephaestus/ --select C901 --ignore-noqa

@@ -1,10 +1,10 @@
 ---
 name: container-runtime-dependency-linkage-audit
 license: BSD-3-Clause
-description: "Audit whether a runtime dependency (e.g. libssl3) can be dropped from a container image by tracing per-binary linkage from source #defines through CMake link lists and the package manager's transitive usage interface down to ldd/nm on the built artifact. Use when: (1) planning to slim a runtime container image by removing an apparently-unused shared library, (2) a Dockerfile/compose ships a .so (libssl3, libcrypto) you suspect is dead, (3) producing an implementation plan whose conclusion rests on linkage you have NOT yet verified empirically, (4) you need a discipline for flagging uncertain/unverified assumptions in a dependency-removal plan for a reviewer."
+description: "Audit runtime-library removal through source, build configuration, package interfaces, and built artifacts. Use when a container dependency appears unused or a removal plan lacks runtime evidence."
 category: ci-cd
 date: 2026-06-19
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags:
@@ -61,7 +61,7 @@ For EACH binary in the runtime image (not just the obvious one):
                nm -D <binary> | grep -i 'SSL_\|EVP_\|crypto'
 ```
 
-Two rules that the #279 plan violated and a reviewer must enforce:
+Two evidence limits exposed by the #279 plan:
 
 ```text
 - A link line being PRESENT does NOT prove the symbol is USED at runtime.
@@ -76,12 +76,12 @@ Two rules that the #279 plan violated and a reviewer must enforce:
 2. **Trace each binary through the four layers** above (source `#define` → CMake `target_link_libraries` → package-manager transitive/usage interface → `ldd`/`nm`). Stop trusting the conclusion at any layer above `ldd`/`nm`.
 3. **Distinguish build-time link vs runtime `.so` dependency.** A symbol resolved at static-link time, a Conan usage requirement, and an actually-`dlopen`'d/`NEEDED` shared object are three different things. The runtime image only cares about the `NEEDED` entries `ldd` reports.
 4. **Re-confirm version-specific dependency claims against the exact build in THIS repo.** Do not extrapolate a coupling claim ("nats.c needs OpenSSL for JetStream TLS") made about one version to a different pinned version, and do not assume a library was compiled with a feature (TLS) it can be built without (`NATS_BUILD_NO_SSL`). Check the actual build flags.
-5. **When the conclusion rests on un-run commands, mark the plan `unverified`** and enumerate the EXACT commands the implementer must run to close the loop (the `ldd`/`nm`/build commands), so the reviewer knows precisely what is still a hypothesis.
+5. **When the conclusion rests on un-run commands, mark the plan `unverified`** and identify commands that can resolve the missing evidence through the authorized validation process (the `ldd`/`nm`/build commands), so the reviewer knows precisely what is still a hypothesis.
 6. **Separate the lower-risk wins from the contested audit conclusion.** In #279 the plan also fixed a genuinely-broken compose healthcheck (`wget` invoked on a `wget`-less `debian:12-slim` image). That fix is correct and shippable independent of whether the libssl3-removal conclusion holds — call out such separable, lower-risk wins explicitly.
 
 ### Uncertain Assumptions To Flag Prominently (from the #279 plan)
 
-These are the assumptions a reviewer MUST scrutinize before trusting the plan:
+These assumptions deserve review when they affect the proposed removal:
 
 1. **Healthcheck = zero OpenSSL symbols (BIGGEST unverified leap).** The claim that the healthcheck binary references no OpenSSL symbols rests *entirely* on `healthcheck_main.cpp` not defining `CPPHTTPLIB_OPENSSL_SUPPORT`. It was NOT verified by compiling and running `ldd`/`nm` on the produced binary. cpp-httplib can pull OpenSSL transitively via the Conan `httplib::httplib` package's own link interface even when the SSL code paths are `#ifdef`-compiled out. If so, removing `OpenSSL::SSL`/`OpenSSL::Crypto` from the target may NOT drop the `.so`.
 2. **nats.c needs OpenSSL at runtime for JetStream TLS.** Taken from team-KB skills, not confirmed against the actual `nats_static` build flags in THIS repo. nats.c can be built with `NATS_BUILD_NO_SSL` / without TLS. The plan asserts the server NEEDS libssl3 without checking whether nats.c was actually compiled with TLS enabled here.
@@ -114,7 +114,7 @@ These are the assumptions a reviewer MUST scrutinize before trusting the plan:
 
 ### Configuration
 
-The exact commands an implementer MUST run to convert this plan from `unverified` to verified:
+The proposed commands for collecting the missing evidence through the authorized validation process:
 
 ```bash
 # 1. Build the runtime image / binaries (per the repo's normal build).

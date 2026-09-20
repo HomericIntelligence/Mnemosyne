@@ -1,14 +1,10 @@
 ---
 name: pydantic-json-schema-dual-validation
 license: BSD-3-Clause
-description: 'TRIGGER CONDITIONS: Enforcing a cross-field semantic constraint (e.g.,
-  field A=true requires field B=true) in a config model loaded from YAML. Use when:
-  (1) a domain invariant exists between two boolean capability flags, (2) the codebase
-  uses both Pydantic models AND JSON Schema for config validation, (3) you need to
-  catch the violation at both schema validation and model instantiation time.'
+description: "Keep Pydantic validation and generated JSON Schema aligned when a configuration invariant must hold in both Python and external validators."
 category: tooling
 date: 2026-03-07
-version: 1.0.0
+version: "1.0.1"
 user-invocable: false
 ---
 # pydantic-json-schema-dual-validation

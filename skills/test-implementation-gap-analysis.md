@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Test-Implementation Gap Analysis — detects gaps between test expectations and implementation, including PR commit message/diff mismatches where a route or feature is described but never added to the relevant source file"
 category: testing
 date: 2026-04-24
-version: "1.1.0"
+version: "1.2.0"
 verification: verified-ci
 history: test-implementation-gap-analysis.history
 user-invocable: false
@@ -70,7 +70,7 @@ from module import (
 
 ### Step 4: Implement Missing Components
 
-Write implementation that satisfies test expectations:
+Compare expectations with the requested contract, then implement missing behavior:
 - Match function signatures exactly
 - Match class attributes and methods
 - Match constant values if specified

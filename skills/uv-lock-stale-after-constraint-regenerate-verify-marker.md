@@ -1,10 +1,10 @@
 ---
 name: uv-lock-stale-after-constraint-regenerate-verify-marker
 license: BSD-3-Clause
-description: "Use when a uv.lock is stale after a pyproject.toml dependency-constraint change and the stale lock causes a deterministic lock-freshness NOGO/CI failure. Specifically: (1) a version specifier or platform marker was added/edited in pyproject.toml [project.dependencies] but uv.lock was NOT regenerated, so `uv lock --check` (the uv-pre-commit `uv-lock --check` hook / required lint gate) fails or a plan/PR gets NOGO'd for a stale lock; (2) you must confirm the fix is real by two concrete lock signals — the new version specifier appears in the lock's `[package.metadata] requires-dist` block, and a PEP 508 marker like `platform_system == 'Windows'` normalizes to uv's `sys_platform == 'win32'`; (3) the stale PR branch is many commits behind main and you must decide between rebasing vs regenerating on a fresh branch off main; (4) you are tempted to hand-edit uv.lock instead of regenerating it. Do NOT hand-edit uv.lock; regenerate with `uv lock` (plain) unless a deliberate upgrade is intended."
+description: "Regenerate a stale uv lock after dependency constraints or platform markers change; inspect branch drift, normalized metadata, and the actual freshness check."
 category: ci-cd
 date: 2026-07-17
-version: "1.0.1"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags:
@@ -74,7 +74,7 @@ uv rewrites PEP 508 markers into its own canonical form in `uv.lock`. `platform_
    uv lock --check        # on main: expect "Resolved N packages", exit 0
    ```
 
-2. **Cut a fresh branch from `main`** (avoids the drifted branch's lock conflict):
+2. **Choose rebase or a fresh branch** based on which preserves the intended work with less conflict. A fresh branch can avoid a generated-lock conflict:
 
    ```bash
    git checkout -b <issue>-regenerate-uv-lock origin/main
@@ -112,7 +112,7 @@ uv rewrites PEP 508 markers into its own canonical form in `uv.lock`. `platform_
    uv run pre-commit run uv-lock --all-files   # CI-parity: astral-sh/uv-pre-commit uv-lock --check
    ```
 
-7. **Commit `pyproject.toml` (if changed) together with `uv.lock`**, signed + DCO, and open a PR. Never split the manifest edit from its regenerated lock across commits/PRs — that reintroduces the stale state.
+7. **Deliver a consistent manifest and lock.** When publication is requested, follow the repository signing and DCO policy. Keep the delivered revision internally consistent; publication is not a prerequisite to a local repair.
 
 ## Failed Attempts
 

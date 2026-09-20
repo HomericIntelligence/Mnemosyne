@@ -1,10 +1,10 @@
 ---
 name: log-watch-subagent-streaming-triage
 license: BSD-3-Clause
-description: "Run a long-lived log-monitoring subagent that blocks cheaply on tail -F | grep, streams one triage message per incident back to the coordinating session, batches repeated signatures, and — critically — treats its own classifications as HYPOTHESES: attribution requires artifact inspection (the monitored system's own comments/state), which in the verified case REFUTED the monitor's systemic-failure hypothesis before a wrong remediation (stopping the loop / switching models) was taken. Use when: (1) watching an automation run's log for errors over hours without burning tokens on polling, (2) a monitor must report EACH incident as it happens rather than stopping at the first, (3) a monitor's plausible root-cause hypothesis is about to drive a state-changing remediation, (4) deciding what a watch agent should ignore vs batch vs escalate, (5) recalibrating a running monitor mid-flight with new classification rules."
+description: "Monitor long-running automation logs with bounded waits, incident grouping, and evidence-based triage."
 category: tooling
 date: 2026-07-17
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags:
@@ -61,7 +61,7 @@ timeout 540 tail -n +$((baseline+1)) -F "$LOG" \
    Include regression checks: the exact OLD and NEW log wordings of just-fixed bugs, so the monitor
    proves which code is running.
 3. **Block, don't poll:** bounded `timeout N tail -n +K -F | grep -m1` consumes no tokens while
-   waiting; on timeout, verify liveness (`pgrep`) and log growth, then re-arm. Never bare `sleep`.
+   waiting; on timeout, verify liveness (`pgrep`) and log growth, then re-arm. Prefer event waits where supported; use a bounded polling fallback otherwise.
 4. **Treat monitor classifications as hypotheses.** A monitor sees only the log. Before any
    state-changing remediation (stopping the run, switching models), the coordinator must pull the
    system's own artifacts. Verified case: "100% pr_review parks, zero GO — reviewer contract

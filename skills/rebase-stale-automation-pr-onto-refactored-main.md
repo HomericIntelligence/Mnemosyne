@@ -1,10 +1,10 @@
 ---
 name: rebase-stale-automation-pr-onto-refactored-main
 license: BSD-3-Clause
-description: "Semantic conflict-resolution and clean-history rebuild patterns for stale automation-authored PRs after a large refactor. Use when: (1) a queued/DIRTY PR was branched many commits behind and now conflicts after a big landed refactor, (2) a PR routes to a pipeline stage/symbol the refactor deleted, (3) a merge queue crawls because stale-base PRs fail a newly landed gate, (4) an automation update created a DCO-less merge commit, (5) a stale PR adds a workflow job that misses current security hardening, (6) two PRs claim the same ADR number, (7) an AST-guard registry conflicts with renamed call sites, (8) deciding whether a PR is genuinely superseded, (9) a PR history contains an unrelated duplicated commit and must be rebuilt from current main, (10) a rewritten PR needs an exact-head strict-review gate and rollback lease."
+description: "Preserve stale PR intent across upstream refactors, semantic conflicts, or contaminated history; bind remote rewrites to the intended head and scope."
 category: ci-cd
 date: 2026-07-20
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: unverified
 history: rebase-stale-automation-pr-onto-refactored-main.history
@@ -89,9 +89,9 @@ read-only evidence source. Do not rebase or cherry-pick its multi-commit range.
 6. Replace the remote branch with an explicit force-with-lease bound to the SHA
    captured in step 1. A bare tracking-ref lease is weaker when another process
    may fetch or mutate the remote-tracking ref during the rebuild.
-7. Run the strict reviewer only after the rewritten head is pushed. Accept only
-   an unqualified GO tied to that exact head with zero unresolved blocking
-   threads. Any later commit invalidates the verdict and restarts verification.
+7. Review the rewritten head according to the actual repository policy. Bind any
+   required approval to the reviewed revision, and reassess affected evidence after
+   later changes. An unavailable reviewer need not stop independent repair work.
 8. If validation or review fails irrecoverably, restore the local backup ref with
    a second explicit lease bound to the rejected rebuilt SHA. Never rewrite the
    base branch.
@@ -237,7 +237,7 @@ Workflow above are explicitly excluded from this verification claim.
 | 6 | Considered closing PRs that mention `pixi run` as pixi-specific | The `pixi run` was only stale testing boilerplate; the PRs' substance (SLOs, NATS DLQ, docs) touched no pixi files and was still valid | Judge by `git diff --name-only` (does it touch `pixi*`?), not by a boilerplate string. |
 | 7 | Rebased or replayed the complete commit range of a PR that contained a duplicated sibling-issue commit | Git faithfully preserved the unrelated commit, so the rewritten PR still had scope bleed even when its desired hunks were correct | Rebuild from current `main`; use the old head only as evidence and manually port the intended hunks. |
 | 8 | Checked only a positive changed-path allowlist | The allowlist catches unexpected files but cannot catch unrelated edits inside an allowed file | Combine the allowlist with a known-contamination denylist and a human review of the complete three-dot diff. |
-| 9 | Relied on CI or a review verdict produced before the branch rewrite | That evidence was tied to an obsolete commit graph and did not establish approval for the pushed replacement head | Re-run strict review after push and bind acceptance to the exact SHA; any later commit invalidates it. |
+| 9 | Relied on CI or a review verdict produced before the branch rewrite | That evidence was tied to an obsolete commit graph and did not establish approval for the pushed replacement head | Bind policy-required review to the changed revision; reassess affected evidence after later commits. |
 | 10 | Used an implicit `--force-with-lease` after background fetches | The remote-tracking ref used as the implicit expectation can change during a long rebuild, weakening the intended compare-and-swap boundary | Capture the live remote SHA before rebuilding and pass `--force-with-lease=refs/heads/<branch>:<sha>` explicitly. |
 
 ## Results & Parameters
@@ -246,13 +246,14 @@ Workflow above are explicitly excluded from this verification claim.
 - **Verification signal:** the repo's OWN guard tests are the oracle — an AST-scanning `dontAsk` registry test and a doc/ADR retirement test each *pass only if* the resolution matches the real code. Run them on the resolved tree before pushing.
 - **Queue mechanics:** `maximumEntriesToMerge` is not the throughput limit when entries FAIL; a failing entry ejects after a full matrix and re-stacks the tail. Throughput recovers only after the stale bases are rebased away.
 - **Merge-method:** merge-queue repos reject `gh pr merge --squash`; arm with bare `--auto`.
-- **Signatures:** rebasing re-signs replayed commits automatically when the GPG key is configured; verify `git log --show-signature` shows Good + `Signed-off-by` before pushing. Sign with `4211002+mvillmow@users.noreply.github.com`.
+- **Signatures:** rebasing re-signs replayed commits automatically when the GPG key is configured; verify `git log --show-signature` shows Good + `Signed-off-by` before pushing. Use the authorized contributor identity configured for the repository.
 - **Rebuild inputs:** exact base ref, live remote PR-head SHA, local-only backup ref,
   sorted positive path allowlist, explicit contamination denylist, and focused test
-  commands. If any input is unknown, stop before rewriting the remote branch.
+  commands. If authority, target, or preserved content remains uncertain, defer the
+  remote rewrite and continue local inspection or independent repair.
 - **Handoff proof:** pushed SHA, clean allowlist/denylist checks, focused tests,
-  signed+DCO commit verification, and a fresh unqualified strict-review GO for
-  that same SHA with zero unresolved blocking threads.
+  signature/DCO evidence where required, and any approval required by the actual
+  repository policy for that revision.
 
 ### Related skills (cross-links)
 

@@ -1,10 +1,10 @@
 ---
 name: gha-trigger-paths-filter-planning-checklist
 license: BSD-3-Clause
-description: "Planning-time checklist for any change that adds, removes, or edits a GitHub Actions trigger-filter list (`paths:`, `paths-ignore:`, `branches:`, event-type lists) — especially audit-driven one-line YAML edits. Use when: (1) an audit finding (S15 Compliance / license-scan / NOTICE / SBOM) asks you to add a path to a workflow's `pull_request.paths:` filter, (2) you are tempted to quote workflow YAML from an audit excerpt without `Read`-ing the file, (3) the plan cites a downstream script as 'consuming' the new path without grepping the script for that filename, (4) the plan defers verification to a post-merge throwaway PR instead of self-testing in-PR, (5) the workflow has both `pull_request:` and `push:` (or `merge_group:`) triggers and you've only edited one, (6) the workflow may have `paths-ignore:` instead of (or alongside) `paths:`, (7) the job is non-blocking / advisory so trigger bugs rot silently with no CI signal."
+description: "Check event-specific GitHub Actions path filters against current workflow consumers, sibling triggers, and merge-queue requirements."
 category: ci-cd
 date: 2026-06-19
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags:
@@ -37,8 +37,7 @@ tags:
 
 ## When to Use
 
-Use this checklist BEFORE you finalize a plan that touches any trigger-filter list in
-`.github/workflows/*.yml`. The classic triggering audit finding looks like:
+Use the relevant checks when changing trigger filters in `.github/workflows/*.yml`. The classic triggering audit finding looks like:
 
 > S15 Compliance: `security.yml` license-scan `pull_request.paths:` filter omits `NOTICE`.
 > PRs that touch only `NOTICE` do not trigger the license-scan job.
@@ -57,7 +56,7 @@ This skill is a complement to (NOT a replacement for) `gha-workflow-authoring-pi
 (workflow-authoring rules), `ci-required-check-path-filter-pitfall` (path-filtering a
 *required* workflow is a different trap), and `license-scan-marker-excluded-fallback`
 (license-scan script-level fallbacks). If your situation also matches one of those, read
-them too — they are orthogonal.
+the relevant entry when its distinct failure mode applies.
 
 ## Verified Workflow
 
@@ -69,8 +68,8 @@ them too — they are orthogonal.
 
 ### Quick Reference — the 6-item pre-plan checklist
 
-Run all six BEFORE you write the plan body. Each item is a tool call, not a thought
-experiment.
+Select the checks that resolve uncertainty about the changed events and consumers.
+Existing current evidence can answer a check without another tool call.
 
 ```bash
 # 1. READ the workflow file. The audit excerpt is NOT the file.

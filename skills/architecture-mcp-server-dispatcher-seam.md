@@ -1,10 +1,10 @@
 ---
 name: architecture-mcp-server-dispatcher-seam
 license: BSD-3-Clause
-description: "Build a testable MCP server with a clean seam separating SDK internals from business logic. Use when: (1) adding an MCP server to a Python project using the mcp>=1.0 SDK and you need unit-testable tool dispatch, (2) deciding where to place the mcp dependency in pixi.toml (pypi-dependencies vs dependencies), (3) adding a project-scoped .mcp.json for a live MCP server (not an empty placeholder), (4) smoke-testing a stdio MCP server from the CLI without a full MCP client."
+description: "Separate MCP SDK transport from Python tool dispatch when adding a testable stdio server; includes Pixi dependency placement and read-only dispatcher tests."
 category: architecture
 date: 2026-06-19
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 verification: verified-ci
 tags: [mcp, dispatcher, seam, pixi, pypi-dependencies, stdio, testability, read-only, python]

@@ -1,10 +1,10 @@
 ---
 name: evaluation-paper-rewrite-after-data-fix
 license: BSD-3-Clause
-description: "Rewrite an arXiv LaTeX paper after discovering that underlying experimental data was wrong due to implementation bugs. Covers: (1) fixing data pipeline issues before rewriting, (2) parallel data verification against ground-truth sources, (3) systematic stale-value grep to ensure no remnants, (4) parallel agent rewrites of paper sections, (5) post-rewrite audit for numerical cross-referencing and structural issues, (6) common pitfalls like alphabetical-sort directory shadowing, pricing version confusion, and undefined citations from expanded sections."
+description: "Revise research papers after corrected experimental data changes results, citations, tables, or cross-references."
 category: evaluation
 date: 2026-04-25
-version: 1.0.0
+version: "1.0.1"
 user-invocable: false
 verification: verified-local
 tags: [latex, arxiv, paper-rewrite, data-fix, evaluation, parallel-agents, audit, cross-reference]

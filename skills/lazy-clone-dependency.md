@@ -5,7 +5,7 @@ description: Pattern for lazy-cloning a missing external git repository dependen
   instead of skipping a workflow step
 category: tooling
 date: 2026-03-03
-version: 1.0.0
+version: "1.1.0"
 user-invocable: false
 tags:
 - automation
@@ -178,7 +178,7 @@ The lock file is created alongside (not inside) the clone destination so it pers
 
 ## Key Learnings
 
-1. **Degrade gracefully but recover first**: "skip if missing" is appropriate only after a recovery attempt has failed. Silently skipping a recoverable condition hides problems from users.
+1. **Recover proportionately**: Consider an authorized clone when the dependency is needed. For optional guidance, report the missing source and continue the primary task; recovery need not block it.
 
 2. **Double-locking for multi-process + multi-thread safety**: Use `threading.Lock` (thread-level) + `fcntl.flock(LOCK_EX)` (process-level) together. Neither alone is sufficient when parallel workers may span both.
 

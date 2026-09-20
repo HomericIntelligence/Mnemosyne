@@ -1,10 +1,10 @@
 ---
 name: testing-autouse-default-patch-for-new-batched-call
 license: BSD-3-Clause
-description: "When you add a NEW external call (e.g. a new batched GraphQL fetch) inside a function that MANY existing unit tests already mock at a DIFFERENT seam, keep the existing tests green without editing each one by (a) making the new helper fault-tolerant (return {}/[] on any exception) and (b) adding ONE module-scoped autouse fixture that default-patches the new call (and any new side-effect write) to a no-op. Use when: (1) a function under test gains a new fetch/write that pre-existing tests do not patch; (2) ~N existing tests would otherwise hit the network or real I/O through the new seam; (3) you switched a gh JSON projection from --jq newline output to full --json + json.loads and must update mock payloads from newline strings to JSON arrays."
+description: "Isolate new external calls in existing unit tests. Use scoped default patches, explicit behavior overrides, and updated payload fixtures when a batched fetch or write is added."
 category: testing
 date: 2026-06-29
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags:
@@ -43,7 +43,7 @@ tags:
 
 ## Verified Workflow
 
-Two complementary techniques. Apply BOTH — they cover different test files.
+Use scoped test isolation for the new call. Add runtime degradation only when the product contract treats that signal as optional.
 
 ### Quick Reference
 
@@ -82,10 +82,10 @@ def _default_patch_new_seams():
    ```bash
    grep -rn "fetch_all_issue_titles_graphql\|skip_epics" tests/unit/automation/
    ```
-2. **Make the new helper non-fatal.** Wrap the real fetch in `try/except`, log a warning,
-   return a safe empty default (`{}` / `[]`). This keeps OTHER test files green untouched —
-   they stub `_gh_call`/`get_repo_root`/`get_repo_info` so the real call no-ops/raises, and
-   the helper swallows it, so the caller treats it as "signal unknown."
+2. **Keep runtime error policy separate from test isolation.** For an optional signal,
+   the caller may use a logged empty default to represent unknown data. Preserve errors
+   for required signals. Patch external calls in other affected tests rather than changing
+   production failure behavior only to keep those tests green.
 3. **Add one autouse default-patch fixture** in the test file that directly drives the
    modified function. Patch the new fetch to its empty default and any new write to a no-op.
    Scope it to the module (the test file), not session-wide.

@@ -1,10 +1,10 @@
 ---
 name: odyssey-functional-optimizer-step-api
 license: BSD-3-Clause
-description: "Use when: (1) calling any Odyssey exotic optimizer (ADOPT, Sophia, Adan, Muon-Hyperball, LionMuon, MGUP-Muon, SOAP, FTRL) from Mojo, (2) wiring a runtime --optimizer dispatch over several optimizers into a training loop, (3) resolving the import path for an optimizer (it is odyssey.training.optimizers.X, NOT odyssey.optimizers.X), (4) sizing per-parameter state buffers for one of these optimizers, (5) debugging wrong-arity or wrong tuple-unpack errors from a <name>_step call."
+description: "Use functional optimizer step APIs in ProjectOdyssey when updating tensor parameters and persistent optimizer state."
 category: optimization
 date: 2026-07-22
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 tags:
   - mojo
@@ -226,6 +226,6 @@ entry point and only emits `--max-batches N` cells for the winners.
   [`training-hyperparam-lr-scale-depth-transfer`](./training-hyperparam-lr-scale-depth-transfer.md)).
   Every exotic optimizer + every baseline optimizer listed in
   `scripts/optimizers.py` (the 24-name SSoT) was reached through
-  `--optimizer <name>` against both PC and BP arms on the hermes box.
+  `--optimizer <name>` against both PC and BP arms on the recorded training host.
   Verification status bumped to `verified-exercise` for v1.1.0
   (state-arity + import-path verified-ci; CLI-surfacing verified-exercise).

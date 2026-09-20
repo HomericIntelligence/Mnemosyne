@@ -1,16 +1,10 @@
 ---
 name: skill-advisor-task-routing
 license: BSD-3-Clause
-description: >
-  Use this skill to select procedural skills and their first workflow phases.
-  Use it when work starts.
-  Use it when a policy is applicable to all work but its related skill is for
-  a subsequent boundary.
-  Use it when instructions give different trigger times.
-  Use it when a user names a skill.
+description: "Select relevant procedural skills when workflows overlap, triggers conflict, or a user names a skill."
 category: tooling
 date: 2026-07-16
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-review
 tags: [workflow, routing, process, skills, policy, boundary]
@@ -46,95 +40,44 @@ skill is a skill for a subsequent phase.
 
 ### Quick Reference
 
-| Condition | Action |
-| --- | --- |
-| A skill procedure is necessary in the current phase | Use the skill before the first applicable action |
-| A policy is applicable to all task work | Keep the policy active |
-| A skill has a subsequent boundary | Record the skill as deferred |
-| The user names a skill | Use the skill now |
-| Trigger statements give different boundaries | Use instruction precedence to select the controlling statement |
-| You cannot use instruction precedence to identify one controlling statement | Stop the affected work. Report the conflict. |
-| A deferred boundary starts | Use the skill for all applicable artifacts from previous phases |
+Prefer the smallest set of skills that helps complete the requested task. Use their
+triggers and available inputs to choose useful timing. A related skill is not an
+extra approval step, and missing optional knowledge need not block independent work.
 
-### Detailed Steps
+### Suggested Routing
 
-1. **Find policies for the work.** Keep each policy active for all work in its
-   scope. Do not wait for a related skill to start.
-
-2. **Get previous knowledge.** For work where skill selection is necessary,
-   use the necessary knowledge-retrieval procedure before planning or
-   implementation. Prepare a knowledge source before you use a skill that has
-   the source as a prerequisite. A source-preparation failure prevents use of
-   the related skill.
-
-3. **Find procedural skills.** Read each skill trigger. Find its specified action,
-   condition, or workflow boundary. Do not use the skill before this boundary
-   only because the procedure can help you.
-
-4. **Find current and deferred skills.** Use a current skill before the first
-   action for which it is necessary. Record a skill for a subsequent phase and
-   its boundary. Do not use a skill at task start only because its related
-   policy is applicable to all task work.
-
-5. **Use a skill that the user names.** Use it now. Do not wait for its phase
-   boundary.
-
-6. **Use instruction precedence.** When statements give different boundaries,
-   use precedence to select the statement that controls the workflow. If
-   precedence cannot select one statement, stop the affected work. Report the
-   conflict.
-
-7. **Examine all routing instructions that control the workflow.** List the skill
-   description, repository instructions, workflow guides, and other trigger
-   statements. If the task permits changes to all conflicting instructions,
-   change the statements to specify the same boundary. If the task does not
-   permit these changes, stop the affected work. Report the conflict.
-
-8. **Use the boundary skill on the full input set.** When the boundary starts,
-   include all applicable artifacts from previous phases. A deferred skill
-   must not examine only metadata made at the boundary.
-
-9. **Examine routing at each phase change.** A deferred skill becomes current
-   when its boundary starts. Do not start it before this boundary only because
-   it can help you. If the user names the skill, use it now. If an instruction
-   with higher precedence gives a different boundary, use that boundary.
+1. Identify the requested outcome and applicable user, repository, and host constraints.
+2. Retrieve relevant prior knowledge when useful. If the source is unavailable, report
+   that limit and continue from current evidence.
+3. Read the selected skill's trigger and relevant procedure. Defer steps whose inputs
+   are not ready; use other useful guidance when it helps the present task.
+4. Apply an explicitly named skill within the active instruction hierarchy. Its
+   recommendations do not expand the user's authorization or override host controls.
+5. Resolve routine trigger conflicts through instruction precedence and context. Ask
+   only when a material ambiguity remains. Continue unaffected work while it is resolved.
+6. When authorized to update conflicting guidance, align the statements at their source.
+   Otherwise, report the conflict without treating it as a reason to abandon the task.
+7. Revisit the selection when the task changes. At delivery, account for all relevant
+   artifacts and report the work done, verification evidence, and remaining limits.
 
 ### Common Routing Map
 
-| Task condition | Skill and time of use |
+| Task condition | Useful guidance |
 | --- | --- |
-| You do not know how to do the work | Use `advise` before planning or implementation |
-| The task has multiple possible designs | Use `brainstorm` before the plan or implementation |
-| A failure has an unknown cause | Use `systematic-debugging` before you propose a correction |
-| A feature or correction requires a code change | Use `test-driven-development` before implementation |
-| An isolated checkout is necessary | Use the applicable isolation skill before file changes. Do not add a second isolation procedure when the orchestrator supplies one. |
-| You will make a completion claim | Use `verification-evidence-audit` before the claim |
-| The verified work is ready for delivery | Use `finish-branch-delivery-workflow` at the delivery boundary |
-| Independent quality assurance is necessary | Use an independent review before merge when a reviewer is available |
-| You receive review feedback | Examine each comment with evidence before you change the work. After the change, ask an independent reviewer to examine the changed work. |
+| Unfamiliar work | `advise` for relevant prior knowledge |
+| Several plausible designs | `brainstorm` for tradeoffs |
+| Failure with an unknown cause | `systematic-debugging` for investigation |
+| A behavior change benefits from a regression | `test-driven-development` for a test-first approach |
+| Independent edits need isolation | The host's existing worktree mechanism |
+| Completion or delivery | Relevant evidence and delivery guidance |
+| High-impact or uncertain changes | Independent review where available |
+| Review feedback | Examine the evidence, make justified corrections, and recheck affected behavior |
 
-### Skill Order
+### Routing Record
 
-Use skills in this general order when their conditions occur:
-
-1. Process skills give the work method.
-2. Execution skills control implementation and investigation.
-3. Completion skills examine evidence and control delivery.
-
-The phase boundary controls the time of skill use. The list does not change a
-named trigger. The fact that a skill can help you does not change its trigger.
-
-### Skip Conditions
-
-You can skip this routing procedure when one condition is true:
-
-- An orchestrator gives a subagent one bounded task and names the necessary
-  procedure.
-- The user tells you to do one action, and no repository workflow is
-  applicable.
-- The task has no action, artifact, or completion claim.
-
-Record the cause when you skip the procedure.
+A short routing note can help a complex handoff. For a small or already-bounded task,
+proceed directly with the relevant guidance. Avoid a separate routing ceremony or
+repeated permission requests for work the user already authorized.
 
 ## Failed Attempts
 
@@ -144,45 +87,24 @@ Record the cause when you skip the procedure.
 | Change one trigger statement | Changed the skill description but did not change another instruction | The instructions gave different boundaries | For a trigger change, examine all routing instructions that the task permits you to change |
 | Start the policy with the skill | Used the policy only when the boundary skill started | Work on artifacts from previous phases did not follow the policy | Keep the policy active for all work in its scope |
 | Examine only new boundary metadata | Used the deferred skill only for metadata made at the boundary | The skill did not examine applicable artifacts from previous phases | Use the boundary skill on the full input set |
-| Move a skill because it can be useful | Used a preference instead of the stated trigger | The skill started before its stated boundary | Use the stated trigger unless the user or a higher-precedence instruction gives a different trigger |
+| Move a skill because it can be useful | Used a preference instead of the stated trigger | The skill started before its stated boundary | Use trigger conditions and available inputs to select useful timing within active instructions |
 | Treat a question as a simple task | Skipped routing because the task did not change a file | The analysis made a procedural skill necessary | Route a question when skill selection is necessary |
-| Explore before routing | Started discovery before the skill selection | The applicable skill controlled the discovery method | Route the task before discovery |
-| Reject a skill as excessive | Used task size instead of the skill trigger | The task became complex during the work | Use the skill trigger instead of the first complexity estimate |
+| Explore before routing | Started discovery before the skill selection | The applicable skill controlled the discovery method | Use relevant method guidance when it can change discovery decisions |
+| Reject a skill as excessive | Used task size instead of the skill trigger | The task became complex during the work | Revisit skill relevance when new evidence changes task complexity |
 | Work from memory | Used a remembered trigger instead of the current trigger | Skill triggers can change | Read the current trigger before routing |
 
 ## Results & Parameters
 
-### Routing Record
+### Suggested Record
 
-Use this format before work that has an action, artifact, or completion claim.
-Update it at each phase change.
-
-```text
-Applicable policies:
-- <policy and scope>
-
-Skills to use now:
-- <skill>: <first applicable action>
-
-Skills for subsequent phases:
-- <skill>: <workflow boundary>
-
-Trigger conflicts:
-- <conflict or none>
-```
+For complex work, record the relevant constraints, selected skills, deferred inputs,
+and unresolved material decisions. Update the record when those facts change.
 
 ### Expected Output
 
-A routing decision is satisfactory when these conditions are true:
-
-- Each applicable policy is active for all work in its scope.
-- Each current skill starts before the first applicable action.
-- Each deferred skill has a named boundary.
-- Each boundary examination includes all applicable artifacts from previous
-  phases.
-- The agent uses instruction precedence to identify one controlling trigger
-  statement. If instruction precedence does not identify one controlling
-  statement, the agent stops the affected work and reports the conflict.
+The agent uses relevant guidance at useful points, avoids repeated process work,
+and completes the authorized task. If an input or permission is missing, the report
+identifies the affected action and what can still proceed.
 
 ## Verified On
 

@@ -1,10 +1,10 @@
 ---
 name: auto-review-loop-per-artifact
 license: BSD-3-Clause
-description: "Per-artifact write-review-fix-rereview-commit loop that replaces user-pause-for-review with subagent-driven correctness audits. Use when: (1) producing a series of related markdown deliverables where citation/cross-reference correctness matters, (2) long-running task that would otherwise need many user interruptions to ask 'is this OK', (3) working with a project-specialized reviewer that has WebFetch or other primary-source verification capability, (4) downstream cost of a wrong artifact is high (e.g., 25 issue bodies citing a fabricated paper)."
+description: "Use focused independent review for related artifacts whose citation or cross-reference errors have significant downstream cost."
 category: evaluation
 date: 2026-05-12
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [review-loop, subagent, triage, convergence, divergence, confirmation-rereview, per-artifact-commit, audit, orchestration]
@@ -19,7 +19,7 @@ tags: [review-loop, subagent, triage, convergence, divergence, confirmation-rere
 | **Date** | 2026-05-12 |
 | **Objective** | Replace user-pause-for-review checkpoints with a subagent-driven write-review-fix-rereview-commit loop applied per artifact, so long-running multi-artifact tasks (research docs, issue bodies, design specs) self-correct without blocking on the user. |
 | **Outcome** | Operational. 13 review-loop cycles ran across 7 artifacts in one session; each cycle caught real findings (multiple critical, dozens of high-confidence). Two critical findings were caught post-merge that prior reviewers had missed. |
-| **Verification** | verified-local — used 13 times across one session, with each cycle catching real findings. Documented in commit chain `84013ec..44affc3` in PRs #2/#3 of mvillmow/Random Predictive-Coding-in-Mojo. |
+| **Verification** | verified-local — review cycles caught findings in a private research session. Private project identifiers are omitted. |
 
 ## When to Use
 
@@ -37,6 +37,10 @@ tags: [review-loop, subagent, triage, convergence, divergence, confirmation-rere
 ## Verified Workflow
 
 ### Quick Reference
+
+The recorded helper below bounds one review attempt. Its `DIVERGED` result is a
+signal to reassess the method, not a requirement to stop the user's task or ask
+for permission to continue authorized work.
 
 ```python
 def auto_review_loop(artifact_path, reviewer_subagent, max_rounds=3):
@@ -84,7 +88,7 @@ Report under <budget> words.
 
 **1. Triage the reviewer's findings explicitly.** A reviewer typically returns three classes of finding; route each one differently:
 
-- **Critical findings** → fix immediately, return to step 2 (re-review). These block the commit.
+- **Critical findings** → verify the evidence and correct confirmed defects. Recheck affected claims before reporting them as resolved.
 - **High-confidence concerns** → fix if the fix is unambiguous (one obvious correction); otherwise mark `[ASSUMPTION — to validate]` at the location and move on.
 - **"Worth checking" items** → log to `notes/review-followups.md`; do not block the commit.
 
@@ -94,9 +98,9 @@ Without explicit triage, every finding becomes ambiguous and either everything b
 
 **3. Convergence criterion: zero critical findings AND no new criticals introduced by the fixes.** A common failure is the fix-pass introducing a new critical (e.g., over-correcting an arithmetic claim and breaking the next paragraph's cross-reference). The convergence test is "no critical findings AND prior fixes verified clean," not just "no critical findings now."
 
-**4. Divergence definition.** If 3 review rounds produce critical findings (any critical, even if different ones each round), the loop has diverged. Surface to user with: the divergent findings, the attempted fixes, and a recommendation. This bounds the cost of a runaway loop and prevents infinite iteration on a confused reviewer or a fundamentally broken artifact.
+**4. Reassess review that makes no progress.** Repeated findings suggest a need to inspect primary evidence, narrow the review, or change the approach. The example's three-round budget bounds that helper, not the overall task. Continue useful work; ask the user only when a material decision or missing authorization prevents progress.
 
-**5. Each artifact gets its own commit.** Don't batch-commit "Pass 1 complete." Each markdown file lands in its own commit so the reviewer's findings and the corresponding fix are colocated in `git log`. This is useful when a future session needs to understand why a particular line reads the way it does.
+**5. Prefer coherent commits.** Group related artifacts when that keeps a correction understandable; separate independent changes when useful.
 
 **6. Reviewer is read-only.** The reviewer reports findings, doesn't apply them. The orchestrating session (Claude) decides which findings to apply and how. This separation prevents the reviewer from "helpfully" rewriting the artifact in unauthorized ways and keeps the audit trail clean.
 
@@ -189,4 +193,4 @@ def auto_review_loop(artifact_path, reviewer_subagent, max_rounds=3):
 
 | Project | Context | Details |
 |---------|---------|---------|
-| mvillmow/Random | Predictive-Coding-in-Mojo Phase 0; ran 13 review-loop cycles across 7 artifacts (5 scoping docs + epic body + 25 issue bodies in 2 batches), caught 2 critical findings post-merge that two earlier reviewers had missed | Commit chain `84013ec..44affc3` in PRs #2/#3 |
+| Private research project | Repeated review of related documents and issue bodies caught findings missed by earlier reviewers | Private provenance retained outside the public example |

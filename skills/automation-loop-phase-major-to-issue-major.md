@@ -1,10 +1,10 @@
 ---
 name: automation-loop-phase-major-to-issue-major
 license: BSD-3-Clause
-description: "Invert a phase-batched automation pipeline into a per-issue (issue-major) loop so each issue runs plan→implement→drive-green to MERGE before the next is picked up, eliminating stale-plan and sibling-merge-conflict failure classes. Use when: (1) inverting a phase-batched pipeline to per-item, (2) wanting per-issue blocking merge, (3) eliminating stale-plan / sibling-conflict classes in a batch loop, (4) adding bounded-retry-then-skip to a drive loop, (5) adding a side-effecting fetch into a mock-sequence-tested function."
+description: "Refactor phase-batched automation into per-item delivery to reduce stale plans and sibling conflicts while preserving phase selection and retry behavior."
 category: architecture
 date: 2026-06-21
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 verification: verified-ci
 tags: [automation-loop, issue-major, phase-ordering, per-issue-merge, drive-green, worktree, state-skip, hephaestus, loop-runner]

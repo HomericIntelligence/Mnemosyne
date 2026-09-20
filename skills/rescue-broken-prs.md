@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: Rescue Broken PRs
 category: ci-cd
 date: 2026-02-06
-version: 1.0.0
+version: "1.1.0"
 user-invocable: false
 ---
 # Rescue Broken PRs
@@ -465,7 +465,7 @@ git push --force-with-lease
 
 ## Next Steps After Rescue
 
-1. ✅ All checks passing → Enable auto-merge
+1. When merge is authorized and live repository requirements are satisfied, enable auto-merge:
    ```bash
    gh pr merge --auto --rebase
    ```
@@ -475,7 +475,7 @@ git push --force-with-lease
    gh pr view <PR_NUMBER>
    ```
 
-3. Clean up local branches after merge:
+3. If cleanup is requested, remove verified unused local branches after merge:
    ```bash
    git branch -d <branch-name>
    ```
@@ -486,7 +486,8 @@ git push --force-with-lease
 1. Find PRs with failing checks: `gh pr list --state open`
 2. Identify failure patterns: `gh run view <RUN_ID> --log-failed`
 3. Apply fixes systematically using this workflow
-4. Verify all checks pass before moving to next PR
+4. Verify affected behavior and required checks. Continue independent PR repairs
+   while another PR waits for CI; report each PR’s evidence separately.
 
 **Common edge cases:**
 - PRs already merged (check with `gh pr list --state all`)

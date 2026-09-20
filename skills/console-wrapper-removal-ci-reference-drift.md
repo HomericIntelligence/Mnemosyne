@@ -1,10 +1,10 @@
 ---
 name: console-wrapper-removal-ci-reference-drift
 license: BSD-3-Clause
-description: "Use when deleting redundant Python scripts/ wrapper files after moving functionality to package modules or pyproject console scripts: update every CI, pre-commit, shell, docs, fallback, and tracked-file test reference to the canonical entry point before removing the wrapper."
+description: "Remove redundant Python CLI wrappers without leaving CI, hooks, scripts, documentation, or runtime fallbacks pointing to deleted paths."
 category: ci-cd
 date: 2026-06-30
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 verification: verified-ci
 tags:

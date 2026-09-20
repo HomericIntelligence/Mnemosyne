@@ -1,10 +1,10 @@
 ---
 name: docker-apt-runc-conflict-removes-docker-ce
 license: BSD-3-Clause
-description: "Diagnose and fix a Docker Engine that has vanished (docker.service/docker.socket unit files missing, dpkg shows docker-ce/docker.io in state rc) because installing the standalone Debian runc package forced apt to remove containerd.io/docker-ce via a Conflicts/Replaces relationship. Use when: (1) docker.socket not found after unmask, (2) docker-ce shows rc in dpkg -l, (3) Docker disappeared after installing build tools (e.g. a from-source Docker/Moby/containerd build-dependency list that includes runc)."
+description: "Diagnose Docker Engine removal after a standalone runc package conflicts with containerd.io or docker-ce."
 category: debugging
 date: 2026-07-13
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 verification: verified-local
 tags:

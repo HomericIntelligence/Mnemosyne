@@ -1,10 +1,10 @@
 ---
 name: workflow-github-issues-individual-per-fix-for-automation-loop
 license: BSD-3-Clause
-description: "When filing GitHub issues that the HomericIntelligence automation loop (`hephaestus-automation-loop`) will fix, file ONE issue per independently-shippable PR — not one combined issue listing several fixes. Use when: (1) filing a multi-bug audit finding, (2) filing a multi-component refactor, (3) the automation loop will pick up these issues, (4) the Closes #N rule (`pr-policy` CI gate enforces exactly-one closing reference) constrains you to one issue per PR."
+description: "Scope issues for automation that maps one issue to one PR; split independent fixes when the target repository enforces a single closing reference."
 category: tooling
 date: 2026-05-30
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [github-issues, automation-loop, pr-policy, homericintelligence, issue-scoping, workflow, closes-n, multi-fix, audit-finding]
@@ -74,14 +74,14 @@ tags: [github-issues, automation-loop, pr-policy, homericintelligence, issue-sco
 
 1. **Draft the combined description first** — Write the full design bug or audit finding as one document. This gives you the complete picture before you decide how to chop it.
 
-2. **Apply the 4-question decision checklist** (above). Count YES answers. If >= 1 YES → split.
+2. **Choose cohesive delivery units.** Use the questions below as decision aids. Split independently shippable changes when this helps the target automation; keep coupled changes together.
 
 3. **Identify the natural fix boundaries.** A "fix" is the unit that:
    - Touches a cohesive set of files (the loop's implementer can scope the patch)
    - Has its own acceptance criteria expressible as "do X, verify Y, add tests Z"
    - Could be shipped and merged independently of the other fixes (modulo sequencing notes)
 
-4. **File one issue per fix.** Each child issue MUST contain:
+4. **File one issue per fix.** Useful issue details include:
    - **Concrete acceptance criteria** (what done looks like)
    - **File + line citations** for the offending code (e.g., `loop_runner.py:918-924`)
    - **List of unit tests to add** (the loop's planner uses these to scope work)
@@ -92,7 +92,7 @@ tags: [github-issues, automation-loop, pr-policy, homericintelligence, issue-sco
    - **Close as superseded**: Close the combined issue with a comment listing the child issue numbers ("Split into #818, #819, #820, #821 so the automation loop can pick them up one at a time. Closing as superseded.")
    - **Keep open as epic tracker**: Edit the body to be a pointer-only document (the title, a 2-line summary, and a checklist of child issue numbers). Note: the loop will NOT decompose this — it is for human PM only.
 
-6. **Trigger the automation loop.** It will pick up each child issue independently, plan it, implement it as one PR closing one issue, and satisfy `pr-policy` automatically.
+6. **Run the loop when requested.** Issue preparation alone does not authorize an unattended implementation campaign. For authorized runs, check the target loop and current policy behavior.
 
 ### The `pr-policy` Constraint (Why This Matters)
 
@@ -133,7 +133,7 @@ A combined issue forces either:
 
 If **all four are NO** → one issue is correct (e.g., a single rename touching three files, atomically reverted if any one fails).
 
-If **>= 1 is YES** → split.
+A YES answer suggests a possible split; weigh cohesion, dependencies, and the current automation contract.
 
 ### Concrete Worked Example (this session, 2026-05-30)
 
@@ -170,7 +170,7 @@ It is tempting to file an "epic" issue and add a checklist of sub-tasks:
 
 **The automation loop does NOT decompose epic checklists into separate PRs.** It sees one issue, plans one solution, implements one PR. Epics are for human project management, not for automated implementation.
 
-If you want the loop to do the work, every checkbox MUST become its own filed issue.
+For this loop, create an issue for each independently shippable work unit; several coupled checklist items can belong to one issue.
 
 ### Distinction from PR-Sizing Convention
 

@@ -1,10 +1,10 @@
 ---
 name: architecture-claude-md-agents-md-single-source-ecosystem-migration
 license: BSD-3-Clause
-description: "How to consolidate CLAUDE.md into canonical AGENTS.md without leaving policy consumers, templates, guards, tests, workflows, or scanners reading the compatibility pointer. Use when: (1) replacing a substantive CLAUDE.md with an exact AGENTS.md pointer; (2) preserving directives from multiple guidance documents with an executable section-scoped contract; (3) retargeting live repository consumers atomically while keeping narrow compatibility aliases; (4) sweeping an ecosystem where already-migrated repos should be detected before work begins."
+description: "Consolidate repository instructions into AGENTS.md while preserving live consumers. Use for compatibility pointers, policy scanners, templates, or ecosystem migration inventories."
 category: architecture
 date: 2026-07-21
-version: "2.0.0"
+version: "2.1.0"
 user-invocable: false
 verification: unverified
 history: architecture-claude-md-agents-md-single-source-ecosystem-migration.history
@@ -26,8 +26,9 @@ tags:
 # Consolidating Repository Agent Guidance into AGENTS.md Without Orphaning Consumers
 
 > **Warning:** The exhaustive policy-consumer workflow added in v2.0.0 is a reviewed
-> implementation plan, not an end-to-end result. Treat it as a hypothesis until the
-> focused tests, anchor check, static checks, full suite, and CI all pass.
+> implementation plan, not an end-to-end result. Its consumer and anchor claims
+> remain unverified until supported by relevant evidence. Report the scope of
+> checks that ran and any gaps; continue useful preparation when execution is unavailable.
 
 ## Overview
 
@@ -163,7 +164,7 @@ Follow [`AGENTS.md`](AGENTS.md). It is the sole authoritative agent contract for
    can remain when changing it would break keyword callers, but user-facing documentation and
    internal calls should use the canonical name.
 
-5. **Write regression tests before production edits.** The contract should assert:
+5. **Consider regression tests for the consumer contract.** Useful assertions include:
 
    - `CLAUDE.md` equals the exact pointer string;
    - every mapped heading exists in `AGENTS.md` in the expected order;
@@ -203,10 +204,10 @@ Follow [`AGENTS.md`](AGENTS.md). It is the sole authoritative agent contract for
    intermediate or committed state where `CLAUDE.md` is a pointer while any guard still treats
    it as policy.
 
-9. **Verify from narrow to broad.** Run the new contract and focused consumer tests, then the
-   repository-wide hidden-file audit, anchor validator, formatter/linter/type checks required by
-   the repository, and the complete test suite. CI is required before calling the comprehensive
-   workflow verified.
+9. **Choose verification from the changed consumers.** Start with the contract and focused
+   consumer checks. Expand to link, static, or full-suite checks when the change or repository
+   policy calls for them. Report local and CI evidence separately; continue useful work when
+   a check is unavailable without claiming it passed.
 
 10. **Rollback atomically.** If directive preservation, anchors, or live-consumer checks remain
     red, restore both documents and every retargeted consumer together. A partial rollback is the

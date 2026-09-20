@@ -1,10 +1,10 @@
 ---
 name: vite-wasm-havok-fix
 license: BSD-3-Clause
-description: "Skill: vite-wasm-havok-fix"
+description: "Diagnose a blank Vite scene when Havok WASM loading fails after dependency pre-bundling."
 category: debugging
 date: 2026-03-19
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 ---
 # Skill: vite-wasm-havok-fix

@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "When an audit finding cites an ADR, read the ADR before planning. Use when: (1) an audit finding references an architectural decision record, (2) a finding describes a structural smell and a remedy, (3) a plan would involve large structural refactors to a well-established codebase."
 category: architecture
 date: 2026-06-13
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags: [adr, audit, planning, architecture-decision-record, remediation]
@@ -52,7 +52,7 @@ find hephaestus/automation -name '*.py' | xargs wc -l | tail -1
 
 ### Detailed Steps
 
-1. **Read the cited ADR first** — before writing a single line of plan, read the ADR referenced in the finding. Pay attention to: (a) what problem it solved, (b) what remedy it prescribed, (c) what alternative remedies it explicitly rejected.
+1. **Consult the relevant ADR** — read the decision that bears on the proposed change. Pay attention to: (a) what problem it solved, (b) what remedy it prescribed, (c) what alternative remedies it explicitly rejected.
 
 2. **Check whether the ADR remedy is already implemented** — look for the extra in `pyproject.toml`, boundary tests passing in CI, gating imports in `__init__.py`. If the remedy is already implemented, the correct plan is documentation-only.
 

@@ -1,10 +1,10 @@
 ---
 name: mojo-type-api-migration-and-import-patterns
 license: BSD-3-Clause
-description: "Use when: (1) upgrading Mojo to a new API baseline (Writable->WritableTo, trait/conformance refactors, parametric dtype migration), (2) migrating callers after a Mojo stdlib breaking change, (3) resolving 'import of X is ambiguous' errors caused by two modules exporting the same name, (4) systematically reviewing a large-scale parametric type system migration for dependency order and zero-copy conversion safety, (5) removing ImplicitlyCopyable trait from Mojo structs and fixing resulting compile errors, (6) migrating DType from runtime-typed patterns to native compile-time parametric patterns."
+description: "Migrate Mojo traits, imports, and parametric dtypes across API changes while preserving ownership, compatibility, and compile-time contracts."
 category: architecture
 date: 2026-06-07
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 history: mojo-type-api-migration-and-import-patterns.history
 tags: [mojo, type-migration, api-migration, parametric-dtype, implicitlycopyable, import-ambiguity, trait, dtype-native]
@@ -73,8 +73,8 @@ pixi run mojo test tests/shared/
 #### 1. Triage before touching code
 
 Run the error-count query. Categorize into **hard errors** (block compilation: struct field type
-changes, import renames, keyword removal) vs **warnings** (deprecation notices — fix in a separate
-PR). Fix bottom-up: types used everywhere first (`shared/core/` → `shared/tensor/` → `shared/layers/`
+changes, import renames, keyword removal) vs **warnings** (deprecation notices —
+prioritize according to migration scope). Fix bottom-up: types used everywhere first (`shared/core/` → `shared/tensor/` → `shared/layers/`
 → `tests/` → `examples/`).
 
 #### 2. Removing ImplicitlyCopyable from a struct
@@ -162,9 +162,8 @@ Critical rules:
   typed code to an isolated package with no `AnyTensor` imports.
 - Break circular imports with function-scoped local imports inside method bodies.
 
-Review methodology for planning the migration: launch 3 parallel exploration agents (core struct
-patterns, consumer/collection patterns, language-feature verification) + 2 plan agents (feasibility/
-safety, phase-ordering/scope). Use a 3-layer package split (base = zero-dep utilities; tensor =
+For a broad migration, consider separate reviews of core types, consumers, and language
+behavior. Select delegation and review depth to match the coupling and available resources. Use a 3-layer package split (base = zero-dep utilities; tensor =
 typed + type-erased + traits; core = ops + layers). Update trait signatures BEFORE parameterizing the
 structs that implement them; defer file renames to a final cleanup phase. Cross-reference scope
 estimates against actual grep counts and multiply 1.5–3×.

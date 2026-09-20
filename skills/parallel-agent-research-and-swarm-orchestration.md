@@ -1,9 +1,9 @@
 ---
 name: parallel-agent-research-and-swarm-orchestration
-description: "Orchestrate dependency-aware parallel agents for research review, corpus audits, multi-phase delivery, and GitHub issue-to-PR pipelines. Use when work has independent evidence domains, explicit integration gates, and enough scale to justify coordinator overhead."
+description: "Orchestrate dependency-aware parallel agents for research review, corpus audits, multi-phase delivery, and GitHub issue-to-PR pipelines. Use when work has independent evidence domains, clear integration points, and enough scale to justify coordinator overhead."
 category: architecture
 date: 2026-05-19
-version: "2.0.0"
+version: "2.1.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-ci
@@ -25,7 +25,7 @@ tags:
 ## Overview
 
 Parallelism is useful only when ownership is disjoint and integration is explicit. A coordinator
-defines the shared baseline, dependency graph, output contract, concurrency cap, and decision gates;
+defines the shared baseline, dependency graph, expected output, and useful concurrency;
 specialists gather evidence or implement bounded slices; the coordinator verifies and synthesizes.
 Agents do not share a branch/index, approve destructive actions, or turn partial reports into facts.
 
@@ -125,20 +125,24 @@ order. For code:
 For research, the coordinator checks contradictions, duplicate findings, baseline consistency, and
 systemic errors before writing the summary.
 
-### 6. Apply structural grade and stop rules
+### 6. Handle material findings and changed conditions
 
 Define non-compensating failures before review. For example, a missing train/test split or an
 incorrect system specification may cap an overall corpus grade even when prose and citations score
 well. Critical correctness or provenance defects cannot be averaged away by presentation quality.
 
-Stop or re-plan when:
+Reassess the affected work when:
 
 - an agent reports overlapping ownership;
 - the baseline or source revision changed;
 - required evidence is unavailable;
 - resource pressure makes concurrency unsafe;
 - a destructive or external action lacks authority;
-- a dependent result contradicts the approved interface.
+- a dependent result contradicts the agreed interface.
+
+Resolve routine conflicts within the existing scope. Reduce concurrency or reassign ownership as
+needed, and continue independent tasks. Seek input for an unresolved material decision or missing
+authorization; a blocked dependency need not stop the whole campaign.
 
 ### 7. Operate a six-phase issue-to-PR pipeline
 
@@ -146,7 +150,7 @@ For each repository/iteration, keep the phases explicit:
 
 1. plan open in-scope issues and publish canonical plans;
 2. review plans and record GO/NOGO evidence;
-3. implement only approved plans in isolated worktrees;
+3. implement authorized work in isolated worktrees, using plan review when useful or required by the active delivery contract;
 4. review PRs and attach actionable inline findings;
 5. address unresolved review threads using the original implementation context when available;
 6. classify and drive current-head CI green, then enable merge only under repository policy.
@@ -173,7 +177,7 @@ Before publishing:
 
 - reconcile every assignment with an output or explicit failure;
 - verify cited files, links, commits, and run results;
-- rerun aggregate tests/validators from the integrated head;
+- use checks appropriate to integration changes; repeat them when new changes or unresolved failures justify it;
 - search for missing dimensions, duplicate coverage, contradictions, and stale baselines;
 - label unverified claims and residual risk;
 - separate completed outcomes from recommendations.
@@ -208,4 +212,4 @@ Before publishing:
 
 The indexed campaigns demonstrate the orchestration structure, not universal agent counts, model
 choices, or quality thresholds. Adjust concurrency and specialist roles to the workload and host;
-retain immutable baselines, disjoint ownership, explicit gates, and evidence verification.
+retain clear source references, disjoint ownership, and evidence-based reporting.

@@ -1,10 +1,10 @@
 ---
 name: tooling-stage-only-your-own-files-in-shared-worktree
 license: BSD-3-Clause
-description: "Use when: (1) an automation/address-review loop runs in a SHARED worktree that already carries unrelated pre-existing dirty changes (modified/deleted/untracked files) from a different change; (2) you are about to commit your fix and are tempted to run `git add -A` / `git add .`; (3) a commit accidentally bundled unrelated files (scratch artifacts like .claude-address-review-*.md, deletions, sibling edits); (4) you need to un-bundle a too-broad commit without losing the other (not-yours) changes; (5) reviewing whether an agent's commit scope matches only the files it actually edited; (6) implementing a salvage-commit path for a REUSED worktree (preserve in-progress changes across re-sync) — specifically when `git add -A` in the salvage commit followed by cherry-pick after `reset --hard` produces a CONFLICT that hard-fails the entire issue."
+description: "Stage only owned changes in shared worktrees. Preserve other contributors’ edits and recover a commit that accidentally bundled unrelated files."
 category: tooling
 date: 2026-06-15
-version: "1.1.0"
+version: "1.2.0"
 history: tooling-stage-only-your-own-files-in-shared-worktree.history
 user-invocable: false
 verification: verified-ci
@@ -70,7 +70,7 @@ git log --show-signature -1      # look for "Good signature"
    ```
    This must list exactly the files you edited and nothing else. Also run `git diff --cached --stat` and scan the hunks to ensure no unrelated changes slipped in.
 
-4. **Commit signed.** The committer email must match the signing key (e.g. `4211002+mvillmow@users.noreply.github.com`).
+4. **Commit signed.** The committer email must match the signing key (e.g. `12345+example-contributor@users.noreply.github.com`).
    ```bash
    git commit -S -m "fix(scope): description"
    ```

@@ -1,10 +1,10 @@
 ---
 name: architecture-compose-resource-limit-env-substitution
 license: BSD-3-Clause
-description: "Planning pattern for exposing hard-coded docker-compose deploy.resources limits/reservations (cpus, memory) as overridable Compose ${VAR:-default} substitutions WITHOUT changing default behavior. CRITICAL test-breakage trap: yaml.safe_load does NOT interpolate ${VAR:-default} — it returns the literal string, so any test/parser that does float(limits['cpus']) on the raw YAML scalar raises ValueError once the scalar becomes '${HERMES_CPU_LIMIT:-0.50}'. When converting a YAML scalar to a substitution, audit EVERY test/parser that reads that key and add a regex helper that validates the substitution FORM + its default instead of float()-ing the raw value. Replicate the repo's EXISTING substitution convention exactly; keep current hard-coded values as the :-default so unconfigured `compose up` is byte-for-behavior unchanged; apply the same vars to ALL services sharing the identical block (YAGNI — no per-service knobs, no config-loader layer); document new vars in BOTH .env.example and the project config table; no Python Settings fields (Compose-runtime limits are orchestration config, not app config). Use when: (1) an issue asks to make compose resource limits/reservations overridable, (2) you are turning a YAML scalar into a ${VAR:-default} substitution, (3) a test does float()/parsing on a compose YAML value you are about to parameterize."
+description: "Parameterize Docker Compose resource limits while preserving defaults. Use when changing literal YAML values to environment substitutions or updating consumers that parse those values."
 category: architecture
 date: 2026-06-19
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags: [planning, docker-compose, deploy-resources, env-var-substitution, yaml-safe-load, float-parse-trap, default-preservation, yagni, orchestration-config, unverified]
@@ -25,7 +25,7 @@ tags: [planning, docker-compose, deploy-resources, env-var-substitution, yaml-sa
 
 ## When to Use This Skill
 
-Use this skill when planning (not yet implementing) and any of the following hold:
+Use this planning evidence during design or implementation when any of the following hold:
 
 - An issue asks to make docker-compose `deploy.resources` limits/reservations (`cpus`, `memory`) **overridable** without changing the default `compose up` behavior.
 - You are about to convert a YAML scalar (e.g. `cpus: "0.50"`) into a `${VAR:-default}` substitution string.
@@ -44,7 +44,7 @@ Use this skill when planning (not yet implementing) and any of the following hol
 
 ### Step 1 — Replicate the repo's EXISTING substitution convention exactly
 
-Do not invent a new convention. Grep the compose file for the form it already uses and mirror it character-for-character.
+Prefer the existing Compose substitution convention when it preserves the requested default behavior.
 
 ```bash
 # ProjectHermes already uses the ${VAR:-default} form:

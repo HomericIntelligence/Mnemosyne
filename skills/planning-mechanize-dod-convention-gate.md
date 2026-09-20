@@ -1,10 +1,10 @@
 ---
 name: planning-mechanize-dod-convention-gate
 license: BSD-3-Clause
-description: "Planning a mechanized Definition-of-Done / convention gate (e.g. a commit-message convention check) enforced at BOTH a local pre-commit stage and a REQUIRED CI job. Use when: (1) planning a hook + CI gate that enforces a project convention on new artifacts; (2) a plan rests on an external API field, a hook-installation mechanism, or an inferred allow-list and a reviewer NOGO'd it as unverified; (3) you must convert plan-time assumptions into verified evidence to move a plan from NOGO to GO; (4) adding a commit-msg-stage pre-commit hook and wondering why it never fires; (5) extending an existing GitHub GraphQL block to read commit.message; (6) deciding whether an allow-list (conventional-commit types) is safe to hard-fail."
+description: "Plan a convention check shared by local hooks and CI. Use when hook installation, external API fields, or an inferred allowlist could make the check ineffective."
 category: ci-cd
 date: 2026-06-12
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-local
 tags: [planning, definition-of-done, convention-gate, pre-commit, commit-msg-hook, conventional-commits, graphql, required-ci-job, plan-verification, nogo-to-go, load-bearing-assumption]
@@ -60,7 +60,7 @@ gh api graphql -f query='
         commits(first:100){nodes{commit{message}}}
       }
     }
-  }' -F owner=mvillmow -F name=ProjectHephaestus -F num=1233 \
+  }' -F owner='<owner>' -F name=ProjectHephaestus -F num=1233 \
   --jq '.data.repository.pullRequest.commits.nodes[].commit.message | split("\n")[0]'
 
 # 4. An allow-list inferred from docs is NOT evidence. SCAN real history.

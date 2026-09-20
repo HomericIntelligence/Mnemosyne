@@ -1,10 +1,10 @@
 ---
 name: mojo-package-build-and-distribution
 license: BSD-3-Clause
-description: "Use when: (1) planning to publish a Mojo library via the modular-community conda channel — idiomatic src/<pkg>/ layout, conda.recipe/recipe.yaml (rattler-build), PR workflow, (2) converting an in-tree shared/ directory into a distributable .mojopkg, (3) creating GitHub Actions workflows for automated .mojopkg building and release creation, (4) deciding between conda channel vs Python wheel vs git dependency for distributing a Mojo library, (5) replacing fictional 'mojo install'/'mojo publish' CLI references in documentation with the correct pixi-channel workflow."
+description: "Build and distribute Mojo packages with clean-environment import checks and fork-based upstream contributions. Separate dry-run evidence from authorized publication."
 category: tooling
 date: 2026-06-07
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 history: mojo-package-build-and-distribution.history
 tags: [mojo-packaging, mojopkg, modular-community, prefix-dev, rattler-build, conda, python-wheel, github-actions, release, distribution]
@@ -194,8 +194,9 @@ needed.
 
 **`--dry-run` trap:** if a publish script has a `--dry-run` mode that skips the `git push`, dry-run
 will report success even when the script is mis-wired to push directly to `modular/modular-community`
-(which has no push access). Always do at least one **real** (non-dry-run) execution against the fork
-before trusting the script.
+(which has no push access). A real execution against the fork is needed to establish publication evidence, but
+perform it only when publication is authorized. Until then, report push capability
+as unverified and continue packaging or local installation checks.
 
 #### 6. Consumer experience
 

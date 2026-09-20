@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Use when: (1) designing production admission for a route-eligible autoscaling pool, (2) deciding whether exact scale-out clones must repeat a soak, (3) defining durable evidence that separates template promotion from allocation-specific admission, (4) reviewing restart and relaunch invalidation rules for autoscaling safety."
 category: architecture
 date: 2026-07-29
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags:
@@ -174,7 +174,7 @@ receipt alone.
 
 #### 7. Review the boundary with scenario-based acceptance criteria
 
-Before implementation, require scenarios that prove:
+Use these scenarios to guide implementation and verification:
 
 - no clone publishes before the reference soak and durable receipt exist;
 - an exact same-launch clone publishes after fresh admission without repeating

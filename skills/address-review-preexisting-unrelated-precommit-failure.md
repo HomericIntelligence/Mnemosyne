@@ -1,10 +1,10 @@
 ---
 name: address-review-preexisting-unrelated-precommit-failure
 license: BSD-3-Clause
-description: "Use when a local pre-merge/pre-push gate goes red on work your PR did not introduce. Covers two verified variants: (1) `pre-commit run --all-files` fails on an unrelated hook, where the durable proof is stash-verify (`git stash push <your-changed-file>` then rerun just the failing hook; identical failure means pre-existing/out-of-scope); (2) a post-rebase `git push` pre-push hook runs a broad pytest suite and fails on unrelated local host assumptions (for example macOS lacks `/usr/bin/bash` or uses Bash 3.2 without Bash 4 features) while PR-specific tests pass. The rule is: prove/classify the failure, run focused validation against the PR diff, do not expand scope to repair unrelated local gate debt, and document any `--no-verify` push exception with the exact full-hook failure and targeted-pass evidence."
+description: "Classify unrelated pre-commit or pre-push failures against a clean base, verify the changed behavior, and document any authorized local-hook exception."
 category: tooling
 date: 2026-07-04
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-local
 history: address-review-preexisting-unrelated-precommit-failure.history
@@ -88,11 +88,11 @@ ruff format --check tests/unit/scripts/test_dependency_floor_consistency.py # cl
 
 # --- Commit ONLY the in-scope file(s): signed (-S) + DCO (-s), committer email == GPG key ---
 git add pyproject.toml README.md tests/unit/scripts/test_dependency_floor_consistency.py
-git -c user.email="4211002+mvillmow@users.noreply.github.com" commit -S -s \
+git -c user.email="123456+developer@users.noreply.github.com" commit -S -s \
   -m "docs(packaging): document automation extra in [all] declaration"
 # Verify signing via GitHub, NOT `git log --show-signature` (which can lie):
 gh api repos/<owner>/<repo>/commits/<sha> --jq '.commit.verification'   # .verified == true
-# Do NOT push if an orchestrator owns push in the loop.
+# If the active workflow assigns push ownership to an orchestrator, let that owner publish to avoid competing writes.
 
 # --- PRE-PUSH FULL-SUITE NOISE AFTER A REBASE ---
 # 1. Confirm the real PR base, not the guessed branch name.
@@ -142,7 +142,7 @@ git push --force-with-lease --no-verify origin <branch>
      base HEAD ⇒ not introduced by you ⇒ **out-of-scope**. Do NOT fix it; fixing it
      would be scope creep belonging to separate issues (here the API-table work in
      #1506/#1507).
-   - **Failure DISAPPEARS when stashed** = it IS yours ⇒ you MUST fix it.
+   - **Failure DISAPPEARS when stashed** = investigate the change as the likely cause and repair an introduced regression.
 
 3. **Do NOT expand scope.** Fixing an unrelated failing hook on a tightly-scoped PR
    is scope creep: it bloats the diff, blurs review, and steals work from the issue
@@ -164,7 +164,7 @@ git push --force-with-lease --no-verify origin <branch>
    unsigned:
 
    ```bash
-   git -c user.email="4211002+mvillmow@users.noreply.github.com" commit -S -s -m "<msg>"
+   git -c user.email="123456+developer@users.noreply.github.com" commit -S -s -m "<msg>"
    ```
 
    Verify signing via GitHub, not local git (`git log --show-signature` can lie):
@@ -173,7 +173,7 @@ git push --force-with-lease --no-verify origin <branch>
    gh api repos/<owner>/<repo>/commits/<sha> --jq '.commit.verification'   # .verified == true
    ```
 
-   Do NOT push if an orchestrator owns push in the loop.
+   If the active workflow assigns push ownership to an orchestrator, let that owner publish to avoid competing writes.
 
 6. **For a pre-push hook full-suite failure, classify before bypassing.** The
    Inference Service PR #327 rebase showed a local pre-push hook running full
@@ -256,12 +256,12 @@ pixi run pytest tests/
 **Signed + DCO commit invocation (committer email == GPG key):**
 
 ```bash
-git -c user.email="4211002+mvillmow@users.noreply.github.com" commit -S -s \
+git -c user.email="123456+developer@users.noreply.github.com" commit -S -s \
   -m "docs(packaging): document automation extra in [all] declaration"
 gh api repos/<owner>/<repo>/commits/<sha> --jq '.commit.verification'   # .verified == true
 ```
 
-Do NOT push — the orchestrator owned push in this loop.
+In this recorded loop, the orchestrator owned push.
 
 **Inference Service PR #327 post-rebase pre-push variant:**
 

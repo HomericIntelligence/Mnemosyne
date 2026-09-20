@@ -1,10 +1,10 @@
 ---
 name: dockerhub-digest-check-null-guard
 license: BSD-3-Clause
-description: "Correctly fetch and compare Docker Hub tag digests in CI digest-pin checkers. CRITICAL: jq -r on an error JSON prints the STRING 'null', which passes [ -z ] emptiness checks and poisons downstream compares (auto-filed 'Latest: null' issues); Docker Hub returns 401 JSON without an anonymous bearer token even for public images; the value comparable to a FROM image@sha256 pin is the docker-content-digest RESPONSE HEADER fetched with manifest-list/OCI-index Accept types — NEVER .config.digest. Use when: (1) a digest-pin check workflow reports null/always-stale, (2) writing any CI job that queries registry-1.docker.io, (3) updating base-image digest pins and needing to verify the new digest before committing."
+description: "Fetch Docker Hub tag digests defensively when API error JSON or missing fields would turn jq output into a misleading null string."
 category: ci-cd
 date: 2026-07-03
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 verification: verified-local
 tags: [docker-hub, registry-v2, digest-pin, docker-content-digest, jq-null, github-actions, oci-image-index, supply-chain, base-image]

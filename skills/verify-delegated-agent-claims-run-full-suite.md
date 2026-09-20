@@ -1,10 +1,10 @@
 ---
 name: verify-delegated-agent-claims-run-full-suite
 license: BSD-3-Clause
-description: "Don't trust a sub-agent's success report for a delegated git/rebase/refactor task — independently re-verify the load-bearing claims (merge-base re-parented, main-only symbols present, actual return values), and run the FULL test suite locally from the worktree cwd before pushing a merge candidate. Use when: (1) an Opus/Sonnet sub-agent reports 'rebased onto main, all tests pass, force-pushed' and you are about to trust it, (2) CI keeps failing on a DIFFERENT test each round after a delegated rebase/refactor, (3) you are validating a merge candidate with a hand-picked test subset, (4) a path-relative test gives a false failure because you ran from the wrong checkout."
+description: "Verify consequential delegated-work claims against source and execution evidence. Use for rebases, missing symbols, behavior changes, and tests that may run from the wrong checkout."
 category: tooling
 date: 2026-06-27
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-ci
 tags: [delegation, sub-agent, rebase, verification, full-suite, worktree, merge-base, ci-cost]
@@ -54,7 +54,7 @@ cd <worktree-root> && pixi run pytest tests/unit/ -q --no-cov -p no:cacheprovide
 1. **Re-verify the rebase actually re-parented.** Compare `git merge-base origin/main origin/<branch>` against `git rev-parse origin/main`. If they differ, the branch never re-parented onto main — the agent's "rebased onto main" claim is false regardless of what its summary says.
 2. **Confirm main-only symbols are present on the branch.** `git show origin/<branch>:<file> | grep -c <main-only-symbol>` must be > 0. This proves the branch actually contains the main commits it claims to, catching half-applied rebases and dropped commits.
 3. **Verify behavioral claims by executing the contract.** Do not read the agent's summary to confirm a value regression was fixed — run the function and assert its return value (e.g. per-phase values). Claims like "the value is now X" must be observed, not narrated.
-4. **Run the ENTIRE unit suite once from the worktree cwd before pushing.** A hand-picked subset hides stale assertions that only the full run exercises. One full local run catches what would otherwise be N sequential ~18-min CI failures, each surfacing a different test.
+4. **Select verification for the changed surface.** Broad rebases and refactors can justify the full suite because focused tests may miss stale assertions. Use the authorized validation environment, record the tested revision, and avoid repeating equivalent checks without new changes or unresolved failures.
 5. **Run from cwd == the worktree root**, never the main repo root, so path-relative tests (`Path(__file__).parents[N]`) resolve against the correct checkout instead of giving a false failure.
 
 ## Failed Attempts

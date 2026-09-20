@@ -1,10 +1,10 @@
 ---
 name: planning-pr-body-numeric-claims-source-derived
 license: BSD-3-Clause
-description: "When a PR-open plan writes a body that STATES specific quantitative claims (parameter counts, tensor counts, file counts, test counts, epoch counts, dataset sizes), the plan MUST either (a) derive the number from a grep/read command on the actual source and cite the command inline, OR (b) treat the number as a placeholder for the executor to fill from a specific command; the plan MUST NOT invent an explanation with fabricated arithmetic. A concrete anti-pattern from ProjectOdyssey #5527 planning: claimed '110 trainable tensors' with the arithmetic '3 + 78 + 2 = 83 core params, then 110 after including per-block bias tensors' — the arithmetic does not sum to 110 (83 ≠ 110) and the source was never read. Reviewers may miss the mismatch; even if they catch it, the plan has lost credibility. The correct pattern: for MobileNetV1 tensor counts, the plan should specify `pixi run mojo run -c 'from projectodyssey.models.mobilenetv1 import Model; var m = Model(); print(len(m.trainable_tensors()))'` (or the analogous grep over the constructor), leave the number as `<<TRAINABLE_TENSOR_COUNT>>` in the body template, and let the executor substitute. Use when: (1) drafting a PR body that includes any specific integer count of source artifacts (params, tensors, files, tests, lines), (2) writing plan prose that includes 'arithmetic to justify a number' (e.g. `3 + 78 + 2 = 83`), (3) catching yourself citing a number sourced from analogy, memory, or a similar model's spec rather than the branch under test."
+description: "Ground PR-body counts and arithmetic in source evidence; use explicit placeholders when a build-dependent measurement is not yet available."
 category: architecture
 date: 2026-07-02
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags:
@@ -73,11 +73,11 @@ echo "The model has $n trainable tensors (grep: 'trainable_tensor' in model.mojo
 ### Detailed Steps
 
 1. **When you write a number in a plan**, ask: "did I derive this from a command against the branch under test, or did I sum/estimate/recall it?" If not derived, mark it `<<TOKEN>>` and specify the probe.
-2. **When you write arithmetic in a plan** (`3 + 78 + 2 = 83`), run the sum. Every time. Do not commit "obvious" arithmetic without verifying the sum — an off-by-N sum in a plan is a durable-embarrassment signal that undermines the plan's credibility even when the final number is correct.
+2. **Check arithmetic used to support a claim.** Use calculation or source introspection when needed and ensure the breakdown supports the stated total.
 3. **When two numbers appear in the same plan** (a subtotal and a total), check they are consistent. In the #5527 case, "83 core params" and "110 total including biases" cannot both be right without an unstated +27 that the plan does not derive.
 4. **Prefer introspection APIs over grep** when the model class supports it (`len(model.trainable_tensors())`, `sum(p.numel() for p in model.parameters())` in PyTorch equivalents). Grep counts are best-effort; the model's own accessor is authoritative.
 5. **When the probe requires the branch to be built and the plan is being written pre-implementation**, treat the number as a placeholder for the executor to fill AT PR-open time, not at plan time. The plan should specify the probe command; the number appears only in the assembled PR body.
-6. **In review**, if a reviewer catches an arithmetic mismatch in a plan's numbers, treat it as a signal to distrust every other number in the plan, not as a local typo to patch.
+6. **In review**, trace a numeric mismatch to its source and check other claims derived by the same method.
 
 ## Failed Attempts
 

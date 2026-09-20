@@ -1,10 +1,10 @@
 ---
 name: planning-defer-tracking-via-append-only-adr
 license: BSD-3-Clause
-description: "Prefer an append-only ADR over a closeable GitHub issue as the canonical tracker when documentation marks work 'planned/future' and a reviewer flags it as untracked — because issues get auto-closed and go stale. Use when: (1) a reviewer/audit flags documented 'planned'/'future phase'/'not yet implemented' work as having no tracking issue or ADR; (2) you're tempted to open a GitHub issue to track a deferral but issues get auto-closed and go stale; (3) you need a durable canonical tracker for an architectural-state decision in a repo that already uses append-only ADRs; (4) an existing inline doc reference points at a CLOSED or wrong-scope issue and must be replaced; (5) you're planning a docs-only change to a read-mostly meta-repo and must respect ADR append-only conventions."
+description: "Choose durable references for deferred architectural decisions when a repository uses append-only ADRs. Distinguish decision records from execution issues."
 category: documentation
 date: 2026-06-20
-version: "1.1.0"
+version: "1.2.0"
 history: planning-defer-tracking-via-append-only-adr.history
 user-invocable: false
 verification: verified-local
@@ -24,12 +24,10 @@ tags:
 
 # Planning: Defer-Tracking via an Append-Only ADR (Not a Closeable Issue)
 
-When documentation marks work as "planned" / "future phase" / "not yet
-implemented" and a reviewer flags it as having no tracker, the instinct is to
-open a GitHub issue. Don't. In a repo that already treats ADRs as append-only
-and canonical, a new ADR is the durable tracker; a GitHub issue is a fragile
-artifact that gets auto-closed and goes stale — which is the exact failure the
-finding warns against.
+When documentation describes deferred architecture, consider an ADR if the repository
+uses append-only decisions. Use an issue for execution tracking when that fits the
+requested outcome. A closed issue may still document a decision; inspect its meaning
+before replacing it. Choose a durable reference without creating an extra approval step.
 
 > **Honest scope:** This skill is validated by static doc checks (grep/ls) only.
 > The plan that produced it was **not yet implemented or merged** when this skill
@@ -110,16 +108,11 @@ grep -n "<OldIssueRef>" docs/architecture.md   # expect zero
 3. **Write the ADR from `docs/adr/template.md` with the next sequential number.**
    Use `ls docs/adr/` to find the next number.
 
-4. **Set `Status: Proposed` on first commit — NEVER `Accepted`.** A brand-new ADR
-   always starts `Proposed`, even when the decision describes a state that is
-   *already true*. Marking it `Accepted` on first commit violates the repo's ADR
-   README ("Set Status to Proposed until the ADR is merged and accepted") and
-   CLAUDE.md, and contradicts house precedent — check the two most recent ADRs
-   first (they were both `Proposed`). Status is bumped to `Accepted` only AFTER
-   merge (README step 6). Verify with
-   `grep '^\*\*Status:\*\* Proposed$' docs/adr/<new-adr>.md` and assert there is
-   **no** `Accepted` line yet. Do not rationalize against a documented
-   convention — conform to it.
+4. **Follow the applicable ADR lifecycle.** In the recorded repository, the ADR README
+   and CLAUDE.md require `Proposed` until merge and acceptance. That rule protects the
+   meaning of accepted decisions; it does not require another user approval for an
+   already authorized draft. Check the current policy before transferring this
+   convention to another repository.
 
 5. **Repoint ALL mentions, not just the one a prior fix touched.** A prior partial
    fix often updates only the prose line that had a link and leaves the
@@ -179,15 +172,8 @@ unverified sources — surface these to any reviewer:
 
 ### ADR Status rule
 
-- **New ADR → `Proposed` on first commit.** Always. Even for a decision that
-  describes an already-true state. This is mandated by the repo's ADR README and
-  CLAUDE.md, not a stylistic preference.
-- **`Proposed` → `Accepted` only post-merge**, per the repo's documented ADR
-  process (README step 6).
-- **Check the two most recent ADRs for the house convention before choosing.**
-  In this repo ADR-007 and ADR-008 were both `Proposed`; conforming to that
-  precedent is what the reviewer expected. When a documented convention exists,
-  conform — do not rationalize a deviation.
+- **Recorded repository rule:** new ADRs start `Proposed`; acceptance occurs after
+  merge under its ADR README. Apply that lifecycle where the same policy governs.
 
 ### Acceptance-criterion verification commands
 

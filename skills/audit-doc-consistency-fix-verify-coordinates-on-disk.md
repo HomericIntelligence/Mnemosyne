@@ -1,10 +1,10 @@
 ---
 name: audit-doc-consistency-fix-verify-coordinates-on-disk
 license: BSD-3-Clause
-description: "Use when planning a fix for a documentation-consistency issue (drifted line numbers/paths, a command that disagrees across docs), OR when authoring the verification commands that prove such a fix. Trigger: (1) an issue, a PRIOR PLAN, or a repo audit cites file:line coordinates that may have drifted since they were captured — re-derive them on disk before quoting, (2) N docs disagree on the same command/snippet and one must be brought into line with a canonical copy, (3) a repo-wide grep surfaces matches inside throwaway worktree/build copies that must be scoped out, (4) a prior-learnings suggestion proposes drift-guard CI tooling that is disproportionate for a one-line docs fix, (5) you are writing a plan's verification-command grep assertions and they must be PORTABLE and actually able-to-fail (no cross-line / GNU-only regex; pair a positive with a negative assertion)."
+description: "Repair inconsistent documentation commands or stale file coordinates using current tracked source and proportionate checks."
 category: documentation
 date: 2026-06-20
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-local
 history: audit-doc-consistency-fix-verify-coordinates-on-disk.history
@@ -120,10 +120,10 @@ grep -q 'CI badge is now load-bearing' FILE && ! grep -q 'do not rely on the gre
 
 4. **Apply YAGNI to drift-guard tooling.** If a prior-learnings or reviewer
    suggestion proposes a grep-based CI consistency guard to prevent future drift,
-   recognize it as disproportionate scope for a one-line docs fix. DECLINE it, and
-   write the decline + the reason into the plan rather than silently dropping it.
+   consider whether it adds value beyond existing checks. For a one-line prose fix,
+   an additional CI mechanism is usually unnecessary; explain the choice when it matters.
 
-5. **Verify as docs-only.** No unit tests apply. The only gate is markdownlint via
+5. **Use proportionate documentation checks.** Consider the repository’s Markdown check, for example
    pre-commit: `pixi run pre-commit run --files <file>`, plus grep assertions that
    all tracked copies now agree on the command. Project-specific ship gates
    (ProjectHephaestus: `state:implementation-go` label + `pr-policy`) come from

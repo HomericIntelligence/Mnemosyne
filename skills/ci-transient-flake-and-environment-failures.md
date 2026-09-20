@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Use when: (1) a CI job fails non-deterministically and re-running resolves it, (2) a provider-side 5xx makes a supported rerun unavailable, (3) CI passes locally but fails in GitHub Actions, (4) a CI health check wrongly requires developer-local resources, or (5) dependency installation hangs before tests start."
 category: ci-cd
 date: 2026-06-17
-version: "1.2.0"
+version: "1.3.0"
 user-invocable: false
 history: ci-transient-flake-and-environment-failures.history
 verification: verified-ci
@@ -54,7 +54,8 @@ tags:
 - A doctor / health-check / preflight script (`scripts/doctor.sh`, `just doctor`) exits 1 in CI because it validates developer-local resources (`.git/hooks/`, SSH keys, local config) absent on GHA runners.
 - A GitHub job API response shows a dependency-install step such as `Install Playwright Chromium for browser smoke tests`, `Install backend coverage dependencies`, `Install backend runtime and test dependencies`, or `Install focused regression dependencies` remains `in_progress` far beyond the latest green baseline while the test step is still pending.
 - A job log and the retry endpoint both report a provider-side 5xx, or a provider-managed analysis reports that it cannot be rerun.
-- You are tempted to add `|| true` or `continue-on-error: true` to silence a flake — STOP, those are policy-banned.
+- A proposed retry workaround hides a failing required check with `|| true` or `continue-on-error`.
+  Preserve the result and diagnose the failure under the repository's actual CI policy.
 
 ## Verified Workflow
 
@@ -126,7 +127,9 @@ gh run rerun <run_id> --repo <owner/repo>
 2. **Confirm the prior step passed.** A clean `pip-audit` immediately before rules out a job-wide environment issue.
 3. **Rerun the failed jobs.** `gh run rerun <RUN_ID> --failed`. Unset `GITHUB_TOKEN`/`GH_TOKEN` if your shell has a PAT lacking `actions:write`.
 4. **Classify a rejected retry separately.** If the retry endpoint returns a provider-side 5xx, retry only a bounded number of times. If the provider explicitly marks the job non-rerunnable, preserve the head SHA and record the outage; do not create an empty commit or otherwise rewrite branch history solely to force another run.
-5. **Only investigate if supported retries fail repeatedly.** A repeat after two clean reruns implies a real problem (provider outage, version yank).
+5. **Investigate persistent failures or new evidence.** A small number of supported reruns may
+   distinguish a transient failure. Choose the next step from the logs; two reruns are an
+   example budget, not proof of a particular cause.
 6. **Durable follow-up (separate issue, don't block the PR):** replace curl-pipe-to-sh with the official action, which has retry semantics:
 
    ```yaml

@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Review unexecuted refactor plans that centralize automation CLI parser boilerplate and prompt nonce generation. Use when: (1) a plan extracts argparse helpers across many CLIs, (2) prompt nonce or untrusted-content fencing code is moved, (3) the plan relies on grep evidence but has not proved full CLI parity."
 category: architecture
 date: 2026-06-26
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags:
@@ -113,7 +113,7 @@ rg -n 'secrets\.token_hex\(8\)\.upper\(\)|from \.prompts import random_nonce|__a
    be additive scope, stale prose, or a planning mistake. Fetch the live issue title and
    body with `gh issue view` before coding, then state which requirements come from the
    body versus the title. If the body does not actually request both nonce extraction and
-   parser centralization, the implementer should stop and reconcile scope before editing.
+   parser centralization, resolve the uncertain scope before that edit and continue the unambiguous authorized work.
 
 2. **Treat local grep evidence as a starting map, not proof.** The plan for #1392 relied on
    file reads and grep hits for duplicate nonce calls, parser flags, dry-run semantics,

@@ -1,10 +1,10 @@
 ---
 name: pixi-env-task-config
 license: BSD-3-Clause
-description: "Use when: (1) setting up a new Mojo/MAX/Python project with pixi.toml and choosing between nightly/stable channels, (2) wrapping pixi tasks with a justfile for cross-repo convention alignment, (3) eliminating DRY violations by using pixi feature composition (environments = {features = [shared, dev]}) to share dev tools across environments, (4) adding justfile delegation recipes to a meta-repo, (5) auditing pixi task definitions for consistency with CI workflows, (6) a pixi [tasks] entry whose command body is itself `pixi run ...` (nested/recursive pixi invocation smell) — relocate it into the target environment's [feature.<env>.tasks] with a depends-on alias, (7) invoking a named pixi task with extra paths or flags — inspect the task body first because trailing arguments are forwarded and may duplicate task-owned targets."
+description: "Configure pixi environments and task delegation when dependencies, nested invocations, argument forwarding, or CI parity causes drift."
 category: tooling
 date: 2026-08-07
-version: "1.4.0"
+version: "1.5.0"
 user-invocable: false
 verification: verified-local
 history: pixi-env-task-config.history
@@ -386,7 +386,8 @@ Conventions for meta-repo delegation:
 - **Delegation pattern**: `cd <submodule-path> && just <recipe>` — never invoke pixi/tools directly; each submodule's justfile is the interface
 - **Submodule-first ordering**: submodule recipes must exist before Odysseus delegates; otherwise the call fails
 
-For multi-submodule delegation, use a **2-wave myrmidon swarm**: Wave 1 (parallel) creates/verifies submodule justfile PRs, Wave 2 (sequential, single agent) updates submodule pins + adds Odysseus delegation recipes after Wave 1 merges. Never put Wave 1 and Wave 2 in the same agent or PR.
+For multi-submodule delegation, use a **2-wave myrmidon swarm**: Wave 1 (parallel) creates/verifies submodule justfile PRs, Wave 2 (sequential, single agent) updates submodule pins + adds Odysseus delegation recipes after Wave 1 merges. Keep the dependency order explicit. Separate agents or PRs can help when repositories have
+independent delivery boundaries; they are not needed solely to enforce the wave labels.
 
 3. **(Optional) BATS sync test** at `tests/shell/justfile/test_justfile.bats`: verify justfile exists, `just --list` succeeds, expected recipes present, no heredocs (`grep -cE '<<\s*[A-Z_]'`), and a sync check that parses `[tasks]` from pixi.toml and verifies each has a matching just recipe.
 

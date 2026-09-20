@@ -6,7 +6,7 @@ description: 'Systematic implementation of findings from a strict repository aud
   across CI, source, docs, and packaging.'
 category: tooling
 date: 2026-03-15
-version: 1.0.0
+version: "1.1.0"
 user-invocable: false
 ---
 # Audit-Driven Remediation Workflow
@@ -23,7 +23,8 @@ user-invocable: false
 
 This skill captures the complete workflow for taking a structured audit report (with graded sections, specific file:line references, and severity classifications) and systematically implementing all fixes in a single coordinated pass.
 
-The key insight is that audit findings span multiple dimensions (CI, source code, documentation, packaging) but should be implemented together to avoid cascading test failures and to produce a single coherent changelog entry.
+Audit findings can span CI, source code, documentation, and packaging. Group dependent
+fixes into coherent changes; keep independent fixes separate when that simplifies review.
 
 ## When to Use
 
@@ -45,9 +46,10 @@ The key insight is that audit findings span multiple dimensions (CI, source code
 
 1. **Parse the audit report** to extract all actionable findings
 2. **Create a task per finding** with severity tag and section reference
-3. **Set dependencies**: changelog and test tasks block on all code changes
+3. **Identify real dependencies**: test and document each coherent change when it is ready
 
-Key principle: treat the audit as a specification. Each finding maps to one task.
+Use the audit as evidence. Confirm findings against the requested scope and current
+source before acting; an audit does not authorize unrelated changes.
 
 ```bash
 # Identify finding types
@@ -58,9 +60,10 @@ Key principle: treat the audit as a specification. Each finding maps to one task
 
 ### Phase 2: Implement by Category
 
-Work through findings grouped by type, not by severity. This avoids context switching:
+Consider grouping related findings to reduce context switching. Prioritize by risk and
+dependencies rather than a fixed category order:
 
-**CI/CD changes first** (test.yml, release.yml):
+**CI/CD changes** (test.yml, release.yml):
 
 ```yaml
 # Expand CI matrix from single to multi-version/OS
@@ -137,7 +140,8 @@ class TestJsonFormatter:
 
 ### Phase 4: Validate Everything
 
-Run the full validation stack in order:
+Select checks for the affected behavior and current repository requirements. These
+commands are examples from the original project, not a required sequence:
 
 ```bash
 # 1. Formatting (fast, catches import order issues)
@@ -161,7 +165,8 @@ pixi run python scripts/check_unit_test_structure.py
 
 ### Phase 5: Changelog and Commit
 
-Write changelog AFTER all changes are validated, not before:
+Update the changelog when the resulting behavior is clear. Record verification separately
+and continue resolving in-scope findings; a documentation step need not wait for every check:
 
 ```markdown
 ## [0.x.y] - YYYY-MM-DD

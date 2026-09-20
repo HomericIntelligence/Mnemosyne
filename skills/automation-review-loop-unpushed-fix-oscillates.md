@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Use when: (1) a review loop oscillates on an unpushed fix; (2) an untrusted report claims a fix landed; (3) an address agent drafts an out-of-scope change and SIGTERM may be retried or followed by an already-queued coordinator commit/push. Verify local and remote Git state before recovery."
 category: tooling
 date: 2026-07-17
-version: "1.2.0"
+version: "1.3.0"
 user-invocable: false
 verification: verified-local
 history: automation-review-loop-unpushed-fix-oscillates.history
@@ -50,7 +50,7 @@ tags:
 - The reviewer correctly issues GO (the finding is a minor / NITPICK that does NOT gate merge) but the validator re-opens exactly ONE thread on every pass, so GO never sticks.
 - You are tempted to re-do the fix from scratch — STOP and check whether the loop's address sub-agent ALREADY made it locally but never pushed.
 - An untrusted `ADVISE_FINDINGS` (or any GitHub-sourced advise) block claims a fix "landed" and cites a SHA — and you are about to trust it.
-- You need the concrete operator recovery: stop the loop, inspect `build/.worktrees/issue-<N>` for an unpushed fix commit, verify it on disk, publish the missing commit, and re-run once.
+- You need the concrete operator recovery: stop the loop, inspect `build/.worktrees/issue-<N>` for an unpushed fix commit, verify it on disk, publish the missing commit when authorized, and check convergence.
 - An address or review agent proposes an edit that violates the requested scope or policy; stopping only that model process may not stop a queued coordinator commit or push.
 - A loop logs a resilience retry after agent SIGTERM, or `ps` shows a child `git push` after the coordinator has been asked to stop.
 
@@ -87,7 +87,7 @@ git -C build/.worktrees/issue-<N> log --show-signature origin/<branch>..HEAD
 git -C build/.worktrees/issue-<N> push origin <branch>
 # Use --force-with-lease only after an authorized history rewrite and remote-head check.
 
-# 5. Re-run the loop ONCE — the now-genuinely-resolved thread flips to a durable GO.
+# 5. Re-run and inspect convergence after the remote contains the verified fix.
 
 # 6. Scope-safety containment: agent, coordinator, and push are separate publishers.
 git ls-remote origin refs/heads/<branch>
@@ -142,8 +142,9 @@ pushed, so every re-review fetches the unchanged remote and re-flags the same de
    The historical incident used rebase and re-signing and published `9cc5f307`; that
    recovery is not a prerequisite for every unpushed fix.
 
-6. **Re-run the loop ONCE.** Now the remote genuinely contains the fix, so the re-review no
-   longer re-flags the defect and the thread flips to a durable GO instead of re-opening.
+6. **Re-run and inspect convergence.** If the remote now contains the fix, the original
+   thread should resolve. Diagnose a repeated failure from new evidence and use the
+   applicable retry budget; one recovery attempt is not an artificial end to the task.
 
 ### Scope-safety containment for an out-of-scope draft
 
@@ -197,7 +198,7 @@ is persistence (the push), not the edit.
 | Local-only (never pushed) fix commit | `b8b1a803` |
 | Remote branch tip BEFORE recovery | `d0de3521` (pre-fix) |
 | Fix after rebase + re-sign + push | `9cc5f307` |
-| Re-signing committer email | `4211002+mvillmow@users.noreply.github.com` |
+| Re-signing committer email | `<verified-signing-email>` |
 
 ### Queued-push containment incident (verified-local)
 
@@ -220,5 +221,5 @@ with `git show <sha> -- <path>` and `grep` on disk.
 
 | Project | Context | Details |
 |---------|---------|---------|
-| ProjectHephaestus | PR #977 (issue #794) — `hephaestus-automation-loop` oscillating on `794-auto-impl` | Loop's address sub-agent committed the one-word `.github/workflows/test.yml` fix locally (`b8b1a803` in `build/.worktrees/issue-794`) but never pushed; remote stayed at `d0de3521`, re-opening the thread every pass. Recovered by rebase + re-sign (committer `4211002+mvillmow@users.noreply.github.com`) + `--force-with-lease` push as `9cc5f307`, then a single loop re-run. verified-local (PR not yet merged at capture time). |
+| ProjectHephaestus | PR #977 (issue #794) — `hephaestus-automation-loop` oscillating on `794-auto-impl` | Loop's address sub-agent committed the one-word `.github/workflows/test.yml` fix locally (`b8b1a803` in `build/.worktrees/issue-794`) but never pushed; remote stayed at `d0de3521`, re-opening the thread every pass. Recovered by rebase + re-sign (committer `<verified-signing-email>`) + `--force-with-lease` push as `9cc5f307`, then a single loop re-run. verified-local (PR not yet merged at capture time). |
 | ProjectHephaestus | PR #2280 — scope containment | An out-of-scope review draft was committed locally after its agent was stopped; the remote remained at safe `621ebc29` because the queued push was stopped, and local `563d7d81` was discarded from the detached review worktree. |
