@@ -3,7 +3,6 @@
 # This image provides:
 # - Python 3.13 environment (matches requires-python ==3.13.*)
 # - uv with the locked project environment (dev group) pre-installed
-# - pre-commit hook environments baked in (largest speedup)
 # - Non-root user 'ci' for rootless Podman compatibility
 #
 # Toolchain: uv (Odysseus ADR-017). Pattern mirrors Scylla ci/Containerfile.
@@ -49,7 +48,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     UV_LINK_MODE=copy \
     PATH="/opt/mnemosyne-venv/bin:$PATH"
 
-# Install build dependencies + git (required by pre-commit hooks)
+# Install build dependencies and Git.
 # apt-get upgrade picks up any security patches released after the base image was pinned
 RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     git \
@@ -68,7 +67,7 @@ COPY --from=uv /usr/local/bin/uv /usr/local/bin/uvx /usr/local/bin/
 # build needs (package-dir "scripts", py-modules mnemosyne_skill_utils) — cache
 # layer invalidated only when deps or that source file change.
 WORKDIR /opt/mnemosyne-build
-COPY uv.lock pyproject.toml .pre-commit-config.yaml README.md ./
+COPY uv.lock pyproject.toml README.md ./
 COPY scripts/mnemosyne_skill_utils.py scripts/mnemosyne_skill_utils.py
 
 # Layer 2: Install the locked dependency set (dev group) plus the project itself

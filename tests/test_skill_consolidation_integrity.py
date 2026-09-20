@@ -117,9 +117,11 @@ CONSOLIDATIONS: list[Consolidation] = [
 
 
 def _frontmatter_for(skill_name: str) -> dict[str, object]:
-    content = (SKILLS_DIR / f"{skill_name}.md").read_text()
+    path = SKILLS_DIR / f"{skill_name}.md"
+    assert path.is_file(), f"missing canonical skill: {skill_name}"
+    content = path.read_text()
     frontmatter, _, errors = parse_frontmatter(content)
-    assert errors == []
+    assert errors == [], (skill_name, errors)
     return cast("dict[str, object]", frontmatter)
 
 
@@ -144,22 +146,6 @@ def test_absorbed_skill_snapshots_remain_in_history():
             assert f"## v{consolidation['version']}" in history
 
         for absorbed in consolidation["absorbed"]:
-            assert not (SKILLS_DIR / f"{absorbed}.md").exists()
+            assert not (SKILLS_DIR / f"{absorbed}.md").exists(), f"absorbed skill still present: {absorbed}"
             assert f"Superseded from `{absorbed}`" in history
             assert f"name: {absorbed}\n" in history
-
-
-def test_skill_files_only_keep_canonical_consolidation_targets():
-    """The canonical skill file exists at the expected version and every
-    absorbed skill file has been removed. Checks the skills/ corpus directly
-    (Mnemosyne no longer ships a plugin marketplace to mirror)."""
-    for consolidation in CONSOLIDATIONS:
-        canonical = consolidation["canonical"]
-        canonical_path = SKILLS_DIR / f"{canonical}.md"
-        assert canonical_path.is_file(), f"missing canonical skill: {canonical}"
-        fm, _body, errs = parse_frontmatter(canonical_path.read_text())
-        assert not errs, (canonical, errs)
-        assert fm.get("version") == consolidation["version"]
-
-        for absorbed in consolidation["absorbed"]:
-            assert not (SKILLS_DIR / f"{absorbed}.md").exists(), f"absorbed skill still present: {absorbed}"
