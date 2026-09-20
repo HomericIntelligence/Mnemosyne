@@ -7,7 +7,6 @@ version: "4.0.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-local
-history: error-message-consistency-optional-dependency-pola.history
 tags:
   - pola
   - error-message
@@ -17,6 +16,8 @@ tags:
   - lazy-import
   - capability-resolver
   - testing
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/error-message-consistency-optional-dependency-pola.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Error Consistency and Optional-Dependency POLA
@@ -32,7 +33,7 @@ The misleading-error and documented-fallback repairs are verified locally. The s
 design is plan-only and remains unverified. Case evidence is indexed in
 [error-message-consistency-optional-dependency-pola.notes.md](error-message-consistency-optional-dependency-pola.notes.md),
 with the complete prior version in
-[error-message-consistency-optional-dependency-pola.history](error-message-consistency-optional-dependency-pola.history).
+[error-message-consistency-optional-dependency-pola.history](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/error-message-consistency-optional-dependency-pola.history).
 
 ## When to Use
 

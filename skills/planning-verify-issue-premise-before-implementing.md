@@ -7,8 +7,9 @@ date: 2026-06-20
 version: "3.2.0"
 user-invocable: false
 verification: unverified
-history: planning-verify-issue-premise-before-implementing.history
 tags: [planning, issue-premise, verify-before-implementing, premise-verification, assumption-verification, authoritative-source, full-population-check, live-state-check, merge-state, prerequisite-verification, unmerged-branch, self-contained-pr, enforcement-gate, integration-point, ci-gate, ruleset, implementation-shape, route-shape, deterministic-gate, no-op-forbidden, issue-claims, follow-up-issue, overtaken-by-events, half-zombie-issue, per-ask-triage, git-history-archaeology, deleted-file-history]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/planning-verify-issue-premise-before-implementing.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Planning: Verify Premises Before Acting

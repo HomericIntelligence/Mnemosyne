@@ -4,7 +4,6 @@ license: BSD-3-Clause
 category: documentation
 date: 2026-06-12
 version: "1.1.1"
-history: notice-dependency-license-inventory-completeness.history
 user-invocable: false
 verification: verified-local
 tags:
@@ -21,6 +20,8 @@ tags:
   - documentation-completeness
   - conditional-dependency
 description: "Keep third-party dependency notices complete when conditional dependencies, license metadata, or name normalization can hide omissions."
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/notice-dependency-license-inventory-completeness.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # NOTICE: Dependency License Inventory Completeness

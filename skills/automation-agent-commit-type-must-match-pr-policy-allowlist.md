@@ -25,6 +25,8 @@ tags:
   - drift-sync-test
   - chore-fallback
   - verified-ci
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/automation-agent-commit-type-must-match-pr-policy-allowlist.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Automation Agent Commit Type Must Match the pr-policy Allowlist

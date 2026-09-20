@@ -7,7 +7,6 @@ date: 2026-07-18
 version: "1.3.1"
 user-invocable: false
 verification: verified-ci
-history: odysseus-multi-branch-submodule-pin-management.history
 tags:
   - odysseus
   - submodule
@@ -21,6 +20,8 @@ tags:
   - selective-pin-bump
   - merge-base
   - cherry-pick-conflict-resolution
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/odysseus-multi-branch-submodule-pin-management.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Odysseus Multi-Branch Submodule Pin Management

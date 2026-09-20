@@ -8,6 +8,8 @@ version: "1.2.1"
 user-invocable: false
 verification: verified-ci
 tags: [github-code-quality, codeql, ruff, code-quality, static-analysis, re-export, shim, __all__, backward-compat]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/ci-cd-github-code-quality-findings-no-api.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # GitHub Code Quality Findings — No Public API

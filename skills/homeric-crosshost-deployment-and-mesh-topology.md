@@ -7,7 +7,6 @@ date: 2026-06-20
 version: "2.0.1"
 user-invocable: false
 verification: unverified
-history: homeric-crosshost-deployment-and-mesh-topology.history
 tags:
   - cross-host
   - deployment
@@ -23,6 +22,8 @@ tags:
   - retry
   - e2e
   - process-boundary
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/homeric-crosshost-deployment-and-mesh-topology.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # HomericIntelligence Cross-Host Deployment and Mesh Topology
@@ -33,7 +34,7 @@ Use this skill to choose and verify a HomericIntelligence service topology, or t
 NATS security/restart plan without promoting assumptions to evidence. It retains the reusable
 operator decisions; project transcripts and case-specific file maps are in the
 [notes](./homeric-crosshost-deployment-and-mesh-topology.notes.md), and the full superseded
-content is in [history](./homeric-crosshost-deployment-and-mesh-topology.history).
+content is in [history](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/homeric-crosshost-deployment-and-mesh-topology.history).
 
 The overall skill remains `unverified` because the NATS authentication, Grafana hardening,
 TLS-runbook, and Telemachy mTLS workflows are plans. Cross-host deployments were verified
@@ -233,7 +234,7 @@ publish can be retried after an uncertain ACK.
 ## References
 
 - [Detailed cases and provenance](./homeric-crosshost-deployment-and-mesh-topology.notes.md)
-- [Version history and superseded full content](./homeric-crosshost-deployment-and-mesh-topology.history)
+- [Version history and superseded full content](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/homeric-crosshost-deployment-and-mesh-topology.history)
 - [nats-py](https://github.com/nats-io/nats.py)
 - [NATS connection resilience](./nats-py-connection-resilience-patterns.md)
 - [Transient-error retry](./retry-transient-errors.md)

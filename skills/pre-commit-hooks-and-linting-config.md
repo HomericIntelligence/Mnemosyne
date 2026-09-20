@@ -7,8 +7,9 @@ version: "3.0.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-precommit
-history: pre-commit-hooks-and-linting-config.history
 tags: [pre-commit, linting, ruff, mypy, bandit, markdownlint, ci, pixi, hooks, formatting]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pre-commit-hooks-and-linting-config.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Pre-commit Hooks and Linting Configuration
@@ -21,7 +22,7 @@ environment, file scope, or required CI step passed.
 
 The corpus is `verified-ci` overall; newer checker and commit-abort patterns are
 `verified-precommit`. Per-case status is retained in [the notes](./pre-commit-hooks-and-linting-config.notes.md).
-Full superseded versions are in [history](./pre-commit-hooks-and-linting-config.history).
+Full superseded versions are in [history](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pre-commit-hooks-and-linting-config.history).
 
 ## When to Use
 
@@ -266,7 +267,7 @@ universal defaults.
 ## References
 
 - [Detailed case index and evidence](./pre-commit-hooks-and-linting-config.notes.md)
-- [Version history and full superseded content](./pre-commit-hooks-and-linting-config.history)
+- [Version history and full superseded content](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pre-commit-hooks-and-linting-config.history)
 - [pre-commit documentation](https://pre-commit.com/)
 - [Ruff documentation](https://docs.astral.sh/ruff/)
 - [mypy documentation](https://mypy.readthedocs.io/)

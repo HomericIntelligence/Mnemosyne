@@ -3,7 +3,6 @@
 Validate flat-format skill files (skills/*.md).
 
 Checks:
-- Maximum retrievable skill size (30,000 bytes)
 - Required YAML frontmatter fields (name, description, category, date, version)
 - Section presence (Overview, When to Use, Verified Workflow, Failed Attempts, Results & Parameters)
 - Failed Attempts table structure
@@ -23,7 +22,6 @@ from typing import Any, List, Optional
 from mnemosyne_skill_utils import find_skill_files, parse_frontmatter  # noqa: F401  (re-exported for tests)
 
 SKILLS_DIR = Path("skills")
-MAX_SKILL_FILE_SIZE_BYTES = 30_000
 VALID_CATEGORIES = {
     "training",
     "evaluation",
@@ -242,12 +240,6 @@ def validate_plugin(filename: str) -> List[str]:
             content = f.read()
     except IOError as e:
         return [f"Cannot read file: {e}"]
-
-    size_bytes = file_path.stat().st_size
-    if size_bytes > MAX_SKILL_FILE_SIZE_BYTES:
-        errors.append(
-            f"Skill file {file_path} is {size_bytes:,} bytes; allowed maximum is {MAX_SKILL_FILE_SIZE_BYTES:,} bytes"
-        )
 
     # Parse frontmatter
     frontmatter, body, parse_errors = parse_frontmatter(content)

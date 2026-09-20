@@ -7,7 +7,6 @@ date: 2026-06-12
 version: "1.1.1"
 user-invocable: false
 verification: unverified
-history: skills/required-check-noop-fix-via-tested-script.history
 tags:
   - ci-cd
   - github-actions
@@ -27,6 +26,8 @@ tags:
   - pinned-required-context
   - nogo-revision
   - yagni
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/required-check-noop-fix-via-tested-script.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Fixing a No-Op Required CI Check by Delegating to a Tested Script

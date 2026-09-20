@@ -7,10 +7,11 @@ version: "2.2.1"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-local
-history: bf16-monokernel-sol-profiling.history
 tags: [cuda, bf16, rmsnorm, monokernel, nvidia-h200, roofline, sol, minimax,
   optimization-campaign, composition, compiler, sass, occupancy, registers, ncu, nsys,
   provenance, gpu-isolation, semantic-validation, greedy-decoding, phase-attribution]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/bf16-monokernel-sol-profiling.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Reproducible BF16 CUDA Monokernel SOL Profiling and Optimization
@@ -26,7 +27,7 @@ runnable implementation. Keep stricter parity checks visible even when they are 
 Detailed campaign cases and artifact locations are indexed in
 [`bf16-monokernel-sol-profiling.notes.md`](bf16-monokernel-sol-profiling.notes.md).
 Prior versions and archive decisions are in
-[`bf16-monokernel-sol-profiling.history`](bf16-monokernel-sol-profiling.history).
+[`bf16-monokernel-sol-profiling.history`](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/bf16-monokernel-sol-profiling.history).
 
 ## When to Use
 

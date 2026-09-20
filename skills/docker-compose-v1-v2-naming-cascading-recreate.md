@@ -8,6 +8,8 @@ version: "1.0.1"
 user-invocable: false
 verification: verified-local
 tags: [docker, docker-compose, container-naming, recreate, cascading-recreate]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/docker-compose-v1-v2-naming-cascading-recreate.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Docker Compose v1 to v2 Naming Cascading Recreate

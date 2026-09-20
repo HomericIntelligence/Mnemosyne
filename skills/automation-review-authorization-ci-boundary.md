@@ -7,8 +7,9 @@ version: "4.1.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-ci
-history: automation-review-authorization-ci-boundary.history
 tags: [automation-loop, pr-review, exact-head, authorization, ci-boundary, conditional-merge]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/automation-review-authorization-ci-boundary.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Automation Review Authorization: CI Boundary
@@ -23,7 +24,7 @@ results do not authorize review progression.
 Detailed cases and event audits are indexed in
 [`automation-review-authorization-ci-boundary.notes.md`](automation-review-authorization-ci-boundary.notes.md).
 The complete prior source is archived in
-[`automation-review-authorization-ci-boundary.history`](automation-review-authorization-ci-boundary.history).
+[`automation-review-authorization-ci-boundary.history`](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/automation-review-authorization-ci-boundary.history).
 
 ## When to Use
 

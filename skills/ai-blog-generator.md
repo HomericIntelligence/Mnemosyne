@@ -6,6 +6,8 @@ description: Generate AI-authored blog posts from git commit history to fill doc
 category: tooling
 date: 2025-12-30
 version: "1.1.0"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/ai-blog-generator.history"
+history-cleanup-date: "2026-09-20"
 ---
 # AI Blog Generator
 

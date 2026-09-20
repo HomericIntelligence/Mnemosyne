@@ -8,6 +8,8 @@ version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags: [physics, quantum-gravity, asymptotic-safety, spectral-dimension, CDT, Planck-scale, renormalization-group, scifi, worldbuilding, mechanism-design]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/asymptotic-safety-quantum-gravity-refs.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Asymptotic Safety Quantum Gravity — Physics References

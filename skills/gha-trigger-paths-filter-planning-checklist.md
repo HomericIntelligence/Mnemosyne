@@ -22,6 +22,8 @@ tags:
   - compliance
   - non-blocking-job
   - uncertain-assumptions
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/gha-trigger-paths-filter-planning-checklist.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # GHA Trigger Paths-Filter Planning Checklist

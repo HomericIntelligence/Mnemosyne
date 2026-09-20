@@ -7,12 +7,13 @@ date: '2026-03-25'
 version: "2.1.0"
 user-invocable: false
 verification: verified-local
-history: generate-changelog.history
 tags:
   - git
   - changelog
   - parsing
   - conventional-commits
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/generate-changelog.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Generate Changelog
@@ -25,7 +26,7 @@ tags:
 | **Objective** | Generate formatted changelogs from git commit history using safe delimiter parsing |
 | **Outcome** | Operational — delimiter bug fixed, edge-case tests added |
 | **Verification** | verified-local |
-| **History** | [changelog](./generate-changelog.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/generate-changelog.history) |
 
 ## When to Use
 

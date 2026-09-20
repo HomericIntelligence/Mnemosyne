@@ -18,6 +18,8 @@ tags:
   - version-skew
   - pixi-lock
   - install-locked
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/ci-cd-pixi-lock-version-skew-regeneration.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Pixi Lock Version Skew: Regenerate with the CI-Pinned Binary

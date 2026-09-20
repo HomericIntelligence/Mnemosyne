@@ -17,6 +17,8 @@ tags:
   - host-network
   - dev-container
   - keep-id
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/debugging-podman-wsl2-netavark-hostnetwork-workaround.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Debugging Podman WSL2 Netavark Host-Network Workaround

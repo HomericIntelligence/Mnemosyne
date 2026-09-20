@@ -7,6 +7,8 @@ date: 2026-06-20
 version: "1.1.0"
 user-invocable: false
 tags: [mojo, srp, module-split, circular-import, bottom-of-file, refactoring, any-tensor]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/mojo-srp-module-split-bottom-import.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Mojo SRP Module Split with Bottom-of-File Imports

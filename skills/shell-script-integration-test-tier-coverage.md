@@ -7,7 +7,6 @@ date: 2026-06-13
 version: "1.1.0"
 user-invocable: false
 verification: verified-ci
-history: shell-script-integration-test-tier-coverage.history
 tags:
   - shell
   - bash
@@ -19,6 +18,8 @@ tags:
   - bash-function-override
   - pytest
   - python
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/shell-script-integration-test-tier-coverage.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Shell Script Integration Test Tier Coverage

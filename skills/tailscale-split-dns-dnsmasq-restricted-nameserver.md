@@ -8,6 +8,8 @@ version: "1.1.1"
 user-invocable: false
 verification: verified-local
 tags: []
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/tailscale-split-dns-dnsmasq-restricted-nameserver.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Tailscale Split-DNS via dnsmasq Container + Restricted Nameserver (Kill the WAN Hairpin)

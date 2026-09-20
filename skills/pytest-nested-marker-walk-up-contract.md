@@ -18,6 +18,8 @@ tags:
   - first-match-up
   - symlink
   - resolve
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pytest-nested-marker-walk-up-contract.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # pytest: Nested Marker Walk-Up Contract

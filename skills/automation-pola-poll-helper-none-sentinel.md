@@ -8,6 +8,8 @@ version: "1.0.1"
 user-invocable: false
 verification: verified-ci
 tags: []
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/automation-pola-poll-helper-none-sentinel.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # POLA: Poll Helper None-Sentinel Pattern

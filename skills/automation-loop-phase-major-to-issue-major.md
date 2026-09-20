@@ -8,6 +8,8 @@ version: "1.0.1"
 user-invocable: false
 verification: verified-ci
 tags: [automation-loop, issue-major, phase-ordering, per-issue-merge, drive-green, worktree, state-skip, hephaestus, loop-runner]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/automation-loop-phase-major-to-issue-major.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Automation Loop: Phase-Major → Issue-Major Inversion

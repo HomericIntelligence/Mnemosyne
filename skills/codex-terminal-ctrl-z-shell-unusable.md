@@ -19,6 +19,8 @@ tags:
   - job-control
   - shell-state
   - upstream-issue
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/codex-terminal-ctrl-z-shell-unusable.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Codex Ctrl-Z Suspend/Resume Can Leave Remote Shell Unusable

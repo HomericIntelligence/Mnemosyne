@@ -8,6 +8,8 @@ version: "1.0.1"
 user-invocable: false
 verification: unverified
 tags: [git, history-preservation, format-patch, git-am, cross-repo, submodule, migration, follow, planning]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/tooling-cross-repo-git-history-format-patch-replay.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Cross-Repo Git History: format-patch / am Replay

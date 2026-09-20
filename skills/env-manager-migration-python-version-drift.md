@@ -18,6 +18,8 @@ tags:
   - python-version-pin
   - tooling-pyproject
   - package-false
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/env-manager-migration-python-version-drift.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Env-Manager Migration Python-Version Drift Re-Exposes Latent Bugs

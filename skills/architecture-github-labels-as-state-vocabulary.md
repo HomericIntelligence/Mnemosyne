@@ -7,7 +7,6 @@ version: "2.0.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-local
-history: architecture-github-labels-as-state-vocabulary.history
 tags:
   - github-labels
   - state-machine
@@ -17,6 +16,8 @@ tags:
   - graphql
   - rest-fallback
   - idempotency
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/architecture-github-labels-as-state-vocabulary.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # GitHub Labels as a State Vocabulary
@@ -35,7 +36,7 @@ must not be represented as CI-verified behavior.
 Detailed case evidence is indexed in
 [architecture-github-labels-as-state-vocabulary.notes.md](architecture-github-labels-as-state-vocabulary.notes.md).
 The complete prior version is in
-[architecture-github-labels-as-state-vocabulary.history](architecture-github-labels-as-state-vocabulary.history).
+[architecture-github-labels-as-state-vocabulary.history](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/architecture-github-labels-as-state-vocabulary.history).
 
 ## When to Use
 

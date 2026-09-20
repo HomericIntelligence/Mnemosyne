@@ -22,6 +22,8 @@ tags:
   - shared-predicate
   - pii-guard
   - review-caught
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/architecture-self-exclusion-all-scan-entry-points.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Self-Exclusion Must Cover Every Scan Entry Point, Not Just Some

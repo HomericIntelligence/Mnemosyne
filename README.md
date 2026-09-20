@@ -52,7 +52,6 @@ principles, handle genuine boundaries, and report unresolved work.
 skills/
 ├── <name>.md               # Flat skill files with YAML frontmatter
 ├── <name>.notes.md         # (Optional) Privacy-safe session context
-├── <name>.history          # (Optional) Privacy-safe version and provenance history
 └── ...
 ```
 
@@ -63,17 +62,15 @@ with YAML frontmatter:
 ```text
 skills/<name>.md             # Main skill file with YAML frontmatter + markdown content
 skills/<name>.notes.md       # (Optional) Privacy-safe context from development session
-skills/<name>.history        # Version/provenance archive for /learn writes
 ```
 
-Keep each retrievable main skill at or below 30,000 bytes. Keep reusable rules
-and no more than three high-value examples in the main skill. Before you replace
-the main skill, archive its complete prior content in `.history`. If Athena's
-privacy-redaction exception applies to the prior content, use the record that
-Athena defines. Never copy prohibited content into a companion file. Keep only
-privacy-safe supporting context in `.notes.md`. In the frontmatter, keep only
-the current `version` identifier. Athena excludes both companion types from
-normal retrieval.
+Use 30,000 bytes as an editorial guideline, not a validation limit. Keep reusable
+rules and decision-changing examples in the main skill. Put only privacy-safe
+supporting context in `.notes.md`. Git history is the authority for prior
+versions. Do not create companion history files or require complete historical
+snapshots before an amendment. When removing an old history companion, preserve
+useful current guidance and record the cleanup date with an immutable GitHub
+source-commit link. See [the history migration record](docs/history-migration.md).
 
 ## Available Skills
 
@@ -118,7 +115,7 @@ CI validates all pull requests:
 - The Failed Attempts section contains the required table.
 - The description field is present.
 - The category is valid.
-- Each retrievable main skill is at or below 30,000 bytes.
+- Main skills use 30,000 bytes as an editorial guideline, not a hard limit.
 
 Pre-commit does not run pytest. CI is the automated authority for the complete
 test suite. For a new test, a focused command can provide useful evidence:

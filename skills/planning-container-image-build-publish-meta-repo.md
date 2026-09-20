@@ -7,8 +7,9 @@ version: "2.0.0"
 user-invocable: false
 license: BSD-3-Clause
 verification: unverified
-history: planning-container-image-build-publish-meta-repo.history
 tags: [planning, containers, ghcr, docker, buildx, multi-arch, submodules, required-checks, supply-chain, adr]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/planning-container-image-build-publish-meta-repo.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Container Image Build/Publish Planning for a Submodule Meta-Repository
@@ -22,7 +23,7 @@ workflow. Verify each against the current repository and live provider before fi
 The overall workflow remains `unverified`: cited findings were checked against one repository, but no
 end-to-end image build/push matrix was executed. Case details are in
 [the notes](./planning-container-image-build-publish-meta-repo.notes.md); exact prior content is in
-[history](./planning-container-image-build-publish-meta-repo.history).
+[history](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/planning-container-image-build-publish-meta-repo.history).
 
 ## When to Use
 
@@ -168,4 +169,4 @@ registry/tag policy, platform exceptions, promotion, rollback, and unresolved sc
 ## Companions
 
 - [Case notes](./planning-container-image-build-publish-meta-repo.notes.md)
-- [Version history and exact superseded snapshot](./planning-container-image-build-publish-meta-repo.history)
+- [Version history and exact superseded snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/planning-container-image-build-publish-meta-repo.history)

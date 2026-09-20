@@ -20,6 +20,8 @@ tags:
   - epic-close
   - crypto-subtle
   - docker
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/atlas-go-dashboard-milestone-delivery.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Atlas Go Dashboard: Final Milestone Delivery

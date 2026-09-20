@@ -18,6 +18,8 @@ tags:
   - odysseus
   - meta-repo
   - subshell
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/git-submodule-cd-persists-wrong-repo.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # A `cd` Into a Submodule Persists Across Bash Calls and Redirects Git to the Wrong Repo

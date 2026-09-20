@@ -7,8 +7,9 @@ date: 2026-07-10
 version: "1.2.0"
 user-invocable: false
 verification: verified-local
-history: pr-review-two-dot-vs-three-dot-diff.history
 tags: [pr-review, git-diff, two-dot, three-dot, merge-base, stale-branch, merge-readiness]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pr-review-two-dot-vs-three-dot-diff.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # PR Review: Two-Dot and Three-Dot Diffs
@@ -100,6 +101,6 @@ git show HEAD:path/to/file
 
 The `verified-local` metadata describes the retained historical diff observations.
 The complete earlier text and case evidence remain in
-[history](pr-review-two-dot-vs-three-dot-diff.history). Its old interpretation of an
+[history](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pr-review-two-dot-vs-three-dot-diff.history). Its old interpretation of an
 endpoint diff as a merge prediction is superseded. This documentation correction does
 not claim a new merge experiment or a new operational verification result.

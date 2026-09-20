@@ -4,10 +4,9 @@ license: BSD-3-Clause
 description: "Prevent containerized services from exposing credentials through launch argv, child-process argv, effective-configuration dumps, startup logs, exceptions, crash artifacts, or retained files. Use when: (1) moving a secret from a command-line flag into an environment variable, file, or stdin, (2) a runtime or framework serializes its parsed configuration, (3) a cmdline-only regression test passes but a credential still appears in logs, (4) responding to a credential exposure that requires containment, rotation, and historical-log remediation."
 category: architecture
 date: 2026-06-19
-version: "2.0.0"
+version: "2.1.0"
 user-invocable: false
 verification: verified-local
-history: architecture-container-secret-cmdline-leak-fix.history
 tags:
   - containers
   - secrets
@@ -17,6 +16,8 @@ tags:
   - redaction
   - credential-rotation
   - security-boundary
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/architecture-container-secret-cmdline-leak-fix.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Container Secret Exposure Surface Audit
@@ -29,7 +30,7 @@ tags:
 | **Objective** | Keep a service credential out of every observable and retained surface, not only the launcher command line. |
 | **Outcome** | Model the complete secret flow, choose the least-exposed transport each consumer supports, redact at serialization boundaries, restrict retained artifacts, and prove absence using a sentinel through the real launch path. |
 | **Verification** | verified-local — a container launch kept a credential out of its constructed command line, but inspection of actual runtime output found that the framework serialized the parsed configuration, including the credential, into retained startup logs. |
-| **History** | [changelog](./architecture-container-secret-cmdline-leak-fix.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/architecture-container-secret-cmdline-leak-fix.history) |
 
 ## When to Use
 
@@ -72,6 +73,13 @@ For each edge, record who can observe it and how long it persists. Process listi
 ### 2. Choose transport per consumer, not once per service
 
 Prefer a secret manager or runtime-native secret descriptor. When the application supports it, a mode-restricted mounted file or inherited file descriptor usually exposes less than argv or a literal environment assignment. Environment variables can be an improvement over argv, but they remain visible through process inspection, debug dumps, child inheritance, and configuration serialization.
+
+When a consumer requires environment transport and the container runtime supports
+name-only injection, use `-e <VARIABLE_NAME>` instead of `-e <VARIABLE_NAME>=<value>`.
+Confirm that the host variable exists without logging its value. A missing host
+variable can leave the container unauthenticated. Test authentication through the
+real launch path after the change. Name-only injection keeps the value out of the
+command arguments; it does not remove the environment exposure described above.
 
 Keep asymmetric paths explicit. A control-plane client, worker, and health probe may require different authentication mechanisms. Moving one path off argv does not prove the others are safe.
 

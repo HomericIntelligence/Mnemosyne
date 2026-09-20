@@ -22,6 +22,8 @@ tags:
   - unittest-mock
   - python
   - unverified
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/testing-oserror-swallow-nonfatal-patch-pattern.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Testing OSError-Swallowing Code Paths (Non-Fatal Patch Pattern)

@@ -8,6 +8,8 @@ version: "1.0.1"
 user-invocable: false
 verification: unverified
 tags: [physics, quantum-foundations, collapse-models, diosi-penrose, grw, csl, scifi, worldbuilding, mechanism-design]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/objective-collapse-compute-diosi-penrose-gates.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Objective-Collapse Compute — Diósi-Penrose Gates

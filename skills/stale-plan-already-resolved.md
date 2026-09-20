@@ -7,7 +7,8 @@ date: 2026-06-14
 version: "1.3.0"
 user-invocable: false
 verification: verified-ci
-history: stale-plan-already-resolved.history
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/stale-plan-already-resolved.history"
+history-cleanup-date: "2026-09-20"
 ---
 ## Overview
 
@@ -18,7 +19,7 @@ history: stale-plan-already-resolved.history
 | **Impact** | Prevents unnecessary changes and incorrect "fixes" that would revert progress or ship a no-op for an already-fixed bug |
 | **Context** | Issue #4280: plan said change `test_*_layers.mojo` → `test_*_layers*.mojo`, but code already used `test_*.mojo`. Also: a 2588-line `output.log` named 4 root causes — 2 were already fixed on current main (PR #1148, `learn_claude_timeout`) |
 | **Verification** | verified-ci |
-| **History** | [changelog](./stale-plan-already-resolved.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/stale-plan-already-resolved.history) |
 
 ## When to Use
 

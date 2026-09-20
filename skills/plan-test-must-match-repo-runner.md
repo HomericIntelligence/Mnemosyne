@@ -23,6 +23,8 @@ tags:
   - ci-gate
   - planning
   - unverified-assumptions
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/plan-test-must-match-repo-runner.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Plan Test Must Match the Repo's Real Runner

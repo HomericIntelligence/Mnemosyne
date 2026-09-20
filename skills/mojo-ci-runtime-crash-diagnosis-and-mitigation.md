@@ -7,7 +7,6 @@ version: "2.1.0"
 verification: verified-ci
 license: BSD-3-Clause
 user-invocable: false
-history: mojo-ci-runtime-crash-diagnosis-and-mitigation.history
 tags:
   - mojo
   - jit
@@ -19,6 +18,8 @@ tags:
   - uid-mismatch
   - cpu-features
   - retry
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/mojo-ci-runtime-crash-diagnosis-and-mitigation.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Mojo CI Runtime Crash Diagnosis and Mitigation
@@ -32,7 +33,7 @@ the response.
 
 Verification remains `verified-ci`. Project cases, measurements, and upstream links are in the
 [notes](./mojo-ci-runtime-crash-diagnosis-and-mitigation.notes.md); the byte-preserved source and
-prior changelog are in [history](./mojo-ci-runtime-crash-diagnosis-and-mitigation.history).
+prior changelog are in [history](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/mojo-ci-runtime-crash-diagnosis-and-mitigation.history).
 
 ## When to Use
 
@@ -240,6 +241,25 @@ An old unavailable pin produced a fast JIT-library crash while a sibling run at 
 green. A per-file retry plus signature-verified failed-job rerun preserved the test gate. The retry
 was paired with a known-issues ledger and a “remove after pin advances” trigger.
 
+### Absorbed-source provenance
+
+The current source-cause checks retain the absorbed histories' useful distinctions:
+repeated failure after the same number of calls differs from an intermittent
+compiler failure; ownership, pointer lifetime, and inlining remain possible causes.
+Test splitting must preserve imports and CI discovery. Use the current toolchain's
+entry-point syntax. Historical test-count limits and compiler versions are case
+evidence, not universal limits. Do not infer a compiler defect from a stack-frame
+name or retry a deterministic source failure.
+
+History cleanup: 2026-09-20. Prior sources:
+
+- [investigate-mojo-heap-corruption](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/investigate-mojo-heap-corruption.history)
+- [mojo-bitcast-always-inline-crash-fix](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/mojo-bitcast-always-inline-crash-fix.history)
+- [mojo-jit-crash-diagnosis-and-retry](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/mojo-jit-crash-diagnosis-and-retry.history)
+
+The source records retain their original verification limits. This migration
+does not establish new operational verification.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -278,4 +298,4 @@ message alone.
 ## Companions
 
 - [Case notes](./mojo-ci-runtime-crash-diagnosis-and-mitigation.notes.md)
-- [Version history and superseded snapshot](./mojo-ci-runtime-crash-diagnosis-and-mitigation.history)
+- [Version history and superseded snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/mojo-ci-runtime-crash-diagnosis-and-mitigation.history)

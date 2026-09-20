@@ -18,6 +18,8 @@ tags:
   - swarm
   - meta-repo
   - origin-main-crosscheck
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/repo-audit-scoping-superproject-git-ls-files.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Repo Audit Scoping on a Git Superproject (git ls-files, not find)

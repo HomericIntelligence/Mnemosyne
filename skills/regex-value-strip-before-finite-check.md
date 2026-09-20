@@ -8,6 +8,8 @@ version: "1.0.1"
 user-invocable: false
 verification: verified-local
 tags: [regex, grep, ci, smoke-gate, sentinel, nan-inf, bash, dead-code, adversarial-review]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/regex-value-strip-before-finite-check.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Regex Value-Strip Before Finite-Check — Dead-Code Sentinel Bug

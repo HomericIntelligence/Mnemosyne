@@ -8,6 +8,8 @@ version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags: []
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/license-compatibility-ci-gate-pip-licenses.history"
+history-cleanup-date: "2026-09-20"
 ---
 # License-Compatibility CI Gate (stdlib importlib.metadata, distributed-scope, bare setup-python+pip)
 

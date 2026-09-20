@@ -8,6 +8,8 @@ version: "1.0.1"
 user-invocable: false
 verification: unverified
 tags: [python, import, shim, migration, god-package, __all__, wildcard-import, refactoring]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/python-automation-god-package-shim-antipattern.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Python Automation God-Package: Import * Shim Antipattern

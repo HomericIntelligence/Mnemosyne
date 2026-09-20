@@ -8,6 +8,8 @@ version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags: [review-wave, pre-impl, plan-review, second-opinion, r0, r1, multi-agent-review]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pre-implementation-plan-review-wave.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Pre-Implementation Plan Review Wave (R0/R1)

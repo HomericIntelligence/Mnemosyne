@@ -3,12 +3,13 @@ name: lockfile-and-release-pipeline-management
 description: "Recover generated lockfiles, resync locks after manifest edits, repair no-op release recipes, enforce one version source, configure multi-ecosystem dependency automation, recover garbage-collected nightly pins, and stabilize Dependabot contract tests without deleting coverage. Use when lock/release CI disagrees with manifests or bot updates must move exact peers together."
 category: ci-cd
 date: 2026-06-17
-version: "2.1.0"
+version: "2.2.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-ci
-history: lockfile-and-release-pipeline-management.history
 tags: [lockfile, release, pixi, npm, cargo, versioning, renovate, dependabot]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/lockfile-and-release-pipeline-management.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Lockfile and Release Pipeline Management
@@ -23,7 +24,7 @@ when files already contain the target version.
 Detailed incidents are indexed in
 [`lockfile-and-release-pipeline-management.notes.md`](lockfile-and-release-pipeline-management.notes.md).
 The complete prior source is in
-[`lockfile-and-release-pipeline-management.history`](lockfile-and-release-pipeline-management.history).
+[prior Git source](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/lockfile-and-release-pipeline-management.history).
 
 ## When to Use
 
@@ -123,6 +124,19 @@ Run lock/install checks from a clean environment, the full required suite, versi
 artifact version inspection, and tag/release dry run. Verify the remote tag points to the intended
 signed commit and published artifact metadata matches it. For automation, confirm managers discover
 the expected dependencies and sample PRs update manifest plus lock coherently.
+
+### Guidance retained from an absorbed history
+
+A previous lockfile-regeneration commit does not prove that the current candidate
+matches its manifests. Recheck the lock against the candidate's actual inputs.
+If an allowed integration changes those inputs, regenerate with the repository's
+current package manager and verify the resulting dependency diff. Fetch and
+inspect remote divergence before rewriting an existing branch. Do not rebase
+only to trigger CI or because `main` advanced.
+
+History cleanup: 2026-09-20. The [prior source](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/ci-cd-dependabot-pixi-lock-drift-fix.history)
+retains its original evidence limits. This migration does not establish new
+operational verification.
 
 ## Failed Attempts
 

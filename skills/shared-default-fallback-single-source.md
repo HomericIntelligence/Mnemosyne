@@ -8,6 +8,8 @@ version: "1.0.1"
 user-invocable: false
 verification: verified-ci
 tags: [defaults, fallback, single-source-of-truth, configuration, regression-testing]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/shared-default-fallback-single-source.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Shared Default Fallback as a Single Source of Truth

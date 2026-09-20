@@ -7,8 +7,9 @@ date: 2026-05-30
 version: "1.2.1"
 user-invocable: false
 verification: verified-ci
-history: claude-code-scheduled-tasks-lockfile-gitignore.history
 tags: [claude-code, gitignore, pre-commit, end-of-file-fixer, lockfile, scheduled-tasks, ci-flake, runtime-state, hephaestus-tidy, dirty-working-tree, git-status-porcelain]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/claude-code-scheduled-tasks-lockfile-gitignore.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Claude Code `scheduled_tasks.lock` Gitignore Fix
@@ -21,7 +22,7 @@ tags: [claude-code, gitignore, pre-commit, end-of-file-fixer, lockfile, schedule
 | **Objective** | Stop two related failure modes caused by Claude Code's `/schedule` skill writing a per-machine, per-process runtime lockfile (`.claude/scheduled_tasks.lock`) that is NOT in the default `.gitignore` of most repositories: (a) CI `pre-commit` / `end-of-file-fixer` rewrites the lockfile (no trailing newline) and the hook fails on every PR; (b) any local CLI tool that gates on `git status --porcelain` (canonical example: `hephaestus-tidy` via `_working_tree_clean()` in `hephaestus/github/tidy.py`) refuses to start, treating the untracked lockfile as a dirty working tree. Both failures share one root cause: the lockfile is held open by a live Claude session, is regenerated on every scheduled-task acquisition, and must not be tracked, stashed, or deleted. |
 | **Outcome** | Two-part durable fix: `git rm --cached` the file (if tracked) AND add `.claude/scheduled_tasks.lock` to `.gitignore`. Verified three times: ProjectOdyssey PR #5445 (2026-05-24, commit 702a5a2e), ProjectOdyssey PR #5457 (2026-05-26), and ProjectHephaestus PR #816 (2026-05-30). The Hephaestus run is the strongest evidence — immediately after the gitignore landed on main, `pixi run hephaestus-tidy` ran cleanly and deleted 6 stale merged branches without needing the conflict-resolution swarm. |
 | **Verification** | verified-ci |
-| **History** | [changelog](./claude-code-scheduled-tasks-lockfile-gitignore.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/claude-code-scheduled-tasks-lockfile-gitignore.history) |
 
 ## When to Use
 

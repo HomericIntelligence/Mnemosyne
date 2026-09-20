@@ -7,7 +7,6 @@ date: 2026-07-04
 version: "1.1.1"
 user-invocable: false
 verification: unverified
-history: planning-frozen-registry-guard-co-update.history
 tags:
   - planning
   - testing
@@ -25,6 +24,8 @@ tags:
   - multi-home-invariant
   - stale-list-entry
   - re-derive-ground-state
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/planning-frozen-registry-guard-co-update.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Planning Changes Behind a Frozen Registry Guard: Co-Update or Drop the Edit

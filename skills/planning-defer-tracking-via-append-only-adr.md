@@ -5,7 +5,6 @@ description: "Choose durable references for deferred architectural decisions whe
 category: documentation
 date: 2026-06-20
 version: "1.2.0"
-history: planning-defer-tracking-via-append-only-adr.history
 user-invocable: false
 verification: verified-local
 tags:
@@ -20,6 +19,8 @@ tags:
   - audit-finding
   - nitpick
   - tracker-selection
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/planning-defer-tracking-via-append-only-adr.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Planning: Defer-Tracking via an Append-Only ADR (Not a Closeable Issue)

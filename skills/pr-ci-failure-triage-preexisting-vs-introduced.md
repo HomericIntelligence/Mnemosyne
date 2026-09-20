@@ -3,11 +3,10 @@ name: pr-ci-failure-triage-preexisting-vs-introduced
 description: "Classify red PR checks as introduced, pre-existing, flaky, environmental, stale-commit, or status-rollup artifacts before fixing or rerunning. Use after rebases/force-pushes, unrelated failures, merge-preview coverage changes, or hosted-only process-launch errors."
 category: ci-cd
 date: 2026-07-31
-version: "2.0.0"
+version: "2.1.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-ci
-history: pr-ci-failure-triage-preexisting-vs-introduced.history
 tags:
   - ci-failure
   - triage
@@ -18,6 +17,8 @@ tags:
   - stale-commit
   - merge-preview
   - e2big
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pr-ci-failure-triage-preexisting-vs-introduced.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # PR CI Failure Triage: Pre-Existing vs Introduced
@@ -32,7 +33,7 @@ known flake, repair main separately, or create an explicit follow-up.
 This workflow is verified in CI across the indexed cases. Detailed run links and edge cases are in
 [pr-ci-failure-triage-preexisting-vs-introduced.notes.md](pr-ci-failure-triage-preexisting-vs-introduced.notes.md),
 and the complete prior version is in
-[pr-ci-failure-triage-preexisting-vs-introduced.history](pr-ci-failure-triage-preexisting-vs-introduced.history).
+[pr-ci-failure-triage-preexisting-vs-introduced.history](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pr-ci-failure-triage-preexisting-vs-introduced.history).
 
 ## When to Use
 
@@ -147,6 +148,18 @@ the real payload. Do not amend an arbitrary tip when the unwanted commit is lowe
 
 After any fix/rebase, repeat SHA and check-run binding. Surface classification and evidence in the
 PR, not only stderr or a private note.
+
+### Guidance retained from an absorbed history
+
+Distinguish a workflow setup failure from a product failure before replacing a
+CI action. Inspect the selected action or hook revision and reproduce its actual
+invocation. An old failure at one version does not establish a permanent ban on
+that action or on commit-based pins. Preserve required-check coverage when changing
+the tool invocation.
+
+History cleanup: 2026-09-20. The [prior source](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/ci-cd-pipeline-maintenance-patterns.history)
+retains its original evidence limits. This migration does not establish new
+operational verification.
 
 ## Failed Attempts
 

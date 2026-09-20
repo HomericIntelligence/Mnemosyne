@@ -6,6 +6,8 @@ user-invocable: false
 category: debugging
 date: 2026-03-03
 version: "1.1.0"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/babylonjs-havok-vite-wasm.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # babylonjs-havok-vite-wasm

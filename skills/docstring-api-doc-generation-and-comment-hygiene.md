@@ -7,8 +7,9 @@ version: "2.0.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: mixed
-history: docstring-api-doc-generation-and-comment-hygiene.history
 tags: [docstring, api-docs, comment-hygiene, note-cleanup, placeholder, copy-vs-view, module-docstring, error-handling-contract, version-management, mojo, python]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/docstring-api-doc-generation-and-comment-hygiene.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Docstring, API Documentation, and Comment Hygiene
@@ -187,4 +188,4 @@ Rely on the repository's container/CI gate for that formatter and never claim it
 ## Companions
 
 - [Case index and detailed verification](docstring-api-doc-generation-and-comment-hygiene.notes.md)
-- [Version history and superseded content](docstring-api-doc-generation-and-comment-hygiene.history)
+- [Version history and superseded content](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/docstring-api-doc-generation-and-comment-hygiene.history)

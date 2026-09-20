@@ -7,7 +7,6 @@ version: "2.0.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-ci
-history: container-ci-uid-permissions-rootless.history
 tags:
   - podman
   - rootless
@@ -19,6 +18,8 @@ tags:
   - uv
   - pixi
   - bind-mount
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/container-ci-uid-permissions-rootless.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Container CI UID Permissions and Rootless Patterns
@@ -34,7 +35,7 @@ The consolidated patterns have CI evidence, and the uv/container gotchas were re
 Podman builds. Case links and platform detail are in
 [container-ci-uid-permissions-rootless.notes.md](container-ci-uid-permissions-rootless.notes.md),
 with the full prior version in
-[container-ci-uid-permissions-rootless.history](container-ci-uid-permissions-rootless.history).
+[container-ci-uid-permissions-rootless.history](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/container-ci-uid-permissions-rootless.history).
 
 ## When to Use
 

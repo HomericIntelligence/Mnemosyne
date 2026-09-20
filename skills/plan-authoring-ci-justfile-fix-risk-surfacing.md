@@ -26,6 +26,8 @@ tags:
   - odysseus
   - self-surfacing-assumptions
   - verification-honesty
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/plan-authoring-ci-justfile-fix-risk-surfacing.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 ## Overview

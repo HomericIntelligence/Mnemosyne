@@ -7,7 +7,6 @@ date: 2026-06-20
 version: "1.2.0"
 user-invocable: false
 verification: verified-local
-history: audit-doc-consistency-fix-verify-coordinates-on-disk.history
 tags:
   - audit-coordinate-drift
   - doc-consistency
@@ -21,6 +20,8 @@ tags:
   - inherited-coordinate-rederive
   - verification-command-portability
   - grep-positive-negative-assertion
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/audit-doc-consistency-fix-verify-coordinates-on-disk.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Audit Doc-Consistency Fix: Verify Coordinates On Disk
@@ -33,7 +34,7 @@ tags:
 | **Objective** | Plan a fix for a documentation-consistency issue (drifted coordinates, a command that disagrees across docs) without trusting stale coordinates inherited from an audit, an issue body, or a prior plan; without over-scoping into throwaway worktree copies; without bolting on disproportionate CI tooling; and while authoring portable, able-to-fail verification-command grep assertions |
 | **Outcome** | A repeatable planning methodology: re-derive every inherited file:line on disk with `grep -n <stable-substring>`, source the replacement verbatim from an already-correct canonical doc, scope out worktree/build copies, decline drift-guard CI tooling (YAGNI), author portable positive+negative grep assertions (no cross-line / GNU-only regex), and verify docs-only via markdownlint + grep agreement |
 | **Verification** | verified-local |
-| **History** | See `audit-doc-consistency-fix-verify-coordinates-on-disk.history` (v1.0.0 → v1.1.0, 2026-06-20) |
+| **History** | See [prior Git source](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/audit-doc-consistency-fix-verify-coordinates-on-disk.history) (v1.0.0 → v1.1.0, 2026-06-20) |
 
 ## When to Use
 

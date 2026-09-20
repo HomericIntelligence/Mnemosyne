@@ -7,7 +7,6 @@ date: 2026-06-30
 version: "1.1.1"
 user-invocable: false
 verification: verified-local
-history: hypothesis-property-fuzz-llm-output-parsers.history
 tags:
   - hypothesis
   - property-based-testing
@@ -16,6 +15,8 @@ tags:
   - pixi
   - pyproject
   - dual-manifest
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/hypothesis-property-fuzz-llm-output-parsers.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Hypothesis Property/Fuzz Tests for LLM-Output Parsers
@@ -28,7 +29,7 @@ tags:
 | **Objective** | Add Hypothesis property-based / fuzz tests for four LLM-output string parsers (`parse_review_verdict`, `_parse_coordinator_results`, `latest_verdict`, `_parse_addressed_block`) and add `hypothesis` to dev/test deps — ProjectHephaestus issue #1470. |
 | **Outcome** | EXECUTED end-to-end (verified-local). 14 new property tests added across 4 parsers; full automation suite green; PR CI pending at capture. |
 | **Verification** | verified-local — executed end-to-end locally; PR CI not yet merged at capture. |
-| **History** | [changelog](./hypothesis-property-fuzz-llm-output-parsers.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/hypothesis-property-fuzz-llm-output-parsers.history) |
 
 ## When to Use
 

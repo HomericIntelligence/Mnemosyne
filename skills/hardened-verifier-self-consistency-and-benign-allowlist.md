@@ -14,6 +14,8 @@ tags:
   - allowlist
   - false-assurance
   - provenance
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/hardened-verifier-self-consistency-and-benign-allowlist.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Hardened Verifier: Self-Consistency and Reviewed-Benign Allowlist

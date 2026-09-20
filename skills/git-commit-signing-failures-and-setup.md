@@ -7,8 +7,9 @@ version: "2.1.1"
 user-invocable: false
 license: BSD-3-Clause
 verification: mixed
-history: git-commit-signing-failures-and-setup.history
 tags: [git, commit-signing, gpg, ssh-signing, required-signatures, github, identity, headless, force-with-lease, pr-head]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/git-commit-signing-failures-and-setup.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Git Commit Signing: Failures and Setup
@@ -24,7 +25,7 @@ Verification is `mixed`: the core GPG/SSH remediation is CI-backed, while the in
 recovery for a PR head pinned to an unsigned sibling was reconstructed and partially exercised but
 not completed through a green merge. Case evidence is in
 [the notes](./git-commit-signing-failures-and-setup.notes.md); the exact prior skill is in
-[history](./git-commit-signing-failures-and-setup.history).
+[history](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/git-commit-signing-failures-and-setup.history).
 
 ## When to Use
 
@@ -185,4 +186,4 @@ must all pass independently.
 ## Companions
 
 - [Case notes](./git-commit-signing-failures-and-setup.notes.md)
-- [Version history and exact superseded snapshot](./git-commit-signing-failures-and-setup.history)
+- [Version history and exact superseded snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/git-commit-signing-failures-and-setup.history)

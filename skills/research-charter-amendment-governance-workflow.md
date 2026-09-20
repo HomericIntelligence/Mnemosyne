@@ -8,6 +8,8 @@ version: "1.1.1"
 user-invocable: false
 verification: verified-ci
 tags: [research-governance, charter-amendment, pinned-thresholds, trigger-matrix, descriptive-vs-contractual, status-labels, falsifiable-exit-conditions, mid-run-pivot, anchor-traceability, strict-audit, experiment-charter, failure-cascade]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/research-charter-amendment-governance-workflow.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Research Charter Amendment Governance Workflow

@@ -7,7 +7,6 @@ date: 2026-06-19
 version: "2.1.0"
 verification: unverified
 user-invocable: false
-history: testing-jetstream-flaky-stream-state-leak.history
 tags:
   - flaky
   - integration-test
@@ -24,6 +23,8 @@ tags:
   - purge-stream
   - planning
   - pytest
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/testing-jetstream-flaky-stream-state-leak.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Diagnosing Flaky NATS Push-Subscriber Over-Count (Planning)
@@ -36,7 +37,7 @@ tags:
 | **Objective** | Diagnose and fix flaky NATS integration tests that assert exact message counts and intermittently OVER-count (`assert 2 == 1`). Core correction: distinguish core-NATS push delivery (live-only) from JetStream consumers (stream-backed) BEFORE choosing a fix. |
 | **Outcome** | Planning hypothesis (corrected) — the v1.0.0 "purge the JetStream stream" plan was NOGO'd because core push subscribers never read streams; the over-count is live cross-test fan-out on a broad wildcard subscription. The revised plan was reasoned through but NOT executed. |
 | **Verification** | unverified — corrected planning hypothesis; no test was run, CI was not run, and the failure was not reproduced this round. |
-| **History** | [changelog](./testing-jetstream-flaky-stream-state-leak.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/testing-jetstream-flaky-stream-state-leak.history) |
 
 ## When to Use
 

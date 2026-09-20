@@ -6,9 +6,10 @@ date: 2026-08-05
 version: "2.0.0"
 user-invocable: false
 license: BSD-3-Clause
-history: pytest-coverage-threshold-and-enforcement.history
 verification: mixed
 tags: [pytest, coverage, branch-coverage, fail-under, cobertura, per-module-floor, secure-xml, ci, lcov, optional-dependencies]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pytest-coverage-threshold-and-enforcement.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Pytest Coverage Thresholds and Enforcement
@@ -24,7 +25,7 @@ Verification remains `mixed`: the core and v1.2/v1.3 additions are verified in C
 branch-floor raise is verified locally, and the v1.5 fail-closed Cobertura-loader design remains
 unverified. Project-specific results and commands are indexed in
 [the notes](./pytest-coverage-threshold-and-enforcement.notes.md); exact prior content is in
-[history](./pytest-coverage-threshold-and-enforcement.history).
+[history](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pytest-coverage-threshold-and-enforcement.history).
 
 ## When to Use
 
@@ -206,4 +207,4 @@ list only for the same diagnosed toolchain conditions.
 ## Companions
 
 - [Case notes](./pytest-coverage-threshold-and-enforcement.notes.md)
-- [Version history and exact superseded snapshot](./pytest-coverage-threshold-and-enforcement.history)
+- [Version history and exact superseded snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pytest-coverage-threshold-and-enforcement.history)

@@ -6,6 +6,8 @@ category: ci-cd
 date: 2026-02-06
 version: "1.1.1"
 user-invocable: false
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/rescue-broken-prs.history"
+history-cleanup-date: "2026-09-20"
 ---
 # Rescue Broken PRs
 

@@ -19,6 +19,8 @@ tags:
   - gh-auth-refresh
   - credential-gap
   - merge-queue
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/github-ruleset-write-scope-404.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # GitHub Ruleset Writes Can 404 (Not 403) Despite Repo-Admin GET Access

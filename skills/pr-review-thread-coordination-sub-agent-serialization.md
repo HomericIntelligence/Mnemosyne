@@ -22,6 +22,8 @@ tags:
   - constructor-parity
   - integration-gate
   - small-batch-review-fix
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pr-review-thread-coordination-sub-agent-serialization.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # PR Review Thread Coordination: Sub-Agent Serialization

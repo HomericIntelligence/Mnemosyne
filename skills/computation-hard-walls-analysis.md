@@ -7,8 +7,9 @@ date: 2026-06-01
 version: "1.3.0"
 user-invocable: false
 verification: unverified
-history: computation-hard-walls-analysis.history
 tags: [physics, computation, limits, hard-walls, scifi, worldbuilding, mechanism-design, tqc, topological, bekenstein, planck-density, offload-architecture, lloyd, holevo, landauer, reality-computes, computational-universe]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/computation-hard-walls-analysis.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Computation Hard Walls Analysis Framework
@@ -21,7 +22,7 @@ tags: [physics, computation, limits, hard-walls, scifi, worldbuilding, mechanism
 | **Objective** | Systematically evaluate exotic/fictional compute mechanisms against 14 known physical hard limits |
 | **Outcome** | Framework developed and applied across mechanism classes: AdS/CFT holographic (M02) defeats 10/14; asymptotic-safety RG (M16) defeats 5/14 + 3 partial; anyon topological braiding (M44) defeats 9/14 — with Wall 11 (Analog Precision) most decisively defeated by topological protection; Reality Offload / computational-universe (M55) defeats 5/14 decisively + 2 via NP-1 + 2 partially, uniquely defeating Wall 4 with zero new physics. Planck-density substrate mechanisms (LQG spin-network M14, anyon fabric M44) share a recurring failure mode: Planck energy density implies black hole collapse. 3 walls (6, 7, 14) are genuinely inviolable across all classes. |
 | **Verification** | unverified — theoretical framework, not implemented |
-| **History** | [changelog](./computation-hard-walls-analysis.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/computation-hard-walls-analysis.history) |
 
 ## When to Use
 

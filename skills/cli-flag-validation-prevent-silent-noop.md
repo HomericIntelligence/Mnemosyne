@@ -7,7 +7,6 @@ date: 2026-06-08
 version: "1.1.0"
 user-invocable: false
 verification: verified-local
-history: cli-flag-validation-prevent-silent-noop.history
 tags:
   - argparse
   - cli
@@ -17,6 +16,8 @@ tags:
   - backend-compatibility
   - issue-vs-pr
   - fail-open
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/cli-flag-validation-prevent-silent-noop.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # CLI Flag Validation - Prevent Silent No-Op

@@ -8,6 +8,8 @@ version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [git, stash, reflog, concurrent, multi-agent, shared-checkout, lost-work, recovery, branch-reset, preserved-stash, automation-loop, stash-apply, commit-early]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/tooling-git-recover-stashed-work-after-concurrent-branch-reset.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Recover Stashed Work After a Concurrent Branch Reset in a Shared Checkout

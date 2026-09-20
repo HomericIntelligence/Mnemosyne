@@ -7,7 +7,6 @@ date: 2026-08-05
 version: "2.0.0"
 user-invocable: false
 verification: unverified
-history: architecture-pipeline-stage-order-is-semantic.history
 tags:
   - pipeline-order
   - routing-table
@@ -16,6 +15,8 @@ tags:
   - drain-order
   - single-source-of-truth
   - generated-tests
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/architecture-pipeline-stage-order-is-semantic.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Pipeline Stage Order Must Have One Executable Authority
@@ -28,7 +29,7 @@ tags:
 | **Objective** | Make one declarative routing table authoritative for pipeline order, success/failure targets, budgets, scoped routing, queue initialization, and downstream-first draining. |
 | **Outcome** | Proposed architecture: derive every order-sensitive consumer and structural test from the routing table instead of synchronizing enum order, explicit tuples, test cases, and documentation rows. No implementation was executed in this session. |
 | **Verification** | **unverified** — design and acceptance commands were prepared, but no code, tests, type checking, or CI ran. |
-| **History** | [changelog](./architecture-pipeline-stage-order-is-semantic.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/architecture-pipeline-stage-order-is-semantic.history) |
 
 ## When to Use
 

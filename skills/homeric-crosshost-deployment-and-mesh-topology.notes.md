@@ -2,7 +2,7 @@
 
 These notes retain project-specific cases and verification detail moved out of the retrievable
 [skill](./homeric-crosshost-deployment-and-mesh-topology.md). The exact v1.11.0 main is preserved
-once, in [history](./homeric-crosshost-deployment-and-mesh-topology.history); it is intentionally
+once, in [history](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/homeric-crosshost-deployment-and-mesh-topology.history); it is intentionally
 not duplicated here.
 
 ## Case Index

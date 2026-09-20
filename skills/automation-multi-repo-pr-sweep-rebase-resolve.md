@@ -2,7 +2,6 @@
 name: automation-multi-repo-pr-sweep-rebase-resolve
 license: BSD-3-Clause
 description: "Inspect an authorized PR backlog across repositories when review alone leaves checks, conflicts, or review threads unresolved. Select repairs from live policy and actual blockers."
-history: automation-multi-repo-pr-sweep-rebase-resolve.history
 category: tooling
 date: 2026-06-28
 version: "1.2.0"
@@ -21,6 +20,8 @@ tags:
   - homericintelligence
   - worktree-per-pr
   - resolveReviewThread
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/automation-multi-repo-pr-sweep-rebase-resolve.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Multi-Repo PR Sweep: Rebase + Resolve to Drive a Backlog Green and Merged

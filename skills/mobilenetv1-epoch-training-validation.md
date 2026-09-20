@@ -22,6 +22,8 @@ tags:
   - cifar10
   - projectodyssey
   - mojo
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/mobilenetv1-epoch-training-validation.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # MobileNetV1 CIFAR-10 Epoch Training Validation

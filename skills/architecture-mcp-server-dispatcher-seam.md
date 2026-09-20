@@ -8,6 +8,8 @@ version: "1.0.1"
 user-invocable: false
 verification: verified-ci
 tags: [mcp, dispatcher, seam, pixi, pypi-dependencies, stdio, testability, read-only, python]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/architecture-mcp-server-dispatcher-seam.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Architecture: MCP Server Dispatcher Seam

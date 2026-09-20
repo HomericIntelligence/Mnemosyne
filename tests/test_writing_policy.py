@@ -59,7 +59,6 @@ PROTECTED_LITERAL_EXPECTATIONS = {
         "`uv build`",
         "skills/<name>.md",
         "skills/<name>.notes.md",
-        "skills/<name>.history",
     ),
     ".claude/settings.json": (
         '"enabledPlugins": {',

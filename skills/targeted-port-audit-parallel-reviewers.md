@@ -8,6 +8,8 @@ version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [port-audit, parallel-review, feature-parity, code-port, rewrite-audit, focused-review, bash-to-python, narrow-scope-audit]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/targeted-port-audit-parallel-reviewers.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Targeted Port Audit With Parallel Reviewers

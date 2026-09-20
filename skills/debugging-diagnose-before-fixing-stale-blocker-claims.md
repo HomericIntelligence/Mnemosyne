@@ -8,6 +8,8 @@ version: "1.0.1"
 user-invocable: false
 verification: verified-local
 tags: [diagnostics, read-only, stale-claims, inherited-notes, generated-config, enable-flags, red-herring, deploy, render, regenerate, active-path]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/debugging-diagnose-before-fixing-stale-blocker-claims.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Diagnose Before Fixing: Verify Stale "It's Broken Because X" Claims

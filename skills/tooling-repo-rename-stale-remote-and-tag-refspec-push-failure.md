@@ -18,6 +18,8 @@ tags:
   - force-with-lease
   - commit_refs
   - redirect
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/tooling-repo-rename-stale-remote-and-tag-refspec-push-failure.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Repo Rename: Stale `origin` URL + Tag-Refspec Push Failure Through the Redirect

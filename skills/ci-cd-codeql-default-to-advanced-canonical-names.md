@@ -22,6 +22,8 @@ tags:
   - threat-model
   - action-pin-verification
   - github-actions
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/ci-cd-codeql-default-to-advanced-canonical-names.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # CI/CD: Migrate CodeQL Default Setup → Advanced Setup for Canonical Check Names

@@ -8,6 +8,8 @@ version: "1.0.1"
 user-invocable: false
 verification: verified-ci
 tags: [rate-limiter, token-bucket, test-fixture, burst-capacity, cpp, agamemnon, httplib, route-test]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/cpp-rate-limiter-test-fixture-burst-capacity-trap.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # C++ Rate Limiter Test Fixture: burst_capacity Trap

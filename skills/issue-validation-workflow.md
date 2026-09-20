@@ -7,6 +7,8 @@ description: Validate GitHub issue state against codebase reality before impleme
 category: evaluation
 date: 2026-02-12
 version: "1.1.0"
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/issue-validation-workflow.history"
+history-cleanup-date: "2026-09-20"
 ---
 # Issue Validation Workflow
 

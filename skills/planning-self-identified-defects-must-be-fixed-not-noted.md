@@ -17,6 +17,8 @@ tags:
   - reviewer-nogo
   - fix-or-block
   - meta-rule
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/planning-self-identified-defects-must-be-fixed-not-noted.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Planning: Correct Self-Identified Defects

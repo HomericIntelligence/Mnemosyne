@@ -5,7 +5,6 @@ description: "Diagnose imports resolving to the parent checkout instead of a Git
 category: tooling
 date: 2026-08-07
 version: "1.4.0"
-history: git-worktree-sys-path-precedence-issue.history
 user-invocable: false
 verification: verified-local
 tags:
@@ -20,6 +19,8 @@ tags:
   - python-environment
   - monorepo
   - module-resolution
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/git-worktree-sys-path-precedence-issue.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Git Worktree sys.path Precedence Issue

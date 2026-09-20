@@ -8,6 +8,8 @@ version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags: [planning, dry, env-vars, canonical-source, reuse-over-promote, import-time-coercion, delegate-shim, import-surface, library-layer, hephaestus, anchor-on-literal]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/planning-reuse-existing-public-env-reader.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Planning: Reuse an Existing Public Env Reader Instead of Promoting a Private One

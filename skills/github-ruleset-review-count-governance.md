@@ -7,7 +7,6 @@ version: "2.1.0"
 verification: verified-ci
 license: BSD-3-Clause
 user-invocable: false
-history: github-ruleset-review-count-governance.history
 tags:
   - github
   - branch-protection
@@ -17,6 +16,8 @@ tags:
   - auto-merge
   - required-checks
   - drift
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/github-ruleset-review-count-governance.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # GitHub Ruleset Review-Count Governance
@@ -30,7 +31,7 @@ contract. Diagnose and change live policy, not assumptions from committed JSON.
 
 Verification remains `verified-ci`. Applied cases and repository-specific values are in the
 [notes](./github-ruleset-review-count-governance.notes.md); the byte-preserved source and prior
-changelog are in [history](./github-ruleset-review-count-governance.history).
+changelog are in [history](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/github-ruleset-review-count-governance.history).
 
 ## When to Use
 
@@ -271,4 +272,4 @@ observation time; never diagnose review blockage from committed JSON alone.
 ## Companions
 
 - [Case notes](./github-ruleset-review-count-governance.notes.md)
-- [Version history and superseded snapshot](./github-ruleset-review-count-governance.history)
+- [Version history and superseded snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/github-ruleset-review-count-governance.history)

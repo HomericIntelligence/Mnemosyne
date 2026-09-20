@@ -20,6 +20,8 @@ tags:
   - runner
   - future-proofing
   - workflow
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/ci-pip-install-user-pep668.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # CI pip install --user: PEP 668 Protection in GitHub Actions

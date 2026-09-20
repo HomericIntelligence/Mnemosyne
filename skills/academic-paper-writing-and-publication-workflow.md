@@ -6,8 +6,9 @@ category: documentation
 date: 2026-06-07
 version: "1.2.0"
 user-invocable: false
-history: academic-paper-writing-and-publication-workflow.history
 tags: [latex, arxiv, paper, publication, validation, bibtex, assembly, review, statistical-rigor, swarm]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/academic-paper-writing-and-publication-workflow.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Academic Paper Writing and Publication Workflow

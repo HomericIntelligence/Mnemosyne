@@ -8,6 +8,8 @@ version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [audit, epic, milestone, remediation, wave-structure, gh-api, verify-and-close, batch-pr, dependency-order, file-target-verification, pr-policy, squash-merge]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/audit-epic-sequencing-milestone-attachment.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Audit Epic Sequencing and Milestone Attachment

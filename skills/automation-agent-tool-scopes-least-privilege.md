@@ -7,7 +7,6 @@ date: 2026-08-05
 version: "2.1.0"
 user-invocable: false
 verification: unverified
-history: automation-agent-tool-scopes-least-privilege.history
 tags:
   - automation
   - least-privilege
@@ -24,11 +23,13 @@ tags:
   - policy-lock-tests
   - agent-job
   - host-owned-policy
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/automation-agent-tool-scopes-least-privilege.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Automation Agent Tool Scopes: Enforce Availability, Not Just Permission
 
-**History:** [changelog](./automation-agent-tool-scopes-least-privilege.history)
+**History:** [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/automation-agent-tool-scopes-least-privilege.history)
 
 ## Overview
 

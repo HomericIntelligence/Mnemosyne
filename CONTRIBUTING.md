@@ -52,23 +52,15 @@ frontmatter.
 ```text
 skills/<name>.md             # Main skill file with YAML frontmatter + markdown content
 skills/<name>.notes.md       # (Optional) Privacy-safe context from development session
-skills/<name>.history        # Version/provenance archive for /learn writes
 ```
 
-Keep each retrievable main skill at or below 30,000 bytes. Put reusable triggers,
-decision rules, and short failure patterns in the main skill. Keep no more than
-three examples that cover different decisions. Before an amendment replaces the
-main skill, archive its complete prior content in `.history`. If Athena's
-privacy-redaction exception applies to the prior content, use the record that
-Athena defines. Never copy prohibited content into a companion file.
-
-Put only privacy-safe supporting context in `.notes.md`. You can include
-privacy-safe long examples, command transcripts, and verification reports
-there. Put prior versions, change summaries, provenance, and version-control
-narratives in `.history`. Only when the Athena exception applies, use a
-privacy-redaction record instead of a prior snapshot. In the frontmatter, keep
-only the current `version` identifier. Athena excludes both companion types
-from normal retrieval.
+Use 30,000 bytes as an editorial guideline, not a validation limit. Keep reusable
+triggers, decision rules, and failure patterns in the main skill. Put only
+privacy-safe supporting evidence in `.notes.md`. Git history preserves prior
+versions and provenance. Do not duplicate snapshots in companion history files.
+When removing historical files, preserve useful current guidance in the main
+lesson and link the immutable source commit with the cleanup date. Do not copy
+secrets, protected data, or superseded policy into the current guidance.
 
 ### Required YAML Frontmatter
 
@@ -135,12 +127,9 @@ action it protects. Suggest unrelated improvements separately.
    parameters. Preserve technical prerequisites and state verification limits.
 4. **No duplication**: Link to external documents. Do not copy their content.
    If a skill overlaps an existing skill, extend the existing skill.
-5. **Bounded retrieval**: Keep `skills/<name>.md` at or below 30,000 bytes.
-   Keep concise reusable guidance in the main skill. Keep no more than three
-   examples that cover different decisions. Put only privacy-safe session
-   evidence in the notes file. Put prior versions and version-control records
-   in the history file. Only when Athena's exception applies, use a
-   privacy-redaction record.
+5. **Concise retrieval**: Use 30,000 bytes as an editorial guideline. Keep
+   decision-changing guidance in the main skill and privacy-safe evidence in
+   notes. Read large sources in batches. Git history preserves prior versions.
 
 ## Categories
 
@@ -247,7 +236,6 @@ The validator does these checks:
 - Confirms the Failed Attempts table
 - Confirms the description field
 - Confirms one of the nine approved categories
-- Enforces the 30,000-byte main skill limit
 - Excludes notes and history files.
 
 Review descriptions for specific trigger conditions. Select further checks
@@ -313,8 +301,8 @@ Write skills that can work in multiple repositories:
    ```
 4. **Move only privacy-safe specifics to companions** -- Put privacy-safe
    project-specific commands, paths, transcripts, and verification details in
-   `.notes.md`. Put privacy-safe version and provenance records in `.history`.
-   If the Athena privacy-redaction exception applies, use that record instead.
+   `.notes.md`. Use Git history for prior versions. Link the immutable source
+   commit when removing historical files. Never copy protected material.
 5. **Generic workflows** -- Write workflows that users can adapt to each
    repository structure.
 

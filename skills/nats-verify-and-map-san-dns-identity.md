@@ -7,7 +7,6 @@ date: 2026-06-19
 version: "1.1.0"
 verification: verified-local
 user-invocable: false
-history: nats-verify-and-map-san-dns-identity.history
 tags:
   - nats
   - verify_and_map
@@ -19,6 +18,8 @@ tags:
   - identity
   - homeric-intelligence
   - adr-009
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/nats-verify-and-map-san-dns-identity.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # NATS verify_and_map: SAN-DNS Identity Matching
@@ -31,7 +32,7 @@ tags:
 | **Objective** | Document the exact cert→user identity matching mechanics of `verify_and_map` so that `accounts{}` user= fields, cert issuance flags, and verification tests are set up correctly on the first attempt |
 | **Outcome** | Successful — ADR-009 implemented, `nats-server -t` parse check passed on both `server.conf` and `leaf.conf`. Two defects in the original plan were caught via PR #305 review and corrected before merge: (1) bare CN used as match key (fixed to SAN-DNS), (2) no-op deny clause in subscribe permissions block (removed). |
 | **Verification** | `verified-local` — fix confirmed by `nats-server -t` parse check and PR review thread resolution (PRRT_kwDORoAqe86K6YL4). CI not run on the skill PR itself. |
-| **History** | [changelog](./nats-verify-and-map-san-dns-identity.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/nats-verify-and-map-san-dns-identity.history) |
 
 ## When to Use
 

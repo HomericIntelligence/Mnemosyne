@@ -7,13 +7,14 @@ date: 2026-03-25
 version: "2.0.0"
 user-invocable: false
 verification: verified-local
-history: security-pep508-parser-replaces-regex.history
 tags:
   - security
   - input-validation
   - pip
   - packaging
   - pep508
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/security-pep508-parser-replaces-regex.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Replace Regex Package Validation with PEP 508 Parser
@@ -30,7 +31,7 @@ tags:
 | **Issue (regex-specific)** | HomericIntelligence/ProjectHephaestus#62 |
 | **PR (PEP 508 parser)** | HomericIntelligence/ProjectHephaestus#69 |
 | **PR (regex tightening)** | HomericIntelligence/ProjectHephaestus#126 |
-| **History** | [changelog](./security-pep508-parser-replaces-regex.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/security-pep508-parser-replaces-regex.history) |
 
 ## When to Use
 

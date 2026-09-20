@@ -7,7 +7,6 @@ version: "2.1.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: unverified
-history: planning-unmerged-dep-pure-classifier-extraction.history
 tags:
   - planning
   - unmerged-dependency
@@ -17,6 +16,8 @@ tags:
   - sentinel-separation
   - compatibility-probe
   - state-machine
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/planning-unmerged-dep-pure-classifier-extraction.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Planning an Unmerged Dependency and Pure Classifier Extraction
@@ -33,7 +34,7 @@ This is an unimplemented planning artifact from ProjectHephaestus issue #1816. E
 links are in
 [planning-unmerged-dep-pure-classifier-extraction.notes.md](planning-unmerged-dep-pure-classifier-extraction.notes.md),
 and the complete prior version is in
-[planning-unmerged-dep-pure-classifier-extraction.history](planning-unmerged-dep-pure-classifier-extraction.history).
+[planning-unmerged-dep-pure-classifier-extraction.history](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/planning-unmerged-dep-pure-classifier-extraction.history).
 
 ## When to Use
 

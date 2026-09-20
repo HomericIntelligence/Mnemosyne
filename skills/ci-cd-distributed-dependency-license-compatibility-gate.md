@@ -8,6 +8,8 @@ version: "1.0.1"
 user-invocable: false
 verification: verified-local
 tags: [license-compatibility, notice, spdx, copyleft, pip-licenses, license-allowlist, requires-dist, importlib-metadata, pep639, pep508, packaging, drift-guard, ci-gate, github-actions, advisory-vs-blocking, fail-loud]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/ci-cd-distributed-dependency-license-compatibility-gate.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # CI/CD Distributed Dependency License Compatibility Gate

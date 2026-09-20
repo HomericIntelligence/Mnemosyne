@@ -26,6 +26,8 @@ tags:
   - regression-guard
   - load-bearing-construct
   - bot-patch-verification
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/python-import-time-forward-reference-lambda-guard.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Python Import-Time Forward-Reference Lambda Guard

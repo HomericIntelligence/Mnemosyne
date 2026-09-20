@@ -5,10 +5,11 @@ description: "Diagnose AchaeanFleet Docker CI failures involving YAML, Compose o
 category: ci-cd
 date: 2026-05-18
 version: "2.2.1"
-history: ci-cd-achaean-fleet-ci-cascade-patterns.history
 user-invocable: false
 verification: verified-ci
 tags: [achaeanfleet, docker, ci-cascade, multi-arch, oci, opencode, goose, entrypoint, qemu, caddy, yaml, branch-protection, required-signatures, branch-rulesets, signed-commits, force-with-lease, auto-merge-disarm]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/ci-cd-achaean-fleet-ci-cascade-patterns.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # CI/CD: AchaeanFleet CI Cascade Patterns

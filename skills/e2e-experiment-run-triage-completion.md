@@ -6,7 +6,6 @@ category: evaluation
 date: 2026-05-19
 version: "1.1.1"
 user-invocable: false
-history: e2e-experiment-run-triage-completion.history
 tags:
   - e2e
   - evaluation
@@ -16,6 +15,8 @@ tags:
   - ablation
   - swe-bench
   - experiment-lifecycle
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/e2e-experiment-run-triage-completion.history"
+history-cleanup-date: "2026-09-20"
 ---
 # E2E Experiment Run, Triage, and Completion
 

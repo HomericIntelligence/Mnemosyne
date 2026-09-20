@@ -16,6 +16,8 @@ tags:
   - early-exit
   - guard
   - automation
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/test-state-machine-docstring-accuracy.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Test State-Machine Docstring Accuracy

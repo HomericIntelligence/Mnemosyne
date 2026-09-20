@@ -18,6 +18,8 @@ tags:
   - capability-probe
   - output-strict-probe
   - hephaestus
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/ci-release-guard-crlf-marker-matching.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # CI: Release Guard vs CRLF Bodies (Strip CR Before Whole-Line Marker Matches)

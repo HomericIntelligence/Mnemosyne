@@ -6,8 +6,9 @@ category: tooling
 date: 2026-06-07
 version: "1.1.1"
 user-invocable: false
-history: skill-file-format-frontmatter-and-validation.history
 tags: [yaml, frontmatter, validation, markdownlint, md033, failed-attempts, plugin-format, marketplace, agent-field, ci-cd]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/skill-file-format-frontmatter-and-validation.history"
+history-cleanup-date: "2026-09-20"
 ---
 # Skill File Format, Frontmatter, and Validation
 

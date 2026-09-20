@@ -8,6 +8,8 @@ version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [pr-review, evidence-tagging, branch-vs-tip, dry-thrash, auto-merge, code-review, adr-014, verified-local, verified-ci, chore-rename]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/agents-pr-review-evidence-discipline.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # PR Review Evidence Discipline
@@ -20,7 +22,7 @@ tags: [pr-review, evidence-tagging, branch-vs-tip, dry-thrash, auto-merge, code-
 | **Objective** | Codify the four rules learned during the HomericIntelligence rename-sweep (ADR-015 + ADR-016) review cycle, so future agents don't repeat the same overclaim / false-positive patterns. |
 | **Outcome** | Four rules published. Apply on every chore/rename PR review. |
 | **Verification** | verified-local (file-only; no CI observation on the rules themselves) |
-| **History** | [changelog](./agents-pr-review-evidence-discipline.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/agents-pr-review-evidence-discipline.history) |
 
 ## When to Use
 

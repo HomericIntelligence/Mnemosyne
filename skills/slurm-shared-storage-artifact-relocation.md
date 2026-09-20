@@ -8,6 +8,8 @@ version: "1.1.0"
 verification: verified-local
 user-invocable: false
 tags: [slurm, shared-storage, filesystem, exdev, renameat2, artifact-relocation, resumable-copy, atomic-promotion, integrity, quota]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/slurm-shared-storage-artifact-relocation.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Slurm Shared-Storage Artifact Relocation

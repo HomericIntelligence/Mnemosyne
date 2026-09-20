@@ -8,6 +8,8 @@ version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [background-agent, run_in_background, api-error, connection-refused, recovery, foreground-agent]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/agent-background-task-failure-recovery.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Background Agent Failure Detection and Recovery

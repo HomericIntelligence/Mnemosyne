@@ -8,6 +8,8 @@ version: "1.0.1"
 user-invocable: false
 verification: verified-ci
 tags: [gitignore, markdownlint, claude-code, coordinator-files, address-review, lint-gate, pre-commit, automation-loop, ci-failure]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/ci-gitignore-claude-coordinator-files.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # CI: Gitignore Claude Automation Coordinator Files

@@ -7,7 +7,6 @@ date: 2026-06-19
 version: "1.2.0"
 user-invocable: false
 verification: unverified
-history: ci-required-check-path-filter-pitfall.history
 tags:
   - github-actions
   - branch-protection
@@ -19,6 +18,8 @@ tags:
   - mcr-mirror
   - digest-pinning
   - uncertain-assumptions
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/ci-required-check-path-filter-pitfall.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # CI Required Check + Path Filter Pitfall

@@ -22,6 +22,8 @@ tags:
   - total-function
   - pipeline-seeding
   - admission-control
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/planning-normalize-liveness-at-fetch-layer.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Planning: Normalize Liveness at the Fetch Layer (Not in the Classifier)

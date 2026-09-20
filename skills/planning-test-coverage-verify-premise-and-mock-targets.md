@@ -5,7 +5,6 @@ description: "Plan test-coverage work from current source and existing tests. Re
 category: testing
 date: 2026-06-15
 version: "1.1.1"
-history: planning-test-coverage-verify-premise-and-mock-targets.history
 user-invocable: false
 verification: unverified
 tags:
@@ -19,6 +18,8 @@ tags:
   - pytest
   - unittest-mock
   - dry
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/planning-test-coverage-verify-premise-and-mock-targets.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Planning Test-Coverage Tasks: Verify the Premise and Get Mock Targets Right

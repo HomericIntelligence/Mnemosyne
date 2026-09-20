@@ -125,27 +125,17 @@ def _frontmatter_for(skill_name: str) -> dict[str, object]:
     return cast("dict[str, object]", frontmatter)
 
 
-def test_consolidated_canonicals_have_major_versions_and_history():
+def test_consolidated_canonicals_keep_versions_and_immutable_provenance():
     for consolidation in CONSOLIDATIONS:
         canonical = consolidation["canonical"]
         frontmatter = _frontmatter_for(canonical)
         assert frontmatter["version"] == consolidation["version"]
-        history = frontmatter["history"]
-        assert isinstance(history, str)
-        assert history == f"{canonical}.history"
-        assert (SKILLS_DIR / history).is_file()
-
-
-def test_absorbed_skill_snapshots_remain_in_history():
-    for consolidation in CONSOLIDATIONS:
-        canonical = consolidation["canonical"]
-        history = (SKILLS_DIR / f"{canonical}.history").read_text()
-        if consolidation.get("requires_major_bump", True):
-            assert "MAJOR bump" in history
-        else:
-            assert f"## v{consolidation['version']}" in history
+        source = frontmatter["history-source"]
+        assert isinstance(source, str)
+        assert source.startswith("https://github.com/HomericIntelligence/Mnemosyne/blob/")
+        assert source.endswith(f"/skills/{canonical}.history")
+        assert "history-cleanup-date" in frontmatter
+        assert "history" not in frontmatter
 
         for absorbed in consolidation["absorbed"]:
             assert not (SKILLS_DIR / f"{absorbed}.md").exists(), f"absorbed skill still present: {absorbed}"
-            assert f"Superseded from `{absorbed}`" in history
-            assert f"name: {absorbed}\n" in history

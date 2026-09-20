@@ -7,7 +7,6 @@ date: 2026-08-06
 version: "1.1.1"
 user-invocable: false
 verification: verified-ci
-history: cli-rate-limit-deferral-safe-retry.history
 tags:
   - cli
   - rate-limit
@@ -18,6 +17,8 @@ tags:
   - idempotent-retry
   - partial-batch
   - github-api
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/cli-rate-limit-deferral-safe-retry.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # CLI Rate-Limit Deferral with Safe Retry
@@ -30,7 +31,7 @@ tags:
 | **Objective** | Give automation callers an honest, machine-readable temporary-failure contract when pre-dispatch API discovery is rate-limited, without losing or replaying completed batch work. |
 | **Outcome** | Implemented the wrapper-local `EX_TEMPFAIL` (`75`) result, structured reset/scope metadata, a no-dispatch guard, and an idempotent retry regression for ProjectHephaestus issue #2389 / PR #2668. The PR passed its required checks and merged. |
 | **Verification** | `verified-ci` — ProjectHephaestus PR #2668 passed the required-checks gate and merged; the automation PR body accurately recorded that its own pipeline did not run tests, so live GitHub check evidence was used for the merge contract. |
-| **History** | [changelog](./cli-rate-limit-deferral-safe-retry.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/cli-rate-limit-deferral-safe-retry.history) |
 
 This pattern applies when a CLI must discover work from an external API before calling a
 shared coordinator. A rate-limit response means the requested work remains incomplete. Returning

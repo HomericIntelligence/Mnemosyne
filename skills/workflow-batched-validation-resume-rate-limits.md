@@ -8,6 +8,8 @@ version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [workflow, orchestration, batching, resume, rate-limits, skip-cache, subagents]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/workflow-batched-validation-resume-rate-limits.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Workflow: Batched Validation with Resume Across Rate Limits

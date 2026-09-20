@@ -7,7 +7,6 @@ date: 2026-07-20
 version: "1.1.1"
 user-invocable: false
 verification: unverified
-history: regression-test-from-issue-plan.history
 tags:
   - regression-testing
   - issue-plan
@@ -15,6 +14,8 @@ tags:
   - git
   - porcelain
   - pytest
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/regression-test-from-issue-plan.history"
+history-cleanup-date: "2026-09-20"
 ---
 # Regression Tests from Issue Plans
 
@@ -26,7 +27,7 @@ tags:
 | **Objective** | Recover regression tests specified in issue plans and prove behavior at the real boundary when mocks cannot establish the producer contract |
 | **Outcome** | The original Mojo workflow was verified in ProjectOdyssey; the new real-Git type-change integration pattern is planning-only and has not been executed |
 | **Verification** | unverified — proposed Git integration workflow pending local and CI validation |
-| **History** | [changelog](./regression-test-from-issue-plan.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/regression-test-from-issue-plan.history) |
 
 ## When to Use
 

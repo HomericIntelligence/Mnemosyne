@@ -26,6 +26,8 @@ tags:
   - validation
   - odysseus
   - issue-198
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/ci-config-validators-binary-free-python.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # CI Config Validators: Binary-Free Python (NATS HOCON + docker-compose)

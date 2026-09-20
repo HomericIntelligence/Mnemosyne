@@ -7,7 +7,6 @@ date: 2026-06-20
 version: "1.1.1"
 user-invocable: false
 verification: verified-local
-history: config-governance-fix-scope-all-variant-files.history
 tags:
   - config-governance
   - ruleset
@@ -17,6 +16,8 @@ tags:
   - per-file-expected-value
   - ci-regression-guard
   - planning-discipline
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/config-governance-fix-scope-all-variant-files.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Config Governance Fix: Scope Across All Variant Files
@@ -29,7 +30,7 @@ tags:
 | **Objective** | Capture the planning discipline for (a) correctly scoping a security/governance config-defect fix across variant files, and (b) verifying an issue's literal-assertion PREMISE against current HEAD before encoding it as a CI guard |
 | **Outcome** | v1.0.0: plan corrected to fix ALL variant files plus a CI guard. v1.1.0: a `jq` premise check showed an issue's prescribed `enforcement==active`-over-all-4-files guard was factually wrong (on-disk state is `evaluate,active,evaluate,active` by design) and would have been red-on-day-one; corrected to a per-file expected-value map |
 | **Verification** | verified-local for the premise-check technique (the `jq` premise verification WAS run during planning and confirmed `evaluate,active,evaluate,active`). The proposed enforcement-drift guard / CI wiring is **unverified** (planning only — not implemented or CI-run). GitHub-API IDs and bypass semantics from v1.0.0 also NOT confirmed against live `gh api` |
-| **History** | `config-governance-fix-scope-all-variant-files.history` (v1.0.0 → v1.1.0) |
+| **History** | [prior Git source](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/config-governance-fix-scope-all-variant-files.history) (v1.0.0 → v1.1.0) |
 
 ## When to Use
 

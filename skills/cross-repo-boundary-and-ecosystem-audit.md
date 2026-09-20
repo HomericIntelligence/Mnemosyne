@@ -10,9 +10,8 @@ description: "Enforce repo charters, audit ecosystem health, and remediate scope
   remediation (logging, exceptions, DRY, CI) across a shared library."
 category: architecture
 date: 2026-05-19
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
-history: cross-repo-boundary-and-ecosystem-audit.history
 tags:
   - cross-repo
   - ecosystem-audit
@@ -26,6 +25,8 @@ tags:
   - ai-maestro
   - nats
   - remediation
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/cross-repo-boundary-and-ecosystem-audit.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Cross-Repo Boundary and Ecosystem Audit
@@ -202,6 +203,18 @@ gh pr create --base <base> --title "<name>" --body "..."
 # NATS end-to-end
 nats pub hi.tasks.team.task.updated '{"id":"test"}' && nats sub "hi.tasks.>"
 ```
+
+### Guidance retained from an absorbed history
+
+When a delegated change spans repositories, confirm which actor owns each commit,
+push, and PR. A subagent's code-complete report does not prove delivery. Complete
+remaining authorized delivery steps and verify the resulting remote artifacts.
+For rename conflicts, inspect each conflict before applying a common resolution;
+similar conflict markers do not prove that all files have the same intent.
+
+History cleanup: 2026-09-20. The [prior source](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/ci-cd-cross-repo-skill-maintenance.history)
+retains its original evidence limits. This migration does not establish new
+operational verification.
 
 ## Failed Attempts
 

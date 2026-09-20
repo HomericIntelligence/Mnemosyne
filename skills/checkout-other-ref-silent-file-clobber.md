@@ -19,6 +19,8 @@ tags:
   - merge-conflict-adjacent
   - homericintelligence
   - hephaestus
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/checkout-other-ref-silent-file-clobber.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # `git checkout <other-ref> -- <path>` Silently Replaces the Whole File, Reverting Unrelated Committed Work

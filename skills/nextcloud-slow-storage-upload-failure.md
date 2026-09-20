@@ -8,6 +8,8 @@ version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: []
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/nextcloud-slow-storage-upload-failure.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Nextcloud Slow Storage Upload Failure

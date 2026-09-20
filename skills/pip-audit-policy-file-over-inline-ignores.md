@@ -7,8 +7,9 @@ date: 2026-08-07
 version: "2.0.1"
 user-invocable: false
 verification: unverified
-history: pip-audit-policy-file-over-inline-ignores.history
 tags: [pip-audit, uv, suppression-ledger, fail-closed, dependency-scanning, ci-policy, structural-tests]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pip-audit-policy-file-over-inline-ignores.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Enforce One Fail-Closed pip-audit Path
@@ -21,7 +22,7 @@ tags: [pip-audit, uv, suppression-ledger, fail-closed, dependency-scanning, ci-p
 | **Objective** | Replace raw, piped, and caller-configurable dependency-audit paths with one uv command, one exact repository-root ledger, and one evidence-verifying wrapper. |
 | **Outcome** | Proposed policy contract for ProjectHephaestus issue #2566: canonical scan execution, structured suppression records, exact matching, operational exit code 2, and repository-wide drift guards. |
 | **Verification** | unverified — acceptance tests and implementation were specified but not executed in this learning session. |
-| **History** | [changelog](./pip-audit-policy-file-over-inline-ignores.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pip-audit-policy-file-over-inline-ignores.history) |
 
 ## When to Use
 

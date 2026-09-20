@@ -7,13 +7,14 @@ date: 2026-06-12
 version: "2.1.0"
 user-invocable: false
 verification: unverified
-history: mcp-config-deliberate-absence-posture.history
 tags: [mcp, claude-code, config, audit, documentation, mcp-json]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/mcp-config-deliberate-absence-posture.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # MCP Config: Deliberate-Absence Posture
 
-**History:** [changelog](./mcp-config-deliberate-absence-posture.history)
+**History:** [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/mcp-config-deliberate-absence-posture.history)
 
 ## Overview
 

@@ -22,6 +22,8 @@ tags:
   - paired-sentinel-boundary
   - artifact-property-verification-before-embed
   - monotone-loss-check
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/planning-pr-body-extract-sibling-artifact-at-runtime.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Planning: PR-Body Verification Evidence — Extract From Sibling At Run Time, Never Fabricate

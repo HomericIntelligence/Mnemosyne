@@ -7,7 +7,6 @@ date: 2026-06-12
 version: "1.2.0"
 user-invocable: false
 verification: verified-local
-history: valuation-private-securities-platform-data-beats-web-research.history
 tags:
   - private-securities
   - crowdfunding
@@ -25,6 +24,8 @@ tags:
   - schedule-of-purchasers
   - safe-conversion
   - no-409a
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/valuation-private-securities-platform-data-beats-web-research.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Reconcile Private-Security Records Across Sources
@@ -37,7 +38,7 @@ tags:
 | Objective | Reconcile private-security records without confusing quantities, exercise status, and dated valuation marks. |
 | Outcome | The recorded reconciliation found gaps in both platform records and document archives. Personal holdings and legal-case details are omitted. |
 | Verification | verified-local; the historical observation does not establish a current valuation or a legal reporting method. |
-| History | [changelog](./valuation-private-securities-platform-data-beats-web-research.history) |
+| History | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/valuation-private-securities-platform-data-beats-web-research.history) |
 
 ## When to Use
 

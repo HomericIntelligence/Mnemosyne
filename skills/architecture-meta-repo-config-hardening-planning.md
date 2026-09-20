@@ -5,7 +5,6 @@ description: "Plan configuration hardening in a documentation or configuration r
 category: architecture
 date: 2026-06-20
 version: "1.2.0"
-history: architecture-meta-repo-config-hardening-planning.history
 user-invocable: false
 verification: unverified
 tags:
@@ -34,6 +33,8 @@ tags:
   - circular-verification
   - guard-pattern-misapplication
   - nogo-revision-delta
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/architecture-meta-repo-config-hardening-planning.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Planning Config-Security-Hardening Fixes in a Read-Mostly Meta-Repo

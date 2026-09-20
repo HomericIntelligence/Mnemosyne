@@ -19,6 +19,8 @@ tags:
   - ci-cd-architecture
   - homericintelligence
   - achaeanfleet
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/sibling-pr-mutually-exclusive-design-conflict.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Two Green Sibling PRs Can Implement Mutually Incompatible Designs — Diff-Against-Main Cannot Detect It

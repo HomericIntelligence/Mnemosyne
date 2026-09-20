@@ -6,7 +6,6 @@ category: ci-cd
 date: 2026-06-13
 version: "1.2.1"
 user-invocable: false
-history: dependency-manifest-single-source-of-truth.history
 tags:
   - pixi
   - pyproject
@@ -21,6 +20,8 @@ tags:
   - python-interpreter-pin
   - free-threaded
   - cp314t
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/dependency-manifest-single-source-of-truth.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Dependency Manifest: Single Source of Truth

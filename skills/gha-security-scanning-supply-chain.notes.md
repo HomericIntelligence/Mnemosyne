@@ -3,7 +3,7 @@
 Supporting evidence for
 [`gha-security-scanning-supply-chain`](./gha-security-scanning-supply-chain.md). These notes retain
 case-specific paths, references, and outcomes without duplicating the complete prior main, which is
-archived in [history](./gha-security-scanning-supply-chain.history).
+archived in [history](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/gha-security-scanning-supply-chain.history).
 
 ## Case Index
 

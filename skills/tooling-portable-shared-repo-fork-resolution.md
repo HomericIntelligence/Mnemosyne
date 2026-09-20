@@ -18,6 +18,8 @@ tags:
   - human-signoff
   - remote-metadata
   - revision-binding
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/tooling-portable-shared-repo-fork-resolution.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Trusted Shared-Repository Resolution

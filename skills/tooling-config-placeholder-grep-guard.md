@@ -8,6 +8,8 @@ version: "1.1.1"
 user-invocable: false
 verification: verified-local
 tags: ["config-validation", "grep-guard", "placeholder", "ci", "justfile", "anti-regression"]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/tooling-config-placeholder-grep-guard.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Config Placeholder Grep Guard

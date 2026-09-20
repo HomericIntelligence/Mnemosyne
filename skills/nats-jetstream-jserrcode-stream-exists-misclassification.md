@@ -8,6 +8,8 @@ version: "1.0.1"
 user-invocable: false
 verification: unverified
 tags: [nats, jetstream, jserrcode, cnats, error-classification, provisioner-retry, cpp, planning, pola, swallowed-result, live-broker-test]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/nats-jetstream-jserrcode-stream-exists-misclassification.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # NATS JetStream: jsErrCode Stream-Exists Misclassification + Swallowed Provisioner Result

@@ -6,7 +6,6 @@ category: tooling
 date: 2026-06-11
 version: "1.2.1"
 user-invocable: false
-history: python-type-hints-and-mypy-patterns.history
 tags:
   - python
   - mypy
@@ -29,6 +28,8 @@ tags:
   - type-erasure
   - forbid-suppressions
   - resilient-call
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/python-type-hints-and-mypy-patterns.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Python Type Hints and mypy Patterns

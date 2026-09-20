@@ -18,6 +18,8 @@ tags:
   - duplicate-pr
   - branch-collision
   - myrmidon
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/swarm-agent-status-misread-as-premature-exit.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Swarm Agent Status Misread as Premature Exit

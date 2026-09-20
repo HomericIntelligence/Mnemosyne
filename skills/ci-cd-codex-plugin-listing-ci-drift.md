@@ -8,6 +8,8 @@ version: "1.1.0"
 user-invocable: false
 verification: verified-ci
 tags: [codex, plugin, ci, scanner, sdist, signed-commits, manifest-drift, symlink]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/ci-cd-codex-plugin-listing-ci-drift.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Codex Plugin Listing CI Drift

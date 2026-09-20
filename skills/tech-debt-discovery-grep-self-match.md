@@ -7,8 +7,9 @@ date: 2026-06-19
 version: "1.1.1"
 user-invocable: false
 verification: unverified
-history: tech-debt-discovery-grep-self-match.history
 tags: ["tech-debt", "grep", "self-match", "discovery", "epic", "planning", "false-positive", "fixme", "todo", "labels", "git-grep", "ci", "github-actions", "exit-code", "gating", "side-effects", "nogo", "re-plan", "set-euo-pipefail"]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/tech-debt-discovery-grep-self-match.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Tech-Debt Discovery Grep Self-Match
@@ -21,7 +22,7 @@ tags: ["tech-debt", "grep", "self-match", "discovery", "epic", "planning", "fals
 | **Objective** | Capture durable planning discipline for tech-debt / marker-discovery Epics whose automation "runs a grep scanner and posts/files findings" — and how to fix a job that acts UNCONDITIONALLY |
 | **Outcome** | RE-PLAN after a NOGO. The fix is an EXIT-CODE signal from the script + an `if:` gate on the workflow's posting step — NOT rewording prose or excluding dirs (those touch the data, not the trigger) |
 | **Verification** | unverified — PLANNING session only; no code written or executed end-to-end, no CI run |
-| **History** | Amends v1.0.0 (PR #2629, NOGO'd). See `tech-debt-discovery-grep-self-match.history` |
+| **History** | Amends v1.0.0 (PR #2629, NOGO'd). See [prior Git source](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/tech-debt-discovery-grep-self-match.history) |
 
 ## When to Use
 

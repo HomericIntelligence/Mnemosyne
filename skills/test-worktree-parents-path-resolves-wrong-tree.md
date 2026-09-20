@@ -16,6 +16,8 @@ tags:
   - repo-scanning
   - false-failure
   - pytest
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/test-worktree-parents-path-resolves-wrong-tree.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Testing: Worktree parents[N] Path Resolves to the Wrong Tree

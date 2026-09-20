@@ -19,6 +19,8 @@ tags:
   - magic-string
   - refactoring
   - review-risks
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/automation-parser-state-refactor-planning-risks.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Automation Parser and State-Dir Refactor Planning Risks

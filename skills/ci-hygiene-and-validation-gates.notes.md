@@ -2,7 +2,7 @@
 
 Supporting evidence for
 [`ci-hygiene-and-validation-gates`](./ci-hygiene-and-validation-gates.md). The complete prior main is
-in [history](./ci-hygiene-and-validation-gates.history).
+in [history](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/ci-hygiene-and-validation-gates.history).
 
 ## Case Index
 

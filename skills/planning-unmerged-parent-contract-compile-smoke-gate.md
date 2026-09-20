@@ -7,8 +7,9 @@ version: "2.1.1"
 license: BSD-3-Clause
 user-invocable: false
 verification: unverified
-history: planning-unmerged-parent-contract-compile-smoke-gate.history
 tags: [planning, unmerged-parent, prerequisite-gate, contract, compile-smoke, assumption-audit]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/planning-unmerged-parent-contract-compile-smoke-gate.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Planning Against an Unmerged Parent
@@ -24,7 +25,7 @@ This skill remains `unverified`: its rules were learned from plan reviews, but t
 does not claim an end-to-end implementation result. Project cases are indexed in
 [`planning-unmerged-parent-contract-compile-smoke-gate.notes.md`](planning-unmerged-parent-contract-compile-smoke-gate.notes.md),
 and the complete prior source is archived in
-[`planning-unmerged-parent-contract-compile-smoke-gate.history`](planning-unmerged-parent-contract-compile-smoke-gate.history).
+[`planning-unmerged-parent-contract-compile-smoke-gate.history`](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/planning-unmerged-parent-contract-compile-smoke-gate.history).
 
 ## When to Use
 

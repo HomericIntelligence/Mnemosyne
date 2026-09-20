@@ -7,8 +7,9 @@ date: 2026-07-06
 version: "1.2.1"
 user-invocable: false
 verification: verified-ci
-history: hephaestus-implement-issues-bulk-implementer.history
 tags: [hephaestus, implementer, bulk-issues, max-workers, worktree, claude-session-quota, signal-main-thread, workflow-subagent, automation, pixi, depends-on-scope-leak, dependency-resolver, closed-issue-reimplement, duplicate-pr, zombie-issue, review-prs, scoped-chain]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/hephaestus-implement-issues-bulk-implementer.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # hephaestus-implement-issues Bulk Implementer — Usage and Failure Modes
@@ -21,7 +22,7 @@ tags: [hephaestus, implementer, bulk-issues, max-workers, worktree, claude-sessi
 | **Objective** | Use ProjectHephaestus's purpose-built bulk issue-implementer to implement many GitHub issues per repo, rather than hand-rolling agent prompts, worktree isolation, and PR merge logic — AND safely drive a serial `Depends on` cleanup chain without the tool re-implementing already-CLOSED dependencies. |
 | **Outcome** | The console entry `hephaestus-implement-issues` does worktree isolation, signed commits, squash auto-merge, learn/follow-up, and per-issue state persistence out of the box. Four concrete failure modes were observed live and are documented below — including bug #1940, where `--issues N` expands N through its `Depends on #M` chain and re-implements CLOSED deps, making DUPLICATE PRs. The verified workaround (sub-agent impl + `hephaestus-review-prs`) drove ProjectHephaestus epic #1809's #1819→#1823 cleanup wave to a clean merge. |
 | **Verification** | verified-ci — the sub-agent-per-issue + `hephaestus-review-prs` workaround landed all 5 cleanup-wave PRs (epic #1809, issues #1819–#1823) through CI to merge. Bug #1940 is filed against ProjectHephaestus. |
-| **History** | [changelog](./hephaestus-implement-issues-bulk-implementer.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/hephaestus-implement-issues-bulk-implementer.history) |
 
 ## When to Use
 

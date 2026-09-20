@@ -8,6 +8,8 @@ version: "1.1.1"
 user-invocable: false
 verification: verified-local
 tags: [gcovr, lcov-excl, coverage-threshold, cpp, ctest, fail-under-line, coverage-exclusion, live-dependency-code, review-driven]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/gcovr-lcov-excl-region-exclusion.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # gcovr LCOV_EXCL Region Exclusion for C++ Coverage Gates

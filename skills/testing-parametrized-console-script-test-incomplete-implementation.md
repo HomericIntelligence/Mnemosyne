@@ -5,7 +5,6 @@ description: "Use discovery-backed parametrized tests for executable CLI contrac
 category: testing
 date: 2026-08-05
 version: "1.2.0"
-history: testing-parametrized-console-script-test-incomplete-implementation.history
 user-invocable: false
 verification: unverified
 tags:
@@ -20,6 +19,8 @@ tags:
   - auto-discovery
   - behavior-contracts
   - hephaestus
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/testing-parametrized-console-script-test-incomplete-implementation.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Discovery-Backed CLI Contract Sweeps
@@ -32,7 +33,7 @@ tags:
 | **Objective** | Make executable registries and importable parser builders define the CLI test matrix, eliminating hand-maintained module lists, source-string counts, and help-wording assertions. |
 | **Outcome** | The original `[project.scripts]` sweep is verified in CI. A proposed extension discovers validation entry points from project metadata and dry-run parsers from importable modules, then asserts their public parse/exit behavior. |
 | **Verification** | `unverified` for the v1.2 discovery extension; the original version/JSON console-script sweep remains `verified-ci`. |
-| **History** | [changelog](./testing-parametrized-console-script-test-incomplete-implementation.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/testing-parametrized-console-script-test-incomplete-implementation.history) |
 
 ## When to Use
 

@@ -7,7 +7,6 @@ version: "2.1.0"
 verification: verified-ci
 license: BSD-3-Clause
 user-invocable: false
-history: tdd-workflow-and-test-coverage-expansion.history
 tags:
   - tdd
   - pytest
@@ -17,6 +16,8 @@ tags:
   - ast
   - import-boundary
   - test-discovery
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/tdd-workflow-and-test-coverage-expansion.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # TDD Workflow and Test-Coverage Expansion
@@ -29,7 +30,7 @@ post-refactor fixture repair, architectural import guards, and multi-branch cove
 
 Verification remains `verified-ci`. Project-specific cases and detailed outcomes are in the
 [notes](./tdd-workflow-and-test-coverage-expansion.notes.md); the byte-preserved source and prior
-changelog are in [history](./tdd-workflow-and-test-coverage-expansion.history).
+changelog are in [history](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/tdd-workflow-and-test-coverage-expansion.history).
 
 ## When to Use
 
@@ -252,4 +253,4 @@ boundaries. Do not claim new coverage when existing tests were merely rediscover
 ## Companions
 
 - [Case notes](./tdd-workflow-and-test-coverage-expansion.notes.md)
-- [Version history and superseded snapshot](./tdd-workflow-and-test-coverage-expansion.history)
+- [Version history and superseded snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/tdd-workflow-and-test-coverage-expansion.history)

@@ -8,6 +8,8 @@ version: "1.0.1"
 user-invocable: false
 verification: verified-local
 tags: [gitignore, check-ignore, untracked-files, negation-pattern, silent-failure, new-files]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/tooling-gitignore-broad-pattern-swallows-new-files.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Gitignore: Broad Unanchored Directory Pattern Silently Swallows New Source Files

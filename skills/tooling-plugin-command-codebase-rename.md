@@ -8,6 +8,8 @@ version: "1.1.0"
 user-invocable: false
 verification: verified-ci
 tags: [rename, plugin, command, refactor, bulk-rename]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/tooling-plugin-command-codebase-rename.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Plugin and Command Codebase-Wide Rename

@@ -18,6 +18,8 @@ tags:
   - gh
   - json
   - subprocess
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/bash-stderr-jq-separation.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Bash Stderr/JQ Separation: mktemp + trap RETURN Pattern

@@ -20,6 +20,8 @@ tags:
   - pyyaml
   - structural-testing
   - yaml-safe-load
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/gha-slsa-docker-build-attestation.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # GHA SLSA Docker Build Attestation

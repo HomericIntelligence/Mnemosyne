@@ -8,6 +8,8 @@ version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [planning, plan-structure, recursive, multi-month, scoping, research-project, stable-ids, reading-guide, multi-pass, execution-model, divergence-escalation]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/recursive-plan-multi-month-projects.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Recursive Plan Structure for Multi-Month Projects

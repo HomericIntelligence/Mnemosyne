@@ -8,6 +8,8 @@ version: "1.0.1"
 user-invocable: false
 verification: unverified
 tags: [planning, cpp, gtest, cmake, submodule, sibling-mirroring, agamemnon, nestor, core-library-extraction, response-shape-drift, reviewer-risks, unverified, odysseus-meta-repo, natsc, two-build-contexts]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/planning-cpp-sibling-submodule-test-mirroring.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Planning C++ GTest Test Additions by Mirroring a Sibling Submodule — Unverified Assumptions & Reviewer Risks

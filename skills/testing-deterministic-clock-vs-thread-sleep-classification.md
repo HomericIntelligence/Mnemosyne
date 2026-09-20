@@ -5,7 +5,6 @@ description: "Replace scheduler-sensitive timing assertions with the production 
 category: testing
 date: 2026-08-05
 version: "2.1.1"
-history: testing-deterministic-clock-vs-thread-sleep-classification.history
 user-invocable: false
 verification: verified-local
 tags:
@@ -28,6 +27,8 @@ tags:
   - no-wait
   - token-bucket
   - state-transition
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/testing-deterministic-clock-vs-thread-sleep-classification.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Deterministic Clock vs Thread-Sleep: Classify Before You Fix

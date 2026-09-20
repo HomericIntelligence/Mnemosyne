@@ -6,7 +6,6 @@ category: ci-cd
 date: 2026-06-13
 version: "1.3.0"
 user-invocable: false
-history: pixi-pip-dep-floor-cap-pinning.history
 tags:
   - pixi
   - pip
@@ -18,6 +17,8 @@ tags:
   - regression-test
   - dev-install
   - conda
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pixi-pip-dep-floor-cap-pinning.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Pixi pip Dependency Floor/Cap Pinning

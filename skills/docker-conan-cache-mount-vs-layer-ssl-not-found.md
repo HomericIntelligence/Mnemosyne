@@ -17,6 +17,8 @@ tags:
   - cache-mount
   - image-layer
   - gha-cache
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/docker-conan-cache-mount-vs-layer-ssl-not-found.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Docker Conan Cache-Mount vs Image-Layer SSL-Not-Found

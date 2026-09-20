@@ -7,6 +7,8 @@ date: 2026-03-13
 version: "1.2.0"
 user-invocable: false
 absorbed: [python-repo-audit-implementation]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/python-repo-modernization.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # python-repo-modernization

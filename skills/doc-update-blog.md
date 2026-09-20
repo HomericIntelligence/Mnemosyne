@@ -6,6 +6,8 @@ category: tooling
 date: '2026-03-19'
 version: "1.1.0"
 mcp_fallback: none
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/doc-update-blog.history"
+history-cleanup-date: "2026-09-20"
 ---
 # Update Progress Blog Skill
 

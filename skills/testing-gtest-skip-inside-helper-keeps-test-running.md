@@ -8,6 +8,8 @@ version: "1.0.1"
 user-invocable: false
 verification: verified-local
 tags: [gtest, gtest-skip, skip-semantics, fixture-helper, fatal-assertion, undefined-behavior, std-terminate, raii-guard, getenv-null, integration-tests, code-review]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/testing-gtest-skip-inside-helper-keeps-test-running.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Testing: GTEST_SKIP Inside a Helper Keeps the Test Body Running

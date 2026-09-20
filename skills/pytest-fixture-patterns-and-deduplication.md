@@ -6,7 +6,6 @@ category: testing
 date: 2026-06-07
 version: "1.1.1"
 user-invocable: false
-history: pytest-fixture-patterns-and-deduplication.history
 tags:
   - pytest
   - fixtures
@@ -18,6 +17,8 @@ tags:
   - shared-fixtures
   - copytree
   - checkpoint
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pytest-fixture-patterns-and-deduplication.history"
+history-cleanup-date: "2026-09-20"
 ---
 # pytest-fixture-patterns-and-deduplication
 
@@ -419,6 +420,6 @@ pixi run python -m pytest tests/scripts/test_migrate_odyssey_skills.py::TestMigr
 
 | Project | Context | Details |
 | --------- | --------- | --------- |
-| ProjectScylla | Auto-discovery #1433/#1458; dedup; shared migration; tier coverage #1381/#1423; symmetry #808/#950; checkpoint fixtures #815/#1149/#1312/#1485 | [history](pytest-fixture-patterns-and-deduplication.history) |
-| ProjectOdyssey | copytree nesting #3769/#4790; Mojo DataLoader reset #3687/#4770 | [history](pytest-fixture-patterns-and-deduplication.history) |
-| TitanSchedule | Multi-division AES fixture management (Python 3.14, pytest 9.0.2) | [history](pytest-fixture-patterns-and-deduplication.history) |
+| ProjectScylla | Auto-discovery #1433/#1458; dedup; shared migration; tier coverage #1381/#1423; symmetry #808/#950; checkpoint fixtures #815/#1149/#1312/#1485 | [history](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pytest-fixture-patterns-and-deduplication.history) |
+| ProjectOdyssey | copytree nesting #3769/#4790; Mojo DataLoader reset #3687/#4770 | [history](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pytest-fixture-patterns-and-deduplication.history) |
+| TitanSchedule | Multi-division AES fixture management (Python 3.14, pytest 9.0.2) | [history](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pytest-fixture-patterns-and-deduplication.history) |

@@ -8,6 +8,8 @@ version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [design-doc, state-machine, review, consistency, endpoint]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/documentation-state-machine-consistency-review.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Design Document State Machine Consistency Review

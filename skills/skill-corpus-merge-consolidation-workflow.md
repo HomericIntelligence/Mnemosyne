@@ -1,14 +1,15 @@
 ---
 name: skill-corpus-merge-consolidation-workflow
-description: "Maintain a skill corpus through complete cluster enumeration, semantic consolidation, snapshot history, format/directory migration, cross-repo generalization, obsolete notices, post-drain salvage audits, and fix-forward recovery from stranded or accidentally recreated skills. Use when overlapping skills or layouts must change without losing unique retrievable content."
+description: "Maintain a skill corpus through complete cluster enumeration, semantic consolidation, Git provenance, format/directory migration, cross-repo generalization, obsolete notices, post-drain salvage audits, and fix-forward recovery from stranded or accidentally recreated skills. Use when overlapping skills or layouts must change without losing unique retrievable content."
 category: tooling
 date: 2026-06-15
-version: "3.0.0"
+version: "4.0.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-ci
-history: skill-corpus-merge-consolidation-workflow.history
 tags: [skill-merge, deduplication, consolidation, history, migration, salvage, corpus]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/skill-corpus-merge-consolidation-workflow.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Skill Corpus Merge Consolidation Workflow
@@ -16,13 +17,13 @@ tags: [skill-merge, deduplication, consolidation, history, migration, salvage, c
 ## Overview
 
 Corpus consolidation is semantic migration, not file deletion. Enumerate the complete cluster from
-the product source, choose one retrieval surface, preserve every superseded main in history, audit
+the product source, choose one retrieval surface, retain prior source through immutable Git links, audit
 unique commands and failure modes, and validate that discovery/count interfaces remain coherent.
 
 Detailed migrations and salvage cases are indexed in
 [`skill-corpus-merge-consolidation-workflow.notes.md`](skill-corpus-merge-consolidation-workflow.notes.md).
 The complete prior source is archived in
-[`skill-corpus-merge-consolidation-workflow.history`](skill-corpus-merge-consolidation-workflow.history).
+[prior Git source](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/skill-corpus-merge-consolidation-workflow.history).
 
 ## When to Use
 
@@ -40,7 +41,7 @@ The complete prior source is archived in
 ### 1. Inventory from authoritative sources
 
 Enumerate retrievable skill names and paths from the corpus manifest/discovery code, not examples in
-an issue. Group candidates by topic/prefix, then inspect every main and existing history. Record:
+an issue. Group candidates by topic/prefix, then inspect every main and Git history. Record:
 
 ```text
 cluster | proposed canonical | absorbed members | versions | verification | unique material
@@ -54,25 +55,27 @@ can silently delete the intended retrieval surface.
 
 For each member compare triggers, commands, flags, parameters, failure modes, verification limits,
 and examples. Keep any item whose omission changes what a reader would do. Remove only redundancy,
-obsolete duplication, or case-specific detail preserved in notes/history.
+obsolete duplication, or case-specific detail preserved in notes and Git history.
 
 Select the canonical by durable retrieval intent and content coverage, not filename age alone. Keep
 at most a few materially different examples. Use a major version bump for a semantic merge and
 preserve the strongest accurate evidence boundary without upgrading unverified material.
 
-### 3. Preserve exact superseded content
+### 3. Keep Git as the history authority
 
-Append a newest-first history entry per superseded retrievable artifact with source name/version,
-immutable revision, byte count, SHA-256, reason, and exact snapshot in a fence wider than any fence
-inside the source. Preserve existing history below it. Verify the extracted snapshot byte-for-byte
-against `git show <base>:<path>` and retain provenance for absorbed names so searches remain useful.
+Record the source commit and source path before replacing or removing a lesson.
+Link the immutable GitHub source and record the cleanup date. Do not copy a full
+snapshot into a companion history file. Git preserves prior versions; main lessons
+preserve useful current guidance and notes preserve privacy-safe case evidence.
 
-Do not rely on a changelog summary as preservation. A summary cannot recover a command, error mode,
-or contradictory evidence boundary.
+Read historical sources in bounded batches. Recover relevant material from Git
+when needed. Missing or incomplete older history does not block a supported current
+amendment. Report the provenance limit. Do not promote superseded rules or copy
+protected material into a current lesson.
 
 ### 4. Rewrite and delete only after coverage proof
 
-Build the canonical from the nuance matrix, link notes/history, then run source-to-canonical checks
+Build the canonical from the nuance matrix, link notes and Git history, then run source-to-canonical checks
 for every decision-changing item. Delete absorbed mains only when their content and provenance are
 retrievable and the issue authorizes removal. Make deletion skip-missing-safe for idempotent reruns,
 but never hide a manifest mismatch.
@@ -94,7 +97,7 @@ a second generated mirror that can drift.
 ### 6. Generalize without erasing provenance
 
 Replace project-specific paths, owners, and commands in reusable guidance with placeholders or
-capability descriptions. Move project cases and immutable links to notes/history. Preserve concrete
+capability descriptions. Move project cases and immutable links to notes and Git history. Preserve concrete
 parameters when they change behavior; “portable” does not mean vague.
 
 For an obsolete topic, keep the retrieval identity and add a prominent status section explaining
@@ -108,7 +111,7 @@ each target, inspect current main and the closed head/diff. An add-new-skill PR 
 exist on main is highest-priority loss; a carrier PR may bundle unrelated unique amendments.
 
 Salvage one coherent skill family per amendment PR: integrate unique material into the canonical,
-bump version appropriately, append history, and validate. Record why duplicate/stale portions were
+bump the version when appropriate, record source provenance, and validate. Record why duplicate/stale portions were
 not carried forward. Aggregate closure rates are signals for audit, not proof of loss.
 
 ### 8. Recover stranded or de-consolidated work
@@ -119,7 +122,7 @@ there. Leave the stray clone untouched for its owner to remove.
 
 Before recreating a missing skill, search Git history for consolidation/supersession and inspect
 bundle histories. If a deliberately absorbed standalone reappears, fix forward: move any genuinely
-new nuance into the canonical, preserve the accidental artifact in history if material, then remove
+new nuance into the canonical, retain its immutable Git reference if material, then remove
 the duplicate through a normal reviewed change. Do not revert blindly and resurrect older corpus
 state.
 
@@ -144,7 +147,7 @@ authoritative discovery command and pre/post retrievable count
 cluster/canonical/absorbed matrix and collision-gate output
 per-member name, version, verification, bytes, SHA, immutable source
 nuance matrix: triggers, commands, flags, failure modes, examples
-canonical version and notes/history links
+canonical version and notes and Git history links
 layout source/destination map and overwrite disposition
 closed-PR audit window, target artifact, unique-content disposition
 stranded-work backup and fresh worktree path
@@ -153,6 +156,6 @@ validation, lint, snapshot-integrity, and discovery results
 
 ## Verified On
 
-- Cluster consolidation, exact-history preservation, flat/single-source migrations, salvage audits,
+- Cluster consolidation, immutable Git provenance, flat/single-source migrations, salvage audits,
   and fix-forward de-consolidation through 2026-06-15.
-- Verification remains `verified-ci`; project-specific observations are classified in notes/history.
+- Verification remains `verified-ci`; project-specific observations are classified in notes and Git history.

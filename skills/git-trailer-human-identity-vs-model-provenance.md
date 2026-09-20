@@ -8,6 +8,8 @@ version: "1.0.1"
 user-invocable: false
 verification: verified-ci
 tags: []
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/git-trailer-human-identity-vs-model-provenance.history"
+history-cleanup-date: "2026-09-20"
 ---
 # Git Trailer: Human Identity vs Model Provenance
 

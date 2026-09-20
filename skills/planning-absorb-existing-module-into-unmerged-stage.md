@@ -27,6 +27,8 @@ tags:
   - grep-ls-every-named-symbol
   - anchor-drift
   - honest-blocked-plan
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/planning-absorb-existing-module-into-unmerged-stage.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Planning a Sub-Issue That Absorbs an Existing Module Into a Stage File an Unmerged Sibling Produces

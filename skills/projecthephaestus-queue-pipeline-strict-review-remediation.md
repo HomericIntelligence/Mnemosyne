@@ -15,6 +15,8 @@ tags:
   - worker-attribution
   - logging
   - testing
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/projecthephaestus-queue-pipeline-strict-review-remediation.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # ProjectHephaestus Queue Pipeline Strict Review Remediation

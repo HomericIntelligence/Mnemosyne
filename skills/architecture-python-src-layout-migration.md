@@ -7,8 +7,9 @@ date: '2026-03-25'
 version: "3.0.0"
 user-invocable: false
 verification: verified-local
-history: architecture-python-src-layout-migration.history
 tags: [python, src-layout, migration, pyproject, hatchling, directory-restructure]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/architecture-python-src-layout-migration.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Skill: Python Flat-to-Src-Layout Migration
@@ -21,7 +22,7 @@ tags: [python, src-layout, migration, pyproject, hatchling, directory-restructur
 | **Objective** | Migrate a Python project from flat layout (`package/` at repo root) to src-layout (`src/package/`) |
 | **Outcome** | Successful on 2 projects — validated across large (4782 tests) and small (435 tests) repos |
 | **Verification** | verified-local (CI validation pending on PRs) |
-| **History** | [changelog](./architecture-python-src-layout-migration.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/architecture-python-src-layout-migration.history) |
 
 ## When to Use
 

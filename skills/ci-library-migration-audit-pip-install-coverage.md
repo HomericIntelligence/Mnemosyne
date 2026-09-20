@@ -17,6 +17,8 @@ tags:
   - env-manager-bypass
   - version-pin-drift
   - single-source-of-truth
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/ci-library-migration-audit-pip-install-coverage.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # CI Library Migration Audit: pip install Coverage and Env-Manager Routing

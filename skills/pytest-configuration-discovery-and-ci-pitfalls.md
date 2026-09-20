@@ -7,8 +7,9 @@ version: "2.0.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-local
-history: pytest-configuration-discovery-and-ci-pitfalls.history
 tags: [pytest, configuration, discovery, testpaths, markers, pythonpath, coverage, ci]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pytest-configuration-discovery-and-ci-pitfalls.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Pytest Configuration, Discovery, and CI Pitfalls
@@ -22,7 +23,7 @@ and inherited `addopts`. Diagnose each layer with collection evidence before edi
 Detailed incidents are indexed in
 [`pytest-configuration-discovery-and-ci-pitfalls.notes.md`](pytest-configuration-discovery-and-ci-pitfalls.notes.md).
 The complete prior source is in
-[`pytest-configuration-discovery-and-ci-pitfalls.history`](pytest-configuration-discovery-and-ci-pitfalls.history).
+[`pytest-configuration-discovery-and-ci-pitfalls.history`](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pytest-configuration-discovery-and-ci-pitfalls.history).
 
 ## When to Use
 

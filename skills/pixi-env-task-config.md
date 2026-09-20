@@ -7,7 +7,6 @@ date: 2026-08-07
 version: "1.5.0"
 user-invocable: false
 verification: verified-local
-history: pixi-env-task-config.history
 tags:
   - pixi
   - justfile
@@ -29,6 +28,8 @@ tags:
   - migration
   - task-arguments
   - mypy
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pixi-env-task-config.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Pixi Environment and Task Configuration

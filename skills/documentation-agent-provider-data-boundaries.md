@@ -8,6 +8,8 @@ version: "1.0.1"
 user-invocable: false
 verification: unverified
 tags: [privacy, data-inventory, external-processors, claude, codex, pi, retention, deletion, no-proxy]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/documentation-agent-provider-data-boundaries.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Document Direct Agent-Provider Data Boundaries

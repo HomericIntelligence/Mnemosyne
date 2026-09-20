@@ -6,7 +6,6 @@ category: tooling
 date: 2026-07-24
 version: "1.2.0"
 user-invocable: false
-history: observability-logging-and-process-monitoring.history
 tags:
   - logging
   - observability
@@ -25,6 +24,8 @@ tags:
   - carriage-return
   - refactoring
   - dry
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/observability-logging-and-process-monitoring.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Observability, Logging, and Process Monitoring

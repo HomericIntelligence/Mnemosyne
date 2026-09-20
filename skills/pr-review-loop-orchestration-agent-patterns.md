@@ -7,13 +7,14 @@ version: "2.1.1"
 license: BSD-3-Clause
 verification: verified-ci
 user-invocable: false
-history: pr-review-loop-orchestration-agent-patterns.history
 tags: [implement-review-loop, review-thread-resolution, commit-gated-progress,
   verdict-go-convergence, inline-comment-diff-hunk, "422", no-commit-retry,
   graphql-review-threads, go-only-short-circuit, headrefname, ci-gate-owns-policy,
   state-skip-on-exhaustion, out-of-scope-thread-disposition, head-bound-review,
   connection-pagination, reviewed-head-rebind, rebase-conflict-budget,
   duplicate-plan-ownership, homericintelligence]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pr-review-loop-orchestration-agent-patterns.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # PR Review Loop Orchestration and Agent Patterns
@@ -28,7 +29,7 @@ responsibilities distinct.
 Case-level evidence is indexed in
 [`pr-review-loop-orchestration-agent-patterns.notes.md`](pr-review-loop-orchestration-agent-patterns.notes.md).
 The full superseded source is in
-[`pr-review-loop-orchestration-agent-patterns.history`](pr-review-loop-orchestration-agent-patterns.history).
+[`pr-review-loop-orchestration-agent-patterns.history`](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pr-review-loop-orchestration-agent-patterns.history).
 
 ## When to Use
 

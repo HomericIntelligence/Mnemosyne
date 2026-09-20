@@ -8,6 +8,8 @@ version: "1.2.1"
 verification: verified-ci
 tags: [ci-cd, validation, container, image-artifact, digest, fail-closed, host-vs-local-lane, materialization, runtime-isolation, least-privilege-mounts, linked-worktree, shell-wrapper, strict-review, scope-reduction]
 user-invocable: false
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/machine-local-container-artifact-validation-lane.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Machine-Local Container-Artifact Validation Lane

@@ -3,7 +3,7 @@
 Supporting case evidence for
 [`bash-script-and-jq-failure-modes`](bash-script-and-jq-failure-modes.md). The exact 30,074-byte
 v1.2.0 main is archived once in
-[`bash-script-and-jq-failure-modes.history`](bash-script-and-jq-failure-modes.history), with
+[`bash-script-and-jq-failure-modes.history`](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/bash-script-and-jq-failure-modes.history), with
 SHA-256 `27c5a2d2f8b7a3068a9c623794064736164ab4e275fc5b29fbea52f5e2e2a1bc`.
 
 ## Case Index

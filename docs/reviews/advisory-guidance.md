@@ -1,5 +1,9 @@
 # Advisory Guidance Review
 
+This report describes the advisory-guidance parent change. The subsequent
+[history migration](../history-migration.md) retains its guidance and moves
+companion provenance to immutable Git sources.
+
 ## Intent and Scope
 
 This change applies the user's approved plan to Mnemosyne's active instructions

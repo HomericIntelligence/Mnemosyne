@@ -14,6 +14,8 @@ tags:
   - pre-commit
   - shell-scripts
   - project-hephaestus
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/console-wrapper-removal-ci-reference-drift.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Console Wrapper Removal CI Reference Drift

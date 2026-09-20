@@ -8,6 +8,8 @@ version: "1.0.1"
 user-invocable: false
 verification: verified-local
 tags: [docker-hub, registry-v2, digest-pin, docker-content-digest, jq-null, github-actions, oci-image-index, supply-chain, base-image]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/dockerhub-digest-check-null-guard.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Docker Hub Digest-Check Workflows: Bearer Token, docker-content-digest Header, and the jq-null Guard

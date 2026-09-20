@@ -8,6 +8,8 @@ version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [monorepo, gitignore, git-check-ignore, github-templates, issue-template, subproject, claude-config]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/monorepo-subproject-gitignore-and-github-template-gotchas.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Monorepo-Subproject Gotchas: `.gitignore` Negation Order and Non-Wired GitHub Templates

@@ -7,7 +7,6 @@ date: 2026-08-07
 version: "3.0.1"
 user-invocable: false
 verification: verified-local
-history: gha-workflow-concurrency-controls.history
 tags:
   - github-actions
   - concurrency
@@ -33,11 +32,13 @@ tags:
   - typed-input
   - stable-entity-key
   - verified-local
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/gha-workflow-concurrency-controls.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # GitHub Actions Workflow Concurrency Controls (Group Key + Cancel-in-Progress Selection)
 
-**History:** [changelog](./gha-workflow-concurrency-controls.history)
+**History:** [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/gha-workflow-concurrency-controls.history)
 
 ## Overview
 

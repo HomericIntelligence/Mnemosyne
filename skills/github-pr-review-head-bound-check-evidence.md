@@ -8,6 +8,8 @@ version: "1.1.0"
 user-invocable: false
 verification: evidence-bound-review
 tags: [ci, review, commit-sha, immutable-evidence, qualification]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/github-pr-review-head-bound-check-evidence.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Bind Check Evidence to the Selected Commit

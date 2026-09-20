@@ -22,6 +22,8 @@ tags:
   - test-seams
   - patch-object
   - frozenset-delegate-table
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/architecture-getattr-delegate-collapse-mypy-regressions.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Getattr Delegate-Collapse mypy Regressions

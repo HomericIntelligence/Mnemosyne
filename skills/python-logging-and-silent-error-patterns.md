@@ -6,7 +6,6 @@ category: debugging
 date: 2026-05-19
 version: "1.0.1"
 user-invocable: false
-history: python-logging-and-silent-error-patterns.history
 tags:
   - python
   - logging
@@ -19,6 +18,8 @@ tags:
   - fail-open
   - argparse
   - repr-truncation
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/python-logging-and-silent-error-patterns.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Python Logging and Silent Error Patterns

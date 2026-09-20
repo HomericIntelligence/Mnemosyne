@@ -20,6 +20,8 @@ tags:
   - single-file-pytest
   - pixi
   - hephaestus
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/testing-doc-guard-markdown-linewrap-substring.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Testing: Doc-Content Presence Guard vs Markdown Line-Wrap (Normalize Before Substring)

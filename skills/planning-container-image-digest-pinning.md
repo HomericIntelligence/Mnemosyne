@@ -7,7 +7,6 @@ date: 2026-06-20
 version: "1.2.1"
 user-invocable: false
 verification: unverified
-history: planning-container-image-digest-pinning.history
 tags:
   - planning
   - container-images
@@ -21,6 +20,8 @@ tags:
   - guard-script
   - ci-wiring
   - plan-review
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/planning-container-image-digest-pinning.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Planning a Container-Image Digest-Pinning Fix: What a Planner Can (and Cannot) Verify Offline
@@ -33,11 +34,11 @@ tags:
 | **Objective** | Produce a PLAN (not an implementation) for Odysseus issue #188 "[MAJOR] E2E compose stack uses :latest image tags": pin `prom/prometheus:latest`, `grafana/loki:latest`, `grafana/grafana:latest` in `docker-compose.e2e.yml` to immutable `name:vX.Y.Z@sha256:<digest>` references and add a guard script. |
 | **Outcome** | PLAN ONLY — never executed. The durable learning is planning discipline: a planner with no registry access must defer every digest/version choice to implementation time with explicit resolution commands, and must distinguish what was verified from what was extrapolated. |
 | **Verification** | unverified (plan only — no registry was queried, no `compose up`/CI ran; the local `grep`/file inspections of the repo WERE run and are real) |
-| **History** | [changelog](./planning-container-image-digest-pinning.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/planning-container-image-digest-pinning.history) |
 
 > **Warning:** This workflow has not been validated end-to-end. Treat as a hypothesis until CI confirms.
 
-**History:** [changelog](./planning-container-image-digest-pinning.history)
+**History:** [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/planning-container-image-digest-pinning.history)
 
 ## When to Use
 

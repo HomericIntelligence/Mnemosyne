@@ -7,6 +7,8 @@ date: 2026-07-16
 version: "1.1.0"
 user-invocable: false
 tags: [verification, evidence, ci, claims, integrity]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/verification-evidence-audit.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Verification: Evidence Audit for Claims

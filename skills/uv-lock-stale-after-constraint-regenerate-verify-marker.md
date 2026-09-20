@@ -27,6 +27,8 @@ tags:
   - nogo
   - pep508
   - pre-commit
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/uv-lock-stale-after-constraint-regenerate-verify-marker.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # uv.lock Stale After a Constraint Change: Regenerate and Verify the Lock Signals

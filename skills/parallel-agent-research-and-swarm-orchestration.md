@@ -7,7 +7,6 @@ version: "2.1.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-ci
-history: parallel-agent-research-and-swarm-orchestration.history
 tags:
   - swarm
   - parallel-agents
@@ -18,6 +17,8 @@ tags:
   - worktrees
   - evidence
   - feedback-loop
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/parallel-agent-research-and-swarm-orchestration.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Parallel Agent Research and Swarm Orchestration
@@ -33,7 +34,7 @@ The patterns have CI and operational evidence across research corpora and softwa
 metrics and domain-specific findings are indexed in
 [parallel-agent-research-and-swarm-orchestration.notes.md](parallel-agent-research-and-swarm-orchestration.notes.md),
 and the full superseded version is in
-[parallel-agent-research-and-swarm-orchestration.history](parallel-agent-research-and-swarm-orchestration.history).
+[parallel-agent-research-and-swarm-orchestration.history](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/parallel-agent-research-and-swarm-orchestration.history).
 
 ## When to Use
 

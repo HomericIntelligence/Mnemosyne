@@ -8,6 +8,8 @@ version: "1.0.1"
 user-invocable: false
 verification: unverified
 tags: [python, env-vars, config-parsing, import-time, lazy-evaluation, fail-safe, architecture]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/architecture-defer-env-coercion-lazy-resolver.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Defer Env/Config Coercion Out of Module Import to a Single Lazy Validating Resolver

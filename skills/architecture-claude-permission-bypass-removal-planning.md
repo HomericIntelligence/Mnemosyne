@@ -15,6 +15,8 @@ tags:
   - security
   - hephaestus
   - planning
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/architecture-claude-permission-bypass-removal-planning.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Architecture: Claude Permission Bypass Removal Planning

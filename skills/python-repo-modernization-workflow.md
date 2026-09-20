@@ -7,6 +7,8 @@ date: 2026-07-16
 version: "1.1.0"
 user-invocable: false
 tags: [python, modernization, packaging, typing, migration]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/python-repo-modernization-workflow.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Python Repository Modernization

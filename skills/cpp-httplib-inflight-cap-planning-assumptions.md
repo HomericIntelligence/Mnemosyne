@@ -7,13 +7,14 @@ date: 2026-06-20
 version: "1.1.1"
 verification: unverified
 user-invocable: false
-history: cpp-httplib-inflight-cap-planning-assumptions.history
 tags: []
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/cpp-httplib-inflight-cap-planning-assumptions.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # C++ cpp-httplib Global In-Flight Request Cap: Planning Assumptions Skill
 
-**History:** [changelog](./cpp-httplib-inflight-cap-planning-assumptions.history)
+**History:** [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/cpp-httplib-inflight-cap-planning-assumptions.history)
 
 ## Overview
 
@@ -23,7 +24,7 @@ tags: []
 | Objective | Capture the durable lessons for planning/reviewing a global in-flight request cap (backpressure throttle) on a cpp-httplib server, and the design pivot that resolves them: bind the per-request resource to each handler's own scope via a decorating RAII wrapper, instead of splitting acquire/release across pre/post-routing callbacks |
 | Outcome | Re-plan produced (planning artifact only — no code written, built, or run). **The original #1 risk (post-routing-fires-on-every-exit-path) was RESOLVED by the handler-wrapper pivot: the design no longer depends on post-routing lifecycle at all.** |
 | Verification | unverified |
-| History | [changelog](./cpp-httplib-inflight-cap-planning-assumptions.history) — amended v1.0.0 → v1.1.0 after R0 NOGO |
+| History | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/cpp-httplib-inflight-cap-planning-assumptions.history) — amended v1.0.0 → v1.1.0 after R0 NOGO |
 | Context | ProjectAgamemnon issue #273 — add a global in-flight request cap to the cpp-httplib HTTP server, rejecting over-cap requests with 503. R1 re-plan after R0 received a NOGO for the split-callback risk this skill itself flagged |
 
 > **Warning:** This workflow has not been validated end-to-end. Treat as a hypothesis until CI confirms. The re-plan was never built or run; the design and parameters below are asserted from convention and a fresh code read, and remain unverified against a running binary.

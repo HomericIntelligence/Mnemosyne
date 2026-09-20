@@ -7,7 +7,6 @@ date: 2026-08-07
 version: "2.1.0"
 user-invocable: false
 verification: verified-local
-history: automation-graphql-parameterisation-prevent-injection.history
 tags:
   - graphql
   - parameterisation
@@ -19,6 +18,8 @@ tags:
   - file-expansion
   - security
   - github-cli
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/automation-graphql-parameterisation-prevent-injection.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Safe GitHub GraphQL Parameterisation
@@ -31,7 +32,7 @@ tags:
 | **Objective** | Bind dynamic GraphQL variables without interpolating them into the query document and without allowing GitHub CLI to interpret leading-`@` string values as local file references. |
 | **Outcome** | Successful locally. A central Python transport now sends every string variable with raw `-f` and every integer variable with typed `-F`; argv regressions cover agent reply bodies and GraphQL integers. |
 | **Verification** | `verified-local` — 7,345 tests passed with 83.95% coverage, including leading-`@` regressions; Ruff, mypy, and pre-commit passed. CI and a live GitHub mutation remain pending. |
-| **History** | [changelog](./automation-graphql-parameterisation-prevent-injection.history) |
+| **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/automation-graphql-parameterisation-prevent-injection.history) |
 
 Parameterisation and CLI encoding are separate safety decisions:
 

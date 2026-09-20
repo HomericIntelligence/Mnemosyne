@@ -8,6 +8,8 @@ version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags: [planning, review-risk, issue-scope, requirements-alignment, dry-refactor, pydantic-options, logging, import-alias, unverified-assumptions]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/planning-mismatched-issue-surfaces-review-risks.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Planning Mismatched Issue Surfaces — Review Risks

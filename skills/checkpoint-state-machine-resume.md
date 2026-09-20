@@ -7,8 +7,9 @@ date: 2026-05-18
 version: "1.1.0"
 user-invocable: false
 verification: verified-local
-history: checkpoint-state-machine-resume.history
 tags: [merged, checkpoint, resume, state-machine, recovery, workflow-gate]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/checkpoint-state-machine-resume.history"
+history-cleanup-date: "2026-09-20"
 ---
 # Checkpoint State Machine Resume
 

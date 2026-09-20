@@ -6,7 +6,6 @@ category: debugging
 date: 2026-05-19
 version: "1.0.0"
 user-invocable: false
-history: cpp-build-and-runtime-bug-patterns.history
 tags:
   - cpp
   - cpp20
@@ -31,6 +30,8 @@ tags:
   - nullptr
   - ctest
   - scaffold
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/cpp-build-and-runtime-bug-patterns.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # C++ Build and Runtime Bug Patterns

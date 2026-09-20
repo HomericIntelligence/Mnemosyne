@@ -26,6 +26,8 @@ tags:
   - hephaestus
   - loop-runner
   - pipeline-epic-1809
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/planning-against-unmerged-dependency-chain.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Planning Against an Unmerged Dependency Chain: The Surface Does Not Exist Yet

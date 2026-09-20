@@ -25,6 +25,8 @@ tags:
   - learning-loop
   - replanning
   - negative-grep
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/audit-stale-version-comment-version-agnostic-fix.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Audit-Driven Stale Version Comment Fix: Write Version-AGNOSTIC Replacements

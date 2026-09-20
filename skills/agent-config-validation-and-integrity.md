@@ -6,7 +6,6 @@ category: architecture
 date: 2026-06-07
 version: "1.2.0"
 user-invocable: false
-history: agent-config-validation-and-integrity.history
 tags:
   - agent-config
   - tier-consolidation
@@ -18,6 +17,8 @@ tags:
   - claude-cli
   - pydantic
   - hephaestus
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/agent-config-validation-and-integrity.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Agent Configuration Validation and Integrity

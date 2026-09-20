@@ -5,10 +5,11 @@ description: "Triage and incrementally publish generated benchmark result artifa
 category: tooling
 date: 2026-09-15
 version: "1.5.0"
-history: benchmark-artifact-triage-pr-splitting.history
 user-invocable: false
 verification: verified-local
 tags: [benchmark, artifacts, triage, results, pareto, pr-splitting, git, reproducibility, concurrency, capacity, provenance, artifact-index, live-sweep, runner-compatibility, pr-head, redaction, coverage-forecast]
+history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/benchmark-artifact-triage-pr-splitting.history"
+history-cleanup-date: "2026-09-20"
 ---
 
 # Benchmark Artifact Triage and PR Splitting
