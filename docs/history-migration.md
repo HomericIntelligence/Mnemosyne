@@ -8,8 +8,8 @@ Cleanup date: 2026-09-20.
 
 Git is the authority for prior lesson versions. The immutable source is
 [the pre-cleanup commit](https://github.com/HomericIntelligence/Mnemosyne/commit/1956c91d76867bc2e484eaf573a57051855186f8).
-The migration removes 613 companion history files, with a total of 27,408,266
-bytes. It retains the 604 corresponding main lessons and all notes companions.
+The migration removes 614 companion history files, with a total of 27,409,119
+bytes. It retains the 605 corresponding main lessons and all notes companions.
 Nine histories belong to previously absorbed lessons. Their current owners are
 listed below.
 
