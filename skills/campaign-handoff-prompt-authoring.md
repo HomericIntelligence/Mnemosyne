@@ -1,22 +1,13 @@
 ---
 name: campaign-handoff-prompt-authoring
 license: BSD-3-Clause
-description: "Prepare a self-contained handoff when a multi-step task moves to another session or machine. Preserve progress, evidence, dependencies, and authorization so work can continue."
+description: "Prepare a self-contained handoff across sessions. Use when task state can change during publication or another worker can update the same pull request."
 category: tooling
 date: 2026-07-05
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
-verification: verified-local
-tags:
-  - handoff
-  - resume-prompt
-  - cross-machine
-  - serial-campaign
-  - epic
-  - context-compaction
-  - operator-continuity
-history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/campaign-handoff-prompt-authoring.history"
-history-cleanup-date: "2026-09-20"
+verification: evidence-bound-review
+tags: [handoff, resume-prompt, concurrent-publication, source-identity, operator-continuity]
 ---
 
 # Campaign Handoff Prompt Authoring
@@ -24,79 +15,96 @@ history-cleanup-date: "2026-09-20"
 ## Overview
 
 | Field | Value |
-|-------|-------|
-| **Date** | 2026-07-05 |
-| **Objective** | Write a single self-contained resume prompt that lets a fresh session (no prior transcript) pick up a strictly-serial multi-PR epic campaign mid-flight without re-deriving anything. |
-| **Outcome** | Prompt authored and delivered this session (epic #1809 got a status comment; the handoff prompt was handed to the operator). Not yet executed end-to-end on the second machine. |
-| **Verification** | verified-local |
+| ------- | ------- |
+| Date | 2026-09-21 |
+| Objective | Preserve task progress without replacing newer work with an old status report. |
+| Outcome | Readback detected a concurrent update. The handoff kept the newer source and its evidence boundary. |
 
 ## When to Use
 
-- A long-running serial epic (e.g. ProjectHephaestus epic #1809 — a queue-based automation-pipeline rewrite delivered as ~14 strictly-serialized sub-issues #1810→#1823, each `Depends on #prev`) is being driven one PR at a time on one machine and the operator asks to move the work to another machine.
-- Context compaction is about to wipe the working memory that makes a serial campaign safe — the same prompt shape doubles as a compaction-survival brief.
-- You need the receiving session to continue without: (a) re-reading and re-classifying the in-flight PR's review threads, (b) losing the completion condition that a session-scoped Stop hook was enforcing, or (c) picking up two dependent issues at once (mutual-conflict strand).
+- A task moves to another session or machine.
+- A shutdown or context limit requires a durable checkpoint.
+- Another worker can change a pull request (PR) while a handoff is prepared.
+- Historical results and current source have different identities.
 
 ## Verified Workflow
 
-A handoff helps the next session continue the requested work without reconstructing the
-whole conversation. Adapt its length and order to the task. Include enough evidence to
-identify completed work, remaining work, real dependencies, and existing authorization.
-
 ### Quick Reference
 
-```text
-GOAL: Requested outcome and observable completion criteria.
-STATE: Completed work, active branch/head, changes, and unresolved findings.
-REFERENCES: Accessible design decisions, source paths, issues, and evidence.
-NEXT WORK: Useful next actions and actual dependencies.
-AUTHORIZATION: Existing scope and any external permission still needed.
-LIMITS: Missing evidence, unavailable tools, and partial blockers.
-```
+Record the requested outcome, current source, evidence, dependencies, authorization,
+and next action. Recheck mutable state before and after publication.
+If another worker changes the PR, preserve that change and reconcile the handoff.
 
-### Detailed Steps
+### Prepare the handoff
 
-1. Restate the requested outcome. Distinguish user requirements from suggested techniques
-   or historical review conventions; do not turn a prior session hook into a new gate.
-2. Point to durable artifacts the receiving session can access. Summarize unavailable
-   local context rather than assuming account memory or a transcript travels with the task.
-3. Record the current source revision and work state. For unresolved findings, retain the
-   evidence, proposed disposition, and any relevant fix so the next session can recheck
-   changed facts without repeating completed investigation.
-4. Describe dependencies that constrain execution. Serialize work when one change depends
-   on another; allow independent work to continue when a dependency is blocked.
-5. Carry forward existing authorization and applicable repository or host constraints.
-   Name the source and protected action for any necessary approval. Do not ask again for
-   routine work already authorized by the task.
-6. Suggest the next useful action and relevant recovery references. If background work can
-   conflict, suggest inspecting its state before starting another writer.
-7. Continue toward completion through implementation, correction, and useful verification.
-   A handoff, plan, or review round is an intermediate result unless it is the requested output.
+1. State the requested outcome and observable completion conditions.
+2. Separate current user requirements from historical conventions and suggested techniques.
+3. Link durable specifications, decisions, and evidence that the receiving session can access.
+4. Summarize necessary local context when its files or transcript will not be available.
+5. Record completed work, current branch and head, unpublished changes, and unresolved findings.
+6. Keep each finding's evidence, proposed disposition, and relevant correction.
+7. Record actual dependencies. Serialize dependent work, but permit independent progress.
+8. Carry forward existing authorization and current repository and host constraints.
+9. Name the protected action and source of any approval that remains necessary.
+10. Identify the next useful action and how to inspect potentially conflicting workers.
 
-The original serial campaign examples and commands are retained in
-[the case notes](campaign-handoff-prompt-authoring.notes.md). Their issue numbers, fixed
-review sequence, and deployment conditions describe that campaign rather than a general
-workflow requirement.
+A checkpoint or ownership claim is not proof that a worker is still active.
+A missing temporary worktree is not proof that its branch or published work is lost.
+Inspect current source references and execution state before another writer starts.
+
+### Publish without replacing concurrent work
+
+Before a PR-body update, read its repository, PR identity, state, source ref,
+head, and current body. Keep the intended change separate from that snapshot.
+Coordinate shared metadata ownership as well as source-file ownership.
+
+When the provider supports a conditional update, bind the write to its supported
+version condition. A head check alone cannot detect a body-only change.
+Without conditional updates, a pre-write check cannot make replacement atomic.
+Prefer an additive, source-bound note when another writer can update the same body.
+
+After publication, read the PR identity, head, and relevant content again.
+A successful API response proves that the request succeeded, not that its content
+remains current after a concurrent write.
+
+If the source or body changed, inspect the new content before another write.
+Do not restore the old body or repeatedly apply the old update.
+Preserve the newer work and reconcile only the missing information.
+Use an additive note when it can preserve necessary evidence without another body replacement.
+If authorship or the intended result remains ambiguous, stop only the conflicting write.
+
+Update the checkpoint and final report to match the latest observed state.
+State that this is an observation, not a guarantee against later changes.
+
+### Keep evidence attached to its source
+
+Keep historical test results and review decisions attached to their exact source.
+Do not transfer a passing or failing result to a new head without compatible evidence.
+A newer head does not erase valid history for the old head.
+Use provider records as authority and handoff text as a guide to those records.
+
+A handoff is an intermediate result unless the user requested the handoff itself.
+Continue authorized implementation and verification when that remains the task.
 
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
-|---------|----------------|---------------|----------------|
-| Terse handoff | Wrote `continue epic #1809 from PR #1851` | Receiving session had to re-read the whole PR and re-classify every unresolved thread from scratch — wasted a full context window | Inline the per-thread REAL/FALSE-POSITIVE classification (with fix / refutation) directly in the prompt |
-| Relied on the Stop hook | Assumed the "each issue passes /review-pr-strict AND repo passes /repo-analyze-strict-full" goal would carry over | A fresh session on another machine has no session-scoped Stop hook, so it would stop early after one PR | Restate the completion condition explicitly in the prompt body |
-| Pointed at "the plan" | Referenced "the plan" without a path | The plan lived in a local `~/.claude/plans` file that does not exist on the other machine — dangling reference | Point only at durable in-repo artifacts (issue bodies, committed docs, the ADR) plus account-level memory files |
+| ------- | -------------- | ------------- | -------------- |
+| Treat a successful update as final | Used the write response as proof of the published handoff. | Another worker changed the head and body before readback. | Read back identity and content, then preserve newer work. |
+| Use an incomplete handoff | Named a task without its findings or accessible evidence. | The receiving session could not locate the necessary context. | Include current state and durable references. |
+| Carry historical gates forward | Treated a prior session convention as a current requirement. | Historical process can exceed the user's actual requirements. | Preserve authority with its source and applicability. |
 
 ## Results & Parameters
 
-A useful handoff lets the receiving session identify the requested outcome, resume the
-correct source state, reuse applicable evidence, and choose the next authorized action.
-Report uncertainty rather than inventing completion. Preserve task-specific serial
-ordering, publication requirements, and authorization when they still apply.
+Record the task outcome, source identity, observation boundary, unresolved findings,
+durable references, actual dependencies, authorization, and next action.
+For a metadata update, also keep the prior body and intended delta until readback.
 
-The original prompt was authored and delivered locally. Its execution on the receiving
-machine was not verified; this generalized guidance adds no execution claim.
+The observed recovery preserved a concurrent worker's newer PR body and added a
+separate status note. It did not validate the new implementation.
+See [supporting notes](campaign-handoff-prompt-authoring.notes.md) for evidence limits.
 
 ## Verified On
 
-| Project | Context | Details |
-|---------|---------|---------|
-| ProjectHephaestus | Epic #1809 cross-machine handoff, 2026-07-05 session — prompt authored and delivered to operator; NOT yet executed end-to-end on the second machine (hence verified-local, not verified-ci) | epic #1809 body + project_epic1809_execution_playbook.md |
+A handoff publication session supplied direct before-and-after observations of
+a concurrent PR update. This supports the recovery rule, not a transactional guarantee.

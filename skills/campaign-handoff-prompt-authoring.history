@@ -1,0 +1,17 @@
+# Campaign Handoff History
+
+## Version 1.1.0
+
+- Archive status: privacy-redacted.
+- Reason: the prior main entry contained project-specific identifiers and operational narrative.
+- Change summary: retain general handoff rules without the source-specific narrative.
+- Provenance: prior canonical content inspected during authorized knowledge maintenance.
+- The exact snapshot was intentionally omitted. No retrieval pointer to that content is retained here.
+
+## Version 1.2.0
+
+- Change: add concurrent metadata publication checks and source-bound recovery.
+- Provenance: readback observed a changed PR source and body after a successful update request.
+- Outcome: the newer body was preserved and a separate status note corrected the handoff.
+- Verification limit: no guarantee against later writes and no validation claim for the newer implementation.
+- Artifact ownership: the main entry owns current rules; notes own generalized evidence; this file owns version provenance.
