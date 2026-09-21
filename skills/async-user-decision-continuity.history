@@ -1,0 +1,11 @@
+# Version history
+
+## 1.0.0
+
+- Disposition: create.
+- Change: add one reusable rule for pending asynchronous questions and delayed answers.
+- Provenance: privacy-safe synthesis of a user-requested session analysis.
+- Evidence: repeated unanswered questions received incompatible delayed replies; the assistant later recorded a clarified decision.
+- Verification limit: the proposed prevention procedure has not undergone a controlled replay.
+- Archive result: initial version; no superseded main entry exists.
+- Privacy: source identifiers and operational details are omitted.
