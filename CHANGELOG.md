@@ -9,6 +9,21 @@ features, major = breaking layout/format changes (e.g. the flat-skills migration
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-09-20
+
+### Added
+
+- New skills for safety-wrapper invocation, bounded campaign publication, and
+  benchmark evidence coverage.
+- A nightly workflow for the full-corpus validation tier.
+
+### Changed
+
+- Moved historical skill provenance from companion files to Git history and
+  retained the related migration evidence in the corpus.
+- Updated repository guidance, validation delegation, and CI configuration for
+  the skills/memory-store workflow.
+
 ## [3.0.0] - 2026-07-13
 
 ### Changed
