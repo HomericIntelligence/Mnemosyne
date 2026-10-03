@@ -195,6 +195,7 @@ def test_development_principles_are_unchanged() -> None:
 
 
 def _tracked_paths() -> list[str]:
+    """Return tracked paths that exist in the working tree."""
     output = subprocess.run(
         ["git", "ls-files", "-z"],
         cwd=REPO_ROOT,
@@ -202,7 +203,11 @@ def _tracked_paths() -> list[str]:
         capture_output=True,
         text=False,
     ).stdout
-    return sorted(path for path in output.decode().split("\0") if path)
+    return sorted(
+        path
+        for path in output.decode().split("\0")
+        if path and (REPO_ROOT / path).exists()
+    )
 
 
 def test_active_guidance_inventory_is_closed() -> None:

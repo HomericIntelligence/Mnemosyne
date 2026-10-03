@@ -103,9 +103,9 @@ More steps here.
 """
 
 
-def _make_skill_md_file(directory: Path, content: str) -> Path:
-    """Write SKILL.md into *directory* and return the path."""
-    path = directory / "SKILL.md"
+def _make_flat_skill_file(directory: Path, name: str, content: str) -> Path:
+    """Write a flat source skill file and return its path."""
+    path = directory / f"{name}.md"
     path.write_text(content, encoding="utf-8")
     return path
 
@@ -488,18 +488,17 @@ class TestTransformSkill:
 class TestDiscoverOdysseySkills:
     def test_discovers_skills(self, tmp_path, monkeypatch):
         monkeypatch.setitem(__import__("migrate_ecosystem_skills").SOURCES, "odyssey", tmp_path)
-        skill_dir = tmp_path / "my-skill"
-        skill_dir.mkdir()
-        _make_skill_md_file(skill_dir, "content")
+        _make_flat_skill_file(tmp_path, "my-skill", "content")
 
         skills = discover_odyssey_skills()
         assert len(skills) == 1
         assert skills[0][0] == "my-skill"
         assert skills[0][2] is None  # no scylla_category
 
-    def test_skips_non_directories(self, tmp_path, monkeypatch):
+    def test_excludes_companion_files(self, tmp_path, monkeypatch):
         monkeypatch.setitem(__import__("migrate_ecosystem_skills").SOURCES, "odyssey", tmp_path)
-        (tmp_path / "file.md").write_text("just a file")
+        (tmp_path / "my-skill.notes.md").write_text("notes")
+        (tmp_path / "my-skill.history.md").write_text("history")
         skills = discover_odyssey_skills()
         assert skills == []
 
@@ -507,7 +506,7 @@ class TestDiscoverOdysseySkills:
         monkeypatch.setitem(__import__("migrate_ecosystem_skills").SOURCES, "odyssey", tmp_path)
         hidden = tmp_path / ".hidden-skill"
         hidden.mkdir()
-        _make_skill_md_file(hidden, "content")
+        (hidden / "SKILL.md").write_text("content")
         skills = discover_odyssey_skills()
         assert skills == []
 
@@ -524,26 +523,23 @@ class TestDiscoverOdysseySkills:
 
 
 class TestDiscoverScyllaSkills:
-    def test_discovers_skills_with_category(self, tmp_path, monkeypatch):
+    def test_discovers_flat_skills(self, tmp_path, monkeypatch):
         monkeypatch.setitem(__import__("migrate_ecosystem_skills").SOURCES, "scylla", tmp_path)
-        cat_dir = tmp_path / "ci"
-        skill_dir = cat_dir / "my-ci-skill"
-        skill_dir.mkdir(parents=True)
-        _make_skill_md_file(skill_dir, "content")
+        _make_flat_skill_file(tmp_path, "my-ci-skill", "content")
 
         skills = discover_scylla_skills()
         assert len(skills) == 1
         assert skills[0][0] == "my-ci-skill"
-        assert skills[0][2] == "ci"
+        assert skills[0][2] is None
 
-    def test_discovers_nested_tier_skills(self, tmp_path, monkeypatch):
+    def test_ignores_nested_skill_md(self, tmp_path, monkeypatch):
         monkeypatch.setitem(__import__("migrate_ecosystem_skills").SOURCES, "scylla", tmp_path)
         tier_dir = tmp_path / "other" / "tier-1" / "nested-skill"
         tier_dir.mkdir(parents=True)
-        _make_skill_md_file(tier_dir, "content")
+        (tier_dir / "SKILL.md").write_text("content")
 
         skills = discover_scylla_skills()
-        assert any(s[0] == "nested-skill" for s in skills)
+        assert skills == []
 
     def test_missing_source_returns_empty(self, tmp_path, monkeypatch):
         nonexistent = tmp_path / "does-not-exist"
@@ -560,23 +556,21 @@ class TestDiscoverScyllaSkills:
 class TestDiscoverKeystoneSkills:
     def test_discovers_skills(self, tmp_path, monkeypatch):
         monkeypatch.setitem(__import__("migrate_ecosystem_skills").SOURCES, "keystone", tmp_path)
-        skill_dir = tmp_path / "ks-skill"
-        skill_dir.mkdir()
-        _make_skill_md_file(skill_dir, "content")
+        _make_flat_skill_file(tmp_path, "ks-skill", "content")
 
         skills = discover_keystone_skills()
         assert len(skills) == 1
         assert skills[0][0] == "ks-skill"
         assert skills[0][2] is None
 
-    def test_discovers_nested_skills(self, tmp_path, monkeypatch):
+    def test_ignores_nested_skill_md(self, tmp_path, monkeypatch):
         monkeypatch.setitem(__import__("migrate_ecosystem_skills").SOURCES, "keystone", tmp_path)
         sub_dir = tmp_path / "tier-1" / "nested-ks"
         sub_dir.mkdir(parents=True)
-        _make_skill_md_file(sub_dir, "content")
+        (sub_dir / "SKILL.md").write_text("content")
 
         skills = discover_keystone_skills()
-        assert any(s[0] == "nested-ks" for s in skills)
+        assert skills == []
 
     def test_missing_source_returns_empty(self, tmp_path, monkeypatch):
         nonexistent = tmp_path / "does-not-exist"
@@ -607,9 +601,7 @@ class TestBuildSkillRegistry:
 
     def test_single_source(self, tmp_path, monkeypatch):
         odyssey, _, _ = self._setup_sources(tmp_path, monkeypatch)
-        skill_dir = odyssey / "alpha-skill"
-        skill_dir.mkdir()
-        _make_skill_md_file(skill_dir, "content")
+        _make_flat_skill_file(odyssey, "alpha-skill", "content")
 
         registry = build_skill_registry()
         assert "alpha-skill" in registry
@@ -617,11 +609,8 @@ class TestBuildSkillRegistry:
     def test_scylla_wins_deduplication(self, tmp_path, monkeypatch):
         odyssey, scylla, keystone = self._setup_sources(tmp_path, monkeypatch)
         # Same skill in odyssey and scylla
-        for base in [odyssey, scylla / "ci"]:
-            base.mkdir(exist_ok=True)
-            skill_dir = base / "shared-skill"
-            skill_dir.mkdir(exist_ok=True)
-            _make_skill_md_file(skill_dir, "content")
+        for base in [odyssey, scylla]:
+            _make_flat_skill_file(base, "shared-skill", "content")
 
         registry = build_skill_registry()
         source, _, _ = registry["shared-skill"]
@@ -629,14 +618,8 @@ class TestBuildSkillRegistry:
 
     def test_source_filter_limits_scan(self, tmp_path, monkeypatch):
         odyssey, scylla, keystone = self._setup_sources(tmp_path, monkeypatch)
-        ody_dir = odyssey / "ody-only"
-        ody_dir.mkdir()
-        _make_skill_md_file(ody_dir, "content")
-        scylla_cat = scylla / "testing"
-        scylla_cat.mkdir()
-        scylla_dir = scylla_cat / "scylla-only"
-        scylla_dir.mkdir()
-        _make_skill_md_file(scylla_dir, "content")
+        _make_flat_skill_file(odyssey, "ody-only", "content")
+        _make_flat_skill_file(scylla, "scylla-only", "content")
 
         registry = build_skill_registry(source_filter="odyssey")
         assert "ody-only" in registry
@@ -645,9 +628,7 @@ class TestBuildSkillRegistry:
     def test_skill_filter_limits_results(self, tmp_path, monkeypatch):
         odyssey, _, _ = self._setup_sources(tmp_path, monkeypatch)
         for name in ["alpha-skill", "beta-skill", "gamma-skill"]:
-            d = odyssey / name
-            d.mkdir()
-            _make_skill_md_file(d, "content")
+            _make_flat_skill_file(odyssey, name, "content")
 
         registry = build_skill_registry(skill_filter="beta-skill")
         assert list(registry.keys()) == ["beta-skill"]
@@ -665,11 +646,9 @@ class TestBuildSkillRegistry:
 
 class TestMigrateSkill:
     def _make_source_skill(self, tmp_path: Path, name: str, content: str = FULL_SKILL_MD) -> Path:
-        skill_dir = tmp_path / "source" / name
-        skill_dir.mkdir(parents=True, exist_ok=True)
-        path = skill_dir / "SKILL.md"
-        path.write_text(content, encoding="utf-8")
-        return path
+        source_dir = tmp_path / "source"
+        source_dir.mkdir(parents=True, exist_ok=True)
+        return _make_flat_skill_file(source_dir, name, content)
 
     def test_migrates_skill_to_target(self, tmp_path, monkeypatch):
         import migrate_ecosystem_skills as mod
@@ -842,78 +821,6 @@ class TestRenameWorkflowSectionTrailingNewline:
 
 
 # ===========================================================================
-# transform_skill — branches at L440/442/448/450/460/481/483/492
-# (Scylla/Keystone hidden-dir and file-skip branches tested via discover_*)
-# ===========================================================================
-
-
-class TestDiscoverScyllaSkillsEdgeCases:
-    def test_skips_hidden_category_dir(self, tmp_path, monkeypatch):
-        monkeypatch.setitem(__import__("migrate_ecosystem_skills").SOURCES, "scylla", tmp_path)
-        hidden_cat = tmp_path / ".hidden"
-        hidden_cat.mkdir()
-        skill_dir = hidden_cat / "some-skill"
-        skill_dir.mkdir()
-        (skill_dir / "SKILL.md").write_text("content")
-        skills = discover_scylla_skills()
-        assert skills == []
-
-    def test_skips_non_dir_items_in_category(self, tmp_path, monkeypatch):
-        monkeypatch.setitem(__import__("migrate_ecosystem_skills").SOURCES, "scylla", tmp_path)
-        cat_dir = tmp_path / "testing"
-        cat_dir.mkdir()
-        # A plain file inside the category dir (not a skill dir)
-        (cat_dir / "readme.md").write_text("not a skill")
-        skills = discover_scylla_skills()
-        assert skills == []
-
-    def test_skips_hidden_skill_dir_within_category(self, tmp_path, monkeypatch):
-        monkeypatch.setitem(__import__("migrate_ecosystem_skills").SOURCES, "scylla", tmp_path)
-        cat_dir = tmp_path / "testing"
-        cat_dir.mkdir()
-        hidden_skill = cat_dir / ".hidden-skill"
-        hidden_skill.mkdir()
-        (hidden_skill / "SKILL.md").write_text("content")
-        skills = discover_scylla_skills()
-        assert skills == []
-
-    def test_skips_non_dir_subitem_in_tier(self, tmp_path, monkeypatch):
-        monkeypatch.setitem(__import__("migrate_ecosystem_skills").SOURCES, "scylla", tmp_path)
-        cat_dir = tmp_path / "other"
-        tier_dir = cat_dir / "tier-1"
-        tier_dir.mkdir(parents=True)
-        # A file in the tier that is not a skill dir
-        (tier_dir / "notes.txt").write_text("notes")
-        skills = discover_scylla_skills()
-        assert skills == []
-
-
-class TestDiscoverKeystoneSkillsEdgeCases:
-    def test_skips_hidden_item(self, tmp_path, monkeypatch):
-        monkeypatch.setitem(__import__("migrate_ecosystem_skills").SOURCES, "keystone", tmp_path)
-        hidden = tmp_path / ".hidden"
-        hidden.mkdir()
-        (hidden / "SKILL.md").write_text("content")
-        skills = discover_keystone_skills()
-        assert skills == []
-
-    def test_skips_non_dir_items(self, tmp_path, monkeypatch):
-        monkeypatch.setitem(__import__("migrate_ecosystem_skills").SOURCES, "keystone", tmp_path)
-        (tmp_path / "readme.md").write_text("file, not dir")
-        skills = discover_keystone_skills()
-        assert skills == []
-
-    def test_skips_non_dir_subitems_in_nested_scan(self, tmp_path, monkeypatch):
-        monkeypatch.setitem(__import__("migrate_ecosystem_skills").SOURCES, "keystone", tmp_path)
-        tier = tmp_path / "tier-1"
-        tier.mkdir()
-        # A plain file (not a skill subdir) inside the tier
-        (tier / "notes.txt").write_text("notes")
-        skills = discover_keystone_skills()
-        assert skills == []
-
-
-# ===========================================================================
 # build_target_frontmatter — L504-505: get_content_size OSError, L542: unknown source
 # ===========================================================================
 
@@ -957,9 +864,7 @@ class TestBuildSkillRegistryUnknownSource:
 
         # Same skill in both odyssey and keystone — keystone has priority
         for base in [odyssey, keystone]:
-            sd = base / "dup-skill"
-            sd.mkdir()
-            (sd / "SKILL.md").write_text("content" * (10 if base == keystone else 1))
+            _make_flat_skill_file(base, "dup-skill", "content" * (10 if base == keystone else 1))
 
         registry = build_skill_registry()
         assert registry["dup-skill"][0] == "keystone"
@@ -1047,10 +952,11 @@ class TestMain:
 
     def test_all_migrated_returns_0(self, tmp_path, monkeypatch, capsys):
         mod = self._setup(tmp_path, monkeypatch)
-        skill_dir = tmp_path / "source" / "alpha"
-        skill_dir.mkdir(parents=True)
-        skill_path = skill_dir / "SKILL.md"
-        skill_path.write_text("---\nname: alpha\ndescription: d\n---\nBody.\n")
+        source_dir = tmp_path / "source"
+        source_dir.mkdir(parents=True)
+        skill_path = _make_flat_skill_file(
+            source_dir, "alpha", "---\nname: alpha\ndescription: d\n---\nBody.\n"
+        )
         monkeypatch.setattr(
             mod,
             "build_skill_registry",

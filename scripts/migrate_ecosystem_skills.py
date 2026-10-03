@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Migrate skills from ProjectOdyssey, ProjectScylla, and ProjectKeystone
-into Mnemosyne's flat skills/<name>.md format.
+Migrate flat skill Markdown files from ProjectOdyssey, ProjectScylla, and
+ProjectKeystone into Mnemosyne's flat skills/<name>.md format.
 
 Usage:
     python3 scripts/migrate_ecosystem_skills.py [options]
@@ -23,6 +23,8 @@ from typing import Optional
 
 import yaml
 
+from mnemosyne_skill_utils import find_skill_files
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
@@ -36,7 +38,7 @@ TODAY = datetime.date.today().isoformat()
 # Source definitions: name -> base_path
 # Override via environment variables:
 #   MNEMOSYNE_ODYSSEY_SKILLS_DIR, MNEMOSYNE_SCYLLA_SKILLS_DIR, MNEMOSYNE_KEYSTONE_SKILLS_DIR
-# Scylla uses <category>/<skill-name>/SKILL.md; others use <skill-name>/SKILL.md
+# Each source uses flat <skill-name>.md files.
 SOURCES = {
     "odyssey": Path(
         os.environ.get(
@@ -321,8 +323,8 @@ def transform_skill(
     scylla_category: Optional[str],
 ) -> str:
     """
-    Apply all transformations to a SKILL.md content and return the
-    resulting flat markdown with updated frontmatter.
+    Apply all transformations to source skill Markdown and return the
+    resulting flat Markdown with updated frontmatter.
     """
     frontmatter, body = parse_frontmatter(content)
 
@@ -347,103 +349,28 @@ def transform_skill(
 # ---------------------------------------------------------------------------
 
 
-def discover_odyssey_skills() -> list[tuple[str, Path, Optional[str]]]:
-    """
-    Discover skills from ProjectOdyssey.
-    Format: <skill-name>/SKILL.md
-    Returns list of (skill_name, skill_md_path, scylla_category=None)
-    """
-    base = SOURCES["odyssey"]
-    if not base.exists():
-        return []
+def _discover_flat_source_skills(source: str) -> list[tuple[str, Path, Optional[str]]]:
+    """Find the flat skill Markdown files for one source."""
+    return [(path.stem, path, None) for path in find_skill_files(SOURCES[source])]
 
-    skills: list[tuple[str, Path, Optional[str]]] = []
-    for item in sorted(base.iterdir()):
-        if not item.is_dir():
-            continue
-        if item.name.startswith("."):
-            continue
-        skill_md = item / "SKILL.md"
-        if skill_md.exists():
-            skills.append((item.name, skill_md, None))
-    return skills
+
+def discover_odyssey_skills() -> list[tuple[str, Path, Optional[str]]]:
+    """Discover flat skill Markdown files from ProjectOdyssey."""
+    return _discover_flat_source_skills("odyssey")
 
 
 def discover_scylla_skills() -> list[tuple[str, Path, Optional[str]]]:
-    """
-    Discover skills from ProjectScylla.
-    Format: <category>/<skill-name>/SKILL.md
-    Returns list of (skill_name, skill_md_path, scylla_category)
-    """
-    base = SOURCES["scylla"]
-    if not base.exists():
-        return []
-
-    skills: list[tuple[str, Path, Optional[str]]] = []
-    for category_dir in sorted(base.iterdir()):
-        if not category_dir.is_dir():
-            continue
-        if category_dir.name.startswith("."):
-            continue
-        category = category_dir.name
-
-        # Handle nested tiers (e.g., other/tier-1/, other/tier-2/)
-        for item in sorted(category_dir.iterdir()):
-            if not item.is_dir():
-                continue
-            if item.name.startswith("."):
-                continue
-
-            # Check for nested tier directories
-            skill_md = item / "SKILL.md"
-            if skill_md.exists():
-                skills.append((item.name, skill_md, category))
-            else:
-                # Look one level deeper (tier-1/skill-name/SKILL.md)
-                for subitem in sorted(item.iterdir()):
-                    if not subitem.is_dir():
-                        continue
-                    sub_skill_md = subitem / "SKILL.md"
-                    if sub_skill_md.exists():
-                        skills.append((subitem.name, sub_skill_md, category))
-
-    return skills
+    """Discover flat skill Markdown files from ProjectScylla."""
+    return _discover_flat_source_skills("scylla")
 
 
 def discover_keystone_skills() -> list[tuple[str, Path, Optional[str]]]:
-    """
-    Discover skills from ProjectKeystone.
-    Format: <skill-name>/SKILL.md (or <skill-name>/<sub>/SKILL.md for nested)
-    Returns list of (skill_name, skill_md_path, scylla_category=None)
-    """
-    base = SOURCES["keystone"]
-    if not base.exists():
-        return []
-
-    skills: list[tuple[str, Path, Optional[str]]] = []
-    for item in sorted(base.iterdir()):
-        if not item.is_dir():
-            continue
-        if item.name.startswith("."):
-            continue
-
-        skill_md = item / "SKILL.md"
-        if skill_md.exists():
-            skills.append((item.name, skill_md, None))
-        else:
-            # Look for nested skills (e.g., tier-1/analyze-code-structure/SKILL.md)
-            for subitem in sorted(item.iterdir()):
-                if not subitem.is_dir():
-                    continue
-                sub_skill_md = subitem / "SKILL.md"
-                if sub_skill_md.exists():
-                    skills.append((subitem.name, sub_skill_md, None))
-
-    return skills
+    """Discover flat skill Markdown files from ProjectKeystone."""
+    return _discover_flat_source_skills("keystone")
 
 
 def get_content_size(path: Path) -> int:
-    """Return content size of a SKILL.md file (for prefer-most-content logic)."""
+    """Return the source file size for the content preference rule."""
     try:
         return path.stat().st_size
     except OSError:
