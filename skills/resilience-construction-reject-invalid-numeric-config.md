@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Fail-fast validation for retry decorator factories and circuit-breaker constructors. Use when: (1) invalid retry counts can skip protected work, (2) zero or non-finite breaker limits can wedge recovery, (3) Python bool values may pass integer checks, (4) zero is valid for delays but not thresholds or capacities."
 category: architecture
 date: 2026-08-06
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 verification: unverified
 tags:
@@ -126,12 +126,12 @@ if (
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 | --------- | ---------------- | --------------- | ---------------- |
-| Let the retry loop handle any integer | `range(max_retries + 1)` is empty for `max_retries=-1`, so the wrapper falls through and returns `None` without calling the protected function | Loop semantics are not input validation; reject invalid counts when creating the decorator |
-| Allow zero for every numeric field | `half_open_max_calls=0` makes every half-open probe fail with capacity exhaustion, while zero failure/success thresholds make transition rules nonsensical | Separate zero-valid delays/counts from positive-only thresholds and capacities |
-| Check only `value < 0` for time values | `NaN < 0` is false, and elapsed-time comparisons against `NaN` never permit recovery; infinity can also make recovery unreachable | Require finite numbers with `math.isfinite()` in addition to a non-negative check |
-| Accept anything passing `isinstance(value, int)` | Python accepts `True` and `False` as integers, hiding configuration mistakes and turning booleans into counts | Reject `bool` before accepting `int` |
-| Validate inside the protected call | Invalid decorators or breaker objects can already escape construction, and failure no longer occurs at the configuration boundary | Validate before returning a decorator and before assigning constructor state |
-| Make every value strictly positive | This breaks supported boundary behavior such as one initial attempt with zero retries and immediate half-open recovery with a zero timeout | Encode the actual domain minimum for each parameter |
+| Invalid retry count | Let the retry loop handle any integer | `range(max_retries + 1)` is empty for `max_retries=-1`, so the wrapper falls through and returns `None` without calling the protected function | Loop semantics are not input validation; reject invalid counts when creating the decorator |
+| Zero numeric values | Allow zero for every numeric field | `half_open_max_calls=0` makes every half-open probe fail with capacity exhaustion, while zero failure/success thresholds make transition rules nonsensical | Separate zero-valid delays/counts from positive-only thresholds and capacities |
+| Nonfinite time values | Check only `value < 0` for time values | `NaN < 0` is false, and elapsed-time comparisons against `NaN` never permit recovery; infinity can also make recovery unreachable | Require finite numbers with `math.isfinite()` in addition to a non-negative check |
+| Boolean count values | Accept anything passing `isinstance(value, int)` | Python accepts `True` and `False` as integers, hiding configuration mistakes and turning booleans into counts | Reject `bool` before accepting `int` |
+| Late validation | Validate inside the protected call | Invalid decorators or breaker objects can already escape construction, and failure no longer occurs at the configuration boundary | Validate before returning a decorator and before assigning constructor state |
+| Strictly positive values | Make every value strictly positive | This breaks supported boundary behavior such as one initial attempt with zero retries and immediate half-open recovery with a zero timeout | Encode the actual domain minimum for each parameter |
 
 ## Results & Parameters
 

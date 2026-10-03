@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Use when: (1) implementing Mojo training loops where functions take AnyTensor by value (moving ownership), (2) you hit 'use after move' compile errors across compute_gradients()/model.forward() calls in an iteration, (3) you must reuse tensor data between training and a post-training forward pass and need separate batch objects / borrow-vs-transfer discipline."
 category: debugging
 date: 2026-07-02
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 verification: verified-local
 tags:
@@ -180,6 +180,12 @@ fn verify_post_training(
 ```
 
 ## Failed Attempts
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --- | --- | --- | --- |
+| Reuse a moved tensor | Used `input` after `compute_gradients` took ownership | Mojo rejected the use with `error: use of moved value 'input'` | Create separate batch objects when both operations take ownership |
+| Add borrow syntax at the call site | Passed `input1 &` to a function with a value parameter | The function signature, not the call site, specifies ownership | Use a `ref` parameter when borrowing is part of the function design, or use separate batches |
+| Clone the tensor | Cloned a large tensor as a workaround | The recorded example states that the clone was expensive and removed the performance benefit of value semantics | Load a fresh batch instead of cloning the tensor |
 
 ### 1. Reusing Moved Tensor
 

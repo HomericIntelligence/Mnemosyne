@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Verified workflow for running long-duration ML training validation (35+ minutes on CPU) in CI-constrained environments with timeout limits. Captures real training-loop behavior by executing full epoch with detached nohup process, polling log output, and committing authentic loss-progression evidence. Use when: (1) training runs exceed 2-minute foreground timeout and require background execution, (2) validating backward-pass implementations by confirming monotone-decreasing loss over full epoch, (3) capturing verification evidence for PR closure without re-running in CI, (4) handling download/data-prep as pre-training subprocess tasks, (5) need to validate loss values fall monotonically to gate PR approval."
 category: optimization
 date: 2026-07-04
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: true
 verification: verified-local
 tags:
@@ -411,7 +411,7 @@ exit ${EXIT_CODE:-0}
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
-|---------|---------------|----- ---------- | -------------- |
+| --- | --- | --- | --- |
 | Run training in foreground (no background) | `bash scripts/run_mobilenetv1_cifar10_epoch.sh` | Foreground execution times out after ~2 min; epoch requires 35–45 min | Use detached `nohup` + `&` to escape timeout; poll log from loop |
 | Use `subprocess.run(timeout=...)` in orchestrator | Passed large timeout (3600 sec) to subprocess call | Process still killed by outer CI timeout; subprocess timeout is nested, not inherited | Launch process once, use infinite polling loop; handle outer timeout separately |
 | Use single completion marker (just `# Finished:`) | Checked only for `# Finished:` line | Race condition: partial log write (marker written, exit code not yet) → loop exits early | Require BOTH markers (`# Finished:` AND `# Mojo exit code:`); both written at exit |

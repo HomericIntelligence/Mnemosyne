@@ -83,9 +83,9 @@ Do another thing.
 SAMPLE_FAILED_ATTEMPTS = """\
 ## Failed Attempts
 
-| Attempt | Why Failed | Lesson |
-|---------|------------|--------|
-| N/A | No failures yet | Document failures as they occur |
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+|---------|----------------|---------------|----------------|
+| N/A | No failures yet | No failure was recorded | Record failures when they occur |
 
 """
 
@@ -127,9 +127,9 @@ Do the thing.
 
 ## Failed Attempts
 
-| Attempt | Why Failed | Lesson |
-|---------|------------|--------|
-| N/A | No failures | Document as they occur |
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+|---------|----------------|---------------|----------------|
+| N/A | No failures | No failure was recorded | Record failures when they occur |
 
 ## Results & Parameters
 

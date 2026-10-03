@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "CodeQL bot incorrectly flags Protocol `...` (Ellipsis) method bodies as 'Statement has no effect' — a false positive per PEP 544. Teaches correct response workflow: (1) identify Protocol context, (2) do NOT apply bot's suggested fix, (3) resolve false-positive threads via GraphQL mutation. Use when: (1) CodeQL flags Protocol method `...` as dead code, (2) linter suggests replacing Protocol `...` with `raise NotImplementedError`/`pass`, (3) need to resolve false-positive bot threads without code changes, (4) unresolved threads blocking PR merge despite green CI."
 category: ci-cd
 date: 2026-07-12
-version: "1.0.0"
+version: "1.0.1"
 verification: verified-ci
 tags: ["codeql", "protocol", "pep-544", "ellipsis", "false-positive", "bot-automation", "review-threads", "github-graphql", "typing", "structural-typing"]
 ---
@@ -201,10 +201,10 @@ done
 
 ## Failed Attempts
 
-\| Attempt \| What Was Tried \| Why It Failed \| Lesson Learned \|
-\|---------|----------------|--------------|-----------------\|
-\| 1 \| Applied CodeQL's suggested fix: replaced `...` with `raise NotImplementedError("Method must be implemented")` in Protocol method body \| Broke the Protocol idiom per PEP 544; implementers were confused by RuntimeError in structural interface \| Never blindly apply linter suggestions to abstract/Protocol stubs; read the class context first; Protocol bodies are interface markers, never live code \|
-\| 2 \| Left false-positive review threads unresolved; assumed green CI + armed auto-merge would auto-bypass the branch protection gate \| `required_review_thread_resolution` branch protection blocks merge on ANY unresolved thread, even false positives and confirmed false findings \| Resolve all review threads (real and false positive) via GraphQL mutation; the gate does not distinguish; unresolved blocks merge regardless of code correctness \|
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --- | --- | --- | --- |
+| 1 | Applied CodeQL's suggested fix: replaced `...` with `raise NotImplementedError("Method must be implemented")` in Protocol method body | Broke the Protocol idiom per PEP 544; implementers were confused by RuntimeError in structural interface | Never blindly apply linter suggestions to abstract/Protocol stubs; read the class context first; Protocol bodies are interface markers, never live code |
+| 2 | Left false-positive review threads unresolved; assumed green CI + armed auto-merge would auto-bypass the branch protection gate | `required_review_thread_resolution` branch protection blocks merge on ANY unresolved thread, even false positives and confirmed false findings | Resolve all review threads (real and false positive) via GraphQL mutation; the gate does not distinguish; unresolved blocks merge regardless of code correctness |
 
 ## Results & Parameters
 

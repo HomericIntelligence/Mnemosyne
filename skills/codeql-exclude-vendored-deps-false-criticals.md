@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "GitHub CodeQL (and Trivy) analyze the vendored third-party dependency tree that CMake FetchContent / Conan fetch under build/**/_deps/, so upstream findings (e.g. cpp/use-after-free critical, cpp/world-writable-file-creation high) get reported AGAINST your repo — creating false urgency and burying real first-party alerts. Teaches how to detect vendored alerts by location path and how to exclude the build tree via a codeql-config.yml paths-ignore wired into every codeql-action/init step. Use when: (1) CodeQL/Trivy reports a critical/high in C++ code you did not write, (2) an alert path contains build/**/_deps/ or *-src, (3) triage is swamped by upstream nats.c/cista findings, (4) you need to stop scanning vendored deps without silencing first-party findings."
 category: ci-cd
 date: 2026-07-16
-version: "1.0.0"
+version: "1.0.1"
 verification: verified-local
 tags: []
 ---
@@ -129,11 +129,11 @@ paths-ignore:
 
 ## Failed Attempts
 
-\| Attempt \| What Was Tried \| Why It Failed \| Lesson Learned \|
-\|---------\|----------------\|---------------\|----------------\|
-\| 1 \| Read the alert severity at face value — treat `cpp/use-after-free (critical)` as a first-party bug \| The path was `build/**/_deps/nats_c-src/...` — upstream nats.c, not our code \| ALWAYS check `.most_recent_instance.location.path` before believing a 'critical' \|
-\| 2 \| File one GitHub issue per vendored alert \| Would create dozens of issues for upstream code we do not maintain \| Cluster into ONE 'CodeQL scans vendored _deps' config issue per repo instead \|
-\| 3 \| Add `config-file` to only the first `init` step \| The second language's analysis still scanned `_deps/` \| Add `config-file` to every `codeql-action/init` in the workflow \|
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --- | --- | --- | --- |
+| 1 | Read the alert severity at face value — treat `cpp/use-after-free (critical)` as a first-party bug | The path was `build/**/_deps/nats_c-src/...` — upstream nats.c, not our code | ALWAYS check `.most_recent_instance.location.path` before believing a 'critical' |
+| 2 | File one GitHub issue per vendored alert | Would create dozens of issues for upstream code we do not maintain | Cluster into ONE 'CodeQL scans vendored _deps' config issue per repo instead |
+| 3 | Add `config-file` to only the first `init` step | The second language's analysis still scanned `_deps/` | Add `config-file` to every `codeql-action/init` in the workflow |
 
 ## Results & Parameters
 
