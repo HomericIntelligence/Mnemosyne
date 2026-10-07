@@ -1,13 +1,13 @@
 ---
 name: tooling-stage-only-your-own-files-in-shared-worktree
 license: BSD-3-Clause
-description: "Stage only owned changes in shared worktrees. Preserve other contributors’ edits and recover a commit that accidentally bundled unrelated files."
+description: "Stage only owned changes in shared worktrees. Reconcile plan-matching pre-staged state as task input, re-inspect the tree after an exact-match edit failure, and preserve other contributors’ edits."
 category: tooling
 date: 2026-06-15
-version: "1.2.0"
+version: "1.3.0"
 user-invocable: false
 verification: verified-ci
-tags: [git, git-add, staging, git-add-all, address-review, automation-loop, shared-worktree, dirty-working-tree, commit-scope, git-reset-soft, signed-commit, pr-hygiene, clobber, salvage-commit, reused-worktree, cherry-pick, git-add-u]
+tags: [git, git-add, staging, git-add-all, address-review, automation-loop, shared-worktree, dirty-working-tree, commit-scope, git-reset-soft, signed-commit, pr-hygiene, clobber, salvage-commit, reused-worktree, cherry-pick, git-add-u, pre-staged-fixtures, edit-mismatch, concurrent-application]
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/tooling-stage-only-your-own-files-in-shared-worktree.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -25,6 +25,8 @@ history-cleanup-date: "2026-09-20"
 
 ## When to Use
 
+- A plan-driven pipeline pre-stages test fixtures or plan steps into the task worktree before your turn starts, so the working tree is dirty with state that matches your own plan
+- An exact-match edit reports the target text as absent, and another actor may have applied the same planned change at the same time
 - You are running an address-review or automation loop inside a shared (loop-runner) worktree that may carry prior or sibling dirty state
 - You are about to stage changes with `git add -A`, `git add .`, or `git add --all` in any worktree you did not freshly clone yourself
 - A commit you already made contains files you did not intend to touch (scratch `.md` artifacts, unrelated edits, unexpected deletions)
@@ -37,6 +39,10 @@ history-cleanup-date: "2026-09-20"
 ### Quick Reference
 
 ```bash
+# BEFORE the first edit: inventory inherited state
+git status --short
+git diff --stat          # classify: foreign dirty state, or plan-matching task input?
+
 # BEFORE staging: audit what is dirty
 git status --short
 
@@ -57,28 +63,30 @@ git log --show-signature -1      # look for "Good signature"
 
 ### Detailed Steps
 
-1. **Audit the worktree before touching anything.** Run `git status --short` and read every line. Identify which files belong to your task and which are pre-existing dirty state from a different change (prior loop turn, sibling operation, or scratch artifacts left by the automation harness).
+1. **Audit the worktree before touching anything.** Run `git status --short` and read every line. Identify which files belong to your task and which are pre-existing dirty state from a different change (prior loop turn, sibling operation, or scratch artifacts left by the automation harness). Compare inherited dirty state with the current plan: state that matches plan fixtures or plan steps is task input — develop on it instead of rewriting the same content.
 
-2. **Stage only your files using explicit paths.**
+2. **Re-inspect the tree after an exact-match edit failure, before you retry.** In a plan-driven automation worktree, a mismatch can mean another stage applied the same planned change while you worked. Read the region again and run `git diff <file>`. If the intended change is already present, keep it and continue with the remaining steps. A blind retry applies the change a second time: a duplicated module import is a SyntaxError, and the defect surfaces only at the validation gate.
+
+3. **Stage only your files using explicit paths.**
    ```bash
    git add <file1> <file2> ...
    ```
    Never use `git add -A`, `git add .`, or `git add --all` in a shared or loop-runner worktree. These stage every dirty, untracked, and deleted file in the tree — including files that are not yours to commit.
 
-3. **Confirm commit scope before committing.**
+4. **Confirm commit scope before committing.**
    ```bash
    git diff --cached --name-only
    ```
    This must list exactly the files you edited and nothing else. Also run `git diff --cached --stat` and scan the hunks to ensure no unrelated changes slipped in.
 
-4. **Commit signed.** The committer email must match the signing key (e.g. `12345+example-contributor@users.noreply.github.com`).
+5. **Commit signed.** The committer email must match the signing key (e.g. `12345+example-contributor@users.noreply.github.com`).
    ```bash
    git commit -S -m "fix(scope): description"
    ```
 
-5. **Leave all other dirty files untouched.** They are not yours to commit. The loop runner or the next turn will handle them, or they will be cleaned up separately.
+6. **Leave all other dirty files untouched.** They are not yours to commit. The loop runner or the next turn will handle them, or they will be cleaned up separately.
 
-6. **Verify the commit scope after committing.**
+7. **Verify the commit scope after committing.**
    ```bash
    git show --stat --oneline HEAD
    git log --show-signature -1
@@ -140,6 +148,7 @@ git log --show-signature -1
 | Trusting the worktree was clean because the session "started fresh" | Assumed no pre-existing dirty state at the start of an address-review turn | The loop-runner had pre-staged/modified files from a prior or sibling operation; the working tree was NOT clean at turn start | Never assume a loop worktree is clean; run `git status --short` every turn before staging |
 | Recovering with `git reset --hard` | (Hypothetical: using --hard to undo an over-broad commit) | `--hard` resets the working tree to HEAD, destroying all uncommitted changes — including the other party's dirty files that were never yours to delete | Recover with `git reset --soft` and selective re-stage; never `--hard` when the worktree contains others' uncommitted work |
 | `git add -A` in the salvage-commit path of a reused worktree, then `cherry-pick` after `reset --hard` | Salvage path used `git add -A` to capture in-progress changes before `reset --hard origin/{branch}`, then re-applied via `git cherry-pick -S {sha}` | Cherry-pick CONFLICTED on the unrelated leftover state swept in by `add -A`; the conflict hard-failed issue #1289 entirely (not just the salvage) | Use `git add -u` (tracked modifications only) in salvage paths; untracked leftover state must not enter the salvage commit |
+| Retrying an exact-match edit without re-inspection | Another pipeline stage applied the planned product edit while the turn ran; the retry inserted the same import a second time | Duplicated identical import lines are a SyntaxError in ES modules; the defect surfaced only when the diff was re-read before the check gate | Treat an edit mismatch as possible evidence of concurrent application: re-read and re-diff before any retry |
 | Treating the salvage cherry-pick as fatal (`check=True`) | `subprocess.run(["git", "cherry-pick", ...], check=True)` — any conflict raised `CalledProcessError` and propagated up as an issue failure | Salvage is best-effort; the agent regenerates its edits on the next run anyway; making it fatal loses the entire issue over a non-critical restore step | Wrap the cherry-pick in `try/except`; on conflict, `git cherry-pick --abort` (check=False) + `logger.warning`; return normally |
 
 ## Results & Parameters
@@ -193,6 +202,8 @@ git log --show-signature -1
 | Command | What to Check |
 | --------- | --------------- |
 | `git status --short` | Understand full dirty state before staging anything |
+| `git diff --stat` at turn start | Classify inherited dirty state: foreign state to preserve, or plan-matching state to build on |
+| `git diff <file>` after a failed exact-match edit | Decide whether a concurrent stage already applied the change, before a retry |
 | `git diff --cached --name-only` | Confirm only your files are staged |
 | `git diff --cached --stat` | Confirm only your intended hunks are staged |
 | `git show --stat --oneline HEAD` | Confirm committed scope after the fact |
