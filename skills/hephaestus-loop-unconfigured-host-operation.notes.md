@@ -37,7 +37,7 @@ Automation note: the pipeline builds agent child environments from an allowlist
 binary early on PATH (the shim) is the injection point that survives. The shim prepends
 nothing to argv; automation adapters pass their own flags straight through.
 
-## Run-by-run evidence (r1–r17)
+## Run-by-run evidence (r1–r21)
 
 | Run | Reached | Failure signature | Layer fixed next |
 | --- | ------- | ----------------- | ---------------- |
@@ -54,7 +54,16 @@ nothing to argv; automation adapters pass their own flags straight through.
 | r14 | review | plan published, `plan verified; advancing`; reviewer spiraled into denied `Bash`, died with `reviewer error` | prompt overlay (row 13) |
 | r15 | amend | reviewer NOGO in 5 min with verified code citations; amend resumed planner → turns degraded empty → blocked again | transcripts archived before relaunch; overlay kept |
 | r16 | review | 28-min exhaustive review died verdict-less; resume continued but also ended without a verdict (~14 min) | overlay extended with bounded-inspection + mandatory-verdict text |
-| r17 | in progress at write time | — | bounded overlay + all prior layers |
+| r17 | review | bounded overlay worked for tool choice (86 calls, grep-dominant) but the session still died verdict-less at ~25 min; forensics showed bridge-truncated turns after thinking blocks plus client auto-continue ("Continue from where you left off.") | filed the gateway bridge bug; switched backend to opencode |
+| r18 | preflight | `Agent 'opencode' is installed but not authenticated` — the v1 `providers list` auth probe does not exist in v2 | shim rewrite `providers list` → `auth list` (row 4) |
+| r19–r20 | admission | `review-session-lost: reviewer tool or model changed` guard on the claude→opencode switch; guard published `state:plan-blocked`, next run seeded 0 items | `--reset-plan-review-session` + restore `state:needs-plan` (row 14) |
+| r21 | **completed** | — | opencode + `comet/kimi-k3`: fast-forward verify, NOGO (round 1, revision 1), amend → revision 2, NOGO (round 2), amend → revision 3, **GO (round 3)**; sessions resumed across rounds without the degradation seen on the Anthropic-bridge client; 5 agent jobs, 0 reviewer errors, ~73 min wall |
+
+Final review evidence on the completed loop: the GO iteration verified all prior findings as
+fixed in the artifact (not merely acknowledged), ran security/dependency/docs sweeps, scored
+every rubric dimension A, and recorded exactly one minor finding (a one-line transition note
+for live deployments pointing at pre-change client manifests). The final plan carries per-AC
+committed test names and an implementation order with red-first steps.
 
 Key positive evidence:
 
@@ -102,6 +111,21 @@ echo "intake clean at $(git rev-parse HEAD)"
 ```
 
 Confirm afterwards that the intake receipt revision did not move; a clean repair keeps it.
+
+## opencode v1→v2 shim translation (the working `opencode` shim)
+
+```text
+drop  --dir <path> / --dir=<path>   v2 anchors the project at the process cwd
+drop  --variant <v> / --variant=<v> v2 uses provider/model#variant inline
+drop  --pure                        v2's --agent plan keeps edit denial
+map   providers list -> auth list   v1 auth probe; v2 semantic twin (exit 0)
+keep  everything else verbatim      run, --format json, --model, --session, --agent
+```
+
+Verified before loop use: stdin prompt accepted, `--format json` JSONL stream matches the
+v1-era adapter parser (`type:"text"`, `part.text`, `sessionID`), default build agent
+permits workspace writes headless (file write executed without extra flags), `--agent plan`
+runs clean, and `--session <ses_id>` continues or creates.
 
 ## Overlay template insertion (review prompt)
 
