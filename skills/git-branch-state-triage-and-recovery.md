@@ -2,18 +2,20 @@
 name: git-branch-state-triage-and-recovery
 description: >-
   Diagnose and recover stale, orphaned, diverged, prematurely merged, closed-PR, rewritten-SHA,
-  or contaminated stacked branches. Use before rebasing, discarding, replaying, or opening a PR
-  when branch identity, ancestry, PR ownership, or the unique patch is uncertain.
+  or contaminated stacked branches, and retire classified work safely. Use before rebasing,
+  discarding, replaying, opening a PR, or deleting stale branches when branch identity, ancestry,
+  PR ownership, the unique patch, or the remote retirement state is uncertain.
 category: tooling
 date: 2026-07-13
-version: "2.1.0"
+version: "2.2.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-local
 tags: [git, branch, triage, recovery, stale, superseded, orphan, diverged, merge-base,
   cherry-pick, unrelated-histories, consolidation, squash-merge, stash, auto-merge,
   follow-up-branch, force-with-lease, closed-pr, replacement-pr, stacked-pr, backup-ref,
-  exact-head, concurrent-trunk, artifact-provenance]
+  exact-head, concurrent-trunk, artifact-provenance, decommission, remote-only-commits,
+  retirement]
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/git-branch-state-triage-and-recovery.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -40,6 +42,10 @@ The complete superseded source is archived in
 - A closed PR cannot be reopened, but its head can be recovered into a replacement PR.
 - A merged PR's branch looks unique because commit SHAs were rewritten.
 - A stacked child includes unrelated commits and must be rebuilt from its current parent.
+- An approved cleanup retires several stale branches, worktrees, or stashes and the local clone
+  can lag the remote.
+- A branch was deleted locally while its remote name can still hold commits that no local ref
+  fetched.
 
 ## Verified Workflow
 
@@ -61,6 +67,16 @@ gh pr list --head <branch> --state all \
 
 Use `headRefName` from GitHub; never derive a PR branch from an issue number. Re-read `headRefOid`
 before pushing rewritten history.
+
+For a retirement scope, also enumerate the live remote names. A local clone does not prove the
+remote state: a remote head can hold commits that no local ref ever fetched.
+
+```bash
+git ls-remote --heads origin '<retirement-pattern>'
+git fetch origin <branch>:refs/remotes/origin/<branch>
+mb=$(git merge-base origin/main refs/remotes/origin/<branch>)
+git log --oneline "$mb"..refs/remotes/origin/<branch>
+```
 
 ### 2. Classify the state
 
@@ -156,6 +172,26 @@ Record the parent and child heads, preserve a backup ref, rebase the parent firs
 child at the rebased parent, and cherry-pick only child-owned commits. Verify the final child range
 against the parent, not against trunk, until the dependency is removed.
 
+#### Retirement of classified-superseded work
+
+Retirement is a destructive operation with its own proof. The approved disposition list is a
+point-in-time snapshot of both local and remote state, so bind execution to a fresh enumeration:
+destroy only items on the approved list, and treat objects that appear mid-operation from parallel
+streams as foreign. Report them; never include them only because they match the cleanup pattern.
+
+For each approved branch, archive every commit that no preserved ref contains, then delete the
+name in both namespaces:
+
+```bash
+git format-patch -o <archive-dir> "$mb"..refs/remotes/origin/<branch>
+git branch -D <branch>
+git push origin --delete <branch>
+git update-ref -d refs/remotes/origin/<branch>
+```
+
+Retirement is complete only when re-enumeration returns zero refs in both the local branches and
+the remote heads for every retired pattern.
+
 ### 5. Verify and publish
 
 Before push, inspect `git diff <intended-base>..HEAD`, changed paths, commit signatures/trailers,
@@ -174,6 +210,7 @@ After push, ensure the PR head, base, and current-head checks match the recovere
 | Assume branch name from issue | Assume branch name from issue | Existing PR may use another head | Read `headRefName` from GitHub |
 | Bare `--force-with-lease` | Bare `--force-with-lease` | May not protect the observed head | Pin the branch and old OID explicitly |
 | Rebuild child from trunk | Rebuild child from trunk | Loses intended stack dependency | Rebuild from the rebased parent |
+| Trust a point-in-time inventory | Retire branches from the initial local-only inventory | A remote head held commits that no local ref fetched; a parallel stream also created new matching objects mid-operation | Re-enumerate remote and local state at execution; archive remote-unique commits before `push origin --delete`; destroy only enumerated approved items |
 
 ## Results & Parameters
 
@@ -191,6 +228,7 @@ classification: <state>
 preservation ref: <ref>
 recovery action: <bounded action>
 verification: <commands/results>
+remote refs for retired names: <before enumeration → after enumeration (zero)>
 ```
 
 Never call a branch superseded solely because it is old, or unique solely because it is ahead.
