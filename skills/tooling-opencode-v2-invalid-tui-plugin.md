@@ -3,7 +3,7 @@ name: tooling-opencode-v2-invalid-tui-plugin
 description: "Diagnose and resolve the OpenCode V2 error `Invalid V2 TUI plugin module`. Use when: (1) a TUI plugin shows status failed with this error, (2) a V1-era community plugin must work in OpenCode V2, (3) you must choose between removal with a native replacement or an upstream port."
 category: tooling
 date: 2026-10-09
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 tags: [opencode, plugin, tui, api-migration, package-compatibility]
 ---
@@ -82,6 +82,31 @@ from `@opencode/plugin/tui` and peer `@opentui/solid` `>=0.5.8`.
   }
 }
 ```
+
+### Keybind reference (V2)
+
+`leader` defaults to `ctrl+x`; `<leader>` in a binding refers to that key. Change
+it with the `leader` keybind entry, and the wait time with the top-level
+`leader.timeout`. A binding value is a key string, a comma-separated string or an
+array of alternatives, an object such as `{ "key": "ctrl+v", "preventDefault": false }`,
+or `none` / `false` to disable the command. Unknown command IDs are rejected.
+
+V2 session-tab command IDs and defaults:
+
+| ID | Default |
+| --- | --- |
+| `session.tab.next` | `ctrl+tab,alt+down` |
+| `session.tab.previous` | `ctrl+shift+tab,alt+up` |
+| `session.tab.close` | `<leader>w` |
+| `session.tab.reopen` | `ctrl+shift+t` |
+| `session.tab.next_unread` | `alt+shift+down` |
+| `session.tab.previous_unread` | `alt+shift+up` |
+| `session.tab.history.back` | `none` |
+| `session.tab.history.forward` | `ctrl+i` |
+| `session.tab.select.1` to `session.tab.select.10` | `<leader>1` to `<leader>0`, `ctrl+1` to `ctrl+0` |
+
+No V2 default uses `<leader>]` or `<leader>[`, so the example bindings above do
+not conflict with other defaults.
 
 ### Expected Output
 

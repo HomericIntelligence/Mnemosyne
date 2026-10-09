@@ -65,6 +65,29 @@ existed.
 - The V2 keybind reference lists native tab commands (`session.tab.next`,
   `session.tab.previous`, `session.tab.close`, ...) for a keyboard replacement.
 
+## Keybind reference evidence (v1.1.0)
+
+Source: OpenCode V2 keybind reference (`https://opencode.ai/v2/docs/cli/keybinds`),
+retrieved 2026-10-09:
+
+- `leader` defaults to `ctrl+x`; `keybinds.leader` overrides it; the top-level
+  `leader.timeout` object sets the wait after the leader key.
+- Binding value forms: key string, comma-separated alternatives, array, object
+  (`{ "key": ..., "preventDefault": ... }`), `none`, or `false`. Unknown command
+  IDs are rejected.
+- Defaults table lists each `session.tab.*` command ID and its default binding.
+
+Cross-check: the command-ID set agrees with the `keybinds` properties in the
+published V2 configuration schema (`https://opencode.ai/v2/cli.json`).
+
+Conflict scan: a full read of the defaults table found no default binding that
+uses `<leader>]` or `<leader>[` (the closest, `which-key.group.next`, uses
+`ctrl+alt+]`).
+
+Applied configuration: the example `tabs` + `keybinds` block from the main entry
+was written to a live `cli.json` on a v2.0.24 host and validated against the
+published V2 schema without errors.
+
 ## Limits
 
 - Verified on one public OpenCode release (v2.0.24). Later V2 releases can change
