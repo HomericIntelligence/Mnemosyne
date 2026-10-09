@@ -88,6 +88,15 @@ Applied configuration: the example `tabs` + `keybinds` block from the main entry
 was written to a live `cli.json` on a v2.0.24 host and validated against the
 published V2 schema without errors.
 
+Default-preservation rule (v1.1.1): the V2 keybind reference shows no merge
+between an explicit entry and the documented defaults. Its example sets
+`app.exit` to `["ctrl+c", "ctrl+d"]`, a strict subset of the documented default
+`ctrl+c,ctrl+d,<leader>q`. Replacement semantics are inferred from that example,
+not stated explicitly; the limit is recorded. The applied live configuration
+(only `<leader>]` and `<leader>[`) replaced the defaults
+`ctrl+tab,alt+down` / `ctrl+shift+tab,alt+up`; the comma-separated form
+restores both.
+
 ## Limits
 
 - Verified on one public OpenCode release (v2.0.24). Later V2 releases can change

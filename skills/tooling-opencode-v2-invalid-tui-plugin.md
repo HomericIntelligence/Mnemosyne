@@ -3,7 +3,7 @@ name: tooling-opencode-v2-invalid-tui-plugin
 description: "Diagnose and resolve the OpenCode V2 error `Invalid V2 TUI plugin module`. Use when: (1) a TUI plugin shows status failed with this error, (2) a V1-era community plugin must work in OpenCode V2, (3) you must choose between removal with a native replacement or an upstream port."
 category: tooling
 date: 2026-10-09
-version: "1.1.0"
+version: "1.1.1"
 user-invocable: false
 tags: [opencode, plugin, tui, api-migration, package-compatibility]
 ---
@@ -90,6 +90,10 @@ it with the `leader` keybind entry, and the wait time with the top-level
 `leader.timeout`. A binding value is a key string, a comma-separated string or an
 array of alternatives, an object such as `{ "key": "ctrl+v", "preventDefault": false }`,
 or `none` / `false` to disable the command. Unknown command IDs are rejected.
+An explicit entry sets the complete shortcut list for that command; the
+reference documents no merge with the defaults. Repeat the defaults in the
+value when you want to keep them, for example
+`"session.tab.next": "<leader>],ctrl+tab,alt+down"`.
 
 V2 session-tab command IDs and defaults:
 
