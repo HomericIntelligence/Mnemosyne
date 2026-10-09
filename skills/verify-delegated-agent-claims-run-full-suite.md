@@ -1,13 +1,13 @@
 ---
 name: verify-delegated-agent-claims-run-full-suite
 license: BSD-3-Clause
-description: "Verify consequential delegated-work claims against source and execution evidence. Use for rebases, missing symbols, behavior changes, and tests that may run from the wrong checkout."
+description: "Verify consequential delegated-work claims against source and execution evidence. Use for rebases, missing symbols, behavior changes, review scores that rest on delegated inventories, and tests that may run from the wrong checkout."
 category: tooling
 date: 2026-06-27
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-ci
-tags: [delegation, sub-agent, rebase, verification, full-suite, worktree, merge-base, ci-cost]
+tags: [delegation, sub-agent, rebase, verification, full-suite, worktree, merge-base, ci-cost, review-scoring, inventory-claims]
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/verify-delegated-agent-claims-run-full-suite.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -29,6 +29,8 @@ history-cleanup-date: "2026-09-20"
 - CI keeps failing on a DIFFERENT test each round after a delegated rebase/refactor — a sign the agent's structural claim was wrong and/or you are testing the wrong subset.
 - You are about to validate a merge candidate by running only the specific tests you THINK are affected.
 - A path-relative test produces a false failure because the full suite was run from the main repo root instead of the worktree root.
+- A review or audit session delegates inventory work (file counts, existence checks, classification) to sub-agents, and the published verdict, grade, or finding list will rest on those claims.
+- A delegated claim is decisive: if the claim were false, a score, grade, or finding severity would change.
 
 ## Verified Workflow
 
@@ -58,6 +60,7 @@ cd <worktree-root> && pixi run pytest tests/unit/ -q --no-cov -p no:cacheprovide
 3. **Verify behavioral claims by executing the contract.** Do not read the agent's summary to confirm a value regression was fixed — run the function and assert its return value (e.g. per-phase values). Claims like "the value is now X" must be observed, not narrated.
 4. **Select verification for the changed surface.** Broad rebases and refactors can justify the full suite because focused tests may miss stale assertions. Use the authorized validation environment, record the tested revision, and avoid repeating equivalent checks without new changes or unresolved failures.
 5. **Run from cwd == the worktree root**, never the main repo root, so path-relative tests (`Path(__file__).parents[N]`) resolve against the correct checkout instead of giving a false failure.
+6. **Verify every verdict-decisive delegated claim directly.** When a published verdict or score rests on delegated inventory claims, enumerate the decisive claims — those whose refutation would change a score, grade, or finding. Verify each with the cheapest read-only command (`git ls-files | wc -l` for counts, `test -f` or `ls` for existence, direct reads for classification). Record which claims were verified and which were trusted. If a check refutes a claim, recompute the affected score and correct the finding before publication. An unverified decisive claim is not evidence.
 
 ## Failed Attempts
 
@@ -87,10 +90,13 @@ cd <worktree-root> && pixi run pytest tests/unit/ -q --no-cov -p no:cacheprovide
   --ignore=<known-network-hang-files>
 ```
 
-**Cross-references:** see the sibling skills on rebase re-parenting / merge-base verification (`git-workflow-rebase-worktree-signing`, `pr-rebase-conflict-resolution-patterns`) and on worktree-relative test cwd (`git-worktree-sys-path-precedence-issue`, `python-path-resolution-cwd-resolve-contract`).
+**Review-verdict framing (2026-10):** a full-repository review delegated its inventory passes to parallel sub-agents. Before publication, every grade-decisive claim was verified directly with cheap read-only commands, so the scorecard rested only on observed evidence. Verification cost minutes; an authoritative verdict published on unverified delegated claims risks both false findings and false reassurance.
+
+**Cross-references:** see the sibling skills on rebase re-parenting / merge-base verification (`git-workflow-rebase-worktree-signing`, `pr-rebase-conflict-resolution-patterns`), on worktree-relative test cwd (`git-worktree-sys-path-precedence-issue`, `python-path-resolution-cwd-resolve-contract`), and on finding verification before triage (`repo-audit-triage-fix-and-issue-workflow`, Phase 1.5).
 
 ## Verified On
 
 | Project | Context | Details |
 |---------|---------|---------|
 | ProjectHephaestus | #1657 (2026-06-27) — long multi-round rebase/refactor session where sub-agents repeatedly reported success but CI failed on a different test each round | Cycle broke after independent structural verification + one full-suite run (4926 tests) from the worktree cwd |
+| A full-repository review session | 2026-10 — parallel sub-agents produced file inventories that fed a published scorecard | Every grade-decisive claim verified directly with read-only commands before publication; the score rested only on observed evidence |
