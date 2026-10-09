@@ -59,15 +59,17 @@ helper for the exchange; fail-closed guards reject every retry.
 3. If the round is terminal-eligible, route the carrier through the designated terminal delivery helper. Do not publish the same state through a general publisher first. The helper binds the closure ledger as the visible digest of the review body; a carrier that already exists at the same head makes the helper input invalid.
 4. If the wedge already exists, do not retry the helper. The guards (conflicting-terminal review, nonforking chain) are deterministic fail-closed checks; a retry reproduces the same rejection.
 5. Select a recovery from the wedge:
+   - **Sanctioned supersession**: if the exchange tooling supports an opt-in overriding terminal report, use it first. It binds the foreign carrier, declares it superseded, and carries the closure ledger as the authoritative state, so the helper's bookkeeping closes for the exchange.
    - **Owner override**: record the published exact-head GO review as the merge gate. Post an explanatory note on the pull request, apply the state labels directly, and run the merge on that recorded gate. Keep the override decision and the evidence pointers in the note.
    - **Full protocol recovery (reframe)**: use only when the exchange requirements genuinely changed. A reframe is the only complete-state carrier the chain accepts after a wedge; a reframe without a real requirements delta fabricates protocol state.
-   - **Hold**: stop the publication, keep the exchange open, and escalate to the owner when neither override authority nor changed requirements exist.
+   - **Hold**: stop the publication, keep the exchange open, and escalate to the owner when no other exit applies.
 6. After recovery, close the loops that the helper would normally close (finding threads, labels, notes) explicitly, with references to the recorded gate.
 
 ### If a step is unavailable
 
 - No ledger-binding helper on the flow (older exchange tooling): this rule does not bind; record which publisher convention the flow uses before the terminal round.
-- No override authority: hold and escalate; do not weaken the guard, and do not publish more carriers to probe the guard.
+- Before you declare a wedge permanent, check whether the installed tooling supports a sanctioned opt-in supersession report. Tooling generations differ: later helpers can recover in-band from a foreign-published carrier.
+- No override authority and no supersession support: hold and escalate; do not weaken the guard, and do not publish more carriers to probe the guard.
 
 ## Failed Attempts
 
@@ -83,6 +85,7 @@ helper for the exchange; fail-closed guards reject every retry.
 ```text
 round has open findings (NO-GO)      -> general state-carrier publication does not wedge the helper
 round is terminal-eligible (GO)      -> terminal carrier through the designated helper ONLY
+wedge exists, supersession available -> opt-in overriding terminal report (in-band recovery)
 wedge exists, requirements unchanged -> owner override (recorded gate) or hold; never retry the helper
 wedge exists, requirements changed   -> reframe carrier through the exchange flow
 ```

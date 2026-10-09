@@ -34,12 +34,28 @@ same-head prior publication makes that binding unachievable, so a retry cannot
 succeed. The decision value is the publish-order constraint, which one
 observed rejection proves.
 
+## Recovery outlook
+
+After the incident, an upstream change request was filed for the exchange
+tooling: an opt-in mode in which the terminal helper, instead of refusing a
+foreign-published same-head terminal carrier, publishes a superseding terminal
+report. The report binds the foreign carrier by review identity and state
+digest, declares it superseded, and carries the canonical closure ledger as
+the authoritative state. The default stays fail-closed; supersession requires
+explicit operator opt-in and a single parseable, attributable foreign carrier.
+
+If such a mechanism lands, prefer it over an owner override: it closes the
+helper's bookkeeping for the exchange instead of leaving it permanently
+incomplete. Reassess the permanence of this wedge class against the installed
+tooling generation before you select a recovery.
+
 ## Limits
 
 - Evidence comes from one exchange on v1-era exchange tooling. Helper versions
   that do not bind a closure ledger may not enforce sole publication.
 - The reframe path was evaluated against the protocol contract; it was not
-  executed.
+  executed. The supersession path is a filed proposal, not yet implemented or
+  verified.
 - The owner override is a governance decision, not a protocol mechanism. It
   requires owner authority and leaves the helper's bookkeeping incomplete for
   the exchange; the notes, labels, and thread closures must then be done
