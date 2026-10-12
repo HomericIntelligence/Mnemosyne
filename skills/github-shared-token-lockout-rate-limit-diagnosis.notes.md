@@ -53,3 +53,36 @@ The target job then made progress. The exact duration of the recovery was not me
   the contrast between the budget read and the live call, not on the message text.
 - The duration of the lockout after the pressure stopped was not measured. A host that restarts the
   sibling jobs too early can return to the same state.
+
+## Burn attribution on an exhausted shared budget
+
+A second incident class used the same failure message with the hourly GraphQL budget actually at
+zero. Two `gh api rate_limit` reads, five minutes apart, measured the spend directly: the REST call
+costs nothing against the GraphQL budget. The quiet-window spend was about one seventh of the
+hourly GraphQL cap, yet the budget still reached zero repeatedly.
+
+The measured consumers were concurrent automation loops on one token, each with worker fan-out.
+Three mechanisms dominated:
+
+- each agent worker issued its own CLI reads, so total calls scaled with worker count;
+- whenever the budget died, guarded jobs deferred and then resumed at the same reset second, which
+  re-exhausted the new budget within minutes;
+- the same label, metadata, and scan reads repeated on every poll cycle with no local reuse.
+
+Mitigations that directly follow from the mechanisms: a TTL read-through cache or query batching
+for repeated reads, worker caps and client request rates set before a lockout, staggered restarts
+past a reset, and one token per job for budget isolation. For a lasting fix inside the shared
+client layer, a cache with local TTL storage and mutation-aware invalidation was filed as an
+upstream enhancement request.
+
+## REST fallback while GraphQL is exhausted
+
+The REST primary rate limit is a separate budget from the GraphQL budget. During a confirmed
+GraphQL exhaustion window, the same account completed required writes through `gh api` REST paths:
+
+- issue creation through `POST /repos/{owner}/{repo}/issues`;
+- pull-request creation through `POST /repos/{owner}/{repo}/pulls`.
+
+`gh issue create` and `gh pr create` use GraphQL only; there is no fallback inside the commands.
+Conditional (ETag) requests exist for REST and return 304 without spending the primary budget, but
+GraphQL has no equivalent mechanism, so TTL caching is the only local reduction for GraphQL reads.
