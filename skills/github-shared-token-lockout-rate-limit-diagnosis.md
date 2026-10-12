@@ -3,7 +3,7 @@ name: github-shared-token-lockout-rate-limit-diagnosis
 description: "Tell hourly quota exhaustion apart from a concurrency lockout on one GitHub account, attribute the burn to bursts or steady load, reduce duplicate reads, and use the REST budget as a GraphQL-exhausted fallback. Use when an automation job reports an API rate-limit error while the reported quota still shows a large remaining budget."
 category: debugging
 date: 2026-10-12
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 tags:
   - github-api
@@ -13,6 +13,7 @@ tags:
   - diagnosis
   - credentials
   - caching
+  - quiet-floor
 ---
 
 # GitHub Shared-Token Lockout Rate-Limit Diagnosis
@@ -35,6 +36,8 @@ Use this skill when:
 - More than one automation job, loop, or agent uses one account token.
 - Required writes (issue or pull-request creation) must proceed while GraphQL is exhausted.
 - Repeated reads look wasteful, and a per-minute budget attribution is needed before a rate change.
+- GraphQL calls fail while other traffic still succeeds (REST v3 reads/writes, git fetch/push) and
+  you must decide what pauses and what keeps running.
 
 Do not use this skill to repair detection code inside a tool. Use it to choose the operator
 recovery. For tool code, see
@@ -86,6 +89,11 @@ gh api rate_limit --jq '.resources.graphql | .remaining'
 5. Confirm recovery with one live call before you restart the job.
 6. Keep the tool-side repair separate. A tool that misreads the message, or that backs off for a
    whole window, still needs its own code fix.
+7. When you cannot stop the sibling jobs — for example when other operators own them — keep one
+   job alive and space its whole-attempt starts with a quiet floor. An attempt started after
+   1800 seconds of account quiet completed a productive slice before the next request burst,
+   while every probe during visible pressure failed instantly. The floor paces attempt starts; it
+   does not clear the lockout, and a burst inside an attempt can still trip it.
 
 A lockout clears when request pressure stops. Repeated retries keep the pressure, so a retry loop
 can prolong the lockout for every job that shares the account.
@@ -112,6 +120,10 @@ For hourly exhaustion, not only lockouts:
    gh api repos/<owner>/<repo>/pulls  -X POST -F title=... -F head=<branch> -F base=<base> -F body=@body.md
    ```
 
+5. Keep git transport traffic running. `git fetch` and `git push` do not use the GraphQL budget.
+   During one GraphQL-scoped lockout an operator published five branches without one retry. This
+   holds both for an exhausted budget and for an abuse lockout with budget remaining.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -121,6 +133,7 @@ For hourly exhaustion, not only lockouts:
 | Trust the message text | The recovery was chosen from the message alone. | The message names a rate limit but not the class, and it carried no usable reset value. | Classify from a budget read plus a live call. |
 | Treat steady-state spend as the problem | Rates and caps were tuned from one quiet-window reading, but exhaustion kept recurring at bursts. | Quiet-window spend was far below the cap; correlated bursts from parallel workers and post-reset resume storms were the cause. | Attribute burn with two budget reads before a rate change. |
 | Restart everything at the reset | Deferred jobs resumed together at the reset second. | The fresh budget was spent to zero again within minutes. | Stagger restarts past the reset; isolate budgets per job where possible. |
+| Pause all traffic on any rate-limit error | Every manual query, fetch, and push was stopped whenever a GraphQL error appeared. | REST calls and git push/fetch stayed usable in the same window; the unnecessary pause cost recovery hours. | Probe the other surfaces once; keep the traffic that works. |
 
 ## Results & Parameters
 
@@ -131,6 +144,7 @@ concurrency:
   jobs_per_account: 1
   client_rate_per_second: 5
   cooldown_after_lockout_seconds: 600
+  attempt_quiet_floor_seconds: 1800  # whole-attempt start spacing when siblings must keep running
 ```
 
 ### Expected Output
@@ -144,6 +158,7 @@ concurrency:
 | Project | Context | Details |
 | ------- | ------- | ------- |
 | Private automation host | Operator session with several jobs on one account | See [notes](github-shared-token-lockout-rate-limit-diagnosis.notes.md). |
+| Private automation host, second fleet | Three GraphQL-scoped lockout recurrences over two days on a shared-account fleet; REST and git transport stayed usable; quiet-floor pacing kept one supervised job productive | See [notes](github-shared-token-lockout-rate-limit-diagnosis.notes.md#second-fleet-graphql-scoped-lockouts-and-restart-pacing). |
 
 ## References
 

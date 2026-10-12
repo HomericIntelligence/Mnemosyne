@@ -86,3 +86,39 @@ GraphQL exhaustion window, the same account completed required writes through `g
 `gh issue create` and `gh pr create` use GraphQL only; there is no fallback inside the commands.
 Conditional (ETag) requests exist for REST and return 304 without spending the primary budget, but
 GraphQL has no equivalent mechanism, so TTL caching is the only local reduction for GraphQL reads.
+## Second fleet: GraphQL-scoped lockouts and restart pacing
+
+The REST fallback section above covers GraphQL exhaustion (budget at zero). A second fleet showed
+the complementary case on three separate days: an abuse-style lockout with the budget mostly
+remaining, plus the traffic and restart behavior around it.
+
+### Budget remaining, graph calls still rejected
+
+Every GraphQL call failed instantly during each window:
+
+```text
+GraphQL: API rate limit already exceeded for user <account-id>
+```
+
+At the same time, in the same minutes, on the same account:
+
+- REST v3 calls (`gh api repos/...` reads and label updates) completed normally.
+- Git transport operations completed normally; five branches were published during one window
+  without a single retry (`git push` does not use the GraphQL budget).
+
+### Quiet-floor pacing when siblings cannot be stopped
+
+The fleet ran several tenants on the shared account, and stopping sibling jobs was not available
+(other operators owned them, per a standing constraint). The surviving supervised job used a
+quiet floor of 1800 seconds between whole-attempt starts. Across the three recurrences:
+
+- An attempt started after the quiet floor ran 25–30 productive minutes (work-item claims,
+  worktree creation, resume detection) before an internal request burst re-tripped the lockout.
+- Every probe sent during visible pressure failed instantly regardless of the remaining budget.
+- The lockout lifted after quiet periods and returned when total account pressure rose again.
+  Plan for recurrence, not a one-time fix.
+
+Limits: the floor paces attempt starts, not in-attempt bursts. One attempt's own burst (a storm
+of pull-request listings during a reseeding phase) tripped the lockout. A request-rate guard
+inside the tool is the prevention layer; the floor is a survival measure for a tool you cannot
+modify.
