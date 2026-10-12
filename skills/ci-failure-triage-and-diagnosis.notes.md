@@ -18,6 +18,7 @@ SHA-256 `dbfeed396bb4cb23d547fc0d9077a6e5756b9f71b820cda2b4e2ee6acd83e592`.
 | Interruptible E2E subprocess runner | [ProjectScylla PR #1515](https://github.com/HomericIntelligence/ProjectScylla/pull/1515) | verified-ci | Poll futures/processes every two seconds and isolate stdin/process groups |
 | Cross-CPU survey | [Immutable v1.1.0 source](https://github.com/HomericIntelligence/Mnemosyne/blob/10e28497993009cc221cb991e1ee183e6117eda8/skills/ci-failure-triage-and-diagnosis.md) | verified-local survey; causal interpretation not proved | Hold image/reproducer constant and record CPU model, flags, iterations, and exits |
 | Proposed pixi/yamllint hardening | [ProjectOdyssey issue #252](https://github.com/HomericIntelligence/ProjectOdyssey/issues/252) | unverified proposal | Do not upgrade a planning suggestion to verified behavior |
+| Failed-job rerun rejected by attempt-bound producer output | CI drive-green session, 2026-10 (public project; identifiers withheld) | verified-ci | A startup identity error after a `--failed` rerun means the producer output pins the old attempt; only a full rerun realigns it |
 
 ## Detailed Case Notes
 
@@ -47,6 +48,23 @@ Six surveyed non-AVX-512 Intel hosts ran clean while the hosted environment rema
 observation rejected the simple “no AVX-512 always crashes” hypothesis; it did not prove the
 virtualization/CPU-name mechanism. Treat the latter as a focused hypothesis requiring additional
 compiler/runtime evidence.
+
+### Attempt-bound producer output rejects failed-job reruns
+
+A workflow that shards tests behind one gate job re-ran only the failed shard after a single
+timing-sensitive test read an empty status payload from a worker process (verified flake; test
+file untouched by the change under review). The rerun failed in under a minute: a policy job's
+scope record embedded `run_id` and `run_attempt` from attempt 1, and the re-run shard validated
+that record against its own attempt 2 environment before it ran any test. The aggregate gate job
+then reported the required test job as failed. A full rerun regenerated the scope record for the
+new attempt, every shard passed, the gate check succeeded, and the pull request merged on the
+green result.
+
+Name this branch early: an identity or configuration error at job startup that the original
+attempt did not show is not a test regression. Repeating `--failed` reruns only bumps the
+consumer attempt again, so the mismatch is permanent until a full rerun regenerates the producer
+output. Verification: `verified-ci` (full rerun green; required gate success observed on the
+same head).
 
 ## Verification Checklist
 
