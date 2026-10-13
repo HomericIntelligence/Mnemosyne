@@ -8,6 +8,7 @@ These notes retain project-specific evidence moved during
 | Case | Source | Status | Disposition |
 | --- | --- | --- | --- |
 | Merge-queue REST 405 | [ProjectHephaestus #2311](https://github.com/HomericIntelligence/ProjectHephaestus/issues/2311) / [PR #2312](https://github.com/HomericIntelligence/ProjectHephaestus/pull/2312) | verified-ci | Repository helper fell back to native queue path without method flag |
+| Queue-only gh admission | [Mnemosyne PR #3454](https://github.com/HomericIntelligence/Mnemosyne/pull/3454) | verified | Direct REST merge returned 405 under the merge-queue rule; `gh pr merge` enqueued (CLI output is informational), `already queued` confirmed state, and the `merged_at` poll confirmed the queue merge |
 | Required-thread blocker | [ProjectHephaestus PR #1282](https://github.com/HomericIntelligence/ProjectHephaestus/pull/1282) | verified-ci | Two unresolved threads, not stale lint, blocked merge |
 | Current-head completion | [Issue #1645](https://github.com/HomericIntelligence/ProjectHephaestus/issues/1645) / [PR #1646](https://github.com/HomericIntelligence/ProjectHephaestus/pull/1646) | verified-ci | DCO/signature, PR label, squash auto-merge, current checks |
 | Six-PR completion sweep | [ProjectHephaestus epic #1809](https://github.com/HomericIntelligence/ProjectHephaestus/issues/1809) | verified-ci | Exposed PR-vs-issue label, stale check, merge-result drift, truncated review, leaked checkout edits |
