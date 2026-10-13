@@ -1,9 +1,9 @@
 ---
 name: pr-ci-failure-triage-preexisting-vs-introduced
-description: "Classify red PR checks as introduced, pre-existing, flaky, environmental, stale-commit, or status-rollup artifacts before fixing or rerunning. Use after rebases/force-pushes, unrelated failures, merge-preview coverage changes, or hosted-only process-launch errors."
+description: "Classify red PR checks as introduced, pre-existing, flaky, environmental, stale-commit, or status-rollup artifacts before fixing or rerunning. Use after rebases/force-pushes, unrelated failures, merge-preview coverage changes, or hosted-only process-launch errors. Also use when the required check is a fan-in gate reported by a ruleset, or when the failing symbol on the base was deliberately removed."
 category: ci-cd
 date: 2026-07-31
-version: "2.1.0"
+version: "2.2.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-ci
@@ -16,6 +16,9 @@ tags:
   - flaky
   - stale-commit
   - merge-preview
+  - ruleset
+  - fan-in-gate
+  - undefined-symbol
   - e2big
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pr-ci-failure-triage-preexisting-vs-introduced.history"
 history-cleanup-date: "2026-09-20"
