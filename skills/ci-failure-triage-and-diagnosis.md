@@ -1,9 +1,9 @@
 ---
 name: ci-failure-triage-and-diagnosis
-description: "Diagnose CI failures from run logs and revision-specific workflows. Distinguish source defects, missing required contexts, infrastructure failures, and stale runs."
+description: "Diagnose CI failures from run logs and revision-specific workflows. Distinguish source defects, missing required contexts, infrastructure failures, stale runs, and rerun identity rejections."
 category: ci-cd
-date: 2026-06-20
-version: "2.1.1"
+date: 2026-10-12
+version: "2.2.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-local
@@ -53,6 +53,9 @@ gh run list --repo <org>/<repo> --workflow=<workflow> --branch main --limit 5 \
 gh run rerun <RUN_ID> --failed --repo <org>/<repo>
 gh run watch <RUN_ID> --repo <org>/<repo>
 
+# Recover when the rerun rejects attempt-bound producer outputs.
+gh run rerun <RUN_ID> --repo <org>/<repo>
+
 # Budget batch diagnostics.
 gh api rate_limit --jq '.resources.core | "used:\(.used)/\(.limit) resets:\(.reset|todate)"'
 ```
@@ -83,6 +86,15 @@ permitted force update, re-arm its auto-merge request because the force update c
 For a red run, rerun only failed jobs. A pass is evidence of a transient failure; a repeated,
 same-signature failure is reproducible. Empty commits are unreliable with concurrency
 deduplication; use `gh run rerun --failed`.
+
+A failed-job rerun reuses the outputs of jobs that succeeded in the earlier attempt. When a
+producer job stamps its output with run-attempt identity, such as `run_id` plus `run_attempt`,
+and a consumer job validates that identity before it starts its work, the rerun fails
+deterministically: the producer output still names the old attempt while the consumer runs under
+the new one. The signature is a previously green job that aborts seconds into the rerun with a
+configuration or identity error that the original attempt did not show. Further `--failed`
+reruns keep failing by construction. Use a full rerun (`gh run rerun <RUN_ID>`) so the producer
+regenerates its output for the current attempt and the consumer identity check aligns again.
 
 For `BLOCKED` with no failure, compare required and posted contexts:
 
@@ -174,6 +186,7 @@ the current head SHA.
 | Per-PR suppression | Patched identical failures on each branch | The defective file came from main | Fix main once; rebase only an active task that needs the fix or a PR with a reported conflict |
 | Blocking futures | Used `as_completed()` and unbounded waits | Shutdown could not be observed while nothing completed | Poll at two-second intervals |
 | Always-on debug capture | Defaulted gdb collection to true | Every PR paid the diagnostic cost | Use an opt-in dispatch input |
+| Failed-job rerun on an attempt-bound producer | Re-ran only the failed shard after a matrix flake | The producer output pinned the earlier attempt, so rerun consumers rejected the identity and exited at startup | Detect attempt-bound producer/consumer validation; switch to a full rerun |
 
 ## Results & Parameters
 
@@ -181,6 +194,7 @@ the current head SHA.
 | --- | --- |
 | Failing evidence | `gh run view --job=<JOB_ID> --log-failed` before diagnosis |
 | Recurrence | One failed-job rerun; repeated same signature is reproducible |
+| Attempt-bound producer rerun | Full `gh run rerun <RUN_ID>`; repeated `--failed` reruns stay misaligned |
 | Shutdown poll interval | `2.0` seconds |
 | gdb signals | SIGILL, SIGABRT, SIGSEGV, SIGBUS, SIGFPE |
 | Debug input | Boolean, `default: false`, dispatch-only |
