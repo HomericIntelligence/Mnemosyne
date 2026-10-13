@@ -6,7 +6,7 @@ description: >-
   arming auto-merge or admitting a reviewed head to a repository-owned merge queue.
 category: ci-cd
 date: 2026-07-30
-version: "2.0.0"
+version: "2.1.0"
 user-invocable: false
 verification: verified-ci
 license: BSD-3-Clause
@@ -35,6 +35,8 @@ repository-specific policy transitions are `verified-local`; their boundaries ar
 
 - A PR is `CLEAN`/mergeable and checks look green, but auto-merge does not fire.
 - A merge command rejects `--rebase` or `--squash`, or the repository allows one method only.
+- A direct merge call is rejected with `Repository rule violations found` because the base
+  branch requires the merge queue.
 - Required contexts never post, appear twice, or show an old failure beside a newer success.
 - `mergeStateStatus=BLOCKED` with green CI and unresolved review threads may remain.
 - Rulesets and classic branch protection impose a stricter union than either UI view suggests.
@@ -104,6 +106,17 @@ An exact review GO establishes the requested verdict on the reviewed OID. Before
 separately prove merge authority, current head identity, required checks, human review count, and
 queue/auto-merge ownership.
 
+### Repository-forced queue admission
+
+On a queue-protected base, direct merge mutations are structurally rejected. The REST
+`PUT /repos/<OWNER>/<REPO>/pulls/<N>/merge` call returns HTTP 405 with
+`Repository rule violations found: Changes must be made through the merge queue`. Use
+`gh pr merge <N>`: the CLI detects the queue policy and enqueues the PR. Its output
+`The merge strategy for <BASE> is set by the merge queue` is informational, not an error.
+A repeated `gh pr merge <N>` prints `already queued to merge`; use it as the enqueued-state
+signal. Poll `gh api repos/<OWNER>/<REPO>/pulls/<N>` until `merged_at` is non-null, and
+treat the merge-group run for the base as the merge validation evidence.
+
 ### Common blockers
 
 - **Unresolved threads:** all checks green but conversation-resolution policy blocks merge.
@@ -129,6 +142,7 @@ queue/auto-merge ownership.
 | Resolve a review thread without a reply | Resolve a review thread without a reply | Evidence and reviewer context are lost | Reply with the fix, then resolve and refresh |
 | Put the GO label on the linked issue | Put the GO label on the linked issue | PR policy reads PR labels | Mutate and verify the pull request label |
 | Disable an external auto-merge request | Disable an external auto-merge request | No conditional disable proves ownership | Shared queue fails closed and stands down |
+| Direct merge on a queue-only base | Called the REST merge mutation against a merge-queue repository | The repository rule rejects every direct merge method with HTTP 405 | `gh pr merge <N>` detects the queue policy and enqueues; confirm with `already queued` |
 | Call empty review output clean | Call empty review output clean | The tool may have truncated before analysis | Require its completion marker |
 
 ## Results & Parameters
