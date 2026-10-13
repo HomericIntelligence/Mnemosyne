@@ -1,13 +1,13 @@
 ---
 name: repo-audit-triage-fix-and-issue-workflow
 license: BSD-3-Clause
-description: "Triage repository audit findings against source evidence and existing backlog; repair authorized defects and separate unrelated improvement suggestions."
+description: "Triage repository audit findings against source evidence and existing backlog; repair authorized defects, publish review-scale finding sets as one tracker with deduplicated child issues, and separate unrelated improvement suggestions."
 category: tooling
 date: 2026-07-29
-version: "1.4.0"
+version: "1.5.0"
 user-invocable: false
 verification: verified-local
-tags: [audit, triage, remediation, github-issues, dead-code, ci, requirements, parallel-execution, swarm-audit, false-positive, trust-but-verify, cross-version, runtime-compatibility, live-policy, security-scanning]
+tags: [audit, triage, remediation, github-issues, dead-code, ci, requirements, parallel-execution, swarm-audit, false-positive, trust-but-verify, cross-version, runtime-compatibility, live-policy, security-scanning, tracker-issue, sub-issues]
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/repo-audit-triage-fix-and-issue-workflow.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -154,6 +154,8 @@ Use these criteria to decide between **fix-now** and **file-as-issue**:
 | Impact if deferred | Low (hygiene) | Low–Medium (can track) |
 | Concrete fix known | Yes | Needs investigation |
 
+**Record-only findings.** An informational observation that needs no change — for example, a noted absence that matches a deliberate design choice — gets no work item. Record it in the review report. Do not file an issue to track work that nobody should do.
+
 **Fix-now categories (typical)**:
 - Dead scripts / migration artifacts with no callers
 - Duplicate files left from refactors
@@ -244,6 +246,18 @@ Classify each audit finding:
 | Existing closed issue regressed | Comment on the closed issue with regression evidence, then open a narrow follow-up |
 | Existing issue covers adjacent but not exact scope | Comment to clarify boundary, then open a focused gap issue |
 | No issue found | Create a new issue with orchestrator kickoff, evidence, and acceptance criteria |
+
+#### Publish review-scale finding sets
+
+When one review session selects more than a handful of work items, publish one tracking issue plus one child issue per finding instead of a flat list:
+
+1. Open the tracker first. Its body carries the review identity (source revision, score, verdict) and the finding inventory with each finding's disposition.
+2. Open one child issue per selected finding and link each child to the tracker as a sub-issue (`gh api repos/{owner}/{repo}/issues/<tracker-number>/sub_issues -f sub_issue_id=<child-issue-database-id>`). The hierarchy survives label edits and keeps the review readable as one unit.
+3. If the actor has no project-board access, let the tracker hierarchy carry the grouping state. Do not build a parallel label-only scheme.
+4. Give record-only findings no issue of their own; the tracker body or the review report records them.
+5. Re-resolve the repository binding before every hosted write. A moved or aliased working directory can redirect a write to a different repository (see `session-cwd-path-alias-repo-binding`).
+
+A flat list works for a handful of findings. At review scale, one tracker plus sub-issues is cheaper to audit, deduplicate, and sequence than many unlinked issues.
 
 When issue publication is in scope, useful details for each new item include:
 - Clear title stating the problem
@@ -434,6 +448,7 @@ host's Python 3.13; the repository's CI matrix remains the authority for the oth
 | Metrics Service | Strict audit issue-backlog reconciliation (April 2026) | Existing open issues were updated/commented/labeled first; only four missing focused issues were created (#181–#184) |
 | A predictive-coding research project | `/repo-analyze-strict-full` 15-section swarm audit, 2026-05-19 — 2 section false positives caught by finding-verification gate before triage | A phantom committed `__pycache__` (refuted by `git ls-files`) and a phantom "no CI" (refuted by `ls` of the monorepo root) were both caught before triage; one section grade corrected D+ → C- |
 | HomericIntelligence/Hephaestus | Strict full repository review at `cc9e154c` (2026-07-29) | Fresh local suite and live GitHub/security readbacks verified the cross-version extraction failure, broad scanner suppression, review-regime classification requirement, and canonical-document link failure; 6,861 passed, 6 skipped, 85.53% coverage |
+| A full-repository review session | Review-scale publication after backlog deduplication (2026-10) | One tracking issue plus deduplicated child issues linked as sub-issues; informational findings received no work item; the repository binding was re-resolved before each hosted write |
 
 ## References
 
@@ -445,3 +460,4 @@ host's Python 3.13; the repository's CI matrix remains the authority for the oth
 - Related skill: [pip-audit-policy-file-over-inline-ignores](./pip-audit-policy-file-over-inline-ignores.md) — centralize and verify scanner suppression policy
 - Related skill: [verification-evidence-audit](./verification-evidence-audit.md) — require fresh runnable evidence for completion and CI claims
 - Related skill: [dependency-floor-near-tested-version](./dependency-floor-near-tested-version.md) — align declared dependency/runtime floors with tested behavior
+- Related skill: [session-cwd-path-alias-repo-binding](./session-cwd-path-alias-repo-binding.md) — rebind repository identity after a session move or path aliasing before hosted writes
