@@ -2,8 +2,8 @@
 name: ci-failure-triage-and-diagnosis
 description: "Diagnose CI failures from run logs and revision-specific workflows. Distinguish source defects, missing required contexts, infrastructure failures, stale runs, and rerun identity rejections."
 category: ci-cd
-date: 2026-10-12
-version: "2.2.0"
+date: 2026-10-13
+version: "2.3.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-local
@@ -83,7 +83,9 @@ may rebase only when that main fix is required to complete the task. A completed
 stays unchanged for CI/CD integration. Do not scatter suppressions across the affected PRs. After a
 permitted force update, re-arm its auto-merge request because the force update clears it.
 
-For a red run, rerun only failed jobs. A pass is evidence of a transient failure; a repeated,
+Before a retry, compare the run's source SHA with the source that needs validation.
+A rerun retains its original source. It does not test a later repair commit.
+For a red run on the intended source, rerun only failed jobs. A pass is evidence of a transient failure; a repeated,
 same-signature failure is reproducible. Empty commits are unreliable with concurrency
 deduplication; use `gh run rerun --failed`.
 
@@ -96,18 +98,35 @@ configuration or identity error that the original attempt did not show. Further 
 reruns keep failing by construction. Use a full rerun (`gh run rerun <RUN_ID>`) so the producer
 regenerates its output for the current attempt and the consumer identity check aligns again.
 
-For `BLOCKED` with no failure, compare required and posted contexts:
+For `BLOCKED` with no failure, compare required and posted contexts at the exact PR head.
+Inspect both legacy branch protection and the rulesets that apply to the target branch:
 
 ```bash
 gh api repos/<org>/<repo>/branches/main/protection/required_status_checks \
-  --jq '.contexts[]' | sort > /tmp/required.txt
+  --jq '.contexts[]'
+gh api repos/<org>/<repo>/rules/branches/main \
+  --jq '.[] | select(.type == "required_status_checks") | .parameters.required_status_checks[].context'
 gh pr view <PR> --repo <org>/<repo> --json statusCheckRollup \
-  --jq '.statusCheckRollup[].name' | sort -u > /tmp/present.txt
-comm -23 /tmp/required.txt /tmp/present.txt
+  --jq '.statusCheckRollup[] | (.name // .context)'
 ```
 
-A whole-job `if:` or excluding `paths:` filter can prevent a required context from posting. Keep
-the required job running and skip work at step level, or provide an aggregator that always posts.
+A legacy protection response of `Branch not protected` does not prove that no ruleset applies.
+An authorization error or unavailable response is not an empty required-check list.
+Check the expected integration identity as well as the context name when the rule binds both.
+
+Distinguish an absent workflow run from a failed, cancelled, queued, or skipped job in an existing run.
+An aggregate cannot report when its parent workflow never starts.
+Inspect the workflow at the event revision, its event and path filters, and the PR event history.
+Consider event-time merge conflicts, workflow admission, and credential-trigger restrictions as hypotheses, not established causes.
+Current mergeability does not prove that the PR had no conflict when the event occurred.
+Successful push or `pull_request_target` runs do not prove that a `pull_request` workflow started.
+If the evidence cannot identify the cause, report that limit instead of declaring a lost event.
+
+Select a supported, authorized trigger for an absent run and verify the resulting source identity.
+Do not rerun an older head as evidence for a newer head. Do not manufacture a passing status.
+Do not change to privileged PR execution merely to force a trigger.
+For a confirmed path-filter problem, preserve the required context while limiting the applicable work.
+Do not assume that an administrator merge option overrides a ruleset. Verify actor authority and report a rejected attempt accurately.
 
 ### 3. Classify OOM and JIT crashes
 
@@ -180,6 +199,7 @@ the current head SHA.
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 | --- | --- | --- | --- |
 | Hypothesis before log retrieval | Diagnosed workflow internals from an issue narrative | The failing recipe never ran; `--log-failed` showed exit 127 | Fetch the failing job log first |
+| Legacy protection only | Treated an absent legacy protection rule as no required checks | A ruleset still required the missing aggregate | Inspect both rule sources before selecting recovery |
 | Host-path core capture | Put the runner CWD in `core_pattern` | The path did not exist in the crashing container namespace | Use the container-visible bind path |
 | Bare gdb and `hook-stop` | Ran host gdb and dumped on every stop | Environment paths were absent and exit-stop is not a live signal stop | Use `pixi run -- gdb` plus `SignalEvent` |
 | Exit 137 as OOM proof | Classified every 137 as OOM | A JIT signal handler produced the same code | Combine exit code with log signatures |
