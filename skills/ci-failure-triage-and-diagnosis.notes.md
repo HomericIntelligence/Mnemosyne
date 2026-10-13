@@ -68,6 +68,21 @@ same head).
 
 ## Verification Checklist
 
+### Missing-run evidence boundary
+
+A session observed an absent aggregate on a new PR head while documentation and provenance checks passed.
+The previous head had a completed CI run. The current workflow declared a PR trigger without a path filter.
+Legacy protection reported no protected branch, but the applicable ruleset required the aggregate.
+An authorized administrator merge attempt was rejected for that missing check.
+The available evidence did not establish why the new PR workflow had not started.
+
+These observations support the missing-run and ruleset diagnostic branches.
+They do not verify a recovery trigger or prove an event-delivery defect.
+The source case identifiers and operational details are intentionally omitted.
+The amendment has no claim of new end-to-end CI verification.
+
+### Retained checks
+
 - Preserve the run ID, job ID, failing step, exact signature, action versions, and head SHA.
 - Mark reruns as transient or reproducible only after comparing the same signature.
 - For cores, record host/container paths, signal, debugger version, inferior exit, and artifact.
