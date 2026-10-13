@@ -6,8 +6,8 @@ description: >-
   discarding, replaying, opening a PR, or deleting stale branches when branch identity, ancestry,
   PR ownership, the unique patch, or the remote retirement state is uncertain.
 category: tooling
-date: 2026-07-13
-version: "2.2.0"
+date: 2026-10-13
+version: "2.3.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-local
@@ -15,7 +15,7 @@ tags: [git, branch, triage, recovery, stale, superseded, orphan, diverged, merge
   cherry-pick, unrelated-histories, consolidation, squash-merge, stash, auto-merge,
   follow-up-branch, force-with-lease, closed-pr, replacement-pr, stacked-pr, backup-ref,
   exact-head, concurrent-trunk, artifact-provenance, decommission, remote-only-commits,
-  retirement]
+  retirement, rebase-conflict, intent-unit]
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/git-branch-state-triage-and-recovery.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -46,6 +46,8 @@ The complete superseded source is archived in
   can lag the remote.
 - A branch was deleted locally while its remote name can still hold commits that no local ref
   fetched.
+- A rebase conflict places side-by-side rewrites of the same lines for the same upstream change,
+  or per-hunk resolution that always takes the trunk side trends toward an empty final diff.
 
 ## Verified Workflow
 
@@ -83,6 +85,7 @@ git log --oneline "$mb"..refs/remotes/origin/<branch>
 | State | Evidence | Recovery direction |
 | --- | --- | --- |
 | Superseded | PR merged or patch/content already on trunk | Stop; do not rebase or duplicate |
+| Partially superseded | Trunk absorbed the delta in a parallel rewrite; the per-intent-unit proof finds surviving units | Re-propose only the surviving units as minimized commits on current trunk |
 | Orphan | No common ancestor | Export the intended patch, recreate from trunk |
 | Diverged | Common base exists; local/remote tips differ | Reset/rebuild from the chosen tip, cherry-pick intended commits |
 | Prematurely merged | Old PR is merged; later commits are missing | Fresh trunk branch; replay only missing commits |
@@ -117,6 +120,21 @@ git log --diff-filter=D --oneline origin/main -- <old-path>
 git cat-file -e origin/main:<path>
 git grep -n '<stable-marker>' origin/main
 ```
+
+Prove uniqueness per intent unit when both sides rewrite the same lines in response to the same
+upstream change. Content comparison then reports zero unique lines, but a parallel rewrite can
+land a different subset of one intent: trunk can replace a check with a differently shaped check
+and drop a behavior that the branch still carries. Split each side into intent units — one
+assertion, one trigger, one failure mode, one mechanical follow-up per unit — and give each unit
+a landed or not-landed verdict on current trunk. For a not-landed candidate, prove its value
+against trunk itself: grep the trunk tree for the same assertion targets, then transplant the
+unit onto the current trunk tree and make it pass there (for a test, copy it next to trunk's
+replacement and run it). A clean pass proves that the unit is expressible and that trunk lacks
+it. An empty `git diff <trunk>` after take-trunk-side resolutions is not proof of obsolescence;
+it only proves that no hunk survived mechanically. Do not classify superseded, force-push, or
+close until each unit has a recorded verdict, and deliver surviving units as their own minimized
+change on current trunk — conflict resolution cannot re-add a unit that lives inside a
+differently shaped hunk.
 
 Do not discard based on counts alone. Preserve with a stash or backup ref before any authorized
 destructive operation.
@@ -209,6 +227,7 @@ After push, ensure the PR head, base, and current-head checks match the recovere
 | Replay the whole old tree | Replay the whole old tree | Reverts concurrent trunk changes | Replay only missing commits semantically |
 | Assume branch name from issue | Assume branch name from issue | Existing PR may use another head | Read `headRefName` from GitHub |
 | Bare `--force-with-lease` | Bare `--force-with-lease` | May not protect the observed head | Pin the branch and old OID explicitly |
+| Resolve each rebase conflict by taking the newer side | Treat per-hunk take-trunk-side resolution as the uniqueness classification | The resolutions converge to an empty final diff and discard behavioral units that trunk never landed | Split the delta into intent units; prove each unit landed or not-landed on current trunk; reshape or close from the recorded verdicts |
 | Rebuild child from trunk | Rebuild child from trunk | Loses intended stack dependency | Rebuild from the rebased parent |
 | Trust a point-in-time inventory | Retire branches from the initial local-only inventory | A remote head held commits that no local ref fetched; a parallel stream also created new matching objects mid-operation | Re-enumerate remote and local state at execution; archive remote-unique commits before `push origin --delete`; destroy only enumerated approved items |
 
@@ -232,7 +251,8 @@ remote refs for retired names: <before enumeration → after enumeration (zero)>
 ```
 
 Never call a branch superseded solely because it is old, or unique solely because it is ahead.
-The decision requires both repository history and content-level proof.
+The decision requires both repository history and content-level proof; for parallel rewrites of
+the same lines, content-level proof means one landed verdict per intent unit.
 
 ## Verified On
 
