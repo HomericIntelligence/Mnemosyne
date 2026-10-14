@@ -34,7 +34,50 @@ same recovery, confirming environment causation rather than a code defect or a f
   tool-resolution error; `PATH="$PWD/.venv/bin:$PATH" git commit ...` succeeded with hooks
   running.
 
-## Why the baseline rule uses a scratch worktree
+## Second host measurement (2026-10-13)
+
+Same class, second site, reached through a commit gate rather than a manual suite run.
+
+| Probe | Result |
+| ----- | ------ |
+| Filesystem type under the default work root | `fuseblk` |
+| `umask` | `0002` |
+| Mode of a fresh file, `umask 0002` | `664` — group-write set |
+| Mode of a fresh file, `umask 0022` | `644` — clear |
+| Mode of a fresh file, `umask 0077` | `600` — clear |
+| Mode of the resolved interpreter | `775` — group-write set on a pre-existing file |
+
+The first table resolves a question the pin set alone could not. A FUSE work root
+**honours the umask**; it does not force the group-write bit. Two independent
+verification runs disagreed on this — one measured the lock failures clearing under
+`umask 0022`, the other measured a fresh file as group-writable under the default
+umask. A direct three-way probe settled it in favour of the first reading.
+
+Measure the mechanism instead of inheriting either claim. Three `stat` calls under
+different umasks cost less than one full-suite retry.
+
+## The two blockers, separated
+
+| Blocker | Created by | Cleared by `umask 022` |
+| --- | --- | --- |
+| Writer-lock files rejected for group-write | The process umask, at creation time | Yes |
+| Attachment-program rejected for group-write | An existing file's mode on disk | No |
+
+22 failures in the first class, 15 failures and 26 errors in the second. Only the
+first is a pin problem. Reporting them as one "umask" cause sends the next reader
+after a fix that cannot work.
+
+## Gate observations
+
+- Two unrelated changes on two branches were blocked by the same required hook in the
+  same session. Neither touched a module in the failing files. The hook runs the suite,
+  so one host-environment class blocked all commits.
+- The lock class is what a test-only repair addresses, and a pre-commit hook evaluates
+  the **working tree**. A staged test repair therefore unblocks its own gate even while
+  the committed tree is still red. The apparent deadlock is not one.
+- Hook runtimes degraded across attempts: the first took minutes, later attempts took
+  far longer because concurrent suites from several sessions had saturated the host.
+  Nothing about the gate changed between those attempts.
 
 In a repository with concurrent sessions, `git stash` entries live in one repo-global
 namespace shared by every worktree. A `stash pop` after a failed push applied another
