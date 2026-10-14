@@ -1,9 +1,9 @@
 ---
 name: pr-ci-failure-triage-preexisting-vs-introduced
-description: "Classify red PR checks as introduced, pre-existing, flaky, environmental, stale-commit, or status-rollup artifacts before fixing or rerunning. Use after rebases/force-pushes, unrelated failures, merge-preview coverage changes, or hosted-only process-launch errors. Also use when the required check is a fan-in gate reported by a ruleset, or when the failing symbol on the base was deliberately removed."
+description: "Classify red PR checks as introduced, pre-existing, flaky, environmental, stale-commit, or status-rollup artifacts before fixing or rerunning. Use after rebases/force-pushes, unrelated failures, merge-preview coverage changes, or hosted-only process-launch errors. Also use when the required check is a fan-in gate reported by a ruleset, when the failing symbol on the base was deliberately removed, when a base update turns a green branch red without a textual conflict, when grouped or sharded logs hide individual failed node identities, or when failures reproduce only on the local host."
 category: ci-cd
 date: 2026-07-31
-version: "2.2.0"
+version: "2.3.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-ci
@@ -20,6 +20,10 @@ tags:
   - fan-in-gate
   - undefined-symbol
   - e2big
+  - post-merge-hybrid
+  - file-provenance
+  - host-window
+  - shard-logs
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pr-ci-failure-triage-preexisting-vs-introduced.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -50,6 +54,9 @@ and the complete prior version is in
 - CodeQL and validation fail for different reasons.
 - Tests depend on host filesystem auto-detection.
 - Hosted Linux raises `E2BIG` before a generated `node -e` harness starts.
+- Checks go red only after a base update merged current main into the branch, while main's own CI is green.
+- Shard or grouped step output fails without listing the individual `FAILED` node identities.
+- Tests fail on the local host but pass on the hosted runners.
 
 ## Verified Workflow
 
@@ -128,7 +135,47 @@ subprocess.run(
 
 Test with realistic large payloads on hosted Linux; local `ARG_MAX` and environment size differ.
 
-### 6. Inspect branch content for stale duplicate commits
+### 6. Attribute post-base-update failures by file provenance
+
+A base update that merges current main into the branch can turn a green branch red without a
+textual conflict. Before you change code, establish which parent owns each side of the failing
+content:
+
+```bash
+OLD_BASE=<recorded-previous-base>
+PRE_UPDATE=<branch-head-before-the-update>
+git diff "$OLD_BASE"..HEAD -- <failing-test-file>
+git diff "$OLD_BASE"..HEAD -- <subject-source-files>
+git diff "$OLD_BASE".."$PRE_UPDATE" -- <subject-source-files>
+```
+
+| Evidence | Class | Action |
+| --- | --- | --- |
+| Test file carries branch-only deltas, subject source is identical to trunk, and the branch never carried companion source | Stale branch assertion against current trunk semantics | Port the test's intent onto trunk's semantics; retire it when trunk supersedes the coverage |
+| The update took one half of a lockstep pair, such as a workflow and the script that consumes its output, from different eras | Half-moved pair | Move the pair atomically to all-old or all-new, then rerun the pair's own checks |
+| Subject source carries branch deltas and reverting them removes the failure | Genuine PR regression | Fix minimally in scope |
+| The same nodes fail set-identically on a pristine trunk worktree on this host, and trunk CI is green | Host/environment window | Report FYI with the reproduction evidence; do not patch the PR for it |
+
+Keep one pristine worktree at the recorded base with a synced environment as the attribution
+oracle. A failure that reproduces there is not introduced by the branch. When the failure involves
+filesystem ownership, modes, or ACL semantics, prefer the hosted-runner result: a local mount can
+force modes, mask ACL behavior, or change user identity, so chmod-based assumptions can fail in
+either direction.
+
+Diagnose from the failing node identity, not from a shard or step summary. Grouped step output can
+withhold individual `FAILED` lines until the job ends, and sharding splits the parametrized cases
+of one test across jobs, so any single job under-reports the failing set. Wait for the job to end,
+then extract node identities:
+
+```bash
+gh run view --job <JOB_ID> --log-failed
+```
+
+An exit before any test count, for example a pytest usage exit with zero reported tests, names a
+plan-stage failure: missing planner input, collection error, or workflow rejection. Read its first
+error line directly instead of guessing from the shard list.
+
+### 7. Inspect branch content for stale duplicate commits
 
 ```bash
 git log --oneline --decorate origin/main..HEAD
@@ -139,7 +186,7 @@ git cherry -v origin/main HEAD
 If a stale commit duplicates a fix already on main, rebuild the branch from current main with only
 the real payload. Do not amend an arbitrary tip when the unwanted commit is lower in history.
 
-### 7. Resolve according to evidence
+### 8. Resolve according to evidence
 
 - PR-introduced: fix within scope and add regression coverage.
 - Merge interaction: rebase/update, reproduce merge preview, and fix the interaction.
@@ -176,6 +223,10 @@ operational verification.
 | 6 | Amend tip to remove stale lower commit | Wrong commit remains in branch | Rebuild/cherry-pick real payload onto current main |
 | 7 | Debug generated Node program after `E2BIG` | Kernel rejected argv before Node started | Send harness through stdin |
 | 8 | Test CI path auto-detection only locally | Host layout differs | Inject explicit paths and test missing/ambiguous cases |
+| 9 | Satisfied a stale branch assertion by changing source after a base update | The update had taken trunk's source while the branch's test asserted semantics trunk had deliberately retired | Diff test and subject source against the old base; port the test's intent onto trunk semantics |
+| 10 | Diagnosed the failing set from shard and step summaries | Grouped logs and parametrized splits withheld node identities; the visible rows were not the complete set | Wait for job end; extract `FAILED` nodes with `gh run view --job <job> --log-failed` |
+| 11 | Took trunk's half of a lockstep workflow/validator pair during conflict resolution | The surviving branch half rejected every trunk-shaped evidence on prefix checks | Move producer/consumer halves atomically; rerun the pair's own checks |
+| 12 | Treated a local-only failure as a PR defect | The same nodes failed set-identically on a pristine trunk worktree; hosted CI was green | Bind local failures to the pristine-base oracle before attribution |
 
 ## Results & Parameters
 
@@ -186,6 +237,12 @@ operational verification.
 - Final gate: current-head required checks, not cancelled or stale runs.
 - Resolution record: check name, PR/main result, log signature, classification, action, and linked
   issue/repair when outside scope.
+- Post-update provenance diffs: old base to head for the failing test and its subject source, plus
+  old base to the pre-update branch head to detect companion source the update dropped.
+- Attribution oracle: one pristine worktree at the recorded base with a synced environment.
+- Node identity: `gh run view --job <JOB_ID> --log-failed` after the job ends; shard and step
+  summaries are not exhaustive. An exit before any test count is a plan-stage signature, not a
+  test verdict.
 
 ## Evidence Boundary
 

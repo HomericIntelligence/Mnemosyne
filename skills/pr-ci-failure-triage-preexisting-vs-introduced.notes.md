@@ -10,6 +10,7 @@
 | Coverage genuinely failed on main | [immutable source documenting ProjectKeystone PR #552](https://github.com/HomericIntelligence/Mnemosyne/blob/d377a8924aff84e5cc193b720130b4c57e38c5c3/skills/pr-ci-failure-triage-preexisting-vs-introduced.md) | `verified-ci` | Retained separate-fix/tracking governance path |
 | Duplicate stale commit broke all sanitizers | [immutable source documenting ProjectKeystone PR #436](https://github.com/HomericIntelligence/Mnemosyne/blob/d377a8924aff84e5cc193b720130b4c57e38c5c3/skills/pr-ci-failure-triage-preexisting-vs-introduced.md) | `verified-local` | Retained branch reconstruction rather than tip amend |
 | Generated Node harness exceeded hosted argv budget | [ProjectOdyssey PR #5762](https://github.com/HomericIntelligence/Odyssey/pull/5762) | `verified-ci`: failing 254-test run then passing 259-test run | Retained stdin transport and hosted-Linux regression |
+| Base-updated long-lived branch: branch test asserted semantics trunk had retired, a lockstep workflow/validator pair was half-moved, and local-only host windows duplicated a pristine trunk failure set | monorepo merge-failure triage outside the host org; 32-way sharded pytest, signed-commit rulesets, staged shard planner | `verified-ci`: all required checks green after the ported test, atomic pair, and FYI dispositions | Retained file-provenance classes, atomic-pair rule, and pristine-base attribution oracle |
 
 ## Classification record
 
