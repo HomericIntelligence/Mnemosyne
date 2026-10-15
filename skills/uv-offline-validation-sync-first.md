@@ -1,10 +1,10 @@
 ---
 name: uv-offline-validation-sync-first
 license: BSD-3-Clause
-description: "Run Python project validation with uv when network access is unavailable. Use when: (1) `uv run --offline` still tries to synchronize a locked environment, (2) a missing locked wheel blocks offline tests, or (3) `--no-sync` may select the wrong pytest executable."
+description: "Synchronize a uv project environment before running validation, and keep it intact. Use when: (1) `uv run --offline` still tries to synchronize a locked environment, (2) a missing locked wheel blocks offline tests, (3) `--no-sync` may select the wrong pytest executable, or (4) a later `uv run` removes extras that an earlier `uv sync --extra` installed."
 category: tooling
 date: 2026-08-05
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-local
 tags:
@@ -12,6 +12,7 @@ tags:
   - offline
   - validation
   - sync
+  - extras
   - pytest
   - ruff
   - ty
@@ -26,9 +27,9 @@ history-cleanup-date: "2026-09-20"
 
 | Field | Value |
 | --- | --- |
-| **Date** | 2026-08-05 |
-| **Objective** | Run focused Python validation locally without relying on network access or accidentally using system tooling. |
-| **Outcome** | A `uv sync --extra dev` bootstrap made focused tests and static checks runnable offline; the full suite remained unconfirmed when its final result was unavailable. |
+| **Date** | 2026-08-05; amended 2026-10-14 |
+| **Objective** | Run Python validation against the intended project environment, whether or not network access is available. |
+| **Outcome** | A completed `uv sync` makes focused tests and static checks runnable offline; `--no-sync` on the follow-up command keeps that environment, including its extras, unchanged. |
 | **Verification** | verified-local |
 
 ## When to Use
@@ -36,6 +37,7 @@ history-cleanup-date: "2026-09-20"
 - `uv run --offline` reports that it needs to install or synchronize a locked dependency.
 - A locked wheel such as `grpcio` is absent from the local cache and network access is deliberately disabled.
 - `uv run --offline --no-sync` completes unexpectedly, but its test runner may be from the system environment rather than the project environment.
+- A command run after `uv sync --extra <name>` fails with a missing module, or a tool that was installed is no longer found.
 - You need a defensible local validation report that distinguishes focused checks from an uncompleted full suite.
 
 ## Verified Workflow
@@ -57,16 +59,24 @@ uv run --offline ty check
 # If diagnosis requires --no-sync, prove the executable still belongs to .venv.
 uv run --offline --no-sync python -c 'import sys; print(sys.executable)'
 uv run --offline --no-sync python -m pytest --version
+
+# After a deliberate sync with every needed extra, keep that environment.
+uv run --no-sync pytest <focused-test-path> -q
+
+# A helper that needs only its own extra should not remove other packages.
+uv sync --extra <helper-extra> --inexact
 ```
 
 ### Detailed Steps
 
 1. Use the intended project environment. When network access is authorized, a repository with tools in a `dev` extra can prepare it with `uv sync --extra dev`. Offline, use available cached artifacts and report missing dependencies while continuing useful independent work.
 2. If `uv run --offline` fails before the requested command starts, inspect the synchronization error. A missing lockfile artifact means the environment was not fully materialized; offline mode cannot download the missing wheel.
-3. Do not treat `--no-sync` as a fix. It suppresses synchronization, which can cause the command to resolve a global `pytest` or another incompatible interpreter when the project virtual environment is absent or incomplete.
-4. When using `--no-sync` for diagnosis, run Python through uv and print `sys.executable`; then invoke `python -m pytest --version`. Confirm both resolve to the expected project environment before trusting results.
+3. Decide whether `--no-sync` applies by environment state. When the project environment is absent or incomplete, `--no-sync` suppresses synchronization and the command can resolve a global `pytest` or another incompatible interpreter. When the environment is already complete and was deliberately synchronized with the extras the later commands need, `--no-sync` is correct, because without it `uv run` synchronizes toward the default extra set and removes those extras again.
+4. Confirm the environment before trusting results. Run Python through uv and print `sys.executable`; then invoke `python -m pytest --version`. Both must resolve to the expected project environment. This check is what separates the two cases in step 3.
 5. After a successful sync, run the relevant checks with `--offline`. Focused tests, Ruff, and Ty are examples; select tools that the repository actually uses.
-6. Report collection and execution separately. A successful collection count is not a full-suite success unless the run returns a final passing result.
+6. When a helper script, task runner, or continuous-integration job runs its own `uv sync`, consider `--inexact`. An exact sync removes packages that another command installed, including test and lint tools, so the helper can leave the repository unable to validate.
+7. In continuous integration, install the extras that the later steps need, then use `--no-sync` for each following `uv run`. Give a test step the extras it imports, not only the extras a build step needs.
+8. Report collection and execution separately. A successful collection count is not a full-suite success unless the run returns a final passing result.
 
 ## Failed Attempts
 
@@ -75,6 +85,8 @@ uv run --offline --no-sync python -m pytest --version
 | Offline run before environment bootstrap | Ran `uv run --offline` while a locked dependency wheel was unavailable locally. | uv still needed to synchronize the lock and could not obtain the absent artifact without network access. | `--offline` prohibits downloads; it does not replace a completed `uv sync`. |
 | Bypass sync with `--no-sync` | Used `uv run --offline --no-sync` before confirming the project environment existed. | The command can fall back to a system `pytest` that has different Python or dependency versions. | Verify `sys.executable` and use `python -m pytest` before accepting results. |
 | Treat collection as suite success | Collected the repository test suite, then waited for a full result that did not reliably return. | Collection proved discovery only, not passing execution. | State the collected count and leave full-suite status unconfirmed. |
+| Plain `uv run` after installing extras | Synchronized with an extra, then ran a test command without `--no-sync`. | `uv run` synchronized toward the default extra set and removed the extra, so the suite failed to import a declared base dependency. | `uv run` does not inherit earlier extras; add `--no-sync` after a deliberate sync. |
+| Exact `uv sync` inside a build helper | Ran an exact sync for one extra inside a local build script. | The sync removed the test and lint packages that another command had installed. | Use `--inexact` for a helper that only needs to add its own extra. |
 
 ## Results & Parameters
 
@@ -85,10 +97,13 @@ uv run --offline --no-sync python -m pytest --version
 | Static checks | Ruff check, Ruff format check, and Ty passed locally. |
 | Full-suite collection | 831 tests were collected. |
 | Full-suite execution | No reliable final result returned; do not report it as passing. |
+| Follow-up invocation | `uv run --no-sync` kept the synchronized extras; a plain `uv run` removed them. |
+| Helper-script sync | `--inexact` left unrelated installed packages in place. |
 | Network and cluster scope | No cluster commands were run. |
 
 ## Verified On
 
-| Project | Context | Details |
-| --- | --- | --- |
-| Comet | Local CLI review and validation session | Used a development extra, local environment, and offline runs only. |
+| Context | Details |
+| --- | --- |
+| Local CLI review and validation | Used a development extra, a local environment, and offline runs only. |
+| Local desktop application build | Confirmed the extra-stripping and `--inexact` behavior while adding a multi-platform build and release pipeline. See [notes](uv-offline-validation-sync-first.notes.md). |
