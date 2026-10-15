@@ -50,3 +50,44 @@ the loader, so they were excluded as causes.
 - The change applies when the service next loads plugins. A restart was deferred by
   operator choice in the observed session; the warning repeats until then and is
   harmless because the entry is already disabled by configuration.
+
+## Session evidence: unreleased V2 port and payload-free Git install (2026-10-15)
+
+Public software: the `@homericintelligence/athena-opencode` npm package and its public
+repository `HomericIntelligence/Athena`. One session on OpenCode v2.0.27 (2026-10-15)
+supplies the evidence.
+
+- `opencode plugin list` showed the configured package with no installed version
+  (`-`). `opencode plugin add <name>` in this state reported that the plugin is
+  already configured and did not install the package.
+- The server log recorded `failed to load plugin` with
+  `cause="Cause([Fail(PluginModule.LoadError: Plugin must export a default definition`
+  `with an id and an effect or setup function. (cause: SchemaError(Expected object`
+  `at ["default"])))])"` for the cached package under
+  `~/.cache/opencode/npm/@homericintelligence/athena-opencode@latest/`.
+- Registry data: `npm view` showed versions 0.4.4 through 0.5.3. Version 0.5.3 is the
+  newest published release (2026-09-16). Its module default-exports
+  `async function athenaPlugin()` that returns `{}`, a V1-era shape.
+- Repository data: `git ls-remote` showed tag `v0.6.0`
+  (commit `5c6c87c92349f6902c0028a73452fea9ceb8edf5`). Its module default-exports
+  `{ id: "@homericintelligence/athena-opencode", setup() { ... } }`, the V2 shape.
+- The Git package specification
+  `github:HomericIntelligence/Athena#v0.6.0::path:npm/athena-opencode` installed and
+  loaded with no `failed to load plugin` entry. `opencode plugin list` then showed
+  version `5c6c87c`. But the documented effect was absent: no skills appeared in
+  `~/.config/opencode/skills/`.
+- The cached Git package contained only `plugin.js`, `package.json`, and `README.md`.
+  The package `files` list includes `skills`, `LICENSE`, and `NOTICE`. The publish
+  workflow copies `skills/` into the package before publication, so the Git tag does
+  not contain the payload. `setup()` runs a function that throws when the payload is
+  absent; the plugin catches the error and writes it with `console.warn`, which does
+  not reach the OpenCode log.
+- Remediation: `opencode plugin remove` deleted the package entry. A clone at tag
+  `v0.6.0` supplied `skills/`, and a copy to
+  `~/.config/opencode/skills/athena/` delivered the corpus. OpenCode discovered the
+  17 skills without a service restart; the configuration-directory skills watcher
+  applied the change.
+- Decision detail: the registry route had no published V2 port, the Git route had a
+  V2 module without its payload, and direct payload installation from the immutable
+  tag was the only working route. When the plugin gains a published V2 release, the
+  package route restores automatic payload synchronization at startup.
