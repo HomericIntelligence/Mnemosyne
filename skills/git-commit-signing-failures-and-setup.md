@@ -1,9 +1,9 @@
 ---
 name: git-commit-signing-failures-and-setup
-description: "Use when required-signature policy blocks a conflict-free PR; GitHub reports unsigned, no_user, unknown_key, or bad signatures; local cryptographic checks disagree with GitHub; noninteractive workers silently fail to sign; a fresh headless host needs SSH signing; email privacy rejects a push; or amend produced a signed sibling that the PR did not adopt. Diagnose with REST, align identity and registered key, re-sign every introduced commit without changing content, and verify the exact remote PR head before merge."
+description: "Use when required-signature policy blocks a conflict-free PR; GitHub reports unsigned, no_user, unknown_key, or bad signatures; local cryptographic checks disagree with GitHub; noninteractive workers silently fail to sign; a fresh headless host needs SSH signing; email privacy rejects a push; or amend produced a signed sibling that the PR did not adopt. Diagnose with REST, align identity and registered key, re-sign every introduced commit without changing content, verify an embedded signature in place after key registration, and verify the exact remote PR head before merge."
 category: tooling
-date: 2026-07-13
-version: "2.1.1"
+date: 2026-10-15
+version: "2.2.0"
 user-invocable: false
 license: BSD-3-Clause
 verification: mixed
@@ -67,7 +67,7 @@ every PR commit through REST. Use REST immediately after push; GraphQL signature
 | --- | --- | --- |
 | `unsigned` | Commit has no signature | Configure/prime signing and rewrite every affected commit |
 | `no_user` | Signed identity is not attributable to the GitHub user | Use a verified email or canonical noreply identity and re-sign |
-| `unknown_key` | Signing key is not registered for signing | Register the correct GPG/SSH signing key |
+| `unknown_key` | The commit carries a signature, but its key is not registered for signing | Register the correct GPG/SSH signing key; the embedded signature then verifies in place |
 | `valid` | Signature policy is not the blocker | Inspect missing contexts, reviews, conversations, and issue-link policy |
 
 Record the base SHA, PR head SHA, branch ref SHA, and commit range before rewriting. Do not mutate a
@@ -98,6 +98,21 @@ gh ssh-key add ~/.ssh/id_signing_ed25519.pub --type signing --title '<host>-sign
 The allowed-signers row contains the email, key type, and public-key body. Registering the key as an
 authentication key is insufficient. Adding a signing key may require the interactive
 `admin:ssh_signing_key` scope; do not try to bypass that authorization step.
+
+### In-place repair for `unknown_key`
+
+GitHub evaluates a stored signature against the signing keys that the account holds at read
+time. A commit that already carries its signature can change from `unknown_key` to `valid` when
+the missing key is registered. No new commit object is necessary in this case. Re-run the failed
+check after registration. Reserve the rewrite for `unsigned` (no stored signature) and `no_user`
+(the disputed identity is part of the commit content). Confirm the result through the hosted
+checks before you report the repair as complete.
+
+When several local keys exist, learn which key signed a pushed commit before you register
+anything. For SSH, decode the base64 body of the `-----BEGIN SSH SIGNATURE-----` block from the
+REST `signature` field. After the `SSHSIG` magic and the version field, the length-prefixed
+fields contain the complete public key. Compare its fingerprint with `ssh-keygen -lf <pubkey>`
+for each candidate. For GPG, a local `gpg --verify` of the commit names the signing key ID.
 
 ### 3. Re-sign the complete introduced range
 
@@ -164,6 +179,7 @@ must all pass independently.
 | Re-sign another owners PR | Fleet rewrite included bots | Native signatures and ownership were damaged | Scope to owned PRs only |
 | Amend into a sibling | Force-pushed a same-parent signed SHA | The PR still introduced unsigned/tangled lineage | Replay patches on the correct base and verify head identity |
 | Merge/update over unsigned history | Added a merge commit | Required signatures checks all introduced ancestors | Replace the lineage; do not cover it with a merge |
+| Recreate the commit through the REST git API | Created a commit with `gh api repos/<O>/<R>/git/commits` to obtain a hosted signature | The created commit returned `unsigned`; that token type received no hosted signature | Register the signing key or use a signing-capable hosted path; check `verified/reason` before you move the ref |
 
 ## Results & Parameters
 
@@ -174,6 +190,7 @@ must all pass independently.
 | Identity | Verified email or `<id>+<login>@users.noreply.github.com` |
 | SSH key registration | Signing key, not authentication-only |
 | Content preservation | `git diff <old-head> HEAD` empty after pure re-sign |
+| In-place key repair | `unknown_key` only: register the key, re-run the check, no force-push |
 | Rewrite push | Owned branch, fetched remote, `--force-with-lease` |
 | PR-head proof | `headRefOid` equals verified remote tip |
 | Fleet scope | Author/owner allowlist; never rewrite third-party PRs |
@@ -182,6 +199,9 @@ must all pass independently.
 
 - Core GPG/SSH workflows: CI-backed cases across the repositories indexed in notes.
 - Sibling/patch-replay recovery: `verified-local`, not demonstrated through a merged green gate.
+- In-place `unknown_key` repair and the REST-API unsigned result: `verified-local`, one operator
+  session (2026-10); the in-place repair is documented GitHub behavior, and the green check was
+  pending at publication.
 
 ## Companions
 
