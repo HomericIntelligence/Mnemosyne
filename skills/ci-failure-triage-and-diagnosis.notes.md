@@ -19,6 +19,7 @@ SHA-256 `dbfeed396bb4cb23d547fc0d9077a6e5756b9f71b820cda2b4e2ee6acd83e592`.
 | Cross-CPU survey | [Immutable v1.1.0 source](https://github.com/HomericIntelligence/Mnemosyne/blob/10e28497993009cc221cb991e1ee183e6117eda8/skills/ci-failure-triage-and-diagnosis.md) | verified-local survey; causal interpretation not proved | Hold image/reproducer constant and record CPU model, flags, iterations, and exits |
 | Proposed pixi/yamllint hardening | [ProjectOdyssey issue #252](https://github.com/HomericIntelligence/ProjectOdyssey/issues/252) | unverified proposal | Do not upgrade a planning suggestion to verified behavior |
 | Failed-job rerun rejected by attempt-bound producer output | CI drive-green session, 2026-10 (public project; identifiers withheld) | verified-ci | A startup identity error after a `--failed` rerun means the producer output pins the old attempt; only a full rerun realigns it |
+| Confirmed merge-conflict suppression of PR runs | CI drive-green session, 2026-10 (public project; identifiers withheld) | verified-ci | Empty per-head run list plus the conflict state at the same head plus `git merge-tree` isolation plus an immediate post-resolution wave establishes the cause; the conflict-resolving push is the supported trigger |
 
 ## Detailed Case Notes
 
@@ -65,6 +66,22 @@ attempt did not show is not a test regression. Repeating `--failed` reruns only 
 consumer attempt again, so the mismatch is permanent until a full rerun regenerates the producer
 output. Verification: `verified-ci` (full rerun green; required gate success observed on the
 same head).
+
+### Confirmed merge-conflict suppression
+
+A drive-green session pushed a rebased feature head and observed zero `pull_request` runs for
+it: the per-head `actions/runs` listing was empty and the PR rollup showed no pending entries.
+`gh pr view --json mergeable,mergeStateStatus` reported the conflict state at that head, and
+`git merge-tree --write-tree <base> <head>` reproduced the conflict in one file. After a
+base-updating push that preserved the PR delta, the full workflow wave started for the new head
+within seconds, which converts the merge-conflict hypothesis into an established cause for this
+evidence bundle. Review verdicts bound to the pre-rebase tree carried to the post-rebase head
+because the tree hash was unchanged; the single conflict-resolved file received fresh review.
+
+This case complements the unresolved missing-run case in the verification checklist: the
+observation shape is identical (an empty per-head run list), but here the evidence bundle
+confirms the cause and the recovery. Verification: `verified-ci` (run wave at the post-update
+head succeeded on every applicable check; the pre-update head never carried any run).
 
 ## Verification Checklist
 

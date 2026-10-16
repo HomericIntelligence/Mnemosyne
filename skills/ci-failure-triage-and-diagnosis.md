@@ -1,13 +1,13 @@
 ---
 name: ci-failure-triage-and-diagnosis
-description: "Diagnose CI failures from run logs and revision-specific workflows. Distinguish source defects, missing required contexts, infrastructure failures, stale runs, and rerun identity rejections."
+description: "Diagnose CI failures from run logs and revision-specific workflows. Distinguish source defects, missing required contexts, infrastructure failures, stale runs, rerun identity rejections, and runs that merge conflicts suppressed."
 category: ci-cd
-date: 2026-10-13
-version: "2.3.0"
+date: 2026-10-15
+version: "2.4.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-local
-tags: [ci-failure, triage, log-analysis, core-dump, forensics, gdb, podman, mojo, libkgen, github-actions, rate-limit, subprocess, signal, cpu-survey, workflow-dispatch]
+tags: [ci-failure, triage, log-analysis, core-dump, forensics, gdb, podman, mojo, libkgen, github-actions, rate-limit, subprocess, signal, cpu-survey, workflow-dispatch, merge-conflict]
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/ci-failure-triage-and-diagnosis.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -27,6 +27,8 @@ are indexed in [the notes](ci-failure-triage-and-diagnosis.notes.md).
   fix was formed without reading `--log-failed`.
 - Several unrelated PRs fail in the same job/file, or main may already be broken.
 - A PR is `BLOCKED` with no failed check because a required context never posted.
+- A push to a PR branch produced no `pull_request` runs at that head at all: the rollup and the
+  per-head `actions/runs` list are empty rather than red.
 - A containerized JIT crash leaves no core, or a crash appears only on GitHub-hosted CPUs.
 - A parallel runner hangs, ignores shutdown, or corrupts the caller's terminal.
 - Diagnostic API loops approach rate limits, debug instrumentation should be opt-in, or a stale
@@ -122,6 +124,19 @@ Current mergeability does not prove that the PR had no conflict when the event o
 Successful push or `pull_request_target` runs do not prove that a `pull_request` workflow started.
 If the evidence cannot identify the cause, report that limit instead of declaring a lost event.
 
+A confirmation bundle can convert the merge-conflict hypothesis into an established cause: the
+per-head `gh api repos/<org>/<repo>/actions/runs?head_sha=<SHA>` list is empty while other heads
+carry runs; `gh pr view <PR> --json mergeable,mergeStateStatus` reports the conflict state at
+the same head; `git merge-tree --write-tree <base> <head>` reproduces the conflict and names the
+files; and a conflict-resolving push that preserves the PR delta is immediately followed by the
+complete run wave for the new head. GitHub does not start `pull_request` workflows while a pull
+request has merge conflicts, so no run exists to rerun or dispatch for the old head. For this
+confirmed case the supported, authorized trigger is the conflict-resolving push itself: resolve
+the isolated files, repush on the updated base, and then verify with `gh pr checks <PR>` that the
+new head carries the full wave. Carry prior review evidence forward by tree identity: an
+unchanged tree keeps its verdicts, and a tree changed by conflict resolution gets fresh review of
+that delta.
+
 Select a supported, authorized trigger for an absent run and verify the resulting source identity.
 Do not rerun an older head as evidence for a newer head. Do not manufacture a passing status.
 Do not change to privileged PR execution merely to force a trigger.
@@ -207,6 +222,7 @@ the current head SHA.
 | Blocking futures | Used `as_completed()` and unbounded waits | Shutdown could not be observed while nothing completed | Poll at two-second intervals |
 | Always-on debug capture | Defaulted gdb collection to true | Every PR paid the diagnostic cost | Use an opt-in dispatch input |
 | Failed-job rerun on an attempt-bound producer | Re-ran only the failed shard after a matrix flake | The producer output pinned the earlier attempt, so rerun consumers rejected the identity and exited at startup | Detect attempt-bound producer/consumer validation; switch to a full rerun |
+| Re-trigger an absent run | Looked for a run to rerun or dispatch for a head whose PR had merge conflicts | GitHub never created runs for that head, so there was nothing to rerun and a dispatch would test the wrong source | Establish the conflict with the empty per-head run list, `mergeStateStatus`, and `git merge-tree`; resolve, repush, and verify the new head's wave |
 
 ## Results & Parameters
 
@@ -215,6 +231,7 @@ the current head SHA.
 | Failing evidence | `gh run view --job=<JOB_ID> --log-failed` before diagnosis |
 | Recurrence | One failed-job rerun; repeated same signature is reproducible |
 | Attempt-bound producer rerun | Full `gh run rerun <RUN_ID>`; repeated `--failed` reruns stay misaligned |
+| Conflict-suppressed runs | Resolve conflicts, repush on the updated base, verify the new head's full wave; carry reviews by tree identity |
 | Shutdown poll interval | `2.0` seconds |
 | gdb signals | SIGILL, SIGABRT, SIGSEGV, SIGBUS, SIGFPE |
 | Debug input | Boolean, `default: false`, dispatch-only |
