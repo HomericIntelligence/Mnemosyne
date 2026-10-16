@@ -27,7 +27,7 @@ rules; only the decision-bearing measurements are kept.
 
 ### Phase 2 — handoff claims the artifact
 
-- A follow-up message said "the checkpoint is now at <shared-store path>;
+- A follow-up message said "the checkpoint is now at `<shared-store path>`;
   continue with this as the baseline image," targeting an allowlist insertion
   of the image digest.
 - Verification at gate time: the claimed path did not exist; the shared image
