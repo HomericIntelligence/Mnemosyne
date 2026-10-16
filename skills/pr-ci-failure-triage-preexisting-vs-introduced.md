@@ -1,9 +1,9 @@
 ---
 name: pr-ci-failure-triage-preexisting-vs-introduced
-description: "Classify red PR checks as introduced, pre-existing, flaky, environmental, stale-commit, or status-rollup artifacts before fixing or rerunning. Use after rebases/force-pushes, unrelated failures, merge-preview coverage changes, or hosted-only process-launch errors. Also use when the required check is a fan-in gate reported by a ruleset, when the failing symbol on the base was deliberately removed, when a base update turns a green branch red without a textual conflict, when grouped or sharded logs hide individual failed node identities, or when failures reproduce only on the local host."
+description: "Classify red PR checks as introduced, pre-existing, flaky, environmental, stale-commit, or status-rollup artifacts before fixing or rerunning. Use after rebases/force-pushes, unrelated failures, merge-preview coverage changes, or hosted-only process-launch errors. Also use when the required check is a fan-in gate reported by a ruleset, when the failing symbol on the base was deliberately removed, when a base update turns a green branch red without a textual conflict, when grouped or sharded logs hide individual failed node identities, when failures reproduce only on the local host, or when a path-filtered check fails on stale in-repo plan inputs that main already repaired."
 category: ci-cd
 date: 2026-07-31
-version: "2.3.0"
+version: "2.4.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-ci
@@ -24,6 +24,9 @@ tags:
   - file-provenance
   - host-window
   - shard-logs
+  - paths-filter
+  - stale-plan-inputs
+  - evidence-artifact
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pr-ci-failure-triage-preexisting-vs-introduced.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -57,6 +60,10 @@ and the complete prior version is in
 - Checks go red only after a base update merged current main into the branch, while main's own CI is green.
 - Shard or grouped step output fails without listing the individual `FAILED` node identities.
 - Tests fail on the local host but pass on the hosted runners.
+- The failing workflow is path-filtered (`on.pull_request.paths`), so it is absent from
+  main's run history and from PRs whose diffs stay outside the filter — and a check with
+  pinned in-repo plan inputs (a fixed selector or case list) dies before any test count
+  with a usage-style error.
 
 ## Verified Workflow
 
@@ -89,9 +96,13 @@ Classify per check name and workflow:
 | Fails identically | Fails | Pre-existing/systemic candidate |
 | Cancelled/superseded | Current head has newer run | Rollup artifact |
 | New check only on PR | No main run | New-check; inspect policy and merge preview |
+| Fails; sibling PRs on the same base show no run | No main run; workflow is path-filtered and the diff touches the filter | Trigger-scoped failure; classify from the check's inputs, not from run history |
 | Intermittent signature | Main/PR history mixed | Flake/infrastructure candidate |
 
-“Unrelated diff” is supporting context, not classification evidence.
+“Unrelated diff” is supporting context, not classification evidence. A path filter can
+empty the comparison set entirely: when the workflow only runs for diffs that touch its
+`paths:` list, neither main nor unaffected PRs carry any run for these inputs, so the
+absence of a main failure is expected and says nothing about ownership.
 
 ### 3. Filter cancelled and stale runs
 
@@ -120,6 +131,18 @@ passes.
   duplicate commit already represented on main.
 - CI-only path discovery: replace ambient filesystem probing with explicit deterministic inputs.
 - `E2BIG` before Node logs appear: `execve` rejected argument/environment size; Node code never ran.
+- Path-filtered check whose plan inputs are pinned in-repo (a fixed selector, node list, or
+  case file): a rename or removal on main makes those inputs stale, and every base that
+  predates the input repair fails with an exit before any test count. Diff the pinned input
+  against the current tree — `git log -S <missing-selector> -- <input-file>` names the
+  change that renamed it, and `git log -1 --format=%H origin/main -- <input-file>` shows
+  whether current main already carries a corrected input. When the failure log collapses to
+  one usage-style line, download the job's uploaded evidence artifacts; the harness's
+  selection or execution record usually names the collected-vs-selected mismatch directly:
+
+  ```bash
+  gh run download <failed-run-id> -n <evidence-artifact-name>
+  ```
 
 For generated harnesses, stream code over stdin instead of `node -e <large-script>`:
 
@@ -193,6 +216,10 @@ the real payload. Do not amend an arbitrary tip when the unwanted commit is lowe
 - Confirmed flake: rerun only failed jobs after recording the signature.
 - Pre-existing required failure: fix main separately when practical; otherwise use only an
   explicitly authorized governance path and file a linked tracking issue.
+- Trigger-scoped stale-plan-input failure already repaired on current main: take a base
+  update under the repository's task-base policy (record the reason plus old and new base
+  and head commits, then rebind verification to the new head). Do not patch the PR's own
+  files to mask a check that main already fixed.
 - Rollup artifact: no code change; wait for/read the current-head run.
 - New-check failure: fix the check or product contract; do not compare it to a nonexistent main run.
 
@@ -227,6 +254,7 @@ operational verification.
 | 10 | Diagnosed the failing set from shard and step summaries | Grouped logs and parametrized splits withheld node identities; the visible rows were not the complete set | Wait for job end; extract `FAILED` nodes with `gh run view --job <job> --log-failed` |
 | 11 | Took trunk's half of a lockstep workflow/validator pair during conflict resolution | The surviving branch half rejected every trunk-shaped evidence on prefix checks | Move producer/consumer halves atomically; rerun the pair's own checks |
 | 12 | Treated a local-only failure as a PR defect | The same nodes failed set-identically on a pristine trunk worktree; hosted CI was green | Bind local failures to the pristine-base oracle before attribution |
+| 13 | Classified a path-filtered check from main's history alone | The workflow runs only for diffs that touch its `paths:` list, so main carried no failure and same-base unaffected PRs carried no run at all — the comparison set was empty while a stale pinned selector made every filtered base fail | Check the workflow's trigger filter first; for in-repo plan inputs, diff the pinned selector against the tree and read the job's uploaded evidence artifacts, then remediate a main-repaired input by a base update |
 
 ## Results & Parameters
 
@@ -243,6 +271,13 @@ operational verification.
 - Node identity: `gh run view --job <JOB_ID> --log-failed` after the job ends; shard and step
   summaries are not exhaustive. An exit before any test count is a plan-stage signature, not a
   test verdict.
+- Trigger audit for a red check with no main history: read the workflow's `on:` block for a
+  `paths:` filter before comparing runs; classify from the check's pinned inputs and its
+  uploaded evidence artifacts (`gh run download <run-id> -n <evidence-name>`), not from an
+  empty run comparison.
+- Main-repaired stale input: `git log -1 origin/main -- <input-file>` differing from the
+  base copy means current main may already carry the repair; remediate by a recorded base
+  update, not by PR-side workarounds.
 
 ## Evidence Boundary
 
