@@ -12,6 +12,7 @@ prior main is archived in [history](https://github.com/HomericIntelligence/Mnemo
 | SSH signing on a headless host | [immutable base source](https://github.com/HomericIntelligence/Mnemosyne/blob/af4676cc2c54565a41c1e196ad964cf8ccc51e5b/skills/git-commit-signing-failures-and-setup.md) | verified-ci | Retained public-key config, allowed signers, signing-key registration, and email-privacy boundary |
 | Cryptographic pr-policy gate | [immutable base source](https://github.com/HomericIntelligence/Mnemosyne/blob/af4676cc2c54565a41c1e196ad964cf8ccc51e5b/skills/git-commit-signing-failures-and-setup.md) | verified-ci | Retained every-commit verification and local-versus-hosted distinction |
 | Mnemosyne PR #3021 sibling-head desynchronization | [immutable base source](https://github.com/HomericIntelligence/Mnemosyne/blob/af4676cc2c54565a41c1e196ad964cf8ccc51e5b/skills/git-commit-signing-failures-and-setup.md) | verified-local | Retained patch-replay recovery as partial evidence; no green merge inferred |
+| Embedded SSH signature with an unregistered key (operator session, 2026-10) | this amendment | verified-local; gate green pending at publication | Added the in-place verification branch, signature-blob key identification, and the REST-API unsigned failure |
 
 ## Case Details
 
@@ -35,9 +36,23 @@ update-branch added a merge whose unsigned ancestor still violated policy. The s
 through a fresh PR, so the preferred patch-replay recovery remains verified-local rather than a
 completed merged procedure.
 
+### In-place repair for an unregistered key
+
+A PR-side provenance gate required `verified:true` and `reason:valid` for every commit that an
+open PR introduced. One commit, signed with a host-local SSH key, reported `unknown_key` while
+earlier commits from a different automation key reported `valid`. The REST record embedded the
+signature and the payload, so the single missing item was account-side key registration. Under
+documented read-time verification, registering that public key as a signing key moves the
+existing commit to `valid` without a rewrite, and a gate re-run then passes. A recreation attempt
+through the REST git commit API returned a new commit whose verification was `unsigned`; that
+token type received no hosted signature, so the API recreation path did not rescue the repair.
+Parsing the embedded SSH signature blob identified which of several local keys had signed; the
+local keyring fingerprint alone did not distinguish the keys that the account had registered.
+
 ## Compaction Disposition
 
 - Kept in main: all diagnostic states, key/identity parameters, complete-range rewrite, content
-  preservation, force-with-lease scope, PR-head proof, and sibling recovery boundary.
+  preservation, force-with-lease scope, PR-head proof, sibling recovery boundary, and the
+  in-place `unknown_key` repair.
 - Moved here: repository-specific PRs, incident chronology, and fleet statistics.
 - Archived only: exhaustive status-code tables, command transcripts, and repeated examples.
