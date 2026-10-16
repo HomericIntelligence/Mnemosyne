@@ -25,6 +25,7 @@ version 1.15.0. The complete v1.15.0 retrievable content is archived once in the
 | Dirty Inference Service checkout | [Archived Inference Service PR #289 evidence](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pr-rebase-conflict-resolution-patterns.history) | verified-ci | Preserve staged work, use `origin/master`, keep Warden names and `srun --mem=0`; 489 tests passed |
 | HAProxy lifecycle reconciliation | [Archived 2026-07-07 Warden branch evidence](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pr-rebase-conflict-resolution-patterns.history) | verified-local | Keep `-sf` process replacement and master-CLI stats; 557 targeted and 1,227 pre-push tests passed; image validation unavailable |
 | Silent complexity/test/policy/inventory drift | [Hephaestus PR #2056](https://github.com/HomericIntelligence/Hephaestus/pull/2056) | verified-local | Whole-tree lint, tests, whole-file policy search, and inventory hooks catch distinct defects |
+| Content-derived test pins in a conflict | Anonymized monorepo PR train, 2026-10 (see below) | verified-local | Recompute pins from merged content; mirror assertions to computed truth, never guess invariants |
 
 ## Additional Ecosystem Evidence
 
@@ -41,6 +42,14 @@ version 1.15.0. The complete v1.15.0 retrievable content is archived once in the
 - Agamemnon PRs #419/#420/#421 and Odysseus PR #43 preserved extraction and NATS
   reconciliation behavior; Agamemnon #422 used an empty commit only to retrigger
   absent checks, not to repair stale workflow policy.
+- Anonymized monorepo PR train (2026-10): a configuration union conflicted in two
+  test files that pin content-derived values (a spec-hash map and a computed context
+  identifier). The resolution recomputed every pin through the repository's own
+  derivation against the merged configuration, mirrored adjacent semantic assertions
+  to the computed merged truth, and converged on the first focused run: 824 tests
+  passed after regeneration. Two invariants guessed by symmetry failed the computed
+  values and were corrected, which established the no-guessing rule for semantic
+  assertions under this class.
 
 ## Semantic Audit for v2.0.0
 

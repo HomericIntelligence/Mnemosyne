@@ -1,9 +1,9 @@
 ---
 name: pr-rebase-conflict-resolution-patterns
-description: "Use when a pull request reports DIRTY or CONFLICTING, an active task needs a main artifact to continue, a permitted stacked or same-file rebase needs serialization, conflict status is ambiguous (AA/UU/modify-delete), or a textually clean rebase may hide semantic, test, lint, policy, or inventory drift."
+description: "Use when a pull request reports DIRTY or CONFLICTING, an active task needs a main artifact to continue, a permitted stacked or same-file rebase needs serialization, conflict status is ambiguous (AA/UU/modify-delete), or a textually clean rebase may hide semantic, test, lint, policy, or inventory drift, or the conflict carries test-pinned values derived from source content that neither side can supply correctly."
 category: ci-cd
 date: 2026-07-12
-version: "2.1.1"
+version: "2.2.0"
 license: BSD-3-Clause
 user-invocable: false
 tags: [git, rebase, merge-conflict, pull-request, worktree, force-with-lease, semantic-conflict, stacked-pr, ci]
@@ -104,6 +104,7 @@ Resolve according to intent:
 | Same import line | Union symbols into one formatter-ordered import | Lint plus runtime import |
 | Parallel source extraction | Prefer current trunk structure; add only unique behavior | Source diff and focused tests |
 | Parallel test addition | Union materially distinct tests | Test collection and run |
+| Test-pinned content-derived values (digests, computed IDs) | Resolve the source content first; then recompute the pins from the merged content through the repository's own derivation; never copy either side's value | The focused consumer test passes on the recomputed values |
 | Additive build/config blocks | Keep both valid blocks | Parser/configure step |
 | Policy prose | Pick the chronologically current contract, then update every restatement | Whole-file search and backing test |
 | Already-upstream commit | Skip only after proving no unique delta remains | Empty/trivial trunk diff |
@@ -112,6 +113,18 @@ Stage paths explicitly. Do not use `git add .` or `git add -A` in a conflict loo
 If a safety policy blocks checkout/restore shortcuts, reconstruct from read-only
 objects and apply the desired content through an approved editor; do not bypass
 the policy or use destructive reset commands.
+
+Some conflicts carry test-pinned values that are pure functions of source
+content, such as a digest map over configuration files or a computed context
+identifier. Neither side's pinned value is correct after a content union.
+Resolve the semantic source content first. Then recompute each pin with the
+same derivation the consuming test uses: run the repository's derivation code
+against the merged content, or run the focused test and harvest the computed
+values from its assertion diffs. Mirror adjacent semantic assertions to the
+computed merged truth; do not infer invariants by symmetry. Treat mechanical
+pins as safe to harvest verbatim, but require semantic assertions to come from
+the merged content's own rules: an assertion that looks symmetric can encode
+an invariant the implementation does not have.
 
 ### 3. Handle queue topology deliberately
 
@@ -174,7 +187,9 @@ Audit every decision-changing layer touched by either side:
 - complexity after two individually valid changes combine;
 - all repetitions of changed policy values, not only conflicted hunks;
 - inventory/index rows after file deletion;
-- generated lockfiles and manifests after dependency/config changes.
+- generated lockfiles and manifests after dependency/config changes;
+- test pins and adjacent assertions derived from source content that either side
+  changed, recomputed from the merged content and never guessed.
 
 Regenerate stale mocks from the current implementation. Do not change production
 code merely to satisfy expectations written for an abandoned branch design.
