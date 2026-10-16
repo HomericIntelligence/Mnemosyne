@@ -1,9 +1,9 @@
 ---
 name: pr-rebase-conflict-resolution-patterns
-description: "Use when a pull request reports DIRTY or CONFLICTING, an active task needs a main artifact to continue, a permitted stacked or same-file rebase needs serialization, conflict status is ambiguous (AA/UU/modify-delete), or a textually clean rebase may hide semantic, test, lint, policy, or inventory drift, or the conflict carries test-pinned values derived from source content that neither side can supply correctly."
+description: "Use when a pull request reports DIRTY or CONFLICTING, an active task needs a main artifact to continue, a permitted stacked or same-file rebase needs serialization, conflict status is ambiguous (AA/UU/modify-delete), or a textually clean rebase may hide semantic, test, lint, policy, or inventory drift, or the conflict carries test-pinned values derived from source content that neither side can supply correctly, or the target pull request merged, closed, or lost its source ref between resolution work and the delivery mutation."
 category: ci-cd
 date: 2026-07-12
-version: "2.2.0"
+version: "2.3.0"
 license: BSD-3-Clause
 user-invocable: false
 tags: [git, rebase, merge-conflict, pull-request, worktree, force-with-lease, semantic-conflict, stacked-pr, ci]
@@ -42,6 +42,8 @@ runtime behavior, tests, policy prose, generated state, and inventories.
   uses stale workflow configuration.
 - A rebase is reported complete but its merge base or inherited trunk behavior is
   uncertain.
+- The pull request merged upstream, was closed, or lost its source ref while
+  conflict-resolution work was underway.
 
 ## Verified Workflow
 
@@ -238,6 +240,30 @@ Common causes are stale mocks, a byte-identical test
 whose shared contract changed elsewhere, two clean edits combining past a
 complexity limit, or deleted files left in an inventory table.
 
+### Target merged during resolution work
+
+Treat the §1 immutable facts as time-boxed. Immediately before the delivery
+mutation, refresh the trunk and re-read the artifact state, even when the push
+is explicitly authorized:
+
+```bash
+git fetch origin
+gh pr view <N> --json state,headRefOid,mergeCommit
+git log --oneline -3 "$trunk"
+```
+
+If the target pull request merged upstream or its source ref was deleted while
+resolution work ran, do not push. A replay push now resurrects a deleted branch
+with duplicated content and can confuse automation or review state bound to the
+original ref. Prove equivalence at content level, not by commit subject, before
+standing down: compare the upstream merge commit's copy of each conflicted file
+with the prepared resolution (`git show <merge>:<path> | sha256sum`, or the
+repository's own derived pins) and compare the final residual diff.
+Byte-identical content closes the task as integrated by the upstream merge;
+keep the worktree pending cleanup authority, and do not reopen, comment, or
+recreate the ref unless asked. Any real content delta is new evidence: report
+it against the landed merge commit and take direction before writing.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -250,6 +276,7 @@ complexity limit, or deleted files left in an inventory table.
 | Empty workflow retrigger | Pushed an empty commit for stale workflow policy | Reruns the same rejected workflow | An active task can rebase only when corrected workflow files are required; otherwise let CI/CD integrate |
 | Scoped hook evidence | Ran hooks only on conflict-touched files | Misses whole-tree complexity and inventory checks | Run the full hook suite and tests |
 | Unqualified force-push | Rewrote the remote without an explicit lease | Can overwrite new remote work | Pin the lease to the observed old SHA |
+| Pushing on stale authorization | Replayed a completed repair after the target merged upstream during the work | Recreates a deleted source branch and duplicates integrated content | Refresh and re-read artifact state immediately before the mutation; a merged or ref-deleted target is a stop pending content-equivalence proof |
 
 ## Results & Parameters
 
@@ -262,8 +289,9 @@ complexity limit, or deleted files left in an inventory table.
 
 Completion requires current parentage, a reviewed nonempty residual (or an
 explicit superseded disposition), zero unresolved conflicts, passing required
-local checks, preserved verification boundaries, a lease-safe push, and CI on the
-new head.
+local checks, preserved verification boundaries, and either a lease-safe push
+with CI on the new head or a content-verified stand-down when the target
+already landed upstream.
 
 ## References
 
