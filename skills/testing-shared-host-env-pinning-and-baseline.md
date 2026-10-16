@@ -1,11 +1,11 @@
 ---
 name: testing-shared-host-env-pinning-and-baseline
-description: "Run a permission-sensitive repository test suite reliably on an unmanaged shared host and attribute failures correctly. Use when: (1) a suite fails in a shared login shell while hosted CI is green, (2) mode- or ACL-checking tests fail with Errno 95 or 0775-versus-0755 mismatches, (3) a one-shot tool opener shows the suite green while direct runs stay red, or (4) pre-commit and other spawned hooks cannot resolve the repository's own tool binaries, (5) a required commit gate runs that suite and cannot pass on this host for any change, or (6) the change that would repair the gate is itself blocked by the gate."
+description: "Run a permission-sensitive repository test suite reliably on an unmanaged shared host and attribute failures correctly. Use when: (1) a suite fails in a shared login shell while hosted CI is green, (2) mode- or ACL-checking tests fail with Errno 95 or 0775-versus-0755 mismatches, (3) a one-shot tool opener shows the suite green while direct runs stay red, (4) pre-commit and other spawned hooks cannot resolve the repository's own tool binaries, (5) a required commit gate runs that suite and cannot pass on this host for any change, (6) the change that would repair the gate is itself blocked by the gate, or (7) one checkout of the repository is green where a sibling checkout is red on the same host."
 category: testing
 date: 2026-10-09
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
-tags: [shared-host, environment-pinning, umask, tmpdir, xattr, path, uv, pre-commit, test-baseline, pre-existing-failures, phantom-failures, pytest, hpc, multi-session, scratch-worktree, commit-gate, structural-block, self-unblocking-gate]
+tags: [shared-host, environment-pinning, umask, tmpdir, xattr, path, uv, pre-commit, test-baseline, pre-existing-failures, phantom-failures, pytest, hpc, multi-session, scratch-worktree, commit-gate, structural-block, self-unblocking-gate, cross-checkout-identity, virtualenv-base-interpreter, environment-divergence, test-attribution]
 ---
 
 # Shared-Host Test Environment Pinning and Failure Baseline
@@ -26,6 +26,7 @@ tags: [shared-host, environment-pinning, umask, tmpdir, xattr, path, uv, pre-com
 - `git commit` or another spawned hook aborts with a tool-resolution error even though the tool is installed in the repository environment.
 - A required commit gate runs the suite and fails for every change on this host, so no commit can be created.
 - The change that would repair the gate is itself blocked by that gate.
+- One checkout of the repository is green where a sibling checkout is red, and you are about to name test order, a missing fixture, or your change as the cause.
 - You are about to blame your change for failures you have not yet reproduced on clean HEAD.
 
 ## Verified Workflow
@@ -56,6 +57,7 @@ Recognize the environment split first. Green hosted CI plus red local runs (or t
 | Mode 0775 where the test expects 0755; permission checks fail on created trees | Login default `umask 0002` | `umask 022` |
 | Suite green through a one-shot opener, red (or counts skew) in direct runs | The opener resolves a different `PATH`/dependency source | Export the repo env `PATH` explicitly, rerun both contexts identically |
 | Commit aborts inside a hook with a tool-resolution or `FileNotFoundError` | Spawned shells do not inherit activation | Prefix hook commands: `PATH="$PWD/.venv/bin:$PATH" git commit ...` |
+| One checkout green, a sibling checkout red at the same commit | Each checkout has its own environment, and the newer one used a different base interpreter | Compare the resolved base interpreter and its mode in both checkouts |
 
 ### When the gate is the suite and no pin reaches it
 
@@ -89,6 +91,34 @@ Establish the baseline before attribution. Run the same test subset under the sa
 
 Define completion by the delta: green branch runs under the pin, baseline count reproduced and quoted, and hosted checks observed. See [notes](testing-shared-host-env-pinning-and-baseline.notes.md) for the measured counts and probe details.
 
+### When two checkouts disagree, compare environment identity first
+
+A test result from one checkout is not evidence about another checkout of the same repository. This rule holds when both checkouts have the same commit, the same host, and the same time.
+
+A tool that builds a virtual environment for a new worktree takes the first interpreter that it finds. That interpreter is often not the one that the existing environment uses. The two checkouts then run different binaries with different permissions. A guard that checks the interpreter reaches opposite verdicts in the two checkouts.
+
+Compare the base interpreter in each checkout before you name the code, test order, or a fixture as the cause. Resolve the link before you compare. A guard inspects the target, not the link.
+
+```bash
+for v in <checkout-a>/.venv <checkout-b>/.venv; do
+  printf '%s ' "$v"; stat -c '%a' "$(readlink -f "$v/bin/python3")"
+done
+# 755 <checkout-a>/.venv   -> private base; the trust guard accepts it
+# 775 <checkout-b>/.venv   -> group-writable base; the trust guard rejects it
+```
+
+An equal commit and an equal host with different verdicts mean that the environments differ. Test order is not the cause.
+
+Build the divergent environment against the interpreter that the trusted checkout uses:
+
+```bash
+uv sync --python <path-to-a-private-mode-interpreter>
+```
+
+Run both checkouts again. A difference that disappears was environmental. Only a failure that survives an equal environment identity belongs to the change.
+
+Do not weaken a guard to correct this. The guard is right. The environment that it inspected was not the one you assumed.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -100,6 +130,7 @@ Define completion by the delta: green branch runs under the pin, baseline count 
 | Re-run a structurally failing commit gate hoping it passes | Ran the hook three times after its failures were already attributed to host permissions | Every attempt costs a full suite run and none can pass. The repetitions also raised host load, so each attempt took far longer than the first | Diagnose the gate once, name the branch, and stop. Report the block instead of retrying it |
 | Overlap your own full-suite runs while a gate is slow | Several independent suites launched together after the first hook attempt was slow | Host load reached roughly half the core count. Each later attempt inherited the contention, and the two concurrent writers made attribution noisy | Bound concurrent suites. One gate attempt at a time, and one validation owner per worktree |
 | Escalate a host-environment failure before checking the existing rule | Filed a tracking issue for a mode-mismatch failure class | The pin set in this entry already names the cause and the fix. The issue restated a known rule | Search the existing rule before escalating. Extend it when the new case is not covered; do not duplicate it |
+| Name test order as the cause of a difference between two checkouts | Bisected the order, and every step reproduced the failure, so the split looked like shared state | Both halves of the bisect ran in the same environment. The isolation run that passed ran in the other checkout | Compare the environment identity of both checkouts before you name order, pollution, or a fixture |
 
 ## Results & Parameters
 
@@ -119,6 +150,7 @@ export PATH="$PWD/.venv/bin:$PATH"   # substitute the repository's own tool envi
 - PR evidence (commands and counts) is reproducible under the documented pin.
 - A structurally blocked gate is reported once with its measured cause, not retried.
 - A repair that unblocks its own gate commits cleanly, because the hook sees the working tree.
+- A difference between two checkouts disappears after both checkouts use an equal environment identity.
 
 ## Verified On
 

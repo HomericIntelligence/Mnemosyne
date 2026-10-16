@@ -85,3 +85,50 @@ session's stash (`stash@{0}` authored hours earlier on a different branch), and 
 files landed silently in the worktree. A detached worktree from verified `origin/main`
 (`git worktree add --detach <path> origin/main`) carries no such coupling and gives a
 citable baseline commit for the PR record.
+
+## Third host measurement: cross-checkout environment identity (2026-10-14)
+
+Two checkouts of one repository, one host, one commit, minutes apart. The guard suite passed
+in one checkout and failed in the other.
+
+| Checkout | Base interpreter | Mode |
+| --------- | ---------------- | ---- |
+| Primary environment | Tool-managed interpreter | `755` |
+| Worktree environment | System interpreter found first on the search path | `775` |
+
+The worktree environment did not exist at the start of the session. The tool created it and
+selected its base interpreter from the first entry on the search path. The primary
+environment had been created earlier against a different interpreter. No pin explains this,
+because the differing object is a pre-existing file on disk, not a created tree.
+
+| Run | Base mode | Result |
+| --- | --------- | ------ |
+| Guard suite, primary checkout | `755` | passed |
+| Guard suite, same file, worktree checkout | `775` | failed: the attachment program was rejected as untrusted |
+| First bisect half, worktree checkout | `775` | reproduced |
+| Second bisect half, worktree checkout | `775` | reproduced |
+| Guard suite, worktree after rebuild against the `755` base | `755` | passed |
+
+Both bisect halves reproduced, so the split looked like order-dependent test pollution. The
+isolation run that passed had run in the other checkout. The variable was the environment
+identity, not the order and not a fixture.
+
+Repair:
+
+```bash
+uv sync --python <path-to-the-private-mode-interpreter>
+```
+
+The mode of the resolved base interpreter, measured per checkout:
+
+```bash
+stat -c '%a %n' "$(readlink -f .venv/bin/python3)"
+```
+
+Measure this in every checkout that you compare. Two `stat` calls cost less than a full
+bisect, and the bisect answers the wrong question when the two runs never shared an
+environment.
+
+One earlier report in this file stated that a group-writable interpreter caused the failure
+and that the failure did not reproduce. Both statements came from runs in different
+checkouts. The cause was real, and the reproduction check was invalid.
