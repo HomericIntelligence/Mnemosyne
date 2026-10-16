@@ -1,10 +1,10 @@
 ---
 name: llm-baseline-spec-verification
 license: BSD-3-Clause
-description: "Check model architecture specifications against primary configuration when calculating KV-cache size, FLOPs, memory use, or quantitative baseline comparisons."
+description: "Check model architecture specifications against primary configuration when calculating weight footprint, KV-cache size, activation memory, FLOPs, memory use, or quantitative baseline comparisons."
 category: architecture
 date: 2026-04-13
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-local
 tags: []
@@ -29,6 +29,8 @@ history-cleanup-date: "2026-09-20"
 - Using a shared context/prelude document that specifies model architectures
 - Comparing multiple LLM baselines in research or review documents
 - Identifying which numeric errors are "inherited from prelude" vs. "original author error"
+- Answering a deployment question about GPU memory for a context length, a user count, or a
+  low-bit artifact
 
 ## Verified Workflow
 
@@ -49,6 +51,9 @@ curl -s "https://huggingface.co/Qwen/<model-name>/raw/main/config.json" | python
 # - max_position_embeddings (native context window)
 # - For hybrid models: full_attention_interval, attn_type_list
 ```
+
+For a memory footprint question, also read the excluded-layer list and the weight-file total. See
+[Split the Memory Footprint into Three Terms](#split-the-memory-footprint-into-three-terms).
 
 ### Detailed Steps
 
@@ -95,6 +100,58 @@ KV = (L/4) x 2 x H_kv x head_dim x S x 2 bytes
 KV = 15 x 2 x H_kv x head_dim x S x 2 bytes
 ```
 
+### Split the Memory Footprint into Three Terms
+
+A memory answer has three terms. Each term has a different scaling rule.
+
+| Term | Scales with context length | Scales with concurrent sequences |
+| ------- | ------- | ------- |
+| Weights | No | No |
+| KV cache | Yes | Yes |
+| Activations | No | Yes, through the prefill chunk and the batch |
+
+Keep this scaling rule:
+
+1. Compute the weight payload from the parameter count and the bytes per weight.
+2. Compute the KV cache from `L x 2 x H_kv x head_dim x S x bytes_per_element`.
+3. Compute the activation high-water value from the prefill chunk, not from `S`.
+
+Do not multiply activation memory by the context length. A flash-attention backend does not
+materialize the score matrix, so its memory follows the chunk size.
+
+For a mixture-of-experts decoder, top-k routing leaves the KV cache unchanged but multiplies the
+per-token activation by the selected expert count. The gathered expert input is usually the largest
+activation buffer.
+
+Treat the attention backend as a requirement at long context, not as a preference. A backend that
+materializes the score matrix needs memory on the order of `H_q x chunk x S x 2` bytes, which is not
+viable for a large context.
+
+At low concurrency, fixed overhead dominates. Memory for graph capture and for kernel workspaces is
+not derivable from the architecture. Measure it before you publish a capacity figure.
+
+A serving engine can report fewer bytes per token than the architectural formula gives. Keep the
+measured value for device sizing and the architectural value for host sizing.
+
+### Handle a Low-Bit Artifact
+
+1. Read the excluded-layer list. A quantized artifact usually keeps attention, embedding, router, and
+   other excluded layers at source precision.
+2. Apply the bit width only to the quantized partition. Do not multiply the full parameter count by
+   the low bit width.
+3. Derive the parameter count from the published weight-file total and the recorded tensor dtype. Do
+   not use the size in a model name.
+
+A block format carries scale bytes. The effective width is the nominal width plus the scale.
+
+| Nominal width | Block size | Scale width | Effective bits per weight |
+| ------- | ------- | ------- | ------- |
+| 4 bit | 16 | 8 bit | 4.5 |
+| 4 bit | 32 | 8 bit | 4.25 |
+
+A group format with a 16-bit scale and a packed zero point over 128 weights costs 66.5 bytes per
+group, which is 4.16 bits per weight.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -103,6 +160,10 @@ KV = 15 x 2 x H_kv x head_dim x S x 2 bytes
 | Using Q heads for KV cache | Computed KV cache as `L x 2 x H_q x head_dim x S x 2` | GQA models have H_kv << H_q; Qwen3-32B has 64 Q heads but only 8 KV heads, producing 8x overestimate | Always use `num_key_value_heads` (H_kv) in KV cache formula, never `num_attention_heads` |
 | Using uniform context across a model family | Assumed all models in a family share the same context window | Qwen3-32B uses 40,960 native context; Qwen3.5-27B uses 262,144; the 397B MoE also uses 262,144 | Check max_position_embeddings per model even within the same family |
 | Applying long-context speedup figures to short context | Cited "3x throughput improvement" at short context | Figure came from 65K context (a~0.08 attention fraction) where attention dominates; at 32K context a~0.25, MLP dominates and speedup is ~1.18x | Always verify the context length at which a speedup figure was measured; recalculate for the target context |
+| Scaling activation memory by context length | Multiplied the per-token activation high-water value by the full context length | Activation memory follows the prefill chunk and the batch size, and a flash-attention backend does not materialize the score matrix | Put `S` in the KV term only, and scale activation memory with the chunk size |
+| Applying a low bit width to the whole model | Multiplied the full parameter count by 0.5 byte per weight | The artifact keeps attention, embedding, router, and other excluded layers at source precision | Read the excluded-layer list, then apply the bit width only to the quantized partition |
+| Reporting a derived footprint as the GPU requirement | Published weights plus KV cache as the total memory figure | Memory for graph capture and for kernel workspaces is not derivable from the architecture | Give the derived terms, then mark the fixed overhead as a measured requirement |
+| Reading the parameter count from the model name | Took the leading number in a model name as the parameter count | A name states a rounded or marketing size and does not match the published weight-file total | Divide the published weight-file total by the recorded tensor width |
 
 ## Results & Parameters
 
