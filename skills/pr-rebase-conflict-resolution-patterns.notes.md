@@ -26,6 +26,7 @@ version 1.15.0. The complete v1.15.0 retrievable content is archived once in the
 | HAProxy lifecycle reconciliation | [Archived 2026-07-07 Warden branch evidence](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pr-rebase-conflict-resolution-patterns.history) | verified-local | Keep `-sf` process replacement and master-CLI stats; 557 targeted and 1,227 pre-push tests passed; image validation unavailable |
 | Silent complexity/test/policy/inventory drift | [Hephaestus PR #2056](https://github.com/HomericIntelligence/Hephaestus/pull/2056) | verified-local | Whole-tree lint, tests, whole-file policy search, and inventory hooks catch distinct defects |
 | Content-derived test pins in a conflict | Anonymized monorepo PR train, 2026-10 (see below) | verified-local | Recompute pins from merged content; mirror assertions to computed truth, never guess invariants |
+| Target merged at the delivery gate | Anonymized hosted monorepo PR, 2026-10 (see below) | verified-local | Re-read artifact state immediately before the mutation; a merged target gets content-equivalence proof and a stand-down, not a replay push |
 
 ## Additional Ecosystem Evidence
 
@@ -50,6 +51,19 @@ version 1.15.0. The complete v1.15.0 retrievable content is archived once in the
   passed after regeneration. Two invariants guessed by symmetry failed the computed
   values and were corrected, which established the no-guessing rule for semantic
   assertions under this class.
+- Anonymized hosted monorepo PR (2026-10): a two-commit deliverable, 16 trunk
+  commits behind, was rebased with a semantic union of two independent features in
+  one build program (each side shifted the same positional parameters), the
+  content-derived digest pin recomputed from the merged bytes, and one consumer
+  test fixture updated for a new precondition the change introduced; 466 focused
+  tests passed with lint and format clean. The mandated pre-push fetch then showed
+  the pull request had squash-merged upstream minutes earlier through a parallel
+  actor, and its source ref was already deleted. Equivalence was proven at content
+  level: the upstream merge commit's copy of the conflicted program hashed
+  byte-identically to the prepared resolution, the repository's own digest pin
+  pointed at the same value, and the fixture update was present verbatim. No push
+  occurred; zero unique work remained unretained. The stop path itself has no CI
+  receipt because no delivery ran.
 
 ## Semantic Audit for v2.0.0
 
