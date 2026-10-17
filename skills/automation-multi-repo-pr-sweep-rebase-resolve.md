@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Inspect an authorized PR backlog across repositories when review alone leaves checks, conflicts, or review threads unresolved. Select repairs from live policy and actual blockers."
 category: tooling
 date: 2026-06-28
-version: "1.2.0"
+version: "1.3.0"
 user-invocable: false
 verification: verified-ci
 tags:
@@ -92,6 +92,45 @@ intended change with the target and preserve ambiguous work.
 
 **CI-THROUGHPUT CEILING:** force-pushing ~80 PRs saturates GitHub's runner pool — armed PRs sit `BLOCKED` with all checks **QUEUED** (not stuck, just waiting); auto-merge fires as runners free up. This is the real rate limit once structural blockers are gone.
 
+### Parallel-sweep coordination rules
+
+These rules apply when several workers rebase disjoint branch sets concurrently against one
+trunk. Verified in a later 40+ branch single-repository sweep that also survived a host
+restart without losing delegated or delivered work.
+
+1. **Guard every delegated push.** A scripted worker must assert the candidate before each
+   push (`git -C <wt> rev-parse HEAD` equals the recorded rebased candidate) and read the
+   remote ref back after each push. A missing `git -C`/working-directory reset makes
+   `git push origin HEAD:<branch>` send the shared checkout's unrelated HEAD (a production
+   tip) onto the feature branch. Repair at once with exactly one corrective push leased to
+   that erroneous head, then verify the ref. Do not trust shell directory persistence
+   between steps.
+2. **The coordinator owns shared allocation namespaces.** When parallel conflict
+   resolutions allocate from one global namespace (decision-record numbers, registry
+   identifiers, tier rows), assign disjoint ranges per worker before dispatch or allocate
+   at integration. Two workers independently took the same next record number against the
+   same trunk and produced cross-PR collisions on sibling outputs; settlement required
+   renumbering one validated candidate upward. Check pending sibling allocations before
+   accepting a fresh number.
+3. **Decide the duplicate-cluster disposition before dispatch.** Pre-flight analysis can
+   show a cluster of branches whose whole delta already shipped (`git cherry` reports `-`,
+   stable patch-id equal to a trunk commit, or wrong-base squashed content). Record one
+   disposition for the entire cluster before workers start: push the trunk-tip rebase so
+   the platform closes the PR as shipped, or leave the branch untouched for human
+   closure. The push outcome transitions the PR through the platform's
+   shipped-containment behavior, and an armed auto-merge changes that consequence class.
+   Workers that choose differently produce an asymmetric ledger that a human must
+   reconcile.
+4. **Settle external races on content, not on retry.** When a second authorized actor
+   updates a branch mid-sweep, a lease rejection is a checkpoint, not a failure. Compare
+   the actor's head with the local candidate by content subsumption: tree equality, the
+   sorted inserted/deleted line-set of both patches against their respective bases, and
+   patch-id where both patches apply to comparable bases. Never overwrite a verified
+   equivalent, even when the local candidate is one trunk generation newer — rewriting a
+   valid head wastes review bindings and CI. Settle only stale-base or incomplete actor
+   outcomes, with the lease pinned to the actor's observed head, and only after proving
+   the candidate includes the actor's delta (if any) semantically.
+
 ### Quick Reference
 
 ```bash
@@ -146,6 +185,7 @@ gh pr merge <pr> --auto --squash --repo $ORG/$REPO   # only if live policy permi
 | 2 | Ran the loop from the wrong CWD (the Odysseus meta-repo root) | `hephaestus-review-prs` has NO `--repo` flag — it targeted the wrong repo's issues/PRs | Always invoke it from inside each individual repo clone (CWD = that repo). |
 | 3 | Armed `--auto --squash` on all overlapping PRs simultaneously | Maximal merge-train cascade: every merge advanced `main`, re-conflicting siblings that touched shared files (CHANGELOG, pixi.lock, `_required.yml`, coverage.xml) | Serialize the arm. Rebase only when the task-phase rule permits it; otherwise let CI/CD or the merge queue integrate the branch. |
 | 4 | Treated `BLOCKED`-all-green PRs as broken/stuck | They were not broken — either unresolved review threads (review-gate) OR a CI runner backlog with all checks QUEUED | Inspect unresolved threads and queued checks. Confirm that a shared failure affects each candidate before selecting a shared fix. |
+| 5 | Delegated push without a HEAD guard | A scripted push ran from the shared checkout instead of the per-PR worktree; the checkout's unrelated HEAD (a production tip) replaced the feature-branch head on the remote | Assert `HEAD == <recorded candidate>` before each push; repair immediately with one corrective `--force-with-lease` pinned to the erroneous head; read the ref back after every push |
 
 ## Results & Parameters
 
