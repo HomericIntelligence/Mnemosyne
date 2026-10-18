@@ -61,7 +61,7 @@ Recognize the environment split first. Green hosted CI plus red local runs (or t
 
 ### When the gate is the suite and no pin reaches it
 
-`umask`, `TMPDIR`, and `PATH` fix **created** trees and **resolved** binaries. Three cases survive every pin. Recognize them and stop searching the pin list.
+`umask`, `TMPDIR`, and `PATH` fix **created** trees and **resolved** binaries. Four cases survive every pin. Recognize them and stop searching the pin list.
 
 **1. The inspected file already exists and is group-writable.** A permission guard that checks a pre-existing executable does not care how new files are created. Probe the target itself:
 
@@ -82,6 +82,15 @@ git -c core.hooksPath=/dev/null commit --dry-run   # NO. never use this to land 
 Read the last hook output, name the branch above, and stop. Do not re-run the gate hoping for a different result: each attempt is one full suite, and none can pass.
 
 **3. The change that repairs the gate is blocked by the gate.** This looks impossible and is not. A pre-commit hook runs against the **working tree**, not against `HEAD`. So once the repair is staged, the hook sees the repaired code and the commit succeeds even while `HEAD` is still red. Stage the repair and commit it. If the repair is a test-only change, it still unblocks itself the same way.
+
+**4. The checkout itself no longer matches the index-recorded modes.** A worktree or clone created under a permissive creation `umask` (`0002`) lands every tracked file group-writable (`0775`/`0664`) while the object database records `0755`/`0644`. A gate that maps reviewed programs or fixtures by exact mode then fails on many paths at once, and `git status` can list phantom mode-only modifications. A session harness can create the checkout before the session pin exists, so the pin alone cannot prevent this case. Normalize the tree to the recorded modes; the repair touches the filesystem only:
+
+```bash
+git ls-files -s | awk '$1=="100755"{print $4}' | while IFS= read -r f; do chmod 0755 "$f"; done
+git ls-files -s | awk '$1=="100644"{print $4}' | while IFS= read -r f; do chmod 0644 "$f"; done
+```
+
+Recreating the worktree under `umask 022` also produces the recorded modes. Do not commit the drifted modes and do not weaken a reviewed-mode map.
 
 Never weaken the guard to get past the gate. The gate failing on a correct guard is the signal to fix the seam, not to remove the check.
 
