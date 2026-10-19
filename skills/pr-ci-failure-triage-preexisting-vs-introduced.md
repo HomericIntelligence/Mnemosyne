@@ -1,9 +1,9 @@
 ---
 name: pr-ci-failure-triage-preexisting-vs-introduced
-description: "Classify red PR checks as introduced, pre-existing, flaky, environmental, stale-commit, or status-rollup artifacts before fixing or rerunning. Use after rebases/force-pushes, unrelated failures, merge-preview coverage changes, or hosted-only process-launch errors. Also use when the required check is a fan-in gate reported by a ruleset, when the failing symbol on the base was deliberately removed, when a base update turns a green branch red without a textual conflict, when grouped or sharded logs hide individual failed node identities, when failures reproduce only on the local host, or when a path-filtered check fails on stale in-repo plan inputs that main already repaired."
+description: "Classify red PR checks as introduced, pre-existing, flaky, environmental, stale-commit, or status-rollup artifacts before fixing or rerunning. Use after rebases/force-pushes, unrelated failures, merge-preview coverage changes, or hosted-only process-launch errors. Also use when the required check is a fan-in gate reported by a ruleset, when the failing symbol on the base was deliberately removed, when a base update turns a green branch red without a textual conflict, when grouped or sharded logs hide individual failed node identities, when failures reproduce only on the local host, or when a path-filtered check fails on stale in-repo plan inputs that main already repaired. Also use when an aggregate gate fails its own report step because a producer job output key is absent from `needs` while every upstream job succeeded."
 category: ci-cd
-date: 2026-07-31
-version: "2.4.0"
+date: 2026-10-19
+version: "2.5.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-ci
@@ -27,6 +27,7 @@ tags:
   - paths-filter
   - stale-plan-inputs
   - evidence-artifact
+  - job-outputs
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pr-ci-failure-triage-preexisting-vs-introduced.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -64,6 +65,10 @@ and the complete prior version is in
   main's run history and from PRs whose diffs stay outside the filter — and a check with
   pinned in-repo plan inputs (a fixed selector or case list) dies before any test count
   with a usage-style error.
+- A required aggregate gate fails in its own report or summary step because an upstream
+  job output key is absent from `needs.<job>.outputs`, while the producer job and every
+  other upstream concluded success — and re-running the gate or the producer job inside
+  the same run does not restore the key.
 
 ## Verified Workflow
 
@@ -143,6 +148,33 @@ passes.
   ```bash
   gh run download <failed-run-id> -n <evidence-artifact-name>
   ```
+
+- Aggregate gate fails its own report step on a `needs.<job>.outputs` key that is absent
+  while every upstream job succeeded: attribute the dropped producer output before any
+  rerun. Re-execution inside the same run inherits stored job outputs, so a rerun cannot
+  repair a propagation drop.
+
+An aggregate gate usually reads its inputs through `toJSON(needs.<producer>.outputs)`. When
+that map lacks a key the producer demonstrably wrote — the producer job concluded success
+and its log shows the emit step writing the value — the source tree is not the cause.
+Attribute the drop in this order:
+
+1. Producer provenance: the producer job succeeded and its emit step logged the value. The
+   output existed at job level; the failure is downstream propagation.
+2. Window bracket: find a same-era green run of the same workflow whose gate consumed the
+   present key (another branch, or main before the first failure). A cohort with the key
+   present at time T1 and absent from a set of later runs at T2 isolates a platform-side
+   window or behavior change. It does not name a product defect.
+3. Re-execution identity: do not repair by rerunning jobs inside the same run. Each job
+   rerun in one run inherits the run's stored job outputs — even when the producer job
+   re-executes. Only a fresh run ID (close and reopen the PR, or a new push) regenerates
+   the stored outputs. Verify with a fresh run before you accept a repair theory.
+4. Fresh-run reproduction classifies the failure: if the identical key stays absent in a
+   fresh run, the first cause is a platform behavior change, and the old gate contract
+   can fail for every old-world run from then on. Resolve by a recorded base update when
+   current main already carries a workflow that does not depend on the dropped output, or
+   by changing the workflow contract. Record the platform evidence with the base-update
+   record. Do not patch the PR's files to mask a gate the platform can no longer satisfy.
 
 For generated harnesses, stream code over stdin instead of `node -e <large-script>`:
 
@@ -255,6 +287,7 @@ operational verification.
 | 11 | Took trunk's half of a lockstep workflow/validator pair during conflict resolution | The surviving branch half rejected every trunk-shaped evidence on prefix checks | Move producer/consumer halves atomically; rerun the pair's own checks |
 | 12 | Treated a local-only failure as a PR defect | The same nodes failed set-identically on a pristine trunk worktree; hosted CI was green | Bind local failures to the pristine-base oracle before attribution |
 | 13 | Classified a path-filtered check from main's history alone | The workflow runs only for diffs that touch its `paths:` list, so main carried no failure and same-base unaffected PRs carried no run at all — the comparison set was empty while a stale pinned selector made every filtered base fail | Check the workflow's trigger filter first; for in-repo plan inputs, diff the pinned selector against the tree and read the job's uploaded evidence artifacts, then remediate a main-repaired input by a base update |
+| 14 | Re-ran the failed aggregate gate, then re-ran the producer job, to republish a `needs` output key the gate missed | The same key stayed absent in every attempt of the same run; job reruns inherit the run's stored job outputs even when the producer re-executes | Capture the producer's emit evidence and bracket a same-era green-run window first; regenerate stored outputs only through a fresh run ID, and when the drop persists there, treat it as a platform behavior change and move the branch to the gate world main already carries |
 
 ## Results & Parameters
 
@@ -278,6 +311,13 @@ operational verification.
 - Main-repaired stale input: `git log -1 origin/main -- <input-file>` differing from the
   base copy means current main may already carry the repair; remediate by a recorded base
   update, not by PR-side workarounds.
+- Dropped producer output attribution order: producer emit evidence, same-era green-run
+  window bracket, rerun-inheritance rule, fresh-run reproduction verdict.
+- Fresh-run regeneration: job reruns inside one Actions run share stored job outputs; a
+  close/reopen cycle or a new push assigns a fresh run ID and regenerates them.
+- Platform-change resolution: an identical output drop that persists in a fresh run
+  classifies as a platform behavior change; remediate by a recorded base update to the
+  workflow world current main carries, or by a workflow contract change.
 
 ## Evidence Boundary
 
