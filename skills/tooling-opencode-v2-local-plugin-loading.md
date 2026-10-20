@@ -2,8 +2,8 @@
 name: tooling-opencode-v2-local-plugin-loading
 description: "Make a locally developed or checkout-based plugin load in OpenCode V2. Use when: (1) a configured plugin is absent and no error message or error reference is shown, (2) a filesystem path in the plugins configuration does not load, (3) you must select a mounting form for a local plugin."
 category: tooling
-date: 2026-10-13
-version: "1.0.0"
+date: 2026-10-19
+version: "1.1.0"
 user-invocable: false
 tags: [opencode, plugin, local-plugin, configuration, silent-failure]
 ---
@@ -40,7 +40,7 @@ opencode plugin list
 | Mounting form | Requirement | Result when the requirement is not met |
 | --------- | --------- | --------- |
 | npm package spec in the `plugins` array (for example `name@latest`) | A published or cached package with a valid entrypoint | Loud load error with a recorded error reference if the module shape is invalid |
-| Reference to a local directory | A root `index.js` in the directory, or a package `main`/`exports` entry that resolves to one | Silent skip: no error, no log reference, absent from the loaded set |
+| Reference to a local directory | A root `index.js` (or `index.ts`) in the directory. A `package.json` `main`/`exports` entry alone does **not** resolve in OpenCode v2.0.29; only a root index file triggers loading | Silent skip: no error, no log reference, absent from the loaded set |
 | Drop-in file `~/.config/opencode/plugins/<name>.js` | A `.js` file directly in the user plugins directory | Loads as a local plugin without a `plugins` configuration entry |
 | Raw filesystem path as a `plugins` entry | Not supported; the array holds npm package specs | The plugin does not load; use a package spec or the drop-in directory instead |
 
@@ -67,7 +67,8 @@ Two adjacent rules stay in their canonical entries. Do not duplicate them here:
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 | --------- | ---------------- | --------------- | ---------------- |
 | Raw file path as a `plugins` entry | Added an absolute `.js` file path to the V2 `plugins` array. | The array resolves npm package specs, not filesystem paths. The plugin did not load. | Mount a local file with the drop-in directory convention, not with a configuration entry. |
-| Directory reference without a root entrypoint | Referenced a project checkout directory that had no root `index.js`. | Silent skip: the plugin was absent from `opencode plugin list`, with no error message, no error reference, and no log line. | A directory reference must have a root `index.js`, or a package entrypoint that resolves to one. Verify the entrypoint before you configure the reference. |
+| Directory reference without a root entrypoint | Referenced a project checkout directory that had no root `index.js`. | Silent skip: the plugin was absent from `opencode plugin list`, with no error message, no error reference, and no log line. | A directory reference must have a root `index.js` or `index.ts`. A `package.json` `main`/`exports` field alone does not trigger loading in v2.0.29 (see the row below). Verify the root entrypoint before you configure the reference. |
+| Directory with `package.json` `main` but no root `index.js` | A directory contained a valid `package.json` with `"main": "plugin.js"` and a resolvable target file, but no root `index.js`. | Silent skip on OpenCode v2.0.29: no `loading plugin` log line, no error reference, absent from the loaded set. The loader does not consult `package.json` `main`/`exports` during discovery. | Add a root `index.js` (or `index.ts`) that re-exports the definition, e.g. `export { default } from "./plugin.js";`. Then restart and verify. |
 | V1 module shape kept in the entrypoint | Loaded a package whose default export had a V1-style module shape. | Loud rejection with a recorded error reference. | See [tooling-opencode-v2-invalid-server-plugin](tooling-opencode-v2-invalid-server-plugin.md) for the full diagnosis. |
 
 ## Results & Parameters
@@ -110,6 +111,7 @@ export default {
 | Project | Context | Details |
 | --------- | --------- | --------- |
 | OpenCode v2.0.24 through v2.0.26 | Local plugin mounting from project checkouts and a user drop-in file, in an isolated local environment. Public stable releases. | [notes.md](../skills/tooling-opencode-v2-local-plugin-loading.notes.md) |
+| OpenCode v2.0.29 | Verified that a directory with a valid `package.json` `main` field but no root `index.js` is silently skipped; only a root `index.js` triggers loading. Public stable release. | [notes.md](../skills/tooling-opencode-v2-local-plugin-loading.notes.md) |
 
 ## References
 
