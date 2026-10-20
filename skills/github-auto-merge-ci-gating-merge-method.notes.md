@@ -14,6 +14,7 @@ These notes retain project-specific evidence moved during
 | Six-PR completion sweep | [ProjectHephaestus epic #1809](https://github.com/HomericIntelligence/ProjectHephaestus/issues/1809) | verified-ci | Exposed PR-vs-issue label, stale check, merge-result drift, truncated review, leaked checkout edits |
 | Shared-queue ownership | [Issues #2419](https://github.com/HomericIntelligence/ProjectHephaestus/issues/2419), [#2423](https://github.com/HomericIntelligence/ProjectHephaestus/issues/2423) | verified-local | No conditional disable/ownership nonce; fail-closed interlock |
 | Direct review handoff | [Athena PR #60](https://github.com/HomericIntelligence/Athena/pull/60) | verified-local | Exact GO plus architecture evidence and reviewed-head revalidation |
+| Queue readback and batch arming | Mnemosyne bulk queue sweep, 16 PRs | verified-ci | `autoMergeRequest` stayed null for every queue-owned PR; `mergeQueueEntry` proved admission; a piped wrong flag hid eleven failed calls |
 
 ## Additional observed patterns
 
@@ -36,6 +37,15 @@ down rather than adopting or disabling it.
 The six-PR sweep also showed that CI may lint the synthetic merge ref. Main drift can fail that job
 even when branch-only checks pass. Reproduce the merge-result command, include required formatting,
 and do not mistake an automation run that ended before its completion marker for a clean review.
+
+The queue sweep armed sixteen PRs on a queue-protected base. Every PR returned a null
+`autoMergeRequest` after a successful arm, because the queue owns the request. Reading that field as
+proof of failure caused a false "not armed" conclusion and a redundant re-arm. `mergeQueueEntry`
+state and position were the only reliable readback. The same sweep showed that a batched loop can
+report success while every call fails: the loop used `--auto-merge`, which is not a flag, and the
+piped output hid the error. Confirm each PR reached the queue instead of trusting the loop status.
+The sweep also found that one list response reported `BLOCKED` for PRs that a single-PR read
+reported as `CLEAN`. Read merge state per PR.
 
 ## Verification boundaries
 
