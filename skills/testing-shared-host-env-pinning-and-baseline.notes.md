@@ -132,3 +132,28 @@ environment.
 One earlier report in this file stated that a group-writable interpreter caused the failure
 and that the failure did not reproduce. Both statements came from runs in different
 checkouts. The cause was real, and the reproduction check was invalid.
+
+## Fourth host measurement: index-recorded-mode drift in a fresh worktree (2026-10-18)
+
+A session harness created two task worktrees on one shared host during one effort. The host
+login `umask` was `0002`, and each harness-created checkout landed every tracked file
+group-writable (`0775`/`0664`) while the index recorded `0755`/`0644`. The session pin could
+not prevent it: the checkouts were created before the session ran.
+
+| Observation | Result |
+| ----------- | ------ |
+| Reviewed-program gate on the harness-created worktree | failed: "mode is not reviewed" across the reviewed set |
+| Hosted PR checks in the same window | green (local-only divergence) |
+| Gate re-run after normalizing modes to the `git ls-files -s` values | passed |
+| `git status` after normalization | clean; the repair is filesystem-only, zero content change |
+
+Recovery used on both occurrences:
+
+```bash
+git ls-files -s | awk '$1=="100755"{print $4}' | while IFS= read -r f; do chmod 0755 "$f"; done
+git ls-files -s | awk '$1=="100644"{print $4}' | while IFS= read -r f; do chmod 0644 "$f"; done
+```
+
+Recreating a worktree under `umask 022` also produces the recorded modes. Do not commit the
+drifted modes: the index already records the correct values, and a checkout under the pinned
+`umask` reproduces them.
