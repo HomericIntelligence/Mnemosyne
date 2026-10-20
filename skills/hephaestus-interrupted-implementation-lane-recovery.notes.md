@@ -106,6 +106,58 @@ a host-side shim, not an automation patch.
   to minute 55 of each hour; recovery once co-tenants' batches pass. Time a relaunch to the start
   of a quiet window.
 
+## Fail-closed writer-recovery chain (five runs, one issue)
+
+Identifiers generalized: one target repository, one issue with no dependency chain, one operator
+host with a native v2 agent CLI behind a translator shim. The item had approved `state:plan-go`
+(two review rounds) before the first implementation run.
+
+Timeline of signatures:
+
+1. Run R1: planned, reviewed, `state:plan-go`; died at the rebase writer with
+   `FAIL:host signing configuration unavailable` right after lane creation (signature 6). Host fix:
+   declared the operator's existing repo-local SSH-signing identity in the host-global git config
+   (the key was already passphraseless, mode 0600).
+2. Run R2: died in seconds with `FAIL:dirty_direct_claim_failed` (signature 7). Cause: the R1
+   preserved lane worktree had been discarded with `git worktree remove --force` per the summary's
+   discard instruction, while `hephaestus-source-workspaces/<issue>-impl.json`
+   still recorded the path. Fix: `git worktree add --force <lane-path> <receipt-branch>` — the
+   branch still pointed at the receipt revision and carried zero commits, so the probe then
+   reported not-applicable and the run formed a fresh lane.
+3. Run R3: the fresh run cut a new nonce branch and advanced the receipt to generation 2; the
+   writer then failed with `initial implementation state failed: initial implementation record
+   does not match` (signature 8). The stale `*-implementation-start.pending.json` still named the
+   R1 branch and previous base revision. Fix: archived (moved, not deleted) the pending record.
+4. Run R4: writer failed with `initial implementation history is unknown; use --rebase to
+   continue` (signature 8, second half). Fix: relaunched with `--rebase`.
+5. Run R5: intake OK -> lane -> rebase writer -> advise -> implement job claimed with a fresh
+   budget. The recovery chain terminated in a working implementation run.
+
+Mechanism anchors (automation source):
+
+- `hephaestus/automation/pipeline/worker_pool.py` `_controlled_git_signing_env` /
+  `_read_host_git_signing_config`: builds the writer env from
+  `git config --global --null --get-regexp ^(user\.name|user\.email|gpg\.format|user\.signingkey)$`
+  and returns the `host signing configuration unavailable` job error when any key is missing.
+  `gpg.format` must be `ssh`; `_validated_signing_key` rejects non-absolute, symlink, missing, or
+  group/other-writable key paths. The job env then injects `commit.gpgsign=true` and a trusted
+  `gpg.ssh.program` found on the default search path.
+- `hephaestus/automation/pipeline/worker_pool.py` `_git_claim_dirty_direct_continuation`: the
+  probe reads the lane receipt through `SourceWorkspaceManager`; `_is_dirty` runs
+  `git status --porcelain` in the receipt path and raises
+  `SourceWorkspaceError("cannot inspect source workspace: <path>")` when the path is gone; the
+  stage maps that to `dirty_direct_claim_failed`. A cleanly restored worktree at the receipt
+  identity makes the probe return `{"dirty_direct_not_applicable": true}`.
+- `hephaestus/automation/pipeline/worker_pool.py` `_initial_record_matches`: the writer compares a
+  stored `<issue>-implementation-start*.json` record key-by-key against the current run identity
+  (repository identity, issue, branch) plus a full-SHA `head_sha`; a mismatch raises
+  `initial implementation record does not match`. An absent record yields the
+  `initial implementation history is unknown; use --rebase to continue` job error, which is the
+  sanctioned `--rebase` recovery prompt.
+
+Disposition argument preserved: zero implementer commits existed at every failure point, so no
+work was lost when the R1 nonce branch was retired. A lane WITH commits follows P1-P5 as written.
+
 ## Budget escalation evidence (budget-not-correctness)
 
 - Default implementer budget: ~1200 s. Observed: a thinking model on a large issue reaches the
