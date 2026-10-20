@@ -20,7 +20,7 @@ Expect the merged/unlabeled subset to dominate the work. Closed-unmerged PRs can
 
 PR review objects (`repos/OWNER/REPO/pulls/N/reviews`):
 
-- `## Terminal review exchange` with `Verdict: GO` and `Reviewed head: \`<full-sha>\``,
+- `## Terminal review exchange` with `Verdict: GO` and `Reviewed head: \`&lt;full-sha&gt;\``,
   plus a machine-readable state JSON containing `"verdict":"GO"` and phase data.
 - Round verdicts such as `**Verdict: GO**`, `**Verdict: NO-GO**`, inline
   `— source review: GO`, and multi-round exchanges whose LAST verdict at the newest head
@@ -30,10 +30,10 @@ PR review objects (`repos/OWNER/REPO/pulls/N/reviews`):
 
 Issue comments (`repos/OWNER/REPO/issues/N/comments`):
 
-- Legacy `## Implementation review — GO at \`<sha>\``.
+- Legacy `## Implementation review — GO at \`&lt;sha&gt;\``.
 - Coordinator head-refresh notes recording a terminal GO plus a content-preserving rebase;
   the note itself names the prior carrier and the refreshed head.
-- Status comments ("all required checks green at head <sha>") carry NO verdict.
+- Status comments ("all required checks green at head &lt;sha&gt;") carry NO verdict.
 
 Timeline (`repos/OWNER/REPO/issues/N/timeline`): event COUNTS are enough for triage
 (`reviewed`, `commented`, `labeled`, `unlabeled`, `auto_squash_enabled`, `merged`).
