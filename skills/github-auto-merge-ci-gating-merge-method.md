@@ -6,7 +6,7 @@ description: >-
   arming auto-merge or admitting a reviewed head to a repository-owned merge queue.
 category: ci-cd
 date: 2026-07-30
-version: "2.1.0"
+version: "2.2.0"
 user-invocable: false
 verification: verified-ci
 license: BSD-3-Clause
@@ -37,6 +37,9 @@ repository-specific policy transitions are `verified-local`; their boundaries ar
 - A merge command rejects `--rebase` or `--squash`, or the repository allows one method only.
 - A direct merge call is rejected with `Repository rule violations found` because the base
   branch requires the merge queue.
+- A PR queued for merge shows a null `autoMergeRequest` and looks unarmed.
+- A batch merge command reports success, but no PR reached the queue.
+- A list response and a single-PR read report different merge state for the same PR.
 - Required contexts never post, appear twice, or show an old failure beside a newer success.
 - `mergeStateStatus=BLOCKED` with green CI and unresolved review threads may remain.
 - Rulesets and classic branch protection impose a stricter union than either UI view suggests.
@@ -67,7 +70,8 @@ repository-specific policy transitions are `verified-local`; their boundaries ar
 7. **Revalidate immediately before mutation.** Require `OPEN`, the expected head OID, unchanged
    policy, current checks, and any queue interlock. Apply state only within explicit authority.
 8. **Verify the mutation.** Read back the auto-merge request or merge result, confirm the expected
-   method/head, and continue monitoring current-head gates.
+   method/head, and continue monitoring current-head gates. On a queue-protected base, a null
+   `autoMergeRequest` does not mean the arm failed; check `mergeQueueEntry` instead.
 
 ### Read-only snapshot
 
@@ -117,6 +121,21 @@ A repeated `gh pr merge <N>` prints `already queued to merge`; use it as the enq
 signal. Poll `gh api repos/<OWNER>/<REPO>/pulls/<N>` until `merged_at` is non-null, and
 treat the merge-group run for the base as the merge validation evidence.
 
+Verify the admission through `mergeQueueEntry`, not `autoMergeRequest`:
+
+```bash
+gh api graphql -f query='
+query($n:Int!){repository(owner:"<OWNER>",name:"<REPO>"){
+  pullRequest(number:$n){mergeStateStatus mergeQueueEntry{state position}}}}' -F n=<PR>
+```
+
+GitHub leaves `autoMergeRequest` null for a PR that a queue owns. A null value therefore looks
+like a failed arm. A `mergeQueueEntry` with a state and position proves the admission. Use
+`--auto` alone. The queue supplies the method, so a method flag adds only the informational
+strategy message. The flag is `--auto`; `--auto-merge` is rejected as an unknown flag. Read merge
+state per PR with `gh pr view`. A list response can report `BLOCKED` for a PR that a single-PR
+read reports as `CLEAN`.
+
 ### Common blockers
 
 - **Unresolved threads:** all checks green but conversation-resolution policy blocks merge.
@@ -143,6 +162,8 @@ treat the merge-group run for the base as the merge validation evidence.
 | Put the GO label on the linked issue | Put the GO label on the linked issue | PR policy reads PR labels | Mutate and verify the pull request label |
 | Disable an external auto-merge request | Disable an external auto-merge request | No conditional disable proves ownership | Shared queue fails closed and stands down |
 | Direct merge on a queue-only base | Called the REST merge mutation against a merge-queue repository | The repository rule rejects every direct merge method with HTTP 405 | `gh pr merge <N>` detects the queue policy and enqueues; confirm with `already queued` |
+| Read a queued PR as unarmed | Armed auto-merge, read back `autoMergeRequest`, saw null, and re-armed | A queue-owned PR leaves `autoMergeRequest` null by design | Verify with `mergeQueueEntry` state and position, not `autoMergeRequest` |
+| Batch-arm with the wrong flag | Looped `gh pr merge --auto-merge` and piped the output | `--auto-merge` is not a flag; the piped error hid every failed call | Use `--auto` and confirm each PR reached the queue |
 | Call empty review output clean | Call empty review output clean | The tool may have truncated before analysis | Require its completion marker |
 
 ## Results & Parameters
@@ -155,6 +176,8 @@ treat the merge-group run for the base as the merge validation evidence.
 | Review | Required count plus unresolved-thread policy |
 | Merge method | One enabled by target repository settings |
 | Auto-merge ownership | Non-null external request makes shared queue stand down |
+| Queued-PR readback | `autoMergeRequest` null is expected under queue ownership; use `mergeQueueEntry` |
+| Arming flag | `--auto` only; the queue sets the method and `--auto-merge` is invalid |
 | Mutation precondition | PR open, head unchanged, gates current, authority explicit |
 | Bootstrap ordering | Emit context on target branch before requiring it |
 | Verification | Read back request/result and continue current-head monitoring |
