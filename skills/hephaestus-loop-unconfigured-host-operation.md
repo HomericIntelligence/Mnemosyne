@@ -1,9 +1,9 @@
 ---
 name: hephaestus-loop-unconfigured-host-operation
-description: "Bring up and keep alive the Hephaestus plan/review issue loop on a host that has no prepared automation configuration. Use when: (1) hephaestus-plan-issues or hephaestus-implement-issue exits fast with intake, preflight, or agent errors on an unfamiliar machine, (2) the Claude CLI reports \"Not logged in\" against a self-hosted model gateway even after configuration, (3) planner or reviewer jobs die with timeout, a missing verdict, or empty output, or (4) an interrupted run left the intake worktree dirty and the loop refuses to start."
+description: "Bring up and keep alive the Hephaestus plan/review issue loop on a host that has no prepared automation configuration. Use when: (1) hephaestus-plan-issues or hephaestus-implement-issue exits fast with intake, preflight, or agent errors on an unfamiliar machine, (2) the Claude CLI reports \"Not logged in\" against a self-hosted model gateway even after configuration, (3) planner or reviewer jobs die with timeout, a missing verdict, or empty output, (4) an interrupted run left the intake worktree dirty and the loop refuses to start, or (5) intake rejects the target checkout before any network call because its .git common directory is group-writable."
 category: tooling
-date: 2026-10-07
-version: "1.0.0"
+date: 2026-10-21
+version: "1.1.0"
 user-invocable: false
 verification: verified
 tags:
@@ -18,6 +18,7 @@ tags:
   - path-shim
   - bearer-auth
   - intake-recovery
+  - intake-git-mode
   - session-reset
   - prompt-overlay
   - thinking-model
@@ -42,6 +43,7 @@ tags:
 - Choosing an agent backend (claude, codex, opencode, pi) when the host CLI stack or the gateway protocol does not match what the automation adapter emits.
 - Planner or reviewer jobs fail with `job failed: timeout`, end without a verdict (`reviewer error`), or return empty output after resume.
 - A killed or crashed run left the intake worktree dirty, and the next run refuses to start with intake validation errors.
+- Checkout preparation fails before any network call: intake reports the target repository's `.git` common directory permissions as unsafe (mode 0775) and asks for `chmod 755`.
 
 ## Verified Workflow
 
@@ -69,8 +71,8 @@ L7 session reset   archive the transcript to force create-mode on degradation
 | 4 | opencode preflight fails; emitted flags absent from `opencode --help`; or auth probe reports `installed but not authenticated` | Adapter built for the v1 CLI surface; v2 removed `--dir`, `--variant`, `--pure`, and the `providers list` subcommand | Put an `opencode` shim on PATH that **translates argv**: drop `--dir`/`--dir=` (v2 anchors the project at the process cwd, which the adapter sets), drop `--variant` (v2 uses `provider/model#variant` inline), drop `--pure` (the `--agent plan` flag keeps edit denial in v2), and rewrite `providers list` to `auth list`. v2's stdin prompt and `--format json` event stream are **parser-compatible** with the v1-era adapter; `run` in the default build agent permits workspace writes headless with no extra flags |
 | 5 | First agent call hangs >60 s with no error; catalog lists the model | Deployment is served but cold or stopped | Probe each candidate model with a short prompt, small `max_tokens`, and a timeout (45–60 s) **before** choosing it. A listing in `GET /v1/models` does not imply the deployment answers |
 | 6 | Intake validation fails and the run journal shows self-referential paths | Run journals are relative to the launch cwd; launching from a reused directory lets one run poison the next run's validation | Always launch from an empty scratch directory dedicated to the loop |
-| 7 | Intake or worktree step errors on `worktree list` output | System git too old for `git worktree list --porcelain -z` (needs >= 2.36) | Put a newer git early on PATH (a package-manager env is enough); confirm with the exact subcommand |
-| 8 | `gh` rejected despite `--gh-extra-path-root` | Only real binaries are accepted; a symlink that escapes the extra root is refused | Resolve symlinks and point the extra path root at the directory that holds the real binary |
+| 7 | Intake or worktree step errors on `worktree list` output (`error: unknown switch 'z'`, exit 129 on 2.34.1); later, worktree steps can fail as `SourceWorkspaceError: source workspace registration changed` | System git too old for `git worktree list --porcelain -z` (needs >= 2.36); the registration check then cannot enumerate worktrees and misreads a valid receipt | Put a newer git early on PATH (a package-manager env is enough); confirm with the exact subcommand before every launch |
+| 8 | `gh` rejected despite `--gh-extra-path-root`; or checkout preparation reports `required GitHub executable is unavailable; pass --gh-extra-path-root ROOT when ROOT/bin/gh is the intended installation` | gh is user-installed outside the system locations, or only a symlink is offered: real binaries only, and a symlink that escapes the extra root is refused | Resolve symlinks and point the extra path root at the directory that holds the real binary (for example the parent of a user-installed `bin/gh`) |
 | 9 | Intake validation fails before any network call; repo-local git config references missing files | Stale repository config (`core.excludesFile`, hooks paths) survives checkouts | Inspect `git config --local --list` on the target checkout; remove entries that point at nonexistent paths |
 | 10 | Next run refuses to start: `legacy/conflicting state requires manual reconciliation` | Intake state names (`.automation-state`, `.issue_implementer`) exist outside the intake layout | **Move** the durable state into the intake destination worktree; never delete it |
 | 11 | After a kill or crash, intake validation reports a dirty worktree | Lane worktrees and `build/` artifacts remain inside the intake worktree | Recover with: record `git status` for evidence, `git worktree remove --force` for nested lane worktrees, delete the intake worktree's `build/`; confirm the receipt revision is unchanged |
@@ -78,6 +80,7 @@ L7 session reset   archive the transcript to force create-mode on degradation
 | 13 | Reviewer ends with `reviewer error`; transcript shows many denied `Bash` calls, or exhaustive full-file Reads, and no verdict | The review sandbox allows only `Read,Glob,Grep`; a model that ignores denial feedback spirals, and a model that inspects exhaustively can die without emitting the required verdict line | Add a prompt overlay through `--prompt-dir`: (a) a tool contract (name the allowed tools, require continuing after a denial), (b) bounded inspection (grep before full reads, stop at ~40 calls), (c) a mandatory final verdict line. The overlay shadows one template; all other prompts fall through |
 | 14 | After resume, the session answers with empty turns or the synthetic line `No response requested.`; `stop_reason:stop_sequence`; or the run stops with `review-session-lost: reviewer tool or model changed; reset the review session` | Long, resumed conversations can degrade through an Anthropic-Messages bridge gateway; create-mode sessions in the same window stay healthy. Separately, the review journal refuses to reuse a review session across a backend or model switch | For degradation: archive the session transcript JSONL (in the CLI's per-cwd project store); the adapter resumes by transcript presence and creates a fresh session when the file is missing. For the tool-change guard: pass `--reset-plan-review-session` and restore `state:needs-plan` if the guard also published `state:plan-blocked`; the next run starts a fresh review cycle |
 | 15 | Pipeline summary shows `blocked` with "The proposed plan is empty" right after an amend | The amend produced unchanged or empty text; publication requires a change | Find the cause upstream (usually signature 13 or 14); then move the issue label back to `state:needs-plan` as the blocked comment instructs, and rerun |
+| 16 | Checkout preparation fails before any network call: `repository-intake Git common directory permissions are unsafe: <path>/.git (mode 0775); run: chmod 755 <path>/.git, or re-clone with umask 022, then rerun` | The target checkout's `.git` common directory carries group-write bits (for example a clone made under umask 0002); intake accepts no mode wider than 0755 and stops at checkout preparation | Run `chmod 755 <path>/.git` on the target checkout; 0755 is enough for the intake check. Re-clone with umask 022 for a durable form. Then run again and take the next signature. This fixes the target checkout only; never patch the intake source |
 
 ### Suggested approach
 
