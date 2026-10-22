@@ -13,6 +13,7 @@
 | Base-updated long-lived branch: branch test asserted semantics trunk had retired, a lockstep workflow/validator pair was half-moved, and local-only host windows duplicated a pristine trunk failure set | monorepo merge-failure triage outside the host org; 32-way sharded pytest, signed-commit rulesets, staged shard planner | `verified-ci`: all required checks green after the ported test, atomic pair, and FYI dispositions | Retained file-provenance classes, atomic-pair rule, and pristine-base attribution oracle |
 | Path-filtered required check failed on two PRs with exit 4 before any test count; identical sibling PRs on the same base that stayed outside the `paths:` filter showed no run | serving-stack repository outside the host org; fixed-selector ownership-policy job with an uploaded evidence directory | `verified-ci`: the rebased branches' path-filtered job (and its sibling job) went green with no diff change; the failing PRs' other ~50 checks were green throughout | Added trigger-filter audit, stale-plan-input classification, evidence-artifact diagnostic, and the main-repaired base-update resolution |
 | Aggregate gate failed its report step on a producer output key absent from `needs.<job>.outputs` while every upstream succeeded; the identical drop reproduced across reruns inside the run and in one fresh run, then resolved only by rebasing onto the workflow world current main carried | deployment-lifecycle repository outside the host org; an umbrella gate reading `toJSON(needs)` of an outputs-producing policy job | `verified-ci`: a same-era green run of the same workflow carried the key; after the base update the exact head went green with the diff unchanged | Added the dropped-producer-output attribution order, the stored-output rerun-inheritance rule, the fresh-run-regeneration rule, and the platform-change resolution class |
+| Green twins on identical trees misclassified an introduced deterministic failure as a flake: every compared lane ran a narrower event-scoped profile that never executed the failing node | golden-rendering CI in a model-serving repository outside the host org; event-scoped test profiles (narrow pull-request profile, wider promotion profile) over a sharded planner | `verified-ci`: the narrow profile selected 7994 items in every green compared run, the wide profile selected 14876 items and included the failing node; a one-value queue-size config change broke a golden rendering deterministically on both lanes that ran it | Added the green-twin coverage gate, the empty-comparison rule, and the classify-from-content-determinism fallback |
 
 ## Dropped producer output detail
 
@@ -44,6 +45,22 @@ main already carried the corrected selector. The path filter had hidden the fail
 main and from every PR whose diff stayed outside the `paths:` list, so no run-based
 comparison could classify it. Remediation was a recorded base update to the repaired main,
 giving a green exact-head run with an unchanged PR diff.
+
+## Vacuous green-twin detail
+
+A one-value queue-size configuration change invalidated the golden rendering of a scheduling plan.
+The failing node executes only inside an event-scoped promotion profile; every ordinary
+pull-request lane and every recent main run selected the narrower profile, which the sharded
+planner reported as 7994 items, against 14876 items for the promotion profile. Two delivery lanes
+shared an identical tree and failed the same golden at the same line; main and both lanes' other
+checks stayed green. The initial triage read lane color instead of coverage, declared the failure
+an environmental flake, planned hermetic harness sealing, and filed a defect report against the
+wrong mechanism. The error surfaced when the green runs' logs were searched for the failing node
+id: the node never appeared in any of them, so the comparison set was empty. Reclassification:
+deterministic and introduced; a corrective note went onto the report, and the golden state was
+regenerated. The now-verify procedure: before a green lane scores as comparison evidence, search
+its logs for the failing node id (`gh run view --job <job> --log` per shard) or compare the
+selected-test counts the planner prints; a lane that never ran the node does not compare.
 
 ## Classification record
 
