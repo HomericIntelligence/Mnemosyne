@@ -1,0 +1,77 @@
+# Notes: Cross-Host Identity Divergence from Volatile Hash Inputs
+
+Supporting evidence for `cross-host-identity-divergence-volatile-hash-inputs.md`.
+Identifiers of the private deployment (product, model, host, job, repository,
+and digest values) are withheld. Only decision-relevant shapes are kept.
+
+## Verified failure shape (before the correction)
+
+- A gateway job rendered on the login node of one shared parallel filesystem
+  failed within about 13 seconds on a specific compute node, repeatedly and
+  deterministically: three submissions, all on the same variant node, one more
+  on a second variant node for comparison.
+- The failure message compared a recomputed identity with the identity baked
+  into the rendered job environment: expected `ctx-…A`, observed `ctx-…B`
+  (two full 64-hex digests), with instructions to restart from the active
+  deployment release.
+- The same rendered job passed its identity check on a different compute node
+  whose shared-filesystem client reported the same device number as the
+  login node.
+- On-host resolution on the variant node reproduced the in-job digest
+  `ctx-…B` exactly, which proved the divergence came from context
+  resolution, not from job transport.
+
+## Decisive diagnostic: canonical payload leaf diff
+
+The production canonical hash payload was dumped on both hosts through the
+production code path (read-only scheduler probes) and diffed leaf by leaf:
+
+```text
+differing leaves:    4
+  roots.admin_device              36 -> 37
+  roots.admin_deployment_device   36 -> 37
+  roots.public_device             36 -> 37
+  roots.public_deployment_device  36 -> 37
+identical leaves:    every other field
+  inode values, root path strings, binding digest, service uid/gid,
+  specification body, release and component identities
+```
+
+Interpretation: exactly one class of input (client mount-instance device
+numbers) diverged; nothing about the logical deployment differed. The equal
+inode values across hosts were a property of that mount generation, not a
+contract; inode numbers still change at any directory replacement, so the
+fix removed the complete volatile class (8 fields) rather than only the
+4 fields observed that day.
+
+## Correction and its verification
+
+- The identity payload kept only launch-constant inputs: specification
+  content, release and component identities, root path strings, and the
+  static binding digest. The 8 mount-instance fields stayed on the resolved
+  root identity object, where same-host binding revalidation continues to
+  use them.
+- Regression coverage: two mount-instance fixtures that differ in all 8
+  volatile fields give the same identity, and the production rendered-evidence
+  verification accepts the first fixture's environment when evaluated after
+  resolution with the second. The test failed before the correction with the
+  exact historical digest and passes after it.
+- Post-correction live probes on the same host pair (login device 36,
+  variant compute node device 37) resolve byte-identical identities.
+- A lane service activated at the corrected revision in one attempt on a GPU
+  compute node and stayed stable, versus three deterministic 13-second
+  failures on the variant node before the correction.
+
+## Operational notes
+
+- Probe jobs that import the installed tree must use the tree's own virtual
+  environment interpreter. A newer system interpreter elsewhere in the shell
+  path (major version mismatch) fails native-extension imports with a
+  misleading "unknown location" message and can imitate a product defect.
+- Pre-correction identities rotated once relative to post-correction
+  identities. Stored records that pinned an old identity failed closed until
+  their owner published again; that is the designed migration path.
+- No consumer of the identity required the mount-instance fields: every
+  consumer compared against a live-computed identity or validated the digest
+  format only. Confirm that property in your own codebase before you remove
+  identity inputs.
