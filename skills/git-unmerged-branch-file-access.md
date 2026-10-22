@@ -1,10 +1,10 @@
 ---
 name: git-unmerged-branch-file-access
 license: BSD-3-Clause
-description: "Locate cited files on current base or unmerged branches when they are absent locally; bind planning evidence to the correct source revision."
+description: "Locate cited files on current base or unmerged branches when they are absent locally; bind planning and content claims to the correct source revision, and verify content at an explicit immutable revision when a shared working tree may carry a concurrent editor's changes."
 category: architecture
-date: 2026-07-10
-version: "2.2.0"
+date: 2026-10-22
+version: "2.3.0"
 user-invocable: false
 verification: verified-local
 tags:
@@ -22,6 +22,10 @@ tags:
   - pickaxe
   - plan-grounding
   - stale-issue-text
+  - shared-worktree
+  - concurrent-edits
+  - immutable-revision
+  - presence-claim
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/git-unmerged-branch-file-access.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -36,7 +40,7 @@ history-cleanup-date: "2026-09-20"
 |-------|-------|
 | **Date** | 2026-07-10 |
 | **Objective** | Read and plan fixes for files/symbols that are absent from the current checkout — whether they live only on a non-main feature branch, or on `origin/main` when the checked-out branch predates them — avoid the "phantom code" misdiagnosis, and attribute collapsed CHANGELOG/doc entries to the commits that introduced them |
-| **Outcome** | Successful, twice. (v2.0.0) A "follow-up bug" issue (#283) cited `mcp_server.py:82`, absent from `main`; `git log --all` found the file on the unmerged `173-auto-impl` branch (commit `07ea99a`), and the plan was re-scoped to target that branch. (v2.1.0) ProjectArgus issue #240 referenced a `CHANGELOG.md` that did not exist on the checked-out branch at all — the branch PREDATED the file; `git show origin/main:CHANGELOG.md` + pickaxe attribution grounded every plan claim in git evidence and the plan passed review after a prior empty-output NOGO |
+| **Outcome** | Successful, three times. (v2.0.0) A "follow-up bug" issue (#283) cited `mcp_server.py:82`, absent from `main`; `git log --all` found the file on the unmerged `173-auto-impl` branch (commit `07ea99a`), and the plan was re-scoped to target that branch. (v2.1.0) ProjectArgus issue #240 referenced a `CHANGELOG.md` that did not exist on the checked-out branch at all — the branch PREDATED the file; `git show origin/main:CHANGELOG.md` + pickaxe attribution grounded every plan claim in git evidence and the plan passed review after a prior empty-output NOGO. (v2.3.0) In a shared multi-lane release checkout, working-tree content was attributed to a release tag and produced a wrong "no change needed" conclusion; `git show <tag>:<path>` proved the tag lacked the lines and identified a partner lane's in-flight hotfix as the real source |
 | **Verification** | verified-local (investigation steps executed end-to-end in-session in both source sessions; the #283 downstream code fix is plan-only — see caveats) |
 
 > **Verification split — read this.** The git-history **investigation** workflow below is
@@ -65,6 +69,15 @@ history-cleanup-date: "2026-09-20"
 - You must **attribute lines of a collapsed CHANGELOG/doc entry** to the commits that
   introduced them (e.g., splitting a combined milestone bullet into per-milestone bullets
   with a content-preserving 1:1 mapping).
+- You are about to conclude that a revision (release tag, base commit) **already contains**
+  specific content — "the fix is already in the tag, no repository change needed", or
+  "the built artifact diverged from the source" — from what the working tree shows. The tree
+  may carry a concurrent editor's uncommitted or just-committed changes; read the content at
+  the immutable revision before you conclude anything.
+- A worktree↔deployed-artifact comparison surprises you (the tree equals the *patched*
+  artifact while you believe the patch is unlanded). Treat that match as evidence that
+  someone else edited, and re-probe `git status` / `git log` before reusing any earlier
+  tree-based evidence.
 
 ## Verified Workflow
 
@@ -123,6 +136,14 @@ git log --all --oneline -i --grep="atlas" | grep -iE "\bM[0-9]\b"
 # 11. Check markdown lint constraints BEFORE proposing doc edits:
 git show origin/main:.markdownlint.yaml   # e.g. MD013 line_length: 120
 git show origin/main:.pre-commit-config.yaml | grep -A2 markdownlint
+
+# --- Presence-based claims in a mutable/shared tree (v2.3.0) ---
+
+# 13. Bind "revision already contains X" claims to the IMMUTABLE revision, not the tree:
+git show v1.2.3:recipes/model-x.yaml | grep -n -- "--some-flag"   # tag ground truth
+git status --porcelain -- recipes/model-x.yaml                    # uncommitted edits?
+git log -3 --oneline -- recipes/model-x.yaml                      # committed under you just now?
+git diff v1.2.3 -- recipes/model-x.yaml                           # exact tree-vs-tag delta
 ```
 
 ### Detailed Steps
@@ -202,7 +223,27 @@ git show origin/main:.pre-commit-config.yaml | grep -A2 markdownlint
     `git show origin/main:.pre-commit-config.yaml`) so proposed doc snippets are lint-clean
     up front (e.g. MD013 wrap width 120, hanging-indent style).
 
-> Steps 7–12 require **zero checkouts / branch switches** — the whole investigation is safe
+13. **Presence-based claims: bind to the immutable revision, especially in a shared
+    tree.** The inverse failure of phantom code also exists: the file IS present in the
+    working tree with exactly the content you hoped to find, so a tree `grep` appears to
+    confirm that the release tag or base commit already carries it. In any checkout another
+    actor shares — a partner agent lane, an automation loop, a reused worktree — that
+    content may be their uncommitted or just-committed edit, applied between your probes.
+    Before concluding "no repository change needed" or "release artifact diverged from the
+    source":
+
+    - read the content at the explicit revision (`git show <rev>:<path>`);
+    - if tree and revision disagree, name the delta exactly (`git diff <rev> -- <path>`);
+    - re-probe `git status --porcelain -- <path>` and `git log -3 --oneline -- <path>`
+      immediately before acting, because tree-based evidence decays within minutes in a
+      shared checkout; and
+    - state which immutable revision your claim binds to in the report.
+
+    A surprisingly clean `git diff` between the working tree and a *patched* deployed
+    artifact is itself a signal: if you believe the patch is unlanded, suspect a concurrent
+    editor and re-establish ground truth at the revision.
+
+> Steps 7–13 require **zero checkouts / branch switches** — the whole investigation is safe
 > to run on a dirty working tree.
 
 ## Failed Attempts
@@ -217,6 +258,7 @@ git show origin/main:.pre-commit-config.yaml | grep -A2 markdownlint
 | Working-tree-only search | `grep -rn -i "atlas" <repo>` and `find -iname "*changelog*"` on the current checkout | The file existed only on origin/main; the checkout branch predated it — search returned nothing | Absence from the working tree does not mean absence from the repo; check origin/main and `git log --all` before declaring an issue invalid |
 | Trusting issue text verbatim | Planned against the literal "M1-M3" entry named in the issue | The entry had since grown to "M1–M6" on main; the M1-M3 line no longer existed | Issue text goes stale; re-locate the target on current main and state the scope decision with evidence |
 | ASCII-hyphen grep for the entry | grep for "M1-M3" with a hyphen | The changelog uses an en dash ("M1–M3"); ASCII grep misses it | Grep for a shorter invariant token (e.g. "M1") or use character classes when docs may contain typographic dashes |
+| Attributed working-tree content to a release tag | Greped the tree, saw the hotfix lines, concluded "the tag already has the fix — no commit needed", and reported that conclusion | The tree silently carried a partner lane's in-flight hotfix, applied between probes minutes earlier; the tag itself lacked the lines — the wrong conclusion had to be retracted when `git show <tag>:<path>` showed the real tag content | Presence is not provenance: in any shared or reused checkout, verify "revision already contains X" claims at the immutable revision (`git show <rev>:<path>`) and re-probe `git status`/`git log` immediately before acting on tree-based evidence |
 
 ## Results & Parameters
 
@@ -247,6 +289,17 @@ For PR targeting:
 - Lint grounding: `git show origin/main:.markdownlint.yaml` exposed MD013
   `line_length: 120`, so proposed snippets were wrapped lint-clean up front.
 
+### v2.3.0 results — presence-based false attribution in a shared hotfix checkout (verified-live)
+
+- `git show <release-tag>:<path>` proved the tag lacked the fix lines (only a declarative
+  configuration knob was present), while the working tree showed the complete fix — the
+  delta was exactly a partner agent lane's in-flight hotfix, already carried in that lane's
+  open pull request.
+- An earlier `git status` probe had shown those paths clean; the partner edited and then
+  committed within the same session window, so tree-based evidence decayed between probes.
+- The wrong "no repository change needed" conclusion was retracted in-session; the durable
+  fix shipped through the partner's existing pull request instead of a duplicate one.
+
 ### Unverified fix-stage caveats (carry forward as risks, not facts)
 
 These are from the ProjectTelemachy #283 plan; the investigation above is verified, but the
@@ -269,3 +322,4 @@ fix below was never executed:
 | ProjectArgus | Planning issue #240 (CHANGELOG milestone split), 2026-07-10 | Target `CHANGELOG.md` absent from the checked-out branch (the branch predated it); plan grounded every claim in git evidence (`git show origin/main:CHANGELOG.md` line citations, pickaxe commit `472aeb3`, mutation to M1–M6 in `7b2c8c7`, six milestone commits for 1:1 attribution) and passed review after a prior empty-output NOGO. Zero branch switches |
 | ProjectTelemachy | Issue #283 — "follow-up bug" citing `mcp_server.py:82`, absent from `main` | `git log --all` found the file on unmerged `173-auto-impl` (commit `07ea99a`); plan re-scoped to that branch; defect symbol at line 81 (issue said 82 — drift). Investigation verified-local; fix plan-only |
 | ProjectHephaestus | Issue #1300 planning (`severity_label.py` GITHUB_REPOSITORY KeyError) | File existed only on `1210-auto-impl` branch; discovered via `git log --all` (v1.0.0, unverified) |
+| Shared multi-lane release hotfix checkout (anonymized) | Attributing working-tree content to a release tag during incident response, 2026-10-22 | The tree carried a partner lane's just-applied hotfix; tag ground truth via `git show <tag>:<path>` reversed a wrong "already correct, no change needed" conclusion, and the partner's open pull request was identified as the durable carrier of the fix. Workflow step 13 verified-live |
