@@ -20,6 +20,14 @@ isolated local environment. All identifiers are generalized.
    re-exports the built definition was added. Result: the log gained an INFO
    `loading plugin` entry with the plugin id and entrypoint, and the plugin
    appeared in the loaded set.
+5. **Directory with `package.json` `main` but no root `index.js`.** A plugin
+   directory contained a valid `package.json` with `"main": "plugin.js"` and a
+   resolvable target file, but no root `index.js`. Result: silent skip on
+   OpenCode v2.0.29. `opencode plugin list` did not show the plugin, the log
+   had no INFO `loading plugin` line, and no error reference was recorded.
+   Adding a root `index.js` that re-exports the definition made the plugin
+   load immediately. The loader does not consult `package.json` `main` or
+   `exports` during discovery.
 3. **Drop-in file.** A small shim file was placed directly in
    `~/.config/opencode/plugins/`:
 
