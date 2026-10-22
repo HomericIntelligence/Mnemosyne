@@ -65,6 +65,29 @@ every rubric dimension A, and recorded exactly one minor finding (a one-line tra
 for live deployments pointing at pre-change client manifests). The final plan carries per-AC
 committed test names and an implementation order with red-first steps.
 
+## Run-by-run evidence (r22–r24, 2026-10-21, opencode backend, issue wave of 26)
+
+Same multi-issue repository as r1–r21; a full issue wave (`--issues` with 26 explicit
+numbers) driven by `hephaestus-automation-loop`. Each run is one edit, one launch, one new
+signature, and matches the layered model: the first three failures all stopped inside the
+repo/checkout-preparation stage before any agent call.
+
+| Run | Reached | Failure signature | Layer fixed next |
+| --- | ------- | ----------------- | ---------------- |
+| r22 | agent preflight | `RuntimeError: Agent 'opencode' is installed but not authenticated. Run \`opencode providers login\` (environment keys also work) before running automation.` — the translating shim directory was not on PATH, so the adapter's v1 `providers list` probe hit the raw v2 CLI | shim directory first on PATH (row 4); through the shim, the mapped `auth list` exits 0 and the probe passes |
+| r22 | repository checkout preparation (attempt 1/2 ×2, then `FAIL:clone exhausted after 2 attempts`) | `required GitHub executable is unavailable; pass --gh-extra-path-root ROOT when ROOT/bin/gh is the intended installation` — gh is a real binary user-installed at `<home>/.local/bin/gh`, absent from system locations | `--gh-extra-path-root <home>/.local` (row 8) |
+| r23 | checkout preparation (attempt 1/2 ×2, then FAIL) | `repository-intake Git common directory permissions are unsafe: <repo>/.git (mode 0775); run: chmod 755 <repo>/.git, or re-clone with umask 022, then rerun. A mode of 0755 is enough for the intake check.` | `chmod 755 <repo>/.git` (row 16); `stat -c '%a'` confirmed 0755, intake preparation then completed |
+| r24 | intake completed (`isolated intake preparation completed`); per-issue planning began | advise disabled per `--no-advise`; still, planning and implementation jobs died under `SourceWorkspaceError: source workspace registration changed`; log shows `Failed to list worktrees: Command '['git', 'worktree', 'list', '--porcelain', '-z']' returned non-zero exit status 129` | Standalone check: system git 2.34.1 answers `git worktree list --porcelain -z` with `error: unknown switch 'z'` (row 7). The host had no newer git; the run stopped there |
+
+Two operating notes from the wave shape:
+
+- Prep stages for the wave ran serially with no host churn; all 26 intake lanes shared one
+  prepared intake (`Queue stages: repo,planning,plan_review,implementation,pr_review,merge_wait`).
+- The summary's `planning finished` + `FAIL:...`/`BLOCKED:...` dispositions are routing words;
+  the diagnosis lives at the stage-boundary log lines quoted above. With explicit `--issues`,
+  a drained selection skips discovery re-seed, so nothing downstream runs after an exhausted
+  checkout-preparation failure.
+
 Key positive evidence:
 
 - r15 review artifacts (intake state `plan-review/artifacts/<cycle>/0000.txt`): the reviewer
