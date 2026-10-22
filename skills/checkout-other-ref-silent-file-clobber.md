@@ -1,10 +1,10 @@
 ---
 name: checkout-other-ref-silent-file-clobber
 license: BSD-3-Clause
-description: "Port changes across Git refs without overwriting newer destination content; use when whole-file checkout would hide per-hunk conflicts."
+description: "Port changes across Git refs, or read content at another ref, without overwriting destination content or mutating the caller's index; use when whole-file checkout would hide per-hunk conflicts, stage an overlay, or destroy shared-checkout state."
 category: tooling
-date: 2026-07-19
-version: "1.0.1"
+date: 2026-10-22
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags:
@@ -17,6 +17,9 @@ tags:
   - strict-review-catch
   - pr-review
   - merge-conflict-adjacent
+  - read-only-inspection
+  - detached-head
+  - index-overlay
   - homericintelligence
   - hephaestus
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/checkout-other-ref-silent-file-clobber.history"
@@ -51,6 +54,16 @@ history-cleanup-date: "2026-09-20"
 - A strict-review pass flags "this PR reverts already-merged section X" in a file that the PR
   otherwise has a legitimate reason to touch — that pattern is the fingerprint of this failure mode,
   not necessarily a merge/rebase mistake.
+- You only want to READ content at another ref (evidence, review, comparison) from a checkout you
+  share with other work — above all a detached-HEAD checkout. There is nothing to port, so the
+  whole-file overwrite buys nothing: the read-only commands (`git show <ref>:<path>`,
+  `git archive <ref> | tar -x`) leave the index and working tree untouched. On a shared checkout an
+  accidental `checkout <ref> -- .` can destroy another actor's uncommitted state, and no PR review
+  net exists to catch an ad-hoc shell read.
+- You verify command output against `HEAD` after any earlier `checkout <ref> -- .`-class operation:
+  the whole-tree dot form STAGES an overlay (new and modified entries relative to HEAD), so later
+  reads answer against the overlay ref, not HEAD. Results look valid for the wrong tree while the
+  checkout is silently mutated.
 
 ## Verified Workflow
 
@@ -60,6 +73,15 @@ history-cleanup-date: "2026-09-20"
 # WRONG — replaces the ENTIRE file with <other-ref>'s version, silently discarding any content
 # on the current branch that <other-ref> doesn't have (even unrelated, already-committed work):
 git checkout <other-ref> -- path/to/file.md
+
+# READ-ONLY INTENT — never use checkout to look at another ref's content. Both commands leave the
+# caller's index and working tree byte-identical:
+git show <other-ref>:path/to/file.md | sed -n '570,576p'      # one file / excerpt
+git -C <repo> archive <other-ref> | tar -x -C <scratch-dir>   # many files or a build
+
+# WRONG for reads on shared checkouts — the whole-tree form stages an overlay AND can destroy
+# uncommitted state owned by other actors; recovery needs a verified-clean pre-state:
+git checkout <other-ref> -- .
 
 # RIGHT — before doing ANY checkout-from-another-ref, diff the two versions first to see the
 # FULL scope of what would change, not just the hunk you intend to port:
@@ -118,6 +140,7 @@ diff HEAD:path/to/file.md /tmp/other-version.md          # see exactly what diff
 | `git checkout pr2327 -- scripts/README.md .github/workflows/_required.yml` to port a small doc/workflow fix between two PR branches | Assumed the command would only bring in the intended lines since both files were "mostly the same" between branches | Replaced both files wholesale; silently deleted the "Disaster recovery" section of `scripts/README.md` and `persist-credentials: false` from `_required.yml`, both landed independently via already-merged PR #2332 after `pr2327` branched | Always diff-before-checkout (`git diff HEAD <ref> -- <path>`) to see the FULL scope of the replacement, not just the intended hunk, before running `checkout <ref> -- <path>` |
 | Relied on the PR's own two-dot diff against `origin/main` to self-verify before pushing | Read the PR's diff top to bottom, looked plausible since the file still differed from main in the intended way | The deletion of already-merged content doesn't look anomalous in a diff against main — it just looks like "this section isn't part of this PR's changes," which is true and unremarkable on its face | Cross-reference recently-merged PRs that touched the same files, or diff against the specific ref you copied from, not just against main |
 | Assumed a strict-review pass would need to be told exactly what to look for | Ran an independent review agent generically ("review this PR") | It still caught the issue because it diffed the PR against main's actual recent history and noticed the vanished section, without being told the specific failure mode | A generic independent strict-review pass on a diff CAN catch whole-file-clobber regressions even without knowing this failure mode by name — but don't rely on it as the only safety net; prevent it at the source per steps 2-4 above |
+| `git checkout origin/main -- .` in a shared detached checkout to grep merged files for diagnosis | Needed read-only content at the merged ref and reached for checkout by habit | The whole-tree form staged the ref tree as an index overlay (A/M vs HEAD); follow-on greps quietly answered against the overlay while the checkout was silently mutated; on a dirty shared checkout the same command destroys other actors' uncommitted work with no review net | Read-only intent uses `git show <ref>:<path>` or `git archive`, never checkout; recovery is `git reset --hard HEAD` only after the pre-overlay state is verified clean — otherwise the loss is unrecoverable |
 
 ## Results & Parameters
 
@@ -135,9 +158,20 @@ diff HEAD:path/to/file.md /tmp/other-version.md          # see exactly what diff
 - **General rule verified:** `git diff HEAD <other-ref> -- <path>` run BEFORE the checkout reliably
   shows the full scope of what a subsequent `git checkout <other-ref> -- <path>` would change,
   including anything it would delete — this is the cheap, always-available guard.
+- **Read-only alternative verified:** `git show <ref>:<path>` (one file) and
+  `git -C <repo> archive <ref> | tar -x -C <scratch>` (many files) answer against the target ref
+  while the caller's index and working tree stay byte-identical.
+- **Whole-tree overlay observed:** `git checkout <other-ref> -- .` on a shared detached checkout
+  staged the full tree as new+modified index entries relative to HEAD (no user content was lost
+  only because the tree was clean); follow-on evidence reads silently answered against the overlay.
+  Recovery `git reset --hard HEAD` restores index and worktree exactly when — and only when — the
+  pre-overlay state carried no uncommitted changes; on a dirty shared checkout the same command is
+  unrecoverable destruction of other actors' work. Detection came from an operator self-catch at run
+  time: ad-hoc shell reads have no review net.
 
 ## Verified On
 
 | Project | Context | Details |
 |---------|---------|---------|
 | Hephaestus PR #2334 | Porting CLAUDE.md→AGENTS.md reference fixes between two sibling PR branches during an ecosystem-wide doc-consolidation campaign | verified-local; regression caught by independent strict-review (F/NO-GO, 2 CRITICAL), fixed via commit amend restoring both deleted sections, force-pushed with `--force-with-lease`, confirmed clean on a second independent review pass |
+| Private monorepo qualification drive (generalized) | Read-only evidence gathering at a merged release ref from a shared detached checkout | verified-local; whole-tree overlay staging reproduced, evidence-provenance confusion observed, full recovery via `git reset --hard HEAD` under a verified-clean pre-state |
