@@ -1,9 +1,9 @@
 ---
 name: inference-benchmark-warmup-regime
-description: "Measure inference-serving latency in steady state rather than on the first request. Use when: (1) a reported time to first token is far above the value seen on a later request, (2) a single-run latency comparison is about to be quoted as a result, (3) a latency delta is small enough that run-to-run variance could reverse its direction, or (4) a published latency comparison needs correction or withdrawal."
+description: "Measure inference-serving latency in steady state rather than on the first request. Use when: (1) a reported time to first token is far above the value seen on a later request, (2) a single-run latency comparison is about to be quoted as a result, (3) a latency delta is small enough that run-to-run variance could reverse its direction, (4) a published latency comparison needs correction or withdrawal, or (5) a relative change is about to be computed against a baseline value that no retained run artifact contains."
 category: optimization
 date: 2026-10-17
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 tags: ["benchmarking", "latency", "warmup", "ttft", "inference", "serving", "vllm", "sglang"]
 ---
@@ -29,6 +29,7 @@ columns below so that the entry stays compatible with corpus retrieval. -->
 - A latency claim is already published and later evidence contradicts it.
 - A benchmark harness sends its first request immediately after the engine reports ready.
 - A repeated run reports a large throughput gain, or a time to first token far below the first run.
+- A relative change is about to be quoted, and the baseline value cannot be traced to a retained result file.
 
 ## The Rule
 
@@ -42,6 +43,20 @@ Warmup has **two independent causes**, and a comparison needs both removed:
 Removing only one cause still produces a wrong answer. Removing the wrong one produces an answer that looks favourable.
 
 Report the warmup sample and the steady-state samples separately. Do not average them together.
+
+## Resolve The Baseline Before You Compute A Delta
+
+A warmup defect and a missing baseline are different defects, and either one alone makes a relative change wrong. Before you quote a percentage, resolve the baseline to a retained result file for the same configuration.
+
+| Check | Pass condition | Action when it fails |
+| --- | --- | --- |
+| Baseline exists in the retained results | A result file for the baseline configuration names the value you use | Do not compute the delta. Re-measure the baseline or state that no comparison is available |
+| Baseline row and candidate row are matched | Same shape, same topology, same image, one changed variable | Report the deltas rather than one aggregate percentage |
+| Baseline value has one source | The value appears in one named artifact | Treat duplicated or inferred sources as unresolved |
+
+A number can survive in a document after its source run is lost. Text that merely contains the same digits as your baseline is not the baseline. That pattern is easy to accept because it confirms the figure you already expected.
+
+When a baseline cannot be traced, the honest output is that the comparison is unavailable. Withdrawing a published figure and re-measuring is cheaper than defending a delta whose baseline nobody can produce.
 
 ## A Repeated Prompt Set Reads As A Large Win
 
@@ -78,9 +93,11 @@ Treat `ratio` below 2 as indistinguishable from run-to-run variation. Report the
 
 1. Send at least one warmup request and discard it.
 2. Repeat the request enough times that the pooled standard error is well below the difference you care about.
-3. Report mean, standard deviation, and a tail percentile such as p90 for each configuration.
-4. State the sign convention so that the reader cannot invert the result. For example, state that a positive change means the candidate is faster.
-5. Re-check any earlier claim that used a single post-start request. Withdraw or restate it.
+3. Resolve every baseline value to a retained result file before you compute a difference. Do not continue with a baseline you cannot locate.
+4. Report mean, standard deviation, and a tail percentile such as p90 for each configuration.
+5. State the sign convention so that the reader cannot invert the result. For example, state that a positive change means the candidate is faster.
+6. Re-check any earlier claim that used a single post-start request. Withdraw or restate it.
+7. Re-check any earlier claim whose baseline has no retained source. Withdraw it and re-measure, or declare the comparison unavailable.
 
 Continue when a warmup sample is unavailable. Report the regime you did measure and mark the result provisional rather than dropping the comparison.
 
@@ -100,6 +117,7 @@ A second instance of the same class appeared at higher concurrency. There, a har
 | Reported a sub-percent delta as a result | Compared means and stated the percentage. | Run-to-run variance was of the same order, so the sign was not established. | Compare the difference against a pooled standard error before calling it a result. |
 | Averaged warmup with steady state | Took a mean across every repeat. | One warmup sample shifted the mean enough to mislead. | Report warmup and steady state separately, or exclude warmup explicitly. |
 | Repeated one prompt set across runs | Re-ran the concurrency test without changing the prompt seed. | Every repeat was served from the prefix cache and time to first token fell by an order of magnitude. | Seed a distinct prompt set per run; discarding the first run does not fix this. |
+| Quoted a delta against an unresolved baseline | Computed a percentage against a baseline value that appeared nowhere in the retained results, only as coincidental digit matches in unrelated logs. | No run ever produced that baseline, so the delta described a configuration that was never measured. The figure had to be withdrawn. | Resolve the baseline to a retained result file before you compute any difference, and refuse the delta when you cannot. |
 
 ## Results & Parameters
 
@@ -112,6 +130,7 @@ distinct_prompt_set_per_run: true  # clears prefix-cache state; seed per run
 distinct_prompt_per_sample: true   # clears reuse within a run
 report: [mean, stdev, p90, n]
 sign_convention: state explicitly, and verify the label against the printed values
+baseline_source: a named result file, never text that contains the same digits
 ```
 
 Check the sign label against the data before publishing. State the convention
@@ -122,6 +141,7 @@ per metric, because a percentage that reads "faster" for throughput reads
 
 - A table with one row per metric and one column per configuration, each cell showing mean, standard deviation, percentile, and sample count.
 - A stated regime, so the reader knows the warmup sample was excluded.
+- A named source for each baseline value, so a reader can check the comparison.
 - A significance ratio against the pooled standard error for any difference the reader might act on.
 
 ## Reusing a Published Comparison
@@ -130,14 +150,15 @@ When later evidence contradicts a published latency number, correct the source r
 
 1. Mark the superseded figure as withdrawn in place, and give the reason.
 2. State which regime the withdrawn figure came from, so the reader can tell whether other figures share the defect.
-3. Search for downstream copies, because a correction in one place does not correct a claim repeated in a decision record or an implementation brief.
-4. Keep the corrected direction even when it is less favourable. A reversed conclusion is still a conclusion.
+3. Name the baseline that the withdrawn figure used, and say whether that baseline was ever measured.
+4. Search for downstream copies, because a correction in one place does not correct a claim repeated in a decision record or an implementation brief.
+5. Keep the corrected direction even when it is less favourable. A reversed conclusion is still a conclusion.
 
 ## Verified On
 
 | Project | Context | Details |
 | --------- | --------- | --------- |
-| Internal inference-serving benchmark | Repeated single-stream latency comparison across two cache-precision variants on identical hardware | Twenty repeats per variant against a serving shape of roughly 75k input and 685 output tokens. Project, model, host, job, and issue identifiers are withheld under the privacy rules. See [notes.md](../skills/inference-benchmark-warmup-regime.notes.md). |
+| Internal inference-serving benchmark | Repeated single-stream latency comparison across two cache-precision variants on identical hardware | Twenty repeats per variant against a serving shape of roughly 75k input and 685 output tokens. Project, model, host, job, and issue identifiers are withheld under the privacy rules. The same engagement supplied the unresolved-baseline case. See [notes.md](../skills/inference-benchmark-warmup-regime.notes.md). |
 
 ## References
 
