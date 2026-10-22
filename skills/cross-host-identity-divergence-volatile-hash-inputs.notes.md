@@ -62,6 +62,38 @@ fix removed the complete volatile class (8 fields) rather than only the
   compute node and stayed stable, versus three deterministic 13-second
   failures on the variant node before the correction.
 
+## Bounded replay when the second host cannot execute probes
+
+A separate incident on a comparable deployment confirmed the same divergence
+shape without any second-host probe. Scheduler queues were saturated for
+days, so no compute-node diagnostic job could start. The decisive evidence
+came from one reachable host:
+
+- Resolution through production code on the submit host produced the live
+  digest (render-side value) and exposed every payload leaf.
+- Re-hashing the production payload with only the four device leaves changed
+  from the submit host's value (36) to the hypothesis value (37) reproduced
+  the previously observed failing digest exactly, all 64 hexadecimal digits.
+  No other leaf was varied.
+- Consistency across the fleet removed remaining doubt: 15 job failures in
+  one day, each on different node pairs, reported one and the same expected
+  digest in the failure message. Only the 2 jobs that landed fully inside
+  the matching device cohort started and stayed up.
+- Scheduler accounting plus the failure-message digest therefore gives a
+  zero-cost census of the cohort split and measures the lost replacement
+  capacity while the correction rolls out.
+
+Two accuracy notes for the replay variant:
+
+- Replay on exact construction only. Start from the resolved production
+  payload; change the suspect leaf class; keep serialization, sorting, and
+  branch handling in production code. A hand-retyped copy is the failed
+  attempt in the main entry, not this variant.
+- Strength is asymmetric. An exact match identifies the divergent leaf
+  class. A mismatch only removes that hypothesis; it does not clear other
+  classes, because the replay construction or the hypothesis can still be
+  wrong.
+
 ## Operational notes
 
 - Probe jobs that import the installed tree must use the tree's own virtual
