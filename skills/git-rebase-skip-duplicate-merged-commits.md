@@ -1,10 +1,10 @@
 ---
 name: git-rebase-skip-duplicate-merged-commits
 license: BSD-3-Clause
-description: "Identify already-merged duplicate commits during rebase while preserving branch-specific changes and the intended final diff."
+description: "Identify already-merged duplicate commits during rebase with objective patch-id proof, skip them safely, recover linked-worktree rebase failures, and preserve branch-specific changes and the intended final diff."
 category: ci-cd
 date: 2026-07-06
-version: "1.1.1"
+version: "1.2.0"
 verification: verified-local
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/git-rebase-skip-duplicate-merged-commits.history"
 history-cleanup-date: "2026-09-20"
@@ -43,6 +43,11 @@ Use this skill when:
 5. **Manual conflict resolution would just discard the changes**: Instead of manually resolving
    merge conflicts that would require deleting the branch's changes (because main has them already),
    skip the commits that are now redundant.
+
+6. **Message similarity is not sufficient evidence for a skip**: Two commits can share a subject
+   line and still carry different content. When a squash merge or a stacked change rewrites a
+   commit, only an objective comparison (patch identifier, result blob) tells you if a skip is
+   safe.
 
 ### Trigger Phrases
 
@@ -113,6 +118,38 @@ git log origin/main --oneline | grep -i "pipeline coordinator"   # example: sear
 
 # If found on main, that commit is a duplicate and should be skipped during rebase
 ```
+
+For objective proof, compare each suspect commit with its upstream counterpart. When upstream
+merges carry the pull-request number in the subject, find a counterpart by number, not by
+message text:
+
+```bash
+# Find the upstream counterpart of a branch commit, e.g. subject "... (#NNNN)"
+git log origin/main --oneline --grep="(#NNNN)"
+
+# Compare the two patches objectively. Equal identifiers mean equal patch content.
+git show <branch-commit>    | git patch-id --stable
+git show <upstream-commit>  | git patch-id --stable
+```
+
+Do this for the full suspect list before the rebase, or at each stop during it. Equal
+identifiers turn conflict-by-conflict review into a checked skip list.
+
+An identifier mismatch does not mean the commit has unique work. A stacked change can fold
+the same result into a different patch. Compare the result of the commit with the state that
+you already have before you select manual resolution:
+
+```bash
+# During the stop, REBASE_HEAD names the commit being applied
+git show --stat REBASE_HEAD
+
+# For each file that the commit touches, compare its target blob with the current blob
+git hash-object <path>                                      # current worktree blob
+git show REBASE_HEAD:<path> | git hash-object --stdin       # blob the commit produces
+```
+
+If every target blob already matches your tree, the commit adds nothing and the skip stays
+safe. If one result differs, the commit has unique work: resolve the conflict manually.
 
 #### Step 3: Start a permitted rebase and encounter conflicts
 
@@ -243,12 +280,18 @@ duplicate commits. Ready to push and open a follow-up PR if needed.
 **During rebase, when a conflict appears:**
 
 ```
-Does the conflicting commit appear on origin/main?
-├─ YES (message matches, content is identical)
-│   └─ This is a duplicate → git rebase --skip
+Does the conflicting commit have an upstream counterpart?
+├─ YES, and patch-id matches (identical patch content)
+│   └─ Verified duplicate → git rebase --skip
 │
-└─ NO (unique work not yet on main)
-    └─ This has unique content → resolve manually, git add, git rebase --continue
+├─ YES, but patch-id differs (a stacked change rewrote the patch)
+│   ├─ Every target result blob already matches your tree
+│   │   └─ Result already reached → git rebase --skip
+│   └─ One or more result blobs differ
+│       └─ Unique work present → resolve manually, git add, git rebase --continue
+│
+└─ NO upstream counterpart
+    └─ Unique work → resolve manually, git add, git rebase --continue
 ```
 
 ## Common Patterns
@@ -302,6 +345,51 @@ git rm <file>                                   # resolve: file should be delete
 git rebase --continue                          # complete this commit's rebase
 ```
 
+## Rebase Automation in Linked Worktrees
+
+Linked-worktree checkouts change three rebase behaviors that a single checkout does not
+show. Automation that does not account for them silently stops working or fails at the last
+step.
+
+### Rebase-state detection
+
+In a linked worktree, `.git` is a plain file, not a directory. A check such as
+`[ -d .git/rebase-merge ]` is never true there, so a skip loop built on it does nothing and
+reports a false success. Detect the state from Git itself:
+
+```bash
+git rev-parse --git-path rebase-merge   # correct state path for any worktree layout
+git rev-parse REBASE_HEAD               # succeeds only while a commit is being applied
+git status                              # prints "interactive rebase in progress"
+```
+
+`git rev-parse --short` shortens to a length that depends on repository disambiguation.
+Shell patterns over short identifiers can silently misclassify. Use trailing wildcards
+(`abc1234*`), or compare full identifiers.
+
+### End-of-rebase ref update failure
+
+A branch can stay attached in a second worktree, for example after a
+`git switch --ignore-other-worktrees`. The rebase completes every pick and then fails to
+move the branch:
+
+```text
+error: could not update refs/heads/<branch>
+error: update_ref failed for ref 'refs/heads/<branch>': cannot lock ref ... is at <A> but expected <B>
+```
+
+Recovery, in order:
+
+1. Inspect the other worktree's tip before you remove it. It can hold a unique commit.
+   Cherry-pick that commit onto the rebased result first and keep its identifier.
+2. Remove the stale worktree: `git worktree remove <path>`. A clean worktree releases the
+   branch.
+3. Finish by hand. `git rebase --continue` still holds the stale expected value of the
+   guarded update and fails again. Instead:
+   - `git rebase --quit` discards the rebase state without touching refs;
+   - `git branch -f <branch> <rebased-tip>` moves the branch to the result;
+   - `git switch <branch>` reattaches the checkout.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -311,6 +399,9 @@ git rebase --continue                          # complete this commit's rebase
 | Continuing the rebase after conflicts without understanding if commits were duplicates | Ran `git rebase --continue` assuming the conflict resolution was correct | Led to phantom/duplicate commits on the branch, creating confusing history and making the final state unclear | Always verify a commit is truly a duplicate (via `git log origin/main --oneline \| grep`) before deciding to skip |
 | Assuming all rebase conflicts from the same commit were duplicates | Saw conflicts and assumed because one file conflicted, the entire commit was a duplicate | Some commits had unique work on other files; skipping them would have lost that work | Inspect the full commit (`git show REBASE_HEAD`) before skipping; confirm there is no unique work |
 | Not stashing uncommitted work before rebasing | Started rebase without a clean working tree | The rebase failed with "Cannot rebase: You have uncommitted changes" | Always `git stash` uncommitted work before `git rebase`, or use a worktree |
+| Driving a skip loop with a directory check for rebase state | Used `[ -d .git/rebase-merge ]` to tell whether the rebase was still in progress | In a linked worktree `.git` is a file, so the check was never true; the loop exited immediately and reported the rebase complete while conflicts were still pending | Query Git for its own state (`git rev-parse REBASE_HEAD`, `git rev-parse --git-path rebase-merge`); never probe `.git` layout paths |
+| Matching short SHAs with exact shell patterns | Used `case "$sha" in abc1234)` to route conflicted commits in a skip loop | `git rev-parse --short` lengthens when disambiguation needs more digits; the exact pattern missed and a verified duplicate stopped for manual review | Use trailing wildcards (`abc1234*`) for short-SHA patterns, or compare full SHAs |
+| Skipping on message identity alone | Assumed that a branch commit and an upstream squash merge with the same subject were interchangeable | One counterpart pair had different patch content because a stacked change had folded extra work into it; skipping on the message would have lost that work | Prove each skip with `git patch-id --stable`, and on a mismatch compare target result blobs before you decide |
 
 ## Results & Parameters
 
@@ -325,6 +416,15 @@ git rebase --continue                          # complete this commit's rebase
 | **Final state** | Clean, on top of origin/main, ready for follow-up work |
 | **Verification** | `git log origin/main..HEAD` empty (or shows only new commits if any) |
 | **Verification level** | verified-local (git state verified, no PR/CI checks yet) |
+| **Duplicate proof command** | `git show <commit> \| git patch-id --stable`, run for both counterparts and compared |
+| **Result-blob proof command** | `git show REBASE_HEAD:<path> \| git hash-object --stdin` compared with `git hash-object <path>` |
+| **Ref-update recovery** | `git rebase --quit`, `git branch -f <branch> <rebased-tip>`, `git switch <branch>` |
+
+## Verified On
+
+| Project | Context | Details |
+|---------|---------|---------|
+| Large Python monorepo (proprietary) | Long-lived PR branch with eleven cherry-picked duplicates of squash-merged upstream commits; patch-id skip list, one patch-divergent duplicate held by result-blob comparison, linked-worktree ref-update failure recovered | [notes.md](./git-rebase-skip-duplicate-merged-commits.notes.md) |
 
 ## References
 
