@@ -57,6 +57,9 @@ Keep the volatile values in a same-host revalidation. On one host they are
 consistent, so they still detect a root or path swap inside a live process.
 Diagnostic: dump the canonical hash payload on each host and diff every
 leaf field. Each differing leaf is evidence for or against removal.
+If the second host cannot run probes, re-run the production payload
+construction on one host and change exactly the suspect leaf class: an
+exact digest match is decisive; a mismatch only removes that hypothesis.
 ```
 
 ### Suggested Approach
@@ -64,14 +67,14 @@ leaf field. Each differing leaf is evidence for or against removal.
 1. **Apply the constancy rule to every hash input.** An input belongs in a cross-host identity only when a change to that input means a genuinely different logical object. Device numbers are a property of one client's mount instance: on some shared or parallel filesystems, different clients report different values for the same object. Inode numbers change at any directory replacement. Both change with no change to the logical deployment. Exclude the full class, not only the field that failed today.
 2. **Keep host-local protections.** The same volatile fields continue to serve a binding or revalidation that compares two resolutions on the SAME host. Those checks still detect a root or path swap within one running process; the fields are invalid only as cross-host identity material.
 3. **Expect one controlled rotation.** Identities computed before the correction differ from identities after it. Stored records that pin the old identity fail closed until their owner publishes again. That fail-closed churn is the designed migration path for an identity change; plan for it once.
-4. **Diagnose divergence with data, not with payload replay.** Resolve the canonical payload on the real second host and diff every leaf. A healthy diff is empty. Each differing leaf must be either a real identity difference (path, binding digest) or a volatile value to remove. A manual replay that retypes candidate values can diverge from the production payload construction and mislead; see the failed attempts.
+4. **Diagnose divergence with data, not with payload retyping.** Resolve the canonical payload on the real second host and diff every leaf. A healthy diff is empty. Each differing leaf must be either a real identity difference (path, binding digest) or a volatile value to remove. A manual replay that retypes candidate values into a hand-built copy can diverge from the production payload construction and mislead; see the failed attempts. When the second host cannot execute probes (scheduler queues, drained node, missing permission), use a bounded alternative: on any reachable host, resolve the real object through production code and re-hash the production payload with exactly the suspect leaf class changed. An exact match with the observed second-host digest is decisive. A mismatch only removes that hypothesis; it does not clear other leaf classes, because the replay construction or the hypothesis can still be wrong.
 5. **Test the cross-boundary property directly.** Build two mount-instance fixtures that differ in every volatile field and in nothing else. They must give the same identity, and the production verification function must accept the rendered evidence of the first fixture when evaluated after resolution with the second.
 
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 | --------- | ---------------- | --------------- | ---------------- |
-| Manual payload replay | Flip the suspect values in a hand-built copy of the payload on one host and compare the digest with the observed second-host digest. | The manual replica did not reproduce the observed digest: its construction diverged from the production payload code (field set and branch handling). | Retype nothing. Run the production payload construction on each real host and diff every leaf. A complete leaf diff is decisive; a partial replay is not. |
+| Manual payload replay | Flip the suspect values in a hand-built copy of the payload on one host and compare the digest with the observed second-host digest. | The manual replica did not reproduce the observed digest: its construction diverged from the production payload code (field set and branch handling). | Retype nothing into a hand-built copy. A complete leaf diff between real resolutions is decisive. If second-host execution is unavailable, a re-hash that starts from the production payload object and changes one suspect leaf class is decisive only on an exact digest match. |
 | Keep inode numbers in the hash | Cross-host probes showed equal inode values, so only device numbers looked unsafe. | The equal inode values were luck of one mount generation, not a contract. Any directory replacement changes inode numbers at the next launch. | Constancy must hold across launches, not only across the mount instances that exist today. Remove the full volatile class in one change. |
 
 ## Results & Parameters
