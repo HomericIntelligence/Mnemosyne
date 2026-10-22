@@ -1,9 +1,9 @@
 ---
 name: pr-ci-failure-triage-preexisting-vs-introduced
-description: "Classify red PR checks as introduced, pre-existing, flaky, environmental, stale-commit, or status-rollup artifacts before fixing or rerunning. Use after rebases/force-pushes, unrelated failures, merge-preview coverage changes, or hosted-only process-launch errors. Also use when the required check is a fan-in gate reported by a ruleset, when the failing symbol on the base was deliberately removed, when a base update turns a green branch red without a textual conflict, when grouped or sharded logs hide individual failed node identities, when failures reproduce only on the local host, or when a path-filtered check fails on stale in-repo plan inputs that main already repaired. Also use when an aggregate gate fails its own report step because a producer job output key is absent from `needs` while every upstream job succeeded."
+description: "Classify red PR checks as introduced, pre-existing, flaky, environmental, stale-commit, or status-rollup artifacts before fixing or rerunning. Use after rebases/force-pushes, unrelated failures, merge-preview coverage changes, or hosted-only process-launch errors. Also use when the required check is a fan-in gate reported by a ruleset, when the failing symbol on the base was deliberately removed, when a base update turns a green branch red without a textual conflict, when grouped or sharded logs hide individual failed node identities, when failures reproduce only on the local host, or when a path-filtered check fails on stale in-repo plan inputs that main already repaired. Also use when an aggregate gate fails its own report step because a producer job output key is absent from `needs` while every upstream job succeeded. Also use when a green comparison lane may never execute the failing node because event-scoped profiles or shard planners select different test sets on identical trees."
 category: ci-cd
-date: 2026-10-19
-version: "2.5.0"
+date: 2026-10-21
+version: "2.6.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-ci
@@ -28,6 +28,8 @@ tags:
   - stale-plan-inputs
   - evidence-artifact
   - job-outputs
+  - test-profile-selection
+  - green-twin-coverage
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pr-ci-failure-triage-preexisting-vs-introduced.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -69,6 +71,8 @@ and the complete prior version is in
   job output key is absent from `needs.<job>.outputs`, while the producer job and every
   other upstream concluded success — and re-running the gate or the producer job inside
   the same run does not restore the key.
+- The green comparison lanes may never execute the failing node: event-scoped test
+  profiles or shard planners select different sets on identical trees.
 
 ## Verified Workflow
 
@@ -127,6 +131,15 @@ dependency versions, and failing test IDs.
 If the required job evaluates a merge-preview commit, reproduce that tree or use GitHub's merge
 commit SHA. A coverage drop can arise from interaction with main even when the branch-alone suite
 passes.
+
+Before a green run counts as comparison evidence, confirm the run executed the failing node.
+Event-scoped test profiles (a narrower pull-request profile and a wider promotion profile) or
+shard planners can select different test sets on identical trees. When every green lane in the
+comparison ran only a profile that never selects the node, the comparison is empty: it classifies
+nothing. Check coverage by searching each compared run's logs for the failing node id
+(`gh run view --job <job> --log`), or by comparing the selected-test counts the harness prints.
+Classify an empty comparison from content determinism — the assertion, the config, the diff —
+not from lane color.
 
 ### 5. Classify known failure signatures before rerunning
 
@@ -288,11 +301,14 @@ operational verification.
 | 12 | Treated a local-only failure as a PR defect | The same nodes failed set-identically on a pristine trunk worktree; hosted CI was green | Bind local failures to the pristine-base oracle before attribution |
 | 13 | Classified a path-filtered check from main's history alone | The workflow runs only for diffs that touch its `paths:` list, so main carried no failure and same-base unaffected PRs carried no run at all — the comparison set was empty while a stale pinned selector made every filtered base fail | Check the workflow's trigger filter first; for in-repo plan inputs, diff the pinned selector against the tree and read the job's uploaded evidence artifacts, then remediate a main-repaired input by a base update |
 | 14 | Re-ran the failed aggregate gate, then re-ran the producer job, to republish a `needs` output key the gate missed | The same key stayed absent in every attempt of the same run; job reruns inherit the run's stored job outputs even when the producer re-executes | Capture the producer's emit evidence and bracket a same-era green-run window first; regenerate stored outputs only through a fresh run ID, and when the drop persists there, treat it as a platform behavior change and move the branch to the gate world main already carries |
+| 15 | Declared a deterministic introduced failure flaky because green twins carried an identical tree | Every green lane ran an event-scoped profile that never selected the failing node; only the failing wider-profile lane executed it | A green lane is comparison evidence only after its logs contain the failing node id or its selected-test count covers the node's profile; classify empty comparisons from content determinism |
 
 ## Results & Parameters
 
 - Authoritative identity: exact PR head and current main head SHAs.
 - Primary status source: check-runs API per commit; workflow history supplies recurrence evidence.
+- Green-twin coverage gate: a compared green run is evidence only if its log contains the
+  failing node id, or a selected-test count covering the node's profile.
 - Rerun policy: failed jobs only, and only after a flake classification is recorded.
 - Generated harness transport: stdin for large scripts; avoid platform-dependent argv budgets.
 - Final gate: current-head required checks, not cancelled or stale runs.
