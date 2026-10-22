@@ -56,8 +56,8 @@ All four branch-unique commits (the real payload) applied without conflicts.
    routed a verified duplicate into the manual-review branch.
 
 3. **Guarded ref-update failure at the last step.** After the final pick,
-   `error: could not update refs/heads/<branch>` / "cannot lock ref ... is at <A> but
-   expected <B>". A second worktree still had the branch checked out (attached earlier
+   `error: could not update refs/heads/<branch>` / `"cannot lock ref ... is at <A> but
+   expected <B>"`. A second worktree still had the branch checked out (attached earlier
    with an ignore-other-worktrees switch), and the other worktree's tip held one unique
    fixup commit. Recovery: inspected and cherry-picked the fixup commit onto the rebased
    result, removed the stale (clean) worktree, then finished by hand with
