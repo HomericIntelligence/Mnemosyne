@@ -72,6 +72,33 @@ discarded. See
 [debugging-prefix-cache-nsight-kernel-evidence.md](debugging-prefix-cache-nsight-kernel-evidence.md)
 for the cache-side evidence.
 
+## Baseline that was never measured
+
+A second withdrawn figure in the same engagement failed for a different reason.
+The comparison divided the candidate result by a baseline value that no run had
+produced. The value appeared nowhere in the retained results. The only place it
+turned up was as incidental digit matches inside unrelated evaluation logs.
+
+| Property | Observation |
+| --- | --- |
+| Baseline in retained results | absent |
+| Only trace of the value | coincidental digit matches in unrelated logs |
+| Consequence | the derived percentage described a configuration that was never run |
+| Correction | figure marked withdrawn in place, with the reason stated |
+
+The failure mode is not arithmetic. It is source resolution. A value that has
+already been written into a document looks like a result, and reusing it feels
+like consistency rather than error. The matching digits made the error feel
+confirmed, which delayed the correction.
+
+The retained results held the real baseline. Re-measuring against it changed the
+reported direction on one metric, so the withdrawn figure did not merely have the
+wrong magnitude.
+
+Check that the baseline row is matched as well as present: same shape, same
+topology, same image, one changed variable. A matched baseline removes the need
+to attribute a difference to more than one cause.
+
 ## Harness detail worth reusing
 
 The latency client accepted a loopback address only, so it worked inside the
