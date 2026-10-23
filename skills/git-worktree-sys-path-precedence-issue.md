@@ -43,6 +43,7 @@ history-cleanup-date: "2026-09-20"
 - Building automation tools or test suites that spawn console scripts as subprocess commands from within a git worktree
 - `pixi run hephaestus-*` returns old output after you edited Python source files in a git worktree
 - A spawned automation phase must import only from the selected checkout even when the parent has a hostile or stale `PYTHONPATH`
+- A pytest (or other) runner baseline shows failures the diff cannot explain — for example a claimed "pre-existing" failure — and you suspect an ambient `PYTHONPATH` (released/production venv) leaking into the runner
 
 Do NOT use this skill when:
 
@@ -85,6 +86,11 @@ pixi run python -c "from hephaestus.validation.python_version import main; main(
 # 6. Alternative solution: Prepend worktree to PYTHONPATH (explicit)
 export PYTHONPATH="/path/to/worktree:$PYTHONPATH"
 pixi run hephaestus-agent-stage --version
+
+# 6b. Sanitize a test runner against ambient PYTHONPATH leakage (REPLACE, never prepend):
+cd <worktree> && PYTHONPATH=$PWD/src python3 -s -m pytest <tests>   # -s also drops user site-packages
+# Prove the loaded copy first — the printed path MUST be inside <worktree>:
+python3 -s -c "import <pkg.module> as m; print(m.__file__)"
 
 # 7. Fix for worktree with its own pixi env: refresh the editable install
 pixi run dev-install
@@ -181,6 +187,8 @@ The key insight: **The editable install .pth file is correct, but the main proje
 The `pixi run hephaestus-*` console script binary has a shebang that was generated when `pip install -e .` was run in the MAIN worktree. The shebang hardcodes `/path/to/main-worktree/.pixi/envs/default/bin/python`. Even though `pixi run python -c "import hephaestus ..."` loads from the current worktree (via the .pth file), the console script binary's Python interpreter starts with the main worktree's environment.
 
 Diagnosis: The `inspect.getfile()` one-liner (Step 0) shows correct worktree path for direct `python -c` but the console script returns stale output.
+
+**Runner environment poisoning variant:** An ambient exported `PYTHONPATH` (for example one pointing at a released or production virtualenv) is inherited by a test interpreter you believe is isolated. Symptoms: baseline failures the diff cannot explain — import/syntax/attribute errors in modules you never touched, or a "pre-existing" failure no clean runner can reproduce. Read none of them as code evidence until the loaded path is proven (Step 0). Replacing (not prepending) `PYTHONPATH` and running with `python3 -s` makes the test runner's own environment authoritative.
 
 **Step 5 — Apply Solution 1: Use pixi run python -c (preferred for worktrees).**
 
@@ -468,7 +476,8 @@ Does your code run subprocess commands from a git worktree?
 |---------|---------|---------|
 | ProjectHephaestus | Issue #724: Add -V/--version flag to 44 console scripts | 2026-06-06 — Discovered during implementation that `pixi run hephaestus-agent-stage --version` loaded stale code from main repo in a git worktree. Direct imports worked correctly. Root cause: sys.path ordering with main repo before worktree. Solution: Use `pixi run` for all subprocess invocations of console scripts. Verified locally (pixi run works, direct subprocess fails). CI not examined in detail. |
 | ProjectHephaestus | Issue #1189: python-version-consistency DRY refactor | 2026-06-13 — Discovered that `pixi run hephaestus-check-python-version --json` returned old JSON without the new `ci_checks` key even after modifying `validation/python_version.py` in the worktree. Diagnosed with `inspect.getfile()` — file path pointed to main worktree. Workaround: `pixi run python -c "from hephaestus.validation.python_version import main; main()" -- --json`. |
-| ProjectHephaestus | Issue #1217: console-script verification trap (closed PR #2381) | 2026-06-12 — Observed that running the installed console-script after patching `hephaestus.validation.repo_analyze_skills` inside a worktree emitted empty/unpatched output. `module.__file__` confirmed the outer repo was loaded. Authoritative verification via `python -m hephaestus.validation.repo_analyze_skills` showed the fix was correct all along. `pixi run dev-install` re-pointed the binary but did not resolve `sys.path[0]` shadowing. |
+| ProjectHephaestus | Issue #1217: console-script verification trap (closed PR #2381) | 2026-06-12 — Observed that running the installed console-script after patching `hephaestus.validation.repo_analyze_skills` inside a worktree emitted unpatched output. `module.__file__` confirmed the outer repo was loaded. Authoritative verification via `python -m hephaestus.validation.repo_analyze_skills` showed the fix was correct all along. `pixi run dev-install` re-pointed the binary but did not resolve `sys.path[0]` shadowing. |
+| an internal model-serving gateway repository | ops session 2026-10-23, pre-PR regression of a key-cache fix | An ambient shell `PYTHONPATH` pointing at a production release virtualenv leaked into the team fixture interpreter and produced an implausible `404 passed + 1 failed` pytest baseline in a clean worktree. A sanitized runner (`PYTHONPATH=$PWD/src` replace-only plus `python3 -s`, with `__file__` proof) turned the suite fully green (359 passed), and the flagged "pre-existing" failure proved absent at both pre- and post-fix revisions — a pure runner artifact. |
 
 ## References
 

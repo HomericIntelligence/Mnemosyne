@@ -62,6 +62,7 @@ Match the observed signature to the broken link, then check the named evidence:
 | Fast exit 1, traceback at prepare time (for example `PermissionError: credential lifecycle intent does not match saved credential`) | Link 1, prepare + publish | The traceback frame; the saved-credential state (`whoami` can still pass with a different saved key) |
 | Exit 0 with `Credential request state: pending.` after stacked waits | Link 2, fulfillment | Rendezvous `results`/`deliveries` parent mtimes; fulfillment dependency (database DSN) in the service launch environment |
 | Persistent HTTP 401 on `whoami` beyond the propagation window while older keys authenticate | Link 3, admission | Credential file mtime vs window; operator-side key-cache/key-sync state |
+| A hand-built probe (curl and similar) 401s a credential that client tooling authenticates in the same minute | None — probe harness defect | Confirm the exact transport the server parses: the gateway front reads only the `Authorization: Bearer <key>` header; another credential header (for example `x-api-key:`) is not read and yields an instant 401 indistinguishable from credential rejection |
 | Mount-stall-looking hang (no output, long elapsed) | None of the above yet | Time `stat` on the rendezvous dirs and the client shim; ~0 s excludes a mount stall |
 
 ### Suggested Approach
@@ -82,6 +83,14 @@ next decision.
    - `401` with a file older than ~60 s: link 3 (admission) failed.
      Re-running `comet login` does not repair admission; it re-imports the same
      rejected key.
+   - For any manual `curl`-style probe behind this classification, first
+     confirm the probe uses the exact transport the server parses (the gateway
+     front reads only `Authorization: Bearer <key>`). Another header produces
+     a ~0 ms 401 that never reaches the key store and is indistinguishable
+     from a rejected credential — an instant failure that outruns a store
+     lookup is probe-defect evidence, not admission evidence. Do not chase
+     clock skew for a same-host publisher/validator pair either: one shared
+     clock cancels the offset on both sides.
    - No credentials file: no delivery has completed. Go to step 4.
 4. Run `comet request-key` with a bounded wait under `timeout` (for example
    `--wait 15` under a 120 s timeout, then `--wait 1` to time the recovery
@@ -142,6 +151,7 @@ next decision.
 | Attach `strace` / `py-spy` to the hanging process | `strace -p` as the same uid, then `py-spy` dump | Kernel `yama/ptrace_scope=1` refused the non-child attach; `py-spy` was not installed | Sample `/proc/<pid>/wchan` and `/proc/<pid>/fd` instead; `nanosleep` with no external fds proves a local poll loop |
 | Recursive masked `jq` dump of the credentials file | `jq` with a recursive `def mask` over every nested value | The filter ended with `error: cannot allocate memory`, no output | Use a single-level mask over top-level entries; it covers the store schema and never prints values |
 | Read the raw traceback as a transient or a user error | Retried `request-key` after `PermissionError: credential lifecycle intent does not match saved credential` | The prepare branch reads durable state (lifecycle record vs saved credential), so every retry raised the same exception at the same frame | A prepare-time `PermissionError` is a durable dead end; check `whoami` with the existing credential to separate "dead end, key still valid" from "no working key" |
+| Trusted a curl 401 as post-recovery admission evidence | Sent the credential in an `x-api-key:` header to a healthy recovered gateway; repeated instant `401 invalid or missing API key` for a key `whoami` accepted minutes later | The front parses only the `Authorization: Bearer` header; the unparsed header is rejected identically for healthy and unhealthy keys, so the probe consumed diagnosis time after recovery had already succeeded | Read the server's extraction code before a hand-built probe; a ~0 ms 401 means no lookup ran |
 
 ## Results & Parameters
 
