@@ -1,9 +1,9 @@
 ---
 name: tooling-opencode-v2-plugin-install-compat
-description: "Check that an OpenCode plugin supports the installed OpenCode major version before you install it. Use when installing, configuring, or removing a community plugin on OpenCode v2."
+description: "Check that an OpenCode plugin supports the installed OpenCode major version before you install it, and register it in only the configuration files that V2 requires. Use when installing, configuring, or removing a community plugin on OpenCode v2, or when a plugin README tells you to add the package to both opencode.json and cli.json."
 category: tooling
 date: 2026-10-09
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 tags: [opencode, plugins, major-version-compatibility, configuration]
 ---
@@ -25,6 +25,7 @@ tags: [opencode, plugins, major-version-compatibility, configuration]
 - A plugin install command from a README fails with `Unknown subcommand` or `Unrecognized flag: --global`.
 - A plugin appears in `opencode plugin list` but has no visible effect in the TUI.
 - Manual edits to `~/.config/opencode/cli.json` disappear after another OpenCode instance runs.
+- A plugin README tells you to add the same package to both `opencode.json` and `cli.json`.
 
 ## Verified Workflow
 
@@ -37,7 +38,17 @@ opencode --version                                # local major version
 opencode plugin add <package>                     # v2 install (no --global flag)
 opencode plugin remove <package>                  # v2 removal
 opencode plugin list                              # shows installed and local plugins
+
+# Select the configuration file from the cached package entrypoints
+PKG=~/.cache/opencode/npm/<name>@latest/*/node_modules/<name>
+node -e "console.log(JSON.stringify(require('$PKG/package.json').exports))"
 ```
+
+| Package exports | Configuration file | CLI loads the TUI part? |
+| --- | --- | --- |
+| `.` only, or `./server` | `opencode.json(c)` | No TUI part |
+| `.` and `./tui` | `opencode.json(c)` only | Yes, automatically from the server plugin list |
+| CLI-only, or a TUI-only package | `cli.json` | Yes, this is the only entry |
 
 Signals that a plugin targets OpenCode v1, not v2:
 
@@ -50,8 +61,13 @@ Signals that a plugin targets OpenCode v1, not v2:
 2. Before installation, read the plugin README and its package manifest (`engines.opencode`, plugin SDK imports, peer dependencies). A `>=1.x` floor does not prove v2 support. Treat v1-only config documentation as a v1 signal.
 3. On v2, install with `opencode plugin add <package>`. Do not copy v1 README commands. The v1 form `opencode plugin <package> --global` fails on v2.
 4. In v2, a `plugins` entry in `~/.config/opencode/cli.json` is a string or an object `{"package": "<name>", "options": {...}}`. The published schema is `https://opencode.ai/v2/cli.json`. Plugin READMEs that show a tuple `["<name>", {...}]` describe the v1 format; use the v2 object form.
-5. Running OpenCode instances rewrite `cli.json` from their in-memory state. Concurrent instances can silently remove manual edits and change unrelated keys. Read the file again after each edit, and prefer the plugin CLI over manual edits while other instances run.
-6. If an installed plugin has no effect on v2, remove it with `opencode plugin remove <package>` and verify with `opencode plugin list`.
+5. Select the configuration file from the plugin's entrypoints. Do not copy a README that tells you to write both files:
+   - `opencode.json(c)` owns server plugins. A package that exports `.` or `./server` goes here.
+   - `cli.json` owns CLI-only plugins. These plugins run in the terminal and stay active against a remote server.
+   - A package that exports both `.` and `./tui` goes in `opencode.json(c)` only. The CLI gets the active plugin list from the connected server, so it loads the `./tui` entrypoint automatically. The official V2 documentation states that you do not need to add the same package to `cli.json`.
+6. Read the package `exports` field in the cached package to select the file. A package with a `./tui` export is not CLI-only.
+7. Running OpenCode instances rewrite `cli.json` from their in-memory state. Concurrent instances can silently remove manual edits and change unrelated keys. Read the file again after each edit, and prefer the plugin CLI over manual edits while other instances run.
+8. If an installed plugin has no effect on v2, remove it with `opencode plugin remove <package>` and verify with `opencode plugin list`.
 
 ## Failed Attempts
 
@@ -59,7 +75,9 @@ Signals that a plugin targets OpenCode v1, not v2:
 | --- | --- | --- | --- |
 | Install with the README command | Ran the v1 README form `opencode plugin <package> --global` on v2. | v2 uses subcommands; the CLI returned `Unknown subcommand` and `Unrecognized flag: --global`. | Use `opencode plugin add <package>` on v2. Check README commands against the local major version. |
 | Trust a successful install | Accepted the `installed and added to cli.json` message and the `plugin list` entry as proof of function. | A v1 TUI plugin registers in v2 but gives no working feature. | A clean install is not an interface-compatibility check. Verify the plugin target major version first. |
+| Assume which file `plugin add` writes | Expected `plugin add` to write `cli.json`, from an earlier V2 version and from the vendor README. | On v2.1.1 it wrote `opencode.json`. The target file depends on the plugin entrypoints and the host version. | Read both configuration files after installation. Do not infer the target file from an earlier version. |
 | Edit cli.json while other instances run | Added plugin options to `cli.json` by hand. | A concurrently running OpenCode instance rewrote the file and removed the edit (it also changed an unrelated key). | Running instances hold the config in memory and write it out. Re-read the file after edits; use the CLI where possible. |
+| Add the package to both configuration files | Followed a plugin README that said to register the package in `opencode.json` and `cli.json` for the sidebar and command palette. | `plugin add` had already registered the package in `opencode.json`. The package exports both `.` and `./tui`, so the CLI loads the TUI part from the server plugin list. The second entry was redundant. | Check the package `exports` field and the official V2 CLI plugin documentation before you add a second entry. A vendor README can prescribe configuration that V2 does not require. |
 
 ## Results & Parameters
 
@@ -82,15 +100,33 @@ v2 global config with plugin options (`~/.config/opencode/cli.json`):
 
 Mixed string and object entries in the same `plugins` array are valid under the v2 schema.
 
+A package with server and TUI entrypoints uses one entry in `opencode.json` only. Do not add it to `cli.json`:
+
+```json
+{
+  "plugins": ["<package-with-server-and-tui-exports>"]
+}
+```
+
 ### Expected Output
 
-- `opencode plugin add <package>` prints `installed and added to ~/.config/opencode/cli.json` and caches the package under `~/.cache/opencode/npm/`.
+- `opencode plugin add <package>` caches the package under `~/.cache/opencode/npm/` and writes one configuration file. The file depends on the plugin entrypoints and the host version. On OpenCode v2.1.1 with a package that exports `.` and `./tui`, it wrote the `plugins` array in `opencode.json`. Read both files after installation instead of assuming which file changed.
 - `opencode plugin list` shows the package with its version and source.
+- The server log shows `msg="loading plugin" ... entrypoint=.../dist/server.js` for the server entry. A load with no `failed to load plugin` entry and no `err_*` reference is a clean load.
 - For a compatible plugin, the feature is visible after an OpenCode restart. Plugin changes require a restart.
+
+## Verified On
+
+| Project | Context | Details |
+| --- | --- | --- |
+| OpenCode v2.0.24 (public release) | v1 TUI plugin install, `plugin add` vs v1 README command, concurrent `cli.json` rewrite | [notes.md](./tooling-opencode-v2-plugin-install-compat.notes.md) |
+| OpenCode v2.1.1 (public release) | Dual-entrypoint package (`./server` and `./tui`) installed with `plugin add`; a redundant `cli.json` entry added from the vendor README and then removed | [notes.md](./tooling-opencode-v2-plugin-install-compat.notes.md) |
 
 ## References
 
 - [OpenCode v2 CLI configuration schema](https://opencode.ai/v2/cli.json)
+- [OpenCode v2 CLI plugins: automatic TUI loading from `opencode.json(c)`](https://opencode.ai/v2/docs/cli/plugins)
+- [OpenCode v2 building CLI plugins: `./tui` export and `cli.json` for CLI-only packages](https://opencode.ai/v2/docs/build/plugins/cli)
 - [OpenCode keybinds documentation](https://opencode.ai/docs/keybinds/)
 - [Related: OpenCode v2 session deletion effects](tooling-opencode-v2-session-deletion-effects.md)
 - Evidence details are in the [notes](tooling-opencode-v2-plugin-install-compat.notes.md).
