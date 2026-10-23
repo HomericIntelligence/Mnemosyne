@@ -63,6 +63,7 @@ Match the observed signature to the broken link, then check the named evidence:
 | Exit 0 with `Credential request state: pending.` after stacked waits | Link 2, fulfillment | Rendezvous `results`/`deliveries` parent mtimes; fulfillment dependency (database DSN) in the service launch environment |
 | Persistent HTTP 401 on `whoami` beyond the propagation window while older keys authenticate | Link 3, admission | Credential file mtime vs window; operator-side key-cache/key-sync state |
 | A hand-built probe (curl and similar) 401s a credential that client tooling authenticates in the same minute | None — probe harness defect | Confirm the exact transport the server parses: the gateway front reads only the `Authorization: Bearer <key>` header; another credential header (for example `x-api-key:`) is not read and yields an instant 401 indistinguishable from credential rejection |
+| `requests/` and `results/` parent mtimes move today while the `deliveries/` parent mtime is days or weeks old, and a credential file appears in the client store right after REGISTER | Link 2 half-alive: requests reconcile but no delivery is issued; the client-staged secret can never validate | Check the `deliveries/` parent mtime before deleting anything; treat the file as staged-not-delivered — `whoami` 401s for it are expected, not a stale-credential signal |
 | Mount-stall-looking hang (no output, long elapsed) | None of the above yet | Time `stat` on the rendezvous dirs and the client shim; ~0 s excludes a mount stall |
 
 ### Suggested Approach
@@ -99,7 +100,10 @@ next decision.
      frame. Do not retry; the same state produces the same branch.
    - Exit 0 with `Credential request state: pending.`: link 1 published, link 2
      did not complete. Treat exit 0 on `pending` as a designed-behavior trap:
-     scripts see success while no credential can arrive.
+     scripts see success while no credential can arrive. A credential file
+     created by the same REGISTER run is a staged secret, not a delivered one;
+     confirm delivery (the `deliveries/` parent mtime, or `whoami` after the
+     window) before treating its 401 as stale-credential evidence.
    - `registered`/delivered: healthy; verify with `whoami` after the window.
 5. If the process is still running, prove that the wait is local polling and
    not a blocked resource. Sample `/proc/<pid>/wchan` and list
@@ -109,12 +113,20 @@ next decision.
    separately: `stat` of the rendezvous directories and of the client shim
    completes in ~0 s on a healthy mount.
 6. Assess service-side liveness through the rendezvous parent directories with
-   `stat` only. Group-writable sticky parents (mode `3733`,
+   `stat` only. Resolve the rendezvous from the client lane's `$COMET_ROOT`;
+   the deployment also carries an operator state root whose `credentials` tree
+   may not exist — an ENOENT from the wrong root is a probe defect, not a
+   dead-loop signal. Group-writable sticky parents (mode `3733`,
    `drwx-ws-wt`) mean clients can publish. `results`/`deliveries` parent mtimes
-   that are weeks old mean the consume/deliver loop is not moving. Listing a
-   `--x` parent fails with EACCES by design; ENOENT for the per-user request
-   subdirectory means the request never created an object. Check only your own
-   artifacts and parent metadata; the contents are service-owned.
+   that are weeks old mean the consume/deliver loop is not moving. Read a split
+   carefully: fresh `requests/` and `results/` mtimes with a `deliveries/`
+   parent days or weeks old means reconcile is alive but no delivery is
+   issued; any secret the client staged at REGISTER time stays undelivered and
+   can never validate, so per-account re-REGISTER attempts repeat the same
+   dead end. Listing a `--x` parent fails with EACCES by design; ENOENT for
+   the per-user request subdirectory means the request never created an
+   object. Check only your own artifacts and parent metadata; the contents
+   are service-owned.
 7. Do not reproduce the failure under another person's account. Give the
    affected account a read-only debug script that self-collects: identity and
    group state, client build identity, public read results, masked store state,
@@ -152,6 +164,7 @@ next decision.
 | Recursive masked `jq` dump of the credentials file | `jq` with a recursive `def mask` over every nested value | The filter ended with `error: cannot allocate memory`, no output | Use a single-level mask over top-level entries; it covers the store schema and never prints values |
 | Read the raw traceback as a transient or a user error | Retried `request-key` after `PermissionError: credential lifecycle intent does not match saved credential` | The prepare branch reads durable state (lifecycle record vs saved credential), so every retry raised the same exception at the same frame | A prepare-time `PermissionError` is a durable dead end; check `whoami` with the existing credential to separate "dead end, key still valid" from "no working key" |
 | Trusted a curl 401 as post-recovery admission evidence | Sent the credential in an `x-api-key:` header to a healthy recovered gateway; repeated instant `401 invalid or missing API key` for a key `whoami` accepted minutes later | The front parses only the `Authorization: Bearer` header; the unparsed header is rejected identically for healthy and unhealthy keys, so the probe consumed diagnosis time after recovery had already succeeded | Read the server's extraction code before a hand-built probe; a ~0 ms 401 means no lookup ran |
+| Let onboarding tooling recover automatically | Each first `whoami` 401 inside the fresh-key window was classified as a stale credential; the script created its backup, deleted the store and lifecycle state, and re-REGISTERed — three cycles in one hour for an account whose earlier key was store-valid the entire time | The tool certifies neither delivery nor durable rejection before destructive recovery; re-REGISTERing also republishes lifecycle state that can implicitly revoke the surviving key under rotate semantics | Stop the loop and restore the newest timestamped backup that contains a previously-validated credential; re-classify only from a stable, post-window 401 for a key whose delivery is confirmed |
 
 ## Results & Parameters
 

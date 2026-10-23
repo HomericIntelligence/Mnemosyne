@@ -161,6 +161,35 @@ from a manual probe, run one control request with the exact transport the
 server parses. A ~0 ms 401 for a store-verified credential is a probe defect.
 Also read `whoami` latency: ~55 ms rejects happen before any lookup.
 
+## Verified session evidence addendum 2 (2026-10-23, m2 production, same release family)
+
+Split-rendezvous and staged-secret churn:
+
+- Rendezvous split: `requests/` parent mtime 21:56Z and `results/` parent
+  mtime 21:58Z the same day, while the `deliveries/` parent mtime sat ~3
+  weeks old. Requests reconciled continuously; no delivery was issued that
+  hour (or that month). The account's client-side secret, written at REGISTER
+  time, stayed staged — every `whoami` 401 for it was expected and proved
+  nothing about credential health.
+- Probe defect caught and avoided mid-session: the deployment carries both an
+  operator state root and the client lane under `$COMET_ROOT`; `stat` on the
+  operator root's `credentials` tree returns ENOENT here. Wrong root ⇒
+  phantom "no rendezvous". Bind rendezvous probes to the client lane.
+- Destructive recovery loop: the onboarding tool classified each first 401 as
+  `stale key/lifecycle state`, created a dated `credential-state.bak-*.tar`
+  per run, deleted store + lifecycle state, and re-REGISTERed — three cycles
+  in one hour. The account's operator-issued key from earlier the same
+  evening stayed store-valid throughout, and the gateway served three
+  consecutive operator control `whoami` 200s (~0.16 s each) across the same
+  minutes.
+- Recovery rule issued to the account: stop the re-REGISTER loop, extract the
+  newest backup containing the previously-validated credential, reinstall
+  (mode 0600), re-validate `whoami`; delete nothing further. Premise
+  evidence was verified before issuing: the backup tarball existed on the
+  account's own filesystem, the credential's row was present and unrevoked,
+  and the gateway admitted control keys. The delivery-side gap stays routed
+  to the owning issues named in the main entry.
+
 ## Privacy screening applied
 
 - Account names generalized to "an ordinary test account" / "a staff account".
@@ -170,3 +199,6 @@ Also read `whoami` latency: ~55 ms rejects happen before any lookup.
 - Issue references use the public tracker, consistent with corpus precedent.
 - The 2026-10-23 addendum generalizes host names and key identifiers the same
   way; latency figures and status codes are operational facts, not secrets.
+- Addendum 2 follows the same masking; rendezvous mtimes are operational
+  metadata, and recovery instructions describe the account's own artifacts
+  without identifiers.
