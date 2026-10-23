@@ -125,6 +125,42 @@ Masking rules:
 | Admission | saved key 401 at ~100 min; older keys authenticate | LLM360/comet#2784 |
 | Admin fallback | no supported admin-side ordinary-user issuance | LLM360/comet#2162 |
 
+## Verified session evidence addendum (2026-10-23, m2 production, same release family)
+
+Context: the gateway process on the serving node died; the platform launched a
+replacement gateway on a different node minutes later and repointed the client
+endpoint manifest. Healthz on the new gateway was green and key-sync fresh;
+the key-cache store was verified intact (row present, unrevoked, hash matches).
+
+Probe evidence — transport trap:
+
+- Hand-built curl probes sent the credential in an `x-api-key:` header against
+  the recovered gateway: HTTP 401 (`invalid or missing API key`) in ~55 ms,
+  four samples, despite the store carrying the key.
+- The same minute, the client lane's own onboarding smoke (which sends
+  `Authorization: Bearer <key>`) authenticated through the same front: HTTP
+  200. `whoami` with the Bearer transport for the same credential: 200 in
+  ~170 ms, returning the expected user.
+- Chat completions with the Bearer transport: 200 (a large model returned
+  slowly only because of a narrow replica pool and cold dispatch queue; a
+  small model answered in ~7 s). Latency after recovery was a dispatch/queue
+  property, not an auth property.
+- Discarded hypothesis: compute-node clock skew. The publisher and the reader
+  run on the gateway node's own clock, so any offset cancels between
+  `published_at` and the age check; healthz never showed an authority error.
+  Minutes of reasoning were spent there before the transport defect was found.
+
+The incident produced two follow-ups in the project: a revocation-policy
+issue (LLM360/comet#2923, implicit rotate/cancel revocation) and the
+availability-half PR (LLM360/comet#2926, skip-unchanged publish /
+last-known-good serving / 5-minute validation cadence). Routing in this addendum
+matches the corpus precedent of recording public-tracker issue references.
+
+Rule of thumb this evidence supports: before classifying link 3 (admission)
+from a manual probe, run one control request with the exact transport the
+server parses. A ~0 ms 401 for a store-verified credential is a probe defect.
+Also read `whoami` latency: ~55 ms rejects happen before any lookup.
+
 ## Privacy screening applied
 
 - Account names generalized to "an ordinary test account" / "a staff account".
@@ -132,3 +168,5 @@ Masking rules:
 - No API key values, key identifiers, or per-user directory listings.
 - Deployment paths reduced to `$COMET_ROOT`-relative form.
 - Issue references use the public tracker, consistent with corpus precedent.
+- The 2026-10-23 addendum generalizes host names and key identifiers the same
+  way; latency figures and status codes are operational facts, not secrets.
