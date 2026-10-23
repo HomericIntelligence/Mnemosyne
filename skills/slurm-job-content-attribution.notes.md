@@ -54,6 +54,27 @@ done
   parent: one campaign's logs were world-readable while several others sat below mode
   `0700` or `0750` directories. Readability is per-path; always gate with `ls` first.
 
+## Wrapper-recursion case (generalized)
+
+A two-job measurement campaign launched from one driver script supplied this case. Both jobs
+used the same generated `job.sbatch` name and a `job-<id>.out` output pattern, so the queue
+names and path names carried no distinguishing signal.
+
+- The generated sbatch showed only resource requests (`#SBATCH` headers) and one block of
+  `export` lines that set the workload parameters (model source, context length, cache
+  budgets, label). The payload script that `srun` invoked contained the launch command,
+  its flags, and a fallback order between two execution paths.
+- The payload redirected the real server log to a side file in the output directory. The
+  running job's `StdOut` held startup probe lines only, while the side log showed active
+  progress with elapsed-time counters.
+- A sibling job that had left the queue was still visible to `scontrol show job`, and its
+  output directory held the complete result: job output, side log, and a status file that
+  the payload wrote at the end.
+
+Reading order that answered "what are these jobs": queue row → `scontrol` identity bundle →
+sbatch `export` lines → payload script → side log in the output directory. One further level
+led to the driver script that generated the sbatches, which stated the campaign parameters.
+
 ## Binding limits
 
 - Evidence was collected on one cluster configuration (cgroup v2, shared filesystem,
