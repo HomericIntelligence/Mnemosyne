@@ -3,7 +3,7 @@ name: tooling-opencode-v2-batch-session-messages
 description: "Send one message to many existing OpenCode V2 sessions in parallel, skipping sessions that are currently working. Use when a user asks to continue, resume, or nudge every session that matches a title filter, such as a shared prefix."
 category: tooling
 date: 2026-10-19
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 tags: [opencode, session, batch-message, cli, jq, background-process, concurrency]
 ---
@@ -96,9 +96,20 @@ ls -la <owned-log-dir>/
    it separately; retries show the same 500. Do not use `opencode session
    export` for live verification: an actively updated session can supply
    truncated JSON that does not parse.
-8. Completion is each run process exiting or the user stopping it. Keep the
-   owned logs for later review. The run transcript also stays in the session
-   itself.
+8. Classify each exit before you report the send as complete. An exit is not
+   one outcome. Read the last export event of the target session and the log
+   tail:
+
+   | Exit shape | Evidence | Meaning | Action |
+   | --- | --- | --- | --- |
+   | Clean turn, waits for you | Terminal `idle` event, `outcome: succeeded or failed`, and a final answer that asks a question or names a next step. | Delivery succeeded and the turn completed. | Report it. Re-send only if the reply requests the same message again. |
+   | Stalled on a tool turn | Last message `finish: "tool-calls"`, `error: null`, and a tool item with `executed: false`. | The run ended before a final answer. The message landed, but the turn did not advance. | Re-send once; if it stalls again, report it as stalled. |
+   | Agent cannot act | The reply says the session must change agent or mode (for example plan to build) to continue. | `opencode run --session` keeps the stored agent. A message cannot change it. | Report the needed agent change. Do not loop more sends. |
+   | Provider failure | Log ends in `Error: UnexpectedStatus: <code>`. | The message was delivered and the model call failed. | Report separately. Do not retry for delivery. |
+
+   A batch that mixes these shapes needs a second wave for the actionable
+   rows, not a blind resend of every exited run. Keep the owned logs for
+   later review. The run transcript also stays in the session itself.
 
 ## Failed Attempts
 
@@ -108,6 +119,7 @@ ls -la <owned-log-dir>/
 | `idle`-field busy detection | Skip sessions whose stored `idle` timestamp was older than `updated`. | The condition held for nearly every session and skipped almost nothing while some sessions were visibly working. | Busy classification needs a freshness window and movement detection between snapshots, not a stored field comparison. |
 | Batch launch during ENOSPC | Launch 16 detached sends in one loop on a shared filesystem at its capacity threshold. | Every `nohup ... > log 2>&1 &` returned "No space left on device" for the redirect, so no command ran, yet the loop printed 16 PIDs and "launched". Small probe writes seconds earlier had succeeded; the mount accepts and refuses writes intermittently. | Probe each owned log with an empty redirect before launching; treat probe failure as a batch abort. Verify with `ps` and log sizes after launch, not with the launcher output. |
 | Trusting a cached target list | Reuse a target list captured ~20 minutes before the send. | Between classification and send, two sessions crossed the freshness threshold (one started working, one settled idle), and a previously busy session had been idle for over an hour. | Re-derive state from a fresh snapshot at send time; the busy set is a moving window. |
+| Reporting a batch complete on process exit alone | Count exited runs as finished sends and stop at the first wave. | Eight of 17 exited after a clean turn that asked a question, one `continue` stalled on a turn with `finish: "tool-calls"` and `error: null`, and one target was on an agent that could not act and asked for a mode switch. A blind resend or an early stop misreports each case differently. | Classify exits with the step 8 table and send a second wave only for the actionable rows. |
 
 ## Results & Parameters
 
@@ -121,7 +133,8 @@ ls -la <owned-log-dir>/
   between the two classification snapshots is enough for movement detection.
 - `opencode run --session <session-id> "<message>"`: continues an existing
   session with its stored agent and model. Add `--fork` to branch the session
-  instead, or `--model` / `--agent` to override the stored selection.
+  instead, or `--model` / `--agent` to override the stored selection. Use
+  `--agent` when a target must change agent or mode to act on the message.
 - Launch wrapper: `nohup <command> > <owned-log> 2>&1 &`. Record each printed
   PID for later verification, and probe the log path first.
 
@@ -135,6 +148,9 @@ ls -la <owned-log-dir>/
 - A per-session `Error: UnexpectedStatus: 500` log means the run attached,
   delivered the message, and died on the model call: delivery succeeded,
   continuation did not.
+- A run process can exit after one completed turn. Liveness of the process
+  proves neither delivery nor progress in either direction, so classify each
+  exit with the step 8 table.
 - The requesting session stays unblocked, and its terminal receives no send
   output.
 
