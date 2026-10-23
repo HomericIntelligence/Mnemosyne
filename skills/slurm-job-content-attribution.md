@@ -1,7 +1,7 @@
 ---
 name: slurm-job-content-attribution
 license: BSD-3-Clause
-description: "Identify what a live Slurm job executes, for your own allocations and for jobs owned by other accounts. Use when: (1) srun --overlap is refused for a job you must inspect, (2) an --overlap shell lists every process on the node and you must attribute processes to one allocation, (3) you must learn the purpose of a foreign-owned job without read access to its logs, or (4) a queue column such as QOS is read as a node name or a location."
+description: "Identify what a live Slurm job executes, for your own allocations and for jobs owned by other accounts. Use when: (1) srun --overlap is refused for a job you must inspect, (2) an --overlap shell lists every process on the node and you must attribute processes to one allocation, (3) you must learn the purpose of a foreign-owned job without read access to its logs, (4) a queue column such as QOS is read as a node name or a location, or (5) the submit command is a generated wrapper script whose content does not itself describe the workload."
 category: tooling
 date: 2026-10-22
 version: "1.0.0"
@@ -37,6 +37,7 @@ tags:
 - `srun --overlap --jobid=<id>` fails with `Unable to create step for job <id>: Access/permission denied` because the job is not yours.
 - An `--overlap` shell inside your own job lists every process on the node (the whole host `/proc`), so process-to-job ownership is ambiguous on a shared node.
 - A job's home or log directories are unreadable from your identity, so the workload must come from scheduler metadata and any readable shared paths.
+- The submit `Command` is a generated wrapper (for example one `job.sbatch` name that several jobs of a campaign share), so the path name carries no signal and the workload definition sits in the scripts that the wrapper exports and invokes.
 - A queue column that holds a QOS class is being read as a node name or a location.
 
 Do not use this entry for these intents:
@@ -56,6 +57,10 @@ Work through the levels in order. Stop at the first level that answers the quest
 scontrol show job <id> | tr ' ' '\n' \
   | grep -E '^(JobName|UserId|Command|WorkDir|StdOut|StdErr|NodeList)'
 
+# 1b. Wrapper recursion — open the submit script when its name carries no signal.
+sed -n '1,80p' <command-path>            # resource requests, export lines, exec step
+ls -l "$(dirname <stdout-path>)"         # side logs the payload redirects to
+
 # 2. Readability gate — check paths BEFORE you promise log evidence.
 ls -l <stdout-path> <workdir>; id
 
@@ -73,11 +78,12 @@ sacctmgr show qos <name>
 ### Suggested Approach
 
 1. Start with `scontrol show job`. The controller makes the identity bundle readable cluster-wide: submit `Command`, `WorkDir`, `StdOut`/`StdErr` targets, `NodeList`, and `UserId`. A descriptive job name plus its command path frequently classifies a coordinator job completely (for example a CPU job that drives remote accelerator replicas through a proxy).
-2. Gate log evidence on path readability before you promise it. Test `StdOut`/`StdErr` and `WorkDir` with `ls`. Log directories on a shared filesystem are frequently group- or world-readable even for foreign accounts. When they are, a `tail` of `StdOut` usually names the driver, its workers or replicas, and its progress — one screen that describes the live workload. Observe the same `0700`/`0750` boundary rules as the foreign-observation contract: do not use elevated rights to read a denied path.
-3. For your own jobs (where the controller lets you create a step), `srun --overlap` reaches the node but exposes the whole host process table. Attribute processes by scanning `/proc/*/cgroup` for the string `job_<job-id>`, which is present in cgroup v1 and v2 paths (for example `.../uid_<uid>/job_<id>/...`). Processes found under your job belong to the allocation; all other processes are node noise: other tenants, system daemons, and your own different jobs on the same node.
-4. Read the step list. An allocation's `slurmstepd: [<id>.extern]` daemon persists for the job lifetime; payload steps appear as `[<id>.<n>]`. An interactive `bash` allocation that shows only `.extern` is an idle reservation, not an active workload.
-5. Verify ambiguous column values before you narrate. `%q` (QOS) is a quality-of-service class, `%N` is the node list, `%P` is the partition. Resolve an unknown class name with `sacctmgr show qos <name>`; resolve account, partition, and submission-rights questions with the account-and-partition discovery guidance.
-6. Report per job: the command source (scheduler metadata, log tail, or cgroup attribution), the evidence level that was available, and each stated limit. When no log is readable and no step is possible, give the metadata-only conclusion and name the limit. Do not guess a purpose that the evidence does not show.
+2. Open the submit script when its name carries no signal. Generated campaigns give many jobs the same wrapper path (for example `job.sbatch`) with the same `job-<id>.out` log pattern. The wrapper shows `#SBATCH` resource requests and the `export` lines that set the workload parameters; the real workload definition sits in the payload script that the wrapper invokes (for example through `srun ... bash payload.sh`), including any fallback order for launch options. Follow the chain one level at a time and record each log destination that the scripts redirect to: a payload can send the live progress output to a side file in the output directory, so an almost-empty `StdOut` can hide an active job whose side log shows real progress.
+3. Gate log evidence on path readability before you promise it. Test `StdOut`/`StdErr`, each discovered side log, and `WorkDir` with `ls`. Log directories on a shared filesystem are frequently group- or world-readable even for foreign accounts. When they are, a `tail` of `StdOut` or of a side log usually names the driver, its workers or replicas, and its progress — one screen that describes the live workload. Observe the same `0700`/`0750` boundary rules as the foreign-observation contract: do not use elevated rights to read a denied path.
+4. For your own jobs (where the controller lets you create a step), `srun --overlap` reaches the node but exposes the whole host process table. Attribute processes by scanning `/proc/*/cgroup` for the string `job_<job-id>`, which is present in cgroup v1 and v2 paths (for example `.../uid_<uid>/job_<id>/...`). Processes found under your job belong to the allocation; all other processes are node noise: other tenants, system daemons, and your own different jobs on the same node.
+5. Read the step list. An allocation's `slurmstepd: [<id>.extern]` daemon persists for the job lifetime; payload steps appear as `[<id>.<n>]`. An interactive `bash` allocation that shows only `.extern` is an idle reservation, not an active workload.
+6. Verify ambiguous column values before you narrate. `%q` (QOS) is a quality-of-service class, `%N` is the node list, `%P` is the partition. Resolve an unknown class name with `sacctmgr show qos <name>`; resolve account, partition, and submission-rights questions with the account-and-partition discovery guidance.
+7. Report per job: the command source (scheduler metadata, log tail, or cgroup attribution), the evidence level that was available, and each stated limit. When no log is readable and no step is possible, give the metadata-only conclusion and name the limit. Do not guess a purpose that the evidence does not show.
 
 ## Failed Attempts
 
