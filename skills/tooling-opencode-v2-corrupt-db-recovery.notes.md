@@ -22,6 +22,30 @@ verified recovery on OpenCode v2.0.29–v2.0.31 public releases.
    JSONL files under `~/.opencode/sessions/` also stayed intact because they
    are not V2 paths.
 
+## Stale-reader misdiagnosis (intact file, `malformed` in the log)
+
+A second incident produced the same `malformed` string with an undamaged file.
+It is recorded because it changes the first decision of this workflow.
+
+- The live database passed `PRAGMA integrity_check` (`ok`) while the log held
+  hundreds of `SQLiteError: database disk image is malformed` entries.
+- Every failure used one shape: `select id, session_id, type, seq,
+  time_created, time_updated, data from "session_message" ... order by seq`.
+  Point reads and history listing worked; only the indexed path failed.
+- The version timeline showed an overlap: the first error appeared, an older
+  build kept starting for another 14 min, and the next build started 4 min
+  after that. Both builds ran against the same database.
+- In the retained corrupt snapshot from that window, `integrity_check`
+  reported `Child page depth differs` on tree 49. Tree 49 was the
+  `(session_time_created, id)` index on `session_message`, not the table.
+  Damage limited to the index B-tree is consistent with a reader walking an
+  index that another process had already rebuilt, not with torn writes on the
+  data pages.
+- A controlled test on the same network filesystem (four concurrent writers,
+  WAL mode, 1,600 inserts) produced zero errors and an integrity-clean result.
+  This removes the filesystem from the cause list for this incident.
+- Consequently, a salvage run here would have replaced a healthy database.
+
 ## Corruption and salvage measurements
 
 Source: 765 MB `opencode.db`, WAL-checkpointed single file (no `-wal`/`-shm`
