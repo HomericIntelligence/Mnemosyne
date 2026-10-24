@@ -105,3 +105,63 @@ same clean load after removal. `cli.json` remained valid JSON with no `plugins` 
   plus the v1-only signals above. No source-level load test of the v1 TUI plugin API on
   v2.0.24 was performed.
 - Behavior was verified on v2.0.24 only. Recheck the CLI surface on other v2 versions.
+
+## TUI-only registration of a dual-entrypoint package (2026-10-23, OpenCode v2.1.4)
+
+Recorded on an OpenCode v2.1.4 host for a user request to install a published
+dual-entrypoint npm plugin. The plugin was already at an older version.
+
+### Observed facts
+
+- `opencode plugin list` showed the package with its version and source, with no ID column
+  value. That output comes from the CLI-side plugin list.
+- `~/.config/opencode/cli.json` contained the package in its `plugins` array.
+  `~/.config/opencode/opencode.json` contained `"plugins": []`.
+- The cached package manifest exported all three entrypoints:
+  `"."` and `"./server"` mapped to the server bundle, and `"./tui"` mapped to the TUI
+  source entry. The package is therefore a dual-entrypoint package, not CLI-only.
+- `opencode api get /api/plugin` listed the local plugins and built-in plugins. The package
+  was absent, so the server had no plugin instance.
+- The plugin's agent tools and slash commands were absent from the session. The plugins that
+  were present registered their tools normally.
+
+### Recovery
+
+1. `opencode plugin update` upgraded the cached package to the current version and reported
+   `Updated TUI plugin "<package>"`.
+2. The package was added to `plugins` in `~/.config/opencode/opencode.json`. The `$schema`
+   field remained, and the unrelated policy entries were preserved.
+3. No restart was necessary. OpenCode watches the configuration and reloads plugins.
+
+### Post-recovery evidence
+
+- `opencode api get /api/plugin` listed `local.<plugin-id>.server` with
+  `"status": "active"`. The `local.` prefix and the `.server` suffix come from the plugin's
+  own definition ID.
+- `opencode plugin list` then showed the package ID, version, and source.
+- `opencode plugin check` printed both a `Server` section and a `TUI` section, each marked
+  `(current)`.
+- The command catalog from `/api/command` contained the three commands that the plugin
+  registers.
+- The plugin's durable state file existed in its own data directory, with owner-only
+  permissions (`0600`) and a `0700` parent directory. Its contents were created by an
+  earlier successful load, so the file alone does not prove that the server half loaded.
+
+### Decision rule taken from this case
+
+- A dual-entrypoint package needs an `opencode.json(c)` entry. That entry is what creates the
+  server instance, the agent tools, and the slash commands.
+- The `cli.json` entry supplies the CLI-side part. It cannot substitute for the server
+  entry.
+- A `plugin list` row is not proof of a complete installation. Check for a server row and a
+  TUI row, or query `/api/plugin` for the plugin ID.
+
+### Evidence limits
+
+- The exact installer that wrote `cli.json` alone was not recovered. The `cli.json` file
+  timestamp is earlier than this session. The configuration may have been written by an
+  earlier OpenCode version on the same host.
+- The CLI binary contains both `cli.json` strings and the
+  `installed and added to` message, so the CLI can target either file. The file choice
+  depends on the host version and on the package entrypoints.
+- The TUI sidebar rendering was not observed directly.
