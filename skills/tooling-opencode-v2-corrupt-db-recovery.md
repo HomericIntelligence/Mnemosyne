@@ -1,9 +1,9 @@
 ---
 name: tooling-opencode-v2-corrupt-db-recovery
-description: "Recover session history from a corrupt OpenCode V2 SQLite database and merge it into a rebuilt install. Use when: (1) the server log shows `database disk image is malformed` or sessions fail to drain with SqlError; (2) the data directory was moved aside and a fresh install must re-integrate old sessions; (3) you must select which tables to merge and which to exclude; (4) you plan backups for a database on shared or network filesystem storage."
+description: "Recover session history from a corrupt OpenCode V2 SQLite database and merge it into a rebuilt install. Use when: (1) the server log shows `database disk image is malformed` or sessions fail to drain with SqlError; (2) you must decide whether the file is really damaged or a stale process older than the installed binary is reading it; (3) the data directory was moved aside and a fresh install must re-integrate old sessions; (4) you must select which tables to merge and which to exclude; (5) you plan backups for a database on shared or network filesystem storage."
 category: tooling
 date: 2026-10-16
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 tags: [opencode, sqlite, corruption-recovery, database, session-history, merge, backup]
 ---
@@ -27,6 +27,8 @@ tags: [opencode, sqlite, corruption-recovery, database, session-history, merge, 
 
 Do not use this workflow to repair the corrupt file in place. Keep the corrupt sources read-only evidence and merge salvaged rows into the live database instead.
 
+Do not start a salvage or rebuild because the log says `malformed` alone. This message can come from a stale reader against an intact file. Rule out that case first (step 1).
+
 ## Verified Workflow
 
 ### Quick Reference
@@ -43,7 +45,7 @@ opencode service start
 
 ### Suggested Approach
 
-1. **Bind the failure class before any write.** `grep -c malformed` the retained server log and run `PRAGMA integrity_check;` through a `mode=ro` URI on the moved-aside copy. A torn-write signature is `Rowid out of order`, `invalid page number`, `Child page depth differs`, and duplicate page references across B-trees. Never open the corrupt file for writes; `mode=ro&immutable=1` also prevents journal replay against it.
+1. **Bind the failure class before any write.** Run `PRAGMA integrity_check;` through a `mode=ro` URI on the **live** database first, and treat `ok` as a stop condition for salvage. An integrity-clean live database means the message came from the reader, not the file: a process from an older version applied a schema migration and then read through a rewritten index, so only the indexed access path fails (in the verified case every failure was `select ... from "session_message" ... order by seq`, and the corrupt snapshot reported `Child page depth differs` on the index root page). Compare the versions of the live processes against the installed binary (`grep 'cli starting'`, `opencode --version`): a running service older than the installed binary is the signature. Fix that case by stopping every process and starting once; do not salvage. When the live file does not check clean, bind the torn-write signature from the moved-aside copy: `Rowid out of order`, `invalid page number`, `Child page depth differs`, and duplicate page references across B-trees. Never open the corrupt file for writes; `mode=ro&immutable=1` also prevents journal replay against it.
 2. **Record expectations before salvage.** `SELECT count(*)` per key table can succeed on a corrupt database through an intact index even when full scans die mid-way. These counts are the ceiling the salvage can reach, not proof the rows are readable.
 3. **Salvage with `.recover`, rebuild, and gate.** `.recover` on a 765 MB source completed in about 15 s on fast storage and produced a dump that rebuilt into an integrity-clean database. Compare the rebuilt counts against the expectations; the delta is the true page-loss set. Then classify `lost_and_found` rows before assuming they are lost table rows: compare `nfield` with each table's column count and sample the `c0..cN` values. Index entries have short keys plus a rowid; real rows carry full column data and JSON payloads. Reattach nothing that is index-shaped.
 4. **Stop the service for the whole merge window.** The observed trigger for the corruption was a duplicate background service spawning, followed seconds later by a hot binary upgrade, against a live database on network storage — a torn-write class. Do not reintroduce a concurrent writer during recovery. Gate on a write lock: `sqlite3 <live.db> "BEGIN IMMEDIATE; ROLLBACK;"` must succeed before merging; fail fast and retry later if it stays locked.
@@ -62,6 +64,7 @@ A per-session JSONL dump of the merged database (one file per session, header li
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 | --------- | ---------------- | --------------- | ---------------- |
 | Emergency file copy after errors began | Copied `opencode.db` aside two hours after the first `malformed` log entry. | `PRAGMA integrity_check` reported the corruption earlier than the copy; both copies had identical corrupt pages, so the snapshot added no recovery value. | Verify a database copy with `integrity_check` before treating it as a recovery source; the only certain good copy predates the first error. |
+| Salvage planned from the `malformed` string alone | Started repair from the repeated log error without checking the live file. | The live database passed `integrity_check` and served history normally; the error came from a live process older than the installed binary, whose index walk raced a schema migration by a newer process. Recovery would have discarded an intact database. | Check the live database with `integrity_check` and compare running versions to the installed binary before any salvage. `malformed` is a symptom, not a verdict on the file. |
 | Manual SELECT salvage from the corrupt file | Queried sessions and grouped messages directly on the malformed database. | Aggregate counts returned values through intact indexes, but full scans and grouped queries aborted mid-way with `database disk image is malformed`; partial reads look complete only by accident. | Salvage through `.recover` into a fresh file; never trust direct reads of a corrupt tree as complete. |
 | Reattach `lost_and_found` rows as lost table rows | Planned to push all 2,452 salvage-orphaned rows back into their tables. | Sampling by `rootpgno` and `nfield` showed every row was an index entry (short key columns plus a rowid, for example a `(session_id, type, seq)` index), not table data; insertion would have added garbage duplicates. | Treat `lost_and_found` as evidence, not data: classify by field count and content shape, and decline reattachment when rows are index-shaped. |
 | Automated backup schedule through the user crontab | Installed a daily `sqlite3 .backup` cron entry. | The host denied user crontab use (`cron.allow`), and no systemd user bus was available for a timer fallback. | Probe scheduler availability (`crontab -l`, `systemctl --user status`) before promising automation; otherwise deliver the tested script with an exact manual invocation. |
@@ -113,6 +116,7 @@ sqlite3 "file:<that-file>?mode=ro" "PRAGMA quick_check;"   # expect: ok
 | Project | Context | Details |
 | --------- | --------- | --------- |
 | OpenCode v2.0.29–v2.0.31 (public release) | 765 MB malformed `opencode.db` (1,764 sessions, 71,868 messages) on network filesystem storage; trigger: duplicate service spawn plus hot upgrade while live | [notes.md](../skills/tooling-opencode-v2-corrupt-db-recovery.notes.md) |
+| OpenCode v2.1.x (public release) | Intact `opencode.db` that reported `malformed` from a live process older than the installed binary during a version overlap; `integrity_check` clean, history served normally | [notes.md](../skills/tooling-opencode-v2-corrupt-db-recovery.notes.md) |
 
 ## References
 
