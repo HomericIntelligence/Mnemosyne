@@ -84,6 +84,34 @@ verify delivery on the actively updated sessions:
   Message text is the top-level `text` field of each message. Synthetic
   system-reminder content also appears as messages of this shape.
 
+## Execution evidence, wave 4 (exit classification)
+
+One batch of 17 sends to idle sessions, selected by a shared title prefix,
+on one fleet:
+
+1. All 17 targets had a terminal `idle` event in `opencode session export`
+   before the send, so none was mid-work. One log stayed at 0 bytes for over
+   7 minutes and later grew to ~1.2 KB; the process stayed alive throughout.
+   A 0-byte log is not an exit signal.
+2. Exit shapes after one wave: 9 runs still alive, and 8 exited. Each exit was
+   classified from the last export event and the log tail:
+   - 5 exited after a clean turn that ended with a real answer and waited for
+     a reply. Three of them asked for a decision or named the next step.
+   - 1 exited with last message `finish: "tool-calls"`, `error: null`, and a
+     tool item with `executed: false`. No final answer and no log error.
+   - 1 reported its pre-send failure as `ECONNREFUSED` and accepted the new
+     message normally.
+   - 1 could not act: it asked for the session to change from a plan agent to
+     a build agent. A later `continue` did not change that.
+3. A second wave re-sent to 6 of the exited targets. 3 stayed running; the
+   remainder exited cleanly with an answer. One of them repeated the plan-agent
+   request verbatim, which confirms that the message cannot change the agent.
+4. No log in either wave contained `invalid or missing API key`,
+   `ECONNREFUSED`, or `UnexpectedStatus` after launch.
+5. Four sessions carried a stored failure outcome from before the send
+   (`invalid or missing API key`). They accepted the new message, which shows
+   that a stored failure outcome does not predict the next send.
+
 ## Limits
 
 - Evidence covers one operator fleet on one host. Sessions belonging to other
