@@ -1,13 +1,13 @@
 ---
 name: testing-verification-gate-zero-test-false-pass
 license: BSD-3-Clause
-description: "Prevent zero-test verification from becoming a false pass. Use when: (1) a wrapper invokes pytest and interprets subprocess return codes, especially code 5, (2) a gate uses name-filtered selection such as `pytest -k`, `ctest -R`, or `go test -run`, (3) CI-log parsing can produce no runnable targets, (4) a test source may be orphaned from its build target, (5) push or merge safety depends on the test gate."
+description: "Prevent zero-test verification from becoming a false pass. Use when: (1) a wrapper invokes pytest and interprets subprocess return codes, especially code 5, (2) a gate uses name-filtered selection such as `pytest -k`, `ctest -R`, or `go test -run`, (3) CI-log parsing can produce no runnable targets, (4) a test source may be orphaned from its build target, (5) push or merge safety depends on the test gate, or (6) an approved plan or task contract names a verification command that selects zero tests and the guarded invariant still needs disclosed evidence."
 category: testing
-date: 2026-08-06
-version: "1.2.0"
+date: 2026-10-25
+version: "1.3.0"
 user-invocable: false
 verification: unverified
-tags: [testing, pytest, ctest, cmake, gtest, verification-gate, false-pass, exit-code-5, no-tests-collected, subprocess, fail-closed, pre-push, signal, timeout, test-count, collect-only, show-only, orphaned-test, planning, plan-review]
+tags: [testing, pytest, ctest, cmake, gtest, verification-gate, false-pass, exit-code-5, no-tests-collected, subprocess, fail-closed, pre-push, signal, timeout, test-count, collect-only, show-only, orphaned-test, planning, plan-review, zero-selection-triage, substitution-disclosure]
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/testing-verification-gate-zero-test-false-pass.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -20,7 +20,7 @@ history-cleanup-date: "2026-09-20"
 |-------|-------|
 | Date | 2026-08-06 |
 | Objective | Ensure a verification wrapper cannot treat an invoked test process that ran no tests as evidence that a change is safe |
-| Outcome | Proposed fail-closed boundary: decide any intentionally inapplicable gate before invocation; after pytest starts, only return code 0 succeeds. Code 5 means no tests were collected and must block the guarded push or merge. Name-filtered and orphaned-target gates still need an explicit non-empty-selection proof when their runner can otherwise report success. |
+| Outcome | Proposed fail-closed boundary: decide any intentionally inapplicable gate before invocation; after pytest starts, only return code 0 succeeds. Code 5 means no tests were collected and must block the guarded push or merge. Name-filtered and orphaned-target gates still need an explicit non-empty-selection proof when their runner can otherwise report success. In agent-executed plan verification, a zero-selection command gets neither silent acceptance nor silent blocking: classify the cause, then produce disclosed bounded evidence for the named invariant. |
 | Verification | unverified — the Hephaestus fix and regression matrix were planned but not implemented or run; the unsafe pre-fix code-5 acceptance and pytest 9.1.1 code-5 behavior were reproduced locally |
 | History | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/testing-verification-gate-zero-test-false-pass.history) |
 
@@ -33,6 +33,8 @@ history-cleanup-date: "2026-09-20"
 - A test file exists on disk but may not be registered in a build target, so the runner can select no tests.
 - A compatibility facade duplicates constants or comments that imply a nonzero test-runner result is successful.
 - You need regression coverage proving the outer guarded action is never called when verification is empty, interrupted, timed out, or otherwise unsuccessful.
+- An approved plan or task contract names a verification command that selects zero tests, and the delivery still needs evidence for the invariant that command guarded.
+- You must choose between a fixed selector, a bounded substitution, and a disclosed evidence gap.
 
 ## Verified Workflow
 
@@ -105,6 +107,15 @@ ctest -R Healthcheck --show-only | grep -qE 'Test #' || {
 6. **Pin the only pre-invocation skips.** Retain tests for empty discovery input and targets removed by file filtering, and assert the subprocess was never invoked in both cases.
 7. **For non-pytest runners, verify non-empty registration separately.** If a name-filtered runner returns 0 with no matches, enumerate before execution. For CMake, also prove the test source is wired into a real target; a file on disk is not registration evidence.
 
+### Plan-Command Zero-Selection Triage
+
+This branch applies when a person or an agent executes an approved plan command and pytest answers code 5 or another runner reports zero selected tests. It does not relax the automated-gate rule: a wrapper that drives a push, merge, or deploy still requires code 0 or an explicit pre-invocation skip.
+
+1. **Classify the cause.** Search the whole suite for the selector tokens. If no test ever carried the tokens, the command names a check that does not exist, which is a plan defect. If the tokens match tests that stay deselected, the selector is wrong; run the exact node IDs instead.
+2. **Name the invariant.** State what the missing command was supposed to prove.
+3. **Verify the invariant with the smallest bounded alternative.** A diff-shape inspection can prove a no-line-moved claim. A directly named existing test can prove a behavior claim. Do not widen the search into new unapproved checks.
+4. **Disclose the substitution.** In the delivery record, write the original command, its exit 5 result, the token search result, the alternative evidence, and its limits. A substitution is evidence about the invariant; it is not a test pass. Leave the missing check as a recorded gap.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -116,6 +127,8 @@ ctest -R Healthcheck --show-only | grep -qE 'Test #' || {
 | 5 | Patched `subprocess.run` through a compatibility facade | The execution moved to an owning module, leaving the patch coupled to a stale re-export | Patch the dependency where the implementation looks it up: the subprocess-owning module |
 | 6 | Cited `ctest -R Healthcheck` without checking target registration | An orphaned source file was in no CMake target, so the name filter could select nothing and prove nothing | Verify build-target wiring and enumerate matching tests before trusting a filtered gate |
 | 7 | Hard-coded a built binary's relative path in a test | Build output directories and working directories vary | Inject the path through the build system's target-location primitive, such as CMake `$<TARGET_FILE:...>` |
+| 8 | Treated a plan command's exit 5 as satisfied because the same area had other tests | A suite-wide search for both selector tokens returned no test; the check existed only as a name in the plan | Zero collection has two different causes; classify by token search before any recovery |
+| 9 | Replaced a zero-selection check with manual inspection but did not record the substitution | Review could not tell whether the invariant had evidence at all | Write the original command, exit 5, and the substitute evidence into the delivery record |
 
 ## Results & Parameters
 
@@ -127,6 +140,8 @@ ctest -R Healthcheck --show-only | grep -qE 'Test #' || {
 - **Boundary regression:** simulate code 5 with an existing target, assert the guarded action returns false, assert the explicit diagnostic, and assert the push/merge/deploy callable was not invoked.
 - **Focused matrix:** codes 0 through 5, timeout, signal termination, and the two pre-invocation no-target cases.
 - **Ownership rule:** define the success predicate and patch subprocess execution in the module that owns the call; compatibility facades must not duplicate the policy.
+- **Zero-selection triage:** search the full suite for the selector tokens to distinguish a wrong selector from a nonexistent check before choosing recovery.
+- **Bounded substitution:** verify the named invariant with the smallest alternative evidence, and disclose the original command, exit 5, the token search, and the substitute evidence in the delivery record.
 - **Local observations:** pytest 9.1.1 selected 0 of 31 tests for a nonmatching `-k` expression and returned 5; the pre-fix Hephaestus unit test confirmed its wrapper accepted simulated code 5.
 - **Overall status:** unverified — implementation and CI validation pending.
 
@@ -136,3 +151,4 @@ ctest -R Healthcheck --show-only | grep -qE 'Test #' || {
 |---------|---------|---------|
 | ProjectAgamemnon | Issues #143 and #279 planning | Established the broader zero-test and orphaned-target verification risks; no end-to-end execution |
 | ProjectHephaestus | CI-fix pre-push gate planning, 2026-08-06 | Static source inspection plus local reproduction of the unsafe pre-fix code-5 acceptance and pytest 9.1.1 zero-selection result; proposed fix not implemented |
+| ProjectHephaestus | Automation-lane plan verification, 2026-10-25 | An approved plan's `-k` selector matched zero of about 15,000 tests (exit 5); a suite-wide token search found no such tests; the guarded no-line-moved invariant was verified by single-hunk diff inspection and disclosed in the delivery record |
