@@ -52,3 +52,16 @@ closure-manifest construction. Neither covers the forge record primitives here
 (delete-unavailability, PUT body edit, void tombstone, byte-identical repost). One
 existing entry covers terminal-publisher routing and wedge disposition decisions; this
 entry supplies the record-repair mechanics that serve a repair-oriented disposition.
+
+## Case 4 — suffix-form PUT 404 read as immutability (observed 2026-10-25)
+
+- A coordinator repairing a wrong-form junk review (a `-f body=@path` post that stored
+  the literal path as the review body; same root-cause family as Case 2) issued the PUT
+  against `/pulls/{n}/reviews/{id}/body` and received HTTP 404.
+- Deletion was already known unavailable, so the operator concluded that no mutation path
+  existed and left the junk record in place, recording it as permanent noise.
+- Recheck against this entry produced the correct diagnosis: the suffix form is not the
+  endpoint. The reviewed body edit uses the review resource path itself; the 404 was a
+  wrong-path signal, not immutability evidence.
+- The transport note in this entry already gives the correct path; this case records
+  the operator trap (doc-memory of a suffix form) so it is not repeated.
