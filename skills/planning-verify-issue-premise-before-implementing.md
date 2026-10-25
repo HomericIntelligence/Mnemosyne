@@ -1,13 +1,13 @@
 ---
 name: planning-verify-issue-premise-before-implementing
 license: BSD-3-Clause
-description: "Verify issue and plan premises against authoritative sources before acting. Use this when an issue, PR plan, review, CI fix, or enforcement change assumes an artifact exists, prior work merged, a live service still needs work, a full population was checked, a CI job gates, an implementation returns a shape, or an integration point exists. Convert the premise into deterministic checks before implementing, closing, gating, or declaring work complete. Includes the temporal check: a premise token absent from the current tree may mean the issue was valid at filing and later overtaken by a merged PR (half-zombie issue) — date the removal with git log --full-history and triage each ask separately."
+description: "Verify issue and plan premises against authoritative sources before acting. Use this when an issue, PR plan, review, CI fix, or enforcement change assumes an artifact exists, prior work merged, a live service still needs work, a full population was checked, a CI job gates, an implementation returns a shape, or an integration point exists. Convert the premise into deterministic checks before implementing, closing, gating, or declaring work complete. Includes the temporal check: a premise token absent from the current tree may mean the issue was valid at filing and later overtaken by a merged PR (half-zombie issue) — date the removal with git log --full-history and triage each ask separately. At hand-off, an implement-ready label or a reviewed plan is not a tree-state guarantee: plans decay during dwell as merges land, so re-sweep the plan's anchors at dispatch and branch per-plan, residual-only, or re-plan (a close-out of a discharged plan requires a fresh review bound to the revised plan, and must never re-create machinery a merged redesign removed)."
 category: architecture
 date: 2026-06-20
-version: "3.2.0"
+version: "3.3.0"
 user-invocable: false
 verification: unverified
-tags: [planning, issue-premise, verify-before-implementing, premise-verification, assumption-verification, authoritative-source, full-population-check, live-state-check, merge-state, prerequisite-verification, unmerged-branch, self-contained-pr, enforcement-gate, integration-point, ci-gate, ruleset, implementation-shape, route-shape, deterministic-gate, no-op-forbidden, issue-claims, follow-up-issue, overtaken-by-events, half-zombie-issue, per-ask-triage, git-history-archaeology, deleted-file-history]
+tags: [planning, issue-premise, verify-before-implementing, premise-verification, assumption-verification, authoritative-source, full-population-check, live-state-check, merge-state, prerequisite-verification, unmerged-branch, self-contained-pr, enforcement-gate, integration-point, ci-gate, ruleset, implementation-shape, route-shape, deterministic-gate, no-op-forbidden, issue-claims, follow-up-issue, overtaken-by-events, half-zombie-issue, per-ask-triage, git-history-archaeology, deleted-file-history, plan-dwell, handoff-rebind, dispatch-gate, residual-scope, review-gated-close]
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/planning-verify-issue-premise-before-implementing.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -24,7 +24,7 @@ This skill consolidates the planning-verify family into one generic workflow. It
 |-------|-------|
 | Date | 2026-07-17 |
 | Objective | Merge similar planning-verification memories into a generic rule with concrete issue examples retained. |
-| Version | 3.1.0, minor bump: adds the temporal overtaken-by-events check and per-ask triage for multi-ask issues (Hephaestus #2166). |
+| Version | 3.3.0, minor bump: adds hand-off rebinding — an implement-ready label or reviewed plan is not a tree-state guarantee; re-sweep plan anchors at dispatch and branch per-plan, residual-only, or re-plan with a review-gated close (carries the 3.2.0 temporal overtaken-by-events check and per-ask triage that the table last recorded as 3.1.0). |
 | Verification | unverified for this consolidation; source examples are preserved verbatim in history. |
 
 ## When to Use
@@ -39,6 +39,8 @@ This skill consolidates the planning-verify family into one generic workflow. It
 - The next step would be a no-op, defer, close, or human-ratified judgment instead of a runnable proof.
 - A premise token has zero matches in the current tree and the issue predates a recently merged migration, rename, or removal PR that could have deleted the premise surface wholesale.
 - An issue contains more than one ask (a fix plus a test, a doc edit plus a guard) and any one of them may already be complete while another is still live.
+- An implement-ready label or a reviewer-GO'd plan authorizes implementation, but merges continued after the plan was written (plan dwell in a fast-moving repository).
+- You dispatch an implementation whose durable scope source is a plan comment written against an older tree, and the dispatch context cannot afford to re-discover premise decay after setup.
 
 ## Verified Workflow
 
@@ -76,6 +78,20 @@ git ls-files | rg '<population-pattern>'
 10. For implementation behavior, read the actual route/function/helper before asserting response shape, return keys, side effects, or test expectations.
 11. Preserve the evidence in the plan: command, observed output summary, and how it changed scope or disposition.
 
+### Hand-off rebinding: a reviewed plan is not a tree-state guarantee
+
+A plan records the tree at authoring time. A review GO records agreement at review time. Neither re-runs itself when later merges land. During the dwell between plan approval and implementation dispatch in a fast-moving repository, three things can happen: later merges deliver part or all of the plan's scope; later merges delete the plan's anchors (symbols, modules, documents); a deliberate redesign supersedes the plan's mechanism. An implement-ready label does not re-check any of this.
+
+Run the same premise checks on the plan's own anchors at each hand-off (planning to dispatch, dispatch to implementation), before the implementation context spends its budget:
+
+1. Extract every symbol, path, constant, and test name the plan cites, and sweep them with `git grep` and `git show origin/main:<path>`.
+2. For each missing anchor, date the removal (`git log --full-history`/`git log -S`) and name the merged change that removed it.
+3. Branch exactly one way:
+   - *Anchors hold*: dispatch per plan.
+   - *Partially discharged*: dispatch the residual asks only, with anchors re-derived on the current tree; record the per-ask discharge map.
+   - *Void or fully discharged*: re-plan — update the retained plan revision, run it through the review exchange again, and close only on a fresh GO bound to current-tree evidence. Never implement the frozen scope; never re-create machinery a merged redesign deliberately removed.
+4. A direct close or re-dispatch on the stale plan is not a shortcut: it loses the required review round and attaches the verdict to evidence the tree no longer supports.
+
 ### Worked Examples
 
 | Issue or Context | Premise Type | Verification | Correct Disposition |
@@ -89,6 +105,8 @@ git ls-files | rg '<population-pattern>'
 | Doc-config enforcement gate and Grafana issue #179 | Gate matcher assumes exact shipped layout | Tested the matcher against the post-fix tree using tracked files. | Validate the shipped layout with `git ls-files`; do not rely on pre-fix paths or recursive filesystem assumptions. |
 | Ruleset/live-state issue #177 | Static repository file treated as source of truth | Read live GitHub rulesets and compared them to proposed file edits. | Preserve live applied enforcement; a static edit that weakens live state is a regression. |
 | ProjectHephaestus #2166 | Premise token absent from current tree; multi-ask issue | `grep -ci pixi CONTRIBUTING.md` returned 0 today, but `git log --full-history -- pixi.toml` showed a uv-migration PR (#2236) deleted the file two days after the issue was filed, and `git show <migration-sha>^:CONTRIBUTING.md` contained the exact broken command the issue reported. | Primary ask (fix the command) verified already-complete via the migration; residual ask (documentation validation test) still live — implement only the test and do not reintroduce a "corrected" command for a removed toolchain. |
+
+| Three implement-ready issues in one fast-moving multi-lane repository | Reviewed-plan decay during dwell; discharge-by-merge | Anchor sweep at dispatch on each plan: one plan's residue identifiers already absent (`git grep` zero, removal dated to a merged cleanup change) while one secondary ask remained; one plan's subject module deliberately retired by a later merged change with its remaining ask already shipped; one plan's mechanism superseded by a merged redesign series and its gating event already recorded. | Residual-only dispatch for the first (secondary ask implemented, evidence node added); re-plan, review GO, then close for the second and third; zero frozen-scope implementations, zero re-created machinery, zero wasted dispatches on the full plan scope. |
 
 ## Failed Attempts
 
@@ -105,6 +123,8 @@ git ls-files | rg '<population-pattern>'
 | Missing integration point ignored | Planned a guard at an architecture hook that was absent. | There was nowhere reliable to attach enforcement. | First verify the integration point exists; otherwise change scope to create or replace it. |
 | Zero-match grep treated as invalid or misrouted issue | Concluded from a zero-hit grep that the issue premise was false or belonged to another repository. | The premise was true when the issue was filed; an intervening merged migration PR had removed the surface wholesale. | Absence in the current tree has three explanations — never valid, misrouted, or overtaken by events; date the removal against the issue's creation date before choosing. |
 | Per-issue zombie disposition | Treated an issue overtaken by a later PR as fully complete and closable. | One of its asks (a validation test) was never delivered by the overtaking PR. | Dispose each ask separately; an overtaken issue can still carry live residual work. |
+| Label-trust dispatch | Dispatched a full implementation on an implement-ready label plus a reviewed plan without re-sweeping the plan's anchors at hand-off. | The implementation context spent its setup budget discovering that later merges had deleted every cited anchor; the only output was the blocked report the cheap sweep would have produced before the dispatch. | Rebind at the hand-off: sweep the plan's anchors before dispatch and select the branch (per-plan, residual-only, re-plan) from the sweep result. |
+| Close on the stale plan | Closed a premise-voided issue by citing the existing plan and label. | Review rejected the close because the plan anchored a module deleted by a later merged change; the label described readiness on a tree that no longer existed. | A close-out of a discharged plan requires the revised plan published through the review exchange and a fresh GO bound to current-tree evidence. |
 
 ## Results & Parameters
 
@@ -145,4 +165,5 @@ Parameters to capture:
 - `observed_result`: concise output or fact, not speculation.
 - `disposition`: self-contained implementation, explicit dependency, expanded scope, verified close, verified already-complete, or partially complete (residual asks only).
 - `per_ask_dispositions`: for multi-ask issues, one disposition per deliverable, not one for the whole issue.
+- `handoff_rebind`: the anchor-sweep result at each hand-off — `anchors_hold`, `partially_discharged` (with the per-ask discharge map), or `void_or_discharged` — plus the removing merged change for each deleted anchor and the selected branch (per-plan, residual-only, re-plan).
 - `examples`: issue-specific facts belong in the plan and in this skill's history, not in new duplicate memories unless the rule is genuinely different.
