@@ -179,3 +179,41 @@ in four places (manifest `_REQUIRED` set, launcher module map, entry-point mode 
 launcher-hash loop) — every publish would fail. Grade card: Requirements C+,
 Completeness B, Concreteness C, Risk C, Verification B+, Handoff C+. Spot-checks of the
 cited lines confirmed the reviewer was accurate on every sampled claim.
+
+## Run evidence (r25, 2026-10-25, masked row-7 variant with single-variable repair)
+
+Same multi-issue wave repository as r22–r24, some days later, queue-pipeline runs with the
+opencode backend. The row-7 cause (system git 2.34.1) was present again, but the current
+pipeline-era code hid it completely.
+
+Masked signature anatomy:
+
+- Pipeline summary: `FAIL:source_workspace_recovery_receipt_invalid: Preserve all state.
+  Obtain valid ownership evidence before retry through the source manager.
+  creation_failure=writer_transition`
+- Stage warning: `worktree job failed: source_workspace_terminal`
+- Durable record per attempt: `<checkout>/.git/hephaestus-source-workspaces/<issue>-impl-terminal.json`
+  with `outcome: manual_recovery_required`. The record's cause/action text is a generic
+  capture; the true inner exception is not in the record or the run log (`exc.__cause__`
+  is dropped two layers up).
+- Forensics hint: each failed attempt also reserved a new remote branch
+  `<issue>-auto-impl-direct-<digest>` at the then-current base. Several digests on one
+  issue therefore mean repeated masked-failure attempts, not distinct causes.
+
+Diagnosis method: temporarily add `logger.exception` (exception traceback) to the worktree
+worker's terminal catch and rerun once. The instrumentation printed
+`subprocess.CalledProcessError: Command '['git', 'worktree', 'list', '--porcelain', '-z']'
+returned non-zero exit status 129`, which names the row-7 cause. Revert the instrumentation
+immediately after the run.
+
+Repair verification (single variable): the identical launch with the host wrapper's
+`<wrapper-bin>` prepended to PATH created the implement worktree and launched the implement
+job; three consecutive runs without the prepend had failed before any agent call. Empirical
+floor on this host: git 2.34.1 answers `error: unknown switch 'z'` (exit 129), git 2.56
+completes the same subcommand. The exact upstream version that introduced `-z` was not
+re-verified; the row-7 working floor (>= 2.36) stands.
+
+Wrapper trap: a private newer-git wrapper existed in an allowlisted discovery root (through
+the intended local patch) and its binary worked, but every launch without `<wrapper-bin>`
+on PATH still bound the system git. The worktree enumeration resolves `git` through the
+inherited PATH, so discovery registration alone is not enough.
