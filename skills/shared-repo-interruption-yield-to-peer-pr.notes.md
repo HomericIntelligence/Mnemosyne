@@ -81,3 +81,37 @@ branch: audit delivered work first, and yield the track when a peer's pull reque
 intent. The trigger (interruption plus parallel sessions plus an overlapping peer delivery),
 the decision branch (yield versus resume), and the disposal rules are new. The
 environment-pinning entry covers host test attribution; this entry only references it.
+
+## Campaign evidence: an assigned drive target that was already merged
+
+Supporting evidence for the version 1.1.0 addition. Generalized from a verified-live session;
+identifiers are intentionally omitted.
+
+- Context: several parallel automation waves worked one shared repository. An interrupted
+  interactive session held one local worktree with a signed commit that implemented documented
+  per-model value ceilings on selected configuration paths. The commit was never pushed.
+- A restart directive assigned the session to adopt and drive a named sibling pull request
+  (review rounds, green checks, merge automation) that automation had opened with the same
+  intent while the session was down. The directive named a fallback: report and stop if the
+  pull request had closed meanwhile.
+- State probe: the pull-request view showed state MERGED and a merge timestamp that fell in
+  the interruption window. The linked issue view showed CLOSED with a completed reason at the
+  same timestamp. Only one pull request referenced the issue, so there was no sibling to
+  reconcile.
+- Equivalence: a whole-tree diff of the local branch against the fetched default branch was
+  unreadable, because unrelated waves had advanced the default branch across dozens of files.
+  The targeted checks decided the classification:
+  - `git show origin/<default>:<context-file>` and a grep at the ceiling paths confirmed that
+    each pinned value matched the local variant, including the value the merge directive had
+    called out as the point of conflict with an earlier merged policy.
+  - `git show --stat <merge-commit>` showed a broader scope (twenty-six files, including
+    adjacent contexts and golden tests) that carried the same pinned values.
+  - An attempted fetch of the merged head branch returned "couldn't find remote ref": the
+    source branch had been deleted after the merge, another sign that the tree equality check
+    was the wrong probe.
+- Disposal: the local branch tip was not an ancestor of the default branch (its values landed
+  through different commits), so the safe-delete form was not applicable. The worktree was
+  clean. The branch stayed as an unpushed local backup with its tip recorded, per the
+  directive.
+- Outcome: no competing pull request, no review rounds on a merged head, no label changes on a
+  completed issue. The assigned drive collapsed into a verified-closure report.

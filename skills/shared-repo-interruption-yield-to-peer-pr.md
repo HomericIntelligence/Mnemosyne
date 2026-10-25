@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Inventory what parallel agent sessions delivered before redoing interrupted prepared work in a shared Git repository. Use when a session resumes after a crash, restart, or idle gap and finds its worktrees removed, staged work gone, or the default branch advanced by peers, and must decide between re-doing its plan and yielding to a peer pull request that already covers the intent."
 category: tooling
 date: 2026-10-14
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-live
 tags: [parallel-sessions, multi-agent, shared-repository, interruption-recovery, worktree, duplicate-work, yield, salvage, git, automation-loop, session-recovery, patch-preservation]
@@ -26,6 +26,7 @@ tags: [parallel-sessions, multi-agent, shared-repository, interruption-recovery,
 - An agent session resumes after a crash, a harness restart, or an idle gap and finds a prepared worktree removed, staged-but-uncommitted work gone, or the shared default branch advanced by peers.
 - More than one agent session or automation loop works in the same repository at the same time.
 - You hold a prepared plan (patch, staged tree, branch, drafted comments) whose intent a peer might have delivered while you were down.
+- A restart directive assigns you to *drive* a named peer pull request (review it, keep its checks green, merge it) that was created while you were down.
 - You must choose between re-creating, rebasing, deferring, or abandoning prepared work.
 
 ## Verified Workflow
@@ -49,6 +50,24 @@ Rule: **deliver first, redo never.** If an open peer pull request or a recently 
 
 1. Probe before you plan. Treat every summary of pre-interruption state as stale — the shared repository moved while you were down. Run the Quick Reference probes and record branch tips before you touch anything.
 2. Classify the intent as landed, in flight, or free. Landed: the feature marker appears or disappears on the default branch, or a merge commit names it. In flight: the open pull-request list contains the intent by title or branch, or a peer worktree contains the signature file (in this campaign, a new seam module found in a peer's integration worktree). Free: no peer artifact matches.
+
+   When the assigned vehicle is a named pull request rather than an unknown peer, fetch its exact state first:
+
+   ```bash
+   gh pr view <N> --json state,mergedAt,mergeCommit,labels,reviewDecision
+   gh issue view <M> --json state,stateReason        # the issue the pull request closes
+   ```
+
+   A `MERGED` state with the closing issue `CLOSED`/completed is terminal: the drive is already done. Verify the pinned values on the default branch, report, and stop. Do not start review rounds on a merged head, and do not push your own variant branch.
+
+   When parallel work has advanced the default branch far past your base, a whole-tree `git diff` of your branch becomes noise — unrelated changes dominate it. Classify coverage by value identity on the paths your intent pins, not by tree equality:
+
+   ```bash
+   git show origin/<default>:<pinned-path> | grep -B2 -A2 '<pinned-marker>'
+   git show --stat <merge-commit>                     # scope of the landed change
+   ```
+
+   Trees may differ (a peer's merged change can touch more files than yours — broader tests, adjacent contexts); the pinned values must match.
 3. Decide per artifact, not per plan:
    - Peer delivered the intent (merged, or an open pull request whose tree contains the signature change): yield. Do not create a competing pull request — it forces duplicate review and rebase churn on both sides. Search peer trees by content (`grep -rl <signature> <peer-worktrees>`), not by pull-request titles alone.
    - Peer work is adjacent and unmerged: defer your rebase until it merges. Queued branches that target code a large peer change rewrites would need two rebases; wait and rebase once. Some queued items may be obsolete after the peer lands — re-check applicability then, not now.
@@ -57,6 +76,7 @@ Rule: **deliver first, redo never.** If an open peer pull request or a recently 
    - Delete an orphaned branch only with the safe form `git branch -d`, and only after you confirm its tip is an ancestor of the default branch (nothing unique is lost).
    - Remove only generated content (test caches, build outputs) from dead worktree paths. Never delete peer stashes, peer worktrees, or saved patches. A stash labeled as preserved is a peer's recovery source; a disconnected peer session may still rely on it.
    - Annotate prepared publication text immediately. A drafted pull-request body or issue comment that names a vehicle that no longer exists must carry a superseded marker at the top, so it cannot be posted verbatim by a later session.
+   - Keep a committed local branch whose tip is not an ancestor of the default branch as a local backup when a peer landed equivalent values through different commits. `git branch -d` correctly refuses such a branch because its commits are unique, even though its content is redundant. Do not push it and do not force-delete it while redundancy matters; record its tip once.
 5. Keep a source-of-truth patch outside the worktree. Save `git diff` output (including untracked files copied separately) under a build directory before an interruption can strike. Staged-but-uncommitted content dies with a force-removed worktree index; its blobs linger in the object database and `git fsck --unreachable` plus known-marker `git cat-file` scans can recover them, but that is a last resort when no patch exists.
 6. Serialize heavyweight validation on a contended shared host. A commit-gate or test suite that dies mid-run with zero FAILED lines and exit evidence of a signal was killed by resource contention, not by a failing test. Do not debug the suite; rerun it alone. Queue your own commits strictly one at a time on such hosts.
 
@@ -69,6 +89,8 @@ Define completion by evidence: branch tips recorded, the peer artifact that cove
 | Resuming from pre-interruption memory | Planned to re-apply the prepared patch as-is after the restart | The peer session had merged adjacent work, advanced the default branch, staged the shared worktree, and then removed it; the prepared plan no longer matched reality | Probe the live repository first; state summaries decay within hours on an active shared repository |
 | Verifying before every heavyweight commit | Ran a full fast-selection suite as a separate pre-commit verification while peer hook suites ran concurrently | The suite was killed mid-run with zero FAILED lines by host contention, burning ~10 minutes with no result | On a shared host, serialize heavyweight suites; a silent mid-run kill is a contention symptom, not a test failure |
 | Counting on staged content surviving cleanup | Relied on the worktree index and working tree to hold the prepared change | A force-removed worktree destroyed both; only blobs in the object database and an independently saved patch survived | Keep a source-of-truth patch outside the worktree; treat the index as volatile |
+| Verifying peer parity with a whole-tree diff | Diffed a stale local branch against the advanced default branch to check whether a merged peer change carried the same pinned values | Weeks of unrelated parallel merges dominated the diff; equivalence was unreadable | Compare pinned values at their paths (`git show origin/<default>:<path> \| grep`) and scope the landed change with `git show --stat <merge-commit>`; do not compare trees |
+| Starting to drive a named pull request without fetching its state | Prepared review rounds against the assigned pull request on the restart directive alone | The pull request had merged during the gap; the linked issue was already closed with a completed reason | Fetch the exact state of a named pull request and its closing issue first; a terminal state reduces the drive to verification and a report |
 
 ## Results & Parameters
 
@@ -106,6 +128,7 @@ ls <build-dir>/*.diff <build-dir>/*.patch 2>/dev/null
 | Project | Context | Details |
 | --------- | --------- | --------- |
 | Hephaestus | Session-restart recovery with a parallel session's open integration pull request covering the prepared removal | [notes.md](../skills/shared-repo-interruption-yield-to-peer-pr.notes.md) |
+| Shared multi-wave configuration repository | Restart directive assigned driving a named sibling pull request that had merged during the gap; pinned values verified on the default branch and the local variant retained unpushed as a backup | [notes.md](../skills/shared-repo-interruption-yield-to-peer-pr.notes.md) |
 
 ## References
 
@@ -113,3 +136,4 @@ ls <build-dir>/*.diff <build-dir>/*.patch 2>/dev/null
 - [Relaunch salvage for an interrupted automation loop](interrupted-automation-loop-relaunch-salvage.md) — preserve in-flight worker output across loop restarts
 - [Recover stashed work after a concurrent branch reset](tooling-git-recover-stashed-work-after-concurrent-branch-reset.md) — restore work a concurrent process stashed away
 - [Shared-host test environment pinning](testing-shared-host-env-pinning-and-baseline.md) — attribute and isolate environment failures on the same class of host
+- [Sandbox tool availability invocation probe](sandbox-tool-availability-invocation-probe.md) — probe execution capability by invocation on each interface before you declare interrupted work blocked
