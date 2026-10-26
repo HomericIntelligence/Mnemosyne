@@ -3,8 +3,8 @@ name: github-pr-review-record-void-repair
 license: BSD-3-Clause
 description: "Repair a submitted GitHub pull-request review record without deletion. Automation cannot delete a submitted review, so void it in place with a PUT body edit that removes its machine-parseable carrier, then repost the replacement review byte-identically in one call. Use when: (1) an automation-published review holds a malformed, superseded, or junk machine carrier that a body-scanning toolchain must stop seeing, (2) a delete of a submitted review fails on every transport, (3) a review body must be reposted with byte identity so recorded content digests still bind, or (4) a same-head duplicate or malformed terminal carrier wedges a fail-closed delivery gate."
 category: tooling
-date: 2026-10-22
-version: "1.0.0"
+date: 2026-10-25
+version: "1.1.0"
 user-invocable: false
 verification: verified-live
 tags:
@@ -70,6 +70,7 @@ gh api repos/<OWNER>/<REPO>/pulls/<PR>/reviews -X POST \
 | Delete a submitted review over REST | `DELETE /repos/{o}/{r}/pulls/{n}/reviews/{id}` with admin-scoped token | 422 Unprocessable Entity | Submitted reviews are immutable to deletion over automation; plan the PUT edit |
 | Delete over GraphQL | `deletePullRequestReview` mutation | UNPROCESSABLE | The limit is the record state, not the transport; do not retry delete variants |
 | Edit the original carrier body to fix it in place | PUT a corrected carrier over the established one | Chain verification rejects edited carriers when recorded digests bind the original bytes | Void + byte-identical repost preserves digests; in-place edits do not |
+| PUT the body-edit endpoint with a `/body` path suffix | `gh api -X PUT repos/<o>/<r>/pulls/<n>/reviews/<id>/body -F body=@tombstone.md` | HTTP 404; the operator then classified the review as uneditable and left a junk record in place | The reviewed edit endpoint has no `/body` suffix; a 404 from the suffix form is a wrong-path signal, not evidence that review bodies are immutable |
 
 ## Results & Parameters
 
@@ -81,6 +82,7 @@ delete_available: false            # REST 422, GraphQL UNPROCESSABLE
 body_edit:
   method: PUT                      # not PATCH
   endpoint: /repos/{owner}/{repo}/pulls/{n}/reviews/{id}
+  suffix_form: "/reviews/{id}/body returns 404 on the observed surface; not the reviewed edit endpoint"
   preserves: [state, commit_id, submitted_at, author, threads]
 tombstone:
   contains: [human void note, replacement-pointer]
