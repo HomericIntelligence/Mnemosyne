@@ -1,13 +1,13 @@
 ---
 name: automation-loop-exclude-epic-roadmap-issues
 license: BSD-3-Clause
-description: "Exclude epic and roadmap tracking issues from code-task discovery. Use for label/title filters, explicit issue overrides, and false positives from titles that merely mention epics."
+description: "Exclude epic and roadmap tracking issues from code-task discovery. Use for label/title filters, explicit issue overrides, worker ownership gates on explicitly dispatched targets, and false positives from titles that merely mention epics."
 category: tooling
 date: 2026-07-17
-version: "1.1.1"
+version: "1.2.0"
 user-invocable: false
 verification: verified-ci
-tags: [epic, roadmap, tracking-issue, automation-loop, issue-discovery, gh-cli, state-skip, partition, label-and-title-signal, planner-filter, dry-chokepoints, pure-function-contract]
+tags: [epic, roadmap, tracking-issue, automation-loop, issue-discovery, gh-cli, state-skip, partition, label-and-title-signal, planner-filter, dry-chokepoints, pure-function-contract, worker-ownership-gate, dispatch-gate, zero-mutation-stop]
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/automation-loop-exclude-epic-roadmap-issues.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -38,6 +38,10 @@ discovery time and exclude them from every path that feeds the planner.
 - A repo has an `epic`/`roadmap` label convention but it is NOT consistently applied (so label-only detection misses issues).
 - You need tracking issues excluded from convergence / open-issue-count gates as well as from planning.
 - A loop supports both auto-discovery AND an explicit `--issues` override (both paths must filter).
+- A worker/agent is DISPATCHED against an explicitly named issue (a human or coordinator picked the
+  target, bypassing every loop filter) and the named target itself carries the container signals —
+  the dispatch text can even cite the same issue as an EXAMPLE of a container while naming it as the
+  target. Live issue state outranks dispatch text, however specific the dispatch seems.
 - An issue whose title merely MENTIONS epics (a bug report about epic handling, an audit finding) was
   excluded from planning and durably tagged `state:skip` — the anywhere-in-title false positive.
 
@@ -56,6 +60,16 @@ gh issue list --json issueType   # -> "Unknown JSON field: issueType" on the ins
 #    NEVER match anywhere in the title: a bug report titled "...tags state:skip
 #    epic labels on the wrong repo" was excluded and skip-parked by the
 #    anywhere-match (Hephaestus #2245, fixed in PR #2253).
+
+# 3. WORKER ownership gate — run BEFORE any mutation when dispatched on an
+#    explicitly named issue (the terminal chokepoint when no loop filtered first):
+gh issue view <n> --json state,title,labels \
+  --jq '{state, title, labels: [.labels[].name]}'
+# container iff: OPEN AND ('epic'/'roadmap' in labels OR a leading title marker
+#   such as '[epic]:' / 'Epic:' / '[roadmap]'; 'state:skip' corroborates)
+# container -> STOP, report the container disposition (e.g. 'owned: epic/meta'),
+#   make ZERO mutations: no labels, no comments, no branch, no worktree, no plan,
+#   no adoption of the container's children.
 ```
 
 ```python
@@ -108,6 +122,16 @@ def partition_epics(issues_meta):  # -> (kept, epics)
    inside `_list_open_issue_numbers`, which must keep its "return `[]` on any failure, never raise"
    contract. A write that can fail must not be able to break discovery.
 
+6. **Gate explicit dispatches at the worker.** A worker/agent launched on an explicitly named issue is
+   the terminal chokepoint: every upstream filter can be bypassed when a coordinator names the target
+   directly. Before ANY write, classify the named target with the same `is_epic` signals —
+   `gh issue view <n> --json state,title,labels` — treating `state:skip` as corroboration. If it is an
+   OPEN container, stop-and-report with ZERO mutations (no labels, comments, branch, worktree, plan, or
+   child adoption). Apply the gate even when the dispatch text acknowledges the family of container
+   issues — or cites the named target itself as an example of one: a self-contradictory dispatch becomes
+   unambiguous once live issue state is checked ([container dispatch session evidence](#verified-on) —
+   worker correctly stopped on an OPEN `epic`-labeled `[epic]:`-titled target).
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -116,6 +140,7 @@ def partition_epics(issues_meta):  # -> (kept, epics)
 | Label-only detection | Detect epics solely by the `epic`/`roadmap` label | Convention not consistently applied — at the time, 94 open issues and ZERO carried the label | Add a title-substring fallback (`epic`/`roadmap` in the title, case-insensitive) |
 | Tag inside pure discovery | Write `state:skip` from inside `_list_open_issue_numbers` | Violates that function's "return `[]` on failure / never raise" contract — a failed label write would break discovery | Keep writes OUT of pure discovery; do best-effort tagging in the caller, wrapped in try/except |
 | Anywhere-in-title match | Match `epic`/`roadmap` as a standalone token ANYWHERE in the title | A bug report titled "Multi-repo loop tags state:skip epic labels on the wrong repo" (#2245) was excluded from planning and durably skip-parked; any issue ABOUT epic handling triggers it. Hyphens do not block the token regex, so "roadmap-exclusion" also matches | Tracking issues LEAD with the marker ("Epic: ...", "Q3 Roadmap tracking"); match only within the first ~3 whitespace tokens (Hephaestus PR #2253, verified-ci) |
+| Trust the dispatch over live issue state | A single-issue worker dispatched on an explicitly named target proceeds to plan/label/branch because "the coordinator named it" | The dispatch named an OPEN container (`epic` label, `[epic]:` title, `state:skip`) as the work target while itself citing that issue's family as a stop example — an internally contradictory dispatch that only live issue state resolves; proceeding would fabricate plan scope on a checklist, churn labels/comments on the container, create a stray branch/worktree, and can double-plan children another lane owns | The worker ownership gate is the terminal chokepoint (loop filters and explicit overrides are all bypassable by a direct dispatch): classify the named target with `gh issue view` BEFORE any mutation; on container signals stop with zero mutations and report the container disposition |
 
 ## Results & Parameters
 
@@ -126,7 +151,7 @@ Detection rule (case-insensitive):
 Why the title fallback matters: 94 open issues, 0 carried the epic/roadmap label at the time.
 Native gh issue types are NOT reachable: `gh issue list --json issueType` -> "Unknown JSON field".
 
-Two chokepoints, one shared pure helper (DRY):
+Two code chokepoints plus one agent chokepoint, one shared rule (DRY):
   hephaestus/automation/state_labels.py
     - is_epic(labels, title) -> bool                 # pure
     - partition_epics(issues_meta) -> (kept, epics)  # pure
@@ -146,6 +171,13 @@ Two chokepoints, one shared pure helper (DRY):
     - Needed because explicit `--issues` runs bypass loop discovery:
         cfg.issues or _list_open_issue_numbers(...)
 
+  worker/agent ownership gate (agent-side, no code):
+    - before ANY mutation on an explicitly dispatched issue:
+      gh issue view <n> --json state,title,labels
+    - OPEN AND container signals -> stop-and-report, ZERO mutations
+    - applies even when dispatch text cites container examples itself;
+      live issue state outranks dispatch text
+
 Verification (local only): 2217 automation unit tests pass; whole-tree mypy clean; ruff clean.
 CI on PR #1670 still pending -> NOT verified-ci.
 ```
@@ -155,3 +187,4 @@ CI on PR #1670 still pending -> NOT verified-ci.
 | Project | Context | Details |
 |---------|---------|---------|
 | ProjectHephaestus | Issue #1669 / PR #1670 — exclude epic/roadmap tracking issues from the automation discovery + planner loop | 2217 unit tests + mypy + ruff clean locally; CI pending |
+| Fleet single-issue worker dispatch | Worker dispatched on an explicitly named issue whose live state was OPEN + `epic` label + `[epic]:` title + `state:skip`; the dispatch text itself cited that container family as the stop condition | Verified-local — the `gh issue view --json state,title,labels` read executed and returned the cited signals; the worker stopped at the ownership gate with zero mutations (no labels, comments, branch, or worktree) and reported the container disposition |
