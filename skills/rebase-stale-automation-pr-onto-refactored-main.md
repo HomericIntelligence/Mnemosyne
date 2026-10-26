@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Preserve stale PR intent across upstream refactors, semantic conflicts, or contaminated history; bind remote rewrites to the intended head and scope."
 category: ci-cd
 date: 2026-07-20
-version: "1.2.1"
+version: "1.3.0"
 user-invocable: false
 verification: unverified
 tags:
@@ -23,6 +23,8 @@ tags:
   - superseded-pr
   - pixi-boilerplate
   - contaminated-history
+  - stale-base-reverse-merge
+  - deletion-classification
   - rebuild-branch
   - diff-allowlist
   - explicit-force-lease
@@ -123,6 +125,42 @@ NOT queue config. Check, in order:
    main updates. Rebase only a branch with a reported conflict, or an active
    task that needs the hardened workflow content to continue. Re-enqueuing a
    branch without resolving its actual failure just re-poisons the queue.
+
+### The stale-base reverse merge (classify before you resolve anything)
+
+A reported conflict is not always a semantic conflict. A stale branch can contain
+a commit whose own diff against its parent is mostly a REVERSAL of the base. When
+such a commit is replayed onto current `main`, the "conflict" is really the base
+earlier work being deleted.
+
+Detect this before each conflict resolution:
+
+```bash
+git show --shortstat --format="%h parent:%p %s" <commit>   # diff vs its own parent
+git merge-base --is-ancestor <commit>^ origin/main && echo "parent already in base"
+```
+
+Treat the commit as a stale-base reverse merge when its parent is already in the
+base AND its diff deletes far more lines/files than it adds. The parent count is
+the discriminator: a legitimate refactor deletes lines too, but its parent is the
+oldest tip, not a commit deep in the base.
+
+Resolve it by keeping only the commit's genuine intent:
+
+1. Do not accept the deletion. Do not resolve the conflict hunk by hunk toward
+   the branch; that reproduces the reversal one conflict marker at a time.
+2. Name the genuine intent from the commit subject and message alone.
+3. Rebuild from current `main` and port only the hunks that express that intent,
+   normally a small subset of the commit's path set.
+4. Verify the resolved tree still contains the base content the commit would have
+   deleted. A `git diff` against the base that shows mass deletion is a failed
+   resolution, not a finished one.
+5. Report the discovery. A commit that deletes most of the base usually means the
+   branch was built by merging an old base forward, or was hand-reverted.
+
+Do not confuse this with the opposite defect. A PR that ADDS a large block which
+already exists on the base is content subsumption and belongs to the superseded
+class. A PR whose diff DELETES base content that it did not author is this class.
 
 ### The conflict classes (resolve each this way)
 
@@ -233,7 +271,10 @@ The semantic conflict catalog, merge-queue diagnosis, and current-symbol
 resolution rule inherited from v1.0.0 remain `verified-ci`; their exact verified
 snapshot is preserved in the history file. The contaminated-history rebuild,
 scope-proof combination, and exact-head review/rollback steps in the Proposed
-Workflow above are explicitly excluded from this verification claim.
+Workflow above are explicitly excluded from this verification claim. The
+stale-base-reverse-merge classification is also excluded: it was observed in one
+multi-PR rebase session, and the detection test needs confirmation on other
+repositories.
 
 ## Failed Attempts
 
@@ -249,6 +290,7 @@ Workflow above are explicitly excluded from this verification claim.
 | 8 | Checked only a positive changed-path allowlist | The allowlist catches unexpected files but cannot catch unrelated edits inside an allowed file | Combine the allowlist with a known-contamination denylist and a human review of the complete three-dot diff. |
 | 9 | Relied on CI or a review verdict produced before the branch rewrite | That evidence was tied to an obsolete commit graph and did not establish approval for the pushed replacement head | Bind policy-required review to the changed revision; reassess affected evidence after later commits. |
 | 10 | Used an implicit `--force-with-lease` after background fetches | The remote-tracking ref used as the implicit expectation can change during a long rebuild, weakening the intended compare-and-swap boundary | Capture the live remote SHA before rebuilding and pass `--force-with-lease=refs/heads/<branch>:<sha>` explicitly. |
+| 11 | Treated a replayed commit whose diff deleted thousands of lines across ~150 files as one more semantic conflict | The commit was a stale-base reverse merge: its parent was already in the base, so replaying it deleted base work that other resolved work depended on. Concat or per-hunk resolution reproduced the deletion. | Classify by the commit's own diff against its parent first. If the parent is in the base and the diff is mostly deletion, keep only the genuine intent and rebuild from the base. |
 
 ## Results & Parameters
 

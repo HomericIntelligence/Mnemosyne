@@ -114,3 +114,31 @@ git push --force-with-lease="refs/heads/2140-auto-impl:$REBUILT_SHA" origin \
 ```
 
 The backup ref stays local. Never rewrite `main`.
+
+## Stale-Base Reverse-Merge Evidence
+
+Added in v1.3.0. During a multi-PR rebase sweep onto one advanced default
+branch, one replayed commit produced a conflict whose resolution direction was
+unclear. The commit's own diff against its parent was:
+
+```text
+152 files changed, 1173 insertions(+), 20612 deletions(-)
+```
+
+Its parent was already an ancestor of the current default-branch tip, and the
+default branch had advanced 29 commits past that parent. The commit therefore
+replayed as a reversal of base work, not as a semantic conflict against it.
+Resolving hunk by hunk toward the branch reproduced the deletion. Discarding the
+commit and porting only its stated intent produced a small, correct diff.
+
+Detection costs one command and belongs before any conflict resolution:
+
+```bash
+git show --shortstat --format="%h parent:%p %s" <commit>
+git merge-base --is-ancestor <commit>^ origin/main && echo "parent already in base"
+```
+
+Limits: this is one observation. The thresholds are qualitative on purpose. A
+legitimate deletion commit also has a parent in the base when the branch is
+short, so confirm that the deleted paths belong to other authors' work before
+discarding the commit.
