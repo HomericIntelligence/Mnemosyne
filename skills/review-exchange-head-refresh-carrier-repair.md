@@ -1,9 +1,9 @@
 ---
 name: review-exchange-head-refresh-carrier-repair
-description: "Recover and rebind a chain-verified review-exchange carrier chain in the field: repair a forge-published carrier that the strict parser rejects, recompute the artifact and visible-content binding digests when the evidence collector cannot materialize the snapshot, rebind the exchange to a changed head with an author-response refresh before the next reviewer round, and re-derive a delivery payload when a moved head makes every bound digest stale. Use when: (1) extraction rejects a published carrier with a malformed-or-not-final JSON fence, (2) the artifact head changed while the reduced state awaits the reviewer, (3) the collector fails on a private remote because its isolated fetch cannot authenticate, (4) the reduce request rejects a stored author event for retained state-level fields, (5) the reduced state is decision_required after a head move and the in-place recovery events are reducer-rejected, or (6) a pause precedes a forge write and you must re-read live state, which includes whether a concurrent authorized actor already delivered the goal."
+description: "Recover and rebind a chain-verified review-exchange carrier chain in the field: repair a forge-published carrier that the strict parser rejects, recompute the artifact and visible-content binding digests when the evidence collector cannot materialize the snapshot, rebind the exchange to a changed head with an author-response refresh before the next reviewer round, and re-derive a delivery payload when a moved head makes every bound digest stale. Use when: (1) extraction rejects a published carrier with a malformed-or-not-final JSON fence, (2) the artifact head changed while the reduced state awaits the reviewer, (3) the collector fails on a private remote because its isolated fetch cannot authenticate, (4) the reduce request rejects a stored author event for retained state-level fields, (5) the reduced state is decision_required after a head move and the in-place recovery events are reducer-rejected, or (6) a pause precedes a forge write and you must re-read live state, which includes whether a concurrent authorized actor already delivered the goal, or (7) the reducer rejects a fix answer at the constant head because a pull-request fix must bind a new head revision and the pending correction changed only forge metadata."
 category: tooling
 date: 2026-10-21
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 tags:
   - pr-review
@@ -21,6 +21,9 @@ tags:
   - reframe
   - rebind-not-patch
   - concurrent-actor
+  - metadata-only-fix
+  - empty-signed-commit
+  - commit-text-hygiene
 ---
 
 # Review Exchange Head Refresh and Carrier Repair
@@ -31,8 +34,8 @@ tags:
 |-------|-------|
 | **Date** | 2026-10-21 |
 | **Objective** | Keep a chain-verified review-exchange carrier chain publishable when the strict parser rejects a forge-published carrier, the artifact head changes mid-round, or the evidence collector cannot materialize the immutable snapshot. |
-| **Outcome** | Operational rule set derived from two live exchanges. First: a mid-round force-push left the reduced state awaiting the reviewer at a stale head. Four published carriers needed a parser repair before extraction; the collector's snapshot materialization failed on the private remote; the author-response refresh carrier was computed by hand, published, readback-verified, and the owner merged the pull request minutes later. Second: a terminal-delivery preparation in which the reduced state was `decision_required`, the head moved twice, and a concurrent authorized actor delivered the goal; a fully offline-validated closure manifest died at preflight and was discarded with zero forge writes. |
-| **Verification** | verified-live in two exchanges: one two-round exchange (2026-10-21), where the trailing-line-feed repair recovered all four published carriers, the manual digest formulas reproduced a published carrier's digests, and the refresh carrier reduced, rendered, published, and readback-verified; and one terminal-delivery preparation (2026-10-24), where the decision-required branch analysis, the re-derive-not-patch rule, and the concurrent-actor goal-met stop were each verified against the reducer rules and live forge state. |
+| **Outcome** | Operational rule set derived from three live exchanges. First: a mid-round force-push left the reduced state awaiting the reviewer at a stale head. Four published carriers needed a parser repair before extraction; the collector's snapshot materialization failed on the private remote; the author-response refresh carrier was computed by hand, published, readback-verified, and the owner merged the pull request minutes later. Second: a terminal-delivery preparation in which the reduced state was `decision_required`, the head moved twice, and a concurrent authorized actor delivered the goal; a fully offline-validated closure manifest died at preflight and was discarded with zero forge writes. Third: a correction that touched only forge metadata could not be answered at the constant head; the author advanced the head with one empty signed commit whose tree was byte-identical, the refresh bound the new head, terminal delivery completed, and the artifact merged with an explicitly set squash body. |
+| **Verification** | verified-live in three exchanges: one two-round exchange (2026-10-21), where the trailing-line-feed repair recovered all four published carriers, the manual digest formulas reproduced a published carrier's digests, and the refresh carrier reduced, rendered, published, and readback-verified; one terminal-delivery preparation (2026-10-24), where the decision-required branch analysis, the re-derive-not-patch rule, and the concurrent-actor goal-met stop were each verified against the reducer rules and live forge state; and one two-round exchange (2026-10-26), where the constant-head fix rejection, the deliberate empty-commit head advance, and the squash-hygiene verification were each confirmed against the reducer and the post-merge forge state. |
 
 ## When to Use
 
@@ -42,6 +45,8 @@ tags:
 - The evidence collector cannot bind the reviewed scope because its isolated fetch fails on a private remote (exit 128, "could not read Username").
 - The reduce request fails with "author response has invalid fields: unknown requirements_sha256, target" because a stored envelope state was passed as the event.
 - The reduced state is `decision_required` and the head, the scope set, or the requirements digest changed while the exchange waited. The in-place recovery events are reducer-rejected in this state; select a reframe under reframe authority, or hold and escalate.
+- The reduce request rejects an author `fix` or `fix_with_tradeoff` answer with "A pull-request fix must bind a new head revision", and the correction changed only forge metadata (for example the pull-request body). The artifact head is unchanged, so no tree delta exists to push.
+- A head-chain commit message carries linkage text (for example a closing keyword) that a squash merge can copy into the merge commit on the default branch, even when the pull-request body is clean.
 - A delivery payload was prepared and validated offline, and the artifact changed before the first forge write. Re-derive the payload from the live snapshot; do not patch bound fields.
 - A pause precedes a forge write. Re-read the live forge state (head, labels, open threads, the latest carrier). A concurrent authorized actor can deliver the goal while the exchange waits.
 - You must publish or readback-verify one carrier without inventing a new digest convention.
@@ -56,6 +61,10 @@ All other carrier damage: reject; do not repair.
 Head changed while reduced state is awaiting_reviewer:
   publish an author-response refresh carrier (one fresh evidence-backed answer
   per required finding) before the next reviewer assessment. The round stays.
+Fix answer rejected at the constant head ("must bind a new head revision")
+  and the correction is metadata-only:
+  land the metadata fix, then advance the head with one empty signed commit
+  (byte-identical tree). Refresh at the new head.
 Head changed while reduced state is decision_required:
   author-refresh and human_decision are both reducer-rejected. Reframe with
   authority (an owner-approved new exchange or a real requirements delta), or hold.
@@ -66,6 +75,9 @@ After any pause before a forge write:
 Digests: recompute from the forge API with the canonical recipes below.
   Verify each recipe against an already-published carrier before binding a new one.
 Publish one COMMENT review per carrier, then readback-verify digest, author, position.
+Keep closing keywords out of every head-chain commit message. At merge, set the
+  squash title and body explicitly; verify the merge commit and each linked
+  requirement's state afterward.
 ```
 
 ### Suggested Approach
@@ -79,6 +91,8 @@ Publish one COMMENT review per carrier, then readback-verify digest, author, pos
    - The reviewed-scope digest binds mutable metadata, not file content. Content formulas (file bytes, per-file digest lists, blob identifiers, tree output) do not reproduce it. Verify each formula against a published carrier first; do not trial formulas on a new event.
 4. When the collector cannot bind the reviewed scope (isolated fetch without credentials on a private remote), recompute the digests from the forge API under the same recipes and revalidate them immediately before publication (mutable fields can drift).
 5. Rebind a changed head with an author-response refresh. Preconditions: the reduced state is `awaiting_reviewer`, and the artifact head revision differs from the state's bound revision. Prepare an `author_response` event with: the current state digest as `prior_state_sha256`; `artifact_binding` with the new head revision and the recomputed digests; `scope` = the current changed-path set; `scope_change_reason` non-empty exactly when the path set changed; and one fresh evidence-backed answer for every required finding (a fix answer stays a fix; a contest answer stays a contest with the enforcement evidence re-verified at the new head). The refresh keeps the round number and moves finding states back to the answered/contested set. Coverage was invalidated: the next reviewer assessment is a full-coverage round, from a fresh context that did not author or author-respond to the artifact.
+
+   The same refresh path applies when the author must change the head deliberately. The reducer rejects a `fix` or `fix_with_tradeoff` answer at the constant head ("A pull-request fix must bind a new head revision"). A correction that changed only forge metadata (for example the pull-request body) has no tree delta to push, so advance the head deliberately: land the metadata correction first, recompute the scope digest (the corrected metadata changes it; the changed-path manifest and the requirements digest stay), then create one empty signed commit on the review branch whose tree is byte-identical to the tested head. Verify `git diff` between the tested head and the new head is empty and that both tree object identifiers match. Give the commit an honest message: the exchange records author corrections only on a new head revision, the commit is empty, and a squash merge carries none of its identity. Push, confirm the forge head moved, then build the refresh exactly as above at the new revision. Because the reviewed-scope digest binds mutable metadata (branch names, not the head object identifier), the digest that bound the corrected metadata survives the head advance. Coverage was still invalidated, but the next full-coverage round proves tree identity and re-affirms the unchanged source coverage instead of re-executing it.
 6. Publish one carrier atomically. Submit exactly one COMMENT review with `commit_id` = the bound head and an empty inline-comment list. Do not post other pull-request comments in the same round.
 7. Readback-verify the published carrier. Re-fetch the review by id, repair per step 1, extract, and compare: the envelope digest equals the accepted digest; the review author is the expected publisher; the carrier is the last carrier in chain order on the pull request. Only after this gate, hand off to the reviewer round.
 8. Rebind a decision-required exchange to a moved head. Preconditions: the reduced logical state is `decision_required`, and the head, the scope set, or the requirements digest differs from the bound value. In this state the reducer rejects both in-place events: an author-response refresh is admissible only when the exchange's own derived stop-reason is the literal `replacement_blocker`, and a `human_decision` event must carry the prior state's artifact binding unchanged, so it cannot rebind a moved head. The remaining transitions are:
@@ -87,6 +101,7 @@ Publish one COMMENT review per carrier, then readback-verify digest, author, pos
 9. Re-derive, never patch, after any mid-flight change. Treat each bound value — head revision, artifact-binding digest, scope set and scope digest, requirements digest, finding-thread digests — as perishable between the harvest and each forge write. Immediately before the write, recompute each digest from the live immutable inputs and validate the complete payload offline again. A field-by-field patch keeps the dependent digests stale. In the second source incident a fully validated closure manifest died at preflight because the head, the scope set, the requirements source, and the open threads had all changed since harvest. Rebuild from intent; discard the derived parts.
 10. Stop when the goal is already met. A concurrent authorized actor — another session, the owner, or automation — can deliver the terminal state while the exchange waits. After each pause, and again before each forge write, read the current head and base, the open review threads, the state labels, and the latest published carrier from the forge. If the target terminal state is already published or the artifact is merged, stop; discard the prepared unpublished artifacts. Carriers that are already published stay in place: delivery channels are append-only, so a stale authority record is documented and left, never retracted or overwritten.
 11. External closure stops the ceremony. If the owner merges the artifact before terminal delivery, record the merge as the exchange's external closure and publish no further carriers to the merged artifact.
+12. Keep closing keywords out of head-chain commit text. A terminal reviewer round can attach a finding to any head-chain commit message: a merge that composes its default title or body from branch commit messages can re-introduce a closing keyword even when the pull-request body is clean. This applies in both directions: a policy-required reference must live in the pull-request body fields, not only in commit text. Defenses: keep closing keywords and other harmful linkage text out of every head-chain commit message from the start, including a deliberate empty commit; set the final squash title and body explicitly at merge arm time (do not rely on the default); and after merge verify that the merge commit carries no closing keyword and that each linked requirement stayed in its intended state (a requirement that the artifact deliberately does not complete keeps its issue open).
 
 ### If a step is unavailable
 
@@ -107,6 +122,8 @@ Publish one COMMENT review per carrier, then readback-verify digest, author, pos
 | In-place event for a decision-required wedge | Evaluated an author-response refresh and a `human_decision` event for a `decision_required` state with a moved head | Both are reducer-rejected: the refresh hatch requires the literal derived stop-reason `replacement_blocker`, and `human_decision` must carry the prior state's artifact binding unchanged, so it cannot carry a new head | In `decision_required` state, reframe under reframe authority is the only legal transition to a new head; without authority, hold and escalate |
 | Patch a stale delivery manifest | Considered updating only the moved fields of an offline-validated closure manifest after the head, scope, requirements, and thread states all changed | Each bound value is a digest of a snapshot that no longer existed; a field-by-field patch keeps the dependent digests stale, and the payload fails at the first pre-publication gate or carries inconsistent bindings | Discard the derived parts and re-derive the complete payload from the live snapshot; validate it offline before any forge write |
 | Deliver from a harvested snapshot without a forge-state recheck | Prepared a complete terminal-delivery set (fresh reviewer GO, thread closures, authority record, validated manifest) against a harvested snapshot | During the pause a concurrent authorized actor moved the head twice, resolved the last open threads, and published the complete terminal exchange; the prepared set was dead on arrival and was discarded with zero forge writes | After each pause and before each forge write, re-read head, labels, open threads, and the latest carrier from the forge; when the goal is already met, stop |
+| Answer a forge-metadata-only fix at the constant head | Submitted the `fix` answer with the revised scope digest and the unchanged head revision after the pull-request body was corrected | The reducer rejected the answer: "A pull-request fix must bind a new head revision"; the rule is absolute, and no event field carries a metadata-only fix | Land the metadata correction, then advance the head deliberately with one empty signed commit (byte-identical tree) and bind the author-response refresh to the new head |
+| Rely on the merge-time default message | Followed the repository's `Closes #N` convention inside a head-chain commit message while the pull-request body itself held the required non-closing linkage | A terminal reviewer round flagged the commit text as a follow-up finding: a squash merge that composes its default message from branch commit messages can copy the closing keyword into the default branch | Keep closing keywords out of every head-chain commit message; set the squash title and body explicitly at merge arm time; verify the merge commit and each issue state after merge |
 
 ## Results & Parameters
 
@@ -125,6 +142,14 @@ collector cannot materialize (private remote auth)     -> manual digest recomput
                                                          revalidate just before publish
 state decision_required AND any binding moved       -> reframe with authority, or hold;
                                                          in-place events are reducer-rejected
+fix rejected at constant head AND correction
+  is forge-metadata-only                           -> land the metadata fix; recompute the
+                                                          scope digest; advance the head with one
+                                                          empty signed commit (byte-identical tree);
+                                                          refresh at the new head
+head-chain commit text carries linkage text      -> keep it clean from the start; set the
+                                                          squash title and body explicitly at merge;
+                                                          verify the merge commit and the issue states
 pause before any forge write                        -> re-read head, labels, open threads,
                                                          latest carrier; goal met -> stop
 mid-flight change to any bound value                -> discard the derived payload;
@@ -141,6 +166,8 @@ owner merges before terminal delivery                  -> record external closur
 - A decision-required reframe starts a round-1 exchange at the current head with every binding recomputed from the live snapshot; without reframe authority, the exchange holds with zero forge writes.
 - A pre-write recheck after a pause returns `goal met`: the prepared payload is discarded with no publication, and already-published carriers are left in place and documented.
 - A merged artifact carries the refresh carrier as its published record, and the exchange closes externally without further carriers.
+- A deliberate head advance produces an empty signed commit whose tree is byte-identical to the tested head; the author-response refresh binds the new revision; the next full-coverage round proves tree identity and re-affirms source coverage.
+- A merge with an explicitly set squash title and body leaves the merge commit free of closing keywords and each linked requirement in its intended state.
 
 ## Verified On
 
@@ -148,6 +175,7 @@ owner merges before terminal delivery                  -> record external closur
 | --------- | --------- | --------- |
 | Chain-verified pull-request review exchange (v1 carriers) | Mid-round force-push of a qualification-artifact pull request; carrier repair on four published carriers, manual digest recomputation, author-response refresh published and readback-verified; owner merged before terminal delivery | [notes](review-exchange-head-refresh-carrier-repair.notes.md) |
 | Chain-verified pull-request review exchange (v1 carriers) | Terminal-delivery preparation against a twice-moved head with a concurrent authorized actor; the decision-required branch reduced to reframe-only, the fully validated manifest was discarded at preflight with zero forge writes, and the goal was verified met by the concurrent exchange before the discard | [notes](review-exchange-head-refresh-carrier-repair.notes.md) |
+| Chain-verified pull-request review exchange (v1 carriers) | Forge-metadata-only policy correction at the constant head: the reducer-rejected fix answer, the deliberate empty-commit head advance (byte-identical tree), the author-response refresh at the new head, terminal delivery, and the explicitly set squash body at merge with post-merge verification of the merge commit and the issue state | [notes](review-exchange-head-refresh-carrier-repair.notes.md) |
 
 ## References
 
