@@ -1,6 +1,6 @@
 # Notes: review-exchange-terminal-manifest-construction
 
-Supporting evidence for the main skill. Generalized from one live delivery;
+Supporting evidence for the main skill. Generalized from two live deliveries;
 identifiers are omitted under the privacy rules.
 
 ## Delivery chronology (2026-10-22)
@@ -69,11 +69,57 @@ one input fix away from success. The safe discriminator is the error class,
 checked against a forge readback when in doubt: input validation rejects
 nothing-published states; wedge errors name existing published state.
 
+## Structural carrier-history incident (2026-10-26)
+
+1. A maintained review thread's round-1 carrier adopted legacy review
+   findings as native identities (`native:<provider-identifier>`). Each was
+   recorded with a legacy marker of the form `exchange=<record> id=<F-NNN>`.
+   The verified derived chain had not been built from that record.
+2. The terminal round reached a GO state with all findings resolved. The
+   closure manifest was built in the verified order: deterministic ledger,
+   visible-content digest, reduce, render, canonical JSON.
+3. The terminal delivery helper (version 0.6.0) rejected the manifest at
+   preflight: `An adopted native finding has no unique matching review root`.
+   The selector in the error was the native identity of an adopted finding.
+   The rejection occurred before any forge write, and a forge readback
+   confirmed that nothing was published.
+4. A full rebuild — deterministic ledger with the adopted findings included
+   as native-identity entries, regenerated manifest, and a re-reduce with the
+   corrected visible-content digest — repeated the identical preflight error.
+   This confirmed that the rejection is structural: it binds to published
+   carrier history, not to pending input.
+5. With owner approval, the helper's legacy-marker resolution was extended:
+   a legacy marker is accepted when its claimed identity is not used by the
+   verified derived chain. Strict provenance was kept for every marker that
+   the chain claims. The stock helper was preserved byte-exact, with its
+   checksum recorded, before the change.
+6. The patched helper accepted the rebuilt manifest and published the
+   terminal carrier at the exact head with the exclusive terminal-state label
+   and zero open threads.
+7. An idempotency re-run of the same input against the delivered state
+   returned the already-delivered result, which proves no duplicate
+   publication.
+8. The stock helper at the same version cannot re-verify the delivered
+   exchange: it fails the same preflight. The exact divergence is recorded in
+   the delivery artifacts, and the extension awaits routing to the helper
+   owner. Until the owner accepts the fix, a stock helper reports the
+   delivered exchange as unverifiable.
+
+Ordering observation: the structural preflight ran before the input
+checks. A structural rejection can mask later input-validation failures, so
+repair order matters: resolve the carrier history first, then re-validate
+the inputs.
+
+Ledger-mismatch cross-reference: the rebuilt ledger in step 4 bound the
+corrected visible-content digest and passed the visible-content checks once
+the patched helper reached them. This confirms that the deterministic-ledger
+build order in the main skill does not change under the extension.
+
 ## Evidence limits
 
-Single live case, one exchange tooling generation. The invariants (digest
+Two single live cases, one exchange tooling generation. The invariants (digest
 order, deterministic visible body, canonical manifest form, rejection-class
-triage) follow from the fail-closed validator design and do not rest on
-frequency. Interface details (positional argument, mode flags, import context)
-are generation-specific witnesses; confirm them against the installed
-helper's signature before relying on them.
+triage, structural carrier-history rejection) follow from the fail-closed
+validator design and do not rest on frequency. Interface details (positional
+argument, mode flags, import context) are generation-specific witnesses;
+confirm them against the installed helper's signature before relying on them.
