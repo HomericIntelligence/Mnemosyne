@@ -1,9 +1,9 @@
 ---
 name: review-exchange-terminal-manifest-construction
-description: "Build a terminal-delivery closure manifest in the verified dependency order — deterministic ledger first, visible-content digest before reduce, render, canonical JSON — so the designated terminal delivery helper accepts it. Use when: (1) a review flow routes a terminal-eligible round through a designated terminal delivery helper that consumes a closure manifest, (2) the helper rejects the manifest with an input-validation error such as an uncanonical JSON form or a visible-ledger mismatch, (3) you must decide what belongs in the terminal visible content and which digest to bind in the reduce event, or (4) you must distinguish a pre-publication input rejection (fix and resubmit) from a structural carrier-history rejection (no input repair exists) or a publication-state wedge (do not retry)."
+description: "Build a terminal-delivery closure manifest in the verified dependency order — deterministic ledger first, visible-content digest before reduce, render, canonical JSON — so the designated terminal delivery helper accepts it. Use when: (1) a review flow routes a terminal-eligible round through a designated terminal delivery helper that consumes a closure manifest, (2) the helper rejects the manifest with an input-validation error such as an uncanonical JSON form or a visible-ledger mismatch, (3) you must decide what belongs in the terminal visible content and which digest to bind in the reduce event, (4) the ledger, the state digest, and the entry set are mutually dependent so each rebuilding pass changes the digest again, or (5) you must distinguish a pre-publication input rejection (fix and resubmit) from a structural carrier-history rejection (no input repair exists) or a publication-state wedge (do not retry)."
 category: tooling
 date: 2026-10-26
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 tags:
   - pr-review
@@ -26,8 +26,8 @@ tags:
 | ------- | ------- |
 | **Date** | 2026-10-26 |
 | **Objective** | Deliver a terminal reviewer state through the designated terminal delivery helper on the first accepted submission. |
-| **Outcome** | Operational rule derived from one live terminal GO delivery. Hand-written visible prose and a pretty-printed manifest were rejected by fail-closed input guards. Inputs rebuilt in the verified order were accepted, and the helper published the terminal carrier and the exclusive terminal label. A second delivery verified one more rejection class: a structural carrier-history rejection that no input repair can clear. |
-| **Verification** | verified-live in one zero-finding terminal GO delivery (2026-10-22) at the exact head, and in one adopted-native terminal GO delivery (2026-10-26). Single-case evidence for each class; the invariants follow from deterministic fail-closed validation. |
+| **Outcome** | Operational rule derived from one live terminal GO delivery. Hand-written visible prose and a pretty-printed manifest were rejected by fail-closed input guards. Inputs rebuilt in the verified order were accepted, and the helper published the terminal carrier and the exclusive terminal label. A second delivery verified one more rejection class: a structural carrier-history rejection that no input repair can clear. A third delivery verified a self-referential case: the ledger, the state digest, and the entry set are mutually dependent, so the manifest converges by iteration and not by chained manual edits. |
+| **Verification** | verified-live in one zero-finding terminal GO delivery (2026-10-22), one adopted-native terminal GO delivery (2026-10-26), and one findings-closure terminal GO delivery with a self-referential manifest (2026-10-26). Single-case evidence for each class; the invariants follow from deterministic fail-closed validation. |
 
 ## When to Use
 
@@ -38,6 +38,7 @@ Use this skill when these conditions apply:
 - You must decide what text goes into the manifest's terminal visible content field, and which digest goes into the reduce event's visible-content digest.
 - You must classify a rejection: a pre-publication input rejection (fix the input and resubmit), a structural carrier-history rejection (no input repair exists; select a recovery under owner authority), or a publication-state wedge (stop; apply wedge recovery rules).
 - A round-1 carrier adopted legacy review findings as `native:<provider-identifier>` identities, and the helper now rejects terminal delivery with an error that names an adopted native finding.
+- The manifest has closure entries whose recorded state digest is the terminal digest itself, and every repair pass changes that digest again.
 
 The publisher-routing decision and wedge recovery are a different rule. See References.
 
@@ -51,10 +52,13 @@ The publisher-routing decision and wedge recovery are a different rule. See Refe
 2. Hash the exact ledger bytes into the reduce event's visible-content digest.
    Then reduce, then render. This order is mandatory: the state binds the digest.
 3. Put the same exact ledger bytes in the manifest's terminal visible content.
+   It must equal the ledger, not extend it: the helper compares for equality.
 4. Serialize the manifest as canonical JSON (sorted keys, minimal separators),
    then deliver.
-5. An input-validation rejection is pre-publication: fix the input and resubmit.
-6. A rejection that names an adopted native finding is structural: no input
+5. If entries record the terminal digest, steps 1-4 are circular. Iterate to a
+   fixed point before delivery; do not chain manual digests.
+6. An input-validation rejection is pre-publication: fix the input and resubmit.
+7. A rejection that names an adopted native finding is structural: no input
    repair exists. Hold for an owner-authorized resolution recovery or escalate.
 ```
 
@@ -65,6 +69,29 @@ The publisher-routing decision and wedge recovery are a different rule. See Refe
 3. Serialize the manifest file in the canonical byte form the exchange defines: UTF-8 JSON, sorted object keys, minimal separators. A pretty-printed document parses as JSON but fails the byte-level canonical-form check.
 4. Check the helper's interface details against its actual signature. The positional argument is the review identity (number or URL), not a mode word. Requirement-issue flags belong to manifest-preparation mode, not to response-manifest delivery. When importing the helper in-process, reproduce its script entry-point module context so the helper's own module fallback resolves.
 5. Triage rejections by class. An input-validation rejection proves nothing was published: correct the input and resubmit; retries are safe. A rejection that names a conflicting terminal review or a nonforking chain is a publication-state wedge: stop and apply the wedge rules; do not fix-and-retry. A rejection that names an adopted native finding is a third class, a structural carrier-history rejection: no input repair exists, and recovery acts on how the helper resolves the published carrier history. See the next subsection.
+
+### Self-referential ledger and fixed-point convergence
+
+The ledger build order becomes circular when the closure entries carry the terminal state digest. The helper hashes every entry into the visible ledger, and it removes a digest field only when that field already equals the current terminal digest. The terminal state, in turn, hashes the visible content, and the visible content is the ledger. Thus each pass over these three values can change the next one:
+
+```text
+ledger digest  <-  entries, including their state digest
+state digest   <-  visible-content digest, which is the ledger digest
+entry digest   <-  state digest
+```
+
+Chained manual repair does not converge. If you write a digest by hand, recompute the ledger, then re-reduce to bind the new ledger bytes, the terminal digest changes, so the entries and the ledger change again. Each hand edit starts a new cycle and no edit is final.
+
+Resolve the cycle by iteration to a fixed point:
+
+1. Hold the non-derivable inputs fixed: the prior state envelope, the assessment event with its findings and responses, the entry fields other than the state digest, and the requirements binding. Also fix the closure evidence and the author fields, because they are hashed too. Re-derive them from the verified state, not from memory: for a resolved finding, the closure evidence is the reviewer response evidence, not the author answer evidence.
+2. Seed the visible content with the ledger from the current entries.
+3. In one pass, hash the visible content into the event, reduce, set every entry's state digest to the reduced terminal digest, and recompute the ledger from those entries with the helper's own generator.
+4. Compare the recomputed ledger bytes with the seed. If they are equal, you have the fixed point: write that ledger as the manifest terminal visible content and deliver.
+5. If they differ, replace the seed with the recomputed ledger and repeat from step 3. Two passes usually suffice when the entry set is stable: one pass fixes the digests and one confirms them.
+6. Confirm acceptance with the helper's own closure validator before delivery. It recomputes the ledger and checks every entry against the verified threads, so its acceptance is the proof of the fixed point.
+
+Do not attempt to break the cycle by excluding an entry or by pasting a digest. Both actions change the hashed entry set, which restarts the cycle.
 
 ### Structural carrier-history rejection
 
@@ -98,6 +125,8 @@ If the extension is not possible, hold the exchange and escalate through the dec
 | --------- | ---------------- | --------------- | ---------------- |
 | Hand-written prose as terminal visible content | Composed a detailed assessment report and used it as the manifest's terminal visible content | The helper rejected it: the terminal visible closure ledger does not match its manifest entries. The published body is deterministic over the binding and entries; prose cannot match | Generate the ledger with the helper's own generator. Detailed prose belongs in the user-facing report, never in the terminal visible content |
 | Digest bound to prose before the ledger decision | Hashed the prose into the reduce event's visible-content digest, then learned the published body must be the deterministic ledger | The reduce output bound the wrong digest; continuing would fail at render or delivery. The fix required a new reduce with the correct digest | Compute the ledger first and bind its digest; the reduce event is not the place to discover the visible content |
+| Prose prefixed to the ledger in the terminal visible content | Appended the deterministic ledger below the reviewer assessment report and used the combination as the terminal visible content | The helper rejected it: the terminal visible closure ledger does not match its manifest entries. The comparison is equality, not a suffix test, so any prose before the ledger fails it | The terminal visible content must be exactly the ledger bytes. The assessment report is a separate publication, not part of this field |
+| Chained manual digest repair on a self-referential manifest | Wrote a corrected closure digest, recomputed the ledger, re-reduced to bind the new bytes, then set the entry digests to the new state digest | Every pass changed the terminal digest, so the entries and the ledger changed again. Each submission repeated the ledger-mismatch or evidence-mismatch rejection with a different digest | Iterate to a fixed point: re-derive the ledger from the recomputed entries in one pass and repeat until the bytes stop changing. Do not chain hand edits |
 | Pretty-printed manifest JSON | Wrote the closure manifest with indentation for readability | The helper rejected it: the response manifest is not canonical JSON. It enforces the exchange canonical byte form, not JSON parseability | Serialize the manifest with the exchange canonical encoder (sorted keys, minimal separators) before delivery |
 | Mode word as positional argument | Passed a mode word as the helper's positional argument | The parser treated the word as the review identity and failed | Read the helper's actual argument signature; the positional argument is the review identity (number or URL) |
 | In-process import without entry-point context | Imported the helper module directly to reuse its ledger generator | A package-relative import failed in-process although the script entry point worked | Reproduce the script's module-loading context (empty package context) when importing, or use the command-line entry point |
@@ -110,9 +139,16 @@ If the extension is not possible, hold the exchange and escalate through the dec
 
 ```text
 visible content   = terminal helper ledger generator(binding, ordered entries)  # opaque bytes
+                  = the exact ledger bytes, never ledger + prose
 reduce digest     = sha256(visible content)   # written into the reduce event before reduce
 manifest field    = the same visible content bytes
 manifest file     = canonical JSON: UTF-8, sorted object keys, minimal separators
+closure evidence  = reviewer response evidence for a resolved finding
+                  = author answer evidence when no reviewer response exists
+                  = original finding evidence otherwise
+self-reference    = entries carry the terminal digest
+                  -> one pass: hash visible content, reduce, set entry digests,
+                     recompute ledger; repeat until the ledger bytes are stable
 retry decision    = input-validation rejection          -> fix input, resubmit (safe: pre-publication)
                   = adopted-native-finding root error   -> structural: hold; owner-authorized
                                                              resolution recovery or escalate
@@ -130,6 +166,7 @@ retry decision    = input-validation rejection          -> fix input, resubmit (
 | --------- | --------- | --------- |
 | An internal repository review flow | Terminal GO delivery for a single-file installer fix; zero-finding round 1 at the exact head; two manifest submissions rejected on input validation, the third accepted and read back from the forge | [notes](review-exchange-terminal-manifest-construction.notes.md) |
 | An internal repository review flow | Terminal GO delivery for a round that adopted legacy findings as native identities; one structural preflight rejection resolved by an owner-authorized helper extension and a rebuilt ledger; delivered at the exact head with the exclusive terminal label and an idempotency re-check (2026-10-26) | [notes](review-exchange-terminal-manifest-construction.notes.md) |
+| An internal repository review flow | Terminal GO delivery that closed three findings under the terminal state digest; the manifest converged by fixed-point iteration in two passes after chained manual edits failed; accepted by the helper's closure validator, delivered at the exact head, all threads closed (2026-10-26) | [notes](review-exchange-terminal-manifest-construction.notes.md) |
 
 ## References
 
