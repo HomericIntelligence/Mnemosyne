@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Recover unfinished agent work when completion messages contain API failures or expected edits are missing."
 category: tooling
 date: 2026-04-17
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-local
 tags: [background-agent, run_in_background, api-error, connection-refused, recovery, foreground-agent]
@@ -71,6 +71,37 @@ grep -rn "<pattern-agent-was-fixing>" <target-directory>/
 status: completed
 result: API Error: Unable to connect to API (ConnectionRefused)
 ```
+
+**Second failure signature — host-wide credential wave (added 2026-10-26):**
+```
+state: error
+result: Failed to drain Session: invalid or missing API key
+```
+
+This signature behaves differently from ConnectionRefused, and the recovery changes with it:
+
+- **Zero footprint.** The agent dies before its first tool call. No edits, no commits, no pushes.
+  Recovery starts from re-verification, not from partial-work reconciliation. Check for output
+  before assuming any exists.
+- **Host-wide, not task-specific.** Many agents on the same host die in the same window with the
+  same message. Treat one such death as a signal to stop launching: run a short, cheap probe
+  first. If the probe dies the same way, the wave is still active. Do not spawn replacements
+  until a probe completes end to end.
+- **Short probes can pass during a wave.** A completed probe does not prove a long background task
+  will survive. Rotate, re-verify gateway health, then re-dispatch the real work.
+- **Early-push defense.** For any background task whose product is a branch, instruct the agent
+  to commit and push incrementally as it goes, not once at the end. A wave death then costs
+  only the unsaved tail instead of the whole run.
+- **Independent completion happens.** A review or merge that the dead agent was dispatched to
+  drive may still complete through another route. Before relaunching, read the forge state:
+  pull request state, labels, reviews, and merge record. Resume only the gap, never the whole
+  assignment from memory.
+
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --------- | ---------------- | --------------- | ---------------- |
+| Relaunching replacements during the wave | Spawned new agents as soon as deaths were noticed | The credential failure was still active host-wide; each replacement died the same way | Probe first; re-dispatch only after a probe completes |
+| Assuming a dead agent left partial work | Searched for its edits and commits | The wave killed agents before their first tool call; the footprint was zero | Verify the footprint before reconciling; zero-footprint deaths need only a fresh dispatch after the wave |
+| Waiting to push until the branch was finished | Held all commits locally for a final push | A death would have lost the whole product | Push incrementally during long background runs |
 
 **Typical failure profile:**
 - Token consumption: ~12,000–26,000 tokens
