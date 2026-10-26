@@ -14,6 +14,28 @@
 | Path-filtered required check failed on two PRs with exit 4 before any test count; identical sibling PRs on the same base that stayed outside the `paths:` filter showed no run | serving-stack repository outside the host org; fixed-selector ownership-policy job with an uploaded evidence directory | `verified-ci`: the rebased branches' path-filtered job (and its sibling job) went green with no diff change; the failing PRs' other ~50 checks were green throughout | Added trigger-filter audit, stale-plan-input classification, evidence-artifact diagnostic, and the main-repaired base-update resolution |
 | Aggregate gate failed its report step on a producer output key absent from `needs.<job>.outputs` while every upstream succeeded; the identical drop reproduced across reruns inside the run and in one fresh run, then resolved only by rebasing onto the workflow world current main carried | deployment-lifecycle repository outside the host org; an umbrella gate reading `toJSON(needs)` of an outputs-producing policy job | `verified-ci`: a same-era green run of the same workflow carried the key; after the base update the exact head went green with the diff unchanged | Added the dropped-producer-output attribution order, the stored-output rerun-inheritance rule, the fresh-run-regeneration rule, and the platform-change resolution class |
 | Green twins on identical trees misclassified an introduced deterministic failure as a flake: every compared lane ran a narrower event-scoped profile that never executed the failing node | golden-rendering CI in a model-serving repository outside the host org; event-scoped test profiles (narrow pull-request profile, wider promotion profile) over a sharded planner | `verified-ci`: the narrow profile selected 7994 items in every green compared run, the wide profile selected 14876 items and included the failing node; a one-value queue-size config change broke a golden rendering deterministically on both lanes that ran it | Added the green-twin coverage gate, the empty-comparison rule, and the classify-from-content-determinism fallback |
+| Red default-branch CI at and after a squash merge looked merge-caused while a task gate required watching main CI to green | fleet-worker delivery lane in a public model-serving-infrastructure repository; 32-way sharded pytest with per-push and batched default-branch runs | `verified-ci`: per-commit run lookup returned empty for the merge commit even after its run existed; branch enumeration showed the first red predated the merge by several commits including its direct parent; every sampled failed job carried an identical node set from one concurrency test module disjoint from the merged patch; the owning lane's labeled fix at a newer tip took the branch run green | Added the merge-sha run bracket, the sparse-run empty-lookup rule, the post-merge collated-node-set test, and the adoption boundary for another lane's breakage |
+
+## Post-merge main red bracket detail
+
+A delivery lane merged a tests-and-docs squash commit while the default branch's CI was
+already red. The gate required green main CI before the final report. A per-commit
+workflow-run lookup for the merge commit returned an empty list even minutes after the
+push, which first read as "no run, no evidence"; enumerating the branch's runs exposed
+the real picture: the workflow ran only on some pushes, the merge's own run appeared
+seconds after the push, and the oldest red run sat on an ancestor several commits
+behind the merge, including its direct parent. The last green run sat further behind,
+so the red window opened before the delivery lane ever pushed. Collating `FAILED` node
+identities from sampled failed jobs of the oldest red run, the merge's run, and the
+current tip run showed one test module, set-identical across all three windows, in an
+area (a concurrent credential store) disjoint from the merged files. The bracket plus
+the identical pre-merge signature classified the red as pre-existing breakage; the
+lane did not adopt the repair. A peer lane landed a fix commit whose message named the
+failing area at a newer tip within the hour, and that tip's branch run went green,
+which discharged the watch-to-green gate with the repair's run identifier as evidence.
+The attribution report carried: the last-green and first-red commit and time pair, the
+sparse-run empty-lookup warning, the collated node set across the three windows, and
+the patch-surface disjointness as supporting context.
 
 ## Dropped producer output detail
 

@@ -1,9 +1,9 @@
 ---
 name: pr-ci-failure-triage-preexisting-vs-introduced
-description: "Classify red PR checks as introduced, pre-existing, flaky, environmental, stale-commit, or status-rollup artifacts before fixing or rerunning. Use after rebases/force-pushes, unrelated failures, merge-preview coverage changes, or hosted-only process-launch errors. Also use when the required check is a fan-in gate reported by a ruleset, when the failing symbol on the base was deliberately removed, when a base update turns a green branch red without a textual conflict, when grouped or sharded logs hide individual failed node identities, when failures reproduce only on the local host, or when a path-filtered check fails on stale in-repo plan inputs that main already repaired. Also use when an aggregate gate fails its own report step because a producer job output key is absent from `needs` while every upstream job succeeded. Also use when a green comparison lane may never execute the failing node because event-scoped profiles or shard planners select different test sets on identical trees."
+description: "Classify red PR checks as introduced, pre-existing, flaky, environmental, stale-commit, or status-rollup artifacts before fixing or rerunning. Use after rebases/force-pushes, unrelated failures, merge-preview coverage changes, or hosted-only process-launch errors. Also use when the required check is a fan-in gate reported by a ruleset, when the failing symbol on the base was deliberately removed, when a base update turns a green branch red without a textual conflict, when grouped or sharded logs hide individual failed node identities, when failures reproduce only on the local host, or when a path-filtered check fails on stale in-repo plan inputs that main already repaired. Also use when an aggregate gate fails its own report step because a producer job output key is absent from `needs` while every upstream job succeeded. Also use when a green comparison lane may never execute the failing node because event-scoped profiles or shard planners select different test sets on identical trees. Also use when the default branch's CI is red at or immediately after your squash merge and a task gate requires green main CI before you report, or when per-commit run lookups return empty because the branch does not run every push."
 category: ci-cd
-date: 2026-10-21
-version: "2.6.0"
+date: 2026-10-26
+version: "2.7.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-ci
@@ -30,6 +30,8 @@ tags:
   - job-outputs
   - test-profile-selection
   - green-twin-coverage
+  - post-merge-main-red
+  - sparse-workflow-runs
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pr-ci-failure-triage-preexisting-vs-introduced.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -73,6 +75,11 @@ and the complete prior version is in
   the same run does not restore the key.
 - The green comparison lanes may never execute the failing node: event-scoped test
   profiles or shard planners select different sets on identical trees.
+- Your squash merge just landed on the default branch, the branch's CI is red at or
+  after your merge commit, and a task gate requires green main CI before you report —
+  so you must decide whether your merge caused the red before you adopt the repair.
+- A per-commit workflow-run lookup returns empty for the merge commit or its boundary
+  commits because the default branch does not get a run at every push.
 
 ## Verified Workflow
 
@@ -271,6 +278,48 @@ the real payload. Do not amend an arbitrary tip when the unwanted commit is lowe
 After any fix/rebase, repeat SHA and check-run binding. Surface classification and evidence in the
 PR, not only stderr or a private note.
 
+### 9. Attribute post-merge main red by a merge-sha bracket
+
+The default branch's CI can be red at or immediately after a clean squash merge even
+when every PR check was green: the first red run can predate the merge (a broken main
+that swallowed your commit), and a gate that requires watching main CI to green then
+tempts you to adopt a repair that another lane owns. Bracket before attributing.
+
+Default-branch workflows can be sparse: the branch does not get a run at every push,
+and a merge's own run can appear seconds after the merge push. A per-commit run lookup
+(`gh run list --commit <sha>`) can therefore return empty for the merge commit and for
+its boundary commits. Enumerate by branch and map the run head SHAs onto history order:
+
+```bash
+gh run list --branch main --workflow <WF> --limit 60 \
+  --json databaseId,headSha,status,conclusion,createdAt \
+  --jq '.[] | select(.conclusion=="success" or .conclusion=="failure")
+        | "\(.headSha[0:10]) \(.conclusion) \(.createdAt)"'
+git log --oneline -20 origin/main
+```
+
+- Bracket the merge commit: the newest green run and the oldest red run on the branch.
+  A first red whose commit is an ancestor of the merge — including the merge's direct
+  parent — predates it; main was already broken.
+- Collate the failing node identities across a sample of failed jobs
+  (`gh api repos/<owner>/<repo>/actions/jobs/<job-id>/logs`, keep the `FAILED` lines).
+  One module failing set-identically in the pre-merge red run, the merge's own run, and
+  the current tip run is a pre-existing failure line, not spread from your patch.
+- Compare the failing set against your patch surface. A set disjoint from every file
+  your merge touched is supporting context only; the bracket and the identical
+  pre-merge signature are the attribution evidence.
+
+| Evidence | Class | Action |
+| --- | --- | --- |
+| First red commit is an ancestor of the merge; the failing node set is identical before and after | Pre-existing main breakage | Do not adopt the repair inside your delivery scope; record the bracket, the node set, and the owning fix when it lands; report attribution |
+| First red is your merge commit and its failing nodes intersect your patch surface | Merge-introduced | Check out a worktree, diagnose from the failing-node evidence, deliver a repair PR |
+| No run exists at the merge commit or its boundary commits | Sparse coverage | Classify from the run bracket around the gap; never treat a missing run as green |
+
+Under a "watch main CI green" gate with pre-existing breakage, the owning lane usually
+lands a repair commit at a newer tip (a fix naming the failing area). Watch that tip's
+run to green and record its identifier as the gate evidence; the green belongs to the
+repair, not to your patch.
+
 ### Guidance retained from an absorbed history
 
 Distinguish a workflow setup failure from a product failure before replacing a
@@ -302,6 +351,7 @@ operational verification.
 | 13 | Classified a path-filtered check from main's history alone | The workflow runs only for diffs that touch its `paths:` list, so main carried no failure and same-base unaffected PRs carried no run at all — the comparison set was empty while a stale pinned selector made every filtered base fail | Check the workflow's trigger filter first; for in-repo plan inputs, diff the pinned selector against the tree and read the job's uploaded evidence artifacts, then remediate a main-repaired input by a base update |
 | 14 | Re-ran the failed aggregate gate, then re-ran the producer job, to republish a `needs` output key the gate missed | The same key stayed absent in every attempt of the same run; job reruns inherit the run's stored job outputs even when the producer re-executes | Capture the producer's emit evidence and bracket a same-era green-run window first; regenerate stored outputs only through a fresh run ID, and when the drop persists there, treat it as a platform behavior change and move the branch to the gate world main already carries |
 | 15 | Declared a deterministic introduced failure flaky because green twins carried an identical tree | Every green lane ran an event-scoped profile that never selected the failing node; only the failing wider-profile lane executed it | A green lane is comparison evidence only after its logs contain the failing node id or its selected-test count covers the node's profile; classify empty comparisons from content determinism |
+| 16 | Treated red main CI right after the merge as merge-caused and prepared a repair inside the delivery scope | The branch's workflow runs were sparse: a per-commit run query returned empty for the merge commit and hid that the first red run predated the merge by several commits, and every sampled failed job carried an identical node set in one module disjoint from the patch | Enumerate runs by branch and bracket the merge commit before attributing; compare the failing node set across the pre-merge red, the merge's run, and the tip; never treat a missing run as green, and do not adopt pre-existing breakage another lane owns |
 
 ## Results & Parameters
 
@@ -334,6 +384,16 @@ operational verification.
 - Platform-change resolution: an identical output drop that persists in a fresh run
   classifies as a platform behavior change; remediate by a recorded base update to the
   workflow world current main carries, or by a workflow contract change.
+- Merge-sha run bracket: enumerate default-branch workflow runs by branch with head SHA,
+  conclusion, and creation time; per-commit run lookups are sparse and a run can post
+  seconds after the merge push. An oldest red commit that is an ancestor of the merge
+  predates it.
+- Post-merge collated node set: identical `FAILED` identities across the pre-merge red,
+  the merge's own run, and the current tip, disjoint from the patch surface, is a
+  pre-existing failure line; patch-surface disjointness is supporting context only.
+- Adoption boundary: pre-existing breakage another lane owns stays outside the delivery
+  scope; a newer-tip green run after an owning repair commit discharges a
+  watch-to-green gate, recorded as the repair's evidence rather than your patch's.
 
 ## Evidence Boundary
 
