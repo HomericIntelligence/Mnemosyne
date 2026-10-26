@@ -121,3 +121,69 @@ rejection.
   with an identical digest; published carrier readback-verified.
 - Pull-request preconditions at publication: `OPEN`, exact head and base oids matched,
   scope digest recomputed fresh and matched.
+
+## Source case (2026-10-24): decision-required wedge and delivery-side perishability
+
+A multi-round chain-verified exchange had reached its terminal phase: a fresh-context
+reviewer round returned GO at the current head, and every finding thread from the
+previous round was resolved. The reduced logical state was `decision_required`. A
+complete terminal-delivery set was prepared offline (reviewer assessment, thread
+closures, authority record, closure manifest), and the closure manifest passed a full
+offline validation pass.
+
+### Branch analysis in `decision_required` state
+
+With the head moved since harvest, three candidate transitions exist for the wedged
+exchange; the reducer rules constrain all three:
+
+- Author-response refresh on a wedged exchange: admissible only when the exchange's
+  own derived stop-reason is the literal `replacement_blocker`. This session's derived
+  stop-reason was scope-related, so the refresh path was rejected by inspection of the
+  reducer rules, not by a live probe.
+- `human_decision`: the event must carry the prior state's artifact binding unchanged.
+  It certifies the exchange as bound; it does not rebind a head. After any head move
+  this event cannot reduce.
+- Reframe: a new exchange at round 1 at the current head. Legal with reframe
+  authority; in this session the artifact owner approved a new exchange in writing.
+  The authority record is published once as a comment and referenced by the new
+  round's envelope.
+
+### Perishable bindings observed
+
+Between the harvest and the delivery preflight (same session, under one hour):
+
+- The head moved twice (a squash-and-push and a follow-up head advance).
+- The changed-path set shrank, so the scope set and the scope digest changed.
+- The requirements source was edited concurrently, so the requirements digest changed.
+- A concurrent delivery session resolved the last two open finding threads, so every
+  thread digest changed.
+
+Every digest in the validated manifest was bound to a snapshot that no longer existed.
+The correct recovery is a full re-derivation from the live snapshot before any forge
+write; patching individual fields keeps the dependent digests stale. The authority
+record published earlier in the sequence was requirements-stale within minutes. It
+was left in place (delivery channels are append-only) and documented, consistent with
+the external-closure stance on existing carriers.
+
+### Goal-met stop
+
+At preflight the live forge readback showed: the terminal state label applied
+exclusively, zero open threads, and a complete terminal carrier published by the
+concurrent session (final round, GO, all findings resolved), followed by the artifact
+merge. The prepared delivery set was discarded without execution. The stop condition
+was the live state, not a failure: the goal of record (a terminal GO at an exact
+head, merged) was already satisfied.
+
+### Verification record (second incident)
+
+- Reducer branch analysis: source-level inspection of the reduce rules for
+  author-response (stop-reason literal) and `human_decision` (binding identity). No
+  illegal event was submitted to the reducer as a probe.
+- Offline manifest validation: a full validation pass on the closure manifest
+  completed before the discard decision.
+- Staleness check at preflight: head, scope digest, requirements digest, and the
+  thread set were re-read from the forge API; all four had changed since harvest.
+- Goal-met verification: the exclusive label state, zero open threads, and the
+  concurrent session's terminal carrier were read back and verified (round,
+  completeness, per-finding dispositions, resolution markers) before the discard
+  decision.
