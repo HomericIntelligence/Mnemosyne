@@ -187,3 +187,44 @@ head, merged) was already satisfied.
   concurrent session's terminal carrier were read back and verified (round,
   completeness, per-finding dispositions, resolution markers) before the discard
   decision.
+
+## 2026-10-26 — Post-terminal head refresh with armed auto-merge
+
+### Context
+
+A bounded review exchange on an external worker-agent pull request (anchor-carrier
+annex carrier) reached a delivered terminal GO at an exact head. CI policy then
+required a container-image refresh twice; each refresh pushed a new head after
+terminal delivery. Auto-merge had been armed by policy before the refreshes.
+
+### What happened
+
+- After the first post-terminal push, continuing the completed exchange was
+  attempted: the reducer rejected every event kind except `reframe` with "A
+  terminal review state cannot accept another event". Terminal law confirmed
+  empirically.
+- Recovery per refresh: the completed exchange stayed archived by its terminal
+  reply; a fresh round-1 exchange opened at the live head with an independent
+  full-coverage reviewer round from a fresh context; a new GO bound the pushed
+  head. Three exchanges coexisted on one artifact, each archived by its own
+  terminal reply.
+- Live forge inspection showed the armed auto-merge request had survived the
+  first push and was not head-pinned: the forge merges whichever head first
+  satisfies branch protections. Auto-merge was disabled before every subsequent
+  push and re-armed only after the final terminal delivery bound the pushed
+  head. The squash merge followed on the delivered head.
+
+### Verification record (third incident)
+
+- Terminal law: reducer rejection observed directly on the completed exchange.
+- Auto-merge persistence: armed-request state read back from the forge API
+  across a push; it remained armed with no head binding recorded.
+- Fresh-round independence: each new head received a round-1 assessment from a
+  reviewer context that had not authored or author-responded to the artifact.
+- Closure: guarded merge completed at the terminal-bound head; base-branch CI
+  green after merge.
+
+### Privacy note
+
+Source identifiers (organization, repository, pull-request numbers) are
+deliberately omitted; the rules above are stated against the general mechanism.

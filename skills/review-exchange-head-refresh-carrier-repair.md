@@ -1,9 +1,9 @@
 ---
 name: review-exchange-head-refresh-carrier-repair
-description: "Recover and rebind a chain-verified review-exchange carrier chain in the field: repair a forge-published carrier that the strict parser rejects, recompute the artifact and visible-content binding digests when the evidence collector cannot materialize the snapshot, rebind the exchange to a changed head with an author-response refresh before the next reviewer round, and re-derive a delivery payload when a moved head makes every bound digest stale. Use when: (1) extraction rejects a published carrier with a malformed-or-not-final JSON fence, (2) the artifact head changed while the reduced state awaits the reviewer, (3) the collector fails on a private remote because its isolated fetch cannot authenticate, (4) the reduce request rejects a stored author event for retained state-level fields, (5) the reduced state is decision_required after a head move and the in-place recovery events are reducer-rejected, or (6) a pause precedes a forge write and you must re-read live state, which includes whether a concurrent authorized actor already delivered the goal."
+description: "Recover and rebind a chain-verified review-exchange carrier chain in the field: repair a forge-published carrier that the strict parser rejects, recompute the artifact and visible-content binding digests when the evidence collector cannot materialize the snapshot, rebind the exchange to a changed head with an author-response refresh before the next reviewer round, and re-derive a delivery payload when a moved head makes every bound digest stale. Use when: (1) extraction rejects a published carrier with a malformed-or-not-final JSON fence, (2) the artifact head changed while the reduced state awaits the reviewer, (3) the collector fails on a private remote because its isolated fetch cannot authenticate, (4) the reduce request rejects a stored author event for retained state-level fields, (5) the reduced state is decision_required after a head move and the in-place recovery events are reducer-rejected, or (6) a pause precedes a forge write and you must re-read live state, which includes whether a concurrent authorized actor already delivered the goal, or (7) the head must change after the exchange reached a terminal delivered state, for example a CI-mandated refresh while auto-merge is armed: the reducer accepts only a reframe after terminal delivery, so archive the completed exchange by its terminal reply, disarm auto-merge before any push, open a fresh round-1 exchange with an independent reviewer at the live head, and re-arm only after the new terminal delivery binds the pushed head."
 category: tooling
 date: 2026-10-21
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 tags:
   - pr-review
@@ -21,6 +21,9 @@ tags:
   - reframe
   - rebind-not-patch
   - concurrent-actor
+  - post-terminal-refresh
+  - terminal-law
+  - auto-merge-disarm
 ---
 
 # Review Exchange Head Refresh and Carrier Repair
@@ -31,8 +34,8 @@ tags:
 |-------|-------|
 | **Date** | 2026-10-21 |
 | **Objective** | Keep a chain-verified review-exchange carrier chain publishable when the strict parser rejects a forge-published carrier, the artifact head changes mid-round, or the evidence collector cannot materialize the immutable snapshot. |
-| **Outcome** | Operational rule set derived from two live exchanges. First: a mid-round force-push left the reduced state awaiting the reviewer at a stale head. Four published carriers needed a parser repair before extraction; the collector's snapshot materialization failed on the private remote; the author-response refresh carrier was computed by hand, published, readback-verified, and the owner merged the pull request minutes later. Second: a terminal-delivery preparation in which the reduced state was `decision_required`, the head moved twice, and a concurrent authorized actor delivered the goal; a fully offline-validated closure manifest died at preflight and was discarded with zero forge writes. |
-| **Verification** | verified-live in two exchanges: one two-round exchange (2026-10-21), where the trailing-line-feed repair recovered all four published carriers, the manual digest formulas reproduced a published carrier's digests, and the refresh carrier reduced, rendered, published, and readback-verified; and one terminal-delivery preparation (2026-10-24), where the decision-required branch analysis, the re-derive-not-patch rule, and the concurrent-actor goal-met stop were each verified against the reducer rules and live forge state. |
+| **Outcome** | Operational rule set derived from three live exchanges. First: a mid-round force-push left the reduced state awaiting the reviewer at a stale head. Four published carriers needed a parser repair before extraction; the collector's snapshot materialization failed on the private remote; the author-response refresh carrier was computed by hand, published, readback-verified, and the owner merged the pull request minutes later. Second: a terminal-delivery preparation in which the reduced state was `decision_required`, the head moved twice, and a concurrent authorized actor delivered the goal; a fully offline-validated closure manifest died at preflight and was discarded with zero forge writes. Third: two CI-mandated head refreshes after a terminal GO delivery; each refresh archived the completed exchange by its terminal reply and opened a fresh round-1 exchange, auto-merge was disarmed before every push and re-armed after the final delivery bound the pushed head, and the squash merge followed. |
+| **Verification** | verified-live in three exchanges: one two-round exchange (2026-10-21), where the trailing-line-feed repair recovered all four published carriers, the manual digest formulas reproduced a published carrier's digests, and the refresh carrier reduced, rendered, published, and readback-verified; one terminal-delivery preparation (2026-10-24), where the decision-required branch analysis, the re-derive-not-patch rule, and the concurrent-actor goal-met stop were each verified against the reducer rules and live forge state; and one post-terminal refresh (2026-10-26), where the terminal law ("A terminal review state cannot accept another event") and the armed-auto-merge stale-head hazard were verified empirically against the reducer and the live forge, and three exchanges archived correctly on one pull request. |
 
 ## When to Use
 
@@ -44,6 +47,8 @@ tags:
 - The reduced state is `decision_required` and the head, the scope set, or the requirements digest changed while the exchange waited. The in-place recovery events are reducer-rejected in this state; select a reframe under reframe authority, or hold and escalate.
 - A delivery payload was prepared and validated offline, and the artifact changed before the first forge write. Re-derive the payload from the live snapshot; do not patch bound fields.
 - A pause precedes a forge write. Re-read the live forge state (head, labels, open threads, the latest carrier). A concurrent authorized actor can deliver the goal while the exchange waits.
+- The head changed, or must change, after terminal delivery (the reduced state is complete). The reducer accepts only a reframe in this state; every other event is rejected with "A terminal review state cannot accept another event". Archive the completed exchange by its terminal reply and open a fresh round-1 exchange at the live head with an independent reviewer.
+- Auto-merge is armed on the artifact and a push is necessary. An armed request survives pushes and is not head-pinned: the forge merges whichever head first passes branch protections. Disarm auto-merge before the push; re-arm only after terminal delivery binds the pushed head.
 - You must publish or readback-verify one carrier without inventing a new digest convention.
 
 ## Verified Workflow
@@ -59,6 +64,14 @@ Head changed while reduced state is awaiting_reviewer:
 Head changed while reduced state is decision_required:
   author-refresh and human_decision are both reducer-rejected. Reframe with
   authority (an owner-approved new exchange or a real requirements delta), or hold.
+Head changed after terminal delivery (state complete):
+  reducer accepts only reframe. The completed exchange stays archived by its
+  terminal reply; open a fresh round-1 exchange at the live head with an
+  independent reviewer. A stale-head GO does not carry to the new head.
+Auto-merge armed and a push is necessary:
+  disarm before the push; the armed request is not head-pinned and merges the
+  first head that passes protections. Re-arm only after terminal delivery
+  binds the pushed head.
 After any pause before a forge write:
   re-read head, labels, open threads, latest carrier. Goal already met -> stop.
   Otherwise re-derive every bound digest from the live snapshot; never patch a
@@ -87,6 +100,8 @@ Publish one COMMENT review per carrier, then readback-verify digest, author, pos
 9. Re-derive, never patch, after any mid-flight change. Treat each bound value — head revision, artifact-binding digest, scope set and scope digest, requirements digest, finding-thread digests — as perishable between the harvest and each forge write. Immediately before the write, recompute each digest from the live immutable inputs and validate the complete payload offline again. A field-by-field patch keeps the dependent digests stale. In the second source incident a fully validated closure manifest died at preflight because the head, the scope set, the requirements source, and the open threads had all changed since harvest. Rebuild from intent; discard the derived parts.
 10. Stop when the goal is already met. A concurrent authorized actor — another session, the owner, or automation — can deliver the terminal state while the exchange waits. After each pause, and again before each forge write, read the current head and base, the open review threads, the state labels, and the latest published carrier from the forge. If the target terminal state is already published or the artifact is merged, stop; discard the prepared unpublished artifacts. Carriers that are already published stay in place: delivery channels are append-only, so a stale authority record is documented and left, never retracted or overwritten.
 11. External closure stops the ceremony. If the owner merges the artifact before terminal delivery, record the merge as the exchange's external closure and publish no further carriers to the merged artifact.
+12. Rebind a post-terminal head move by exchange replacement. Preconditions: the reduced state is terminal (delivery complete), and the head must change afterwards, for example a CI-mandated container refresh. In a terminal state the reducer rejects every event kind except `reframe` with "A terminal review state cannot accept another event"; do not attempt an author refresh, a second assessment, or a second delivery on the completed exchange. The completed exchange stays archived by its terminal reply — the reply is its closure record and publication channels are append-only. Open a fresh round-1 exchange at the live head: derive every binding from the live snapshot, and give the new head an independent full-coverage reviewer round from a fresh context. A GO delivered against a stale head does not transfer. Several completed exchanges can coexist on one artifact; each archives by its own terminal reply. Repeat the same branch for each post-terminal refresh.
+13. Sequence auto-merge around every head push. An armed auto-merge request survives pushes and is not head-pinned: the forge merges whichever head first satisfies branch protections, so an armed request can merge a stale or intermediate head before terminal delivery binds it. Before any push to the artifact, disable auto-merge (`gh pr merge --disable-auto`); run the refresh and the fresh exchange; re-arm (method per branch policy) only after the new terminal delivery binds the pushed head. Apply the arm-time gating checklist from the auto-merge entry at every re-arm.
 
 ### If a step is unavailable
 
@@ -107,6 +122,8 @@ Publish one COMMENT review per carrier, then readback-verify digest, author, pos
 | In-place event for a decision-required wedge | Evaluated an author-response refresh and a `human_decision` event for a `decision_required` state with a moved head | Both are reducer-rejected: the refresh hatch requires the literal derived stop-reason `replacement_blocker`, and `human_decision` must carry the prior state's artifact binding unchanged, so it cannot carry a new head | In `decision_required` state, reframe under reframe authority is the only legal transition to a new head; without authority, hold and escalate |
 | Patch a stale delivery manifest | Considered updating only the moved fields of an offline-validated closure manifest after the head, scope, requirements, and thread states all changed | Each bound value is a digest of a snapshot that no longer existed; a field-by-field patch keeps the dependent digests stale, and the payload fails at the first pre-publication gate or carries inconsistent bindings | Discard the derived parts and re-derive the complete payload from the live snapshot; validate it offline before any forge write |
 | Deliver from a harvested snapshot without a forge-state recheck | Prepared a complete terminal-delivery set (fresh reviewer GO, thread closures, authority record, validated manifest) against a harvested snapshot | During the pause a concurrent authorized actor moved the head twice, resolved the last open threads, and published the complete terminal exchange; the prepared set was dead on arrival and was discarded with zero forge writes | After each pause and before each forge write, re-read head, labels, open threads, and the latest carrier from the forge; when the goal is already met, stop |
+| Continue an exchange after terminal delivery | Attempted further round events on an exchange whose terminal GO had already reduced to the complete state, after CI required a head refresh | The reducer rejected every event except reframe: "A terminal review state cannot accept another event"; the exchange state machine is closed | A terminal delivered state is final. Archive the completed exchange by its terminal reply, open a fresh round-1 exchange at the live head, and give the new head an independent reviewer round |
+| Auto-merge kept armed across a head refresh | Considered pushing a CI-mandated head refresh while the armed auto-merge request was live; inspected the live forge state first | The armed request survived the previous push and was not head-pinned: the forge would merge whichever head first passed branch protections, so an intermediate head could merge before terminal delivery bound it | Disarm auto-merge before every push; re-arm only after terminal delivery binds the pushed head. Branch protections gate checks, not head identity |
 
 ## Results & Parameters
 
@@ -132,6 +149,18 @@ mid-flight change to any bound value                -> discard the derived paylo
                                                          live snapshot; validate offline
 owner merges before terminal delivery                  -> record external closure;
                                                          publish no further carriers
+state terminal (complete) AND head changed           -> reframe-only; completed
+                                                         exchange stays archived by
+                                                         its terminal reply; fresh
+                                                         round-1 exchange at live
+                                                         head, independent reviewer
+reviewer GO on a stale head                          -> does not transfer; new head
+                                                         needs its own full-coverage
+                                                         fresh-context round
+auto-merge armed AND push required                   -> disarm before the push;
+                                                         re-arm after the terminal
+                                                         delivery binds the pushed
+                                                         head
 ```
 
 ### Expected Output
@@ -141,6 +170,7 @@ owner merges before terminal delivery                  -> record external closur
 - A decision-required reframe starts a round-1 exchange at the current head with every binding recomputed from the live snapshot; without reframe authority, the exchange holds with zero forge writes.
 - A pre-write recheck after a pause returns `goal met`: the prepared payload is discarded with no publication, and already-published carriers are left in place and documented.
 - A merged artifact carries the refresh carrier as its published record, and the exchange closes externally without further carriers.
+- A post-terminal head refresh leaves the completed exchange archived by its terminal reply, opens a fresh round-1 exchange at the live head with an independent reviewer GO, and ends with auto-merge armed only against the head that terminal delivery bound; several completed exchanges can coexist on one artifact, each archived by its own terminal reply.
 
 ## Verified On
 
@@ -148,6 +178,7 @@ owner merges before terminal delivery                  -> record external closur
 | --------- | --------- | --------- |
 | Chain-verified pull-request review exchange (v1 carriers) | Mid-round force-push of a qualification-artifact pull request; carrier repair on four published carriers, manual digest recomputation, author-response refresh published and readback-verified; owner merged before terminal delivery | [notes](review-exchange-head-refresh-carrier-repair.notes.md) |
 | Chain-verified pull-request review exchange (v1 carriers) | Terminal-delivery preparation against a twice-moved head with a concurrent authorized actor; the decision-required branch reduced to reframe-only, the fully validated manifest was discarded at preflight with zero forge writes, and the goal was verified met by the concurrent exchange before the discard | [notes](review-exchange-head-refresh-carrier-repair.notes.md) |
+| Chain-verified pull-request review exchange (v1 carriers) | Two CI-mandated head refreshes after a terminal GO delivery on a worker-agent pull request; terminal-law rejection verified empirically, three exchanges archived by terminal reply on one artifact, auto-merge disarmed before every push and re-armed after the final delivery bound the pushed head, followed by a guarded squash merge | [notes](review-exchange-head-refresh-carrier-repair.notes.md) |
 
 ## References
 
@@ -155,3 +186,4 @@ owner merges before terminal delivery                  -> record external closur
 - [review-exchange-terminal-carrier-sole-publisher](review-exchange-terminal-carrier-sole-publisher.md) — the publisher-routing rule for the terminal round; route carrier counts and channels accordingly. Its reframe-authority condition binds the reframe branch of this entry.
 - [review-exchange-terminal-manifest-construction](review-exchange-terminal-manifest-construction.md) — the construction-order rule for a terminal closure manifest. Apply this entry's rebind rules first, so the manifest is built on live bindings.
 - [github-pr-review-head-bound-check-evidence](github-pr-review-head-bound-check-evidence.md) — binds CI evidence to a moved head; this entry binds exchange carriers to the same moved head.
+- [github-auto-merge-ci-gating-merge-method](github-auto-merge-ci-gating-merge-method.md) — the arm-time gating checklist for auto-merge; apply it at every re-arm after terminal delivery binds the pushed head.
