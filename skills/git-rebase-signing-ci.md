@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Diagnose signature failures, resume a justified rebase after conflicts, re-sign rewritten commits when the rebase replay is a silent no-op, and compare signing repair with current branch-update or merge-queue requirements."
 category: tooling
 date: 2026-07-17
-version: "1.5.0"
+version: "1.6.0"
 user-invocable: false
 verification: verified-ci
 tags: [git, signing, rebase, ci, gpg, exec, conflict-resolution, update-branch, force-with-lease, stale-info, branch-protection, up-to-date, stacked-pr, squash-merge, merge-queue, ssh-signing, commit-tree, provenance-gate]
@@ -38,6 +38,9 @@ history-cleanup-date: "2026-09-20"
 - `git push --force-with-lease` is rejected with `stale info` after a server-side branch update
 - The repository requires strictly up-to-date branches AND signed commits, no merge queue is
   enabled, and several PRs must merge in sequence
+- The same repository has NO integration mechanism at all (no merge queue, no branch-update bot),
+  CI time meets or exceeds the base-move cadence, and an armed auto-merge never fires because the
+  head is stale again before checks go green
 - A GitHub merge queue IS enabled — before preparing any re-signed rebase, confirm the PR is not
   simply queueable (the queue makes the local rebase unnecessary)
 - A stacked PR's base branch was squash-merged and the branch now shows CONFLICTING
@@ -159,6 +162,14 @@ git push --force-with-lease --force-if-includes origin <branch>
   whether or not the repository has a merge queue. Hand ordinary integration to repository CI/CD.
   If CI/CD reports an actual merge conflict, resolve that conflict with the permitted signed rebase
   above. Do not use a local serial re-sign-and-force-push cycle merely after a sibling merges.
+- **End-game exception, no integration mechanism:** when the repository has NO way to integrate
+  a behind head (no merge queue, no branch-update bot) and CI time meets or exceeds the base-move
+  cadence, a completed, reviewed, checks-green PR can merge only inside a manufactured window.
+  Rule: the policy above still forbids treadmill rebases during work; in the end-game, repeat
+  minimal signed rebases onto each base move, lease-push, fix any real blocker first (unresolved
+  review threads, draft state), and merge the exact head the moment merge state reads CLEAN —
+  the window can last seconds; restart on the next base move. Never use the server-side
+  "Update branch" here: it strips signatures and turns the provenance gate red.
 - **A real GitHub merge queue makes the local re-signed rebase UNNECESSARY:** when the repo has a
   merge queue enabled (branch protection "Require merge queue" / a `merge_group`-triggered required
   workflow), a green PR does NOT need to be brought up-to-date by hand. Queue it and the queue
@@ -241,6 +252,7 @@ local; a server-side branch update has the same signature-stripping effect as ab
 | `gh pr update-branch --rebase` to satisfy a strict up-to-date branch-protection rule | Server-side rebase to bring two green PRs current with main | GitHub re-created every commit unsigned; the previously-green signed-commits `pr-policy` gate failed on both PRs with `commit signature is missing or invalid` | Never update a signed-commits PR server-side; do a local `git -c commit.gpgsign=true rebase origin/main` and force-push with lease |
 | `git push --force-with-lease` immediately after a server-side branch update | Pushing the locally re-signed rebase over the server-side rewrite | Rejected with `stale info` — the local remote-tracking ref predated the server-side rewrite, so the lease check failed | Fetch the branch first, verify the remote head is the expected rewrite, then push; the rejection is the lease working as designed |
 | Preparing a local re-signed rebase + user force-push cycle for a green PR on a repo with a merge queue enabled | Rebased the branch onto the new `main`, re-signed, ran full local gates, and waited on a user force-push to satisfy the strict up-to-date rule before merging | Unnecessary work: the merge queue rebuilt and merged the PR server-side (GitHub-signed merge commit) and it landed MERGED while the re-signed branch was still waiting to be pushed — the whole rebase cycle was moot | On a merge-queue repo, check `gh pr view <N> --json state,mergeStateStatus` first; if queueable, just let the queue merge it — do NOT prepare a serial re-sign-rebase cycle. The queue absorbs the up-to-date requirement itself |
+| Armed auto-merge on a squash+signed+strict repo with no merge queue and no update bot | Waited across hours of main drift for the armed auto-merge to fire on a reviewed, checks-green head | Each base move made the head stale again before the ~30-minute checks finished; merge state never reached a fireable state, and the real last blockers (draft state, then one unresolved review thread) surfaced only under direct layered diagnosis | Auto-merge never fires on a stale head; manufacture the current+green+unblocked window with minimal signed rebases, clear real blockers first, and merge the exact head as soon as the state flips CLEAN |
 | Hand-invoking the queued `--exec` command (`git add <file>` then `git commit --amend --no-edit -s -S`) after resolving a conflict, instead of `git rebase --continue` | Rebase paused mid-conflict showing "Next command to do: exec ..."; resolved the conflict then manually replicated the exec command to "help it along" | The conflicted commit had not yet been finalized as a commit object — `git rebase` was still mid-`pick`. `git commit --amend` amended the rebase's "onto" checkout (base branch tip, which was HEAD at that moment) instead of the picked change, producing a corrupted commit whose diff was the union of an unrelated upstream commit's changes plus the PR's own changes, under the wrong commit message/title. Diagnosed via `git reflog` showing `rebase (start): checkout <base>` immediately followed by `commit (amend): <wrong title>` with no intervening pick entry, plus `git diff <merge-base> <bad-commit> --stat` showing far more files than the original commit's own `git show <sha> --stat` | Always run `git rebase --continue` after resolving a conflict, even when the rebase reports a queued `exec` line next — never hand-invoke the exec command yourself. If already corrupted: recover via `git reset --keep <pre-rebase-sha>` + `git rebase --quit` (when `--abort` is blocked), then redo as a plain rebase followed by one standalone amend pass |
 | Re-signing a rewritten branch with `git rebase --exec 'git commit --amend -S --no-edit' origin/main` | Standard exec-based re-sign after a forge commit-provenance gate failed with `invalid_signature` on every rewritten commit | The replay absorbed the picks — the rewritten commits already sat on top of the current base, so git skipped every pick and the exec hook never ran; the command exited instantly, no new objects were created, and `%G?` stayed `N` on the whole stack | Check `%G?` after any exec-based repair; when it does not change, the replay was a no-op — rebuild the stack per-commit with `commit-tree -S` (preserving author, committer, and both dates) and force-push the rebuilt head; every rebuilt commit is a new object and re-triggers the forge check |
 | Signing through a privately built/bundled git with `gpg.format=ssh` | Running the `commit-tree` re-sign loop with a bundled git binary whose launcher sets its own library search path | The signed object write died with `OpenSSL version mismatch` — the bundled environment broke the exec'd `ssh-keygen` at load time, even though the same `ssh-keygen -Y sign` succeeded standalone | Use the system git for local object operations (`commit-tree` needs no network); keep the bundled git for network operations only; verify a standalone `ssh-keygen -Y sign` test succeeds before attributing a signing failure to the key or config |
