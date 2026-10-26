@@ -1,9 +1,9 @@
 ---
 name: hephaestus-loop-unconfigured-host-operation
-description: "Bring up and keep alive the Hephaestus plan/review issue loop on a host that has no prepared automation configuration. Use when: (1) hephaestus-plan-issues or hephaestus-implement-issue exits fast with intake, preflight, or agent errors on an unfamiliar machine, (2) the Claude CLI reports \"Not logged in\" against a self-hosted model gateway even after configuration, (3) planner or reviewer jobs die with timeout, a missing verdict, or empty output, (4) an interrupted run left the intake worktree dirty and the loop refuses to start, or (5) intake rejects the target checkout before any network call because its .git common directory is group-writable."
+description: "Bring up and keep alive the Hephaestus plan/review issue loop on a host that has no prepared automation configuration. Use when: (1) hephaestus-plan-issues or hephaestus-implement-issue exits fast with intake, preflight, or agent errors on an unfamiliar machine, (2) the Claude CLI reports \"Not logged in\" against a self-hosted model gateway even after configuration, (3) planner or reviewer jobs die with timeout, a missing verdict, or empty output, (4) an interrupted run left the intake worktree dirty and the loop refuses to start, (5) intake rejects the target checkout before any network call because its .git common directory is group-writable, or (6) the implement lane stops with a source_workspace_terminal record that asks for manual recovery although the intake state is healthy."
 category: tooling
-date: 2026-10-21
-version: "1.1.0"
+date: 2026-10-25
+version: "1.2.0"
 user-invocable: false
 verification: verified
 tags:
@@ -19,6 +19,7 @@ tags:
   - bearer-auth
   - intake-recovery
   - intake-git-mode
+  - source-workspace-terminal
   - session-reset
   - prompt-overlay
   - thinking-model
@@ -71,7 +72,7 @@ L7 session reset   archive the transcript to force create-mode on degradation
 | 4 | opencode preflight fails; emitted flags absent from `opencode --help`; or auth probe reports `installed but not authenticated` | Adapter built for the v1 CLI surface; v2 removed `--dir`, `--variant`, `--pure`, and the `providers list` subcommand | Put an `opencode` shim on PATH that **translates argv**: drop `--dir`/`--dir=` (v2 anchors the project at the process cwd, which the adapter sets), drop `--variant` (v2 uses `provider/model#variant` inline), drop `--pure` (the `--agent plan` flag keeps edit denial in v2), and rewrite `providers list` to `auth list`. v2's stdin prompt and `--format json` event stream are **parser-compatible** with the v1-era adapter; `run` in the default build agent permits workspace writes headless with no extra flags |
 | 5 | First agent call hangs >60 s with no error; catalog lists the model | Deployment is served but cold or stopped | Probe each candidate model with a short prompt, small `max_tokens`, and a timeout (45–60 s) **before** choosing it. A listing in `GET /v1/models` does not imply the deployment answers |
 | 6 | Intake validation fails and the run journal shows self-referential paths | Run journals are relative to the launch cwd; launching from a reused directory lets one run poison the next run's validation | Always launch from an empty scratch directory dedicated to the loop |
-| 7 | Intake or worktree step errors on `worktree list` output (`error: unknown switch 'z'`, exit 129 on 2.34.1); later, worktree steps can fail as `SourceWorkspaceError: source workspace registration changed` | System git too old for `git worktree list --porcelain -z` (needs >= 2.36); the registration check then cannot enumerate worktrees and misreads a valid receipt | Put a newer git early on PATH (a package-manager env is enough); confirm with the exact subcommand before every launch |
+| 7 | Intake or worktree step errors on `worktree list` output (`error: unknown switch 'z'`, exit 129 on 2.34.1); or worktree steps fail as `SourceWorkspaceError: source workspace registration changed`. On current pipeline-era code the same cause shows only as `worktree job failed: source_workspace_terminal`, `FAIL:source_workspace_recovery_receipt_invalid ... creation_failure=writer_transition`, and a durable `<checkout>/.git/hephaestus-source-workspaces/<issue>-impl-terminal.json` record with `outcome: manual_recovery_required` | System git too old for `git worktree list --porcelain -z` (needs >= 2.36); the registration check then cannot enumerate worktrees and misreads a valid receipt. On the masked variant the terminal record's cause text is a generic capture: the inner `CalledProcessError` (exit 129) is dropped before the record is written, so the visible text directs you to state repair instead of the toolchain | Put a newer git early on PATH (a package-manager env is enough); confirm with the exact subcommand (`git worktree list --porcelain -z` exits 0) before every launch. The worktree enumeration resolves `git` through the inherited launcher PATH, so a newer git that exists only in a trusted discovery root does not help: its bin directory must lead PATH for the launcher process |
 | 8 | `gh` rejected despite `--gh-extra-path-root`; or checkout preparation reports `required GitHub executable is unavailable; pass --gh-extra-path-root ROOT when ROOT/bin/gh is the intended installation` | gh is user-installed outside the system locations, or only a symlink is offered: real binaries only, and a symlink that escapes the extra root is refused | Resolve symlinks and point the extra path root at the directory that holds the real binary (for example the parent of a user-installed `bin/gh`) |
 | 9 | Intake validation fails before any network call; repo-local git config references missing files | Stale repository config (`core.excludesFile`, hooks paths) survives checkouts | Inspect `git config --local --list` on the target checkout; remove entries that point at nonexistent paths |
 | 10 | Next run refuses to start: `legacy/conflicting state requires manual reconciliation` | Intake state names (`.automation-state`, `.issue_implementer`) exist outside the intake layout | **Move** the durable state into the intake destination worktree; never delete it |
@@ -86,7 +87,7 @@ L7 session reset   archive the transcript to force create-mode on degradation
 
 1. Prove the path from the CLI to the model **before** starting the loop: catalog probe, one `max_tokens=10` liveness probe per candidate model, shim `auth status`, and a print-mode round trip. A failure here makes every later pipeline error ambiguous.
 2. Launch from the scratch cwd with the shim directory and the newer toolchain early on PATH. Keep the exact command in a rerun script; each layer fix is one edit, one launch, one new signature.
-3. Read failures in the run log at the stage boundary that printed them; the pipeline summary's disposition word (`blocked`, `fail`, `resumable`) is routing, not diagnosis.
+3. Read failures in the run log at the stage boundary that printed them; the pipeline summary's disposition word (`blocked`, `fail`, `resumable`) is routing, not diagnosis. When the only artifact is a durable terminal record with generic cause text, instrument the worker's terminal catch with a temporary exception traceback log and rerun once: the swallowed inner error names the real layer. Remove the instrumentation after the run.
 4. When an agent session misbehaves, inspect its transcript JSONL directly (thinking blocks and `stop_reason` expose what the summary hides). Empty turns, denial spirals, and synthetic replies each have a different layer fix in the table.
 5. Keep the loop's invariants while repairing: never edit the automation source, never delete intake state, never weaken a review sandbox to make a model pass, and never put a token in a file that another user or a commit can read.
 
@@ -107,6 +108,7 @@ L7 session reset   archive the transcript to force create-mode on degradation
 | Default timeouts | Planner at the 1200 s default with a thinking model | `job failed: timeout` mid-plan | Size agent budgets to the model's latency (row 12) |
 | Resume without reset | Loop retried a timed-out planner session in place | Resumed turn answered the synthetic `No response requested.`; the parsed plan was empty and the loop self-blocked | Archive the transcript to force create-mode (row 14) |
 | Review without a prompt contract | Stock review prompt, read-only tool scope | Reviewer spiraled into denied `Bash` calls and died with `reviewer error` | Add the tool contract and bounded inspection through the overlay (row 13) |
+| State repair for a masked toolchain failure | `impl-terminal.json` records (`manual_recovery_required`) read as intake corruption; tidy and receipt cleanup across repeated runs | Every rerun failed at the same point: the record's cause text is a generic capture and the inner `CalledProcessError` (exit 129 from `worktree list -z`) never reaches the log; the state was never at fault | Instrument the worker's terminal catch to surface the inner error before you change any state; the repair stays the row-7 PATH fix |
 
 ## Results & Parameters
 
