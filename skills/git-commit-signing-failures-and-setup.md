@@ -1,9 +1,9 @@
 ---
 name: git-commit-signing-failures-and-setup
-description: "Use when required-signature policy blocks a conflict-free PR; GitHub reports unsigned, no_user, unknown_key, or bad signatures; local cryptographic checks disagree with GitHub; noninteractive workers silently fail to sign; a fresh headless host needs SSH signing; email privacy rejects a push; or amend produced a signed sibling that the PR did not adopt. Diagnose with REST, align identity and registered key, re-sign every introduced commit without changing content, verify an embedded signature in place after key registration, and verify the exact remote PR head before merge."
+description: "Use when required-signature policy blocks a conflict-free PR; GitHub reports unsigned, no_user, unknown_key, or bad signatures; local cryptographic checks disagree with GitHub; noninteractive workers silently fail to sign; a fresh headless host needs SSH signing; email privacy rejects a push; amend produced a signed sibling that the PR did not adopt; or local verify-commit reports No principal matched or Can't check signature while signing is actually correct. Diagnose with REST, align identity and registered key, re-sign every introduced commit without changing content, verify an embedded signature in place after key registration, separate verification noise from a real fault, and verify the exact remote PR head before merge."
 category: tooling
 date: 2026-10-15
-version: "2.2.0"
+version: "2.3.0"
 user-invocable: false
 license: BSD-3-Clause
 verification: mixed
@@ -38,6 +38,9 @@ not completed through a green merge. Case evidence is in
 - GraphQL says UNSIGNED shortly after push while REST may already say valid.
 - A tip-only amend leaves older commits unsigned.
 - A signed amend creates a sibling SHA and the open PR remains pinned to the old head.
+- Local `verify-commit` prints `No principal matched` or `invalid key` while the same output also
+  says `Good "git" signature`.
+- Local `verify-commit` cannot check commits authored by other people.
 - Fleet tooling might rewrite a bot or another owners PR.
 
 ## Verified Workflow
@@ -165,6 +168,36 @@ or a stable failure. Re-read `headRefOid`; do not verify a signed commit that is
 Then inspect required checks and merge state. Local signature, hosted verification, and email privacy
 must all pass independently.
 
+### 6. Separate verification noise from a signing failure
+
+`git verify-commit` can report a negative-looking result when signing is correct. Read the
+`Good "git" signature` line before you treat the output as a defect.
+
+| Local output | Cause | Action |
+| --- | --- | --- |
+| `Good "git" signature` then `<file>: invalid key` or `No principal matched` | The `allowed_signers` file that the command used is not valid for this key | Inspect the file the command **actually** read. Do not conclude the repository configuration is wrong |
+| `using RSA key <id>` then `Can't check signature: No public key` | The commit is GPG-signed by another person; this host is configured for SSH signing | Expected. This says nothing about your commits |
+| `Good "git" signature` with no error | Signing and local verification both work | Stop. There is no signing problem |
+
+Confirm the signature type that the commit carries before you diagnose:
+
+```bash
+git cat-file -p <sha> | sed -n '/-----BEGIN SSH SIGNATURE-----/p'
+git log -1 --pretty=format:'%G?'
+```
+
+A `-----BEGIN SSH SIGNATURE-----` block on your commit proves that signing ran. Before you
+diagnose a configuration fault, check the exact file in use:
+
+```bash
+git config --get gpg.ssh.allowedSignersFile
+ssh-keygen -lf "$(git config --get gpg.ssh.allowedSignersFile)"
+```
+
+Do not modify the shared `allowed_signers` file because a temporary or self-generated file
+failed to parse. A malformed helper file that a test command created is not evidence about
+the real configuration.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -180,6 +213,8 @@ must all pass independently.
 | Amend into a sibling | Force-pushed a same-parent signed SHA | The PR still introduced unsigned/tangled lineage | Replay patches on the correct base and verify head identity |
 | Merge/update over unsigned history | Added a merge commit | Required signatures checks all introduced ancestors | Replace the lineage; do not cover it with a merge |
 | Recreate the commit through the REST git API | Created a commit with `gh api repos/<O>/<R>/git/commits` to obtain a hosted signature | The created commit returned `unsigned`; that token type received no hosted signature | Register the signing key or use a signing-capable hosted path; check `verified/reason` before you move the ref |
+| Treat `No principal matched` as a broken config | Reported the shared `allowed_signers` file as malformed without reading it | The file was valid and unchanged; the message came from a malformed temporary file that a test command generated | Read the `Good "git" signature` line and inspect the file that the command actually read |
+| Treat `Can't check signature` on a base commit as a fault | Diagnosed a signing problem from commits authored by other people | Those commits are GPG-signed and the host uses SSH signing, so the check cannot succeed | Test your own commit, not the base history, when you diagnose signing |
 
 ## Results & Parameters
 
