@@ -1,9 +1,9 @@
 ---
 name: pr-ci-failure-triage-preexisting-vs-introduced
-description: "Classify red PR checks as introduced, pre-existing, flaky, environmental, stale-commit, or status-rollup artifacts before fixing or rerunning. Use after rebases/force-pushes, unrelated failures, merge-preview coverage changes, or hosted-only process-launch errors. Also use when the required check is a fan-in gate reported by a ruleset, when the failing symbol on the base was deliberately removed, when a base update turns a green branch red without a textual conflict, when grouped or sharded logs hide individual failed node identities, when failures reproduce only on the local host, or when a path-filtered check fails on stale in-repo plan inputs that main already repaired. Also use when an aggregate gate fails its own report step because a producer job output key is absent from `needs` while every upstream job succeeded. Also use when a green comparison lane may never execute the failing node because event-scoped profiles or shard planners select different test sets on identical trees. Also use when the default branch's CI is red at or immediately after your squash merge and a task gate requires green main CI before you report, or when per-commit run lookups return empty because the branch does not run every push."
+description: "Classify red PR checks as introduced, pre-existing, flaky, environmental, stale-commit, or status-rollup artifacts before fixing or rerunning. Use after rebases/force-pushes, unrelated failures, merge-preview coverage changes, or hosted-only process-launch errors. Also use when the required check is a fan-in gate reported by a ruleset, when the failing symbol on the base was deliberately removed, when a base update turns a green branch red without a textual conflict, when grouped or sharded logs hide individual failed node identities, when failures reproduce only on the local host, or when a path-filtered check fails on stale in-repo plan inputs that main already repaired. Also use when an aggregate gate fails its own report step because a producer job output key is absent from `needs` while every upstream job succeeded. Also use when a green comparison lane may never execute the failing node because event-scoped profiles or shard planners select different test sets on identical trees. Also use when the default branch's CI is red at or immediately after your squash merge and a task gate requires green main CI before you report, or when per-commit run lookups return empty because the branch does not run every push. Also use when only some failing nodes reproduce on a pristine trunk worktree, or when a test fails as an absent exception because a derived identity stopped covering the edited dimension."
 category: ci-cd
 date: 2026-10-26
-version: "2.7.0"
+version: "2.8.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-ci
@@ -32,6 +32,8 @@ tags:
   - green-twin-coverage
   - post-merge-main-red
   - sparse-workflow-runs
+  - partial-reproduction
+  - fixture-identity-collision
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pr-ci-failure-triage-preexisting-vs-introduced.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -80,6 +82,10 @@ and the complete prior version is in
   so you must decide whether your merge caused the red before you adopt the repair.
 - A per-commit workflow-run lookup returns empty for the merge commit or its boundary
   commits because the default branch does not get a run at every push.
+- A module fails on both trunk and the branch, but with different failing counts, so a
+  set-level "also fails on main" statement hides branch-introduced nodes.
+- A test fails as an absent exception rather than a wrong value, because a derived
+  identity no longer covers the dimension its fixture edits.
 
 ## Verified Workflow
 
@@ -230,12 +236,44 @@ git diff "$OLD_BASE".."$PRE_UPDATE" -- <subject-source-files>
 | The update took one half of a lockstep pair, such as a workflow and the script that consumes its output, from different eras | Half-moved pair | Move the pair atomically to all-old or all-new, then rerun the pair's own checks |
 | Subject source carries branch deltas and reverting them removes the failure | Genuine PR regression | Fix minimally in scope |
 | The same nodes fail set-identically on a pristine trunk worktree on this host, and trunk CI is green | Host/environment window | Report FYI with the reproduction evidence; do not patch the PR for it |
+| Only some of the failing nodes reproduce on a pristine trunk worktree; the rest pass there | Mixed attribution: the reproducing nodes are pre-existing, the others are branch-introduced | Split the failure set per node. Repair the branch-introduced nodes; report the reproducing nodes with their counts and do not fold them into one "fails on trunk" claim |
+| The asserted failure is an absent exception or a no-op, and the guard that should raise now compares equal because a mid-stream change removed the changed dimension from a derived identity | Fixture identity collision | Repair the fixture so it still distinguishes the two sides on the dimension the guard now reads, and assert the invariant the guard protects — not the label the old identity model produced |
 
 Keep one pristine worktree at the recorded base with a synced environment as the attribution
 oracle. A failure that reproduces there is not introduced by the branch. When the failure involves
 filesystem ownership, modes, or ACL semantics, prefer the hosted-runner result: a local mount can
 force modes, mask ACL behavior, or change user identity, so chmod-based assumptions can fail in
 either direction.
+
+Claim reproduction per node, never for a set. Run the same module in both worktrees and compare the
+node identities, then count each side:
+
+```bash
+(cd "$PRISTINE_WORKTREE" && pytest <module> -q) | tail -1   # e.g. 1 failed, 52 passed
+(cd "$BRANCH_WORKTREE"   && pytest <module> -q) | tail -1   # e.g. 10 failed, 44 passed
+```
+
+A smaller failing count on trunk means the surplus belongs to the branch, even when the module
+fails on both sides. A set-level statement such as "these tests also fail on main" is true for one
+node and false for the other eight, so it silently under-attributes the branch. State the two counts
+and the per-node split.
+
+A derived identity that stops covering a dimension breaks fixtures in a specific way. When a guard
+compares identities and the newer identity model no longer includes the edited dimension, two
+fixtures that used to differ now compare equal, the guard returns early, and the test fails as an
+absent exception rather than a wrong value. Confirm the collision before you touch assertions:
+
+```bash
+python3 -c "import sys; sys.path.insert(0,'tests')
+from <fixture_module> import <builder>
+a, b = <builder>(...old...), <builder>(...new...)
+print('same identity:', <identity_attr>(a) == <identity_attr>(b))"
+```
+
+If they are equal, the fixture is no longer describing two distinct states. Change the fixture to
+edit a dimension the identity still covers, and re-express the assertion in terms of the invariant
+the guard exists to protect. Do not rewrite the assertion to match whatever the early return now
+produces: that converts a lost test into a passing test that proves nothing.
 
 Diagnose from the failing node identity, not from a shard or step summary. Grouped step output can
 withhold individual `FAILED` lines until the job ends, and sharding splits the parametrized cases
