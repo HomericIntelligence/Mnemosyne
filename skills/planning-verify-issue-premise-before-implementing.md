@@ -1,13 +1,13 @@
 ---
 name: planning-verify-issue-premise-before-implementing
 license: BSD-3-Clause
-description: "Verify issue and plan premises against authoritative sources before acting. Use this when an issue, PR plan, review, CI fix, or enforcement change assumes an artifact exists, prior work merged, a live service still needs work, a full population was checked, a CI job gates, an implementation returns a shape, or an integration point exists. Convert the premise into deterministic checks before implementing, closing, gating, or declaring work complete. Includes the temporal check: a premise token absent from the current tree may mean the issue was valid at filing and later overtaken by a merged PR (half-zombie issue) — date the removal with git log --full-history and triage each ask separately. At hand-off, an implement-ready label or a reviewed plan is not a tree-state guarantee: plans decay during dwell as merges land, so re-sweep the plan's anchors at dispatch and branch per-plan, residual-only, or re-plan (a close-out of a discharged plan requires a fresh review bound to the revised plan, and must never re-create machinery a merged redesign removed)."
+description: "Verify issue and plan premises against authoritative sources before acting. Use this when an issue, PR plan, review, CI fix, or enforcement change assumes an artifact exists, prior work merged, a live service still needs work, a full population was checked, a CI job gates, an implementation returns a shape, or an integration point exists. Convert the premise into deterministic checks before implementing, closing, gating, or declaring work complete. Includes the temporal check: a premise token absent from the current tree may mean the issue was valid at filing and later overtaken by a merged PR (half-zombie issue) — date the removal with git log --full-history and triage each ask separately. At hand-off, an implement-ready label or a reviewed plan is not a tree-state guarantee: plans decay during dwell as merges land, so re-sweep the plan's anchors at dispatch and branch per-plan, residual-only, or re-plan (a close-out of a discharged plan requires a fresh review bound to the revised plan, and must never re-create machinery a merged redesign removed). Also bind self-produced evidence to the environment that produced it: a reproduction run on a stale checkout proves a defect existed, not that it exists — re-run it at the fetched default-branch head, and for a live deployed system compare the deployed artifact's version with the default branch before fix design; deployment lag turns the incident into an operational remediation with no code change."
 category: architecture
 date: 2026-06-20
-version: "3.3.0"
+version: "3.4.0"
 user-invocable: false
 verification: unverified
-tags: [planning, issue-premise, verify-before-implementing, premise-verification, assumption-verification, authoritative-source, full-population-check, live-state-check, merge-state, prerequisite-verification, unmerged-branch, self-contained-pr, enforcement-gate, integration-point, ci-gate, ruleset, implementation-shape, route-shape, deterministic-gate, no-op-forbidden, issue-claims, follow-up-issue, overtaken-by-events, half-zombie-issue, per-ask-triage, git-history-archaeology, deleted-file-history, plan-dwell, handoff-rebind, dispatch-gate, residual-scope, review-gated-close]
+tags: [planning, issue-premise, verify-before-implementing, premise-verification, assumption-verification, authoritative-source, full-population-check, live-state-check, merge-state, prerequisite-verification, unmerged-branch, self-contained-pr, enforcement-gate, integration-point, ci-gate, ruleset, implementation-shape, route-shape, deterministic-gate, no-op-forbidden, issue-claims, follow-up-issue, overtaken-by-events, half-zombie-issue, per-ask-triage, git-history-archaeology, deleted-file-history, plan-dwell, handoff-rebind, dispatch-gate, residual-scope, review-gated-close, stale-reproduction, deployed-artifact-version, deployment-lag]
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/planning-verify-issue-premise-before-implementing.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -24,7 +24,7 @@ This skill consolidates the planning-verify family into one generic workflow. It
 |-------|-------|
 | Date | 2026-07-17 |
 | Objective | Merge similar planning-verification memories into a generic rule with concrete issue examples retained. |
-| Version | 3.3.0, minor bump: adds hand-off rebinding — an implement-ready label or reviewed plan is not a tree-state guarantee; re-sweep plan anchors at dispatch and branch per-plan, residual-only, or re-plan with a review-gated close (carries the 3.2.0 temporal overtaken-by-events check and per-ask triage that the table last recorded as 3.1.0). |
+| Version | 3.4.0, minor bump: environment-bound premise evidence — a self-produced reproduction inherits the staleness of the checkout that produced it, and a production failure carries two code versions (deployed artifact and default branch); verify both before fix design (carries the 3.3.0 hand-off rebinding, the 3.2.0 temporal overtaken-by-events check, and per-ask triage that the table last recorded as 3.1.0). |
 | Verification | unverified for this consolidation; source examples are preserved verbatim in history. |
 
 ## When to Use
@@ -41,6 +41,8 @@ This skill consolidates the planning-verify family into one generic workflow. It
 - An issue contains more than one ask (a fix plus a test, a doc edit plus a guard) and any one of them may already be complete while another is still live.
 - An implement-ready label or a reviewer-GO'd plan authorizes implementation, but merges continued after the plan was written (plan dwell in a fast-moving repository).
 - You dispatch an implementation whose durable scope source is a plan comment written against an older tree, and the dispatch context cannot afford to re-discover premise decay after setup.
+- A reproduction of a reported failure succeeded locally and a fix is being designed; a checkout that lags the default branch makes the reproduction prove only that the defect existed, a stale-reproduction premise.
+- The failing service runs a deployed artifact, so one incident carries two code versions; the fix can already exist on the default branch while the deployment lags.
 
 ## Verified Workflow
 
@@ -64,6 +66,16 @@ gh api repos/<org>/<repo>/rulesets --jq '.[] | {name, enforcement, conditions, r
 # Population claimed complete.
 gh repo list "$ORG" --limit 200 --json name --jq '.[].name'
 git ls-files | rg '<population-pattern>'
+
+# Reproduction freshness: re-run at the fetched default-branch head, not the
+# checkout as-found. A defect that no longer reproduces there is already fixed.
+git fetch origin
+git worktree add <probe-path> origin/<default-branch>
+
+# Deployed-artifact binding: identify the version the live service runs
+# (image tag, release manifest, or installed tree) and test whether the
+# failure mechanism still exists at that version and at the default branch.
+git log -S '<failure-predicate>' --oneline origin/<default-branch>
 ```
 
 1. Name the premise before choosing a fix. Common premise classes are: artifact exists, prior PR merged, branch contains a helper, live work remains, all entities were checked, CI job gates, implementation returns a shape, or an enforcement integration point exists.
@@ -76,7 +88,9 @@ git ls-files | rg '<population-pattern>'
 8. For enforcement and CI, prove consumption. A job that runs is not a gate unless the branch protection or ruleset requires its context. A guard cannot be added at an integration point that does not exist.
 9. For populations, enumerate the full set from the authority before sampling. Named issue examples are clues, not coverage.
 10. For implementation behavior, read the actual route/function/helper before asserting response shape, return keys, side effects, or test expectations.
-11. Preserve the evidence in the plan: command, observed output summary, and how it changed scope or disposition.
+11. Bind self-produced evidence to the environment that produced it. A reproduction, benchmark, or trace is a premise with the staleness of the tree it ran on. Re-run it at the fetched default-branch head before designing a fix: a defect that no longer reproduces there is already fixed, not implementable scope.
+12. For a failure in a live deployed service, check two versions before assigning code work: the deployed artifact and the default branch. Fixed at the default branch but failing in the deployed artifact is deployment lag — the remediation is operational, and writing the same code again is a redundant fix. Only a defect that reproduces at the default branch earns a code change.
+13. Preserve the evidence in the plan: command, observed output summary, and how it changed scope or disposition.
 
 ### Hand-off rebinding: a reviewed plan is not a tree-state guarantee
 
@@ -125,6 +139,7 @@ Run the same premise checks on the plan's own anchors at each hand-off (planning
 | Per-issue zombie disposition | Treated an issue overtaken by a later PR as fully complete and closable. | One of its asks (a validation test) was never delivered by the overtaking PR. | Dispose each ask separately; an overtaken issue can still carry live residual work. |
 | Label-trust dispatch | Dispatched a full implementation on an implement-ready label plus a reviewed plan without re-sweeping the plan's anchors at hand-off. | The implementation context spent its setup budget discovering that later merges had deleted every cited anchor; the only output was the blocked report the cheap sweep would have produced before the dispatch. | Rebind at the hand-off: sweep the plan's anchors before dispatch and select the branch (per-plan, residual-only, re-plan) from the sweep result. |
 | Close on the stale plan | Closed a premise-voided issue by citing the existing plan and label. | Review rejected the close because the plan anchored a module deleted by a later merged change; the label described readiness on a tree that no longer existed. | A close-out of a discharged plan requires the revised plan published through the review exchange and a fresh GO bound to current-tree evidence. |
+| Reproduce-then-fix on the checkout as-found | Reproduced a production error against the local tree and filed an issue with a plan draft and review round before checking the default branch. | The checkout lagged the default branch, which already contained the fix, and the deployed artifact predated the branch; the issue closed as already-fixed after the review budget was spent. | Bind self-produced evidence to the environment version that produced it: re-run the reproduction at the fetched default-branch head and compare the deployed artifact's version before fix design; deployment lag makes the remediation operational, not code. |
 
 ## Results & Parameters
 
@@ -155,6 +170,11 @@ git ls-files | <gate-command-or-filter>
 git log --full-history --oneline -1 -- <deleted-path>
 git show <removing-sha>^:<path>
 gh issue view <number> --json createdAt
+
+# Reproduction and deployment version binding.
+git fetch origin
+git worktree add <probe-path> origin/<default-branch>
+git log -S '<failure-predicate>' --oneline origin/<default-branch>
 ```
 
 Parameters to capture:
@@ -166,4 +186,5 @@ Parameters to capture:
 - `disposition`: self-contained implementation, explicit dependency, expanded scope, verified close, verified already-complete, or partially complete (residual asks only).
 - `per_ask_dispositions`: for multi-ask issues, one disposition per deliverable, not one for the whole issue.
 - `handoff_rebind`: the anchor-sweep result at each hand-off — `anchors_hold`, `partially_discharged` (with the per-ask discharge map), or `void_or_discharged` — plus the removing merged change for each deleted anchor and the selected branch (per-plan, residual-only, re-plan).
+- `environment_binding`: for self-produced evidence, the tree version that produced it (`HEAD` of the reproduction tree) and the fetched default-branch revision re-run result; for a deployed service, the deployed artifact version and the default-branch result — `real_defect`, `already_fixed_on_branch`, or `probe_or_environment_defect`.
 - `examples`: issue-specific facts belong in the plan and in this skill's history, not in new duplicate memories unless the rule is genuinely different.
