@@ -45,3 +45,37 @@ generalized under the privacy policy; the case facts below describe an anonymize
   verification state is `verified-local`, not `verified-ci`.
 - Review-decision and merge details live on the forge; the notes keep only the decision
   structure, not the identifiers.
+
+## Case: issue-pickup ownership gate with no branch present (generalized)
+
+1. A single-issue fleet worker received an issue whose only state label was a
+   plan-approved ("implementer may proceed") label, with no assignee. The mandated
+   open-pull-request search for the issue number returned an empty list.
+2. The issue timeline inside the gate's 48-hour recency window showed:
+   a `cross-referenced` event from a pull request whose lane branch was named for the
+   issue, merged hours earlier; a `referenced` event for the resulting squash commit on
+   the default branch; and a second `cross-referenced` event from a new follow-up issue
+   that continued the same feature.
+3. A state-all pull-request search confirmed the merged pull request and its merge time.
+   The plan-approved label had stayed set through the merge — no automation had moved it.
+4. Verdict: owned. The worker changed no labels, posted no comment, created no branch
+   and no worktree, and reported the merge and timeline evidence.
+
+Decision value this case adds:
+
+- The ownership failure happened at issue pickup, before any lane branch existed, so the
+  zero-ahead branch audit had nothing to inspect. The discriminators were the state-all
+  pull-request search and the issue timeline events inside the recency window.
+- The plan-approved label was the strongest-looking "free to claim" signal and it was
+  wrong: label events and delivery events are not synchronized, so labels can lag a
+  merge by hours.
+- A `cross-referenced` event that originates from another issue (not a pull request)
+  still counts as a continuing lane when it lands inside the window.
+
+## Evidence limits in the ownership-gate case
+
+- All verification was forge-side (timeline events, pull-request state); no local audit
+  of the merged content ran because the gate outcome was stop, not adopt. Verification
+  state is `verified-local`.
+- Repository, issue, pull-request, and lane identifiers are withheld under the privacy
+  policy; the notes keep only the decision structure.
