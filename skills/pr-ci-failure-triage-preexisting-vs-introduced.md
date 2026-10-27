@@ -1,9 +1,9 @@
 ---
 name: pr-ci-failure-triage-preexisting-vs-introduced
-description: "Classify red PR checks as introduced, pre-existing, flaky, environmental, stale-commit, or status-rollup artifacts before fixing or rerunning. Use after rebases/force-pushes, unrelated failures, merge-preview coverage changes, or hosted-only process-launch errors. Also use when the required check is a fan-in gate reported by a ruleset, when the failing symbol on the base was deliberately removed, when a base update turns a green branch red without a textual conflict, when grouped or sharded logs hide individual failed node identities, when failures reproduce only on the local host, or when a path-filtered check fails on stale in-repo plan inputs that main already repaired. Also use when an aggregate gate fails its own report step because a producer job output key is absent from `needs` while every upstream job succeeded. Also use when a green comparison lane may never execute the failing node because event-scoped profiles or shard planners select different test sets on identical trees. Also use when the default branch's CI is red at or immediately after your squash merge and a task gate requires green main CI before you report, or when per-commit run lookups return empty because the branch does not run every push. Also use when only some failing nodes reproduce on a pristine trunk worktree, or when a test fails as an absent exception because a derived identity stopped covering the edited dimension."
+description: "Classify red PR checks as introduced, pre-existing, flaky, environmental, stale-commit, or status-rollup artifacts before fixing or rerunning. Use after rebases/force-pushes, unrelated failures, merge-preview coverage changes, or hosted-only process-launch errors. Also use when the required check is a fan-in gate reported by a ruleset, when the failing symbol on the base was deliberately removed, when a base update turns a green branch red without a textual conflict, when grouped or sharded logs hide individual failed node identities, when failures reproduce only on the local host, or when a path-filtered check fails on stale in-repo plan inputs that main already repaired. Also use when an aggregate gate fails its own report step because a producer job output key is absent from `needs` while every upstream job succeeded. Also use when a green comparison lane may never execute the failing node because event-scoped profiles or shard planners select different test sets on identical trees. Also use when the default branch's CI is red at or immediately after your squash merge and a task gate requires green main CI before you report, or when per-commit run lookups return empty because the branch does not run every push. Also use when only some failing nodes reproduce on a pristine trunk worktree, or when a test fails as an absent exception because a derived identity stopped covering the edited dimension. Also use when a pre-existing classification leaves a follow-up-issue obligation while an aggregate tracker may already own the failing group — dedupe against open trackers before filing."
 category: ci-cd
-date: 2026-10-26
-version: "2.8.0"
+date: 2026-10-27
+version: "2.9.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-ci
@@ -34,6 +34,7 @@ tags:
   - sparse-workflow-runs
   - partial-reproduction
   - fixture-identity-collision
+  - follow-up-tracker-dedupe
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pr-ci-failure-triage-preexisting-vs-introduced.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -86,6 +87,9 @@ and the complete prior version is in
   set-level "also fails on main" statement hides branch-introduced nodes.
 - A test fails as an absent exception rather than a wrong value, because a derived
   identity no longer covers the dimension its fixture edits.
+- Your triage classifies red as pre-existing and a scope rule forbids the repair,
+  leaving a follow-up-issue obligation, while an aggregate tracker may already record
+  the same failing group.
 
 ## Verified Workflow
 
@@ -352,6 +356,7 @@ git log --oneline -20 origin/main
 | First red commit is an ancestor of the merge; the failing node set is identical before and after | Pre-existing main breakage | Do not adopt the repair inside your delivery scope; record the bracket, the node set, and the owning fix when it lands; report attribution |
 | First red is your merge commit and its failing nodes intersect your patch surface | Merge-introduced | Check out a worktree, diagnose from the failing-node evidence, deliver a repair PR |
 | No run exists at the merge commit or its boundary commits | Sparse coverage | Classify from the run bracket around the gap; never treat a missing run as green |
+| The failing group classifies as pre-existing breakage outside delivery scope, and a scope rule obliges a follow-up issue | Follow-up tracking obligation | Search open issues for an aggregate tracker (a train-red or umbrella issue) whose body or ledger comments already name the failing run or group; when an owner exists, record the bracket, the node set, and the tracker reference in the report and do not file; file a new issue only when no open record owns the group |
 
 Under a "watch main CI green" gate with pre-existing breakage, the owning lane usually
 lands a repair commit at a newer tip (a fix naming the failing area). Watch that tip's
@@ -390,6 +395,7 @@ operational verification.
 | 14 | Re-ran the failed aggregate gate, then re-ran the producer job, to republish a `needs` output key the gate missed | The same key stayed absent in every attempt of the same run; job reruns inherit the run's stored job outputs even when the producer re-executes | Capture the producer's emit evidence and bracket a same-era green-run window first; regenerate stored outputs only through a fresh run ID, and when the drop persists there, treat it as a platform behavior change and move the branch to the gate world main already carries |
 | 15 | Declared a deterministic introduced failure flaky because green twins carried an identical tree | Every green lane ran an event-scoped profile that never selected the failing node; only the failing wider-profile lane executed it | A green lane is comparison evidence only after its logs contain the failing node id or its selected-test count covers the node's profile; classify empty comparisons from content determinism |
 | 16 | Treated red main CI right after the merge as merge-caused and prepared a repair inside the delivery scope | The branch's workflow runs were sparse: a per-commit run query returned empty for the merge commit and hid that the first red run predated the merge by several commits, and every sampled failed job carried an identical node set in one module disjoint from the patch | Enumerate runs by branch and bracket the merge commit before attributing; compare the failing node set across the pre-merge red, the merge's run, and the tip; never treat a missing run as green, and do not adopt pre-existing breakage another lane owns |
+| 17 | Prepared a new issue for a classified pre-existing failure without checking open trackers | An aggregate tracker already listed the same validation run and failing group in its curated ledger; a duplicate would have raced the owning lane's record and split one failure line across two owners | Before filing a classified pre-existing failure, search open issues by the failing node or module and by tracker keywords; when a ledger already owns the group, reference it in the report and file nothing |
 
 ## Results & Parameters
 
