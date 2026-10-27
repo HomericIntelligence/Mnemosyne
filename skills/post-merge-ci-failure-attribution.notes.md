@@ -49,3 +49,33 @@ The generic `gh api` calls in the main file's Quick Reference are the exact shap
 
 One-shell-per-command pipelines with `/tmp` files and `diff` made the two job-name sets easy to
 re-check after each foreign merge landed.
+
+## Twin-lane same-SHA incident (2026-10-26)
+
+A second case exercised the lane-identity precondition. Identifiers are omitted under the privacy
+rules.
+
+1. A completion report for a merged change listed the check runs at the merge commit. One
+   workflow name appeared twice with different conclusions: one failure, one success.
+2. The failing run had event `pull_request` and the default branch as its head branch display.
+   Its display title named a promotion pull request — a lane that promotes the default branch to
+   another long-lived branch — whose head was updated to the merge SHA. The successful run had
+   event `push` on the default branch.
+3. The failing run's failed jobs were a subset of the sharded matrix plus the aggregate gate. The
+   gate log carried a cascade line that only echoed the shard failures: "required job did not
+   succeed: <job>". The failed-node lines named tests in areas that the merged change did not
+   touch, with signatures such as an unclassified service-path policy, a visible-command inventory
+   drift from an unrelated feature merge, and a release-context classification mismatch.
+4. The same workflow at every later default-branch head concluded success, and the merged change
+   remained an ancestor of the current head. The promotion lane's failures belonged to that
+   lane's own promotion candidate and pre-dated any judgment about the merge.
+5. Classification: foreign-lane failure, not the merge's. The merge's attribution used the
+   push-event default-branch runs, which were green at the merge commit and at later heads. The
+   delivered disposition stood; no rerun and no repair followed. The promotion lane's failures
+   stayed with the process that owns that lane.
+
+Lane-identity observation: the check-runs listing at one commit mixes lanes, and a
+latest-per-name dedupe can promote a red foreign-lane attempt over a green push-lane attempt of
+the same workflow. The event field and the head branch are the lane key: read both before any
+parent-commit comparison. A promotion pull request that re-targets each new default-branch head
+re-runs at every merge SHA, so every merge commit on such a repository can carry this shape.
