@@ -159,12 +159,65 @@ reproduces the previous ledger, so stop condition is byte equality of the
 ledger, not equality of the digest string alone. Keep the non-derived inputs
 frozen across passes; recomputing them inside the loop reintroduces the cycle.
 
+## Terminal-introduced findings and anchor annex incident (2026-10-26)
+
+A terminal GO delivery carried a case the earlier deliveries had not shown:
+the terminal review itself raised new findings, and the visible content
+carried an anchor annex. Identifiers are omitted under the privacy rules.
+
+1. A findings round reached a complete GO state. During the terminal review,
+   the reviewer recorded new nonblocking findings: two inline threads and one
+   summary finding. These findings were raised in the terminal round itself;
+   the exchange had no prior carrier history for them.
+2. The new findings were kept out of the closure entries. The manifest placed
+   the per-thread responses in the comments partition and the summary finding
+   identity in the summary finding partition. The helper's anchor proofs
+   verified the partition before delivery.
+3. Two pre-publication rejections occurred during construction. The first
+   manifest file was pretty-printed JSON. The second combined reviewer prose
+   and anchor content with the deterministic ledger in the terminal visible
+   content, without the annex marker structure; the helper rejected it with
+   the visible-ledger mismatch, because its equality check compares the
+   content up to the annex marker and unmarked extra bytes compare as ledger.
+4. The rebuilt visible content placed the deterministic ledger first and the
+   anchor annex as the final section after the annex marker line. The combined
+   bytes — ledger, marker, annex — were hashed into the reduce event's
+   visible-content digest; the envelope was re-reduced and re-rendered. The
+   annex source was passed to the delivery helper with its anchor-source
+   option. The helper splits the annex before the ledger-equality check but
+   binds the annex bytes in the state digest, so the digest must cover both.
+5. The canonical manifest was accepted. The helper published one terminal
+   comment carrier at the exact head, generated the responses to the two new
+   inline threads from the comments partition, resolved both threads, applied
+   the exclusive terminal-state label, and reported zero pending threads. An
+   independent forge readback confirmed the review identity, the two
+   responded and resolved thread identities, the empty pending set, and the
+   label set. The reviewed head did not move during delivery.
+6. Cost of the two construction rejections: two rejected submissions and one
+   rebuilt state envelope. Every rejection was pre-publication, and a forge
+   readback confirmed nothing was published, so each retry was safe.
+
+Partition observation: the anchor proofs are the helper's own check of the
+terminal-introduced partition. When the proofs pass, the closure entries hold
+only findings the exchange already tracked, and every terminal-round finding
+has a comments or summary partition record. The partition check runs
+pre-publication, so a partition error is an input repair, not a structural
+rejection.
+
+Annex placement observation: the annex is the final section. The helper splits
+the visible content at the annex marker and compares only the ledger part for
+equality, but the state digest binds the full bytes. Annex content before the
+marker compares as ledger and fails; annex content omitted from the reduce
+digest fails the render check. The delivery helper's anchor-source option
+binds the same annex bytes at publication.
+
 ## Evidence limits
 
-Three single live cases, one exchange tooling generation each. The invariants
+Four single live cases, one exchange tooling generation each. The invariants
 (digest order, deterministic visible body, canonical manifest form,
 rejection-class triage, structural carrier-history rejection, fixed-point
-convergence) follow from the fail-closed validator design and do not rest on
-frequency. Interface details (positional argument, mode flags, import context)
-are generation-specific witnesses; confirm them against the installed helper's
-signature before relying on them.
+convergence, terminal-introduced partition, annex placement) follow from the
+fail-closed validator design and do not rest on
+frequency. Interface details (positional argument, mode flags, import context,
+anchor-source option) are generation-specific witnesses; confirm them against
+the installed helper's signature before relying on them.

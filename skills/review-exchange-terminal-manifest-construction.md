@@ -1,6 +1,6 @@
 ---
 name: review-exchange-terminal-manifest-construction
-description: "Build a terminal-delivery closure manifest in the verified dependency order — deterministic ledger first, visible-content digest before reduce, render, canonical JSON — so the designated terminal delivery helper accepts it. Use when: (1) a review flow routes a terminal-eligible round through a designated terminal delivery helper that consumes a closure manifest, (2) the helper rejects the manifest with an input-validation error such as an uncanonical JSON form or a visible-ledger mismatch, (3) you must decide what belongs in the terminal visible content and which digest to bind in the reduce event, (4) the ledger, the state digest, and the entry set are mutually dependent so each rebuilding pass changes the digest again, or (5) you must distinguish a pre-publication input rejection (fix and resubmit) from a structural carrier-history rejection (no input repair exists) or a publication-state wedge (do not retry)."
+description: "Build a terminal-delivery closure manifest in the verified dependency order — deterministic ledger first, visible-content digest before reduce, render, canonical JSON — so the designated terminal delivery helper accepts it. Use when: (1) a review flow routes a terminal-eligible round through a designated terminal delivery helper that consumes a closure manifest, (2) the helper rejects the manifest with an input-validation error such as an uncanonical JSON form or a visible-ledger mismatch, (3) you must decide what belongs in the terminal visible content and which digest to bind in the reduce event, (4) the ledger, the state digest, and the entry set are mutually dependent so each rebuilding pass changes the digest again, or (5) you must distinguish a pre-publication input rejection (fix and resubmit) from a structural carrier-history rejection (no input repair exists) or a publication-state wedge (do not retry). Use also when: (6) the terminal round itself raises new findings that must be partitioned out of the closure entries, or (7) the terminal visible content must carry an anchor annex after the deterministic ledger."
 category: tooling
 date: 2026-10-26
 version: "1.2.0"
@@ -16,6 +16,8 @@ tags:
   - input-validation
   - carrier-history
   - safe-retry
+  - terminal-introduced-findings
+  - anchor-annex
 ---
 
 # Review Exchange Terminal Manifest Construction
@@ -26,8 +28,8 @@ tags:
 | ------- | ------- |
 | **Date** | 2026-10-26 |
 | **Objective** | Deliver a terminal reviewer state through the designated terminal delivery helper on the first accepted submission. |
-| **Outcome** | Operational rule derived from one live terminal GO delivery. Hand-written visible prose and a pretty-printed manifest were rejected by fail-closed input guards. Inputs rebuilt in the verified order were accepted, and the helper published the terminal carrier and the exclusive terminal label. A second delivery verified one more rejection class: a structural carrier-history rejection that no input repair can clear. A third delivery verified a self-referential case: the ledger, the state digest, and the entry set are mutually dependent, so the manifest converges by iteration and not by chained manual edits. |
-| **Verification** | verified-live in one zero-finding terminal GO delivery (2026-10-22), one adopted-native terminal GO delivery (2026-10-26), and one findings-closure terminal GO delivery with a self-referential manifest (2026-10-26). Single-case evidence for each class; the invariants follow from deterministic fail-closed validation. |
+| **Outcome** | Operational rule derived from one live terminal GO delivery. Hand-written visible prose and a pretty-printed manifest were rejected by fail-closed input guards. Inputs rebuilt in the verified order were accepted, and the helper published the terminal carrier and the exclusive terminal label. A second delivery verified one more rejection class: a structural carrier-history rejection that no input repair can clear. A third delivery verified a self-referential case: the ledger, the state digest, and the entry set are mutually dependent, so the manifest converges by iteration and not by chained manual edits. A fourth delivery verified the terminal-introduced partition and the anchor annex: findings raised in the terminal round itself do not enter the closure entries, and supplementary anchor bytes ride after the ledger in an annex that the helper splits before its equality check. |
+| **Verification** | verified-live in one zero-finding terminal GO delivery (2026-10-22), one adopted-native terminal GO delivery (2026-10-26), one findings-closure terminal GO delivery with a self-referential manifest (2026-10-26), and one terminal GO delivery with terminal-introduced findings and an anchor annex (2026-10-26). Single-case evidence for each class; the invariants follow from deterministic fail-closed validation. |
 
 ## When to Use
 
@@ -39,6 +41,8 @@ Use this skill when these conditions apply:
 - You must classify a rejection: a pre-publication input rejection (fix the input and resubmit), a structural carrier-history rejection (no input repair exists; select a recovery under owner authority), or a publication-state wedge (stop; apply wedge recovery rules).
 - A round-1 carrier adopted legacy review findings as `native:<provider-identifier>` identities, and the helper now rejects terminal delivery with an error that names an adopted native finding.
 - The manifest has closure entries whose recorded state digest is the terminal digest itself, and every repair pass changes that digest again.
+- The terminal review itself raises new findings (for example nonblocking findings on inline threads), and you must decide whether they enter the closure entries or a separate manifest partition.
+- The terminal visible content must carry an anchor annex (supplementary anchor content) in addition to the deterministic ledger, and you must decide where the annex goes and which bytes the reduce digest binds.
 
 The publisher-routing decision and wedge recovery are a different rule. See References.
 
@@ -60,6 +64,12 @@ The publisher-routing decision and wedge recovery are a different rule. See Refe
 6. An input-validation rejection is pre-publication: fix the input and resubmit.
 7. A rejection that names an adopted native finding is structural: no input
    repair exists. Hold for an owner-authorized resolution recovery or escalate.
+8. Findings raised in the terminal round itself go in the manifest's comments
+   and summary finding partitions, not in the closure entries. The helper's
+   anchor proofs verify the partition.
+9. An anchor annex is the final section after the ledger and its marker line.
+   The helper splits the annex before the ledger-equality check, but the reduce
+   digest binds the ledger bytes plus the annex bytes.
 ```
 
 ### Suggested Approach
@@ -92,6 +102,17 @@ Resolve the cycle by iteration to a fixed point:
 6. Confirm acceptance with the helper's own closure validator before delivery. It recomputes the ledger and checks every entry against the verified threads, so its acceptance is the proof of the fixed point.
 
 Do not attempt to break the cycle by excluding an entry or by pasting a digest. Both actions change the hashed entry set, which restarts the cycle.
+
+### Terminal-introduced findings and the anchor annex
+
+The closure entries close findings that the exchange already tracks. A terminal review can also raise new findings in the terminal round itself, for example nonblocking findings recorded as new inline threads. These findings have no prior carrier history to close, so they do not enter the closure entries. They go in the manifest's separate partitions: the comments partition carries the response to each new thread, and the summary finding partition carries the summary finding identities. The helper verifies this partition with its anchor proofs before delivery, so a wrong partition fails pre-publication. At delivery the helper publishes the one terminal comment carrier, generates the responses to the new threads from the comments partition, resolves those threads, and applies the exclusive terminal-state label.
+
+The terminal visible content can also carry an anchor annex: supplementary anchor content after the deterministic ledger. The annex is the final section, separated from the ledger by the annex marker line. The helper splits the annex before its equality check, so the ledger part still compares equal to the deterministic ledger. The reduce-event state digest binds the full bytes, ledger plus annex. Build in this order:
+
+1. Compute the deterministic ledger with the helper's generator.
+2. Append the annex as the final section after the marker line. Never place annex bytes before the ledger: the split starts at the marker, so anything before it compares as ledger and fails the equality check.
+3. Hash the combined bytes (ledger plus marker plus annex) into the reduce event's visible-content digest. Then reduce, then render.
+4. Pass the annex source to the delivery helper with its anchor-source option, so the delivery binds the same annex bytes that the digest binds.
 
 ### Structural carrier-history rejection
 
@@ -132,6 +153,7 @@ If the extension is not possible, hold the exchange and escalate through the dec
 | In-process import without entry-point context | Imported the helper module directly to reuse its ledger generator | A package-relative import failed in-process although the script entry point worked | Reproduce the script's module-loading context (empty package context) when importing, or use the command-line entry point |
 | Rebuild and resubmit after a rejection that names an adopted native finding | Rebuilt the deterministic ledger with the adopted findings included, regenerated the manifest, and re-reduced with the corrected visible-content digest | The helper repeated the identical unique-review-root error at preflight, before any input check | The rejection binds to published carrier history, not to pending input; classify the rejection before you repair, or the fix-and-resubmit loop never ends |
 | Editing the legacy markers on the published round-1 carrier | Considered rewriting the adopted-finding markers so the helper would accept them | Published exchange history is immutable under the exchange integrity rules | Repair verified-history resolution in the helper under owner authority; never rewrite published history |
+| Supplementary anchor content merged into the ledger body without the annex marker | Combined reviewer prose and anchor content with the deterministic ledger in the terminal visible content, without the annex marker structure | The helper rejected it: the terminal visible closure ledger does not match its manifest entries. The helper splits an annex only after its marker; unmarked extra bytes compare as a ledger mismatch | Put supplementary anchor content after the annex marker as the final section, hash the combined ledger-plus-annex bytes into the reduce digest, and pass the annex source to the delivery helper |
 
 ## Results & Parameters
 
@@ -153,6 +175,13 @@ retry decision    = input-validation rejection          -> fix input, resubmit (
                   = adopted-native-finding root error   -> structural: hold; owner-authorized
                                                              resolution recovery or escalate
                   = conflicting-terminal / chain error  -> stop; apply wedge recovery rules
+terminal-introduced = comments partition + summary finding partition
+                  # never closure entries; the anchor proofs verify the partition
+annex             = final section after the ledger and the annex marker line
+                  # helper splits it before the ledger-equality check
+reduce digest     = sha256(visible content)             # ledger only, no annex
+                  = sha256(ledger + marker + annex)     # when an annex is used
+delivery          = pass the annex source with the delivery anchor-source option
 ```
 
 ### Expected Output
@@ -167,6 +196,7 @@ retry decision    = input-validation rejection          -> fix input, resubmit (
 | An internal repository review flow | Terminal GO delivery for a single-file installer fix; zero-finding round 1 at the exact head; two manifest submissions rejected on input validation, the third accepted and read back from the forge | [notes](review-exchange-terminal-manifest-construction.notes.md) |
 | An internal repository review flow | Terminal GO delivery for a round that adopted legacy findings as native identities; one structural preflight rejection resolved by an owner-authorized helper extension and a rebuilt ledger; delivered at the exact head with the exclusive terminal label and an idempotency re-check (2026-10-26) | [notes](review-exchange-terminal-manifest-construction.notes.md) |
 | An internal repository review flow | Terminal GO delivery that closed three findings under the terminal state digest; the manifest converged by fixed-point iteration in two passes after chained manual edits failed; accepted by the helper's closure validator, delivered at the exact head, all threads closed (2026-10-26) | [notes](review-exchange-terminal-manifest-construction.notes.md) |
+| An internal repository review flow | Terminal GO delivery carrying findings raised in the terminal round itself: two inline nonblocking threads and one summary finding partitioned into the comments and summary partitions, verified by the anchor proofs; an anchor annex appended after the ledger with the combined bytes bound in the reduce digest; two pre-publication input rejections repaired, delivered with the exclusive terminal label and zero pending threads (2026-10-26) | [notes](review-exchange-terminal-manifest-construction.notes.md) |
 
 ## References
 
