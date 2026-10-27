@@ -16,6 +16,7 @@ These notes retain project-specific evidence moved during
 | Direct review handoff | [Athena PR #60](https://github.com/HomericIntelligence/Athena/pull/60) | verified-local | Exact GO plus architecture evidence and reviewed-head revalidation |
 | Queue readback and batch arming | Mnemosyne bulk queue sweep, 16 PRs | verified-ci | `autoMergeRequest` stayed null for every queue-owned PR; `mergeQueueEntry` proved admission; a piped wrong flag hid eleven failed calls |
 | Armed-merge ceremony race and label semantics | Multi-repository review sweep, terminal GO delivery | verified-live | The armed merge fired on the last gate clearing ahead of the remaining ceremony; deliver records before the final gate or disarm first, and decorative state labels did not gate the merge |
+| Cancelled-leg blocker on an armed merge | Internal repository delivery flow, 2026-10 | verified-ci | A matrix leg hung to a six-hour workflow timeout and was cancelled; the required aggregate failed with a message naming the leg; the leg owned tests outside the change surface and completed in minutes on comparator runs at nearby heads; `gh run rerun <run-id> --failed` returned the head green and the armed squash merge fired |
 
 ## Additional observed patterns
 
@@ -33,6 +34,12 @@ These notes retain project-specific evidence moved during
   requests in the same sweep, a non-mergeable state label did not hold an armed merge: the
   label was decorative, and only reviews, threads, checks, and policy-required inputs gated.
   Order ceremonies before the final gate, or disarm and re-arm.
+- An armed auto-merge waited for hours while one matrix leg hung to the workflow timeout and was
+  cancelled. The required aggregate check failed with a message that named the cancelled leg.
+  The leg owned only tests outside the change surface, and the same leg completed in minutes on
+  comparator runs at nearby heads. A failed-only rerun turned the head green, and the armed
+  merge fired with no content change. A rebase or push would have discarded the reviewed head
+  without repairing the leg.
 
 ## Durable case details
 
