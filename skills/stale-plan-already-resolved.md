@@ -15,7 +15,7 @@ history-cleanup-date: "2026-09-20"
 | Field | Value |
 | ------- | ------- |
 | **Problem** | A point-in-time artifact (plan, LOG, error report, CI failure, audit finding) was captured when main was in state A, but main is now in state B (already fixed or changed further by intervening merges) |
-| **Key insight** | Always verify the defect still reproduces on CURRENT `origin/main` before applying a plan or fixing a finding — any captured artifact can become stale after other PRs merge |
+| **Key insight** | Always verify the defect still reproduces on CURRENT `origin/<default>` before applying a plan, fixing a finding, or making outward records (issues, tracker edits, defect claims) that premise the defect — any captured artifact can become stale after other PRs merge |
 | **Impact** | Prevents unnecessary changes and incorrect "fixes" that would revert progress or ship a no-op for an already-fixed bug |
 | **Context** | Issue #4280: plan said change `test_*_layers.mojo` → `test_*_layers*.mojo`, but code already used `test_*.mojo`. Also: a 2588-line `output.log` named 4 root causes — 2 were already fixed on current main (PR #1148, `learn_claude_timeout`). Also: a relaunched worker's approved plan was eclipsed by a split delivery lane (create-targets present on main, modify-sites deleted); stop with zero writes |
 | **Verification** | verified-ci |
@@ -33,6 +33,8 @@ history-cleanup-date: "2026-09-20"
 8. Before implementing a fix found in ANY captured artifact (log, error report, CI failure, audit finding), you have not yet confirmed the defect still exists on current `origin/main`
 9. A coordinator or supervisor relaunches an interrupted or split worker with a continue instruction and a plan that was approved on an earlier date. The approval state (plan marker, durable `state:*-go` label, or journal) survived the interruption, but the repository moved farther
 10. A durable approval label or a completed earlier review gives apparent authority to implement. The label attests the review result at its time; it does not attest that the work remains
+11. You are about to create an issue, edit a tracker or epic, or publish a defect claim premised on an inventory captured earlier in a long session on a shared, fast-moving default branch
+12. Parallel workers own overlapping fix clusters in the same repository, and hours pass between your failure analysis and your next delivery boundary
 
 ## Verified Workflow
 
@@ -148,6 +150,42 @@ PR #1148; the planner-learnings 120s timeout replaced by `learn_claude_timeout()
 their fixes were scoped down to the durable hardening only. The other 2 (armed-DIRTY
 swallowed, green-BLOCKED threads not addressed) were confirmed still present before implementing.
 
+### 5b. Re-anchor at each outward-mutation boundary on fast shared trains (verified-live)
+
+A premise check expires. On a shared repository whose default branch advances during your
+session — for example, a release train with parallel fix workers — a defect inventory
+captured hours earlier can name defects that peers already fixed and merged. Re-verify the
+premise immediately before each outward mutation:
+
+- before creating an issue or editing a tracker/epic that premises the defect;
+- before a review or PR-body defect claim;
+- after a long validation run, and before `git push`; and
+- after any session or tool restart (the restart itself is a mandatory re-anchor point).
+
+```bash
+git fetch origin <default-branch> --quiet
+BASE="$(git merge-base HEAD origin/<default-branch>)"   # your analysis base
+git log --oneline "$BASE"..origin/<default-branch> -- <paths-your-fixes-touch>
+git log --oneline "$BASE"..origin/<default-branch> | grep -iE "<failing-node-or-failure-signature>"
+gh search prs --repo <org>/<repo> "<failure signature>" --state all --limit 10
+gh search issues --repo <org>/<repo> "<failure signature>" --state all --limit 10
+```
+
+Outcomes:
+
+- A matching merged commit or PR retires that cluster: discard the prepared patch, do not
+  open the PR, and do not file the issue.
+- Records already filed on a decayed premise get close-out hygiene: close the record as
+  already fixed with the resolving commit/PR reference, revert the tracker edit, and keep
+  only the clusters whose failure still reproduces on the current tip. Re-run the failing
+  node before any delivery claim.
+- No match and the defect still reproduces: proceed with the planned mutation.
+
+Cost asymmetry drives the rule: a prepared patch is cheap to discard; tracker records are
+not — outward mutations need the freshest premise because they cannot be quietly rebased
+away. For the post-interruption salvage decision itself, use the companion
+`shared-repo-interruption-yield-to-peer-pr`.
+
 ### 6. Determine if the issue's goal is already satisfied
 
 The key question: does the current state **achieve the same objective** as the planned change?
@@ -214,6 +252,9 @@ python3 scripts/validate_test_coverage.py
 | PR label | `cleanup` |
 | Resume / durable-label gate | `git rev-parse origin/main`, `git grep -l '<symbol>' origin/main -- <scopes>`, `gh pr list --state merged --search <ref>`, `gh pr checks <merged delivery PR>` |
 | Plan eclipsed (create-targets exist, modify-sites deleted, terminal gates green) | Stop with the authorized disposition and zero writes; report the delivery evidence |
+| Mutation-boundary re-anchor | `git fetch && git log --oneline <analysis-base>..origin/<default> -- <touched-paths>` + commit-subject and issue/PR search for the failing node IDs — any match retires that cluster |
+| Boundary points | Before issue filing, tracker edits, and defect claims; after long validation runs; before push; after any restart |
+| Decayed-premise recovery | Close obsolete records with the resolving commit/PR reference; revert tracker edits; salvage only unmatched clusters |
 
 ## Failed Attempts
 
@@ -227,6 +268,9 @@ python3 scripts/validate_test_coverage.py
 | Assumed the log == current main | Treated the captured `output.log` as the live state of main | False — a log is a point-in-time snapshot; intervening merges change main between capture and the fix session | A log reflects main AT CAPTURE TIME only; always re-confirm the defect reproduces now |
 | Trusted a durable approval label as current authority | Started workflow-protocol re-review and implementation steps on a relaunched worker because the durable label proved the plan was once approved | Every plan-cited site had been restructured or deleted on current main by a later delivery lane; a published verdict would have bound deleted code, and the "fix" would have reverted delivered behavior | A durable label attests review-time state only; re-run site and delivery evidence on the current default branch before any exchange publication or write |
 | Treated a continue instruction as delivering fresh requirements | Assumed a relaunch means the saved plan is still the remaining work | The instruction reloads the task and its authorization, not the repository state | Measure the current branch first; the issue and current main define remaining work, not the saved plan |
+| Filed tracker records from the analysis snapshot | Created repair issues and an epic edit premised on a failure inventory captured hours earlier on a release train | Parallel workers had merged fixes for every analyzed cluster; the new records were obsolete on creation and needed close-out cleanup | Re-anchor the premise immediately before every outward mutation, not only before code delivery |
+| One re-check per session | Re-verified the defect inventory once at analysis time and treated it as valid for the whole session | The default branch advanced ~30 commits during the session, including fix PRs for the exact analyzed failures | A premise check expires; re-run it at each delivery boundary |
+| Checked only the code artifact | Re-fetched before opening the fix PR but filed issues and edited the tracker from the decayed analysis | The easily discarded artifact (the branch) got the fresh check; the hard-to-retract artifacts (tracker records) did not | Give outward mutations the freshest premise: they cannot be quietly rebased away |
 
 ## Verified On
 
@@ -236,3 +280,4 @@ python3 scripts/validate_test_coverage.py
 | ProjectHephaestus | Issue #422 — CHANGELOG criterion already removed by PR #357 (commit 76b46c9) | Closed directly as completed; no PR (zero diff) |
 | ProjectHephaestus | 2026-06-14 output.log 4-RC analysis; 2 of 4 already fixed, caught via live re-verify | PRs #1353-#1356 |
 | Internal CI-gate repository | 2026-10 relaunched single-issue worker; durable plan eclipsed by a split delivery lane | stop report, zero writes; [notes](./stale-plan-already-resolved.notes.md) |
+| External repository (unnamed) | 2026-10 release-train session: 4 analyzed failure clusters were fixed by parallel workers mid-session; 2 repair issues + 1 tracker edit filed on the decayed premise needed close-out; the pre-push boundary check prevented a duplicate PR | [notes](./stale-plan-already-resolved.notes.md) |
