@@ -68,6 +68,60 @@ identifiers are omitted under the privacy rules.
   keeps the helper's bookkeeping complete.
 
 
+## Third incident chronology (2026-10-27)
+
+1. A multi-round exchange on an endpoint-consumer pull request ended with an
+   independent exact-head GO review. The terminal round's state carrier had
+   been published through the general publisher, per-round, before the helper
+   ran.
+2. Terminal-delivery preparation surfaced two further ledger blockers beyond
+   the foreign carrier. First, the live requirements digest no longer equaled
+   the value the exchange bound at round 1: the requirements source had been
+   edited mid-exchange. The terminal state, the manifest, and the live
+   binding must agree, so the helper would reject. Second, seven open review
+   threads predated the exchange and carried no envelope in any published
+   chain carrier (their era has no marker envelopes), so the closure manifest
+   could not close them and they stayed foreign-open.
+3. The seven pre-exchange threads were re-audited at the recorded head: five
+   fixed or obsolete with source evidence; two residual nits, both recorded
+   nonblocking. Current-exchange threads already carried their round
+   answers.
+4. Recovery selection: void-then-reframe did not apply, because no
+   same-requirements carrier needed voiding and the blockers were
+   ledger-side, where voiding repairs nothing. A requirements-drift reframe
+   was legally possible but would restart a full exchange over unchanged
+   reviewed content, and the current-head reviewer had verified the edits
+   content-compatible. The owner selected the override.
+5. Execution: a gate note named the published exact-head GO review identity,
+   its state digest, the reviewed head and base, and each verified blocker.
+   Every open thread received an evidence-referenced reply and was resolved,
+   leaving zero open. The terminal state label applied and the opposed state
+   label was removed.
+6. Later head change: the base branch merged into the artifact branch, with
+   one conflict at a site where both sides had added distinct handlers. The
+   resolution kept both. An independent reviewer verified that the merged
+   tree equals the union of both parents' change sets (byte-identical
+   outside the overlapped paths), and the gate was re-bound by an
+   addendum that named the new head and that verification. The full local
+   suite result was recorded as merge-gate evidence; the exact-head CI run,
+   suppressed organization-side, stayed a separate merge condition and never
+   fed the review verdict.
+
+## Why the third case refines the rule
+
+- The wedge diagnosis must go beyond the foreign carrier: drift equality and
+  no-envelope pre-exchange threads are independent fail-closed blockers, and
+  each must be named in the override note.
+- A requirements edit is not automatically a reframe trigger. When the
+  current-head reviewer verifies the change content-compatible, the recorded
+  GO stays semantically valid; the reframe cost (a full exchange over
+  unchanged content) buys nothing, so the override records the drift instead.
+  A material requirements change still routes to reframe.
+- The override's execution surface is enumerable: gate note, per-thread
+  evidence closure to zero open, exclusive state label, evidence separation
+  from CI, and a re-bind addendum after any later head change with
+  independent verification that the delta preserves the reviewed content.
+
 ## Why the rule is safe to generalize from one case
 
 The invariant does not rest on frequency. The helper's terminal-delivery path
@@ -94,10 +148,12 @@ tooling generation before you select a recovery.
 
 ## Limits
 
-- Evidence comes from two exchanges: one on v1-era exchange tooling (override
-  path) and one on a ledger-binding helper generation (void-then-reframe
-  path). Helper versions that do not bind a closure ledger may not enforce
-  sole publication.
+- Evidence comes from three exchanges: one on v1-era exchange tooling
+  (override path), one on a ledger-binding helper generation
+  (void-then-reframe path), and one on v1-era tooling with requirements
+  drift and no-envelope pre-exchange threads (override path with gate
+  re-binding). Helper versions that do not bind a closure ledger may not
+  enforce sole publication.
 - The reframe path was evaluated against the protocol contract; it was not
   executed. The supersession path is a filed proposal, not yet implemented or
   verified.
