@@ -13,6 +13,7 @@ prior main is archived in [history](https://github.com/HomericIntelligence/Mnemo
 | Cryptographic pr-policy gate | [immutable base source](https://github.com/HomericIntelligence/Mnemosyne/blob/af4676cc2c54565a41c1e196ad964cf8ccc51e5b/skills/git-commit-signing-failures-and-setup.md) | verified-ci | Retained every-commit verification and local-versus-hosted distinction |
 | Mnemosyne PR #3021 sibling-head desynchronization | [immutable base source](https://github.com/HomericIntelligence/Mnemosyne/blob/af4676cc2c54565a41c1e196ad964cf8ccc51e5b/skills/git-commit-signing-failures-and-setup.md) | verified-local | Retained patch-replay recovery as partial evidence; no green merge inferred |
 | Embedded SSH signature with an unregistered key (operator session, 2026-10) | this amendment | verified-local; gate green pending at publication | Added the in-place verification branch, signature-blob key identification, and the REST-API unsigned failure |
+| Stale signing-key path on a restored host (operator session, 2026-10) | this amendment | verified-live | Added the signing preflight: confirm `gpg.format` and `user.signingkey` resolve and the key file exists on the live host before composing or rewriting a commit |
 
 ## Case Details
 

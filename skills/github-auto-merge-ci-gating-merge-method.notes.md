@@ -15,6 +15,7 @@ These notes retain project-specific evidence moved during
 | Shared-queue ownership | [Issues #2419](https://github.com/HomericIntelligence/ProjectHephaestus/issues/2419), [#2423](https://github.com/HomericIntelligence/ProjectHephaestus/issues/2423) | verified-local | No conditional disable/ownership nonce; fail-closed interlock |
 | Direct review handoff | [Athena PR #60](https://github.com/HomericIntelligence/Athena/pull/60) | verified-local | Exact GO plus architecture evidence and reviewed-head revalidation |
 | Queue readback and batch arming | Mnemosyne bulk queue sweep, 16 PRs | verified-ci | `autoMergeRequest` stayed null for every queue-owned PR; `mergeQueueEntry` proved admission; a piped wrong flag hid eleven failed calls |
+| Armed-merge ceremony race and label semantics | Multi-repository review sweep, terminal GO delivery | verified-live | The armed merge fired on the last gate clearing ahead of the remaining ceremony; deliver records before the final gate or disarm first, and decorative state labels did not gate the merge |
 
 ## Additional observed patterns
 
@@ -26,6 +27,12 @@ These notes retain project-specific evidence moved during
   relaxed ruleset does not cancel a classic approval count.
 - Duplicate required-check entries after reruns required selecting the latest run on the current
   head, not treating any historical red conclusion as current.
+- A review sweep armed auto-merge while a terminal review record and one foreign thread
+  resolution still pended. The merge fired within minutes of the last gate clearing, ahead of
+  the remaining ceremony, and the ceremony had to be completed post-merge. On other pull
+  requests in the same sweep, a non-mergeable state label did not hold an armed merge: the
+  label was decorative, and only reviews, threads, checks, and policy-required inputs gated.
+  Order ceremonies before the final gate, or disarm and re-arm.
 
 ## Durable case details
 

@@ -1,9 +1,9 @@
 ---
 name: review-exchange-terminal-carrier-sole-publisher
-description: "Route a review-exchange terminal carrier only through the designated terminal delivery helper. Use when: (1) an exchange binds a deterministic closure ledger as the visible digest of the terminal review body, (2) a round that can be terminal (findings resolved, GO state) needs a state-carrier publication, (3) fail-closed guards reject helper delivery with a conflicting-terminal or nonforking-chain error although the evidence is complete at the exact head, or (4) a wedged exchange needs an owner-override, reframe, or hold decision. Prevents a permanent terminal-delivery wedge that a same-round state carrier released through a general publisher first creates."
+description: "Route a review-exchange terminal carrier only through the designated terminal delivery helper. Use when: (1) an exchange binds a deterministic closure ledger as the visible digest of the terminal review body, (2) a round that can be terminal (findings resolved, GO state) needs a state-carrier publication, (3) fail-closed guards reject helper delivery with a conflicting-terminal or nonforking-chain error although the evidence is complete at the exact head, (4) a wedged exchange needs an owner-override, reframe, or hold decision, (5) a terminal-eligible round must bind the deterministic ledger, not a narrative report, as its visible content, or (6) a report-bound terminal carrier needs void-then-reframe recovery. Prevents a permanent terminal-delivery wedge that a same-round state carrier released through a general publisher first creates."
 category: tooling
 date: 2026-10-09
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified
 tags:
@@ -13,10 +13,12 @@ tags:
   - sole-publisher
   - state-carrier
   - closure-ledger
+  - visible-content
   - fail-closed
   - wedge
   - owner-override
   - reframe
+  - void-then-reframe
   - escalate-not-retry
 ---
 
@@ -36,7 +38,9 @@ tags:
 - A review flow uses a designated terminal delivery helper as the sole terminal publisher: it binds a deterministic closure ledger as the visible digest of the terminal review body.
 - A round can be terminal: every finding is resolved and the state to publish is GO.
 - You must select the publisher for that round's state carrier.
+- You must select the visible content that a terminal round's state binds.
 - A general publisher already released the terminal round's carrier, and the helper now rejects terminal delivery with a conflicting-terminal-review or nonforking-chain error.
+- The helper rejected terminal delivery because the published carrier does not bind the visible content: the carrier bound a narrative report instead of the deterministic ledger.
 - Delivery is blocked although the evidence is complete and verified at the exact head, and you must choose owner override, full protocol recovery (reframe), or hold.
 
 ## Verified Workflow
@@ -56,12 +60,13 @@ helper for the exchange; fail-closed guards reject every retry.
 
 1. Before you publish any round carrier, decide whether the round can be terminal. A round with resolved findings and a GO state is terminal-eligible. A round with open findings (NO-GO) is not.
 2. If the round is not terminal-eligible, a general publication channel for the state carrier does not conflict with the helper. The terminal publisher decision stays open.
-3. If the round is terminal-eligible, route the carrier through the designated terminal delivery helper. Do not publish the same state through a general publisher first. The helper binds the closure ledger as the visible digest of the review body; a carrier that already exists at the same head makes the helper input invalid.
+3. If the round is terminal-eligible, route the carrier through the designated terminal delivery helper. Do not publish the same state through a general publisher first. The helper binds the closure ledger as the visible digest of the review body; a carrier that already exists at the same head makes the helper input invalid. The terminal state envelope also binds the digest of the deterministic ledger as its visible content. A narrative report is the visible content of a non-terminal round; it cannot be the visible content of a terminal round.
 4. If the wedge already exists, do not retry the helper. The guards (conflicting-terminal review, nonforking chain) are deterministic fail-closed checks; a retry reproduces the same rejection.
 5. Select a recovery from the wedge:
    - **Sanctioned supersession**: if the exchange tooling supports an opt-in overriding terminal report, use it first. It binds the foreign carrier, declares it superseded, and carries the closure ledger as the authoritative state, so the helper's bookkeeping closes for the exchange.
    - **Owner override**: record the published exact-head GO review as the merge gate. Post an explanatory note on the pull request, apply the state labels directly, and run the merge on that recorded gate. Keep the override decision and the evidence pointers in the note.
    - **Full protocol recovery (reframe)**: use only when the exchange requirements genuinely changed. A reframe is the only complete-state carrier the chain accepts after a wedge; a reframe without a real requirements delta fabricates protocol state.
+   - **Void then reframe**: when the foreign carrier is your own record and no supersession support exists, void the carrier in place with a body edit that removes its carrier marker (see [github-pr-review-record-void-repair](github-pr-review-record-void-repair.md)), then publish a corrective reframe with a fresh authority receipt. The reframe must bind a new requirements identity, so reframe from the last ancestor whose requirements binding differs from the live requirements; a same-requirements intermediate cannot carry the reframe and must be voided instead.
    - **Hold**: stop the publication, keep the exchange open, and escalate to the owner when no other exit applies.
 6. After recovery, close the loops that the helper would normally close (finding threads, labels, notes) explicitly, with references to the recorded gate.
 
@@ -77,6 +82,8 @@ helper for the exchange; fail-closed guards reject every retry.
 | --------- | ---------------- | --------------- | ---------------- |
 | Publish the terminal carrier first, deliver through the helper after | The terminal round's GO state carrier was released through the general publisher; the helper then ran terminal delivery for the same head | Fail-closed guards rejected the delivery: a terminal state already existed at that head (conflicting-terminal review), and the exchange chain must not fork | Publish order fixes the outcome: the helper is the sole terminal publisher; decide the publisher before the terminal round is published |
 | Reframe as an unblock path | Evaluating a reframe carrier for the wedged complete state | The chain accepts a reframe for a complete state only when requirements changed; the exchange requirements were unchanged, so a reframe would fabricate protocol state | Reframe is not a mechanical unblock; without a real requirements delta, the remaining exits are owner override or hold |
+| Publish the verdict report as the terminal carrier | A terminal-eligible round published its carrier through the general publisher with the narrative report as its visible content | The terminal state envelope must bind the deterministic ledger digest; the helper rejected delivery because the carrier did not bind the visible content | A narrative report belongs to a non-terminal round; the terminal round binds the ledger |
+| Chain the corrective reframe onto the mis-bound carrier | Built a same-requirements successor of the report-bound carrier as the corrective reframe | The reducer rejects a reframe that does not bind a new requirements identity | Void the same-requirements carrier in place and reframe from the last ancestor whose requirements differ |
 
 ## Results & Parameters
 
@@ -85,9 +92,12 @@ helper for the exchange; fail-closed guards reject every retry.
 ```text
 round has open findings (NO-GO)      -> general state-carrier publication does not wedge the helper
 round is terminal-eligible (GO)      -> terminal carrier through the designated helper ONLY
+terminal round visible content       -> deterministic closure ledger; a narrative report is a non-terminal round's visible content
 wedge exists, supersession available -> opt-in overriding terminal report (in-band recovery)
 wedge exists, requirements unchanged -> owner override (recorded gate) or hold; never retry the helper
 wedge exists, requirements changed   -> reframe carrier through the exchange flow
+report-bound terminal carrier exists -> void in place (body edit), then corrective reframe with a fresh authority receipt
+corrective reframe                   -> supersede the last ancestor whose requirements differ; a reframe needs a new requirements identity
 ```
 
 ### Expected Output
@@ -100,7 +110,9 @@ wedge exists, requirements changed   -> reframe carrier through the exchange flo
 | Project | Context | Details |
 | --------- | --------- | --------- |
 | Benchmark-report pull request reviewed with v1 exchange tooling | Two-round exchange; the terminal round's GO carrier was published through the general publisher, which wedged helper terminal delivery; an owner override recorded the published exact-head GO review as the merge gate, and the pull request merged | [notes](review-exchange-terminal-carrier-sole-publisher.notes.md) |
+| Research-monorepo pull request reviewed with a ledger-binding helper | The terminal-eligible round's report-bound carrier was voided in place and a corrective reframe from the different-requirements ancestor delivered the terminal ledger cleanly | [notes](review-exchange-terminal-carrier-sole-publisher.notes.md) |
 
 ## References
 
 - [pr-review-threadless-nogo-verdict-retry-wedge](pr-review-threadless-nogo-verdict-retry-wedge.md) — the queue-automation retry-wedge variant: the same escalate-not-retry pattern with a different trigger (threadless NO-GO findings under deterministic retry).
+- [github-pr-review-record-void-repair](github-pr-review-record-void-repair.md) — the void-in-place primitive that the void-then-reframe recovery uses.
