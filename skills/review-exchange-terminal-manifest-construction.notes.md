@@ -1,7 +1,7 @@
 # Notes: review-exchange-terminal-manifest-construction
 
-Supporting evidence for the main skill. Generalized from two live deliveries;
-identifiers are omitted under the privacy rules.
+Supporting evidence for the main skill. Generalized from three live
+deliveries; identifiers are omitted under the privacy rules.
 
 ## Delivery chronology (2026-10-22)
 
@@ -115,11 +115,109 @@ corrected visible-content digest and passed the visible-content checks once
 the patched helper reached them. This confirms that the deterministic-ledger
 build order in the main skill does not change under the extension.
 
+## Self-referential ledger incident (2026-10-26)
+
+A findings-closure terminal GO delivery exposed a mutual dependency that the
+zero-finding and adopted-native deliveries had not shown. Identifiers are
+omitted under the privacy rules.
+
+1. A three-finding round reached a complete GO state. The three review threads
+   were to close in the same terminal delivery, so the closure manifest
+   carried three entries.
+2. During construction, each entry's state digest was pointed at the terminal
+   state. The helper hashes every entry into the visible ledger and removes a
+   digest field only when the field already equals the current terminal
+   digest. The terminal state in turn hashes the visible content, and the
+   visible content is the ledger.
+3. The first submissions failed with the visible-ledger mismatch. The sequence
+   of manual repairs was: write a corrected digest, recompute the ledger,
+   re-reduce so the state bound the new bytes, then set the entry digests to
+   the new terminal digest. Each step changed a value that an earlier step had
+   consumed, so every pass produced a new mismatch with a different digest.
+   One intermediate digest was stale on arrival and never matched any state.
+4. Two related evidence rules surfaced in the same delivery. The terminal
+   visible content must equal the ledger exactly: a reviewer report prepended
+   above the ledger failed the same mismatch check. Closure evidence for a
+   resolved finding must come from the reviewer response, not from the author
+   answer, and that evidence is hashed into the entry, so correcting it also
+   moves the ledger.
+5. The fix was one iterative pass instead of chained edits. With the prior
+   state, the event, the entry fields, the closure evidence, and the binding
+   held fixed, each pass hashed the current visible content, reduced, set the
+   entry digests to the reduced terminal digest, and recomputed the ledger
+   with the helper's generator. Pass one changed the ledger; pass two
+   reproduced it byte for byte and fixed the point.
+6. The helper's own closure validator then accepted the manifest and listed
+   all three threads, and delivery published one terminal carrier at the exact
+   head with the exclusive terminal label and zero unresolved threads.
+7. Cost of the chained approach: several rejected submissions and several
+   rebuilt state envelopes. Every rejection was pre-publication, so no retry
+   risked a fork.
+
+Convergence observation: the pass that confirms the fixed point usually
+reproduces the previous ledger, so stop condition is byte equality of the
+ledger, not equality of the digest string alone. Keep the non-derived inputs
+frozen across passes; recomputing them inside the loop reintroduces the cycle.
+
+## Terminal-introduced findings and anchor annex incident (2026-10-26)
+
+A terminal GO delivery carried a case the earlier deliveries had not shown:
+the terminal review itself raised new findings, and the visible content
+carried an anchor annex. Identifiers are omitted under the privacy rules.
+
+1. A findings round reached a complete GO state. During the terminal review,
+   the reviewer recorded new nonblocking findings: two inline threads and one
+   summary finding. These findings were raised in the terminal round itself;
+   the exchange had no prior carrier history for them.
+2. The new findings were kept out of the closure entries. The manifest placed
+   the per-thread responses in the comments partition and the summary finding
+   identity in the summary finding partition. The helper's anchor proofs
+   verified the partition before delivery.
+3. Two pre-publication rejections occurred during construction. The first
+   manifest file was pretty-printed JSON. The second combined reviewer prose
+   and anchor content with the deterministic ledger in the terminal visible
+   content, without the annex marker structure; the helper rejected it with
+   the visible-ledger mismatch, because its equality check compares the
+   content up to the annex marker and unmarked extra bytes compare as ledger.
+4. The rebuilt visible content placed the deterministic ledger first and the
+   anchor annex as the final section after the annex marker line. The combined
+   bytes — ledger, marker, annex — were hashed into the reduce event's
+   visible-content digest; the envelope was re-reduced and re-rendered. The
+   annex source was passed to the delivery helper with its anchor-source
+   option. The helper splits the annex before the ledger-equality check but
+   binds the annex bytes in the state digest, so the digest must cover both.
+5. The canonical manifest was accepted. The helper published one terminal
+   comment carrier at the exact head, generated the responses to the two new
+   inline threads from the comments partition, resolved both threads, applied
+   the exclusive terminal-state label, and reported zero pending threads. An
+   independent forge readback confirmed the review identity, the two
+   responded and resolved thread identities, the empty pending set, and the
+   label set. The reviewed head did not move during delivery.
+6. Cost of the two construction rejections: two rejected submissions and one
+   rebuilt state envelope. Every rejection was pre-publication, and a forge
+   readback confirmed nothing was published, so each retry was safe.
+
+Partition observation: the anchor proofs are the helper's own check of the
+terminal-introduced partition. When the proofs pass, the closure entries hold
+only findings the exchange already tracked, and every terminal-round finding
+has a comments or summary partition record. The partition check runs
+pre-publication, so a partition error is an input repair, not a structural
+rejection.
+
+Annex placement observation: the annex is the final section. The helper splits
+the visible content at the annex marker and compares only the ledger part for
+equality, but the state digest binds the full bytes. Annex content before the
+marker compares as ledger and fails; annex content omitted from the reduce
+digest fails the render check. The delivery helper's anchor-source option
+binds the same annex bytes at publication.
+
 ## Evidence limits
 
-Two single live cases, one exchange tooling generation. The invariants (digest
-order, deterministic visible body, canonical manifest form, rejection-class
-triage, structural carrier-history rejection) follow from the fail-closed
-validator design and do not rest on frequency. Interface details (positional
-argument, mode flags, import context) are generation-specific witnesses;
-confirm them against the installed helper's signature before relying on them.
+Four single live cases, one exchange tooling generation each. The invariants
+(digest order, deterministic visible body, canonical manifest form,
+rejection-class triage, structural carrier-history rejection, fixed-point
+convergence, terminal-introduced partition, annex placement) follow from the
+fail-closed validator design and do not rest on
+frequency. Interface details (positional argument, mode flags, import context,
+anchor-source option) are generation-specific witnesses; confirm them against
+the installed helper's signature before relying on them.

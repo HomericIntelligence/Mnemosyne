@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Diagnose signature failures, resume a justified rebase after conflicts, re-sign rewritten commits when the rebase replay is a silent no-op, and compare signing repair with current branch-update or merge-queue requirements."
 category: tooling
 date: 2026-07-17
-version: "1.5.0"
+version: "1.7.0"
 user-invocable: false
 verification: verified-ci
 tags: [git, signing, rebase, ci, gpg, exec, conflict-resolution, update-branch, force-with-lease, stale-info, branch-protection, up-to-date, stacked-pr, squash-merge, merge-queue, ssh-signing, commit-tree, provenance-gate]
@@ -38,6 +38,9 @@ history-cleanup-date: "2026-09-20"
 - `git push --force-with-lease` is rejected with `stale info` after a server-side branch update
 - The repository requires strictly up-to-date branches AND signed commits, no merge queue is
   enabled, and several PRs must merge in sequence
+- The same repository has NO integration mechanism at all (no merge queue, no branch-update bot),
+  CI time meets or exceeds the base-move cadence, and an armed auto-merge never fires because the
+  head is stale again before checks go green
 - A GitHub merge queue IS enabled — before preparing any re-signed rebase, confirm the PR is not
   simply queueable (the queue makes the local rebase unnecessary)
 - A stacked PR's base branch was squash-merged and the branch now shows CONFLICTING
@@ -48,6 +51,11 @@ history-cleanup-date: "2026-09-20"
   `%G?` still shows `N` — the replay skipped every pick, so the exec hook never ran
 - The signing helper (`ssh-keygen` for `gpg.format=ssh`) fails with a library version error such as
   `OpenSSL version mismatch` only when a privately built or bundled git invokes it
+- A commit reports `%G?` `U` and `%GK` shows a fingerprint that is NOT the configured
+  `user.signingkey` fingerprint — a foreign key (for example, a shared automation identity's own
+  key) signed the commit, and the forge cannot bind it to the author's registered keys
+- You must re-sign a stack whose tree content must stay byte-identical and whose commits already
+  sit on their base, so a plain `--exec` replay would no-op
 
 ## Verified Workflow
 
@@ -159,6 +167,14 @@ git push --force-with-lease --force-if-includes origin <branch>
   whether or not the repository has a merge queue. Hand ordinary integration to repository CI/CD.
   If CI/CD reports an actual merge conflict, resolve that conflict with the permitted signed rebase
   above. Do not use a local serial re-sign-and-force-push cycle merely after a sibling merges.
+- **End-game exception, no integration mechanism:** when the repository has NO way to integrate
+  a behind head (no merge queue, no branch-update bot) and CI time meets or exceeds the base-move
+  cadence, a completed, reviewed, checks-green PR can merge only inside a manufactured window.
+  Rule: the policy above still forbids treadmill rebases during work; in the end-game, repeat
+  minimal signed rebases onto each base move, lease-push, fix any real blocker first (unresolved
+  review threads, draft state), and merge the exact head the moment merge state reads CLEAN —
+  the window can last seconds; restart on the next base move. Never use the server-side
+  "Update branch" here: it strips signatures and turns the provenance gate red.
 - **A real GitHub merge queue makes the local re-signed rebase UNNECESSARY:** when the repo has a
   merge queue enabled (branch protection "Require merge queue" / a `merge_group`-triggered required
   workflow), a green PR does NOT need to be brought up-to-date by hand. Queue it and the queue
@@ -223,7 +239,9 @@ local; a server-side branch update has the same signature-stripping effect as ab
 4. **SSH-signature verification semantics:** `%G?` reports `U` for a *good* SSH signature
    whose key has no local trust record. That is an object-level success; the forge verifies
    the signature against the account's registered signing keys, so `U` does not block the
-   gate. The repair needs `gpg.format=ssh`, `user.signingkey=<private-key-path>`, and
+   gate. But `U` alone does not prove the signer is yours — it also appears for a foreign
+   key. Discriminate with `%GK` before you trust any `U` (see the v1.7.0 section below).
+   The repair needs `gpg.format=ssh`, `user.signingkey=<private-key-path>`, and
    `commit.gpgsign=true`; sign with the same key that produced the branch's previously
    green commits.
 5. **An armed auto-merge absorbs the repair:** if auto-merge was enabled before the gate
@@ -231,6 +249,47 @@ local; a server-side branch update has the same signature-stripping effect as ab
    auto-merge merges on its own once they pass. An automation-log disposition like
    `BLOCKED:auto_merge_already_armed` reports exactly that state — it is a reason to wait
    and watch, not an error to fix.
+
+### Foreign-signer discrimination and byte-identical stack re-sign (v1.7.0)
+
+`%G?` `U` is ambiguous: it can be your own SSH key with no local trust record (benign,
+v1.5.0 rule 4), or a *foreign* key — another identity signed the commit, and git reports a
+good signature that no local principal matches. Discriminate before you act:
+
+```bash
+git log --format='%h %G? %GK' -n 5        # %GK = the signer's key fingerprint
+ssh-keygen -lf "$(git config user.signingkey).pub"   # your key's fingerprint
+```
+
+A fingerprint mismatch means a foreign signer. Confirm the key is not in any configured
+allowed-signers file and is not another registered key of the author. A foreign-key
+signature means another identity signed content under your author identity: get explicit
+authority to take authorship of that content BEFORE you rewrite it, and record the decision.
+
+Repair (run in a scratch branch or detached worktree, never the shared checkout):
+
+```bash
+git rebase --force-rebase --exec 'git commit --amend --no-edit -S' <unambiguous-base>
+```
+
+`--force-rebase` replays every pick even when the trees already match, so the exec hook
+cannot be swallowed by the v1.5.0 skipped-pick no-op. Then verify, in order:
+
+1. every commit is `%G?` `G` with `%GK` equal to your fingerprint;
+2. each new commit's tree hash equals its pre-rewrite tree hash (byte-identical content);
+3. `git diff <old-head> HEAD` is empty;
+4. author/committer identities and DCO trailers are preserved
+   (`git log --format='%b'` still contains every `Signed-off-by`).
+
+Push with the lease pinned to the exact verified old head, not to a moving ref:
+
+```bash
+git push --force-with-lease=<branch>:<verified-old-head-oid> origin <local>:<branch>
+```
+
+Rewrite consequences: every review record, assessment, or chain carrier bound to an old
+head becomes void. Re-run any head-bound review or delivery against the new head; do not
+treat pre-rewrite evidence as covering the new objects.
 
 ## Failed Attempts
 
@@ -241,9 +300,11 @@ local; a server-side branch update has the same signature-stripping effect as ab
 | `gh pr update-branch --rebase` to satisfy a strict up-to-date branch-protection rule | Server-side rebase to bring two green PRs current with main | GitHub re-created every commit unsigned; the previously-green signed-commits `pr-policy` gate failed on both PRs with `commit signature is missing or invalid` | Never update a signed-commits PR server-side; do a local `git -c commit.gpgsign=true rebase origin/main` and force-push with lease |
 | `git push --force-with-lease` immediately after a server-side branch update | Pushing the locally re-signed rebase over the server-side rewrite | Rejected with `stale info` — the local remote-tracking ref predated the server-side rewrite, so the lease check failed | Fetch the branch first, verify the remote head is the expected rewrite, then push; the rejection is the lease working as designed |
 | Preparing a local re-signed rebase + user force-push cycle for a green PR on a repo with a merge queue enabled | Rebased the branch onto the new `main`, re-signed, ran full local gates, and waited on a user force-push to satisfy the strict up-to-date rule before merging | Unnecessary work: the merge queue rebuilt and merged the PR server-side (GitHub-signed merge commit) and it landed MERGED while the re-signed branch was still waiting to be pushed — the whole rebase cycle was moot | On a merge-queue repo, check `gh pr view <N> --json state,mergeStateStatus` first; if queueable, just let the queue merge it — do NOT prepare a serial re-sign-rebase cycle. The queue absorbs the up-to-date requirement itself |
+| Armed auto-merge on a squash+signed+strict repo with no merge queue and no update bot | Waited across hours of main drift for the armed auto-merge to fire on a reviewed, checks-green head | Each base move made the head stale again before the ~30-minute checks finished; merge state never reached a fireable state, and the real last blockers (draft state, then one unresolved review thread) surfaced only under direct layered diagnosis | Auto-merge never fires on a stale head; manufacture the current+green+unblocked window with minimal signed rebases, clear real blockers first, and merge the exact head as soon as the state flips CLEAN |
 | Hand-invoking the queued `--exec` command (`git add <file>` then `git commit --amend --no-edit -s -S`) after resolving a conflict, instead of `git rebase --continue` | Rebase paused mid-conflict showing "Next command to do: exec ..."; resolved the conflict then manually replicated the exec command to "help it along" | The conflicted commit had not yet been finalized as a commit object — `git rebase` was still mid-`pick`. `git commit --amend` amended the rebase's "onto" checkout (base branch tip, which was HEAD at that moment) instead of the picked change, producing a corrupted commit whose diff was the union of an unrelated upstream commit's changes plus the PR's own changes, under the wrong commit message/title. Diagnosed via `git reflog` showing `rebase (start): checkout <base>` immediately followed by `commit (amend): <wrong title>` with no intervening pick entry, plus `git diff <merge-base> <bad-commit> --stat` showing far more files than the original commit's own `git show <sha> --stat` | Always run `git rebase --continue` after resolving a conflict, even when the rebase reports a queued `exec` line next — never hand-invoke the exec command yourself. If already corrupted: recover via `git reset --keep <pre-rebase-sha>` + `git rebase --quit` (when `--abort` is blocked), then redo as a plain rebase followed by one standalone amend pass |
 | Re-signing a rewritten branch with `git rebase --exec 'git commit --amend -S --no-edit' origin/main` | Standard exec-based re-sign after a forge commit-provenance gate failed with `invalid_signature` on every rewritten commit | The replay absorbed the picks — the rewritten commits already sat on top of the current base, so git skipped every pick and the exec hook never ran; the command exited instantly, no new objects were created, and `%G?` stayed `N` on the whole stack | Check `%G?` after any exec-based repair; when it does not change, the replay was a no-op — rebuild the stack per-commit with `commit-tree -S` (preserving author, committer, and both dates) and force-push the rebuilt head; every rebuilt commit is a new object and re-triggers the forge check |
 | Signing through a privately built/bundled git with `gpg.format=ssh` | Running the `commit-tree` re-sign loop with a bundled git binary whose launcher sets its own library search path | The signed object write died with `OpenSSL version mismatch` — the bundled environment broke the exec'd `ssh-keygen` at load time, even though the same `ssh-keygen -Y sign` succeeded standalone | Use the system git for local object operations (`commit-tree` needs no network); keep the bundled git for network operations only; verify a standalone `ssh-keygen -Y sign` test succeeds before attributing a signing failure to the key or config |
+| Treating every `%G?` `U` as benign and accepting a foreign-signed stack | Almost re-delivered PR branches whose older commits an earlier automation identity had signed with its own key under the same author name; `git verify-commit` printed a good signature with `No principal matched` | `%GK` showed a fingerprint that is not the configured `user.signingkey`'s; without discrimination the foreign signature would have been rewritten or shipped unquestioned | Discriminate `%GK` against your key fingerprint first; a mismatch means foreign — get explicit authorship authority, re-sign with `--force-rebase --exec`, verify tree hashes byte-identical, and push with a lease pinned to the verified old head |
 
 ## Results & Parameters
 
@@ -266,3 +327,4 @@ local; a server-side branch update has the same signature-stripping effect as ab
 | HomericIntelligence/Athena | PRs #35/#36 — `gh pr update-branch --rebase` stripped signatures on both (pr-policy red with `commit signature is missing or invalid`); recovered with local `git -c commit.gpgsign=true rebase origin/main` + lease push after a branch fetch (first push rejected `stale info`); #35 re-merged green | verified-ci (pr-policy observed red on the server-side rewrite and green on the re-signed heads) |
 | HomericIntelligence/Athena | PR #45 — pytest GHSA bump; a local re-signed rebase (`9b0f1fd`) was prepared for the strict up-to-date rule, but the repo's merge queue rebuilt and merged the PR server-side (merge commit `93a2e7f`, GitHub-signed) and it landed MERGED before the re-signed branch was pushed — proving the merge queue makes the manual re-sign-rebase cycle unnecessary | verified-ci (PR observed MERGED via the queue with pytest 9.x on `main`, no author force-push) |
 | example-org/backend-service | Verified-signature merge gate `invalid_signature` on every commit after local rebases rewrote two unsigned PR stacks (2 commits and 4 commits) behind armed auto-merge | Exec-based re-sign was a no-op on both stacks (absorbed picks); rebuilt both with the `commit-tree -S` loop under the system git (the bundled git broke `ssh-keygen` with `OpenSSL version mismatch`); `%G?` `U` as expected for SSH keys; force-with-lease push → provenance check green → both armed auto-merges completed with no further action — see [notes](git-rebase-signing-ci.notes.md) |
+| HomericIntelligence/Athena | PR #361 — one commit signed by a foreign automation key (`%G?` `U`, `%GK` ≠ configured key) under the author's identity, with two good-signature commits on top | Discriminated via `%GK`; explicit authorship authority granted; `git rebase --force-rebase --exec 'git commit --amend --no-edit -S' <base>` in a scratch worktree re-signed all 3 commits; every tree hash matched its pre-rewrite hash and `git diff <old-tip> HEAD` was empty; pushed with the lease pinned to the verified old head — verified-live on push; PR later merged via the merge queue |

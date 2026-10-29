@@ -115,3 +115,40 @@ identifiers are intentionally omitted.
   directive.
 - Outcome: no competing pull request, no review rounds on a merged head, no label changes on a
   completed issue. The assigned drive collapsed into a verified-closure report.
+
+## Campaign evidence: a resume mandate whose open issue was already fully delivered
+
+Supporting evidence for the version 1.2.0 addition. Generalized from a verified-live session;
+identifiers are intentionally omitted.
+
+- Context: a fleet of single-issue workers drove an issue-to-merge wave on one shared
+  mono-repository. A worker's previous run died mid-drive (a fleet-wide provider outage). The
+  relaunch directive ("resume your issue assignment") named one issue that carried an approved
+  plan and the terminal plan-state label; the label had been exclusive for almost two weeks.
+- Ownership probes passed: no open pull request named the issue, no assignee, no in-progress
+  label, and no worker-naming activity in the recent window. On surface signals, work remained.
+- The live audit disagreed. The issue timeline showed the plan had been approved days earlier,
+  and that two pull requests — merged minutes apart a week before the resume, each saying
+  "references" rather than a closing keyword — had delivered the plan's full scope in two lanes.
+  The merge commits were ancestor-bound to the current default branch
+  (`git merge-base --is-ancestor`). The default branch had since advanced further: a follow-on
+  schema version had migrated parts of the contract the plan described, so even the plan's
+  wording was partially stale.
+- Terminal test, per the new branch: the issue's acceptance checklist (eight items) was
+  enumerated and each item was verified against the current default-branch tip — zero residual
+  environment reads in tracked sources, the contract document naming the file as the only
+  source, the guarding tests registered in the fast CI tier, and the cross-issue record edit
+  the plan required already present. The guarding test module (13 tests) ran green once inside
+  the worker's own isolated worktree, which was then removed with its unpushed branch.
+- Disposition: already-delivered report with the criteria reads, ancestor binds, and test
+  result attached; closure recommended to the coordinator (the worker had no closing authority);
+  one residual — a stale documentation claim owned by other lanes that had landed after the
+  plan — was filed as a follow-up issue rather than folded in as a drive-by fix. Zero pull
+  requests opened, zero labels changed, zero review rounds started.
+- Decision value over the prior version: the named-pull-request terminal branch assumes the
+  forge shows the delivery (merged state, closed issue). Here no surface signal showed it —
+  open issue, approval label, gate-clear — and the correct terminal test was the acceptance
+  enumeration plus ancestor binding plus guarding tests. A test-first delivery protocol made
+  implementation doubly impossible: a failing test could not exist without manufacturing one,
+  and an empty pull request cannot be opened. Both fabricate work, so "report and stop" is the
+  only eligible disposition when the audit finds full delivery.
