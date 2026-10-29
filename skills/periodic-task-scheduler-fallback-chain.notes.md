@@ -41,3 +41,47 @@ primitive was denied.
 The document handed to the operator is a single `sbatch` of the wrapper. The
 runbook records that site maintenance windows and draining events can break
 the chain and that reanchoring is one command.
+
+## Evidence: scheduler-owned driver branch (2026-10-26)
+
+The source task was a 43-worker evaluation campaign on a shared batch
+cluster. A watchdog loop resubmitted any worker whose job disappeared and
+whose durable status file did not say complete, one worker at a time.
+
+### Why not the chain shape
+
+- Each worker ran for tens of minutes. Tenant pressure on the shared nodes
+  killed workers unpredictably, so the controller had to resubmit within
+  minutes; a queue-delayed successor for a fixed interval would have left
+  the GPUs idle for most of the campaign.
+- Failure degraded to a stall, not corruption: every worker kept durable
+  state on shared storage, so a resubmit resumed instead of restarting.
+
+### What failed before the fix
+
+- First controller instance: `nohup setsid` under an interactive agent
+  session on a compute allocation. It died when the allocation's host had an
+  outage; the campaign stalled for days.
+- Second instance: began in another interactive session as part of a server
+  process tree. It died with that server restart.
+- Both failures are the step-lifetime rule applied to controllers: the
+  process owner was a session, and the session ended.
+
+### The deployed shape
+
+- The identical watchdog script, unmodified, wrapped in a five-directive
+  batch script: account and QOS for the low-priority partition, one CPU, a
+  small memory request, unlimited walltime, named job.
+- The driver ran longer than a day on the low-priority partition. It
+  survived multiple interactive-server restarts that killed unrelated
+  monitor loops, resubmitted 42 workers unattended, and logged every
+  resubmission to one file on shared storage.
+- Verification at any point was two reads: the named job in the queue, and
+  the tail of the resubmission log.
+
+### Boundary kept deliberately
+
+The chain remains the right shape for cadence-based one-shot runs: it
+occupies no allocation between intervals. The driver job is the right shape
+only when reaction latency inside the interval matters and the site grants
+an unlimited-walltime CPU-only job on a low-impact partition.

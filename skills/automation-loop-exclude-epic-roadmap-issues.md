@@ -1,13 +1,13 @@
 ---
 name: automation-loop-exclude-epic-roadmap-issues
 license: BSD-3-Clause
-description: "Exclude epic and roadmap tracking issues from code-task discovery. Use for label/title filters, explicit issue overrides, and false positives from titles that merely mention epics."
+description: "Exclude epic and roadmap tracking issues from code-task discovery. Use for label/title filters, explicit issue overrides, worker lanes assigned a bare tracking-issue number, and false positives from titles that merely mention epics."
 category: tooling
 date: 2026-07-17
-version: "1.1.1"
+version: "1.2.0"
 user-invocable: false
 verification: verified-ci
-tags: [epic, roadmap, tracking-issue, automation-loop, issue-discovery, gh-cli, state-skip, partition, label-and-title-signal, planner-filter, dry-chokepoints, pure-function-contract]
+tags: [epic, roadmap, tracking-issue, automation-loop, issue-discovery, gh-cli, state-skip, partition, label-and-title-signal, planner-filter, dry-chokepoints, pure-function-contract, worker-lane, pre-flight-gate, coordinator-assignment]
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/automation-loop-exclude-epic-roadmap-issues.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -29,7 +29,9 @@ history-cleanup-date: "2026-09-20"
 An epic/roadmap issue is a **snapshot of child work** — its body is a checklist, not a spec. If an
 auto-discovery loop treats it as a code task, the planner/implementer will fabricate a code change and
 open a PR that has nothing to do with the actual (child) work. The fix is to detect tracking issues at
-discovery time and exclude them from every path that feeds the planner.
+discovery time and exclude them from every path that feeds the planner. A coordinator that assigns a
+bare issue number directly to an agent worker lane bypasses these paths; the worker's pre-flight gate
+is then the last detection point and must stop the lane with zero writes.
 
 ## When to Use
 
@@ -38,6 +40,8 @@ discovery time and exclude them from every path that feeds the planner.
 - A repo has an `epic`/`roadmap` label convention but it is NOT consistently applied (so label-only detection misses issues).
 - You need tracking issues excluded from convergence / open-issue-count gates as well as from planning.
 - A loop supports both auto-discovery AND an explicit `--issues` override (both paths must filter).
+- A coordinator or operator assigns a bare issue number directly to an agent worker lane — no discovery
+  or planner filter sees the target, so the worker's pre-flight gate must catch the tracking container.
 - An issue whose title merely MENTIONS epics (a bug report about epic handling, an audit finding) was
   excluded from planning and durably tagged `state:skip` — the anywhere-in-title false positive.
 
@@ -108,6 +112,15 @@ def partition_epics(issues_meta):  # -> (kept, epics)
    inside `_list_open_issue_numbers`, which must keep its "return `[]` on any failure, never raise"
    contract. A write that can fail must not be able to break discovery.
 
+6. **Gate at the worker lane — the last chokepoint.** A coordinator can hand a worker lane a bare
+   issue number (an epic sibling of the lane's launch epic, a roadmap parent) without any loop or
+   planner pass. The lane's pre-flight gate must fetch `gh issue view <N> --json labels,title,state`,
+   apply the same `is_epic` rule, and on a match STOP with zero writes — no label, comment, branch,
+   worktree, or PR — and report the tracking-container evidence to the coordinator. The coordinator
+   re-issues a child issue; the lane must never plan the container itself. This gate complements the
+   discovery and planner filters instead of replacing them — the three chokepoints have no shared
+   failure cause (P054, defense in depth).
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -126,7 +139,7 @@ Detection rule (case-insensitive):
 Why the title fallback matters: 94 open issues, 0 carried the epic/roadmap label at the time.
 Native gh issue types are NOT reachable: `gh issue list --json issueType` -> "Unknown JSON field".
 
-Two chokepoints, one shared pure helper (DRY):
+Two filtering chokepoints plus a worker-lane gate, one shared pure helper (DRY):
   hephaestus/automation/state_labels.py
     - is_epic(labels, title) -> bool                 # pure
     - partition_epics(issues_meta) -> (kept, epics)  # pure
@@ -146,6 +159,11 @@ Two chokepoints, one shared pure helper (DRY):
     - Needed because explicit `--issues` runs bypass loop discovery:
         cfg.issues or _list_open_issue_numbers(...)
 
+  worker-lane pre-flight gate (third chokepoint):
+    - gh issue view <N> --json labels,title,state -> same is_epic rule
+    - epic match -> STOP with zero writes; report tracking-container evidence
+    - catches coordinator-direct assignments that bypass discovery + planner filters
+
 Verification (local only): 2217 automation unit tests pass; whole-tree mypy clean; ruff clean.
 CI on PR #1670 still pending -> NOT verified-ci.
 ```
@@ -155,3 +173,4 @@ CI on PR #1670 still pending -> NOT verified-ci.
 | Project | Context | Details |
 |---------|---------|---------|
 | ProjectHephaestus | Issue #1669 / PR #1670 — exclude epic/roadmap tracking issues from the automation discovery + planner loop | 2217 unit tests + mypy + ruff clean locally; CI pending |
+| Model-serving-fleet repository (generalized) | A worker lane was assigned the sibling epic of its release-campaign launch epic as a bare single-issue target; the lane's pre-flight gate found the `epic` label, `[epic]` title prefix, and tracked-child checklist, then stopped with zero forge/git writes (2026-10) | Third chokepoint validated in operation; gate lived in the lane's assignment instructions — no code change required |

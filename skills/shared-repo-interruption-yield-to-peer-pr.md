@@ -1,13 +1,13 @@
 ---
 name: shared-repo-interruption-yield-to-peer-pr
 license: BSD-3-Clause
-description: "Inventory what parallel agent sessions delivered before redoing interrupted prepared work in a shared Git repository. Use when a session resumes after a crash, restart, or idle gap and finds its worktrees removed, staged work gone, or the default branch advanced by peers, and must decide between re-doing its plan and yielding to a peer pull request that already covers the intent."
+description: "Inventory what parallel agent sessions delivered before redoing interrupted prepared work in a shared Git repository. Use when a session resumes after a crash, restart, or idle gap and finds its worktrees removed, staged work gone, or the default branch advanced by peers, and must decide between re-doing its plan and yielding to a peer pull request that already covers the intent. Also use when a resume directive carries a live implementation mandate (an approved plan or terminal plan-state label) for an issue that reference-only merges may have fully delivered while leaving it open."
 category: tooling
 date: 2026-10-14
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-live
-tags: [parallel-sessions, multi-agent, shared-repository, interruption-recovery, worktree, duplicate-work, yield, salvage, git, automation-loop, session-recovery, patch-preservation]
+tags: [parallel-sessions, multi-agent, shared-repository, interruption-recovery, worktree, duplicate-work, yield, salvage, git, automation-loop, session-recovery, patch-preservation, already-delivered, ancestor-verification]
 ---
 
 # Inventory and Yield Interrupted Work When Parallel Sessions Share a Repository
@@ -27,6 +27,7 @@ tags: [parallel-sessions, multi-agent, shared-repository, interruption-recovery,
 - More than one agent session or automation loop works in the same repository at the same time.
 - You hold a prepared plan (patch, staged tree, branch, drafted comments) whose intent a peer might have delivered while you were down.
 - A restart directive assigns you to *drive* a named peer pull request (review it, keep its checks green, merge it) that was created while you were down.
+- A resume directive carries a live implementation mandate for a named *issue* — an approved plan, a terminal plan-state label — whose full scope parallel merges may have delivered while you were down. Reference-only merges (`Refs`, not a closing keyword) leave the issue open by design, so an open issue carrying an approval label is not proof of remaining work.
 - You must choose between re-creating, rebasing, deferring, or abandoning prepared work.
 
 ## Verified Workflow
@@ -59,6 +60,18 @@ Rule: **deliver first, redo never.** If an open peer pull request or a recently 
    ```
 
    A `MERGED` state with the closing issue `CLOSED`/completed is terminal: the drive is already done. Verify the pinned values on the default branch, report, and stop. Do not start review rounds on a merged head, and do not push your own variant branch.
+
+   When the mandate names an *issue* rather than a pull request, complete delivery can leave the issue open — every merged pull request referenced it instead of closing it. The terminal test is delivered-state on the current default branch, never forge surface signals (an open issue, an approval label, a passed ownership gate):
+
+   ```bash
+   # Every pull request that references the issue, all states, not only open:
+   gh pr list --state all --search "<issue-number> in:body,title" \
+     --json number,state,mergedAt,mergeCommit
+   # Ancestor-bind each merged pull request to the current default branch:
+   git merge-base --is-ancestor <merge-commit> origin/<default> && echo ancestor
+   ```
+
+   Then enumerate the issue's acceptance checklist and verify each item against `origin/<default>` (the removed content grep, the contract documents, the cross-issue record edits the plan required, the test-tier registration), and run the guarding tests once inside your own isolated worktree. If every criterion passes and no scope remains, the drive is terminal even though the issue is open: report already-delivered with the criteria reads, the ancestor binds, and the test result, then stop. Do not open a token pull request to force the closing keyword, and do not manufacture a failing test to satisfy a test-first delivery protocol — both fabricate work. Escalate closure to the coordinating authority, file follow-up issues for residuals that other lanes own instead of folding them in as drive-by fixes, and clean up only your own artifacts. If only some criteria pass, the delivery is partial: apply the keep-open bookkeeping and escalation of the mid-drive peer-completion audit, not this terminal branch.
 
    When parallel work has advanced the default branch far past your base, a whole-tree `git diff` of your branch becomes noise — unrelated changes dominate it. Classify coverage by value identity on the paths your intent pins, not by tree equality:
 
@@ -119,6 +132,7 @@ ls <build-dir>/*.diff <build-dir>/*.patch 2>/dev/null
 ### Expected Output
 
 - No competing pull request opened for an intent a peer already covers.
+- A fully delivered issue reported terminal with acceptance-criteria, ancestor-bind, and guarding-test evidence; closure escalated to the coordinating authority; zero token or empty pull requests opened.
 - Orphaned branches deleted only via the safe form with ancestor proof.
 - Prepared publication text carries a superseded marker where its vehicle changed.
 - Dependent queued work deferred with an explicit re-entry trigger (peer merge), not silently rebased.
@@ -129,6 +143,7 @@ ls <build-dir>/*.diff <build-dir>/*.patch 2>/dev/null
 | --------- | --------- | --------- |
 | Hephaestus | Session-restart recovery with a parallel session's open integration pull request covering the prepared removal | [notes.md](../skills/shared-repo-interruption-yield-to-peer-pr.notes.md) |
 | Shared multi-wave configuration repository | Restart directive assigned driving a named sibling pull request that had merged during the gap; pinned values verified on the default branch and the local variant retained unpushed as a backup | [notes.md](../skills/shared-repo-interruption-yield-to-peer-pr.notes.md) |
+| Shared mono-repository under a many-lane single-issue worker wave | Resume-after-kill directive carried an approved plan and terminal plan-state label for an issue that two reference-only merges had fully delivered days earlier, with the default branch since migrated further; every acceptance criterion verified on the current tip, both merge commits ancestor-bound, guarding tests green in an isolated worktree; the drive ended as an already-delivered report with closure escalated and one follow-up issue filed | [notes.md](../skills/shared-repo-interruption-yield-to-peer-pr.notes.md) |
 
 ## References
 
