@@ -27,7 +27,7 @@ class Consolidation(TypedDict):
 CONSOLIDATIONS: list[Consolidation] = [
     {
         "canonical": "planning-verify-issue-premise-before-implementing",
-        "version": "3.3.0",
+        "version": "3.4.0",
         "absorbed": [
             "planning-verify-assumptions-before-enforcement-gate",
             "planning-verify-full-population-not-just-named-entities",
