@@ -1,9 +1,9 @@
 ---
 name: git-commit-signing-failures-and-setup
-description: "Use when required-signature policy blocks a conflict-free PR; GitHub reports unsigned, no_user, unknown_key, or bad signatures; local cryptographic checks disagree with GitHub; noninteractive workers silently fail to sign; a fresh headless host needs SSH signing; email privacy rejects a push; amend produced a signed sibling that the PR did not adopt; or local verify-commit reports No principal matched or Can't check signature while signing is actually correct. Diagnose with REST, align identity and registered key, re-sign every introduced commit without changing content, verify an embedded signature in place after key registration, separate verification noise from a real fault, and verify the exact remote PR head before merge."
+description: "Use when required-signature policy blocks a conflict-free PR; GitHub reports unsigned, no_user, unknown_key, or bad signatures; local cryptographic checks disagree with GitHub; noninteractive workers silently fail to sign; a fresh headless host needs SSH signing; a restored host or later session inherits a stale signing-key path; email privacy rejects a push; amend produced a signed sibling that the PR did not adopt; or local verify-commit reports No principal matched or Can't check signature while signing is actually correct. Diagnose with REST, align identity and registered key, re-sign every introduced commit without changing content, verify an embedded signature in place after key registration, separate verification noise from a real fault, and verify the exact remote PR head before merge."
 category: tooling
 date: 2026-10-15
-version: "2.3.0"
+version: "2.4.0"
 user-invocable: false
 license: BSD-3-Clause
 verification: mixed
@@ -34,6 +34,7 @@ not completed through a green merge. Case evidence is in
 - `git log --show-signature` is good but GitHub still marks the commit unverified.
 - An agent inherits `commit.gpgsign=true` yet emits unsigned commits in a noninteractive shell.
 - A fresh remote/headless host needs GitHub-valid SSH signing.
+- Signing configuration from a prior session or host names a key path that the current host does not have.
 - Git rejects a signed commit for exposing a private email.
 - GraphQL says UNSIGNED shortly after push while REST may already say valid.
 - A tip-only amend leaves older commits unsigned.
@@ -97,6 +98,21 @@ git config --global gpg.ssh.allowedSignersFile ~/.config/git/allowed_signers
 git config --global user.email '<numeric-id>+<login>@users.noreply.github.com'
 gh ssh-key add ~/.ssh/id_signing_ed25519.pub --type signing --title '<host>-signing'
 ```
+
+Before you compose or rewrite any commit, preflight the configured signing
+material on this host. A path recorded by a prior session can be stale after a
+home-directory move or host replacement, and signing then fails at commit time:
+
+```bash
+git config --get gpg.format
+git config --get user.signingkey
+test -f "$(git config --get user.signingkey)"   # SSH: the key file must exist now
+git log -1 --pretty=format:'%G?' || true
+```
+
+Re-point `user.signingkey` to the real path on this host before you create the
+commit. Do not compose a signed commit with a configuration you have not
+exercised on the live host.
 
 The allowed-signers row contains the email, key type, and public-key body. Registering the key as an
 authentication key is insufficient. Adding a signing key may require the interactive
@@ -215,6 +231,7 @@ the real configuration.
 | Recreate the commit through the REST git API | Created a commit with `gh api repos/<O>/<R>/git/commits` to obtain a hosted signature | The created commit returned `unsigned`; that token type received no hosted signature | Register the signing key or use a signing-capable hosted path; check `verified/reason` before you move the ref |
 | Treat `No principal matched` as a broken config | Reported the shared `allowed_signers` file as malformed without reading it | The file was valid and unchanged; the message came from a malformed temporary file that a test command generated | Read the `Good "git" signature` line and inspect the file that the command actually read |
 | Treat `Can't check signature` on a base commit as a fault | Diagnosed a signing problem from commits authored by other people | Those commits are GPG-signed and the host uses SSH signing, so the check cannot succeed | Test your own commit, not the base history, when you diagnose signing |
+| Trust a recorded key path | Reused the signing-key path that a prior session recorded | The path did not exist on the current host; signing failed when composing the commit | Preflight `gpg.format` and `user.signingkey`, and confirm the key file exists on the live host before you commit |
 
 ## Results & Parameters
 
@@ -224,6 +241,7 @@ the real configuration.
 | Hosted signature | REST `verified == true`, `reason == valid` |
 | Identity | Verified email or `<id>+<login>@users.noreply.github.com` |
 | SSH key registration | Signing key, not authentication-only |
+| Signing preflight | `gpg.format` set, `user.signingkey` set, and the key file present on this host |
 | Content preservation | `git diff <old-head> HEAD` empty after pure re-sign |
 | In-place key repair | `unknown_key` only: register the key, re-run the check, no force-push |
 | Rewrite push | Owned branch, fetched remote, `--force-with-lease` |

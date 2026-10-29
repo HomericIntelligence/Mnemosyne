@@ -3,14 +3,16 @@ name: github-auto-merge-ci-gating-merge-method
 description: >-
   Diagnose why a GitHub pull request does not merge when checks, reviews, merge methods,
   rulesets, classic protection, labels, signatures, or queue ownership disagree. Use before
-  arming auto-merge or admitting a reviewed head to a repository-owned merge queue.
+  arming auto-merge or admitting a reviewed head to a repository-owned merge queue, when
+  protocol ceremonies remain while a merge is already armed, or when a decorative state
+  label may be mistaken for a merge gate.
 category: ci-cd
 date: 2026-07-30
-version: "2.2.0"
+version: "2.4.0"
 user-invocable: false
 verification: verified-ci
 license: BSD-3-Clause
-tags: [auto-merge, github, ci-cd, merge-method, required-checks, rulesets, review-threads, current-head-checks, merge-queue, toctou]
+tags: [auto-merge, github, ci-cd, merge-method, required-checks, rulesets, review-threads, current-head-checks, merge-queue, toctou, armed-merge-race, ceremony-ordering, label-gating, cancelled-leg]
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/github-auto-merge-ci-gating-merge-method.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -48,6 +50,10 @@ repository-specific policy transitions are `verified-local`; their boundaries ar
 - Commit identity/signing, DCO, or PR-vs-issue labels keep a policy gate red.
 - A shared queue encounters an auto-merge request it does not own.
 - The latest branch is clean locally but merge-result CI fails after main drifts.
+- A required aggregate check fails because one upstream matrix leg was cancelled at a job or
+  workflow timeout, while every other leg passed and auto-merge stays armed.
+- Auto-merge is already armed, protocol ceremonies (a final review record, thread resolution) remain, and you must order them.
+- A decorative state label shows a non-mergeable verdict while the armed merge stays pending, and you must decide whether that label gates the merge.
 
 ## Verified Workflow
 
@@ -98,6 +104,27 @@ thread; then refresh because merge state may briefly become `UNKNOWN`.
 - If CI tests the synthetic merge result, reproduce by integrating current main and running the
   exact job command. A clean branch-only run is not equivalent.
 
+### Cancelled-leg blocker on an armed merge
+
+A required aggregate check can fail because one upstream matrix leg was cancelled, not because
+content broke. The signature: every completed leg is green, one leg is `cancelled`, and the
+aggregate failure message names the cancelled leg (for example `required job did not succeed:
+<leg> ('cancelled')`). The usual cause is a job or workflow timeout after a runner hang.
+
+Classify before you act:
+
+1. List the tests the cancelled leg owns. If none of them touch the change surface, the cancel
+   is probably environmental.
+2. Read the same leg's duration on a recent green run at a nearby head. A leg that completes in
+   minutes there did not hang for hours because of a change outside its surface.
+3. If both checks agree, rerun only the failed and cancelled jobs:
+   `gh run rerun <run-id> --failed`. An armed auto-merge fires when the leg returns green.
+4. If the leg owns changed tests or the comparator is inconclusive, treat the failure as real
+   and debug the hang as a content problem.
+
+Do not rebase, push, or disable the armed request to clear this blocker: none of them repairs
+a cancelled leg, and a push discards the reviewed head.
+
 ### Queue ownership and direct review
 
 GitHub's enable-auto-merge mutation can include an expected head, but disable-auto-merge has no
@@ -136,6 +163,22 @@ strategy message. The flag is `--auto`; `--auto-merge` is rejected as an unknown
 state per PR with `gh pr view`. A list response can report `BLOCKED` for a PR that a single-PR
 read reports as `CLEAN`.
 
+### Ordering against an armed merge
+
+An armed auto-merge fires as soon as the last gate clears. It does not wait for
+remaining protocol steps. When ceremonies remain:
+
+- Deliver each remaining record before you clear the final gate. For example,
+  publish the terminal review before you resolve the last foreign thread.
+- Or disarm, complete the ceremonies, and re-arm.
+- Do not schedule ceremony work after the gate that the armed merge watches.
+
+Treat decorative state labels as non-gating unless a ruleset or protection rule
+requires them. An armed merge does not wait for them, and their presence or
+absence does not block the merge. Only labels that policy requires are blockers
+(see the PR-vs-issue label blocker below). Check the policy union before you
+read any label as a gate.
+
 ### Common blockers
 
 - **Unresolved threads:** all checks green but conversation-resolution policy blocks merge.
@@ -149,6 +192,9 @@ read reports as `CLEAN`.
   the required gate's meaning.
 - **Truncated automation:** an empty review-thread result is not success unless logs reached the
   tool's explicit analysis-complete marker.
+- **Cancelled matrix leg:** an upstream leg cancelled at a timeout fails the required aggregate
+  although content is green. Classify leg ownership and comparator timing, then rerun failed
+  jobs only.
 
 ## Failed Attempts
 
@@ -165,6 +211,9 @@ read reports as `CLEAN`.
 | Read a queued PR as unarmed | Armed auto-merge, read back `autoMergeRequest`, saw null, and re-armed | A queue-owned PR leaves `autoMergeRequest` null by design | Verify with `mergeQueueEntry` state and position, not `autoMergeRequest` |
 | Batch-arm with the wrong flag | Looped `gh pr merge --auto-merge` and piped the output | `--auto-merge` is not a flag; the piped error hid every failed call | Use `--auto` and confirm each PR reached the queue |
 | Call empty review output clean | Call empty review output clean | The tool may have truncated before analysis | Require its completion marker |
+| Debug content for a red required check | Read the armed merge's failing required check as a content regression and started a diff investigation | The aggregate check failed only because one matrix leg hung to the workflow timeout and was cancelled; the leg owned no changed tests and ran in minutes at nearby heads | Match the gate message's cancelled leg to the change surface and a comparator run; rerun failed jobs only |
+| Clear the final gate before the terminal record | Resolved the last foreign thread while the terminal review publication still pended under an armed merge | The armed merge fired within minutes of the gate clearing and landed before the ceremony completed | Deliver remaining records before the final gate clears, or disarm and re-arm |
+| Read a decorative state label as a merge gate | Expected a non-mergeable state label to hold an armed merge | The label was not policy-required; the armed merge stayed pending and ignored it | Check the policy union for label requirements; gate on reviews, threads, and checks |
 
 ## Results & Parameters
 
@@ -180,6 +229,9 @@ read reports as `CLEAN`.
 | Arming flag | `--auto` only; the queue sets the method and `--auto-merge` is invalid |
 | Mutation precondition | PR open, head unchanged, gates current, authority explicit |
 | Bootstrap ordering | Emit context on target branch before requiring it |
+| Ceremony ordering | Deliver remaining records before the final gate clears, or disarm and re-arm |
+| Cancelled-leg recovery | Classify by leg ownership plus comparator timing; rerun failed jobs only; do not push or rebase |
+| Label gating | Only policy-required labels block; decorative state labels do not |
 | Verification | Read back request/result and continue current-head monitoring |
 
 The successful outcome is either a precisely identified blocker with a safe remediation, an
