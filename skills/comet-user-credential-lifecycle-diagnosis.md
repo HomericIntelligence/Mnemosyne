@@ -1,10 +1,10 @@
 ---
 name: comet-user-credential-lifecycle-diagnosis
 license: BSD-3-Clause
-description: "Diagnose Comet ordinary-user credential lifecycle failures end to end with read-only checks. Use when: (1) `comet request-key` hangs or ends with `Credential request state: pending.`, (2) a saved credential gets HTTP 401 after the propagation window, (3) `request-key` ends with `PermissionError: credential lifecycle intent does not match saved credential`, (4) unauthenticated reads work for an account but every authenticated call fails, (5) an operator asks which subsystem owns a user-reported key problem."
+description: "Diagnose Comet ordinary-user credential lifecycle failures end to end with read-only checks. Use when: (1) `comet request-key` hangs or ends with `Credential request state: pending.`, (2) a saved credential gets HTTP 401 after the propagation window, (3) `request-key` ends with `PermissionError: credential lifecycle intent does not match saved credential`, (4) unauthenticated reads work for an account but every authenticated call fails, (5) an operator asks which subsystem owns a user-reported key problem, (6) a rotate request ends with `Credential request state: conflict.` and the saved key is unchanged, (7) child processes get HTTP 401 after a restart while older long-lived processes still work."
 category: debugging
 date: 2026-10-22
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [comet, credentials, request-key, api-key, rendezvous, gateway, "401", hang-diagnosis, proc-sampling, privacy-masking]
@@ -63,6 +63,9 @@ Match the observed signature to the broken link, then check the named evidence:
 | Exit 0 with `Credential request state: pending.` after stacked waits | Link 2, fulfillment | Rendezvous `results`/`deliveries` parent mtimes; fulfillment dependency (database DSN) in the service launch environment |
 | Persistent HTTP 401 on `whoami` beyond the propagation window while older keys authenticate | Link 3, admission | Credential file mtime vs window; operator-side key-cache/key-sync state |
 | A hand-built probe (curl and similar) 401s a credential that client tooling authenticates in the same minute | None — probe harness defect | Confirm the exact transport the server parses: the gateway front reads only the `Authorization: Bearer <key>` header; another credential header (for example `x-api-key:`) is not read and yields an instant 401 indistinguishable from credential rejection |
+| Fast exit 1 with the intent-mismatch error, and the stored journal digest and inode equal the current file | Link 1, durable record binds a device number that changed with the node | Compare the journal fields with current `stat` and digest. Only the device number differs: node change, not a file edit. See the cross-host identity entry for the fix and for the missing abandon verb. |
+| Rotate ends with `conflict`; the saved key gets 401; an older key still gets 200 | Link 2, the server holds an active key that was never acknowledged through the lifecycle | A rotate needs an acknowledged prior key, so it can never succeed. Use the supported recovery below. Do not retry. |
+| New child processes get 401 while long-lived ones work | Spawn-time key resolution | See the spawn-time branch below. |
 | Mount-stall-looking hang (no output, long elapsed) | None of the above yet | Time `stat` on the rendezvous dirs and the client shim; ~0 s excludes a mount stall |
 
 ### Suggested Approach
@@ -131,6 +134,15 @@ next decision.
    LLM360/comet#2868 and LLM360/comet#2161; no admin-side path to issue an
    ordinary-user credential — LLM360/comet#2162.
 
+### Official recovery branches
+
+Use the product's own recovery path first. Read the client's recovery message and the operator runbook before you design anything. When the owner requires the supported path, a workaround is out of scope.
+
+- **Rotate refused as a conflict.** The registered key is an older key, and the saved key was never registered. Ask an administrator to issue a replacement key through the supported reconcile or create command. The administrator delivers it as a file (mode 0600, readable only by the holder). The holder runs the client login command, which replaces the saved key and clears the unfinished request. After the key works, delete the staged file. Never post a key in a discussion, issue, or log.
+- **Do not hand-edit the store.** Do not restore an older key from a backup tar, and do not swap a shared profile for a test. One cluster profile can serve several deployments, so a swap changes every deployment on it. Backups made by the onboarding script are for the owner to use, not a repair path.
+- **Spawn-time key resolution.** A long-lived child server caches the key it read at spawn. A new child resolves the key from the home-directory store at spawn, because an approved-environment allowlist strips the key variable from children. So restarting a loop with a fresh environment does not help, and the first sign is that the oldest servers still work until they idle out. A lane-local synthetic home that holds a copy of the still-valid key is a mitigation for one lane; it is not a cure. The cure is a registered key in the real store.
+- **Verify completion with a status-only call.** A missing journal file and an unchanged stored key do not prove that a rotation finished. Send one request with the stored key to the gateway and read only the HTTP code. 200 proves it; 401 means the registration did not complete.
+
 ### Degraded Conditions
 
 - `py-spy` absent and `strace` attach refused (`yama/ptrace_scope=1` blocks
@@ -151,6 +163,8 @@ next decision.
 | Attach `strace` / `py-spy` to the hanging process | `strace -p` as the same uid, then `py-spy` dump | Kernel `yama/ptrace_scope=1` refused the non-child attach; `py-spy` was not installed | Sample `/proc/<pid>/wchan` and `/proc/<pid>/fd` instead; `nanosleep` with no external fds proves a local poll loop |
 | Recursive masked `jq` dump of the credentials file | `jq` with a recursive `def mask` over every nested value | The filter ended with `error: cannot allocate memory`, no output | Use a single-level mask over top-level entries; it covers the store schema and never prints values |
 | Read the raw traceback as a transient or a user error | Retried `request-key` after `PermissionError: credential lifecycle intent does not match saved credential` | The prepare branch reads durable state (lifecycle record vs saved credential), so every retry raised the same exception at the same frame | A prepare-time `PermissionError` is a durable dead end; check `whoami` with the existing credential to separate "dead end, key still valid" from "no working key" |
+| Restart the work loops with a fresh environment | Relaunched loops so children would pick up the new key from the environment. | Children get an allowlisted environment without the key variable and read the store at spawn, so they read the same rejected key. | Check where a child resolves its key before you restart anything. |
+| Rerun the onboarding script after a conflict | Ran the script again, expecting the rotate to pass. | The server holds an active unacknowledged key, so every rotate returns `conflict`. Each run only adds a backup file. | A conflict is a state problem on the server. Use the administrator recovery. |
 | Trusted a curl 401 as post-recovery admission evidence | Sent the credential in an `x-api-key:` header to a healthy recovered gateway; repeated instant `401 invalid or missing API key` for a key `whoami` accepted minutes later | The front parses only the `Authorization: Bearer` header; the unparsed header is rejected identically for healthy and unhealthy keys, so the probe consumed diagnosis time after recovery had already succeeded | Read the server's extraction code before a hand-built probe; a ~0 ms 401 means no lookup ran |
 
 ## Results & Parameters

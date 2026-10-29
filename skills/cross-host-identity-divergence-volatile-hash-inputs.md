@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Keep a content-derived identity hash free of launch-volatile inputs so that every host of a shared filesystem computes the same identity. Use when (1) a job rendered on one host fails an identity check after re-resolution on another host while all declared inputs are identical; (2) you design or review a digest or identity that different hosts must compute identically; (3) two resolutions of one logical deployment give different digests with no specification change."
 category: architecture
 date: 2026-10-22
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-live
 tags:
@@ -17,6 +17,8 @@ tags:
   - inode
   - render-run-boundary
   - fail-closed
+  - persisted-binding
+  - recovery-verb
 ---
 
 # Cross-Host Identity Divergence from Volatile Hash Inputs
@@ -36,6 +38,7 @@ tags:
 - Two resolutions of one logical deployment produce different digests with no operator edit.
 - A cross-host fingerprint check in a rendered environment, scheduler-retained evidence, or a service record fails closed although the compared artifacts are identical.
 - You design or review a content-addressed identity that different hosts must compute identically on a shared or parallel filesystem, or across launcher and mount lifecycles.
+- A persisted state record (a lifecycle journal, a lock, an intent file) binds a file by its stat fields and a digest. The same user later runs the tool on another node. The tool fails at once with a "record does not match the saved file" error, although the file inode and digest are unchanged. Only the device number differs.
 
 Do not use this skill to plan the live rotation chain after an intentional identity change. Rotation mechanics have their own entry; the rotation here is a one-time consequence of removing bad inputs, not the recurring operation.
 
@@ -62,6 +65,16 @@ construction on one host and change exactly the suspect leaf class: an
 exact digest match is decisive; a mismatch only removes that hypothesis.
 ```
 
+### Persisted binding record (no hash payload)
+
+The constancy rule also applies when no hash is computed on two hosts. A record that is written on one node and compared on another node is a cross-host identity too.
+
+- Compare the content digest as the identity. Compare the inode only as a same-file check, and only if the file is not replaced between writes. Never compare the device number across nodes.
+- Keep the device number, if at all, as same-host evidence that a change is not a swap.
+- Test the property directly: same inode, same digest, different device number must stay bound. A changed digest must still fail closed.
+- Check the state machine for a recovery verb. If a record can reach a state that no command can leave (no abandon, cancel, or restart), a binding defect strands every affected user until someone edits the store by hand. Ship the fix to the comparison and a supported way to abandon the record. Do not make users hand-edit the store.
+- Diagnostic that separates this defect from a real swap: compare the stored fields with the current `stat` and digest field by field. If only the device number differs and the digest and inode match, the cause is the node change, not an edit of the file.
+
 ### Suggested Approach
 
 1. **Apply the constancy rule to every hash input.** An input belongs in a cross-host identity only when a change to that input means a genuinely different logical object. Device numbers are a property of one client's mount instance: on some shared or parallel filesystems, different clients report different values for the same object. Inode numbers change at any directory replacement. Both change with no change to the logical deployment. Exclude the full class, not only the field that failed today.
@@ -75,6 +88,7 @@ exact digest match is decisive; a mismatch only removes that hypothesis.
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 | --------- | ---------------- | --------------- | ---------------- |
 | Manual payload replay | Flip the suspect values in a hand-built copy of the payload on one host and compare the digest with the observed second-host digest. | The manual replica did not reproduce the observed digest: its construction diverged from the production payload code (field set and branch handling). | Retype nothing into a hand-built copy. A complete leaf diff between real resolutions is decisive. If second-host execution is unavailable, a re-hash that starts from the production payload object and changes one suspect leaf class is decisive only on an exact digest match. |
+| Retry the tool after a binding mismatch | Re-ran the same command on the new node, with and without the rotate option. | The record binds the device number from the old node. Every retry fails at the same prepare step before any request is sent. | A binding mismatch with an equal digest is a durable dead end. Compare the fields; do not retry. |
 | Keep inode numbers in the hash | Cross-host probes showed equal inode values, so only device numbers looked unsafe. | The equal inode values were luck of one mount generation, not a contract. Any directory replacement changes inode numbers at the next launch. | Constancy must hold across launches, not only across the mount instances that exist today. Remove the full volatile class in one change. |
 
 ## Results & Parameters
@@ -91,6 +105,10 @@ identity_payload:
   excluded_inputs:
     - device_number        # st_dev: client mount-instance property
     - inode_number         # st_ino: changes at any directory replacement
+persisted_binding_record:
+  compare: [content_digest]       # identity
+  compare_if_file_not_replaced: [inode_number]
+  never_compare_across_nodes: [device_number]
 same_host_revalidation:
   keep_inputs:
     - device_number        # valid and useful within one host
