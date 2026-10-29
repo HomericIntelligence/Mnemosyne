@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Prepare Mnemosyne skill changes for existing validation and Markdown checks. Use for required sections, table pipes, overlapping amendments, and pre-existing corpus failures."
 category: tooling
 date: 2026-06-13
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-local
 tags:
@@ -36,6 +36,8 @@ history-cleanup-date: "2026-09-20"
 - `/learn` emitted a skill that is missing one of the five required `##` sections and you want to catch it before the `validate` gate does.
 - Parallel `/learn` runs each forked a fresh `origin/main` branch against the SAME skill and the resulting PRs are mutually DIRTY — you need the open-PR amend-lock.
 - The `validate` gate is red on files you never touched and you need to tell pre-existing main breakage apart from a regression you introduced.
+- A full-suite `pytest` run before your first commit fails `tests/test_writing_policy.py::test_active_guidance_inventory_is_closed` with the set difference listing exactly your new skill files, and you need to tell this not-yet-committed artifact apart from breakage.
+- `scripts/check-symlinks.sh` flags interpreter symlinks under an untracked `.venv/` that a package runner (for example `uv run`) created in the worktree.
 - You are about to label a skill `verified-ci` and want to confirm the gate is actually observed green first.
 
 ## Verified Workflow
@@ -90,7 +92,9 @@ VERIFIED-CI HONESTY:
 3. **markdownlint (step 1).** Run `markdownlint-cli2 --config .markdownlint.yaml` over the changed main and notes files. Fix EVERY rule it reports, with MD056 and MD012 the most common.
 4. **validate_plugins.py (step 2).** It lints the whole `skills/` dir. If errors appear only in files you did not touch, that is pre-existing main breakage — surface it as a separate fix PR, do not misattribute it to your change, and do not claim verified-ci off the back of it.
 5. **pre-commit (step 3).** `pre-commit run --files skills/<name>.md`.
-6. **verified-ci honesty.** Only after the PR's required gate (`validate` + `markdownlint`) is observed green via `gh pr view <PR> --json mergeStateStatus,statusCheckRollup` may you label the skill `verified-ci`. Local green is `verified-local`.
+6. **Full-suite pytest ordering (new-file runs).** `tests/test_writing_policy.py::test_active_guidance_inventory_is_closed` discovers active skills from the FILESYSTEM but closes the inventory over `git ls-files`. A new, not-yet-committed skill file appears in the discovery set only, so the test fails with the difference listing exactly your new files. This is a third attribution class — a commit-ordering artifact, neither pre-existing breakage nor a regression. Run steps 0–3 before committing; run the full `pytest` suite again AFTER committing the new files, when it passes. Steps 0–3 are state-independent and stay green pre-commit.
+7. **Symlink check sees environment artifacts.** `scripts/check-symlinks.sh` walks the whole tree, including untracked directories, and reports "symlink escapes repo" for interpreter links under a `.venv/` that `uv run` created. Classify these as environment artifacts: remove the runner-created environment directory before the check (or expect the report); they are not a repository defect and CI does not see them.
+8. **verified-ci honesty.** Only after the PR's required gate (`validate` + `markdownlint`) is observed green via `gh pr view <PR> --json mergeStateStatus,statusCheckRollup` may you label the skill `verified-ci`. Local green is `verified-local`.
 
 ## Failed Attempts
 
@@ -101,6 +105,8 @@ VERIFIED-CI HONESTY:
 | Generated a skill missing four required sections | Let `/learn` emit a skill and committed without a section self-check | The `validate` gate reported "Missing required section" on the PR's OWN new file (#2417 / #2420) | grep each of the five `##` headers before commit; a missing header is a guaranteed `validate` failure |
 | Labeled a skill verified-ci while its own gate was red | Set `verification: verified-ci` based on a passing local run | The PR's `validate`/`markdownlint` gate was still red, so the verification level was untrustworthy | Only claim verified-ci after `gh pr view <PR> --json statusCheckRollup` shows the gate green; local-only is verified-local |
 | Blamed validate errors on my own change | Saw red `validate` and assumed my new file broke it | The errors were in files I never touched — a single broken file already on main reddens EVERY PR's whole-dir `validate` | When validate errors point at untouched files, it is pre-existing main breakage; surface a separate fix PR and do not misattribute |
+| Ran full-suite pytest with new files uncommitted | Ran `pytest tests/` in a new-skill worktree before the first commit (per "run all four BEFORE committing") | `test_active_guidance_inventory_is_closed` failed; the set difference listed exactly the new skill files. Filesystem discovery counts them, the `git ls-files` closure does not | The inventory-closure failure on a pre-commit new-file run is a commit-ordering artifact: commit the new files and re-run the suite; it passes. Do not misclassify it as pre-existing breakage or a regression |
+| Ran the symlink check with a runner-created `.venv` | Ran `scripts/check-symlinks.sh` after `uv run` created `.venv/` in the worktree | The check reported "symlink escapes repo" for three interpreter symlinks under the untracked `.venv/` | The check walks untracked directories too; remove the runner-created environment directory (or expect the report) — an environment artifact, not a repository defect, and not visible to CI |
 
 ## Results & Parameters
 
@@ -112,6 +118,8 @@ VERIFIED-CI HONESTY:
 - **The required `##` section set is five headers.** `## Overview`, `## When to Use`, `## Verified Workflow`, `## Failed Attempts`, `## Results & Parameters`. `validate_plugins.py` accepts ONLY `## Verified Workflow` — for an unverified/verified-local skill keep that exact header and add a `> Proposed Workflow` warning subtitle under it. A missing header fails `validate` on the PR's own new file.
 - **Whole-repo validate.** `validate_plugins.py` sets `SKILLS_DIR = Path("skills")` and lints the ENTIRE dir, so a single broken file already on main reddens every PR's `validate`. Errors in files you did not touch are pre-existing breakage — fix-PR them separately, never claim verified-ci off them.
 - **Amend-lock query.** `gh pr list --repo HomericIntelligence/Mnemosyne --state open --search "<name> in:title" --json number,headRefName,title` plus a files-based check. If an open PR already amends the skill, stack on its branch — do not fork main. This is what prevents the ~35-PR DIRTY duplicate cluster.
+- **Three attribution classes for a red check.** (a) Your regression: the failure names your change. (b) Pre-existing main breakage: whole-dir tools (`validate_plugins.py`, repo-wide markdownlint) fail in files you did not touch. (c) Commit-ordering artifact: `test_active_guidance_inventory_is_closed` fails with the difference listing exactly your new, uncommitted skill files, because discovery reads the filesystem while the closure side reads `git ls-files`. Class (c) resolves by committing the new files and re-running.
+- **Symlink-check noise from environment directories.** `scripts/check-symlinks.sh` scans untracked directories as well; interpreter links under a runner-created `.venv/` (for example from `uv run`) report "symlink escapes repo". Remove the environment directory before the check; CI never sees it.
 - **Local validation order (canonical).** (0) section self-check, (1) `markdownlint-cli2 --config .markdownlint.yaml`, (2) `python3 scripts/validate_plugins.py`, (3) `pre-commit run --files <the file>`.
 - **verified-ci is observed, not assumed.** Only `gh pr view <PR> --json mergeStateStatus,statusCheckRollup` showing the gate green earns `verified-ci`. A passing local run is `verified-local`.
 
