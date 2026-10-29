@@ -67,7 +67,6 @@ identifiers are omitted under the privacy rules.
   last different-requirements ancestor. It avoids the owner override and
   keeps the helper's bookkeeping complete.
 
-
 ## Third incident chronology (2026-10-27)
 
 1. A multi-round exchange on an endpoint-consumer pull request ended with an
