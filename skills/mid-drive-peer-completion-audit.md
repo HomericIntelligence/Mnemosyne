@@ -2,8 +2,8 @@
 name: mid-drive-peer-completion-audit
 description: "Reconcile live forge state against a stale snapshot while driving an issue-to-merge queue that parallel lanes also work. Use when: (1) your queue map or status snapshot is minutes-to-hours old and the repository moves under you, (2) a peer lane can complete a review round or merge on your PR while you wait, (3) you must decide between redoing and auditing-plus-finishing leftover bookkeeping, (4) more than one review process can race on one PR, (5) a plan decision table can make a merged PR partial so the issue must stay open."
 category: tooling
-date: 2026-10-25
-version: "1.0.0"
+date: 2026-10-29
+version: "1.1.0"
 license: BSD-3-Clause
 user-invocable: false
 tags: [parallel-lanes, stale-snapshot, peer-completion, adopt-pr, refs-vs-closes, partial-scope, label-hygiene, review-race, immutable-artifact, lane-record]
@@ -50,7 +50,7 @@ Rule: **redo never; audit, then finish the leftovers.** When a peer delivered or
 ### Suggested Approach
 
 1. **Re-read before every mutation.** Before a label swap, a merge, a review round, or a cleanup delete, take a fresh read of the PR and the issue. In one measured drive, a snapshot one hour old was wrong on all three queue items: one PR had advanced by a repair commit, one PR was already merged, one PR existed from a prior session the directive did not know about.
-2. **Audit a peer completion instead of redoing it.** When a peer completes your review round or merge: bind the merged head and your head; compare content (`git compare` or file lists at both trees); verify forge coherence (merge commit reachable from the default branch, review carrier bound to the exact head, milestone, labels). Then enumerate the exchange's post-GO steps and check each one. In the measured drive, the issue-label swap was the step peers skipped on two of three issues — cheap to finish, invisible if you do not look. When one actor produced review and merge in the same round, record the reviewer-independence gap in the report; do not rerun the exchange to manufacture independence after merge.
+2. **Audit a peer completion instead of redoing it.** When a peer completes your review round or merge: bind the merged head and your head; compare content (`git compare` or file lists at both trees); verify forge coherence (merge commit reachable from the default branch, review carrier bound to the exact head, milestone, labels). Then enumerate the exchange's post-GO steps and check each one. In the measured drive, the issue-label swap was the step peers skipped on two of three issues — cheap to finish, invisible if you do not look. When one actor produced review and merge in the same round, record the reviewer-independence gap in the report; do not rerun the exchange to manufacture independence after merge. When you regenerate published diff or digest evidence, first match the publisher's documented command flags: a mismatch under different flags is a flags mismatch, not a content mismatch, and must not be reported as tamper evidence.
 3. **Leave duplicate reviewers to the publication guard.** More than one review process can target one PR: yours, a prior session's, a peer lane's. Do not kill processes you cannot attribute — a killed foreign reviewer can still be mid-delivery. Delivery-on-exact-head guards withhold publication once the artifact is immutable (merged), and reviewers read from their own snapshots, so branch and worktree cleanup is safe while they run. Checking that a running reviewer reads from its own snapshot directory, not your worktree, is the precondition for cleanup.
 4. **Keep a partial-scope issue open on purpose.** When the plan's decision table makes the merged PR partial, the PR body references the issue (`Refs`), and closure is wrong even though a review GO exists. Retain the plan-state label (the remaining scope is the same approved plan), post a lane-record comment naming the decision-table row that landed, what shipped, and what remains, and escalate the disposition (continue the same plan versus re-plan) to the coordinator. Do not switch the body to `Closes` to make a board row look finished — the forced close loses approved remaining scope and misreports the release.
 5. **Clean up only with bound evidence.** After a squash merge, the lane branch's commits are not ancestors of the default branch; branch deletion is justified by merge evidence (merge commit, PR state), and worktree removal is justified by rule 3's snapshot check — never by branch name or a zero-ahead count.
@@ -74,6 +74,7 @@ takeover_audit:
   - forge-coherence                  # merge on default, exact-head carrier, labels
   - post-go-step-checklist           # label swap, auto-merge arm, closure keyword
   - independence-gap-record          # one-actor review+merge rounds go in the report
+  - evidence-flag-reproduction       # match the publisher's documented flags before calling a digest mismatch
 duplicate_reviewers: leave-to-publication-guard   # never kill unattributed processes
 partial_closure:
   pr_body: "Refs #N (per the plan decision table)"
@@ -102,6 +103,7 @@ List the projects in which you tested this skill:
 
 ## References
 
+- [ambient-partial-clone-lazy-fetch-read-hazard.md](ambient-partial-clone-lazy-fetch-read-hazard.md) — ambient read pricing while you audit: a partial checkout turns read-heavy commands into silent network I/O; keep bulk reads on an explicitly acquired immutable source.
 - [shared-repo-interruption-yield-to-peer-pr.md](shared-repo-interruption-yield-to-peer-pr.md) — the resume-after-interruption sibling: inventory peer deliveries before redoing prepared work. This skill covers the active-drive case: the peer advances your artifact while you work.
 - [hephaestus-interrupted-implementation-lane-recovery.md](hephaestus-interrupted-implementation-lane-recovery.md) — salvage when a lane stopped before first publication.
 - [parallel-agent-swarm-dispatch-patterns.md](parallel-agent-swarm-dispatch-patterns.md) — dispatch-time keyword rule (`Refs` for partial fixes); this skill adds the issue-side bookkeeping that must follow the merge.

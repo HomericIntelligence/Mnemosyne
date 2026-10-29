@@ -62,6 +62,23 @@ merge commit and confirming no reviewer read from it.
   default branch carried pre-existing cross-lane failures, classified with
   adjacent-commit comparisons rather than assumed.
 
+### Delivered-evidence reproduction method (v1.1.0 added case)
+
+A separate review session audited a delivered terminal carrier on a merged
+artifact. Its anchor manifest published SHA-256 digests for two diff lenses.
+A `git diff` over the same ranges with default flags produced different
+digests from the published values; the identical ranges under the publisher's
+documented serialization flags (a full-index diff format) matched both
+digests exactly.
+
+- Decision rule: before you report a digest or manifest mismatch as tamper
+  evidence, find the flags the publisher documents for the record type and
+  rerun with those flags. A difference under different flags is a flags
+  mismatch, not a content mismatch.
+- This changes a decision: without the clause, an honest audit can misreport
+  a healthy delivered record as corrupted and can drive a wrong void/repair
+  or an escalation of a false finding.
+
 ## Provenance
 
 - Delivery base: `8cdb8d577bc7e984bfcd295b855a91e77cc5a65d` (main, refresh
