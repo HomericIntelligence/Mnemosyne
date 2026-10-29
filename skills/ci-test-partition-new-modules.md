@@ -1,12 +1,12 @@
 ---
 name: ci-test-partition-new-modules
-description: "Classify each new test module in the repository CI partition inventory in the same change, choose its tier by sibling-suite locality, and prove the partition locally with the runner's own loader. Use when: (1) a change adds a test module to a repo whose test runner requires an explicit partition of every discovered module, (2) every CI shard fails fast at configuration with an unclassified-modules partition error while lint, typecheck, and docs stay green, or (3) you must decide which of several inventory lists a new module belongs to."
+description: "Classify each new test module in the repository CI partition inventory in the same change, choose its tier by sibling-suite locality, and prove the partition locally with the runner's own loader. Use when: (1) a change adds a test module to a repo whose test runner requires an explicit partition of every discovered module, (2) every CI shard fails fast at configuration with an unclassified-modules partition error while lint, typecheck, and docs stay green, (3) you must decide which of several inventory lists a new module belongs to, or (4) modules in a suite directory that the tiers never select fail a union invariant while the suites run through a separate runner."
 category: ci-cd
 date: 2026-10-26
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-ci
-tags: [test-tier, module-partition, inventory-gate, unclassified-modules, fail-closed, shard-config-failure, sibling-locality, new-test-module, ci]
+tags: [test-tier, module-partition, inventory-gate, unclassified-modules, fail-closed, shard-config-failure, sibling-locality, new-test-module, nontier-family, union-invariant, ci]
 ---
 
 # Classify New Test Modules in the CI Partition Inventory
@@ -31,6 +31,14 @@ fails in seconds at configuration, before any test runs, with an error of the
 shape `... do not partition ... : unclassified modules: <paths>`; lint,
 typecheck, docs, and other gates stay green.
 
+A second shape exists for modules that the tiered profiles must never select,
+for example integration or real-identity suites in their own directory that run
+through a separate script or workflow. Their union invariant has the shape
+`<tiered modules> ∪ <nontier families> == all discovered modules`. Only the
+shard or job that executes the inventory test fails with a union error, while
+the other shards pass. Do not add these modules to a tier list. Extend the
+runner's module discovery to enumerate the new directory as a nontier family.
+
 ## When to Use
 
 - A change adds a new test module at a root that a CI inventory partitions.
@@ -38,6 +46,8 @@ typecheck, docs, and other gates stay green.
   error that names unclassified modules, while every other check passes.
 - You must choose which of several inventory lists (for example a pull-request
   tier or a nightly tier) a new module belongs to.
+- A change adds a suite in a directory that the tiered profiles never select,
+  and only one shard or one suite job fails a union invariant.
 - A local pre-push check must prove the same partition the hosted runner enforces.
 
 For the opposite gate shape, read the related entries: a changed-path gate
@@ -69,22 +79,34 @@ PY
    needs a row, and a removed module must lose its row. This is the opposite of
    a changed-path (diff) gate, where a deleted path keeps its classification
    row. Do not reuse a diff-gate rule on a partition gate.
-2. Classify by sibling-suite locality. Place the new module in the same list as
+2. Decide whether the tiered profiles select the new module. A module the
+   profiles never select, for example an integration or real-identity suite
+   that runs through a separate runner, must not get a tier row: the list
+   identity invariants reject modules outside the tiered roots, and the tiers
+   would run the suite without its required environment. Instead, extend the
+   runner's module discovery to enumerate the suite directory as a nontier
+   family so the union invariant closes. Document the nontier semantics in the
+   discovery contract. A family addition outside the tiered roots changes no
+   pinned root count.
+3. Classify by sibling-suite locality. Place the new module in the same list as
    the existing module whose runtime cost and dependencies it most resembles,
    for example the suite it extends. Look up that sibling's list instead of
    reasoning from the new module alone. When the local ordering is thematic or
    alphabetical, insert the row next to the sibling so later readers find it
    with its family.
-3. Keep the inventory edit in the same change as the new modules. The gate runs
+4. Keep the inventory edit in the same change as the new modules. The gate runs
    inside the test job, so a follow-up fix arrives only after every shard of
    the merged-queued change has already failed.
-4. Prove the partition locally before push. Run the repository own inventory
+5. Prove the partition locally before push. Run the repository own inventory
    loader or validator, the same code the runner uses, and the tests that cover
    the tier configuration. Reading the lists does not prove the partition; the
    loader checks both directions (unclassified and stale modules) and is cheap.
-5. Recognize the blast-radius signature on hosted CI. Uniform sub-minute shard
+6. Recognize the blast-radius signature on hosted CI. Uniform sub-minute shard
    failures with all other check families green point at job configuration,
    not at test behavior. Read one shard log first instead of re-running tests.
+   Attribute each failing check family separately: when several families are
+   red, a lane-caused invariant failure can hide behind foreign breakage with
+   the same red badge. The union error text names its own missing modules.
 
 ## Failed Attempts
 
@@ -93,6 +115,8 @@ PY
 | Fix the inventory after the source change merges | Pushed the new modules and the green local suites, planning to adjust CI data later | Every hosted shard failed at configuration with `unclassified modules`; merge was blocked while lint, typecheck, docs, and policy checks all passed | The partition gate runs inside the test job configuration stage; the inventory rows must land in the same change as the modules |
 | Read the lists instead of running the loader | Compared the two inventory sections by eye after adding rows | An eye-level read cannot check the reverse direction (a stale row for a missing module) and cannot confirm the lists still partition the tree | Run the runner's own loader locally; it validates both directions at once and costs seconds |
 | Copy a changed-path gate rule onto the partition | Considered keeping rows for removed modules, as a diff-classification gate requires for deletions | A tree-partition gate rejects a row for a missing module as stale (`unknown modules`), the opposite deletion rule | Identify the universe the gate classifies first: tree (additions need rows, removals lose rows) versus diff (deletions keep rows) |
+| Classify a nontier suite into a tier list | Considered adding the modules of a new suite directory to a pull-request or nightly list to close a union invariant | The list identity invariants require the lists to equal the tiered root modules, so non-root rows break the invariant they were supposed to repair; the tiers would also run suites that need a separate runner environment | Close the union at discovery: name the suite directory as a nontier family in the runner; keep tier lists root-only |
+| Attribute every red check to one known cause | Assigned an inventory-invariant failure in one shard to the same foreign typecheck breakage that reddened neighboring gates | The union error named unregistered suite modules, a lane-caused first cause that earlier full runs had masked behind the foreign failures | Attribute each failing check family on its own error text; repair the lane-caused family and report the foreign one separately |
 
 ## Results & Parameters
 
@@ -114,12 +138,16 @@ nightly_modules:
 - The tier-covering tests pass.
 - The hosted test job starts shard execution instead of failing at
   configuration; the remaining check families keep their earlier results.
+- For a nontier family, the discovery returns the suite modules beside the
+  tiered modules, the union invariant closes with no inventory edit, and only
+  the suite's own runner selects the suites.
 
 ## Verified On
 
 | Project | Context | Details |
 | --- | --- | --- |
 | A Python monorepo with a tiered module inventory | Five new test modules; first hosted run failed all shards at configuration, corrected run green and merged | Measured case and classification counts in [notes](ci-test-partition-new-modules.notes.md) |
+| A Python monorepo with tiered root lists plus suite directories on separate runners | Six suite modules in a new directory; one shard and the suite job failed the union invariant; a discovery fix passed the tier tests locally, and the hosted run went green and merged | Second measured case in [notes](ci-test-partition-new-modules.notes.md) |
 
 ## Related Entries
 

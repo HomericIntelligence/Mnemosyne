@@ -1,10 +1,10 @@
 ---
 name: comet-user-credential-lifecycle-diagnosis
 license: BSD-3-Clause
-description: "Diagnose Comet ordinary-user credential lifecycle failures end to end with read-only checks. Use when: (1) `comet request-key` hangs or ends with `Credential request state: pending.`, (2) a saved credential gets HTTP 401 after the propagation window, (3) `request-key` ends with `PermissionError: credential lifecycle intent does not match saved credential`, (4) unauthenticated reads work for an account but every authenticated call fails, (5) an operator asks which subsystem owns a user-reported key problem, (6) a rotate request ends with `Credential request state: conflict.` and the saved key is unchanged, (7) child processes get HTTP 401 after a restart while older long-lived processes still work."
+description: "Diagnose Comet ordinary-user credential lifecycle failures end to end with read-only checks. Use when: (1) `comet request-key` hangs or ends with `Credential request state: pending.`, (2) a saved credential gets HTTP 401 after the propagation window, (3) `request-key` ends with `PermissionError: credential lifecycle intent does not match saved credential`, (4) unauthenticated reads work for an account but every authenticated call fails, (5) an operator asks which subsystem owns a user-reported key problem, (6) a rotate request ends with `Credential request state: conflict.` and the saved key is unchanged, (7) child processes get HTTP 401 after a restart while older long-lived processes still work, (8) the intent-mismatch error appears after the account changed login node, or (9) a register request leaves the queue and an empty result slot remains with no result and no error."
 category: debugging
 date: 2026-10-22
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-local
 tags: [comet, credentials, request-key, api-key, rendezvous, gateway, "401", hang-diagnosis, proc-sampling, privacy-masking]
@@ -60,6 +60,8 @@ Match the observed signature to the broken link, then check the named evidence:
 | Signature | Broken link | First check |
 |-----------|-------------|-------------|
 | Fast exit 1, traceback at prepare time (for example `PermissionError: credential lifecycle intent does not match saved credential`) | Link 1, prepare + publish | The traceback frame; the saved-credential state (`whoami` can still pass with a different saved key) |
+| The same intent-mismatch traceback, but the saved file did not change and the account moved to another login node or the mount was remounted | Link 1, journal binding | Compare the journal's stored device, inode and digest with the file now: an equal inode and digest with a different device number is a binding defect, not a changed credential (step 4a) |
+| Register request leaves the queue, an empty (0-byte) result slot appears, `request-key` waits, no error anywhere | Link 2, fulfillment (post-admission failure) | The service admits the request before its database step and swallows the failure; read the service's per-request failure line, or run its fulfilment routine once from a node with a working database route (step 6a) |
 | Exit 0 with `Credential request state: pending.` after stacked waits | Link 2, fulfillment | Rendezvous `results`/`deliveries` parent mtimes; fulfillment dependency (database DSN) in the service launch environment |
 | Persistent HTTP 401 on `whoami` beyond the propagation window while older keys authenticate | Link 3, admission | Credential file mtime vs window; operator-side key-cache/key-sync state |
 | A hand-built probe (curl and similar) 401s a credential that client tooling authenticates in the same minute | None — probe harness defect | Confirm the exact transport the server parses: the gateway front reads only the `Authorization: Bearer <key>` header; another credential header (for example `x-api-key:`) is not read and yields an instant 401 indistinguishable from credential rejection |
@@ -104,6 +106,16 @@ next decision.
      did not complete. Treat exit 0 on `pending` as a designed-behavior trap:
      scripts see success while no credential can arrive.
    - `registered`/delivered: healthy; verify with `whoami` after the window.
+4a. For an intent-mismatch error, decide whether the credential changed or only
+   the filesystem identity changed. A shared network or virtual filesystem can
+   report a different device number for the same file on another node. A
+   journal that binds the device number then never matches again, and no client
+   verb can abandon it. Compare device, inode and digest from the journal and
+   from the file, with the digest masked. Equal inode and digest with a
+   different device number prove the binding defect. The durable fix binds the
+   inode and digest only. A client patch that compares the generation without
+   the device number frees every affected journal at once. Moving one journal
+   aside is a hand edit of the store, and it does not help the next account.
 5. If the process is still running, prove that the wait is local polling and
    not a blocked resource. Sample `/proc/<pid>/wchan` and list
    `/proc/<pid>/fd`. `hrtimer_nanosleep` with file descriptors only to
@@ -118,6 +130,21 @@ next decision.
    `--x` parent fails with EACCES by design; ENOENT for the per-user request
    subdirectory means the request never created an object. Check only your own
    artifacts and parent metadata; the contents are service-owned.
+6a. When fulfilment runs but no result appears, split the failure into its
+   stages. First prove the database route with a read-only probe: connect, then
+   look up the requester's user row by name. A requester who is in the
+   operating-system account database but has no row in the user table is
+   refused with a "central user is unavailable" class error. Provision the row
+   on the first request (team of ordinary users; the administrator flag only
+   for members of the administrator groups), and give an administrator a verb
+   that adds a user who is not in the account database. Then run the service's
+   own fulfilment routine once from a node with a working route, with exception
+   logging. The counters and the per-request reasons show which requests fail
+   and why. An empty result slot, with the request file gone, means an earlier
+   admission consumed the request. That request cannot complete; the user must
+   submit a new one. Do not infer success from a removed journal or an
+   unchanged stored key: confirm that the key id is in the gateway's key
+   snapshot and that a status-only check returns 200.
 7. Do not reproduce the failure under another person's account. Give the
    affected account a read-only debug script that self-collects: identity and
    group state, client build identity, public read results, masked store state,
@@ -166,6 +193,10 @@ Use the product's own recovery path first. Read the client's recovery message an
 | Restart the work loops with a fresh environment | Relaunched loops so children would pick up the new key from the environment. | Children get an allowlisted environment without the key variable and read the store at spawn, so they read the same rejected key. | Check where a child resolves its key before you restart anything. |
 | Rerun the onboarding script after a conflict | Ran the script again, expecting the rotate to pass. | The server holds an active unacknowledged key, so every rotate returns `conflict`. Each run only adds a backup file. | A conflict is a state problem on the server. Use the administrator recovery. |
 | Trusted a curl 401 as post-recovery admission evidence | Sent the credential in an `x-api-key:` header to a healthy recovered gateway; repeated instant `401 invalid or missing API key` for a key `whoami` accepted minutes later | The front parses only the `Authorization: Bearer` header; the unparsed header is rejected identically for healthy and unhealthy keys, so the probe consumed diagnosis time after recovery had already succeeded | Read the server's extraction code before a hand-built probe; a ~0 ms 401 means no lookup ran |
+
+| Moved the stuck journal aside by hand | Renamed one account's pending journal, then retried | It freed one account only, it is a hand edit of the store that a pass rule can forbid, and the next login-node change recreated the failure | Fix the binding in the client (inode and digest only); keep a hand edit as the last resort and record it |
+| Read a removed journal as a completed registration | A peer inferred success because the journal was gone and the stored key prefix was unchanged | The key id was still absent from the gateway key snapshot and the status check returned 401 | Only the key snapshot and a status-only check prove registration |
+| Ran a shell command to repair a user's store from the agent session | The agent session ran a user's `mv` through its command prefix | The command ran as the agent's own account and checked the wrong home directory | A command prefix runs as the session account; a repair in another account's home needs that account's own terminal |
 
 ## Results & Parameters
 

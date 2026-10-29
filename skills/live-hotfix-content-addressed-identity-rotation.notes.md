@@ -107,3 +107,10 @@ shapes: counts, orders of events, and message classes.
 - The untracked manifest rewrite was never attributed; treat manifest
   oddities as integrity events and check the digest set, not just the file
   freshness.
+
+## Revert branch evidence
+
+- Symptom: a replica exits after about 20 seconds with a rendered-identity error. The supervisor log shows its own identity unchanged. The document's modification time is later than the supervisor start.
+- Check that separates this from a device or inode identity fault: the same replicas started and served before the edit.
+- Result of the restore: replicas that started after it passed the 20-second failure point. Replicas that had started before it still failed with the old error, so read only a post-restore job as the test.
+- The restore reverts the quota fit that motivated the edit. The edited copy and its checksum keep that work for the next planned supervisor restart.

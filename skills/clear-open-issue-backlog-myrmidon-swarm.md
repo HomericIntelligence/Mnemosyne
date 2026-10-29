@@ -123,6 +123,11 @@ Before dispatch, list every file each KEEP/PARTIAL issue touches. Detect collisi
 
 **When 2+ issues touch the SAME file: BUNDLE into ONE sub-agent**, producing 2+ atomic commits and one PR with one `Closes #N` line per issue. Do NOT run colliding issues as parallel agents — this causes rebase races / merge conflicts.
 
+**Registration-space collisions need cross-plan name checks too — file ownership does not surface them.** When two adjacent in-flight PLANS register the same verbs/symbols/keys on known-shared surfaces (intent classes, dispatch keys, subcommands, handlers, exports), each plan's "the names are free" check was true only against its own review-time base — never against the other plan. Serial order alone does not fix a definitional collision: after plan A merges, plan B's free-name premise is false, and implementing B as written creates duplicate registrations (duplicate-key lint failures, duplicate CLI commands). Detect them: cross-grep the delivered-name claims of every pair of adjacent in-flight plans (read each canonical plan comment), not only those claims against a base. Resolve with the evidence-backed pattern:
+1. **Ownership ruling** — assign the shared names to the issue whose title/scope owns the machinery. Its implementer delivers the exact plan spellings and publishes them as the cross-issue contract (PR body), and the ruling is relayed into its lane.
+2. **Dependent plan rebind** — revise the other plan (revision N+1) to COMPOSE over the owner's registrations: read-before-delegate, exact-retry semantics, no weakening of the owner's durable semantics; keep only its own unique surface.
+3. **Re-review before implementation** — return the rebound revision through the plan review exchange to a delivered GO; fold in the anchor refresh against current main and any shared verification/tier coverage both plans must claim; relay the delivered-name contract into the dependent implementer's prompt.
+
 **Disjoint-file issues run as parallel agents in the same wave.**
 
 **Step 4 — DISPATCH WAVES**
@@ -189,6 +194,7 @@ pixi run mypy
 | Using CLAUDE.md-documented `--rebase` for auto-merge | Ran `gh pr merge --auto --rebase` per CLAUDE.md instructions | Repo is squash-only; `--rebase` silently never arms auto-merge, leaving PRs stuck | Always `gh api repos/ORG/REPO` to check merge settings; use `--squash` for squash-only repos |
 | Dispatching a worktree agent for branch-ruleset edit | Tried to have an agent fix a branch protection ruleset | Agent lacked repo-admin permission; operation requires GitHub org admin | Flag admin/env/high-risk items to the user; only dispatch what a worktree agent can safely do |
 | Dispatching a "moot" refactor because issue was open | Was about to dispatch a God-Class decomposition agent | File had already been restructured (1912 → 872 lines, 21/40 methods delegation shims); agent would have created churn on top of completed work | Re-grade confirms DONE-ALREADY/MOOT before dispatch, even if the issue is legitimately filed |
+| Trusting serial order for name-space collisions | Assumed issue-N+1-after-issue-N ordering resolved two approved plans that each registered the same verbs on the same five surfaces; both plans had verified the names free at planning time | Implementing the later plan as written would have duplicated the earlier plan's registrations once it merged (duplicate keys/commands); serial order fixes file writes, not name claims | Cross-grep adjacent in-flight plans' delivered-name claims against each other; assign single ownership of the shared names and rebind the dependent plan to compose over the owner's registrations, re-reviewed to GO before implementation |
 
 ## Results & Parameters
 

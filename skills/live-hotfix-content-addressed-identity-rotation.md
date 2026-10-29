@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Restore a live content-addressed deployment lane after an in-place recipe, flag, or qualification change rotates its release identity. Use when: (1) pools report stale or foreign runtime contracts after a hotfix, (2) a service boot fails with an identity mismatch that tells the operator to restart from the active deployment release, (3) rendered job scripts, exported identity environment files, or long-lived services keep the old identity after a document edit, or (4) an urgent fix cannot wait for a full release cut and a documented bypass is authorized."
 category: architecture
 date: 2026-10-22
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-live
 tags:
@@ -41,6 +41,7 @@ tags:
 - After such an edit, pools refuse work with stale-contract or foreign-context errors, or the traffic entrypoint rejects jobs as foreign.
 - A lane service fails boot with an identity mismatch whose message tells the operator to restart from the active deployment release, after the operator sourced an older release environment file.
 - Rendered batch scripts, exported identity environment files, or long-lived services keep the old identity after a document edit, and lifecycle operations silently revert the edit.
+- Every replica fails seconds after launch with a rendered-identity error whose *expected* value differs from the *observed* one, and the registered identity document on disk changed after the long-lived supervisor started. The replica derives *expected* from the disk document; the supervisor rendered *observed* into the job from its older in-RAM copy.
 - The designed path — a full release cut with promotion attestation — cannot meet the incident time budget, and a documented, issue-tracked bypass is authorized.
 
 Do not use this skill for a routine release cut: the designed release pipeline remains the default. Do not use it for a single-service restart that changes no digest-bearing input.
@@ -61,6 +62,14 @@ Do not use this skill for a routine release cut: the designed release pipeline r
    (job log, published record, real traffic), not by CLI receipts.
 5. SCALE declared pools explicitly: declarations, not demand, drive floors.
 ```
+
+### Choose the Repair Branch First
+
+Compare the document's modification time with the supervisor's start time. Pick the smallest repair that gives one identity:
+
+- **Edit not yet needed, supervisor still holds the old content:** restore the pre-edit document. Keep a copy of the edited file, record its checksum, and open a tracking issue. Replicas that start after the restore match the supervisor. No rotation and no restart are needed, and live pools keep serving. Check the result with a replica that started *after* the restore. A job that started earlier can still fail with the old error.
+- **Edit must apply:** restart the supervisor through its in-place verb so it loads the edited document (the supervisor binds identity at process start, so a disk edit alone never reaches a running process). If the identity chain changed, use the rotation below.
+- **Do not reset the scale-out circuit breakers by hand.** A systemic mismatch opens them for every pool after repeated failures. They probe again on their own, and the first probe after the repair clears them.
 
 ### Suggested Approach
 
@@ -97,6 +106,7 @@ Do not use this skill for a routine release cut: the designed release pipeline r
 | Hand-edit derived identifiers | Edited release and state identifiers directly in the release document | The document failed its own base and schema validation; derived identifiers are computed fields | Compute the full chain in one pass with the system's functions and revalidate offline |
 | Partial repin | Repinned only the two pools that first reported errors | Sibling pools authored before the current recipe generation still pinned stale contracts; the lane stayed foreign | Audit every pool contract against the current recipe generation and repin in one cascade |
 | Disk edit under a live stale service | Corrected the identity document while an operator-host service held the old identity in RAM | The next lifecycle verb re-serialized the document from RAM and reverted the edit | Terminate stale-RAM services before the disk write; drain verbs do not reap them |
+| Edit a registered document under a running supervisor | Lowered scale bounds in the installed release's registered document to fit a quota while the supervisor ran | The supervisor kept the old identity; every replica derived a different one from disk and exited in about 20 seconds; breakers opened on nine pools | Restore the pre-edit document at once (keep the edited copy), or restart the supervisor so it loads the edit. Never leave disk and supervisor on different content |
 | Cancel of a requeue-marked job | Cancelled the old-generation traffic job directly | The scheduler resurrected it under a new job ID and it kept admitting old-identity traffic | Disable requeue through the scheduler control verb before cancelling |
 | Boot with a sourced release environment | Exported the pinned release environment file, including its identity trio, before starting the service | Boot refused with an identity mismatch telling the operator to restart from the active deployment release | Sanitize every identity variable; services derive identity from the disk document |
 | Re-submit a rendered script | Identified the previously rendered entrypoint script for re-submission after the rotation | Caught before submission: the script baked the old identity environment at render time and would have launched the old identity | Re-render after any rotation; rendered scripts are stale by construction |

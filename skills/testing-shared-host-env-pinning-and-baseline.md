@@ -1,11 +1,11 @@
 ---
 name: testing-shared-host-env-pinning-and-baseline
-description: "Run a permission-sensitive repository test suite reliably on an unmanaged shared host and attribute failures correctly. Use when: (1) a suite fails in a shared login shell while hosted CI is green, (2) mode- or ACL-checking tests fail with Errno 95 or 0775-versus-0755 mismatches, (3) a one-shot tool opener shows the suite green while direct runs stay red, (4) pre-commit and other spawned hooks cannot resolve the repository's own tool binaries, (5) a required commit gate runs that suite and cannot pass on this host for any change, (6) the change that would repair the gate is itself blocked by the gate, or (7) one checkout of the repository is green where a sibling checkout is red on the same host."
+description: "Run a permission-sensitive repository test suite reliably on an unmanaged shared host and attribute failures correctly. Use when: (1) a suite fails in a shared login shell while hosted CI is green, (2) mode- or ACL-checking tests fail with Errno 95 or 0775-versus-0755 mismatches, (3) a one-shot tool opener shows the suite green while direct runs stay red, (4) pre-commit and other spawned hooks cannot resolve the repository's own tool binaries, (5) a required commit gate runs that suite and cannot pass on this host for any change, (6) the change that would repair the gate is itself blocked by the gate, or (7) one checkout of the repository is green where a sibling checkout is red on the same host, or (8) a trust guard refuses deployment or temp paths with shared-write or unsafe-identity errors that no umask pin can reach."
 category: testing
 date: 2026-10-09
-version: "1.2.0"
+version: "1.3.0"
 user-invocable: false
-tags: [shared-host, environment-pinning, umask, tmpdir, xattr, path, uv, pre-commit, test-baseline, pre-existing-failures, phantom-failures, pytest, hpc, multi-session, scratch-worktree, commit-gate, structural-block, self-unblocking-gate, cross-checkout-identity, virtualenv-base-interpreter, environment-divergence, test-attribution]
+tags: [shared-host, environment-pinning, umask, tmpdir, xattr, path, uv, pre-commit, test-baseline, pre-existing-failures, phantom-failures, pytest, hpc, multi-session, scratch-worktree, commit-gate, structural-block, self-unblocking-gate, cross-checkout-identity, virtualenv-base-interpreter, environment-divergence, test-attribution, ancestor-chain, shared-write-bits, tmpdir-relocation]
 ---
 
 # Shared-Host Test Environment Pinning and Failure Baseline
@@ -27,6 +27,7 @@ tags: [shared-host, environment-pinning, umask, tmpdir, xattr, path, uv, pre-com
 - A required commit gate runs the suite and fails for every change on this host, so no commit can be created.
 - The change that would repair the gate is itself blocked by that gate.
 - One checkout of the repository is green where a sibling checkout is red, and you are about to name test order, a missing fixture, or your change as the cause.
+- A fail-closed trust guard refuses a deployment root or a pytest `tmp_path` family with a shared-write or unsafe-identity message, and the mode it names belongs to an ancestor directory, not to anything the run created.
 - You are about to blame your change for failures you have not yet reproduced on clean HEAD.
 
 ## Verified Workflow
@@ -39,6 +40,11 @@ Pin the environment once per session, then run every validation command under it
 umask 022                            # shared hosts often default to 0002
 export TMPDIR=/tmp                   # scratch filesystems can lack listxattr/setxattr
 export PATH="$PWD/.venv/bin:$PATH"   # one-shot runners and spawned hooks start a different PATH
+
+# Trust guards that walk the TMPDIR ancestors refuse every group/other write
+# bit above the leaf. Relocate to an owner-only root and verify the chain:
+install -d -m 0700 "$HOME/<tmp-root>" && export TMPDIR="$HOME/<tmp-root>"
+p="$TMPDIR"; while [ "$p" != / ]; do stat -c '%a %U %n' "$p"; p="$(dirname "$p")"; done
 
 # Baseline before attribution: clean HEAD, detached scratch worktree, same pinned env.
 git fetch origin
@@ -61,7 +67,7 @@ Recognize the environment split first. Green hosted CI plus red local runs (or t
 
 ### When the gate is the suite and no pin reaches it
 
-`umask`, `TMPDIR`, and `PATH` fix **created** trees and **resolved** binaries. Four cases survive every pin. Recognize them and stop searching the pin list.
+`umask`, `TMPDIR`, and `PATH` fix **created** trees and **resolved** binaries. Five cases survive every pin. Recognize them and stop searching the pin list.
 
 **1. The inspected file already exists and is group-writable.** A permission guard that checks a pre-existing executable does not care how new files are created. Probe the target itself:
 
@@ -91,6 +97,17 @@ git ls-files -s | awk '$1=="100644"{print $4}' | while IFS= read -r f; do chmod 
 ```
 
 Recreating the worktree under `umask 022` also produces the recorded modes. Do not commit the drifted modes and do not weaken a reviewed-mode map.
+
+**5. A trust guard walks the `TMPDIR` ancestors, and the pinned location itself fails.** Some guards check every directory above a deployment root or a pytest `tmp_path` family for shared-write bits, not only the leaf. No `umask` reaches these directories: they already exist. Both common `TMPDIR` choices can carry shared-write bits on a shared host: a per-user directory that a session harness populates (measured `1775`) and a world-writable `/tmp` (`1777` on many hosts). `chmod` on a shared ancestor is also unsafe when concurrent sessions use the same directory. The repair is a dedicated owner-only root with a verified chain:
+
+```bash
+install -d -m 0700 "$HOME/<tmp-root>"
+export TMPDIR="$HOME/<tmp-root>"
+p="$TMPDIR"; while [ "$p" != / ]; do stat -c '%a %U %n' "$p"; p="$(dirname "$p")"; done
+# accept the root only when every line is owner-owned and has no group/other write bit
+```
+
+The refusal message names an ancestor (for example `deployment root ancestor has unsafe shared-write bits`), survives a correct session `umask`, and reappears in every session that inherits the same `TMPDIR`. `pytest` derives `tmp_path` from `TMPDIR`, so one relocated variable heals every fixture tree. Verify the location the runner resolves (`tempfile.gettempdir()`) rather than assuming a default.
 
 Never weaken the guard to get past the gate. The gate failing on a correct guard is the signal to fix the seam, not to remove the check.
 
@@ -140,6 +157,7 @@ Do not weaken a guard to correct this. The guard is right. The environment that 
 | Overlap your own full-suite runs while a gate is slow | Several independent suites launched together after the first hook attempt was slow | Host load reached roughly half the core count. Each later attempt inherited the contention, and the two concurrent writers made attribution noisy | Bound concurrent suites. One gate attempt at a time, and one validation owner per worktree |
 | Escalate a host-environment failure before checking the existing rule | Filed a tracking issue for a mode-mismatch failure class | The pin set in this entry already names the cause and the fix. The issue restated a known rule | Search the existing rule before escalating. Extend it when the new case is not covered; do not duplicate it |
 | Name test order as the cause of a difference between two checkouts | Bisected the order, and every step reproduced the failure, so the split looked like shared state | Both halves of the bisect ran in the same environment. The isolation run that passed ran in the other checkout | Compare the environment identity of both checkouts before you name order, pollution, or a fixture |
+| Fix an ancestor shared-write refusal with `umask` or `chmod` | Pinned `umask 022`, then considered `chmod` on the flagged ancestor | `umask` shapes only created descendants; the ancestors pre-exist, and `chmod` mutates a directory that concurrent sessions share | Relocate `TMPDIR` to a dedicated `0700` root and `stat`-verify every ancestor before the run |
 
 ## Results & Parameters
 
@@ -160,12 +178,14 @@ export PATH="$PWD/.venv/bin:$PATH"   # substitute the repository's own tool envi
 - A structurally blocked gate is reported once with its measured cause, not retried.
 - A repair that unblocks its own gate commits cleanly, because the hook sees the working tree.
 - A difference between two checkouts disappears after both checkouts use an equal environment identity.
+- Ancestor shared-write refusals clear after `TMPDIR` moves to a verified owner-only root, with no mutation of shared directories.
 
 ## Verified On
 
 | Project | Context | Details |
 | --------- | --------- | --------- |
 | LLM360/Comet | Implementation validation on a shared HPC host, 2026-10-08/09 | 15 pre-existing failures under the login environment; 59/59 and 61/61 green under the pin; two independent parallel sessions reproduced the same phantom set and same recovery. See [notes](testing-shared-host-env-pinning-and-baseline.notes.md). |
+| LLM360/Comet | Release-candidate interface pytest on a shared host with a networked filesystem, 2026-10-27 | Ambient `TMPDIR` resolved under a per-user `1775` directory; ancestor trust guards refused two deployment-staging tests. Relocation to a `0700` root under `HOME` healed both; the same session re-confirmed the umask pin against document-identity guards. See [notes](testing-shared-host-env-pinning-and-baseline.notes.md). |
 
 ## References
 
