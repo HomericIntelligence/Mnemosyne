@@ -20,7 +20,7 @@ skill needs for operation is in the main file; this file keeps the source detail
    shards.
 2. The identical deduped failing job-name set appeared at the parent commit on the default branch,
    which contained only unrelated merges. The gate log at both commits carried the same cascade
-   line: "required job did not succeed: <upstream job>". The named upstream job failed at both
+   line: "required job did not succeed: `<upstream job>`". The named upstream job failed at both
    commits.
 3. The test-shard numbers differed between the two commits (for example two shards on the parent
    and two different shard numbers at the merge commit), while the failed-node lines in the logs
@@ -63,7 +63,7 @@ rules.
    event `push` on the default branch.
 3. The failing run's failed jobs were a subset of the sharded matrix plus the aggregate gate. The
    gate log carried a cascade line that only echoed the shard failures: "required job did not
-   succeed: <job>". The failed-node lines named tests in areas that the merged change did not
+   succeed: `<job>`". The failed-node lines named tests in areas that the merged change did not
    touch, with signatures such as an unclassified service-path policy, a visible-command inventory
    drift from an unrelated feature merge, and a release-context classification mismatch.
 4. The same workflow at every later default-branch head concluded success, and the merged change
