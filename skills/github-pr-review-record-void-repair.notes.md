@@ -1,7 +1,7 @@
 # Notes: github-pr-review-record-void-repair
 
 Supporting session evidence (privacy-safe summary; identifiers, digests, repository
-names, and account names withheld). All observations are from one live fleet run on
+names, and account names withheld). Observations are from two live fleet runs on
 GitHub against submitted pull-request reviews authored by the automation account.
 
 ## Case 1 — superseded long authority event (void + byte-identical repost)
@@ -65,3 +65,28 @@ entry supplies the record-repair mechanics that serve a repair-oriented disposit
   wrong-path signal, not immutability evidence.
 - The transport note in this entry already gives the correct path; this case records
   the operator trap (doc-memory of a suffix form) so it is not repeated.
+
+## Case 5 — whole-history duplicate-state wedge (diagnosed 2026-10-28; remedy withheld for authority)
+
+- A fail-closed delivery helper rejected a terminal record whose own digest was unique,
+  citing a duplicate reviewer state in the round history. A same-head, same-round
+  enumeration showed no duplicate carriers.
+- Enumerating the artifact's *full* review history surfaced the cause: a racing
+  automation lane under the same shared identity had re-posted byte-identical copies of
+  each of two older round records. Every one of those older digests then had exactly two
+  parseable copies, and the whole-history duplicate-state scan rejected all later
+  delivery attempts regardless of their own digest uniqueness.
+- Earlier enumeration tombstones in the same history (fence-less junk records, Case-4
+  class) did not trigger the scan — confirming that the scan keys on parseable carrier
+  bodies, and that a fence-less record is invisible to it.
+- Validated remedy design: tombstone every duplicate copy (no repost — each duplicated
+  state's content is already on the artifact, and any new copy would re-arm the scan as
+  a third identical record). After the repair the history holds one parseable record
+  per digest and the fail-closed gate re-opens. No exchange fork: later rounds consume
+  the latest accepted reviewer state, which the repair does not remove.
+- Not executed: the duplicate copies are foreign-lane records and explicit owner or
+  task authority for their repair was not held. The wedge was reported per
+  stop-and-report and parked for an owner disposition.
+- Operator trap recorded: the wedge was first classified as permanently blocked with
+  "repair unresolved". Full-history enumeration plus this entry's skip rule shows it is
+  remediable with tombstones alone — no new carrier, no fork, and no helper change.
