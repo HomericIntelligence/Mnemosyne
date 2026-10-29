@@ -217,3 +217,27 @@ Wrapper trap: a private newer-git wrapper existed in an allowlisted discovery ro
 the intended local patch) and its binary worked, but every launch without `<wrapper-bin>`
 on PATH still bound the system git. The worktree enumeration resolves `git` through the
 inherited PATH, so discovery registration alone is not enough.
+
+## Run evidence (2026-10-28 50-issue wave, row-17 umask branch)
+
+A 50-issue wave (`--issues` with 50 explicit numbers) ran from a prepared loop-host checkout
+with an isolated projects directory on a shared filesystem. The launcher process inherited
+umask 002 from its parent.
+
+- Intake preparation completed. Within three minutes, seven implementation lanes blocked
+  fail-closed at first-publication discovery:
+  `The pending rebase directory permissions are unsafe: <projects-dir>/<repo>/.git/hephaestus-source-workspaces (mode 0775)`.
+  The summary recorded `BLOCKED:first_publication_discovery_failed` for each lane. Intake had
+  also warned that the source-workspaces directory of the intake clone was group-writable.
+- Verified mid-run recovery: a one-shot `chmod go-w` on the intake directory tree that the
+  check names (`<projects-dir>/<repo>`, its `.git`, and `.git/hephaestus-source-workspaces`),
+  applied a few minutes after intake completed. No lane hit the failure again during the
+  remaining ten-plus hours of the wave. Lanes that reached implementation later passed
+  discovery; they then failed on an unrelated rebase-policy defect.
+- Prevention derived, not verified live in this wave: launch with `umask 022` so `mkdir`
+  produces mode-0755 directories from the start (0777 masked with ~002 gives 0775, which
+  explains the failure). The chmod recovery is the verified part of this row.
+- Trigger boundary against row 16: row 16 rejects a pre-existing group-writable `.git`
+  common directory from a foreign clone; this row rejects a directory that the loop's own
+  intake just created. The 0755 floor is the same. The owner and the durable prevention
+  differ.
