@@ -157,3 +157,33 @@ git ls-files -s | awk '$1=="100644"{print $4}' | while IFS= read -r f; do chmod 
 Recreating a worktree under `umask 022` also produces the recorded modes. Do not commit the
 drifted modes: the index already records the correct values, and a checkout under the pinned
 `umask` reproduces them.
+
+## Fifth host measurement: TMPDIR ancestor-chain relocation (2026-10-27)
+
+Same class, third site: a shared host on a networked filesystem, found during a
+release-candidate interface suite run.
+
+| Probe | Result |
+| ----- | ------ |
+| Login `umask` | `0002` |
+| Ambient `TMPDIR` inherited by the test runner | per-user dot directory under `HOME`, mode `1775` (group-write set), populated by a session harness |
+| Host-local `/tmp` | owner-only, mode `0700` (site-specific; do not rely on it) |
+| Relocated `TMPDIR` | dedicated `0700` directory under an owner-only `HOME`; chain verified `750`/`755` to `/` with no group/other write bits |
+
+| Observation | Result |
+| ----------- | ------ |
+| First suite pass, ambient `TMPDIR` | 2 deployment-staging tests refused: "deployment root ancestor has unsafe shared-write bits" |
+| Same tests, `TMPDIR` relocated to the `0700` root, umask unchanged | passed |
+| Document-identity tests, login `umask 0002`, relocated `TMPDIR` | refused their own mode-`664` fixtures as an "unsafe identity" |
+| Same tests, `umask 022`, same relocated `TMPDIR` | passed |
+
+The two mechanisms are independent and coexist on one host: the ancestor guard reads the
+pre-existing chain, and the identity guard reads the created files. One pin covers only one
+of them. `chmod g-w` on the `1775` directory was available (the account owned it) and was
+not used: the directory is shared infrastructure that concurrent sessions populate, so
+mutating it trades a local fix for an unowned regression elsewhere.
+
+`pytest` derives `tmp_path` from `TMPDIR`, so the relocation reaches every fixture tree in
+one variable. Verify the location the runner resolves
+(`python -c 'import tempfile; print(tempfile.gettempdir())'`) rather than assuming a
+default: an ambient `TMPDIR` overrides the platform default in both Python and pytest.

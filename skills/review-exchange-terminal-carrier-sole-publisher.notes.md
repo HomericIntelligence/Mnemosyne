@@ -160,3 +160,62 @@ tooling generation before you select a recovery.
   requires owner authority and leaves the helper's bookkeeping incomplete for
   the exchange; the notes, labels, and thread closures must then be done
   explicitly.
+
+## Incident chronology (2026-10-28)
+
+A documentation program ran under fleet automation: several automation
+sessions under one account published on the same pull requests.
+
+1. One pull request carried a foreign round-1 exchange whose only finding had
+   been adjudicated and resolved in-tree. During branch maintenance, a
+   sibling session posted two distinct terminal GO state carriers over one
+   parent state, accompanied by empty carrier bodies. The persisted chain
+   forked: one state had multiple derived successors.
+2. Helper terminal delivery at the refreshed head failed closed: the guards
+   require one nonforking chain and reject any state with multiple derived
+   successors. Review dismissal is rejected as an invalid carrier, and the
+   forge exposes no review deletion, so no carrier-level repair existed. A
+   reframe was not available either: the exchange requirements had not
+   changed.
+3. A cross-session coordination note prescribed the same recovery that the
+   graph analysis had indicated: close the pull request as superseded and
+   open one replacement from the same branch and head with one publisher.
+   The closure comment and the replacement body carried the fork record, the
+   per-finding in-tree resolution table of the old exchange, and the
+   unchanged verification results.
+4. On the replacement pull request, a sibling session's delivery landed
+   seconds before this session's prepared delivery. Replaying the persisted
+   carriers classified the rejection as preemption, not a wedge: exactly one
+   terminal GO envelope bound the exact live head. This session extracted
+   the sibling carrier and audited it byte-for-byte against its own prepared
+   manifest — requirement digest, reviewed-scope digest, artifact revision,
+   anchor annex base and head, and the single-round complete-GO event
+   structure. Every value matched, so this session posted a handoff note,
+   applied the terminal state label exactly once, and armed auto-merge.
+5. On a later, clean pull request with no foreign carriers, the same
+   manifest-construction route delivered on the first attempt: the helper
+   published the terminal review and applied the terminal state label
+   itself, and auto-merge completed.
+
+## Why the fork classification matters
+
+The fork is a property of the persisted carrier set, not of the delivery
+input. No manifest repair exists, so every retry fails identically, and the
+standard exits do not apply: a void repair edits one's own carrier, but the
+duplicate carriers here were a sibling's records, and voiding one successor
+of a forked parent leaves the chain forked by definition; a reframe requires
+a real requirements change, which did not exist. Closing the pull request as
+superseded resets the persisted carrier set because a new pull request
+starts an empty chain, while the branch and head — and therefore every
+in-tree finding resolution — carry over unchanged.
+
+## Additional limits
+
+- The close-and-replace recovery was exercised once, under an explicit
+  cross-session coordination note and a sole-publisher agreement. Without
+  that agreement, two sessions can open competing replacements and re-fork.
+- The audit-acceptance path applies only when the sibling uses identical
+  tooling and the audit covers every binding field. A partial audit turns
+  acceptance into trust.
+- The empty carrier bodies that accompanied the duplicate carriers were
+  immutable and stayed in place as part of the fork record.

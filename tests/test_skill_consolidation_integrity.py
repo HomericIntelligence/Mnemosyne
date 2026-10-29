@@ -53,7 +53,7 @@ CONSOLIDATIONS: list[Consolidation] = [
     },
     {
         "canonical": "testing-env-leak-local-fail-ci-pass",
-        "version": "2.1.0",
+        "version": "2.2.0",
         "absorbed": [
             "local-test-failures-env-pollution-not-ci",
             "pytest-local-false-failure-inherited-heph-env-vars",

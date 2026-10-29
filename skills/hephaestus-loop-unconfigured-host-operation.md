@@ -1,9 +1,9 @@
 ---
 name: hephaestus-loop-unconfigured-host-operation
-description: "Bring up and keep alive the Hephaestus plan/review issue loop on a host that has no prepared automation configuration. Use when: (1) hephaestus-plan-issues or hephaestus-implement-issue exits fast with intake, preflight, or agent errors on an unfamiliar machine, (2) the Claude CLI reports \"Not logged in\" against a self-hosted model gateway even after configuration, (3) planner or reviewer jobs die with timeout, a missing verdict, or empty output, (4) an interrupted run left the intake worktree dirty and the loop refuses to start, (5) intake rejects the target checkout before any network call because its .git common directory is group-writable, or (6) the implement lane stops with a source_workspace_terminal record that asks for manual recovery although the intake state is healthy."
+description: "Bring up and keep alive the Hephaestus plan/review issue loop on a host that has no prepared automation configuration. Use when: (1) hephaestus-plan-issues or hephaestus-implement-issue exits fast with intake, preflight, or agent errors on an unfamiliar machine, (2) the Claude CLI reports \"Not logged in\" against a self-hosted model gateway even after configuration, (3) planner or reviewer jobs die with timeout, a missing verdict, or empty output, (4) an interrupted run left the intake worktree dirty and the loop refuses to start, (5) intake rejects the target checkout before any network call because its .git common directory is group-writable, or (6) the implement lane stops with a source_workspace_terminal record that asks for manual recovery although the intake state is healthy, or (7) implementation lanes fail closed with BLOCKED:first_publication_discovery_failed because the loop's own intake created the source-workspaces directory group-writable (mode 0775) under the launcher umask."
 category: tooling
 date: 2026-10-25
-version: "1.2.0"
+version: "1.3.0"
 user-invocable: false
 verification: verified
 tags:
@@ -24,6 +24,7 @@ tags:
   - prompt-overlay
   - thinking-model
   - timeout
+  - umask
 ---
 
 # Hephaestus Loop on an Unconfigured Host: Layered Host-Commons Repair
@@ -45,6 +46,7 @@ tags:
 - Planner or reviewer jobs fail with `job failed: timeout`, end without a verdict (`reviewer error`), or return empty output after resume.
 - A killed or crashed run left the intake worktree dirty, and the next run refuses to start with intake validation errors.
 - Checkout preparation fails before any network call: intake reports the target repository's `.git` common directory permissions as unsafe (mode 0775) and asks for `chmod 755`.
+- Implementation lanes fail closed in the first minutes after intake completes: `first-publication discovery failed: The pending rebase directory permissions are unsafe ... (mode 0775)`, the summary shows `BLOCKED:first_publication_discovery_failed`, and the named directory is one the loop created itself.
 
 ## Verified Workflow
 
@@ -82,6 +84,7 @@ L7 session reset   archive the transcript to force create-mode on degradation
 | 14 | After resume, the session answers with empty turns or the synthetic line `No response requested.`; `stop_reason:stop_sequence`; or the run stops with `review-session-lost: reviewer tool or model changed; reset the review session` | Long, resumed conversations can degrade through an Anthropic-Messages bridge gateway; create-mode sessions in the same window stay healthy. Separately, the review journal refuses to reuse a review session across a backend or model switch | For degradation: archive the session transcript JSONL (in the CLI's per-cwd project store); the adapter resumes by transcript presence and creates a fresh session when the file is missing. For the tool-change guard: pass `--reset-plan-review-session` and restore `state:needs-plan` if the guard also published `state:plan-blocked`; the next run starts a fresh review cycle |
 | 15 | Pipeline summary shows `blocked` with "The proposed plan is empty" right after an amend | The amend produced unchanged or empty text; publication requires a change | Find the cause upstream (usually signature 13 or 14); then move the issue label back to `state:needs-plan` as the blocked comment instructs, and rerun |
 | 16 | Checkout preparation fails before any network call: `repository-intake Git common directory permissions are unsafe: <path>/.git (mode 0775); run: chmod 755 <path>/.git, or re-clone with umask 022, then rerun` | The target checkout's `.git` common directory carries group-write bits (for example a clone made under umask 0002); intake accepts no mode wider than 0755 and stops at checkout preparation | Run `chmod 755 <path>/.git` on the target checkout; 0755 is enough for the intake check. Re-clone with umask 022 for a durable form. Then run again and take the next signature. This fixes the target checkout only; never patch the intake source |
+| 17 | Implementation lanes fail closed just after intake completes: `first publication discovery failed for issue <n>: ValueError("The pending rebase directory permissions are unsafe: <projects-dir>/<repo>/.git/hephaestus-source-workspaces (mode 0775)")`, the summary records `BLOCKED:first_publication_discovery_failed`, and intake can also warn that the source-workspaces directory is group-writable | The launcher process ran under umask 002, so the loop's own intake created the source-workspaces directory with group-write bits; first-publication discovery accepts no mode wider than 0755 and stops each lane fail-closed | Prevention: launch with `umask 022` (set it in the launch script), so intake creates mode-0755 directories. Mid-run recovery: run `chmod 755` or `chmod go-w` on the named directory and on each group-writable parent that the intake warns about; the repaired mode holds for the rest of the run, and the blocked lanes can run again. Same 0755 floor as row 16, different owner: row 16 repairs a pre-existing target checkout; this row repairs a directory that the loop's own intake created |
 
 ### Suggested approach
 
@@ -117,6 +120,7 @@ L7 session reset   archive the transcript to force create-mode on degradation
 ```bash
 # Launch contract that survived all seventeen iterations
 cd <empty-scratch-dir>
+umask 022  # row 17: a launcher umask of 002 makes intake-created directories 0775
 PATH=<shim-dir>:<newer-git-dir>:$PATH hephaestus-plan-issues \
   --repos <repo> --issues <n> \
   --agent claude --model <probed-model> \
@@ -145,6 +149,7 @@ exec /absolute/path/to/claude "$@"
 | Project | Context | Details |
 | --------- | --------- | --------- |
 | Hephaestus plan/review loop + comet | One issue driven through publish, NOGO with verified code citations, and amend start on a fresh host (2026-10-07) | [notes.md](hephaestus-loop-unconfigured-host-operation.notes.md) |
+| Hephaestus automation loop | 50-issue wave on a shared-filesystem host, launcher umask 002; row-17 recovery verified live (2026-10-28) | [notes.md](hephaestus-loop-unconfigured-host-operation.notes.md) |
 
 ## References
 

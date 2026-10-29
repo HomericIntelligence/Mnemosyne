@@ -1,10 +1,10 @@
 ---
 name: testing-non-vacuous-regression-guards-behavior-unchanged
 license: BSD-3-Clause
-description: "Assess whether regression guards distinguish meaningful behavior changes when the implementation stays unchanged; use discriminating inputs and optional mutation checks."
+description: "Assess whether regression guards distinguish meaningful behavior changes when the implementation stays unchanged; use discriminating inputs and optional mutation checks. When an upstream validation layer rejects the same invalid input first, bind the guard test to the layer that owns the decision."
 category: testing
 date: 2026-06-27
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: unverified
 tags:
@@ -14,6 +14,8 @@ tags:
   - docstring-only
   - mutation-testing
   - sibling-asymmetry
+  - layered-validation
+  - test-targeting
   - planning
   - hephaestus
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/testing-non-vacuous-regression-guards-behavior-unchanged.history"
@@ -26,6 +28,8 @@ history-cleanup-date: "2026-09-20"
 > hypothesis until CI confirms. It is a PLANNING-discipline learning derived
 > from a plan that was revised after a reviewer NOGO but never executed — no
 > tests were run, no mutations applied, no CI observed.
+> Exception: the "Layered-validation targeting" branch below was verified in
+> operation with executed removal-and-rerun mutation checks.
 
 ## Overview
 
@@ -58,6 +62,10 @@ without proving it would fail under a plausible mutation gates nothing.
   and you need to make it discriminate the intended code path from siblings.
 - You are tempted to propose a "wording alignment" doc edit to text that ALREADY
   states the contract (pure churn — a reviewer will flag it).
+- More than one validation layer rejects the same invalid input, and the guard
+  you must verify is in an earlier layer: a boundary-level test stays green even
+  when you delete that guard, because an upstream validator refuses the input
+  first.
 
 ## Verified Workflow
 
@@ -92,6 +100,12 @@ For a behavior-UNCHANGED (docstring/doc-only) fix whose tests "guard" the contra
 
 5. DOC-EDIT DELTA CHECK — before proposing any doc/wording edit, READ the current
    text. If it ALREADY states the contract, DROP the edit (no-op churn → NOGO).
+
+6. LAYERED-VALIDATION TARGETING — when an upstream validator can reject the same
+   input before the guarded layer runs, an end-to-end assertion passes for the
+   WRONG reason. Bind the guard test to the layer that OWNS the decision (call
+   the selection/classification function directly), then repeat the step-5
+   spot-check against that guard to prove the test kills it.
 ```
 
 ### Detailed Steps
@@ -137,6 +151,7 @@ For a behavior-UNCHANGED (docstring/doc-only) fix whose tests "guard" the contra
 | Positive-only assertion | Guarded the text fallback with only `assert "name: hephaestus" in result` | Vacuous: the substring also appears in a (mis-rendered) table and is not unique to the text branch, so the test passes regardless of which path ran | Pair every positive substring with a DISCRIMINATING negative assertion (`assert "{" not in result`) that excludes the sibling paths |
 | No-op "wording alignment" doc edit | Proposed editing `info.py:237-239` for "cross-function consistency" with `format_output` | The `format_system_info` docstring ALREADY documented the fallback — the edit was materially identical churn; reviewer flagged it as a redundant no-op | READ the current text first; if it already states the contract, DROP the edit. The real gap was ONLY `format_output`'s docstring |
 | "No behavior change so tests encode the contract" | Asserted the regression tests guard the documented behavior without naming what each would catch | Behavior-unchanged tests are green from the start and can pass vacuously; an un-proven "they encode the contract" claim gates nothing → reviewer NOGO | For EACH test, name the exact mutation it would FAIL against, in a Test \| Asserts \| Mutation table, so the reviewer can verify discrimination |
+| Boundary-level guard assertion under layered validation | Asserted only the end-to-end delivery error for an earlier selection guard | An upstream validator rejected the same input first, so the test passed with the guard deleted — mis-targeted, not vacuous | Remove the guard to expose the masking; assert on the layer that owns the decision, then repeat the mutation spot-check against that guard |
 
 ## Results & Parameters
 
@@ -184,6 +199,27 @@ assert "{" not in result   # MUST still fall back to text;
 pixi run pytest tests/unit/cli/test_utils.py -k "json_case" -q
 # 3. Revert the mutation. Do NOT commit it.
 ```
+
+### Layered-validation targeting (branch verified-local in operation)
+
+A test can be non-vacuous and still guard nothing you mean it to guard. When
+several layers reject the same invalid input, a boundary-level assertion is
+true because an UPSTREAM validator refused the input, not because the guarded
+selection guard works. Delete the guard and the suite stays green. The failure
+mode is mis-targeting, not vacuity, so stronger assertions at the same boundary
+do not fix it.
+
+1. Remove the guarded condition (temporarily) and run the boundary test. If the
+   test still passes, an upstream layer rejects the input first.
+2. Re-target the test at the layer that owns the decision. Invoke the selection
+   or classification function directly with the same fixture, and assert on its
+   selection outcome (for example, an empty candidate list).
+3. Remove the guard again. The re-targeted test must FAIL without the guard and
+   PASS with it. Revert the removal. Do not commit it.
+
+Do not keep the boundary-level test as the only guard for that condition. Keep
+it for the upstream contract it actually pins, and give the guarded layer its
+own test.
 
 ### Residual risks the reviewer should still watch
 

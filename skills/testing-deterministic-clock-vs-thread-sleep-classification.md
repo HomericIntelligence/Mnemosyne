@@ -1,10 +1,10 @@
 ---
 name: testing-deterministic-clock-vs-thread-sleep-classification
 license: BSD-3-Clause
-description: "Replace scheduler-sensitive timing assertions with the production clock, synchronization, or no-wait assertions according to what the test proves."
+description: "Replace scheduler-sensitive timing assertions with the production clock, synchronization, or no-wait assertions according to what the test proves, and never clock-patch a module whose `time` attribute is the shared stdlib module object while an asyncio event loop is running — that freezes the loop scheduler and hangs every timeout."
 category: testing
 date: 2026-08-05
-version: "2.1.1"
+version: "2.2.0"
 user-invocable: false
 verification: verified-local
 tags:
@@ -27,6 +27,10 @@ tags:
   - no-wait
   - token-bucket
   - state-transition
+  - asyncio
+  - event-loop-clock
+  - selectors-select
+  - frozen-loop
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/testing-deterministic-clock-vs-thread-sleep-classification.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -39,8 +43,8 @@ history-cleanup-date: "2026-09-20"
 |-------|-------|
 | **Date** | 2026-08-05 |
 | **Objective** | Remove scheduler-sensitive timing assertions and real sleeps from unit tests without changing production APIs or weakening concurrency coverage. |
-| **Outcome** | Successful and verified locally across three patterns: mocked clocks for timer boundaries, deterministic events for thread ordering, and raising sleep mocks plus exact state assertions for branches that must not wait. |
-| **Verification** | verified-local — prior circuit-breaker/status-tracker suites passed locally; the rate-limit amendment passed 2 focused tests, all 7 throttle tests, and all 75 rate-limit tests with `--no-cov`. CI remains pending. |
+| **Outcome** | Successful and verified locally across three patterns: mocked clocks for timer boundaries, deterministic events for thread ordering, and raising sleep mocks plus exact state assertions for branches that must not wait. A later amendment added a fourth class: patching a module-scoped clock attribute in an asyncio-hosted test freezes the event-loop scheduler, and the fix patches pacing constants and uses short real async sleeps. |
+| **Verification** | verified-local — prior circuit-breaker/status-tracker suites passed locally; the rate-limit amendment passed 2 focused tests, all 7 throttle tests, and all 75 rate-limit tests with `--no-cov`. The asyncio amendment passed 110 focused cache tests plus 488 auth-adjacent, 66 proxy, and 22 plan-command tests in an internal async gateway suite. CI remains pending. |
 
 ## When to Use
 
@@ -53,6 +57,11 @@ history-cleanup-date: "2026-09-20"
   `assert elapsed < 0.05` to claim that no wait occurred.
 - A token bucket, backoff, or retry test must prove both the absence of sleeping and the
   exact state transition performed before returning.
+- A test whose subject owns an asyncio event loop (async web service, in-process ASGI app,
+  lifespan-scoped fixture) patches `time.monotonic`/`time.time` on the production module —
+  or you are about to add that patch.
+- A test hangs with the runner idle in a selector (`selectors.select` in a faulthandler or
+  pytest-timeout dump) while an asyncio loop runs: the loop's scheduler clock is frozen.
 
 ## Verified Workflow
 
@@ -130,6 +139,34 @@ disabled_sleep.assert_not_called()
 assert not state_path.exists()
 ```
 
+```python
+# CLASS 4 — Asyncio event-loop hazard: the loop itself is a clock consumer.
+# `module.time` IS the shared stdlib module object; patching its attribute is
+# process-global. The asyncio loop reads the same monotonic source for its
+# scheduler, so while the patch is active every asyncio.sleep / wait_for /
+# call_later target stays in the future and NOTHING wakes up. Signature: the
+# test hangs and a faulthandler/pytest-timeout dump shows a thread idle in
+# `selectors.select`.
+# WRONG — freezes loop.time() for the whole process while the app runs:
+#   @patch("proxy_app.time.monotonic", return_value=1000.0)
+# FIX — patch the pacing constant, keep the real clock, wait with short
+# real async sleeps:
+import asyncio
+from unittest.mock import patch
+
+_INTERVAL_S = 0.05
+
+@patch("proxy_app._PACE_INTERVAL_S", _INTERVAL_S)   # constant, not a clock
+async def test_degraded_mode_pacing(self):
+    ...                                             # drive the degraded state
+    await asyncio.sleep(3 * _INTERVAL_S)           # real loop, real clock
+    ...
+
+# If a clock patch is unavoidable, activate it only AFTER startup/lifespan
+# completes (no task scheduled by the lifespan must outlive the patch), and
+# release it before teardown. Never span the loop's startup/teardown.
+```
+
 ```bash
 # Housekeeping after edits:
 #  - removing the last time.sleep -> `import time` is now unused -> ruff F401, delete it
@@ -190,6 +227,18 @@ grep -rn "time.sleep" tests/unit/
 12. **Run the full targeted suite multiple times** to confirm determinism (flakiness only
     shows up intermittently). Here: 23 status_tracker + 35 circuit_breaker tests green
     across 3 runs.
+13. **For waits inside an asyncio-hosted subject**: first check whether the test subject
+    owns an event loop (async service, in-process ASGI transport, lifespan fixture). If
+    yes, the timer-boundary class does NOT apply: a patch of `<module>.time.monotonic`
+    (or `.time`) is process-global, because `module.time` is the shared stdlib module
+    object, and the loop's scheduler reads the same monotonic source. While the patch is
+    active every scheduled callback stays in the future, so all `asyncio.wait_for`,
+    `asyncio.sleep`, and lifespan timeouts hang. Patch the module's pacing/interval
+    CONSTANT instead (tiny value), keep the real clock, and wait with short real
+    `asyncio.sleep`s. Classification stays timer-boundary; the mechanism changes. Diagnose
+    an existing freeze with a faulthandler or pytest-timeout dump: a thread parked in
+    `selectors.select` with no ticking coroutine is the frozen-loop signature. If a clock
+    patch is truly unavoidable, activate it only after startup/lifespan completes.
 
 ### If you DO end up marking tests slow (coverage gate check)
 
@@ -212,6 +261,7 @@ marker (and this check) unnecessary, which is the preferred outcome.
 | Single fixed mock value across the whole `call()` path | Setting one constant `monotonic.return_value` and assuming all reads are equivalent | The mocked value is read multiple times within one `call()` (`_effective_state` AND the `time_until` ETA); a value that makes the boundary cross can make an ETA assertion read `0.0`/negative | When the same mocked clock feeds an ETA assertion (`time_until_recovery > 0`), choose the value so `recovery_timeout - elapsed > 0` still holds |
 | Keep "simulate work" `time.sleep(0.01)` in a contention test | Left an artificial work delay inside worker threads of a pure contention test | The test only asserts all threads eventually acquired and all slots released — the delay adds wall-clock time and flakiness for no assertion benefit | Pure-contention tests need no artificial work delay; just delete the sleep |
 | Trusting cited line numbers | Planning edits against offsets from a single read | Line numbers drift between reads as files change | Re-grep `time.sleep` and the markers at implementation time; never trust a prior read's offsets |
+| Clock patch around an asyncio app's lifespan | Patched the production module's `time.monotonic` attribute to drive a degraded-mode pacing loop inside an in-process async app | `module.time` is the shared stdlib module object, so the patch froze the value process-wide; the event loop's scheduler reads the same monotonic source, every scheduled callback stayed in the future, and the test hung with the runner idle in `selectors.select` | In asyncio-hosted tests the loop itself is a clock consumer: patch the pacing constant, keep the real clock, wait with short real `asyncio.sleep`s, and activate any unavoidable clock patch only after startup/lifespan completes |
 
 ## Results & Parameters
 
@@ -223,6 +273,7 @@ marker (and this check) unnecessary, which is the preferred outcome.
 | No-wait branch | Nothing: sleeping is forbidden, and the branch should return immediately | Patch the SUT's `time.sleep` with a raising `side_effect`; assert no call, exact clock reads, and resulting state | Measuring an elapsed-time ceiling, which tests the scheduler more than the branch contract |
 | Thread-coordination | Real OS threads ordered against `threading.Condition`/`Event`/`Barrier` | Instrument the sync primitive (set an `Event` from inside `condition.wait` before parking) for a deterministic happens-before | `@pytest.mark.slow` (hides flakiness, drops coverage — reviewer-rejected); mocking a clock that does not exist |
 | Pure-contention "simulate work" | Nothing semantic — just adds delay so threads overlap | DELETE the sleep; assertions are "eventually acquired/released" | Keeping the delay (slow + flaky for no assertion benefit) |
+| Asyncio-hosted pacing wait | The event loop's own scheduler clock (the same process-shared monotonic source the patched attribute feeds) | Patch the pacing/interval constant to a tiny value and wait with short real `asyncio.sleep`s; activate an unavoidable clock patch only after startup completes | Patching `<module>.time.monotonic` around the running app — freezes the loop scheduler; every timeout hangs and the dump shows a thread idle in `selectors.select` |
 
 **The deterministic thread-coordination technique (the key technique that converged the review):**
 
@@ -301,3 +352,4 @@ the forbidden boundary; the other states the expected interaction in the test co
 |---------|---------|---------|
 | ProjectHephaestus | Issue #1469 / PR #1725 — replaced real `time.sleep()` in `tests/unit/resilience/test_circuit_breaker.py` (mocked clock) and `tests/unit/automation/test_status_tracker.py` (deterministic Event coordination); 58 tests green ×3 runs locally, CI pending | No notes file |
 | ProjectHephaestus | Rate-limit throttle test amendment validated in an isolated worktree at `446b0fea`; 2 focused, 7 throttle, and 75 module tests passed with `--no-cov`; CI pending | No notes file |
+| An internal async gateway service | Degraded-mode stale-serving tests for a proxy key cache; the clock-patch freeze reproduced (runner idle in `selectors.select`), then fixed with a pacing-constant patch and short real `asyncio.sleep`s; 110 focused cache tests plus 488 auth-adjacent, 66 proxy, and 22 plan-command tests green (2026-10-26) | [notes](testing-deterministic-clock-vs-thread-sleep-classification.notes.md) |
