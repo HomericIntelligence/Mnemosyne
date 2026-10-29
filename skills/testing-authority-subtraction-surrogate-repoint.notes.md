@@ -1,7 +1,7 @@
 # Notes: testing-authority-subtraction-surrogate-repoint
 
-Privacy-safe session evidence for the skill. Facts from issue #3178 and PR
-#3409 on LLM360/comet, 28 October 2026.
+Privacy-safe session evidence for the skill. Facts from issue #3178 and
+PR #3409 on LLM360/comet, 28 October 2026.
 
 ## The trigger
 
