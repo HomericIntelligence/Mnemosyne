@@ -1,10 +1,10 @@
 ---
 name: enumerated-registry-assertion-drift
 license: BSD-3-Clause
-description: "Treat exact-list test assertions over a registry that several merge lanes extend as a wholesale-red failure class: every lane that appends without syncing the assertions breaks main, and a repair is incomplete unless it syncs to the complete current set and adds a drift guard in the same change. Use when numbered files (migrations, catalogs, fixtures) accumulate from parallel merges, when a PR appends to such a directory without touching the asserting tests, when many test shards fail at once on an exact-list equality, or when a repair commit fixes the drift only up to an older entry."
+description: "Treat exact-list test assertions over a registry that several merge lanes extend as a wholesale-red failure class: every lane that appends without syncing the assertions breaks main, and a repair is incomplete unless it syncs to the complete current set and adds a drift guard in the same change. Use when numbered files (migrations, catalogs, fixtures) accumulate from parallel merges, when a PR appends to such a directory without touching the asserting tests, when many test shards fail at once on an exact-list equality, when a repair commit fixes the drift only up to an older entry, or when a test syncs its expectation by list concatenation (snapshot plus appended entries) while the backing query orders by key."
 category: testing
 date: 2026-10-25
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [enumerative-tests, migration-list, registry-drift, parallel-merges, merge-waves, exact-list-assertion, drift-guard, main-red, repair-completeness, test-design]
@@ -43,6 +43,13 @@ Use this skill when one of these conditions applies:
   asserting tests.
 - A repair commit claims to fix "deterministic failures after parallel
   merges". Check that it is complete before you trust it.
+- A test builds its expected order by concatenation, for example
+  `snapshot_before + [entries_added_late]`, while the backing query returns
+  rows in key order (`ORDER BY version`, `ORDER BY name`). The concat models
+  insertion order; it coincides with key order only while no already-present
+  entry outranks a late addition. Any later registry member that sorts after
+  a late-added entry breaks the assertion with a swapped-position diff of
+  otherwise equal lists.
 
 ## Verified Workflow
 
@@ -73,6 +80,10 @@ smaller or larger than the ref under diagnosis.
   a superset that contains a named baseline, or a catalog fingerprint.
   Reserve exact equality for the segment one change owns, for example "the
   new candidate appends immediately after the previous last entry".
+  When the backing query already imposes an order, keep the comparison
+  faithful to that order: compare sorted projections
+  (`sorted(after_minus_moved) == sorted(before + moved)`), never a
+  concat that models insertion order against a key-ordered result.
 - **Reviewers**: a pull request that appends to such a registry without
   extending the asserting tests in the same merge is a required finding.
   The drift becomes visible only after later merges, so per-PR review is
@@ -95,6 +106,7 @@ smaller or larger than the ref under diagnosis.
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 | --------- | ---------------- | --------------- | ---------------- |
 | Enumeration synced to analysis-time state | After a first drift break, a repair commit extended the expected migration list through entry N while entries N+1 and N+2 were already present on the mainline from two other merges | `apply(...) == [...]` returned two extra stems; the same assertion sites failed deterministically again within hours, this time across almost every shard | A repair for this class must sync to the complete set at merge time and add a drift guard in the same change; otherwise the wave-pattern guarantees recurrence |
+| Concat that models insertion order | A ledger test compared `rows_except_late_stem` with `before_snapshot + [late_rows]`, where the backing query is `ORDER BY version`; the shapes coincide only while no already-kept row outranks the late rows | A new registry member that sorts after the kept rows put the late row at the tail of the expectation, and the assertion failed with the same two stems in swapped positions of otherwise equal lists | When the backing query is key-ordered, the expectation must be key-ordered too; compare sorted projections, because a concat expectation is an enumeration that encodes the wrong order semantics |
 
 ## Results & Parameters
 
