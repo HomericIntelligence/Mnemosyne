@@ -34,7 +34,18 @@ The stash stack is shared mutable state. The top entry does not belong to the ca
 Never run a destructive stash command on an entry whose owner, message, and content were not
 verified first. Other lanes lose work silently when a foreign stash is popped or dropped.
 
-## Procedure
+## Verified Workflow
+
+### Quick Reference
+
+```bash
+git stash list                     # read every message and date
+git stash show -p stash@{N}        # inspect content before any action
+git stash apply stash@{N}          # own entry only; prefer apply over pop
+# drop only after the applied result is confirmed on disk
+```
+
+### Steps
 
 1. List before any action: `git stash list`. Read every entry's message and date.
 2. Identify ownership. Stash messages carry the branch and commit they were made from. Match them
@@ -50,16 +61,16 @@ verified first. Other lanes lose work silently when a foreign stash is popped or
    `git stash list` history on clones that still hold the objects, or restore from a salvage
    archive taken before the incident.
 
-## Failure Modes
+## Failed Attempts
 
-| Failure | Cause | Result | Mitigation |
-| ------- | ----- | ------ | ---------- |
-| Pop the top entry by position | Assumed newest entry is own | Foreign changes enter a dirty tree; the foreign lane loses its stash | Verify message and diff first |
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| ------- | -------------- | ------------- | -------------- |
+| Pop the top entry by position | Assumed the newest entry is the caller's own | Foreign changes entered a dirty tree and the foreign lane lost its stash | Verify message and diff first |
 | `git stash clear` as cleanup | Treated all entries as residue | Every lane's stashed work is destroyed at once | Never clear in a shared checkout; drop only verified-own entries one at a time |
-| Drop after apply without read-back | Assumed apply succeeded cleanly | Partial application or conflict leaves a destroyed-only copy | Confirm the tree state, then drop |
-| Treat a foreign stash as blocker | Deleted it to unblock the lane | Permanent loss of another lane's uncommitted work | Park, record, escalate |
+| Drop after apply without read-back | Assumed apply succeeded cleanly | Partial application or a conflict leaves a destroyed-only copy | Confirm the tree state, then drop |
+| Treat a foreign stash as a blocker | Deleted it to unblock the lane | Permanent loss of another lane's uncommitted work | Park, record, escalate |
 
-## Evidence
+## Results & Parameters
 
 A multi-lane run shared one git checkout. A cleanup step near the end found stash entries it had
 not created. Position-based handling would have destroyed work belonging to a parallel lane. The
