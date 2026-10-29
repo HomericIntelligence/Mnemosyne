@@ -1,6 +1,6 @@
 # Notes: review-exchange-terminal-manifest-construction
 
-Supporting evidence for the main skill. Generalized from three live
+Supporting evidence for the main skill. Generalized from five live
 deliveries; identifiers are omitted under the privacy rules.
 
 ## Delivery chronology (2026-10-22)
@@ -211,13 +211,40 @@ marker compares as ledger and fails; annex content omitted from the reduce
 digest fails the render check. The delivery helper's anchor-source option
 binds the same annex bytes at publication.
 
+## Nonterminal no-go delivery — published-review identity form (2026-10-28)
+
+1. A round-1 source review closed with a nonterminal no-go state: two
+   findings, an exact-head binding, one linked requirement. The reviewer
+   published one comment review carrier at the exact head, carrying an
+   anchor annex after the deterministic annex marker. The same carrier
+   acted as the delivery's proof review.
+2. Two delivery submissions were withheld at pre-publication input
+   validation before the accepted one. The defects they fixed between them:
+   the proof review was bound by its decimal database review identifier,
+   which the helper rejects — the published-review identity must be the
+   GraphQL review node ID — and the annex source was not supplied although
+   the proof review carried a published anchor annex. Neither withheld
+   attempt published a carrier and neither changed a state label.
+3. The accepted submission changed only those two inputs: the GraphQL
+   review node ID for the proof review identity and the annex source for
+   the published annex. The helper delivered the exclusive nonterminal
+   state label and reported the published review identity. An independent
+   forge readback confirmed the label set at the exact head. The delivery
+   result showed the state label only after the accepted submission, which
+   confirms the withheld attempts mutated nothing.
+4. Cost: two withheld submissions, zero forge mutations. Every rejection
+   was pre-publication, so each resubmission was safe. The exact parameter
+   names and value forms for the review identity and the annex source are
+   interface witnesses of this helper generation; confirm them against the
+   installed helper's signature before relying on them.
+
 ## Evidence limits
 
-Four single live cases, one exchange tooling generation each. The invariants
+Five single live cases, one exchange tooling generation each. The invariants
 (digest order, deterministic visible body, canonical manifest form,
 rejection-class triage, structural carrier-history rejection, fixed-point
-convergence, terminal-introduced partition, annex placement) follow from the
-fail-closed validator design and do not rest on
+convergence, terminal-introduced partition, annex placement, withheld
+pre-publication rejection safety) follow from the fail-closed validator design and do not rest on
 frequency. Interface details (positional argument, mode flags, import context,
-anchor-source option) are generation-specific witnesses; confirm them against
+anchor-source option, published-review identity form) are generation-specific witnesses; confirm them against
 the installed helper's signature before relying on them.
