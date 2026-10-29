@@ -1,13 +1,13 @@
 ---
 name: lane-branch-zero-ahead-merge-check
-description: "Classify a leftover automation-generated implementation branch that is zero commits ahead of the default branch before re-implementing. Use when queue-start or salvage discovery must decide reuse, re-implementation, or cleanup."
+description: "Classify an automation-generated implementation branch that is zero commits ahead of the default branch before re-implementing; the stub can be leftover work, merged work, or an active lane arming. Use when queue-start or salvage discovery must decide reuse, re-implementation, deferral, or cleanup."
 category: tooling
-date: 2026-10-25
-version: "1.0.0"
+date: 2026-10-26
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 license: BSD-3-Clause
-tags: [lane-recovery, branch-audit, already-merged, zero-ahead, reimplementation-avoidance, adoption]
+tags: [lane-recovery, branch-audit, already-merged, zero-ahead, reimplementation-avoidance, adoption, active-lane, tip-recency]
 ---
 
 # Lane Branch Zero-Ahead Merge State Check
@@ -19,8 +19,8 @@ tags: [lane-recovery, branch-audit, already-merged, zero-ahead, reimplementation
 | Field | Value |
 | ------- | ------- |
 | **Date** | 2026-10-25 |
-| **Objective** | Classify a leftover automation-generated implementation branch (`0` commits ahead of the default branch) before deciding to re-implement, reuse, or clean up |
-| **Outcome** | Successful — a merge-state check identified an already-merged pull request and prevented a duplicate implementation of a finished issue |
+| **Objective** | Classify an automation-generated implementation branch (`0` commits ahead of the default branch) before deciding to re-implement, reuse, defer, or clean up |
+| **Outcome** | Successful — a merge-state check identified an already-merged pull request and prevented a duplicate implementation of a finished issue; a tip-recency check keeps an armed active lane from being mistaken for an empty one |
 | **Verification** | verified-local |
 
 ## When to Use
@@ -28,6 +28,8 @@ tags: [lane-recovery, branch-audit, already-merged, zero-ahead, reimplementation
 - A reconcile or adoption phase finds a leftover lane branch for a backlog issue (for
   example an `auto-impl` branch left by an earlier run or another session), and no open
   pull request references the issue.
+- An ownership gate for a new run finds zero-ahead lane stubs and must decide whether
+  they are leftovers or an active lane arming before its first publication write.
 - `git rev-list --count origin/<default>..<branch-head>` returns `0`, and you must decide
   what that means before new implementation starts.
 - Several lanes or sessions share the branch namespace of one repository, so a previous
@@ -37,16 +39,28 @@ tags: [lane-recovery, branch-audit, already-merged, zero-ahead, reimplementation
 
 ## Core Rule
 
-Zero commits ahead has two readings. Do not distinguish them by commit count alone:
+Zero commits ahead has three readings. Do not distinguish them by commit count alone:
 
 1. **Empty lane** — the earlier run never landed work (timeout, intake failure, or a
    worktree removed before commit).
 2. **Post-merge lane** — the work already merged. After a merge, the branch head is an
    ancestor of the default branch, so the ahead count is exactly `0`.
+3. **Arming lane** — an active lane whose stub the automation (re)created or reset
+   against the current default branch shortly before the check. No work is pushed yet,
+   but a pull request can appear hours later with no further warning.
 
-A stale reading in either direction is expensive: re-implementing a merged issue wastes a
+The recency discriminator separates reading 3 from readings 1 and 2. A zero-ahead tip is
+a default-branch commit, so the tip commit's timestamp tells when the ref was armed:
+a stub whose tip commit is only minutes or a few hours old was armed against a default
+branch that already contained that commit — the lane is preparing now. A stub whose tip
+commit is days or weeks old was armed long ago and is a leftover. Compare the tip
+timestamp with the gate's activity window, and treat a fresh stub with no pull request
+as possibly active, not as free.
+
+A stale reading in any direction is expensive: re-implementing a merged issue wastes a
 full implementation and creates a conflicting second pull request; discarding an
-already-delivered branch as "empty" hides that the issue is delivered.
+already-delivered branch as "empty" hides that the issue is delivered; and treating an
+arming lane as empty lets two workers implement the same issue at the same time.
 
 ## Verified Workflow
 
@@ -62,6 +76,10 @@ gh pr list --repo <owner>/<repo> --state all \
 git merge-base --is-ancestor <branch-head> origin/<default-branch> \
   && echo "present-on-default" || echo "not-present"
 
+# 2b. Tip recency: when was the stub armed? A zero-ahead tip is a default-branch
+# commit, so a fresh tip timestamp means an armed-now lane, not an old leftover.
+git log -1 --format=%cI <branch-head>
+
 # 3. Only when no merge evidence exists, look for unpublished work
 git rev-list --count origin/<default-branch>..<branch-head>
 git diff --stat origin/<default-branch> <branch-head>
@@ -75,7 +93,13 @@ Classify against the queried evidence, not the branch name or the ahead count:
 | --------- | --------------- | ------- |
 | A merged pull request names the issue and its merge commit is reachable from the default branch | already delivered | Audit the merged content against the delivery contract (required files, required tests at the current default branch). Mark delivered. Keep the branch until an owner approves cleanup. |
 | The lane head is an ancestor of the default branch and the diff of the branch against it is empty or is only reverse drift | empty lane | Safe to re-use or clean up per owner policy. |
+| No pull request names the issue, but the stub tip commit is fresh (armed inside the activity window) | possibly-active lane | Do not treat the issue as free. Defer new implementation or schedule a probe re-run before the first publication write; if a peer pull request opens in between, yield to it (see the interruption-yield entry below). |
 | Unpublished commits exist ahead of the default branch | salvage candidate | Use the interrupted-lane recovery entry; do not re-implement over the commits. |
+
+Gate evidence decays while a run works. Even after a clean ownership gate, re-run the
+same read-only probes before the first publication write (push, branch work, or PR),
+and after every interruption: a probe set that cost seconds prevents a duplicate
+implementation that cost hours.
 
 When the classification is "already delivered", audit the delivered change before
 accepting it. A short audit is cheap and verifies the merge the count could not prove:
@@ -94,6 +118,7 @@ least destructive decision: keep the branch and classify by the remaining eviden
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 | --------- | ---------------- | --------------- | ---------------- |
 | Commit-count verdict | Classified a leftover lane branch as "nothing salvageable" because `--count` returned `0` | The reason was wrong although the conclusion happened to be right: the work had merged the previous day, and `0` came from post-merge ancestry | Zero ahead is never self-classifying; add the pull-request state and ancestry checks before any re-implement or discard decision |
+| Scaffolding verdict | An ownership gate classified fresh zero-ahead lane stubs as harmless repo-wide scaffolding because many issues carried identical empty stubs | The stubs were armed against the current default branch one to two hours before the gate; the lane automation opened a complete peer pull request for the same issue hours later, mid-run | A fresh tip timestamp on a zero-ahead stub is an arming signal, not a leftover; re-run the read-only probes before the first publication write and after every interruption |
 
 ## Results & Parameters
 
@@ -106,6 +131,7 @@ issue: <issue-number>
 queries:
   - pull-request-state-all-search-body-and-title
   - merge-base-ancestry-against-default
+  - tip-commit-timestamp-against-activity-window
   - rev-list-count-and-diff-stat-only-when-unclassified
 audit_when_delivered:
   - required-artifacts-present-on-default
@@ -114,20 +140,24 @@ audit_when_delivered:
 
 ### Expected Output
 
-- One of three classifications with its evidence: already delivered, empty lane, or
-  salvage candidate.
+- One of four classifications with its evidence: already delivered, empty lane,
+  possibly-active lane, or salvage candidate.
 - For already delivered: an audit verdict and, when the audit passes, the issue marked
   delivered without new implementation.
-- No duplicate second pull request for a merged issue.
+- For possibly-active: no new implementation starts; a probe re-run is scheduled before
+  the first publication write.
+- No duplicate second pull request for a merged or actively delivered issue.
 
 ## Verified On
 
 | Project | Context | Details |
 | --------- | --------- | --------- |
 | An orchestrated multi-lane issue-backlog wave (identifiers withheld under the privacy policy) | Queue-start reconcile classified a leftover implementation branch as already merged and an audit confirmed the merge; the issue needed no new implementation | See [notes](./lane-branch-zero-ahead-merge-check.notes.md) |
+| An orchestrated multi-lane issue-backlog wave (identifiers withheld under the privacy policy) | Ownership-gate stubs armed one to two hours before the gate delivered a complete peer pull request mid-run; a forced post-interruption probe refresh caught it, and the worker yielded and cleaned up its unpushed lane | See [notes](./lane-branch-zero-ahead-merge-check.notes.md) |
 
 ## References
 
 - [Interrupted automation implementation lane recovery](hephaestus-interrupted-implementation-lane-recovery.md) — pre-pull-request lanes; use when unpublished work exists
 - [Interrupted automation loop relaunch salvage](interrupted-automation-loop-relaunch-salvage.md) — reuse decisions for relaunch artifacts
+- [Inventory and yield interrupted work when parallel sessions share a repository](shared-repo-interruption-yield-to-peer-pr.md) — the yield disposition when a peer pull request covers the intent
 - [Git branch state triage and recovery](git-branch-state-triage-and-recovery.md) — general branch-state inspection

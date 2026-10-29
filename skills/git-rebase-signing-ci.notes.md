@@ -100,6 +100,39 @@ Verification after push:
    green commits — a different key may still pass content checks but changes
    what the forge verifies against.
 
+## Foreign-signer incident reconstruction (v1.7.0 source material)
+
+One verified session on a public shared repository with a merge queue. An
+earlier automation lane had produced pull-request commits signed with its own
+SSH key under the author's identity. The author-side signing config pointed to
+a different key.
+
+Observed diagnostics:
+
+- `git log --format='%h %G? %GK'` reported `U` on the foreign commit and `G`
+  on the sibling commits; `%GK` printed a fingerprint that differed from
+  `ssh-keygen -lf "$(git config user.signingkey).pub"`.
+- `git verify-commit <commit>` printed `Good "git" signature with ED25519 key
+  SHA256:…` followed by `No principal matched.` A good object-level signature
+  from an unbound key.
+- The same foreign fingerprint appeared on a commit in a sibling automation
+  branch, so the identity was lane-wide, not a one-off.
+
+Verified repair (explicit authorship authority granted first):
+
+1. `git rebase --force-rebase --exec 'git commit --amend --no-edit -S' <base>`
+   on a scratch branch in a separate worktree.
+2. Post-rewrite checks: all 3 commits `%G?` `G` with `%GK` equal to the
+   configured key; `git rev-parse HEAD^{tree}` equal to the pre-rewrite tip
+   tree; per-commit tree hashes identical across the stack; `git diff
+   <old-tip> HEAD` empty; `git log --format='%b'` still contained all 3
+   `Signed-off-by` trailers; author and committer identity unchanged.
+3. `git push --force-with-lease=<branch>:<old-head-oid> origin
+   <local>:<branch>` — the push would refuse on any concurrent remote move.
+4. Consequence accepted and recorded: review records bound to the old heads
+   became void; the pull request later merged through the repository merge
+   queue.
+
 ## Related entries
 
 - [git-commit-signing-failures-and-setup](git-commit-signing-failures-and-setup.md):

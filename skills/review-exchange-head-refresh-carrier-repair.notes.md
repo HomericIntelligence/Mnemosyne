@@ -228,3 +228,79 @@ terminal delivery. Auto-merge had been armed by policy before the refreshes.
 
 Source identifiers (organization, repository, pull-request numbers) are
 deliberately omitted; the rules above are stated against the general mechanism.
+
+## Source case (2026-10-26): forge-metadata-only fix at the constant head
+
+A chain-verified two-round exchange on a fix-artifact pull request (nine changed
+paths, one required finding plus one nonblocking finding) reached round 1 `NO-GO`
+with a single required finding. The finding's closure condition required only a
+pull-request body correction: the body had to stop using closing syntax for the
+linked requirement because the artifact deliberately leaves one acceptance
+criterion open.
+
+### The rejection
+
+The author landed the body correction and submitted the `fix` answer with the
+recomputed bindings: the head revision unchanged, the revised reviewed-scope
+digest (the corrected body moved it), and the unchanged requirements digest. The
+reducer rejected the answer: "A pull-request fix must bind a new head revision."
+Source inspection confirmed the rule is absolute: on a pull-request surface a
+`fix` or `fix_with_tradeoff` answer requires a changed artifact revision, and no
+event field carries a metadata-only fix. Alternatives were examined and rejected
+as dishonest: `risk_acceptance` needs no head move but records acceptance of an
+unfixed finding, and `contest` asserts the finding is wrong; neither describes a
+correction.
+
+### The deliberate head advance
+
+The correction was already live, so the only missing element was a new head
+revision. The author added one empty signed commit on the review branch whose
+tree was byte-identical to the tested head and pushed it:
+
+- `git diff <tested-head>..<new-head>` produced no output;
+- both `git rev-parse <commit>^{tree}` values matched;
+- the commit message recorded why the commit is empty and that a squash merge
+  carries none of its identity.
+
+The reviewed-scope digest that bound the corrected body survived the head
+advance unchanged, because the digest covers the pull-request metadata fields
+(title, body, closing references, state, draft flag, base and head branch
+names) and not the head object identifier. The author-response refresh then
+reduced `accepted` at the new revision (`awaiting_reviewer`, round unchanged),
+and its carrier published and readback-verified.
+
+### Coverage and the next round
+
+The refresh invalidated coverage, so the next reviewer round was a full-coverage
+round from a fresh context. Because the new tree was byte-identical, the reviewer
+proved tree identity and re-affirmed the round-1 deep source coverage instead of
+re-executing it; the round returned terminal GO with the required finding
+resolved. One nonblocking follow-up finding did attach to the head-chain text:
+an earlier head-chain commit message, written to the repository's `Closes #N`
+convention, contained a closing keyword that a squash merge composing its
+default message from branch commit messages could copy into the default branch.
+
+### Squash-hygiene verification
+
+The merge was armed with an explicitly set squash title and body carrying the
+non-closing linkage (`References #N`). Post-merge verification confirmed: the
+merge commit contains no closing keyword for the requirement, the pull request's
+closing-issues set was empty at merge, and the requirement issue stayed open
+with its residual criterion. The empty commit's identity did not enter the
+default branch.
+
+### Verification record (third incident)
+
+- Constant-head fix rejection: the reducer rejected the `fix` answer with the
+  literal message above; the rule was confirmed by source inspection, not by
+  probing with alternatives.
+- Tree identity: empty diff and equal tree object identifiers between the
+  tested head and the advanced head, verified before and after the push.
+- Digest survival: the reviewed-scope digest was identical before and after the
+  head advance; it was recomputed from the live metadata at both points.
+- Refresh and terminal delivery: the author-response refresh reduced
+  `accepted`; the terminal round reduced `complete / GO`; terminal delivery
+  published one terminal COMMENT review (byte-exact readback), closed the one
+  open thread with a marker-verified reply, and set the exclusive state label.
+- Merge verification: explicit squash title and body; zero closing keywords in
+  the merge commit; the requirement issue open with its residual criterion.

@@ -57,3 +57,26 @@ LLM360/comet, 24–25 October 2026, during a multi-lane merge wave.
   break, because each lane's adding commit did not touch the asserting
   tests; this is why reviewer blocking of unsynced registry appends is the
   operative rule.
+
+## Post-skill evidence: concat against a key-ordered ledger
+
+Source: follow-on lane of the same merge wave (LLM360/comet #3084, 26
+October 2026). A migration-ledger test helper returns applied stems via
+`SELECT version FROM schema_migrations ORDER BY version`. One expectation
+in the lane's new test compared that projection minus the late stem with
+`before + [blocked_stems]`. `before` was the snapshot with a new
+non-blocked stem (sorts after the blocked ones) included; the concat
+placed the blocked stems at the tail, while the key-ordered ledger placed
+them before the new stem.
+
+- Failure signature: `At index N diff: 'X_stem' != 'Y_stem'` with the same
+  two stems swapped and the rest of the lists identical; the immediately
+  preceding full-list equality assertion still passed.
+- Repair: replace the concat with a sorted-projection comparison
+  (`sorted(...) == sorted(before + [blocked_stems])`); keep multiplicity
+  significant (sorted lists still compare duplicates).
+- The drift guard for this shape is the assertion idiom itself: no member
+  added later can change the verdict of a key-order-faithful comparison.
+- ruff check/format and byte-compile passed on the amended test; the
+  focused suite could not run on the diagnosis host, so the repair shipped
+  on static trace plus the CI failure trace and passed CI after merge.
