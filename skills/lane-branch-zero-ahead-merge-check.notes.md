@@ -79,3 +79,50 @@ Decision value this case adds:
   state is `verified-local`.
 - Repository, issue, pull-request, and lane identifiers are withheld under the privacy
   policy; the notes keep only the decision structure.
+
+## Second case: armed stubs mistaken for scaffolding (generalized)
+
+1. A single-issue worker ran its mandatory ownership gate before any write. The probes
+   found no pull request in any state, no assignee, no in-progress label, and a
+   completed plan round with a terminal approval. Four lane stubs for the same issue
+   were `0` commits ahead of the default branch, and matching stub patterns existed
+   for more than a hundred other issues — some sharing tip hashes across issues.
+2. The gate classified the stubs as repo-wide empty scaffolding from content alone.
+   What the classification missed: every stub tip was a default-branch commit created
+   one to two hours before the gate, so the refs had been armed against the current
+   default branch just before the check began.
+3. The worker planned and started test-first implementation (a RED test file only,
+   never committed or pushed).
+4. A provider outage interrupted the run hours later. The resume directive forced a
+   read-only forge refresh before any further write: the lane automation had pushed a
+   complete implementation to one of the armed stubs and opened a peer pull request
+   for the same issue minutes earlier (single commit, all checks green).
+5. The worker yielded: it removed its own unpushed worktree and local branch (whose
+   tip was the pre-drift default head — nothing unique was committed), touched no
+   labels, comments, or the peer pull request, and reported an owned disposition.
+6. Arm-to-PR gap in this case: about five to six hours. The only duplicated cost was
+   one RED test file and the gate time.
+
+## Why the discriminator works
+
+- Lane automation arms a stub by pointing the branch at the current default-branch
+  head before a worker starts. The branch therefore contains no lane work, but its
+  tip commit is fresh. A leftover from days ago points at a stale default commit
+  instead. `git log -1 --format=%cI <branch-head>` separates the two without guessing.
+- Identical stub layouts across many issues (shared hashes, shared pattern) describe
+  *how* the automation arms lanes, not *whether* this issue's lane is idle. Pattern
+  breadth is not evidence of idleness.
+- An ownership gate's evidence list often enumerates pull requests, labels, assignees,
+  and comment activity. Ref freshness on issue-numbered lane branches belongs on the
+  same list; without it, the arming window (here five to six hours) is invisible.
+- The saving control was procedural: the resume forced a read-only refresh before the
+  first publication write. The same refresh before any push, branch work, or PR
+  catches the same class of race without an interruption.
+
+## Evidence limits in the second case
+
+- One observed case; the exact freshness threshold that marks a stub as armed is not
+  verified. The observed tip age at gate time was one to two hours and the arm-to-PR
+  gap was five to six hours on the same lane-automation generation.
+- The worker's lost work was limited to an uncommitted test file; no claim is made
+  about safety when unique commits exist (use the salvage-candidate row for that).
