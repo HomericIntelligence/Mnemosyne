@@ -1,10 +1,10 @@
 ---
 name: testing-source-line-number-assertions-are-churn-engines
 license: BSD-3-Clause
-description: "When an unrelated edit moves source lines and makes a test fail, use this skill. Also use it when a review requests source-offset maintenance or a test enforces stored citations. Remove layout-dependent assertions. Keep behavior checks and nonempty validation."
+description: "When an unrelated edit moves source lines and makes a test fail, use this skill. Also use it when a review requests source-offset maintenance, a test enforces stored citations, or a test restates a guarded constant as a literal. Remove layout-dependent assertions. Re-anchor value assertions to the single authoritative constant. Keep behavior checks and nonempty validation."
 category: testing
 date: 2026-07-16
-version: "1.2.0"
+version: "1.3.0"
 user-invocable: false
 verification: verified-ci
 tags:
@@ -13,6 +13,7 @@ tags:
   - regression-test
   - review
   - nonempty-validation
+  - single-source-derivation
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/testing-source-line-number-assertions-are-churn-engines.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -34,13 +35,15 @@ history-cleanup-date: "2026-09-20"
 - A review asks an author to update numeric source offsets.
 - An automation loop repeatedly changes line references without a behavior change.
 - A test-selection gate still selects a test that an approved change removed.
+- A test restates a guarded value, for example a declared minimum version, as a literal. A correct change to the authoritative constant then fails the test.
 
 ## Verified Workflow
 
 ### Quick Reference
 
 Identify the product contract. Remove the layout-dependent assertion.
-Run a current, nonempty selection of applicable behavior tests.
+When the asserted value is itself the contract, re-anchor the assertion to
+its authority. Run a current, nonempty selection of applicable behavior tests.
 Do not report an empty selection as a pass.
 
 ### Distinguish the contracts
@@ -71,6 +74,26 @@ Do not update a line offset only to satisfy the removed layout assertion.
 Keep useful navigation references when they do not impose a test invariant.
 Generate navigation references only if the repository requires that feature.
 Do not rewrite historical records to make their citations match current code.
+
+### Re-anchor a value assertion to its authority
+
+Some failed assertions protect a value that is itself the product contract.
+For example, a helper must enforce a declared minimum version. Do not delete
+such an assertion. Re-anchor it to the single authoritative constant:
+
+1. Import the constant, or read the declared value from its single source.
+2. Derive the expected message text from that constant.
+3. Compute each boundary case from the constant: one value below it, the
+   value itself, and one value above it. A below case must sort strictly
+   below the constant. Decrease the last part first, then the earlier parts.
+4. Build each parametrize case from the constant, not from a literal.
+
+When the guarded value ships inside a built artifact and the test cannot
+import the source tree, parse the constant from the artifact text with an
+AST parse, and derive the simulated invalid input from the parsed value.
+
+Prove that the re-anchored guard still guards. Temporarily change the
+constant, confirm that the guard fails, and restore the constant.
 
 ### Keep validation meaningful
 
@@ -106,10 +129,12 @@ of legitimate diagnostic locations. Keep the existing review and CI gates.
 | Symbol-only replacement | Check that a function exists instead of testing its effects. | Availability alone does not prove the original behavior. | Use symbol checks only for an availability contract. |
 | Empty-run success | Treat a removed test and pytest exit code 5 as a pass. | No applicable test executed. | Resolve the selection and run applicable tests. |
 | Blanket location ban | Reject every source-location API or numeric citation. | Diagnostic and parser-location contracts can require these values. | Classify the asserted contract before rejection. |
+| Literal restatement | Keep the guarded value as a literal in the test. | A correct change to the constant fails the test. | Derive the expected values and boundaries from the constant. |
 
 ## Results & Parameters
 
 - Expected regression result: an unrelated source-layout change does not fail a behavior test.
+- Re-anchored guard: a correct change to the authoritative constant does not fail the guard tests.
 - Expected safety result: existing functional protection remains tested.
 - Expected validation result: applicable tests execute and their actual results are recorded.
 - Empty selection: not a passing validation result.
@@ -120,5 +145,6 @@ of legitimate diagnostic locations. Keep the existing review and CI gates.
 | Context | Evidence | Limit |
 | ------- | ------- | ------- |
 | Layout-dependent test removal | The removal passed repository checks and merged. | This does not prove that an automated review guard exists. |
+| Literal-restatement re-anchor | Guard tests derived each expected value from the constant and passed; a temporary constant change failed them. | Local verification only; no separate CI proof. |
 
 Supporting evidence is in the companion notes.
