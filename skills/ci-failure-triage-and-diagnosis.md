@@ -3,7 +3,7 @@ name: ci-failure-triage-and-diagnosis
 description: "Diagnose CI failures from run logs and revision-specific workflows. Distinguish source defects, missing required contexts, infrastructure failures, stale runs, rerun identity rejections, and runs that merge conflicts suppressed."
 category: ci-cd
 date: 2026-10-15
-version: "2.4.0"
+version: "2.5.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-local
@@ -30,6 +30,8 @@ are indexed in [the notes](ci-failure-triage-and-diagnosis.notes.md).
 - A push to a PR branch produced no `pull_request` runs at that head at all: the rollup and the
   per-head `actions/runs` list are empty rather than red.
 - A containerized JIT crash leaves no core, or a crash appears only on GitHub-hosted CPUs.
+- A root-cause claim quotes log lines that were not verified against the bare job log, or a
+  quoted failure line cannot be found again in the log that it was attributed to.
 - A parallel runner hangs, ignores shutdown, or corrupts the caller's terminal.
 - Diagnostic API loops approach rate limits, debug instrumentation should be opt-in, or a stale
   lockfile failure needs a current-SHA rerun.
@@ -45,6 +47,10 @@ action versions, current main, and repository dependency declarations before pro
 # Read the real failure before hypothesizing.
 gh run view <RUN_ID> --repo <org>/<repo>
 gh run view --job=<JOB_ID> --repo <org>/<repo> --log-failed
+
+# Verify quoted text against the bare job log before attributing it.
+gh api repos/<org>/<repo>/actions/jobs/<JOB_ID>/logs > job.log
+grep -c '<token>' job.log  # the count must be above 0 before attribution
 
 # Check current main and whether the fix already landed.
 git log -S '<fix string>' --oneline -- .github/workflows/<workflow>
@@ -73,6 +79,20 @@ gh api rate_limit --jq '.resources.core | "used:\(.used)/\(.limit) resets:\(.res
    runs are green, document the already-landed fix instead of inventing another.
 5. Confirm every proposed verification command exists in the dependency manifest or is installed
    by the same workflow step. Do not cite an unavailable `pixi run <tool>` command.
+6. Verify quoted log text against the bare job log before it grounds a root cause. Filtered or
+   decorated views, such as pipelines over `gh run view --log`, composed greps, and truncated
+   previews, can surface text that is not job-log content. A match in such a view is not
+   evidence of log content. Fetch the bare log through the authenticated API into a file, count
+   occurrences of the quoted token, and quote only text that appears there, with line context:
+
+   ```bash
+   gh api repos/<org>/<repo>/actions/jobs/<JOB_ID>/logs > job.log
+   grep -c '<token>' job.log
+   ```
+
+   The failure signature is a hypothesis that dissolves at bare-log inspection: the token has
+   zero occurrences. Discard the ghost, read the true failed assertion from the bare log, and
+   correct every report or dispatch that consumed the quoted text.
 
 The log retrieval and current-main checks were exercised locally. Any implementation inferred
 from them remains unverified until its own tests or CI run succeed.
@@ -223,12 +243,14 @@ the current head SHA.
 | Always-on debug capture | Defaulted gdb collection to true | Every PR paid the diagnostic cost | Use an opt-in dispatch input |
 | Failed-job rerun on an attempt-bound producer | Re-ran only the failed shard after a matrix flake | The producer output pinned the earlier attempt, so rerun consumers rejected the identity and exited at startup | Detect attempt-bound producer/consumer validation; switch to a full rerun |
 | Re-trigger an absent run | Looked for a run to rerun or dispatch for a head whose PR had merge conflicts | GitHub never created runs for that head, so there was nothing to rerun and a dispatch would test the wrong source | Establish the conflict with the empty per-head run list, `mergeStateStatus`, and `git merge-tree`; resolve, repush, and verify the new head's wave |
+| Decorated-view match as evidence | Cited a failure line from a filtered or decorated log view as the root cause in a report and a fix dispatch | The bare job log contained zero occurrences of the quoted text; the ghost hypothesis and the dispatch built on it were wrong | Verify quoted lines in the bare authenticated log before attribution; record the view type with each quote |
 
 ## Results & Parameters
 
 | Parameter | Recommended value or rule |
 | --- | --- |
 | Failing evidence | `gh run view --job=<JOB_ID> --log-failed` before diagnosis |
+| Quote verification | Bare-log fetch plus an occurrence count above 0 for each quoted token |
 | Recurrence | One failed-job rerun; repeated same signature is reproducible |
 | Attempt-bound producer rerun | Full `gh run rerun <RUN_ID>`; repeated `--failed` reruns stay misaligned |
 | Conflict-suppressed runs | Resolve conflicts, repush on the updated base, verify the new head's full wave; carry reviews by tree identity |

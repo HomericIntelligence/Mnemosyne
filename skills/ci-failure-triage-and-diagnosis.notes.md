@@ -105,3 +105,17 @@ The amendment has no claim of new end-to-end CI verification.
 - For cores, record host/container paths, signal, debugger version, inferior exit, and artifact.
 - For CPU surveys, pin image digest and reproducer and report all iterations, including successes.
 - Keep proposals labeled unverified until their own implementation and CI evidence exist.
+
+## Amended 2026-10-30 — ghost-match evidence (v2.5.0)
+
+A coordination-lane shard diagnosis quoted a compile error line that a filtered or
+decorated log view appeared to show, and attributed it to a CI job. The bare job log,
+fetched through the authenticated jobs API (about 60 KB), contained zero occurrences of
+the quoted token. The job's only true failure was an unrelated assertion that mirrors an
+import rule. The quoted hypothesis was withdrawn, and the report and the fix dispatch
+were corrected to the verified failure.
+
+Recovery used four steps: fetch the bare log into a file; count token occurrences
+(zero); identify the true failed assertion in the bare log; correct the record. The
+source case identifiers and operational details are intentionally omitted. The amendment
+has no claim of new end-to-end CI verification.
