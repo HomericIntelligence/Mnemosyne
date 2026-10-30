@@ -1,11 +1,11 @@
 ---
 name: tooling-opencode-v2-corrupt-db-recovery
-description: "Recover session history from a corrupt OpenCode V2 SQLite database and merge it into a rebuilt install. Use when: (1) the server log shows `database disk image is malformed` or sessions fail to drain with SqlError; (2) you must decide whether the file is really damaged or a stale process older than the installed binary is reading it; (3) the data directory was moved aside and a fresh install must re-integrate old sessions; (4) you must select which tables to merge and which to exclude; (5) you plan backups for a database on shared or network filesystem storage."
+description: "Recover session history from a corrupt OpenCode V2 SQLite database and merge it into a rebuilt install. Use when: (1) the server log shows `database disk image is malformed` or sessions fail to drain with SqlError; (2) you must decide whether the file is really damaged or a stale process older than the installed binary is reading it; (3) the data directory was moved aside and a fresh install must re-integrate old sessions; (4) you must select which tables to merge and which to exclude; (5) you plan backups for a database on shared or network filesystem storage; (6) after a merge or restore, new turns on restored sessions do not persist, or new transcript rows appear underneath old rows."
 category: tooling
 date: 2026-10-16
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
-tags: [opencode, sqlite, corruption-recovery, database, session-history, merge, backup]
+tags: [opencode, sqlite, corruption-recovery, database, session-history, merge, backup, sequence-counter]
 ---
 
 # OpenCode V2 corrupt database recovery and merge
@@ -24,10 +24,13 @@ tags: [opencode, sqlite, corruption-recovery, database, session-history, merge, 
 - You already moved the data/state/cache directories aside (for example to `.bak` siblings) and started fresh, and now must re-integrate the salvaged state.
 - You must decide which tables and directories are safe to merge and which must stay excluded.
 - The database lives on shared or network filesystem storage and you want a backup plan before the same failure class repeats.
+- A merge or restore completed earlier, and now new turns on restored sessions do not persist, attach hangs before the first reply, or new transcript rows appear at low `seq` values underneath old rows.
 
 Do not use this workflow to repair the corrupt file in place. Keep the corrupt sources read-only evidence and merge salvaged rows into the live database instead.
 
 Do not start a salvage or rebuild because the log says `malformed` alone. This message can come from a stale reader against an intact file. Rule out that case first (step 1).
+
+Do not repair sequence counters when the failure is `Location not found` for the session's stored directory. That sign means the session points at a deleted project directory; re-point the session at an existing directory through the session-management API instead (step 9 distinguishes the two).
 
 ## Verified Workflow
 
@@ -41,6 +44,7 @@ sqlite3 "file:recovered.db?mode=ro" "PRAGMA integrity_check;"     # gate: must p
 opencode service stop                                # no second writer during the merge
 sqlite3 ~/.local/share/opencode/opencode.db < merge.sql           # see Results & Parameters
 opencode service start
+sqlite3 ~/.local/share/opencode/opencode.db < counter_reconcile.sql   # post-merge gate; see Results & Parameters
 ```
 
 ### Suggested Approach
@@ -53,7 +57,8 @@ opencode service start
 6. **Merge domain tables; exclude runtime and migration tables.** Restore: `project`, `worktree`, `session_v2`, `session_message`, `instruction_blob`, `instruction_state`, `permission`, `event_sequence`, and `kv` rows where `key NOT LIKE 'job.background/%'`. Exclude: `migration` (the rebuilt install is the schema authority), `session_inbox` (a transient execution queue; resurrecting days-old queued steps reproduces the drain-failure cascade), and `job.background/*` kv rows (stale background-job state can resume dead work against the restored messages).
 7. **Re-integrate the file trees with no overwrite.** Union-copy `snapshot/`, `tool-output/`, and `shell/` from the moved-aside data directory with `cp -rn`; fresh files win collisions. Restore the small state files (`model.json`, `prompt-history.jsonl`, `frecency.jsonl`, `session.json`) by merging rather than replacing, again while the service is stopped because running instances rewrite these files from memory.
 8. **Verify through the product, then back up.** After restart: `PRAGMA integrity_check` on the live database, restored counts present, and `opencode session list -n 1000` inside a project directory returns the restored history (the list counts top-level sessions of the current project, so a global count needs the database query). Take one `sqlite3 <live.db> ".backup '<dst>'"` online backup immediately; the WAL-aware backup API is safe while the service runs.
-9. **Prevent the same class.** Keep the service stopped during upgrades and avoid duplicate service processes; both conditions preceded the failure here. Retire the moved-aside directories only as a separate destructive step after the restored history is confirmed in the product.
+9. **Reconcile per-session sequence counters, then verify with a live turn.** A merge that restores `event_sequence` rows with `INSERT OR IGNORE` can leave a restored session with a counter lower than its merged history: the primary-key rule kept the fresh install's row, and the fresh install's counters started near zero. The service allocates each new message's `seq` from this counter, so appends to such a session start at low values: early rows land underneath older history, and once allocation reaches occupied `seq` values the unique `(session_id, seq)` index rejects every further insert. The turn runs to completion, but its rows never persist. Audit every restored session: the healthy invariant is a missing counter row (the service rebuilds it lazily) or a counter greater than or equal to `MAX(session_message.seq)` for that session; a present-but-low counter is the defect. Raise low counters to the stored maximum in one transaction (the repair SQL in Results & Parameters; `BEGIN IMMEDIATE` serializes it against live allocations). Then send one verification turn to a repaired session and confirm its rows persist above the old maximum and the counter tracks the new maximum. While triaging restored sessions, classify recent activity by `time_created` windows, not by `MAX(seq)`: while low rows are still landing, `MAX(seq)` reports old history as the newest message.
+10. **Prevent the same class.** Keep the service stopped during upgrades and avoid duplicate service processes; both conditions preceded the failure here. Retire the moved-aside directories only as a separate destructive step after the restored history is confirmed in the product.
 
 ### Optional: archive transcripts after recovery
 
@@ -68,6 +73,7 @@ A per-session JSONL dump of the merged database (one file per session, header li
 | Manual SELECT salvage from the corrupt file | Queried sessions and grouped messages directly on the malformed database. | Aggregate counts returned values through intact indexes, but full scans and grouped queries aborted mid-way with `database disk image is malformed`; partial reads look complete only by accident. | Salvage through `.recover` into a fresh file; never trust direct reads of a corrupt tree as complete. |
 | Reattach `lost_and_found` rows as lost table rows | Planned to push all 2,452 salvage-orphaned rows back into their tables. | Sampling by `rootpgno` and `nfield` showed every row was an index entry (short key columns plus a rowid, for example a `(session_id, type, seq)` index), not table data; insertion would have added garbage duplicates. | Treat `lost_and_found` as evidence, not data: classify by field count and content shape, and decline reattachment when rows are index-shaped. |
 | Automated backup schedule through the user crontab | Installed a daily `sqlite3 .backup` cron entry. | The host denied user crontab use (`cron.allow`), and no systemd user bus was available for a timer fallback. | Probe scheduler availability (`crontab -l`, `systemctl --user status`) before promising automation; otherwise deliver the tested script with an exact manual invocation. |
+| Trusted `MAX(seq)` as the newest-message signal after a merge | Classified post-merge turns per restored session by last-row type and `MAX(seq)`, and re-sent turns that looked undelivered. | Restored sessions kept low `event_sequence` counters, so new rows landed at low `seq` values underneath older history; `MAX(seq)` reported old rows as newest, and later appends hit occupied `seq` values, failed the unique `(session_id, seq)` index, and never persisted. Completed turns looked undelivered, and re-sends could not fix them. | After a merge that restores `event_sequence`, audit `counter >= MAX(seq)` per session and repair low counters before sending new turns; classify post-merge activity by `time_created` windows, not by `MAX(seq)`. |
 
 ## Results & Parameters
 
@@ -98,6 +104,33 @@ DETACH rec;
 PRAGMA wal_checkpoint(TRUNCATE);
 ```
 
+### Post-merge sequence-counter reconciliation
+
+Audit (counter must be absent, or greater than or equal to the stored maximum; present-but-low is the defect):
+
+```sql
+SELECT s.id,
+       (SELECT e.seq FROM event_sequence e WHERE e.aggregate_id = s.id) AS counter,
+       (SELECT MAX(m.seq) FROM session_message m WHERE m.session_id = s.id) AS max_seq
+FROM session_v2 s
+WHERE (SELECT e.seq FROM event_sequence e WHERE e.aggregate_id = s.id)
+        < (SELECT COALESCE(MAX(m.seq), 0) FROM session_message m WHERE m.session_id = s.id);
+```
+
+Repair in one transaction (safe against a live service; `BEGIN IMMEDIATE` serializes it with service allocations; save as `counter_reconcile.sql` for the Quick Reference gate):
+
+```sql
+BEGIN IMMEDIATE;
+UPDATE event_sequence
+SET seq = (SELECT COALESCE(MAX(m.seq), 0) FROM session_message m
+           WHERE m.session_id = event_sequence.aggregate_id)
+WHERE seq < (SELECT COALESCE(MAX(m.seq), 0) FROM session_message m
+             WHERE m.session_id = event_sequence.aggregate_id);
+COMMIT;
+```
+
+The `WHERE` clause never lowers a counter that is already above the stored maximum; a small surplus is benign (allocated-but-unpersisted slots).
+
 Daily online backup service (works while the service runs; prunes to the last seven):
 
 ```bash
@@ -110,6 +143,7 @@ sqlite3 "file:<that-file>?mode=ro" "PRAGMA quick_check;"   # expect: ok
 - The rebuilt recovered database prints `ok` from `integrity_check`; merged live database also prints `ok`.
 - Live counts reach restored totals (in the verified run: 16 projects, 1,710 sessions, 71,864 messages), and no `Failed to drain` entries appear in the new server log.
 - `opencode session list -n 1000` run inside a restored project directory lists the recovered history; sessions whose pages were destroyed open with truncated or missing transcripts (about 3% of sessions here) and are identifiable by message count 0.
+- After counter reconciliation, the audit query returns no rows; a verification turn on a repaired session persists rows with `seq` above the repaired counter, and the counter equals the new maximum.
 
 ## Verified On
 
@@ -117,6 +151,7 @@ sqlite3 "file:<that-file>?mode=ro" "PRAGMA quick_check;"   # expect: ok
 | --------- | --------- | --------- |
 | OpenCode v2.0.29–v2.0.31 (public release) | 765 MB malformed `opencode.db` (1,764 sessions, 71,868 messages) on network filesystem storage; trigger: duplicate service spawn plus hot upgrade while live | [notes.md](../skills/tooling-opencode-v2-corrupt-db-recovery.notes.md) |
 | OpenCode v2.1.x (public release) | Intact `opencode.db` that reported `malformed` from a live process older than the installed binary during a version overlap; `integrity_check` clean, history served normally | [notes.md](../skills/tooling-opencode-v2-corrupt-db-recovery.notes.md) |
+| OpenCode v2.1.x (public release) | Restored fleet, weeks after the merge: completed turns on restored sessions did not persist; audit found low `event_sequence` counters against high stored maxima; 15 counters repaired in one transaction, then verified end to end (a verification turn persisted above the old maximum and the counter tracked it) | [notes.md](../skills/tooling-opencode-v2-corrupt-db-recovery.notes.md) |
 
 ## References
 
@@ -124,4 +159,5 @@ sqlite3 "file:<that-file>?mode=ro" "PRAGMA quick_check;"   # expect: ok
 - [SQLite Backup API usage](https://sqlite.org/backup.html)
 - [OpenCode V2 troubleshooting: database and log locations](https://opencode.ai/v2/docs/troubleshooting/)
 - Related: [tooling-opencode-v2-session-deletion-effects](tooling-opencode-v2-session-deletion-effects.md)
+- Related: [tooling-opencode-v2-session-message-filter](tooling-opencode-v2-session-message-filter.md)
 - Related: [slurm-shared-storage-artifact-relocation](slurm-shared-storage-artifact-relocation.md)
