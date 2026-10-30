@@ -1,9 +1,9 @@
 ---
 name: pytest-configuration-discovery-and-ci-pitfalls
-description: "Diagnose pytest hangs, shadowed configuration, missing collection, plugin/addopts drift, partial-run coverage gates, stale CI paths, import-path gaps, mock/date leakage, and host-dependent expected values. Use when explicit tests pass but default CI collects fewer or fails differently."
+description: "Diagnose pytest hangs, shadowed configuration, missing collection, plugin/addopts drift, a test runner resolved outside the project environment, partial-run coverage gates, stale CI paths, import-path gaps, mock/date leakage, and host-dependent expected values. Use when explicit tests pass but default CI collects fewer or fails differently."
 category: testing
 date: 2026-06-26
-version: "2.0.0"
+version: "2.1.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-local
@@ -31,6 +31,8 @@ The complete prior source is in
 - Pytest warns that one configuration is ignored or `pytest.ini` and `pyproject.toml` coexist.
 - Collection count is low, scripts imports fail, or default CI misses integration tests.
 - A slim pytest installation inherits coverage/plugin flags it cannot satisfy.
+- The runner cannot import the project's own package, while a direct interpreter import in the
+  project environment succeeds.
 - Unit/integration marker counts differ locally and in CI.
 - A matrix points at renamed/deleted tests or a file passes explicitly but is absent by default.
 - Flakes appear only in the full suite, on a future date, or on a different host path.
@@ -89,19 +91,37 @@ pytest -o addopts='' <smoke-target>
 The override also disables inherited coverage and must not be reported as the full test gate. Prefer
 the project’s locked environment to avoid dependency drift.
 
-### 5. Place coverage gates on full-enough runs
+### 5. Prove the runner comes from the project environment
+
+A project can put the test runner in an optional extra or a dependency group. The default locked
+environment then has no runner. A bare runner invocation falls through to a runner from another
+environment on `PATH`. That foreign interpreter cannot import the project package, so conftest
+collection fails with `ModuleNotFoundError` for the project's own package.
+
+Prove the runner origin before you reinstall anything:
+
+```bash
+uv run python -c "import <package>"   # succeeds: the project environment is healthy
+uv run which pytest                   # prints a path outside the project .venv: the runner is foreign
+uv run --locked --extra <extra> pytest <target>   # the documented command, with its extras
+```
+
+An addopts override does not fix this failure; the flags are not the cause. Record the documented
+invocation with its extras as the test command, and report results from that command only.
+
+### 6. Place coverage gates on full-enough runs
 
 Keep reporting configuration reusable, but place `--cov-fail-under` only on the full/unit suite that
 exercises the measured package. Marker-selected integration or single-file runs naturally produce
 partial coverage and should not inherit a repository-wide threshold.
 
-### 6. Detect stale paths and watcher drift
+### 7. Detect stale paths and watcher drift
 
 For every matrix glob or hardcoded test path, expand it and fail if it matches zero files. Search all
 workflow/script references before deleting or renaming. When replacing `pytest-watch` with
 `pytest-watcher`, update the manifest and lock together and verify the retained `ptw` CLI contract.
 
-### 7. Diagnose suite-only hangs and flakes
+### 8. Diagnose suite-only hangs and flakes
 
 Run the suspected file alone, then with its nearest predecessor/group, then full suite with verbose
 and timeout diagnostics. Class-level `patch.object` can leak across tests; scope patches to fixtures
@@ -113,7 +133,7 @@ and fixtures that created them; do not merely raise CI timeout. Calibrate YAML f
 observed duration, such as a rounded multiple with a minimum floor, and update hardcoded assertions
 that encode the old default.
 
-### 8. Make expected values portable
+### 9. Make expected values portable
 
 Never bake an author machine’s absolute path or environment-derived literal into a golden value.
 Derive expected output from the same production constant or fixture input used by the implementation,
@@ -127,6 +147,7 @@ then run the full parametrized test. A narrowed parameter subset can omit the ho
 | Dual config | Kept pytest.ini and pyproject settings | Nearer file shadowed intended options | Keep one authoritative config |
 | Per-test path hack | Inserted scripts path in each test | Rootdir behavior stayed inconsistent | Configure pythonpath or narrow conftest guard |
 | Slim pytest only | Installed pytest without addopts plugins | Inherited options were unrecognized | Use locked env or deliberate addopts override |
+| Bare locked runner | Ran the locked-environment runner without the extras that provide it | `uv` fell through to a foreign `pytest`; conftest could not import the project package | Use the documented invocation with its extras; prove the runner origin |
 | Global fail-under | Put threshold in shared config | Partial runs failed despite healthy full coverage | Gate only full-enough suite |
 | Cosmetic matrix | Left a deleted path in CI | Job ran zero intended tests | Assert each pattern matches files |
 | Larger timeout | Raised the CI timeout on a hang | Leaked async tasks still never terminated | Fix task/fixture lifecycle |
@@ -140,6 +161,7 @@ effective config file and rootdir
 default/unit/integration/explicit collection counts
 testpaths, markers, pythonpath, and addopts
 installed pytest plugins and locked environment command
+runner origin (project environment or PATH fall-through) and the documented extras invocation
 coverage target and which suite owns fail-under
 matrix patterns with resolved file counts
 isolated/group/full-suite reproduction order
@@ -151,5 +173,6 @@ host-derived fixture inputs and full parametrized result
 
 - Configuration consolidation, collection, marker, import, coverage, timeout, mock/date, and host
   portability cases through 2026-06-26.
+- Runner-environment fall-through case validated locally on 2026-10-30; see the notes case index.
 - Verification remains `verified-local`; individual CI-confirmed collection cases are identified in
   notes without upgrading all guidance.
