@@ -1,9 +1,9 @@
 ---
 name: skill-corpus-merge-consolidation-workflow
-description: "Maintain a skill corpus through complete cluster enumeration, semantic consolidation, Git provenance, format/directory migration, cross-repo generalization, obsolete notices, post-drain salvage audits, and fix-forward recovery from stranded or accidentally recreated skills. Use when overlapping skills or layouts must change without losing unique retrievable content."
+description: "Maintain a skill corpus through complete cluster enumeration, semantic consolidation, Git provenance, format/directory migration, cross-repo generalization, obsolete notices, post-drain salvage audits, fix-forward recovery from stranded or accidentally recreated skills, and version-fixture co-update when a consolidated canonical changes version. Use when overlapping skills or layouts must change without losing unique retrievable content."
 category: tooling
 date: 2026-06-15
-version: "4.0.0"
+version: "4.1.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-ci
@@ -35,6 +35,8 @@ The complete prior source is archived in
 - A topic is obsolete but still valuable as a retrieval warning.
 - Closed/superseded PRs may contain unique content never merged.
 - Work is stranded in a nested clone or a deliberately absorbed skill was recreated.
+- A consolidated canonical is about to get a frontmatter version bump, or
+  `test_consolidated_canonicals_keep_versions_and_immutable_provenance` goes red on main.
 
 ## Verified Workflow
 
@@ -126,6 +128,29 @@ new nuance into the canonical, retain its immutable Git reference if material, t
 the duplicate through a normal reviewed change. Do not revert blindly and resurrect older corpus
 state.
 
+### 9. Co-update the consolidation version fixture
+
+Landing a consolidation pins the canonical name, its consolidation-time `version`, and its absorbed
+members in the `CONSOLIDATIONS` fixture of `tests/test_skill_consolidation_integrity.py`. The test
+asserts frontmatter-version equality and immutable provenance links for each pinned canonical.
+
+Any later version bump to a pinned canonical must update `CONSOLIDATIONS[].version` in the same
+commit. A version-only change leaves the pin behind and
+`test_consolidated_canonicals_keep_versions_and_immutable_provenance` goes red on main for every
+contributor, with a bare version-equality assert (for example `assert '3.4.0' == '3.3.0'`) that
+names neither the canonical nor the fixture side.
+
+Before you push a version change to a consolidated canonical:
+
+```bash
+grep -n '"canonical": "<name>"' tests/test_skill_consolidation_integrity.py
+uv run --locked python -m pytest tests/test_skill_consolidation_integrity.py -q
+```
+
+If the failure appears on work you did not touch, classify it as pre-existing main breakage (see
+`mnemosyne-skill-pr-ci-gate-first-pass-green` for the attribution classes): reproduce on clean
+main, file an issue, and continue independent work.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -139,6 +164,7 @@ state.
 | Trust closed label | Assumed superseded PR had no value | Unique content was stranded | Audit closed head against current main |
 | Work in stray clone | Committed nested/misplaced checkout | Change was not publishable from canonical repo | Back up and reapply in fresh worktree |
 | Revert de-consolidation | Restored old tree wholesale | Lost later canonical evolution | Fix forward into canonical |
+| Bump a pinned canonical's version alone | Amended a consolidated canonical's frontmatter version without touching the test | `test_consolidated_canonicals_keep_versions_and_immutable_provenance` went red on main (`assert '3.4.0' == '3.3.0'`); the assert names neither side and reddens every contributor's full suite | The `CONSOLIDATIONS` fixture pins the consolidation-time version; co-update it in the same commit as any version bump and run the integrity test before pushing |
 
 ## Results & Parameters
 
@@ -151,6 +177,8 @@ canonical version and notes and Git history links
 layout source/destination map and overwrite disposition
 closed-PR audit window, target artifact, unique-content disposition
 stranded-work backup and fresh worktree path
+version-fixture co-update: grep '"canonical": "<name>"' tests/test_skill_consolidation_integrity.py
+integrity test: uv run --locked python -m pytest tests/test_skill_consolidation_integrity.py -q
 validation, lint, snapshot-integrity, and discovery results
 ```
 
