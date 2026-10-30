@@ -178,3 +178,46 @@ This skill should be cross-referenced with:
    or `pytest.raises()` for validation that must run in all Python modes
 4. **Intentional deferrals**: Document why tests are incomplete or TODOs are
    deferred; single-line comments invite confusion
+
+## Payload-Escape Branch (v1.2.0 Amendment)
+
+### Triggering Session (Generalized)
+
+A behavior-contract test suite drove a generated plugin through a small node
+harness. The harness source lived in a Python triple-quoted string constant:
+
+```python
+_HARNESS_JS = """
+...
+process.stdout.write(state() + "\n")
+...
+"""
+```
+
+### Failure Mode
+
+- Python parsed the constant without error and consumed `\n` into a real line
+  break. The written `harness.mjs` therefore contained an unterminated
+  JavaScript string literal at that line.
+- node rejected the file with `SyntaxError: Invalid or unexpected token` and a
+  caret at the broken quoted string. Python never saw an error.
+- Because every test in the group used the one constant, 18 of 52 tests failed
+  with the identical node error. A large, uniform failure count pointed back to
+  one shared constant, not to 18 defects.
+
+### Fix and Decision Rule
+
+- Fix: a one-character change, `_HARNESS_JS = r"""..."""`, so the payload's
+  escapes reach node unchanged.
+- Rule: the consumer of each backslash decides the prefix. Python-consuming
+  escapes (line continuation, intended real newlines) need a plain string.
+  Payload escapes for another runtime need a raw string.
+- The prior takeaway ("raw strings are for regex patterns and Windows paths;
+  use plain strings for prompt text") covered only the raw-needed-to-plain
+  direction and was corrected. Embedded-code payloads flip the default.
+
+### Guard
+
+Parse-gate the generated payload with its own runtime before the consumers run
+(for JavaScript: `node --input-type=module --check`). The gate turns the silent
+corruption into a fast single failure at the payload.

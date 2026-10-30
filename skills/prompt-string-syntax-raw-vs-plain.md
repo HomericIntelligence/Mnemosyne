@@ -1,10 +1,10 @@
 ---
 name: prompt-string-syntax-raw-vs-plain
 license: BSD-3-Clause
-description: "Inspect multiline Python prompt strings for literal backslashes and accidentally embedded comments; select validation assertions for the actual runtime."
+description: "Inspect multiline Python strings that carry prompts or foreign-language payloads for literal backslashes and embedded comments; select the raw prefix by the escape consumer and validation assertions for the actual runtime."
 category: debugging
-date: 2026-06-07
-version: "1.1.0"
+date: 2026-10-30
+version: "1.2.0"
 user-invocable: false
 verification: verified-local
 tags: [prompt-syntax, string-literals, test-assertions, automation]
@@ -27,6 +27,8 @@ history-cleanup-date: "2026-09-20"
 ## When to Use
 
 - **Composing multiline prompt strings** that will be rendered into agent prompts
+- **Embedding a foreign-language payload** (JavaScript, regex, shell) whose backslash escapes must reach that other runtime unchanged
+- **Diagnosing a `SyntaxError` raised by the embedded runtime** (for example node) instead of by Python: the payload corrupted silently at the Python parse step
 - **Embedding comments inside string literals** (e.g., `# noqa: E501` line-length suppressions)
 - **Writing validation tests** that check prompt generation, agent behavior, or tool restrictions
 - **Fixing `raw string \ continuation` errors** where Python expects line breaks in multiline strings
@@ -93,6 +95,29 @@ Second line continues here
 ```
 
 When the string doesn't contain special escape sequences, both plain and raw strings behave identically at runtime. The difference is at parse time: raw strings disable backslash escape processing, which includes line continuation.
+
+#### The consumer of each backslash decides the prefix
+
+The general rule covers both directions:
+
+- **Python consumes the escape** (line continuation, a real newline in the output): use a plain string.
+- **Another runtime must receive the escape unchanged** (embedded JavaScript, regex, shell): use a raw string (`r"""..."""`). Otherwise Python consumes the escape and corrupts the payload.
+
+A wrong raw choice fails loudly at the Python parse step. A wrong plain choice can stay silent in Python and fail only in the embedded runtime:
+
+```python
+# ❌ WRONG: Python consumes \n; the JavaScript string literal breaks across two lines
+_HARNESS_JS = """
+process.stdout.write(state() + "\n")
+"""
+
+# ✅ CORRECT: the raw string keeps the escape for node
+_HARNESS_JS = r"""
+process.stdout.write(state() + "\n")
+"""
+```
+
+The embedded runtime reports the corruption at the first broken quoted string (node reports `SyntaxError: Invalid or unexpected token` with a line reference into the generated payload). When one shared constant is corrupted, every consumer fails with the identical error, so the error count can be large while the fix is one character. Gate the generated payload with the embedded runtime's own parse check (for JavaScript: `node --input-type=module --check`) so the failure surfaces at the payload, not at each consumer.
 
 #### Step 3: Move Comments Outside String Literals
 
@@ -195,7 +220,8 @@ def test_directive_in_implementation_prompt():
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 |---------|----------------|---------------|----------------|
-| Raw string with backslash continuation | `r"""text \ continuation"""` | SyntaxError: EOL while scanning string literal; raw strings disable backslash-newline processing | Use plain strings (`"""..."""`) for multiline directives; raw strings are only needed for regex patterns or Windows paths with literal backslashes |
+| Raw string with backslash continuation | `r"""text \ continuation"""` | SyntaxError: EOL while scanning string literal; raw strings disable backslash-newline processing | Use plain strings when Python must process the escapes; raw strings are required when the backslashes belong to a payload for another runtime (embedded JavaScript, regex, shell, Windows paths) |
+| Plain string carrying a foreign-language payload | `"""... "\n" ..."""` for embedded JavaScript | Python consumes the escape silently; the embedded runtime (node) later reports a SyntaxError at the broken quoted string, once per consumer | Use an `r`-prefixed constant when the payload's escapes belong to another runtime; gate the generated payload with that runtime's parse check |
 | Comments inside string literals | `"""Text here.  # noqa: E501"""` | Comments appear verbatim in rendered prompt output, confusing agents | Move `# noqa` and other lint directives outside the string; they belong in code, not prompts |
 | Bare assert in tests | `assert get_result() is not None` | Assertions are stripped in optimized Python builds (`python -O`); tests pass locally but fail in CI | Choose assertion mechanisms for the actual test runner and interpreter mode; explicit failure checks are useful when Python optimization can remove an unchecked assertion |
 
