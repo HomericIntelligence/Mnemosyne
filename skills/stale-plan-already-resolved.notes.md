@@ -180,3 +180,51 @@ git log --oneline <analysis-base>..origin/<default> -- <touched paths>
 gh pr checks <gate-PR>                                           # gate state moved meanwhile
 git log --oneline <analysis-base>..origin/<default> | grep -iE "<failing node names>"
 ```
+
+## 2026-10-31 — Stale conflict premise on an open PR head already rebased by sibling sessions
+
+### Session Context
+
+- **Repository**: internal CI-gate repository (unnamed), fast-moving default branch with
+  parallel worker sessions
+- **Trigger**: a rebase-only task brief stated that an open pull request was conflicting and
+  dirty against the default branch and could not merge
+
+### What Happened
+
+1. The worker fetched the default branch and the PR head and measured the premise before
+   rebasing. The merge base equaled the current default tip; the head was zero commits
+   behind, a local merge test reported clean, and the provider's mergeability status agreed.
+2. The PR timeline explained the state: the head had been force-pushed several times after
+   the durable approval label was applied, and sibling worker sessions had posted rebase
+   completion reports at each new head. The last report covered the task's full reporting
+   step (old head, new head, conflict files, behavior change, check status, and the note
+   that a head-bound approval does not cover a rewritten head) at the current head.
+3. The required checks were green at that head.
+4. Outcome: zero writes. No rebase, no push, no duplicate completion comment. The worker
+   reported the task-complete disposition with the measured evidence.
+
+### Diagnosis
+
+The task brief's premise was a snapshot. Delivery had happened on the same open PR's head,
+not on the default branch, so a merged-PR search and a main-tree site check could not see
+it. The PR's own timeline (force-push events plus sibling completion comments) and head
+ancestry were the decisive evidence.
+
+### Hazard avoided
+
+Re-running the rebase and re-signing the commits would have produced a new head SHA at
+identical content. That would have broken the head-bound approval record and restarted the
+review gate for no content change.
+
+### Diagnostics that caught the stale premise
+
+```bash
+git fetch origin <default> <pr-branch>
+git merge-base origin/<default> origin/<pr-branch>        # equal to the default tip
+git rev-list --count origin/<pr-branch>..origin/<default> # 0
+git merge-tree --write-tree origin/<default> origin/<pr-branch>  # clean
+gh pr view <pr> --json mergeable,mergeStateStatus         # MERGEABLE / CLEAN
+gh api repos/<org>/<repo>/issues/<pr>/events \
+  --jq '[.[] | select(.event == "head_ref_force_pushed") | .created_at]'
+```
