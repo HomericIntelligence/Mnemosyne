@@ -1,13 +1,13 @@
 ---
 name: planning-verify-issue-premise-before-implementing
 license: BSD-3-Clause
-description: "Verify issue and plan premises against authoritative sources before acting. Use this when an issue, PR plan, review, CI fix, or enforcement change assumes an artifact exists, prior work merged, a live service still needs work, a full population was checked, a CI job gates, an implementation returns a shape, or an integration point exists. Convert the premise into deterministic checks before implementing, closing, gating, or declaring work complete. Includes the temporal check: a premise token absent from the current tree may mean the issue was valid at filing and later overtaken by a merged PR (half-zombie issue) — date the removal with git log --full-history and triage each ask separately. At hand-off, an implement-ready label or a reviewed plan is not a tree-state guarantee: plans decay during dwell as merges land, so re-sweep the plan's anchors at dispatch and branch per-plan, residual-only, or re-plan (a close-out of a discharged plan requires a fresh review bound to the revised plan, and must never re-create machinery a merged redesign removed). Also bind self-produced evidence to the environment that produced it: a reproduction run on a stale checkout proves a defect existed, not that it exists — re-run it at the fetched default-branch head, and for a live deployed system compare the deployed artifact's version with the default branch before fix design; deployment lag turns the incident into an operational remediation with no code change."
+description: "Verify issue and plan premises against authoritative sources before acting. Use this when an issue, PR plan, review, CI fix, or enforcement change assumes an artifact exists, prior work merged, a live service still needs work, a full population was checked, a CI job gates, an implementation returns a shape, or an integration point exists. Convert the premise into deterministic checks before implementing, closing, gating, or declaring work complete. Includes the temporal check: a premise token absent from the current tree may mean the issue was valid at filing and later overtaken by a merged PR (half-zombie issue) — date the removal with git log --full-history and triage each ask separately. At hand-off, an implement-ready label or a reviewed plan is not a tree-state guarantee: plans decay during dwell as merges land, so re-sweep the plan's anchors at dispatch and branch per-plan, residual-only, or re-plan (a close-out of a discharged plan requires a fresh review bound to the revised plan, and must never re-create machinery a merged redesign removed). Also sweep authority records at hand-off: an owner decision or decision-table row published after the plan review GO can reject the plan's core approach — the label is loop state, not architecture authority; realign the plan to the recorded decision, implement only the residual work (possibly zero), and close with evidence. Also bind self-produced evidence to the environment that produced it: a reproduction run on a stale checkout proves a defect existed, not that it exists — re-run it at the fetched default-branch head, and for a live deployed system compare the deployed artifact's version with the default branch before fix design; deployment lag turns the incident into an operational remediation with no code change."
 category: architecture
-date: 2026-06-20
-version: "3.4.0"
+date: 2026-10-31
+version: "3.5.0"
 user-invocable: false
 verification: unverified
-tags: [planning, issue-premise, verify-before-implementing, premise-verification, assumption-verification, authoritative-source, full-population-check, live-state-check, merge-state, prerequisite-verification, unmerged-branch, self-contained-pr, enforcement-gate, integration-point, ci-gate, ruleset, implementation-shape, route-shape, deterministic-gate, no-op-forbidden, issue-claims, follow-up-issue, overtaken-by-events, half-zombie-issue, per-ask-triage, git-history-archaeology, deleted-file-history, plan-dwell, handoff-rebind, dispatch-gate, residual-scope, review-gated-close, stale-reproduction, deployed-artifact-version, deployment-lag]
+tags: [planning, issue-premise, verify-before-implementing, premise-verification, assumption-verification, authoritative-source, full-population-check, live-state-check, merge-state, prerequisite-verification, unmerged-branch, self-contained-pr, enforcement-gate, integration-point, ci-gate, ruleset, implementation-shape, route-shape, deterministic-gate, no-op-forbidden, issue-claims, follow-up-issue, overtaken-by-events, half-zombie-issue, per-ask-triage, git-history-archaeology, deleted-file-history, plan-dwell, handoff-rebind, dispatch-gate, residual-scope, review-gated-close, stale-reproduction, deployed-artifact-version, deployment-lag, decision-record, owner-decision, authority-rebind]
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/planning-verify-issue-premise-before-implementing.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -26,6 +26,10 @@ This skill consolidates the planning-verify family into one generic workflow. It
 | Objective | Merge similar planning-verification memories into a generic rule with concrete issue examples retained. |
 | Version | 3.4.0, minor bump: environment-bound premise evidence — a self-produced reproduction inherits the staleness of the checkout that produced it, and a production failure carries two code versions (deployed artifact and default branch); verify both before fix design (carries the 3.3.0 hand-off rebinding, the 3.2.0 temporal overtaken-by-events check, and per-ask triage that the table last recorded as 3.1.0). |
 | Verification | unverified for this consolidation; source examples are preserved verbatim in history. |
+| Date | 2026-10-31 |
+| Objective | Add the authority-record branch to hand-off rebinding: a decision record published after the plan review GO can reject the plan's core approach while every anchor still holds. |
+| Version | 3.5.0, minor bump: the anchor sweep alone returns "anchors hold → dispatch per plan", which dispatches a plan the recorded decision already rejected; sweep decision records beside anchors and realign to the record when they conflict (carries 3.4.0). |
+| Verification | verified-live: one implementation dispatch realigned to a recorded owner decision instead of implementing the GO'd plan; the realigned plan converged to zero residual source work and a verified close. |
 
 ## When to Use
 
@@ -43,6 +47,7 @@ This skill consolidates the planning-verify family into one generic workflow. It
 - You dispatch an implementation whose durable scope source is a plan comment written against an older tree, and the dispatch context cannot afford to re-discover premise decay after setup.
 - A reproduction of a reported failure succeeded locally and a fix is being designed; a checkout that lags the default branch makes the reproduction prove only that the defect existed, a stale-reproduction premise.
 - The failing service runs a deployed artifact, so one incident carries two code versions; the fix can already exist on the default branch while the deployment lags.
+- A decision record, owner decision, or decision-table row for the issue postdates the plan review GO, and the dispatch still carries the implement-ready label.
 
 ## Verified Workflow
 
@@ -94,17 +99,19 @@ git log -S '<failure-predicate>' --oneline origin/<default-branch>
 
 ### Hand-off rebinding: a reviewed plan is not a tree-state guarantee
 
-A plan records the tree at authoring time. A review GO records agreement at review time. Neither re-runs itself when later merges land. During the dwell between plan approval and implementation dispatch in a fast-moving repository, three things can happen: later merges deliver part or all of the plan's scope; later merges delete the plan's anchors (symbols, modules, documents); a deliberate redesign supersedes the plan's mechanism. An implement-ready label does not re-check any of this.
+A plan records the tree at authoring time. A review GO records agreement at review time. Neither re-runs itself when later merges land. During the dwell between plan approval and implementation dispatch in a fast-moving repository, four things can happen: later merges deliver part or all of the plan's scope; later merges delete the plan's anchors (symbols, modules, documents); a deliberate redesign supersedes the plan's mechanism; an authority record published after the review GO rejects the plan's core approach. An implement-ready label does not re-check any of this.
 
 Run the same premise checks on the plan's own anchors at each hand-off (planning to dispatch, dispatch to implementation), before the implementation context spends its budget:
 
 1. Extract every symbol, path, constant, and test name the plan cites, and sweep them with `git grep` and `git show origin/main:<path>`.
 2. For each missing anchor, date the removal (`git log --full-history`/`git log -S`) and name the merged change that removed it.
-3. Branch exactly one way:
-   - *Anchors hold*: dispatch per plan.
+3. Sweep authority records beside the anchors: decision records, accepted ADRs, owner decisions, and decision-table rows that name the issue or its subject. For each record, read its decision and its timestamp against the plan review's timestamp.
+4. Branch exactly one way:
+   - *Anchors hold and no record conflicts*: dispatch per plan.
    - *Partially discharged*: dispatch the residual asks only, with anchors re-derived on the current tree; record the per-ask discharge map.
    - *Void or fully discharged*: re-plan — update the retained plan revision, run it through the review exchange again, and close only on a fresh GO bound to current-tree evidence. Never implement the frozen scope; never re-create machinery a merged redesign deliberately removed.
-4. A direct close or re-dispatch on the stale plan is not a shortcut: it loses the required review round and attaches the verdict to evidence the tree no longer supports.
+   - *A record rejects the plan's core approach*: realign — derive the realigned plan from the recorded decision, not from the plan text, and implement only the residual work the record leaves. The residual can be zero: when the delivered behavior already matches the recorded decision, verify the pinned behaviors with fresh runs, publish the realign record with the evidence, and close as verified-already-complete. Never implement the rejected approach because a label says GO; the label is loop state, the record is architecture authority.
+5. A direct close or re-dispatch on the stale plan is not a shortcut: it loses the required review round and attaches the verdict to evidence the tree no longer supports.
 
 ### Worked Examples
 
@@ -139,6 +146,7 @@ Run the same premise checks on the plan's own anchors at each hand-off (planning
 | Per-issue zombie disposition | Treated an issue overtaken by a later PR as fully complete and closable. | One of its asks (a validation test) was never delivered by the overtaking PR. | Dispose each ask separately; an overtaken issue can still carry live residual work. |
 | Label-trust dispatch | Dispatched a full implementation on an implement-ready label plus a reviewed plan without re-sweeping the plan's anchors at hand-off. | The implementation context spent its setup budget discovering that later merges had deleted every cited anchor; the only output was the blocked report the cheap sweep would have produced before the dispatch. | Rebind at the hand-off: sweep the plan's anchors before dispatch and select the branch (per-plan, residual-only, re-plan) from the sweep result. |
 | Close on the stale plan | Closed a premise-voided issue by citing the existing plan and label. | Review rejected the close because the plan anchored a module deleted by a later merged change; the label described readiness on a tree that no longer existed. | A close-out of a discharged plan requires the revised plan published through the review exchange and a fresh GO bound to current-tree evidence. |
+| Dispatch on the GO'd plan after a conflicting decision record | Started to implement the plan the label approved, although a recorded owner decision published after the review GO rejected the plan's core approach; every anchor still held, so the anchor sweep alone returned "dispatch per plan". | The anchor sweep checks the tree, not the authority: a decision record can reject a plan whose symbols all still exist, and the label follows the review, not the record. | Sweep decision records beside anchors at hand-off; when a record rejects the plan's core approach, realign to the record, implement only the residual work it leaves (possibly zero), and close with fresh run evidence — never implement the rejected approach because a label says GO. |
 | Reproduce-then-fix on the checkout as-found | Reproduced a production error against the local tree and filed an issue with a plan draft and review round before checking the default branch. | The checkout lagged the default branch, which already contained the fix, and the deployed artifact predated the branch; the issue closed as already-fixed after the review budget was spent. | Bind self-produced evidence to the environment version that produced it: re-run the reproduction at the fetched default-branch head and compare the deployed artifact's version before fix design; deployment lag makes the remediation operational, not code. |
 
 ## Results & Parameters
