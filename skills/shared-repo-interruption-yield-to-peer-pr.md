@@ -1,13 +1,13 @@
 ---
 name: shared-repo-interruption-yield-to-peer-pr
 license: BSD-3-Clause
-description: "Inventory what parallel agent sessions delivered before redoing interrupted prepared work in a shared Git repository. Use when a session resumes after a crash, restart, or idle gap and finds its worktrees removed, staged work gone, or the default branch advanced by peers, and must decide between re-doing its plan and yielding to a peer pull request that already covers the intent. Also use when a resume directive carries a live implementation mandate (an approved plan or terminal plan-state label) for an issue that reference-only merges may have fully delivered while leaving it open."
+description: "Inventory what parallel agent sessions delivered before redoing interrupted prepared work in a shared Git repository. Use when a session resumes after a crash, restart, or idle gap and finds its worktrees removed, staged work gone, or the default branch advanced by peers, and must decide between re-doing its plan and yielding to a peer pull request that already covers the intent. Also use when a resume directive carries a live implementation mandate (an approved plan or terminal plan-state label) for an issue that reference-only merges may have fully delivered while leaving it open. Also use mid-ceremony, when a delivery duty that must publish one canonical change finds a same-intent lane it did not create — with timestamps inside its own inspection window but no pushed branch or open pull request — and must resolve whether the sibling is live before it decides between publication and a stand-down report."
 category: tooling
 date: 2026-10-14
-version: "1.2.0"
+version: "1.3.0"
 user-invocable: false
 verification: verified-live
-tags: [parallel-sessions, multi-agent, shared-repository, interruption-recovery, worktree, duplicate-work, yield, salvage, git, automation-loop, session-recovery, patch-preservation, already-delivered, ancestor-verification]
+tags: [parallel-sessions, multi-agent, shared-repository, interruption-recovery, worktree, duplicate-work, yield, salvage, git, automation-loop, session-recovery, patch-preservation, already-delivered, ancestor-verification, in-flight-lane, liveness-probe]
 ---
 
 # Inventory and Yield Interrupted Work When Parallel Sessions Share a Repository
@@ -18,7 +18,7 @@ tags: [parallel-sessions, multi-agent, shared-repository, interruption-recovery,
 | ------- | ------- |
 | **Date** | 2026-10-14 |
 | **Objective** | After an interruption in a repository that parallel agent sessions share, decide between resuming and yielding — without losing prepared work and without duplicating a peer's delivered pull request. |
-| **Outcome** | Operational. One prepared-but-uncommitted feature removal was yielded to a peer session's broader open pull request after inventory showed the peer had delivered the same intent on the advanced default branch. The orphaned branch was deleted safely, prepared publication text was annotated against misposting, and dependent work was deferred once instead of rebased twice. |
+| **Outcome** | Operational. One prepared-but-uncommitted feature removal was yielded to a peer session's broader open pull request after inventory showed the peer had delivered the same intent on the advanced default branch. The orphaned branch was deleted safely, prepared publication text was annotated against misposting, and dependent work was deferred once instead of rebased twice. A later case yielded a durable-learning publication to a live sibling lane: the sibling commit landed inside the discovery window, its committed diff covered the intent's decision branches, and the sibling pull request was reported as the ceremony outcome with zero local writes. |
 | **Verification** | verified-live: every probe and disposition below ran on a live shared repository, and the operator confirmed each destructive step. See [notes](shared-repo-interruption-yield-to-peer-pr.notes.md). |
 
 ## When to Use
@@ -29,6 +29,10 @@ tags: [parallel-sessions, multi-agent, shared-repository, interruption-recovery,
 - A restart directive assigns you to *drive* a named peer pull request (review it, keep its checks green, merge it) that was created while you were down.
 - A resume directive carries a live implementation mandate for a named *issue* — an approved plan, a terminal plan-state label — whose full scope parallel merges may have delivered while you were down. Reference-only merges (`Refs`, not a closing keyword) leave the issue open by design, so an open issue carrying an approval label is not proof of remaining work.
 - You must choose between re-creating, rebasing, deferring, or abandoning prepared work.
+- A delivery duty that must publish one canonical change (for example a durable-learning
+  ceremony) finds a same-intent lane it did not create — recent timestamps but no pushed
+  branch and no open pull request — and must decide whether the sibling is live before it
+  publishes its own variant.
 
 ## Verified Workflow
 
@@ -42,6 +46,8 @@ git branch --list '<pattern>' -vv                 # tips and tracking state
 git log origin/<default> --oneline -6             # what merged while you were down
 git ls-tree -r origin/<default> --name-only | grep -c <feature-marker>
 gh pr list --state open --limit 30 --json number,headRefName,title
+git reflog show --date=iso <peer-branch> | head -5    # commits inside your window = live lane
+git ls-remote --heads origin <peer-branch>            # publication state of a foreign lane
 git stash list                                    # peer preservation entries
 ```
 
@@ -81,6 +87,8 @@ Rule: **deliver first, redo never.** If an open peer pull request or a recently 
    ```
 
    Trees may differ (a peer's merged change can touch more files than yours — broader tests, adjacent contexts); the pinned values must match.
+
+   An in-flight lane can also exist before any pull request. A canonical-content duty (for example a durable-learning ceremony that must publish one canonical change) can discover a foreign branch or worktree on a matching slug whose mtimes fall inside its own inspection window, with a ` M` status line but an empty `git diff` (the status line is stat-level evidence — the writer committed between the two reads), and with no pushed branch or open pull request yet. Resolve liveness from the branch reflog, the remote branch list, and a second pull-request read minutes later — never from status lines or mtimes alone. A commit landing inside your window, a push, and then a pull request minutes after mark a live publication. Do not start a competing lane against it: verify coverage on the sibling's committed diff (`git show <their-commit> -- <paths>`) against each decision branch of your own evidence. When the coverage holds, report the sibling's pull request as the outcome of your duty and stop with zero writes. A mandate that nominally demands your own worktree, signed commit, and pull request is satisfied by a verified sibling publication of the same intent: the invariant is exactly one canonical change per intent, not one branch per writer. When the sibling content misses a decision branch that your evidence supports, wait for its publication, then prepare a follow-up amendment instead of racing.
 3. Decide per artifact, not per plan:
    - Peer delivered the intent (merged, or an open pull request whose tree contains the signature change): yield. Do not create a competing pull request — it forces duplicate review and rebase churn on both sides. Search peer trees by content (`grep -rl <signature> <peer-worktrees>`), not by pull-request titles alone.
    - Peer work is adjacent and unmerged: defer your rebase until it merges. Queued branches that target code a large peer change rewrites would need two rebases; wait and rebase once. Some queued items may be obsolete after the peer lands — re-check applicability then, not now.
@@ -104,6 +112,7 @@ Define completion by evidence: branch tips recorded, the peer artifact that cove
 | Counting on staged content surviving cleanup | Relied on the worktree index and working tree to hold the prepared change | A force-removed worktree destroyed both; only blobs in the object database and an independently saved patch survived | Keep a source-of-truth patch outside the worktree; treat the index as volatile |
 | Verifying peer parity with a whole-tree diff | Diffed a stale local branch against the advanced default branch to check whether a merged peer change carried the same pinned values | Weeks of unrelated parallel merges dominated the diff; equivalence was unreadable | Compare pinned values at their paths (`git show origin/<default>:<path> \| grep`) and scope the landed change with `git show --stat <merge-commit>`; do not compare trees |
 | Starting to drive a named pull request without fetching its state | Prepared review rounds against the assigned pull request on the restart directive alone | The pull request had merged during the gap; the linked issue was already closed with a completed reason | Fetch the exact state of a named pull request and its closing issue first; a terminal state reduces the drive to verification and a report |
+| Adopting a foreign lane's modified-but-diff-empty worktree | Prepared to commit, push, and publish a same-intent branch whose files showed ` M` with recent mtimes and no open pull request | The status line was stat-level evidence only; the owning session committed during the inspection window, pushed, and opened its pull request minutes later | Resolve liveness from the branch reflog and the remote branch list, not from status or mtimes; verify coverage on the sibling's committed diff; report the sibling's pull request as the duty's outcome |
 
 ## Results & Parameters
 
@@ -132,6 +141,9 @@ ls <build-dir>/*.diff <build-dir>/*.patch 2>/dev/null
 ### Expected Output
 
 - No competing pull request opened for an intent a peer already covers.
+- A live in-flight same-intent lane yielded after reflog and remote proof: its committed diff
+  checked for decision-branch coverage, its pull request reported as the duty's outcome, and
+  zero writes from the yielding session.
 - A fully delivered issue reported terminal with acceptance-criteria, ancestor-bind, and guarding-test evidence; closure escalated to the coordinating authority; zero token or empty pull requests opened.
 - Orphaned branches deleted only via the safe form with ancestor proof.
 - Prepared publication text carries a superseded marker where its vehicle changed.

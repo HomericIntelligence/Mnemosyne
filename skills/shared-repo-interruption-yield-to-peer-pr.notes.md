@@ -152,3 +152,34 @@ identifiers are intentionally omitted.
   implementation doubly impossible: a failing test could not exist without manufacturing one,
   and an empty pull request cannot be opened. Both fabricate work, so "report and stop" is the
   only eligible disposition when the audit finds full delivery.
+
+## Campaign evidence: a durable-learning duty yielded to a live sibling lane mid-publish
+
+Supporting evidence for the version 1.3.0 addition. Generalized from a verified-live session;
+identifiers are intentionally omitted.
+
+- Context: a fleet ran many single-issue durable-learning ceremonies against one shared
+  knowledge corpus over one day. Each ceremony used its own `skill/<slug>` branch and a lane
+  worktree under the delivery checkout's `.worktrees/` directory, and the default branch
+  received a steady stream of merges from sibling ceremonies.
+- The ceremony's duplicate audit found no landed content for the intent at the synchronized
+  default-tip revision and no open pull request touching the canonical artifact set. It did
+  find a foreign worktree created minutes earlier on a matching slug, with the intended
+  canonical file and its companion marked ` M` — but every content diff against the base was
+  empty.
+- The status lines were stat-level evidence, not liveness evidence: the owning session had
+  written the files and then committed during the ceremony's own inspection window. The branch
+  reflog located a signed commit with the same intent in its title and version line, landing
+  between two of the ceremony's reads. `git ls-remote` minutes later showed the pushed branch;
+  a repeated open-pull-request enumeration showed the sibling pull request with the same
+  canonical paths in its file set.
+- Coverage verification ran on the sibling's committed diff (`git show <their-commit> --
+  <canonical-paths>`): it carried every decision branch the local session's evidence
+  supported, plus two additional branches. With coverage verified, the ceremony yielded with
+  zero writes — no branch, no commit, no adoption push — and reported the sibling's pull
+  request as its learn outcome, in place of the durable write its mandate nominally demanded.
+  The sibling lane stayed untouched throughout.
+- Rule added: the invariant is exactly one canonical change per intent, not one branch per
+  writer. A durable-delivery mandate is satisfied by a verified sibling publication. A
+  missing-run or missing-pull-request surface at discovery time is not proof that a lane is
+  dead; only reflog plus remote state plus a delayed re-read can show dead, parked, or live.
