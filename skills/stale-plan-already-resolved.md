@@ -1,10 +1,10 @@
 ---
 name: stale-plan-already-resolved
 license: BSD-3-Clause
-description: "Check whether current source already satisfies a stale issue, plan, or log finding — including at a workflow resume under a durable approval state; avoid redundant fixes and close tracked work only within authorized scope."
+description: "Check whether current source already satisfies a stale issue, plan, log finding, or pull-request premise — including at a workflow resume under a durable approval state, and on an open PR head that a sibling session rewrote; avoid redundant fixes and close tracked work only within authorized scope."
 category: ci-cd
 date: 2026-06-14
-version: "1.4.0"
+version: "1.5.0"
 user-invocable: false
 verification: verified-ci
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/stale-plan-already-resolved.history"
@@ -15,7 +15,7 @@ history-cleanup-date: "2026-09-20"
 | Field | Value |
 | ------- | ------- |
 | **Problem** | A point-in-time artifact (plan, LOG, error report, CI failure, audit finding) was captured when main was in state A, but main is now in state B (already fixed or changed further by intervening merges) |
-| **Key insight** | Always verify the defect still reproduces on CURRENT `origin/<default>` before applying a plan, fixing a finding, or making outward records (issues, tracker edits, defect claims) that premise the defect — any captured artifact can become stale after other PRs merge |
+| **Key insight** | Always verify the defect still reproduces on CURRENT `origin/<default>` before applying a plan, fixing a finding, or making outward records (issues, tracker edits, defect claims) that premise the defect — any captured artifact can become stale after other PRs merge, and a sibling session can already have resolved an open PR premise on the rewritten head |
 | **Impact** | Prevents unnecessary changes and incorrect "fixes" that would revert progress or ship a no-op for an already-fixed bug |
 | **Context** | Issue #4280: plan said change `test_*_layers.mojo` → `test_*_layers*.mojo`, but code already used `test_*.mojo`. Also: a 2588-line `output.log` named 4 root causes — 2 were already fixed on current main (PR #1148, `learn_claude_timeout`). Also: a relaunched worker's approved plan was eclipsed by a split delivery lane (create-targets present on main, modify-sites deleted); stop with zero writes |
 | **Verification** | verified-ci |
@@ -35,6 +35,7 @@ history-cleanup-date: "2026-09-20"
 10. A durable approval label or a completed earlier review gives apparent authority to implement. The label attests the review result at its time; it does not attest that the work remains
 11. You are about to create an issue, edit a tracker or epic, or publish a defect claim premised on an inventory captured earlier in a long session on a shared, fast-moving default branch
 12. Parallel workers own overlapping fix clusters in the same repository, and hours pass between your failure analysis and your next delivery boundary
+13. A scoped task brief premises an open pull request state, for example a rebase-only brief that states the PR is conflicting or dirty against the default branch. The brief is a snapshot: the PR head may have moved after the brief was written
 
 ## Verified Workflow
 
@@ -69,6 +70,44 @@ objective — then the plan is eclipsed. Make zero writes: do not implement, and
 review verdict over the stale plan. A verdict that binds deleted or previously delivered sites is
 invalid evidence. Report the stop disposition that the task authorizes (for example PARKED) with
 the delivery evidence.
+
+### 0b. Open-PR premise gate: measure the PR head before a premise-scoped rewrite
+
+When the assignment targets an open pull request and premises its state — for example a
+rebase-only brief that states the PR is conflicting or dirty against the default branch —
+the delivery lane may be that same PR. A sibling session can already have rebased its head
+while the brief was in transit. A merged-PR search and a main-tree site check cannot see a
+delivery that lives on the open PR's rewritten head. Measure the PR head before any rebase
+or push:
+
+```bash
+git fetch origin <default-branch> <pr-branch>
+
+# Ancestry: does the head already contain the current default tip?
+git merge-base --is-ancestor origin/<default-branch> origin/<pr-branch> \
+  && echo "head is based on the current default tip"
+git rev-list --count origin/<pr-branch>..origin/<default-branch>   # 0 = nothing to rebase onto
+
+# Mergeability: provider status plus a local merge test (the provider value can lag or be absent)
+gh pr view <pr-number> --json mergeable,mergeStateStatus
+git merge-tree --write-tree origin/<default-branch> origin/<pr-branch> >/dev/null 2>&1 \
+  && echo MERGE_CLEAN || echo MERGE_CONFLICTS
+
+# Provenance: who moved the head, and did a sibling already report the task complete?
+gh api repos/<org>/<repo>/issues/<pr-number>/events \
+  --jq '[.[] | select(.event == "head_ref_force_pushed") | {created_at}]'
+# Read the PR comments for a sibling completion report at the current head.
+```
+
+Decision rule: the head already contains the current default tip, the merge is clean, and a
+sibling session reported the task complete at that head — then the premise is eclipsed. Make
+zero writes: do not re-run the rebase, do not re-push, and do not post a duplicate completion
+comment. A rebase that re-signs or rewords commits at identical content still produces a new
+head SHA, breaks a head-bound approval record, and restarts the review gate for no content
+change. Report the task-complete disposition with the measured evidence.
+
+Verification level: this subsection is `verified-live` from one session (see the notes). The
+rest of this entry keeps its `verified-ci` claim.
 
 ### 1. Read the plan carefully for specific anchors
 
@@ -255,6 +294,7 @@ python3 scripts/validate_test_coverage.py
 | Mutation-boundary re-anchor | `git fetch && git log --oneline <analysis-base>..origin/<default> -- <touched-paths>` + commit-subject and issue/PR search for the failing node IDs — any match retires that cluster |
 | Boundary points | Before issue filing, tracker edits, and defect claims; after long validation runs; before push; after any restart |
 | Decayed-premise recovery | Close obsolete records with the resolving commit/PR reference; revert tracker edits; salvage only unmatched clusters |
+| Open-PR premise gate | `git merge-base --is-ancestor origin/<default> <pr-head>` + `git rev-list --count <pr-head>..origin/<default>` (0), `gh pr view --json mergeable,mergeStateStatus` plus local `git merge-tree --write-tree`, PR `head_ref_force_pushed` timeline events and sibling completion comments — head based + clean merge + sibling report ⇒ zero-write stop |
 
 ## Failed Attempts
 
@@ -281,3 +321,4 @@ python3 scripts/validate_test_coverage.py
 | ProjectHephaestus | 2026-06-14 output.log 4-RC analysis; 2 of 4 already fixed, caught via live re-verify | PRs #1353-#1356 |
 | Internal CI-gate repository | 2026-10 relaunched single-issue worker; durable plan eclipsed by a split delivery lane | stop report, zero writes; [notes](./stale-plan-already-resolved.notes.md) |
 | External repository (unnamed) | 2026-10 release-train session: 4 analyzed failure clusters were fixed by parallel workers mid-session; 2 repair issues + 1 tracker edit filed on the decayed premise needed close-out; the pre-push boundary check prevented a duplicate PR | [notes](./stale-plan-already-resolved.notes.md) |
+| Internal CI-gate repository | 2026-10-31 rebase-only brief on an open PR; the head was already rebased onto the current default tip by sibling sessions | zero-write stop with measured evidence; [notes](./stale-plan-already-resolved.notes.md) |
