@@ -248,3 +248,36 @@ pre-publication rejection safety) follow from the fail-closed validator design a
 frequency. Interface details (positional argument, mode flags, import context,
 anchor-source option, published-review identity form) are generation-specific witnesses; confirm them against
 the installed helper's signature before relying on them.
+
+
+## Prepare-then-fill and thread flush (2026-10-31)
+
+Sixth live delivery. A two-file change reached a clean zero-finding round-1
+assessment at a rebased head. One old-head inline thread remained open. Its
+finding was the aggregation-tail assertion, and the rebased head already
+carried the corrected assertion.
+
+Findings from this delivery:
+
+1. Answering a fixed legacy thread fails unless the current exchange records
+   that finding. The reducer returned a terminal-state rejection first. After a
+   clean terminal round was reduced, the same answer was still impossible
+   because no carrier owned the finding identity.
+2. A direct thread resolution with a linked evidence comment let a clean
+   terminal round deliver at the same head. The delivery result reported
+   `status=delivered` with the exclusive terminal label, and the readback showed
+   zero open threads.
+3. The prepare-mode output was a template with a null state and empty visible
+   content. Six deliver-mode submissions were withheld before publication: the
+   requirement-issue flags, the null state, the bare state record, the empty
+   visible content, a visible digest from a ledger built before the reduce, and
+   a scope digest captured before a body-text correction. The corrected
+   manifest was accepted on the seventh submission.
+4. A pull-request body correction moves the live scope digest. The reduce binds
+   one scope digest, so collect the scope again and bind the new value before
+   delivery.
+5. Required checks started only after the terminal label was applied. The two
+   earlier failed jobs were label-precondition failures from a run before the
+   label existed, and both had a passing re-run at the same head. Auto-merge
+   with the squash method merged the pull request when the required checks
+   passed.

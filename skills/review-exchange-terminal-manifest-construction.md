@@ -1,9 +1,9 @@
 ---
 name: review-exchange-terminal-manifest-construction
-description: "Build a terminal-delivery closure manifest in the verified dependency order — deterministic ledger first, visible-content digest before reduce, render, canonical JSON — so the designated terminal delivery helper accepts it. Use when: (1) a review flow routes a terminal-eligible round through a designated terminal delivery helper that consumes a closure manifest, (2) the helper rejects the manifest with an input-validation error such as an uncanonical JSON form, a visible-ledger mismatch, or a published-review identity that is not a GraphQL review node ID, (3) you must decide what belongs in the terminal visible content and which digest to bind in the reduce event, (4) the ledger, the state digest, and the entry set are mutually dependent so each rebuilding pass changes the digest again, or (5) you must distinguish a pre-publication input rejection (fix and resubmit) from a structural carrier-history rejection (no input repair exists) or a publication-state wedge (do not retry). Use also when: (6) the terminal round itself raises new findings that must be partitioned out of the closure entries, or (7) the terminal visible content must carry an anchor annex after the deterministic ledger."
+description: "Build a terminal-delivery closure manifest in the verified dependency order — deterministic ledger first, visible-content digest before reduce, render, canonical JSON — so the designated terminal delivery helper accepts it. Use when: (1) a review flow routes a terminal-eligible round through a designated terminal delivery helper that consumes a closure manifest, (2) the helper rejects the manifest with an input-validation error such as an uncanonical JSON form, a visible-ledger mismatch, or a published-review identity that is not a GraphQL review node ID, (3) you must decide what belongs in the terminal visible content and which digest to bind in the reduce event, (4) the ledger, the state digest, and the entry set are mutually dependent so each rebuilding pass changes the digest again, or (5) you must distinguish a pre-publication input rejection (fix and resubmit) from a structural carrier-history rejection (no input repair exists) or a publication-state wedge (do not retry). Use also when: (6) the terminal round itself raises new findings that must be partitioned out of the closure entries, or (7) the terminal visible content must carry an anchor annex after the deterministic ledger, or (8) the prepare mode returns a manifest template whose state and terminal visible content are empty and the deliver mode rejects each intermediate wrong form before it publishes anything."
 category: tooling
 date: 2026-10-28
-version: "1.3.0"
+version: "1.5.0"
 user-invocable: false
 tags:
   - pr-review
@@ -57,8 +57,8 @@ The publisher-routing decision and wedge recovery are a different rule. See Refe
    generator (binding, ordered closure entries). Never write it by hand.
 2. Hash the exact ledger bytes into the reduce event's visible-content digest.
    Then reduce, then render. This order is mandatory: the state binds the digest.
-3. Put the same exact ledger bytes in the manifest's terminal visible content.
-   It must equal the ledger, not extend it: the helper compares for equality.
+3. Put the same exact ledger bytes in the manifest's terminal visible content;
+   the helper compares for equality, so do not extend them.
 4. Serialize the manifest as canonical JSON (sorted keys, minimal separators),
    then deliver.
 5. If entries record the terminal digest, steps 1-4 are circular. Iterate to a
@@ -68,7 +68,7 @@ The publisher-routing decision and wedge recovery are a different rule. See Refe
    wrong form: supply the GraphQL review node ID (PRR_...), never the decimal
    database review identifier.
 7. A rejection that names an adopted native finding is structural: no input
-   repair exists. Hold for an owner-authorized resolution recovery or escalate.
+   repair exists; see the structural class below.
 8. Findings raised in the terminal round itself go in the manifest's comments
    and summary finding partitions, not in the closure entries. The helper's
    anchor proofs verify the partition.
@@ -76,6 +76,31 @@ The publisher-routing decision and wedge recovery are a different rule. See Refe
    The helper splits the annex before the ledger-equality check, but the reduce
    digest binds the ledger bytes plus the annex bytes.
 ```
+
+### Prepare-then-fill procedure
+
+Use this order for a terminal GO. Each step depends on the step before it.
+
+1. Prepare the manifest. The prepare mode returns a template. Its `state` field is `null`, its `terminal_visible_content` is the empty string, and its `entries` cover every Athena-owned open thread with empty disposition fields.
+2. Resolve the open threads. A thread that the current exchange does not track has no answerable finding, and a terminal state cannot accept an author response. Publish one evidence comment that cites the fix, then resolve the thread once.
+3. Re-prepare the manifest. `entries` is now empty for a closed thread set. Compute the deterministic ledger with the helper's own generator using that binding and those entries.
+4. Hash the exact ledger bytes into the reduce event's visible-content digest. Then reduce, then render.
+5. Fill the template: set `terminal_visible_content` to the exact ledger bytes and `state` to the complete rendered envelope. Serialize as canonical JSON.
+6. Deliver. Pass no requirement-issue flags, because those flags belong only to prepare mode.
+
+If the artifact scope changes after a reduce, collect the live scope again and bind the new digest in a new assessment.
+
+### Wrong-form rejection classes
+
+A deliver-mode rejection is typically a wrong form, not a defect. Each one is pre-publication: nothing was written, and the corrected input is the whole fix. Probe them in this order:
+
+- requirement-issue flags supplied to deliver mode;
+- the prepared template not serialized as canonical JSON;
+- `state` left `null` (the field needs the complete state envelope);
+- `state` set to the bare state record (the field needs the envelope with `state_sha256`);
+- `terminal_visible_content` left empty (the field needs the exact ledger bytes);
+- the reduce event bound a different visible-content digest than the ledger;
+- the state bound an earlier scope digest than the retained one.
 
 ### Suggested Approach
 
@@ -159,6 +184,8 @@ If the extension is not possible, hold the exchange and escalate through the dec
 | Rebuild and resubmit after a rejection that names an adopted native finding | Rebuilt the deterministic ledger with the adopted findings included, regenerated the manifest, and re-reduced with the corrected visible-content digest | The helper repeated the identical unique-review-root error at preflight, before any input check | The rejection binds to published carrier history, not to pending input; classify the rejection before you repair, or the fix-and-resubmit loop never ends |
 | Editing the legacy markers on the published round-1 carrier | Considered rewriting the adopted-finding markers so the helper would accept them | Published exchange history is immutable under the exchange integrity rules | Repair verified-history resolution in the helper under owner authority; never rewrite published history |
 | Supplementary anchor content merged into the ledger body without the annex marker | Combined reviewer prose and anchor content with the deterministic ledger in the terminal visible content, without the annex marker structure | The helper rejected it: the terminal visible closure ledger does not match its manifest entries. The helper splits an annex only after its marker; unmarked extra bytes compare as a ledger mismatch | Put supplementary anchor content after the annex marker as the final section, hash the combined ledger-plus-annex bytes into the reduce digest, and pass the annex source to the delivery helper |
+| Author response to a fixed legacy thread | Tried to record the already-fixed old-head finding as an author answer so the terminal round could close it | The reducer refused: no carrier of the current exchange records that finding, and a terminal state cannot accept an author response | When the current exchange does not track the thread, flush it directly under explicit manager authority with a linked evidence comment, then deliver a clean terminal round at the same head |
+| Deliver a prepared manifest without filling it | Passed the prepare-mode template to deliver mode, with an empty requirement-issue list, correct canonical form, and a null state | Each submission was withheld at pre-publication input validation: the requirement flags were rejected, then the null state, then a bare state record, then empty visible content, then a stale visible digest, then a stale scope digest | Prepare mode returns a template, not a deliverable. Fill `state` with the complete envelope and `terminal_visible_content` with the exact ledger bytes, bind the same ledger digest and the live scope digest in the reduce event, then deliver |
 | Decimal database identifier as the published-review identity | Bound the proof review of a nonterminal no-go delivery by its decimal database review identifier | The helper withheld delivery at pre-publication input validation and published nothing: no carrier, no label. The same submission with the GraphQL review node ID and the annex source supplied was accepted and delivered the exclusive state label | The published-review identity is the GraphQL review node ID (`PRR_...`), never the decimal database identifier; a withheld pre-publication rejection publishes nothing, so it is safe to correct and resubmit |
 
 ## Results & Parameters
@@ -206,6 +233,7 @@ review identity   = pull-request number or URL        # positional argument
 | An internal repository review flow | Terminal GO delivery for a round that adopted legacy findings as native identities; one structural preflight rejection resolved by an owner-authorized helper extension and a rebuilt ledger; delivered at the exact head with the exclusive terminal label and an idempotency re-check (2026-10-26) | [notes](review-exchange-terminal-manifest-construction.notes.md) |
 | An internal repository review flow | Terminal GO delivery that closed three findings under the terminal state digest; the manifest converged by fixed-point iteration in two passes after chained manual edits failed; accepted by the helper's closure validator, delivered at the exact head, all threads closed (2026-10-26) | [notes](review-exchange-terminal-manifest-construction.notes.md) |
 | An internal repository review flow | Terminal GO delivery carrying findings raised in the terminal round itself: two inline nonblocking threads and one summary finding partitioned into the comments and summary partitions, verified by the anchor proofs; an anchor annex appended after the ledger with the combined bytes bound in the reduce digest; two pre-publication input rejections repaired, delivered with the exclusive terminal label and zero pending threads (2026-10-26) | [notes](review-exchange-terminal-manifest-construction.notes.md) |
+| An internal repository review flow | Zero-finding terminal GO delivery at a rebased head: one old-head inline thread whose finding was already fixed, flushed under manager authority; the prepared template converged through six pre-publication rejections and was then delivered at the exact head, the exclusive terminal label applied, auto-merge enabled, and the pull request merged when required checks passed (2026-10-31) | [notes](review-exchange-terminal-manifest-construction.notes.md) |
 | An internal repository review flow | Nonterminal no-go delivery binding a published state-carrier proof review and an anchor annex: two submissions withheld at pre-publication input validation with no carrier or label mutation; the accepted submission corrected only the review-identity form to the GraphQL node ID and supplied the annex source, delivered the exclusive state label, and read back clean (2026-10-28) | [notes](review-exchange-terminal-manifest-construction.notes.md) |
 
 ## References
