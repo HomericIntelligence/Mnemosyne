@@ -2,8 +2,11 @@
 
 Companion evidence for [tooling-opencode-v2-corrupt-db-recovery](tooling-opencode-v2-corrupt-db-recovery.md).
 Long commands, measurements, and verification detail live here; every rule the
-skill needs for operation lives in the main file. All values come from one
-verified recovery on OpenCode v2.0.29–v2.0.31 public releases.
+skill needs for operation lives in the main file. Values come from the verified
+incidents below: one recovery on OpenCode v2.0.29–v2.0.31 public releases, a
+stale-reader misdiagnosis on v2.1.x, and a post-merge sequence-counter defect on
+v2.1.x. Identifiers of individual sessions, hosts, and installations are
+generalized.
 
 ## Timeline of the observed incident
 
@@ -156,3 +159,70 @@ Left in place; deletion was not authorized by evidence.
   identifiers from the messages, not from missing header rows.
 - Dump verification sampled random index records, checked header ids, message
   counts, and last-line JSON validity.
+
+## Post-merge sequence-counter defect (v2.1.x, weeks after the merge)
+
+A later batch of new turns sent to many restored sessions showed three distinct
+failure signs. Only the third one is the counter defect; the first two must not
+trigger counter repairs.
+
+1. Instant failure with `Location not found` for the session's stored project
+   directory: the directory was deleted after the session was stored. This is a
+   placement defect. The fix is to re-point the session at an existing directory
+   through the session-management API (`session_move`-class tooling); counter
+   repairs do not apply.
+2. Attach hang with no transcript rows beyond two housekeeping rows
+   (`agent-switched`, `system`). Both candidate causes (missing directories and
+   low counters) were present in the same window, so this sign alone does not
+   identify a cause. Treat it as a prompt to run the audit, not as a diagnosis.
+3. Turns that ran to completion with large CLI transcripts (hundreds of
+   kilobytes of tool activity) but persisted no assistant rows. Some of these
+   sessions did persist the incoming user row and two housekeeping rows — at
+   `seq` 0–4, with current timestamps, underneath weeks of older history.
+
+### Bind of the cause
+
+- Every affected session had an `event_sequence` row far below the maximum
+  `seq` in its merged `session_message` history. Observed counters ranged from
+  single digits to a few thousand against stored maxima in the hundreds to
+  thousands.
+- The service allocates each new message's `seq` from `event_sequence`. With a
+  low counter, appends start near zero: the first rows land at still-unoccupied
+  low positions (which is why the user row and housekeeping rows persisted),
+  and once allocation reaches occupied values the unique `(session_id, seq)`
+  index rejects every further insert. The CLI transcript proves the turn ran;
+  the missing rows prove the writes did not persist. No error surfaced through
+  the product in the observed runs.
+- Sessions with no `event_sequence` row appended correctly at high `seq`
+  values: the service rebuilds the counter lazily when the row is absent.
+  Absence is safe; present-but-low is the only hazardous state.
+- A counter slightly above the stored maximum is benign: it only skips a
+  couple of `seq` slots (allocated-but-unpersisted turns). The repair query in
+  the main file never lowers such a counter.
+
+### Repair record
+
+- One transaction raised 15 low counters to their sessions' stored maxima
+  (`UPDATE ... WHERE seq < MAX(session_message.seq)` per aggregate). The live
+  service held no conflicting lock; the write committed without error.
+- End-to-end proof on one repaired session: counter moved 4 → 967 (the stored
+  maximum); a verification turn then persisted five rows at `seq` 968–972, and
+  the counter read 972 afterwards — the healthy invariant restored.
+- Re-sending turns to repaired sessions needs one extra check: some restored
+  sessions recorded model choices that no longer exist in the installed
+  provider list, and the turn fails immediately with `Model unavailable` until
+  the send overrides the model.
+
+### Verification method after any restore
+
+- Classify recent activity by `time_created` windows (rows newer than the send
+  time), never by `MAX(seq)`: while low rows are still landing, `MAX(seq)`
+  reports old history as the newest message and every delivered turn looks
+  undelivered.
+- Turn outcome lives in the newest `idle` row's `outcome` field within the
+  window; the newest assistant row's `finish` and `error` fields give the
+  model-side result. A delivered turn with neither assistant rows nor an `idle`
+  row in the window is a candidate for the counter audit.
+- Store-scale context: a full audit found `event_sequence` rows for only about
+  1.6k of about 4.3k sessions. Absence is safe, so exposure concentrates in
+  sessions that have a row and were touched by a merge or repair.
