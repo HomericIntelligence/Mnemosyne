@@ -1,12 +1,12 @@
 ---
 name: hephaestus-automation-loop-branch-sync-drive-green
 license: BSD-3-Clause
-description: "Inspect reused issue worktrees and incomplete automation runs. Keep each worker within its PR scope, check publication and signing, and diagnose drive-green invocation failures."
+description: "Inspect reused issue worktrees and incomplete automation runs. Keep each worker within its PR scope, check publication and signing, and diagnose drive-green invocation failures. Recover a lane whose commit_push fails closed after a landed push or whose receipt invalidates after the pipeline's own push, arm native auto-merge when the post-GO merge stage cannot run, and separate stale-payload label-gate CI noise from real failures."
 category: tooling
-date: 2026-07-17
-version: "1.4.0"
+date: 2026-10-30
+version: "1.5.0"
 user-invocable: false
-verification: verified-local
+verification: verified-live
 tags:
   - projecthephaestus
   - automation-loop
@@ -17,6 +17,8 @@ tags:
   - signed-commits
   - dco
   - pr-scope
+  - auto-merge
+  - lane-recovery
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/hephaestus-automation-loop-branch-sync-drive-green.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -29,8 +31,8 @@ history-cleanup-date: "2026-09-20"
 |-------|-------|
 | **Date** | 2026-07-11 |
 | **Objective** | Make automation-loop workers finish their owned issue/PR reliably instead of reusing stale branches, ignoring review/comment state, or letting broad drive-green phases act on unrelated PRs — and invoke a repo-wide "drive all open PRs to green" run correctly. |
-| **Outcome** | Core fix landed in ProjectHephaestus PR #1646 for issue #1645 (merged 2026-06-26, verified-ci). v1.1.0 adds the `--drive-green-all` vs `--phases drive-green` invocation finding (verified-local: dry-run caught the crash; `--drive-green-all` confirmed on a live ~3-minute run driving 14 open PRs). |
-| **Verification** | verified-ci (core); verified-local (v1.1.0 drive-green-all invocation finding) |
+| **Outcome** | Core fix landed in ProjectHephaestus PR #1646 for issue #1645 (merged 2026-06-26, verified-ci). v1.1.0 adds the `--drive-green-all` vs `--phases drive-green` invocation finding (verified-local: dry-run caught the crash; `--drive-green-all` confirmed on a live ~3-minute run driving 14 open PRs). v1.5.0 adds the post-review-round failure family on a long-lived PR lane (verified-live): landed-push commit_push fail-closes, self-inflicted receipt invalidation, post-GO merge-stage crash with direct native auto-merge arming, per-run budget refresh on relaunch, and stale-payload label-gate CI noise. |
+| **Verification** | verified-ci (core); verified-local (v1.1.0 drive-green-all invocation finding); verified-live (v1.5.0 failure family) |
 | **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/hephaestus-automation-loop-branch-sync-drive-green.history) |
 
 ## When to Use
@@ -43,6 +45,10 @@ history-cleanup-date: "2026-09-20"
 - Codex is the selected agent and commits must satisfy both signed-commit and `Signed-off-by` policy checks.
 - You want to drive all **existing open PRs** to green (resolve actual integration and CI blockers on existing PRs) without planning or implementing new issues from scratch.
 - An attempt to run only the drive-green stage via `--phases drive-green` crashes with `KeyError: <StageName.REPO: 'repo'>` and reports the item "poisoned at repo".
+- A run fails closed with `FAIL:commit_push_refresh_invalid` after a commit+push job that carried real commits, and you must decide whether the work was published.
+- A run fails closed with `FAIL:source_workspace_recovery_receipt_invalid` immediately after the pipeline's own push advanced the PR branch, or the lane freezes at `source_workspace_terminal` for the same reason.
+- A run dies with `FAIL:implement_exhausted` right after a landed push, and you must decide whether a relaunch is safe.
+- After `state:implementation-go`, a run dies in seconds with `FAIL:auto_merge_malformed` before the merge stage can read check state, and the checks are red.
 
 ## v1.2.0 findings (2026-07-17)
 
@@ -68,6 +74,77 @@ live run whether the fallback completes before relying on --drive-green-all end-
 issue `state:skip` — a single overnight run (2026-07-11) skip-parked 76 issues org-wide this way.
 The option is REMOVED; use `--drive-green-loops N` (default 5), which feeds the same `merge`
 budget. Old invocations passing `--max-merge-attempts` now fail argparse.
+
+## v1.5.0 findings (2026-10-30)
+
+Observed on a 20-run implementation lane that drove one direct PR through 12 review rounds to
+GO and merge (identifiers generalized; evidence in the notes file). These failures sit after
+first publication on a long-lived lane, so they belong to the conveyor this entry covers, not
+to the pre-publication recovery covered by
+[hephaestus-interrupted-implementation-lane-recovery](hephaestus-interrupted-implementation-lane-recovery.md).
+
+### Landed pushes still fail close in commit_push (`FAIL:commit_push_refresh_invalid`)
+
+On a lane with an open PR, a commit_push job that carries real commits can fail closed
+deterministically with `FAIL:commit_push_refresh_invalid` (observed on 5 of 7 real-push
+attempts on one lane; 2 real pushes succeeded). **The push lands before the fail-close.** Before
+any recovery action, verify `git ls-remote origin <branch>` against the lane head. A no-op
+push (nothing to send) succeeds, so the refresh binding rejects the post-push state, not the
+push itself. Recovery: no work is lost. Archive the regenerated, now-stale lane receipt —
+never delete lane records — then verify the preserved worktree carries 0 unpublished commits
+and 0 dirty paths, remove it, and relaunch clean. The next run adopts the PR at the true head
+and continues. If the worktree holds unpublished commits on top of the landed head, push them
+first (dry-run, then fast-forward), record the evidence, and only then recover.
+
+### A successful push can invalidate the lane's own receipt (`FAIL:source_workspace_recovery_receipt_invalid`)
+
+The invalidation can be self-inflicted: the pipeline's own landed push advances origin past
+the receipt revision, so the next adoption rejects the receipt that the previous run just
+regenerated. A terminal variant freezes the lane at `source_workspace_terminal` and writes a
+terminal record. Recovery is the same archive-never-delete cycle, with two records when a
+terminal record exists — keep the archive append-only (one directory per run, oldest first).
+A run that then dies with `FAIL:implement_exhausted` encodes a per-run budget, not a lane
+defect: a clean relaunch refreshes the budgets.
+
+### After GO the loop is terminal: arm native auto-merge directly (`FAIL:auto_merge_malformed`)
+
+After the `state:implementation-go` label, the merge stage's GitHub mutation can crash on an
+unresolvable working directory (a mount-boundary `fatal: not a git repository` from the `gh`
+process) and be misclassified as `auto_merge_malformed`. merge_wait fails before it reads
+check state, so the loop can neither merge nor drive CI repair — every relaunch dies in
+seconds at the same stage. The GO label is the whole merge contract, so the coordinator arms
+GitHub native auto-merge directly:
+
+```bash
+gh pr merge <pr> --repo <org>/<repo> --auto --squash
+```
+
+The native auto-merge request survives later pushes to the lane head; GitHub merges when the
+required checks pass. From this point the coordinator, not the loop, owns CI repair: work in a
+detached temporary worktree at the lane head, push signed fast-forward commits, and confirm
+the auto-merge request stays armed at each new head.
+
+### Label-gated CI: stale-payload failures are noise
+
+Label-gated workflows compute the gate from the event payload
+(`github.event.pull_request.labels.*.name`), not from live PR state. Runs started by the label
+event itself, or with a payload from before the GO label, fail fast at the gate and can appear
+as dozens of red checks. Only runs whose synchronize event carries the GO label execute real
+checks. When driving green, read one failing job log before repairing: gate failures name the
+missing label within seconds; content failures (format, type, test-tier inventory) take
+minutes and name files. Also note: a repository's pre-commit configuration can pin an older
+formatter than the project-resolved one and can reformat files a glob pass never visits (for
+example an extensionless script). Treat `pre-commit run --all-files` as the authoritative
+style gate before pushing a CI repair, not `ruff format --check .` alone.
+
+### Review convergence still terminates the conveyor
+
+A reviewer round with zero findings and all threads resolved skips commit_push entirely, so a
+lane stuck in the push fail-close cycle converges anyway: zero-finding round → GO label →
+merge stage. Convergence signals: finding counts trend down across rounds, major findings stop
+appearing, and nitpicks dominate late rounds (observed trend: 1 → 5 → 3 → 3 → 3 → 1 → 2 with a
+rebase-driven major → 1 → 1 → 1 → 1 → 0). When every thread is answered and resolved, one more
+clean relaunch is the whole remaining cost of a review round.
 
 ## Verified Workflow
 
@@ -166,6 +243,9 @@ pixi run hephaestus-automation-loop \
 | Codex commits without explicit policy verification | Codex-generated commits were allowed to proceed without checking both cryptographic signature state and `Signed-off-by` trailers. | Required policy checks can reject commits even when the code and tests are correct. | Verify `git log origin/main..HEAD --pretty=format:'%h %G? %s'` and scan commit bodies for `Signed-off-by:` before push/auto-merge. |
 | Running only the drive-green stage via `--phases drive-green` | Ran `hephaestus-automation-loop --phases drive-green` to shepherd existing open PRs without planning/implementing new issues. | Crashed with `KeyError: <StageName.REPO: 'repo'>`; the item was "poisoned at repo". The drive-green stage dereferences the REPO StageQueue, which `--phases drive-green` never seeds because it skips the repo-stage bootstrap. | Use `--drive-green-all` (no `--phases`) to drive existing PRs to green; it runs the full bootstrap first so the REPO stage is seeded. Dry-run novel flag combos to surface this before a live run. |
 | Assuming `--phases` composes freely across any subset | Expected any subset of phases (e.g. just `drive-green`) to run standalone. | The repo stage is a required prerequisite for later stages, not an independently runnable phase; skipping it leaves a downstream stage referencing an uninitialized key. | Some phases are prerequisites, not independently runnable. Prefer the purpose-built flag (`--drive-green-all`) over hand-composing `--phases` subsets. |
+| Recovering a `commit_push_refresh_invalid` without checking origin | A fail-closed commit+push job was treated as unpublished work. | The push lands before the fail-close; origin already holds the head, so the recovery is archive-and-relaunch, not republish. | Verify `git ls-remote` against the lane head first; never delete lane records; relaunch clean after the worktree proves 0 unpublished and 0 dirty. |
+| Relaunching the loop after a post-GO merge-stage crash | Relaunched so merge_wait could read red checks and drive the repair. | The merge stage crashes before it reads check state (`auto_merge_malformed` from an unresolvable `gh`-mutation working directory); each relaunch dies in seconds at the same stage. | Post-GO, arm native auto-merge directly with `gh pr merge --auto`; the coordinator owns CI repair on the lane head from a detached temporary worktree. |
+| Trusting a repo-glob format check as the drive-green style gate | `ruff format --check .` passed while CI's pre-commit job kept failing. | The pre-commit configuration pins an older formatter and formats files the glob never visits (for example an extensionless script). | Use `pre-commit run --all-files` as the authoritative gate before pushing a CI repair. |
 
 ## Results & Parameters
 
@@ -241,6 +321,8 @@ git log origin/main..HEAD --format=%B | grep -q '^Signed-off-by: '
 - Unrelated PR state cannot make one worker appear failed or complete.
 - The final broad drive-green pass is explicit and intentionally repo-level.
 - The PR can satisfy required CI plus signed and signed-off commit policy gates.
+- A landed push is detected on origin before any recovery, lane records are archived and never deleted, and clean relaunches resume at the true head.
+- After GO, a merge stage that cannot run yields to directly armed native auto-merge, and red checks are classified (stale-payload label-gate noise versus content failures) before any repair.
 
 ## Verified On
 
@@ -248,3 +330,4 @@ git log origin/main..HEAD --format=%B | grep -q '^Signed-off-by: '
 |---------|---------|---------|
 | ProjectHephaestus | Issue #1645 / PR #1646 | verified-ci; Required Checks run 28256238895 succeeded; Test workflow run 28256151963 succeeded; merged 2026-06-26 as `2a0cd2adc2570264c1bd2c45df96c75246bac433` |
 | ProjectHephaestus | `--drive-green-all` vs `--phases drive-green` (2026-07-11) | verified-local; `--dry-run` of `--phases drive-green` surfaced `KeyError: <StageName.REPO: 'repo'>` (item "poisoned at repo"); `--drive-green-all` confirmed working on a live ~3-minute run driving 14 open PRs (7 reviews requested, 5 already-GO'd PRs → CI, 0 new GO). |
+| Organization repository (identifiers generalized) | Post-review-round failure family on a 20-run implementation lane (2026-10-30) | verified-live; `commit_push_refresh_invalid` reproduced 5× on real pushes (push landed every time; 2 real pushes succeeded), receipt invalidation after the pipeline's own push (incl. the `source_workspace_terminal` freeze), per-run budget refresh on relaunch, GO label applied by the loop itself, merge stage died `auto_merge_malformed`, coordinator armed native auto-merge, coordinator CI repairs (test-tier inventory registration, format/typecheck, pinned-formatter style), and the PR merged green with post-merge main CI green. |
