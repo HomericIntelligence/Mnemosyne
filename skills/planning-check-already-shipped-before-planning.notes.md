@@ -51,3 +51,22 @@ build-wiring provenance must be checked separately.
   mapping, provenance, closeout planning, cross-repo separation, and count consistency.
 - Moved here: case sequence, old counts, review outcomes, and evidence limitations.
 - Archived only: full transcripts, path inventories, and superseded wording.
+
+## 2026-10-31: Fixed-elsewhere detection at claim time
+
+- Context: an unassigned bug issue in a release milestone carried report-time evidence (cited
+  module, line number, and a timeout traceback) and a plan-issue label. The cited behavior had
+  already been repaired: the fix PR merged on the issue's filing day, its subject referenced the
+  issue number, but its body carried no closing keyword, so the issue stayed open.
+- The issue-number PR search (`--search '<issue> in:body'`) returned nothing for the closing
+  keyword check. The pickaxe search (`git log --oneline <default-branch> -S '<cited symbol>' --
+  <cited path>`) surfaced the fix commit immediately; its subject carried the issue reference.
+- Verification before the disposition: the fix commit's added tests covered each evidence path the
+  issue cited (the no-lock rule on the shared-storage path, the failure-site error naming, the
+  second cited call site, and node-local behavior preservation). A separate policy test file pins
+  the bounded-wait surface.
+- Disposition taken: one disposition comment naming the fix commit and the covering tests, close as
+  completed, release the claim. No plan cycle started; no duplicate regression guard added, because
+  the fix's own tests already pin the invariant.
+- Cost of the check: two commands and one file read. Cost of the missed check would have been a
+  full plan-publish-review-implement cycle.
