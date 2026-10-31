@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Bind the exact session identifier before a session-rename ceremony; never select the target session by title match."
 category: tooling
 date: 2026-10-30
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 verification: verified-local
 tags: [session-rename, session-id, completion-ceremony, fleet, identity-binding, opencode]
@@ -28,13 +28,11 @@ tags: [session-rename, session-id, completion-ceremony, fleet, identity-binding,
 - Several sessions on the same host carry similar or identical titles.
 - A rename must preserve the remainder of the current title unchanged.
 
-## Core Rule
+## Verified Workflow
 
 A session title is not an identity. Fleet hosts run many sessions with near-duplicate titles at
 the same time. Before any rename, bind the exact session identifier from the environment of the
 current session. Rename by identifier, never by a title match.
-
-## Procedure
 
 1. Read the session identifier from the environment. In an OpenCode context the variable is
    `OPENCODE_SESSION_ID`.
@@ -47,15 +45,25 @@ current session. Rename by identifier, never by a title match.
 5. If the environment variable is absent, stop and report. Do not guess a session from a partial
    title match.
 
-## Failure Modes
+## Failed Attempts
 
-| Failure | Cause | Result | Mitigation |
-| ------- | ----- | ------ | ---------- |
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| ------- | -------------- | ------------- | -------------- |
 | Rename by title substring | Assumed a unique title | A parallel session with a near-identical title receives or loses the rename | Bind the identifier from the environment first |
 | Reconstruct the title from memory | Assumed the session summary holds the exact title | Remainder drift: the new title differs from the old in more than the prefix | Read the live title for the bound identifier before the write |
 | Best-guess rename without an identifier | Environment variable not read | Wrong-session write, discovered only after the fact | No identifier, no rename; stop and report |
 
-## Evidence
+## Results & Parameters
+
+| Parameter | Rule |
+| --------- | ---- |
+| Identity source | The session environment (`OPENCODE_SESSION_ID` in an OpenCode context) |
+| Target selection | Match on the identifier only; never on the title |
+| Title construction | Change only the required prefix; keep every other character unchanged |
+| Pre-write read | Read the live title for the bound identifier before the write |
+| Missing identifier | Stop and report; do not guess from a partial title match |
+
+### Evidence
 
 A done protocol required one session rename on a host that ran several sessions whose titles
 shared the same status prefix and similar wording. A title-based search could not isolate the
