@@ -3,7 +3,7 @@ name: planning-check-already-shipped-before-planning
 description: "Check whether follow-up work already exists before planning it. Use for stale issue paths, counts, uncommitted work, partial delivery, and closeout evidence."
 category: architecture
 date: 2026-06-19
-version: "2.1.0"
+version: "2.2.0"
 user-invocable: false
 license: BSD-3-Clause
 verification: verified-local
@@ -39,6 +39,9 @@ plans and sibling-repository CI retain their documented evidence limits.
 - A plan touches `../OtherRepo/` or claims another repository's CI is green.
 - The same count appears in multiple sections, or the issue's estimate differs from disk.
 - A long-running check tempts the author to emit an empty or placeholder plan artifact.
+- An agent is about to claim an unassigned issue for a plan-implement cycle, and the issue's
+  evidence cites files and symbols at report time; a merged fix that never referenced the issue
+  leaves the issue open while the behavior already holds at the default branch.
 
 ## Verified Workflow
 
@@ -61,6 +64,11 @@ git cat-file -e HEAD:path/to/test.cpp
 git status --short path/to/test.cpp path/to/CMakeLists.txt
 git show HEAD:path/to/CMakeLists.txt | grep '<test-name>'
 
+# Find a landed fix when the issue-number search comes back empty:
+# the fix commit may reference the issue only in its subject, or not at all.
+git log --oneline origin/main -S '<SymbolOrErrorStringFromTheIssue>' -- <cited/path.ext>
+git show <fix-commit> --stat
+
 # Verify a merged closing PR and the actual main-branch content.
 gh pr list --state all --search '<issue-number> in:body' \
   --json number,state,mergedAt,url
@@ -72,6 +80,12 @@ git show origin/main:path/to/file | grep '<acceptance-marker>'
 Record `git rev-parse origin/main`, the issue update time, repository status, and worktree list.
 Search open and merged PRs by issue number and key symbols. A local branch name or a GitHub issue's
 open state does not establish that work remains. Re-fetch before making the final determination.
+
+When the issue-number search returns nothing, do not conclude that work remains: the fix commit may
+reference the issue only in its subject, or not at all, and a closing keyword may be absent from the
+fix PR body. Search the change history for the cited symbol instead, and read the cited region at
+the default branch. A pickaxe hit whose subject or body references the issue, or whose diff
+implements the requested behavior, is the landed fix.
 
 Inspect every worktree. `git log` cannot reveal an uncommitted implementation in a sibling checkout.
 For each candidate, compare status, branch, base, and the relevant paths. Never overwrite or absorb
@@ -110,6 +124,12 @@ When work is already present, test the current tree and, when relevant, `origin/
 - **local WIP:** present only as tracked/untracked changes in a worktree;
 - **partially shipped:** structural criterion passes but runtime/integration criterion does not;
 - **not shipped:** requested artifact and equivalent behavior are absent.
+
+Disposition for a merged fix found at claim time: when the landed fix commit's own tests cover the
+evidence paths the issue cites, record a disposition comment naming the fix commit and the covering
+tests, close the issue as completed, and release the claim. Start no plan cycle and add no
+duplicate regression guard: the fix's own tests are the guard. Reserve the regression-guard route
+for the case where the invariant holds but no test pins it.
 
 ### 4. Establish provenance before disposing of failures
 
@@ -157,6 +177,7 @@ If code comments attribute work to an ADR, open the ADR itself; comments are not
 | --- | --- | --- | --- |
 | Trust the issue snapshot | Planned against cited paths and counts | Later merges had moved or completed the work | Measure current disk and `origin/main` first |
 | Search only commit history | Concluded no fix existed from `git log` | Uncommitted sibling-worktree changes were invisible | Inventory worktrees and status |
+| Trust the issue-number PR search alone | `--search '<issue> in:body'` found no PR, so a plan cycle started for an already-fixed behavior | The merged fix PR's body never referenced the issue; its subject carried the reference | Follow with a pickaxe search on the cited symbol: `git log -S '<symbol>' -- <cited/path>` |
 | Submit a status note | Listed what had already shipped | It contained no actor-owned future steps or gates | Reframe as verification-and-closeout |
 | Emit a placeholder | Withheld the plan while a background test ran | The required artifact was empty at handoff | Publish complete known evidence and mark the one pending gate |
 | Dismiss red tests by assumption | Called an untracked test foreign WIP | Modified committed wiring made it part of the current build | Prove source and wiring provenance independently |
@@ -168,6 +189,7 @@ If code comments attribute work to an ADR, open the ADR itself; comments are not
 | Decision | Required evidence |
 | --- | --- |
 | Work is merged | Immutable `origin/main` SHA plus source/behavior check |
+| Fix landed without an issue reference | Pickaxe commit (`git log -S`) whose diff implements the behavior, plus its tests covering the issue's evidence paths |
 | Work is local only | Worktree path, branch, and `git status --short` |
 | Migration is complete | Destination present, source absent, residual-symbol search, build/tests |
 | Failure is unrelated | HEAD/local provenance plus a separately routed owner/issue |
@@ -179,6 +201,9 @@ If code comments attribute work to an ADR, open the ADR itself; comments are not
 
 - 2026-06-19 through the 2026-07 amendments: provenance, worktree, and extraction-premise
   investigations were exercised locally (`verified-local`).
+- 2026-10-31 amendment: the pickaxe fallback for a merged fix whose PR body lacks the issue
+  reference, and the fixed-elsewhere closeout disposition, were exercised on a live claim decision
+  (`verified-local`).
 - Individual case outcomes and limitations are indexed in
   [the notes](./planning-check-already-shipped-before-planning.notes.md).
 
