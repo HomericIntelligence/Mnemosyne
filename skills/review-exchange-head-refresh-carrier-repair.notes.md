@@ -304,3 +304,72 @@ default branch.
   open thread with a marker-verified reply, and set the exclusive state label.
 - Merge verification: explicit squash title and body; zero closing keywords in
   the merge commit; the requirement issue open with its residual criterion.
+
+## Source case (2026-10-26): head change after a complete terminal GO delivery
+
+A chain-verified review exchange on a private-monorepo pull request reached a
+terminal GO after two reviewer rounds (one critical required finding, resolved;
+four nonblocking findings, all recorded live). Terminal delivery completed: the
+terminal carrier published and readback-verified byte-exact, all five finding
+threads responded and resolved, and the exclusive terminal-state label applied.
+
+CI at the terminal head then failed closed on a test-inventory partition gate:
+a newly added test module was not classified in the inventory. The repair was
+one classification line, moving the head by one commit and adding the inventory
+file to the changed-path set; every previously reviewed path was
+byte-identical at the new head.
+
+### Rebind probes rejected
+
+The completed exchange accepted no rebind:
+
+- A continued author-response event on the complete state failed: "author
+  response" events on a complete state are reducer-rejected. A
+  round-increment reviewer assessment failed the same way with the exact
+  gate message: "A terminal review state cannot accept another event." The
+  reducer code path confirms: a complete phase accepts only a reframe event.
+- The reframe path requires `requirements_sha256` to differ from the prior
+  digest. The requirements source was unchanged, so its live-recomputed
+  digest was identical: no reframe was possible without fabricating a
+  requirements change.
+
+### Contract resolution: the delivered GO survives
+
+The delivery-contract text resolves the state directly: an exclusive
+terminal-state label with zero open threads and a verified completed history
+is `already_delivered`; the label does not lapse when a later commit changes
+the head; a rebase, a base merge, or a later bug fix does not remove it. The
+label lapses only when a reviewer delivers the exclusive NO-GO label or when
+the target carries no state label. Re-review after a post-delivery bug fix is
+the author's judgement, not an exchange obligation.
+
+Judgement applied in the session: the repair was a non-behavioral
+configuration classification line with all reviewed content byte-identical,
+so no re-review was selected. The judgement and its evidence were recorded in
+the final report.
+
+### Text tension noticed
+
+The review workflow's author-response section lists a pre-round-5 complete GO
+as an accepted head-refresh precondition when the head revision changed. The
+current reducer gate rejects every non-reframe event on a complete state, so
+that acceptance text does not reduce with the current implementation. The
+operative contract for this state is the delivery-contract survival rule.
+Recorded here for the workflow maintainers; treat the complete GO as
+terminal.
+
+### Outcome and verification record
+
+- Live forge readback before merge: exclusive terminal-state label present,
+  zero pending threads, head at the repair commit, artifact open and
+  non-draft.
+- Squash auto-merge armed; the required-checks gate went green at the new
+  head and the artifact merged. A long-running non-gate check completed
+  successfully afterwards.
+- Pre-merge reducer probes were run exactly once each and discarded; no forge
+  write followed a rejected probe. No reframe was attempted (identical
+  requirements digest), so no protocol state was fabricated.
+- The test-tier classification defect itself (a new test module must be
+  registered in an explicit inventory partition, diagnosed by a uniform fast
+  failure of every shard with an "unclassified modules" message) is a
+  project-specific fact, not generalized into the skill.
