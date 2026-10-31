@@ -93,3 +93,21 @@ GO, and the delivery helper's exact-head checks passed.
   field argument that the type does not accept and a field name that the type
   does not have. The forge error names the type; remove the argument or use the
   documented field before any retry of the surrounding workflow.
+
+## No-fetch branch — verified case
+
+A later review round on the same class of private forge bound the evidence with
+no fetch at all.
+
+Session execution facts:
+
+| Step | Result |
+| --------- | --------- |
+| Strict collector run with the working directory outside any checkout of the target repository | Failed at snapshot materialization with the generic message; the isolated fetch had no credential configuration, so the forge rejected the anonymous read. |
+| Existing checkout pre-flight | `git rev-parse --is-shallow-repository` printed `false`; both the captured base identifier and the captured head identifier resolved as commits. |
+| Strict collector run from the existing checkout with every `--expected-*` binding | Exit 0; snapshot bound from the local object database; no network operation. |
+| Reviewer carrier built on the collected digests | Published as one COMMENT review; readback byte-identical to the rendered carrier. |
+
+Constraint: use this branch only for a checkout under the caller's control. A
+clone that another process can move keeps the risk that the main workflow
+excludes.
