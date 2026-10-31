@@ -219,3 +219,65 @@ in-tree finding resolution — carry over unchanged.
   acceptance into trust.
 - The empty carrier bodies that accompanied the duplicate carriers were
   immutable and stayed in place as part of the fork record.
+
+## Incident: read-blind state carrier on a reopened artifact (2026-10-31)
+
+### Shape
+
+A terminal delivery on a reopened artifact. An earlier round had published
+three inline finding roots, each with a machine marker that named an exchange
+identity, plus one state-carrier review that owned those findings. The forge's
+REST record listing still showed that carrier review at its original head.
+
+The terminal delivery helper reads carriers through one GraphQL-only read
+path. That path could not resolve the carrier review's record. The helper's
+read-only preparation therefore returned a fresh-exchange result: no prior
+state, zero carriers, and the three published roots listed as plain open
+threads with conversation digests.
+
+### The mask
+
+The fresh-exchange result invites a reconstruction: build a reducer-derived
+genesis state (initial review that adopts the findings, author answers, one
+terminal GO assessment), then deliver. This session built that genesis and
+traced the delivery preflight against the live helper code before any write.
+The preflight binds every manifest entry whose inline root carries a marker to
+the reviewer-state review that introduced the finding, inside the verified
+chain. Because the read-blind carrier never enters the chain, that origin
+record resolves to nothing, and the binding fails for every manifest. The
+failure is structural, not transient: no genesis construction can satisfy it,
+because the required record is invisible to the reader by construction.
+
+### Distinguishing sign
+
+- A genuinely fresh exchange: no carrier review in any forge listing, and no
+  finding markers that name an exchange identity.
+- A read-blind carrier: the preparation reports zero carriers while another
+  forge listing shows the carrier review, and the open threads' roots carry
+  exchange-identity markers.
+
+Confirm with two reads before any reconstruction: the helper's read-only
+preparation, and the forge's record listing over the other API.
+
+### Delivery that worked
+
+The owner-override path of this entry, executed completely:
+
+1. A terminal statement review pinned to the exact head, with a per-finding
+   ledger whose evidence was re-verified at that head, not inherited from the
+   invisible exchange.
+2. One evidence-naming reply per published thread, then thread resolution.
+3. The terminal state label applied and the opposed label removed, so exactly
+   one state label remained.
+4. A public audit note that names the verified blocker (the unresolvable
+   carrier record and the origin-binding rule it defeats) and the reason the
+   helper path is unsatisfiable.
+
+Required checks ran on the labeled head, and the artifact merged by squash.
+
+### Evidence quality rule
+
+The override inherits no review evidence from the invisible exchange. Each
+finding's closure cites evidence read at the delivery head (current file
+contents, a full-file local test run, and the clean formatting checks). This
+keeps the override honest when the invisible exchange's findings are stale.
