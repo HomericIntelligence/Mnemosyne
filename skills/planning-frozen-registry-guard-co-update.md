@@ -1,12 +1,12 @@
 ---
 name: planning-frozen-registry-guard-co-update
 license: BSD-3-Clause
-description: "Update registry entries together with exact-set tests and dependent prose when the requested change alters a pinned enumeration."
+description: "Co-update every home of a pinned enumeration when a change edits it, and register a new consumer in a scan-inventory guard's routed or exclusion table with a recorded rationale when a change adds one."
 category: testing
 date: 2026-07-04
-version: "1.1.1"
+version: "1.2.0"
 user-invocable: false
-verification: unverified
+verification: verified-local
 tags:
   - planning
   - testing
@@ -24,11 +24,14 @@ tags:
   - multi-home-invariant
   - stale-list-entry
   - re-derive-ground-state
+  - scan-inventory
+  - new-consumer
+  - route-or-exclude
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/planning-frozen-registry-guard-co-update.history"
 history-cleanup-date: "2026-09-20"
 ---
 
-# Planning Changes Behind a Frozen Registry Guard: Co-Update or Drop the Edit
+# Planning Changes Behind a Frozen Registry Guard: Co-Update, Register, or Drop the Edit
 
 ## Overview
 
@@ -90,6 +93,39 @@ Two durable additions beyond the v1.0.0 lesson:
   ONLY after a filesystem check proves the path no longer exists. This is the "prove the
   edit is safe" branch of the skill, grounded in an `ls` rather than sibling-test precedent.
 
+### New instance (2026-10-31): a scan-inventory guard fails when a change ADDS a new consumer
+
+A different trigger surfaced the same subject. A structural guard scanned every module of a
+package that sat OUTSIDE two named tables (routed modules, excluded modules) and failed when
+any code line matched guarded call patterns. A feature change did NOT edit the pinned tables;
+it introduced a NEW consumer module, and CI failed the scan with a
+"touches the load inventory outside the routing tables" message.
+
+The consumer already satisfied the guard's INTENT: its deployment-facing entry point resolved
+the resource through the shared resolution seam, and only an internal cache helper read the
+path the caller had resolved. The decision rule that resolved it:
+
+1. **Classify the consumer against the guard's own contract, not against the failure text.**
+   A routed-table registration obliges every guarded call site to show the seam inside the
+   guard's textual window. An excluded-table registration fits a generic reader that consumes
+   paths given to it — the guard's own exclusion table records such rationales ("arbitrary
+   file inventory", "explicit configured paths").
+2. **Prefer registration over restructuring approved code.** Moving the load to satisfy the
+   textual window would re-resolve the path and break a test that injects arbitrary paths —
+   the approved design's own contract. A window check is a heuristic; it cannot see across
+   function boundaries.
+3. **Record the rationale at the registration site.** Add the module to the chosen table with
+   a one-line reason, plus a comment that names the seam-routing entry point and the
+   caller-resolved-path contract the exclusion preserves.
+4. **Never write regex-bait.** Do not add a fake assignment or comment shaped to satisfy the
+   scan's pattern. Gaming the guard destroys its value as a structural invariant.
+5. **Run the guard suite locally before pushing**, so the gated CI run starts green.
+
+Verified: the guard suite passed locally (19 tests), the project's full CI passed at the fixed
+head, and the change merged the same day. This instance moved the entry-level verification to
+`verified-local`; the two planning workflows above remain unverified.
+
+
 ## When to Use
 
 The generalizable rule: when a planned change edits a list/registry/manifest enforced by a
@@ -108,6 +144,8 @@ Use this skill when:
 - Any time a reviewer or CI surfaces a `*_frozen` / exact-set / `assert ... == {hard-coded set}` test failure after a list edit
 - Removing a STALE list entry whose underlying file was renamed/packaged away (confirm the path is gone via `ls` first, then remove — and expect a docstring/prose count to also drift)
 - The list is mirrored by a human-readable COUNT ("N modules", "N items") in a docstring/comment/README that no assertion pins — that count is a silent co-update site
+- A structural scan guard (it walks the source tree and fails on any module outside its named tables that touches guarded call patterns) fails because the change ADDED a new consumer module
+- Deciding whether to register a new consumer as routed (its call sites show the resolution seam inside the guard's textual window) or excluded (a generic reader of caller-resolved or arbitrary paths)
 
 ## Verified Workflow
 
@@ -154,6 +192,7 @@ ls hephaestus/automation/github_api.py   # must fail (path packaged/renamed away
 | (#1811) Assume a frozen omit list has exactly TWO homes | Planning the removal of the stale `github_api.py` omit entry, the first mental model was "edit `pyproject.toml` + mirror in `test_omit_allowlist.py::expected_modules`" — the two homes from #1362 | A THIRD home exists: `tests/integration/test_orchestration_smoke.py`'s docstring carries a prose count ("17 automation modules" and "10 modules lack main()") plus an enumeration line naming `github_api`. Editing only the two Python homes leaves the docstring saying "17" when 16 modules remain — silent doc drift | Grep for EVERY home of the invariant, including second-order PROSE COUNTS and docstrings in sibling test files; a "N modules" comment is a co-update site. Grep the entry itself tree-wide, not just the config file |
 | (#1811) Trust that the omit entry still points at a real file | The entry `hephaestus/automation/github_api.py` had sat in the omit list since the module was flat | The flat module was converted to a `github_api/` PACKAGE; the `.py` path no longer exists on disk, so the omit entry was DEAD — pointing at a nonexistent path | Re-derive the ground state: `ls` the path before removing a stale entry. A frozen-list entry rots when its underlying file is renamed/packaged; removal is safe ONLY after the filesystem confirms the path is gone (this is the "prove the edit is safe" branch, grounded in `ls`, not sibling precedent) |
 | (#1811) Anchor the plan's edits to cited line numbers | The plan cited `pyproject.toml:299-300`, `test_omit_allowlist.py:57`, `test_orchestration_smoke.py:3/8/11-16` from a point-in-time read | Line numbers drift with any concurrent edit to those files; an implementer following stale coordinates edits the wrong lines | Re-grep by CONTENT at implementation time (`github_api.py`, `17 automation`, `expected_modules`, `modules lack main`) rather than trusting line numbers; treat cited lines as hints only |
+| (2026-10-31) Default to restructuring an approved design to satisfy a scan guard's textual window | When a scan guard failed on a new consumer, the first instinct was to move the load so the resolution seam appeared inside the guard's textual window | The window is a regex heuristic that cannot see across function boundaries; forcing the seam next to the load would re-resolve a caller-resolved path and break the injected-path test that pins the approved design | Classify against the guard's contract first: a generic reader of caller-resolved paths belongs in the exclusion table with a recorded rationale. Register the consumer; do not reshape working code for a textual pattern |
 
 ## Results & Parameters
 
@@ -220,3 +259,4 @@ three homes above.
 |---------|----------|--------|
 | ProjectHephaestus | Issue #1362 re-plan after NOGO | unverified — plan from source reading, guard not run |
 | ProjectHephaestus | Issue #1811 remove stale `github_api.py` omit entry (three-home co-update incl. prose count) | unverified — plan from source reading + `ls` ground-state check; no pytest/CI run |
+| (source project, 2026-10-31) | Register a new consumer of a guarded resource in a structural scan guard's exclusion table (route-vs-exclude classification) | verified — guard suite green locally, full CI green at the fixed head, change merged |
