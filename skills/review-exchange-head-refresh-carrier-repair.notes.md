@@ -434,3 +434,86 @@ The repair content and its scope were preserved and handed forward for a fresh
 artifact with a clean round-1 exchange. A dead exchange is a supersession
 decision for the owner of the artifact, so the branch ends with a decision
 request rather than a unilateral replacement.
+
+## Source case (2026-10-31): undeliverable terminal binding and fresh-genesis recovery
+
+One chain-verified exchange reached its terminal reviewer round with a GO
+verdict, phase complete, and next action finalize. The terminal state's
+`visible_content_sha256` bound the SHA-256 of hand-written terminal prose,
+not the deterministic terminal ledger that the delivery helper generates.
+
+### Diagnosis
+
+- Every closure manifest built on the state failed pre-publication with:
+  "The terminal visible closure ledger does not match its manifest entries."
+- Supplying the deterministic ledger bytes satisfied the helper's ledger
+  equality check but broke the state's own visible-content digest.
+- Supplying the bound prose kept the state digest intact but failed the
+  equality check.
+- The defect is in the published state, not in any manifest input. No input
+  repair exists.
+
+Diagnosis method: compute the deterministic ledger with the delivery helper's
+own generator at the same binding (zero closure entries), hash its exact
+bytes, and compare with the state's bound digest. Different digests prove the
+permanent defect with zero forge writes.
+
+### Recovery: fresh genesis exchange at a moved head
+
+1. Advanced the head with one empty signed commit (byte-identical tree,
+   honest message, no closing keywords). The push started a fresh gated CI
+   run at the new head because the exclusive label was applied after the
+   previous delivery attempt.
+2. Computed the deterministic ledger at the new head and hashed its exact
+   bytes into a fresh round-1 reviewer assessment event: new exchange
+   identifier, `prior_state_sha256` null, `supersedes_state_sha256` null,
+   artifact binding {new head, reviewed-scope digest, ledger digest},
+   coverage complete, no findings, no responses, no stop reason. Reduced with
+   `previous` = null. The reduced state carried verdict GO, phase complete,
+   next finalize.
+3. Rendered the state carrier, published it as one COMMENT review pinned at
+   the new head, and readback-verified byte equality and envelope identity.
+4. Built the closure manifest on the new genesis envelope with the same
+   ledger bytes and delivered with the anchor source. The delivery helper
+   verified the old exchange's full carrier chain, archived the old
+   exchange, and applied the exclusive terminal label at the new head.
+5. Gated CI ran green at the new head; the guarded squash merge followed.
+
+### Archival-guard detail
+
+The delivery helper's archival sweep fails when an old exchange's carrier
+sits at the delivery binding head. After the head move, every old exchange
+carrier sat at an older revision, so the sweep archived the old exchange in
+the same delivery that published the new terminal state. The same recovery
+repeated once more after a real CI test failure moved the head again: the
+fresh genesis pattern delivered at the second head and the first fresh
+exchange archived the same way.
+
+### Why the terminal state was undeliverable, not repairable
+
+- A terminal state accepts no further events, so no later event can rebind
+  its visible-content digest.
+- The carrier is published and immutable.
+- The state's digest binds the prose bytes; the helper's check binds the
+  generated ledger bytes. The two cannot both hold for one manifest.
+
+### Same-series protocol observations
+
+- A submitted forge review cannot be deleted (the API refuses), but a
+  submitted review body can be replaced through the GraphQL review-update
+  mutation. A mistaken non-carrier review was withdrawn this way with an
+  honest replacement note.
+- The forge accepts a review pinned to a commit identifier that the branch
+  history no longer contains (a pre-rebase head). The chain walk classifies
+  published carriers by kind at each pinned revision.
+- Kind=state carriers that embed an author event were tolerated by the chain
+  walk when a matching kind=author-event carrier for the same transition
+  also existed; the reducer proved both normalized to the same state.
+
+### Reusable outcome
+
+The digest comparison is the decision gate: equal digests mean a manifest
+repair; different digests mean the terminal state is permanently
+undeliverable and a fresh genesis exchange at a moved head completes the
+goal. The recovery verified end to end on the first delivery attempt at each
+of the two heads.
