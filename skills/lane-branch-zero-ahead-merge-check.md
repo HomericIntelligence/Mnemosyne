@@ -3,11 +3,11 @@ name: lane-branch-zero-ahead-merge-check
 description: "Classify a leftover automation-generated implementation branch that is zero commits ahead of the default branch, or an apparently unowned issue with no open pull request, before re-implementing. Use when queue-start, salvage, or issue-pickup ownership gates must decide reuse, claim, stop, re-implementation, or cleanup; state labels and open-pull-request searches alone miss merged or in-flight lanes."
 category: tooling
 date: 2026-10-25
-version: "1.2.0"
+version: "1.2.1"
 user-invocable: false
 verification: verified-local
 license: BSD-3-Clause
-tags: [lane-recovery, branch-audit, already-merged, zero-ahead, reimplementation-avoidance, adoption, ownership-gate, timeline-recency, label-lag, follow-up-lane, active-lane, tip-recency]
+tags: [lane-recovery, branch-audit, already-merged, zero-ahead, reimplementation-avoidance, adoption, ownership-gate, timeline-recency, label-lag, follow-up-lane, active-lane, tip-recency, single-account-fleet, actor-blindness]
 ---
 
 # Lane Branch Zero-Ahead Merge State Check
@@ -39,6 +39,8 @@ tags: [lane-recovery, branch-audit, already-merged, zero-ahead, reimplementation
   not the current delivery state; it can stay set after another lane merges the fix.
 - Several lanes or sessions share the branch namespace of one repository, so a previous
   owner may have completed and merged the work.
+- Several lanes or sessions run under one shared account, so foreign and own artifacts
+  carry the same author.
 - The alternative is a full re-implementation that costs hours; a merge-state query costs
   seconds.
 
@@ -75,9 +77,13 @@ The same blind spots apply when there is no branch at all:
    records the last label mutation, not the delivery state. Another lane can merge the
    requested fix while the label stays set. Labels are never ownership evidence on their
    own.
+3. **Actor blindness** — in a fleet that shares one automation account, a foreign lane
+   and your own lane author artifacts indistinguishably. A peer pull request from your
+   own account can still own the issue. Classify by lane artifacts — branches, pull
+   requests, labels, timeline events — never by who posted them.
 
 Classify by forge activity inside the gate's recency window (for example 48 hours), not
-by label text or by an open-only search.
+by label text, by an open-only search, or by artifact authorship.
 
 ## Verified Workflow
 

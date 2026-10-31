@@ -126,3 +126,26 @@ Decision value this case adds:
   gap was five to six hours on the same lane-automation generation.
 - The worker's lost work was limited to an uncommitted test file; no claim is made
   about safety when unique commits exist (use the salvage-candidate row for that).
+
+## Actor blindness: a same-author peer lane (generalized)
+
+In the armed-stub case above, every artifact carried one author, because the whole
+fleet shares one automation account:
+
+1. The issue's completed plan round (plan and review carriers), the label mutations,
+   the lane stubs, and the worker session itself all recorded the same account.
+2. The competing lane's implementation and its complete peer pull request also recorded
+   that same account.
+3. The post-interruption refresh that caught the peer pull request could not use
+   authorship to tell "my lane" from "a foreign lane"; the decision used lane artifacts
+   instead — the peer pull request, its head branch, its closing-issue reference.
+
+Authorship would have misled twice: treating same-author artifacts as own work would
+have hidden the foreign lane, and treating them as foreign would have challenged the
+worker's own completed plan round. The gate decision must not contain an author filter
+at all in this fleet shape.
+
+## Evidence limits in the actor case
+
+- One fleet generation with a single shared account; fleets with per-lane accounts may
+  treat authorship as weak corroborating evidence, never as a primary signal.
