@@ -27,6 +27,7 @@ version 1.15.0. The complete v1.15.0 retrievable content is archived once in the
 | Silent complexity/test/policy/inventory drift | [Hephaestus PR #2056](https://github.com/HomericIntelligence/Hephaestus/pull/2056) | verified-local | Whole-tree lint, tests, whole-file policy search, and inventory hooks catch distinct defects |
 | Content-derived test pins in a conflict | Anonymized monorepo PR train, 2026-10 (see below) | verified-local | Recompute pins from merged content; mirror assertions to computed truth, never guess invariants |
 | Target merged at the delivery gate | Anonymized hosted monorepo PR, 2026-10 (see below) | verified-local | Re-read artifact state immediately before the mutation; a merged target gets content-equivalence proof and a stand-down, not a replay push |
+| Every conflict resolves to the target side | Anonymized documentation-only PR, 2026-10 (see below) | verified-local | Prove the sibling delivery and the empty residual, close the PR, and do not resolve or push |
 
 ## Additional Ecosystem Evidence
 
@@ -64,6 +65,27 @@ version 1.15.0. The complete v1.15.0 retrievable content is archived once in the
   pointed at the same value, and the fixture update was present verbatim. No push
   occurred; zero unique work remained unretained. The stop path itself has no CI
   receipt because no delivery ran.
+- Anonymized documentation-only pull request (2026-10): a three-file comment
+  correction carried a delivered approval state at its reviewed head and an
+  independent review that returned a positive verdict at that same head. The
+  branch was reported `CONFLICTING` against a fast-moving target branch. A
+  rebase onto the current target head conflicted in all three changed files,
+  and each conflicting hunk showed the same corrected wording on both sides: two
+  source files and one test case. A sibling pull request had already merged the
+  same correction, with the same three changed paths, approximately 18 hours
+  before the rebase attempt. Proof sequence: the sibling was `MERGED`, its merge
+  commit was reachable from the target branch, the linked issue was `CLOSED` with
+  the sibling in its closing references, the target branch text satisfied each
+  acceptance criterion, and a search for the stale term in the three changed
+  files returned only unrelated matches in an unrelated subsystem. Resolution:
+  the rebase was aborted before any commit, the temporary worktree was removed,
+  and no push occurred. The pull request was closed with a comment that listed
+  the conflicts, the sibling merge commit and time, the issue closing reference,
+  and the acceptance check. The delivered approval label stayed in place and was
+  not edited. No new review round ran at a new head, because no new head existed.
+  Evidence limit: the sibling merge time and the rebase attempt are recorded from
+  the forge and local Git. No test run was necessary, because the change changed
+  no behavior.
 
 ## Semantic Audit for v2.0.0
 
