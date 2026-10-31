@@ -373,3 +373,64 @@ terminal.
   registered in an explicit inventory partition, diagnosed by a uniform fast
   failure of every shard with an "unclassified modules" message) is a
   project-specific fact, not generalized into the skill.
+
+## Incident: unresolvable receipt reference in an immutable carrier (2026-10-31)
+
+### Shape
+
+A review exchange on an open change reached an author-refreshable state and was
+then reframed with an authority record. Both carriers published and the round-1
+state extracted and standalone-verified.
+
+The reframe carrier's accepted event embedded its authority receipt as a
+reference string. That string used the change-host's numeric REST review
+identifier. The delivery reader resolves review references only by the GraphQL
+node identifier for the same review.
+
+### Reproduction of the mismatch
+
+Resolve the same reference in both spaces and compare the counts:
+
+- the REST identifier returns the review record in the REST API;
+- the GraphQL node identifier returns the same record in the GraphQL API;
+- the REST identifier used as a delivery reference resolves to zero records in
+  the reader's identifier space.
+
+Both identifiers name one review. The fault is the reference form inside the
+carrier, not the receipt content.
+
+### Why the exchange is dead
+
+1. **Immutability.** The carrier is already published. Editing or dismissing a
+   carrier invalidates it for every delivery, so the reference cannot be
+   corrected in place.
+2. **Single successor.** The reframe state is the derived successor of the
+   round-1 state and occupies that state's one successor slot. Re-deriving from
+   the round-1 state with a new author response, reviewer round, or authority
+   event produces two successors and fails the chain check.
+3. **Single chain.** Every later delivery verifies or archives each persisted
+   exchange on the artifact. This exchange has no terminal GO, so a NO-GO or GO
+   delivery fails the nonforking-chain check at any head, not only at the bound
+   head.
+
+Consequence: no review-workflow route reaches a GO. Adding reviewer rounds
+cannot help, and enabling auto-merge would bypass the contract rather than
+satisfy it.
+
+### Actions taken
+
+- Read the live labels: the delivered NO-GO label was still exclusive and
+  correct.
+- Read the carrier body and confirmed the reference string and both identifier
+  values.
+- Published exactly one blocker comment naming the failing reference, both
+  identifier values, the two chain rules, and the superseded disposition.
+- Made zero carrier edits, zero reducer probes, and zero label changes.
+- Did not enable auto-merge.
+
+### Reusable outcome
+
+The repair content and its scope were preserved and handed forward for a fresh
+artifact with a clean round-1 exchange. A dead exchange is a supersession
+decision for the owner of the artifact, so the branch ends with a decision
+request rather than a unilateral replacement.
