@@ -28,3 +28,20 @@ closed rate motivates inspection but does not justify copying every closed diff.
 - Superseded main SHA-256: `d5e4531904b333a41391ac4aa1c80ef52bd0d441d5d57f2c5387c7d73396fde7`
 - Issue #3335 base: `d377a8924aff84e5cc193b720130b4c57e38c5c3`
 - Old/new version: `2.2.0` → `3.0.0`
+
+## Version-Fixture Drift Case (2026-10-27)
+
+Timeline for the section-9 co-update rule (skill version 4.0.0 → 4.1.0):
+
+1. During a `/learn` validation run at base `90ce47e9`, the full-suite `pytest` showed exactly one
+   failure: `test_consolidated_canonicals_keep_versions_and_immutable_provenance` with
+   `assert '3.4.0' == '3.3.0'`. The same failure reproduced on a clean `origin/main` checkout,
+   classifying it as pre-existing main breakage, not an introduced regression.
+2. Root cause: an earlier merged amendment (#3575) bumped
+   `planning-verify-issue-premise-before-implementing` from 3.3.0 to 3.4.0 without touching the
+   `CONSOLIDATIONS` fixture in `tests/test_skill_consolidation_integrity.py` (pin near line 30).
+   The version-equality assert reports the two bare values and names neither the canonical nor the
+   fixture, so cause identification needed the fixture grep.
+3. Filed as issue #3606 with the reproduction and both resolution options. The drift was fixed on
+   main by `04a3d20a` (integrity test green again); the issue itself was still open at capture
+   time.
