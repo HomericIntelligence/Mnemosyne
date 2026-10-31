@@ -3,7 +3,7 @@ name: review-exchange-plan-only-requirements-rebind
 description: "Rebind an issue-plan review exchange whose plan carrier binds a stale requirements digest, and keep one canonical producer for a content-derived requirements identity. Use when: (1) a plan-only exchange reports a requirements-drift diagnostic with a human-decision next action although the issue content did not change and no reviewer comment exists, (2) different agent sessions improvised their own issue snapshot and identical issue content gives different requirements digests, (3) a documented republish migration route cannot run because every reframe verifier requires one plan comment and one review comment, or (4) an issue snapshot producer rejects a provider value that the reducer accepts."
 category: tooling
 date: 2026-10-28
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 verification: verified-live
 tags:
@@ -30,7 +30,7 @@ tags:
 | **Date** | 2026-10-28 |
 | **Objective** | Keep a published issue-plan carrier reviewable when the requirements digest that a historic snapshot producer bound no longer matches the canonical producer, and stop ad-hoc producers from creating that divergence. |
 | **Outcome** | Successful. The reducer gained one bounded rebind route for the plan-only epoch shape: the inspection reports a ready rebind state, and the plan preparation returns an update of the retained plan comment that binds the current digest. Every other drift shape stays withheld. The canonical snapshot producer is now the only valid snapshot source, and it maps a null provider body to the empty string that the reducer accepts. |
-| **Verification** | verified-live in one remediation: behavior tests prove the rebind route end to end (inspect, prepare, publish, readback inspect), prove that drift with a review carrier stays withheld, and prove that two independent producer builds of one fixture give the identical digest. The producer and reducer accept a null issue body as an empty body. The source change was pending host commit at learning time; the tests ran against the working tree of that change. |
+| **Verification** | verified-live in one remediation: behavior tests prove the rebind route end to end (inspect, prepare, publish, readback inspect), prove that drift with a review carrier stays withheld, and prove that two independent producer builds of one fixture give the identical digest. The producer and reducer accept a null issue body as an empty body. The remediation is delivered: the reducer route, the producer null-body acceptance, and the contract documentation are merged at the source review after fresh reviewer verification of the replies. |
 
 ## When to Use
 

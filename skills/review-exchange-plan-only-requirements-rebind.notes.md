@@ -50,6 +50,11 @@ names are recorded.
    change: the review comment required the route that works, not the route
    that documents intent. That review requirement is the origin of rule 4 in
    the main entry.
+7. Delivery outcome (two days after learning): the source remediation is
+   merged at the source review after fresh reviewer verification of the
+   per-thread replies. The verified-live basis is the delivered change, not
+   only the learning-time working tree. No rule, trigger, or failure-mode
+   change accompanied the provenance refresh.
 
 ## Design parameters observed
 
