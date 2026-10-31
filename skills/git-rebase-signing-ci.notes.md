@@ -72,6 +72,9 @@ for H in $(git log --format=%H --reverse origin/main..HEAD); do
   CUR=$NEW
 done
 git log --format='%G?' origin/main..$CUR | tr '\n' ' '   # expect: U U ... (SSH)
+git log --format=%B origin/main..$CUR  > /tmp/new.txt
+git log --format=%B origin/main..HEAD > /tmp/old.txt
+diff /tmp/old.txt /tmp/new.txt        # empty: messages preserved exactly
 ```
 
 Push (bundled git for network), one per branch:
@@ -132,6 +135,36 @@ Verified repair (explicit authorship authority granted first):
 4. Consequence accepted and recorded: review records bound to the old heads
    became void; the pull request later merged through the repository merge
    queue.
+
+## Label-gated provenance session (v1.8.0 source material)
+
+One verified drive-to-merge session on a public shared repository. The PR carried three
+successive heads and four provenance runs.
+
+Observed sequence:
+
+1. The reviewed head was unsigned. Two commits reported `%G?` `N` from a rebase that ran
+   without signing. The base commits reported `G`.
+2. A repair replay produced one signed commit whose `%G?` was `G`, and the forge reported
+   `signature.isValid: true` with the configured signer. The tree was unchanged.
+3. A run at that head failed at the step `Require the implementation label`. The step's `env`
+   showed `LABELS: ["state:implementation-no-go"]` and the step exited 1. The signature step
+   never ran.
+4. The workflow declared `on.pull_request_target.types: [labeled, synchronize]`. The label
+   flip to the state label started a new run at the unchanged head. That run passed with
+   `LABELS: ["state:implementation-go"]`.
+5. An empty signed commit had already been pushed to start a run. Its run also passed. The
+   push was not necessary and its message was false; one PR comment recorded the correction.
+
+Observations that shaped the rules:
+
+- The failure text from a label-gated provenance job looks identical for a missing label and
+  for an unsigned commit. Only the failing step separates them.
+- The forge's commit API returned `verification: null` for a fresh commit while the GraphQL
+  `signature.isValid` field returned `true`. Use the GraphQL field for a fresh head.
+- Documented delivery guidance said a push is required after a label change because a run
+  replays its own label payload. That is true for `synchronize`-only workflows. It is false
+  when the workflow also lists `labeled`.
 
 ## Related entries
 
