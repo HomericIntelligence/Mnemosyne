@@ -1,9 +1,9 @@
 ---
 name: review-exchange-terminal-manifest-construction
-description: "Build a terminal-delivery closure manifest in the verified dependency order — deterministic ledger first, visible-content digest before reduce, render, canonical JSON — so the designated terminal delivery helper accepts it. Use when: (1) a review flow routes a terminal-eligible round through a designated terminal delivery helper that consumes a closure manifest, (2) the helper rejects the manifest with an input-validation error such as an uncanonical JSON form, a visible-ledger mismatch, or a published-review identity that is not a GraphQL review node ID, (3) you must decide what belongs in the terminal visible content and which digest to bind in the reduce event, (4) the ledger, the state digest, and the entry set are mutually dependent so each rebuilding pass changes the digest again, or (5) you must distinguish a pre-publication input rejection (fix and resubmit) from a structural carrier-history rejection (no input repair exists) or a publication-state wedge (do not retry). Use also when: (6) the terminal round itself raises new findings that must be partitioned out of the closure entries, or (7) the terminal visible content must carry an anchor annex after the deterministic ledger."
+description: "Build a terminal-delivery closure manifest in the verified dependency order — deterministic ledger first, visible-content digest before reduce, render, canonical JSON — so the designated terminal delivery helper accepts it. Use when: (1) a review flow routes a terminal-eligible round through a designated terminal delivery helper that consumes a closure manifest, (2) the helper rejects the manifest with an input-validation error such as an uncanonical JSON form, a visible-ledger mismatch, or a published-review identity that is not a GraphQL review node ID, (3) you must decide what belongs in the terminal visible content and which digest to bind in the reduce event, (4) the ledger, the state digest, and the entry set are mutually dependent so each rebuilding pass changes the digest again, or (5) you must distinguish a pre-publication input rejection (fix and resubmit) from a structural carrier-history rejection (no input repair exists) or a publication-state wedge (do not retry). Use also when: (6) the terminal round itself raises new findings that must be partitioned out of the closure entries, (7) the terminal visible content must carry an anchor annex after the deterministic ledger, or (8) you must bind the annex's base anchor to the review record's base commit rather than the git merge base."
 category: tooling
 date: 2026-10-28
-version: "1.3.0"
+version: "1.4.0"
 user-invocable: false
 tags:
   - pr-review
@@ -18,6 +18,7 @@ tags:
   - safe-retry
   - terminal-introduced-findings
   - anchor-annex
+  - anchor-base-binding
   - graphql-review-node-id
   - published-review-identity
 ---
@@ -30,8 +31,8 @@ tags:
 | ------- | ------- |
 | **Date** | 2026-10-28 |
 | **Objective** | Deliver a terminal reviewer state through the designated terminal delivery helper on the first accepted submission. |
-| **Outcome** | Operational rule derived from one live terminal GO delivery. Hand-written visible prose and a pretty-printed manifest were rejected by fail-closed input guards. Inputs rebuilt in the verified order were accepted, and the helper published the terminal carrier and the exclusive terminal label. A second delivery verified one more rejection class: a structural carrier-history rejection that no input repair can clear. A third delivery verified a self-referential case: the ledger, the state digest, and the entry set are mutually dependent, so the manifest converges by iteration and not by chained manual edits. A fourth delivery verified the terminal-introduced partition and the anchor annex: findings raised in the terminal round itself do not enter the closure entries, and supplementary anchor bytes ride after the ledger in an annex that the helper splits before its equality check. A fifth delivery verified the same class on a nonterminal state carrier: a no-go delivery binding a published proof review and an anchor annex was withheld twice at pre-publication input validation with no forge mutation, then accepted unchanged except for two corrected inputs — the published-review identity must be the GraphQL review node ID, and the anchor source must be supplied when the carrier carries a published annex. |
-| **Verification** | verified-live in one zero-finding terminal GO delivery (2026-10-22), one adopted-native terminal GO delivery (2026-10-26), one findings-closure terminal GO delivery with a self-referential manifest (2026-10-26), one terminal GO delivery with terminal-introduced findings and an anchor annex (2026-10-26), and one nonterminal no-go delivery with an anchor annex whose initial submissions used the wrong published-review identity form (2026-10-28). Single-case evidence for each class; the invariants follow from deterministic fail-closed validation. |
+| **Outcome** | Operational rule derived from one live terminal GO delivery. Hand-written visible prose and a pretty-printed manifest were rejected by fail-closed input guards. Inputs rebuilt in the verified order were accepted, and the helper published the terminal carrier and the exclusive terminal label. A second delivery verified one more rejection class: a structural carrier-history rejection that no input repair can clear. A third delivery verified a self-referential case: the ledger, the state digest, and the entry set are mutually dependent, so the manifest converges by iteration and not by chained manual edits. A fourth delivery verified the terminal-introduced partition and the anchor annex: findings raised in the terminal round itself do not enter the closure entries, and supplementary anchor bytes ride after the ledger in an annex that the helper splits before its equality check. A fifth delivery verified the same class on a nonterminal state carrier: a no-go delivery binding a published proof review and an anchor annex was withheld twice at pre-publication input validation with no forge mutation, then accepted unchanged except for two corrected inputs — the published-review identity must be the GraphQL review node ID, and the anchor source must be supplied when the carrier carries a published annex. A sixth delivery verified the annex base binding: the annex's base anchor must equal the review record's bound base commit, not the git merge base; the mismatch was a safe pre-publication rejection. |
+| **Verification** | verified-live in one zero-finding terminal GO delivery (2026-10-22), one adopted-native terminal GO delivery (2026-10-26), one findings-closure terminal GO delivery with a self-referential manifest (2026-10-26), one terminal GO delivery with terminal-introduced findings and an anchor annex (2026-10-26), one nonterminal no-go delivery with a wrong published-review identity form (2026-10-28), and one terminal GO delivery whose anchor source first bound the merge base instead of the review record's base commit (2026-10-31). Single-case evidence for each class; the invariants follow from deterministic fail-closed validation. |
 
 ## When to Use
 
@@ -45,6 +46,7 @@ Use this skill when these conditions apply:
 - The manifest has closure entries whose recorded state digest is the terminal digest itself, and every repair pass changes that digest again.
 - The terminal review itself raises new findings (for example nonblocking findings on inline threads), and you must decide whether they enter the closure entries or a separate manifest partition.
 - The terminal visible content must carry an anchor annex (supplementary anchor content) in addition to the deterministic ledger, and you must decide where the annex goes and which bytes the reduce digest binds.
+- The terminal visible content carries an anchor annex, and you must decide which base commit the annex's base anchor binds.
 
 The publisher-routing decision and wedge recovery are a different rule. See References.
 
@@ -75,13 +77,16 @@ The publisher-routing decision and wedge recovery are a different rule. See Refe
 9. An anchor annex is the final section after the ledger and its marker line.
    The helper splits the annex before the ledger-equality check, but the reduce
    digest binds the ledger bytes plus the annex bytes.
+10. Bind the annex's base anchor to the review record's bound base commit —
+    the base ref commit the forge recorded for the pull request at bind time —
+    never the git merge base.
 ```
 
 ### Suggested Approach
 
 1. Decide the publisher before this rule applies. Once the terminal round is routed to the designated helper, build its inputs in dependency order. The helper derives the visible terminal ledger deterministically from the binding and the ordered closure entries; hand-written prose cannot match it. Call the helper's own ledger generator, treat the output as opaque bytes, and reuse the identical bytes wherever the ledger is required.
 2. Respect the digest order. The render step refuses a carrier whose visible-content digest does not equal the digest bound in the reduce event. So: compute the ledger, hash it, write the digest into the reduce event, reduce, render. Any edit to the visible content after reduce invalidates the state; recompute the ledger and reduce again.
-3. Serialize the manifest file in the canonical byte form the exchange defines: UTF-8 JSON, sorted object keys, minimal separators. A pretty-printed document parses as JSON but fails the byte-level canonical-form check.
+3. Serialize the manifest file in the canonical byte form the exchange defines: UTF-8 JSON, sorted object keys, minimal separators. A pretty-printed document parses as JSON but fails the byte-level canonical-form check. When the serializer escapes non-ASCII characters by default, disable that escaping so the output is raw UTF-8: an escaped form parses as the same JSON but is a different byte form.
 4. Check the helper's interface details against its actual signature. The positional argument is the review identity (number or URL), not a mode word. Requirement-issue flags belong to manifest-preparation mode, not to response-manifest delivery. When importing the helper in-process, reproduce its script entry-point module context so the helper's own module fallback resolves. When a delivery mode asks for the identity of an already-published review — for example the state-carrier proof review that a nonterminal no-go delivery binds — pass the GraphQL review node ID (form `PRR_...`), never the decimal database review identifier. The helper rejects a wrong form at pre-publication input validation and publishes nothing, so the identity fix is the only change a resubmission needs.
 5. Triage rejections by class. An input-validation rejection proves nothing was published: correct the input and resubmit; retries are safe. A rejection that names a conflicting terminal review or a nonforking chain is a publication-state wedge: stop and apply the wedge rules; do not fix-and-retry. A rejection that names an adopted native finding is a third class, a structural carrier-history rejection: no input repair exists, and recovery acts on how the helper resolves the published carrier history. See the next subsection.
 
@@ -118,6 +123,8 @@ The terminal visible content can also carry an anchor annex: supplementary ancho
 2. Append the annex as the final section after the marker line. Never place annex bytes before the ledger: the split starts at the marker, so anything before it compares as ledger and fails the equality check.
 3. Hash the combined bytes (ledger plus marker plus annex) into the reduce event's visible-content digest. Then reduce, then render.
 4. Pass the annex source to the delivery helper with its anchor-source option, so the delivery binds the same annex bytes that the digest binds.
+
+Bind the annex's base anchor to the review record's base commit — the base ref commit the forge recorded for the pull request at bind time — never to the git merge base. The two commits differ whenever the base branch has advanced past the branch point. The helper compares the annex base against the review record's binding at pre-publication input validation and rejects a mismatch with an error such as `The pending publication anchors have a different base.`; it publishes nothing, so the corrected submission is a safe retry. The base anchor is part of the annex bytes, and the reduce digest binds the full bytes, so the repair re-derives the anchor source and the annex bytes, rebinds the combined digest, re-reduces, re-renders, and rebuilds the manifest — a manifest-only edit cannot converge.
 
 ### Structural carrier-history rejection
 
@@ -160,6 +167,7 @@ If the extension is not possible, hold the exchange and escalate through the dec
 | Editing the legacy markers on the published round-1 carrier | Considered rewriting the adopted-finding markers so the helper would accept them | Published exchange history is immutable under the exchange integrity rules | Repair verified-history resolution in the helper under owner authority; never rewrite published history |
 | Supplementary anchor content merged into the ledger body without the annex marker | Combined reviewer prose and anchor content with the deterministic ledger in the terminal visible content, without the annex marker structure | The helper rejected it: the terminal visible closure ledger does not match its manifest entries. The helper splits an annex only after its marker; unmarked extra bytes compare as a ledger mismatch | Put supplementary anchor content after the annex marker as the final section, hash the combined ledger-plus-annex bytes into the reduce digest, and pass the annex source to the delivery helper |
 | Decimal database identifier as the published-review identity | Bound the proof review of a nonterminal no-go delivery by its decimal database review identifier | The helper withheld delivery at pre-publication input validation and published nothing: no carrier, no label. The same submission with the GraphQL review node ID and the annex source supplied was accepted and delivered the exclusive state label | The published-review identity is the GraphQL review node ID (`PRR_...`), never the decimal database identifier; a withheld pre-publication rejection publishes nothing, so it is safe to correct and resubmit |
+| Merge base as the annex base anchor | Built the anchor source with the git merge base of the reviewed head and the base branch as the annex's base commit | The helper withheld delivery at pre-publication input validation: the pending publication anchors have a different base. The review record had bound the pull request's recorded base ref commit, which differs from the merge base once the base branch advances | Bind the annex base anchor to the review record's bound base commit, never the merge base; the annex bytes are hashed into the state digest, so the repair re-derives the visible content and re-reduces the state |
 
 ## Results & Parameters
 
@@ -170,7 +178,8 @@ visible content   = terminal helper ledger generator(binding, ordered entries)  
                   = the exact ledger bytes, never ledger + prose
 reduce digest     = sha256(visible content)   # written into the reduce event before reduce
 manifest field    = the same visible content bytes
-manifest file     = canonical JSON: UTF-8, sorted object keys, minimal separators
+manifest file     = canonical JSON: UTF-8 raw, sorted object keys, minimal separators
+                  # disable default non-ASCII escaping in the serializer
 closure evidence  = reviewer response evidence for a resolved finding
                   = author answer evidence when no reviewer response exists
                   = original finding evidence otherwise
@@ -185,6 +194,9 @@ terminal-introduced = comments partition + summary finding partition
                   # never closure entries; the anchor proofs verify the partition
 annex             = final section after the ledger and the annex marker line
                   # helper splits it before the ledger-equality check
+annex base anchor = the review record's bound base commit
+                  # the base ref commit the forge recorded for the pull request
+                  # at bind time, never the git merge base
 reduce digest     = sha256(visible content)             # ledger only, no annex
                   = sha256(ledger + marker + annex)     # when an annex is used
 delivery          = pass the annex source with the delivery anchor-source option
@@ -207,6 +219,7 @@ review identity   = pull-request number or URL        # positional argument
 | An internal repository review flow | Terminal GO delivery that closed three findings under the terminal state digest; the manifest converged by fixed-point iteration in two passes after chained manual edits failed; accepted by the helper's closure validator, delivered at the exact head, all threads closed (2026-10-26) | [notes](review-exchange-terminal-manifest-construction.notes.md) |
 | An internal repository review flow | Terminal GO delivery carrying findings raised in the terminal round itself: two inline nonblocking threads and one summary finding partitioned into the comments and summary partitions, verified by the anchor proofs; an anchor annex appended after the ledger with the combined bytes bound in the reduce digest; two pre-publication input rejections repaired, delivered with the exclusive terminal label and zero pending threads (2026-10-26) | [notes](review-exchange-terminal-manifest-construction.notes.md) |
 | An internal repository review flow | Nonterminal no-go delivery binding a published state-carrier proof review and an anchor annex: two submissions withheld at pre-publication input validation with no carrier or label mutation; the accepted submission corrected only the review-identity form to the GraphQL node ID and supplied the annex source, delivered the exclusive state label, and read back clean (2026-10-28) | [notes](review-exchange-terminal-manifest-construction.notes.md) |
+| An internal repository review flow | Terminal GO delivery whose anchor source first bound the git merge base instead of the review record's base commit; one withheld pre-publication rejection, repaired with a full state re-reduce from the recorded base commit; delivered at the exact head with the exclusive terminal label (2026-10-31) | [notes](review-exchange-terminal-manifest-construction.notes.md) |
 
 ## References
 
