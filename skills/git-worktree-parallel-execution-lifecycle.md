@@ -160,8 +160,12 @@ fresh owned worktree.
 
 Never let a failed `gh` query default to deletion. Capture it explicitly and stop cleanup on error.
 Never remove the current working directory; `cd` to the main repository first and use `git -C` for
-checks. Staged additions survive `git checkout -- .`; this is one reason discard must be treated as
-an explicit destructive operation rather than a casual cleanup step.
+checks. `git worktree remove` can delete the directory while the calling shell still points into it.
+The shell then fails every command with "Working directory does not exist" until you move the
+session to an existing directory. An agent host keeps its own working directory separate from the
+shell, so moving the session invalidates no committed work. Staged additions survive
+`git checkout -- .`; this is one reason discard must be treated as an explicit destructive
+operation rather than a casual cleanup step.
 
 If policy blocks `reset --hard`, `clean -fd`, `worktree remove --force`, `rm -rf`, or `branch -D`,
 do not work around the guard. Present exact, fully resolved commands and evidence to the user.
