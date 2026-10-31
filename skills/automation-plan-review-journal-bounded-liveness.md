@@ -1,10 +1,10 @@
 ---
 name: automation-plan-review-journal-bounded-liveness
 license: BSD-3-Clause
-description: "Keep issue-based plan/review loops compact and live. Use when: (1) an issue has canonical plan and review comments, (2) review amendments risk growing the timeline, (3) repeated plans must stop without oscillation, or (4) migration must remove old actor-owned raw reviews and diffs safely."
+description: "Keep issue-based plan/review loops compact and live. Use when: (1) an issue has canonical plan and review comments, (2) review amendments risk growing the timeline, (3) repeated plans must stop without oscillation, (4) migration must remove old actor-owned raw reviews and diffs safely, or (5) plan admission or review routing fails closed with 'plan marker identity conflict: ambiguous actor-owned comment aliases' on an issue that carries legacy comment history."
 category: architecture
 date: 2026-07-21
-version: "2.0.0"
+version: "2.1.0"
 user-invocable: false
 verification: verified
 tags:
@@ -16,6 +16,7 @@ tags:
   - liveness
   - state-machine
   - prompt-budget
+  - marker-identity
 ---
 
 # Automation Plan-Review Journal: Canonical Comments and Liveness
@@ -36,6 +37,7 @@ tags:
 - Only the current plan and current critique are actionable.
 - An amendment can repeat the immediately prior plan or oscillate back to an older one.
 - Legacy issues contain archived full plans, raw plan diffs, old reviews, skip-reason comments, or reply-recovery records.
+- A run log shows `FAIL:plan admission failed: plan marker identity conflict: ambiguous actor-owned comment aliases for '<marker>'; manual recovery is required` on an issue whose timeline carries several historical comments with the same marker.
 
 ## Verified Workflow
 
@@ -79,6 +81,14 @@ Legacy cleanup:
 
 7. Migrate old timelines with a dry-run-first, ownership-checked command. Scan open and closed issues but exclude PRs; preserve the issue body and every human/foreign comment; upsert canonical bodies; delete only strictly recognized actor-owned legacy artifacts; re-read after apply and require convergence. A malformed marker or conflicting legacy identity fails only that issue before deletion.
 
+The same ambiguous-identity guard also runs at plan admission and review routing, outside any migration. When an issue timeline holds two or more actor-owned comments with the same marker, the loop cannot select one canonical comment, so it fails closed and stops the lane: `plan admission failed: plan marker identity conflict: ambiguous actor-owned comment aliases for '<marker>'; manual recovery is required`. There is no automated recovery by design. The operator recovery is:
+
+1. Enumerate the marker-bearing comments on the issue with their authors and timestamps.
+2. Keep the comment that is the current canonical artifact under the ownership and exact-format rule above; the newest verified one is the usual keep candidate.
+3. Remove or supersede each stale alias so exactly one actor-owned marker comment remains. Deleting on the marker prefix alone is destructive (the failed-attempts table below).
+4. Rerun the loop; admission then resolves the single canonical comment and advances.
+5. If authorship does not disambiguate (for example several automation actors write under one shared token), compare each candidate's format and content against the exact recognized canonical format before any deletion, and keep a record of the decision in the issue thread.
+
 8. Test observable behavior: canonical comment count remains two across amendments, raw patches never publish, repeated plans block, foreign marker comments remain inert, dry-run performs no writes, apply is idempotent, and restart repairs a stale canonical review without appending history.
 
 ## Failed Attempts
@@ -105,6 +115,7 @@ Legacy cleanup:
 | Migration default | Dry-run, open + closed issues, PRs excluded. |
 | Mutation authority | Exact recognized format plus authenticated actor ownership. |
 | Apply verification | Re-read every changed issue and require idempotent two-comment convergence. |
+| Ambiguous marker identity | Fail closed at admission, review routing, and migration; manual disambiguation per the step-7 recovery; never delete on the marker prefix alone. |
 
 ## Verified On
 
@@ -112,3 +123,4 @@ Legacy cleanup:
 |---------|---------|---------|
 | ProjectHephaestus | Issue #2719 implementation | Canonical replacement, bounded fingerprints, patch guard, PR-scoped handoff journal, strict migration planner/CLI, docs/ADR, and full unit suite (7,017 passed). |
 | ProjectHephaestus | Live dry-run on issue #2363 | Proposed one canonical metadata update and deletion of three obsolete actor-owned artifacts; zero failures and no writes. |
+| ProjectHephaestus | 50-issue wave, live admission failure on a legacy comment-heavy issue (2026-10-28) | [notes.md](automation-plan-review-journal-bounded-liveness.notes.md) |
