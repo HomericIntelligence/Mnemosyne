@@ -1,9 +1,9 @@
 ---
 name: reconcile-before-retry-mutation-status-loss
-description: "Reconcile target state before re-running a mutating command whose terminal status was not observed. Use when output truncation, a broken stream, or a lost exit line leaves a possibly-completed mutation with an unknown result."
+description: "Reconcile target state before re-running a mutating command whose terminal status was not observed. Use when output truncation, a broken stream, or a lost exit line leaves a possibly-completed mutation with an unknown result. Also use when an agent runtime restart or a cancelled tool call interrupts an ordered multi-step write, or when a create call to a forge or API returns a server error or times out after the request may have been processed."
 category: debugging
 date: 2026-10-15
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 tags:
   - retry
@@ -31,6 +31,12 @@ Use this skill when:
 - The command output was truncated by the display layer, a pipe, or a lost tail line, so you cannot tell success from failure.
 - The command is delegated or opaque: its contract forbids you to parse or intercept its output as a completion signal.
 - A blind second run could apply the mutation twice or repeat an irreversible step.
+- An agent runtime restart or a cancelled tool call interrupts an ordered
+  sequence of mutating steps (edits, validations, commits, pushes). The set of
+  steps that applied before the interruption is unknown.
+- A create call (pull request, issue, comment) returns a server error such as
+  HTTP 502, or the connection drops. The create has no transaction contract:
+  the request may have been processed before the response was lost.
 
 ## Verified Workflow
 
@@ -75,12 +81,24 @@ reconciliation, at most one re-invocation, then report.
 reconciliation is not interpretation: you report the observed state and the unobserved status as
 a recorded limit rather than inferring success from output fragments.
 
+**Ordered multi-step writes.** When a restart or cancellation can fall between any two steps of
+a planned sequence (edits, validations, commits, pushes, publishes), re-derive every step's state
+from the target — never from memory of what ran. Build a per-step sentinel battery: the branch
+name, the dirty-file list, and one read-only probe per step (for example, a unique string each
+edit adds). Classify each step, then resume at the first unapplied step. An apply tool that
+matches exact content fails closed on an already-applied step; treat that refusal as the
+consistent-complete classification for that step, not as an error, and continue with the next
+unapplied step. For a forge or API create that returns a 5xx or times out, probe existence of
+the artifact (list or search for the branch, title, or body hash) before one bounded retry;
+create endpoints are usually not guarded, so an unverified retry can duplicate the artifact.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 | ------- | -------------- | ------------- | --------------- |
 | Re-run the command at once | The tail line was missing, so failure seemed likely, and the command was started again. | The first run had completed; the second run either double-applies or fails closed, and its result is then misread as new information. | Reconcile state first; re-invoke at most once and only when repetition is safe. |
 | Treat truncation as failure | An incomplete log reads like an interrupted process, so follow-up work assumed the mutation was pending. | The harness truncates display, not execution; the mutation had finished, and follow-up edits were based on a false failure premise. | Classify from state evidence, not from log shape. |
+| Resume from memory after a runtime restart | After an agent runtime restart during an ordered write sequence, work resumed from the remembered completion point without per-step probes. | Steps that had applied failed closed with no-match refusals, which read as damage; a step believed applied but never written would have been dropped silently, because content validators check format, not lesson completeness. | Memory is not evidence after a restart. Classify every planned step with a sentinel probe, then resume at the first step whose sentinel is absent. |
 
 ## Results & Parameters
 

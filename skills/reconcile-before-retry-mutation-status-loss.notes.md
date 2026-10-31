@@ -63,3 +63,30 @@ Other domains:
   completed or invalid preconditions.
 - "It probably worked" is not a terminal status. Either observe the status (one bounded
   re-invocation) or record it as unobserved with reconciliation evidence.
+
+## Post-version evidence: runtime restarts during an ordered write sequence
+
+During a knowledge-corpus amend delivery in a hosted agent fleet, the runtime restarted six times
+across an ordered sequence of five file edits, validation, a signed commit, a push, and a
+pull-request create. After each restart a per-step sentinel battery classified state before any
+re-application:
+
+```bash
+git rev-parse --abbrev-ref HEAD              # correct staging branch
+git status --porcelain                       # which files carry writes
+grep -c '<unique string per edit>' <file>    # per-edit applied (1) vs pending (0)
+```
+
+Each edit whose sentinel was absent re-applied cleanly; each already-applied edit would have
+failed closed on its exact-match anchor. The final corpus validator passed on the full corpus and
+the privacy scan passed, proving no step was dropped or applied twice.
+
+The pull-request create returned HTTP 502. The existence battery for that step is artifact
+discovery (list pull requests for the staging branch, or search by title): an unverified blind
+retry can create a duplicate, because create endpoints are not guarded. One bounded retry after a
+short wait succeeded with no duplicate.
+
+A worktree-preparation helper also refused to create the staging branch because a stale, fully
+merged branch already owned the exact name. Recovery: verify the existing branch's ancestry
+(`git merge-base --is-ancestor <branch> <default>` showed it fully merged), leave it untouched,
+and stage the work on a slug-suffixed branch name. Do not delete or reset the foreign branch.
