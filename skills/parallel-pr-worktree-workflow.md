@@ -1,14 +1,15 @@
 ---
 name: parallel-pr-worktree-workflow
-description: "Use when executing or rescuing multiple independent PRs concurrently: each writer needs an isolated worktree, dependency-aware batching, current-head CI triage, explicit merge-method/base handling, exact-lease rebases, contamination rescue, and bounded cleanup."
+description: "Use when executing or rescuing multiple independent PRs concurrently: each writer needs an isolated worktree, one integration root per independent PR, a bound start point, dependency-aware batching, current-head CI triage, explicit merge-method/base handling, exact-lease rebases, contamination rescue, and bounded cleanup."
 category: ci-cd
 date: 2026-07-01
-version: "2.2.0"
+version: "2.3.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-local
 tags: [parallel-prs, git-worktree, agent-isolation, dependency-waves, current-head-ci,
-  mergeability, stacked-pr, auto-merge, contamination-rescue, force-with-lease]
+  mergeability, stacked-pr, auto-merge, contamination-rescue, force-with-lease,
+  integration-root, start-point-binding, ancestry-rejection]
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/parallel-pr-worktree-workflow.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -31,6 +32,7 @@ superseded source is in
 ## When to Use
 
 - Two or more agents will commit or push in the same repository.
+- A swarm, fan-out, or repair wave covers more than one independent PR.
 - Five or more independent fixes/PRs can be batched for throughput.
 - Many PRs need conflict triage, checks, and conditional merge.
 - A shared prerequisite must land before a fan-out wave.
@@ -98,6 +100,23 @@ per writable branch. Give every worker exact PRs, branch/base, worktree path, ow
 push lease, and merge policy. Never use the primary checkout when another session may move it.
 
 ### 3. Create explicit worktrees
+
+Before you create any worktree, decide the integration root for each independent PR. One integration
+result has one integration revision. Independent PRs are not children of one integrated result, so each
+independent PR gets its own integration root: receipt, namespace, worktree, and publication call. A
+shared root turns one PR head into the common start point for unrelated repairs, and the result then
+publishes another PR's complete history.
+
+Bind the start point to the PR instead of supplying one:
+
+| Case | Start object | Required relationship |
+| --- | --- | --- |
+| In-place repair | The exact observed PR head | The PR head is an ancestor of the result. |
+| Clean rebuild | The exact observed base tip | The base is an ancestor. The prior PR head must not become an added ancestor. |
+| Declared stack | The exact observed dependency PR head | The live PR base repository, branch, and object equal that dependency head. |
+
+A different PR head is permitted only when the live base identifies that dependency. Reject a start
+point taken from any other PR head.
 
 ```bash
 git fetch origin
@@ -171,6 +190,22 @@ For each worktree:
 Do not assume `--rebase`; detect repository settings and use the accepted method, commonly squash.
 Do not publish generic PR bodies: summarize the actual delta, dependency, and runnable evidence.
 
+Read the live PR immediately before publication. Compare the repository, number, base branch, base
+tip, head branch, head tip, and state with the values you recorded at preparation. If any value
+changed, prepare again; do not publish. Then push with an exact expected-head lease.
+
+```bash
+git push --force-with-lease=refs/heads/<head-branch>:<observed-head-oid> \
+  <head-repository-url> <result-oid>:refs/heads/<head-branch>
+```
+
+An exact lease proves only that the remote head did not move. It does not prove that the local
+history starts from this PR's base, so a lease can succeed while it publishes unrelated ancestry.
+Reject the result when its recorded start-point relationship no longer matches the live PR. After a
+push, read the head branch again: classify the result as published, temporary failure, rejected, or
+unknown. When the result is unknown, reconcile by remote readback before a retry, and never roll
+back a confirmed publication.
+
 ### 7. Rescue cross-contaminated branches
 
 If concurrent workers used a shared checkout and commits are tangled, stop publishing individual
@@ -211,6 +246,7 @@ guarded cleanup policy; do not improvise destructive commands.
 | Wait for missing validate on conflict | Wait for missing validate on conflict | No merge ref exists | Rebase when mergeability is conflicting |
 | Fix branch code before checking trunk | Fix branch code before checking trunk | Duplicates already-landed CI/dependency fixes | Inspect logs and trunk history; rebase only if an active task needs the main fix |
 | Bare force-with-lease | Bare force-with-lease | Does not pin the observed PR head explicitly | Lease exact branch and old OID |
+| One integration root for a multi-PR repair wave | Gave independent PR repairs one integration revision taken from another PR head | Each repair published the other PR's history; the diff grew from four files to more than a hundred | Give each independent PR its own integration root and reject any start point from another PR head |
 | Repair many contaminated PRs separately | Repair many contaminated PRs separately | Tangled commits create quadratic cleanup | Consolidate by cherry-pick in one fresh branch |
 | Reuse worktree paths | Reuse worktree paths | Risks stale state and ownership ambiguity | Unique path per writer/run |
 
