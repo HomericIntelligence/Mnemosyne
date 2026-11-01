@@ -4,11 +4,12 @@ description: >-
   Diagnose why a GitHub pull request does not merge when checks, reviews, merge methods,
   rulesets, classic protection, labels, signatures, or queue ownership disagree. Use before
   arming auto-merge or admitting a reviewed head to a repository-owned merge queue, when
-  protocol ceremonies remain while a merge is already armed, or when a decorative state
-  label may be mistaken for a merge gate.
+  protocol ceremonies remain while a merge is already armed, when a decorative state
+  label may be mistaken for a merge gate, or when a label-gated workflow keeps failing
+  after the label changed.
 category: ci-cd
 date: 2026-07-30
-version: "2.4.0"
+version: "2.5.0"
 user-invocable: false
 verification: verified-ci
 license: BSD-3-Clause
@@ -125,6 +126,23 @@ Classify before you act:
 Do not rebase, push, or disable the armed request to clear this blocker: none of them repairs
 a cancelled leg, and a push discards the reviewed head.
 
+### Label-gated workflow after a label change
+
+A workflow gate that reads `github.event.pull_request.labels` is satisfied or refused from the
+event payload, not from live label state. Two consequences:
+
+- A re-run replays the original payload. `gh run rerun <run-id> --failed` after a label change
+  reports the old decision again. The gate fails again with the previous label set in its `env`.
+- The label event itself starts a fresh run with the current labels. Read that run as the evidence.
+
+Classify a label-gate failure before you touch content:
+
+1. Read the failing step's `env` block in the log. If it lists the superseded label set, the gate
+   rejected the past state. It is not a content regression.
+2. Select the run whose `created_at` is after the label mutation for the same head OID. Require a
+   success in that run, not in a re-run of an older one.
+3. Arm auto-merge after that success. Do not push, rebase, or edit the label to force a new event.
+
 ### Queue ownership and direct review
 
 GitHub's enable-auto-merge mutation can include an expected head, but disable-auto-merge has no
@@ -195,6 +213,9 @@ read any label as a gate.
 - **Cancelled matrix leg:** an upstream leg cancelled at a timeout fails the required aggregate
   although content is green. Classify leg ownership and comparator timing, then rerun failed
   jobs only.
+- **Stale label payload:** a label-gated workflow fails or passes from the payload labels of its
+  triggering event. A re-run replays the old label set. Require a success from the run that the
+  label event started on the same head.
 
 ## Failed Attempts
 
@@ -214,6 +235,7 @@ read any label as a gate.
 | Debug content for a red required check | Read the armed merge's failing required check as a content regression and started a diff investigation | The aggregate check failed only because one matrix leg hung to the workflow timeout and was cancelled; the leg owned no changed tests and ran in minutes at nearby heads | Match the gate message's cancelled leg to the change surface and a comparator run; rerun failed jobs only |
 | Clear the final gate before the terminal record | Resolved the last foreign thread while the terminal review publication still pended under an armed merge | The armed merge fired within minutes of the gate clearing and landed before the ceremony completed | Deliver remaining records before the final gate clears, or disarm and re-arm |
 | Read a decorative state label as a merge gate | Expected a non-mergeable state label to hold an armed merge | The label was not policy-required; the armed merge stayed pending and ignored it | Check the policy union for label requirements; gate on reviews, threads, and checks |
+| Re-run to clear a label gate | Applied the required label, then ran `gh run rerun <run-id> --failed` on the pre-label run | A re-run replays the original event payload, so the gate step read the superseded label set from `env` and failed again | Read the run whose `created_at` follows the label mutation; require its success and leave the re-run out of the evidence |
 
 ## Results & Parameters
 
@@ -232,6 +254,7 @@ read any label as a gate.
 | Ceremony ordering | Deliver remaining records before the final gate clears, or disarm and re-arm |
 | Cancelled-leg recovery | Classify by leg ownership plus comparator timing; rerun failed jobs only; do not push or rebase |
 | Label gating | Only policy-required labels block; decorative state labels do not |
+| Label-event evidence | Use the run created after the label mutation on the same head; a re-run replays the old payload |
 | Verification | Read back request/result and continue current-head monitoring |
 
 The successful outcome is either a precisely identified blocker with a safe remediation, an
