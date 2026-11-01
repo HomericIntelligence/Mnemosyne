@@ -336,3 +336,62 @@ carrier that the duplicate-state guard will reject, or evaluating a reframe
 that cannot bind a requirements identity. The classification is one check
 against the carrier body format and one read of the requirements digest; both
 are cheaper than each non-exit.
+
+## Toolchain-version drift over unchanged requirement content (2026-11-01)
+
+### What happened
+
+A two-round exchange had a clean history: the round-1 state carrier returned
+NO-GO with four required findings, one author response resolved all four, and
+round 2 returned GO with complete coverage. Terminal delivery then withheld
+with three independent blockers:
+
+1. **Requirements-digest inequality.** The exchange bound the digest that the
+   snapshot producer computed at exchange genesis. The installed producer
+   computed a different digest from the same content, and the delivery helper
+   requires equality.
+2. **Anchor-manifest mismatch.** The delivery adapter re-verifies each
+   published carrier's anchor annex against immutable source. The current
+   producer emits summary and outside-bound entries for findings that the
+   earlier producer recorded as inline only. The round-1 annex therefore could
+   not re-verify.
+3. **Terminal-carrier shape.** The round carrier was published by the general
+   round publisher with reviewer resolution prose. The helper expects the
+   terminal carrier to carry its deterministic closure ledger as visible
+   content, and the published carrier is immutable.
+
+### How the cause was confirmed
+
+- The linked issues showed no comment created after the exchange start.
+- The linked issues showed no update after the exchange start, so no body,
+  title, or criterion changed.
+- The installed review toolchain files had modification times later than the
+  exchange start, and the installed version manifest reported a new version.
+- The two digests were reproduced directly: the current producer gave one
+  value, and the exchange retained the earlier value. The difference was
+  attributed to the producer change, not to content.
+
+This separated the drift from the requirements-edit branch that the main entry
+already covered. The recovery follows the requirements-edit branch in one
+respect only: both use the owner override. It differs in a way that changes
+the decision: a reframe is never valid for a derivation change, because no
+material requirement changed.
+
+### Blockers that were not repaired
+
+- A reframe was not used. It needs a material requirement change, and the
+  content was byte-identical. Using it would fabricate protocol state and
+  restart a full exchange over unchanged reviewed content.
+- The installed toolchain was not edited or downgraded. That would rewrite the
+  verifier for one exchange and leave other sessions on a different
+  derivation, which is the same defect in a new place.
+- No manual label write was made. The label was left as the reviewer round
+  delivered it, and no guessed write touched the forge.
+
+### The rule this case adds
+
+Classify the drift cause before you select a recovery: content edit versus
+toolchain-version change. The evidence that separates them is the issue
+update time, the comment history after the exchange start, and the installed
+toolchain's modification time against its version manifest. Only the content
+edit can route to a reframe, and only when it is material.
