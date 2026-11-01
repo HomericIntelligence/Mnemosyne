@@ -37,6 +37,27 @@ coordination contract with these properties:
 - Thread reuse is stated as a first-read requirement (search before create), which
   keeps claims visible and prevents duplicate-lane scatter.
 
+## Second evidence case: a gated and already-scoped request (2026-11-01)
+
+A lane received an operator request with two broad halves: remove one synchronization
+primitive everywhere, and change where a runtime keeps its state. Read-only discovery
+found this state:
+
+1. A design issue recorded both halves as accepted decisions.
+2. The implementation issue was open, unassigned, and had no comments. Its body named a
+   gate: work starts only after the design issue passes its planning stage.
+3. The design issue was still in its design stage, so the gate had not passed.
+
+The lane posted one identity-prefixed claim in the reused fleet thread, with the
+precondition evidence, a hold statement, and a decision request. It started no
+implementation and created no discussion. One earlier lane had already started the
+code work behind the same gate; the claim rule did not stop that, because the lane
+never read the gate text.
+
+The decision value this case adds: a claim post does not lift a gate. Read the tracking
+issue and the state of the issue that owns the precondition before the claim. Claim the
+smallest step the recorded decision allows, not a fresh inventory of the whole request.
+
 ## Verification limits
 
 - `verified-local`: the contract text is on the shared branch of a single repository;
