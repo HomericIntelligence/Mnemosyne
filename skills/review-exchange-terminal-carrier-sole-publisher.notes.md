@@ -281,3 +281,58 @@ The override inherits no review evidence from the invisible exchange. Each
 finding's closure cites evidence read at the delivery head (current file
 contents, a full-file local test run, and the clean formatting checks). This
 keeps the override honest when the invisible exchange's findings are stale.
+
+## Incident: adoption-incompatible terminal carrier (2026-10-31)
+
+### Shape
+
+An automation flow ran the issue-to-merge route on one artifact: round 1 of
+the review produced a terminal GO verdict, and the round publisher released
+the GO review body through the general reviewer-round publisher as a plain
+triple-backtick `json` report fence. No further rounds existed. Every review
+thread was already resolved at that head, and no state labels were present.
+
+### The blocker chain
+
+1. The terminal delivery helper has an adoption path for a delivered same-head
+   terminal review. Its acceptance set is narrow: the review body must equal
+   the exact prepared body bytes, or it must carry the versioned compressed
+   carrier fence (a `<scope>-json-zlib-base64` marker form). A plain report
+   fence holds the same content, but it is outside the acceptance set, so
+   adoption failed closed.
+2. A second same-head terminal carrier could not clear the block. The
+   duplicate-state guard forbids a second terminal state at one head.
+3. The carrier-recovery route requires an exact suffix-byte reconstruction of
+   the published bodies plus an authoritative requirements reframe. The
+   exchange requirements had not changed, so the reframe had no requirements
+   identity to bind and would fabricate protocol state.
+4. Every in-band exit was therefore unavailable: adoption (format), second
+   carrier (duplicate-state guard), and recovery reframe (no requirements
+   delta). The remaining exits were the owner override and hold.
+
+### Gate-state readback
+
+The override authority recorded the gate-state readback in the work item's
+public coordination thread before any write:
+
+- the artifact open at the exact head;
+- zero open review threads;
+- exactly one delivered GO review bound to that head, in a commented state;
+- no state labels present.
+
+### Delivery that worked
+
+The owner authority applied the terminal state label on the recorded gate.
+The repository starts its required checks from the state label, so the label
+write started the checks on the labeled head, and automerge delivery followed
+the normal policy. The decision record in the coordination thread carries the
+readback and the authority basis.
+
+### Why the classification matters
+
+A lane that reaches this state without a classification spends budget on
+non-exits: re-running adoption against the same format, preparing a second
+carrier that the duplicate-state guard will reject, or evaluating a reframe
+that cannot bind a requirements identity. The classification is one check
+against the carrier body format and one read of the requirements digest; both
+are cheaper than each non-exit.
