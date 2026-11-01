@@ -98,6 +98,38 @@ Guessing the publication name would have produced silently divergent refs.
 | Salvage staging | `add -u` + explicit new files | Keeps `build/` journals and virtual environments out of commits |
 | Stash disposition | archive, then drop after blob verification | Prevents silent double preservation and future confusion |
 
+## Case: a self-erasing publication looked like an empty worker (v1.1.0)
+
+Source date 2026-10-31. A single-item implementation worker died three times to
+provider faults: a serving-set rejection, then an admission-slot timeout. The
+operator checked the item for new comments and open pull requests, found none,
+and prepared a clean relaunch.
+
+That read was a false negative. Work already present:
+
+| Surface | State found |
+| ------- | ----------- |
+| Worktree directory | Present under the project's ignored worktree root |
+| Local commit | One signed commit, roughly 3 000 added lines |
+| Working tree | Unstaged refinement edits on five files |
+| Remote branch | Never pushed, so the remote scan stayed empty |
+| Item body | Finalized digest published |
+
+The reason the forge looked clean: the finalization step published a verified
+digest into the item body and then deleted its own two sealed source comments
+through a deletion allowlist. The most recent visible record was therefore older
+than the death.
+
+Result of resuming instead of restarting: the same lane produced a merged change
+with one non-blocking review finding. A restart would have discarded the work and
+duplicated it.
+
+Decision the case supports: an empty forge is unproven, not empty. Enumerate
+worktree directory, remote tips, local commits, and working tree before you
+declare a lane empty. Resume found work; require the resuming worker to reproduce
+verification receipts, because the dead worker's receipts describe a tree that
+the resume modified.
+
 ## Limits
 
 - The session-store liveness source is deployment-specific; substitute the
