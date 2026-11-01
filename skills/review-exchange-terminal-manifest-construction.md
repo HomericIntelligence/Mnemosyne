@@ -1,9 +1,9 @@
 ---
 name: review-exchange-terminal-manifest-construction
-description: "Build a terminal-delivery closure manifest in the verified dependency order — deterministic ledger first, visible-content digest before reduce, render, canonical JSON — so the designated terminal delivery helper accepts it. Use when: (1) a review flow routes a terminal-eligible round through a designated terminal delivery helper that consumes a closure manifest, (2) the helper rejects the manifest with an input-validation error such as an uncanonical JSON form, a visible-ledger mismatch, or a published-review identity that is not a GraphQL review node ID, (3) you must decide what belongs in the terminal visible content and which digest to bind in the reduce event, (4) the ledger, the state digest, and the entry set are mutually dependent so each rebuilding pass changes the digest again, or (5) you must distinguish a pre-publication input rejection (fix and resubmit) from a structural carrier-history rejection (no input repair exists) or a publication-state wedge (do not retry). Use also when: (6) the terminal round itself raises new findings that must be partitioned out of the closure entries, or (7) the terminal visible content must carry an anchor annex after the deterministic ledger."
+description: "Build a terminal-delivery closure manifest in the verified dependency order — deterministic ledger first, visible-content digest before reduce, render, canonical JSON — so the designated terminal delivery helper accepts it. Use when: (1) a review flow routes a terminal-eligible round through a designated terminal delivery helper that consumes a closure manifest, (2) the helper rejects the manifest with an input-validation error such as an uncanonical JSON form, a visible-ledger mismatch, or a published-review identity that is not a GraphQL review node ID, (3) you must decide what belongs in the terminal visible content and which digest to bind in the reduce event, (4) the ledger, the state digest, and the entry set are mutually dependent so each rebuilding pass changes the digest again, or (5) you must distinguish a pre-publication input rejection (fix and resubmit) from a structural carrier-history rejection (no input repair exists) or a publication-state wedge (do not retry). Use also when: (6) the terminal round itself raises new findings that must be partitioned out of the closure entries, (7) the terminal visible content must carry an anchor annex after the deterministic ledger, or (8) you must know the exact byte separation the annex parser requires between the ledger and the annex marker."
 category: tooling
 date: 2026-10-28
-version: "1.3.0"
+version: "1.4.0"
 user-invocable: false
 tags:
   - pr-review
@@ -30,8 +30,8 @@ tags:
 | ------- | ------- |
 | **Date** | 2026-10-28 |
 | **Objective** | Deliver a terminal reviewer state through the designated terminal delivery helper on the first accepted submission. |
-| **Outcome** | Operational rule derived from one live terminal GO delivery. Hand-written visible prose and a pretty-printed manifest were rejected by fail-closed input guards. Inputs rebuilt in the verified order were accepted, and the helper published the terminal carrier and the exclusive terminal label. A second delivery verified one more rejection class: a structural carrier-history rejection that no input repair can clear. A third delivery verified a self-referential case: the ledger, the state digest, and the entry set are mutually dependent, so the manifest converges by iteration and not by chained manual edits. A fourth delivery verified the terminal-introduced partition and the anchor annex: findings raised in the terminal round itself do not enter the closure entries, and supplementary anchor bytes ride after the ledger in an annex that the helper splits before its equality check. A fifth delivery verified the same class on a nonterminal state carrier: a no-go delivery binding a published proof review and an anchor annex was withheld twice at pre-publication input validation with no forge mutation, then accepted unchanged except for two corrected inputs — the published-review identity must be the GraphQL review node ID, and the anchor source must be supplied when the carrier carries a published annex. |
-| **Verification** | verified-live in one zero-finding terminal GO delivery (2026-10-22), one adopted-native terminal GO delivery (2026-10-26), one findings-closure terminal GO delivery with a self-referential manifest (2026-10-26), one terminal GO delivery with terminal-introduced findings and an anchor annex (2026-10-26), and one nonterminal no-go delivery with an anchor annex whose initial submissions used the wrong published-review identity form (2026-10-28). Single-case evidence for each class; the invariants follow from deterministic fail-closed validation. |
+| **Outcome** | Operational rule derived from one live terminal GO delivery. Hand-written visible prose and a pretty-printed manifest were rejected by fail-closed input guards. Inputs rebuilt in the verified order were accepted, and the helper published the terminal carrier and the exclusive terminal label. A second delivery verified one more rejection class: a structural carrier-history rejection that no input repair can clear. A third delivery verified a self-referential case: the ledger, the state digest, and the entry set are mutually dependent, so the manifest converges by iteration and not by chained manual edits. A fourth delivery verified the terminal-introduced partition and the anchor annex: findings raised in the terminal round itself do not enter the closure entries, and supplementary anchor bytes ride after the ledger in an annex that the helper splits before its equality check. A fifth delivery verified the same class on a nonterminal state carrier: a no-go delivery binding a published proof review and an anchor annex was withheld twice at pre-publication input validation with no forge mutation, then accepted unchanged except for two corrected inputs — the published-review identity must be the GraphQL review node ID, and the anchor source must be supplied when the carrier carries a published annex. A sixth delivery verified the annex byte separation on an authoritative reframe exchange: one empty line must separate the ledger from the annex marker line, because the marker must start a top-level Markdown line for the annex parser to accept it. |
+| **Verification** | verified-live in one zero-finding terminal GO delivery (2026-10-22), one adopted-native terminal GO delivery (2026-10-26), one findings-closure terminal GO delivery with a self-referential manifest (2026-10-26), one terminal GO delivery with terminal-introduced findings and an anchor annex (2026-10-26), one nonterminal no-go delivery with an anchor annex whose initial submissions used the wrong published-review identity form (2026-10-28), and one reframe terminal GO delivery whose first annex submission abutted the ledger (2026-10-31). Single-case evidence for each class; the invariants follow from deterministic fail-closed validation. |
 
 ## When to Use
 
@@ -72,9 +72,11 @@ The publisher-routing decision and wedge recovery are a different rule. See Refe
 8. Findings raised in the terminal round itself go in the manifest's comments
    and summary finding partitions, not in the closure entries. The helper's
    anchor proofs verify the partition.
-9. An anchor annex is the final section after the ledger and its marker line.
-   The helper splits the annex before the ledger-equality check, but the reduce
-   digest binds the ledger bytes plus the annex bytes.
+9. An anchor annex is the final section after the ledger. One empty line
+   separates the ledger from the annex marker line: the marker must start a
+   top-level Markdown line. The helper splits the annex before the
+   ledger-equality check, but the reduce digest binds the ledger bytes plus
+   the separator plus the annex bytes.
 ```
 
 ### Suggested Approach
@@ -112,11 +114,11 @@ Do not attempt to break the cycle by excluding an entry or by pasting a digest. 
 
 The closure entries close findings that the exchange already tracks. A terminal review can also raise new findings in the terminal round itself, for example nonblocking findings recorded as new inline threads. These findings have no prior carrier history to close, so they do not enter the closure entries. They go in the manifest's separate partitions: the comments partition carries the response to each new thread, and the summary finding partition carries the summary finding identities. The helper verifies this partition with its anchor proofs before delivery, so a wrong partition fails pre-publication. At delivery the helper publishes the one terminal comment carrier, generates the responses to the new threads from the comments partition, resolves those threads, and applies the exclusive terminal-state label.
 
-The terminal visible content can also carry an anchor annex: supplementary anchor content after the deterministic ledger. The annex is the final section, separated from the ledger by the annex marker line. The helper splits the annex before its equality check, so the ledger part still compares equal to the deterministic ledger. The reduce-event state digest binds the full bytes, ledger plus annex. Build in this order:
+The terminal visible content can also carry an anchor annex: supplementary anchor content after the deterministic ledger. The annex is the final section. One empty line separates the ledger from the annex marker line, and the marker must start a top-level Markdown line: the annex parser and the ledger-equality split both key on the blank-line-separated marker, so an annex that abuts the ledger fails pre-publication. The helper splits the annex before its equality check, so the ledger part still compares equal to the deterministic ledger. The reduce-event state digest binds the full bytes, ledger plus separator plus annex. Build in this order:
 
 1. Compute the deterministic ledger with the helper's generator.
-2. Append the annex as the final section after the marker line. Never place annex bytes before the ledger: the split starts at the marker, so anything before it compares as ledger and fails the equality check.
-3. Hash the combined bytes (ledger plus marker plus annex) into the reduce event's visible-content digest. Then reduce, then render.
+2. Append one empty line, then the annex marker line, then the annex. Never place annex bytes before the marker: the split starts at the marker, so anything before it compares as ledger and fails the equality check. Never omit the empty line: the parser reads top-level Markdown lines and cannot accept a marker that continues the ledger's last line.
+3. Hash the combined bytes (ledger, separator, marker, and annex) into the reduce event's visible-content digest. Then reduce, then render.
 4. Pass the annex source to the delivery helper with its anchor-source option, so the delivery binds the same annex bytes that the digest binds.
 
 ### Structural carrier-history rejection
@@ -159,6 +161,7 @@ If the extension is not possible, hold the exchange and escalate through the dec
 | Rebuild and resubmit after a rejection that names an adopted native finding | Rebuilt the deterministic ledger with the adopted findings included, regenerated the manifest, and re-reduced with the corrected visible-content digest | The helper repeated the identical unique-review-root error at preflight, before any input check | The rejection binds to published carrier history, not to pending input; classify the rejection before you repair, or the fix-and-resubmit loop never ends |
 | Editing the legacy markers on the published round-1 carrier | Considered rewriting the adopted-finding markers so the helper would accept them | Published exchange history is immutable under the exchange integrity rules | Repair verified-history resolution in the helper under owner authority; never rewrite published history |
 | Supplementary anchor content merged into the ledger body without the annex marker | Combined reviewer prose and anchor content with the deterministic ledger in the terminal visible content, without the annex marker structure | The helper rejected it: the terminal visible closure ledger does not match its manifest entries. The helper splits an annex only after its marker; unmarked extra bytes compare as a ledger mismatch | Put supplementary anchor content after the annex marker as the final section, hash the combined ledger-plus-annex bytes into the reduce digest, and pass the annex source to the delivery helper |
+| Annex abutting the ledger without an empty line | Appended the annex marker directly after the ledger's last line | The helper rejected it before publication: the annex parser reads top-level Markdown lines and cannot accept a marker that continues the ledger's last line | Separate the ledger and the marker with one empty line, then hash the combined bytes (ledger, separator, marker, annex) into the reduce digest |
 | Decimal database identifier as the published-review identity | Bound the proof review of a nonterminal no-go delivery by its decimal database review identifier | The helper withheld delivery at pre-publication input validation and published nothing: no carrier, no label. The same submission with the GraphQL review node ID and the annex source supplied was accepted and delivered the exclusive state label | The published-review identity is the GraphQL review node ID (`PRR_...`), never the decimal database identifier; a withheld pre-publication rejection publishes nothing, so it is safe to correct and resubmit |
 
 ## Results & Parameters
@@ -183,10 +186,13 @@ retry decision    = input-validation rejection          -> fix input, resubmit (
                   = conflicting-terminal / chain error  -> stop; apply wedge recovery rules
 terminal-introduced = comments partition + summary finding partition
                   # never closure entries; the anchor proofs verify the partition
-annex             = final section after the ledger and the annex marker line
-                  # helper splits it before the ledger-equality check
+annex             = final section after the ledger; one empty line between the
+                    ledger and the annex marker line (top-level Markdown line)
+                  # helper splits at the blank-line-separated marker before the
+                  # ledger-equality check; an annex that abuts the ledger fails
 reduce digest     = sha256(visible content)             # ledger only, no annex
-                  = sha256(ledger + marker + annex)     # when an annex is used
+                  = sha256(ledger + separator + marker + annex)
+                                                        # when an annex is used
 delivery          = pass the annex source with the delivery anchor-source option
 review identity   = pull-request number or URL        # positional argument
                   = GraphQL review node ID (PRR_...)  # published-review identity,
@@ -207,6 +213,7 @@ review identity   = pull-request number or URL        # positional argument
 | An internal repository review flow | Terminal GO delivery that closed three findings under the terminal state digest; the manifest converged by fixed-point iteration in two passes after chained manual edits failed; accepted by the helper's closure validator, delivered at the exact head, all threads closed (2026-10-26) | [notes](review-exchange-terminal-manifest-construction.notes.md) |
 | An internal repository review flow | Terminal GO delivery carrying findings raised in the terminal round itself: two inline nonblocking threads and one summary finding partitioned into the comments and summary partitions, verified by the anchor proofs; an anchor annex appended after the ledger with the combined bytes bound in the reduce digest; two pre-publication input rejections repaired, delivered with the exclusive terminal label and zero pending threads (2026-10-26) | [notes](review-exchange-terminal-manifest-construction.notes.md) |
 | An internal repository review flow | Nonterminal no-go delivery binding a published state-carrier proof review and an anchor annex: two submissions withheld at pre-publication input validation with no carrier or label mutation; the accepted submission corrected only the review-identity form to the GraphQL node ID and supplied the annex source, delivered the exclusive state label, and read back clean (2026-10-28) | [notes](review-exchange-terminal-manifest-construction.notes.md) |
+| An internal repository review flow | Terminal GO delivery for an authoritative reframe exchange whose visible content carried the ledger plus an anchor annex: one submission rejected because the annex abutted the ledger, the accepted submission added the empty line, rebound the combined digest, and re-reduced; delivered at the exact head with the exclusive terminal label and zero pending threads (2026-10-31) | [notes](review-exchange-terminal-manifest-construction.notes.md) |
 
 ## References
 

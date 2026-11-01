@@ -238,12 +238,49 @@ binds the same annex bytes at publication.
    interface witnesses of this helper generation; confirm them against the
    installed helper's signature before relying on them.
 
+## Reframe terminal delivery — annex blank-line separation (2026-10-31)
+
+1. A round-1 source review closed with two open threads when the linked
+   requirement's scope note changed the requirements digest. The reframe
+   route applied: one authority record published as a standalone comment
+   review at the current head, then one reframe event reduced to a complete
+   GO state whose findings were the reframe round's own new findings.
+2. The delivery inputs were rebuilt in the verified order, but four
+   pre-publication rejections occurred in sequence before acceptance. A
+   forge readback after each confirmed nothing was published, so every
+   retry was safe. The rejection reasons: the reframe authority receipt
+   named the proof review by the wrong identity form (known class); the
+   annex was appended directly after the ledger with no empty line, and the
+   helper's annex parser rejected it (new class); after the annex fix the
+   manifest still carried the earlier prose assessment as visible content,
+   so the ledger comparison failed (known class); one rebuild wrote the
+   manifest pretty-printed, which the canonical-form check rejected (known
+   class).
+3. The byte rule that the new class fixes: one empty line separates the
+   ledger from the annex marker line. The annex parser reads top-level
+   Markdown lines, so a marker that continues the ledger's last line is
+   unreadable, and the delivery validator's split targets the
+   blank-line-separated marker. The reduce digest binds the combined bytes:
+   ledger, separator, marker, annex.
+4. The accepted path: recompute the deterministic ledger with the helper's
+   generator from the reframe closure entries; the entries closed the
+   round-1 threads and carried the prior state digest rather than the
+   terminal digest, so the ledger was stable and no fixed-point iteration
+   was needed; bind the combined digest into the reframe event, re-reduce,
+   serialize the manifest canonically, and deliver. The helper published
+   the terminal carrier at the exact head, applied the exclusive terminal
+   label, resolved all five threads (two closed historical threads and
+   three terminal-introduced threads from the comments partition), and
+   reported zero pending threads. An independent forge readback confirmed
+   the published ledger and its closure digest.
+
 ## Evidence limits
 
-Five single live cases, one exchange tooling generation each. The invariants
+Six single live cases, one exchange tooling generation each. The invariants
 (digest order, deterministic visible body, canonical manifest form,
 rejection-class triage, structural carrier-history rejection, fixed-point
-convergence, terminal-introduced partition, annex placement, withheld
+convergence, terminal-introduced partition, annex placement, annex marker
+blank-line separation, withheld
 pre-publication rejection safety) follow from the fail-closed validator design and do not rest on
 frequency. Interface details (positional argument, mode flags, import context,
 anchor-source option, published-review identity form) are generation-specific witnesses; confirm them against
