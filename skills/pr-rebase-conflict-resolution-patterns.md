@@ -1,9 +1,9 @@
 ---
 name: pr-rebase-conflict-resolution-patterns
-description: "Use when a pull request reports DIRTY or CONFLICTING, an active task needs a main artifact to continue, a permitted stacked or same-file rebase needs serialization, conflict status is ambiguous (AA/UU/modify-delete), or a textually clean rebase may hide semantic, test, lint, policy, or inventory drift, or the resolution keeps both sides' guards for one failure mode, or the conflict carries test-pinned values derived from source content that neither side can supply correctly, or the target pull request merged, closed, or lost its source ref between resolution work and the delivery mutation."
+description: "Use when a pull request reports DIRTY or CONFLICTING, an active task needs a main artifact to continue, a permitted stacked or same-file rebase needs serialization, conflict status is ambiguous (AA/UU/modify-delete), or a textually clean rebase may hide semantic, test, lint, policy, or inventory drift, or the resolution keeps both sides' guards for one failure mode, or a delete-side commit conflicts with trunk entries added inside the deleted block, or the conflict carries test-pinned values derived from source content that neither side can supply correctly, or the target pull request merged, closed, or lost its source ref between resolution work and the delivery mutation."
 category: ci-cd
 date: 2026-07-12
-version: "2.5.0"
+version: "2.6.0"
 license: BSD-3-Clause
 user-invocable: false
 tags: [git, rebase, merge-conflict, pull-request, worktree, force-with-lease, semantic-conflict, stacked-pr, ci]
@@ -96,6 +96,14 @@ git show REBASE_HEAD:<path>
 both modified it. For modify/delete, inspect trunk's file and confirm it is still
 the stale artifact the commit intends to delete before running `git rm <path>`.
 
+A replayed commit that deletes a block can conflict with a trunk edit inside that
+same block. Read the deleted block and the trunk delta. Take the deletion when the
+commit removes the whole artifact, for example because the value now comes from a
+server response. Take the trunk delta when the commit only restructures the block
+and the trunk additions must survive. After the rebase, search the tree for the
+deleted name. A reference to it that no other commit explains is an incomplete
+deletion.
+
 Resolve according to intent:
 
 | Conflict | Default disposition | Required check |
@@ -111,6 +119,7 @@ Resolve according to intent:
 | Parallel test addition | Union materially distinct tests | Test collection and run |
 | Test-pinned content-derived values (digests, computed IDs) | Resolve the source content first; then recompute the pins from the merged content through the repository's own derivation; never copy either side's value | The focused consumer test passes on the recomputed values |
 | Additive build/config blocks | Keep both valid blocks | Parser/configure step |
+| Table, map, or block deleted by the replayed commit, with trunk entries added inside it | Take the deletion when the commit retires the whole artifact; take the trunk delta when the commit keeps the artifact | Grep the final tree for the deleted name; any surviving reference is a resolution defect |
 | Policy prose | Pick the chronologically current contract, then update every restatement | Whole-file search and backing test |
 | Already-upstream commit | Skip only after proving no unique delta remains | Empty/trivial trunk diff |
 
@@ -223,6 +232,11 @@ with the same test command. Record both failure sets. The branch is acceptable
 when its failures are a subset of the baseline failures. A new failure that is
 absent from the baseline is a rebase defect; the environment cause is not.
 
+Compare failing node identities, not totals. Equal failure counts can hold
+different nodes, and a shared total then hides a branch-only defect. Refresh the
+baseline to the same `"$trunk"` revision before you compare, so a stale baseline
+tree does not produce either false result.
+
 ### 6. Preserve signatures, push safely, and re-arm automation
 
 Repositories that require signed, DCO-attested commits need replayed commits
@@ -324,6 +338,8 @@ commits and review records still describe it.
 | Lockfile hand merge | Manually combined generated lock state | Hashes and solver state are not safely mergeable | Regenerate with the owning tool |
 | Marker-only review | Trusted no markers or a clean rebase | Semantic conflicts are outside Git's model | Run tests, lint, policy, inventory, and runtime checks |
 | Union of two competing guards | Accepted the clean merge of a fail-closed guard onto a trunk that made the same path fail open | Both guards and both states survived, and the stricter one silently won | Diff each artifact against trunk; an empty diff is correct when trunk fully superseded it |
+| Deleted block with trunk entries | Kept trunk's new entries because the hunk conflicted, so half the retired table survived with no other reference | The branch intent to drop the artifact is lost, and the leftover block can drift without a reader | When the replayed commit retires an artifact, take the deletion and grep the tree for every reference |
+| Equal failure counts | Reported "also fails on trunk" from matching totals | The branch-only node and the trunk node were different tests | Compare node identities, not counts |
 | Parallel hot-file rebases | Rebased the same-file cluster concurrently | Each merge re-conflicts the remaining branches | Use a smallest-diff-first serial train |
 | Self-report acceptance | Trusted a rebase success report | Stale refs or a later push can preserve old ancestry | Compare merge base and inherited trunk behavior |
 | Empty workflow retrigger | Pushed an empty commit for stale workflow policy | Reruns the same rejected workflow | An active task can rebase only when corrected workflow files are required; otherwise let CI/CD integrate |

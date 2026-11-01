@@ -49,7 +49,10 @@ The local test run reported 188 failures against a 193-failure baseline at
 trunk. Every residual failure came from an environment guard, because the test
 host root was group-writable. The branch failures were a strict subset. Report
 the environment cause and give the suite to CI.
+
+| Silent import and baseline repairs | Anonymized hosted monorepo PR rebase, 2026-10 | verified-local | Place each repair in the causing commit; compare failure nodes at a refreshed base |
 | Union of two competing guards | Comet [PR #3654](https://github.com/LLM360/comet/pull/3654) rebased onto a trunk commit from [#3636](https://github.com/LLM360/comet/issues/3636), 2026-11 | verified-local | Keep the trunk design; delete the replayed side's duplicate guard, helper, state, parser, and tests |
+| Delete-side block conflict | Comet [PR #3792](https://github.com/LLM360/comet/pull/3792) rebased onto trunk at 2026-10 | verified-local | Take the deletion when the commit retires the artifact; grep the final tree for the deleted name |
 
 ## Additional Ecosystem Evidence
 
@@ -104,6 +107,23 @@ the environment cause and give the suite to CI.
 - Semantic Audit for v2.4.0: kept the earlier v2.0.0 compaction, then added the
   clean-merge union-of-both-guards branch with its conflict table row, failed
   attempt, and case note. No verified evidence was upgraded.
+
+## Delete-Side Block Conflict
+
+Comet PR #3792 (2026-10) conflicts in one installer script. One replayed commit
+deletes a per-model limit table because the gateway now publishes the value in a
+server response. Trunk added new entries inside that same table. Both sides assert
+opposite intent for one artifact: keep it and extend it, or retire it.
+
+The correct residual is the deletion. Keeping trunk's entries would leave half a
+retired table, and the branch tests assert the table name is absent. A whole-file
+search for the name found no other reference, and the script passed a syntax
+check. The branch tests passed.
+
+Two tests failed in a later module. The same two nodes also failed on a clean
+checkout of the recorded trunk revision, so the rebase did not cause them. Report
+the count and the node names, and compare node sets. Matching totals alone can
+mask a branch-only node.
 
 ## Semantic Audit for v2.0.0
 
