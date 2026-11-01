@@ -80,3 +80,34 @@ them before the new stem.
 - ruff check/format and byte-compile passed on the amended test; the
   focused suite could not run on the diagnosis host, so the repair shipped
   on static trace plus the CI failure trace and passed CI after merge.
+
+## Post-skill evidence: one shared tail constant serving two intents
+
+Source: a later migration-registry lane in the same project, 1 November 2026.
+A new migration received a mid-range number, so it sorts between existing
+stems rather than at the tail.
+
+- The append replaced the single trailing expectation entry at 18 assertion
+  sites with a spread of one new shared tail constant.
+- Two site classes needed different sets. The 16 segment sites each assert
+  "the stems applied after this site's own candidate, in ledger order" and
+  end at the newest stem. The new change's own test asserts "every stem the
+  ledger applies after the new stem", which is 37 entries in that tree.
+- A single constant cannot satisfy both. Successive edits made it two
+  entries, then the full pinned set, then two again; each revision was
+  correct for one class and wrong for the other.
+- Two additional defects came from the same conflation:
+  - one release-version expectation had been collapsed to the short tail
+    when it needed the full ordered list;
+  - a docstring claimed a test covered an incompatible-projection case that
+    its body never exercised.
+- Repair: separate the two intents. Keep the segment constant, and compute
+  the "everything after this stem" set from the registry at test time. Then
+  check both against the boundary each one means.
+- Verification on the diagnosis host: registry-derived sets matched the
+  constants by execution, and the linter and formatter passed. The database
+  behavior suite could not run because no server was reachable, so that suite
+  stayed unverified and was left to CI.
+- Ordering trap: a mid-range stem is applied *earlier* in ledger order than
+  an existing higher-numbered stem, even when it was authored later. Never
+  infer application order from authorship order.
