@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Inspect an authorized PR backlog across repositories when review alone leaves checks, conflicts, or review threads unresolved. Select repairs from live policy and actual blockers."
 category: tooling
 date: 2026-06-28
-version: "1.3.0"
+version: "1.4.0"
 user-invocable: false
 verification: verified-ci
 tags:
@@ -130,6 +130,24 @@ restart without losing delegated or delivered work.
    valid head wastes review bindings and CI. Settle only stale-base or incomplete actor
    outcomes, with the lease pinned to the actor's observed head, and only after proving
    the candidate includes the actor's delta (if any) semantically.
+5. **Audit a foreign tip before you lease against it.** When the lease rejects with
+   `stale info` and the remote head is not your candidate, the remote head can hold
+   commits that are not part of the pull request. Compare intent before you adopt the
+   remote head:
+   - Map each remote commit to a local commit by stable patch-id
+     (`git show <sha> | git patch-id --stable`) over the same base.
+   - Check that every remote patch has a local match, and record any unmatched remote
+     commit as a foreign commit.
+   - Inspect each foreign commit's own diff (`git show <sha> --stat`) and its parent.
+   - Compare the two three-dot file sets
+     (`git diff --name-only <base> <head>`).
+
+   A foreign commit that deletes files that the pull request's own commits keep is a
+   revert. Do not lease a push over it, and do not rebase onto it. Report the foreign
+   commit and its effect to the pull request owner, then request a keep-or-drop
+   decision. A foreign commit that only adds an independent change is a scope
+   question for the same owner. The lease rejection protected the branch; keep the
+   rejection as the checkpoint.
 
 ### Quick Reference
 
@@ -186,6 +204,7 @@ gh pr merge <pr> --auto --squash --repo $ORG/$REPO   # only if live policy permi
 | 3 | Armed `--auto --squash` on all overlapping PRs simultaneously | Maximal merge-train cascade: every merge advanced `main`, re-conflicting siblings that touched shared files (CHANGELOG, pixi.lock, `_required.yml`, coverage.xml) | Serialize the arm. Rebase only when the task-phase rule permits it; otherwise let CI/CD or the merge queue integrate the branch. |
 | 4 | Treated `BLOCKED`-all-green PRs as broken/stuck | They were not broken — either unresolved review threads (review-gate) OR a CI runner backlog with all checks QUEUED | Inspect unresolved threads and queued checks. Confirm that a shared failure affects each candidate before selecting a shared fix. |
 | 5 | Delegated push without a HEAD guard | A scripted push ran from the shared checkout instead of the per-PR worktree; the checkout's unrelated HEAD (a production tip) replaced the feature-branch head on the remote | Assert `HEAD == <recorded candidate>` before each push; repair immediately with one corrective `--force-with-lease` pinned to the erroneous head; read the ref back after every push |
+| 6 | Treated the lease rejection as a retry signal and planned a force push | The remote head had moved to another actor's rebase. That rebase carried one extra commit that re-added files the pull request deletes, and the local candidate looked equivalent by commit subject | Map every remote patch to a local patch by stable patch-id before you adopt a foreign head. Report foreign commits and request a keep-or-drop decision. Do not lease a push over them |
 
 ## Results & Parameters
 
