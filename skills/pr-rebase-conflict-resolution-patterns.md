@@ -1,9 +1,9 @@
 ---
 name: pr-rebase-conflict-resolution-patterns
-description: "Use when a pull request reports DIRTY or CONFLICTING, an active task needs a main artifact to continue, a permitted stacked or same-file rebase needs serialization, conflict status is ambiguous (AA/UU/modify-delete), or a textually clean rebase may hide semantic, test, lint, policy, or inventory drift, or the conflict carries test-pinned values derived from source content that neither side can supply correctly, or the target pull request merged, closed, or lost its source ref between resolution work and the delivery mutation."
+description: "Use when a pull request reports DIRTY or CONFLICTING, an active task needs a main artifact to continue, a permitted stacked or same-file rebase needs serialization, conflict status is ambiguous (AA/UU/modify-delete), or a textually clean rebase may hide semantic, test, lint, policy, or inventory drift, or the conflict carries test-pinned values derived from source content that neither side can supply correctly, or the target pull request merged, closed, or lost its source ref between resolution work and the delivery mutation, or every conflict resolves to the current target side because a sibling pull request already delivered the same intent and the reviewed head carries a delivered approval state."
 category: ci-cd
 date: 2026-07-12
-version: "2.3.0"
+version: "2.4.0"
 license: BSD-3-Clause
 user-invocable: false
 tags: [git, rebase, merge-conflict, pull-request, worktree, force-with-lease, semantic-conflict, stacked-pr, ci]
@@ -44,6 +44,8 @@ runtime behavior, tests, policy prose, generated state, and inventories.
   uncertain.
 - The pull request merged upstream, was closed, or lost its source ref while
   conflict-resolution work was underway.
+- Every conflict resolves to the current target side because a sibling pull
+  request already delivered the same intent to the target branch.
 
 ## Verified Workflow
 
@@ -109,6 +111,7 @@ Resolve according to intent:
 | Test-pinned content-derived values (digests, computed IDs) | Resolve the source content first; then recompute the pins from the merged content through the repository's own derivation; never copy either side's value | The focused consumer test passes on the recomputed values |
 | Additive build/config blocks | Keep both valid blocks | Parser/configure step |
 | Policy prose | Pick the chronologically current contract, then update every restatement | Whole-file search and backing test |
+| Every hunk resolves to the target side | Stop before you resolve or push. Prove the sibling delivery and the empty residual, then close the pull request | Sibling merge commit reachable from the target, plus an empty residual diff against the target |
 | Already-upstream commit | Skip only after proving no unique delta remains | Empty/trivial trunk diff |
 
 Stage paths explicitly. Do not use `git add .` or `git add -A` in a conflict loop.
@@ -144,6 +147,35 @@ after proving they are absent from the new history.
 If the substantive change already landed through a sibling, compare both files
 and the final branch diff. Close a fully superseded PR; do not manufacture an
 empty residual.
+
+Do not close from a conflict marker alone. A conflict that shows the same
+correction on both sides is not proof of delivered work. Prove these three
+items:
+
+1. The sibling PR is `MERGED`, and its merge commit is reachable from the
+   target branch.
+2. The linked issue names that sibling PR as a closing reference and is
+   `CLOSED`.
+3. The target branch content satisfies each acceptance criterion, and a search
+   for the stale term returns only the unrelated matches.
+
+Before you close, read the complete current head, the sibling merge commit, and
+the full branch diff. Some residual can stay: a wording variant, a missed third
+file, or a `gitignore`-based revert backdrop. Close only when a rebase would
+resolve every hunk to the target side.
+
+Then post a close comment and close the PR. Do not force-push, do not rebase, and
+do not request a new review. All these actions only replace the head, and the
+same content cannot add value. If the branch conflicts, the PR cannot merge.
+
+A delivered approval label at the reviewed head is a record for that head only.
+Do not remove it. Do not treat it as a reason to drive the PR to merge.
+
+Keep the close comment short and make it sufficient. It needs the rebase
+conflict list, the sibling merge commit and merge time, the issue closing
+reference, the acceptance check, and one sentence that the delta is empty. When
+the same intent can still need a change, ask for a new issue against the current
+target text. Do not reopen the superseded branch.
 
 ### 4. Continue, verify parentage, and inspect the residual
 
@@ -277,6 +309,9 @@ it against the landed merge commit and take direction before writing.
 | Scoped hook evidence | Ran hooks only on conflict-touched files | Misses whole-tree complexity and inventory checks | Run the full hook suite and tests |
 | Unqualified force-push | Rewrote the remote without an explicit lease | Can overwrite new remote work | Pin the lease to the observed old SHA |
 | Pushing on stale authorization | Replayed a completed repair after the target merged upstream during the work | Recreates a deleted source branch and duplicates integrated content | Refresh and re-read artifact state immediately before the mutation; a merged or ref-deleted target is a stop pending content-equivalence proof |
+| Resolving an all-target-side conflict to keep the PR alive | Rebased a branch whose every conflicting hunk showed the same correction already on the target side, resolved both sides to the target text, and force-pushed | The result had an empty residual, so the new head carried no product value, invalidated the check record for the old head, and started a second review of nothing | When a rebase would resolve every hunk to the target side, stop before the write; prove the sibling delivery, then close the PR |
+| Closing from the conflict markers alone | Read the three conflicted files, saw the same wording on both sides, and closed the PR | The decision was correct, but the evidence named no sibling merge commit and no acceptance check, so a reader could not audit it | Add the sibling merge commit reachability, the issue closing reference, and the acceptance-term search to the close evidence |
+| Treating a delivered approval label as current authority | Read the delivered approval state at the reviewed head as a reason to keep driving the PR to merge | The label attests one reviewed head, not that the change is still absent from the target branch | Re-check the residual against the target branch first; the label cannot make an empty change useful |
 
 ## Results & Parameters
 
@@ -292,6 +327,41 @@ explicit superseded disposition), zero unresolved conflicts, passing required
 local checks, preserved verification boundaries, and either a lease-safe push
 with CI on the new head or a content-verified stand-down when the target
 already landed upstream.
+
+### Superseded-disposition check
+
+Use this check when a rebase conflicts and a sibling may have delivered the
+same intent. Run it before you resolve a hunk or push:
+
+```bash
+git fetch origin
+trunk=origin/main
+git merge-base "$trunk" <superseded-head>
+git rev-list --count "$trunk"..<superseded-head>
+git log --oneline -5 "$trunk" -- <each conflicted path>
+git grep -n '<stale term>' "$trunk" -- <the changed paths>
+gh pr view <sibling-pr> --json state,mergedAt,mergeCommit
+gh issue view <issue> --json state,closedByPullRequestsReferences
+```
+
+Close the pull request when all these results are true:
+
+| Check | Required result |
+| --- | --- |
+| Sibling state | `MERGED`, and its merge commit is reachable from the trunk |
+| Issue state | `CLOSED`, and the sibling is in the closing references |
+| Stale-term search | No match in the changed files, or only unrelated matches |
+| Rebase residual | Every conflicted hunk resolves to the trunk side |
+| Branch diff against trunk | Empty or reverses later trunk work |
+
+Do not use the resolved pull-request head as evidence of the trunk content. The
+reviewed head can stay older than the trunk. Read the trunk content directly.
+
+## Verified On
+
+| Project | Context | Details |
+| --- | --- | --- |
+| Anonymized multi-repository delivery fleet, 2026-10 | Documentation-only PR: all three conflicts resolved to the target side after a sibling delivered the same correction; the PR was closed with the sibling merge commit and the acceptance check as evidence | See [notes](./pr-rebase-conflict-resolution-patterns.notes.md) |
 
 ## References
 
