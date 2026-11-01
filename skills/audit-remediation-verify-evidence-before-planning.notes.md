@@ -38,3 +38,11 @@ verified against the pinned `action.yml`, so implementation remained explicitly 
 Evidence collection was executed locally. Some resulting edits/tests were only planned; those rows
 remain unverified. A focused pytest run that passed tests but tripped the global coverage floor was
 reported as a passing behavior subset, not as a green repository gate.
+
+## 2026-11-01 amendment evidence
+
+A delegated reader ran a diff against the current default branch after the branch point had
+advanced. It reported 32 deleted lines in a file the branch had only added one comment to. The
+deletions belonged to a merged change that arrived after the branch point. Comparing the branch
+base, the current default branch, and the file content at each commit isolated the cause in one
+step: the symbol count was zero at the branch base and two at the current default branch.
