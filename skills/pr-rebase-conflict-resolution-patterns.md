@@ -3,7 +3,7 @@ name: pr-rebase-conflict-resolution-patterns
 description: "Use when a pull request reports DIRTY or CONFLICTING, an active task needs a main artifact to continue, a permitted stacked or same-file rebase needs serialization, conflict status is ambiguous (AA/UU/modify-delete), or a textually clean rebase may hide semantic, test, lint, policy, or inventory drift, or the resolution keeps both sides' guards for one failure mode, or the conflict carries test-pinned values derived from source content that neither side can supply correctly, or the target pull request merged, closed, or lost its source ref between resolution work and the delivery mutation."
 category: ci-cd
 date: 2026-07-12
-version: "2.4.0"
+version: "2.5.0"
 license: BSD-3-Clause
 user-invocable: false
 tags: [git, rebase, merge-conflict, pull-request, worktree, force-with-lease, semantic-conflict, stacked-pr, ci]
@@ -104,6 +104,8 @@ Resolve according to intent:
 | Generated marketplace/index | Keep current trunk, regenerate or reapply the unique delta | Schema/count/inventory check |
 | Full rewrite vs small edit | Keep coherent rewrite, port the small edit | Whole-file semantic review |
 | Same import line | Union symbols into one formatter-ordered import | Lint plus runtime import |
+| Import symbol used by a later replayed commit (lint `F821` after the rebase) | Restore the symbol in the replayed commit that uses it | Lint passes on the final tree |
+| Replayed commit removed the last use of an import (`F401` after the rebase) | Delete the import in that same commit | Lint passes on the final tree |
 | Parallel source extraction | Prefer current trunk structure; add only unique behavior | Source diff and focused tests |
 | Two competing guards or states for one failure mode | Keep the trunk design; delete the replayed branch's duplicate guard, helper, state, and tests | Trunk file diff is empty for that artifact, and the surviving guard's own tests pass |
 | Parallel test addition | Union materially distinct tests | Test collection and run |
@@ -196,6 +198,30 @@ Audit every decision-changing layer touched by either side:
 
 Regenerate stale mocks from the current implementation. Do not change production
 code merely to satisfy expectations written for an abandoned branch design.
+
+Label each lint or type failure by the commit that causes it. Place the repair in
+that commit, not in `HEAD`. A repair amended onto `HEAD` attaches to an unrelated
+commit and leaves the intermediate commit broken. Use an interactive rebase:
+
+```bash
+git rebase -i "$trunk"          # mark the offending commit with `edit`
+<repair the import set>
+git add <path> && git commit --amend --no-edit -S -s
+git rebase --continue
+```
+
+Find the causing commit by searching history, not by the first commit that shows
+the error:
+
+```bash
+git log --format='%h %s' "$trunk"..HEAD -- <path>
+git show <commit>:<path> | grep -n '<symbol>'
+```
+
+Measure local test failures against a bounded baseline worktree at `"$trunk"`
+with the same test command. Record both failure sets. The branch is acceptable
+when its failures are a subset of the baseline failures. A new failure that is
+absent from the baseline is a rebase defect; the environment cause is not.
 
 ### 6. Preserve signatures, push safely, and re-arm automation
 

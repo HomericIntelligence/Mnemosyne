@@ -27,6 +27,28 @@ version 1.15.0. The complete v1.15.0 retrievable content is archived once in the
 | Silent complexity/test/policy/inventory drift | [Hephaestus PR #2056](https://github.com/HomericIntelligence/Hephaestus/pull/2056) | verified-local | Whole-tree lint, tests, whole-file policy search, and inventory hooks catch distinct defects |
 | Content-derived test pins in a conflict | Anonymized monorepo PR train, 2026-10 (see below) | verified-local | Recompute pins from merged content; mirror assertions to computed truth, never guess invariants |
 | Target merged at the delivery gate | Anonymized hosted monorepo PR, 2026-10 (see below) | verified-local | Re-read artifact state immediately before the mutation; a merged target gets content-equivalence proof and a stand-down, not a replay push |
+| Stale import found only by lint after the rebase | Anonymized hosted monorepo PR, 2026-10 (see below) | verified-local | Restore or delete the import in the commit that uses it; amend `HEAD` only when `HEAD` is that commit |
+
+## Stale Import Found Only by Lint
+
+Evidence from an anonymized hosted monorepo rebase of a 20-commit branch. The
+rebase finished with no conflict markers. `ruff check` then reported two
+defects:
+
+- one symbol was missing (`F821`) because the conflict resolution took the trunk
+  import line and dropped a symbol that a later replayed commit used;
+- one import became unused (`F401`) because a replayed commit removed its last
+  use.
+
+Both appearances were in commits other than `HEAD`. A `git commit --amend` on
+`HEAD` made lint pass. It also attached the repair to the unrelated last commit.
+A cleanup amend that touched the same import line also reverted the real repair.
+An interactive rebase with `edit` on the causing commit produced clean history.
+
+The local test run reported 188 failures against a 193-failure baseline at
+trunk. Every residual failure came from an environment guard, because the test
+host root was group-writable. The branch failures were a strict subset. Report
+the environment cause and give the suite to CI.
 | Union of two competing guards | Comet [PR #3654](https://github.com/LLM360/comet/pull/3654) rebased onto a trunk commit from [#3636](https://github.com/LLM360/comet/issues/3636), 2026-11 | verified-local | Keep the trunk design; delete the replayed side's duplicate guard, helper, state, parser, and tests |
 
 ## Additional Ecosystem Evidence
