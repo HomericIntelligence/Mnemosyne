@@ -228,3 +228,40 @@ gh pr view <pr> --json mergeable,mergeStateStatus         # MERGEABLE / CLEAN
 gh api repos/<org>/<repo>/issues/<pr>/events \
   --jq '[.[] | select(.event == "head_ref_force_pushed") | .created_at]'
 ```
+
+## 2026-11 review round on an open promotion PR
+
+### Premise
+
+A review brief listed nine unresolved threads on one promotion PR and expected a fix for each
+required finding. The brief said to push signed commits.
+
+### Measured state
+
+The worktree was the PR head, already clean and detached at the reviewed commit. Two merged
+commits in the same PR range fixed the pull claim wedge, the requester-scoped source access,
+the pull store races, the expired-lease renewal, and the stale-generation proofs. One required
+finding (#7) asked for owner approval. The promotion record body carries that approval. One
+suggestion-only finding about a strict build was already reverted on the head.
+
+A review thread named a line number from the old head. The current code closed every requested
+item at a different line. The covering tests already existed and passed.
+
+### Outcome
+
+Zero source changes. The head did not move. All nine threads were resolved with the closing
+commit, the current file:line for each requested item, and the test names. The report stated
+`commits: none`.
+
+### Diagnostic
+
+```bash
+git log --oneline -S "<snippet>" -- <path>   # fix commit already in the PR range
+sed -n '<start>,<end>p' <path>               # current lines that close the item
+TMPDIR=/tmp uv run --locked --extra dev pytest <covering tests> -q
+```
+
+### Limit
+
+The approval evidence was prose in the promotion record. The reviewer accepted it as the
+recorded option. No machine receipt bound it.
