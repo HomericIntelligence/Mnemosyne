@@ -125,7 +125,6 @@ Verified: the guard suite passed locally (19 tests), the project's full CI passe
 head, and the change merged the same day. This instance moved the entry-level verification to
 `verified-local`; the two planning workflows above remain unverified.
 
-
 ## When to Use
 
 The generalizable rule: when a planned change edits a list/registry/manifest enforced by a
