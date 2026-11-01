@@ -15,6 +15,7 @@ retrievable main. The complete superseded main is archived only in the history c
 | ProjectOdyssey all-covered hash audit | [Immutable source at batch base](https://github.com/HomericIntelligence/Mnemosyne/blob/d377a8924aff84e5cc193b720130b4c57e38c5c3/skills/tdd-workflow-and-test-coverage-expansion.md) | verified-ci |
 | EvaluationService seven-PR coverage swarm | [Immutable source at batch base](https://github.com/HomericIntelligence/Mnemosyne/blob/d377a8924aff84e5cc193b720130b4c57e38c5c3/skills/tdd-workflow-and-test-coverage-expansion.md) | verified-local |
 | Stale-consumer sweep after a seam or message change | This entry’s v2.2.0 delivery pull request | verified-ci |
+| Declared-value fixture sweep after a policy change | This entry’s v2.3.0 delivery pull request | verified-local |
 
 ## Script-Coverage Campaigns
 
@@ -70,6 +71,15 @@ attribute name and a distinctive fragment of the old text, updated both consumer
 commit, and re-ran the focused files before the push. Cite a negative sweep result only with
 coverage evidence, as [negative-scan-coverage-attestation](./negative-scan-coverage-attestation.md)
 requires.
+
+In a permission-policy repository (name withheld), a policy row gained an exact declared mode for
+a managed root, and fixture builders that hardcoded the retired mode failed at guard entry. The
+first pass aligned one test module, found 47 guard-entry failures across sibling modules, and
+moved those fixture roots to the declared mode. A literal sweep later found three more fixtures
+in one more test module that the change had never touched; a test-only commit aligned them and
+the focused runs passed. The classification is `verified-local`: green local runs, no hosted
+cause-and-effect run. The sweep keys stay the same shape as the seam and message cases, but the
+search term is the retired literal, not a name or a message fragment.
 
 ## Compaction Disposition
 

@@ -1,9 +1,9 @@
 ---
 name: tdd-workflow-and-test-coverage-expansion
-description: "Design behavior tests and coverage improvements for scripts, subprocesses, and refactors. Use for existing-test audits, stale-consumer sweeps after a seam or message change, correct mock seams, isolated shards, and CI discovery."
+description: "Design behavior tests and coverage improvements for scripts, subprocesses, and refactors. Use for existing-test audits, stale-consumer sweeps after a seam, message, or declared-value change, correct mock seams, isolated shards, and CI discovery."
 category: testing
 date: 2026-06-15
-version: "2.2.0"
+version: "2.3.0"
 verification: verified-ci
 license: BSD-3-Clause
 user-invocable: false
@@ -40,6 +40,7 @@ changelog are in [history](https://github.com/HomericIntelligence/Mnemosyne/blob
 - Single-line and multi-line input shapes behave differently.
 - A configuration or directory-layout refactor broke fixtures and path discovery.
 - A shared seam, flag, or user-facing message changed, and test files beyond the primary one may still drive the old interface or assert the old text.
+- A policy or contract newly declares an exact value for a managed property (a path mode, an owner, a digest), and fixtures or helpers that hardcode the retired value can sit in test files you never opened.
 - A circular import was fixed and needs an executable architecture boundary.
 - New nested tests pass locally but CI or pytest does not discover them.
 - Coverage work is large enough to require isolated worktrees or shards.
@@ -51,11 +52,14 @@ changelog are in [history](https://github.com/HomericIntelligence/Mnemosyne/blob
 1. **Audit before writing.** Search all tests for the target symbol, class, behavior, and likely
    sibling filename. Build a requirement-to-test matrix. If every requirement is covered, add only
    a concise coverage mapping when the repository consumes it; do not invent redundant tests.
-2. **Sweep every consumer when a seam or user-facing text changes.** A shared seam (a context
-   attribute or method, a helper, a flag) and user-facing text (a refusal, error, or hint) can
-   appear in many test files. After you change one, search the whole test tree for the old name
-   and for a distinctive fragment of the old text, and update every driver and stale assertion in
-   the same change. Sibling files can stay unopened and still fail CI on the old interface.
+2. **Sweep every consumer when a seam, a message, or a declared value changes.** A shared seam
+   (a context attribute or method, a helper, a flag), user-facing text (a refusal, error, or
+   hint), and a value that a policy or contract declares for a managed property (a path mode, an
+   owner, a digest) can appear in many test files. After you change one, search the whole test
+   tree for the old name, a distinctive fragment of the old text, or the old literal, and update
+   every driver, fixture, and stale assertion in the same change. A fixture that hardcodes a
+   retired declared value fails at guard entry on the fixed-shape builder, often before any
+   assertion runs. Sibling files can stay unopened and still fail CI on the old interface.
 3. **Prefer a regression before repair when practical.** An observed failure for the expected
    reason helps show that the test detects the defect. A test that began green does not prove this.
 4. **Patch the lookup binding.** Inspect how the target imports the dependency. Patch the consumer
@@ -87,6 +91,7 @@ changelog are in [history](https://github.com/HomericIntelligence/Mnemosyne/blob
 ```bash
 rg -n "TargetClass|target_function|expected behavior" tests scripts src
 rg -n "old_seam_name|distinctive fragment of the old text" tests  # after a seam or message change: every driver and stale assertion
+rg -n "RETIRED_LITERAL" tests  # after a declared-value change: every fixture that hardcodes the retired literal, for example a mode literal such as 0o755
 rg --files tests | sort
 python3 -m pytest tests/unit/<area> -v --tb=short
 ```
@@ -224,12 +229,19 @@ If a hash-coverage issue’s requirements already map to existing equality and s
 no duplicate test. Record the mapping in the accepted project location, run the focused and full
 suites, and close with evidence that the audit found no gap.
 
-### Seam or message change with sibling drivers
+### Seam, message, or declared-value change with sibling drivers
 
 A change reshaped a shared test context and rewrote a command’s refusal text. The primary test
 file was updated, but two sibling files still built the old context and asserted the retired
 text. A search of the whole test tree for the old attribute name and a fragment of the old text
 found both before the next push; CI then confirmed that no other consumer remained.
+
+A path policy gained an exact declared mode for a managed root. The primary test module moved its
+fixture builders to the declared mode, but sibling modules still built the root at the retired
+mode; a fail-closed guard refused each root at open and reported the declared-mode check, so
+dozens of tests failed before their assertions ran. A sweep of the whole test tree for the
+retired literal found every driver, the fixtures moved to the declared mode, and focused runs of
+the affected files passed.
 
 ## Failed Attempts
 
@@ -247,6 +259,7 @@ found both before the next push; CI then confirmed that no other consumer remain
 | Failure 10 | Apply new docstring rules retroactively | Produces unrelated prose churn | Gate only new tests unless policy says otherwise |
 | Failure 11 | Use a generator-throw lambda | Obscures the intended exception boundary | Use a named raising helper |
 | Failure 12 | Update only the primary test file after a seam or message change | Sibling test files still drove the old seam or asserted the retired text, and CI failed them | Search the whole test tree for the old name and old text; update every consumer in the same change |
+| Failure 13 | Update only the module a policy or contract change names | Sibling fixtures still built the resource at the retired declared value; the fail-closed guard refused them at builder entry with the declared-value check, not at the assertion under test | After a declared-value change, search the whole test tree for the old literal and align or derive every fixture |
 ## Results & Parameters
 
 | Parameter | Contract |
