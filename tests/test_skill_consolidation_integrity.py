@@ -5,13 +5,9 @@ import sys
 from pathlib import Path
 from typing import NotRequired, TypedDict, cast
 
-import pytest
-
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
 from mnemosyne_skill_utils import parse_frontmatter
-
-pytestmark = pytest.mark.nightly
 
 ROOT = Path(__file__).resolve().parent.parent
 SKILLS_DIR = ROOT / "skills"
@@ -27,7 +23,7 @@ class Consolidation(TypedDict):
 CONSOLIDATIONS: list[Consolidation] = [
     {
         "canonical": "planning-verify-issue-premise-before-implementing",
-        "version": "3.5.0",
+        "version": "3.6.0",
         "absorbed": [
             "planning-verify-assumptions-before-enforcement-gate",
             "planning-verify-full-population-not-just-named-entities",
@@ -75,7 +71,7 @@ CONSOLIDATIONS: list[Consolidation] = [
     },
     {
         "canonical": "testing-module-patch-target-after-extraction",
-        "version": "2.1.1",
+        "version": "2.2.0",
         "absorbed": ["testing-dual-patch-multiple-call-paths"],
     },
     {
