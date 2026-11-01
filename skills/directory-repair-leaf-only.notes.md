@@ -43,3 +43,31 @@ For each harm shape, the regression test is a plain temporary-directory test:
 
 The tests run on local temporary directories only; no shared filesystem or
 privileged identity is necessary for the behavior proof.
+
+## Permitted-form repair arm (added 2026-11-01)
+
+A later repair introduced a registered-root leaf mode and a mode rule that
+admits two forms of the same directory: the declared `0o750` form and a
+bootstrap `0o2750` form. The repair wrote the declared mode alone. A
+`0o2750` root read back `0o750` after one root-child write on a filesystem
+that does not re-force the set-group-ID bit from the parent. No check refused
+the change, because both forms satisfy the rule, so the change would surface
+only as an unexplained operator-visible mode difference.
+
+The correction reads the rule for the leaf and keeps the observed set-group-ID
+bit while the rule permits it. It drops the bit only when the rule forbids it.
+The private repair for every other directory is unchanged.
+
+Regression test, in one temporary-directory test:
+
+- set the registered root to the permitted set-group-ID form;
+- run the repair and one root-child write;
+- assert the root mode is still the permitted set-group-ID form;
+- a second arm asserts that a resolver without the registered-root authority
+  still repairs its directory to the private mode.
+
+Evidence limits: the test ran on a local temporary directory, so it does not
+prove the filesystem-specific re-force behavior of any network filesystem.
+A second review finding in the same round was a stale source-line citation in
+a documentation table. The mirrored test parameter was updated with it, and
+no test resolved the string.
