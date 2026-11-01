@@ -110,6 +110,27 @@ source, not project identifiers.
   Classify by reading one failing job log: gate failures name the label within seconds;
   content failures run minutes and name files.
 
+## Label-event run semantics evidence (v1.6.0 drive-green cycle)
+
+- After a review at a fixed head, applying the GO state label started the gated run itself
+  (the workflow trigger list included `labeled`): the run's payload carried the label, the
+  provenance job passed in seconds, and the full matrix ran green. No repair push was needed.
+  This corrects the earlier note: label events for other labels (before GO) still fail fast;
+  the label event for the GO label does not.
+- The same PR minutes earlier, with the GO label absent: a synchronize run showed gated jobs
+  as `skipping` at the job level, while a separate provenance job failed fast with the
+  label-not-applied step error. Both signatures are gate noise, not content failures.
+- A required aggregated check failed in about 16 s with only "Require all upstream jobs to
+  have succeeded"; the aggregate had no defect of its own. The upstream lint job failed in
+  about 12 s on formatter drift: the locked project formatter joined one wrapped return
+  statement to one line that an older local formatter had left split. Repair with the locked
+  formatter (`<pm> run --locked ... ruff format <file>`), re-verify with `--check .`, then
+  amend and re-sign the commit.
+- An unrelated hosted-runner test (a real multi-member process-group reaping test) failed the
+  same way on the default branch minutes before the PR's run; the PR's final run passed it.
+  Treat a matching default-branch failure as flake evidence, record it on the PR, and rerun
+  the failed job after the real repair lands.
+
 ## Coordinating-agent policy notes
 
 - Agent posts on the PR and discussions used one unique stable identity per repository policy.
