@@ -1,10 +1,10 @@
 ---
 name: ci-precommit-whole-dir-format-drift-blocks-unrelated-commits
 license: BSD-3-Clause
-description: "Diagnose whole-directory pre-commit formatting failures caused by pre-existing drift; choose a scoped repair without bypassing hooks."
+description: "Diagnose whole-directory pre-commit format and lint failures caused by pre-existing drift on main; choose a scoped repair without bypassing hooks, including the label-gated required check that must run on the PR head or be reported as not run."
 category: ci-cd
 date: 2026-06-22
-version: "1.4.0"
+version: "1.5.0"
 user-invocable: false
 verification: verified-local
 tags: []
@@ -57,6 +57,7 @@ this exact signature:
   - A `mock.MagicMock()` assigned to a method carried `# type: ignore[attr-defined]`, but mypy 2.1.0 emits `[method-assign]` there → each line errors TWICE (Unused "type: ignore" + an unsuppressed method-assign). Fix: change the code to `# type: ignore[method-assign]` (NOT a blanket `# type: ignore`, NOT `[attr-defined]`).
   - A test referenced `pr_manager.AGENT_COMMIT_MESSAGE` / `pr_manager.AGENT_PR_MESSAGE`, which `pr_manager` only IMPORTS (does not re-export); under `implicit_reexport=false` mypy rejects that. Fix: import the constants from their canonical home (`session_naming`) instead.
 - **`[var-annotated]` from a just-merged PR (v1.3.0):** `pixi run mypy` reports `Need type annotation for "X" [var-annotated]` errors ALL in a file your branch never touched (here 10 errors in `tests/unit/benchmarks/test_compare.py`). Root cause is a just-merged PR (#1566, a test-suite reorg) that left dict/list literals unannotated (`results = {"benchmarks": []}`, `improvements = []`) — and because **lint is SKIPPED on auto-merge events in this repo**, the breakage reached main and the NEXT author's unrelated commit surfaces it. FIRST confirm the errors pre-exist on origin/main (`git show origin/main:<file>` / `git diff --name-only main...HEAD` shows you never touched it) — do NOT assume your change caused them. Fix: add explicit annotations matching the target function signatures in `hephaestus/benchmarks/compare.py` (`results: dict[str, Any] = {...}`, `improvements: list[dict[str, Any]] = []`, `regressions: list[Regression] = []`, plus `from typing import Any`). Deciding whether to fix broken main IN your feature PR (fold) vs a separate standalone unblock PR is itself a When-to-Use trigger.
+- **Required `lint` check gated behind a label (v1.5.0):** the repo starts the required `lint-typecheck-test` check only on a `labeled` event. A one-file PR that repairs main's drift therefore opens with **no check at all**. `gh pr checks <n>` prints `no checks reported on the '<branch>' branch` and exits non-zero. That is neither a pass nor a failure. Confirm the drift independently at the PR head (`ruff format --check .` → `all files already formatted`, `ruff check` → `all checks passed`), record the required check as **not run**, and report the deadlock: the label starts CI, and the check gates the label. Do not hold the label back until a check passes. That deadlocks the PR.
 
 Use this specific skill when **main already has format drift OR a lint violation** and a whole-dir hook is therefore blocking unrelated commits. This is a DIFFERENT root cause from `ci-ruff-format-collapses-handwrapped-comprehensions` (where YOUR OWN clause-deletion edit collapses a comprehension you just touched) — see also that skill and `pre-commit-hooks-and-linting-config`. If the reformatted files are the ones you edited, you are in the wrong skill; the signature here is that the reformatted files are unrelated to your change and already drifted on main.
 
@@ -90,7 +91,7 @@ git checkout -b 1234-my-feature chore/lint-format-drift
 
 ### Detailed Steps
 
-1. **Recognize the signature.** You commit clean, unrelated files and the hook reformats a *different* file set, then aborts. This is not your edit's fault — the drift is in main's committed tree.
+1. **Recognize the signature.** You commit clean, unrelated files and the hook reformats a *different* file set, then aborts. This is not your edit's fault — the drift is in main's committed tree. The same applies to a reviewer of a drift-repair PR: the required `lint` check often does not run at all because it is gated behind a label. See the label-gated variant in When to Use.
 
 2. **Confirm the diagnosis cheaply.** Run `ruff format --check hephaestus/ scripts/ tests/` (with the repo's pinned ruff) against the committed `origin/main` content. If it lists files unrelated to your change, main itself carries drift. This happens when those files were committed before a ruff version/range resolved differently, or merged via a PR whose own gate passed under a slightly different ruff.
 
@@ -114,6 +115,8 @@ git checkout -b 1234-my-feature chore/lint-format-drift
 | Trust a "pass" `lint` check on an auto-merge event | Saw the `lint` check green after arming/disarming auto-merge and assumed the type errors were fixed | The `lint` job is behind a `changes-gate`: it is SKIPPED on `labeled`/`auto_merge_enabled`/`auto_merge_disabled` events (only runs on push/synchronize/opened). A *skipped* `lint` counts as PASS at the `required-checks-gate`, so the "pass" was vacuous | Get a genuine `lint` run from a real code event (push a commit, or rely on the opened/synchronize run) before trusting it — a skip is not a pass |
 | Assume your branch introduced the `[var-annotated]` errors | Saw 10 `Need type annotation [var-annotated]` errors and started inspecting/blaming your own diff | All 10 were in `tests/unit/benchmarks/test_compare.py`, a file the branch never touched — a just-merged PR (#1566) left them, and "lint skipped on auto-merge" let them reach main | FIRST confirm errors pre-exist on origin/main (`git show origin/main:<file>`, `git diff --name-only main...HEAD`) before assuming your change caused them; a whole-tree hook surfaces other people's debt on YOUR commit |
 | Run a targeted pytest path after a test reorg and trust exit 0 | Ran pytest against `tests/unit/test_import_surface.py` / `test_automation_boundary.py` (their pre-reorg paths) and saw exit 0 | PR #1566 MOVED those files under `tests/unit/validation/`; a now-nonexistent pytest path collects ZERO tests and EXITS 0 — a silent no-op that looks like success | After a reorg, confirm a targeted pytest path actually matched tests — look for the "N passed" line, not just exit code 0 |
+| Read "no checks reported" as green or as red | Ran `gh pr checks <n>` on a drift-repair PR and got `no checks reported on the '<branch>' branch`, exit 1 | The required check runs only on a `labeled` event, so nothing had started. Neither reading is supported: there is no result to read | Record the check as **not run**, prove the drift is gone at the PR head with a direct `ruff format --check .` and `ruff check`, and report that the label starts CI. The owner applies the label |
+| Claim a whitespace change "parses as a subtraction expression" | Described an under-indented keyword argument as a subtraction expression in the commit message | The AST proves the continuation line was always a keyword argument. Only `ruff format --check` failed, so the commit prose overstated the damage | Before you publish a no-op or behaviour-change claim, prove it: `ast.dump(ast.parse(a)) == ast.dump(ast.parse(b))` on both sides, then state only what the AST shows. A wrong rationale in an otherwise correct one-line fix does not justify a force push — correct the record in a PR comment |
 
 ## Results & Parameters
 
