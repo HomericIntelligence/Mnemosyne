@@ -84,6 +84,10 @@ that holds the long-lived notification channel: the coordinator.
      replacement.
    - *Ambiguous:* partial signals (a claim comment, no publication). Treat
      as stalled after one bounded wait; record the classification.
+   If enumeration instead finds a race already running — concurrent
+   same-head reviews from different reporters — do not launch another
+   reviewer. Reconcile the existing review set, bind one canonical verdict
+   to the head, and record the race in the coordination record.
 6. **Count live children as their own work items.** Capacity bookkeeping
    tracks each child under its own durable identifier, never under the dead
    parent's entry. A parent end-of-life never removes a live child from the
@@ -121,15 +125,16 @@ terminal_stage_launch:
   gate: forge-verified artifact existence (PR resolves, head bound)
   context: fresh
 pre_launch_enumeration:
-  - artifact reviews
-  - open threads
-  - recent head commits
-  - coordination-record claims
+  enumerate:
+    - artifact reviews
+    - open threads
+    - recent head commits
+    - coordination-record claims
   launch_condition: enumeration confirms the gap
 orphan_classification:
   orphan-completed: accept with audit
-  orphan-stalled: one bounded wait, enumerate, single fresh replacement
-  ambiguous: treat as stalled after the bounded wait; record the class
+  orphan-stalled: enumerate; single fresh replacement if the gap stands
+  ambiguous: one bounded wait, then treat as stalled; record the class
 capacity_accounting: each child is its own work item with a durable identifier
 race_symptom: concurrent same-head reviews from different reporters
 ```
