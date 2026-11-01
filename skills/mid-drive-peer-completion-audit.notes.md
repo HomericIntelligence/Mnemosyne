@@ -79,6 +79,59 @@ digests exactly.
   a healthy delivered record as corrupted and can drive a wrong void/repair
   or an escalation of a false finding.
 
+## Zero-delta takeover of a delivered rebase task (v1.2.0 case, 2026-10-31)
+
+Environment: the same shared monorepo under many-lane operation. A directive
+assigned one open-PR task: rebase the branch onto the default branch and
+resolve each conflict. The directive asserted that the PR was conflicting
+against the default branch and could not merge.
+
+### Live read at pickup
+
+- The forge reported the PR mergeable and clean, not conflicting.
+- `git merge-base <default> <head>` equaled the default-branch head; the
+  branch held only the two reviewed commits. The directive premise was
+  already false at pickup.
+- PR timeline: approval label at about 03:53 UTC; two head force-pushes at
+  about 09:11 and 09:22; a handover comment at about 09:39, about 17 minutes
+  before pickup. The shared forge actor made all posts, so worker identity
+  comes from the name prefix in the comment, not from the actor field.
+
+### Handover audit
+
+The peer's handover comment named the old head (the approval head), the new
+head, one resolved conflict (a modify/delete on a documentation page the
+default branch had deleted; the PR-side section was not relocated — a
+documented, deliberate content drop), two branch-caused check repairs (a new
+test module missing from the tier partition, and a typed fake for a static
+type gate), local validation results, and the final check status.
+Independent verification agreed at every point: all checks green at the new
+head, the approval label retained, mergeable and clean state, auto-merge not
+armed, and the added commit signed and signed-off.
+
+### Disposition
+
+The delta was empty: every contract step, including the report, was already
+delivered. The pickup did not re-run the rebase, did not push, and did not
+post a duplicate comment. It reported the takeover (old head, new head,
+evidence, label coverage) and stopped. A second rebase would have produced a
+third head, invalidated the peer's green checks, and duplicated the report.
+The approval label binds to the exact old head; the record states that it
+does not cover the new head even while the label stays on the PR.
+
+## Provenance (v1.2.0)
+
+- Delivery base: `188d710bc0b0bc1ba873402133fea0d79c61a300` (main). The parked
+  checkout was on a merged feature branch, so the delivery worktree bound
+  directly to the fetched default head.
+- Duplicate checks at write time: the four then-open PRs in the delivery
+  repository changed no byte of this entry. A bound-corpus sweep (mid-drive,
+  peer, stale, premise, lane, claim) found no same-intent entry: the
+  stale-premise family splits into `stale-plan-already-resolved` (defect
+  premise on captured artifacts) and this entry (peer-completion takeover),
+  and no current entry carries the zero-delta branch or the rebase-shape
+  probes (merge-base equality, force-push timeline).
+
 ## Provenance
 
 - Delivery base: `8cdb8d577bc7e984bfcd295b855a91e77cc5a65d` (main, refresh
