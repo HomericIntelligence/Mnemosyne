@@ -286,7 +286,6 @@ frequency. Interface details (positional argument, mode flags, import context,
 anchor-source option, published-review identity form) are generation-specific witnesses; confirm them against
 the installed helper's signature before relying on them.
 
-
 ## Prepare-then-fill and thread flush (2026-10-31)
 
 Sixth live delivery. A two-file change reached a clean zero-finding round-1
