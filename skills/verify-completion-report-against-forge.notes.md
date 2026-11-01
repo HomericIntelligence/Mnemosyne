@@ -67,11 +67,37 @@ enumeration, one issue-comment enumeration) and completed in seconds. The
 planned dependent actions — merge coordination and a follow-on dispatch —
 would have targeted artifacts that did not exist.
 
+## Lane 3: identifier-free content dump (2026-11-01, same window)
+
+A third background lane, assigned to a parallel issue of the same program,
+returned a completion message that contained:
+
+- one large verbatim source file, pasted in full instead of written to a
+  branch;
+- a self-report that repeated write attempts "were interrupted"; and
+- no artifact identifiers at all — no branch, no commit, no pull request,
+  no review or comment identifier.
+
+Triage at intake:
+
+| Step | Result |
+| ---- | ------ |
+| Anchor probes | Skipped — the message contained nothing to fetch |
+| Intake classification | Identifier-free dump → zero-work |
+| Forge enumeration for the item | A genuine open pull request from a sibling lane already covered the same work |
+| Dumped content handling | Never reused; the genuine pull request superseded it |
+
+The lane's session ended with the message. No salvage attempt followed: the
+dump had no build, test, or review state, and the forge already held a real
+artifact for the same work.
+
 ## Limits
 
-- Evidence comes from one coordination window with two lanes on one issue of
-  one forge. The fabrication pattern (confident identifiers, all or partly
-  nonexistent) generalizes; the anchor menu varies with what a report claims.
+- Evidence comes from one coordination window with two identifier-bearing
+  lane reports on one issue and one identifier-free dump on a parallel issue
+  of one forge. The fabrication pattern (confident identifiers, all or
+  partly nonexistent) and the dump pattern (verbatim content, no anchors)
+  generalize; the anchor menu varies with what a report claims.
 - The anchor rule verifies publishable forge artifacts. Local claims (a
   passing test total, a format gate, a diff) still need the sibling
   disciplines: re-run the check or bind it to the tested revision.

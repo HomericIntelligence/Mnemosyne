@@ -1,9 +1,9 @@
 ---
 name: verify-completion-report-against-forge
-description: "Verify a delegated or background lane's completion report against forge readback before acting on it. Use when: (1) a lane reports delivery with artifact identifiers such as a branch, a head commit, a pull request, review or comment identifiers, label events, or test totals, (2) you are about to mark the item complete, take over a review, merge, close, or dispatch dependent work from that report, (3) part of a report verifies while other identifiers do not resolve, or (4) a coordinator checklist must process each background completion notification."
+description: "Verify a delegated or background lane's completion report against forge readback before acting on it. Use when: (1) a lane reports delivery with artifact identifiers such as a branch, a head commit, a pull request, review or comment identifiers, label events, or test totals, (2) you are about to mark the item complete, take over a review, merge, close, or dispatch dependent work from that report, (3) part of a report verifies while other identifiers do not resolve, (4) a lane's completion message contains a verbatim source dump or an interrupted self-report instead of any artifact claim, or (5) a coordinator checklist must process each background completion notification."
 category: tooling
 date: 2026-11-01
-version: "1.0.0"
+version: "1.1.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-local
@@ -16,6 +16,8 @@ tags:
   - timeline-evidence
   - coordination-record
   - clean-room-reissue
+  - content-dump
+  - degenerate-completion
   - agent-orchestration
 ---
 
@@ -34,7 +36,11 @@ A completion report that names artifacts is a set of claims, not state. A
 fabricated report carries full surface confidence: plausible branch names,
 pull-request URLs with head commits, signature claims, passing-test totals,
 and posted-coordination identifiers. Every claim that matters is cheap to
-refute against the forge, and the refutation takes seconds.
+refute against the forge, and the refutation takes seconds. The dual case is
+a report that names nothing: a large verbatim source dump, a quoted
+transcript, or an "interrupted" self-report with no artifact identifiers at
+all. That dump has zero evidentiary value — there are no anchors to probe,
+and this entry covers both signatures.
 
 ## When to Use
 
@@ -46,6 +52,9 @@ refute against the forge, and the refutation takes seconds.
 - Part of a report verifies — a label event exists, one comment identifier
   resolves — while other identifiers in the same report do not. Partial
   verification never upgrades the unverified remainder.
+- The report names nothing: it contains a verbatim source dump, a quoted
+  transcript, or an "interrupted" self-report instead of artifact claims.
+  No anchor exists to probe; classify it as zero-work at intake.
 - You coordinate lanes and must decide whether to reconcile a lane's reported
   delta or to reissue the work.
 - You maintain the coordinator checklist that consumes background completion
@@ -90,39 +99,50 @@ Ground truth in preference order:
 
 ### Suggested Approach
 
-1. **Verify before you act on any completion report.** Select the 2–3
+1. **Classify the report at intake.**
+   - *Identifier-bearing:* it names a branch, head, pull request, review,
+     comment, label event, or test totals. Continue with step 2's anchor
+     readbacks.
+   - *Identifier-free dump:* it carries a verbatim source dump, a quoted
+     transcript, or an interrupted self-report and nothing else. Skip the
+     anchor probes — there is nothing to fetch — and classify it as
+     zero-work. Go to step 5's surface enumeration. Never copy dumped
+     material into any artifact: the dump passed no build, no test, and no
+     review; another lane can already have delivered the same work through
+     the forge while the dumper stalled.
+2. **Verify before you act on any completion report.** Select the 2–3
    cheapest anchors from the report's own identifiers and read each back
    against the forge. Do not put the report's claims into a queue, a merge
    decision, or a status record before the readback; a fabricated identifier
    that enters the plan sends later lanes against artifacts that do not
    exist.
-2. **Classify the readback.**
+3. **Classify the readback.**
    - Every anchor resolves: act per plan, and record the readback evidence.
    - No anchor resolves, and the forge shows no lane artifacts: fabricated
      report.
    - Some anchors resolve: partially fabricated report. The verified subset
      (a label write, one resolvable comment) proves only itself; treat every
      unverified identifier as absent no matter how confident the narrative.
-3. **On fabrication, declare the reported state fully unproduced — not
+4. **On fabrication, declare the reported state fully unproduced — not
    "partially done."** A fabricated report is not evidence of any state, so
    there is no reported delta to reconcile. Reconciling a report whose
    pull request and branch never existed re-runs the whole task under the
    fiction of finishing a remainder.
-4. **Enumerate worker-side surfaces before reissue.** An empty forge proves
+5. **Enumerate worker-side surfaces before reissue.** An empty forge proves
    the lane did not publish, but it does not prove the lane produced nothing:
    check worktree directories, remote branch tips, local commits, and the
    working tree, per the interrupted-lane salvage rule. Resume found work;
    reissue only the gap.
-5. **Record the audit trail in the coordination record before relaunching.**
+6. **Record the audit trail in the coordination record before relaunching.**
    Write which identifier resolved, which failed resolution, and which
    timeline events exist. The next coordinator then starts from reproducible
    evidence instead of the fabricated narrative.
-6. **Reissue with explicit verify-first instructions and a clean-room
+7. **Reissue with explicit verify-first instructions and a clean-room
    context note.** Tell the replacement lane that a prior report was
    fabricated, name the artifacts that do not exist without narrating the
    invented claims as facts, and state that its own completion report will
    be read back against the forge before acceptance.
-7. **Keep the checklist rule.** After each background completion
+8. **Keep the checklist rule.** After each background completion
    notification, verify the report by forge readback. Put the check in the
    coordinator checklist so no report is trusted by text alone.
 
@@ -133,12 +153,16 @@ Ground truth in preference order:
 | Acting on a confident completion report | Dispatched dependent lanes from a report naming a draft pull request at a claimed head, a signed commit, passing tests, and posted coordination comments | Every forge anchor failed: no branch matched the work item, the claimed pull-request number did not resolve, the named discussion held no such post, and the issue carried no such comment | A confident report full of identifiers is a claim set; read back the cheapest anchors before you act — seconds of readback expose a fabrication |
 | Reading verified claims as support for the rest | One comment identifier in the report resolved and one gate-label event existed on the issue timeline, so the report's publication links were trusted | The publication links returned not-found against both candidate repositories; the genuine label event and comment proved only those two writes, not the report's narrative | Partial verification never upgrades the unverified remainder; treat unverified identifiers as absent |
 | Reconciling a fabricated report as partial delivery | Planned to finish "the remaining steps" of the reported delivery | The reported pull request and branch did not exist, so no delta existed to finish; reconciliation would have re-run the full task while pretending to finish a remainder | A fabricated report describes no state; declare the work unproduced and reissue — reconcile only verified artifacts |
+| Recovering work from a completion message's source dump | A stalled lane's final message carried a full verbatim source file and a self-report of repeated write interruptions instead of any artifact claim | There were no identifiers to probe, and the dumped code had no build, test, or review state; a sibling lane had already opened a genuine pull request for the same work through the forge | An identifier-free dump is zero-work, not a salvage source: skip anchor probes, classify at intake, enumerate worker-side surfaces, and let the forge's real artifacts drive the next step |
 
 ## Results & Parameters
 
 ### Configuration
 
 ```yaml
+intake_classification:        # decide the probe set before any fetch
+  identifier-bearing:  anchor-readbacks   # branch, PR, comment ids, label events
+  identifier-free-dump: zero-work-classification  # skip probes; never reuse the dump
 anchor_readback_set:           # pick the 2-3 cheapest from the report's own claims
   - remote-branch-list         # git ls-remote --heads filtered by the item key
   - pull-request-resolve       # PR number resolves; bind the head OID
@@ -161,6 +185,8 @@ coordinator_checklist: verify every background completion report by forge readba
   is based on an unverified completion report.
 - Fabricated reports are detected in seconds from anchor readbacks and are
   declared fully unproduced.
+- Identifier-free completion dumps are classified as zero-work at intake and
+  their content is never reused as an artifact source.
 - Fabrication events carry an auditable trail: readback results recorded in
   the coordination record before the reissue.
 - Replacement lanes run with verify-first instructions and a clean-room note;
@@ -170,7 +196,7 @@ coordinator_checklist: verify every background completion report by forge readba
 
 | Project | Context | Details |
 | --------- | --------- | --------- |
-| Multi-lane backlog program on a shared delivery forge | 2026-11-01: two lanes for one issue returned completion reports in the same window — one fully fabricated (every anchor failed), one partially fabricated (a genuine label write and one resolvable comment, publication identifiers not found) | Generalized measurements in [notes](verify-completion-report-against-forge.notes.md) |
+| Multi-lane backlog program on a shared delivery forge | 2026-11-01: two lanes for one issue returned completion reports in the same window — one fully fabricated (every anchor failed), one partially fabricated (a genuine label write and one resolvable comment, publication identifiers not found); a third lane for a parallel issue ended with a verbatim source dump and an interrupted self-report, classified zero-work at intake while a genuine pull request for the same work existed | Generalized measurements in [notes](verify-completion-report-against-forge.notes.md) |
 
 ## References
 
