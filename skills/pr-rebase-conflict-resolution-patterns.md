@@ -1,9 +1,9 @@
 ---
 name: pr-rebase-conflict-resolution-patterns
-description: "Use when a pull request reports DIRTY or CONFLICTING, an active task needs a main artifact to continue, a permitted stacked or same-file rebase needs serialization, conflict status is ambiguous (AA/UU/modify-delete), or a textually clean rebase may hide semantic, test, lint, policy, or inventory drift, or the conflict carries test-pinned values derived from source content that neither side can supply correctly, or the target pull request merged, closed, or lost its source ref between resolution work and the delivery mutation."
+description: "Use when a pull request reports DIRTY or CONFLICTING, an active task needs a main artifact to continue, a permitted stacked or same-file rebase needs serialization, conflict status is ambiguous (AA/UU/modify-delete), or a textually clean rebase may hide semantic, test, lint, policy, or inventory drift, or the resolution keeps both sides' guards for one failure mode, or the conflict carries test-pinned values derived from source content that neither side can supply correctly, or the target pull request merged, closed, or lost its source ref between resolution work and the delivery mutation."
 category: ci-cd
 date: 2026-07-12
-version: "2.3.0"
+version: "2.4.0"
 license: BSD-3-Clause
 user-invocable: false
 tags: [git, rebase, merge-conflict, pull-request, worktree, force-with-lease, semantic-conflict, stacked-pr, ci]
@@ -105,6 +105,7 @@ Resolve according to intent:
 | Full rewrite vs small edit | Keep coherent rewrite, port the small edit | Whole-file semantic review |
 | Same import line | Union symbols into one formatter-ordered import | Lint plus runtime import |
 | Parallel source extraction | Prefer current trunk structure; add only unique behavior | Source diff and focused tests |
+| Two competing guards or states for one failure mode | Keep the trunk design; delete the replayed branch's duplicate guard, helper, state, and tests | Trunk file diff is empty for that artifact, and the surviving guard's own tests pass |
 | Parallel test addition | Union materially distinct tests | Test collection and run |
 | Test-pinned content-derived values (digests, computed IDs) | Resolve the source content first; then recompute the pins from the merged content through the repository's own derivation; never copy either side's value | The focused consumer test passes on the recomputed values |
 | Additive build/config blocks | Keep both valid blocks | Parser/configure step |
@@ -264,6 +265,31 @@ keep the worktree pending cleanup authority, and do not reopen, comment, or
 recreate the ref unless asked. Any real content delta is new evidence: report
 it against the landed merge commit and take direction before writing.
 
+### Clean merge that keeps both competing implementations
+
+Tools that hold the replayed commit on top of current trunk can resolve a
+conflicting hunk as the union of both sides. A union that compiles is still a
+wrong resolution when the two sides implement opposite designs for one failure
+mode. The classic shape is a branch that adds a fail-closed guard and a trunk
+commit that makes the same path fail open. The result carries both guards, both
+states, and both test suites, so the stricter guard silently wins.
+
+Detect it before you trust the result. Read the resolved function as a whole, not
+only the conflicted hunk, then list the end state of every state enum, guard
+helper, and early return that either side touched. The decisive check is a diff
+against trunk for each artifact: when trunk already implements the requested
+design, the correct residual diff for that file is empty. A nonempty diff in an
+artifact that trunk has fully superseded, with no review request that names the
+change, is the union signature.
+
+Resolve it by keeping the trunk design and deleting the replayed side's copy:
+the duplicate guard, the helper that only that guard called, the extra state
+member, the parser for the same error class, and every test that duplicates the
+trunk tests. Then confirm the kept guard's own tests pass on the new head.
+Do not add the replayed side's behavior to make the union consistent. Report the
+deleted duplicate as part of the resolution, because the branch's earlier
+commits and review records still describe it.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -271,6 +297,7 @@ it against the landed merge commit and take direction before writing.
 | Blanket side selection | Used `--ours` or `--theirs` for every conflict | Drops one branch's intent; rebase side names are counterintuitive | Read both stages and resolve per artifact |
 | Lockfile hand merge | Manually combined generated lock state | Hashes and solver state are not safely mergeable | Regenerate with the owning tool |
 | Marker-only review | Trusted no markers or a clean rebase | Semantic conflicts are outside Git's model | Run tests, lint, policy, inventory, and runtime checks |
+| Union of two competing guards | Accepted the clean merge of a fail-closed guard onto a trunk that made the same path fail open | Both guards and both states survived, and the stricter one silently won | Diff each artifact against trunk; an empty diff is correct when trunk fully superseded it |
 | Parallel hot-file rebases | Rebased the same-file cluster concurrently | Each merge re-conflicts the remaining branches | Use a smallest-diff-first serial train |
 | Self-report acceptance | Trusted a rebase success report | Stale refs or a later push can preserve old ancestry | Compare merge base and inherited trunk behavior |
 | Empty workflow retrigger | Pushed an empty commit for stale workflow policy | Reruns the same rejected workflow | An active task can rebase only when corrected workflow files are required; otherwise let CI/CD integrate |

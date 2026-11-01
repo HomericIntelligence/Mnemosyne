@@ -27,6 +27,7 @@ version 1.15.0. The complete v1.15.0 retrievable content is archived once in the
 | Silent complexity/test/policy/inventory drift | [Hephaestus PR #2056](https://github.com/HomericIntelligence/Hephaestus/pull/2056) | verified-local | Whole-tree lint, tests, whole-file policy search, and inventory hooks catch distinct defects |
 | Content-derived test pins in a conflict | Anonymized monorepo PR train, 2026-10 (see below) | verified-local | Recompute pins from merged content; mirror assertions to computed truth, never guess invariants |
 | Target merged at the delivery gate | Anonymized hosted monorepo PR, 2026-10 (see below) | verified-local | Re-read artifact state immediately before the mutation; a merged target gets content-equivalence proof and a stand-down, not a replay push |
+| Union of two competing guards | Comet [PR #3654](https://github.com/LLM360/comet/pull/3654) rebased onto a trunk commit from [#3636](https://github.com/LLM360/comet/issues/3636), 2026-11 | verified-local | Keep the trunk design; delete the replayed side's duplicate guard, helper, state, parser, and tests |
 
 ## Additional Ecosystem Evidence
 
@@ -64,6 +65,23 @@ version 1.15.0. The complete v1.15.0 retrievable content is archived once in the
   pointed at the same value, and the fixture update was present verbatim. No push
   occurred; zero unique work remained unretained. The stop path itself has no CI
   receipt because no delivery ran.
+- Comet PR #3654 (2026-11): a 2-commit branch conflicted with a trunk commit that
+  landed a different design for one failure mode. The branch added a fail-closed
+  serve-argument capability guard with a `permanent_error` state; trunk added a
+  fail-open validator with a `permanent_block` state. The rebase kept both guards,
+  both states, both exit-code parsers, and both test sets, and it compiled. The
+  union signature was a nonempty diff against trunk in files that trunk had fully
+  superseded. The resolution kept the trunk validator and block state, added one
+  drift note for the branch's extra digest check, deleted the duplicate guard,
+  helper, parser, and six tests, and removed three files that trunk had retired.
+  1,116 focused tests passed with lint and format clean; the supervisor and
+  configuration files then matched trunk exactly. The pull request stayed open at
+  the new head and needed a fresh review because the earlier review approval was
+  bound to the old head SHA.
+
+- Semantic Audit for v2.4.0: kept the earlier v2.0.0 compaction, then added the
+  clean-merge union-of-both-guards branch with its conflict table row, failed
+  attempt, and case note. No verified evidence was upgraded.
 
 ## Semantic Audit for v2.0.0
 
