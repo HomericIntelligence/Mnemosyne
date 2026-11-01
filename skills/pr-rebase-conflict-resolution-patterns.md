@@ -1,9 +1,9 @@
 ---
 name: pr-rebase-conflict-resolution-patterns
-description: "Use when a pull request reports DIRTY or CONFLICTING, an active task needs a main artifact to continue, a permitted stacked or same-file rebase needs serialization, conflict status is ambiguous (AA/UU/modify-delete), or a textually clean rebase may hide semantic, test, lint, policy, or inventory drift, or the resolution keeps both sides' guards for one failure mode, or a delete-side commit conflicts with trunk entries added inside the deleted block, or the conflict carries test-pinned values derived from source content that neither side can supply correctly, or the target pull request merged, closed, or lost its source ref between resolution work and the delivery mutation."
+description: "Use when a pull request reports DIRTY or CONFLICTING, an active task needs a main artifact to continue, a permitted stacked or same-file rebase needs serialization, conflict status is ambiguous (AA/UU/modify-delete), or a textually clean rebase may hide semantic, test, lint, policy, or inventory drift, or the resolution keeps both sides' guards for one failure mode, or a delete-side commit conflicts with trunk entries added inside the deleted block, or the conflict carries test-pinned values derived from source content that neither side can supply correctly, or the target pull request merged, closed, or lost its source ref between resolution work and the delivery mutation, or every conflict resolves to the current target side because a sibling pull request already delivered the same intent and the reviewed head carries a delivered approval state, or an already-armed auto-merge on the same pull request can fire on the new head as soon as your rebase push turns its checks green."
 category: ci-cd
 date: 2026-07-12
-version: "2.6.0"
+version: "2.7.0"
 license: BSD-3-Clause
 user-invocable: false
 tags: [git, rebase, merge-conflict, pull-request, worktree, force-with-lease, semantic-conflict, stacked-pr, ci]
@@ -44,6 +44,10 @@ runtime behavior, tests, policy prose, generated state, and inventories.
   uncertain.
 - The pull request merged upstream, was closed, or lost its source ref while
   conflict-resolution work was underway.
+- Every conflict resolves to the current target side because a sibling pull
+  request already delivered the same intent to the target branch.
+- The pull request already has an armed auto-merge request, so the delivery push
+  can merge it at the new head without a fresh re-review.
 
 ## Verified Workflow
 
@@ -175,6 +179,34 @@ unique delta. After completion, also check for a known trunk-only symbol or
 behavior. This catches a stale ref or later force-push that silently restored the
 old ancestry.
 
+Always pass the editor override. A plain `git rebase --continue` opens the
+commit-message editor, and a non-interactive harness blocks until the command
+times out. If that happens, do not blind-retry: a killed process can leave
+`.git/worktrees/<name>/index.lock` or a partial `rebase-merge` directory. Confirm
+the lock is gone and the todo still lists your commit, then continue with both
+overrides set:
+
+```bash
+ls "$(git rev-parse --git-dir)"/index.lock 2>/dev/null || echo "no lock"
+ls "$(git rev-parse --git-dir)"/rebase-merge/git-rebase-todo
+GIT_EDITOR=true GIT_SEQUENCE_EDITOR=true git -c commit.gpgsign=false rebase --continue
+```
+
+Then check signatures before the push. A replay creates new commit objects, and
+the new objects can carry `%G?` = `N` even when the original head was signed. A
+provenance gate rejects that new head:
+
+```bash
+git log --format='%h %G? %s' "$trunk"..HEAD   # expect G, never N
+```
+
+Re-sign before the push when any replayed commit shows `N`:
+
+```bash
+git log -1 --format='%B' > /tmp/msg.txt
+git commit -S -s --amend -F /tmp/msg.txt
+```
+
 ### 5. Audit beyond conflict markers
 
 A zero-marker scan is necessary but not sufficient:
@@ -253,6 +285,30 @@ commit signatures when local keyrings cannot validate collaborators' keys.
 Force-pushes commonly clear auto-merge; arm it only after the push and required
 checks are running against the new head.
 
+An inherited armed request is the opposite case, and it needs a check before the
+push. Read the arm state now, not after the delivery:
+
+```bash
+gh pr view <N> --json autoMergeRequest,mergeStateStatus,labels \
+  --jq '{armed: .autoMergeRequest, state: .mergeStateStatus, labels: [.labels[].name]}'
+```
+
+An armed request is not head-pinned. It merges the first head that satisfies the
+branch protection, so your delivery push is a trigger: the new head turns its
+checks green, and the forge merges it with no further action. A force-push may
+clear the request on some hosts, but do not rely on that. When the request is
+already armed, these hold:
+
+- You did not arm it. It is a prior operator decision, and it can land the
+  change before a re-review runs at the new head.
+- Publish the consequence before the push: which head the approval label
+  covers, and that the new head is not covered by that approval.
+- Do not disarm or arm it on your own authority. Surface the state and continue
+  the authorized delivery.
+- After the merge lands, confirm the landed tree matches your prepared head
+  (`git diff <prepared-head> <merge-commit>` prints nothing for the changed
+  paths). Report the merge as the result, not as a failure.
+
 ## Special Diagnoses
 
 ### Green checks but DIRTY
@@ -330,6 +386,25 @@ Do not add the replayed side's behavior to make the union consistent. Report the
 deleted duplicate as part of the resolution, because the branch's earlier
 commits and review records still describe it.
 
+A pull request can also merge its own change mid-task. When an armed auto-merge
+fires on your delivery head while you still hold the old head, the new trunk
+commit **is** your change, squashed. Detect it before you classify it as
+unrelated main movement:
+
+```bash
+git log --oneline -3 "$trunk"
+gh pr view <N> --json state,mergeCommit,mergedAt   # state: MERGED
+git diff --stat <prepared-head> <merge-commit> -- <changed paths>   # empty
+```
+
+Read the branch name in the trunk commit subject: a trailing `(#<N>)` naming
+your own pull request proves the self-merge. Do this check before you decide
+that trunk moved and a second rebase is required. A self-merge is not new trunk
+movement. No rebase is needed, and a replay push would resurrect a ref for
+content that already landed. Close out instead: confirm the content equivalence,
+remove your own worktree, and post the one delivery comment. Do not push. Do not
+rebase again.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -346,6 +421,12 @@ commits and review records still describe it.
 | Scoped hook evidence | Ran hooks only on conflict-touched files | Misses whole-tree complexity and inventory checks | Run the full hook suite and tests |
 | Unqualified force-push | Rewrote the remote without an explicit lease | Can overwrite new remote work | Pin the lease to the observed old SHA |
 | Pushing on stale authorization | Replayed a completed repair after the target merged upstream during the work | Recreates a deleted source branch and duplicates integrated content | Refresh and re-read artifact state immediately before the mutation; a merged or ref-deleted target is a stop pending content-equivalence proof |
+| Resolving an all-target-side conflict to keep the PR alive | Rebased a branch whose every conflicting hunk showed the same correction already on the target side, resolved both sides to the target text, and force-pushed | The result had an empty residual, so the new head carried no product value, invalidated the check record for the old head, and started a second review of nothing | When a rebase would resolve every hunk to the target side, stop before the write; prove the sibling delivery, then close the PR |
+| Closing from the conflict markers alone | Read the three conflicted files, saw the same wording on both sides, and closed the PR | The decision was correct, but the evidence named no sibling merge commit and no acceptance check, so a reader could not audit it | Add the sibling merge commit reachability, the issue closing reference, and the acceptance-term search to the close evidence |
+| Treating a delivered approval label as current authority | Read the delivered approval state at the reviewed head as a reason to keep driving the PR to merge | The label attests one reviewed head, not that the change is still absent from the target branch | Re-check the residual against the target branch first; the label cannot make an empty change useful |
+| Plain `rebase --continue` in a non-interactive harness | Ran `git rebase --continue` after resolving the conflict | The commit-message editor opened and the command blocked until the timeout killed it | Always set `GIT_EDITOR=true GIT_SEQUENCE_EDITOR=true`; on a timeout, confirm no `index.lock` or partial `rebase-merge` remains before the retry |
+| Pushing the rebase head without reading the arm state | Pushed a rebase of a conflicted PR that already carried an armed auto-merge request from an earlier operator action | The push turned the new head's checks green and the forge merged it before a re-review ran at that head | Read `autoMergeRequest` before the push; an armed request is not head-pinned, so the delivery push is a merge trigger |
+| Reading the self-merge as trunk movement | Saw a new trunk commit and prepared a second rebase against it | The commit subject named the same pull request, so trunk already held the exact prepared content | Read the `(#<N>)` suffix before a second rebase; a self-merge needs the close-out, not a replay |
 
 ## Results & Parameters
 
@@ -360,7 +441,8 @@ Completion requires current parentage, a reviewed nonempty residual (or an
 explicit superseded disposition), zero unresolved conflicts, passing required
 local checks, preserved verification boundaries, and either a lease-safe push
 with CI on the new head or a content-verified stand-down when the target
-already landed upstream.
+already landed upstream. The push requires a signed replayed head and a recorded
+read of the auto-merge arm state.
 
 ## References
 

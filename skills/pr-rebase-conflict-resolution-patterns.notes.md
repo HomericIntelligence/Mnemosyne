@@ -53,6 +53,8 @@ the environment cause and give the suite to CI.
 | Silent import and baseline repairs | Anonymized hosted monorepo PR rebase, 2026-10 | verified-local | Place each repair in the causing commit; compare failure nodes at a refreshed base |
 | Union of two competing guards | Comet [PR #3654](https://github.com/LLM360/comet/pull/3654) rebased onto a trunk commit from [#3636](https://github.com/LLM360/comet/issues/3636), 2026-11 | verified-local | Keep the trunk design; delete the replayed side's duplicate guard, helper, state, parser, and tests |
 | Delete-side block conflict | Comet [PR #3792](https://github.com/LLM360/comet/pull/3792) rebased onto trunk at 2026-10 | verified-local | Take the deletion when the commit retires the artifact; grep the final tree for the deleted name |
+| Armed auto-merge fired on the delivery head | Anonymized hosted monorepo PR, 2026-11 (see below) | verified-ci | Read the arm state before the push; a self-merge names its own PR and needs a close-out, not a second rebase |
+| Every conflict resolves to the target side | Anonymized documentation-only PR, 2026-10 (see below) | verified-local | Prove the sibling delivery and the empty residual, close the PR, and do not resolve or push |
 
 ## Additional Ecosystem Evidence
 
@@ -124,6 +126,50 @@ Two tests failed in a later module. The same two nodes also failed on a clean
 checkout of the recorded trunk revision, so the rebase did not cause them. Report
 the count and the node names, and compare node sets. Matching totals alone can
 mask a branch-only node.
+- Anonymized documentation-only pull request (2026-10): a three-file comment
+  correction carried a delivered approval state at its reviewed head and an
+  independent review that returned a positive verdict at that same head. The
+  branch was reported `CONFLICTING` against a fast-moving target branch. A
+  rebase onto the current target head conflicted in all three changed files,
+  and each conflicting hunk showed the same corrected wording on both sides: two
+  source files and one test case. A sibling pull request had already merged the
+  same correction, with the same three changed paths, approximately 18 hours
+  before the rebase attempt. Proof sequence: the sibling was `MERGED`, its merge
+  commit was reachable from the target branch, the linked issue was `CLOSED` with
+  the sibling in its closing references, the target branch text satisfied each
+  acceptance criterion, and a search for the stale term in the three changed
+  files returned only unrelated matches in an unrelated subsystem. Resolution:
+  the rebase was aborted before any commit, the temporary worktree was removed,
+  and no push occurred. The pull request was closed with a comment that listed
+  the conflicts, the sibling merge commit and time, the issue closing reference,
+  and the acceptance check. The delivered approval label stayed in place and was
+  not edited. No new review round ran at a new head, because no new head existed.
+  Evidence limit: the sibling merge time and the rebase attempt are recorded from
+  the forge and local Git. No test run was necessary, because the change changed
+  no behavior.
+- Anonymized hosted monorepo pull request (2026-11): a rebase-only task on a
+  `CONFLICTING` pull request that carried a delivered approval label at its old
+  head. Two changed files, one text conflict, where the target side had added a
+  new warning note in the same test and moved the asserted record index by one.
+  The resolution kept both intents: the target side's ordering plus the branch's
+  record-content assertions reindexed to the new position. A local check
+  confirmed the branch's slot formula equalled the production helper, so no
+  reviewed behavior changed. During the conflict loop, a plain
+  `git rebase --continue` opened the editor and blocked until the command
+  timeout killed it. The retry confirmed no `index.lock` remained and a complete
+  `rebase-merge` directory, then continued with both editor overrides. The
+  replay produced an unsigned commit (`%G?` = `N`) where the old head was
+  signed, so the commit was re-signed with `-S -s` before the push. The push used
+  a lease pinned to the observed old head. All 47 checks passed, 3 were skipped.
+  The pull request carried an auto-merge request armed by an operator before the
+  task started; it was not read before the push. When the new head's checks went
+  green, that request merged the pull request at the new head. The merged commit
+  was byte-identical to the prepared head for both changed files. The trunk
+  commit subject named the same pull request. The worktree was removed and one
+  delivery comment recorded the head move, the resolution, the approval-label
+  scope, and the merge. Evidence limit: the merge is a real outcome, but it
+  bypassed the intended re-review at the new head, so it is not evidence that a
+  re-review passed there.
 
 ## Semantic Audit for v2.0.0
 
