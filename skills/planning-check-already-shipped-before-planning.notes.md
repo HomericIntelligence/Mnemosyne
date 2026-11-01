@@ -70,3 +70,19 @@ build-wiring provenance must be checked separately.
   the fix's own tests already pin the invariant.
 - Cost of the check: two commands and one file read. Cost of the missed check would have been a
   full plan-publish-review-implement cycle.
+
+## 2026-10-31: Re-dispatched task already completed
+
+- Context: one hosted pull request needed a rebase-only task: rebase onto the default branch, keep
+  the review-gate label, and post one completion report. The dispatcher re-issued the same task
+  several times in one day while the default branch advanced.
+- Observed cost: separate runs each restarted from the snapshot prompt and re-derived all state.
+  Their reports accumulated to seven on one thread. Several runs faced a genuinely advanced default
+  branch, so re-running the rebase was correct for them; the missed step was binding to the latest
+  report before acting.
+- Final run's check: the branch sat on the current default-branch tip (merge base equal to the
+  branch tip, zero commits behind, no conflicts), all hosted checks passed, the gate label was
+  intact, auto-merge was off, and the latest report described exactly that state and named the
+  outstanding re-review gate.
+- Disposition taken: verify live state, confirm the gate state, and stop without a new report. The
+  deliverable was a stop-and-report verdict, not another duplicate report.
