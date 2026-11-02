@@ -2,7 +2,7 @@
 
 Supporting evidence for [ci-test-partition-new-modules](ci-test-partition-new-modules.md).
 Measured cases from two Python monorepo deliveries on 2026-10-26 and
-2026-10-28; all identifiers generalized.
+2026-10-28, and a third on 2026-11-02; all identifiers generalized.
 
 ## Measured case
 
@@ -72,3 +72,32 @@ Measured cases from two Python monorepo deliveries on 2026-10-26 and
   module).
 - Second hosted run: all gates green, including the 32 shards and the release
   suite job; the change merged.
+
+## Measured case 3: classified but never executed (2026-11-02)
+
+- Context: a repository with a pull-request tier and a heavier tier, 32 shards
+  each, and a JUnit artifact per shard.
+- The module of interest was correctly classified in the heavier tier. The
+  partition gate never fired, because the inventory was valid and complete.
+- A change-covering run of the pull-request profile reported green: 52 checks,
+  0 failures, and 9082 testcases across the 32 shard artifacts.
+- No case from the module of interest appeared in any of those 32 artifacts.
+  The module failed on the default branch: 1 failed, 12 passed locally.
+- The heavier tier did select the module. Its shard listed the module in the
+  shard's `modules` field, but the JUnit held 245 cases against roughly 506
+  expected, with 26 failures, so the shard stopped before the module's later
+  cases.
+- Result: the failure was reported by no CI path. Three separate failures in
+  that module had reached the default branch while every pull-request report
+  was green.
+- Recovery used: run the module directly, locally, at the default-branch
+  commit. That reproduced the red in under a second and established it as
+  pre-existing and not lane-caused.
+- Two further reds in the same module were found by other sessions with the
+  same local method, which is why per-family attribution matters here.
+- Fixes went out as small separate changes; one competing fix for the same red
+  was withdrawn in favour of the one that removed the stale citations instead
+  of widening the guard. Both were verified against the same module.
+- Retrieval boundary: byte counts, case counts and shard counts above are
+  measurements from one repository. Treat the ordering and the abort signal as
+  general; treat the exact numbers as case-specific.

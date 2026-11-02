@@ -1,12 +1,12 @@
 ---
 name: ci-test-partition-new-modules
-description: "Classify each new test module in the repository CI partition inventory in the same change, choose its tier by sibling-suite locality, and prove the partition locally with the runner's own loader. Use when: (1) a change adds a test module to a repo whose test runner requires an explicit partition of every discovered module, (2) every CI shard fails fast at configuration with an unclassified-modules partition error while lint, typecheck, and docs stay green, (3) you must decide which of several inventory lists a new module belongs to, or (4) modules in a suite directory that the tiers never select fail a union invariant while the suites run through a separate runner."
+description: "Classify each new test module in the repository CI partition inventory in the same change, choose its tier by sibling-suite locality, and prove the partition locally with the runner's own loader. Also check that the tier a module lands in actually completes on a passing run, because a correctly classified module can still be untested. Use when: (1) a change adds a test module to a repo whose test runner requires an explicit partition of every discovered module, (2) every CI shard fails fast at configuration with an unclassified-modules partition error while lint, typecheck, and docs stay green, (3) you must decide which of several inventory lists a new module belongs to, (4) modules in a suite directory that the tiers never select fail a union invariant while the suites run through a separate runner, or (5) a test fails locally with no explanation while report checks are green."
 category: ci-cd
 date: 2026-10-26
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-ci
-tags: [test-tier, module-partition, inventory-gate, unclassified-modules, fail-closed, shard-config-failure, sibling-locality, new-test-module, nontier-family, union-invariant, ci]
+tags: [test-tier, module-partition, inventory-gate, unclassified-modules, fail-closed, shard-config-failure, sibling-locality, new-test-module, nontier-family, union-invariant, tier-coverage, unexecuted-module, aborted-shard, green-signal, ci]
 ---
 
 # Classify New Test Modules in the CI Partition Inventory
@@ -107,6 +107,14 @@ PY
    Attribute each failing check family separately: when several families are
    red, a lane-caused invariant failure can hide behind foreign breakage with
    the same red badge. The union error text names its own missing modules.
+7. Do not stop at classification. A row proves the partition, not that the
+   module executes. A module in a tier that report checks do not run is
+   unguarded between the tier's runs, and a tier shard that aborts partway
+   leaves its later modules untested. Before you trust green, prove the module
+   ran: select the tier's own runner for its shard and confirm the module's
+   node IDs appear in the collected or reported set. A JUnit case count that is
+   far below the shard's expected count is the signal that the shard stopped
+   early and its remaining modules never ran.
 
 ## Failed Attempts
 
@@ -117,6 +125,8 @@ PY
 | Copy a changed-path gate rule onto the partition | Considered keeping rows for removed modules, as a diff-classification gate requires for deletions | A tree-partition gate rejects a row for a missing module as stale (`unknown modules`), the opposite deletion rule | Identify the universe the gate classifies first: tree (additions need rows, removals lose rows) versus diff (deletions keep rows) |
 | Classify a nontier suite into a tier list | Considered adding the modules of a new suite directory to a pull-request or nightly list to close a union invariant | The list identity invariants require the lists to equal the tiered root modules, so non-root rows break the invariant they were supposed to repair; the tiers would also run suites that need a separate runner environment | Close the union at discovery: name the suite directory as a nontier family in the runner; keep tier lists root-only |
 | Attribute every red check to one known cause | Assigned an inventory-invariant failure in one shard to the same foreign typecheck breakage that reddened neighboring gates | The union error named unregistered suite modules, a lane-caused first cause that earlier full runs had masked behind the foreign failures | Attribute each failing check family on its own error text; repair the lane-caused family and report the foreign one separately |
+| Trust a green report job as proof the module ran | Treated a passing pull-request test job as evidence that every change-covering module executed | The module was correctly classified in the heavier tier, so no partition gate fired; the pull-request profile never selected it, and the heavier tier's shard aborted partway before reaching it | Confirm the module's node IDs appear in the tier's collected or reported set; a green job only proves the profile it ran, not that the module executed |
+| Repair the visible failure and stop there | Fixed the reported failure in one module and closed the issue, assuming the rest of that module was covered | Other failures in the same module had already reached the default branch under green report checks, for the same reason | When a red is found in a module that report checks skip, run that module locally at once to find its other failures before you report |
 
 ## Results & Parameters
 
@@ -141,6 +151,10 @@ nightly_modules:
 - For a nontier family, the discovery returns the suite modules beside the
   tiered modules, the union invariant closes with no inventory edit, and only
   the suite's own runner selects the suites.
+- For a tier-coverage check, the module's node IDs appear in the tier runner's
+  collected set, and the shard's reported case count matches its expected
+  count. A reported count far below the expected count means the shard stopped
+  and its later modules never ran.
 
 ## Verified On
 
@@ -148,6 +162,7 @@ nightly_modules:
 | --- | --- | --- |
 | A Python monorepo with a tiered module inventory | Five new test modules; first hosted run failed all shards at configuration, corrected run green and merged | Measured case and classification counts in [notes](ci-test-partition-new-modules.notes.md) |
 | A Python monorepo with tiered root lists plus suite directories on separate runners | Six suite modules in a new directory; one shard and the suite job failed the union invariant; a discovery fix passed the tier tests locally, and the hosted run went green and merged | Second measured case in [notes](ci-test-partition-new-modules.notes.md) |
+| A Python monorepo with a report tier and a heavier tier | One already-classified module failed locally while the report job was green; the heavier tier's shard aborted partway below its expected count; three separate failures in that module had reached the default branch | Third measured case in [notes](ci-test-partition-new-modules.notes.md) |
 
 ## Related Entries
 
