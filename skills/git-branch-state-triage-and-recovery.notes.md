@@ -18,6 +18,7 @@ Supporting cases for
 | Bulk retirement bound to fresh remote enumeration | Anonymized grouped decommission session | verified-local | Remote-only five-commit series archived before deletion; foreign mid-operation objects reported and preserved; zero-ref proof in both namespaces |
 | Parallel-rewrite partial supersession in a rebase | Anonymized internal PR session | verified-local | Per-intent-unit proof found one surviving behavioral check after the resolved diff read empty; the surviving unit shipped as one minimized commit on current trunk |
 | Rebase task on a PR merged before work started | Anonymized internal rebase session | verified-local | `state=MERGED`, `mergeStateStatus=UNKNOWN`, source ref deleted; path-scoped diff against the squash merge commit read empty; no rebase and no push |
+| Tracking-ref tip read after a refspec-only fetch | Anonymized coordinated multi-lane delivery session | verified-local | The fetch updated `FETCH_HEAD` only; the tip statement was stale by dozens of merges until an unqualified fetch and the forge branch API rebound it |
 
 ## Detailed Verification
 
@@ -59,8 +60,24 @@ held only the surviving check and its selector entry. The reusable rule is to cl
 unit, not per hunk, and to treat an empty resolved diff as a signal to search for discarded
 units, not as proof of obsolescence.
 
+The refspec-fetch case came from a multi-day, multi-lane delivery drive with worktrees on several
+hosts. One lane ran `git fetch origin refs/heads/main` and then read `git rev-parse origin/main`
+to decide whether the trunk had advanced. The fetch updated `FETCH_HEAD` only; the tracking ref
+still named a commit from the previous day, so the lane's status read "trunk unchanged" while the
+forge had already merged the lane's own prerequisite pull requests (found later from the merge
+order and file-level deltas of the merge commits). The corrected procedure is mechanical: run an
+unqualified `git fetch origin` or a fetch with an explicit destination mapping before any read
+that carries a decision, and bind every published tip claim to the forge branch API
+(`gh api repos/<owner>/<repo>/branches/<branch> --jq .commit.sha`) so the record cites forge
+truth, not a local ref. The reusable rule is that a fetch form and the ref it refreshes are a
+pair: verifying one without the other produces confident stale records.
+
 ## Provenance
 
+- Amendment base: `7558d40d2c5c2d286e09eedd75de310ed79e4bb8`
+- Old/new version: `2.4.0` → `2.5.0`
+- Superseded main SHA-256 (v2.4.0):
+  `2515e31050ecb7affe88e3d9b3e091ce136810f96b6724cbe27c74379e4c62a9`
 - Amendment base: `188d710bc0b0bc1ba873402133fea0d79c61a300`
 - Old/new version: `2.3.0` → `2.4.0`
 - Superseded main SHA-256 (v2.3.0):

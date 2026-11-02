@@ -7,7 +7,7 @@ description: >-
   PR ownership, the unique patch, or the remote retirement state is uncertain.
 category: tooling
 date: 2026-10-13
-version: "2.4.0"
+version: "2.5.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-local
@@ -15,7 +15,7 @@ tags: [git, branch, triage, recovery, stale, superseded, orphan, diverged, merge
   cherry-pick, unrelated-histories, consolidation, squash-merge, stash, auto-merge,
   follow-up-branch, force-with-lease, closed-pr, replacement-pr, stacked-pr, backup-ref,
   exact-head, concurrent-trunk, artifact-provenance, decommission, remote-only-commits,
-  retirement, rebase-conflict, intent-unit]
+  retirement, rebase-conflict, intent-unit, refspec-fetch, tip-claim]
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/git-branch-state-triage-and-recovery.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -50,6 +50,9 @@ The complete superseded source is archived in
   fetched.
 - A rebase conflict places side-by-side rewrites of the same lines for the same upstream change,
   or per-hunk resolution that always takes the trunk side trends toward an empty final diff.
+- A published tip claim, a rebase base, or a mergeability or dependency check must name the
+  current remote branch state, and the last fetch used a refspec without a destination mapping
+  (for example `git fetch origin <branch>`).
 
 ## Verified Workflow
 
@@ -71,6 +74,21 @@ gh pr list --head <branch> --state all \
 
 Use `headRefName` from GitHub; never derive a PR branch from an issue number. Re-read `headRefOid`
 before pushing rewritten history.
+
+Bind every published branch-tip claim to fresh state, not to a fetch that already ran. A refspec
+fetch without a destination mapping (`git fetch origin <branch>`) updates `FETCH_HEAD` only;
+`refs/remotes/origin/<branch>` keeps its old value, so a later `git rev-parse origin/<branch>`
+reads a stale tip. Refresh the ref immediately before the claim, or read the forge directly for
+a published record:
+
+```bash
+git fetch origin              # configured refspec updates the tracking refs
+git fetch origin <branch>:refs/remotes/origin/<branch>   # explicit destination mapping
+gh api repos/<owner>/<repo>/branches/<branch> --jq .commit.sha   # forge truth
+```
+
+This rule covers each read that later carries a decision: a tip in a coordination record, the
+start point of a rebase, and any "the branch has not moved" dependency check.
 
 Read `state` with the merge state. `mergeStateStatus` is a mergeability value, not a lifecycle
 value. A task that gates on it stops only on `CLEAN`, and that gate does not catch a closed or
@@ -268,6 +286,7 @@ After push, ensure the PR head, base, and current-head checks match the recovere
 | Rebuild child from trunk | Rebuild child from trunk | Loses intended stack dependency | Rebuild from the rebased parent |
 | Trust a point-in-time inventory | Retire branches from the initial local-only inventory | A remote head held commits that no local ref fetched; a parallel stream also created new matching objects mid-operation | Re-enumerate remote and local state at execution; archive remote-unique commits before `push origin --delete`; destroy only enumerated approved items |
 | Start a rebase from a merge-state gate only | Gated a rebase task on `mergeStateStatus` and stopped only on `CLEAN` | A merged PR reports `UNKNOWN`, not `CLEAN`, so the gate passed and the rebase was attempted against a deleted branch | Read `state` with the merge state; a `MERGED` or `CLOSED` PR stops at classification |
+| Trust the tracking ref after a refspec-only fetch | Read `git rev-parse origin/main` right after `git fetch origin refs/heads/main` to decide whether the trunk had moved | The refspec fetch updated `FETCH_HEAD` only; the tracking ref still held a tip dozens of merges behind, and the trunk dependencies had in fact already merged | Refresh with an unqualified fetch or an explicit destination mapping before any tip claim, rebase base, or dependency check; for a published record, bind the tip to the forge branch API |
 
 ## Results & Parameters
 
@@ -297,4 +316,7 @@ the same lines, content-level proof means one landed verdict per intent unit.
 - Verified-local branch recovery cases through 2026-07-13.
 - A merged-PR-at-task-start case on 2026-10-31 proved path-scoped content equivalence against the
   merge commit and the `UNKNOWN` merge state of a merged PR.
+- A refspec-only fetch plus a tracking-ref read on 2026-11-02 reported a trunk tip dozens of
+  merges behind the forge during a coordinated multi-lane delivery drive; the corrected binding
+  used an unqualified fetch and the forge branch API.
 - Compacted for issue #3335; evidence status was preserved without promotion.
