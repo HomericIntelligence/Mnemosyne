@@ -1,9 +1,9 @@
 ---
 name: tooling-opencode-v2-corrupt-db-recovery
-description: "Recover session history from a corrupt OpenCode V2 SQLite database and merge it into a rebuilt install. Use when: (1) the server log shows `database disk image is malformed` or sessions fail to drain with SqlError; (2) you must decide whether the file is really damaged or a stale process older than the installed binary is reading it; (3) the data directory was moved aside and a fresh install must re-integrate old sessions; (4) you must select which tables to merge and which to exclude; (5) you plan backups for a database on shared or network filesystem storage; (6) after a merge or restore, new turns on restored sessions do not persist, or new transcript rows appear underneath old rows."
+description: "Recover session history from a corrupt OpenCode V2 SQLite database and merge it into a rebuilt install. Use when: (1) the server log shows `database disk image is malformed` or sessions fail to drain with SqlError; (2) you must decide whether the file is really damaged or a stale process older than the installed binary is reading it; (3) the data directory was moved aside and a fresh install must re-integrate old sessions; (4) you must select which tables to merge and which to exclude; (5) you plan backups for a database on shared or network filesystem storage; (6) after a merge or restore, new turns on restored sessions do not persist, or new transcript rows appear underneath old rows; (7) `integrity_check` and `quick_check` both pass, but `PRAGMA foreign_key_check` reports `session_message` rows whose `session_v2` parent is absent, so messages exist but no session lists them."
 category: tooling
 date: 2026-10-16
-version: "1.2.0"
+version: "1.3.0"
 user-invocable: false
 tags: [opencode, sqlite, corruption-recovery, database, session-history, merge, backup, sequence-counter]
 ---
@@ -25,12 +25,15 @@ tags: [opencode, sqlite, corruption-recovery, database, session-history, merge, 
 - You must decide which tables and directories are safe to merge and which must stay excluded.
 - The database lives on shared or network filesystem storage and you want a backup plan before the same failure class repeats.
 - A merge or restore completed earlier, and now new turns on restored sessions do not persist, attach hangs before the first reply, or new transcript rows appear at low `seq` values underneath old rows.
+- The database checks clean, but completed turns are unreachable: their `session_message` rows exist while the `session_v2` row for the session does not, so the product never lists the session.
 
 Do not use this workflow to repair the corrupt file in place. Keep the corrupt sources read-only evidence and merge salvaged rows into the live database instead.
 
 Do not start a salvage or rebuild because the log says `malformed` alone. This message can come from a stale reader against an intact file. Rule out that case first (step 1).
 
 Do not repair sequence counters when the failure is `Location not found` for the session's stored directory. That sign means the session points at a deleted project directory; re-point the session at an existing directory through the session-management API instead (step 9 distinguishes the two).
+
+Do not blame an absent parent row on page loss before you search the recovery sources. A restore that inserts messages and session rows in separate steps, or that resets its sequence counters, can drop a parent row while its children survive intact. Bind the repair to the parent rows you find in those sources (step 11).
 
 ## Verified Workflow
 
@@ -45,6 +48,7 @@ opencode service stop                                # no second writer during t
 sqlite3 ~/.local/share/opencode/opencode.db < merge.sql           # see Results & Parameters
 opencode service start
 sqlite3 ~/.local/share/opencode/opencode.db < counter_reconcile.sql   # post-merge gate; see Results & Parameters
+sqlite3 "file:$DB?mode=ro" "PRAGMA foreign_key_check;"           # post-merge gate: must print nothing
 ```
 
 ### Suggested Approach
@@ -59,6 +63,7 @@ sqlite3 ~/.local/share/opencode/opencode.db < counter_reconcile.sql   # post-mer
 8. **Verify through the product, then back up.** After restart: `PRAGMA integrity_check` on the live database, restored counts present, and `opencode session list -n 1000` inside a project directory returns the restored history (the list counts top-level sessions of the current project, so a global count needs the database query). Take one `sqlite3 <live.db> ".backup '<dst>'"` online backup immediately; the WAL-aware backup API is safe while the service runs.
 9. **Reconcile per-session sequence counters, then verify with a live turn.** A merge that restores `event_sequence` rows with `INSERT OR IGNORE` can leave a restored session with a counter lower than its merged history: the primary-key rule kept the fresh install's row, and the fresh install's counters started near zero. The service allocates each new message's `seq` from this counter, so appends to such a session start at low values: early rows land underneath older history, and once allocation reaches occupied `seq` values the unique `(session_id, seq)` index rejects every further insert. The turn runs to completion, but its rows never persist. Audit every restored session: the healthy invariant is a missing counter row (the service rebuilds it lazily) or a counter greater than or equal to `MAX(session_message.seq)` for that session; a present-but-low counter is the defect. Raise low counters to the stored maximum in one transaction (the repair SQL in Results & Parameters; `BEGIN IMMEDIATE` serializes it against live allocations). Then send one verification turn to a repaired session and confirm its rows persist above the old maximum and the counter tracks the new maximum. While triaging restored sessions, classify recent activity by `time_created` windows, not by `MAX(seq)`: while low rows are still landing, `MAX(seq)` reports old history as the newest message.
 10. **Prevent the same class.** Keep the service stopped during upgrades and avoid duplicate service processes; both conditions preceded the failure here. Retire the moved-aside directories only as a separate destructive step after the restored history is confirmed in the product.
+11. **Audit parent rows with `foreign_key_check`, not only `integrity_check`.** A B-tree check proves that pages are readable; it does not prove that a child row still has its parent. Run `PRAGMA foreign_key_check;` after every merge or restore and treat any row as unreachable history. Group the failures by parent table. For a missing `session_v2` row, confirm the damage is a lost parent and not lost work: compare the child message count with the recovery sources, and count the child rows that the source also holds. When the parent rows exist in a source and every child row is accounted for, re-insert the parents with named column lists and `INSERT OR IGNORE`, parents before children, inside one `BEGIN IMMEDIATE` transaction. Verify before `COMMIT` that the check returns no rows and that the visible message count equals the total message count (Results & Parameters). Rehearse the same script against a backup copy and compare its report with the live run. Do not delete the orphaned children; they are the evidence that the parent row was lost. A low `event_sequence` counter on a session that must be repaired is a second, separate defect: repair it with step 9 after the parent rows return.
 
 ### Optional: archive transcripts after recovery
 
@@ -74,6 +79,7 @@ A per-session JSONL dump of the merged database (one file per session, header li
 | Reattach `lost_and_found` rows as lost table rows | Planned to push all 2,452 salvage-orphaned rows back into their tables. | Sampling by `rootpgno` and `nfield` showed every row was an index entry (short key columns plus a rowid, for example a `(session_id, type, seq)` index), not table data; insertion would have added garbage duplicates. | Treat `lost_and_found` as evidence, not data: classify by field count and content shape, and decline reattachment when rows are index-shaped. |
 | Automated backup schedule through the user crontab | Installed a daily `sqlite3 .backup` cron entry. | The host denied user crontab use (`cron.allow`), and no systemd user bus was available for a timer fallback. | Probe scheduler availability (`crontab -l`, `systemctl --user status`) before promising automation; otherwise deliver the tested script with an exact manual invocation. |
 | Trusted `MAX(seq)` as the newest-message signal after a merge | Classified post-merge turns per restored session by last-row type and `MAX(seq)`, and re-sent turns that looked undelivered. | Restored sessions kept low `event_sequence` counters, so new rows landed at low `seq` values underneath older history; `MAX(seq)` reported old rows as newest, and later appends hit occupied `seq` values, failed the unique `(session_id, seq)` index, and never persisted. Completed turns looked undelivered, and re-sends could not fix them. | After a merge that restores `event_sequence`, audit `counter >= MAX(seq)` per session and repair low counters before sending new turns; classify post-merge activity by `time_created` windows, not by `MAX(seq)`. |
+| Stopped at a clean `integrity_check` after a restore | Treated `quick_check: ok` and `integrity_check: ok` as proof that the restore was complete. | Both checks passed while 1,687 `session_message` rows had no `session_v2` parent, so eleven completed sessions, two still active, never appeared in the product; `PRAGMA foreign_key_check` reported every row. | Run `foreign_key_check` with the B-tree check. Parent rows survive as data while their own rows are lost, so a child-only orphan is a repair target, not page loss. |
 
 ## Results & Parameters
 
@@ -103,6 +109,36 @@ COMMIT;
 DETACH rec;
 PRAGMA wal_checkpoint(TRUNCATE);
 ```
+
+### Orphaned-child detection and parent restore
+
+Locate the unreachable history. A non-zero count is the defect; group it by table to see which parent is missing:
+
+```sql
+PRAGMA foreign_key_check;
+SELECT m.session_id, COUNT(*) AS messages, MAX(m.time_created) AS last_activity
+FROM session_message m
+WHERE m.session_id NOT IN (SELECT id FROM session_v2)
+GROUP BY m.session_id ORDER BY last_activity;
+```
+
+Restore the missing parents from a recovery source. Run it with the service stopped, after a `sqlite3 <live.db> ".backup"` copy, and rehearse it on that copy first. Column order can differ between generations, so build the named list from `PRAGMA table_info(session_v2)` and never use `SELECT *`:
+
+```sql
+.bail on
+PRAGMA busy_timeout=120000;
+ATTACH '/path/to/recovery-source.db' AS src;
+BEGIN IMMEDIATE;
+INSERT OR IGNORE INTO session_v2 (id, project_id, /* ...full column list... */ resume_attempts)
+  SELECT id, project_id, /* ...same list... */ resume_attempts FROM src.session_v2
+  WHERE id IN (SELECT session_id FROM session_message
+               WHERE session_id NOT IN (SELECT id FROM session_v2));
+COMMIT;
+DETACH src;
+PRAGMA wal_checkpoint(TRUNCATE);
+```
+
+Gates inside the same transaction, before `COMMIT`: `SELECT COUNT(*) FROM pragma_foreign_key_check;` returns 0, and the join `session_message m JOIN session_v2 s ON s.id = m.session_id` equals `SELECT COUNT(*) FROM session_message`. Then repair any low counter (step 9) and restart.
 
 ### Post-merge sequence-counter reconciliation
 
@@ -144,6 +180,7 @@ sqlite3 "file:<that-file>?mode=ro" "PRAGMA quick_check;"   # expect: ok
 - Live counts reach restored totals (in the verified run: 16 projects, 1,710 sessions, 71,864 messages), and no `Failed to drain` entries appear in the new server log.
 - `opencode session list -n 1000` run inside a restored project directory lists the recovered history; sessions whose pages were destroyed open with truncated or missing transcripts (about 3% of sessions here) and are identifiable by message count 0.
 - After counter reconciliation, the audit query returns no rows; a verification turn on a repaired session persists rows with `seq` above the repaired counter, and the counter equals the new maximum.
+- `PRAGMA foreign_key_check` returns no rows, and every `session_message` row joins to a `session_v2` row.
 
 ## Verified On
 
@@ -152,6 +189,7 @@ sqlite3 "file:<that-file>?mode=ro" "PRAGMA quick_check;"   # expect: ok
 | OpenCode v2.0.29–v2.0.31 (public release) | 765 MB malformed `opencode.db` (1,764 sessions, 71,868 messages) on network filesystem storage; trigger: duplicate service spawn plus hot upgrade while live | [notes.md](../skills/tooling-opencode-v2-corrupt-db-recovery.notes.md) |
 | OpenCode v2.1.x (public release) | Intact `opencode.db` that reported `malformed` from a live process older than the installed binary during a version overlap; `integrity_check` clean, history served normally | [notes.md](../skills/tooling-opencode-v2-corrupt-db-recovery.notes.md) |
 | OpenCode v2.1.x (public release) | Restored fleet, weeks after the merge: completed turns on restored sessions did not persist; audit found low `event_sequence` counters against high stored maxima; 15 counters repaired in one transaction, then verified end to end (a verification turn persisted above the old maximum and the counter tracked it) | [notes.md](../skills/tooling-opencode-v2-corrupt-db-recovery.notes.md) |
+| OpenCode v2.2.4 (public release) | Second restore run on the same file: `integrity_check` and `quick_check` both `ok`, but 11 sessions lost their `session_v2` rows while 1,687 of their messages survived, and 7 `event_sequence` counters were low against stored maxima of 2,177–4,880; every parent row was present in a peer snapshot, and a rehearsal restore removed all 1,687 violations | [notes.md](../skills/tooling-opencode-v2-corrupt-db-recovery.notes.md) |
 
 ## References
 

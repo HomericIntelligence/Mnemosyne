@@ -14,6 +14,8 @@ retrievable main. The complete superseded main is archived only in the history c
 | Extracted post-merge session drivers | [Immutable source at batch base](https://github.com/HomericIntelligence/Mnemosyne/blob/d377a8924aff84e5cc193b720130b4c57e38c5c3/skills/tdd-workflow-and-test-coverage-expansion.md) | verified-ci |
 | ProjectOdyssey all-covered hash audit | [Immutable source at batch base](https://github.com/HomericIntelligence/Mnemosyne/blob/d377a8924aff84e5cc193b720130b4c57e38c5c3/skills/tdd-workflow-and-test-coverage-expansion.md) | verified-ci |
 | EvaluationService seven-PR coverage swarm | [Immutable source at batch base](https://github.com/HomericIntelligence/Mnemosyne/blob/d377a8924aff84e5cc193b720130b4c57e38c5c3/skills/tdd-workflow-and-test-coverage-expansion.md) | verified-local |
+| Stale-consumer sweep after a seam or message change | This entry’s v2.2.0 delivery pull request | verified-ci |
+| Declared-value fixture sweep after a policy change | This entry’s v2.3.0 delivery pull request | verified-local |
 
 ## Script-Coverage Campaigns
 
@@ -58,6 +60,26 @@ output was a requirement-to-test mapping and zero duplicate tests. By contrast, 
 EvaluationService campaign genuinely needed seven isolated PRs and 518+ tests. Its CI workflow
 manually enumerated test files, so each worker had to update the appropriate shard and audit new
 test docstrings before delivery.
+
+## Stale-Consumer Sweep
+
+In one Python CLI repository, a change reshaped a shared test-context seam and rewrote a
+command’s refusal text. The primary test file was updated, but two sibling test files still
+built the old context and asserted the retired text; CI failed exactly those two files and no
+others, which confirmed the sweep’s completeness. The repair searched the test tree for the old
+attribute name and a distinctive fragment of the old text, updated both consumers in the same
+commit, and re-ran the focused files before the push. Cite a negative sweep result only with
+coverage evidence, as [negative-scan-coverage-attestation](./negative-scan-coverage-attestation.md)
+requires.
+
+In a permission-policy repository (name withheld), a policy row gained an exact declared mode for
+a managed root, and fixture builders that hardcoded the retired mode failed at guard entry. The
+first pass aligned one test module, found 47 guard-entry failures across sibling modules, and
+moved those fixture roots to the declared mode. A literal sweep later found three more fixtures
+in one more test module that the change had never touched; a test-only commit aligned them and
+the focused runs passed. The classification is `verified-local`: green local runs, no hosted
+cause-and-effect run. The sweep keys stay the same shape as the seam and message cases, but the
+search term is the retired literal, not a name or a message fragment.
 
 ## Compaction Disposition
 

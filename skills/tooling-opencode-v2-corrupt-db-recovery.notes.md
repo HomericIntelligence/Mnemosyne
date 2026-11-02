@@ -226,3 +226,53 @@ trigger counter repairs.
 - Store-scale context: a full audit found `event_sequence` rows for only about
   1.6k of about 4.3k sessions. Absence is safe, so exposure concentrates in
   sessions that have a row and were touched by a merge or repair.
+
+## Lost parent rows after a successful restore (v2.2.4)
+
+A restore run on a database that was already large reported success on its own
+gates. Those gates were `quick_check: ok`, row counts, and the restored session
+time span. Each gate passed. Each gate missed the defect below.
+
+- Live size at triage: about 2 GB database, about 4.8k sessions, about 248k
+  messages; `lost_and_found` and `lost_and_found_0` tables present from an
+  earlier `.recover` run of the same file.
+- `PRAGMA quick_check` and `PRAGMA integrity_check` both returned `ok`.
+- `PRAGMA foreign_key_check` returned 1,698 rows: 1,687 on `session_message`
+  and 11 on `instruction_state`, all for one missing parent each.
+- The 1,687 messages belonged to 11 sessions, two of them still active (rows
+  from the same day as the triage). The affected window started two weeks
+  before triage, so the loss was not confined to old history.
+- All 11 parent `session_v2` rows were present and complete in a peer snapshot
+  taken before the restore. The two other recovery sources held none of them.
+- 1,683 of the 1,687 message ids also existed in the peer snapshot; the other
+  four were housekeeping rows written after the restore, which shows the loss
+  is a missing parent and not missing work.
+
+Diagnosis: the parent rows were lost, not the page tree. The restore wrote
+messages and session rows in separate phases, so a session row could be absent
+while all of its messages were present. A child-only orphan is repairable when
+a source holds the parent.
+
+Rehearsal before the live run: copied the database with the SQLite backup API,
+then re-inserted the 11 parents with a named column list and `INSERT OR IGNORE`
+inside one transaction. Result: 11 rows inserted, `foreign_key_check` clean, and
+visible messages equal to the total message count (225,792). Column set and
+order matched between the live database and the snapshot, but the script reads
+`PRAGMA table_info` instead of assuming it.
+
+Second defect found in the same audit: 7 `event_sequence` counters at 3–4
+against stored maxima of 2,177–4,880. A sample showed the documented signature:
+new `synthetic`/`system`/`idle` rows at `seq` 0–3 with same-day timestamps,
+above an older history that starts at `seq` 4. Those seven sessions accepted a
+turn start but cannot persist the rest of it. Repair order that matters: restore
+the parents first, then repair counters, then send a verification turn.
+
+Process notes:
+
+- The repair commands were cancelled repeatedly by the harness before their
+  first step. A cancelled run left no backup and no write, so the state stayed
+  identical; one message for the B-tree check also aborted before output and
+  had to be re-run. Re-check live state after a cancelled command instead of
+  assuming that any step ran.
+- A long inline shell script is a poor vehicle for this repair. Prepare a small
+  script, rehearse it on a copy, and run it as one step with its own report.

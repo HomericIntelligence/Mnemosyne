@@ -1,13 +1,13 @@
 ---
 name: planning-check-already-shipped-before-planning
-description: "Check whether follow-up work already exists before planning it. Use for stale issue paths, counts, uncommitted work, partial delivery, and closeout evidence."
+description: "Check whether follow-up work already exists before planning or re-running it. Use for stale issue paths, counts, uncommitted work, partial delivery, closeout evidence, multi-item issues with a recorded remainder, and re-dispatched task runs."
 category: architecture
 date: 2026-06-19
-version: "2.2.0"
+version: "2.4.0"
 user-invocable: false
 license: BSD-3-Clause
 verification: verified-local
-tags: [planning, already-shipped, stale-premise, extraction, migration, provenance, closeout, cross-repo, acceptance-criteria, replan]
+tags: [planning, already-shipped, stale-premise, extraction, migration, provenance, closeout, partial-delivery, remainder-list, class-conversion, cross-repo, acceptance-criteria, replan, redispatched-task, duplicate-report]
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/planning-check-already-shipped-before-planning.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -19,7 +19,9 @@ history-cleanup-date: "2026-09-20"
 An issue describes a past snapshot, not necessarily the current tree. Before designing work, prove
 whether the requested behavior is absent, already merged, or present as uncommitted work in another
 worktree. A shipped implementation changes the deliverable from reimplementation to a
-forward-looking verification-and-closeout plan; it does not eliminate the need for a plan.
+forward-looking verification-and-closeout plan; it does not eliminate the need for a plan. A prior
+completed run of a re-dispatched task changes the deliverable from re-execution to a
+verification-and-stop verdict; it does not call for a new report.
 
 The operational rules are retained here. Session transcripts and case-specific counts are in
 [the notes](./planning-check-already-shipped-before-planning.notes.md); the exact superseded skill is
@@ -42,6 +44,8 @@ plans and sibling-repository CI retain their documented evidence limits.
 - An agent is about to claim an unassigned issue for a plan-implement cycle, and the issue's
   evidence cites files and symbols at report time; a merged fix that never referenced the issue
   leaves the issue open while the behavior already holds at the default branch.
+- The same operational task was dispatched more than once, and an earlier run may have completed
+  it, including its required report write.
 
 ## Verified Workflow
 
@@ -73,6 +77,11 @@ git show <fix-commit> --stat
 gh pr list --state all --search '<issue-number> in:body' \
   --json number,state,mergedAt,url
 git show origin/main:path/to/file | grep '<acceptance-marker>'
+
+# Re-dispatched task: bind live state and the latest prior-run report first.
+git fetch origin
+gh pr view <number> --json headRefOid,baseRefName,mergeStateStatus,labels,comments
+git merge-base --is-ancestor origin/main HEAD && echo "branch sits on the current base"
 ```
 
 ### 1. Freeze the evidence boundary
@@ -91,7 +100,23 @@ Inspect every worktree. `git log` cannot reveal an uncommitted implementation in
 For each candidate, compare status, branch, base, and the relevant paths. Never overwrite or absorb
 uncommitted work while performing this read-only investigation.
 
-### 2. Test the issue premise cheaply
+### 2. Verify prior runs of a re-dispatched task
+
+The same operational task can reach several agent runs, and each run receives the same snapshot
+prompt. An earlier run may have finished the whole task, including its required report write.
+Before you execute, bind the live state and the latest prior report to the task's completion
+criteria:
+
+- Read the destination surface first: branch head, base, merge state, gate labels, check results,
+  and the latest status comments.
+- Treat the latest completion report as evidence, not as truth. Re-prove each reported claim
+  against live state.
+- If every completion criterion already holds and the latest report matches that state, the
+  deliverable is complete. Verify, record the verdict, and stop. Add no new report.
+- If live state moved after the latest report, do only the delta: re-run the affected step,
+  publish one updated report, and keep prior evidence that still holds.
+
+### 3. Test the issue premise cheaply
 
 Run existence, absence, and symbol searches before a full build:
 
@@ -106,7 +131,7 @@ Measure cited LOC, methods, files, and generated artifacts directly. Store each 
 reuse it throughout the plan. If the issue estimate differs, state both the estimate and the current
 measurement; do not silently mix them.
 
-### 3. Map acceptance criteria to evidence
+### 4. Map acceptance criteria to evidence
 
 Create a table with one row per acceptance criterion: current observation, exact command, expected
 result, evidence boundary, and remaining action. Build and run the actual suite needed by “CI passes”;
@@ -131,7 +156,42 @@ tests, close the issue as completed, and release the claim. Start no plan cycle 
 duplicate regression guard: the fix's own tests are the guard. Reserve the regression-guard route
 for the case where the invariant holds but no test pins it.
 
-### 4. Establish provenance before disposing of failures
+### 4a. Separate the closed items from the open items
+
+An issue that names several items is usually a partial delivery. Do not select "already shipped,
+close it" or "not shipped, plan it" from the issue state or from the latest merged PR alone. Read the
+primary record to get an explicit remainder list, then decide for each item:
+
+1. Read the issue, its deciding comments, and the authority record it cites (ADR, design plan,
+   owner decision). The authority record carries the general rule and the per-item verdicts.
+2. Open the primary record of the merged delivery and find the section that names what it did **not**
+   do. Use that list as the remainder boundary. Do not derive the remainder from the diff alone.
+3. Verify each item marked done: read the cited symbol and confirm it has the new behavior, not only
+   that the file changed.
+4. Verify each listed remainder: read the cited site and confirm it still has the old behavior.
+5. For each remainder, write down the decided class: convert, keep, delete, or defer with an owner.
+   A site that the authority record places in the same class as a shipped item belongs to the
+   remainder, even when the last merged PR kept it.
+6. Plan only the remainder, and state the evidence for each closed item in the plan.
+
+Before you write the plan, scan the tree for every other site that carries the same defect class.
+The authority record usually samples this population. A hand-written list of remaining sites
+understates the work, and the plan then passes an early review and fails at implementation. Bound
+the scan by a decision rule that names the keep class in words, for example authority and
+authentication checks.
+
+A class conversion changes control flow across many callers. Put these counts in the plan; they are
+the sites a reviewer finds first:
+
+- the count of changed function signatures, and each caller of each signature;
+- each reference to a symbol you delete, including the import line, every `except` clause, and
+  every module-level tuple or re-export that names it;
+- each trusted module that cannot import the new dependency by design, which needs a callback or a
+  threaded value instead.
+
+Measure each count with a search command and keep the command result as the evidence.
+
+### 5. Establish provenance before disposing of failures
 
 A failing test is not “someone else's branch” merely because its source file is untracked. Inspect
 the test, build wiring, generated registrations, and configuration separately. An untracked test
@@ -143,7 +203,7 @@ versus `M`, and `git show HEAD:<wiring>` to compare committed wiring. Then eithe
 exclude the WIP from the deliverable without discarding it, or route a real pre-existing defect to a
 separate issue with evidence.
 
-### 5. Reframe shipped work as a forward-looking plan
+### 6. Reframe shipped work as a forward-looking plan
 
 Do not submit a retrospective list of what already happened. Plan remaining actions with named
 actors and gates, for example:
@@ -157,14 +217,14 @@ Use the authorized validation path, including delegation where the host requires
 from the evidence available at the deadline. If a long job is pending, mark that row pending and
 provide the rest; an empty placeholder is not a plan.
 
-### 6. Preserve repository and PR boundaries
+### 7. Preserve repository and PR boundaries
 
 A change in `../OtherRepo/` requires a branch and PR in that repository. A local build of the sibling
 does not prove its hosted CI; use `gh pr checks --repo <owner>/<other> <pr>`. Keep red local WIP out
 of a closeout/docs commit, run the labels that cover the deliverable, and route unrelated defects
 without claiming they are green.
 
-### 7. Final consistency audit
+### 8. Final consistency audit
 
 Immediately before publishing, re-fetch and re-run the cheap checks because another PR may have
 merged during planning. Reconcile all counts, paths, SHAs, issue/PR states, and test totals. Ensure
@@ -183,6 +243,7 @@ If code comments attribute work to an ADR, open the ADR itself; comments are not
 | Dismiss red tests by assumption | Called an untracked test foreign WIP | Modified committed wiring made it part of the current build | Prove source and wiring provenance independently |
 | Bundle sibling-repository work | Edited `../OtherRepo/` from the current PR | A branch cannot deliver changes to another repository | Create a separate PR and verify its hosted checks |
 | Repeat remembered counts | Different sections used different totals | Reviewers could not tell which snapshot was authoritative | Measure once and reconcile everywhere |
+| Re-run a dispatched task from its snapshot prompt | Started the task again after an earlier run had completed it and posted the report | The prompt described stale state, and no run compared the latest report with live state before acting | Bind live state and the latest report first; when they already satisfy the criteria, verify, record the verdict, and add no new report |
 
 ## Results & Parameters
 
@@ -195,6 +256,7 @@ If code comments attribute work to an ADR, open the ADR itself; comments are not
 | Failure is unrelated | HEAD/local provenance plus a separately routed owner/issue |
 | Cross-repo CI is green | `gh pr checks` in that repository |
 | Count is authoritative | One runnable command and one recorded result reused throughout |
+| Re-dispatched task is already complete | Live head/base/label/check state plus the latest prior report that matches it; deliver no new report |
 | Closeout is ready | All mapped criteria and repository-required checks pass |
 
 ## Verified On
@@ -204,6 +266,8 @@ If code comments attribute work to an ADR, open the ADR itself; comments are not
 - 2026-10-31 amendment: the pickaxe fallback for a merged fix whose PR body lacks the issue
   reference, and the fixed-elsewhere closeout disposition, were exercised on a live claim decision
   (`verified-local`).
+- 2026-10-31 amendment: the re-dispatched-task check was exercised on a live rebase task whose
+  prior run had already completed it, including its report write (`verified-local`).
 - Individual case outcomes and limitations are indexed in
   [the notes](./planning-check-already-shipped-before-planning.notes.md).
 

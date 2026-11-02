@@ -1,13 +1,13 @@
 ---
 name: git-rebase-signing-ci
 license: BSD-3-Clause
-description: "Diagnose signature failures, resume a justified rebase after conflicts, re-sign rewritten commits when the rebase replay is a silent no-op, and compare signing repair with current branch-update or merge-queue requirements."
+description: "Diagnose signature failures, resume a justified rebase after conflicts, re-sign rewritten commits when the rebase replay is a silent no-op, compare signing repair with current branch-update or merge-queue requirements, and tell a label short-circuit apart from a signature failure when a provenance gate fails inside review-to-merge drive work."
 category: tooling
 date: 2026-07-17
-version: "1.7.0"
+version: "1.8.0"
 user-invocable: false
 verification: verified-ci
-tags: [git, signing, rebase, ci, gpg, exec, conflict-resolution, update-branch, force-with-lease, stale-info, branch-protection, up-to-date, stacked-pr, squash-merge, merge-queue, ssh-signing, commit-tree, provenance-gate]
+tags: [git, signing, rebase, ci, gpg, exec, conflict-resolution, update-branch, force-with-lease, stale-info, branch-protection, up-to-date, stacked-pr, squash-merge, merge-queue, ssh-signing, commit-tree, provenance-gate, label-gate]
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/git-rebase-signing-ci.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -20,7 +20,7 @@ history-cleanup-date: "2026-09-20"
 |-------|-------|
 | **Date** | 2026-07-16 |
 | **Objective** | Sign all PR commits to pass CI pr-policy checks that require GPG signatures, avoid commit corruption when a `--exec` rebase stops on a real conflict, and avoid the server-side branch updater that silently strips signatures |
-| **Outcome** | Successful — all commits show 'G' (good signature) after rebase; corrupted-commit failure mode documented with a safe recovery + redo procedure; server-side `update-branch` signature-stripping confirmed red-then-green in CI across two PRs |
+| **Outcome** | All commits show 'G' after rebase; corruption recovery, server-side stripping, and the label short-circuit have verified steps |
 | **Verification** | verified-ci |
 | **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/git-rebase-signing-ci.history) |
 
@@ -38,9 +38,8 @@ history-cleanup-date: "2026-09-20"
 - `git push --force-with-lease` is rejected with `stale info` after a server-side branch update
 - The repository requires strictly up-to-date branches AND signed commits, no merge queue is
   enabled, and several PRs must merge in sequence
-- The same repository has NO integration mechanism at all (no merge queue, no branch-update bot),
-  CI time meets or exceeds the base-move cadence, and an armed auto-merge never fires because the
-  head is stale again before checks go green
+- The same repository has NO integration mechanism at all (no merge queue, no branch-update bot)
+  and an armed auto-merge never fires because the head goes stale before checks pass
 - A GitHub merge queue IS enabled — before preparing any re-signed rebase, confirm the PR is not
   simply queueable (the queue makes the local rebase unnecessary)
 - A stacked PR's base branch was squash-merged and the branch now shows CONFLICTING
@@ -56,28 +55,23 @@ history-cleanup-date: "2026-09-20"
   key) signed the commit, and the forge cannot bind it to the author's registered keys
 - You must re-sign a stack whose tree content must stay byte-identical and whose commits already
   sit on their base, so a plain `--exec` replay would no-op
+- A provenance gate failed inside review-to-merge drive work, and you must order the label fix
+  and the signature fix
 
 ## Verified Workflow
 
 ### Current applicability
 
 Use [verify-pr-ready](verify-pr-ready.md) for live policy, affected validation, and evidence
-reuse. A branch behind main is not itself blocked. During active work, rebase only for a blocker
-or required main content. After task completion, rebase only for a host-reported merge conflict;
-otherwise CI/CD or the merge queue integrates main. Keep required CI and exact-head review before
-merge. PR publication can precede validation if pending results are clear.
-Cleanup is separate from rebasing. Historical verification below does not verify this
-policy correction or the current version of an external tool.
+reuse. A branch behind main is not itself blocked. Rebase only for a blocker, required main
+content, or a host-reported merge conflict; otherwise CI/CD or the merge queue integrates
+main. Keep required CI and exact-head review before merge.
 
 ### Signing repair boundary
 
-Signing repair is separate from target integration. If a commit must be re-signed, keep
-its intended source content and ancestry unless integration is also necessary. The
-`origin/main` rebase examples below apply only when that integration is justified.
-A strict freshness rule is an actual policy gate, but does not mandate rebase as its
-only solution. Check the live update methods and merge queue. A status label alone does
-not prove queue eligibility. Do not repeat a full local suite solely because main moved;
-select affected checks and retain required CI.
+Signing repair is separate from target integration. Re-sign without changing source content
+or ancestry unless integration is also necessary. The `origin/main` examples below apply only
+when integration is justified. Do not repeat a full local suite solely because main moved.
 
 ### Quick Reference
 
@@ -205,26 +199,10 @@ local; a server-side branch update has the same signature-stripping effect as ab
    `git log --format='%G?' <base>..HEAD` after any exec-based repair; an unchanged result
    means the replay was a no-op, not a signing failure.
 2. **Reliable fallback — rebuild the exact stack with `commit-tree`:** replay each commit
-   into a new signed object, preserving author, committer, both dates, tree, and message:
-
-   ```bash
-   base=$(git rev-parse origin/main); cur=$base
-   for h in $(git log --format=%H --reverse origin/main..HEAD); do
-     tree=$(git log -1 --format=%T $h)
-     export GIT_AUTHOR_NAME=$(git log -1 --format=%an $h) \
-            GIT_AUTHOR_EMAIL=$(git log -1 --format=%ae $h) \
-            GIT_AUTHOR_DATE=$(git log -1 --format=%ai $h) \
-            GIT_COMMITTER_NAME=$(git log -1 --format=%cn $h) \
-            GIT_COMMITTER_EMAIL=$(git log -1 --format=%ce $h) \
-            GIT_COMMITTER_DATE=$(git log -1 --format=%ci $h)
-     cur=$(git log -1 --format=%B $h | git commit-tree -S $tree -p $cur)
-   done
-   git log --format='%h %G?' $base..$cur   # every entry G (or U with SSH keys)
-   git log --format=%B $base..$cur > /tmp/new.txt
-   git log --format=%B origin/main..HEAD > /tmp/old.txt
-   diff /tmp/old.txt /tmp/new.txt          # empty: messages preserved exactly
-   git push --force-with-lease origin $cur:<branch>
-   ```
+   into a new signed object, preserving author, committer, both dates, tree, and message.
+   The loop is in [notes](git-rebase-signing-ci.notes.md). Verify every `%G?` entry and
+   `diff` the old and new message lists (empty). Then `git push --force-with-lease` the
+   rebuilt head.
 
    Every rebuilt commit is a new object, so the forge's per-commit check re-runs from
    scratch on the pushed head. Build in a detached worktree; leave the local branch alone.
@@ -291,6 +269,32 @@ Rewrite consequences: every review record, assessment, or chain carrier bound to
 head becomes void. Re-run any head-bound review or delivery against the new head; do not
 treat pre-rewrite evidence as covering the new objects.
 
+### Label short-circuit versus signature failure in drive-to-merge work (v1.8.0)
+
+A provenance workflow often gates on a state label *and* on a verifiable signature. Read its
+trigger list and step order before you repair anything. A common shape runs the label check
+first and exits non-zero, so a run that lacks the label never reads a signature.
+
+1. **Read the trigger list.** Find the workflow and list its `on.pull_request_target.types`.
+   A `labeled` trigger fires when the state label is applied, with the new label set in the
+   payload, so that run can pass at the current head with no push. A workflow that lists only
+   `synchronize` replays the label state in the run's payload, and then a push is required.
+2. **Read the failing step, not the check name.** When the failing step is the label check,
+   the gate stopped before the signature step. Inspect the commits separately, through the
+   forge API or `git log --format='%h %G?'`. A signature defect still needs repair, but it is
+   not the cause of that run's failure.
+3. **Fix the signature first, then the label.** Re-sign or rebuild the head per the sections
+   above. A review bound to a head that the provenance gate would reject is stale as soon as
+   the head moves.
+4. **Bind the review, then set the label, then wait.** Review the exact new head and apply the
+   state label. A `labeled`-triggered run starts at that head. Watch it to a terminal
+   conclusion instead of pushing a placeholder commit.
+5. **Record one correction if a push was not necessary.** Name the run that already passed in
+   one comment. Do not rewrite published history to fix a no-op commit message.
+
+A rebase in drive work can re-create signed commits as unsigned ones, including the commit
+that the rebase was meant to repair. Check `%G?` on every commit *after* the rebase.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -305,6 +309,7 @@ treat pre-rewrite evidence as covering the new objects.
 | Re-signing a rewritten branch with `git rebase --exec 'git commit --amend -S --no-edit' origin/main` | Standard exec-based re-sign after a forge commit-provenance gate failed with `invalid_signature` on every rewritten commit | The replay absorbed the picks — the rewritten commits already sat on top of the current base, so git skipped every pick and the exec hook never ran; the command exited instantly, no new objects were created, and `%G?` stayed `N` on the whole stack | Check `%G?` after any exec-based repair; when it does not change, the replay was a no-op — rebuild the stack per-commit with `commit-tree -S` (preserving author, committer, and both dates) and force-push the rebuilt head; every rebuilt commit is a new object and re-triggers the forge check |
 | Signing through a privately built/bundled git with `gpg.format=ssh` | Running the `commit-tree` re-sign loop with a bundled git binary whose launcher sets its own library search path | The signed object write died with `OpenSSL version mismatch` — the bundled environment broke the exec'd `ssh-keygen` at load time, even though the same `ssh-keygen -Y sign` succeeded standalone | Use the system git for local object operations (`commit-tree` needs no network); keep the bundled git for network operations only; verify a standalone `ssh-keygen -Y sign` test succeeds before attributing a signing failure to the key or config |
 | Treating every `%G?` `U` as benign and accepting a foreign-signed stack | Almost re-delivered PR branches whose older commits an earlier automation identity had signed with its own key under the same author name; `git verify-commit` printed a good signature with `No principal matched` | `%GK` showed a fingerprint that is not the configured `user.signingkey`'s; without discrimination the foreign signature would have been rewritten or shipped unquestioned | Discriminate `%GK` against your key fingerprint first; a mismatch means foreign — get explicit authorship authority, re-sign with `--force-rebase --exec`, verify tree hashes byte-identical, and push with a lease pinned to the verified old head |
+| Pushing an empty signed commit to start a gated provenance run after the state label changed | The delivery instructions said to push because a run from before the label would replay the old payload; an empty commit was pushed before the workflow triggers were read | The workflow triggered on `labeled` as well as `synchronize`, so the label flip had already started a run at the same head, and that run passed. The empty commit added history noise and its message was false | Read `on.pull_request_target.types` before any push. A `labeled` trigger starts the run with the new label set; push only when the trigger list lacks `labeled` |
 
 ## Results & Parameters
 
@@ -316,6 +321,8 @@ treat pre-rewrite evidence as covering the new objects.
 - **Corruption diagnostic signals**: `git reflog` missing an intervening pick entry between `rebase (start): checkout` and `commit (amend)`; `git diff <merge-base> <bad-commit> --stat` showing more files than `git show <original-sha> --stat`; commit message inherited from an unrelated pre-existing commit rather than the picked change
 - **Safe cancel-and-quit sequence** (when `--abort` is policy-blocked): `git reset --keep <pre-rebase-sha>` then `git rebase --quit` — verify clean state with `git status` first
 - **Verified case**: Hephaestus PR #2099 (branch `2053-auto-impl`), 1 commit rebased onto ~38 new commits of `origin/main`, one real conflict in `docs/AUTOMATION_LOOP_ARCHITECTURE.md`; recovery + redo verified via `git diff origin/main --stat` matching the original commit's stat exactly, 892/892 tests passing in `tests/unit/automation/pipeline/`, pre-commit hooks green, correct signature and DCO trailer present
+- **Gate step order**: the label check runs before the signature check, so a label failure masks any signature state; confirm signatures from the commit API, not from the failed run
+- **Label-trigger signature**: a `labeled` trigger starts a passing gated run at the unchanged head; push only when the trigger list omits `labeled`
 
 ## Verified On
 
@@ -323,8 +330,9 @@ treat pre-rewrite evidence as covering the new objects.
 |---------|---------|-------|
 | HomericIntelligence/ProjectHephaestus | PR #1171 — show-prompt CLI | 4 commits rebased and signed, pr-policy passes |
 | example-org/inference-service | PR #82 — Move inference_service module | Commits signed for pr-policy compliance |
-| HomericIntelligence/ProjectHephaestus | PR #2099 — branch `2053-auto-impl`, rebase onto ~38 new commits with one real conflict; `--exec` hand-invocation corrupted a commit by merging in an unrelated upstream commit's diff; recovered via `reset --keep` + `rebase --quit`, redone as plain rebase + standalone amend | verified-local (not yet confirmed in this skill PR's own CI) |
-| HomericIntelligence/Athena | PRs #35/#36 — `gh pr update-branch --rebase` stripped signatures on both (pr-policy red with `commit signature is missing or invalid`); recovered with local `git -c commit.gpgsign=true rebase origin/main` + lease push after a branch fetch (first push rejected `stale info`); #35 re-merged green | verified-ci (pr-policy observed red on the server-side rewrite and green on the re-signed heads) |
-| HomericIntelligence/Athena | PR #45 — pytest GHSA bump; a local re-signed rebase (`9b0f1fd`) was prepared for the strict up-to-date rule, but the repo's merge queue rebuilt and merged the PR server-side (merge commit `93a2e7f`, GitHub-signed) and it landed MERGED before the re-signed branch was pushed — proving the merge queue makes the manual re-sign-rebase cycle unnecessary | verified-ci (PR observed MERGED via the queue with pytest 9.x on `main`, no author force-push) |
-| example-org/backend-service | Verified-signature merge gate `invalid_signature` on every commit after local rebases rewrote two unsigned PR stacks (2 commits and 4 commits) behind armed auto-merge | Exec-based re-sign was a no-op on both stacks (absorbed picks); rebuilt both with the `commit-tree -S` loop under the system git (the bundled git broke `ssh-keygen` with `OpenSSL version mismatch`); `%G?` `U` as expected for SSH keys; force-with-lease push → provenance check green → both armed auto-merges completed with no further action — see [notes](git-rebase-signing-ci.notes.md) |
-| HomericIntelligence/Athena | PR #361 — one commit signed by a foreign automation key (`%G?` `U`, `%GK` ≠ configured key) under the author's identity, with two good-signature commits on top | Discriminated via `%GK`; explicit authorship authority granted; `git rebase --force-rebase --exec 'git commit --amend --no-edit -S' <base>` in a scratch worktree re-signed all 3 commits; every tree hash matched its pre-rewrite hash and `git diff <old-tip> HEAD` was empty; pushed with the lease pinned to the verified old head — verified-live on push; PR later merged via the merge queue |
+| HomericIntelligence/ProjectHephaestus | PR #2099 — rebase with one real conflict; `--exec` hand-invocation corrupted a commit | verified-local; recovery detail in Failed Attempts |
+| HomericIntelligence/Athena | PRs #35/#36 — `gh pr update-branch --rebase` stripped signatures | verified-ci: red on the server-side rewrite, green on the re-signed heads |
+| HomericIntelligence/Athena | PR #45 — re-signed rebase prepared, merge queue merged server-side first | verified-ci: MERGED via the queue, no author force-push |
+| example-org/backend-service | Verified-signature gate after local rebases rewrote two unsigned stacks | verified-ci: `commit-tree -S` rebuild, provenance green, auto-merge completed — see [notes](git-rebase-signing-ci.notes.md) |
+| HomericIntelligence/Athena | PR #361 — one commit signed by a foreign automation key | verified-live: re-signed with `--force-rebase --exec`, trees byte-identical |
+| public shared repository | Drive-to-merge: unsigned rebased head, then a label-gated provenance failure | verified-ci: handoff paths in notes; label flip started the passing run at the unchanged signed head |

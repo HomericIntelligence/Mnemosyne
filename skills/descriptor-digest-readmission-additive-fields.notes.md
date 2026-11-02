@@ -66,3 +66,31 @@ closed only when the gate list named the suite, not when the suite turned green.
   a sibling change healed the base; after that rebase, the full check reported
   zero diagnostics. Defer to the existing pre-existing-gate-failure entry for
   the classification discipline.
+
+## Exclusion-by-construction evidence (v1.1.0)
+
+Supporting evidence for the design-time branch. Shapes are generalized; the
+decision rule is the artifact.
+
+- A policy model feeding a full-dump serialized-identity digest
+  (`model_dump(mode="json")` with no `exclude_*` switches) gained a serving
+  knob that had to leave every existing record byte-identical while unset.
+  The same model already carried two exclusion-declared optional fields
+  (`Optional`, `Field(exclude_if=lambda value: value is None)`), a
+  family-local convention whose admitted digests had never rotated on those
+  fields.
+- Probe evidence, two lines, bound the mechanism: dumping a validated
+  instance with the field set showed the key with its value; dumping a
+  default instance showed the key absent. A defaulted non-optional field
+  would have appeared with its default and rotated every existing digest —
+  the near-miss the branch exists to prevent.
+- Lock-in came from three focused tests, not a golden vector: a
+  serialization-invariance test asserting the unset field's key is disjoint
+  from the dump, a parametrized field-limits contract test sharing the
+  family's bounds, and a presence/absence render test on the one consumer.
+- The exporter-regenerated schema companion showed exactly the new field's
+  block and nothing else; no byte-sync gate existed for that generated file,
+  so the diff itself was recorded as the change evidence.
+- The same model's other family (always-serialized per-stage timeouts)
+  stayed on the re-admission rule from v1.0.0; the two conventions coexist
+  because each is applied per family, never averaged.

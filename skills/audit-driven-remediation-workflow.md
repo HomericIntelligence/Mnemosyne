@@ -3,7 +3,7 @@ name: audit-driven-remediation-workflow
 description: "Turn audit findings into scoped fixes. Use for source verification, duplicate detection, independent batches, downstream consumers, and evidence-based completion reports."
 category: tooling
 date: 2026-07-06
-version: "2.1.0"
+version: "2.2.0"
 user-invocable: false
 license: BSD-3-Clause
 verification: verified-ci
@@ -74,6 +74,10 @@ does not prove its hosted CI or current main.
 
 ### 2. Reproduce and classify every finding
 
+It applies when a scanner, linter, or audit tool reports findings across many files and the fix
+must stay in one reviewable change. It does not apply when one verified defect needs a design
+change; use the deferred branch below for that.
+
 Verify file existence, symbol/pattern, execution path, and current behavior. Scanner output is a lead,
 not proof. Classify:
 
@@ -85,12 +89,31 @@ not proof. Classify:
 | Design-heavy or broad refactor | Separate issue and PR |
 | External/toolchain blocker | Document owner, version, and unblock condition |
 | Administrative setting | Route as settings work, not a code patch |
+| Deliberate pattern the rule cannot model | Keep the code; add a scoped suppression with a reason that names the pattern |
+| Rule misfires on the detected text, not the code | Keep the code; disable that rule in the repository configuration with a comment that states why |
 | Accepted risk | Record owner, expiry/revisit trigger, and rationale; never silently suppress |
 
 Assign severity from impact and exploitability/likelihood, not scanner label alone. Record exact
 source coordinates at the immutable SHA and a command that proves the current failure.
 
+**Split the finding population by class before you estimate effort.** Line-level rule families such
+as size, parameter count, and nesting describe architecture that predates the scan. Treat them as
+deferred design work with their own issues, not as defects in the remediation batch. Fix or
+disposition only the defect and convention classes. Then rescan and compare the residue: the
+remaining count must equal the deferred set exactly. A residue above it means a fix or suppression
+did not apply.
+
+**Match the suppression to what the rule got wrong.** Put a directive on the reported line, with
+the rule id and a short reason, when the code deliberately uses the pattern the rule condemns. Use
+repository-wide configuration only when every hit for that rule is a text-level misfire, and only
+after you read each hit. State the trade-off: a disabled rule cannot report a future real instance.
+Never narrow an exception handler or delete behavior to satisfy a style rule without a test that
+proves the behavior change is intended.
+
 ### 3. Deduplicate and create tracking
+
+Use this step for finding families whose every hit is a name, key, or literal that the detector
+misreads, such as an identifier-shaped dictionary key or a standard-library import.
 
 Search all issue and PR states by symbol, path, diagnostic, and acceptance phrase. Verify whether a
 prior commit or unmerged worktree already delivered the fix. Reconcile audit finding count against
@@ -104,6 +127,9 @@ succeeded.
 
 ### 4. Build safe batches
 
+Batch defect classes together only when they share rollback and verification cost. Defer a
+class when its remedy is a refactor that needs its own review.
+
 Batch only findings with shared context, no conflicting file ownership, compatible rollback, and a
 verification runtime that stays reviewable. Split security boundaries, API/architecture changes,
 large decompositions, cross-repo changes, and unrelated red CI. One branch and PR has one owner.
@@ -113,6 +139,9 @@ changes and avoid destructive cleanup. Keep deferred items explicitly linked; â€
 not a silent omission.
 
 ### 5. Implement and verify incrementally
+
+Rescan with the exact tool version that produced the baseline. A newer version adds rules, so
+the residue comparison is not valid against it.
 
 For behavior changes, prefer a focused failing test or reproduction when practical. For
 documents/configuration, use relevant existing checks rather than wording snapshots. Select
@@ -162,6 +191,23 @@ headings, commands, and unique decision content. Cross-category prefix matches r
 signals; distinct audiences or failure modes remain separate. Stop when another pass yields little
 actionable overlap instead of forcing consolidation to an arbitrary count.
 
+**Verify the directive attachment before you trust a clean rescan.** Suppression directives attach
+to one exact line, and the reported line is often not the handler line you expect. Probe the
+mechanism on a scratch file: place the directive, rescan, and confirm the finding disappears. A
+formatted file can also move your directive to a line that no longer covers the finding.
+
+```python
+    # <directive> attached above the try body: does not cover the handler
+    try:
+        risky()
+    except SpecificError:  # <directive> attached here: covers the handler
+        pass
+```
+
+Shorten the reason text so the trailing form stays within the line limit. If the formatter splits
+the handler header, the directive on the closing line no longer applies. Grade the result on a
+rescan, never on the presence of a directive.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -176,6 +222,11 @@ actionable overlap instead of forcing consolidation to an arbitrary count.
 | Trust mocked unit test | Consumer behavior was stubbed | Real transport never carried the value | Add an integration contract path |
 | Let implementer self-certify | Same context reviewed its own choices | Blind spots survived completion | Dispatch independent strict review |
 | File raw swarm findings | Accepted reviewer outputs directly | Duplicates, stale reads, and contradictions remained | Synthesize and re-reproduce first |
+| Treat every scanner row as a defect | Planned one PR that refactored all reported sizes and arities | Most rows were pre-existing architecture; the batch was not reviewable | Split defect classes from design classes and defer the latter |
+| Delete behavior to silence a style rule | Narrowed exception handlers or removed operator output to clear findings | The findings described deliberate behavior, not defects | Keep behavior and add a scoped, reasoned suppression |
+| Suppress a whole rule from one sample | Disabled a rule across the repository after reading one hit | Unread hits could be real defects | Read every hit before repository-wide configuration |
+| Place the directive above the reported construct | Put the suppression above the `try` body, then reformatted | The directive covers the line below it, which was not the handler; the finding stayed | Verify each directive with a rescan, and keep it on the reported handler line |
+| Trust a directive that formatting moved | Let the formatter split a handler header after adding a trailing directive | The directive sat on the closing line and stopped applying | Shorten the reason and re-verify placement after formatting |
 | Claim sibling CI from local build | Ran tests in another checkout | Hosted branch and CI could differ | Verify the other repository PR/checks directly |
 
 ## Results & Parameters

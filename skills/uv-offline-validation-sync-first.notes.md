@@ -71,3 +71,41 @@ resolver to one operating system produces a lock without wheels for other platfo
 frozen sync fails on a runner for a different platform. Recover the lock by widening the resolver
 environment and re-locking, then confirm that the packages resolved for the original platform did
 not change.
+
+## Amendment of 2026-10-31
+
+Added decision value for a third failure mode of the same subsystem: the tool falls back to a
+host-installed executable, and the diagnostic points inside the project suite.
+
+### New trigger and failure mode
+
+A project declares pytest and the other test tools only in an optional dependency group (a `dev`
+extra), not in the default dependencies. An agent ran a plain `uv run pytest <path> -q` on a fresh
+checkout with no pre-synchronized environment. Observed sequence:
+
+1. uv created the environment, built the project, and reported a successful install of the default
+   dependencies (tens of packages, including the project itself).
+2. pytest is not in the default set, so the environment never received it. uv resolved a
+   host-installed `pytest` from `PATH`.
+3. The host executable runs against its own interpreter, which has no project package. Collection
+   failed in `conftest.py` with `ModuleNotFoundError: No module named <project package>`, even
+   though step 1 reported the project installed.
+
+The same failure reproduced identically on a sequential re-run, so it is deterministic, not a
+creation race. Passing the extra on the run itself repaired it in one command:
+
+```bash
+uv run --locked --extra dev pytest <path> -q    # all focused tests passed
+```
+
+Confirmed the selection difference with `uv run which pytest`: with no extra flags it resolves a
+host `PATH` entry; with `--extra dev` it resolves the project environment.
+
+### Why this is a distinct branch
+
+The earlier branches assume an environment that was deliberately synchronized, and are about
+keeping it (`--no-sync`) or about what an exact sync removes. This branch has no prior sync at
+all, and its failure signature is misleading: the build report says the project installed, while
+the `ModuleNotFoundError` names the project package, so the evidence points away from executable
+selection. The discriminator is the same check the entry already requires (`sys.executable`, tool
+path), and the direct remedy is the extra on `uv run` itself.

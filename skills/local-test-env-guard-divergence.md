@@ -78,7 +78,9 @@ stat -c '%a %u' <ancestor>            # examine writable bits on the chain
 6. Re-run the same test under the CI-equivalent environment from the quick
    reference. A red-to-green flip marks the environment as the cause and the
    code as unchanged. A persistent red under the controlled environment
-   proceeds to a code bisect with the artifact excluded.
+   proceeds to a code bisect with the artifact excluded. If the guarded
+   ancestor is outside your writable scope, use
+   [`local-test-env-involuntary-ancestor`](./local-test-env-involuntary-ancestor.md).
 
 Do not change a guard to make an environment-conformant failure silent, and do
 not commit a code change that an environment artifact produced. Keep the

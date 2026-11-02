@@ -16,6 +16,24 @@
 | Green twins on identical trees misclassified an introduced deterministic failure as a flake: every compared lane ran a narrower event-scoped profile that never executed the failing node | golden-rendering CI in a model-serving repository outside the host org; event-scoped test profiles (narrow pull-request profile, wider promotion profile) over a sharded planner | `verified-ci`: the narrow profile selected 7994 items in every green compared run, the wide profile selected 14876 items and included the failing node; a one-value queue-size config change broke a golden rendering deterministically on both lanes that ran it | Added the green-twin coverage gate, the empty-comparison rule, and the classify-from-content-determinism fallback |
 | Red default-branch CI at and after a squash merge looked merge-caused while a task gate required watching main CI to green | fleet-worker delivery lane in a public model-serving-infrastructure repository; 32-way sharded pytest with per-push and batched default-branch runs | `verified-ci`: per-commit run lookup returned empty for the merge commit even after its run existed; branch enumeration showed the first red predated the merge by several commits including its direct parent; every sampled failed job carried an identical node set from one concurrency test module disjoint from the merged patch; the owning lane's labeled fix at a newer tip took the branch run green | Added the merge-sha run bracket, the sparse-run empty-lookup rule, the post-merge collated-node-set test, and the adoption boundary for another lane's breakage |
 | Post-merge promotion-profile red classified pre-existing outside delivery scope carried a follow-up-issue obligation, while an aggregate tracker already owned the failing group | single-issue worker lane in a public batch-scheduler infrastructure repository; a release-train red tracker with a curated group ledger | `verified-ci`: the tracker's ledger already named the same red run, the attributing commit, and the merged pull request under an existing group; no new issue was filed and the worker report referenced the group | Added the open-tracker dedupe gate before filing classified pre-existing failures |
+| Rebased pull request whose touched test files stayed red in one checkout; the identical failure set reproduced at the pristine base commit and hosted checks were green | anonymized repository, shared host whose configured temp root is group-writable; a fail-closed service-path guard refused every test that created a temp tree | `verified-local`: 63 of 63 failing node identities matched per file at the base commit and at the rebased head; the focused tests covering the conflict resolutions passed; the hosted merge state moved from `DIRTY` to `BLOCKED` | Added the environment-attributed pass-through row, the fail-closed navigation row, the rebase-gate subset of the pristine-base oracle, and the "no added failure, not green" evidence rule |
+
+## Rebase gate on a red-on-this-host checkout
+
+A session rebased one pull request in its own checkout and resolved two conflicts. The brief
+required the touched test files to pass before a gated force-with-lease push. Under the first
+command, 63 of 447 node identities failed. The representative traceback came from a fail-closed
+service-path guard that refused an ancestor directory with group-write bits, so every test that
+created a temp tree failed the same way. A detached baseline worktree at the pristine base commit,
+under the same command, produced the same 63 identities, and the sorted per-file `FAILED` lists
+were equal. The focused tests that covered the two resolutions passed at both heads.
+
+Two decisions made this a pass-through. The comparison was per node and per file, so an equal
+count could not hide a swap. The report named the equality, the counts, the root cause, and the
+hosted merge-state change from `DIRTY` to a review-bound state, and did not call the files green.
+The refused value was one configuration variable, the temp root. Relocating it to an owner-only
+directory and rerunning both heads was the cheaper branch. This session adjudicated first because
+the base comparison was already complete.
 
 ## Follow-up tracker dedupe detail
 
@@ -115,3 +133,24 @@ argv. Test the largest intended payload and verify stderr/stdout parsing still w
 
 The cases establish the classification workflow on GitHub Actions. Live required contexts,
 administrative policy, merge-preview semantics, and runner limits can change and must be re-read.
+
+## Stale version pin on an unchanged file
+
+A learn-delivery pull request passed every content check on its three changed files and failed one
+repository-wide guard. The guard compares a version literal held in the test against the version
+field in a knowledge entry. The entry read one minor version above the literal.
+
+Bracket evidence, gathered read-only:
+
+- The literal last changed when it was written; the entry changed later in a merge that bumped the
+  version and did not update the literal.
+- A run at the bump commit's parent passed.
+- The run at the bump commit failed, and so did the run at the delivery base, which already
+  contained the bump.
+- The merge was an ancestor of the delivery base, so the pull request inherited the failure.
+
+Disposition: pre-existing and foreign-owned. The literal was outside the pull request's write
+allowlist, so no repair was made. The bracket evidence went onto the pull request as a comment, and
+the change stood on its own passing checks. The distinguishing signal was that the failing guard
+touched a file the change never modified and the expected value did not move with the tree — a
+regression would have shown the asserted value and the tree moving together.

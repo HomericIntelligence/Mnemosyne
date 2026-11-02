@@ -1,10 +1,10 @@
 ---
 name: stale-plan-already-resolved
 license: BSD-3-Clause
-description: "Check whether current source already satisfies a stale issue, plan, or log finding — including at a workflow resume under a durable approval state; avoid redundant fixes and close tracked work only within authorized scope."
+description: "Check whether current source already satisfies a stale issue, plan, log finding, review finding, or pull-request premise — including at a workflow resume under a durable approval state, on an open PR head that a sibling session rewrote, and on an outdated review thread; avoid redundant fixes and close tracked work only within authorized scope."
 category: ci-cd
 date: 2026-06-14
-version: "1.4.0"
+version: "1.6.0"
 user-invocable: false
 verification: verified-ci
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/stale-plan-already-resolved.history"
@@ -15,7 +15,7 @@ history-cleanup-date: "2026-09-20"
 | Field | Value |
 | ------- | ------- |
 | **Problem** | A point-in-time artifact (plan, LOG, error report, CI failure, audit finding) was captured when main was in state A, but main is now in state B (already fixed or changed further by intervening merges) |
-| **Key insight** | Always verify the defect still reproduces on CURRENT `origin/<default>` before applying a plan, fixing a finding, or making outward records (issues, tracker edits, defect claims) that premise the defect — any captured artifact can become stale after other PRs merge |
+| **Key insight** | Always verify the defect still reproduces on CURRENT `origin/<default>` before applying a plan, fixing a finding, or making outward records (issues, tracker edits, defect claims) that premise the defect — any captured artifact can become stale after other PRs merge, and a sibling session can already have resolved an open PR premise on the rewritten head |
 | **Impact** | Prevents unnecessary changes and incorrect "fixes" that would revert progress or ship a no-op for an already-fixed bug |
 | **Context** | Issue #4280: plan said change `test_*_layers.mojo` → `test_*_layers*.mojo`, but code already used `test_*.mojo`. Also: a 2588-line `output.log` named 4 root causes — 2 were already fixed on current main (PR #1148, `learn_claude_timeout`). Also: a relaunched worker's approved plan was eclipsed by a split delivery lane (create-targets present on main, modify-sites deleted); stop with zero writes |
 | **Verification** | verified-ci |
@@ -35,6 +35,8 @@ history-cleanup-date: "2026-09-20"
 10. A durable approval label or a completed earlier review gives apparent authority to implement. The label attests the review result at its time; it does not attest that the work remains
 11. You are about to create an issue, edit a tracker or epic, or publish a defect claim premised on an inventory captured earlier in a long session on a shared, fast-moving default branch
 12. Parallel workers own overlapping fix clusters in the same repository, and hours pass between your failure analysis and your next delivery boundary
+13. A scoped task brief premises an open pull request state, for example a rebase-only brief that states the PR is conflicting or dirty against the default branch. The brief is a snapshot: the PR head may have moved after the brief was written
+14. A review workflow hands you an unresolved review thread, often `isOutdated`, and the prompt expects a fix. The finding was captured at an older head. A later fix already landed, and the thread stayed unresolved because no publisher resolved it
 
 ## Verified Workflow
 
@@ -69,6 +71,44 @@ objective — then the plan is eclipsed. Make zero writes: do not implement, and
 review verdict over the stale plan. A verdict that binds deleted or previously delivered sites is
 invalid evidence. Report the stop disposition that the task authorizes (for example PARKED) with
 the delivery evidence.
+
+### 0b. Open-PR premise gate: measure the PR head before a premise-scoped rewrite
+
+When the assignment targets an open pull request and premises its state — for example a
+rebase-only brief that states the PR is conflicting or dirty against the default branch —
+the delivery lane may be that same PR. A sibling session can already have rebased its head
+while the brief was in transit. A merged-PR search and a main-tree site check cannot see a
+delivery that lives on the open PR's rewritten head. Measure the PR head before any rebase
+or push:
+
+```bash
+git fetch origin <default-branch> <pr-branch>
+
+# Ancestry: does the head already contain the current default tip?
+git merge-base --is-ancestor origin/<default-branch> origin/<pr-branch> \
+  && echo "head is based on the current default tip"
+git rev-list --count origin/<pr-branch>..origin/<default-branch>   # 0 = nothing to rebase onto
+
+# Mergeability: provider status plus a local merge test (the provider value can lag or be absent)
+gh pr view <pr-number> --json mergeable,mergeStateStatus
+git merge-tree --write-tree origin/<default-branch> origin/<pr-branch> >/dev/null 2>&1 \
+  && echo MERGE_CLEAN || echo MERGE_CONFLICTS
+
+# Provenance: who moved the head, and did a sibling already report the task complete?
+gh api repos/<org>/<repo>/issues/<pr-number>/events \
+  --jq '[.[] | select(.event == "head_ref_force_pushed") | {created_at}]'
+# Read the PR comments for a sibling completion report at the current head.
+```
+
+Decision rule: the head already contains the current default tip, the merge is clean, and a
+sibling session reported the task complete at that head — then the premise is eclipsed. Make
+zero writes: do not re-run the rebase, do not re-push, and do not post a duplicate completion
+comment. A rebase that re-signs or rewords commits at identical content still produces a new
+head SHA, breaks a head-bound approval record, and restarts the review gate for no content
+change. Report the task-complete disposition with the measured evidence.
+
+Verification level: this subsection is `verified-live` from one session (see the notes). The
+rest of this entry keeps its `verified-ci` claim.
 
 ### 1. Read the plan carefully for specific anchors
 
@@ -150,6 +190,52 @@ PR #1148; the planner-learnings 120s timeout replaced by `learn_claude_timeout()
 their fixes were scoped down to the durable hardening only. The other 2 (armed-DIRTY
 swallowed, green-BLOCKED threads not addressed) were confirmed still present before implementing.
 
+### 5a. Re-verify a review finding before you edit for it
+
+A review thread is another captured artifact. Check the finding against the current head
+before you write code:
+
+```bash
+HEAD_SHA="$(git rev-parse HEAD)"   # the branch checkout, not the default tip
+git log --oneline -S "<snippet the finding names>" -- <path>
+# The fix commit in this range means the defect is gone; the thread is stale.
+sed -n '<start>,<end>p' <path>     # quote the lines that close each requested item
+```
+
+The tests that cover the fixed behavior already exist when a fix commit added them. Run them
+as evidence. Do not re-edit a fixed file and do not push an empty commit to close a thread.
+A subagent or reviewer can cite a lower line number from the old head. Use the current line
+numbers in your answer.
+
+### 5c. State the decisive outcome before you edit (required)
+
+After step 5 or 5a, pick one of these two states and record it:
+
+| State | Evidence | Action |
+| ---- | ---- | ---- |
+| **Change required** | At least one item still fails on the current head | Edit, test, commit, and push |
+| **No readable defect** | Every item is already fixed, answered by recorded approval, or covered by the documented contract | Do not edit or commit. Post the evidence and complete the authorized records |
+
+"No readable defect" does not mean the task stops. A review workflow still gives you a task.
+You must resolve the threads and post the report. A promotion record still needs its evidence
+note. That work is record completion, and it changes no source file.
+
+This state is not a failure. A reloaded workflow can ask for fixes that the head already
+contains. Do not invent a "minimal" change to create activity. A cosmetic edit to a fixed
+file increases risk and breaks the head-bound approval for no benefit.
+
+#### 5c.1 Review-thread records: resolve on proof, not on a new commit
+
+A review-finding workflow commonly expects one commit per fix. The "No readable defect" state
+needs no commit, but its records are still required:
+
+- Resolve an already-fixed thread with the closing commit, the current file:line of each
+  requested item, and the test names. Do not answer it with opinion.
+- Keep a thread open when its work needs a product decision or remains blocked.
+- Report `commits: none` and leave the head unchanged. A head change restarts CI and
+  invalidates the head-bound approval.
+- Do not claim a fresh review is necessary when the head is unchanged.
+
 ### 5b. Re-anchor at each outward-mutation boundary on fast shared trains (verified-live)
 
 A premise check expires. On a shared repository whose default branch advances during your
@@ -204,6 +290,7 @@ Pick the action based on whether **any file** still needs to change:
 | ----------- | ---------------- |
 | Functional fix already exists, but a comment/doc would clarify current intent | Update the comment/doc, then create a comment-only PR with `Closes #<issue>` |
 | Goal is fully met AND no comment/doc change belongs in any file (the change is genuinely zero-diff) | Close the issue directly — **no PR** |
+| The finding arrived as a review thread, and no source file needs a change | Do not edit. Resolve the thread with the proof from step 5c.1, and post the report |
 
 When a clarifying comment IS warranted:
 
@@ -238,6 +325,9 @@ python3 scripts/validate_test_coverage.py
   the issue closes on merge and the already-correct state is documented.
 - If nothing changed: the `gh issue close --reason completed --comment` from step 6 already
   closed it — no PR exists or is needed.
+- If the record is a review thread: create no PR from a no-change finding. Resolve the thread
+  and report `commits: none`. The thread is the record, and the review workflow already holds
+  it.
 
 ## Results & Parameters
 
@@ -255,6 +345,9 @@ python3 scripts/validate_test_coverage.py
 | Mutation-boundary re-anchor | `git fetch && git log --oneline <analysis-base>..origin/<default> -- <touched-paths>` + commit-subject and issue/PR search for the failing node IDs — any match retires that cluster |
 | Boundary points | Before issue filing, tracker edits, and defect claims; after long validation runs; before push; after any restart |
 | Decayed-premise recovery | Close obsolete records with the resolving commit/PR reference; revert tracker edits; salvage only unmatched clusters |
+| Open-PR premise gate | `git merge-base --is-ancestor origin/<default> <pr-head>` + `git rev-list --count <pr-head>..origin/<default>` (0), `gh pr view --json mergeable,mergeStateStatus` plus local `git merge-tree --write-tree`, PR `head_ref_force_pushed` timeline events and sibling completion comments — head based + clean merge + sibling report ⇒ zero-write stop |
+| Review-finding re-verify | `git log --oneline -S "<snippet>" -- <path>` on the PR head; `sed -n '<start>,<end>p' <path>` for the current lines; the covering tests run as evidence |
+| No readable defect | No edit, no commit, head unchanged. Resolve with proof or leave open with the blocker. Report `commits: none` |
 
 ## Failed Attempts
 
@@ -271,6 +364,8 @@ python3 scripts/validate_test_coverage.py
 | Filed tracker records from the analysis snapshot | Created repair issues and an epic edit premised on a failure inventory captured hours earlier on a release train | Parallel workers had merged fixes for every analyzed cluster; the new records were obsolete on creation and needed close-out cleanup | Re-anchor the premise immediately before every outward mutation, not only before code delivery |
 | One re-check per session | Re-verified the defect inventory once at analysis time and treated it as valid for the whole session | The default branch advanced ~30 commits during the session, including fix PRs for the exact analyzed failures | A premise check expires; re-run it at each delivery boundary |
 | Checked only the code artifact | Re-fetched before opening the fix PR but filed issues and edited the tracker from the decayed analysis | The easily discarded artifact (the branch) got the fresh check; the hard-to-retract artifacts (tracker records) did not | Give outward mutations the freshest premise: they cannot be quietly rebased away |
+| Editing a review finding from its body text | A review workflow asked for a fix on an open promotion PR with nine unresolved threads | Eight of the nine were already fixed by two merged commits on the same head, and the head stayed unresolved only because no publisher resolved the threads | Check the current head before you edit. Resolve on proof when no change is needed, and report `commits: none` |
+| Empty commit to satisfy a fix-per-thread contract | Review workflows often expect one commit per accepted finding | The commits existed. An empty one would move the head and restart review for no change | Zero-diff is a valid outcome. Never move a head to show activity |
 
 ## Verified On
 
@@ -281,3 +376,5 @@ python3 scripts/validate_test_coverage.py
 | ProjectHephaestus | 2026-06-14 output.log 4-RC analysis; 2 of 4 already fixed, caught via live re-verify | PRs #1353-#1356 |
 | Internal CI-gate repository | 2026-10 relaunched single-issue worker; durable plan eclipsed by a split delivery lane | stop report, zero writes; [notes](./stale-plan-already-resolved.notes.md) |
 | External repository (unnamed) | 2026-10 release-train session: 4 analyzed failure clusters were fixed by parallel workers mid-session; 2 repair issues + 1 tracker edit filed on the decayed premise needed close-out; the pre-push boundary check prevented a duplicate PR | [notes](./stale-plan-already-resolved.notes.md) |
+| Internal CI-gate repository | 2026-10-31 rebase-only brief on an open PR; the head was already rebased onto the current default tip by sibling sessions | zero-write stop with measured evidence; [notes](./stale-plan-already-resolved.notes.md) |
+| Internal promotion PR | 2026-11 review round: 8 required findings already fixed on the same head by 2 merged commits, and 1 approval recorded | zero-diff resolution, `commits: none`; [notes](./stale-plan-already-resolved.notes.md) |
