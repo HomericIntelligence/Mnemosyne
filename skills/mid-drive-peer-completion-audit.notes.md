@@ -81,11 +81,6 @@ digests exactly.
 
 ## Zero-delta takeover of a delivered rebase task (v1.2.0 case, 2026-10-31)
 
-Environment: the same shared monorepo under many-lane operation. A directive
-assigned one open-PR task: rebase the branch onto the default branch and
-resolve each conflict. The directive asserted that the PR was conflicting
-against the default branch and could not merge.
-
 ### Live read at pickup
 
 - The forge reported the PR mergeable and clean, not conflicting.
@@ -118,6 +113,47 @@ evidence, label coverage) and stopped. A second rebase would have produced a
 third head, invalidated the peer's green checks, and duplicated the report.
 The approval label binds to the exact old head; the record states that it
 does not cover the new head even while the label stays on the PR.
+
+## Merged-artifact review stop (v1.3.0 case, 2026-11-01)
+
+Environment: a repository with a bounded review-exchange protocol (round
+carriers bound to an exact head, an exclusive implementation-state label).
+A reviewer directive assigned a round-1 review of one pull request, with the
+requirements binding supplied as a separate issue URL.
+
+### Observed sequence
+
+- Target resolution returned an open artifact with a captured base and exact
+  head, so the reviewer prepared source inspection from those OIDs.
+- Strict evidence collection then rejected the artifact as not open. A fresh
+  forge read showed a merged state, a merge timestamp, and a merge commit
+  about six minutes after target resolution.
+- The publication helper for the implementation-state label also refused the
+  change, with a message that the head, target, or state changed.
+- The artifact already carried a delivered terminal review carrier bound to
+  the exact reviewed head, so a new carrier for that head would have repeated
+  a reviewer round.
+
+### Disposition
+
+No carrier, no label, and no verdict were published. The exact head tree was
+still readable from immutable objects, so the reviewer completed a read-only
+audit of the changed files and the requirement, and reported the results with
+an explicit no-score note. Scoring was withheld because the strict
+requirements binding could not be produced for a closed artifact.
+
+### Decision value added over v1.2.0
+
+- The trigger is new: the review role, not the driver bookkeeping role.
+- The layer that detects the change is new: strict collection, after target
+  resolution.
+- The stop point is new: no carrier and no score, instead of a finished
+  takeover report.
+
+Environment: the same shared monorepo under many-lane operation. A directive
+assigned one open-PR task: rebase the branch onto the default branch and
+resolve each conflict. The directive asserted that the PR was conflicting
+against the default branch and could not merge.
 
 ## Provenance (v1.2.0)
 
