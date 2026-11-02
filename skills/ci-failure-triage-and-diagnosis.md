@@ -1,13 +1,13 @@
 ---
 name: ci-failure-triage-and-diagnosis
-description: "Diagnose CI failures from run logs and revision-specific workflows. Distinguish source defects, missing required contexts, infrastructure failures, stale runs, rerun identity rejections, and runs that merge conflicts suppressed. Also use when a concluded job still refuses its log because the run is unfinished, when a red run predates repairs already on main, or when an open PR already owns the failing node and its diff must be checked against every failing condition."
+description: "Diagnose CI failures from run logs and revision-specific workflows. Distinguish source defects, missing required contexts, infrastructure failures, stale runs, rerun identity rejections, and runs that merge conflicts suppressed. Also use when a concluded job still refuses its log because the run is unfinished, when a red run predates repairs already on main, when an open PR already owns the failing node and its diff must be checked against every failing condition, or when a task's stated defect may already be reverted so the patch has no base."
 category: ci-cd
 date: 2026-10-15
-version: "2.6.0"
+version: "2.7.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-local
-tags: [ci-failure, triage, log-analysis, core-dump, forensics, gdb, podman, mojo, libkgen, github-actions, rate-limit, subprocess, signal, cpu-survey, workflow-dispatch, merge-conflict, log-gating, run-status, fix-ancestry, open-pr-audit]
+tags: [ci-failure, triage, log-analysis, core-dump, forensics, gdb, podman, mojo, libkgen, github-actions, rate-limit, subprocess, signal, cpu-survey, workflow-dispatch, merge-conflict, log-gating, run-status, fix-ancestry, open-pr-audit, premise-staleness]
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/ci-failure-triage-and-diagnosis.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -27,6 +27,8 @@ are indexed in [the notes](ci-failure-triage-and-diagnosis.notes.md).
   fix was formed without reading `--log-failed`.
 - A job reports a terminal failure but its log returns "run is still in progress", or an open PR
   already fixes the failing node and you must decide whether that fix is complete.
+- A task states a defect to repair, but the code the defect describes may already be reverted or
+  retired on the default branch, so the patch has no base to land on.
 - Several unrelated PRs fail in the same job/file, or main may already be broken.
 - A PR is `BLOCKED` with no failed check because a required context never posted.
 - A push to a PR branch produced no `pull_request` runs at that head at all: the rollup and the
@@ -76,6 +78,22 @@ gh api rate_limit --jq '.resources.core | "used:\(.used)/\(.limit) resets:\(.res
 
 ### 1. Establish the failing evidence
 
+0. Confirm that the failure a task names still exists on the base you will patch. A task premise
+   goes stale when another lane reverts, retires, or replaces the code the premise describes.
+   The symptom then disappears without your change, or it becomes a different failure in the
+   same job. Check the subject symbol on the current default branch before you diagnose it:
+
+   ```bash
+   git fetch origin <default-branch>
+   git show origin/<default-branch>:<path> | grep -c '<subject-symbol>'  # 0 means retired
+   ```
+
+   When the count is zero, the defect is gone rather than unfixed. Do not rebase the patch onto
+   the default branch. A rebase resolves each conflict toward the default branch, which leaves
+   nothing to land, and a merge re-applies an approach that another lane already rejected.
+   Report the patch as superseded, cite the reverting commit, and re-derive the actual current
+   red from the newest default-branch run. A task premise, not only an issue narrative, is a
+   hypothesis.
 1. List the run, identify the failing job and step, then fetch that job's `--log-failed` output.
    Job logs are gated by the run, not by the job. A job that already reports a terminal
    conclusion still returns `run <ID> is still in progress; logs will be available when it
@@ -266,12 +284,14 @@ the current head SHA.
 | Decorated-view match as evidence | Cited a failure line from a filtered or decorated log view as the root cause in a report and a fix dispatch | The bare job log contained zero occurrences of the quoted text; the ghost hypothesis and the dispatch built on it were wrong | Verify quoted lines in the bare authenticated log before attribution; record the view type with each quote |
 | Concluded job treated as readable log | Retried a single job's log while other jobs in the same run still ran | Every attempt returned "run is still in progress"; the conclusion belonged to the job, not the run | Gate on the run status, not the job conclusion, before log retrieval |
 | Open PR treated as the finish line | Recommended merging the open fix for a two-trigger failure without reading its diff | The open diff covered one trigger only and would have left the node red | Read the open diff against every condition in the assertion; merge both or amend one |
+| Stale task premise repaired | Rebased a green-at-the-time patch onto the current default branch for a defect the task named | Another lane had already reverted the helper the patch extended, so the rebase resolved everything toward the default branch and left nothing to land, and the stated failure no longer reproduced | Confirm the subject symbol still exists on the default branch before diagnosing; a zero count means the defect was retired, so report the patch as superseded and re-derive the current red |
 
 ## Results & Parameters
 
 | Parameter | Recommended value or rule |
 | --- | --- |
 | Failing evidence | `gh run view --job=<JOB_ID> --log-failed` before diagnosis |
+| Premise check | `git show origin/<default-branch>:<path> \| grep -c '<subject-symbol>'`; `0` means the defect was retired, so the patch has no base |
 | Quote verification | Bare-log fetch plus an occurrence count above 0 for each quoted token |
 | Log availability | Run status `completed`; a concluded job alone does not unlock its log |
 | Fix ancestry | `git merge-base --is-ancestor <fix> <tested-sha>` before attributing a failure |
