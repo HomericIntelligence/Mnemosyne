@@ -312,16 +312,84 @@ started. The merge base is a property of current ancestry and drifts as the
 base branch advances. Anchor bytes that must match the record have to be
 derived from the record, not recomputed from ancestry at delivery time.
 
+## Historical carrier anchor mismatch — range state location (2026-11-01)
+
+1. A round-2 review reached a terminal GO. The exchange carried one
+   historical no-go carrier from round 1 at an older head, with two required
+   findings anchored inline.
+2. Terminal delivery stopped at preflight with `Publication anchor proof
+   failed: The publication anchor manifest does not match immutable source.`
+   The check that failed was the verified-state-chain replay of the round-1
+   carrier, not the pending terminal manifest. Nothing was published, and the
+   exchange label and threads stayed unchanged.
+3. Root cause: the round-1 state envelope recorded each finding location as a
+   line range, for example a path with a start line and an end line, while the
+   published annex and the two inline threads bound one exact line inside that
+   range. The reducer had produced the range locations, and the annex was
+   computed from separate precise coordinates.
+4. Isolation evidence: regenerating the annex from the state range locations
+   returned `summary` with reason `non_source_location` for both findings,
+   because the location parser accepts only `<path>:<positive-line>`.
+   Regenerating from the precise annex coordinates reproduced the published
+   annex byte for byte, including the base, head, merge base, and both
+   diff-lens hunk digests. Only the location form differed.
+5. No repair existed in the session. The published body is an immutable atomic
+   carrier, so an edit fails the carrier parser checks. The historical
+   compatibility proof is invalid when the same state already has an annex.
+   No delivery option skips historical source verification, and patching the
+   verifier would be a validation bypass.
+6. The nonterminal label delivery had succeeded earlier on the same defective
+   carrier because that path verifies one carrier proof and does not replay the
+   full chain. A terminal GO replays every carrier, so a latent anchor defect
+   surfaces only at the terminal round.
+7. Prevention: give each anchorable finding one precise coordinate, and use
+   that same string in the state location and in the anchor-manifest input.
+   Keep ranges in prose fields such as evidence text, never in a finding
+   location that must reproduce an inline anchor.
+
 ## Evidence limits
 
-Six single live cases, one exchange tooling generation each. The invariants
-(digest order, deterministic visible body, canonical manifest form,
-rejection-class triage, structural carrier-history rejection, fixed-point
-convergence, terminal-introduced partition, annex placement, annex marker
-blank-line separation, withheld
-convergence, terminal-introduced partition, annex placement, annex base
+Seven live cases plus one withheld terminal delivery, one exchange tooling
+generation each. The invariants (digest order, deterministic visible body,
+canonical manifest form, rejection-class triage, structural carrier-history
+rejection, fixed-point convergence, terminal-introduced partition, annex
+placement, annex marker blank-line separation, annex base
 binding, withheld
-pre-publication rejection safety) follow from the fail-closed validator design and do not rest on
+pre-publication rejection safety, anchor-location reproducibility,
+prepare-then-fill order and thread flush) follow from
+the fail-closed validator design and do not rest on
 frequency. Interface details (positional argument, mode flags, import context,
 anchor-source option, published-review identity form) are generation-specific witnesses; confirm them against
 the installed helper's signature before relying on them.
+
+## Prepare-then-fill and thread flush (2026-10-31)
+
+Sixth live delivery. A two-file change reached a clean zero-finding round-1
+assessment at a rebased head. One old-head inline thread remained open. Its
+finding was the aggregation-tail assertion, and the rebased head already
+carried the corrected assertion.
+
+Findings from this delivery:
+
+1. Answering a fixed legacy thread fails unless the current exchange records
+   that finding. The reducer returned a terminal-state rejection first. After a
+   clean terminal round was reduced, the same answer was still impossible
+   because no carrier owned the finding identity.
+2. A direct thread resolution with a linked evidence comment let a clean
+   terminal round deliver at the same head. The delivery result reported
+   `status=delivered` with the exclusive terminal label, and the readback showed
+   zero open threads.
+3. The prepare-mode output was a template with a null state and empty visible
+   content. Six deliver-mode submissions were withheld before publication: the
+   requirement-issue flags, the null state, the bare state record, the empty
+   visible content, a visible digest from a ledger built before the reduce, and
+   a scope digest captured before a body-text correction. The corrected
+   manifest was accepted on the seventh submission.
+4. A pull-request body correction moves the live scope digest. The reduce binds
+   one scope digest, so collect the scope again and bind the new value before
+   delivery.
+5. Required checks started only after the terminal label was applied. The two
+   earlier failed jobs were label-precondition failures from a run before the
+   label existed, and both had a passing re-run at the same head. Auto-merge
+   with the squash method merged the pull request when the required checks
+   passed.
