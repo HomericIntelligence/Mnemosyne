@@ -374,6 +374,65 @@ terminal.
   failure of every shard with an "unclassified modules" message) is a
   project-specific fact, not generalized into the skill.
 
+## Source case (2026-11-01): reframe bound to an older predecessor
+
+A requirements reframe was required because a linked requirement closed on the
+default branch after a terminal GO, which made the retained requirements digest
+stale. The reframe authority record was published, then the round-1 reframe
+carrier was reduced, rendered, and published with one required finding. No
+verdict could be delivered afterwards.
+
+### Diagnosis
+
+- The authority record carried `supersedes_state_sha256` equal to an earlier
+  round-1 state of the old exchange, not the terminal state that was the logical
+  state at publication time.
+- An author event published before the authority record had already derived a
+  successor from that same earlier state. That state therefore had two derived
+  successors: the author-event result and the reframe carrier.
+- The delivery reader replays every carrier on the artifact and builds the
+  derived-children map for the whole graph. It rejects any state with more than
+  one child, so the failure is not limited to the current exchange.
+- Re-running the delivery reproduced the exact error message: one
+  review-exchange state has multiple derived successors.
+- A second, independent defect also blocked delivery: the record body as the
+  forge returns it carries one trailing line feed, while the record parser
+  requires the body to equal its canonical JSON exactly, so the receipt could
+  not resolve from the forge even by digest.
+
+### Recovery assessment
+
+- Reviews that are no longer pending cannot be deleted, and every carrier is
+  immutable, so the forked edge cannot be removed.
+- A corrected second authority record would not remove the edge; the rejection
+  is over the whole graph, not over the selected exchange.
+- Patching the delivery helper or the parser is outside the protocol and was not
+  done.
+- The supervisor rule that applies is the authority-transition rule: do not
+  apply an authority transition to an older reviewer state when a later verified
+  author event derives the current logical state. That is the exact mistake that
+  was made.
+
+### Actions taken
+
+- Re-verified the live head, labels, open threads, and every carrier state and
+  predecessor digest from the forge, read-only.
+- Re-produced the delivery error once against the exact head to bind the evidence.
+- Published exactly one blocker comment that names the bound predecessor state,
+  the current logical state, both derived successors, and the delivery error.
+- Made zero carrier writes, zero reducer probes, zero label changes, and did not
+  arm auto-merge.
+- Kept the published round-1 review and its required finding as valid
+  source-review output.
+
+### Reusable outcome
+
+The checks belong in the preparation path, not the recovery path: compare the
+receipt supersession binding and every event prior-state binding with the current
+logical state digest before publication. When they differ, the exchange has no
+route to delivery, and the only safe action is a read-only stop with one blocker
+comment.
+
 ## Incident: unresolvable receipt reference in an immutable carrier (2026-10-31)
 
 ### Shape
