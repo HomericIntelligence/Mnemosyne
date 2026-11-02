@@ -1,13 +1,13 @@
 ---
 name: shared-fs-hang-diagnosis-from-allocation
 license: BSD-3-Clause
-description: "Find the first cause, and why the outage lasted, when a scheduler-managed network service accepts TCP connections but never answers, and node access is denied. Use when: (1) every HTTP request hangs while the port is open and a published status record still says UP, (2) you cannot SSH to the node, (3) service logs show repeated health-probe timeouts or the supervisor and monitor logs stopped, (4) component logs report that a bound root changed its mode or identity, or (5) another operator already restarted the service and you must bound the onset and the duration from preserved logs and scheduler accounting."
+description: "Find the first cause, and why the outage lasted, when a scheduler-managed network service accepts TCP connections but never answers, and node access is denied. Use when: (1) every HTTP request hangs while the port is open and a published status record still says UP, (2) you cannot SSH to the node, (3) service logs show repeated health-probe timeouts or the supervisor and monitor logs stopped, (4) component logs report that a bound root changed its mode or identity, or (5) another operator already restarted the service and you must bound the onset and the duration from preserved logs and scheduler accounting, or (6) you review code that puts a file lock on a shared directory and must replace it."
 category: debugging
 date: 2026-10-24
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-live
-tags: [hang, shared-filesystem, flock, fuse, virtiofs, slurm, srun-overlap, request-wait-answer, accept-queue, proc, outage-diagnosis, root-identity-drift, estale, watchdog]
+tags: [hang, shared-filesystem, flock, fuse, virtiofs, slurm, srun-overlap, request-wait-answer, accept-queue, proc, outage-diagnosis, root-identity-drift, estale, watchdog, no-file-lock, o-excl, atomic-replace, generation-check, compare-and-swap]
 ---
 
 # Shared-Filesystem Hang Diagnosis From Inside The Allocation
@@ -29,6 +29,7 @@ tags: [hang, shared-filesystem, flock, fuse, virtiofs, slurm, srun-overlap, requ
 - Service logs repeat "health probe failed: read timeout" and the supervisor, monitor or fleet-report log stops or shows "read operation timed out".
 - A component log says a bound root "changed during root resolution" with a different mode, owner or inode.
 - Another operator already restarted the service; only preserved logs, the scheduler record and the new generation remain.
+- You must review, or write, code that locks a file on a shared directory.
 
 ## Verified Workflow
 
@@ -65,9 +66,31 @@ ls -l /proc/<pid>/fd | awk '{print $NF}' | grep -E 'lock|\.lck'   # open lock fi
 
 5. **Read the kernel wait channel of every thread.** `wchan = request_wait_answer` means the thread waits for a reply to a pending FUSE or virtiofs request. A blocking `flock`, or any call on a stuck shared-storage path, shows this state. Threads in `futex_wait` or `ep_poll` are idle or waiting for the blocked thread. A blocked event loop makes every request hang while the port stays open. An `ESTALE` (stale file handle) error in any component log corroborates a storage-side event (server restart, failover or remount); it supports this branch and asks for a check of the storage event logs where they are readable.
 6. **Find the blocking call in the code.** List open file descriptors of the blocked process that point to lock files on shared storage. Search the source for `fcntl.flock` with `LOCK_EX` or `LOCK_SH` and no `LOCK_NB`. A repository rule that "shared storage takes no file lock" does not prove that every call site follows it. Report the lock as inferred if the thread stack is not readable.
-7. **Fix the cause class, not only the process.** Replace a blocking lock wait with a bounded loop on `LOCK_NB` that raises a typed timeout and fails closed. Restart only to restore service.
+7. **Fix the cause class, not only the process.** Do not replace a blocking lock with a bounded `LOCK_NB` loop. A file lock on shared storage can wait without limit, even when the call is non-blocking, because the wait can be inside the storage client. Remove the lock itself. Restart only to restore service.
 8. **Record the duration cause when it differs from the first cause.** If a wedged worker ran for many minutes, read the supervisor gate. A gate that counts a live PID or a fresh aggregate heartbeat as liveness preserves a wedged child without limit. The gate must ask for progress evidence from each worker and bound how often a disagreeing freshness signal may extend preservation before the supervisor restarts the child.
-9. **Keep a backstop for the lock fix.** A bounded `LOCK_NB` loop removes the indefinite wait, but the lock call itself can stop in the kernel against a dead storage server. Keep a progress-based watchdog as the backstop, and test the fix against a dead-server path, not only a contested-lock path.
+9. **Keep a backstop for any remaining shared-path call.** The replacement from step 7 removes the lock. The file call beside it can still stop against a dead storage server. Keep a progress-based watchdog as the backstop, and test the fix against a dead-server path, not only a contested-lock path.
+
+### Rule: shared storage takes no file lock
+
+Do not put a file lock on a shared directory. Do not call `fcntl.flock`, `fcntl.lockf`, or one of their `LOCK_*` constants on a shared directory. A lock on shared storage can wait without a limit, and the waiting process stops taking requests when it does.
+
+Use one of these instead:
+
+| Need | Use |
+| --- | --- |
+| One winner claims work | An exclusive create, such as `os.O_EXCL`. |
+| One record is published | An atomic replace, such as `os.replace`. |
+| Read-modify-write without lost updates | A generation check, a compare-and-swap update. |
+
+Keep the lock only where the owner is one node. A node-local per-port lease is such a site. A lock there cannot block on the storage server.
+
+State the rule where reviewers read it. Do not add a test that scans the source to prove the rule. A scan test passes when a new call site uses an alias, and it fails when the source changes shape. Review is the control.
+
+Do these checks in review, against the code, not by grep alone:
+
+1. Find each lock call site and the path it locks.
+2. Decide whether that path is on a shared mount. A path is shared when another node can write it.
+3. Replace every shared-path lock before it ships.
 
 ### Branch: stall with a healthy front
 
@@ -106,6 +129,7 @@ The live wedge is gone, so steps 3 to 5 have no target. Prove recovery first, th
 | Status record | Trust the published status that said UP | The record is not written from the live path | Probe the live port. |
 | Free memory | Treat low `free` as a leak | Almost all of it was page cache | Compare `used` with `buff/cache`, then use scheduler `MaxRSS`. |
 | Onset attribution | Named a neighbour job that started in the onset window as the trigger | Correlation in time is not a mechanism | Prove a resource or lock interaction before you name a trigger. |
+| Bounded lock wait | Replaced a blocking lock with a bounded `LOCK_NB` retry loop and a typed timeout | The lock call can still wait without limit inside the storage client, so the process still stops | Remove the shared-path lock. Use an exclusive create, an atomic replace, or a generation check. |
 
 ## Results & Parameters
 
