@@ -27,6 +27,33 @@ version 1.15.0. The complete v1.15.0 retrievable content is archived once in the
 | Silent complexity/test/policy/inventory drift | [Hephaestus PR #2056](https://github.com/HomericIntelligence/Hephaestus/pull/2056) | verified-local | Whole-tree lint, tests, whole-file policy search, and inventory hooks catch distinct defects |
 | Content-derived test pins in a conflict | Anonymized monorepo PR train, 2026-10 (see below) | verified-local | Recompute pins from merged content; mirror assertions to computed truth, never guess invariants |
 | Target merged at the delivery gate | Anonymized hosted monorepo PR, 2026-10 (see below) | verified-local | Re-read artifact state immediately before the mutation; a merged target gets content-equivalence proof and a stand-down, not a replay push |
+| Stale import found only by lint after the rebase | Anonymized hosted monorepo PR, 2026-10 (see below) | verified-local | Restore or delete the import in the commit that uses it; amend `HEAD` only when `HEAD` is that commit |
+
+## Stale Import Found Only by Lint
+
+Evidence from an anonymized hosted monorepo rebase of a 20-commit branch. The
+rebase finished with no conflict markers. `ruff check` then reported two
+defects:
+
+- one symbol was missing (`F821`) because the conflict resolution took the trunk
+  import line and dropped a symbol that a later replayed commit used;
+- one import became unused (`F401`) because a replayed commit removed its last
+  use.
+
+Both appearances were in commits other than `HEAD`. A `git commit --amend` on
+`HEAD` made lint pass. It also attached the repair to the unrelated last commit.
+A cleanup amend that touched the same import line also reverted the real repair.
+An interactive rebase with `edit` on the causing commit produced clean history.
+
+The local test run reported 188 failures against a 193-failure baseline at
+trunk. Every residual failure came from an environment guard, because the test
+host root was group-writable. The branch failures were a strict subset. Report
+the environment cause and give the suite to CI.
+
+| Silent import and baseline repairs | Anonymized hosted monorepo PR rebase, 2026-10 | verified-local | Place each repair in the causing commit; compare failure nodes at a refreshed base |
+| Union of two competing guards | Comet [PR #3654](https://github.com/LLM360/comet/pull/3654) rebased onto a trunk commit from [#3636](https://github.com/LLM360/comet/issues/3636), 2026-11 | verified-local | Keep the trunk design; delete the replayed side's duplicate guard, helper, state, parser, and tests |
+| Delete-side block conflict | Comet [PR #3792](https://github.com/LLM360/comet/pull/3792) rebased onto trunk at 2026-10 | verified-local | Take the deletion when the commit retires the artifact; grep the final tree for the deleted name |
+| Armed auto-merge fired on the delivery head | Anonymized hosted monorepo PR, 2026-11 (see below) | verified-ci | Read the arm state before the push; a self-merge names its own PR and needs a close-out, not a second rebase |
 | Every conflict resolves to the target side | Anonymized documentation-only PR, 2026-10 (see below) | verified-local | Prove the sibling delivery and the empty residual, close the PR, and do not resolve or push |
 
 ## Additional Ecosystem Evidence
@@ -65,6 +92,40 @@ version 1.15.0. The complete v1.15.0 retrievable content is archived once in the
   pointed at the same value, and the fixture update was present verbatim. No push
   occurred; zero unique work remained unretained. The stop path itself has no CI
   receipt because no delivery ran.
+- Comet PR #3654 (2026-11): a 2-commit branch conflicted with a trunk commit that
+  landed a different design for one failure mode. The branch added a fail-closed
+  serve-argument capability guard with a `permanent_error` state; trunk added a
+  fail-open validator with a `permanent_block` state. The rebase kept both guards,
+  both states, both exit-code parsers, and both test sets, and it compiled. The
+  union signature was a nonempty diff against trunk in files that trunk had fully
+  superseded. The resolution kept the trunk validator and block state, added one
+  drift note for the branch's extra digest check, deleted the duplicate guard,
+  helper, parser, and six tests, and removed three files that trunk had retired.
+  1,116 focused tests passed with lint and format clean; the supervisor and
+  configuration files then matched trunk exactly. The pull request stayed open at
+  the new head and needed a fresh review because the earlier review approval was
+  bound to the old head SHA.
+
+- Semantic Audit for v2.4.0: kept the earlier v2.0.0 compaction, then added the
+  clean-merge union-of-both-guards branch with its conflict table row, failed
+  attempt, and case note. No verified evidence was upgraded.
+
+## Delete-Side Block Conflict
+
+Comet PR #3792 (2026-10) conflicts in one installer script. One replayed commit
+deletes a per-model limit table because the gateway now publishes the value in a
+server response. Trunk added new entries inside that same table. Both sides assert
+opposite intent for one artifact: keep it and extend it, or retire it.
+
+The correct residual is the deletion. Keeping trunk's entries would leave half a
+retired table, and the branch tests assert the table name is absent. A whole-file
+search for the name found no other reference, and the script passed a syntax
+check. The branch tests passed.
+
+Two tests failed in a later module. The same two nodes also failed on a clean
+checkout of the recorded trunk revision, so the rebase did not cause them. Report
+the count and the node names, and compare node sets. Matching totals alone can
+mask a branch-only node.
 - Anonymized documentation-only pull request (2026-10): a three-file comment
   correction carried a delivered approval state at its reviewed head and an
   independent review that returned a positive verdict at that same head. The
@@ -86,6 +147,29 @@ version 1.15.0. The complete v1.15.0 retrievable content is archived once in the
   Evidence limit: the sibling merge time and the rebase attempt are recorded from
   the forge and local Git. No test run was necessary, because the change changed
   no behavior.
+- Anonymized hosted monorepo pull request (2026-11): a rebase-only task on a
+  `CONFLICTING` pull request that carried a delivered approval label at its old
+  head. Two changed files, one text conflict, where the target side had added a
+  new warning note in the same test and moved the asserted record index by one.
+  The resolution kept both intents: the target side's ordering plus the branch's
+  record-content assertions reindexed to the new position. A local check
+  confirmed the branch's slot formula equalled the production helper, so no
+  reviewed behavior changed. During the conflict loop, a plain
+  `git rebase --continue` opened the editor and blocked until the command
+  timeout killed it. The retry confirmed no `index.lock` remained and a complete
+  `rebase-merge` directory, then continued with both editor overrides. The
+  replay produced an unsigned commit (`%G?` = `N`) where the old head was
+  signed, so the commit was re-signed with `-S -s` before the push. The push used
+  a lease pinned to the observed old head. All 47 checks passed, 3 were skipped.
+  The pull request carried an auto-merge request armed by an operator before the
+  task started; it was not read before the push. When the new head's checks went
+  green, that request merged the pull request at the new head. The merged commit
+  was byte-identical to the prepared head for both changed files. The trunk
+  commit subject named the same pull request. The worktree was removed and one
+  delivery comment recorded the head move, the resolution, the approval-label
+  scope, and the merge. Evidence limit: the merge is a real outcome, but it
+  bypassed the intended re-review at the new head, so it is not evidence that a
+  re-review passed there.
 
 ## Semantic Audit for v2.0.0
 
