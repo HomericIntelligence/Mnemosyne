@@ -167,3 +167,25 @@ work was lost when the R1 nonce branch was retired. A lane WITH commits follows 
   constraint is wall-clock budget.
 - Two consecutive timeouts with verified progress on the same issue justify the next doubling;
   a timeout with NO progress suggests a real stall and says to diagnose instead of raising budget.
+
+## Goal-bound writer and dirty-claim adoption evidence (2026-10)
+
+- One item repeated the pre-PR nonce cycle: three relaunch attempts, two planner timeouts at
+  5400 s with verified progress, then plan-go after budgets were raised to 14400 s / 7200 s.
+- The implement job then reported `FAIL:dirty_direct_claim_failed` with
+  `dirty direct pending scope changed` after ~7900 s of work and hundreds of productive turns.
+  The lane held a correct, plan-conformant partial implementation plus one edit outside the plan's
+  allowed paths (an export added to a package `__init__`). The scope re-validation in the consume
+  step is what failed, not the code.
+- Observation: the same writer session continued to commit and pass per-step checks AFTER the loop
+  had declared it failed. Its session records showed goal-tool calls and a compaction, which
+  identifies goal auto-continuation as the driver. No process name or session id matched the
+  process list, because the continuation is driven by the harness, not by a detached runner.
+- Consequence: a process-name search is not evidence of writer death. Two outcomes were observed
+  when authorship was attempted in that lane — files silently overwritten, and interface
+  divergence between two drafts of the same module.
+- Outcome for the item: the adopted lane reached a merged PR with all focused checks green.
+- Permission-gate evidence: a group-writable clone common dir is rejected by one gate (`0755` is
+  accepted), while the private state parent, state dir, and receipt are rejected by a different
+  gate unless they are owner-only (`0700` / `0600`). Normalizing every directory to one mode
+  reproduces the failure at the next gate within seconds.
