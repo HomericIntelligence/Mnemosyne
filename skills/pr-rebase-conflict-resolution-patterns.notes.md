@@ -190,3 +190,29 @@ The compaction retained every materially distinct action from v1.15.0:
 Repeated command transcripts, exact historical SHAs, long project narratives,
 and duplicate tables moved here or remain in history. No unverified evidence was
 upgraded.
+
+## v2.6.0 — `AA` from two independent implementations (§ add-add-superset-compare)
+
+Two lanes implemented one issue in parallel and each created the same three
+scripts. The second lane to push hit `CONFLICT (add/add)` on all three.
+
+The trunk copy was larger on two of three files, but the replayed copy was larger
+on none — which is not the signal. The signal was the direction of the diff:
+
+- trunk-vs-replayed showed only additions (reader helpers, an argument parser, a
+  required digest and profile flag);
+- replayed-vs-trunk showed only removals (a narrower gate with no weights or
+  profile verification).
+
+That made the trunk copy the superset and the issue's required property
+(cross-shard agreement on weights and profile) was absent from the replayed copy.
+Rebasing the replayed branch would have reproduced the trunk code. Re-landing the
+replayed copy would have regressed the gate. The lane was closed with the
+two-direction diff quoted as evidence.
+
+The same session produced the mirror case worth separating: a branch that had
+been reviewed as a superset was re-landed as one commit on a trunk model that had
+shipped first, where the trunk's split of the compared fields was kept and only
+the branch's unique entry points were added. Both cases share one rule: prove
+which copy is the superset, then keep it. Which artifact to write in depends on
+whether the trunk copy is the reviewed model.
