@@ -154,3 +154,36 @@ allowlist, so no repair was made. The bracket evidence went onto the pull reques
 the change stood on its own passing checks. The distinguishing signal was that the failing guard
 touched a file the change never modified and the expected value did not move with the tree — a
 regression would have shown the asserted value and the tree moving together.
+
+## Mount-reported directory metadata
+
+A shared-storage mount reported `st_nlink=1` for a directory that held a child directory. A local
+POSIX filesystem reports `2` for that shape.
+
+Probe output on the affected mount:
+
+```text
+/parent        nlink=1
+/parent/child  nlink=1
+```
+
+The change under test edited a workflow file and a test helper. The offending assertions sat in two
+files the change never touched: a provenance guard that rejects `links < 2` on a directory identity,
+and two test helpers that assert `st_nlink >= 2` after resolving a directory.
+
+The failure set was 61 nodes in one module. Each node reported one of `object_auth_invalid` with
+reason `directory_identity`, or `assert 1 >= 2`. Because every test that creates a directory passes
+through the same guard, one mount property produced the whole set.
+
+Attribution followed the oracle rule:
+
+1. Same module at the pristine base commit in a clean detached worktree: same counts.
+2. Exactly those failing node ids replayed against the changed worktree: set difference empty in
+   both directions.
+3. Hosted CI on the pull request: zero failures, including the lint and type-check jobs.
+
+Disposition: environment-attributed pass-through. No assertion was relaxed. The probe output, the
+base comparison, and the hosted result went into the pull request body.
+
+The counter-signal matters. The same error label also appears for a real identity change. A probe
+value of `2` with a continuing failure means the guard is correct and the tree moved.

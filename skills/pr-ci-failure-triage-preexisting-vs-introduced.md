@@ -1,9 +1,9 @@
 ---
 name: pr-ci-failure-triage-preexisting-vs-introduced
-description: "Classify red PR checks as introduced, pre-existing, flaky, environmental, stale-commit, or status-rollup artifacts before fixing or rerunning. Use after rebases/force-pushes, unrelated failures, merge-preview coverage changes, or hosted-only process-launch errors. Also use when the required check is a fan-in gate reported by a ruleset, when the failing symbol on the base was deliberately removed, when a base update turns a green branch red without a textual conflict, when grouped or sharded logs hide individual failed node identities, when failures reproduce only on the local host, or when a path-filtered check fails on stale in-repo plan inputs that main already repaired. Also use when an aggregate gate fails its own report step because a producer job output key is absent from `needs` while every upstream job succeeded. Also use when a green comparison lane may never execute the failing node because event-scoped profiles or shard planners select different test sets on identical trees. Also use when the default branch's CI is red at or immediately after your squash merge and a task gate requires green main CI before you report, or when per-commit run lookups return empty because the branch does not run every push. Also use when only some failing nodes reproduce on a pristine trunk worktree, or when a test fails as an absent exception because a derived identity stopped covering the edited dimension. Also use when a pre-existing classification leaves a follow-up-issue obligation while an aggregate tracker may already own the failing group — dedupe against open trackers before filing. Also use when a rebase or push gate must decide whether a red local run of the change's own test files belongs to the rebased head or reproduces unchanged at the pristine base commit. Also use when a content guard fails with an expected-versus-actual version or constant mismatch that you did not edit, or when your change's own content checks pass but one repository-wide guard fails on an unchanged file."
+description: "Classify red PR checks as introduced, pre-existing, flaky, environmental, stale-commit, or status-rollup artifacts before fixing or rerunning. Use after rebases/force-pushes, unrelated failures, merge-preview coverage changes, or hosted-only process-launch errors. Also use when the required check is a fan-in gate reported by a ruleset, when the failing symbol on the base was deliberately removed, when a base update turns a green branch red without a textual conflict, when grouped or sharded logs hide individual failed node identities, when failures reproduce only on the local host, or when a path-filtered check fails on stale in-repo plan inputs that main already repaired. Also use when an aggregate gate fails its own report step because a producer job output key is absent from `needs` while every upstream job succeeded. Also use when a green comparison lane may never execute the failing node because event-scoped profiles or shard planners select different test sets on identical trees. Also use when the default branch's CI is red at or immediately after your squash merge and a task gate requires green main CI before you report, or when per-commit run lookups return empty because the branch does not run every push. Also use when only some failing nodes reproduce on a pristine trunk worktree, or when a test fails as an absent exception because a derived identity stopped covering the edited dimension. Also use when a pre-existing classification leaves a follow-up-issue obligation while an aggregate tracker may already own the failing group — dedupe against open trackers before filing. Also use when a rebase or push gate must decide whether a red local run of the change's own test files belongs to the rebased head or reproduces unchanged at the pristine base commit. Also use when a content guard fails with an expected-versus-actual version or constant mismatch that you did not edit, or when your change's own content checks pass but one repository-wide guard fails on an unchanged file. Also use when a fail-closed guard asserts a stat invariant such as a directory `st_nlink >= 2` and a whole module goes red on this host, because a shared-storage mount can report metadata values a local filesystem cannot produce."
 category: ci-cd
-date: 2026-11-01
-version: "2.11.0"
+date: 2026-11-02
+version: "2.12.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-ci
@@ -40,6 +40,9 @@ tags:
   - stale-version-pin
   - content-guard-mismatch
   - unedited-file-failure
+  - mount-reported-metadata
+  - impossible-stat-value
+  - directory-nlink
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pr-ci-failure-triage-preexisting-vs-introduced.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -99,6 +102,8 @@ and the complete prior version is in
   a gated push, but the same files fail identically at the pristine base commit on
   this host while the hosted checks are green. The failure set then gates neither
   head, and every delta belongs to the reviewed resolution.
+- A fail-closed guard asserts a stat invariant (`st_nlink >= 2` on a directory) and a whole
+  module goes red on this host, so you suspect the tests before the mount.
 
 ## Verified Workflow
 
@@ -258,6 +263,7 @@ git diff "$OLD_BASE".."$PRE_UPDATE" -- <subject-source-files>
 | Subject source carries branch deltas and reverting them removes the failure | Genuine PR regression | Fix minimally in scope |
 | The same nodes fail set-identically on a pristine trunk worktree on this host, and trunk CI is green | Host/environment window | Report FYI with the reproduction evidence; do not patch the PR for it |
 | The identical failing node set reproduces at the pristine base commit on this host while hosted CI is green, and a gated mutation (push, merge, delivery) must proceed | Environment-attributed pass-through | Record the per-file failure-set equality and the representative root cause, then proceed without weakening any check. The gate proves that the resolution adds no failure, not that the host is green |
+| The host root cause is a metadata value that a local filesystem cannot produce, such as a directory `st_nlink` that stays at `1` after gaining a child, and a guard asserts `st_nlink >= 2` | Mount-reported metadata | Prove it with one directory probe, record the probe output beside the failure-set equality, and keep the guard unchanged. Do not relax the assertion to accept the mount |
 | The host root cause is a fail-closed trust check on an ancestor path, and one configuration value (for example the temp root) can reach it | Fail-closed navigation | Relocate that value to a compliant location and rerun the identical commands on both heads. Adjudicate the failure set when navigation is unavailable or slower than proving equality; keep the value pinned and recorded |
 | Only some of the failing nodes reproduce on a pristine trunk worktree; the rest pass there | Mixed attribution: the reproducing nodes are pre-existing, the others are branch-introduced | Split the failure set per node. Repair the branch-introduced nodes; report the reproducing nodes with their counts and do not fold them into one "fails on trunk" claim |
 | The asserted failure is an absent exception or a no-op, and the guard that should raise now compares equal because a mid-stream change removed the changed dimension from a derived identity | Fixture identity collision | Repair the fixture so it still distinguishes the two sides on the dimension the guard now reads, and assert the invariant the guard protects — not the label the old identity model produced |
@@ -267,6 +273,33 @@ oracle. A failure that reproduces there is not introduced by the branch. When th
 filesystem ownership, modes, or ACL semantics, prefer the hosted-runner result: a local mount can
 force modes, mask ACL behavior, or change user identity, so chmod-based assumptions can fail in
 either direction.
+
+A shared-storage mount can also report metadata values that a local filesystem cannot produce. The
+common shape is a directory `st_nlink` that stays at `1` after the directory gains a child, where a
+local POSIX filesystem reports `2`. Code that asserts the invariant (`st_nlink >= 2`, or a
+same-object guard that rejects `links < 2`) then fails closed on a tree that is correct. A whole
+module can go red from this one cause, because every test that creates a directory hits it.
+
+Recognize it before you debug the tests:
+
+```bash
+D=$(mktemp -d); mkdir -p "$D/parent/child"
+stat -c '%n nlink=%h' "$D/parent"     # local fs: 2; the reported shape: 1
+```
+
+One command separates the two classes. When the probe reports `1`, the failure is environmental and
+no branch change can fix it. Every failing node shares the metadata signature, and the same set
+fails at the pristine base. Do not weaken the assertion and do not rewrite the guard to accept the
+mount: the check is correct, and hosted CI on a native filesystem is the authority. Record the probe
+output, the per-file failure-set equality, and the hosted result in the PR, then proceed. This is the
+pass-through case, not a pass.
+
+The reverse also holds. When the probe reports `2` and the guard still fails closed, the cause is a
+real identity change, and the guard is doing its job. Distinguish the two by the probe, not by the
+error label; both produce the same `directory_identity`-style message.
+
+When you design the guard rather than triage it, `directory-identity-check-stable-stat-fields`
+covers which stat fields are safe to compare.
 
 A rebase gate is one application of the oracle. After the rebase, the touched test files can be red
 only in this checkout. Before the push, compare the failing node sets of both heads under one
@@ -439,6 +472,7 @@ operational verification.
 | 16 | Treated red main CI right after the merge as merge-caused and prepared a repair inside the delivery scope | The branch's workflow runs were sparse: a per-commit run query returned empty for the merge commit and hid that the first red run predated the merge by several commits, and every sampled failed job carried an identical node set in one module disjoint from the patch | Enumerate runs by branch and bracket the merge commit before attributing; compare the failing node set across the pre-merge red, the merge's run, and the tip; never treat a missing run as green, and do not adopt pre-existing breakage another lane owns |
 | 17 | Prepared a new issue for a classified pre-existing failure without checking open trackers | An aggregate tracker already listed the same validation run and failing group in its curated ledger; a duplicate would have raced the owning lane's record and split one failure line across two owners | Before filing a classified pre-existing failure, search open issues by the failing node or module and by tracker keywords; when a ledger already owns the group, reference it in the report and file nothing |
 | 18 | Re-ran a touched test file to confirm a rebase, hit a fail-closed ancestor-path refusal in every test that created a temp tree, and treated the red file as a mergeability blocker | The same refusal reproduces at the pristine base commit on this host. The failure set was equal for the touched files, so the rebased head added no failure, and the refusal never reaches the hosted checks | Before the push, run the touched files on a pristine base worktree under one environment pin. An equal failure set with green hosted CI is pass-through evidence. When one configuration value controls the refusal, navigate it and rerun both heads instead of adjudicating each node |
+| 19 | Read a `directory_identity` failure on a large module as a defect and started to debug which tests were wrong | A shared-storage mount reported `st_nlink=1` for a directory that held a child, so every fail-closed `st_nlink >= 2` guard rejected a correct tree; the same set failed at the pristine base and hosted CI was green | Probe the mount with one `mkdir` plus `stat` before reading any test. The probe separates mount-reported metadata from a real identity change, which produce the same error message |
 
 ## Results & Parameters
 
@@ -486,6 +520,9 @@ operational verification.
   gate result is "no added failure", not "green".
 - Navigation rule: when one configuration value controls a fail-closed refusal, move
   that value and rerun both heads instead of adjudicating each node; record the value.
+- Mount metadata probe: `mkdir -p D/parent/child; stat -c '%n nlink=%h' D/parent`. A value
+  of `1` classifies the failure as mount-reported metadata; `2` keeps it a real identity change.
+  Record the probe output with the failure-set equality.
 
 ## Evidence Boundary
 
