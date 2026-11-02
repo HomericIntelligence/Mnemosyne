@@ -1,13 +1,13 @@
 ---
 name: git-commit-signing-failures-and-setup
-description: "Use when required-signature policy blocks a conflict-free PR; GitHub reports unsigned, no_user, unknown_key, or bad signatures; local cryptographic checks disagree with GitHub; noninteractive workers silently fail to sign; a fresh headless host needs SSH signing; a restored host or later session inherits a stale signing-key path; email privacy rejects a push; amend produced a signed sibling that the PR did not adopt; or local verify-commit reports No principal matched or Can't check signature while signing is actually correct. Diagnose with REST, align identity and registered key, re-sign every introduced commit without changing content, verify an embedded signature in place after key registration, separate verification noise from a real fault, and verify the exact remote PR head before merge."
+description: "Use when required-signature policy blocks a conflict-free PR; GitHub reports unsigned, no_user, unknown_key, or bad signatures; local cryptographic checks disagree with GitHub; noninteractive workers silently fail to sign; a fresh headless host needs SSH signing; a restored host or later session inherits a stale signing-key path; email privacy rejects a push; amend produced a signed sibling that the PR did not adopt; or local verify-commit reports No principal matched or Can't check signature while signing is actually correct; or a worker that runs commands with an isolated HOME loses the signer configuration and Git falls back to OpenPGP with a No secret key error. Diagnose with REST, align identity and registered key, re-sign every introduced commit without changing content, verify an embedded signature in place after key registration, separate verification noise from a real fault, and verify the exact remote PR head before merge."
 category: tooling
 date: 2026-10-15
-version: "2.4.0"
+version: "2.5.0"
 user-invocable: false
 license: BSD-3-Clause
 verification: mixed
-tags: [git, commit-signing, gpg, ssh-signing, required-signatures, github, identity, headless, force-with-lease, pr-head]
+tags: [git, commit-signing, gpg, ssh-signing, required-signatures, github, identity, headless, force-with-lease, pr-head, isolated-home, gitconfig-scope, ssh-auth-sock, ssh-agent, signer-fallback, no-secret-key]
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/git-commit-signing-failures-and-setup.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -43,6 +43,8 @@ not completed through a green merge. Case evidence is in
   says `Good "git" signature`.
 - Local `verify-commit` cannot check commits authored by other people.
 - Fleet tooling might rewrite a bot or another owners PR.
+- A worker runs commands with an isolated `HOME` and `git commit -S` fails with `No secret key`,
+  although the same command signs correctly in the interactive shell.
 
 ## Verified Workflow
 
@@ -113,6 +115,63 @@ git log -1 --pretty=format:'%G?' || true
 Re-point `user.signingkey` to the real path on this host before you create the
 commit. Do not compose a signed commit with a configuration you have not
 exercised on the live host.
+
+### An isolated `HOME` silently disables the configured signer
+
+A worker that runs each command with an isolated `HOME` can lose the entire
+signing configuration, because `gpg.format`, `user.signingkey`,
+`gpg.ssh.allowedSignersFile`, and often `user.name` and `user.email` live only in
+`$HOME/.gitconfig`. The failure is misleading: Git does not report a missing
+signing configuration. It falls back to the default OpenPGP format and reports
+that no secret key exists, which looks like a key-store fault:
+
+```text
+gpg: skipped "<key>": No secret key
+fatal: failed to write commit object
+```
+
+Run the preflight against the isolated environment, not the interactive shell.
+A configuration that works in one shell can be absent in the worker:
+
+```bash
+HOME=<isolated-home> git config --get gpg.format      # exit 1 means "unset", not "ssh"
+HOME=<isolated-home> git config --get user.email
+```
+
+Do not copy the whole home configuration into the isolated tree, and do not
+treat this as a reason to drop signing. Pass the signing facts to the one commit
+command that needs them, so the value is explicit and reviewable:
+
+```bash
+git -c gpg.format=ssh \
+    -c user.name='<name>' \
+    -c user.email='<numeric-id>+<login>@users.noreply.github.com' \
+    -c user.signingkey='<path-to-signing-key>' \
+    -c gpg.ssh.allowedSignersFile='<path-to-allowed-signers>' \
+    commit -S ...
+```
+
+Keep the private key out of the isolated tree. Expose its held key through a
+stable agent socket that a new shell can still reach, and point
+`SSH_AUTH_SOCK` at that socket for the commit. A per-shell socket that the
+launching process owns becomes unreachable as soon as that process exits; a
+socket at a fixed path survives the shell boundary. Confirm the agent holds the
+signing key before you commit:
+
+```bash
+SSH_AUTH_SOCK=<stable-socket-path> ssh-add -l
+```
+
+Two more traps remain after the signer works:
+
+- A commit hook re-runs `git commit` in a fresh process, so the `-c` overrides
+  are lost and the OpenPGP fallback returns. Either put the values in the
+  isolated configuration or skip hooks for that one commit and verify
+  separately.
+- Verification has the same configuration dependency. Reading `%G?` without the
+  allowed-signers file reports `N` (no signature) even when the signature is
+  present and correct. Verify with the configuration supplied, and treat a bare
+  `%G?` result in an isolated environment as unverified rather than unsigned.
 
 The allowed-signers row contains the email, key type, and public-key body. Registering the key as an
 authentication key is insufficient. Adding a signing key may require the interactive
