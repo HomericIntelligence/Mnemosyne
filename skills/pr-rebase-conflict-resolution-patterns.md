@@ -3,7 +3,7 @@ name: pr-rebase-conflict-resolution-patterns
 description: "Use when a pull request reports DIRTY or CONFLICTING, an active task needs a main artifact to continue, a permitted stacked or same-file rebase needs serialization, conflict status is ambiguous (AA/UU/modify-delete), or a textually clean rebase may hide semantic, test, lint, policy, or inventory drift, or the resolution keeps both sides' guards for one failure mode, or a delete-side commit conflicts with trunk entries added inside the deleted block, or the conflict carries test-pinned values derived from source content that neither side can supply correctly, or the target pull request merged, closed, or lost its source ref between resolution work and the delivery mutation, or every conflict resolves to the current target side because a sibling pull request already delivered the same intent and the reviewed head carries a delivered approval state, or an already-armed auto-merge on the same pull request can fire on the new head as soon as your rebase push turns its checks green."
 category: ci-cd
 date: 2026-07-12
-version: "2.7.0"
+version: "2.5.0"
 license: BSD-3-Clause
 user-invocable: false
 tags: [git, rebase, merge-conflict, pull-request, worktree, force-with-lease, semantic-conflict, stacked-pr, ci]
@@ -125,6 +125,7 @@ Resolve according to intent:
 | Additive build/config blocks | Keep both valid blocks | Parser/configure step |
 | Table, map, or block deleted by the replayed commit, with trunk entries added inside it | Take the deletion when the commit retires the whole artifact; take the trunk delta when the commit keeps the artifact | Grep the final tree for the deleted name; any surviving reference is a resolution defect |
 | Policy prose | Pick the chronologically current contract, then update every restatement | Whole-file search and backing test |
+| Every hunk resolves to the target side | Stop before you resolve or push. Prove the sibling delivery and the empty residual, then close the pull request | Sibling merge commit reachable from the target, plus an empty residual diff against the target |
 | Already-upstream commit | Skip only after proving no unique delta remains | Empty/trivial trunk diff |
 
 Stage paths explicitly. Do not use `git add .` or `git add -A` in a conflict loop.
@@ -160,6 +161,35 @@ after proving they are absent from the new history.
 If the substantive change already landed through a sibling, compare both files
 and the final branch diff. Close a fully superseded PR; do not manufacture an
 empty residual.
+
+Do not close from a conflict marker alone. A conflict that shows the same
+correction on both sides is not proof of delivered work. Prove these three
+items:
+
+1. The sibling PR is `MERGED`, and its merge commit is reachable from the
+   target branch.
+2. The linked issue names that sibling PR as a closing reference and is
+   `CLOSED`.
+3. The target branch content satisfies each acceptance criterion, and a search
+   for the stale term returns only the unrelated matches.
+
+Before you close, read the complete current head, the sibling merge commit, and
+the full branch diff. Some residual can stay: a wording variant, a missed third
+file, or a `gitignore`-based revert backdrop. Close only when a rebase would
+resolve every hunk to the target side.
+
+Then post a close comment and close the PR. Do not force-push, do not rebase, and
+do not request a new review. All these actions only replace the head, and the
+same content cannot add value. If the branch conflicts, the PR cannot merge.
+
+A delivered approval label at the reviewed head is a record for that head only.
+Do not remove it. Do not treat it as a reason to drive the PR to merge.
+
+Keep the close comment short and make it sufficient. It needs the rebase
+conflict list, the sibling merge commit and merge time, the issue closing
+reference, the acceptance check, and one sentence that the delta is empty. When
+the same intent can still need a change, ask for a new issue against the current
+target text. Do not reopen the superseded branch.
 
 ### 4. Continue, verify parentage, and inspect the residual
 
@@ -443,6 +473,41 @@ local checks, preserved verification boundaries, and either a lease-safe push
 with CI on the new head or a content-verified stand-down when the target
 already landed upstream. The push requires a signed replayed head and a recorded
 read of the auto-merge arm state.
+
+### Superseded-disposition check
+
+Use this check when a rebase conflicts and a sibling may have delivered the
+same intent. Run it before you resolve a hunk or push:
+
+```bash
+git fetch origin
+trunk=origin/main
+git merge-base "$trunk" <superseded-head>
+git rev-list --count "$trunk"..<superseded-head>
+git log --oneline -5 "$trunk" -- <each conflicted path>
+git grep -n '<stale term>' "$trunk" -- <the changed paths>
+gh pr view <sibling-pr> --json state,mergedAt,mergeCommit
+gh issue view <issue> --json state,closedByPullRequestsReferences
+```
+
+Close the pull request when all these results are true:
+
+| Check | Required result |
+| --- | --- |
+| Sibling state | `MERGED`, and its merge commit is reachable from the trunk |
+| Issue state | `CLOSED`, and the sibling is in the closing references |
+| Stale-term search | No match in the changed files, or only unrelated matches |
+| Rebase residual | Every conflicted hunk resolves to the trunk side |
+| Branch diff against trunk | Empty or reverses later trunk work |
+
+Do not use the resolved pull-request head as evidence of the trunk content. The
+reviewed head can stay older than the trunk. Read the trunk content directly.
+
+## Verified On
+
+| Project | Context | Details |
+| --- | --- | --- |
+| Anonymized multi-repository delivery fleet, 2026-10 | Documentation-only PR: all three conflicts resolved to the target side after a sibling delivered the same correction; the PR was closed with the sibling merge commit and the acceptance check as evidence | See [notes](./pr-rebase-conflict-resolution-patterns.notes.md) |
 
 ## References
 

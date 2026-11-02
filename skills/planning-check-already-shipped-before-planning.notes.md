@@ -70,3 +70,44 @@ build-wiring provenance must be checked separately.
   the fix's own tests already pin the invariant.
 - Cost of the check: two commands and one file read. Cost of the missed check would have been a
   full plan-publish-review-implement cycle.
+
+## 2026-10-31: Re-dispatched task already completed
+
+- Context: one hosted pull request needed a rebase-only task: rebase onto the default branch, keep
+  the review-gate label, and post one completion report. The dispatcher re-issued the same task
+  several times in one day while the default branch advanced.
+- Observed cost: separate runs each restarted from the snapshot prompt and re-derived all state.
+  Their reports accumulated to seven on one thread. Several runs faced a genuinely advanced default
+  branch, so re-running the rebase was correct for them; the missed step was binding to the latest
+  report before acting.
+- Final run's check: the branch sat on the current default-branch tip (merge base equal to the
+  branch tip, zero commits behind, no conflicts), all hosted checks passed, the gate label was
+  intact, auto-merge was off, and the latest report described exactly that state and named the
+  outstanding re-review gate.
+- Disposition taken: verify live state, confirm the gate state, and stop without a new report. The
+  deliverable was a stop-and-report verdict, not another duplicate report.
+
+## 2026-11-01: Multi-item issue with a recorded remainder
+
+- Context: a plan review for an issue that named four converted checks. Two merged PRs already
+  converted three of them. The last merged PR body held a "kept blocking" list with one item marked
+  "no log directory; a design is needed first" and one item marked "ambiguous, kept". The authority
+  ADR placed both items in the convert class. The plan's first draft converted only the first item
+  and left the second item unchanged, because the last merged PR had kept it.
+- Confirming evidence for the remainder boundary: the merged PR body, the cited source lines, and
+  the authority record. Each closed item was re-read at its cited symbol and showed the new
+  behavior. Each remainder item still raised.
+- Population check: a directory-wide scan of the same check class found about 40 candidate sites
+  across six modules. The plan then named about 18 convert sites by number and kept the rest behind
+  one written keep rule. The hand-written list alone would have understated the change.
+- Reference-count misses that the named test commands still catch at collection, so the plan stayed
+  runnable, but which a reviewer finds first:
+  - a deleted error class had three references, not two: one import, one re-raise site, and one more
+    `except` clause inside a function that the plan did not list;
+  - a callback parameter had five call sites, not three: the plan missed a publisher site and the
+    loader's own command-line entry point, which has no log context;
+  - two "constructors" in the plan were a static method and an instance method, and the real
+    constructor was about 400 lines away.
+- Reference case: one usage search per deleted symbol, and one for each changed signature, gives all
+  three counts in under a minute.
+- Verification limit: the plan review ran read-only. No plan step was implemented in this session.

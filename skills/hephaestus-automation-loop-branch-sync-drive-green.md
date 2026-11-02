@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Inspect reused issue worktrees and incomplete automation runs. Keep each worker within its PR scope, check publication and signing, and diagnose drive-green invocation failures. Recover a lane whose commit_push fails closed after a landed push or whose receipt invalidates after the pipeline's own push, arm native auto-merge when the post-GO merge stage cannot run, and separate stale-payload label-gate CI noise from real failures."
 category: tooling
 date: 2026-10-30
-version: "1.5.0"
+version: "1.6.0"
 user-invocable: false
 verification: verified-live
 tags:
@@ -28,10 +28,10 @@ history-cleanup-date: "2026-09-20"
 ## Overview
 
 | Field | Value |
-|-------|-------|
+| ------- | ------- |
 | **Date** | 2026-07-11 |
 | **Objective** | Make automation-loop workers finish their owned issue/PR reliably instead of reusing stale branches, ignoring review/comment state, or letting broad drive-green phases act on unrelated PRs — and invoke a repo-wide "drive all open PRs to green" run correctly. |
-| **Outcome** | Core fix landed in ProjectHephaestus PR #1646 for issue #1645 (merged 2026-06-26, verified-ci). v1.1.0 adds the `--drive-green-all` vs `--phases drive-green` invocation finding (verified-local: dry-run caught the crash; `--drive-green-all` confirmed on a live ~3-minute run driving 14 open PRs). v1.5.0 adds the post-review-round failure family on a long-lived PR lane (verified-live): landed-push commit_push fail-closes, self-inflicted receipt invalidation, post-GO merge-stage crash with direct native auto-merge arming, per-run budget refresh on relaunch, and stale-payload label-gate CI noise. |
+| **Outcome** | Core fix landed in ProjectHephaestus PR #1646 for issue #1645 (merged 2026-06-26, verified-ci). v1.1.0 adds the `--drive-green-all` vs `--phases drive-green` invocation finding (verified-local: dry-run caught the crash; `--drive-green-all` confirmed on a live ~3-minute run driving 14 open PRs). v1.5.0 adds the post-review-round failure family on a long-lived PR lane (verified-live): landed-push commit_push fail-closes, self-inflicted receipt invalidation, post-GO merge-stage crash with direct native auto-merge arming, per-run budget refresh on relaunch, and stale-payload label-gate CI noise. v1.6.0 corrects the label-event run semantics from a later drive-green cycle (verified-live): with `labeled` in the trigger list, applying the GO label itself starts the gated run with the label in its payload, so the sequence is review at the exact head, then flip the state labels, and never a repair push after the flip; adds the skipped-job gate signature and the aggregated-required-check rule. |
 | **Verification** | verified-ci (core); verified-local (v1.1.0 drive-green-all invocation finding); verified-live (v1.5.0 failure family) |
 | **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/hephaestus-automation-loop-branch-sync-drive-green.history) |
 
@@ -127,15 +127,21 @@ the auto-merge request stays armed at each new head.
 ### Label-gated CI: stale-payload failures are noise
 
 Label-gated workflows compute the gate from the event payload
-(`github.event.pull_request.labels.*.name`), not from live PR state. Runs started by the label
-event itself, or with a payload from before the GO label, fail fast at the gate and can appear
-as dozens of red checks. Only runs whose synchronize event carries the GO label execute real
-checks. When driving green, read one failing job log before repairing: gate failures name the
-missing label within seconds; content failures (format, type, test-tier inventory) take
-minutes and name files. Also note: a repository's pre-commit configuration can pin an older
-formatter than the project-resolved one and can reformat files a glob pass never visits (for
-example an extensionless script). Treat `pre-commit run --all-files` as the authoritative
-style gate before pushing a CI repair, not `ruff format --check .` alone.
+(`github.event.pull_request.labels.*.name`), not from live PR state. A run whose payload
+predates the GO label fails or skips at the gate: some jobs fail fast with a step that names
+the missing label, others skip at the job-level condition. When the pull-request trigger list
+includes `labeled`, applying the GO label itself starts a fresh run whose payload contains
+that label, so the gated checks run for real without another push. Sequence a repair to use
+this: deliver the review at the exact head, then flip the state labels; do not push after the
+label flip, because a new head invalidates the delivered review. When driving green, read one
+failing job log before repairing: gate failures name the missing label within seconds or show
+as skipped jobs; content failures (format, type, test-tier inventory) take minutes and name
+files. A fast-failing aggregated required check that reports only "require all upstream jobs
+to have succeeded" has no defect of its own; read the named upstream job. Also note: a
+repository's pre-commit configuration can pin an older formatter than the project-resolved
+one and can reformat files a glob pass never visits (for example an extensionless script).
+Treat `pre-commit run --all-files` as the authoritative style gate before pushing a CI repair,
+not `ruff format --check .` alone.
 
 ### Review convergence still terminates the conveyor
 
@@ -235,7 +241,7 @@ pixi run hephaestus-automation-loop \
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
-|---------|----------------|---------------|----------------|
+| --------- | ---------------- | --------------- | ---------------- |
 | Rerunning issues after stale merged-PR close detection | The loop detected that a closing PR had merged or that the issue looked stale, then reran the issue without first ensuring the branch/worktree was on current `origin/main`. | The worker could resume against stale local state and miss the actual current mainline or review/comment context. | Fetch and inspect the reused worktree against live PR state; integrate only when needed. |
 | Broad drive-green over multiple PRs from inside workers | Worker-local drive-green ran over the broader repository instead of the owned issue/PR. | Unrelated PRs could be armed, fail, or affect the worker's return code, making one issue's worker responsible for repo-wide state. | Keep worker-local drive-green scoped to the issue/PR; reserve broad drive-green for a final catch-all pass. |
 | Preserving stale local commits instead of rebasing | Existing local branch commits were treated as work to preserve because their subjects looked relevant. | Stale branches can be based on old main, miss required files or comments, or carry partial/revert-shaped changes. | Preserve local work, inspect its content and live PR state, and resolve actual integration needs. |
@@ -327,7 +333,7 @@ git log origin/main..HEAD --format=%B | grep -q '^Signed-off-by: '
 ## Verified On
 
 | Project | Context | Details |
-|---------|---------|---------|
+| --------- | --------- | --------- |
 | ProjectHephaestus | Issue #1645 / PR #1646 | verified-ci; Required Checks run 28256238895 succeeded; Test workflow run 28256151963 succeeded; merged 2026-06-26 as `2a0cd2adc2570264c1bd2c45df96c75246bac433` |
 | ProjectHephaestus | `--drive-green-all` vs `--phases drive-green` (2026-07-11) | verified-local; `--dry-run` of `--phases drive-green` surfaced `KeyError: <StageName.REPO: 'repo'>` (item "poisoned at repo"); `--drive-green-all` confirmed working on a live ~3-minute run driving 14 open PRs (7 reviews requested, 5 already-GO'd PRs → CI, 0 new GO). |
 | Organization repository (identifiers generalized) | Post-review-round failure family on a 20-run implementation lane (2026-10-30) | verified-live; `commit_push_refresh_invalid` reproduced 5× on real pushes (push landed every time; 2 real pushes succeeded), receipt invalidation after the pipeline's own push (incl. the `source_workspace_terminal` freeze), per-run budget refresh on relaunch, GO label applied by the loop itself, merge stage died `auto_merge_malformed`, coordinator armed native auto-merge, coordinator CI repairs (test-tier inventory registration, format/typecheck, pinned-formatter style), and the PR merged green with post-merge main CI green. |

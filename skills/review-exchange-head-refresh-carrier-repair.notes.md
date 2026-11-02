@@ -373,3 +373,210 @@ terminal.
   registered in an explicit inventory partition, diagnosed by a uniform fast
   failure of every shard with an "unclassified modules" message) is a
   project-specific fact, not generalized into the skill.
+
+## Incident: unresolvable receipt reference in an immutable carrier (2026-10-31)
+
+### Shape
+
+A review exchange on an open change reached an author-refreshable state and was
+then reframed with an authority record. Both carriers published and the round-1
+state extracted and standalone-verified.
+
+The reframe carrier's accepted event embedded its authority receipt as a
+reference string. That string used the change-host's numeric REST review
+identifier. The delivery reader resolves review references only by the GraphQL
+node identifier for the same review.
+
+### Reproduction of the mismatch
+
+Resolve the same reference in both spaces and compare the counts:
+
+- the REST identifier returns the review record in the REST API;
+- the GraphQL node identifier returns the same record in the GraphQL API;
+- the REST identifier used as a delivery reference resolves to zero records in
+  the reader's identifier space.
+
+Both identifiers name one review. The fault is the reference form inside the
+carrier, not the receipt content.
+
+### Why the exchange is dead
+
+1. **Immutability.** The carrier is already published. Editing or dismissing a
+   carrier invalidates it for every delivery, so the reference cannot be
+   corrected in place.
+2. **Single successor.** The reframe state is the derived successor of the
+   round-1 state and occupies that state's one successor slot. Re-deriving from
+   the round-1 state with a new author response, reviewer round, or authority
+   event produces two successors and fails the chain check.
+3. **Single chain.** Every later delivery verifies or archives each persisted
+   exchange on the artifact. This exchange has no terminal GO, so a NO-GO or GO
+   delivery fails the nonforking-chain check at any head, not only at the bound
+   head.
+
+Consequence: no review-workflow route reaches a GO. Adding reviewer rounds
+cannot help, and enabling auto-merge would bypass the contract rather than
+satisfy it.
+
+### Actions taken
+
+- Read the live labels: the delivered NO-GO label was still exclusive and
+  correct.
+- Read the carrier body and confirmed the reference string and both identifier
+  values.
+- Published exactly one blocker comment naming the failing reference, both
+  identifier values, the two chain rules, and the superseded disposition.
+- Made zero carrier edits, zero reducer probes, and zero label changes.
+- Did not enable auto-merge.
+
+### Reusable outcome
+
+The repair content and its scope were preserved and handed forward for a fresh
+artifact with a clean round-1 exchange. A dead exchange is a supersession
+decision for the owner of the artifact, so the branch ends with a decision
+request rather than a unilateral replacement.
+
+## Source case (2026-10-31): undeliverable terminal binding and fresh-genesis recovery
+
+One chain-verified exchange reached its terminal reviewer round with a GO
+verdict, phase complete, and next action finalize. The terminal state's
+`visible_content_sha256` bound the SHA-256 of hand-written terminal prose,
+not the deterministic terminal ledger that the delivery helper generates.
+
+### Diagnosis
+
+- Every closure manifest built on the state failed pre-publication with:
+  "The terminal visible closure ledger does not match its manifest entries."
+- Supplying the deterministic ledger bytes satisfied the helper's ledger
+  equality check but broke the state's own visible-content digest.
+- Supplying the bound prose kept the state digest intact but failed the
+  equality check.
+- The defect is in the published state, not in any manifest input. No input
+  repair exists.
+
+Diagnosis method: compute the deterministic ledger with the delivery helper's
+own generator at the same binding (zero closure entries), hash its exact
+bytes, and compare with the state's bound digest. Different digests prove the
+permanent defect with zero forge writes.
+
+### Recovery: fresh genesis exchange at a moved head
+
+1. Advanced the head with one empty signed commit (byte-identical tree,
+   honest message, no closing keywords). The push started a fresh gated CI
+   run at the new head because the exclusive label was applied after the
+   previous delivery attempt.
+2. Computed the deterministic ledger at the new head and hashed its exact
+   bytes into a fresh round-1 reviewer assessment event: new exchange
+   identifier, `prior_state_sha256` null, `supersedes_state_sha256` null,
+   artifact binding {new head, reviewed-scope digest, ledger digest},
+   coverage complete, no findings, no responses, no stop reason. Reduced with
+   `previous` = null. The reduced state carried verdict GO, phase complete,
+   next finalize.
+3. Rendered the state carrier, published it as one COMMENT review pinned at
+   the new head, and readback-verified byte equality and envelope identity.
+4. Built the closure manifest on the new genesis envelope with the same
+   ledger bytes and delivered with the anchor source. The delivery helper
+   verified the old exchange's full carrier chain, archived the old
+   exchange, and applied the exclusive terminal label at the new head.
+5. Gated CI ran green at the new head; the guarded squash merge followed.
+
+### Archival-guard detail
+
+The delivery helper's archival sweep fails when an old exchange's carrier
+sits at the delivery binding head. After the head move, every old exchange
+carrier sat at an older revision, so the sweep archived the old exchange in
+the same delivery that published the new terminal state. The same recovery
+repeated once more after a real CI test failure moved the head again: the
+fresh genesis pattern delivered at the second head and the first fresh
+exchange archived the same way.
+
+### Why the terminal state was undeliverable, not repairable
+
+- A terminal state accepts no further events, so no later event can rebind
+  its visible-content digest.
+- The carrier is published and immutable.
+- The state's digest binds the prose bytes; the helper's check binds the
+  generated ledger bytes. The two cannot both hold for one manifest.
+
+### Same-series protocol observations
+
+- A submitted forge review cannot be deleted (the API refuses), but a
+  submitted review body can be replaced through the GraphQL review-update
+  mutation. A mistaken non-carrier review was withdrawn this way with an
+  honest replacement note.
+- The forge accepts a review pinned to a commit identifier that the branch
+  history no longer contains (a pre-rebase head). The chain walk classifies
+  published carriers by kind at each pinned revision.
+- Kind=state carriers that embed an author event were tolerated by the chain
+  walk when a matching kind=author-event carrier for the same transition
+  also existed; the reducer proved both normalized to the same state.
+
+### Reusable outcome
+
+The digest comparison is the decision gate: equal digests mean a manifest
+repair; different digests mean the terminal state is permanently
+undeliverable and a fresh genesis exchange at a moved head completes the
+goal. The recovery verified end to end on the first delivery attempt at each
+of the two heads.
+
+## 2026-11-01 — Terminal GO withheld at external closure of a merged artifact
+
+### Context
+
+A reviewer lane finished a full source review of a pull request at a moved
+head, reduced a complete terminal GO round-1 state, verified the anchor
+proofs and the reducer confirmation, and built the closure manifest for the
+delivery helper's sole-publisher sequence. Before the first forge write of
+the delivery (terminal carrier, thread resolutions, exclusive label), the
+owner merged the artifact from the forge UI. The lane had the prepared,
+offline-validated manifest on disk but had published nothing for the
+terminal delivery.
+
+### Delivery-helper gate
+
+- `deliver_go.py --prepare-manifest` against the merged artifact printed
+  "The pull-request head, target, or state changed; withhold GO delivery."
+  and wrote no manifest. The helper's not-open check is the last-line
+  proof that a post-merge delivery cannot succeed; the prepared payload
+  was discarded.
+- Zero forge writes followed the merge. Every later forge contact in the
+  lane was read-only: state read MERGED, the merge commit and timestamp
+  resolved, and the label pair re-read from the live artifact.
+
+### Label observation
+
+- The merged artifact carried both terminal-state labels
+  (NO-GO from the superseded-head round, and GO whose provenance was
+  unknown: no published terminal record could be verified between the two
+  polls in which the pair appeared).
+- The labels were left as found. Exclusive-label transitions are part of a
+  live delivery on an open artifact; a merged artifact accepts no
+  lane-driven repair. The review report recorded the observed state and
+  its unknown provenance instead of repairing it.
+- The delivered-GO survival rule did not apply: its preconditions
+  (published terminal carrier, resolved threads, exclusive label) were
+  never met in this exchange.
+
+### Final recorded state
+
+- The review report recorded the terminal delivery as withheld, with the
+  merge commit and merge timestamp as the external closure, the helper
+  refusal message as the delivery verification, and the untransitioned
+  label pair as reported-not-repaired.
+
+### Verification record
+
+- Helper refusal message reproduced verbatim and matched the standard
+  withhold phrase in the delivery reference.
+- MERGED state, merge commit, and mergedAt timestamp read from the live
+  forge after the merge.
+- Post-merge lane log contained only read operations; no carrier, thread,
+  or label write was issued.
+- Live label state read at close still carried the unmaintained pair,
+  untouched from the merge-time observation.
+
+### Reusable outcome
+
+Owner merge before terminal delivery is an external closure, not a failed
+delivery: confirm the helper refuses the not-open artifact, discard the
+payload, leave observed non-exclusive labels as found, record the withheld
+terminal delivery as the final state, and publish nothing further.

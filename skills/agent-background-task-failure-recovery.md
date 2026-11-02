@@ -1,13 +1,13 @@
 ---
 name: agent-background-task-failure-recovery
 license: BSD-3-Clause
-description: "Recover unfinished agent work when completion messages contain API failures or expected edits are missing. Also use when skill-bearing subagent spawns fail repeatedly with infrastructure errors while a minimal probe succeeds, and the failed lane carries a verdict that gates a merge."
+description: "Recover unfinished agent work when completion messages contain API failures or expected edits are missing. Also use when skill-bearing subagent spawns fail repeatedly with infrastructure errors while a minimal probe succeeds, and the failed lane carries a verdict that gates a merge. Also use when background-lane dispatches fail at admission near a measured concurrent-lane ceiling on a loaded host, and the lane queue needs a throttled, guarded readmission instead of a mass relaunch or inline degradation."
 category: tooling
 date: 2026-04-17
-version: "1.3.0"
+version: "1.4.0"
 user-invocable: false
 verification: verified-local
-tags: [background-agent, run_in_background, api-error, connection-refused, recovery, foreground-agent, spawn-failure, inline-degradation, operator-escalation]
+tags: [background-agent, run_in_background, api-error, connection-refused, recovery, foreground-agent, spawn-failure, inline-degradation, operator-escalation, admission-ceiling, readmission-throttle]
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/agent-background-task-failure-recovery.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -128,9 +128,48 @@ wave behavior:
   count, and the probe result in the evidence record, so that the operator can
   judge the degradation.
 
+**Fourth failure signature — concurrent-admission ceiling (added 2026-11-01):**
+
+```text
+dispatch-time failures that track the concurrent-lane count:
+admission-slot timeouts and
+Timed out waiting for response headers
+at around eight concurrent general background lanes,
+with no equivalent failures at six or fewer
+```
+
+This signature is a capacity finding, not a credential or spawn wave, and the
+recovery adapts to it:
+
+- **Count-keyed onset.** The failures begin near a measured concurrent-lane
+  count and stop below a stable count on the same host. The absence of
+  failures below the ceiling confirms the ceiling as much as the failures
+  above it.
+- **Readmit below the ceiling; do not degrade.** Unlike the verdict-lane
+  spawn-wave signature, no merge-gating verdict was lost: every
+  admission-failed lane completed on one relaunch once the host ran below the
+  ceiling. Reserve inline degradation for a failed readmission, per the
+  earlier signatures.
+- **Guard each relaunch against duplicate work.** A failed lane can have
+  started work before its admission slot gave the failure. Give each relaunch
+  a duplicate-work guard: search open pull requests and branches for the
+  assigned issue first, and stop and report on a find.
+- **Throttle the readmission and order it.** Fill freed slots one at a time,
+  and alternate the plan and implement queues. A mass relaunch reproduces the
+  same ceiling pressure that caused the failures.
+- **Hold after repeated identical infrastructure failures.** Two consecutive
+  identical infrastructure failures on one lane end its retry budget for the
+  session. Record the evidence and hold the lane; each further attempt only
+  samples the ceiling again.
+- **Plan below the measured ceiling.** Treat the stable observed count (six
+  on the recorded host) as the admission bound for waves of general
+  background lanes on that host. The bound is a measured host property, not a
+  constant: re-measure it for each host and each tooling generation.
+
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 | --------- | ---------------- | --------------- | ---------------- |
 | Relaunching verdict-lane spawns without a bound | Re-dispatched a dead review spawn as soon as each failure arrived | Every replacement failed with the same infrastructure error while the gated merge decision waited | Probe with a matching profile, retry once, then degrade inline |
+| Mass relaunching admission-failed lanes | Relaunched every admission-failed lane at once after admission-slot and response-header timeouts | The mass relaunch kept the host at the same concurrent count that produced the failures; each new dispatch met the same ceiling | Fill freed slots one at a time and alternate the plan and implement queues; the stable measured count is the admission bound |
 | Treating a minimal probe as recovery proof | Read one trivial no-skill probe success as clearance to re-dispatch skill-bearing spawns | The probe exercised a different spawn profile; the skill-bearing spawns kept failing | Match the probe profile to the failing work before you trust the signal |
 | Relaunching replacements during the wave | Spawned new agents as soon as deaths were noticed | The credential failure was still active host-wide; each replacement died the same way | Probe first; re-dispatch only after a probe completes |
 | Assuming a dead agent left partial work | Searched for its edits and commits | The wave killed agents before their first tool call; the footprint was zero | Verify the footprint before reconciling; zero-footprint deaths need only a fresh dispatch after the wave |
@@ -157,3 +196,4 @@ wave behavior:
 | --------- | --------- | --------- |
 | ArchIdeas | Background agent launched to fix patterns across many research files; failed silently with ConnectionRefused after ~26K tokens and 77 tool uses | Session 2026-04-17 |
 | LLM360/comet | Five skill-bearing review-dispatch spawns failed (four times `invalid or missing API key`, once a response-header timeout) while one trivial probe passed; the review completed inline as a labeled author evidence record on pull request #3239 and the operator took the merge decision | [notes](agent-background-task-failure-recovery.notes.md) |
+| LLM360/comet | Admission-slot and response-header timeouts appeared at around eight concurrent general background lanes on one loaded host, with no equivalent failures at six or fewer; four admission-failed lanes relaunched once each with a duplicate-work guard while freed slots refilled one at a time across alternating plan and implement queues; all four completed | [notes](agent-background-task-failure-recovery.notes.md) |

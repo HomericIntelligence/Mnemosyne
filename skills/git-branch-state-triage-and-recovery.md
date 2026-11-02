@@ -7,7 +7,7 @@ description: >-
   PR ownership, the unique patch, or the remote retirement state is uncertain.
 category: tooling
 date: 2026-10-13
-version: "2.3.0"
+version: "2.4.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-local
@@ -37,6 +37,8 @@ The complete superseded source is archived in
 ## When to Use
 
 - The remote tracking ref disappeared or the branch is far behind trunk.
+- A rebase, repair, or recovery task addresses a PR that is already merged or closed before local
+  work starts.
 - `merge-base` is absent, a branch contains many HEAD-only files, or consolidation changed paths.
 - A PR merged while review/fixes were in progress, or a merged branch has new uncommitted work.
 - A closed PR cannot be reopened, but its head can be recovered into a replacement PR.
@@ -70,6 +72,19 @@ gh pr list --head <branch> --state all \
 Use `headRefName` from GitHub; never derive a PR branch from an issue number. Re-read `headRefOid`
 before pushing rewritten history.
 
+Read `state` with the merge state. `mergeStateStatus` is a mergeability value, not a lifecycle
+value. A task that gates on it stops only on `CLEAN`, and that gate does not catch a closed or
+merged PR. Compare `state` with the intended action before you start a rebase:
+
+```bash
+gh pr view <N> --json state,mergeStateStatus,headRefName,headRefOid,mergeCommit
+```
+
+A rebase task on a `MERGED` PR stops at classification. Do not fetch the head branch, rebase, or
+push. `mergeStateStatus=UNKNOWN` on a `MERGED` or `CLOSED` PR is not a conflict report. The remote
+head branch usually no longer exists; confirm with `git ls-remote --heads origin <headRefName>`
+before you rely on a push target.
+
 For a retirement scope, also enumerate the live remote names. A local clone does not prove the
 remote state: a remote head can hold commits that no local ref ever fetched.
 
@@ -85,6 +100,7 @@ git log --oneline "$mb"..refs/remotes/origin/<branch>
 | State | Evidence | Recovery direction |
 | --- | --- | --- |
 | Superseded | PR merged or patch/content already on trunk | Stop; do not rebase or duplicate |
+| Superseded at task start | The task asks for a rebase, but the PR is already merged before any local work | Stop before the rebase; the merged-PR case in this entry applies, not the rebase playbook |
 | Partially superseded | Trunk absorbed the delta in a parallel rewrite; the per-intent-unit proof finds surviving units | Re-propose only the surviving units as minimized commits on current trunk |
 | Orphan | No common ancestor | Export the intended patch, recreate from trunk |
 | Diverged | Common base exists; local/remote tips differ | Reset/rebuild from the chosen tip, cherry-pick intended commits |
@@ -140,6 +156,27 @@ Do not discard based on counts alone. Preserve with a stash or backup ref before
 destructive operation.
 
 ### 4. Recover by state
+
+#### Merged or superseded before any local work
+
+Prove content equivalence against the merge commit, not the commit subject, before you stand down.
+A squash or rebase merge rewrites identity, so the PR head is not an ancestor of trunk and a bare
+`git merge-base --is-ancestor` check can look negative even when all content landed.
+
+```bash
+git fetch origin <trunk>
+gh pr view <N> --json state,mergeCommit --jq '.state, .mergeCommit.oid'
+git rev-parse <trunk>
+git diff --quiet <merge-commit> <pr-head> -- <paths the PR touched> \
+  && echo "IDENTICAL content" || echo "DIFFERS - inspect"
+git diff --stat <pr-head> <trunk>
+```
+
+An empty diff over the PR's own paths, for any merge strategy, is the equivalence proof. A non-empty
+total diff must contain only later unrelated commits. Do not attribute that later work to the PR or
+treat it as lost PR content. If the paths differ, this is a premature merge; use that state instead.
+Report the task as superseded by the merge and push nothing. State the reasons separately:
+`state=MERGED`, the merge commit identity, and content compared equal.
 
 #### Orphan or diverged branch
 
@@ -230,6 +267,7 @@ After push, ensure the PR head, base, and current-head checks match the recovere
 | Resolve each rebase conflict by taking the newer side | Treat per-hunk take-trunk-side resolution as the uniqueness classification | The resolutions converge to an empty final diff and discard behavioral units that trunk never landed | Split the delta into intent units; prove each unit landed or not-landed on current trunk; reshape or close from the recorded verdicts |
 | Rebuild child from trunk | Rebuild child from trunk | Loses intended stack dependency | Rebuild from the rebased parent |
 | Trust a point-in-time inventory | Retire branches from the initial local-only inventory | A remote head held commits that no local ref fetched; a parallel stream also created new matching objects mid-operation | Re-enumerate remote and local state at execution; archive remote-unique commits before `push origin --delete`; destroy only enumerated approved items |
+| Start a rebase from a merge-state gate only | Gated a rebase task on `mergeStateStatus` and stopped only on `CLEAN` | A merged PR reports `UNKNOWN`, not `CLEAN`, so the gate passed and the rebase was attempted against a deleted branch | Read `state` with the merge state; a `MERGED` or `CLOSED` PR stops at classification |
 
 ## Results & Parameters
 
@@ -257,4 +295,6 @@ the same lines, content-level proof means one landed verdict per intent unit.
 ## Verified On
 
 - Verified-local branch recovery cases through 2026-07-13.
+- A merged-PR-at-task-start case on 2026-10-31 proved path-scoped content equivalence against the
+  merge commit and the `UNKNOWN` merge state of a merged PR.
 - Compacted for issue #3335; evidence status was preserved without promotion.

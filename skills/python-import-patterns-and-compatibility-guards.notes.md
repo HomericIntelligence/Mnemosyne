@@ -18,7 +18,8 @@ These notes retain project-specific evidence moved during
 | API-table alignment | [Issue #1419](https://github.com/HomericIntelligence/ProjectHephaestus/issues/1419) | verified-local | Same-cycle version anchor; whole validation module required |
 | Logging stable surface | [Issue #1513](https://github.com/HomericIntelligence/ProjectHephaestus/issues/1513) | unverified plan | Export/identity/table plan; original tag-arithmetic assumption superseded |
 | Lazy `__dir__` | [Issue #1512](https://github.com/HomericIntelligence/ProjectHephaestus/issues/1512) | unverified plan | Union globals, declared exports, lazy names; subset tests |
-| Runtime graph acyclicity | [Immutable archived plan](https://github.com/HomericIntelligence/Mnemosyne/blob/1ae0cb498e5250c341c2a4bf585f97e2a28060af/skills/python-import-patterns-and-compatibility-guards.md) | unverified plan | AST graph + neutral leaf + Tarjan SCC; not executed |
+| Runtime graph acyclicity | [Immutable archived plan](https://github.com/HomericIntelligence/Mnemosyne/blob/1ae0cb498e5250c341c2a4bf585f97e2a28060af/skills/python-import-patterns-and-compatibility-guards.md) | unverified plan | AST graph + neutral leaf + Tarjan SCC; originally not executed |
+| Import-form prefix edge | anonymized repository with acyclic automation runtime graph guard | verified-local | The guard first reported one cycle, then none after the import form changed; the leaf module and its dependencies were identical in both runs |
 
 ## Durable case details
 
@@ -33,6 +34,37 @@ caller with `stacklevel=2`, and kept the call-time warning for direct imports.
 The API-table validator scanned the live tree. Its single test could pass alone even with a missing
 row and fail only in the full module. The authoritative run was the complete validation module.
 The “since” value came from same-cycle sibling symbols, not latest-tag arithmetic.
+
+## Import-form prefix edge detail
+
+A session added a new leaf module to a package whose initializer imports the module that consumes
+the leaf. The consumers first imported the leaf as a relative `from . import <leaf> as <alias>`.
+The acyclic-graph guard reported one strongly connected component that covered the package, the
+coordinator modules, the stage package, and the new leaf.
+
+The cause was the guard's target resolver, not the module layout. For an absolute
+`from <prefix>.a.b import c`, the resolver yields every module prefix plus each resolvable child,
+so the edge reaches `<prefix>`. For a relative `from . import c`, it yields the resolved parent
+package plus the child, so the edge also reaches the package. Only `import <prefix>.a.b as name`
+yields the leaf alone, because the prefix walk keeps a package prefix only when that package
+initializer performs a runtime import.
+
+The repair changed three import sites from the relative form to the fully qualified leaf form and
+adapted the three call sites. No module moved and no dependency direction changed. The guard then
+reported zero components.
+
+The verification sequence that made the rule trustworthy, all reproduced with the guard's own
+functions rather than by inspection:
+
+1. Resolve the targets of each import form against the real module set. The relative form yielded
+   the package and the leaf; the fully qualified form yielded the leaf only.
+2. Inject the pre-repair edge into the current graph. The component count returned from zero to one,
+   which proved the removed edge was exactly the closing edge.
+3. Run the full guard module. It passed with a nonempty collection.
+
+The reusable rule is to evaluate the proposed import line with the guard's resolver before the
+commit, because the two forms look equivalent in ordinary Python yet differ in the graph. Comparing
+the node sets directly is cheaper than reading the resolver source and reasoning about it.
 
 ## Verification boundaries
 

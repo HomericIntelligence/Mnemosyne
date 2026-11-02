@@ -1,10 +1,10 @@
 ---
 name: hephaestus-interrupted-implementation-lane-recovery
 license: BSD-3-Clause
-description: "Recover a Hephaestus automation-loop item whose implementation stopped before first publication (job timeout, external signal, operator stop, or a fail-closed host error at the writer boundary). Use when: (1) the summary says RESUMABLE at implementation but the issue has no PR, (2) a relaunch dies at intake with `repository-intake requires a clean tracked tree`, (3) a relaunch dies with `BLOCKED:first_publication_discovery_failed`, (4) the implementation lane keeps changing after the loop exits, (5) an implementer job reached its timeout with forward progress, or (6) a run fails closed with `host signing configuration unavailable`, `dirty_direct_claim_failed`, or an `initial implementation` record error after a relaunch."
+description: "Recover a Hephaestus automation-loop item whose implementation stopped before first publication (job timeout, external signal, operator stop, a fail-closed host error at the writer boundary, or a commit-claim failure that leaves the worktree dirty). Use when: (1) the summary says RESUMABLE at implementation but the issue has no PR, (2) a relaunch dies at intake with `repository-intake requires a clean tracked tree`, (3) a relaunch dies with `BLOCKED:first_publication_discovery_failed`, (4) the implementation lane keeps changing after the loop exits, (5) an implementer job reached its timeout with forward progress, (6) a run fails closed with `host signing configuration unavailable`, `dirty_direct_claim_failed`, or an `initial implementation` record error after a relaunch, or (7) a run reports `FAIL:dirty_direct_claim_failed` after a long productive implement job and you must decide whether to adopt the preserved lane."
 category: tooling
 date: 2026-10-18
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-live
 tags:
@@ -13,6 +13,8 @@ tags:
   - implementation-lane
   - first-publication
   - run-nonce
+  - goal-continuation
+  - dirty-direct-claim
   - zombie-session
   - intake-recovery
   - worktree
@@ -54,6 +56,8 @@ tags:
   `FAIL:dirty_direct_claim_failed`.
 - The writer fails with `initial implementation record does not match` and, after you archive the
   stale start record, with `initial implementation history is unknown; use --rebase to continue`.
+- The summary reports `FAIL:dirty_direct_claim_failed` after a long productive implement job, and
+  you must decide whether to adopt, finish, or dispose the preserved lane.
 
 ## Core rule: a pre-PR implementation lane cannot resume across runs
 
@@ -90,6 +94,7 @@ is also where the host signing gate applies, before any writer work runs.
 | # | Signature | Cause | Action |
 | --- | --------- | ----- | ------ |
 | 1 | Lane files change after the run summary prints; `<agent-api>/session/active` lists a session whose directory ends with the lane name | The implementer agent session outlives its job (timeout and external signal both reproduce) and keeps writing into the lane | Interrupt that session with `POST /api/session/<id>/interrupt`; confirm it leaves the active list. Never kill the shared agent serve daemon; other runs share it. Filter sessions by lane directory, never by recency alone |
+| 1b | The writer session is absent from the process list, but lane files change and session records show recent turns — or show goal-tool calls (`get_goal`, `update_goal_plan`) | A session attached to an open goal resumes itself through goal auto-continuation; no external runner process is required, so a process-name search finds nothing and the writer looks dead | Do not interrupt it. Classify it as an active writer, confirm its commits, and adopt its preserved lane (signature 9). Only an unproductive or conflicting goal-bound writer gets interrupted |
 | 2 | Relaunch dies fast at intake: `FAIL:clone exhausted ... repository-intake requires a clean tracked tree; preserve the tracked changes in <lane>, then commit or stash them` | Intake scans every registered worktree fail-closed; one dirty lane aborts the run before issue processing | Clean the lane (step P3) and relaunch |
 | 3 | Relaunch dies with `BLOCKED:first_publication_discovery_failed` after a clean intake | Stale durable records from the interrupted run bind the old nonce; the new run's nonce differs | Full record disposition (step P4), then relaunch |
 | 4 | Discovery fails with `pending rebase directory permissions are unsafe` | The clone common dir (`.git`) or the source-workspaces state dir is group-writable; ownership checks require owner-only write | `chmod 755` the clone common dir and the source-workspaces dir |
@@ -97,6 +102,7 @@ is also where the host signing gate applies, before any writer work runs.
 | 6 | Run dies at the rebase writer after plan-go: `FAIL:host signing configuration unavailable`, right after lane creation | The pipeline builds the writer's controlled signing environment from `git config --global` only; a repo-local identity is invisible, and any missing key, non-`ssh` `gpg.format`, or invalid key path fails closed before writer work | Declare `user.name`, `user.email`, `gpg.format=ssh`, and `user.signingkey` in the host-global git config. The key must be an absolute, non-symlink, regular file whose mode has no group/other write bits, and it must sign without a passphrase prompt. The general headless setup recipe lives in [git-commit-signing-failures-and-setup](git-commit-signing-failures-and-setup.md) |
 | 7 | Relaunch dies in seconds with `FAIL:dirty_direct_claim_failed` at `claim_dirty_direct_continuation` | The previous FAIL was handled with only the summary's discard instruction (`git worktree remove --force` on the preserved lane); the lane receipt still records the path, and the claim probe's `git status` on the missing path raises | Restore a clean worktree at the exact receipt path, on the receipt branch, at the receipt revision; the probe then reports not-applicable and a fresh lane forms. Otherwise dispose the worktree AND its records together. Never remove the worktree alone |
 | 8 | Writer fails with `initial implementation record does not match`; after the stale pending record is archived, it fails with `initial implementation history is unknown; use --rebase to continue` | The fresh run cut a new nonce branch and advanced the receipt generation, while `*-implementation-start.pending.json` still names the previous run's branch and base revision; the writer compares identity fields fail-closed | Archive only the stale start records that still bind the old nonce (`<issue>-implementation-start.pending.json` and, if present, `<issue>-implementation-start.reservation.json`); keep the fresh-generation `<issue>-impl.json` receipt; relaunch with `--rebase` — the flag the error names — so the writer records a start on the current generation |
+| 9 | The summary reports `FAIL:dirty_direct_claim_failed` with `dirty direct pending scope changed`, after the implementer ran far longer than the default budget and left a dirty lane | The consume step re-validates the plan's pending scope against the dirty lane; a writer edit outside the plan's allowed paths changes that scope, so the claim fails closed and no commit is made | Do not relaunch to re-earn the same work. Review the dirty diff against the plan, confirm the files match it, commit the preserved work as a signed checkpoint, and continue the remaining plan steps yourself. Record each out-of-scope file as a deviation in the PR body |
 
 ## Verified Workflow
 
@@ -155,23 +161,33 @@ gh label list --limit 1 --json name --jq '.[0].name' -R <owner>/<repo>
 1. Classify the item first: does a PR exist for the issue? If yes, follow the PR-bound branch-sync
    guidance instead; the nonce rule applies only to the pre-publication window.
 2. Handle the zombie session BEFORE any stash, commit, or disposal step. A live implementer keeps
-   writing between your steps and re-poisons the lane.
-3. Size the relaunch budget from evidence, not from the failure alone. When the interrupted
+   writing between your steps and re-poisons the lane. First classify it: a **goal-bound** session is
+   an active writer that is still delivering, not a zombie (signature 1b). Interrupt only a writer
+   that is unproductive, contradicts the plan, or competes with your own edits.
+3. Never author into a lane that an active writer owns. Two writers on one tree overwrite each
+   other's files and diverge on interfaces. Confirm ownership by mtime sampling and session records,
+   then either supervise passively or adopt the lane after the writer stops committing.
+4. Size the relaunch budget from evidence, not from the failure alone. When the interrupted
    implementer made verified forward progress at its deadline (transcript activity plus changed
    files), the constraint is budget, not correctness: raise `-implementer-timeout` and retry.
    The ~1200 s default is far too small for a thinking model on a large issue; doubling per
    observed timeout with progress is a workable rule.
-4. Keep every interrupted round's preservation commit on its nonce branch. The stale branches are
+5. Keep every interrupted round's preservation commit on its nonce branch. The stale branches are
    harmless, and each round's work stays reachable for review or cherry-pick.
-5. Never patch the automation source to "fix" resumability. The nonce binding is an intentional
+6. Never patch the automation source to "fix" resumability. The nonce binding is an intentional
    fail-closed identity guard; the operator-side disposition exists because resume is not offered.
-6. Handle a host signing FAIL (signature 6) before any state work: the controlled writer
+7. Handle a host signing FAIL (signature 6) before any state work: the controlled writer
    environment reads the host-global git config exclusively, so declaring the identity at repo
    level changes nothing for the loop.
-7. Treat lane disposal as all-or-nothing across the worktree and its durable records (signature
+8. Treat lane disposal as all-or-nothing across the worktree and its durable records (signature
    7): remove both, or keep both. A receipt that references a deleted path is poison, not state.
-8. Let the run name its own recovery flag: when the writer error ends with `use --rebase to
+9. Let the run name its own recovery flag: when the writer error ends with `use --rebase to
    continue` (signature 8), relaunch with `--rebase` rather than guessing at record surgery.
+10. When intake rejects a **state directory** once you have normalized permissions, check the gate
+    before changing the mode again. Ownership gates differ per object class: a clone common dir
+    needs owner-write through a shared group (`0755`), while a private state parent, state dir, and
+    receipt must be owner-only (`0700`/`0600`). Blanket normalization in one direction fails the
+    other class. Read the gate condition in the package source before each `chmod`.
 
 ## Failed Attempts
 
@@ -185,6 +201,9 @@ gh label list --limit 1 --json name --jq '.[0].name' -R <owner>/<repo>
 | Relaunch with repo-local signing identity only | The identity and SSH key were configured repo-locally on the host | The writer's controlled env is built from `git config --global` only; the run died at the rebase writer with `host signing configuration unavailable` after plan-go (signature 6) | Declare the signing identity host-globally before any loop run that can reach implementation |
 | Discard half of the disposition after a FAIL | Followed only the summary's `git worktree remove --force` discard hint; receipts stayed in the state dir | The next run's claim probe raised on the missing path and died in seconds with `dirty_direct_claim_failed` (signature 7) | Remove the worktree and its records together, or keep both; restore a discarded worktree at the receipt identity before relaunch |
 | Rerun without the named flag after archiving records | Archived the stale pending start record and relaunched unchanged | The writer failed with `initial implementation history is unknown; use --rebase to continue` (signature 8) | The error text names the recovery flag; rerun with `--rebase` instead of further record surgery |
+
+| Treated a goal-bound writer as a zombie by process name | Searched the process list for the writer by name and session id; found nothing, concluded the writer was dead, and adopted the lane by writing files into it | The writer was alive under goal auto-continuation and kept editing the same files; my drafts were overwritten mid-step and the interfaces diverged | Sample lane mtimes and session records instead of searching processes; adopt only after the writer stops committing (signature 1b) |
+| Normalized every intake directory to one mode | Applied a blanket `chmod 755` to make the group-writable gate pass | The next gate required an owner-only private state dir and receipt, so the run failed again in seconds | Read each gate's condition and set the mode per object class (step 10) |
 
 ## Results & Parameters
 
@@ -227,6 +246,8 @@ nonce-bound start records, not with deleting lane receipts.
 | --------- | --------- | --------- |
 | Hephaestus automation loop + one target repository | One issue recovered through five interrupted implementer rounds (two job timeouts, two external signals, one operator stop) | [notes.md](hephaestus-interrupted-implementation-lane-recovery.notes.md) |
 | Hephaestus automation loop + one target repository | A second issue recovered from a five-run fail-closed chain: signing gate, discarded-worktree claim failure, stale start record, unknown history, then a claimed implement job | [notes.md](hephaestus-interrupted-implementation-lane-recovery.notes.md) |
+
+| Hephaestus automation loop + one target repository | A third issue reached a merged PR after the run reported `FAIL:dirty_direct_claim_failed`; the preserved lane was adopted, and the goal-bound writer was found to be still delivering in the same tree | [notes.md](hephaestus-interrupted-implementation-lane-recovery.notes.md) |
 
 ## References
 

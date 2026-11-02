@@ -1,9 +1,9 @@
 ---
 name: tdd-workflow-and-test-coverage-expansion
-description: "Design behavior tests and coverage improvements for scripts, subprocesses, and refactors. Use for existing-test audits, correct mock seams, isolated shards, and CI discovery."
+description: "Design behavior tests and coverage improvements for scripts, subprocesses, and refactors. Use for existing-test audits, stale-consumer sweeps after a seam, message, or declared-value change, correct mock seams, isolated shards, and CI discovery."
 category: testing
 date: 2026-06-15
-version: "2.1.0"
+version: "2.3.0"
 verification: verified-ci
 license: BSD-3-Clause
 user-invocable: false
@@ -39,6 +39,8 @@ changelog are in [history](https://github.com/HomericIntelligence/Mnemosyne/blob
 - An issue says “add any missing tests”; determine whether any are actually missing.
 - Single-line and multi-line input shapes behave differently.
 - A configuration or directory-layout refactor broke fixtures and path discovery.
+- A shared seam, flag, or user-facing message changed, and test files beyond the primary one may still drive the old interface or assert the old text.
+- A policy or contract newly declares an exact value for a managed property (a path mode, an owner, a digest), and fixtures or helpers that hardcode the retired value can sit in test files you never opened.
 - A circular import was fixed and needs an executable architecture boundary.
 - New nested tests pass locally but CI or pytest does not discover them.
 - Coverage work is large enough to require isolated worktrees or shards.
@@ -50,28 +52,36 @@ changelog are in [history](https://github.com/HomericIntelligence/Mnemosyne/blob
 1. **Audit before writing.** Search all tests for the target symbol, class, behavior, and likely
    sibling filename. Build a requirement-to-test matrix. If every requirement is covered, add only
    a concise coverage mapping when the repository consumes it; do not invent redundant tests.
-2. **Prefer a regression before repair when practical.** An observed failure for the expected
+2. **Sweep every consumer when a seam, a message, or a declared value changes.** A shared seam
+   (a context attribute or method, a helper, a flag), user-facing text (a refusal, error, or
+   hint), and a value that a policy or contract declares for a managed property (a path mode, an
+   owner, a digest) can appear in many test files. After you change one, search the whole test
+   tree for the old name, a distinctive fragment of the old text, or the old literal, and update
+   every driver, fixture, and stale assertion in the same change. A fixture that hardcodes a
+   retired declared value fails at guard entry on the fixed-shape builder, often before any
+   assertion runs. Sibling files can stay unopened and still fail CI on the old interface.
+3. **Prefer a regression before repair when practical.** An observed failure for the expected
    reason helps show that the test detects the defect. A test that began green does not prove this.
-3. **Patch the lookup binding.** Inspect how the target imports the dependency. Patch the consumer
+4. **Patch the lookup binding.** Inspect how the target imports the dependency. Patch the consumer
    namespace when `from x import y` binds `y` there; patch a definition module only when the code
    performs the lookup there. Never guess from the dependency’s origin.
-4. **Match the real interface.** A two-tuple producer needs a two-tuple mock; an object consumer
+5. **Match the real interface.** A two-tuple producer needs a two-tuple mock; an object consumer
    needs attributes such as `.stdout`; a direct boolean return must not be wrapped. Assert keyword
    arguments through `call_args.kwargs`.
-5. **Prefer deterministic boundaries.** Use `tmp_path`, module-scoped mocks, and explicit state.
+6. **Prefer deterministic boundaries.** Use `tmp_path`, module-scoped mocks, and explicit state.
    Do not rely on real subprocesses, curses timing, background threads, or warm `sys.modules`.
-6. **Test shape variants.** For line-oriented parsers include single-line, multi-line, unicode,
+7. **Test shape variants.** For line-oriented parsers include single-line, multi-line, unicode,
    quoted, empty, and malformed inputs when material. Assert the desired value and the absence of
    the broken representation.
-7. **Make architecture guards cold and complete.** Test both import orders in fresh subprocesses;
+8. **Make architecture guards cold and complete.** Test both import orders in fresh subprocesses;
    use `ast.walk`, not only `tree.body`, so lazy and function-local imports are caught.
-8. **Verify discovery and CI routing.** Mirror nested source layouts under tests, add required
+9. **Verify discovery and CI routing.** Mirror nested source layouts under tests, add required
    `__init__.py` files, and inspect workflows that enumerate test files manually.
-9. **Isolate broad work.** Give each coverage shard its own branch/worktree and owned files. Base
-   the manifest on the current tree, not a stale coverage report.
-10. **Keep evidence honest.** Report the focused result, the full-suite result, and coverage scope
+10. **Isolate broad work.** Give each coverage shard its own branch/worktree and owned files. Base
+    the manifest on the current tree, not a stale coverage report.
+11. **Keep evidence honest.** Report the focused result, the full-suite result, and coverage scope
     separately. Module coverage with `--no-cov-on-fail` is not proof of repository-wide coverage.
-11. **Type tests deliberately.** Add `-> None` to test methods and precise fixture types such as
+12. **Type tests deliberately.** Add `-> None` to test methods and precise fixture types such as
     `pytest.CaptureFixture[str]`; do not use broad `object` annotations merely to silence mypy.
 
 ## Verified Workflow
@@ -80,6 +90,8 @@ changelog are in [history](https://github.com/HomericIntelligence/Mnemosyne/blob
 
 ```bash
 rg -n "TargetClass|target_function|expected behavior" tests scripts src
+rg -n "old_seam_name|distinctive fragment of the old text" tests  # after a seam or message change: every driver and stale assertion
+rg -n "RETIRED_LITERAL" tests  # after a declared-value change: every fixture that hardcodes the retired literal, for example a mode literal such as 0o755
 rg --files tests | sort
 python3 -m pytest tests/unit/<area> -v --tb=short
 ```
@@ -217,6 +229,20 @@ If a hash-coverage issue’s requirements already map to existing equality and s
 no duplicate test. Record the mapping in the accepted project location, run the focused and full
 suites, and close with evidence that the audit found no gap.
 
+### Seam, message, or declared-value change with sibling drivers
+
+A change reshaped a shared test context and rewrote a command’s refusal text. The primary test
+file was updated, but two sibling files still built the old context and asserted the retired
+text. A search of the whole test tree for the old attribute name and a fragment of the old text
+found both before the next push; CI then confirmed that no other consumer remained.
+
+A path policy gained an exact declared mode for a managed root. The primary test module moved its
+fixture builders to the declared mode, but sibling modules still built the root at the retired
+mode; a fail-closed guard refused each root at open and reported the declared-mode check, so
+dozens of tests failed before their assertions ran. A sweep of the whole test tree for the
+retired literal found every driver, the fixtures moved to the declared mode, and focused runs of
+the affected files passed.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -232,6 +258,8 @@ suites, and close with evidence that the audit found no gap.
 | Failure 9 | Share one checkout across workers | Branch and staging state collide | One worktree and explicit ownership per shard |
 | Failure 10 | Apply new docstring rules retroactively | Produces unrelated prose churn | Gate only new tests unless policy says otherwise |
 | Failure 11 | Use a generator-throw lambda | Obscures the intended exception boundary | Use a named raising helper |
+| Failure 12 | Update only the primary test file after a seam or message change | Sibling test files still drove the old seam or asserted the retired text, and CI failed them | Search the whole test tree for the old name and old text; update every consumer in the same change |
+| Failure 13 | Update only the module a policy or contract change names | Sibling fixtures still built the resource at the retired declared value; the fail-closed guard refused them at builder entry with the declared-value check, not at the assertion under test | After a declared-value change, search the whole test tree for the old literal and align or derive every fixture |
 ## Results & Parameters
 
 | Parameter | Contract |

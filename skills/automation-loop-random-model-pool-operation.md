@@ -1,10 +1,10 @@
 ---
 name: automation-loop-random-model-pool-operation
 license: BSD-3-Clause
-description: "Operate an issue-automation loop whose planner, reviewer, implementer, and fallback models are drawn at random for each run from a pool of served deployments. Use when: (1) role models come from a provider catalog where a listed deployment can be down or cold, (2) the agent CLI can exit 0 even when the provider request fails, so an exit code cannot prove liveness, (3) a resumed item has an in-flight plan-review session whose bound reviewer model must stay stable, or (4) a run admitted zero items after a BLOCKED disposition swapped the issue's seeding label."
+description: "Operate an issue-automation loop whose planner, reviewer, implementer, and fallback models are drawn at random for each run from a pool of served deployments. Use when: (1) role models come from a provider catalog where a listed deployment can be down or cold, (2) the agent CLI can exit 0 even when the provider request fails, so an exit code cannot prove liveness, (3) a resumed item has an in-flight plan-review session whose bound reviewer model must stay stable, or (4) a run admitted zero items after a BLOCKED disposition swapped the issue's seeding label, or (5) a batch of agent spawns starts failing with a 'not in the current serving set' (or equivalent unserved-model) error while the catalog still lists the model as active."
 category: tooling
 date: 2026-10-24
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-live
 tags:
@@ -40,6 +40,7 @@ tags:
 - The agent CLI can exit with status 0 while the provider request failed, so an exit code cannot prove liveness.
 - The loop resumes items stopped at a plan-review stage, where the review journal binds the reviewer tool and model.
 - A BLOCKED disposition applies a blocked label to the issue, and the loop seeds its work list from a needs-work label.
+- A batch of agent spawns partially or fully fails with an unserved-model error between spawns, while the catalog endpoint still reports the model as active.
 
 ## Verified Workflow
 
@@ -68,6 +69,7 @@ gh issue edit <n> --remove-label state:plan-blocked --add-label state:needs-plan
 2. Keep a review session's reviewer model stable across runs. The review journal fail-closes on a reviewer tool or model change (`review-session-lost`), so a random re-draw almost always breaks a resumed plan-review item. Either constrain that item's reviewer slot to the model recorded in its review record, or pass `--reset-plan-review-session` to start a fresh cycle. Prefer reset at round 0, or when the bound model has left the allowed pool; prefer pinning when the item has review rounds whose NOGO citations the amend cycle must keep.
 3. Restore seeding labels after a `BLOCKED:review-session-lost`. The fail-closed path replaces the item's `state:needs-plan` label with `state:plan-blocked`, and the loop seeds candidates from the needs-plan label — the next run then admits zero items and exits cleanly with no jobs, a silent no-op that reads as success in the summary. Remove the blocked label and re-add the needs-plan label together with the reset or pin.
 4. Probe the fallback role too. An unprobed fallback fails at the same stage as an unprobed primary, only later in the run, after more agent time is spent.
+5. Treat a probe as valid only for the moment it ran. The serving set can change between two spawns in the same batch: one spawn succeeds and the next identical spawn fails with a not-in-the-serving-set error, while the catalog still reports the model as active. Do not read the catalog as evidence of current serving. On that error, probe the preferred model and each policy-allowed fallback again, then re-spawn the failed items on a probed-live model and record the substitution. Do not drop the failed items from the batch: a partial batch that is not re-spawned silently shrinks the work.
 
 ## Failed Attempts
 
@@ -75,6 +77,7 @@ gh issue edit <n> --remove-label state:plan-blocked --add-label state:needs-plan
 | --- | --- | --- | --- |
 | Trust the catalog and exit code | Treated a catalog-listed deployment as drawable; the agent CLI exited 0 on probe-shaped requests | The deployment was down; the CLI prints the provider error and exits 0. The drawn reviewer died with `reviewer error retries exhausted` after real agent jobs had run (≈90 s, 3 jobs) | Require the expected token in probe output; exit status is not a probe signal |
 | Fresh draw into a live review | Re-drew all roles on a relaunch; the resumed plan-review item received a different reviewer than its session record | The journal fail-closed with `review-session-lost: reviewer tool or model changed` and the run BLOCKED in under a minute with zero agent jobs. A parallel run without the reset flag reproduced the same block | Pin the reviewer slot to the session's bound model, or relaunch with `--reset-plan-review-session` |
+| Re-spawn after the first good probe | Ran a batch of independent agent spawns on one model that had just probed live; three of four later spawns failed with a not-in-the-serving-set error | The serving set changed inside the batch; the catalog still reported the model as active, and the harness has no automatic fallback, so the failures surfaced only as per-spawn errors | Re-probe on that error class and re-spawn the failed items on a policy-allowed live model; never treat a catalog listing as current serving |
 | Relaunch without label restore | Reran the loop after the BLOCKED disposition | The block had swapped `state:needs-plan` for `state:plan-blocked`; seeding selects on the needs-plan label, so the run admitted zero items and exited in seconds with no error | Restore the seeding label as part of the reset, before the next run |
 
 ## Results & Parameters

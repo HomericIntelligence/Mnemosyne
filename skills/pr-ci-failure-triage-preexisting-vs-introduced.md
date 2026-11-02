@@ -1,9 +1,9 @@
 ---
 name: pr-ci-failure-triage-preexisting-vs-introduced
-description: "Classify red PR checks as introduced, pre-existing, flaky, environmental, stale-commit, or status-rollup artifacts before fixing or rerunning. Use after rebases/force-pushes, unrelated failures, merge-preview coverage changes, or hosted-only process-launch errors. Also use when the required check is a fan-in gate reported by a ruleset, when the failing symbol on the base was deliberately removed, when a base update turns a green branch red without a textual conflict, when grouped or sharded logs hide individual failed node identities, when failures reproduce only on the local host, or when a path-filtered check fails on stale in-repo plan inputs that main already repaired. Also use when an aggregate gate fails its own report step because a producer job output key is absent from `needs` while every upstream job succeeded. Also use when a green comparison lane may never execute the failing node because event-scoped profiles or shard planners select different test sets on identical trees. Also use when the default branch's CI is red at or immediately after your squash merge and a task gate requires green main CI before you report, or when per-commit run lookups return empty because the branch does not run every push. Also use when only some failing nodes reproduce on a pristine trunk worktree, or when a test fails as an absent exception because a derived identity stopped covering the edited dimension. Also use when a pre-existing classification leaves a follow-up-issue obligation while an aggregate tracker may already own the failing group — dedupe against open trackers before filing."
+description: "Classify red PR checks as introduced, pre-existing, flaky, environmental, stale-commit, or status-rollup artifacts before fixing or rerunning. Use after rebases/force-pushes, unrelated failures, merge-preview coverage changes, or hosted-only process-launch errors. Also use when the required check is a fan-in gate reported by a ruleset, when the failing symbol on the base was deliberately removed, when a base update turns a green branch red without a textual conflict, when grouped or sharded logs hide individual failed node identities, when failures reproduce only on the local host, or when a path-filtered check fails on stale in-repo plan inputs that main already repaired. Also use when an aggregate gate fails its own report step because a producer job output key is absent from `needs` while every upstream job succeeded. Also use when a green comparison lane may never execute the failing node because event-scoped profiles or shard planners select different test sets on identical trees. Also use when the default branch's CI is red at or immediately after your squash merge and a task gate requires green main CI before you report, or when per-commit run lookups return empty because the branch does not run every push. Also use when only some failing nodes reproduce on a pristine trunk worktree, or when a test fails as an absent exception because a derived identity stopped covering the edited dimension. Also use when a pre-existing classification leaves a follow-up-issue obligation while an aggregate tracker may already own the failing group — dedupe against open trackers before filing. Also use when a rebase or push gate must decide whether a red local run of the change's own test files belongs to the rebased head or reproduces unchanged at the pristine base commit. Also use when a content guard fails with an expected-versus-actual version or constant mismatch that you did not edit, or when your change's own content checks pass but one repository-wide guard fails on an unchanged file."
 category: ci-cd
-date: 2026-10-27
-version: "2.9.0"
+date: 2026-11-01
+version: "2.11.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-ci
@@ -35,6 +35,11 @@ tags:
   - partial-reproduction
   - fixture-identity-collision
   - follow-up-tracker-dedupe
+  - rebase-attribution
+  - local-red-main-green
+  - stale-version-pin
+  - content-guard-mismatch
+  - unedited-file-failure
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pr-ci-failure-triage-preexisting-vs-introduced.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -90,6 +95,10 @@ and the complete prior version is in
 - Your triage classifies red as pre-existing and a scope rule forbids the repair,
   leaving a follow-up-issue obligation, while an aggregate tracker may already record
   the same failing group.
+- You resolved a rebase and must decide whether the touched test files pass before
+  a gated push, but the same files fail identically at the pristine base commit on
+  this host while the hosted checks are green. The failure set then gates neither
+  head, and every delta belongs to the reviewed resolution.
 
 ## Verified Workflow
 
@@ -179,6 +188,14 @@ not from lane color.
   gh run download <failed-run-id> -n <evidence-artifact-name>
   ```
 
+- Content guard whose expected value is a literal in the test and whose actual value comes from the
+  tree: a mismatch on a version, constant, or count that your diff never touched is a stale pin.
+  A version-bump merge that did not update the literal reds the default branch from that merge on.
+  Bracket it before touching the guard: a run at the bump commit's parent is green, runs at the
+  bump commit and at every later base are red, and the literal's history shows no change since the
+  pin was written. The difference between a stale pin and a regression is only whether the
+  asserted expected value moved with the tree.
+
 - Aggregate gate fails its own report step on a `needs.<job>.outputs` key that is absent
   while every upstream job succeeded: attribute the dropped producer output before any
   rerun. Re-execution inside the same run inherits stored job outputs, so a rerun cannot
@@ -240,6 +257,8 @@ git diff "$OLD_BASE".."$PRE_UPDATE" -- <subject-source-files>
 | The update took one half of a lockstep pair, such as a workflow and the script that consumes its output, from different eras | Half-moved pair | Move the pair atomically to all-old or all-new, then rerun the pair's own checks |
 | Subject source carries branch deltas and reverting them removes the failure | Genuine PR regression | Fix minimally in scope |
 | The same nodes fail set-identically on a pristine trunk worktree on this host, and trunk CI is green | Host/environment window | Report FYI with the reproduction evidence; do not patch the PR for it |
+| The identical failing node set reproduces at the pristine base commit on this host while hosted CI is green, and a gated mutation (push, merge, delivery) must proceed | Environment-attributed pass-through | Record the per-file failure-set equality and the representative root cause, then proceed without weakening any check. The gate proves that the resolution adds no failure, not that the host is green |
+| The host root cause is a fail-closed trust check on an ancestor path, and one configuration value (for example the temp root) can reach it | Fail-closed navigation | Relocate that value to a compliant location and rerun the identical commands on both heads. Adjudicate the failure set when navigation is unavailable or slower than proving equality; keep the value pinned and recorded |
 | Only some of the failing nodes reproduce on a pristine trunk worktree; the rest pass there | Mixed attribution: the reproducing nodes are pre-existing, the others are branch-introduced | Split the failure set per node. Repair the branch-introduced nodes; report the reproducing nodes with their counts and do not fold them into one "fails on trunk" claim |
 | The asserted failure is an absent exception or a no-op, and the guard that should raise now compares equal because a mid-stream change removed the changed dimension from a derived identity | Fixture identity collision | Repair the fixture so it still distinguishes the two sides on the dimension the guard now reads, and assert the invariant the guard protects — not the label the old identity model produced |
 
@@ -248,6 +267,24 @@ oracle. A failure that reproduces there is not introduced by the branch. When th
 filesystem ownership, modes, or ACL semantics, prefer the hosted-runner result: a local mount can
 force modes, mask ACL behavior, or change user identity, so chmod-based assumptions can fail in
 either direction.
+
+A rebase gate is one application of the oracle. After the rebase, the touched test files can be red
+only in this checkout. Before the push, compare the failing node sets of both heads under one
+environment pin:
+
+```bash
+git log --oneline <base>..HEAD            # the replayed commits
+echo <owner-only-scratch-root>            # one TMPDIR value for both runs; satisfies a refused check
+git worktree add --detach <base-worktree> <base>
+# run the same test command on the touched files in each tree, then:
+grep -E '^(FAILED|ERROR)' <base-log> | sort > base.txt
+grep -E '^(FAILED|ERROR)' <head-log> | sort > head.txt
+diff base.txt head.txt                    # empty means the sets are equal per file
+```
+
+An empty delta with hosted CI green is environment-attributed. Any surplus node is
+branch-introduced. Report the counts per file, the representative root cause, and the pin. Do not
+repair the phantom set, and do not call the red set green.
 
 Claim reproduction per node, never for a set. Run the same module in both worktrees and compare the
 node identities, then count each side:
@@ -314,6 +351,11 @@ the real payload. Do not amend an arbitrary tip when the unwanted commit is lowe
   update under the repository's task-base policy (record the reason plus old and new base
   and head commits, then rebind verification to the new head). Do not patch the PR's own
   files to mask a check that main already fixed.
+- Pre-existing stale-pin guard failure on an unedited file: do not edit the expected value to reach
+  green. The literal belongs to the merge that moved the tree, and a narrow-scoped lane that
+  rewrites it hides the defect and expands scope. Record the bracket evidence in the PR, name the
+  owning change, and keep the disposition on the strength of the change's own passing checks. Edit
+  the literal only when the pin is in your write allowlist and the task owns it.
 - Rollup artifact: no code change; wait for/read the current-head run.
 - New-check failure: fix the check or product contract; do not compare it to a nonexistent main run.
 
@@ -396,6 +438,7 @@ operational verification.
 | 15 | Declared a deterministic introduced failure flaky because green twins carried an identical tree | Every green lane ran an event-scoped profile that never selected the failing node; only the failing wider-profile lane executed it | A green lane is comparison evidence only after its logs contain the failing node id or its selected-test count covers the node's profile; classify empty comparisons from content determinism |
 | 16 | Treated red main CI right after the merge as merge-caused and prepared a repair inside the delivery scope | The branch's workflow runs were sparse: a per-commit run query returned empty for the merge commit and hid that the first red run predated the merge by several commits, and every sampled failed job carried an identical node set in one module disjoint from the patch | Enumerate runs by branch and bracket the merge commit before attributing; compare the failing node set across the pre-merge red, the merge's run, and the tip; never treat a missing run as green, and do not adopt pre-existing breakage another lane owns |
 | 17 | Prepared a new issue for a classified pre-existing failure without checking open trackers | An aggregate tracker already listed the same validation run and failing group in its curated ledger; a duplicate would have raced the owning lane's record and split one failure line across two owners | Before filing a classified pre-existing failure, search open issues by the failing node or module and by tracker keywords; when a ledger already owns the group, reference it in the report and file nothing |
+| 18 | Re-ran a touched test file to confirm a rebase, hit a fail-closed ancestor-path refusal in every test that created a temp tree, and treated the red file as a mergeability blocker | The same refusal reproduces at the pristine base commit on this host. The failure set was equal for the touched files, so the rebased head added no failure, and the refusal never reaches the hosted checks | Before the push, run the touched files on a pristine base worktree under one environment pin. An equal failure set with green hosted CI is pass-through evidence. When one configuration value controls the refusal, navigate it and rerun both heads instead of adjudicating each node |
 
 ## Results & Parameters
 
@@ -438,6 +481,11 @@ operational verification.
 - Adoption boundary: pre-existing breakage another lane owns stays outside the delivery
   scope; a newer-tip green run after an owning repair commit discharges a
   watch-to-green gate, recorded as the repair's evidence rather than your patch's.
+- Rebase gate evidence: the per-file failure sets of the base and head runs under one
+  pin, an empty delta, the representative root cause, and the hosted CI state. The
+  gate result is "no added failure", not "green".
+- Navigation rule: when one configuration value controls a fail-closed refusal, move
+  that value and rerun both heads instead of adjudicating each node; record the value.
 
 ## Evidence Boundary
 

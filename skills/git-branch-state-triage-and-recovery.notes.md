@@ -17,6 +17,7 @@ Supporting cases for
 | Contaminated stacked child | [Immutable source snapshot](https://github.com/HomericIntelligence/Mnemosyne/blob/1ae0cb498e5250c341c2a4bf585f97e2a28060af/skills/git-branch-state-triage-and-recovery.md) for anonymized PRs #399/#400 | verified-ci | Parent rebased; child rebuilt with exact leases |
 | Bulk retirement bound to fresh remote enumeration | Anonymized grouped decommission session | verified-local | Remote-only five-commit series archived before deletion; foreign mid-operation objects reported and preserved; zero-ref proof in both namespaces |
 | Parallel-rewrite partial supersession in a rebase | Anonymized internal PR session | verified-local | Per-intent-unit proof found one surviving behavioral check after the resolved diff read empty; the surviving unit shipped as one minimized commit on current trunk |
+| Rebase task on a PR merged before work started | Anonymized internal rebase session | verified-local | `state=MERGED`, `mergeStateStatus=UNKNOWN`, source ref deleted; path-scoped diff against the squash merge commit read empty; no rebase and no push |
 
 ## Detailed Verification
 
@@ -60,6 +61,10 @@ units, not as proof of obsolescence.
 
 ## Provenance
 
+- Amendment base: `188d710bc0b0bc1ba873402133fea0d79c61a300`
+- Old/new version: `2.3.0` → `2.4.0`
+- Superseded main SHA-256 (v2.3.0):
+  `c1050972f2a4d5ebd51c55be6853341945f2d220708b5494ec297dce2c236511`
 - Superseded main SHA-256 (v2.2.0):
   `9ad2da87fd8f543f492e4cc55bdb4d7ddbbf507621a9f9e69517a7bc54011e29`
 - Amendment base: [`f0bdfba1`](https://github.com/HomericIntelligence/Mnemosyne/blob/f0bdfba13c2feddcbcc79d07570606574b3b3011/skills/git-branch-state-triage-and-recovery.md)
