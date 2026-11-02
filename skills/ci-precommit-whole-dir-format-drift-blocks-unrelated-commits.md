@@ -1,10 +1,10 @@
 ---
 name: ci-precommit-whole-dir-format-drift-blocks-unrelated-commits
 license: BSD-3-Clause
-description: "Diagnose whole-directory pre-commit formatting failures caused by pre-existing drift; choose a scoped repair without bypassing hooks."
+description: "Diagnose whole-directory pre-commit format and lint failures caused by pre-existing drift on main; choose a scoped repair without bypassing hooks, including the label-gated required check that must run on the PR head or be reported as not run, and the tree-wide type-check failure that is a genuine runtime regression proved by the covering test suite."
 category: ci-cd
 date: 2026-06-22
-version: "1.4.0"
+version: "1.6.0"
 user-invocable: false
 verification: verified-local
 tags: []
@@ -19,7 +19,7 @@ history-cleanup-date: "2026-09-20"
 This skill is about **repo-wide / whole-dir pre-commit hooks configured with
 `pass_filenames: false`**: they re-run over the ENTIRE tree on every commit, so a
 **pre-existing violation already committed on `origin/main` blocks unrelated
-commits on every branch**. Three variants (with two distinct mypy findings) share
+commits on every branch**. Four hook variants (with two distinct mypy findings) share
 this exact signature:
 
 - **`ruff format` drift** — the hook reformats untouched files and aborts with
@@ -38,13 +38,18 @@ this exact signature:
     reorg) left missing annotations (`Need type annotation for "X"
     [var-annotated]`) that "lint skipped on auto-merge" let reach main; the NEXT
     author's unrelated commit surfaces all of them.
+- **`uv run ty` whole-tree TYPE error that is a REAL RUNTIME BUG (v1.6.0)** — the
+  repo-wide type checker (`pass_filenames: false`, `language: system`) fails at a
+  call site a just-merged feature added (four positional arguments to a
+  three-parameter helper). Not drift: a latent `TypeError` on every call through
+  the new path, merged silently because the hook has no required CI job.
 
 | Field | Value |
 | ------- | ------- |
 | **Date** | 2026-06-22 |
-| **Objective** | Unblock feature PRs in ProjectHephaestus whose commits kept aborting because a whole-dir (`pass_filenames: false`) pre-commit hook re-hit a pre-existing violation already committed on `origin/main` — `ruff format` drift (v1.0.0), a `ruff check` `SIM102` lint (v1.1.0), a tree-wide `pixi run mypy` type error after a mypy 2.1.0 bump (v1.2.0), or 10 `[var-annotated]` errors a just-merged PR #1566 left in `tests/unit/benchmarks/test_compare.py` (v1.3.0) |
-| **Outcome** | Successful — a separate one-file lint/format/type PR re-greened main first (or, in v1.3.0, the unblock was FOLDED into the carrying PR), then dependent work landed clean. v1.0.0: `chore(lint)` PR #1325 unblocked a 6-PR stack. v1.1.0: `fix(lint)` PR #1352 (issue #1351) re-greened main and the 4 dependents #1353–#1356 all merged green. v1.2.0: `[Fix]` PR #1530 (issue #1529) repaired two mypy 2.1.0 errors, then #1531/#1533/#1535/#1537 stacked on it all merged green. v1.3.0: the `[var-annotated]` fix was folded into the unrelated automation PR #1568 (the only way that PR's own commit could pass the whole-tree hook) — `pixi run mypy` → `Success: no issues found in 411 source files` |
-| **Verification** | verified-ci for v1.0.0–v1.2.0 (the `SIM102` fix PR #1352 and dependents #1353–#1356, the mypy fix PR #1530 and dependents #1531/#1533/#1535/#1537 all merged green; original v1.0.0 format-drift case was verified-local). The v1.3.0 `[var-annotated]` finding is verified-LOCAL only — `pixi run mypy` passed locally (411 files) and the commit's pre-commit mypy hook passed, but the carrying PR #1568's full CI was still pending at capture time |
+| **Objective** | Unblock feature PRs in ProjectHephaestus whose commits kept aborting because a whole-dir (`pass_filenames: false`) pre-commit hook re-hit a pre-existing violation already committed on `origin/main` — `ruff format` drift (v1.0.0), a `ruff check` `SIM102` lint (v1.1.0), a tree-wide `pixi run mypy` type error after a mypy 2.1.0 bump (v1.2.0), or 10 `[var-annotated]` errors a just-merged PR #1566 left in `tests/unit/benchmarks/test_compare.py` (v1.3.0); generalized second case: a tree-wide `ty` argument-arity error that was a genuine runtime regression a just-merged feature added (v1.6.0) |
+| **Outcome** | Successful — a separate one-file lint/format/type PR re-greened main first (or, in v1.3.0, the unblock was FOLDED into the carrying PR), then dependent work landed clean. v1.0.0: `chore(lint)` PR #1325 unblocked a 6-PR stack. v1.1.0: `fix(lint)` PR #1352 (issue #1351) re-greened main and the 4 dependents #1353–#1356 all merged green. v1.2.0: `[Fix]` PR #1530 (issue #1529) repaired two mypy 2.1.0 errors, then #1531/#1533/#1535/#1537 stacked on it all merged green. v1.3.0: the `[var-annotated]` fix was folded into the unrelated automation PR #1568 (the only way that PR's own commit could pass the whole-tree hook) — `pixi run mypy` → `Success: no issues found in 411 source files`. v1.6.0: a dedicated `fix` PR dropped the stale argument; the covering suite went 5 failed → all passing and the bare checker passed tree-wide; own blocked PRs rebased on the fix branch, other writers' lanes untouched |
+| **Verification** | verified-ci for v1.0.0–v1.2.0 (the `SIM102` fix PR #1352 and dependents #1353–#1356, the mypy fix PR #1530 and dependents #1531/#1533/#1535/#1537 all merged green; original v1.0.0 format-drift case was verified-local). The v1.3.0 `[var-annotated]` finding is verified-LOCAL only — `pixi run mypy` passed locally (411 files) and the commit's pre-commit mypy hook passed, but the carrying PR #1568's full CI was still pending at capture time; v1.6.0 is verified-local — the covering suite passed after the fix and the bare checker passed tree-wide, with the fix PR open at capture time |
 
 ## When to Use
 
@@ -57,6 +62,16 @@ this exact signature:
   - A `mock.MagicMock()` assigned to a method carried `# type: ignore[attr-defined]`, but mypy 2.1.0 emits `[method-assign]` there → each line errors TWICE (Unused "type: ignore" + an unsuppressed method-assign). Fix: change the code to `# type: ignore[method-assign]` (NOT a blanket `# type: ignore`, NOT `[attr-defined]`).
   - A test referenced `pr_manager.AGENT_COMMIT_MESSAGE` / `pr_manager.AGENT_PR_MESSAGE`, which `pr_manager` only IMPORTS (does not re-export); under `implicit_reexport=false` mypy rejects that. Fix: import the constants from their canonical home (`session_naming`) instead.
 - **`[var-annotated]` from a just-merged PR (v1.3.0):** `pixi run mypy` reports `Need type annotation for "X" [var-annotated]` errors ALL in a file your branch never touched (here 10 errors in `tests/unit/benchmarks/test_compare.py`). Root cause is a just-merged PR (#1566, a test-suite reorg) that left dict/list literals unannotated (`results = {"benchmarks": []}`, `improvements = []`) — and because **lint is SKIPPED on auto-merge events in this repo**, the breakage reached main and the NEXT author's unrelated commit surfaces it. FIRST confirm the errors pre-exist on origin/main (`git show origin/main:<file>` / `git diff --name-only main...HEAD` shows you never touched it) — do NOT assume your change caused them. Fix: add explicit annotations matching the target function signatures in `hephaestus/benchmarks/compare.py` (`results: dict[str, Any] = {...}`, `improvements: list[dict[str, Any]] = []`, `regressions: list[Regression] = []`, plus `from typing import Any`). Deciding whether to fix broken main IN your feature PR (fold) vs a separate standalone unblock PR is itself a When-to-Use trigger.
+- **Required `lint` check gated behind a label (v1.5.0):** the repo starts the required `lint-typecheck-test` check only on a `labeled` event. A one-file PR that repairs main's drift therefore opens with **no check at all**. `gh pr checks <n>` prints `no checks reported on the '<branch>' branch` and exits non-zero. That is neither a pass nor a failure. Confirm the drift independently at the PR head (`ruff format --check .` → `all files already formatted`, `ruff check` → `all checks passed`), record the required check as **not run**, and report the deadlock: the label starts CI, and the check gates the label. Do not hold the label back until a check passes. That deadlocks the PR.
+- **Type-check failure that is a real runtime regression, not drift (v1.6.0):** the
+  whole-tree type checker (`ty` via `uv run`, `pass_filenames: false`,
+  `language: system`) fails at a call site a just-merged feature added — four
+  positional arguments to a three-parameter helper. Different decision from the
+  drift variants: prove impact first (covering test suite on clean main → RED),
+  land the one-line fix in a dedicated `fix` PR, show GREEN (suite passes; bare
+  `uv run ty check` → `All checks passed!`). Rebase only YOUR OWN blocked PRs on
+  the fix branch with lease protection; do NOT force-rebase other writers' open
+  lanes — they inherit the fix on their next rebase.
 
 Use this specific skill when **main already has format drift OR a lint violation** and a whole-dir hook is therefore blocking unrelated commits. This is a DIFFERENT root cause from `ci-ruff-format-collapses-handwrapped-comprehensions` (where YOUR OWN clause-deletion edit collapses a comprehension you just touched) — see also that skill and `pre-commit-hooks-and-linting-config`. If the reformatted files are the ones you edited, you are in the wrong skill; the signature here is that the reformatted files are unrelated to your change and already drifted on main.
 
@@ -90,11 +105,11 @@ git checkout -b 1234-my-feature chore/lint-format-drift
 
 ### Detailed Steps
 
-1. **Recognize the signature.** You commit clean, unrelated files and the hook reformats a *different* file set, then aborts. This is not your edit's fault — the drift is in main's committed tree.
+1. **Recognize the signature.** You commit clean, unrelated files and the hook reformats a *different* file set, then aborts. This is not your edit's fault — the drift is in main's committed tree. The same applies to a reviewer of a drift-repair PR: the required `lint` check often does not run at all because it is gated behind a label. See the label-gated variant in When to Use.
 
 2. **Confirm the diagnosis cheaply.** Run `ruff format --check hephaestus/ scripts/ tests/` (with the repo's pinned ruff) against the committed `origin/main` content. If it lists files unrelated to your change, main itself carries drift. This happens when those files were committed before a ruff version/range resolved differently, or merged via a PR whose own gate passed under a slightly different ruff.
 
-3. **Consider a separate focused repair for broad pre-existing drift.** Branch off main, fix exactly the offending file(s) — `ruff format` + `ruff check --fix` for drift/lint, or the precise mypy edit for a type error (correct `# type: ignore[<code>]`, or import re-exported names from their canonical module under `implicit_reexport=false`) — and commit only that diff, no logic change. Verify behavior-preserving by running the affected modules' tests (format case: 199 automation tests passed unchanged; mypy case: `pixi run mypy` → `Success: no issues found in N source files`). A separate repair was useful in the recorded PRs. A minimal necessary fix can also accompany the requested change when that keeps the diff coherent and the cause explicit.
+3. **Consider a separate focused repair for broad pre-existing drift.** Branch off main, fix exactly the offending file(s) — `ruff format` + `ruff check --fix` for drift/lint, or the precise mypy edit for a type error (correct `# type: ignore[<code>]`, or import re-exported names from their canonical module under `implicit_reexport=false`) — and commit only that diff, no logic change. Verify behavior-preserving by running the affected modules' tests (format case: 199 automation tests passed unchanged; mypy case: `pixi run mypy` → `Success: no issues found in N source files`). A separate repair was useful in the recorded PRs. A minimal necessary fix can also accompany the requested change when that keeps the diff coherent and the cause explicit. If the finding is a runtime bug (v1.6.0: an argument-arity error at a newly added call site), prove it first — run the covering test suite on clean main for RED evidence — and keep the fix in its own `fix` PR.
 
 4. **Consider stacking dependent feature branches on the repair.** Base each feature branch on the chore branch so its commits land cleanly (the hook finds nothing to reformat). Once the chore PR merges to main, GitHub auto-retargets the stacked PRs to main.
 
@@ -114,6 +129,10 @@ git checkout -b 1234-my-feature chore/lint-format-drift
 | Trust a "pass" `lint` check on an auto-merge event | Saw the `lint` check green after arming/disarming auto-merge and assumed the type errors were fixed | The `lint` job is behind a `changes-gate`: it is SKIPPED on `labeled`/`auto_merge_enabled`/`auto_merge_disabled` events (only runs on push/synchronize/opened). A *skipped* `lint` counts as PASS at the `required-checks-gate`, so the "pass" was vacuous | Get a genuine `lint` run from a real code event (push a commit, or rely on the opened/synchronize run) before trusting it — a skip is not a pass |
 | Assume your branch introduced the `[var-annotated]` errors | Saw 10 `Need type annotation [var-annotated]` errors and started inspecting/blaming your own diff | All 10 were in `tests/unit/benchmarks/test_compare.py`, a file the branch never touched — a just-merged PR (#1566) left them, and "lint skipped on auto-merge" let them reach main | FIRST confirm errors pre-exist on origin/main (`git show origin/main:<file>`, `git diff --name-only main...HEAD`) before assuming your change caused them; a whole-tree hook surfaces other people's debt on YOUR commit |
 | Run a targeted pytest path after a test reorg and trust exit 0 | Ran pytest against `tests/unit/test_import_surface.py` / `test_automation_boundary.py` (their pre-reorg paths) and saw exit 0 | PR #1566 MOVED those files under `tests/unit/validation/`; a now-nonexistent pytest path collects ZERO tests and EXITS 0 — a silent no-op that looks like success | After a reorg, confirm a targeted pytest path actually matched tests — look for the "N passed" line, not just exit code 0 |
+| Read "no checks reported" as green or as red | Ran `gh pr checks <n>` on a drift-repair PR and got `no checks reported on the '<branch>' branch`, exit 1 | The required check runs only on a `labeled` event, so nothing had started. Neither reading is supported: there is no result to read | Record the check as **not run**, prove the drift is gone at the PR head with a direct `ruff format --check .` and `ruff check`, and report that the label starts CI. The owner applies the label |
+| Claim a whitespace change "parses as a subtraction expression" | Described an under-indented keyword argument as a subtraction expression in the commit message | The AST proves the continuation line was always a keyword argument. Only `ruff format --check` failed, so the commit prose overstated the damage | Before you publish a no-op or behaviour-change claim, prove it: `ast.dump(ast.parse(a)) == ast.dump(ast.parse(b))` on both sides, then state only what the AST shows. A wrong rationale in an otherwise correct one-line fix does not justify a force push — correct the record in a PR comment |
+| Treat the tree-wide type error as more stale-lint debt | Saw the whole-tree checker fail at a newly added call site and reached for the drift playbook without checking behavior | The finding was a real argument-arity regression — the covering suite failed 5 tests on main, so every call through the new path raised `TypeError` | Classify first: run the covering test suite on clean main; RED failures mean a dedicated runtime `fix` PR, not a format/lint chore |
+| Force-rebase every open PR onto the fix branch | Considered rewriting all open PR branches so every lane committed clean at once | Several open lanes belonged to live writers (automation agents); rewriting branches under running writers risks clobbering in-flight work | Rebase only PRs you own, with lease protection; other writers' lanes inherit the fix on their next natural rebase |
 
 ## Results & Parameters
 
@@ -269,6 +288,34 @@ now-nonexistent test path to pytest collects NOTHING and EXITS 0 (a silent
 no-op that looks like success). Always confirm a targeted pytest path matched
 tests — look for the "N passed" line, not just exit code 0.
 
+**Runtime-arity variant (v1.6.0 — tree-wide `ty` error that is a real bug):**
+
+A just-merged feature added a requester-authenticated execution path to a
+service facade; its mutating exit called a three-parameter helper with four
+positional arguments. The whole-tree checker (`ty` via `uv run`,
+`pass_filenames: false`, `language: system`) flagged exactly that call site.
+The hook runs only in pre-commit — no required CI job runs it — so the
+regression merged silently and the next author's unrelated commit surfaced it.
+
+Proof-before-repair sequence (generalized):
+
+```bash
+uv run ty check                                               # hook command; fails on main
+uv run --locked --extra dev pytest <covering test module> -q  # 5 failed -> RED proof
+# one-line fix: drop the stale argument so the call matches the signature
+uv run --locked --extra dev pytest <covering test module> -q  # all pass -> GREEN
+uv run ty check                                               # All checks passed!
+```
+
+Decision branches: land the fix in a dedicated `fix` PR (reviewable standalone;
+do not fold it into unrelated work when you own the stack — folding is the
+v1.3.0 fallback for when you do NOT control the carrying PR); rebase only your
+own blocked PRs on the fix branch and push with lease protection; leave other
+writers' open lanes untouched. Fresh-worktree note: the hook's `uv run ty check`
+can fail with `Failed to spawn: No such file or directory` until the
+development environment is installed once — run the covering suite (or the
+project's dev sync) first.
+
 **Cross-link:** this is the same whole-scope-hook-blocks-unrelated-PRs class as
 [[ci-markdownlint-all-files-repo-wide-blocks-prs]] (a repo-wide `--all-files`
 markdownlint/pre-commit gate failing every PR on one pre-existing malformed file).
@@ -280,6 +327,7 @@ markdownlint/pre-commit gate failing every PR on one pre-existing malformed file
 | ProjectHephaestus | 2026-06-14 `SIM102` broken-main blocked 4-way fan-out | PR #1352 re-greened main, #1353–#1356 merged |
 | ProjectHephaestus | 2026-06-19 mypy 2.1.0 tree-wide type error broke main `lint` gate | PR #1530 (issue #1529) re-greened main; `pixi run mypy` → `Success: no issues found in N source files`; dependents #1531/#1533/#1535/#1537 merged |
 | ProjectHephaestus | 2026-06-22 10 `[var-annotated]` errors from just-merged PR #1566 (`test_compare.py`) blocked an unrelated commit | Fix FOLDED into carrying PR #1568; `pixi run mypy` → `Success: no issues found in 411 source files` (verified-local; PR #1568 CI pending at capture) |
+| Python service monorepo (generalized) | 2026-10-30 tree-wide `ty` argument-arity error from a just-merged feature blocked every commit | Dedicated `fix` PR re-greened the tree: covering suite 5 failed → all passed; `uv run ty check` → `All checks passed!`; own blocked PR rebased on the fix branch (verified-local; fix PR open at capture) |
 
 **Distinction from related skills:** This skill is specifically *"main already has a pre-existing violation (format drift OR a lint error) → a whole-dir (`pass_filenames: false`) hook re-hits it on unrelated commits → blocks every branch → fix via a separate one-file lint/format PR merged first + stack dependents"*. It is NOT `ci-ruff-format-collapses-handwrapped-comprehensions` (clause-deletion collapse of a comprehension YOU just edited — a different root cause). See also `pre-commit-hooks-and-linting-config` for hook configuration background.
 
@@ -293,3 +341,6 @@ green through the required-checks gate (`pixi run mypy` → `Success: no issues
 found in N source files`) with its 4 dependents (#1531/#1533/#1535/#1537) all
 green; the v1.1.0 `SIM102` fix PR #1352 and its 4 dependents (#1353–#1356) all
 merged green; the original v1.0.0 format-drift case was verified-local.
+v1.6.0 is verified-local: after the one-line fix the covering suite passed and
+the bare tree-wide checker reported `All checks passed!`; the fix PR was open
+(not merged) at capture time.

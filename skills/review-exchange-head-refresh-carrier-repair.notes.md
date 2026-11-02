@@ -517,3 +517,66 @@ repair; different digests mean the terminal state is permanently
 undeliverable and a fresh genesis exchange at a moved head completes the
 goal. The recovery verified end to end on the first delivery attempt at each
 of the two heads.
+
+## 2026-11-01 — Terminal GO withheld at external closure of a merged artifact
+
+### Context
+
+A reviewer lane finished a full source review of a pull request at a moved
+head, reduced a complete terminal GO round-1 state, verified the anchor
+proofs and the reducer confirmation, and built the closure manifest for the
+delivery helper's sole-publisher sequence. Before the first forge write of
+the delivery (terminal carrier, thread resolutions, exclusive label), the
+owner merged the artifact from the forge UI. The lane had the prepared,
+offline-validated manifest on disk but had published nothing for the
+terminal delivery.
+
+### Delivery-helper gate
+
+- `deliver_go.py --prepare-manifest` against the merged artifact printed
+  "The pull-request head, target, or state changed; withhold GO delivery."
+  and wrote no manifest. The helper's not-open check is the last-line
+  proof that a post-merge delivery cannot succeed; the prepared payload
+  was discarded.
+- Zero forge writes followed the merge. Every later forge contact in the
+  lane was read-only: state read MERGED, the merge commit and timestamp
+  resolved, and the label pair re-read from the live artifact.
+
+### Label observation
+
+- The merged artifact carried both terminal-state labels
+  (NO-GO from the superseded-head round, and GO whose provenance was
+  unknown: no published terminal record could be verified between the two
+  polls in which the pair appeared).
+- The labels were left as found. Exclusive-label transitions are part of a
+  live delivery on an open artifact; a merged artifact accepts no
+  lane-driven repair. The review report recorded the observed state and
+  its unknown provenance instead of repairing it.
+- The delivered-GO survival rule did not apply: its preconditions
+  (published terminal carrier, resolved threads, exclusive label) were
+  never met in this exchange.
+
+### Final recorded state
+
+- The review report recorded the terminal delivery as withheld, with the
+  merge commit and merge timestamp as the external closure, the helper
+  refusal message as the delivery verification, and the untransitioned
+  label pair as reported-not-repaired.
+
+### Verification record
+
+- Helper refusal message reproduced verbatim and matched the standard
+  withhold phrase in the delivery reference.
+- MERGED state, merge commit, and mergedAt timestamp read from the live
+  forge after the merge.
+- Post-merge lane log contained only read operations; no carrier, thread,
+  or label write was issued.
+- Live label state read at close still carried the unmaintained pair,
+  untouched from the merge-time observation.
+
+### Reusable outcome
+
+Owner merge before terminal delivery is an external closure, not a failed
+delivery: confirm the helper refuses the not-open artifact, discard the
+payload, leave observed non-exclusive labels as found, record the withheld
+terminal delivery as the final state, and publish nothing further.

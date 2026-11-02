@@ -1,9 +1,9 @@
 ---
 name: mid-drive-peer-completion-audit
-description: "Reconcile live forge state against a stale snapshot while driving an issue-to-merge queue that parallel lanes also work. Use when: (1) your queue map or status snapshot is minutes-to-hours old and the repository moves under you, (2) a peer lane can complete a review round or merge on your PR while you wait, (3) you must decide between redoing and auditing-plus-finishing leftover bookkeeping, (4) more than one review process can race on one PR, (5) a plan decision table can make a merged PR partial so the issue must stay open, (6) a single-PR directive carries a mergeability premise captured at issuance (conflicting state, red checks) and a peer may have delivered the whole task before you start."
+description: "Reconcile live forge state against a stale snapshot while driving an issue-to-merge queue that parallel lanes also work. Use when: (1) your queue map or status snapshot is minutes-to-hours old and the repository moves under you, (2) a peer lane can complete a review round or merge on your PR while you wait, (3) you must decide between redoing and auditing-plus-finishing leftover bookkeeping, (4) more than one review process can race on one PR, (5) a plan decision table can make a merged PR partial so the issue must stay open, (6) a single-PR directive carries a mergeability premise captured at issuance (conflicting state, red checks) and a peer may have delivered the whole task before you start, (7) an assigned review round targets an artifact that was already merged."
 category: tooling
 date: 2026-10-31
-version: "1.2.0"
+version: "1.3.0"
 license: BSD-3-Clause
 user-invocable: false
 tags: [parallel-lanes, stale-snapshot, peer-completion, adopt-pr, refs-vs-closes, partial-scope, label-hygiene, review-race, immutable-artifact, lane-record, rebase-audit, force-push-timeline, zero-delta]
@@ -28,6 +28,7 @@ tags: [parallel-lanes, stale-snapshot, peer-completion, adopt-pr, refs-vs-closes
 - Review exchanges on your PRs run as background processes that peers or earlier sessions can also start.
 - An approved plan contains a decision table that can make a merged PR partial (the issue must not auto-close).
 - You must label, merge, clean up, or report against artifacts whose state you did not verify in the last few minutes.
+- You are assigned a review round on a specific artifact, and the artifact may have merged before you started.
 
 ## Verified Workflow
 
@@ -61,6 +62,8 @@ gh api graphql -f query='{ repository(owner:"<owner>", name:"<repo>") { pullRequ
 
 Rule: **redo never; audit, then finish the leftovers.** When a peer delivered or advanced the artifact, your remaining work is the delta between the delivered state and your contract — usually a few bookkeeping steps, not the implementation. When the delta is empty, the audit ends in a takeover report and a stop, not in a repeat mutation.
 
+Rule: **an assigned review of a merged artifact ends as a read-only report.** Do not publish a review carrier, a label, or a verdict for an artifact that is no longer open. The reviewer-side delta is the report, not a rerun.
+
 ### Suggested Approach
 
 1. **Re-read before every mutation.** Before a label swap, a merge, a review round, or a cleanup delete, take a fresh read of the PR and the issue. In one measured drive, a snapshot one hour old was wrong on all three queue items: one PR had advanced by a repair commit, one PR was already merged, one PR existed from a prior session the directive did not know about.
@@ -69,6 +72,7 @@ Rule: **redo never; audit, then finish the leftovers.** When a peer delivered or
 4. **Keep a partial-scope issue open on purpose.** When the plan's decision table makes the merged PR partial, the PR body references the issue (`Refs`), and closure is wrong even though a review GO exists. Retain the plan-state label (the remaining scope is the same approved plan), post a lane-record comment naming the decision-table row that landed, what shipped, and what remains, and escalate the disposition (continue the same plan versus re-plan) to the coordinator. Do not switch the body to `Closes` to make a board row look finished — the forced close loses approved remaining scope and misreports the release.
 5. **Clean up only with bound evidence.** After a squash merge, the lane branch's commits are not ancestors of the default branch; branch deletion is justified by merge evidence (merge commit, PR state), and worktree removal is justified by rule 3's snapshot check — never by branch name or a zero-ahead count.
 6. **Test a task premise, then stop on a zero-delta takeover.** A single-task directive can arrive after a peer lane delivered it without a claim post. Verify the premise at the live forge before the first mutation: a rebase task is already done when `git merge-base <default> <head>` equals the default-branch head, and the PR timeline shows the peer's force-pushes after the approval-label timestamp. The forge mergeability field and a directive premise can each be stale; merge-base equality is the authority for "already based on the current default head". A rebased PR has no merge commit, so merge-base equality — not a compare against a merge commit — is the content-binding probe. Then audit the peer's handover comment (old head, new head, conflict resolutions, check claims) against the live forge: checks at the new head, the label retained, mergeable state, auto-merge state. If every contract step is delivered, including the report, the delta is empty: do not re-run the mutation to produce deliverables. A second rebase changes the head again, invalidates the peer's green checks, and duplicates the report. Report the takeover evidence (old head, new head, checks, label coverage) to your coordinator and stop. State in the record that an approval label delivered at the old head does not cover the new head, even while the label stays on the PR.
+7. **Recheck the artifact state after strict evidence collection, and stop when the review target is no longer open.** A reviewer directive carries a target captured at issuance; a peer can merge the artifact between your target resolution and your evidence collection. Two signals prove the change: the strict collector reports that the artifact is not open, and a fresh forge read shows a merged state with a merge timestamp and a merge commit. When they occur, do not publish a review carrier. Most review protocols bind a carrier to an open artifact, so the carrier cannot exist, and any state label depends on a carrier that was never published. Do not score a partial review to imitate a verdict. The source has not changed: read-only inspection of the exact head tree is still valid evidence, so audit the merged content against the bound head and report it with an explicit no-score note, then stop. Also compare the published terminal carrier history: if the artifact already has a delivered terminal carrier at your exact head, a new carrier for the same head would duplicate a reviewer round.
 
 ## Failed Attempts
 
@@ -78,6 +82,7 @@ Rule: **redo never; audit, then finish the leftovers.** When a peer delivered or
 | Trust the merge to complete the exchange contract | Assumed a merged PR implies all post-GO steps ran | The issue-label swap had never executed on two of three merged items | On any takeover or adoption, enumerate the pipeline's post-GO steps and verify each one — merges complete code, not bookkeeping |
 | Rely on the dispatch-time keyword rule alone | The partial-fix keyword rule (`Refs`, not `Closes`) was applied in the PR body, with no follow-up bookkeeping | The issue kept its full-scope plan state with no record of what remained; a later lane could not tell deliberate openness from abandonment | The keyword is half the rule; the issue-side record (lane-record comment, retained plan label, escalated disposition) is the other half |
 | Act on a directive's mergeability premise | Accepted "this PR is conflicting and cannot merge" as current state and prepared the assigned rebase | The premise was minutes stale: a peer worker had already rebased onto the then-current default head, force-pushed twice, repaired the branch-caused check failures, and posted the required handover report; a redo would have changed the head again and duplicated the report | A directive premise is a claim, not state: prove it with merge-base equality plus the force-push timeline; when the audit delta is empty, verify the handover, report, and stop |
+| Prepare a review carrier from the target-resolution result | Treated the open state from target resolution as current and continued into strict evidence collection | A peer merged the artifact about six minutes later; the strict collector rejected it as not open, and the publication and state-label helpers also refuse a merged artifact, so the prepared round could not be delivered | Recheck the artifact state at collection time; when it is merged, deliver a read-only audit report and stop instead of a carrier |
 
 ## Results & Parameters
 
@@ -105,6 +110,10 @@ directive_premise_check:          # at pickup, before the first mutation
   - handover-verification         # peer report claims vs live checks, labels, mergeable state
 zero_delta_takeover: no second mutation; report old head, new head, checks, label coverage; stop
 approval_label_coverage: binds to the exact delivery head; a rebase voids coverage while the label remains
+review_target_state_check:            # at evidence collection, before a carrier is prepared
+  detect: [collector-reports-not-open, forge-read-shows-merged-with-merge-commit]
+  on_detect: report-only-audit-of-the-exact-head-tree; no carrier, no label, no score
+  duplicate_guard: skip the round when a delivered terminal carrier already binds your exact head
 ```
 
 ### Expected Output
@@ -115,6 +124,7 @@ approval_label_coverage: binds to the exact delivery head; a rebase voids covera
 - Reviewer-independence gaps recorded where a peer round collapsed review and merge into one actor.
 - Partial-scope issues stay open with a lane-record comment and an escalated disposition.
 - Lane branches and worktrees removed only against merge and snapshot evidence.
+- An assigned review of an already-merged artifact ends as a read-only audit report with an explicit no-score note.
 
 ## Verified On
 
@@ -124,6 +134,7 @@ List the projects in which you tested this skill:
 | --------- | --------- | --------- |
 | Large shared monorepo under a many-lane release wave | Serial drive of a three-issue queue, 2026-10-25; peers completed rounds or merges on all three items | Measured pass detail in [mid-drive-peer-completion-audit.notes.md](mid-drive-peer-completion-audit.notes.md) |
 | Large shared monorepo under many-lane operation | Single-PR rebase-directive pickup, 2026-10-31; a peer had delivered the full contract about 30 minutes earlier | Zero-delta takeover detail in [mid-drive-peer-completion-audit.notes.md](mid-drive-peer-completion-audit.notes.md) |
+| Repository with a bounded review-exchange protocol | Assigned round-1 review, 2026-11-01; a peer merged the artifact about six minutes after target resolution | Merged-artifact stop detail in [mid-drive-peer-completion-audit.notes.md](mid-drive-peer-completion-audit.notes.md) |
 
 ## References
 

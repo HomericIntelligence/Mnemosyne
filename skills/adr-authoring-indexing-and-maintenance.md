@@ -1,9 +1,9 @@
 ---
 name: adr-authoring-indexing-and-maintenance
-description: "Create or maintain architecture decision records when index entries, status, implementation claims, or cross-repository references drift."
+description: "Create or maintain architecture decision records when index entries, status, implementation claims, or cross-repository references drift; use the freeze rule when a migration retires process policy from a frozen ADR store."
 category: documentation
 date: 2026-07-04
-version: "2.1.0"
+version: "2.2.0"
 verification: mixed
 license: BSD-3-Clause
 user-invocable: false
@@ -15,6 +15,8 @@ tags:
   - provenance
   - append-only
   - membership-guard
+  - frozen-store
+  - process-policy-migration
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/adr-authoring-indexing-and-maintenance.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -46,6 +48,8 @@ changelog are in [history](https://github.com/HomericIntelligence/Mnemosyne/blob
 - The repository needs an executable README-to-disk ADR membership contract.
 - A pre-implementation multi-stage architecture needs topology, routes, contracts, and cutover
   boundaries without pretending the runtime already exists.
+- A program moves process policy toward contributor and agent guides and must freeze the ADR store
+  while an independently gated closeout still cites the records.
 
 ## Decision Rules
 
@@ -69,6 +73,17 @@ changelog are in [history](https://github.com/HomericIntelligence/Mnemosyne/blob
    superseding ADR. Status/index maintenance is permitted only under local policy.
 10. **Separate design from implementation.** Mark a skeleton pre-implementation and name which
     sections are finalized during cutover.
+11. **Freeze before you retire.** When a migration moves policy out of the ADR store, freeze the
+    store first and name the closeout issue that ends the freeze. Then absorb each named record into
+    the stated guide or page. Do not add or renumber records in a frozen store except the status
+    changes that this migration needs. After the guides no longer state the ADR process, the frozen
+    store is the only place that still defines it, so a reader must not find a guide that points to
+    it.
+12. **Do not retire a cited record to satisfy a wording rule.** When a guide must keep a link to a
+    record for production or tag authority, the freeze note, not deletion, carries the retirement.
+    A deleted or renamed page breaks the index set equality and the documentation build. A freeze
+    note belongs in an existing page when the navigation config is a control path that the task may
+    not edit, because a new page that is absent from the navigation fails a strict build.
 
 ## Verified Workflow
 
@@ -249,6 +264,14 @@ checks when the source changed or a concern remains unresolved.
 
 Write “`module.mojo` will reach the target once PR #5503 merges,” not “is now at the target,” while
 the PR is open. After merge, update only under the repository’s ADR mutation/supersession policy.
+
+### Frozen store with a cited record
+
+A migration freezes the record store, moves the writing and decision policy into the contributor and
+agent guides, and records the founding record as superseded by the program. A guide keeps one link
+to a record that still defines release or tag authority. The plan keeps the freeze note and the
+status change inside existing pages and keeps that link valid. Do not delete the record and do not
+add a page that needs a navigation edit outside the plan boundary.
 
 ### Unverifiable external ADR number
 

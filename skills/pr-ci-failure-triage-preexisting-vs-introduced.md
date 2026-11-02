@@ -1,9 +1,9 @@
 ---
 name: pr-ci-failure-triage-preexisting-vs-introduced
-description: "Classify red PR checks as introduced, pre-existing, flaky, environmental, stale-commit, or status-rollup artifacts before fixing or rerunning. Use after rebases/force-pushes, unrelated failures, merge-preview coverage changes, or hosted-only process-launch errors. Also use when the required check is a fan-in gate reported by a ruleset, when the failing symbol on the base was deliberately removed, when a base update turns a green branch red without a textual conflict, when grouped or sharded logs hide individual failed node identities, when failures reproduce only on the local host, or when a path-filtered check fails on stale in-repo plan inputs that main already repaired. Also use when an aggregate gate fails its own report step because a producer job output key is absent from `needs` while every upstream job succeeded. Also use when a green comparison lane may never execute the failing node because event-scoped profiles or shard planners select different test sets on identical trees. Also use when the default branch's CI is red at or immediately after your squash merge and a task gate requires green main CI before you report, or when per-commit run lookups return empty because the branch does not run every push. Also use when only some failing nodes reproduce on a pristine trunk worktree, or when a test fails as an absent exception because a derived identity stopped covering the edited dimension. Also use when a pre-existing classification leaves a follow-up-issue obligation while an aggregate tracker may already own the failing group — dedupe against open trackers before filing. Also use when a rebase or push gate must decide whether a red local run of the change's own test files belongs to the rebased head or reproduces unchanged at the pristine base commit."
+description: "Classify red PR checks as introduced, pre-existing, flaky, environmental, stale-commit, or status-rollup artifacts before fixing or rerunning. Use after rebases/force-pushes, unrelated failures, merge-preview coverage changes, or hosted-only process-launch errors. Also use when the required check is a fan-in gate reported by a ruleset, when the failing symbol on the base was deliberately removed, when a base update turns a green branch red without a textual conflict, when grouped or sharded logs hide individual failed node identities, when failures reproduce only on the local host, or when a path-filtered check fails on stale in-repo plan inputs that main already repaired. Also use when an aggregate gate fails its own report step because a producer job output key is absent from `needs` while every upstream job succeeded. Also use when a green comparison lane may never execute the failing node because event-scoped profiles or shard planners select different test sets on identical trees. Also use when the default branch's CI is red at or immediately after your squash merge and a task gate requires green main CI before you report, or when per-commit run lookups return empty because the branch does not run every push. Also use when only some failing nodes reproduce on a pristine trunk worktree, or when a test fails as an absent exception because a derived identity stopped covering the edited dimension. Also use when a pre-existing classification leaves a follow-up-issue obligation while an aggregate tracker may already own the failing group — dedupe against open trackers before filing. Also use when a rebase or push gate must decide whether a red local run of the change's own test files belongs to the rebased head or reproduces unchanged at the pristine base commit. Also use when a content guard fails with an expected-versus-actual version or constant mismatch that you did not edit, or when your change's own content checks pass but one repository-wide guard fails on an unchanged file."
 category: ci-cd
 date: 2026-11-01
-version: "2.10.0"
+version: "2.11.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-ci
@@ -37,6 +37,9 @@ tags:
   - follow-up-tracker-dedupe
   - rebase-attribution
   - local-red-main-green
+  - stale-version-pin
+  - content-guard-mismatch
+  - unedited-file-failure
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pr-ci-failure-triage-preexisting-vs-introduced.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -184,6 +187,14 @@ not from lane color.
   ```bash
   gh run download <failed-run-id> -n <evidence-artifact-name>
   ```
+
+- Content guard whose expected value is a literal in the test and whose actual value comes from the
+  tree: a mismatch on a version, constant, or count that your diff never touched is a stale pin.
+  A version-bump merge that did not update the literal reds the default branch from that merge on.
+  Bracket it before touching the guard: a run at the bump commit's parent is green, runs at the
+  bump commit and at every later base are red, and the literal's history shows no change since the
+  pin was written. The difference between a stale pin and a regression is only whether the
+  asserted expected value moved with the tree.
 
 - Aggregate gate fails its own report step on a `needs.<job>.outputs` key that is absent
   while every upstream job succeeded: attribute the dropped producer output before any
@@ -340,6 +351,11 @@ the real payload. Do not amend an arbitrary tip when the unwanted commit is lowe
   update under the repository's task-base policy (record the reason plus old and new base
   and head commits, then rebind verification to the new head). Do not patch the PR's own
   files to mask a check that main already fixed.
+- Pre-existing stale-pin guard failure on an unedited file: do not edit the expected value to reach
+  green. The literal belongs to the merge that moved the tree, and a narrow-scoped lane that
+  rewrites it hides the defect and expands scope. Record the bracket evidence in the PR, name the
+  owning change, and keep the disposition on the strength of the change's own passing checks. Edit
+  the literal only when the pin is in your write allowlist and the task owns it.
 - Rollup artifact: no code change; wait for/read the current-head run.
 - New-check failure: fix the check or product contract; do not compare it to a nonexistent main run.
 

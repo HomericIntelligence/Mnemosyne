@@ -3,7 +3,8 @@ name: github-auto-merge-ci-gating-merge-method
 description: >-
   Diagnose why a GitHub pull request does not merge when checks, reviews, merge methods,
   rulesets, classic protection, labels, signatures, or queue ownership disagree. Use before
-  arming auto-merge or admitting a reviewed head to a repository-owned merge queue, when
+  arming auto-merge or admitting a reviewed head to a repository-owned merge queue, when a
+  merge command with an explicit method is rejected because the queue owns the method, when
   protocol ceremonies remain while a merge is already armed, when a decorative state
   label may be mistaken for a merge gate, or when a label-gated workflow keeps failing
   after the label changed.
@@ -180,6 +181,13 @@ like a failed arm. A `mergeQueueEntry` with a state and position proves the admi
 strategy message. The flag is `--auto`; `--auto-merge` is rejected as an unknown flag. Read merge
 state per PR with `gh pr view`. A list response can report `BLOCKED` for a PR that a single-PR
 read reports as `CLEAN`.
+
+`gh pr merge --squash` on a queue-protected base without `--auto` prints
+`The merge strategy for <BASE> is set by the merge queue` and exits with a non-zero status. That
+message is the queue signal for the direct form too. Do not read the non-zero exit as a policy
+failure, and do not try another method flag. Repeat the command with `--auto`. The second call
+prints `already queued to merge` when the first call changed nothing, and the PR state stays
+`OPEN` until the queue merges it.
 
 ### Ordering against an armed merge
 

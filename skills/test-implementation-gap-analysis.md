@@ -1,10 +1,10 @@
 ---
 name: test-implementation-gap-analysis
 license: BSD-3-Clause
-description: "Test-Implementation Gap Analysis — detects gaps between test expectations and implementation, including PR commit message/diff mismatches where a route or feature is described but never added to the relevant source file"
+description: "Test-Implementation Gap Analysis — detects gaps between test expectations, implementation, and change claims. Also checks that a commit message or PR description names the behavior the added tests actually exercise, and that delivery claims are bound to the release mechanism that publishes them."
 category: testing
 date: 2026-04-24
-version: "1.2.0"
+version: "1.3.0"
 verification: verified-ci
 user-invocable: false
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/test-implementation-gap-analysis.history"
@@ -33,6 +33,9 @@ Use this skill when:
 - A rebased PR's tests fail with 404/ImportError but the error implies the feature was never implemented (not a conflict issue)
 - `git show HEAD --stat` doesn't include the file where the feature should live (routes, handlers, etc.)
 - Commit message uses language like "add X endpoint" or "implement Y" but the diff only shows tests
+- A commit message or PR description names behavior that the added tests never exercise
+- A change claims to deliver a release, a version, or a package update, but the diff has no
+  publication input
 
 ## Verified Workflow
 
@@ -145,7 +148,47 @@ Compare the output against what the commit message claims was done. If a claimed
 - Fix: Added `@app.get("/events")` route to `server.py`, imported `AGENT_EVENTS, TASK_EVENTS` from `publisher`
 - Result: All 160 tests passed after the route was added
 
-### Step 9: Verify All Tests Pass
+### Step 9: Verify the Claim Names the Behavior That the Diff Adds
+
+Step 8 checks that claimed code exists in the diff. This step checks the opposite mismatch: a
+claim that is broader than the added content, and a delivery claim that no change in the diff can
+achieve. Both fail the same way. The reviewer checks the claim against the diff and rejects the
+change.
+
+Run these checks before you return a change for review:
+
+1. **Map each clause of the claim to an added artifact.** For each named behavior in the commit
+   message or PR description, find the test or the source line that exercises it. A clause with no
+   matching artifact is an evidence defect, not a wording defect.
+2. **Search the added tests for the claimed terms.** When a claim names a domain term, confirm
+   that the added tests use it. Zero matches means the claim describes different code.
+3. **Compare the delivery claim with the release mechanism.** When the claim says that a change
+   delivers a release, a version, or a package update, identify the step that publishes it. If the
+   diff has no version, workflow, or manifest change, and the release mechanism triggers on a tag
+   or an equivalent external event, the change cannot deliver that outcome.
+4. **Correct the claim or the content.** Correct a broad claim to state what the artifact covers.
+   Demote a closing keyword for an issue that this change does not close. When the requested
+   outcome is a release, state the publishing step and its owner. Do not add filler code or tests
+   to make a claim true.
+5. **Remove content that does not serve the corrected claim.** A test that repeats coverage
+   already present elsewhere in the suite adds no decision value. Keep one copy.
+
+```bash
+# The added tests do not use any term of the claim.
+grep -inE "<claimed term 1>|<claimed term 2>" <added test path>
+
+# The diff has no publication input.
+git show HEAD --stat | grep -E "version|workflow|manifest|package\.json"
+```
+
+**Example (2026-10, tag-driven npm package).** A change added tests for bounded provider output
+drain and claimed coverage of an envelope migration. The added tests never named an envelope, and
+the package manifest version was already set. The package publishes only when a maintainer pushes a
+signed tag that the release workflow verifies. The correction had two parts. First, remove the
+duplicate tests. Second, rewrite the claim to name what the tests cover and replace the closing
+keyword with a reference. The release stayed with the maintainer.
+
+### Step 10: Verify All Tests Pass
 
 ```bash
 pixi run pytest tests/ --tb=short
@@ -158,6 +201,7 @@ pixi run pytest tests/ --tb=short
 | --------- | ---------------- | --------------- | ---------------- |
 | N/A | Direct approach worked | N/A | Solution was straightforward |
 | Assuming test failure = conflict resolution error | Looked at merge conflicts and rebase output when test returned 404 | The 404 was because the route was never implemented — git show HEAD showed server.py wasn't in the changed files | Always run `git show HEAD --stat` to verify the actual diff matches the commit message claims before debugging conflict resolution |
+| Corrected the code to make a broad claim true | A commit message named a migration and a release, so the author added more tests for a different mechanism | The named behavior was already correct, and the publishing step was an external signed-tag push that no diff in the branch could perform | Check the claim scope against the diff first; then correct the claim, not the code, and name the publishing owner |
 
 ## Results & Parameters
 

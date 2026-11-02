@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Treat exact-list test assertions over a registry that several merge lanes extend as a wholesale-red failure class: every lane that appends without syncing the assertions breaks main, and a repair is incomplete unless it syncs to the complete current set and adds a drift guard in the same change. Use when numbered files (migrations, catalogs, fixtures) accumulate from parallel merges, when a PR appends to such a directory without touching the asserting tests, when many test shards fail at once on an exact-list equality, when a repair commit fixes the drift only up to an older entry, or when a test syncs its expectation by list concatenation (snapshot plus appended entries) while the backing query orders by key."
 category: testing
 date: 2026-10-25
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-local
 tags: [enumerative-tests, migration-list, registry-drift, parallel-merges, merge-waves, exact-list-assertion, drift-guard, main-red, repair-completeness, test-design]
@@ -50,6 +50,10 @@ Use this skill when one of these conditions applies:
   entry outranks a late addition. Any later registry member that sorts after
   a late-added entry breaks the assertion with a swapped-position diff of
   otherwise equal lists.
+- Several assertion sites spread one shared tail constant (`*TAIL_STEMS`),
+  and at least one site needs a different set than the others. Each site
+  appears correct on its own, and the mistake is silent until a new member
+  lands in the wrong relative position.
 
 ## Verified Workflow
 
@@ -84,6 +88,16 @@ smaller or larger than the ref under diagnosis.
   faithful to that order: compare sorted projections
   (`sorted(after_minus_moved) == sorted(before + moved)`), never a
   concat that models insertion order against a key-ordered result.
+- **Shared tail constants**: before you spread one tail constant across
+  several assertion sites, group the sites by what each one means. Two
+  common intents differ, and they need separate constants: "the members
+  applied after this site's own candidate, in ledger order" and "every
+  member the ledger applies after this change's stem". The second set
+  includes every later member, so it is longer than the first. Compute the
+  second intent from the registry at test time rather than pinning it. To
+  catch a wrong reuse, compare each constant against the set its own
+  boundary produces, and require the constant to be order-consistent with
+  the registry.
 - **Reviewers**: a pull request that appends to such a registry without
   extending the asserting tests in the same merge is a required finding.
   The drift becomes visible only after later merges, so per-PR review is
@@ -107,6 +121,7 @@ smaller or larger than the ref under diagnosis.
 | --------- | ---------------- | --------------- | ---------------- |
 | Enumeration synced to analysis-time state | After a first drift break, a repair commit extended the expected migration list through entry N while entries N+1 and N+2 were already present on the mainline from two other merges | `apply(...) == [...]` returned two extra stems; the same assertion sites failed deterministically again within hours, this time across almost every shard | A repair for this class must sync to the complete set at merge time and add a drift guard in the same change; otherwise the wave-pattern guarantees recurrence |
 | Concat that models insertion order | A ledger test compared `rows_except_late_stem` with `before_snapshot + [late_rows]`, where the backing query is `ORDER BY version`; the shapes coincide only while no already-kept row outranks the late rows | A new registry member that sorts after the kept rows put the late row at the tail of the expectation, and the assertion failed with the same two stems in swapped positions of otherwise equal lists | When the backing query is key-ordered, the expectation must be key-ordered too; compare sorted projections, because a concat expectation is an enumeration that encodes the wrong order semantics |
+| One tail constant for two intents | A registry append spread a single shared tail constant into all the existing segment assertions and also into the new change's own test, without checking which boundary each site meant | The segment sites needed "after this candidate"; the change's own test needed "all members after the new stem", which is a different and longer set. The constant satisfied neither intent for all sites, and only a per-site boundary comparison showed it | Group assertion sites by intent before you share a constant. Compute the "everything after this change" set from the registry, and keep the segment tail as a separate value |
 
 ## Results & Parameters
 
@@ -120,6 +135,7 @@ assert_sites: <test files and lines asserting exact lists>
 complete_stem_set_at_ref: <git ls-tree output count or digest at repair ref>
 drift_producers: <merge commits that appended without test sync>
 drift_guard: <name of the check added by the repair, or NONE>
+tail_constant_intents: <shared tail constant and the distinct boundaries its sites mean>
 ```
 
 ### Expected Output
