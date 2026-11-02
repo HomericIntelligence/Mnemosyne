@@ -1,10 +1,10 @@
 ---
 name: verify-issue-premise-against-code-before-planning
 license: BSD-3-Clause
-description: "Check issue claims against current code and enumerate matching sites so a stale premise or incidental search token does not misdirect the change."
+description: "Check issue claims against current code and enumerate matching sites so a stale premise, an incidental search token, or an impossible stated mechanism does not misdirect the change."
 category: documentation
 date: 2026-06-19
-version: "1.3.0"
+version: "1.4.0"
 user-invocable: false
 verification: unverified
 tags:
@@ -31,6 +31,10 @@ tags:
   - base-control-delta
   - failure-attribution
   - flaky-isolation
+  - symptom-versus-mechanism
+  - impossible-mechanism
+  - invariant-check
+  - algorithm-probe
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/verify-issue-premise-against-code-before-planning.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -42,32 +46,39 @@ history-cleanup-date: "2026-09-20"
 | Field | Value |
 |-------|-------|
 | **Date** | 2026-06-19 |
-| **Objective** | Capture a durable planning-discipline lesson: an issue's description of "what the current code does" is a CLAIM to verify against the actual files, not ground truth to plan on — grep the distinctive premise tokens to confirm WHICH file/job actually matches, enumerate EVERY site that matches the premise before scoping, ratifying in-scope and excluded sites explicitly — and (v1.3.0) when the premise pins a VALUE, also enumerate the binding surfaces the value's literal text cannot reach (derived hashes, field asserts, bare tuples) and close the enumeration with a RECORDED failing-test delta over a base-control run |
-| **Outcome** | Plan written for ProjectAgamemnon #248 ("Add pixi.lock restore-only cache fallback on miss"). **(v1.0.0)** The premise implied `python-client.yml`, but those jobs use the full `actions/cache@v4` (auto-saves) — grepping the premise tokens disambiguated `_required.yml`. **(v1.1.0)** The FIRST revision of that plan fixed only ONE job (`pixi-check`) and got a NOGO: grepping the incidental token `pixi install --locked` (which the issue never named) silently dropped a SECOND matching job, `lint`. Grepping the issue's OWN premise token `cache: false` enumerated BOTH `lint` + `pixi-check` as in-scope and surfaced a look-alike `security-dependency-scan` (different defect) to ratify as out-of-scope. **(v1.3.0)** Applied end-to-end in a private serving-config repository flipping one parallelism value (16→8): the issue's "value does not participate in the deployment identity" claim was STALE at the current default branch; the literal-form grep missed 4 derived pins (bare tuple, two field asserts, two recomputed sha256 identity digests); a recorded base-control run of the exact failing node IDs proved 58 failures PRE-EXISTING host-environment failures and isolated exactly the change-only pin sites; pins re-derived, suites green locally, upstream CI pending at write time |
-| **Verification** | unverified — PLANNING session only; neither the disambiguation plan nor the enumerate-and-ratify revision was implemented or run through CI, and the proposed `actions/cache/restore@v5` + `actions/cache/save@v5` split was not executed end-to-end |
+| **Objective** | An issue's description of "what the current code does" is a CLAIM to verify against the actual files, not ground truth to plan on. Grep the distinctive premise tokens to confirm WHICH file/job matches, and enumerate EVERY site before scoping — ratifying in-scope and excluded sites explicitly. (v1.3.0) When the premise pins a VALUE, also enumerate the binding surfaces its literal text cannot reach (derived hashes, field asserts, bare tuples) and close the enumeration with a RECORDED base-control test delta. (v1.4.0) When the premise names a MECHANISM for a symptom, test whether that mechanism can produce the symptom at all before planning a repair. |
+| **Outcome** | Plan written for ProjectAgamemnon #248 ("Add pixi.lock restore-only cache fallback on miss"). **(v1.0.0)** The premise implied `python-client.yml`, but those jobs use the full `actions/cache@v4` (auto-saves) — grepping the premise tokens disambiguated `_required.yml`. **(v1.1.0)** The first plan revision fixed only `pixi-check` and got a NOGO: grepping an incidental token silently dropped the sibling job `lint`. Grepping the issue's OWN premise token enumerated both in-scope jobs plus one look-alike to ratify as out-of-scope. **(v1.3.0)** A private serving-config change (parallelism 16→8): the issue's "value does not participate in the deployment identity" claim was STALE; the literal grep missed 4 derived pins; a recorded base-control run proved 58 failures PRE-EXISTING and isolated the change-only pin sites. **(v1.4.0)** A sharding issue reported that a sharder "silently drops" tests when the count changes. Exercising the real sharder over randomized partitions assigned every node exactly once — the mechanism was impossible — and a quoted refusal named the wrong component. Both premise claims were corrected before planning. |
+| **Verification** | unverified — PLANNING session only; no plan revision was implemented or run through CI, and the proposed cache restore/save split was not executed end-to-end |
 
 This is a planning-DISCIPLINE learning, distinct from the cache-mechanics skill
 `pixi-cache-true-unreliable`. The lesson is not "how cache syntax works" — it is "do not
 trust the issue's narration of the current code; grep the premise's distinctive tokens and
 plan against the file that actually matches."
 
-**v1.1.0 extends the same theme from disambiguation to exhaustive enumeration.** v1.0.0
-answers "WHICH single file does this premise point to?". v1.1.0 answers "ALL N sites this
-premise matches — fix every in-scope one and ratify every excluded look-alike." The two
-failure modes are different: wrong-file (disambiguate) vs under-scoping / silently-dropped
-sibling (enumerate-and-ratify). Both share one root: grep the issue's OWN premise token, not
-an incidental token from your first-found site.
+**v1.1.0 extends the theme from disambiguation to exhaustive enumeration:** v1.0.0 answers
+"WHICH single file does this premise point to?", v1.1.0 answers "ALL N sites it matches — fix
+every in-scope one and ratify every excluded look-alike". The failure modes differ (wrong
+file vs under-scoping), but both share one root: grep the issue's OWN premise token, not an
+incidental token from your first-found site.
 
-**v1.3.0 extends the same theme from textual match surfaces to DERIVED-VALUE binding
-surfaces, and adds an attribution discipline for red suites.** v1.1.0 enumerates the sites
-whose TEXT matches the premise token. v1.3.0 answers "value `V` is bound at `N` named sites —
-where else is `V`, or a value COMPUTED from `V`, pinned, that no text search for `V` can
-find?": bare tuples, field-equality assertions, and content-derived identities (a sha256
-digest contains no decimal `16`). It also answers "a config change turned the suite red —
-which failures are mine?": close the enumeration with a RECORDED base-control delta, never
-with intuition. The failure modes are different again: invisible-to-grep pins vs
-misattributed environment failures. The root discipline is the same: enumerate by evidence,
-not by the first textual form searched.
+**v1.3.0 extends it from textual match surfaces to DERIVED-VALUE binding surfaces, and adds
+an attribution discipline for red suites.** Where else is value `V`, or a value COMPUTED from
+`V`, pinned, when no text search for `V` can find it? Bare tuples, field-equality assertions,
+and content-derived identities (a sha256 digest contains no decimal `16`). And "a change
+turned the suite red — which failures are mine?" is closed with a RECORDED base-control delta,
+never with intuition. Failure modes again differ (invisible-to-grep pins vs misattributed
+environment failures) under the same root: enumerate by evidence, not by the first textual
+form searched.
+
+**v1.4.0 extends the same theme from "where is this claim about?" and "what does it touch?"
+to "can this claim even be true?".** v1.0.0 asked which file, v1.1.0 which sites, v1.3.0 which
+derived values — all assuming the issue's causal story is sound and only its coordinates are
+uncertain. v1.4.0 covers the case where the symptom is REAL and reproducible but the named
+MECHANISM cannot produce it: an algorithm that assigns every input exactly once cannot drop an
+item between partitions; a check in one component cannot emit another's error text. A plausible
+cause plus a real symptom is the most dangerous combination, because the symptom reproduces and
+appears to confirm the story, and the resulting repair targets code that is not at fault. The
+discipline: read the algorithm, state its invariant, and EXERCISE it.
 
 > **Warning:** This workflow has not been validated end-to-end. Treat as a hypothesis until
 > CI confirms.
@@ -99,6 +110,16 @@ not by the first textual form searched.
   network-mounted filesystem; tmp/home under the mount) and you must separate MISSED
   binding sites (change-only failures) from pre-existing environment failures before
   repairing any pin.
+
+- **(v1.4.0)** The issue names a SPECIFIC MECHANISM for a symptom ("the sharder drops a test
+  when the count changes", "the cache step re-downloads") rather than merely a file. Verify
+  the mechanism can produce the symptom before planning a repair: a real symptom is not
+  evidence that the stated cause is real.
+- **(v1.4.0)** The issue quotes an error message, exception class, or exit code. Re-derive
+  it; the text may come from a neighbouring component that validates the same condition.
+- **(v1.4.0)** The claim is about an ALGORITHM's completeness or fairness ("every item is
+  assigned exactly once", "no item is lost", "each shard gets a balanced share"). These are
+  invariants you can test directly in seconds, without reproducing the reported run.
 
 ## Verified Workflow
 
@@ -171,6 +192,25 @@ diff <(grep '^FAILED' <scratch>/full-run.log | sort) <(grep '^FAILED' <scratch>/
 pytest <node-id> -x 2>&1 | tee <scratch>/isolate.log
 #    passes alone => load-dependent flake, not a regression: record it; expand scope only
 #    if the isolation reproduces
+
+# 9. (v1.4.0) MECHANISM CHECK — before planning a repair, can the stated cause produce the
+#    symptom at all? Read the code that the issue blames, state its invariant, then EXERCISE it.
+#    Example: the issue says a balanced partitioner "drops an item when the input grows".
+python3 - <<'PY'
+# Import the REAL module, not a copy. Drive it over the claimed failure mode.
+for trial in range(500):
+    items = [f"t{i}" for i in range(random.randint(shards, 500))]
+    got = []
+    for idx in range(shards):
+        got.extend(partition(items, shard_index=idx, shard_count=shards))
+    assert sorted(got) == sorted(items)   # assigned exactly once, none dropped
+PY
+#    invariant holds => the stated mechanism is impossible; the symptom has another cause.
+#    Name the alternative and require the issue to supply that evidence.
+
+# 10. (v1.4.0) Re-derive every quoted message. Grep the LITERAL text the issue quotes.
+grep -rn '<quoted error text>' src/ | head
+#    different component than the issue names => the repair target is wrong, not the symptom
 ```
 
 ### Detailed Steps
@@ -264,6 +304,25 @@ pytest <node-id> -x 2>&1 | tee <scratch>/isolate.log
     load-dependent, not a regression; record the isolation result and continue. Expand
     scope only when the isolation reproduces the failure.
 
+13. **(v1.4.0) Test whether the stated MECHANISM can produce the symptom.** Steps 1–12 verify
+    that the issue points at the right file and the right sites. This step verifies that the
+    story connecting them is possible. Extract the causal clause from the issue body, not the
+    title ("X drops an item when Y", "X refuses Z because W"), read the code that implements X,
+    and write down its invariant: a partitioner that appends each item to exactly one bin
+    guarantees completeness for ANY input. If the invariant holds universally, the mechanism
+    cannot be the cause no matter how the symptom looked.
+
+14. **(v1.4.0) Exercise the invariant, then name the alternatives — and re-derive every quoted
+    message.** Import the real module and drive it over the claimed failure mode with many
+    randomized inputs (in the source case, every item was assigned exactly once across 4–32
+    partitions and up to 500 items, and the reported counts totalled the input length), which
+    refutes the claim in seconds. A refutation alone is not enough — the symptom was observed.
+    List the candidate causes in likelihood order (never collected, differing environment,
+    differing base) and name the artifact that settles each. Finally grep the literal quoted
+    error text: in the source case the quoted loader exempted the exact mode described, and a
+    path-policy validator with a different check name emitted the text, so a repair in the
+    quoted component would not have changed the behaviour.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -275,6 +334,8 @@ pytest <node-id> -x 2>&1 | tee <scratch>/isolate.log
 | **(v1.1.0)** Considered treating all pixi-cache jobs uniformly | Would have copied one job's cache key to all | `lint` and `pixi-check` use DIFFERENT keys (`pixi-lint-*` vs `pixi-*`) and paths; a uniform save would write under a key the restore never looks up | Check per-site divergence before applying a templated fix |
 | **(v1.3.0)** Audited binding sites by grepping only the value's literal flag/key forms (`--ep-size 16`, `"ep": 16`) | Searched only the textual surface | Missed 4 pins on derived surfaces: a bare tuple `(16, 1, 16, 2)`, field asserts `.ep == 16`, and two sha256 identity digests that contain no `16` — the suite surfaced them as failures after the first implementation | Enumerate derived binding surfaces (field-name readers, tuples, asserts, recomputed identities), not only the value's literal text |
 | **(v1.3.0)** Read a red suite as change-caused and summarized it with `tail -3` | Attributed all failures to the change; truncated the failure output | Truncation destroyed the failing-node list: a 45-minute re-run was needed to rebuild it; a recorded base-control run of the SAME node IDs on the unmodified base then proved 58 failures PRE-EXISTING host-environment failures | Log at full fidelity; run the recorded base-control delta BEFORE attributing any suite failure to the change |
+| **(v1.4.0)** Read the reported symptom as confirmation of the reported cause | The issue gave a symptom plus a specific story ("the partitioner drops an item when the count grows") | Driving the real partitioner over randomized inputs assigned every item exactly once, so the mechanism was arithmetically impossible. Only then did the real candidates appear (collection difference, environment, base) | A real symptom does not confirm a stated cause; state the invariant and exercise it |
+| **(v1.4.0)** Trusted the quoted exception class as the component to change | The issue quoted a loader exception for an unsafe-directory refusal | That loader exempts the exact mode described; a path-policy validator with a different check name emitted the text, so a repair in the quoted component would not have changed the behaviour | Grep the literal quoted text and confirm which component emits it |
 
 ## Results & Parameters
 
@@ -288,55 +349,18 @@ grep -rln 'pixi install --locked' .github/workflows/ | xargs grep -l 'cache: fal
 #    which is NOT the "cache: false skips save" scenario the issue describes.
 ```
 
-### Uncertain assumptions / unverified externals from THIS plan (for the reviewer)
+### Residual uncertainties to hand the reviewer (accumulated)
 
-- **UNVERIFIED:** `actions/cache/restore@<SHA>` and `actions/cache/save@<SHA>` resolve at commit
-  `27d5ce7f107fe9357f9df03efb73ab90386fccae` (v5.0.5) — assumed because they are sub-actions of
-  `actions/cache` at the same tag; NOT confirmed against the registry.
-- **UNVERIFIED:** that `actions/cache/save` rejects/ignores `restore-keys` (the plan omits it) —
-  standard for the save sub-action but not re-checked against current docs.
-- **ASSUMPTION:** the `&&` compound `if:` expression
-  (`steps.detect.outputs.skip == 'false' && steps.pixi-cache.outputs.cache-hit != 'true'`) is
-  valid GitHub Actions expression syntax — true, but worth a YAML+expression lint.
-- **ASSUMPTION:** line numbers `_required.yml:128-170` are current as of the plan; they are a
-  snapshot and may drift.
-- **SCOPE DECISION:** `python-client.yml` jobs deliberately left out of scope (they auto-save via
-  the full action). Reviewer should confirm that exclusion is intended for #248.
-
-### (v1.1.0) Enumerate-and-ratify residuals from the REVISED plan (for the reviewer)
-
-The revised plan grepped the issue's own premise token `cache: false` and enumerated TWO in-scope
-jobs (`lint`, `pixi-check`) plus one ratified exclusion. The residual uncertainties:
-
-- **ASSUMPTION:** `lint` and `pixi-check` are the COMPLETE set of in-scope sites, and
-  `security-dependency-scan` is the only look-alike. Based on grepping `cache: false` + reading the
-  one workflow file `_required.yml`; OTHER workflow files (e.g. `python-client.yml`) were judged out
-  of scope (they use the full `actions/cache@v4` action, which auto-saves) — reviewer should confirm
-  that whole-repo judgment.
-- **UNVERIFIED:** `actions/cache/save@v4` (tag-pinned, used in the `lint` job) behaves like the
-  v5.0.5 SHA-pinned save sub-action re: no `restore-keys` input — assumed by analogy across major
-  versions, not checked against v4 docs.
-- **ASSUMPTION:** the `lint` save placed after `pixi run typecheck` captures a fully-materialised
-  `clients/python/.pixi` (typecheck triggers the install). If `setup-pixi` with `cache:false` does
-  NOT install the env (only `pixi run` does), the env is present by save time — but the exact
-  materialisation point was reasoned, not traced.
-- **ASSUMPTION:** line numbers (`_required.yml:72-89`, `:153-170`, `:381-395`) are a snapshot and may
-  drift.
-- **SCOPE DECISION needing ratification:** `security-dependency-scan` deferred as a separate
-  follow-up (different defect: built-in setup-pixi caching active, no `cache:` key). Confirm that
-  deferral is intended for #248.
-
-### (v1.3.0) Derived-pin enumeration residuals from the SERVING-CONFIG change (for the reviewer)
-
-- **ASSUMPTION:** the union of {literal-form grep + field-name readers + the change-only
-  test delta} is COMPLETE for this value. The delta is the closure check: a still-stale pin
-  re-surfaces as a change-only failure. Reviewer should confirm no untested consumer derives
-  from the value.
-- **UNVERIFIED:** recomputed identity hashes verified by the local suites; upstream CI
-  confirmation pending at write time.
-- **SCOPE DECISION needing ratification:** sibling pinned topologies (canary profiles, an
-  ops-doc example) deliberately left at the old value per the issue's explicit scope.
-  Confirm that deferral is intended.
+- **v1.0.0/v1.1.0:** sub-action SHAs resolve at the parent action's tag; `cache/save` ignores
+  `restore-keys`; the compound `&&` `if:` is valid expression syntax; cited line numbers are a
+  snapshot; the enumerated in-scope set is complete and each exclusion (auto-save jobs, the
+  look-alike scan job) is deliberate.
+- **v1.3.0:** the union of {literal grep + field readers + change-only test delta} is complete —
+  the delta is the closure check, because a stale pin re-surfaces as a change-only failure;
+  identity hashes verified only locally; sibling topologies left at the old value.
+- **v1.4.0:** a refuted mechanism does NOT explain the symptom. Hand the reviewer the
+  alternative causes and the artifact that settles each, and state plainly that the reported run
+  was not re-executed.
 
 ### Related skills
 
@@ -359,5 +383,6 @@ jobs (`lint`, `pixi-check`) plus one ratified exclusion. The residual uncertaint
 
 | Project | Context | Details |
 |---------|---------|---------|
-| ProjectAgamemnon | Issue #248 ("Add pixi.lock restore-only cache fallback on miss") — a follow-up from #62 | unverified — planning session only. The premise implied `python-client.yml`, but grepping `cache: false` + `pixi install --locked` resolved the described scenario to `_required.yml` job `pixi-check`. Plan proposes splitting that job's single restore-only `actions/cache@v5` into `actions/cache/restore@v5` + a guarded `actions/cache/save@v5` after `pixi install --locked`. Not implemented or CI-run. |
-| `<private serving-config repository>` | Tracked issue flipping one parallelism value (16→8) in one tracked config profile | [notes.md](./verify-issue-premise-against-code-before-planning.notes.md) — validated locally end-to-end: value-form grep missed 4 derived pins; a recorded exact-failing-node base-control delta isolated 58 pre-existing network-FS environment failures from the change-only pin sites; pins re-derived and updated; suites green locally (533 tests + 378-render module classified); upstream CI pending at write time |
+| ProjectAgamemnon | Issue #248 ("Add pixi.lock restore-only cache fallback on miss") — a follow-up from #62 | unverified — planning session only. The premise implied `python-client.yml`, but grepping `cache: false` + `pixi install --locked` resolved the described scenario to `_required.yml` job `pixi-check`. Plan proposes splitting that job's single restore-only `actions/cache@v5` into a restore + a guarded save after `pixi install --locked`. Not implemented or CI-run. |
+| `<private serving-config repository>` | Tracked issue flipping one parallelism value (16→8) in one tracked config profile | [notes.md](./verify-issue-premise-against-code-before-planning.notes.md) — validated locally: value-form grep missed 4 derived pins; a recorded base-control delta isolated 58 pre-existing environment failures from the change-only pin sites; suites green locally; upstream CI pending at write time |
+| `<reviewed service repository>` | Two issue reviews of a reported "silently drops an item" claim and a "wrong component emits the refusal" claim | [notes.md](./verify-issue-premise-against-code-before-planning.notes.md) — verified-local. The partitioner invariant held over 500 randomized partitions (every item assigned exactly once); the quoted refusal text belonged to a different component than the issue named. Both corrections were posted before any plan.
