@@ -133,3 +133,24 @@ argv. Test the largest intended payload and verify stderr/stdout parsing still w
 
 The cases establish the classification workflow on GitHub Actions. Live required contexts,
 administrative policy, merge-preview semantics, and runner limits can change and must be re-read.
+
+## Stale version pin on an unchanged file
+
+A learn-delivery pull request passed every content check on its three changed files and failed one
+repository-wide guard. The guard compares a version literal held in the test against the version
+field in a knowledge entry. The entry read one minor version above the literal.
+
+Bracket evidence, gathered read-only:
+
+- The literal last changed when it was written; the entry changed later in a merge that bumped the
+  version and did not update the literal.
+- A run at the bump commit's parent passed.
+- The run at the bump commit failed, and so did the run at the delivery base, which already
+  contained the bump.
+- The merge was an ancestor of the delivery base, so the pull request inherited the failure.
+
+Disposition: pre-existing and foreign-owned. The literal was outside the pull request's write
+allowlist, so no repair was made. The bracket evidence went onto the pull request as a comment, and
+the change stood on its own passing checks. The distinguishing signal was that the failing guard
+touched a file the change never modified and the expected value did not move with the tree — a
+regression would have shown the asserted value and the tree moving together.
