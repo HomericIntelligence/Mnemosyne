@@ -1,10 +1,10 @@
 ---
 name: architecture-migration-freeze-import-debt-baseline
 license: BSD-3-Clause
-description: "Freeze legacy direct imports during a partial runtime migration with an AST-derived exact consumer/module allowlist and matching ADR policy. Use when: (1) an accepted ADR describes a completed abstraction but source still uses legacy provider modules, (2) compatibility imports must remain temporarily without allowing the exception to expand, (3) line-oriented grep would miss nested or function-local imports, (4) documentation must distinguish invocation, response parsing/validation, compatibility exports, and provider-specific failure diagnostics."
+description: "Freeze legacy direct imports during a partial runtime migration with an AST-derived exact consumer/module allowlist and matching ADR policy, and retire each frozen pair by moving the depended-on code down one layer. Use when: (1) an accepted ADR describes a completed abstraction but source still uses legacy provider modules, (2) compatibility imports must remain temporarily without allowing the exception to expand, (3) line-oriented grep would miss nested or function-local imports, (4) documentation must distinguish invocation, response parsing/validation, compatibility exports, and provider-specific failure diagnostics, (5) a policy file must list every allowed upward import edge and the same change pays down one or more edges."
 category: architecture
 date: 2026-07-20
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags:
@@ -24,10 +24,10 @@ tags:
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-07-20 |
+| **Date** | 2026-07-20 (amended 2026-11-01: retirement by extraction) |
 | **Objective** | Reconcile an ADR with a partial provider-runtime migration while preventing the remaining direct-import exception from silently expanding. |
-| **Outcome** | Proposed an exact AST-derived consumer/module baseline, automation-only path invariant, and normalized ADR-policy assertion. The Hephaestus source inventory was confirmed read-only, but the documentation and test changes were not implemented. |
-| **Verification** | unverified — source facts were inspected locally; end-to-end tests and CI have not run. |
+| **Outcome** | Proposed an exact AST-derived consumer/module baseline, automation-only path invariant, and normalized ADR-policy assertion. The Hephaestus source inventory was confirmed read-only, but the documentation and test changes were not implemented. A later amendment adds the retirement path: move the depended-on code down one layer, then delete the allowlist pair. |
+| **Verification** | unverified — the baseline guard was observed in source; the retirement path comes from one reviewed change whose CI was not observed. |
 
 This pattern is narrower than a general library/product boundary and broader
 than a symbol-scoped exemption. It applies when a migration has multiple
@@ -47,6 +47,10 @@ consumer must be rejected until explicitly justified.
   so a line-oriented grep is incomplete.
 - You need removals to update both source and policy instead of leaving stale
   allowlist entries that normalize obsolete debt.
+- A policy file lists every permitted layer-crossing import edge, and the same
+  change removes one or more edges without breaking the guard.
+- An upper-layer module imports a lower-layer module only for one cohesive
+  group of actions, so the lower module can own that group instead.
 
 Do not use this pattern to authorize new legacy dependencies. For a single
 pure symbol imported from a normally forbidden module, prefer the narrower
@@ -68,6 +72,7 @@ direction and lean base import surface, use
 | Keep scope one-way | Resolve every approved consumer beneath the product root | The existing reverse-boundary guard remains authoritative |
 | Couple policy to code | Normalize the complete normative ADR sentence and a source-derived summary | Documentation must cover every approved reason, including diagnostics-only consumers |
 | Retire debt | Remove the source import and baseline pair together | Equality fails on both undocumented additions and stale removals |
+| Retire by extraction | Move the depended-on code down one layer, then delete the `(consumer, module)` pair | Re-exporting the module from its new home keeps the edge and leaves the pair valid |
 
 ### Detailed Steps
 
@@ -185,6 +190,24 @@ direction and lean base import surface, use
    each completed migration shrinks the exact baseline. Never expand the list
    merely to make a failing test green.
 
+9. **Retire an edge by moving code down, not by forwarding it.** An upward
+   import is a real dependency. Use these rules to remove it without a
+   follow-on cycle:
+
+   - Move the whole depended-on unit to a lower module that both sides can
+     import. Do not re-export it from the old module; a re-export keeps the
+     same import edge, and some layer guards count module re-exports as edges.
+   - A layer guard can count `__init__` re-exports as edges, so add a new lower
+     module instead of expanding a package `__init__`.
+   - Move one cohesive group of actions per step. Leave unrelated actions in
+     place, even when they share a file.
+   - Update the policy file and the exact pair baseline in the same commit.
+     Split consumers of a moved symbol one at a time so the guard never has an
+     unrecorded edge.
+   - Replace test patches that target the old import site with patches on the
+     new site. A patch on a stale site passes while the moved code runs
+     unpatched.
+
 ## Verified Workflow
 
 _Not applicable._ This skill was captured from a planning and review session
@@ -204,6 +227,9 @@ heading; it does not make a verification claim.
 | Use line-oriented grep | Search import text with prefixes | Grep can miss nested/function-local imports and mishandle relative or aliased forms | Parse every Python file and use `ast.walk` over `Import` and `ImportFrom` nodes |
 | Complete the whole runtime migration inside a documentation-boundary issue | Replace all legacy imports and introduce a unified facade | The change expands into constructor injection, test-patch migration, provider behavior, and orchestration risk | For a focused reconciliation, freeze existing debt and track the full facade migration separately |
 | Allow stale baseline entries after migration | Treat the allowlist as a maximum rather than exact state | Removed debt remains documented as acceptable and can be reintroduced silently | Exact equality must reject both additions and removals; update source and baseline together |
+| Retire an upward edge by re-exporting the moved symbol from the old module | Keep `from new_module import helper` inside the old upper module for compatibility | The consumer still imports the upper module, so the frozen pair stays valid and the reported debt is unchanged | Move the unit to a lower module and delete the pair in the same change; do not keep a forwarding shim |
+| Freeze a specific function after its module already holds a whole action family | Add an exemption for one call when the lower module only needs a group of actions | The exemption hides that the code belongs in a lower layer and leaves a permanent, narrow exception | When the dependency is one cohesive group of actions, extract the group to a lower module and shrink the baseline instead of adding an exemption |
+| Retarget only the source after moving a symbol | Patch the old import site in tests and trust the green result | The patch targets a name the moved code no longer reads, so the test passes without exercising the stub | Retarget each patch, mock, and monkeypatch boundary to the new import site in the same change |
 
 ## Results & Parameters
 
@@ -240,3 +266,4 @@ after the corresponding PR's CI succeeds.
 | Project | Context | Details |
 |---------|---------|---------|
 | ProjectHephaestus | Issue #2233 implementation planning and review | Read-only source inventory confirmed on 2026-07-20; no implementation PR, focused test run, or CI result was available. |
+| An isolated service-restructuring checkout | Upward service-to-command-layer edges, 2026-11-01 | One change moved a cohesive action group out of the command-layer module into a new lower module, updated the layer-policy file, and retargeted the affected test patches. CI was not observed in the learning session, so no verification claim is made. |

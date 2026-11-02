@@ -38,3 +38,18 @@ creation.
   producer-consumer and sibling audits, independent review, and cross-repo evidence rules.
 - Moved here: project-specific cases and why the later phases were added.
 - Archived only: long issue/PR templates, corpus phrase lists, and operational fleet limits.
+
+## 2026-11-01 amendment evidence
+
+A repository-wide static-analysis sweep reported 862 findings in one checkout, with 61 of them
+severity errors. Reading every error site showed three distinct populations: deliberate idioms the
+detector could not model, text-level misfires, and a few real causes dropped from log output. The
+remaining 676 findings were pre-existing size, parameter, and nesting measurements, deferred as
+separate design work. Text-level rule disablement in repository configuration required reading all
+hits for that rule first.
+
+The suppression mechanism needed a probe. The detector reports the construct line, not the handler
+line, so a directive above the `try` body suppressed nothing. Verification used a scratch file with
+one finding, then a rescan, then a check that a plain trailing comment on the handler line cleared
+it. A formatter then split one handler header, which moved a trailing directive onto a closing line
+where it stopped applying; shortening the reason text restored the single-line form.

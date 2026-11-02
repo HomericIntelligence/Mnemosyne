@@ -1,13 +1,13 @@
 ---
 name: planning-check-already-shipped-before-planning
-description: "Check whether follow-up work already exists before planning or re-running it. Use for stale issue paths, counts, uncommitted work, partial delivery, closeout evidence, and re-dispatched task runs."
+description: "Check whether follow-up work already exists before planning or re-running it. Use for stale issue paths, counts, uncommitted work, partial delivery, closeout evidence, multi-item issues with a recorded remainder, and re-dispatched task runs."
 category: architecture
 date: 2026-06-19
-version: "2.3.0"
+version: "2.4.0"
 user-invocable: false
 license: BSD-3-Clause
 verification: verified-local
-tags: [planning, already-shipped, stale-premise, extraction, migration, provenance, closeout, cross-repo, acceptance-criteria, replan, redispatched-task, duplicate-report]
+tags: [planning, already-shipped, stale-premise, extraction, migration, provenance, closeout, partial-delivery, remainder-list, class-conversion, cross-repo, acceptance-criteria, replan, redispatched-task, duplicate-report]
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/planning-check-already-shipped-before-planning.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -155,6 +155,41 @@ evidence paths the issue cites, record a disposition comment naming the fix comm
 tests, close the issue as completed, and release the claim. Start no plan cycle and add no
 duplicate regression guard: the fix's own tests are the guard. Reserve the regression-guard route
 for the case where the invariant holds but no test pins it.
+
+### 4a. Separate the closed items from the open items
+
+An issue that names several items is usually a partial delivery. Do not select "already shipped,
+close it" or "not shipped, plan it" from the issue state or from the latest merged PR alone. Read the
+primary record to get an explicit remainder list, then decide for each item:
+
+1. Read the issue, its deciding comments, and the authority record it cites (ADR, design plan,
+   owner decision). The authority record carries the general rule and the per-item verdicts.
+2. Open the primary record of the merged delivery and find the section that names what it did **not**
+   do. Use that list as the remainder boundary. Do not derive the remainder from the diff alone.
+3. Verify each item marked done: read the cited symbol and confirm it has the new behavior, not only
+   that the file changed.
+4. Verify each listed remainder: read the cited site and confirm it still has the old behavior.
+5. For each remainder, write down the decided class: convert, keep, delete, or defer with an owner.
+   A site that the authority record places in the same class as a shipped item belongs to the
+   remainder, even when the last merged PR kept it.
+6. Plan only the remainder, and state the evidence for each closed item in the plan.
+
+Before you write the plan, scan the tree for every other site that carries the same defect class.
+The authority record usually samples this population. A hand-written list of remaining sites
+understates the work, and the plan then passes an early review and fails at implementation. Bound
+the scan by a decision rule that names the keep class in words, for example authority and
+authentication checks.
+
+A class conversion changes control flow across many callers. Put these counts in the plan; they are
+the sites a reviewer finds first:
+
+- the count of changed function signatures, and each caller of each signature;
+- each reference to a symbol you delete, including the import line, every `except` clause, and
+  every module-level tuple or re-export that names it;
+- each trusted module that cannot import the new dependency by design, which needs a callback or a
+  threaded value instead.
+
+Measure each count with a search command and keep the command result as the evidence.
 
 ### 5. Establish provenance before disposing of failures
 

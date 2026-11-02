@@ -1,10 +1,10 @@
 ---
 name: deprecated-api-removal-plan-review
 license: BSD-3-Clause
-description: "Review deprecated-API removal plans against current callers, migration policy, and compatibility evidence."
+description: "Review deprecated-API removal plans against current callers, migration policy, and compatibility evidence. Also use when the removal is operator-facing (environment variables, file locks, fail-closed checks): require the plan to name the policy basis, the operator procedure book, the ordered transition, the rollback to the previous release, and a verification that does not trust the author's own grep terms."
 category: architecture
 date: 2026-06-26
-version: "1.0.1"
+version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags:
@@ -19,6 +19,11 @@ tags:
   - grep-inventory
   - unverified-assumptions
   - migration-docs
+  - operator-migration
+  - rollback
+  - deprecation-policy
+  - removal-order
+  - self-referential-verification
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/deprecated-api-removal-plan-review.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -30,7 +35,7 @@ history-cleanup-date: "2026-09-20"
 | Field | Value |
 |-------|-------|
 | **Date** | 2026-06-26 |
-| **Objective** | Capture how to review plans that remove deprecated public API shims, aliases, or compatibility wrappers, with special focus on caller-inventory risk, public-surface completeness, semver/policy compatibility, and replacing deprecation-warning tests with absence guards plus canonical API coverage. |
+| **Objective** | Capture how to review plans that remove deprecated public API shims, aliases, or compatibility wrappers, with special focus on caller-inventory risk, public-surface completeness, semver/policy compatibility, and replacing deprecation-warning tests with absence guards plus canonical API coverage. Include the operator-facing case: removing environment variables, file locks, or fail-closed checks from a deployed system. |
 | **Outcome** | Planning guidance only. The source plan proposed removing deprecated shims and updating exports, tests, and docs, but the implementation was not executed and no CI result was observed. |
 | **Verification** | unverified - produced from an implementation plan, not from an executed implementation or CI result. |
 
@@ -54,6 +59,11 @@ the current checkout proves it.
   numbers, docs, or API names without opening the current files in the current run.
 - Downstream compatibility matters: CLI users, plugin consumers, integration imports, or external
   packages may import names that do not appear in the obvious in-repo production grep.
+- The removal changes the operator contract of a deployed system: it removes environment
+  variables, removes file locks, or converts failing-closed checks into logged warnings.
+- A plan cites a deprecation policy to argue that no notice window applies to the removed surface.
+- The verification of a documentation deliverable is a set of `grep` assertions that the same
+  change writes.
 
 ## Proposed Workflow
 
@@ -143,6 +153,48 @@ python -m pytest
    module/subpackage/top-level packages, focused tests for affected config/retry/import behavior,
    lint on touched files, and the full suite when feasible.
 
+9. **Check the policy exclusion, not only the policy window.** When a plan says a removal needs no
+   notice window, open the policy page and read which surfaces the policy excludes. A plan that
+   cites the window rules but omits the excluded-surface list can approve a removal that policy
+   never covered. Quote the excluded-surface entries that name the removed surface, such as
+   environment variables or deployment contracts. If the surface is excluded, the plan must supply
+   another notice channel and must use the policy's own terms, not "no notice is required".
+
+10. **For an operator-facing removal, require four plan parts.** The deliverable is a procedure
+    that an operator runs on a live system. Require all four: (a) an ordered transition with one
+    command or one file per step and a stop-at-first-failure rule; (b) the answer to "the removed
+    setting is still present after the upgrade", which names the effect and the operator action;
+    (c) a rollback to the previous release, with the exact stop, re-activation, and setting
+    restoration commands; (d) the updates to the operator procedure book and the environment
+    reference, named by path. A plan without a rollback path is a NOGO.
+
+11. **Fix the transition order from the read paths of both releases.** Mixed fleets read old and
+    new inputs at the same time. Place each assignment so that the previous release can still find
+    its input until its last process exits, and the new release finds the new input before it
+    starts. Stop the previous release's foreground daemons before any consistency-checked repair
+    and before the new start; an allocation stop does not stop a daemon. Keep the pre-migration
+    snapshot of the old settings until the last old-release process is gone. Redact secret values
+    in the snapshot and store it outside the roots that the change touches.
+
+12. **State what an ignored setting does after removal.** A removed setting with no reader has no
+    effect and produces no warning. The plan must say this in plain text, because an operator who
+    sees a set variable expects a warning or an error. It must also say that this silence is not a
+    fix path: use the new input, or report a bug in the code. Documentation that still names the
+    removed setting is a defect in the deliverable, not a supported path.
+
+13. **Do not accept a verification that the change writes for itself.** `grep -q` checks against
+    files that the same change creates only prove that the author typed the searched words. They
+    cannot fail when the procedure is wrong. Require at least one check that a different actor
+    controls: a strict build of the documentation site, a reviewer against a written checklist,
+    a step run against a real system, or a check of the previous release's behavior. Record the
+    self-authored grep checks as weak evidence, not as acceptance evidence.
+
+14. **Separate the forward change from the rollback cost.** State which state is additive and
+    stays after a rollback (logs, applied migrations, new records) and which state a rollback
+    restores. A previous release that restores its failing-closed checks turns every warning the
+    new release logged into a stop. The plan must name each such check and the evidence that
+    resolves it.
+
 ## Verified Workflow
 
 Not applicable. This skill is `verification: unverified` and the executable guidance is intentionally
@@ -158,6 +210,9 @@ requires a literal `## Verified Workflow` section for flat skill files.
 | Update only the implementation module | Removal plan focused on deleting shim functions and obvious exports | Public importability may persist through subpackage `__init__`, top-level lazy imports, `__all__`, `__getattr__`, `.pyi` stubs, or docs | Treat public API removal as a surface audit, not a function deletion |
 | Rely on remembered file paths or line numbers | Plan used issue/session context and prior file locations as if they were current facts | Files, docs, line numbers, and even issue scope drift while planning branches are open | Mark memory-derived facts unverified and require a freshness pass in the current checkout before implementation |
 | Treat zero in-repo callers as policy approval | A plan inferred that no callers means removal is semver-safe | External users, CLI/plugin consumers, and documented compatibility windows are not visible in an in-repo grep | Review compatibility policy, release notes, migration docs, and downstream import surfaces separately from caller count |
+| Read only the window section of the deprecation policy | A plan cited the notice-window rules and stated that no window applies to the removed settings | The policy listed the removed surface in an excluded-surface section later on the page, so the window rules never applied and the plan had to name another notice channel | Read the whole policy page; quote the excluded-surface entries that name the removed surface |
+| Verify a procedure with greps that the same change writes | The plan's acceptance checks searched the new page for words that the page author chose | The checks pass for any text that contains the words, including a wrong or unsafe procedure | Use a reviewer-controlled check, a strict site build, or a live step; report self-authored greps as weak evidence |
+| Remove operator settings in one step | The plan moved credentials and removed the old variables at the same stage | The previous release reads its credential from the environment first, so a rollback after removal would start without it | Order the steps from the read paths of both releases; keep the old input until the last old-release process exits |
 
 ## Results & Parameters
 
@@ -192,6 +247,15 @@ Deprecated API removal plan is reviewable only if it answers:
    - canonical API coverage for the replacement
    - docs no longer promise removed names
    - full or focused suite named with fallback if full suite is infeasible
+
+5. Operator-facing removal (when applicable):
+   - policy page read in full, including the excluded-surface entries that name the surface
+   - ordered transition with one command or file per step and a stop-at-first-failure rule
+   - effect and operator action when the removed setting is still present after the upgrade
+   - rollback to the previous release: stop, re-activation, and setting restoration commands
+   - additive state that stays and failing-closed checks that return
+   - procedure-book and environment-reference updates named by path
+   - at least one check that the change does not write for itself
 ```
 
 ### Verification Command Set
@@ -237,9 +301,11 @@ python -m pytest
 | **Plan topic** | Remove deprecated API shims `get_config_value()` and `retry_with_jitter()` in favor of canonical `get_setting()` and `retry_with_backoff()`; update exports, tests, and docs. |
 | **Plan-specific note** | The plan's claim that `retry_with_exponential_backoff` was out of scope because it had zero matches is itself a grep-derived assumption and should be refreshed before implementation. |
 | **Verification level** | unverified - this learning came from the plan, not from executed code or CI. |
+| **Operator-facing case** | A plan-review round for a documentation deliverable: a migration and rollback page for an accepted decision that removes environment variables, file locks, and fail-closed checks. The reviewer confirmed the plan's policy claim (the policy excludes environment variables from its window) but found the cited lines were offset. The reviewer also reported the self-referential grep verification as weak evidence. No implementation or live run was observed. |
 
 ## Verified On
 
 | Project | Context | Details |
 |---------|---------|---------|
 | ProjectHephaestus | Issue #1420 planning context | Planning-only capture. No implementation, local test run, or CI result was used to validate the workflow. |
+| A deployment project with accepted decision records | Plan review of a documentation-only migration and rollback page | Planning-only capture. The reviewer checked every cited anchor against a clean worktree, confirmed the policy exclusion, and gave a positive plan state. The weak-evidence finding was recorded, not resolved. |

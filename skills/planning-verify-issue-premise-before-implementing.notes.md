@@ -63,6 +63,7 @@ Cost: zero source edits, no PR, no new review round. The verdict attached to the
 reviewed prescription plus fresh trigger evidence. Without the prescribed-fallback
 branch, the same dispatch would have produced either a blocked report or a re-plan
 round spent authorizing a zero-work close.
+
 Observed pattern:
 
 - A path-policy table set an exact mode for some entries and left the field unset for
@@ -81,6 +82,28 @@ and the new report lived inside the final publisher. The report therefore arrive
 the expensive stage, which is the serial-discovery cost the issue reported. Repair:
 a cheap read-only preview with the same field names in the caller before staging, with
 the publisher check kept as the authority for identity.
+
+## 2026-11: Converted checks need a per-check load path (v3.7.0 source case)
+
+A review of a plan that converted many configuration checks from fatal raises
+to logged warnings found one structural defect. The plan named a single post-load
+validation pass behind the loader of the main settings model. Most listed checks
+did not belong to that model. They hung off nested models of a second, larger
+record type, and those records have their own loader and their own production
+call sites (a supervisor and a validation module).
+
+Effects the review named:
+
+- The listed checks could not run through the chosen hook in production: no
+  raise, no drift event. The conversion would have removed them silently.
+- The plan named a fair-share validator family as converted, but only
+  test modules construct that family; the live surface is a different model
+  owned by another work stream. A hook on the main loader can never fire for it.
+
+The revision split the conversion by load root, gave the second loader its own
+optional log directory and standard-error fallback, and stated the disposition
+of the family with no production load path. The review also required each
+behavior test to load through the real loader rather than a private helper.
 
 ## Retrieval note
 
