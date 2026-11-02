@@ -110,6 +110,67 @@ Ask which sentence in the source states a requirement. If the only candidate
 describes what is true now, the documentation does not authorize a blocking
 check.
 
+## Evidence: public artifact refused by its own seal
+
+A package shipped a single distribution that served two roles: an
+administrative control environment and a public client. The public client
+publication scanned every installed file for the bytes of the administrative
+root and refused the publication if a file carried them. That rule was
+intentional: a file that carries the root can resolve a dependency outside the
+public prefix.
+
+Two kinds of file carried the bytes:
+
+- **Packaged data.** A build force-include list copied control-side pool
+  launch data into the package. Most of those files named an absolute
+  administrative image and weight path.
+- **A source constant.** One module held a mapping from cluster name to a
+  retired-state path below the administrative root.
+
+Because the data changed with each release, any release whose control data
+nested under the administrative root failed its own publication. The gate
+could never pass.
+
+### What was rejected, and why
+
+| Considered approach | Why it was not the answer |
+| ------------------- | ------------------------- |
+| Relax or exempt the seal | The seal is the requirement. An exception makes the public client unsafe to publish. |
+| Scan the packaged data for the bytes and delete the matches during publication | The published tree then depends on the current data, so a later data edit changes the artifact with no code change. |
+| Rewrite the protected literal in the installed file with the same run-time value | This changes the artifact after the build, and the bytes remain in the compiled files. It hides the condition instead of removing it. |
+| Assemble the literal from parts in the source checkout | The run-time value is the same, the source no longer names the location, and the build still copies the bytes into bytecode. |
+
+### What worked
+
+1. The projection step omits one fixed path prefix that holds control-only
+   data, and drops the matching inventory rows and the directory entry in the
+   same loop. The inventory, the tree, and the seal scan then cover one
+   population. The checks that run on the source archive stay in place, so a
+   malformed excluded member still fails closed.
+2. The exclusion is by path, not by content, so the public tree is identical
+   for every release of the same source.
+3. The sealed-data rewrite already in the projection (removing one key from a
+   packaged profile) covered the remaining packaged hit.
+4. The redundant constant was deleted. The run-time retired-state path already
+   derived from the resolved administrative root. The one consumer, a
+   control-side probe, now reads the administrative root from the cluster
+   profiles and raises when no profile declares one, so a pruned profile set
+   cannot silently remove the protection.
+
+### Evidence boundary
+
+- Two focused tests failed before the change and passed after it: the
+  projection contract, and a guard that no shipped source file carries a
+  declared administrative root.
+- A real local build was projected and scanned: no protected bytes, no
+  control-data members, and the packaged profiles remained.
+- The plan review confirmed that the constant had one definition, one product
+  consumer, and one test, and that the packages did not contain other
+  protected payloads.
+- The end-to-end publication against the live deployment root was an operator
+  action outside the session. Its result was not observed, so this case does
+  not establish verification beyond the local checks.
+
 ## Parametric assertions to keep
 
 An assertion that compares an artifact with the value the owner declares is
