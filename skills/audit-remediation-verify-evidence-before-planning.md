@@ -6,7 +6,7 @@ description: >-
   limits the edit; or when a document mixes verifiable membership with inferred history.
 category: architecture
 date: 2026-07-01
-version: "2.1.0"
+version: "2.2.0"
 user-invocable: false
 verification: verified-local
 license: BSD-3-Clause
@@ -56,24 +56,37 @@ as CI evidence.
    These layers may intentionally use different names.
 5. **Check ownership.** Do not edit a submodule or external repository through a meta-repo.
    Identify the owned artifact and the correct repository/PR boundary.
-6. **Survey enough to determine scope.** Inspect siblings to understand the convention and find
+6. **Attribute a diff to the correct base.** A diff command against a moving ref, such as the
+   remote default branch, shows your change plus every merge that arrived after you branched.
+   A reviewer or a delegated reader who runs that command sees apparent deletions you never
+   made. Decompose any deletion before you accept or explain it:
+
+   ```bash
+   git rev-parse <worktree-base> <remote-default>
+   git show <remote-default>:<path> | grep -c '<claim-symbol>'
+   git diff <remote-default> -- <path>
+   ```
+
+   Confirm the reported delta against the base commit you branched from. If the remote advanced,
+   the apparent deletion belongs to the other change, and your own diff stays unchanged.
+7. **Survey enough to determine scope.** Inspect siblings to understand the convention and find
    identical copies of the same defect. Record unrelated noncompliance as out of scope.
-7. **Classify evidence.** Distinguish:
+8. **Classify evidence.** Distinguish:
    - stale coordinates, valid content finding;
    - valid coordinates, already-fixed finding;
    - partially stale multi-target finding;
    - fully stale finding with no remaining artifact;
    - unverifiable historical metadata.
-8. **Choose enforcement at the existing altitude.** Extend a nearby behavior or content test.
+9. **Choose enforcement at the existing altitude.** Extend a nearby behavior or content test.
    Do not create a framework for a one-field prose change, and do not invent a unit test where
    repository policy uses parsing/lint checks only.
-9. **Guard only provable claims.** If membership is derived from `__all__` but an “Added” value
+10. **Guard only provable claims.** If membership is derived from `__all__` but an “Added” value
    is best-effort archaeology, test membership both ways and label the historical value as
    inferred. Never turn inference into an asserted fact.
-10. **Verify the proposed command or external contract.** Run replacement commands in this
+11. **Verify the proposed command or external contract.** Run replacement commands in this
     repository. Check a third-party action input against the pinned action definition; a text
     assertion cannot prove the input is valid.
-11. **Report no-op outcomes honestly.** If every target is gone and an existing guard prevents
+12. **Report no-op outcomes honestly.** If every target is gone and an existing guard prevents
     recurrence, close with evidence rather than manufacturing a diff.
 
 ### Evidence commands
@@ -121,6 +134,7 @@ membership row until it leaves the authoritative surface.
 | Invent a test for ungoverned prose | Invent a test for ungoverned prose | It pins wording without a product contract | Use syntax/lint checks or extend an existing semantic guard |
 | Assert an inferred historical value | Assert an inferred historical value | Best-effort archaeology becomes false certainty | Label inference and guard only membership |
 | Validate an action input with text presence | Validate an action input with text presence | The name can be invalid at the pinned revision | Inspect the pinned `action.yml` or upstream contract |
+| Diff the worktree against the moved default branch | A delegated reader ran a diff against the current default branch and reported large deletions | The changes belonged to merges that arrived after the branch point | Attribute the delta to the base commit, and confirm it against that commit before you act |
 
 ## Results & Parameters
 
