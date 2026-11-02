@@ -146,4 +146,5 @@ PRs:    0 destination-member PRs had a source-milestone history
 
 - [github-label-mass-mislabel-forensics](github-label-mass-mislabel-forensics.md) — the same timestamp-cluster technique applied to label attribution
 - [github-release-board-realignment](github-release-board-realignment.md) — planned board-wide milestone moves, with the `gh issue list` PR trap
+- [audit-milestone-sweep-attachments](audit-milestone-sweep-attachments.md) — the forward case: items a sweep attached to the wrong release with no plan entry; uses the same timeline evidence
 - [GitHub issue timeline events API](https://docs.github.com/en/rest/issues/timeline)
