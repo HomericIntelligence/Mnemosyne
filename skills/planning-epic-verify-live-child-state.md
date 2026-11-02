@@ -1,13 +1,13 @@
 ---
 name: planning-epic-verify-live-child-state
 license: BSD-3-Clause
-description: "Reconcile live child-issue status and current implementation before planning or completing an epic with a stale checklist."
+description: "Reconcile live child-issue status and current implementation before planning or completing an epic with a stale checklist. Also selects the tracker disposition when the request names a tracker that already carries a plan-review rejection, a source-free request, or a structured disposition output."
 category: tooling
 date: 2026-06-19
-version: "1.2.0"
+version: "1.3.0"
 user-invocable: false
 verification: verified-local
-tags: [epic, tracking-issue, child-issues, planning, gh-cli, state-plan-go, dependency-ordering, orchestration, audit-remediation, stale-body, verification-block, path-audit, freshness-gate]
+tags: [epic, tracking-issue, child-issues, planning, gh-cli, state-plan-go, dependency-ordering, orchestration, audit-remediation, stale-body, verification-block, path-audit, freshness-gate, tracker-disposition, plan-no-go-label, sub-issues-api-empty, plan-only-deliverable]
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/planning-epic-verify-live-child-state.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -35,6 +35,12 @@ only an update; an implementation request can include the remaining child change
 - Any issue whose body is a markdown table or checklist of child issues with a "status" column
 - Deciding implementation order across linked/dependent issues
 - An audit/remediation epic that tracks many findings filed weeks/months ago
+- A planning or recovery request names an epic/tracker issue, and you must select a disposition
+  before you write any plan or code
+- A tracker already carries `state:plan-no-go`, so an earlier plan attempt on the container was
+  rejected
+- The requested output is a structured disposition (`REQUIREMENTS`, `TRACKER`, `OBSOLETE`) or the
+  request tells you to "recover the original requirements" of the issue
 
 ## Verified Workflow
 
@@ -72,6 +78,15 @@ wc -l <cited file>                            # confirm the child's cited count 
 # 7. CAPABILITY-ABSENCE CHECK before scoping an "extend" issue as net-new. Read the
 #    target file; zero keyword matches = genuinely absent = reframe as "extend struct X".
 grep -nE 'tmp|rename|atomic|resume|recover|--fresh|retry' path/to/target.mojo
+
+# 8. DISPOSITION CHECK — decide the container before you plan it.
+gh issue view <n> --json labels,comments \
+  --jq '{labels: [.labels[].name], comments: (.comments | length)}'
+#    epic label + a body of child-issue links + no code delta named in the body → TRACKER
+#    state:plan-no-go → an earlier plan attempt on the container was rejected; do not repeat it
+#    dark sub-issues API → read the body's own list of children
+gh api graphql -f query="query{repository(owner:\"<o>\",name:\"<r>\"){issue(number:<n>){subIssues(first:30){nodes{number title state}}}}}" \
+  --jq '.data.repository.issue.subIssues.nodes'
 ```
 
 ### Detailed Steps
@@ -123,7 +138,19 @@ grep -nE 'tmp|rename|atomic|resume|recover|--fresh|retry' path/to/target.mojo
    work; `grep -nE 'tmp|rename|atomic|resume|recover|--fresh|retry'` confirmed the recovery
    primitives were absent and the issue was genuinely an extension.
 
-9. **Complete the requested epic work.** Use current child status and dependencies to select
+9. **Select the container disposition before you plan it.** A container is a `Tracker` when all
+   of these hold: the `epic` or `roadmap` label is present, the body names child issues as the
+   executable workstreams, and the body names no single code change of its own. The body's locked
+   decisions, guard lists, execution order, and done criteria are then shared context for the child
+   plans, not requirements of the container. Do not write a second plan for the tracker: an
+   existing `state:plan-no-go` label on it is evidence that this attempt was already rejected. Read
+   the child bodies for each workstream. The GitHub sub-issues GraphQL field can return an empty
+   node list when the body holds the operative list; then the markdown list in the body is the link
+   set, and you must say so. If the requested output is a structured disposition, set
+   `requirements` empty for `Tracker` and `Obsolete`, and put the unverified limits in the reason
+   field.
+
+10. **Complete the requested epic work.** Use current child status and dependencies to select
    the remaining implementation or coordination. Continue independent work while a prerequisite
    is pending, and reconcile actual child outcomes before closing the epic.
 
@@ -138,6 +165,7 @@ grep -nE 'tmp|rename|atomic|resume|recover|--fresh|retry' path/to/target.mojo
 | Cite the audit's "approx" LOC | Carried the audit's "4,241 lines" for `any_tensor.mojo` into the plan | The file had GROWN to 4,373 lines since the audit | Re-measure with `wc -l` and cite the fresh number, never the audit's stale approximation |
 | Invented plausible test paths in the Verification block | Wrote `tests/models/test_anytensor_conversion.mojo` and `tests/training/test_checkpoint.mojo` from memory of the repo's apparent convention | Neither existed; real tests live under `tests/projectodyssey/tensor/` and `tests/projectodyssey/training/`. Reviewer ran the commands → file-not-found, NOGO (major) | For a tracking/epic plan the Verification block IS the only deliverable — EVERY path must be confirmed with `find tests -name '<glob>'` or `ls` BEFORE writing it. Never infer a test path from a sibling's directory shape |
 | Assumed a referenced "extend" issue was net-new work without reading the target file | Planned #5184 (checkpoint recovery) as if `checkpoint.mojo` were empty | `CheckpointManager` already existed (381 lines, save/load/metadata) — risk of duplicate work / wrong scope | Read the target file and `grep -nE 'tmp\|rename\|atomic\|resume\|recover\|--fresh\|retry'` for the specific capabilities the issue adds; zero matches = genuinely absent = reframe as "extend struct X at file:line" citing the current method inventory |
+| Wrote a fresh requirements plan for a container that was already rejected | The request asked to recover the requirements of an epic that listed 20 child issues and already carried `state:plan-no-go`; the body named no code change of its own | A container plan only repeats the child work and breaks the corrected decision with the label | Select `Tracker` from the epic label plus a child list in the body, report the operator link set when the sub-issues API is empty, and keep `requirements` empty. Before the classification, also need the body only for the child list, never for a code delta |
 | Deferred to children's `state:plan-go` labels without reading the child plan bodies | Trusted the approved-plan label as proof the child plans were current | Child plans CAN go stale (e.g. cite an old line count); reviewer flagged this as an unmitigated risk | Add a FRESHNESS GATE: read each child's latest plan comment (`gh issue view <n> --comments --jq '.comments[-1].body'`) and confirm its cited paths/line-counts still resolve (`wc -l`, `grep -n`) before dispatching. In #5191 R1 the child plans were current (cited `any_tensor.mojo:4383-4413`, ≤3,000 target with a #5181-merge contingency, real test paths) — but that had to be VERIFIED, not assumed |
 
 ## Results & Parameters
@@ -197,6 +225,12 @@ Close-out:            re-verify all children CLOSED+COMPLETED, then close the ep
 | Re-plan everything | Dispatch only 3 `state:plan-go` children (#5181, #5182, #5184) |
 | Audit's original dependency graph | #5185 closed (branch ends); #5183 merged → #5184 unblocked/parallelizable |
 | any_tensor.mojo = 4,241 lines | wc -l = 4,373 (grown; cite fresh) |
+
+| Wave | First observation |
+|------|-------------------|
+| Container carries `state:plan-no-go` | 2026-11-01 recovery pass on a 20-child epic |
+| Sub-issues GraphQL field returns `[]` while the body lists the children | same pass; the body list was used as the link set |
+| Options a stale structured-disposition request offers | `REQUIREMENTS`, `TRACKER`, `OBSOLETE` |
 
 ## Verified On
 

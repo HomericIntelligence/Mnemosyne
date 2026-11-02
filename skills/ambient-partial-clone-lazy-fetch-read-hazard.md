@@ -1,9 +1,9 @@
 ---
 name: ambient-partial-clone-lazy-fetch-read-hazard
-description: "Detect an ambient partial clone (for example blob:none) before read-heavy Git work. Use when a shared ambient checkout can lazy-fetch on demand, when a metadata-looking command silently downloads many objects, when an object probe cannot prove local availability, or when a verification lane forbids object acquisition through the ambient checkout."
+description: "Detect an ambient partial clone (for example blob:none) or a mid-run shallow mutation before read-heavy Git work. Use when a shared ambient checkout can lazy-fetch on demand, when a metadata-looking command silently downloads many objects, when an object probe cannot prove local availability, when a previously complete shared store becomes shallow mid-run, or when a verification lane forbids object acquisition through the ambient checkout."
 category: tooling
 date: 2026-10-29
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-live
 tags:
@@ -38,6 +38,9 @@ tags:
 - A verification or review lane forbids object acquisition through the
   ambient checkout remote, so lazily completing that store is doubly wrong:
   it moves unbounded bytes and it crosses the lane boundary.
+- A shared ambient checkout passed completeness checks earlier in the run,
+  but a helper that requires complete history now rejects it: a peer lane
+  ran a depth-bounded fetch and the store became shallow mid-run.
 
 Do not use this skill for helper-side object completeness. That is the
 sibling intent of
@@ -50,9 +53,12 @@ ambient order. This skill covers the ambient checkout's own read behavior.
 ### Quick Reference
 
 ```bash
-# 1. Detect a partial checkout before read-heavy work.
+# 1. Detect a partial or shallow checkout before read-heavy work, and re-check
+#    at each helper boundary on a shared checkout: the store can change
+#    beneath a passing first probe.
 git config remote.origin.partialclonefilter     # prints e.g. blob:none
 ls .git/objects/pack/*.promisor 2>/dev/null     # promisor pack markers
+git rev-parse --is-shallow-repository           # true: store not complete
 
 # 2. Classify commands: treat any blob-touching command in that store as
 #    unbounded network I/O. Commit-only probes stay local in blob:none.
@@ -81,7 +87,15 @@ git cat-file -e <oid>^{commit}                  # cheap, local existence probe
    fetching through the ambient checkout remote at all. For those, lazy
    completion of the ambient store is not a shortcut: it violates the lane
    boundary and it also violates rule 3 on size.
-5. **Report the hazard once observed.** A teammate's terminal in the same
+5. **Re-check the store at helper boundaries.** On a shared checkout, a store
+   that passed a completeness probe can change beneath you: a peer lane can
+   run a depth-bounded fetch and make the store shallow mid-run. When a
+   helper that requires complete history begins to reject the store
+   (`--is-shallow-repository` turns true), do not repair the shared store in
+   place: a de-shallowing fetch mutates a store other lanes read and races
+   their own operations. Acquire a complete disposable clone in an isolated
+   workspace with the exact revisions and rerun the same proof lane there.
+6. **Report the hazard once observed.** A teammate's terminal in the same
    ambient checkout hits the same boundary. Record which command fetched and
    how much, so the next lane classifies read-heavy work on its first
    attempt.
@@ -92,6 +106,7 @@ git cat-file -e <oid>^{commit}                  # cheap, local existence probe
 | --------- | ---------------- | --------------- | ---------------- |
 | Run a metadata-looking command in the ambient checkout | Listed one commit and its tree context as part of a review | The command silently lazy-fetched hundreds of blob objects (on the order of tens of MB) in the background | Classify commands before running them: in a partial clone every blob touch is unbounded network I/O |
 | Use the ambient store for local review reads after commit probes passed | Assumed a successful `cat-file` probe meant the store was usable for strict verification | The verifier required a complete, non-partial store and rejected it outright; the acquisition boundary of the lane excluded ambient-checkout fetches anyway | A probe result in a promisor store answers a weaker question than the verifier asks; acquire the explicit immutable source instead |
+| Trust an earlier completeness probe on a shared checkout | Proceeded with a helper that requires complete history after the store passed an earlier check | A peer lane ran a depth-bounded fetch mid-run and the store became shallow; the helper began rejecting it between proof lanes | Re-check store invariants at each helper boundary on a shared checkout; on shallow-mutation, leave the store untouched and proof from a fresh isolated complete clone |
 
 ## Results & Parameters
 
@@ -101,6 +116,7 @@ git cat-file -e <oid>^{commit}                  # cheap, local existence probe
 detect_partial_clone:
   config_probe: "git config remote.<remote>.partialclonefilter   # blob:none"
   marker_probe: ".git/objects/pack/*.promisor"
+  shallow_probe: "git rev-parse --is-shallow-repository   # true means not complete"
 pricing_rule:
   partial_clone_read: "unbounded network I/O, silent, background"
   local_by_design_in_blob_none: [commits, trees]

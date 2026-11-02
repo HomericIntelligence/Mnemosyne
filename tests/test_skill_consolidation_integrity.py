@@ -23,7 +23,7 @@ class Consolidation(TypedDict):
 CONSOLIDATIONS: list[Consolidation] = [
     {
         "canonical": "planning-verify-issue-premise-before-implementing",
-        "version": "3.6.0",
+        "version": "3.7.0",
         "absorbed": [
             "planning-verify-assumptions-before-enforcement-gate",
             "planning-verify-full-population-not-just-named-entities",
@@ -44,7 +44,7 @@ CONSOLIDATIONS: list[Consolidation] = [
     },
     {
         "canonical": "console-scripts-exit-code-discipline",
-        "version": "2.0.0",
+        "version": "2.1.0",
         "absorbed": ["console-scripts-instance-state-error-tracking"],
     },
     {

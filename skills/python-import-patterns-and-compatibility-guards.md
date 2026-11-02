@@ -4,14 +4,16 @@ description: >-
   Preserve Python importability and public API contracts across cycles, lazy exports,
   interpreter versions, and operating systems. Use when deferring an import, enforcing an
   acyclic runtime graph, widening a PEP 562 surface, or aligning exports with compatibility
-  documentation and boundary tests.
+  documentation and boundary tests. Also use when a new leaf module must sit under a package
+  whose initializer imports its consumer, so the chosen import form decides whether the guard
+  reports a cycle.
 category: architecture
 date: 2026-08-08
-version: "3.0.0"
+version: "3.1.0"
 user-invocable: false
 verification: unverified
 license: BSD-3-Clause
-tags: [import-strategy, circular-dependency, lazy-loading, sdk-surface, version-guard, cross-platform, pep-562, compatibility, runtime-import-graph, ast]
+tags: [import-strategy, circular-dependency, lazy-loading, sdk-surface, version-guard, cross-platform, pep-562, compatibility, runtime-import-graph, ast, import-form-prefix-edge]
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/python-import-patterns-and-compatibility-guards.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -43,6 +45,8 @@ deprecation cases retain their `verified-local` or `verified-ci` status in the n
 - A public symbol is added and package exports, `dir()`, patch identity, and API docs must agree.
 - An architecture requirement says the runtime module graph must be acyclic, including hidden
   function-local and lazy-map edges.
+- A new leaf module must stay below a package whose initializer imports the module that
+  consumes the leaf, so the import form decides whether the guard reports a cycle.
 
 ## Verified Workflow
 
@@ -120,6 +124,21 @@ Exclude imports proven type-only by positive `if TYPE_CHECKING:` branches and in
 imports in negated forms. Resolve relative imports against the importing module. Detect strongly
 connected components with a deterministic algorithm such as Tarjan; report the full cycle and
 edge origins.
+
+**Count the prefix walk on `from ... import ...`.** An absolute `from <prefix>.a.b import c`
+records a runtime edge to every module prefix, so it reaches `<prefix>` itself when that package
+initializer also runs. A relative `from . import mod` resolves to the parent package and does the
+same. A bare `import <prefix>.a.b as name` records the leaf, and it records the package prefix
+only when that package initializer performs a runtime import of its own. The distinction decides
+whether a new leaf module closes a cycle through a package whose `__init__` imports its consumer.
+Before you commit, evaluate the proposed import line with the guard's own target resolver and
+confirm that the resulting edge set contains the leaf only — do not assume both forms are equal.
+
+```python
+# Inside pkg.consumer. The two forms differ only by the edge to the package node.
+from . import leaf                   # -> {pkg, pkg.leaf}
+import pkg.leaf as _leaf             # -> {pkg.leaf}
+```
 
 Break a real cycle by extracting only shared low-level behavior into a dependency-neutral leaf,
 inverting the collaborator, or passing a true call-level argument. Preserve the original public
