@@ -44,7 +44,7 @@ CONSOLIDATIONS: list[Consolidation] = [
     },
     {
         "canonical": "console-scripts-exit-code-discipline",
-        "version": "2.0.0",
+        "version": "2.1.0",
         "absorbed": ["console-scripts-instance-state-error-tracking"],
     },
     {
