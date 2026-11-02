@@ -1,13 +1,13 @@
 ---
 name: ci-failure-triage-and-diagnosis
-description: "Diagnose CI failures from run logs and revision-specific workflows. Distinguish source defects, missing required contexts, infrastructure failures, stale runs, rerun identity rejections, and runs that merge conflicts suppressed."
+description: "Diagnose CI failures from run logs and revision-specific workflows. Distinguish source defects, missing required contexts, infrastructure failures, stale runs, rerun identity rejections, and runs that merge conflicts suppressed. Also use when a concluded job still refuses its log because the run is unfinished, when a red run predates repairs already on main, or when an open PR already owns the failing node and its diff must be checked against every failing condition."
 category: ci-cd
 date: 2026-10-15
-version: "2.5.0"
+version: "2.6.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-local
-tags: [ci-failure, triage, log-analysis, core-dump, forensics, gdb, podman, mojo, libkgen, github-actions, rate-limit, subprocess, signal, cpu-survey, workflow-dispatch, merge-conflict]
+tags: [ci-failure, triage, log-analysis, core-dump, forensics, gdb, podman, mojo, libkgen, github-actions, rate-limit, subprocess, signal, cpu-survey, workflow-dispatch, merge-conflict, log-gating, run-status, fix-ancestry, open-pr-audit]
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/ci-failure-triage-and-diagnosis.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -25,6 +25,8 @@ are indexed in [the notes](ci-failure-triage-and-diagnosis.notes.md).
 
 - A CI run failed, a report links a run but claims detailed logs are unavailable, or a proposed
   fix was formed without reading `--log-failed`.
+- A job reports a terminal failure but its log returns "run is still in progress", or an open PR
+  already fixes the failing node and you must decide whether that fix is complete.
 - Several unrelated PRs fail in the same job/file, or main may already be broken.
 - A PR is `BLOCKED` with no failed check because a required context never posted.
 - A push to a PR branch produced no `pull_request` runs at that head at all: the rollup and the
@@ -47,6 +49,10 @@ action versions, current main, and repository dependency declarations before pro
 # Read the real failure before hypothesizing.
 gh run view <RUN_ID> --repo <org>/<repo>
 gh run view --job=<JOB_ID> --repo <org>/<repo> --log-failed
+
+# A concluded job still refuses logs while its run is in progress.
+gh run view <RUN_ID> --repo <org>/<repo> --json status,conclusion \
+  --jq '"\(.status) \(.conclusion)"'   # wait for "completed"
 
 # Verify quoted text against the bare job log before attributing it.
 gh api repos/<org>/<repo>/actions/jobs/<JOB_ID>/logs > job.log
@@ -71,12 +77,26 @@ gh api rate_limit --jq '.resources.core | "used:\(.used)/\(.limit) resets:\(.res
 ### 1. Establish the failing evidence
 
 1. List the run, identify the failing job and step, then fetch that job's `--log-failed` output.
+   Job logs are gated by the run, not by the job. A job that already reports a terminal
+   conclusion still returns `run <ID> is still in progress; logs will be available when it
+   is complete` while any other job in the same run is unfinished. A concluded job is not a
+   readable log. Wait for the whole run, then read the log. Do not diagnose from the
+   conclusion name or the annotated step list alone.
 2. Read the error literally. Exit 127 or `command not found` means the recipe may never have run;
    first identify the missing interpreter, tool, or shell function.
 3. Record action versions from the run log. A different version on current main proves the run's
    workflow snapshot is stale.
 4. Search current history for the suspected fix and inspect the latest main runs. If recent main
    runs are green, document the already-landed fix instead of inventing another.
+   A red run may also predate repairs that already sit on main. Test ancestry before you
+   attribute a failure to the source: `git merge-base --is-ancestor <fix> <tested-sha>`.
+   A fix that is an ancestor of the tested commit cannot explain a new failure; a fix that is
+   not an ancestor means the run tested an older tree and a retest on current main comes first.
+   When an open PR already owns the failing node, read its diff and decide whether that diff
+   closes every condition in the failing assertion. An open fix is a claim, not evidence.
+   Two open PRs that each handle one trigger of a two-trigger failure do not close the case
+   individually, so merge both or amend one. Reproduce each trigger locally before you
+   recommend a merge. Do not open a competing PR for a node that another owner has bound.
 5. Confirm every proposed verification command exists in the dependency manifest or is installed
    by the same workflow step. Do not cite an unavailable `pixi run <tool>` command.
 6. Verify quoted log text against the bare job log before it grounds a root cause. Filtered or
@@ -244,6 +264,8 @@ the current head SHA.
 | Failed-job rerun on an attempt-bound producer | Re-ran only the failed shard after a matrix flake | The producer output pinned the earlier attempt, so rerun consumers rejected the identity and exited at startup | Detect attempt-bound producer/consumer validation; switch to a full rerun |
 | Re-trigger an absent run | Looked for a run to rerun or dispatch for a head whose PR had merge conflicts | GitHub never created runs for that head, so there was nothing to rerun and a dispatch would test the wrong source | Establish the conflict with the empty per-head run list, `mergeStateStatus`, and `git merge-tree`; resolve, repush, and verify the new head's wave |
 | Decorated-view match as evidence | Cited a failure line from a filtered or decorated log view as the root cause in a report and a fix dispatch | The bare job log contained zero occurrences of the quoted text; the ghost hypothesis and the dispatch built on it were wrong | Verify quoted lines in the bare authenticated log before attribution; record the view type with each quote |
+| Concluded job treated as readable log | Retried a single job's log while other jobs in the same run still ran | Every attempt returned "run is still in progress"; the conclusion belonged to the job, not the run | Gate on the run status, not the job conclusion, before log retrieval |
+| Open PR treated as the finish line | Recommended merging the open fix for a two-trigger failure without reading its diff | The open diff covered one trigger only and would have left the node red | Read the open diff against every condition in the assertion; merge both or amend one |
 
 ## Results & Parameters
 
@@ -251,6 +273,8 @@ the current head SHA.
 | --- | --- |
 | Failing evidence | `gh run view --job=<JOB_ID> --log-failed` before diagnosis |
 | Quote verification | Bare-log fetch plus an occurrence count above 0 for each quoted token |
+| Log availability | Run status `completed`; a concluded job alone does not unlock its log |
+| Fix ancestry | `git merge-base --is-ancestor <fix> <tested-sha>` before attributing a failure |
 | Recurrence | One failed-job rerun; repeated same signature is reproducible |
 | Attempt-bound producer rerun | Full `gh run rerun <RUN_ID>`; repeated `--failed` reruns stay misaligned |
 | Conflict-suppressed runs | Resolve conflicts, repush on the updated base, verify the new head's full wave; carry reviews by tree identity |

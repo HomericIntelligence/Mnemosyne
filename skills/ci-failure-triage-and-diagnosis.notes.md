@@ -20,6 +20,8 @@ SHA-256 `dbfeed396bb4cb23d547fc0d9077a6e5756b9f71b820cda2b4e2ee6acd83e592`.
 | Proposed pixi/yamllint hardening | [ProjectOdyssey issue #252](https://github.com/HomericIntelligence/ProjectOdyssey/issues/252) | unverified proposal | Do not upgrade a planning suggestion to verified behavior |
 | Failed-job rerun rejected by attempt-bound producer output | CI drive-green session, 2026-10 (public project; identifiers withheld) | verified-ci | A startup identity error after a `--failed` rerun means the producer output pins the old attempt; only a full rerun realigns it |
 | Confirmed merge-conflict suppression of PR runs | CI drive-green session, 2026-10 (public project; identifiers withheld) | verified-ci | Empty per-head run list plus the conflict state at the same head plus `git merge-tree` isolation plus an immediate post-resolution wave establishes the cause; the conflict-resolving push is the supported trigger |
+| Run-gated job logs | Promotion-lane validation, 2026-11 (public project; identifiers withheld) | verified-local | A concluded failing job still refuses its log until every sibling job finishes; gate on run status |
+| Stale tested source and incomplete open-PR fix | Promotion-lane validation, 2026-11 (public project; identifiers withheld) | verified-local plus a merged correction | Test fix ancestry before attribution, and read an open diff against every failing condition instead of trusting the open state |
 
 ## Detailed Case Notes
 
@@ -119,3 +121,58 @@ Recovery used four steps: fetch the bare log into a file; count token occurrence
 (zero); identify the true failed assertion in the bare log; correct the record. The
 source case identifiers and operational details are intentionally omitted. The amendment
 has no claim of new end-to-end CI verification.
+
+### Run-gated job logs
+
+A promotion-lane validation reported one failing shard. The job itself had already reached
+`conclusion: failure`, so the log appeared ready. Eight `gh run view --job <ID> --log`
+attempts over the next half hour each returned:
+
+```
+run <ID> is still in progress; logs will be available when it is complete
+```
+
+The gate is the run, not the job. A sharded run keeps the whole run `in_progress` while the
+database shards and the final aggregate still execute, and every job log in that run stays
+unreadable until the run terminal state settles. The annotated step list and the conclusion
+name were readable throughout, which is what made the gate easy to miss: `steps[].conclusion`
+is per job and says nothing about log availability.
+
+Two consequences for triage order:
+
+- Report the failing job identities immediately from the jobs API; that data is available.
+- Defer any root-cause claim until the run is `completed`. Do not infer the failure from the
+  annotation text, which truncates long assertion output.
+
+Recovery is one wait on `gh run watch` or a status poll, then the same log command succeeds.
+
+### Stale tested source and incomplete open-PR fix
+
+A promotion lane reported eight failing shards. Two independent confusions made the work
+larger than it was.
+
+**Ancestry.** Several repairs for the same nodes were already present in the repository, but
+`git merge-base --is-ancestor <fix> <tested-sha>` returned false for every one of them: the
+run had tested an older head. A red run therefore does not prove that current main is red.
+The cheap check is to bound each candidate fix to the tested commit. A fix that is an
+ancestor cannot explain a new failure. A fix that is not an ancestor means the run is stale
+and a retest on current main comes first.
+
+**Open is not done.** One failing node was a rendering assertion with two independent
+triggers: an unset terminal width, and colour causing the renderer to split the expected
+token across separate escape sequences. Two open pull requests each addressed one trigger.
+Read in isolation, each looked sufficient, and the issue text blamed only the width. Running
+the assertion under each condition separately showed that either fix alone still fails:
+
+| Condition | Untouched | Width fix only | ANSI-strip fix only |
+| --- | --- | --- | --- |
+| Colour forced, default width | fails | fails | passes |
+| `COLUMNS=1`, no colour | fails | passes | fails |
+
+Both landed, and the node went green. The reusable rule is to enumerate the conditions in the
+failing assertion and check the open diff against each one. An open fix is a claim. The
+evidence is a local run per condition.
+
+The source case identifiers and operational details are intentionally omitted. The
+ancestry and per-condition checks are verified-local; the merged pair was later confirmed by
+a successful run of the full profile.
