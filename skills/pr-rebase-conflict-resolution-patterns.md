@@ -1,9 +1,9 @@
 ---
 name: pr-rebase-conflict-resolution-patterns
-description: "Use when a pull request reports DIRTY or CONFLICTING, an active task needs a main artifact to continue, a permitted stacked or same-file rebase needs serialization, conflict status is ambiguous (AA/UU/modify-delete), or a textually clean rebase may hide semantic, test, lint, policy, or inventory drift, or the resolution keeps both sides' guards for one failure mode, or a delete-side commit conflicts with trunk entries added inside the deleted block, or the conflict carries test-pinned values derived from source content that neither side can supply correctly, or the target pull request merged, closed, or lost its source ref between resolution work and the delivery mutation, or every conflict resolves to the current target side because a sibling pull request already delivered the same intent and the reviewed head carries a delivered approval state, or an already-armed auto-merge on the same pull request can fire on the new head as soon as your rebase push turns its checks green."
+description: "Use when a pull request reports DIRTY or CONFLICTING, an active task needs a main artifact to continue, a permitted stacked or same-file rebase needs serialization, conflict status is ambiguous (AA/UU/modify-delete), or a textually clean rebase may hide semantic, test, lint, policy, or inventory drift, or the resolution keeps both sides' guards for one failure mode, or a delete-side commit conflicts with trunk entries added inside the deleted block, or the conflict carries test-pinned values derived from source content that neither side can supply correctly, or the target pull request merged, closed, or lost its source ref between resolution work and the delivery mutation, or two lanes independently created the same file for one issue and the second to merge sees it as `AA` while either copy may be the narrower one, or every conflict resolves to the current target side because a sibling pull request already delivered the same intent and the reviewed head carries a delivered approval state, or an already-armed auto-merge on the same pull request can fire on the new head as soon as your rebase push turns its checks green."
 category: ci-cd
 date: 2026-07-12
-version: "2.5.0"
+version: "2.6.0"
 license: BSD-3-Clause
 user-invocable: false
 tags: [git, rebase, merge-conflict, pull-request, worktree, force-with-lease, semantic-conflict, stacked-pr, ci]
@@ -100,6 +100,22 @@ git show REBASE_HEAD:<path>
 both modified it. For modify/delete, inspect trunk's file and confirm it is still
 the stale artifact the commit intends to delete before running `git rm <path>`.
 
+Two lanes that implement one issue in parallel can each create the same new file,
+and the second to merge then conflicts as `AA`. A smaller file on either side is not
+evidence that it is the narrower one. Prove the relation before you resolve:
+
+```bash
+git diff origin/<trunk> origin/<replayed> -- <path>   # trunk has, replayed lacks
+git diff origin/<replayed> origin/<trunk> -- <path>   # replayed has, trunk lacks
+```
+
+When one direction shows only additions and the other only removals, the copy with
+the additions is the superset and it keeps the capabilities the issue names. Take
+that copy. Do not rebase a subset onto a superset: it reproduces the superset's
+code or regresses it. When the replayed copy is the superset but the trunk copy is
+the reviewed model, re-land the replayed copy as one commit on the trunk's model
+instead of replaying each original commit through its own conflicts.
+
 A replayed commit that deletes a block can conflict with a trunk edit inside that
 same block. Read the deleted block and the trunk delta. Take the deletion when the
 commit removes the whole artifact, for example because the value now comes from a
@@ -126,6 +142,7 @@ Resolve according to intent:
 | Table, map, or block deleted by the replayed commit, with trunk entries added inside it | Take the deletion when the commit retires the whole artifact; take the trunk delta when the commit keeps the artifact | Grep the final tree for the deleted name; any surviving reference is a resolution defect |
 | Policy prose | Pick the chronologically current contract, then update every restatement | Whole-file search and backing test |
 | Every hunk resolves to the target side | Stop before you resolve or push. Prove the sibling delivery and the empty residual, then close the pull request | Sibling merge commit reachable from the target, plus an empty residual diff against the target |
+| `AA` on a file that two lanes created independently for the same issue, where the target copy is smaller than the replayed copy | Do not take the target side on size alone. Diff the two copies in both directions and prove which is the superset. Take the superset; if the replayed copy is the superset, re-land it as one commit on the target model | One direction of the diff shows only target additions, the other shows only replayed-only removals, and the surviving copy keeps every capability the issue names |
 | Already-upstream commit | Skip only after proving no unique delta remains | Empty/trivial trunk diff |
 
 Stage paths explicitly. Do not use `git add .` or `git add -A` in a conflict loop.
