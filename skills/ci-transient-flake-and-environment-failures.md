@@ -1,10 +1,10 @@
 ---
 name: ci-transient-flake-and-environment-failures
 license: BSD-3-Clause
-description: "Use when: (1) a CI job fails non-deterministically and re-running resolves it, (2) a provider-side 5xx makes a supported rerun unavailable, (3) CI passes locally but fails in GitHub Actions, (4) a CI health check wrongly requires developer-local resources, or (5) dependency installation hangs before tests start."
+description: "Use when: (1) a CI job fails non-deterministically and re-running resolves it, (2) a provider-side 5xx makes a supported rerun unavailable, (3) CI passes locally but fails in GitHub Actions, (4) a CI health check wrongly requires developer-local resources, (5) dependency installation hangs before tests start, or (6) a test that asserts rendered CLI help flips between green and red on the same commit because it inherits the terminal width."
 category: ci-cd
 date: 2026-06-17
-version: "1.3.0"
+version: "1.4.0"
 user-invocable: false
 verification: verified-ci
 tags:
@@ -30,6 +30,11 @@ tags:
   - dependency-install
   - runner-hang
   - gh-run-rerun
+  - terminal-width
+  - columns
+  - cli-help
+  - rich
+  - typer
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/ci-transient-flake-and-environment-failures.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -57,6 +62,9 @@ history-cleanup-date: "2026-09-20"
 - A job log and the retry endpoint both report a provider-side 5xx, or a provider-managed analysis reports that it cannot be rerun.
 - A proposed retry workaround hides a failing required check with `|| true` or `continue-on-error`.
   Preserve the result and diagnose the failure under the repository's actual CI policy.
+- The same commit fails one node in one run and passes the same node in the next run,
+  and the node asserts on rendered CLI help or any other text a renderer wraps to the
+  terminal width.
 
 ## Verified Workflow
 
@@ -195,6 +203,54 @@ gh run rerun <run_id> --repo <owner/repo>
 3. **Delete all named volumes** (`podman compose down -v`), **start with CI UID** (`USER_ID=1001 GROUP_ID=1001 podman compose up -d`), then **run the failing test with `-T`**.
 4. **If still not reproducing**, add CI env vars (`CI=true GITHUB_ACTIONS=true`) and check runner resource limits / filesystem (overlay vs native).
 5. **Read the FULL stack trace**, not just the summary. `execution crashed` is a symptom; the real cause (permission error from UID mismatch, missing cache dir, segfault) is in the trace. `fortify_fail_abort` / `__fortify_fail` points to a buffer overflow or permission violation.
+
+#### C2. Terminal-width-dependent assertion in a CLI help test
+
+A test that asserts an option name appears in rendered CLI help can flip between
+green and red on the *same commit*. The renderer wraps its help panel to the
+terminal width, and the test runner takes that width from the environment, which
+differs between a developer shell and a CI runner.
+
+1. **Prove the flip is environmental before you change code.** Compare two runs
+   of the same commit, not two commits:
+
+   ```bash
+   # Same SHA, different conclusions on one node = environment, not a regression.
+   gh api "repos/<owner>/<repo>/actions/runs?branch=<branch>&per_page=10" \
+     --jq '[.workflow_runs[]|select(.name=="<workflow>")][0:3][]|"\(.id) \(.head_sha[0:8])"'
+   gh api "repos/<owner>/<repo>/actions/runs/<run-id>/jobs?per_page=100" \
+     --jq '"failed=\([.jobs[]|select(.conclusion=="failure")|.name]|join(" | "))"'
+   ```
+
+2. **Reproduce the width locally.** Pin the width the runner would have seen. A
+   very small width makes the renderer put one character per line, so a
+   contiguous option name never appears:
+
+   ```bash
+   COLUMNS=1 python -m pytest tests/<test_file>.py::<test_name> -q   # expected: fail
+   COLUMNS=80 python -m pytest tests/<test_file>.py::<test_name> -q  # expected: pass
+   ```
+
+3. **Fix the measurement, not the message.** Pin the width the assertion reads,
+   in the test itself, so the check is about the option name and not the host:
+
+   ```python
+   def test_<name>(<fixture>, monkeypatch):
+       # The renderer wraps to the terminal width; a narrow terminal hides the
+       # option name, so pin the width this assertion is about.
+       monkeypatch.setenv("COLUMNS", "80")
+       result = <fixture>.invoke(["<verb>"])
+       assert result.exit_code != 0
+       assert "--<option>" in result.output
+   ```
+
+4. **Confirm the assertion still fails on the defect.** Revert the fix in a
+   scratch copy and re-run at `COLUMNS=1`. A test that passes both before and
+   after proves nothing about the reported failure.
+
+5. **Do not** widen the renderer, strip ANSI from the output, or assert on the
+   command object instead of the rendered text. Those hide a genuine help-output
+   regression, which is the behaviour the test exists to protect.
 
 #### D. Doctor/health-check script CI guard
 
