@@ -1,10 +1,10 @@
 ---
 name: comet-live-readonly-release-status-probe
 license: BSD-3-Clause
-description: "Probe a live Comet deployment read-only and produce a green/orange/red status matrix for components and release stages. Use when: (1) validating a deployed Comet release without mutating cluster state, (2) building per-component health evidence for `comet` / `comet-admin` / `comet-service`, (3) deciding whether a live failure needs a new issue or a comment on an existing owner, (4) the environment mixes a public client with operator tooling and selector state can be poisoned."
+description: "Probe a live Comet deployment read-only and produce a green/orange/red status matrix for components and release stages. Use when: (1) validating a deployed Comet release without mutating cluster state, (2) building per-component health evidence for `comet` / `comet-admin` / `comet-service`, (3) deciding whether a live failure needs a new issue or a comment on an existing owner, (4) the environment mixes a public client with operator tooling and selector state can be poisoned, (5) the installed public client fails or writes an old file name, but the default branch already holds a fix: compare the deployed client build revision with the branch before you change code."
 category: testing
 date: 2026-10-22
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [comet, live-probe, read-only, status-matrix, deployment-context, sysexits, "401", "408", manifest-perms, issue-triage]
@@ -41,6 +41,9 @@ Use this skill when one of these conditions applies:
   designed nonzero exits as either defects or intended behavior.
 - Findings may already have owning issues, and filing strategy (new issue vs
   evidence comment) matters.
+- An installed public client shows a defect (a schema error on a record the
+  gateway now publishes, or a credential or config file name that current code
+  no longer uses) and the default branch may already contain the fix.
 
 For review of CLI behavior without any cluster access, use
 [comet-cli-offline-review-evidence-reporting](comet-cli-offline-review-evidence-reporting.md)
@@ -121,6 +124,41 @@ install -m 0600 /path/to/manifest "$HOME/.comet-status-probe/"
    unowned defect. Cross-link every matrix row to its issue or to the current
    release verification.
 
+### Stale Published Client Check
+
+Run this check before you edit code or file a defect for any symptom that comes
+from the installed public client.
+
+```bash
+# Build revision of the installed client (its build manifest records it).
+deployed=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["source_sha"])' \
+  <deployment-root>/<context>/client/current/client-manifest.json)
+git fetch origin main
+git rev-list --count "$deployed"..origin/main          # how far behind
+git log origin/main --oneline -S'<symbol-or-literal>'   # when the fix landed
+```
+
+1. If the fix commit is newer than the deployed revision, the cause is a stale
+   published client, not a code defect. Do not write a fix. The correct
+   result is a client republish from the default branch.
+2. Find why the republish did not happen. Read the log of the client publish
+   step of the last release cut. Two causes recur: the publish step failed
+   (a build input was not a git checkout, or a wheel projection removed data
+   that the client imports at load time, so the post-build `--help` smoke test
+   raised), or the step never ran (the in-script client publish is skipped when
+   activation is deferred, so only the manual step publishes the client).
+3. A failed client publish does not stop later release steps unless the
+   release makes it a gate. Check that the tag, docs, and other later steps ran
+   after a failed publish; report that gap as a release-process defect.
+4. Before you open any fix for a named issue, run `git fetch` and search the
+   default branch (`git log origin/main -S<symbol>`) and open pull requests
+   for that issue. A fix may already have merged; a second one conflicts with
+   it and gets closed.
+5. After the republish, verify as a user that is not the service owner:
+   `login`, `whoami`, `status`. The old client and new scripts can disagree on
+   a file name until then. Copy the old file to the new name only as a stopgap,
+   and repeat it after every old-client login.
+
 ### Degraded Conditions
 
 - No `py-spy` / `strace` permissions for a suspected hang: use
@@ -140,6 +178,9 @@ install -m 0600 /path/to/manifest "$HOME/.comet-status-probe/"
 | Client probe with ambient context | `comet smoke` with a stale `COMET_DEPLOYMENT_CONTEXT` inherited from the operator shell | Client resolution followed a retired release path and failed until the variable was unset | Public-client runs start from `env -u COMET_DEPLOYMENT_CONTEXT`; keep the two selector worlds separate |
 | Manifest read from a plain copy | Copied a release manifest into a shared temp dir and ran `release show` | The privacy guard refused: manifests require 0700 directories and 0600 files | Stage probe copies with `install -d -m 0700` / `install -m 0600`; never relax the source |
 | Context path through `current` symlink | Passed `--deployment-context` under the `.../current/...` symlink | Path-sensitive behavior resolved inconsistently until the canonical path was used | Canonicalize with `readlink -f` once, store it, reuse it for the whole session |
+| Fixing the client code for a stale install | Wrote a fix for a client schema error and an old credential file name | The default branch already had both fixes; the installed client was many commits behind because its publish step had failed. The new pull request conflicted with the merged fix and was closed | Compare the deployed build revision with the default branch first; search the branch and open pull requests for the issue before you write code |
+| Local test run with a short Slurm limit | Ran the related tests with a 20-minute `srun` limit | The limit expired while `srun` waited for a busy node, so no test ran | Use a limit of 90 minutes or more for a queued CPU-node run |
+| Stripped-tree import check with an empty data dir | Pointed the packaged data directory at an empty folder to prove the client imports without control-only data | An unrelated required directory was also missing, so the import failed for the wrong reason | The fake data dir keeps every directory that the client ships and omits only the control-only one |
 | Reading 408 as a gateway outage | Classified pool request timeouts as a gateway defect in an early matrix draft | `comet status` showed the gateway up with zero live replicas in that pool; the 408 was designed tempfail semantics | Check gateway liveness and per-pool live counts before classifying any timeout |
 
 ## Results & Parameters
