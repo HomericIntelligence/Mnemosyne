@@ -265,3 +265,18 @@ TMPDIR=/tmp uv run --locked --extra dev pytest <covering tests> -q
 
 The approval evidence was prose in the promotion record. The reviewer accepted it as the
 recorded option. No machine receipt bound it.
+
+## Case: requester's installed copy and a partly failed fetch (v1.7.0)
+
+- Trigger: two requests in one session asked for a behavior change in a setup script ("make install
+  the default", "load the model list dynamically"). The first request came after the requester pasted
+  output with an older version line than the default branch carried.
+- What went wrong: the author's own checkout lagged the default branch, and a fetch ended with a
+  bad-ref error and an incomplete-object message. The author filed a feature issue for each request
+  and started an implementation agent for the first one.
+- What fixed it: the delegated agent compared the version in the fetched default branch with the
+  requester's version, found the behavior merged, made no change, and posted the evidence. The author
+  closed both issues as duplicates.
+- Cost avoided by the early check: one duplicate pull request. Cost paid: two duplicate issues.
+- Decision rule kept in the main entry: require a clean fetch, compare the requester's version with
+  the fetched default branch, and file only for the remaining delta.
