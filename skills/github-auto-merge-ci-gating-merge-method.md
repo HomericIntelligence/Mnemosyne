@@ -10,7 +10,7 @@ description: >-
   after the label changed.
 category: ci-cd
 date: 2026-07-30
-version: "2.5.0"
+version: "2.6.0"
 user-invocable: false
 verification: verified-ci
 license: BSD-3-Clause
@@ -143,6 +143,10 @@ Classify a label-gate failure before you touch content:
 2. Select the run whose `created_at` is after the label mutation for the same head OID. Require a
    success in that run, not in a re-run of an older one.
 3. Arm auto-merge after that success. Do not push, rebase, or edit the label to force a new event.
+
+A draft pull request cannot receive the state label, so a gate that needs the label does not start. Mark the pull request ready first.
+
+CI checks out the pull request head, not a merge with the base. If the base branch merged a new CI script after the branch point, the head lacks that script and lint fails. Merge the base branch into the head. That push moves the head and voids an earlier GO, so review the new head again.
 
 ### Queue ownership and direct review
 
