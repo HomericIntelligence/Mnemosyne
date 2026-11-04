@@ -7,7 +7,7 @@ description: >-
   PR ownership, the unique patch, or the remote retirement state is uncertain.
 category: tooling
 date: 2026-10-13
-version: "2.5.0"
+version: "2.6.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-local
@@ -15,7 +15,7 @@ tags: [git, branch, triage, recovery, stale, superseded, orphan, diverged, merge
   cherry-pick, unrelated-histories, consolidation, squash-merge, stash, auto-merge,
   follow-up-branch, force-with-lease, closed-pr, replacement-pr, stacked-pr, backup-ref,
   exact-head, concurrent-trunk, artifact-provenance, decommission, remote-only-commits,
-  retirement, rebase-conflict, intent-unit, refspec-fetch, tip-claim]
+  retirement, rebase-conflict, intent-unit, refspec-fetch, tip-claim, fork-deletion]
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/git-branch-state-triage-and-recovery.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -42,6 +42,8 @@ The complete superseded source is archived in
 - `merge-base` is absent, a branch contains many HEAD-only files, or consolidation changed paths.
 - A PR merged while review/fixes were in progress, or a merged branch has new uncommitted work.
 - A closed PR cannot be reopened, but its head can be recovered into a replacement PR.
+- PRs whose head lived on a fork turned CLOSED and the fork repository is gone; re-creating a
+  same-named fork does not revive them.
 - A merged PR's branch looks unique because commit SHAs were rewritten.
 - A stacked child includes unrelated commits and must be rebuilt from its current parent.
 - An approved cleanup retires several stale branches, worktrees, or stashes and the local clone
@@ -124,7 +126,7 @@ git log --oneline "$mb"..refs/remotes/origin/<branch>
 | Diverged | Common base exists; local/remote tips differ | Reset/rebuild from the chosen tip, cherry-pick intended commits |
 | Prematurely merged | Old PR is merged; later commits are missing | Fresh trunk branch; replay only missing commits |
 | Merged branch with uncommitted follow-up | PR identity is spent; working tree has a new delta | Stash, fresh trunk branch, pop and verify |
-| Closed unmerged | Head is recoverable but reopen is refused | Rebase/rebuild and open a replacement PR |
+| Closed unmerged | Head is recoverable from a surviving clone or ref but reopen is refused — permanently so when the head fork was deleted | Rebase/rebuild and open a replacement PR |
 | Contaminated stacked child | Child diff contains parent-unrelated commits | Rebuild child from rebased parent |
 
 Use both two-dot and triple-dot views deliberately:
@@ -239,6 +241,16 @@ git push --force-with-lease=refs/heads/<branch>:<old-head> origin HEAD:<branch>
 If GitHub still refuses reopen, create a replacement PR from that recovered branch and link the old
 PR. Do not create a duplicate if the two-dot delta is empty or already on trunk.
 
+Fork deletion is a distinct cause and its refusal is permanent. Deleting the head fork closes its
+open PRs and destroys each PR's head-repository binding. Re-creating a fork under the same name
+makes a new repository with a new identity, so the old binding dangles and `gh pr reopen` fails —
+for example with `GraphQL: Could not open the pull request (reopenPullRequest)` — no matter how
+often it is retried. Do not retry reopen; recover each head from a surviving clone or ref, verify
+the recovered tip equals the PR's recorded `headRefOid`, push it to the new fork, and open a
+replacement PR per affected PR, linking the closed one as superseded. Before deleting a fork with
+open PRs, mirror its branches: if the fork is the only copy of the head commits, the deletion
+destroys them with the PRs.
+
 #### Contaminated stacked child
 
 Record the parent and child heads, preserve a backup ref, rebase the parent first, create a clean
@@ -287,6 +299,7 @@ After push, ensure the PR head, base, and current-head checks match the recovere
 | Trust a point-in-time inventory | Retire branches from the initial local-only inventory | A remote head held commits that no local ref fetched; a parallel stream also created new matching objects mid-operation | Re-enumerate remote and local state at execution; archive remote-unique commits before `push origin --delete`; destroy only enumerated approved items |
 | Start a rebase from a merge-state gate only | Gated a rebase task on `mergeStateStatus` and stopped only on `CLEAN` | A merged PR reports `UNKNOWN`, not `CLEAN`, so the gate passed and the rebase was attempted against a deleted branch | Read `state` with the merge state; a `MERGED` or `CLOSED` PR stops at classification |
 | Trust the tracking ref after a refspec-only fetch | Read `git rev-parse origin/main` right after `git fetch origin refs/heads/main` to decide whether the trunk had moved | The refspec fetch updated `FETCH_HEAD` only; the tracking ref still held a tip dozens of merges behind, and the trunk dependencies had in fact already merged | Refresh with an unqualified fetch or an explicit destination mapping before any tip claim, rebase base, or dependency check; for a published record, bind the tip to the forge branch API |
+| Re-create the fork and retry reopen | Re-created a same-named fork and retried `gh pr reopen` | The PR's head binding points at the deleted repository's identity, which the same-named new repository does not satisfy; the refusal never clears | Fork-deleted PRs can never be reopened; push verified heads to the new fork and open linked replacements immediately |
 
 ## Results & Parameters
 
