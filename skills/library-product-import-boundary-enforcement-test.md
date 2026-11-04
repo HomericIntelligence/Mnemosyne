@@ -1,10 +1,10 @@
 ---
 name: library-product-import-boundary-enforcement-test
 license: BSD-3-Clause
-description: "Test that library imports do not pull product-layer or optional dependencies into the base package. Use isolated import evidence and explicit allowed boundaries."
+description: "Test that library imports do not pull product-layer or optional dependencies into the base package. Use isolated import evidence and explicit allowed boundaries. Also use when a module move could leave a boundary guard matching fewer import forms or fewer files than it did."
 category: testing
 date: 2026-07-01
-version: "1.1.1"
+version: "1.2.0"
 user-invocable: false
 verification: verified-ci
 tags: []
@@ -32,14 +32,19 @@ gating `hephaestus.automation` as an opt-in product layer behind a
 **ProjectHephaestus PR #1730 (issue #1728)** fixed CI collection failures from
 pip jobs that did not install that extra.
 
+The 2026-11 amendment adds the gaps that a large module restructure exposes. A
+boundary guard can pass while it checks less than before. Three forms escape
+the simple recipe: relative imports, files that move into a subdirectory, and
+string-denoted module paths.
+
 The two tests:
 
 1. **Import-surface test (subprocess-isolated)** — assert `import pkg` does NOT
    add forbidden modules to `sys.modules`. Runs in a fresh interpreter because
    pytest pre-pollutes `sys.modules`.
-2. **Static import-grep test** — walk the library tree and flag any
-   `from pkg.product` / `import pkg.product` line, proving the dependency arrow
-   points only one way.
+2. **Static import check** — walk the library tree and flag every import that
+   **resolves** to the product layer, in absolute and relative form. This proves
+   the dependency arrow points only one way.
 
 ## When to Use
 
@@ -75,10 +80,13 @@ test-tree-mirrors-package convention.
 | --- | --- | --- |
 | Assert `import pkg` stays lean | Subprocess import-surface test | Run in `sys.executable -c`, parse a printed `LEAKED:` line — never in-process |
 | Forbidden modules list | `curses`, `pydantic`/`pydantic.*`, `pkg.product.*` | NEVER include `fcntl` — stdlib `pathlib` loads it transitively on POSIX |
-| One-way dependency arrow | Static grep over `LIB_ROOT.rglob("*.py")` | Skip paths whose parts contain the product package name |
+| One-way dependency arrow | AST walk over `LIB_ROOT.rglob("*.py")` | Skip paths whose parts contain the product package name |
 | Gate heavy deps | `[project.optional-dependencies] automation = [...]` | Don't duplicate base deps (e.g. `tzdata`) into the extra |
 | CI collectors for product tests | `pip install -e ".[dev,schema,automation]"` / `pip install -e ".[dev,automation]"` | Add the product extra to pip jobs that import product modules; do not re-add the dep to base |
 | Keep docs honest | ADR / test-docstring / pyproject must agree | Verify enumerated facts (script counts) against the actual codebase |
+| Match every import form | `ast.walk` + `importlib.util.resolve_name(base, package)` | A text check such as `line.startswith("from pkg.product")` misses `from .product import x` |
+| Keep the population current | `Path.rglob("*.py")` or `git ls-files` | A non-recursive `dir/*.py` glob silently drops files that move into a subdirectory |
+| String-denoted module paths | AST check over `patch()` / `setattr()` / `import_module()` literals | Import guards never read them; assert that each target imports before and after a move |
 
 **1. Subprocess-isolated import-surface test.** Run the import in a fresh
 interpreter and parse a printed marker. Doing this in-process is meaningless:
@@ -112,25 +120,53 @@ leaked = [m for m in leaked_line[len("LEAKED:"):].split(",") if m]
 assert not leaked, f"import hephaestus leaked forbidden modules: {leaked}"
 ```
 
-**2. Static import-grep test.** Walk the library tree, skip the product
-subpackage itself, and flag any direct import of the product layer. This proves
-the arrow points only one way (`automation → library`, never the reverse).
+**2. Static import check.** Walk the library tree, skip the product
+subpackage itself, and flag every import that resolves to the product layer.
+This proves the arrow points only one way (`automation → library`, never the
+reverse).
 
 ```python
 from pathlib import Path
+import ast
+import importlib.util
 import hephaestus
 
 LIB_ROOT = Path(hephaestus.__file__).parent
+
+
+def package_of(py: Path) -> str:
+    """Package name of the importing module (its parent directory)."""
+    return ".".join(py.parent.relative_to(LIB_ROOT.parent).parts)
+
+
+def product_imports(py: Path) -> list[str]:
+    """Names that this module imports from the product layer, in any form."""
+    hits = []
+    tree = ast.parse(py.read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        names: list[str] = []
+        if isinstance(node, ast.Import):
+            names = [alias.name for alias in node.names]
+        elif isinstance(node, ast.ImportFrom):
+            base = "." * node.level + (node.module or "")
+            names = [importlib.util.resolve_name(base, package_of(py))]
+        hits.extend(n for n in names if n.startswith("hephaestus.automation"))
+    return hits
+
+
 violations = []
 for py in LIB_ROOT.rglob("*.py"):
     if "automation" in py.relative_to(LIB_ROOT).parts:
         continue  # the product layer may import the library; skip it
-    for lineno, line in enumerate(py.read_text(encoding="utf-8").splitlines(), 1):
-        s = line.strip()
-        if s.startswith(("from hephaestus.automation", "import hephaestus.automation")):
-            violations.append(f"{py.relative_to(LIB_ROOT)}:{lineno}: {s}")
+    for name in product_imports(py):
+        violations.append(f"{py.relative_to(LIB_ROOT)}: {name}")
 assert not violations, "library imports product layer:\n" + "\n".join(violations)
 ```
+
+A text check such as `line.startswith(("from hephaestus.automation", ...))`
+misses `from .automation import models`. Resolve each node instead.
+`importlib.util.resolve_name` raises on a name that cannot resolve; that is a
+defect in the import, so let it raise.
 
 **3. Gate the heavy deps behind an optional extra.** In `pyproject.toml`, the
 product layer's dependencies install only via `pkg[automation]`:
@@ -187,6 +223,24 @@ locally before CI collection fails:
 pixi run pytest tests/unit/ci/test_workflows.py::TestAutomationExtraInstall -v --override-ini=addopts=
 ```
 
+**7. Re-prove each guard after a file move.** A guard can pass while it
+checks less than before. A restructure changes two things at once: the import
+forms the guard accepts, and the file set the guard reads. After you move
+modules:
+
+- Plant a violation in **relative import form** and in a **nested file**. If
+  the guard does not fail, it does not cover the new layout.
+- Replace a non-recursive `dir/*.py` glob with `rglob`. A glob that matches
+  zero files reports success.
+- Check string-denoted module paths (`patch("a.b.c")`,
+  `monkeypatch.setattr("a.b.c")`, `importlib.import_module("a.b")`, config
+  strings). Import guards do not read them.
+
+The first two gaps below were reproduced with a throwaway package before the
+fix was written: the text-prefix check found one product import out of three
+(two were relative), and `stages.glob("stages/*.py")` matched zero files after
+the move while `stages.rglob("**/*.py")` matched both.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -200,6 +254,9 @@ pixi run pytest tests/unit/ci/test_workflows.py::TestAutomationExtraInstall -v -
 | Re-adding `pydantic` to base | Considered treating CI failure as a missing base dependency | That would undo the intentional library/product boundary and make lean base installs pull product deps again | Preserve the boundary; fix the CI environment that exercises product modules |
 | Targeted pytest without clearing repo addopts | Ran a partial pytest command without `--override-ini=addopts=` | The repo coverage gate tripped even though the focused workflow test was the intended verification | For focused local verification in this repo, use `--override-ini=addopts=` |
 | First pixi run under sandbox DNS limits | `pixi run pytest ...` failed with `curl: (6) Could not resolve host: github.com` | Dependency resolution needed network access outside the sandbox | Re-run the same verification with network approval; do not treat DNS failure as test failure |
+| Text-prefix boundary guard | Checked each line with `line.startswith(("from hephaestus.automation", "import hephaestus.automation"))` | Misses `from .automation import x`; a restructure that leans on relative edges passes the guard and ships a silent breach | Walk the AST and resolve each import node with `importlib.util.resolve_name(base, package_of(importing_module))` |
+| Non-recursive glob in a path guard | Scoped a stage guard with `stages.glob("stages/*.py")` | After modules move into `stages/<stage>/`, the glob matches only the files that stayed; the guard passes with less coverage | Use `rglob`, and plant a violation in a nested file to prove the guard still fires |
+| Auditing string targets by regex | Counted `patch("a.b.c")` literals with a grep to claim "all targets updated" | `patch.object`, `monkeypatch.setattr("a.b.c")`, `importlib.import_module("a.b")`, and config strings are invisible to the pattern | Validate every string-denoted module path with an AST check that asserts the target imports |
 
 ## Results & Parameters
 
@@ -256,16 +313,19 @@ result = subprocess.run([sys.executable, "-c", code], check=True, capture_output
 # parse the LEAKED: line, assert empty
 ```
 
-Static grep core:
+Static import core (AST form):
 
 ```python
 LIB_ROOT = Path(hephaestus.__file__).parent
 for py in LIB_ROOT.rglob("*.py"):
     if "automation" in py.relative_to(LIB_ROOT).parts:
         continue
-    for lineno, line in enumerate(py.read_text(encoding="utf-8").splitlines(), 1):
-        s = line.strip()
-        if s.startswith(("from hephaestus.automation", "import hephaestus.automation")):
-            violations.append(...)
+    tree = ast.parse(py.read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.ImportFrom):
+            continue
+        base = "." * node.level + (node.module or "")
+        if importlib.util.resolve_name(base, package_of(py)).startswith("hephaestus.automation"):
+            violations.append(f"{py.relative_to(LIB_ROOT)}:{node.lineno}")
 assert not violations
 ```
