@@ -1,7 +1,7 @@
 ---
 name: architecture-migration-freeze-import-debt-baseline
 license: BSD-3-Clause
-description: "Freeze legacy direct imports during a partial runtime migration with an AST-derived exact consumer/module allowlist and matching ADR policy, and retire each frozen pair by moving the depended-on code down one layer. Use when: (1) an accepted ADR describes a completed abstraction but source still uses legacy provider modules, (2) compatibility imports must remain temporarily without allowing the exception to expand, (3) line-oriented grep would miss nested or function-local imports, (4) documentation must distinguish invocation, response parsing/validation, compatibility exports, and provider-specific failure diagnostics, (5) a policy file must list every allowed upward import edge and the same change pays down one or more edges."
+description: "Freeze legacy direct imports during a partial runtime migration with an AST-derived exact consumer/module allowlist and matching ADR policy, and retire each frozen pair by moving the depended-on code down one layer. Use when: (1) an accepted ADR describes a completed abstraction but source still uses legacy provider modules, (2) compatibility imports must remain temporarily without allowing the exception to expand, (3) line-oriented grep would miss nested or function-local imports, (4) documentation must distinguish invocation, response parsing/validation, compatibility exports, and provider-specific failure diagnostics, (5) a policy file must list every allowed upward import edge and the same change pays down one or more edges, (6) a caller states that a module has no upward imports before a move, (7) an upper module must keep a re-export for its other consumers while the moved unit goes to the lower layer."
 category: architecture
 date: 2026-07-20
 version: "1.2.0"
@@ -24,9 +24,9 @@ tags:
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-07-20 (amended 2026-11-01: retirement by extraction; amended 2026-11-04: premise check for the move scope, file-relative paths, and embedded source) |
+| **Date** | 2026-07-20 (amended 2026-11-01: retirement by extraction; amended 2026-11-04: re-export direction, premise check for the move scope, file-relative paths, and embedded source) |
 | **Objective** | Reconcile an ADR with a partial provider-runtime migration while preventing the remaining direct-import exception from silently expanding. |
-| **Outcome** | Proposed an exact AST-derived consumer/module baseline, automation-only path invariant, and normalized ADR-policy assertion. The Hephaestus source inventory was confirmed read-only, but the documentation and test changes were not implemented. A later amendment adds the retirement path: move the depended-on code down one layer, then delete the allowlist pair. A further amendment adds the move-scope premise check, file-relative path sweep, and embedded-source byte rule, all derived from a read-only planning session. |
+| **Outcome** | Proposed an exact AST-derived consumer/module baseline, automation-only path invariant, and normalized ADR-policy assertion. The Hephaestus source inventory was confirmed read-only, but the documentation and test changes were not implemented. A later amendment adds the retirement path: move the depended-on code down one layer, then delete the allowlist pair. A further amendment adds the move-scope premise check, file-relative path sweep, and embedded-source byte rule. A final amendment adds re-export direction for the product-to-library move, and both 2026-11-04 amendments derive from read-only planning sessions. |
 | **Verification** | unverified — the baseline guard was observed in source; the retirement path comes from one reviewed change whose CI was not observed. |
 
 This pattern is narrower than a general library/product boundary and broader
@@ -204,6 +204,19 @@ direction and lean base import surface, use
      module instead of expanding a package `__init__`.
    - Move one cohesive group of actions per step. Leave unrelated actions in
      place, even when they share a file.
+   - Keep a re-export of the moved unit in the old upper module when many
+      upper-layer consumers remain, but do not re-export when the unit itself
+      must become a lower-layer module. A module under the boundary guard
+      cannot import its old home, so it imports the new lower module directly,
+      and the old upper module re-exports the moved symbols for its remaining
+      consumers. Before you reuse a module-scoped patch, check that the old
+      module is an alias that assigns `sys.modules[name] = implementation`:
+      that alias is the same module object, so the patch still binds the
+      implementation and stays valid.
+   - Verify the premise that the unit has no upward imports. Read its imports
+    before you plan the move. A unit can import its boundary's configuration
+    owner for one symbol family. Retire that edge with the same extraction
+    rule, and confirm the new flow stays below the new home.
    - Update the policy file and the exact pair baseline in the same commit.
      Split consumers of a moved symbol one at a time so the guard never has an
      unrecorded edge.
@@ -271,6 +284,9 @@ heading; it does not make a verification claim.
 | Allow stale baseline entries after migration | Treat the allowlist as a maximum rather than exact state | Removed debt remains documented as acceptable and can be reintroduced silently | Exact equality must reject both additions and removals; update source and baseline together |
 | Retire an upward edge by re-exporting the moved symbol from the old module | Keep `from new_module import helper` inside the old upper module for compatibility | The consumer still imports the upper module, so the frozen pair stays valid and the reported debt is unchanged | Move the unit to a lower module and delete the pair in the same change; do not keep a forwarding shim |
 | Freeze a specific function after its module already holds a whole action family | Add an exemption for one call when the lower module only needs a group of actions | The exemption hides that the code belongs in a lower layer and leaves a permanent, narrow exception | When the dependency is one cohesive group of actions, extract the group to a lower module and shrink the baseline instead of adding an exemption |
+| Trust the caller's "this module has no upward imports" statement | Plan a plain `git mv` from the product layer to the library layer on that premise | The source still imported its product-layer configuration owner for two symbol families, and the library boundary guard rejects the module after the move | Read the imports before you plan the move. Retire each upward edge by extraction first, and check that the extracted unit does not import its own new home |
+| Remove the re-export because the skill says not to forward | Delete the moved symbols from the old upper module in the same change | The old upper module is the canonical owner for many remaining consumers, and the library guard also rejects a re-export of the product layer | Re-export only when the unit moves from lower to higher. When the unit becomes a lower-layer module, the old upper module owns the re-export and the moved module imports the lower module directly |
+| Retarget every patch of an alias module | Rewrite each string patch to the implementation module | Most patches still bind the same module object because the alias assigns `sys.modules[name] = implementation`, so the retarget adds churn without a behavior change | Check the alias form first. Retarget only the patches that resolve through a name the alias does not rebind |
 | Retarget only the source after moving a symbol | Patch the old import site in tests and trust the green result | The patch targets a name the moved code no longer reads, so the test passes without exercising the stub | Retarget each patch, mock, and monkeypatch boundary to the new import site in the same change |
 | Accept the issue's "zero upward imports" claim | Planned a three-module move from the issue text | One module still imported two product-layer modules, so the zero-edge criterion was unreachable, and two lower modules were missing from the list | Scan the imports of every named module before planning the move, then add the lower modules they depend on |
 | Assume a locked digest covers embedded source | Planned a digest update for long embedded source strings | The lock digests covered external artifacts only; no digest or test hashed the embedded strings, so an update had nothing to update | Test whether a digest covers the bytes before planning a regeneration; if none does, move byte-exactly and do not reformat |
@@ -313,3 +329,4 @@ after the corresponding PR's CI succeeds.
 | ProjectHephaestus | Issue #2233 implementation planning and review | Read-only source inventory confirmed on 2026-07-20; no implementation PR, focused test run, or CI result was available. |
 | An isolated service-restructuring checkout | Upward service-to-command-layer edges, 2026-11-01 | One change moved a cohesive action group out of the command-layer module into a new lower module, updated the layer-policy file, and retargeted the affected test patches. CI was not observed in the learning session, so no verification claim is made. |
 | A layered Python repository | Provider-runtime move planning, 2026-11-04 | Read-only planning. The zero-upward-import premise failed for one of three named modules; the plan added the two lower modules that the edge required. The locked digests did not cover the embedded source strings, and one `__file__`-relative sibling path needed a rewrite. No implementation, test run, or CI result was available. |
+| Planning session for a product-layer-to-library move | Read-only plan inspection of the product-to-library direction, 2026-11-04 | The caller's "no upward imports" premise was false for one of three modules. The module imported its product-layer configuration owner and an alias to a library module. The plan needed an extraction of the cohesive session-and-model family to a new library module, an alias check before patch retargeting, and a re-export in the product layer for the other consumers. No implementation, test run, or CI was observed. |
