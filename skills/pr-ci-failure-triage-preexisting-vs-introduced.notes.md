@@ -187,3 +187,16 @@ base comparison, and the hosted result went into the pull request body.
 
 The counter-signal matters. The same error label also appears for a real identity change. A probe
 value of `2` with a continuing failure means the guard is correct and the tree moved.
+
+## Concurrent-writer wait detail
+
+| Signal | Detail | Verification |
+| --- | --- | --- |
+| Same prompt, two sessions | Two attended sessions received an identical request to fix every failing check on one promotion pull request. Both classified the same 8 red checks as pre-existing `main` defects, because the pull request was a `main` to release-lane promotion and its head was the `main` tip. Neither session could fix it on the pull request branch. | `verified-local`: pre-session check rollup and the other session's own report, both read from the forge. |
+| The other lane moved | Between 15:41 and 19:46 the default branch advanced about 20 times. Each push was a repair for one of the classified reds (a pin test, a process-wide stub leak, a fixture, an ADR map), and each push re-ran the same workflows at increasing timestamps. | `verified-local`: branch commit enumeration and run listing by branch. |
+| A quiet window did not prove the lane finished | The tip held unchanged for 25 minutes on three occasions. On the third, a push landed 1 minute after the window closed. In the same session, an earlier 12-minute quiet window was followed by four pushes in 13 minutes. | `verified-local`: the wait loop's own per-minute state log. |
+| Zero published reviews | The watched pull request held 0 published reviews for the whole session (4 hours 5 minutes). The other session drove to merge without a review round, so the review count never became a useful second signal. | `verified-local`: repeated `pulls/<N>/reviews` count reads. |
+| Outcome | The artifact merged at 19:39, during the wait, by the concurrent lane. The waiting session made no code change and reported the delivered state. | `verified-ci`: pull request state read showing a merge 17 minutes before the final verification read. |
+
+Disposition: the session stayed read-only, recorded the concurrent-writer
+window, and added Section 9.3 with a two-signal, 45-minute quiet test.
