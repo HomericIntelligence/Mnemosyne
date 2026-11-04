@@ -1,10 +1,10 @@
 ---
 name: ci-transient-flake-and-environment-failures
 license: BSD-3-Clause
-description: "Use when: (1) a CI job fails non-deterministically and re-running resolves it, (2) a provider-side 5xx makes a supported rerun unavailable, (3) CI passes locally but fails in GitHub Actions, (4) a CI health check wrongly requires developer-local resources, (5) dependency installation hangs before tests start, or (6) a test that asserts rendered CLI help flips between green and red on the same commit because it inherits the terminal width."
+description: "Use when: (1) a CI job fails non-deterministically and re-running resolves it, (2) a provider-side 5xx makes a supported rerun unavailable, (3) CI passes locally but fails in GitHub Actions, (4) a CI health check wrongly requires developer-local resources, (5) dependency installation hangs before tests start, or a stuck run ignores a normal cancel, or (6) a test that asserts rendered CLI help flips between green and red on the same commit because it inherits the terminal width."
 category: ci-cd
 date: 2026-06-17
-version: "1.4.0"
+version: "1.5.0"
 user-invocable: false
 verification: verified-ci
 tags:
@@ -111,6 +111,10 @@ npx --no-install playwright install chromium
 # If the same install path passed elsewhere and this run is stuck:
 gh run cancel <run_id> --repo <owner/repo>
 gh run rerun <run_id> --repo <owner/repo>
+
+# If the cancel is accepted but the run stays in_progress, the runner is not answering:
+gh api -X POST repos/<owner>/<repo>/actions/runs/<run_id>/force-cancel
+gh run rerun <run_id> --repo <owner/repo> --failed   # only after status is completed; keeps the passed jobs
 ```
 
 ### Detailed Steps
@@ -313,7 +317,30 @@ differs between a developer shell and a CI runner.
    install paths passed on main, sibling jobs, or a subsequent PR attempt, cancel the
    stuck run and rerun it on a fresh runner instead of waiting indefinitely.
 
-5. **Only edit code/tests after reproduction.** If the rerun reaches the test step
+5. **Force-cancel when the cancel is ignored.** A hung runner step can accept
+   `gh run cancel` and still stay `in_progress`. Poll the run for about a minute. If
+   it does not reach `completed`, call the force-cancel endpoint
+   (`POST /repos/<owner>/<repo>/actions/runs/<run_id>/force-cancel`). A rerun is
+   refused while the run is still active. After the run is `completed` with
+   conclusion `cancelled`, use `gh run rerun --failed`. It keeps the jobs that
+   already passed and reruns only the cancelled and failed ones.
+
+6. **Prevent the next hang with bounded steps.** GitHub waits for the job limit
+   (360 minutes by default) when a step has no timeout.
+   - Give each package-install step a step `timeout-minutes` (about 10).
+   - Run the package commands in a loop of 3 attempts. Put each attempt under
+     `timeout` (for example 120 s for an index update and 300 s for an install)
+     with `--kill-after` so a process that ignores TERM is still ended. Sleep a
+     few seconds between attempts. Print a clear error and exit 1 after the third
+     failure. Keep the commands in an `if A && B; then` list so `set -e` does not
+     end the loop on the first failed attempt.
+   - Give each test job a `timeout-minutes` of about two to three times the
+     longest real run, taken from the run history. Do not guess. If a job has no
+     full run in the history, leave it and record the gap.
+   - Keep the tests that guard the workflow structural: assert that the timeout
+     key and the retry loop exist, not their numbers.
+
+7. **Only edit code/tests after reproduction.** If the rerun reaches the test step
    and fails deterministically with logs, treat that as a real code/test failure.
    Until then, classify the problem as pre-test infrastructure.
 
@@ -334,6 +361,8 @@ differs between a developer shell and a CI runner.
 | Debug tests before dependency install completed | Treated the failing check as a test failure | The test command never ran, so editing tests or assertions could not affect the failure | Classify pre-test dependency-install hangs separately from deterministic test failures |
 | Keep `playwright install --with-deps chromium` after a long CI hang | Waited on the apt/system dependency path even though the runner baseline installed browsers in seconds | The optional `--with-deps` path was the variable and could hang before browser smoke tests started | If runner system deps are already adequate, install the pinned browser only and verify fresh CI |
 | Wait indefinitely on Python dependency install hangs | Assumed enough time would eventually produce logs | The same install path passed on a fresh runner attempt; the stuck attempt consumed CI time without new evidence | After proving a pre-test install hang is transient, cancel and rerun on a fresh runner |
+| Cancel a hung run once and wait | Ran `gh run cancel` and waited for the run to end | The runner was not answering, so the run stayed `in_progress` for hours and a rerun was refused | Poll for about a minute, then use the force-cancel endpoint, then `gh run rerun --failed` |
+| Rely on the default job timeout for an install step | Left the step and the job without a timeout | A stuck package install held the job for hours and blocked required checks | Add a step timeout, a bounded retry loop, and a job timeout from the run history |
 | Create an empty commit when a provider-managed job cannot rerun | Tried to force a new analysis without a source change | It changes implementation-branch history without fixing the provider outage, and some provider-managed scans reject reruns entirely | Preserve the SHA; use only supported reruns, then wait for recovery or a legitimate update |
 
 ## Results & Parameters
@@ -399,6 +428,7 @@ if [[ "${CI:-}" == "true" ]]; then ...  # skip developer-local checks
 | Durable frontend fix | Replaced `playwright install --with-deps chromium` with `playwright install chromium`; fresh CI installed in about 12 seconds and browser smoke passed |
 | Python coverage install hang | Original Dependabot PR #890 had coverage dependency install hang before tests; canceling and rerunning produced a green second attempt |
 | Backend dependency install hangs | PR #904 attempt 1 had backend dependency-install jobs stuck before tests; canceling and rerunning produced a green second attempt |
+| Ignored cancel | A package install step on a hosted runner stayed stuck for hours; the normal cancel was accepted and ignored. The force-cancel call ended the run, and `gh run rerun --failed` then passed in minutes while the jobs that had already passed stayed green |
 | Classification rule | When the stuck step is dependency installation and test steps are pending, do not edit tests until a fresh run reaches the test command and fails deterministically |
 
 ## Verified On
