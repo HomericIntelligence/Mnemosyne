@@ -210,11 +210,11 @@ direction and lean base import surface, use
       module is an alias that assigns `sys.modules[name] = implementation`:
       that alias is the same module object, so the patch still binds the
       implementation and stays valid.
-    - Verify the premise that the unit has no upward imports. Read its imports
-      before you plan the move. A unit can import its boundary's configuration
-      owner for one symbol family. Retire that edge with the same extraction
-      rule, and confirm the new flow stays below the new home.
-    - Update the policy file and the exact pair baseline in the same commit.
+   - Verify the premise that the unit has no upward imports. Read its imports
+    before you plan the move. A unit can import its boundary's configuration
+    owner for one symbol family. Retire that edge with the same extraction
+    rule, and confirm the new flow stays below the new home.
+   - Update the policy file and the exact pair baseline in the same commit.
      Split consumers of a moved symbol one at a time so the guard never has an
      unrecorded edge.
    - Replace test patches that target the old import site with patches on the
