@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Coordinate stacked PR rebases when rewritten base commits, branch deletion, shared-file conflicts, or worktree ownership complicate delivery."
 category: tooling
 date: 2026-07-10
-version: "1.1.1"
+version: "1.2.0"
 user-invocable: false
 verification: verified-ci
 tags:
@@ -46,6 +46,7 @@ This skill is specifically the rebase-merge-only stack-orchestration workflow.
 - Multiple parallel agents each own a worktree + branch, dependent work is stacked on its dependency's branch, and shared registry-style files (CLAUDE.md status docs, `__init__` re-exports, changelogs/followup ledgers, regenerated reports) conflict on every rebase.
 - You need to guarantee no conflict markers ever reach main (pre-`--continue` checks + CI guard).
 - A new task needs a fresh pin to `origin/main` after several rebase-merges.
+- A pushed or labelled PR shows only one or two checks and no test jobs start after sibling PRs merged: the PR conflicts with the base (see step 9).
 - `gh pr diff` shows a stale diff right after a push, `gh pr merge --delete-branch` can't delete a worktree-held local branch, or CI-polling loops start hitting GraphQL rate limits.
 
 ## Verified Workflow
@@ -124,10 +125,20 @@ gh pr view <N> --json headRefOid --jq .headRefOid   # must match before trusting
    - `gh pr diff N` immediately after `git push` can serve a **stale** diff. Confirm `gh pr view N --json headRefOid` matches `git rev-parse HEAD` before trusting it.
    - GitHub GraphQL rate limit (~5000/hr) is easy to exhaust with tight CI-polling loops across many PRs. Poll at 45–60 s with backoff, tolerate transient `i/o timeout` and `rate limit` lines, and run one poll loop per PR — not one per check.
 
+9. **A conflicting PR gets no CI; a rebase must be re-signed and leased.** When sibling PRs merge first and a PR now conflicts with its base, GitHub builds no merge commit, so the `pull_request` workflows never start. The symptom is CI silence after a push, not a red check. Read `gh pr view N --json mergeable,mergeStateStatus`; `CONFLICTING` or `DIRTY` means rebase before you expect any result. Rules for the rebase:
+   - Keep both behaviors when you resolve: the merged change and your own.
+   - A rebase drops commit signatures. Re-sign every commit (`git rebase --exec 'git commit --amend --no-edit -S -s' <base>`), then verify each one on the host (`gh api repos/<owner>/<repo>/commits/<sha> --jq .commit.verification.verified` must print `true`).
+   - Push only your own branch, with `--force-with-lease` bound to the old head. For a stacked PR, rebase the base first, then each dependent onto the new base head, and retarget a dependent to the default branch after its base merges.
+   - A test double that wraps a function whose signature changed on the base (an extra keyword argument, for example) raises a `TypeError` after the rebase. A catch-all `except` that counts unexpected errors shows it as a counter such as `unexpected_error=2`. Read that counter first.
+   - A required aggregate job that fails with "required job did not succeed" is a summary of the real failing jobs. A label-gate failure from a run that started before the label was added is expected: only the run after the label counts.
+   - When the CPU queue blocks local tests, open the PR with validation pending, let CI be the first run, extract the failing test names from the job logs (`gh api --allow-escape-sequences repos/<owner>/<repo>/actions/jobs/<id>/logs`, strip ANSI), and send the exact failure to the author.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 |---------|----------------|---------------|----------------|
+| Wait for CI on a conflicting PR | Pushed a fix and waited for test jobs | The PR conflicted with the base after sibling merges, so no workflow started; the one visible check hid the cause | CI silence means look at `mergeable`; rebase first |
+| Rebase without re-signing | Rebased a branch after a base merge | The rebase dropped the signatures, and a signed-commit rule would reject the PR | Re-sign every commit in the rebase and verify on the host before you report it done |
 | Merge stack bottom-up without retargeting | Merged a stack-base PR with `--delete-branch` while dependent PRs still targeted its branch | Rebase-merge deleted the base branch; GitHub CLOSED (did not retarget) the stacked PRs, and a closed PR's base cannot be changed — unrecoverable, required opening brand-new PRs | Retarget EVERY still-open stacked PR to main (`gh pr edit N --base main`) BEFORE merging anything below it |
 | Plain `git rebase origin/main` on a dependent branch | Rebased the dependent after its base was rebase-merged into main with conflict resolutions | The base's commits on main were no longer patch-identical, so the rebase re-conflicted on all the base's commits — a full conflict replay | `git rebase --onto origin/main <old-base-sha> <branch>` replays only the branch's own commits (avoided the replay twice) |
 | `git add -A` + truncated status check during rebase | Staged everything, verified with `git status --short \| head -3`, then `git rebase --continue` | The still-conflicted file was below the `head -3` cutoff; conflict markers were committed and reached main via the rebase-merge | Before every `--continue`: `git diff --name-only --diff-filter=U` empty AND `git grep -nE '^(<<<<<<< \|>>>>>>> )'` empty; add the CI guard as a backstop |
