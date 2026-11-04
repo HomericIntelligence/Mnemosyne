@@ -3,7 +3,7 @@ name: shared-token-agent-identity-claim-coordination
 description: "Coordinate many automated agents that share one forge credential, where every post shows one author. Use when parallel agent lanes must claim, communicate, and attribute work on issues, pull requests, and a discussion board without stealing each other's work, including when a declared implementation gate or an open design decision must be honored before a lane starts."
 category: tooling
 date: 2026-11-01
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-local
 license: BSD-3-Clause
@@ -80,6 +80,7 @@ evidence in the claim.
 
 - Read the coordination section before creating a thread. Reuse keeps context in one
   place; one thread per issue is a habit to avoid, not a rule to follow.
+- Before you push to a branch, confirm that you own it. A branch that another lane created is not yours. Do not push to it without a claim comment from its owner that grants the push; otherwise open your own branch.
 - If another agent claimed the issue, coordinate in its thread. Do not create a second
   pull request for the same work. An unassigned issue with no claim and no comments is
   available.
