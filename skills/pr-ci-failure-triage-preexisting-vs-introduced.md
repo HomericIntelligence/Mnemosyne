@@ -1,9 +1,9 @@
 ---
 name: pr-ci-failure-triage-preexisting-vs-introduced
-description: "Classify red PR checks as introduced, pre-existing, flaky, environmental, stale-commit, or status-rollup artifacts before fixing or rerunning. Use after rebases/force-pushes, unrelated failures, merge-preview coverage changes, or hosted-only process-launch errors. Also use when the required check is a fan-in gate reported by a ruleset, when the failing symbol on the base was deliberately removed, when a base update turns a green branch red without a textual conflict, when grouped or sharded logs hide individual failed node identities, when failures reproduce only on the local host, or when a path-filtered check fails on stale in-repo plan inputs that main already repaired. Also use when an aggregate gate fails its own report step because a producer job output key is absent from `needs` while every upstream job succeeded. Also use when a green comparison lane may never execute the failing node because event-scoped profiles or shard planners select different test sets on identical trees. Also use when the default branch's CI is red at or immediately after your squash merge and a task gate requires green main CI before you report, or when per-commit run lookups return empty because the branch does not run every push. Also use when only some failing nodes reproduce on a pristine trunk worktree, or when a test fails as an absent exception because a derived identity stopped covering the edited dimension. Also use when a pre-existing classification leaves a follow-up-issue obligation while an aggregate tracker may already own the failing group — dedupe against open trackers before filing. Also use when a rebase or push gate must decide whether a red local run of the change's own test files belongs to the rebased head or reproduces unchanged at the pristine base commit. Also use when a content guard fails with an expected-versus-actual version or constant mismatch that you did not edit, or when your change's own content checks pass but one repository-wide guard fails on an unchanged file. Also use when a fail-closed guard asserts a stat invariant such as a directory `st_nlink >= 2` and a whole module goes red on this host, because a shared-storage mount can report metadata values a local filesystem cannot produce."
+description: "Classify red PR checks as introduced, pre-existing, flaky, environmental, stale-commit, or status-rollup artifacts before fixing or rerunning. Use after rebases/force-pushes, unrelated failures, merge-preview coverage changes, or hosted-only process-launch errors. Also use when the required check is a fan-in gate reported by a ruleset, when the failing symbol on the base was deliberately removed, when a base update turns a green branch red without a textual conflict, when grouped or sharded logs hide individual failed node identities, when failures reproduce only on the local host, or when a path-filtered check fails on stale in-repo plan inputs that main already repaired. Also use when an aggregate gate fails its own report step because a producer job output key is absent from `needs` while every upstream job succeeded. Also use when a green comparison lane may never execute the failing node because event-scoped profiles or shard planners select different test sets on identical trees. Also use when the default branch's CI is red at or immediately after your squash merge and a task gate requires green main CI before you report, or when per-commit run lookups return empty because the branch does not run every push. Also use when only some failing nodes reproduce on a pristine trunk worktree, or when a test fails as an absent exception because a derived identity stopped covering the edited dimension. Also use when a pre-existing classification leaves a follow-up-issue obligation while an aggregate tracker may already own the failing group — dedupe against open trackers before filing. Also use when a rebase or push gate must decide whether a red local run of the change's own test files belongs to the rebased head or reproduces unchanged at the pristine base commit. Also use when a content guard fails with an expected-versus-actual version or constant mismatch that you did not edit, or when your change's own content checks pass but one repository-wide guard fails on an unchanged file. Also use when a second lane drives the identical artifact from the identical prompt and pushes or reruns checks during your session. Also use when a fail-closed guard asserts a stat invariant such as a directory `st_nlink >= 2` and a whole module goes red on this host, because a shared-storage mount can report metadata values a local filesystem cannot produce."
 category: ci-cd
 date: 2026-11-02
-version: "2.12.0"
+version: "2.13.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-ci
@@ -380,6 +380,12 @@ the real payload. Do not amend an arbitrary tip when the unwanted commit is lowe
 - Confirmed flake: rerun only failed jobs after recording the signature.
 - Pre-existing required failure: fix main separately when practical; otherwise use only an
   explicitly authorized governance path and file a linked tracking issue.
+- Concurrent writer on the same artifact: when a second lane drives the
+  identical task on the identical pull request, and that lane pushes, reruns
+  checks, or publishes review rounds during your session, do not write. The
+  shared head moves under you, your check reads go stale on each push, and both
+  lanes repair the same reds. Ask the requester to name one owner, and until
+  then stay read-only and let the active writer finish (Section 9.3).
 - Trigger-scoped stale-plan-input failure already repaired on current main: take a base
   update under the repository's task-base policy (record the reason plus old and new base
   and head commits, then rebind verification to the new head). Do not patch the PR's own
@@ -437,6 +443,89 @@ Under a "watch main CI green" gate with pre-existing breakage, the owning lane u
 lands a repair commit at a newer tip (a fix naming the failing area). Watch that tip's
 run to green and record its identifier as the gate evidence; the green belongs to the
 repair, not to your patch.
+
+### 9.3 Wait out a concurrent writer on the same artifact
+
+A task can reach two agent sessions at the same time: one session is asked to
+fix the red checks on a pull request while another session drives the same pull
+request, or two lanes are dispatched to the same issue. The symptoms are:
+
+- the default branch advances while you work: `git log --oneline <your-base>..origin/main`
+  gains commits that name the same failing nodes;
+- the pull request head changes under you: pushes land while you inspect;
+- checks re-run for heads you have not seen: the same workflow name appears
+  repeatedly at increasing timestamps;
+- a review has not been published yet, but runs and pushes keep coming.
+
+Do not compete with the active writer. Do not start a worktree, do not fix the
+same nodes, and do not publish a review round, a comment, or a label. Your
+check reads go stale on each push, and both lanes repair one red set.
+
+Confirm the instruction with the requester. Give the three states:
+
+- **wait**: the attended session stays read-only and rechecks at long
+  intervals (tens of minutes), then takes the remainder when the writer goes
+  quiet;
+- **proceed anyway**: the session starts work at once, knowing the other
+  session may publish against a stale head;
+- **safe parts only**: the session does the PR-side no-code work (an approval
+  marker on the pull-request body, a classification report) and changes no
+  source.
+
+When the requester picks "wait", watch for quiet with a cadence that changes
+with the signal, and record what you observed:
+
+- one quiet observation, for example a single unchanged `main` tip, does not
+  prove the other lane is finished;
+- a tip that held unchanged for 25 minutes on three successive occasions, with
+  a push on the fourth, showed that a quiet window in an active session is not
+  exhaustion;
+- a lane that pushes every 10 to 30 minutes can be silent for 15 to 20 minutes
+  without being finished.
+
+A robust quiet test needs a long window and two signals, not one. Require
+about 45 minutes with both signals unchanged:
+
+- `gh api repos/<owner>/<repo>/commits?sha=main&per_page=1 --jq '.[0].sha'`
+  (the default-branch tip), and
+- `gh api repos/<owner>/<repo>/pulls/<N>/reviews?per_page=100 --jq 'length'`
+  (the count of published reviews on the pull request under review).
+
+Sample every few minutes by default and less often (for example every 15
+minutes) while a lane is still active. Guard the sample with a short timeout,
+because the forge read can hang:
+
+```bash
+while :; do
+  rev=$(timeout 60 gh api repos/<owner>/<repo>/commits?sha=main&per_page=1 --jq '.[0].sha' 2>/dev/null)
+  rn=$(timeout 60 gh api repos/<owner>/<repo>/pulls/<N>/reviews?per_page=100 --jq 'length' 2>/dev/null)
+  cur="${rev:0:8}:$rn"
+  if [ "$cur" = "$last" ]; then stable=$((stable+1)); else stable=0; fi
+  last="$cur"
+  [ "$stable" -ge 45 ] && { echo "IDLE after 45 quiet minutes: $cur"; break; }
+  sleep 60
+done
+```
+
+After the quiet window, rebind everything before you act:
+
+1. Read the current pull request head. Any diagnosis, failing-node list, or
+   artifact binding you made against an older head is stale.
+2. Re-run the failure collection for the new head. The overlap is partial:
+   fixes land in waves, so most of your earlier list is already closed and a
+   few nodes remain.
+3. Check the remaining reds against open work: search open pull requests by
+   title and issue labels, and check open issues for a tracker that already
+   owns the group before you file one.
+4. Verify whether the artifact already merged while you waited. If it did,
+   stop: a merged target needs no review round, comment, or label, and a later
+   verification read of one that merged is a report of the delivered state,
+   not new work. See `pr-drive-stop-on-already-merged.md`.
+
+Note the limit of this rule. It does not replace the workflow that binds one
+review publisher per round. Two terminals published a few seconds apart fork
+the review history, and the correct repair is a supersession, not silence;
+see `agents-pr-review-forked-terminal-verdict-supersession.md`.
 
 ### Guidance retained from an absorbed history
 
@@ -523,6 +612,10 @@ operational verification.
 - Mount metadata probe: `mkdir -p D/parent/child; stat -c '%n nlink=%h' D/parent`. A value
   of `1` classifies the failure as mount-reported metadata; `2` keeps it a real identity change.
   Record the probe output with the failure-set equality.
+- Concurrent-writer quiet test: two signals must hold unchanged for about 45 minutes
+  before you treat a second lane as finished. The default-branch tip alone is
+  insufficient, and a 25-minute quiet window is not; the other lane pushed one
+  minute after the third such window in one observed session.
 
 ## Evidence Boundary
 
