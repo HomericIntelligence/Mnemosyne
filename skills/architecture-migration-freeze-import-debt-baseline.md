@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Freeze legacy direct imports during a partial runtime migration with an AST-derived exact consumer/module allowlist and matching ADR policy, and retire each frozen pair by moving the depended-on code down one layer. Use when: (1) an accepted ADR describes a completed abstraction but source still uses legacy provider modules, (2) compatibility imports must remain temporarily without allowing the exception to expand, (3) line-oriented grep would miss nested or function-local imports, (4) documentation must distinguish invocation, response parsing/validation, compatibility exports, and provider-specific failure diagnostics, (5) a policy file must list every allowed upward import edge and the same change pays down one or more edges."
 category: architecture
 date: 2026-07-20
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: unverified
 tags:
@@ -24,9 +24,9 @@ tags:
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-07-20 (amended 2026-11-01: retirement by extraction) |
+| **Date** | 2026-07-20 (amended 2026-11-01: retirement by extraction; amended 2026-11-04: premise check for the move scope, file-relative paths, and embedded source) |
 | **Objective** | Reconcile an ADR with a partial provider-runtime migration while preventing the remaining direct-import exception from silently expanding. |
-| **Outcome** | Proposed an exact AST-derived consumer/module baseline, automation-only path invariant, and normalized ADR-policy assertion. The Hephaestus source inventory was confirmed read-only, but the documentation and test changes were not implemented. A later amendment adds the retirement path: move the depended-on code down one layer, then delete the allowlist pair. |
+| **Outcome** | Proposed an exact AST-derived consumer/module baseline, automation-only path invariant, and normalized ADR-policy assertion. The Hephaestus source inventory was confirmed read-only, but the documentation and test changes were not implemented. A later amendment adds the retirement path: move the depended-on code down one layer, then delete the allowlist pair. A further amendment adds the move-scope premise check, file-relative path sweep, and embedded-source byte rule, all derived from a read-only planning session. |
 | **Verification** | unverified — the baseline guard was observed in source; the retirement path comes from one reviewed change whose CI was not observed. |
 
 This pattern is narrower than a general library/product boundary and broader
@@ -51,6 +51,9 @@ consumer must be rejected until explicitly justified.
   change removes one or more edges without breaking the guard.
 - An upper-layer module imports a lower-layer module only for one cohesive
   group of actions, so the lower module can own that group instead.
+- A requested move names a module, and that module still imports the product
+  layer. The premise "the module has zero product imports" is a claim to check,
+  not evidence: read the imports before you accept the scope.
 
 Do not use this pattern to authorize new legacy dependencies. For a single
 pure symbol imported from a normally forbidden module, prefer the narrower
@@ -208,6 +211,45 @@ direction and lean base import surface, use
      new site. A patch on a stale site passes while the moved code runs
      unpatched.
 
+10. **Test the "zero upward imports" premise before you accept the move scope.**
+    A move list that states a module has no product-layer imports can be wrong.
+    Run an AST import scan over each named module, including function-local
+    imports, and record every product-layer edge. When an edge exists, the move
+    cannot satisfy the zero-upward-import criterion under a strict layer guard.
+    Select one branch from the edge and record it:
+
+    - Move the depended-on module down too. Use this branch when the lower
+      module has no product imports and its own consumers stay in the product
+      layer. The dependency direction then stays automation → library.
+    - Extract only the needed symbols into a lower module and re-export them
+      from the old upper module. Use this branch only when the upper module has
+      other product-layer responsibilities that must stay.
+    - Do not add a forwarding shim to the new lower module and call the move
+      done. The consumer edge remains, and the criterion stays false.
+
+    Record the selected branch and the reason in the plan. The first branch
+    makes the issue scope larger than its file list; state that difference
+    explicitly for review.
+
+11. **Sweep file-relative paths and embedded source before the move.** A move
+    changes `__file__`-relative navigation. Do this pre-check per moved file:
+
+    - Find every `Path(__file__)` expression. Each `.parent` count changes when
+      a sibling module becomes a package sibling instead of a parent-relative
+      path. Update the expression in the same commit.
+    - Find long embedded source strings and runtime-constructed modules. First
+      test whether a locked digest, a test hash, or a packaging manifest covers
+      their bytes. If no digest covers them, keep the move byte-exact with
+      `git mv` and no reformatting. If a digest covers them, regenerate the
+      digest in the same change and say so in the plan.
+
+12. **Keep the lower package lazy.** A strict import-surface guard usually
+    forbids the base import from loading the moved modules. Change the imports
+    inside the moved files and their consumers only. Do not add eager imports
+    to the lower package `__init__`, and re-run the import-surface test after
+    the move. Confirm that optional third-party imports in the moved files stay
+    function-local; otherwise the base import gains a dependency.
+
 ## Verified Workflow
 
 _Not applicable._ This skill was captured from a planning and review session
@@ -230,6 +272,9 @@ heading; it does not make a verification claim.
 | Retire an upward edge by re-exporting the moved symbol from the old module | Keep `from new_module import helper` inside the old upper module for compatibility | The consumer still imports the upper module, so the frozen pair stays valid and the reported debt is unchanged | Move the unit to a lower module and delete the pair in the same change; do not keep a forwarding shim |
 | Freeze a specific function after its module already holds a whole action family | Add an exemption for one call when the lower module only needs a group of actions | The exemption hides that the code belongs in a lower layer and leaves a permanent, narrow exception | When the dependency is one cohesive group of actions, extract the group to a lower module and shrink the baseline instead of adding an exemption |
 | Retarget only the source after moving a symbol | Patch the old import site in tests and trust the green result | The patch targets a name the moved code no longer reads, so the test passes without exercising the stub | Retarget each patch, mock, and monkeypatch boundary to the new import site in the same change |
+| Accept the issue's "zero upward imports" claim | Planned a three-module move from the issue text | One module still imported two product-layer modules, so the zero-edge criterion was unreachable, and two lower modules were missing from the list | Scan the imports of every named module before planning the move, then add the lower modules they depend on |
+| Assume a locked digest covers embedded source | Planned a digest update for long embedded source strings | The lock digests covered external artifacts only; no digest or test hashed the embedded strings, so an update had nothing to update | Test whether a digest covers the bytes before planning a regeneration; if none does, move byte-exactly and do not reformat |
+| Keep the `__file__`-relative path after a sibling move | Expected the move to be import-only | The path resolved through a parent directory that no longer held the sibling module | Scan every `Path(__file__)` expression in each moved file and rewrite it against the new package position |
 
 ## Results & Parameters
 
@@ -267,3 +312,4 @@ after the corresponding PR's CI succeeds.
 |---------|---------|---------|
 | ProjectHephaestus | Issue #2233 implementation planning and review | Read-only source inventory confirmed on 2026-07-20; no implementation PR, focused test run, or CI result was available. |
 | An isolated service-restructuring checkout | Upward service-to-command-layer edges, 2026-11-01 | One change moved a cohesive action group out of the command-layer module into a new lower module, updated the layer-policy file, and retargeted the affected test patches. CI was not observed in the learning session, so no verification claim is made. |
+| A layered Python repository | Provider-runtime move planning, 2026-11-04 | Read-only planning. The zero-upward-import premise failed for one of three named modules; the plan added the two lower modules that the edge required. The locked digests did not cover the embedded source strings, and one `__file__`-relative sibling path needed a rewrite. No implementation, test run, or CI result was available. |
