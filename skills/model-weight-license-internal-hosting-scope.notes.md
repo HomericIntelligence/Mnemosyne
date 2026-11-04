@@ -19,8 +19,8 @@ The generic fragment of the internal-use exemption, as it usually appears:
 
 The generic shape of a service-threshold clause, as it usually appears:
 
-> "If the Licensee ... operates a <service type> business, and the aggregate revenue
-> ... exceeds <amount> ... over any consecutive 12 months, the Licensee must enter
+> "If the Licensee ... operates a `<service type>` business, and the aggregate revenue
+> ... exceeds `<amount>` ... over any consecutive 12 months, the Licensee must enter
 > into a separate agreement ... before using the Software ... for any commercial purpose."
 
 ## Generic term pattern observed
