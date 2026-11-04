@@ -72,6 +72,40 @@ Why the direction of the re-export matters:
 - A lower module cannot keep a re-export of its old upper home. The boundary
   guard rejects it, so the moved module must not forward.
 
+## Amendment 2026-11-04: enumeration of test derivers after a move
+
+Context:
+
+- An issue plan retired three allowlisted upward import edges by moving a
+  cohesive action group into a new lower module, lowering one lifecycle
+  constant family to a service module, and injecting one command executor
+  into a service constructor.
+- The plan listed a test-update step and stated that all existing stubs
+  already absorb the added argument.
+- The plan listed five focused test commands.
+
+Findings from a read-only plan review:
+
+| Class | Evidence pattern | Plan gap |
+|-------|------------------|----------|
+| Narrow stub | A test imported the upper module and stubbed the moved function with a lambda that names exactly the old parameters | The added parameter raises `TypeError` at call time |
+| Removed import | A test imported the moved helper from the upper module at module scope | The import fails once the symbol leaves that module |
+| Removed attribute patch | A test patched the moved helper as an attribute of the upper module | The patch target fails with `AttributeError` |
+| Direct construction | A test builds the service directly and asserts success on the action that the new default fails closed | The default turns a passing test into a `PermissionError` |
+
+Decision rule derived:
+
+1. Search `tests/` for each moved symbol name and each old module path.
+2. Group the hits by file.
+3. Read each stub signature.
+4. Add every file to the focused test command.
+5. Keep the fail-closed default only when every direct construction is fixed in
+   the same change, or choose a default that preserves the current branch.
+
+The moved-symbol work itself follows the existing retirement and retarget
+rules. This amendment therefore extends the canonical entry instead of adding
+an entry.
+
 ## Discovery limits of this amendment
 
 - The advise helper listed the corpus from the resolved checkout. The open-PR
