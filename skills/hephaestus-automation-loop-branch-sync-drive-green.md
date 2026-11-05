@@ -1,10 +1,10 @@
 ---
 name: hephaestus-automation-loop-branch-sync-drive-green
 license: BSD-3-Clause
-description: "Inspect reused issue worktrees and incomplete automation runs. Keep each worker within its PR scope, check publication and signing, and diagnose drive-green invocation failures. Recover a lane whose commit_push fails closed after a landed push or whose receipt invalidates after the pipeline's own push, arm native auto-merge when the post-GO merge stage cannot run, and separate stale-payload label-gate CI noise from real failures."
+description: "Inspect reused issue worktrees and incomplete automation runs. Keep each worker within its PR scope, check publication and signing, and diagnose drive-green invocation failures. Recover a lane whose commit_push fails closed after a landed push or whose receipt invalidates after the pipeline's own push, arm native auto-merge when the post-GO merge stage cannot run, separate stale-payload label-gate CI noise from real failures, and classify a retry that reports an unserved-model error after the first attempt timed out as a timeout budget defect, not a dead deployment."
 category: tooling
 date: 2026-10-30
-version: "1.6.0"
+version: "1.7.0"
 user-invocable: false
 verification: verified-live
 tags:
@@ -31,9 +31,10 @@ history-cleanup-date: "2026-09-20"
 | ------- | ------- |
 | **Date** | 2026-07-11 |
 | **Objective** | Make automation-loop workers finish their owned issue/PR reliably instead of reusing stale branches, ignoring review/comment state, or letting broad drive-green phases act on unrelated PRs — and invoke a repo-wide "drive all open PRs to green" run correctly. |
-| **Outcome** | Core fix landed in ProjectHephaestus PR #1646 for issue #1645 (merged 2026-06-26, verified-ci). v1.1.0 adds the `--drive-green-all` vs `--phases drive-green` invocation finding (verified-local: dry-run caught the crash; `--drive-green-all` confirmed on a live ~3-minute run driving 14 open PRs). v1.5.0 adds the post-review-round failure family on a long-lived PR lane (verified-live): landed-push commit_push fail-closes, self-inflicted receipt invalidation, post-GO merge-stage crash with direct native auto-merge arming, per-run budget refresh on relaunch, and stale-payload label-gate CI noise. v1.6.0 corrects the label-event run semantics from a later drive-green cycle (verified-live): with `labeled` in the trigger list, applying the GO label itself starts the gated run with the label in its payload, so the sequence is review at the exact head, then flip the state labels, and never a repair push after the flip; adds the skipped-job gate signature and the aggregated-required-check rule. |
-| **Verification** | verified-ci (core); verified-local (v1.1.0 drive-green-all invocation finding); verified-live (v1.5.0 failure family) |
+| **Outcome** | Core fix landed in ProjectHephaestus PR #1646 for issue #1645 (merged 2026-06-26, verified-ci). v1.1.0 adds the `--drive-green-all` vs `--phases drive-green` invocation finding (verified-local: dry-run caught the crash; `--drive-green-all` confirmed on a live ~3-minute run driving 14 open PRs). v1.5.0 adds the post-review-round failure family on a long-lived PR lane (verified-live): landed-push commit_push fail-closes, self-inflicted receipt invalidation, post-GO merge-stage crash with direct native auto-merge arming, per-run budget refresh on relaunch, and stale-payload label-gate CI noise. v1.6.0 corrects the label-event run semantics (verified-live) and adds the skipped-job gate signature and aggregated-required-check rule. v1.7.0 adds the planner-timeout decision branch (verified-live): a first attempt that times out and then reports an unserved-model error on retry is a budget defect, not a dead deployment, so the repair is the timeout budget and never a model substitution. |
+| **Verification** | verified-ci (core); verified-local (v1.1.0); verified-live (v1.5.0, v1.7.0) |
 | **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/hephaestus-automation-loop-branch-sync-drive-green.history) |
+| **Latest** | v1.7.0 (2026-11-04): planner-timeout-versus-served-model decision branch |
 
 ## When to Use
 
@@ -49,31 +50,17 @@ history-cleanup-date: "2026-09-20"
 - A run fails closed with `FAIL:source_workspace_recovery_receipt_invalid` immediately after the pipeline's own push advanced the PR branch, or the lane freezes at `source_workspace_terminal` for the same reason.
 - A run dies with `FAIL:implement_exhausted` right after a landed push, and you must decide whether a relaunch is safe.
 - After `state:implementation-go`, a run dies in seconds with `FAIL:auto_merge_malformed` before the merge stage can read check state, and the checks are red.
+- Agent jobs ran for a long time, produced no PR or plan, and the run ends with `FAIL:plan not found; exhausted after 2 attempts`. The retry reports an unserved-model error (`No worker available`, `not in the current serving set`, or `provider.no-route: Model unavailable`), but the same model answers a direct probe. Treat this as a planner-timeout budget defect, not a dead deployment.
 
 ## v1.2.0 findings (2026-07-17)
 
-### Orphan PRs swept by --drive-green-all were dropped, not driven (fixed: PR #2254)
-
-`--drive-green-all` seeds orphan open PRs (no tracked issue) into the CI stage as PR-only items
-(`issue=None`). The CI entry gate regressed any PR lacking `state:implementation-go` to pr_review —
-but pr_review terminates PR-only items ("no issue number"), so every swept-in PR logged
-`ci:None: PR #N lacks state:implementation-go; regressing to pr_review` and died without one rebase
-or CI fix. Fix (verified-ci, and confirmed live: the restarted loop logs
-`orphan PR #N ... proceeding with drive-green (no issue-flow gate)`): PR-only items skip the
-implementation-go gate and proceed to REBASE_WAIT. Merge containment is unchanged
-(`defer_auto_merge` + fail-closed merge_wait, #2054).
-
-**Known residual gap (under watch, unfixed):** orphan PRs reach REBASE_WAIT with no item worktree
-(they never passed through implementation) and log
-`ci:N: mechanical rebase requires an item worktree; failing back to implementation` — verify on a
-live run whether the fallback completes before relying on --drive-green-all end-to-end.
-
-### --max-merge-attempts replaced by --drive-green-loops (PR #2249)
-
-`--max-merge-attempts` defaulted to 1, so ONE transient drive-green failure durably tagged the
-issue `state:skip` — a single overnight run (2026-07-11) skip-parked 76 issues org-wide this way.
-The option is REMOVED; use `--drive-green-loops N` (default 5), which feeds the same `merge`
-budget. Old invocations passing `--max-merge-attempts` now fail argparse.
+- **Orphan PRs swept by `--drive-green-all` (fixed: PR #2254).** PR-only items (`issue=None`) were
+  regressed by the implementation-go gate and terminated as "no issue number". They now skip that gate
+  and proceed to REBASE_WAIT; merge containment is unchanged. Residual gap under watch: orphan PRs
+  reach REBASE_WAIT with no item worktree and log `mechanical rebase requires an item worktree`.
+- **`--max-merge-attempts` replaced by `--drive-green-loops N` (PR #2249).** The old default of 1 let
+  one transient failure durably `state:skip` an issue (76 skip-parked in one overnight run). The old
+  option is REMOVED and now fails argparse; the new default is 5.
 
 ## v1.5.0 findings (2026-10-30)
 
@@ -89,12 +76,11 @@ On a lane with an open PR, a commit_push job that carries real commits can fail 
 deterministically with `FAIL:commit_push_refresh_invalid` (observed on 5 of 7 real-push
 attempts on one lane; 2 real pushes succeeded). **The push lands before the fail-close.** Before
 any recovery action, verify `git ls-remote origin <branch>` against the lane head. A no-op
-push (nothing to send) succeeds, so the refresh binding rejects the post-push state, not the
-push itself. Recovery: no work is lost. Archive the regenerated, now-stale lane receipt —
-never delete lane records — then verify the preserved worktree carries 0 unpublished commits
-and 0 dirty paths, remove it, and relaunch clean. The next run adopts the PR at the true head
-and continues. If the worktree holds unpublished commits on top of the landed head, push them
-first (dry-run, then fast-forward), record the evidence, and only then recover.
+push succeeds, so the refresh binding rejects the post-push state, not the push itself.
+
+Recovery loses no work: verify the preserved worktree has 0 unpublished commits and 0 dirty paths
+(push any unpublished commits first, dry-run then fast-forward), archive — never delete — the
+stale lane receipt, remove the worktree, and relaunch clean.
 
 ### A successful push can invalidate the lane's own receipt (`FAIL:source_workspace_recovery_receipt_invalid`)
 
@@ -109,48 +95,85 @@ defect: a clean relaunch refreshes the budgets.
 ### After GO the loop is terminal: arm native auto-merge directly (`FAIL:auto_merge_malformed`)
 
 After the `state:implementation-go` label, the merge stage's GitHub mutation can crash on an
-unresolvable working directory (a mount-boundary `fatal: not a git repository` from the `gh`
-process) and be misclassified as `auto_merge_malformed`. merge_wait fails before it reads
-check state, so the loop can neither merge nor drive CI repair — every relaunch dies in
-seconds at the same stage. The GO label is the whole merge contract, so the coordinator arms
-GitHub native auto-merge directly:
+unresolvable working directory (a mount-boundary `fatal: not a git repository`) and be
+misclassified as `auto_merge_malformed`. merge_wait fails before it reads check state, so every
+relaunch dies in seconds at the same stage. The GO label is the whole merge contract, so the
+coordinator arms GitHub native auto-merge directly:
 
 ```bash
 gh pr merge <pr> --repo <org>/<repo> --auto --squash
 ```
 
 The native auto-merge request survives later pushes to the lane head; GitHub merges when the
-required checks pass. From this point the coordinator, not the loop, owns CI repair: work in a
-detached temporary worktree at the lane head, push signed fast-forward commits, and confirm
-the auto-merge request stays armed at each new head.
+required checks pass. From then on the coordinator owns CI repair: work in a detached temporary
+worktree at the lane head, push signed fast-forward commits, and confirm the auto-merge request
+stays armed at each new head.
 
 ### Label-gated CI: stale-payload failures are noise
 
 Label-gated workflows compute the gate from the event payload
 (`github.event.pull_request.labels.*.name`), not from live PR state. A run whose payload
-predates the GO label fails or skips at the gate: some jobs fail fast with a step that names
-the missing label, others skip at the job-level condition. When the pull-request trigger list
-includes `labeled`, applying the GO label itself starts a fresh run whose payload contains
-that label, so the gated checks run for real without another push. Sequence a repair to use
-this: deliver the review at the exact head, then flip the state labels; do not push after the
-label flip, because a new head invalidates the delivered review. When driving green, read one
-failing job log before repairing: gate failures name the missing label within seconds or show
-as skipped jobs; content failures (format, type, test-tier inventory) take minutes and name
-files. A fast-failing aggregated required check that reports only "require all upstream jobs
-to have succeeded" has no defect of its own; read the named upstream job. Also note: a
-repository's pre-commit configuration can pin an older formatter than the project-resolved
-one and can reformat files a glob pass never visits (for example an extensionless script).
-Treat `pre-commit run --all-files` as the authoritative style gate before pushing a CI repair,
-not `ruff format --check .` alone.
+predates the GO label fails fast with a step that names the missing label, or skips at the
+job-level condition. When the pull-request trigger list includes `labeled`, applying the GO
+label itself starts a fresh run whose payload contains that label, so the gated checks run for
+real without another push. Sequence it so: deliver the review at the exact head, then flip the
+state labels; never push after the flip, because a new head invalidates the delivered review.
+Read one failing job log before repairing: gate failures name the missing label within seconds
+or show as skipped jobs; content failures (format, type, test-tier inventory) take minutes and
+name files. A fast-failing aggregated check that reports only "require all upstream jobs to
+have succeeded" has no defect of its own; read the named upstream job. A repository's
+pre-commit configuration can pin an older formatter than the project-resolved one and can
+reformat files a glob pass never visits, so treat `pre-commit run --all-files` as the
+authoritative style gate before pushing a CI repair.
 
 ### Review convergence still terminates the conveyor
 
 A reviewer round with zero findings and all threads resolved skips commit_push entirely, so a
-lane stuck in the push fail-close cycle converges anyway: zero-finding round → GO label →
-merge stage. Convergence signals: finding counts trend down across rounds, major findings stop
-appearing, and nitpicks dominate late rounds (observed trend: 1 → 5 → 3 → 3 → 3 → 1 → 2 with a
-rebase-driven major → 1 → 1 → 1 → 1 → 0). When every thread is answered and resolved, one more
-clean relaunch is the whole remaining cost of a review round.
+lane stuck in the push fail-close cycle converges anyway. Convergence signals: finding counts
+trend down, major findings stop appearing, and nitpicks dominate late rounds. When every thread
+is answered and resolved, one more clean relaunch is the whole remaining cost of a review round.
+
+## v1.7.0 findings (2026-11-04)
+
+### A planner timeout reports on retry as an unserved model
+
+A planning batch failed with `FAIL:plan not found; exhausted after 2 attempts plan=2` after 14
+completed agent jobs. The summary named a provider error, not a timeout. Read the attempt timeline
+before you act:
+
+```text
+20:36:23  seven plan AgentJobs claimed (workers 1-7)
+20:56:23  all seven report "job failed: timeout"   # ~20 min = the 1200 s default
+20:56:35  seven retries claimed
+21:05:55  retries fail: provider.invalid-request: No worker available for model '<name>'
+21:07:04  retries fail: '<name>' is not in the current serving set
+21:07:08  retries fail: provider.no-route: Model unavailable: <provider>/<name>
+```
+
+Three different unserved-model texts arrived for one model in one window, and a direct
+`Reply with exactly: OK` probe of that model answered OK before and after the run. The model was
+served throughout. The first failure is the only real signal: the planner budget was too small for
+that model. The retry then transports a timeout into the provider classifier, so the retry error
+describes the transport, not the cause.
+
+This is the inverse of the probe rule for a dead deployment. A dead deployment fails the probe. Here
+the probe passes and the run still fails. When attempt 1 ends at the configured timeout and every
+retry fails in seconds with an unserved-model error while the model probes live, the defect is the
+budget.
+
+Recovery:
+
+1. Confirm the shape: the first failure is `job failed: timeout`, it lands one budget after the
+   claim, and the later errors name a served model.
+2. Do not substitute the model, re-probe to justify a swap, or drop the items. A different model on
+   the same budget times out the same way.
+3. Raise the budgets that run that model (`--planner-timeout`; prior verified evidence for a thinking
+   model: 5400 s planner, 3600 s reviewer).
+4. Confirm the model still probes live, then relaunch the same item list. Explicit `--issues` scope
+   drains once per run and re-classifies from live labels, so a relaunch is the continuation step.
+
+Set the budget from the largest expected plan, not from the default: a 20-minute plan and a 1200 s
+default produce a silent zero-output batch on every wave.
 
 ## Verified Workflow
 
@@ -179,6 +202,11 @@ git -C <issue-worktree> status --short --branch
 gh issue view <issue> --json state,labels
 gh pr list --state open --search "<issue> in:body" --json number,headRefName,state
 hephaestus-automation-loop --issues <issue> --agent <agent>
+
+# 2b. Before you swap a model because the retries named it as unserved:
+#     read attempt 1. A timeout that lands one budget after the claim is the cause.
+grep -nE "job failed: (timeout|agent_error)" <run>.log
+#     If attempt 1 timed out, raise --planner-timeout and relaunch the same items.
 
 # 3. Keep drive-green scoped to the owned issue/PR inside the worker:
 hephaestus-merge-prs --issues <issue> --agent <agent>
@@ -252,6 +280,7 @@ pixi run hephaestus-automation-loop \
 | Recovering a `commit_push_refresh_invalid` without checking origin | A fail-closed commit+push job was treated as unpublished work. | The push lands before the fail-close; origin already holds the head, so the recovery is archive-and-relaunch, not republish. | Verify `git ls-remote` against the lane head first; never delete lane records; relaunch clean after the worktree proves 0 unpublished and 0 dirty. |
 | Relaunching the loop after a post-GO merge-stage crash | Relaunched so merge_wait could read red checks and drive the repair. | The merge stage crashes before it reads check state (`auto_merge_malformed` from an unresolvable `gh`-mutation working directory); each relaunch dies in seconds at the same stage. | Post-GO, arm native auto-merge directly with `gh pr merge --auto`; the coordinator owns CI repair on the lane head from a detached temporary worktree. |
 | Trusting a repo-glob format check as the drive-green style gate | `ruff format --check .` passed while CI's pre-commit job kept failing. | The pre-commit configuration pins an older formatter and formats files the glob never visits (for example an extensionless script). | Use `pre-commit run --all-files` as the authoritative gate before pushing a CI repair. |
+| Substitute the model after a planner timeout | The batch reported `No worker available` / `not in the current serving set` / `provider.no-route: Model unavailable` on the retries, so the next action was to re-probe the pool and re-spawn on a different model. | The retries recycled a *timeout* from attempt 1 (all seven first attempts ended together at the 1200 s default). The named model probed live both during and after the run, so substituting it changed nothing and would have burned the same budget again. | Read the first failure, not the retry error. A timeout that surfaces as an unserved-model error is a budget defect: raise `--planner-timeout` and relaunch the same items. |
 
 ## Results & Parameters
 
@@ -329,6 +358,7 @@ git log origin/main..HEAD --format=%B | grep -q '^Signed-off-by: '
 - The PR can satisfy required CI plus signed and signed-off commit policy gates.
 - A landed push is detected on origin before any recovery, lane records are archived and never deleted, and clean relaunches resume at the true head.
 - After GO, a merge stage that cannot run yields to directly armed native auto-merge, and red checks are classified (stale-payload label-gate noise versus content failures) before any repair.
+- A batch that reports an unserved-model error on retry is classified by its first failure: a timeout raises the budget and relaunches the same items instead of swapping the model.
 
 ## Verified On
 
@@ -336,4 +366,5 @@ git log origin/main..HEAD --format=%B | grep -q '^Signed-off-by: '
 | --------- | --------- | --------- |
 | ProjectHephaestus | Issue #1645 / PR #1646 | verified-ci; Required Checks run 28256238895 succeeded; Test workflow run 28256151963 succeeded; merged 2026-06-26 as `2a0cd2adc2570264c1bd2c45df96c75246bac433` |
 | ProjectHephaestus | `--drive-green-all` vs `--phases drive-green` (2026-07-11) | verified-local; `--dry-run` of `--phases drive-green` surfaced `KeyError: <StageName.REPO: 'repo'>` (item "poisoned at repo"); `--drive-green-all` confirmed working on a live ~3-minute run driving 14 open PRs (7 reviews requested, 5 already-GO'd PRs → CI, 0 new GO). |
+| Organization repository (identifiers generalized) | Planning batch on an explicit 8-item issue selection (2026-11-04) | verified-live; seven plan jobs timed out together 1200 s after claim, seven retries failed 10-11 s later with `No worker available` / `not in the current serving set` / `provider.no-route`, 14 agent jobs and ~12,600 s of agent time produced 0 plans, and the same model probed OK before and after. See [notes](hephaestus-automation-loop-branch-sync-drive-green.notes.md#v170-evidence-planner-timeout-surfaced-as-an-unserved-model-error-2026-11-04). |
 | Organization repository (identifiers generalized) | Post-review-round failure family on a 20-run implementation lane (2026-10-30) | verified-live; `commit_push_refresh_invalid` reproduced 5× on real pushes (push landed every time; 2 real pushes succeeded), receipt invalidation after the pipeline's own push (incl. the `source_workspace_terminal` freeze), per-run budget refresh on relaunch, GO label applied by the loop itself, merge stage died `auto_merge_malformed`, coordinator armed native auto-merge, coordinator CI repairs (test-tier inventory registration, format/typecheck, pinned-formatter style), and the PR merged green with post-merge main CI green. |

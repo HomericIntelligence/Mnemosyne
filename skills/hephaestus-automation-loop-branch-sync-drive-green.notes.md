@@ -137,3 +137,59 @@ source, not project identifiers.
 - Every coordinator commit was signed and carried `Signed-off-by`; pushes were fast-forward
   only (no force push was needed on the lane).
 - The lane receipts and terminal records remain archived per-run for audit.
+
+## v1.7.0 evidence: planner timeout surfaced as an unserved-model error (2026-11-04)
+
+Repository, organization, and host identifiers are withheld per the learn privacy rules; the
+timeline and error texts are the decision-relevant content.
+
+### Context
+
+- A per-issue automation loop ran an explicit 8-item issue selection on a shared-filesystem host.
+- Roles were pinned to explicit model IDs, not drawn at random. Planner and reviewer ran on one
+  thinking-class deployment; the implementer ran on the same deployment.
+- Launch used the delivery defaults for stage budgets; no plan or reviewer timeout was passed.
+- Advise was disabled for this run (`--no-advise`) after a separate, unrelated shared-knowledge
+  checkout dirtiness failure. That failure is a different family and is not part of this lesson.
+
+### Observed timeline
+
+| Time | Event |
+| --- | --- |
+| 20:35:18 | Implementation item admitted; first-publication discovery fails (`source_workspace_terminal`) |
+| 20:36:23 | Seven planning items claim `AgentJob descr=plan` on workers 1-7 |
+| 20:56:23-30 | All seven report `planning:<n>: job failed: timeout` within 8 s of each other |
+| 20:56:31-35 | Each item logs `plan not found; retry 1/2` and requests attempt 2 |
+| 20:56:35-36 | Seven retry `AgentJob descr=plan` claims |
+| 21:05:55 | `agent_error: opencode2_fatal_error_event: provider.invalid-request: No worker available for model '<name>'` (x3) |
+| 21:07:04 | `provider.invalid-request: <name> is not in the current serving set; use the model list to choose a served model` (x2) |
+| 21:07:08 | `provider.no-route: Model unavailable: <provider>/<name>` (x2) |
+| 21:07:11-16 | Each item logs `plan not found; exhausted after 2 attempts` |
+| 21:07:16 | Summary: `items: 8  dispositions: {'fail': 8}`, `agent jobs: 14 (12616.4s total)`, `wall: 1979.7s`, `interrupted: False` |
+
+### Why the retry error is not the cause
+
+- The first failure for all seven items is `timeout`, about 1200 s (20 min) after the claim, which
+  matches the default planner budget.
+- The retries ran only 10-11 s before their provider error. A cold or unserved deployment fails a
+  probe; it does not first consume a full 20-minute generation.
+- Three different unserved-model texts appeared in the same 12-minute window for one model ID.
+  `No worker available`, `not in the current serving set`, and `provider.no-route: Model unavailable`
+  are distinct classifier outputs for the same transport.
+- A direct liveness probe of the same model ID (`Reply with exactly: OK`) succeeded both before the
+  run and after it. The reviewer deployment also probed OK.
+- No plan comment was published for any item; the planner output never reached the publication step.
+
+### Cost measurements
+
+- Fourteen completed agent jobs consumed about 12,600 s of agent time with zero plans published.
+- The batch spent about 33 minutes of wall time (20 min first attempt + ~10 min retry) before failing.
+
+### Repair applied and next action
+
+- Do not substitute the model and do not re-probe the pool to justify a swap: the same budget
+  produces the same timeout on any model of similar latency.
+- Raise `--planner-timeout` (prior verified evidence for a thinking model: 5400 s) and the other
+  stage budgets that run the same model, then relaunch the same explicit item list.
+- Before relaunch, confirm the model probes live and the intake state is clean, then take the next
+  signature from the new run log.
