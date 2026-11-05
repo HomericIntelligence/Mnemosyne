@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Freeze legacy direct imports during a partial runtime migration with an AST-derived exact consumer/module allowlist and matching ADR policy, and retire each frozen pair by moving the depended-on code down one layer. Use when: (1) an accepted ADR describes a completed abstraction but source still uses legacy provider modules, (2) compatibility imports must remain temporarily without allowing the exception to expand, (3) line-oriented grep would miss nested or function-local imports, (4) documentation must distinguish invocation, response parsing/validation, compatibility exports, and provider-specific failure diagnostics, (5) a policy file must list every allowed upward import edge and the same change pays down one or more edges, (6) a caller states that a module has no upward imports before a move, (7) an upper module must keep a re-export for its other consumers while the moved unit goes to the lower layer."
 category: architecture
 date: 2026-07-20
-version: "1.2.0"
+version: "1.3.0"
 user-invocable: false
 verification: unverified
 tags:
@@ -24,9 +24,9 @@ tags:
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-07-20 (amended 2026-11-01: retirement by extraction; amended 2026-11-04: re-export direction, premise check for the move scope, file-relative paths, and embedded source) |
+| **Date** | 2026-07-20 (amended 2026-11-01: retirement by extraction; amended 2026-11-04: re-export direction, premise check for the move scope, file-relative paths, embedded source, and the enumeration of the test derivers a move invalidates) |
 | **Objective** | Reconcile an ADR with a partial provider-runtime migration while preventing the remaining direct-import exception from silently expanding. |
-| **Outcome** | Proposed an exact AST-derived consumer/module baseline, automation-only path invariant, and normalized ADR-policy assertion. The Hephaestus source inventory was confirmed read-only, but the documentation and test changes were not implemented. A later amendment adds the retirement path: move the depended-on code down one layer, then delete the allowlist pair. A further amendment adds the move-scope premise check, file-relative path sweep, and embedded-source byte rule. A final amendment adds re-export direction for the product-to-library move, and both 2026-11-04 amendments derive from read-only planning sessions. |
+| **Outcome** | Proposed an exact AST-derived consumer/module baseline, automation-only path invariant, and normalized ADR-policy assertion. The Hephaestus source inventory was confirmed read-only, but the documentation and test changes were not implemented. A later amendment adds the retirement path: move the depended-on code down one layer, then delete the allowlist pair. A further amendment adds the move-scope premise check, file-relative path sweep, and embedded-source byte rule. A final amendment adds re-export direction for the product-to-library move. A 2026-11-04 amendment adds the inverse of the patch-retarget rule: name every test that imports or patches a moved symbol, and inspect each stub signature. Both 2026-11-04 amendments derive from read-only planning sessions. |
 | **Verification** | unverified — the baseline guard was observed in source; the retirement path comes from one reviewed change whose CI was not observed. |
 
 This pattern is narrower than a general library/product boundary and broader
@@ -75,7 +75,8 @@ direction and lean base import surface, use
 | Keep scope one-way | Resolve every approved consumer beneath the product root | The existing reverse-boundary guard remains authoritative |
 | Couple policy to code | Normalize the complete normative ADR sentence and a source-derived summary | Documentation must cover every approved reason, including diagnostics-only consumers |
 | Retire debt | Remove the source import and baseline pair together | Equality fails on both undocumented additions and stale removals |
-| Retire by extraction | Move the depended-on code down one layer, then delete the `(consumer, module)` pair | Re-exporting the module from its new home keeps the edge and leaves the pair valid |
+| Retire by extraction | Move the depended-on code down one layer, then delete the `(consumer, module)` pair | Re-exporting the module from its former home keeps the edge and leaves the pair valid |
+| Retarget test derivers | Grep every import and patch of each moved symbol; inspect each stub signature | A narrow stub fails at call time when the moved function gains a parameter |
 
 ### Detailed Steps
 
@@ -223,6 +224,21 @@ direction and lean base import surface, use
    - Replace test patches that target the old import site with patches on the
      new site. A patch on a stale site passes while the moved code runs
      unpatched.
+   - Enumerate every test that derives from a moved symbol before you edit. The
+     set is larger than the patch list: a test can import the symbol, patch it
+     by name, or build its own module from it. Search `tests/` for the symbol
+     name and for the old module path, then group the hits by file.
+   - Inspect each stub signature against the new call. A retarget fixes where
+     a stub resolves, not how many arguments it accepts. A test that imports
+     an upper module and stubs a moved function with a two-parameter lambda
+     breaks with `TypeError` when the new call passes three arguments. A test
+     that patches the old module attribute breaks with `AttributeError` once
+     the attribute is gone. Check long call chains too: a test that enters
+     through a service constructor can fail several frames away from the moved
+     function.
+   - Add each newly found file to the focused test command. A move that leaves
+     one of these files out of the command set can pass the selection and fail
+     the full suite.
 
 10. **Test the "zero upward imports" premise before you accept the move scope.**
     A move list that states a module has no product-layer imports can be wrong.
@@ -288,6 +304,8 @@ heading; it does not make a verification claim.
 | Remove the re-export because the skill says not to forward | Delete the moved symbols from the old upper module in the same change | The old upper module is the canonical owner for many remaining consumers, and the library guard also rejects a re-export of the product layer | Re-export only when the unit moves from lower to higher. When the unit becomes a lower-layer module, the old upper module owns the re-export and the moved module imports the lower module directly |
 | Retarget every patch of an alias module | Rewrite each string patch to the implementation module | Most patches still bind the same module object because the alias assigns `sys.modules[name] = implementation`, so the retarget adds churn without a behavior change | Check the alias form first. Retarget only the patches that resolve through a name the alias does not rebind |
 | Retarget only the source after moving a symbol | Patch the old import site in tests and trust the green result | The patch targets a name the moved code no longer reads, so the test passes without exercising the stub | Retarget each patch, mock, and monkeypatch boundary to the new import site in the same change |
+| Plan a signature change from the added-argument sites only | Planned a new leading parameter for a moved function and stated that every existing stub absorbs the extra argument | One test built a stub with an exact two-parameter lambda, so the plan's premise was false and its test-command list omitted that file | Grep every stub of the moved name and read its parameters. A stub that names each parameter does not absorb a new one |
+| Plan a constructor seam from the shared builder only | Planned an injected executor with a `None` default and stated that all constructions inject it | Several tests build the service directly and assert success on the affected action, so the `None` default fails them closed | Grep every constructor call of the service, not only the shared test helper. Keep the file list in the plan when the default changes a branch to fail-closed |
 | Accept the issue's "zero upward imports" claim | Planned a three-module move from the issue text | One module still imported two product-layer modules, so the zero-edge criterion was unreachable, and two lower modules were missing from the list | Scan the imports of every named module before planning the move, then add the lower modules they depend on |
 | Assume a locked digest covers embedded source | Planned a digest update for long embedded source strings | The lock digests covered external artifacts only; no digest or test hashed the embedded strings, so an update had nothing to update | Test whether a digest covers the bytes before planning a regeneration; if none does, move byte-exactly and do not reformat |
 | Keep the `__file__`-relative path after a sibling move | Expected the move to be import-only | The path resolved through a parent directory that no longer held the sibling module | Scan every `Path(__file__)` expression in each moved file and rewrite it against the new package position |
