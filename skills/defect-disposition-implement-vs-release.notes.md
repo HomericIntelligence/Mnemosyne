@@ -41,6 +41,33 @@ operation of the skill.
 5. **Disposition selected:** `deliver-release`. Production needed the release
    carrying the fix. No new implementation, issue, or competing PR.
 
+## Delivery item placement
+
+A second case extended the `deliver-release` gate on 2026-11-05:
+
+1. A published client rejected a field that the running gateway wrote. The
+   read-side fix merged to the default branch, and the code issue closed as
+   completed.
+2. The published client was not rebuilt. The user-facing command still failed.
+3. The open release tracker named the client republish as its acceptance.
+4. A broad milestone retag moved the client-publish issue to the next milestone
+   because it was labeled "release-blocking". The current release then had no
+   open delivery item.
+5. Correction: read the open tracker before a sweep. If the tracker names the
+   artifact or the acceptance, keep the delivery item in that release. A closed
+   code issue is not evidence of delivery.
+
+Check before a milestone move:
+
+```bash
+gh issue view <tracker> --json body   # read the current release acceptance
+gh issue view <delivery-item> --json title,body,milestone
+# If the tracker names the artifact or the acceptance, do not move the item forward.
+```
+
+The same rule applies after a bulk move: a delivery item that left the release
+must return before the release can claim the user-facing acceptance.
+
 ## Check costs
 
 The dispositioning commands ran in under two minutes: one tracker search, one

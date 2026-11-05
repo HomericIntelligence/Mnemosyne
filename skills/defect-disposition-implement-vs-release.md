@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Disposition a symptom-driven fix request as new implementation, an open change to land, a release to deliver, or an already-aligned system, before designing any correction. Use when: (1) a user report or live symptom triggers a fix, repair, or realignment request for running software, (2) the same defect may already be diagnosed or fixed in the tracker or main history, (3) the deployed release may be older than the fix, so the gap is delivery, not implementation, and (4) continuing symptoms on an unfixed release must not trigger re-implementation."
 category: debugging
 date: 2026-10-26
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [defect-disposition, release-lag, symptom-search, deployed-version, ancestry-check, duplicate-fix, delivery-vs-implementation, tracker-search, live-symptom]
@@ -103,7 +103,9 @@ Select exactly one disposition from the table in Results & Parameters.
 7. **Route without duplicating.** "deliver-release" goes to the release or
    promotion path that owns the artifact. "land-open-PR" coordinates with the
    PR owner or stacks on its branch. Never open a competing fix for the same
-   mechanism.
+   mechanism. Keep the delivery vehicle in the release whose tracker names the
+   user-facing acceptance. A code-fix issue closed as completed is not
+   evidence that the artifact shipped.
 
 When the tracker is unreachable or the deployed ref cannot be bound, continue
 the investigation but mark the disposition unverified; do not implement a fix
@@ -116,6 +118,7 @@ whose duplicate status is unknown.
 | Design a correction from the symptom evidence alone | Derived a threshold policy for a noise-driven autoscaler from live logs and code, and recommended it as the fix | A tracker search after the design found the identical defect already filed, diagnosed, and fixed upstream with the same mechanism; the design was a duplicate before it was written | Search the tracker for the symptom signature first; fix design comes after the duplicate check, not before |
 | Treat the implementation at the symptom investigator's checkout as production behavior | Read module code in the local checkout and attributed its behavior to the running service | The running service carried a release that predated both the checkout state and the upstream fix; checkout content overstated and understated different parts of deployed behavior | Bind the deployed ref from runtime-recorded identity first; rank all code reads against it |
 | Count a continuing live symptom as proof the implementation is still broken | Initial framing: "autoscaling is broken; align the implementation" | The fix had merged the previous day; the release simply did not carry it yet, so the symptom was scheduled noise, not new evidence | Date the symptom against release contents; an old-release symptom after a merged fix updates the delivery plan, not the implementation plan |
+| Move the delivery item to the next milestone because it is labeled a blocker | A bulk retag treated "release-blocking" as "next release" and moved the client-publish issue forward, while the open release tracker still named the republish as acceptance | The release lost its only open delivery item and could close green while the artifact stayed broken | Keep the delivery item with the release that needs the artifact; read the open tracker before a sweep |
 
 ## Results & Parameters
 
@@ -125,7 +128,7 @@ whose duplicate status is unknown.
 | --------- | --------------- | ------------- |
 | `implement-new` | No tracker match for the signature; no candidate fix on any ref | Normal debugging and change workflow; write the issue first when policy requires one |
 | `land-open-PR` | A tracker match exists with an open pull request whose content covers the mechanism | Coordinate or stack on that branch; do not open a competing change |
-| `deliver-release` | A merged change covers the mechanism; `origin/main` contains it; the deployed ref does not | Route to the release or promotion path; record the carrying change as the precondition |
+| `deliver-release` | A merged change covers the mechanism; `origin/main` contains it; the deployed ref does not | Route to the release or promotion path; record the carrying change as the precondition. Keep the delivery item in the release whose tracker names the artifact; a closed code issue does not satisfy its acceptance |
 | `already-aligned` | A merged change covers the mechanism; the deployed ref contains it; symptom persists | New diagnosis on current behavior; do not re-implement |
 
 ### Configuration
