@@ -1,10 +1,10 @@
 ---
 name: agents-pr-review-forked-terminal-verdict-supersession
 license: BSD-3-Clause
-description: "Supersede a pull request whose review history forked under near-simultaneous terminal verdicts from two publishers. Use when an exchange/ledger-based review shows two terminal verdicts posted seconds apart, so label and merge delivery cannot bind one history."
+description: "Supersede a pull request whose review history forked under near-simultaneous terminal verdicts from two publishers. Use when an exchange/ledger-based review shows two terminal verdicts posted seconds apart, so label and merge delivery cannot bind one history; also when the competing GO contradicts your own source evidence, because a same-head supersession would then ship the defect the GO missed."
 category: tooling
 date: 2026-10-30
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: execution-observed
 tags:
@@ -34,6 +34,25 @@ tags:
 - Two publishers both publish a terminal verdict (GO, or any verdict that ends the round) against the same PR head within seconds — the ledger now contains two divergent "round 1 terminal" histories.
 - Downstream delivery (label swap, auto-merge arm, finalization) depends on binding to ONE complete history and can no longer determine which history is canonical.
 - Prevention already failed: lanes had "donot double-drive" rules, but both publishers prepared and published against the same open window.
+- The competing terminal GO contradicts your source evidence, because your review found a defect that the zero-finding GO missed.
+
+## Supersede only when the code is sound
+
+The same-head supersession below converts one contaminated review history into one clean history. It does
+**not** change the code. Before step 4, decide whether that is safe:
+
+| Your evidence about the code | Disposition |
+| --- | --- |
+| Sound. The fork is only a review-record problem. | Supersede the PR at the SAME branch and head. |
+| Defective. You found a required defect that the competing GO missed. | Do NOT supersede at the same head. Repair the code first. |
+
+A same-head supersession carries every defect forward into the single surviving history, and the fresh round
+then reviews code you already know is wrong. Repair the branch instead. The repair changes the head, which
+ends the stale terminal exchange and lets one designated session start a fresh round at the new head. A head
+change from new code is also the one case where a new head is correct: the problem is no longer only the
+review history.
+
+Record the defect and its repair in the replacement's first cause, so the record shows why the head moved.
 
 ## Verified Workflow
 
@@ -60,7 +79,7 @@ tags:
 1. **Detect the fork.** Compare published terminal carriers' timestamps and binding proofs. If both parse/verify cleanly and both claim terminal state on the same exchange at the same head, picking a winner by timestamp or trust ranking is NOT safe: each publisher's subsequent author-response/round logic can follow a different history, compounding the fork.
 2. **Stand down non-designated publishers.** Any lane that had a prepared round for that PR discards it. Do not publish "my round was first" evidence on the PR; that adds a third lineage.
 3. **One designated owner supersedes.** The coordinator (or explicit owner) closes the forked PR unmerged, stating the first cause plainly in the closing comment (forked review history; two terminal verdicts published ~simultaneously) and naming the replacement PR. This creates an auditable single narrative.
-4. **Open the replacement on the same branch and head.** The code artifacts are sound; only the review history is contaminated. Opening PR2 at the identical head avoids rebase churn and keeps CI binding trivial. Include the same body and a one-line supersession pointer.
+4. **Open the replacement on the same branch and head.** The code artifacts are sound; only the review history is contaminated. Opening PR2 at the identical head avoids rebase churn and keeps CI binding trivial. Include the same body and a one-line supersession pointer. If the code is not sound, repair it first and open the replacement at the new head; state in the replacement body that a defect, not only the fork, required the new head.
 5. **One fresh round, one publisher.** The designated reviewer session runs round 1 on PR2 fresh (new exchange id, exact-head binding). The closing comment on PR1 should also instruct the review loop not to review/label/merge PR2 — that single round belongs to the designated session. Everyone else stays hands-off until it lands.
 6. **Deliver through PR2 only.** Label swap, auto-merge, and merge evidence all flow from PR2's single complete history. After merge, a verification pass confirms: merge commit ancestor of main; exactly one state label; residue checks (for subtractive PRs) as applicable.
 7. **Superseded lane finishes as read-only.** It verifies the landed result (post-merge residue greps, file-byte comparisons where promised), cleans its own worktrees/branches, reports, and stops. It must not interact with either PR further.
@@ -71,13 +90,16 @@ tags:
 |---------|----------------|---------------|----------------|
 | Treat one of the two terminal GOs as authoritative | Continue rounds or label delivery against "the first" GO | Both carriers verify cleanly; downstream tooling sees two valid competing histories and every later round risks splitting again | A fork in a ledger protocol is structural, not a question of which publisher was right; supersede the PR |
 | Let both publishers "converge" by exchanging author-responses on the forked PR | Trying to reconcile the two histories in place | Each new carrier relies on its own history's acceptance set; adds a third divergent lineage instead of merging the two | Stand down non-designated publishers immediately; only the designated owner supersedes |
-| Re-create the superseded PR at a NEW head to "disambiguate" | Rebase or push an extra commit to make PR2 distinct | The problem is the review history, not the code; unnecessary churn breaks the head-binding CI/verdict artifacts for zero benefit | Supersede at the SAME branch and head; only the reviewer round restarts |
+| Re-create the superseded PR at a NEW head to "disambiguate" | Rebase or push an extra commit to make PR2 distinct | When the code is sound, the problem is only the review history; unnecessary churn breaks the head-binding CI/verdict artifacts for zero benefit | Supersede at the SAME branch and head when the code is sound; only the reviewer round restarts |
+| Supersede at the SAME head while the code is known defective | Applied the same-head flow to a fork where the competing GO had zero findings but the code carried a required defect | The single surviving history then reviews code already known to be wrong, and the defect merges with a clean-looking record | Decide code soundness before choosing the supersession head. Repair first; a head change caused by new code is the correct way to restart the exchange |
 
 ## Results & Parameters
 
 A choreography-PR carrying a small subtractive change reached terminal GO from two publishers one second apart. Coordinate-heal sequence above executed verbatim: forked PR closed unmerged at the old head with first-cause note; replacement PR on the same branch/head; exactly one designated fresh round; exclusive GO label; merged minutes later with merge commit ancestor-verified; superseded lane performed read-only residue verification and cleanup only.
 
 Verification: the label readback showed exactly one state label (exclusive GO); merge commit was an ancestor of main within minutes of merge; the forked PR's review/label/merge state remained exactly as the designated owner set it (untouched by other lanes). No test suite regression — the change was additive-only-to-deletion-safe by construction.
+
+A second, contrasting case bounded the same-head rule: one lane published a zero-finding terminal GO, and an independent reviewer published a NO-GO seconds later after finding required defects in the same head. Because the evidence showed the code was defective, the recovery repaired the code first, and the head change started a fresh exchange. The superseded GO was never treated as the surviving history, so the defects did not merge behind a clean record.
 
 ## Verified On
 
