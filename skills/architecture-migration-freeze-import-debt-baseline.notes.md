@@ -10,6 +10,7 @@ These notes are not retrieved as guidance.
 | Initial capture | 2026-07-20, planning and review session for a provider-runtime migration; no implementation, tests, or CI observed. |
 | Amendment | 2026-11-01, review of a structural-debt change in an isolated checkout. |
 | Amendment | 2026-11-04, read-only planning session for a product-layer-to-library move. |
+| Amendment | 2026-11-04, byte-exact move checks and move claims in an issue body, same session. |
 
 ## Amendment example: retract an upward edge
 
@@ -106,10 +107,51 @@ The moved-symbol work itself follows the existing retirement and retarget
 rules. This amendment therefore extends the canonical entry instead of adding
 an entry.
 
+## Amendment example: verify the move claims before the copy
+
+Context:
+
+- The same issue supplied three kinds of move claims: module sizes in lines,
+  line anchors for two large embedded string constants, and one pre-check item
+  that asked whether a digest covers the embedded source lines.
+- The issue also stated that the modules have no product-layer imports. That
+  premise was false for one of the three modules, so the claim check covered
+  more than the numbers.
+
+Checks that changed the plan:
+
+1. A `__file__` grep found one sibling lookup that used a fixed parent index.
+   The lookup reached a module of the destination package. The move changed
+   the correct expression, so the plan named the new one and reported it as the
+   only content edit in a file of nearly 3,000 lines.
+2. A search for a source hash found module-level digests for external release
+   artifacts and a lock digest for an installed tree. No hash covered the
+   module text or either embedded constant, in source or in tests. The
+   pre-check result was therefore no digest contract. The constants still had
+   to stay unedited because one runs as a child process and a test executes it.
+3. Every quoted line anchor had drifted by tens of lines, and two of the three
+   module sizes differed from the issue. The target symbols were present, so
+   the plan cited current `file:line` positions and accepted the drift.
+4. A guard test that a related accepted record named as the enforceable
+   authority no longer existed in the tree. Its removal dated to an earlier
+   merge. The plan recorded that no baseline update was possible and did not
+   re-create the guard to match the issue text.
+
+Lesson shape:
+
+- A move issue is a source claim, not evidence. Verify each number, anchor, and
+  pre-check item against the current tree before the plan depends on it.
+- A missing digest contract does not remove the byte-exact requirement. Live
+  execution of the embedded string is the real contract, so keep the bytes and
+  let the existing tests prove them.
+
 ## Discovery limits of this amendment
 
 - The advise helper listed the corpus from the resolved checkout. The open-PR
   query returned one open pull request, and it changed an unrelated entry.
+- The shared knowledge checkout was dirty with an uncommitted draft of this
+  same amendment. This session captured that draft into its own branch and
+  commit rather than write a competing edit over it.
 - No implementation, test run, or CI was observed. This branch comes from
   read-only plan inspection.
 
