@@ -48,6 +48,22 @@ gh issue edit <n> --remove-label state:plan-blocked --add-label state:needs-plan
 <loop> --issues <n> --reset-plan-review-session ...
 ```
 
-## Privacy
+## Catalog status versus the serving set (added 2026-11-05)
+
+Observed in a coordinator session that fanned out four parallel lanes on an orchestration harness:
+
+| Step | Observation |
+| --- | --- |
+| Draw | Lanes were assigned by the catalog status value: the entry the catalog reported as active was chosen first, and entries marked deprecated were treated as the fallback. |
+| Spawn | All four lanes failed at admission with an unserved-model error. Each lane returned a terminal error state and ran zero tool calls, so the batch reported completion with no work. |
+| Probe | A bare two-word probe on an entry marked deprecated returned the expected token. |
+| Redispatch | The same four lanes, identical scopes, ran to completion on the probed entry. |
+| Second family | A second retry choice made from the same status field failed the same way, which showed the status field was the deciding input and not a one-off. |
+
+Decision-relevant points:
+
+- The status field described future availability, not current serving, and its order was the inverse of the real one.
+- The batch reached a terminal state per lane, so a coordinator that reads only lane completion sees a finished batch. Confirm that each lane produced its artifact, not that it returned.
+- A working deprecated entry is a valid target. Report the status separately from the probe result; do not "correct" a successful draw.
 
 Campaign logs and planning journals are internal evidence and are not copied here. Measurements above were taken from those logs; identifiers, paths, hostnames, organization and repository names, and model-deployment specifics that could identify the installation are generalized.
