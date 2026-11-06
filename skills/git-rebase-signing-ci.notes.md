@@ -166,6 +166,101 @@ Observations that shaped the rules:
   replays its own label payload. That is true for `synchronize`-only workflows. It is false
   when the workflow also lists `labeled`.
 
+## Parent-first batch re-sign session (v1.9.0 source material)
+
+One live session on a public shared repository that gates merges on forge-verified per-commit
+signatures. The objective was to re-sign every open pull request that failed the gate. The
+signature key that produced the old commits was no longer configured and its private key was
+not present, so every affected commit had to be rewritten.
+
+Observed sequence:
+
+1. A first scan classified each open branch by `%G?` over its commit range. The bad commits
+   were signed with a different SSH key than the configured one, plus a few unsigned commits.
+2. `git rev-list --count <base>..<tip>` returned about 2000 for a branch that introduced ten
+   commits. `git rev-parse --is-shallow-repository` printed `true`; the clone had a grafted
+   boundary, so `git merge-base` returned that boundary. A `git rebase` replay built on that
+   range conflicted on commits already present upstream.
+3. After a full-history fetch, a plain `git rebase <base>` still conflicted while
+   `git cherry-pick` of the same commit onto the same parent succeeded, and a later
+   `git rebase --force-rebase` replayed commits already merged upstream. The rebuild therefore
+   used `commit-tree` directly and never replayed a patch.
+4. The first rebuild script skipped every commit whose `%G?` was `G`. On the one branch that
+   had valid commits above an unsigned run, the tip was returned unchanged. Tree equality
+   passed, so the fault was invisible until the range was checked and two commits still
+   pointed at old parents.
+5. The corrected loop rebuilt a commit when its signature failed **or** any parent had a
+   rewrite target. That branch then produced a new tip with all ten commits verified.
+6. The open list changed twice during the work: seventeen pull requests merged and eight new
+   ones opened. Several branch tips were pushed concurrently or deleted. A lease pinned to the
+   pre-scan tip rejected those branches with `stale info` or skipped them because
+   `ls-remote` returned an empty value.
+
+Final state: ten pull requests force-pushed with leases pinned to the exact tip read
+immediately before each push; the forge API reported zero unverified commits on each. Two
+further pull requests already satisfied the gate and were left unchanged.
+
+Rewrite map and fixpoint resolution (run in a detached worktree, never the shared checkout):
+
+```bash
+# map_file: "<old> <new>" lines appended as commits are rebuilt.
+lookup() { awk -v k="$1" '$1==k {print $2; exit}' "$map_file" || true; }
+resolve() {                    # follow chained rewrites to a fixpoint
+  local sha=$1 n=0 mapped
+  while [ "$n" -lt 100 ]; do
+    mapped=$(lookup "$sha"); [ -z "$mapped" ] && break
+    sha=$mapped; n=$((n + 1))
+  done
+  printf '%s' "$sha"
+}
+
+# Per branch, oldest first:
+git rev-list --reverse --topo-order "$tip" ^"$base" | while read -r c; do
+  [ -n "$(lookup "$c")" ] && continue
+  need=0
+  # (1) own signature bad, or (2) any parent already rewritten
+  [ "$(git log -1 --format='%G?' "$c")" = "G" ] || need=1
+  for p in $(git rev-list --parents -n1 "$c" | cut -d' ' -f2-); do
+    [ -n "$(lookup "$p")" ] && need=1
+  done
+  [ "$need" = 1 ] || continue
+  # Preserve tree, author, committer, both dates and message; re-sign only.
+  git cat-file commit "$c" | sed '1,/^$/d' > /tmp/msg
+  author=$(git cat-file commit "$c" | sed -n 's/^author //p')
+  committer=$(git cat-file commit "$c" | sed -n 's/^committer //p')
+  new=$(GIT_AUTHOR_NAME="$(printf '%s' "$author" | sed 's/ <.*//')" \
+        GIT_AUTHOR_EMAIL="$(printf '%s' "$author" | sed 's/.*<\(.*\)>.*/\1/')" \
+        GIT_AUTHOR_DATE="$(printf '%s' "$author" | sed 's/.*> //')" \
+        GIT_COMMITTER_NAME="$(printf '%s' "$committer" | sed 's/ <.*//')" \
+        GIT_COMMITTER_EMAIL="$(printf '%s' "$committer" | sed 's/.*<\(.*\)>.*/\1/')" \
+        GIT_COMMITTER_DATE="$(printf '%s' "$committer" | sed 's/.*> //')" \
+        git commit-tree -S "$(git rev-parse "$c^{tree}")" \
+          $(for p in $(git rev-list --parents -n1 "$c" | cut -d' ' -f2-); do
+              printf -- '-p %s ' "$(resolve "$p")"; done) -F /tmp/msg)
+  printf '%s %s\n' "$c" "$new" >> "$map_file"
+done
+```
+
+Two implementation details cost time and are worth naming:
+
+- `git commit-tree` accepts the message only from `-F`; a `-m` argument would change the
+  commit body. Take the body with `git cat-file commit <sha> | sed '1,/^$/d'`.
+- `-S` is an argument of the `commit-tree` subcommand. When the loop is assembled from a
+  multi-line environment assignment, a dropped `-S` silently produces unsigned objects and
+  the tree check still passes. Assert `git cat-file commit <new> | grep -c '^gpgsig'` in the
+  loop until the first run is verified.
+
+Decision checklist distilled from the session:
+
+1. Range count far above the pull request commit count → shallow or partial checkout → fetch
+   full history before computing any base.
+2. A validly signed commit above an unsigned run must be rebuilt when its parent changed;
+   skipping it orphans the stack.
+3. Tip-tree equality alone does not prove the range is correct; compare subjects, count, and
+   the unverified count across the new range.
+4. Re-scan the remote immediately before each push and skip branches that moved; never fall
+   back to an unconditional force push.
+
 ## Related entries
 
 - [git-commit-signing-failures-and-setup](git-commit-signing-failures-and-setup.md):
