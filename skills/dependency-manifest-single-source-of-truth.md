@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Reconcile dependency and interpreter constraints across Python manifests and lockfiles. Use for divergent floors or caps, duplicated metadata, and untested interpreter selection."
 category: ci-cd
 date: 2026-06-13
-version: "1.2.1"
+version: "1.3.0"
 user-invocable: false
 tags:
   - pixi
@@ -20,6 +20,9 @@ tags:
   - python-interpreter-pin
   - free-threaded
   - cp314t
+  - artifact-runtime-floor
+  - toolchain-floor
+  - consumer-interpreter
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/dependency-manifest-single-source-of-truth.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -55,6 +58,9 @@ Keep Python dependency declarations consistent across `pixi.toml`, `pyproject.to
   resolve to an untested/experimental interpreter (e.g. Python 3.14 free-threaded
   `cp314t`) outside the classifier/CI support matrix — cap it at one minor above the
   highest classifier (`>=3.10,<3.14` for classifiers topping out at 3.13)
+- A published artifact declares its own runtime interpreter floor for consumers, while the
+  repository toolchain pins a newer interpreter; a staging helper enforces the toolchain
+  floor and the release fails on the documented host floor
 - Adding regression tests / CI guardrails to lock in manifest consistency going forward
 
 > **See also:** [[state-machine-and-resource-lifecycle-patterns]] (free-threaded cp314t
@@ -116,6 +122,7 @@ Decision rules:
 | `[workspace] version` | Delete it; `pyproject.toml [project] version` owns it | Optional in pixi; removal beats syncing |
 | Unbounded `[pypi-dependencies]` | Add `<(installed_major + 1)` | Bound to a tested major without downgrading |
 | Unbounded `python` pin in `[dependencies]` | Cap at one minor **above** the highest classifier (`>=3.10,<3.14` for classifiers ≤3.13) | Excludes the whole 3.14 line — including the experimental free-threaded `cp314t` build — while keeping the CI-tested 3.13 |
+| Artifact runtime floor vs repository toolchain floor | Keep two explicit floors; do not apply "highest floor wins" across scopes | The artifact runs on consumer interpreters; the toolchain runs only in development and CI |
 
 ### Detailed Steps
 
@@ -361,6 +368,16 @@ def check_pixi_python_ceiling(repo_root) -> bool:
 > revert any file the hooks touched that is not in your intended change set, confirming the
 > issue is pre-existing on main rather than introduced by you.
 
+#### 6d. Keep an artifact runtime floor separate from the toolchain floor
+
+A published artifact can support an older interpreter than the repository toolchain. Keep
+two constants: the artifact runtime floor and the toolchain floor. The build and staging
+helpers must accept the runtime floor. Test the artifact on that floor: run the packaging
+helper and import every packaged helper with the floor interpreter. Add a drift test that
+pins the runtime floor and asserts it is at or below the toolchain floor. Do not apply the
+"highest floor wins" rule across these scopes; that rule unifies manifests for one consumer,
+not two different consumers. The failure shape and verification evidence are in the notes.
+
 #### 7a. Reuse existing `_find_dep` across new test classes (DRY)
 
 When adding a new `TestXxxConsistency` class to an existing test file, do not copy-paste the
@@ -536,3 +553,4 @@ pixi run python -c "import altair; print(altair.__version__)"  # verify installe
 | ProjectScylla | Issue #1119, PR #1170 | Added `<next-major>` upper bounds to 11 unbounded `[pypi-dependencies]`; 3209 tests pass |
 | ProjectHephaestus | Issue #1184, PR #1260 (2026-06-12) | Capped `pixi.toml [dependencies] python` to `>=3.10,<3.14`; re-resolved pixi.lock off `cp314t` to python-3.13.14 `cp313` (`grep -c cp314` → 0); added `extract_pixi_python_ceiling` + `check_pixi_python_ceiling` regression guard wired into the existing consistency script + pre-commit hook; 48 new guard tests + mypy(380 files)/ruff clean. **verified-local** (CI pending at capture) |
 | ProjectHephaestus | Issue #1201, PR #1294 | Raised ruff floor `>=0.1.0` → `>=0.15` in both pyproject.toml and pixi.toml (`[feature.shared.dependencies]`); added `TestRuffConsistency` class reusing `TestPytestConsistency._find_dep`; 8 tests pass (2 new + 6 pre-existing); no pixi re-solve needed |
+| A portable-artifact repository | Release staging on the documented host floor; CI publish verified | [notes](dependency-manifest-single-source-of-truth.notes.md) |
