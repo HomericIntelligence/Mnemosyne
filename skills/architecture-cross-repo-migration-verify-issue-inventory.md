@@ -1,13 +1,13 @@
 ---
 name: architecture-cross-repo-migration-verify-issue-inventory
 license: BSD-3-Clause
-description: "Cross-repo/submodule migrations: verify the proposed inventory before a move, then sweep every orphaned consumer after it. Use when: (1) planning a file or package move, (2) crossing repository boundaries, (3) cited files or counts may be stale, (4) destination capabilities are assumed, (5) removed source leaves validators, tests, entry points, hooks, workflows, docs, package exports, or frozen guards behind, or (6) deleting a public symbol requires downstream and re-export-chain evidence."
+description: "Cross-repo/submodule migrations: verify the proposed inventory before a move, then sweep every orphaned consumer after it. Use when: (1) planning a file or package move, (2) crossing repository boundaries, (3) cited files or counts may be stale, (4) destination capabilities are assumed, (5) removed source leaves validators, tests, entry points, hooks, workflows, docs, package exports, or frozen guards behind, (6) deleting a public symbol requires downstream and re-export-chain evidence, or (7) an undocumented package-side substep of a multi-issue migration exceeds the issue scope or names symbols that are absent from disk."
 category: architecture
 date: 2026-08-07
-version: "1.2.0"
+version: "1.3.0"
 user-invocable: false
 verification: verified-ci
-tags: [cross-repo, submodule, migration, planning, issue-inventory, stale-docs, adr, ground-truth, git-history, nats-contract, orphan-consumers, dangling-references, frozen-count-assertions, tree-wide-guards, entry-points, precommit-hooks, ci-workflows, cmake, package-config, public-api, re-exports, incomplete-migration]
+tags: [cross-repo, submodule, migration, planning, issue-inventory, stale-docs, adr, ground-truth, git-history, nats-contract, orphan-consumers, dangling-references, frozen-count-assertions, tree-wide-guards, entry-points, precommit-hooks, ci-workflows, cmake, package-config, public-api, re-exports, incomplete-migration, multi-issue-plan, library-boundary, substep-scope, absent-symbols, follow-up-issue, atomic-patch-retarget]
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/architecture-cross-repo-migration-verify-issue-inventory.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -21,7 +21,7 @@ history-cleanup-date: "2026-09-20"
 | **Date** | 2026-06-20 |
 | **Objective** | Two halves of one lifecycle: (a) plan a Python-layer move from ProjectKeystone→ProjectAgamemnon across submodule boundaries (issue #143); (b) execute a real cross-repo surface migration (ProjectHephaestus ADR-016 / #2063 — move skills/, plugins/, .claude-plugin/, .codex-plugin/, .agents/, assets/ out to a new "Athena" repo) and keep `main` green. |
 | **Outcome** | (a) The issue's inventory/counts/ADR diverged from disk; the plan was rebuilt from verified ground truth. (b) Removing the source dirs alone turned `main` RED — every orphaned CONSUMER still referenced the moved surface; the systematic sweep (PR #2070, merged `7cc097d6`) reconciled all of them and main returned to green. |
-| **Verification** | verified-ci — the post-move orphan-consumer sweep was executed end-to-end; PR #2070 merged as `7cc097d6`, main returned to green, subsequent PRs merged cleanly. (The pre-move inventory-check half remains a planning-derived hypothesis.) |
+| **Verification** | verified-ci — the post-move orphan-consumer sweep was executed end-to-end; PR #2070 merged as `7cc097d6`, main returned to green, and subsequent PRs merged cleanly. (The pre-move inventory-check half remains a planning-derived hypothesis. The split-precision branch from 2026-11-06 is a read-only planning result; no change has executed it yet.) |
 | **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/architecture-cross-repo-migration-verify-issue-inventory.history) |
 
 ## When to Use
@@ -36,6 +36,7 @@ history-cleanup-date: "2026-09-20"
 - A repo has "frozen" guards that assert a NUMBER (console-script count, symbol count) or a membership SET (sanctioned-dir allowlist, phantom-dir guard) — these silently encode the old surface and won't be caught by grepping for module names.
 - An installed package configuration still advertises a removed component, imported target, archive, dependency, or feature guard.
 - A shared public symbol appears unused locally, but downstream repositories or re-export chains may still consume it.
+- A multi-issue migration names a package-side substep that disk evidence shows is too large or too mixed for its issue: absent symbols, a new library boundary, or a support-module dependency closure larger than the issue scope. You must decide whether to keep the substep or extract it to a follow-up issue.
 
 ## Proposed Workflow
 
@@ -69,6 +70,11 @@ Treat the issue body's file inventory and ADR cross-references as a **hypothesis
 4. **Verify the destination's build system/language/packaging before assuming "just add the package."** ProjectAgamemnon had ZERO Python (no `pyproject.toml`, no `[pypi-dependencies]` in `pixi.toml`, `src/` all `.cpp`) — so this was a from-scratch bootstrap, not an edit.
 5. **Explicitly flag cross-repo history as NOT preserved by plain `git mv`.** `git mv` preserves `git log --follow` only WITHIN one repo. Keystone and Agamemnon are independent repos (submodules), so a copy-in + provenance commit does not give `--follow` across the boundary. True preservation needs `git filter-repo`/subtree — left out of scope, so flag it as the top unverified risk.
 6. **Identify public string-literal contracts and add a grep-guard.** The NATS subject literal `hi.tasks.{team_id}.{task_id}.{event}` / `"hi.tasks.>"` must survive byte-for-byte (downstream Argus/AI-Maestro must not redeploy), and the dot-count parse arithmetic in `_parse_subject` must not change (`hi.tasks.team.task.event` = 5 parts). Guard these separately from the identifier rename.
+7. **Test a package-side substep against disk scope before you keep it in one issue.** For each substep, list the symbols it names and the modules the moved package imports from its former parent. Then select one branch:
+   - **Keep** the substep when the dependency closure fits the issue scope and every named symbol exists on disk.
+   - **Extract** the substep into a follow-up issue when the closure crosses an unowned boundary, when a named symbol is absent on disk, or when the substep depends on a migration assumption no issue owns.
+
+   Check the done criteria of the split before you extract. A rename done-grep that matches only the renamed parent path (`parent\.old\b`) does not cover a differently named package (`parent\.other_api`). The rename issue can then close on its own criteria, and the extracted issue takes the remaining work.
 
 ## Verified Workflow
 
@@ -172,6 +178,7 @@ pixi run mypy && pixi run pytest tests/unit
 | 8 | Ran tests only on the edited files to confirm the removal. | Tree-wide guards (whole-tree `mypy`, structure tests, phantom-dir guard) failed elsewhere — the break was far from the deletion. | Run the FULL suite locally after a migration; tree-wide guards fail far from the change, so a changed-files-only run reports false-green. |
 | 9 | Removed a build target but left the installed package template unchanged. | Consumers could still request a phantom imported target or dependency guarded by a feature that no longer existed. | Treat package metadata and packaging docs as executable consumers of the removed surface. |
 | 10 | Declared a public helper unused after searching only its implementation repository. | Re-exports and downstream imports were outside the local search surface. | Enumerate known consumers and search direct imports, `__all__`, lazy exports, shims, tests, and docs before deletion. |
+| 11 | Kept a package-relocation substep inside a rename issue after the substep named four symbols that disk did not contain. | The substep had no executable content, and the relocation made the package a library member that imported its former parent through relative edges. The support-module closure (~9 modules) exceeded the issue scope, and one support module defined models on a dependency the target layer excluded. | Re-derive the named symbols by content grep. Extract a substep to a follow-up issue when its closure crosses an unowned boundary or its inventory is stale; confirm the split against the issue's own done-grep first. |
 
 ## Results & Parameters
 
@@ -196,6 +203,21 @@ grep -rn 'hi.tasks.{team_id}.{task_id}.{event}' <dest>/src
 # _parse_subject dot-count arithmetic unchanged: hi.tasks.team.task.event == 5 parts
 grep -n '_parse_subject' <dest>/src/**/*.py
 ```
+
+### Split-precision check for a multi-issue migration (branch rule)
+
+```bash
+# 1. The substep names symbols: do they exist on disk?
+for s in SymbolA SymbolB SymbolC; do grep -rn "\b$s\b" <src-root> --include='*.py' | head -1 || echo "ABSENT: $s"; done
+# 2. The moved package imports its former parent: list every edge
+for f in <pkg>/*.py; do grep -hE "^(from|import) \.\." "$f"; done | sort -u
+# 3. Does the new layer forbid that edge?
+grep -rn "must not import" <guard-test-file> | head -3
+# 4. Does the issue's done-grep cover the whole substep?
+grep -rE '<parent>\.<renamed>\b' <scope-dirs>   # a different package name escapes this pattern
+```
+
+Keep the substep in one change when every symbol exists and the edge closure fits the issue. Extract a follow-up issue when the closure crosses an unowned layer boundary, a symbol is absent, or the change would rewrite the same call-site literals twice. Break a self-facade only in the same change as the move it belongs to, so patch literals are retargeted once.
 
 ### Acceptance-criterion scoping
 
@@ -236,3 +258,5 @@ grep -rln 'maestro\|Maestro' <src>/src <src>/tests --include='*.py'   # expect: 
 | Destination repo (b) | Athena (new repo receiving the skill/plugin surface) |
 | Trigger (b) | Post-move orphan-consumer sweep — PR #2070, merged as commit `7cc097d6` |
 | Verification (b) | verified-ci — main returned to green; subsequent PRs merged cleanly |
+| Trigger (c) | Planning a full package rename inside a staged multi-issue restructure with a documented package-side substep (2026-11-06, read-only planning) |
+| Verification (c) | unverified — the plan is prepared; the split rule has no executed change yet |
