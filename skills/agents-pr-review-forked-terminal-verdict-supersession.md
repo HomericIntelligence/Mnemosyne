@@ -1,7 +1,7 @@
 ---
 name: agents-pr-review-forked-terminal-verdict-supersession
 license: BSD-3-Clause
-description: "Supersede a pull request whose review history forked under near-simultaneous terminal verdicts from two publishers. Use when an exchange/ledger-based review shows two terminal verdicts posted seconds apart, so label and merge delivery cannot bind one history."
+description: "Deliver a valid review verdict on the same pull request when the review-exchange helper refuses it for bookkeeping reasons (forked chain, head move during delivery, edited carrier, authority record a shared login cannot give). Post a plain exact-head review and verify before auto-merge; do not open replacement PRs. Use when two terminal verdicts fork the history or a helper rejects a head-bound verdict."
 category: tooling
 date: 2026-10-30
 version: "1.0.0"
@@ -12,73 +12,63 @@ tags:
   - review-exchange
   - ledger-fork
   - publisher-race
-  - supersession
+  - direct-verdict
+  - no-replacement-pr
   - terminal-verdict
   - coordination
   - execution-observed
 ---
 
-# Forked Terminal Verdicts: Supersede, Never Arbitrate
+# Review Delivery Refused: Post Direct Exact-Head Verdict, Never Replace the PR
 
 ## Overview
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-10-30 |
-| **Objective** | Recover cleanly when two publishers post terminal review verdicts on the same pull-request head seconds apart, forking the review history and making label/merge delivery ambiguous. |
-| **Outcome** | SUCCESS — PR superseded at the same branch and head, one fresh reviewer round by a single designated session, merged with exclusive GO label. The superseded lane published nothing further. |
+| **Date** | 2026-11-06 |
+| **Objective** | Deliver a valid reviewer verdict bound to the exact head commit when an automated review-exchange helper refuses it because of bookkeeping state, without multiplying pull requests, reviews, or CI runs. |
+| **Outcome** | The verdict is posted as a plain review on the same pull request; the coordinator verifies it and enables auto-merge. |
 
 ## When to Use
 
-- Your review protocol is ledger- or exchange-based (rounds, carriers, author-responses) with a single expected publisher per round.
-- Two publishers both publish a terminal verdict (GO, or any verdict that ends the round) against the same PR head within seconds — the ledger now contains two divergent "round 1 terminal" histories.
-- Downstream delivery (label swap, auto-merge arm, finalization) depends on binding to ONE complete history and can no longer determine which history is canonical.
-- Prevention already failed: lanes had "donot double-drive" rules, but both publishers prepared and published against the same open window.
+- A reviewer holds a valid verdict bound to the exact current head, but the exchange helper refuses to deliver it.
+- The cause is bookkeeping state, not the code or the verdict: a forked exchange chain (two terminal verdicts posted seconds apart), a head move during delivery, an edited carrier review, or a required-authority record that a shared login cannot give.
+- Label, auto-merge, or finalization steps cannot bind one history.
 
 ## Verified Workflow
 
 ### Quick Reference
 
 ```bash
-# Step 1 — DETECT the fork: two terminal carriers at near-identical timestamps,
-# each cryptographically/structurally valid on its own, claimed terminal on the
-# same exchange id and head.
-# Step 2 — STAND DOWN every non-designated publisher for that PR immediately:
-# no further carriers, no labels, no merges, no "clarifying" edits.
-# Step 3 — DESIGNATED OWNER (coordinator/session owner) closes the forked PR
-# UNMERGED with a plain-language reason and points to the replacement PR.
-# Step 4 — REPLACEMENT PR on the SAME branch and SAME head (no rebase churn).
-# Step 5 — exactly ONE fresh reviewer round by ONE designated session on the
-# replacement PR; nobody else reviews, labels, or merges it.
-# Step 6 — label + automerge only from the replacement PR's single delivered
-# history. The superseded lane does read-only residue verification and cleanup
-# of its own artifacts (worktrees, branches) — it publishes nothing.
+# 1. Reviewer: post the verdict as a plain review bound to the exact head.
+gh api repos/<OWNER>/<REPO>/pulls/<PR>/reviews -X POST \
+  -f commit_id=<EXACT_HEAD_SHA> -f event=COMMENT -f body="<verdict text>"
+# 2. Coordinator, before enabling auto-merge, verify all three:
+gh pr view <PR> --json headRefOid          # equals the review commit_id
+git verify-commit <EXACT_HEAD_SHA>         # signature valid
+gh api repos/<OWNER>/<REPO>/pulls/<PR>/reviews --jq '.[-1]|{commit_id,body}'   # verdict text
 ```
 
 ### Detailed Steps
 
-1. **Detect the fork.** Compare published terminal carriers' timestamps and binding proofs. If both parse/verify cleanly and both claim terminal state on the same exchange at the same head, picking a winner by timestamp or trust ranking is NOT safe: each publisher's subsequent author-response/round logic can follow a different history, compounding the fork.
-2. **Stand down non-designated publishers.** Any lane that had a prepared round for that PR discards it. Do not publish "my round was first" evidence on the PR; that adds a third lineage.
-3. **One designated owner supersedes.** The coordinator (or explicit owner) closes the forked PR unmerged, stating the first cause plainly in the closing comment (forked review history; two terminal verdicts published ~simultaneously) and naming the replacement PR. This creates an auditable single narrative.
-4. **Open the replacement on the same branch and head.** The code artifacts are sound; only the review history is contaminated. Opening PR2 at the identical head avoids rebase churn and keeps CI binding trivial. Include the same body and a one-line supersession pointer.
-5. **One fresh round, one publisher.** The designated reviewer session runs round 1 on PR2 fresh (new exchange id, exact-head binding). The closing comment on PR1 should also instruct the review loop not to review/label/merge PR2 — that single round belongs to the designated session. Everyone else stays hands-off until it lands.
-6. **Deliver through PR2 only.** Label swap, auto-merge, and merge evidence all flow from PR2's single complete history. After merge, a verification pass confirms: merge commit ancestor of main; exactly one state label; residue checks (for subtractive PRs) as applicable.
-7. **Superseded lane finishes as read-only.** It verifies the landed result (post-merge residue greps, file-byte comparisons where promised), cleans its own worktrees/branches, reports, and stops. It must not interact with either PR further.
+1. **Stand down extra publishers.** When the chain forked, every lane except one designated reviewer stops publishing carriers, labels, and merges for that PR. Do not pick a winner by timestamp.
+2. **Do not open a replacement PR.** A replacement PR doubles PRs, reviews, and CI runs. The owner rejected this recovery. The code is sound; only helper bookkeeping failed.
+3. **Post the verdict directly.** The reviewer posts a plain review with `commit_id` set to the exact head. The verdict text stays the same as the refused verdict.
+4. **Verify before arming.** The coordinator checks that the review `commit_id` equals the current head, that the head commit signature is valid, and that the verdict text is a pass verdict. Then enable auto-merge pinned to that head.
+5. **Reuse the reviewer.** Use the same reviewer agent for the same issue across rounds. A new reviewer has no context and restarts findings.
+6. **Treat a head move as stale.** A later head move makes the verdict stale. Re-review the exact new head. A test-only delta is a short re-review.
 
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 |---------|----------------|---------------|----------------|
-| Treat one of the two terminal GOs as authoritative | Continue rounds or label delivery against "the first" GO | Both carriers verify cleanly; downstream tooling sees two valid competing histories and every later round risks splitting again | A fork in a ledger protocol is structural, not a question of which publisher was right; supersede the PR |
-| Let both publishers "converge" by exchanging author-responses on the forked PR | Trying to reconcile the two histories in place | Each new carrier relies on its own history's acceptance set; adds a third divergent lineage instead of merging the two | Stand down non-designated publishers immediately; only the designated owner supersedes |
-| Re-create the superseded PR at a NEW head to "disambiguate" | Rebase or push an extra commit to make PR2 distinct | The problem is the review history, not the code; unnecessary churn breaks the head-binding CI/verdict artifacts for zero benefit | Supersede at the SAME branch and head; only the reviewer round restarts |
+| Replacement PR for a clean exchange | Close the PR and reopen the same branch to restart the exchange | Doubled PRs, reviews, and CI runs; the owner rejected it | Bookkeeping failure is not a reason to replace the PR; post a direct exact-head review |
+| Treat one of two terminal verdicts as authoritative | Continue rounds or label delivery against the first verdict | Two valid competing histories; each later round can split again | Stand down extra publishers and deliver one direct verdict |
+| Reconcile both histories with author responses | Exchange responses on the forked PR | Adds a third lineage | Do not reconcile in place |
+| Arm auto-merge without checking | Trust the posted review | A head move or an unsigned head makes the verdict stale or invalid | Verify head, signature, and verdict text first |
 
 ## Results & Parameters
 
-A choreography-PR carrying a small subtractive change reached terminal GO from two publishers one second apart. Coordinate-heal sequence above executed verbatim: forked PR closed unmerged at the old head with first-cause note; replacement PR on the same branch/head; exactly one designated fresh round; exclusive GO label; merged minutes later with merge commit ancestor-verified; superseded lane performed read-only residue verification and cleanup only.
-
-Verification: the label readback showed exactly one state label (exclusive GO); merge commit was an ancestor of main within minutes of merge; the forked PR's review/label/merge state remained exactly as the designated owner set it (untouched by other lanes). No test suite regression — the change was additive-only-to-deletion-safe by construction.
-
-## Verified On
-
-A multi-lane autonomous pull-request wave on a repository with a ledger-based review-exchange protocol (rounds bound to exact heads, exclusive state label, squash auto-merge). Two independently-acting publisher lanes raced a terminal verdict inside one open window; the supersession flow above restored single-history delivery with full audit trace.
+- Review state: `COMMENT`, with `commit_id` equal to the head at review time.
+- Required checks before auto-merge: head match, valid signature, pass verdict text.
+- A head change invalidates the verdict; a test-only delta needs only a short re-review.

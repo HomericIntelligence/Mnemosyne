@@ -92,8 +92,15 @@ gh api repos/<OWNER>/<REPO>/commits/<HEAD>/check-runs
 ```
 
 List review threads via GraphQL and treat every unresolved, non-outdated thread as a blocker when
-conversation resolution is required. Reply with the fixing commit/evidence before resolving a
-thread; then refresh because merge state may briefly become `UNKNOWN`.
+conversation resolution is required. A thread blocks merge even with a passing review verdict and
+green checks. The acting agent owns the closure and needs no owner approval: verify each finding
+against the current head, reply with one line of evidence (the fixing commit, or the reason the
+finding no longer applies), and resolve the thread; then refresh because merge state may briefly
+become `UNKNOWN`.
+
+A permission-classifier denial of an action is not a repository rule that a human must approve it.
+Do not bypass the denial and do not invent an approval requirement. Retry only through the normal
+authorized path, and read the repository and user instructions to learn what is really required.
 
 ### Merge-method and check rules
 
