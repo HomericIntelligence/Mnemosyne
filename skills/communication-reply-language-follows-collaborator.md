@@ -69,11 +69,11 @@ tags:
 
 ## Failed Attempts
 
-| Approach | Problem | Correction |
-| --- | --- | --- |
-| Mirror the language of the most recent input | A single non-default input, or a harness string, switched the whole reply language for a reader who does not use it. | Select the language from the human collaborator, and keep it stable. |
-| Restate API aliases loosely to help with a language mismatch | Messy aliases and misread identifiers. | Keep identifiers exact and say which one you mean. |
-| Translate everything in the history after a complaint | Large, unreviewable changes, and risk of altering quoted text. | Fix the language of new output; change history only on request. |
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
+| --- | --- | --- | --- |
+| Mirror the most recent input | Switched the whole reply language to match the latest message. | A single non-default input, or a harness string, switched the language for a reader who does not use it. | Select the language from the human collaborator, and keep it stable. |
+| Loosen API aliases for a language mismatch | Restated identifiers as a loose alias. | Messy aliases and misread identifiers. | Keep identifiers exact and say which one you mean. |
+| Translate the history after a complaint | Rewrote earlier output once a collaborator complained. | Large, unreviewable changes, and risk of altering quoted text. | Fix the language of new output; change history only on request. |
 
 ## Results & Parameters
 
