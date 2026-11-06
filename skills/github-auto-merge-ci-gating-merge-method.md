@@ -6,15 +6,17 @@ description: >-
   arming auto-merge or admitting a reviewed head to a repository-owned merge queue, when a
   merge command with an explicit method is rejected because the queue owns the method, when
   protocol ceremonies remain while a merge is already armed, when a decorative state
-  label may be mistaken for a merge gate, or when a label-gated workflow keeps failing
-  after the label changed.
+  label may be mistaken for a merge gate, when a label-gated workflow keeps failing
+  after the label changed, or when every check is green but the merge state stays
+  `BLOCKED` because a checkless rule such as `required_signatures` rejects an
+  unverified commit.
 category: ci-cd
 date: 2026-07-30
-version: "2.5.0"
+version: "2.7.0"
 user-invocable: false
 verification: verified-ci
 license: BSD-3-Clause
-tags: [auto-merge, github, ci-cd, merge-method, required-checks, rulesets, review-threads, current-head-checks, merge-queue, toctou, armed-merge-race, ceremony-ordering, label-gating, cancelled-leg]
+tags: [auto-merge, github, ci-cd, merge-method, required-checks, rulesets, review-threads, current-head-checks, merge-queue, toctou, armed-merge-race, ceremony-ordering, label-gating, cancelled-leg, checkless-rule, required-signatures, commit-verification]
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/github-auto-merge-ci-gating-merge-method.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -46,6 +48,9 @@ repository-specific policy transitions are `verified-local`; their boundaries ar
 - A list response and a single-PR read report different merge state for the same PR.
 - Required contexts never post, appear twice, or show an old failure beside a newer success.
 - `mergeStateStatus=BLOCKED` with green CI and unresolved review threads may remain.
+- Every check is green and the PR is mergeable, but the state stays `BLOCKED` or `UNKNOWN` because
+  a checkless rule such as `required_signatures` fails on an unverified commit and emits no check
+  run to point at.
 - Rulesets and classic branch protection impose a stricter union than either UI view suggests.
 - A new required workflow creates a bootstrap deadlock because the required context does not yet
   exist on the target branch.
@@ -67,6 +72,8 @@ repository-specific policy transitions are `verified-local`; their boundaries ar
 3. **Resolve the policy union.** Inspect both repository rulesets and classic branch protection:
    required contexts, strict/current-head behavior, approval counts, dismissal rules, signed
    commits, conversation resolution, and allowed merge methods. The stricter applicable rule wins.
+   Classify each rule as **check-emitting** or **checkless**. A checkless rule has no context and
+   emits no check run, so no rollup or check query can show that it is unsatisfied.
 4. **Check non-CI blockers.** List unresolved review threads, missing human approvals, draft state,
    merge conflicts, required labels, commit signature/DCO failures, and required environments.
 5. **Distinguish missing from failing.** If a required context never runs because of events or
@@ -212,6 +219,31 @@ absence does not block the merge. Only labels that policy requires are blockers
 (see the PR-vs-issue label blocker below). Check the policy union before you
 read any label as a gate.
 
+### Checkless rules block without a red check
+
+A ruleset can require a property that GitHub evaluates itself and never reports as a check
+context. `required_signatures` is the common case: the rule carries no `parameters` and no
+context, and it fails the merge on every commit whose signature the forge cannot verify.
+
+The symptom is a merge state that stays `BLOCKED` or `UNKNOWN` while every check conclusion is
+`SUCCESS`. Do not treat that combination as a flaky rollup or a pending mergeability
+calculation. Check the two properties directly:
+
+```bash
+# A checkless rule has null parameters and no context.
+gh api repos/<OWNER>/<REPO>/rules/branches/<BASE> \
+  --jq '.[] | select(.type=="required_signatures") | .parameters'
+# Confirm no check run represents the rule.
+gh api repos/<OWNER>/<REPO>/commits/<HEAD>/check-runs \
+  --jq '[.check_runs[].name] | map(select(test("sig|sign";"i")))'
+# Verify the commit itself, not the local signing configuration.
+gh api repos/<OWNER>/<REPO>/commits/<HEAD> --jq '.commit.verification'
+```
+
+An empty `parameters`, an empty name match, and `verified: false` together identify the blocker.
+Repair is a signed rewrite of the head; re-signing does not change file content. Do not wait for
+a check to turn green, because no check exists to turn green.
+
 ### Common blockers
 
 - **Unresolved threads:** all checks green but conversation-resolution policy blocks merge.
@@ -219,6 +251,8 @@ read any label as a gate.
   issue does not satisfy it.
 - **Signature/DCO:** author, committer, signing key, and trailer policy disagree; verify the commit,
   not only local configuration.
+- **Checkless signature rule:** `required_signatures` blocks an unverified commit with no check
+  run and no context. A fully green rollup does not satisfy it.
 - **Bootstrap:** a PR cannot satisfy a newly required context that is not emitted by the target
   branch. Land the workflow first, observe the exact context, then require it.
 - **Advisory gate:** move advisory diagnostics outside the required aggregate rather than weakening
@@ -246,6 +280,8 @@ read any label as a gate.
 | Direct merge on a queue-only base | Called the REST merge mutation against a merge-queue repository | The repository rule rejects every direct merge method with HTTP 405 | `gh pr merge <N>` detects the queue policy and enqueues; confirm with `already queued` |
 | Read a queued PR as unarmed | Armed auto-merge, read back `autoMergeRequest`, saw null, and re-armed | A queue-owned PR leaves `autoMergeRequest` null by design | Verify with `mergeQueueEntry` state and position, not `autoMergeRequest` |
 | Batch-arm with the wrong flag | Looped `gh pr merge --auto-merge` and piped the output | `--auto-merge` is not a flag; the piped error hid every failed call | Use `--auto` and confirm each PR reached the queue |
+| Read a green rollup as "nothing left blocks" | Saw 24 `SUCCESS` conclusions with no failing context and concluded the merge state was stale | The blocker was `required_signatures`, a checkless rule with null parameters. No check run existed to fail, so the rollup was correct and irrelevant | Enumerate the ruleset rules and classify each as check-emitting or checkless before you trust a green rollup |
+| Re-enqueue without changing the head | Called `gh pr merge --auto` again on the same unverified head | The queue refused admission and the command exited without a message, so a retry only masked the cause | When enqueue is silently refused on a green PR, verify the commit signature rather than re-arming |
 | Call empty review output clean | Call empty review output clean | The tool may have truncated before analysis | Require its completion marker |
 | Debug content for a red required check | Read the armed merge's failing required check as a content regression and started a diff investigation | The aggregate check failed only because one matrix leg hung to the workflow timeout and was cancelled; the leg owned no changed tests and ran in minutes at nearby heads | Match the gate message's cancelled leg to the change surface and a comparator run; rerun failed jobs only |
 | Clear the final gate before the terminal record | Resolved the last foreign thread while the terminal review publication still pended under an armed merge | The armed merge fired within minutes of the gate clearing and landed before the ceremony completed | Deliver remaining records before the final gate clears, or disarm and re-arm |
