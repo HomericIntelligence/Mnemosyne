@@ -105,6 +105,34 @@ optional log directory and standard-error fallback, and stated the disposition
 of the family with no production load path. The review also required each
 behavior test to load through the real loader rather than a private helper.
 
+## 3.10.0 — plan-citation freshness at review time
+
+Source evidence: a plan review of a release close-out issue in a fast-moving
+repository. The plan carried a premise table with one check per issue row, and a
+proposed verdict of GO.
+
+What the review checked and found (generalized):
+
+- Every change target held. Each cited file, line range, and missing-artifact claim
+  matched the tracked tree, and the merge-state claims matched the forge.
+- Two claims in the plan's own premise table were wrong. The table said a residue
+  pattern matched 34 lines across a file of a stated length; a re-run returned 32
+  lines in a longer file. The table also called one tag "the only remote tag" when
+  the remote carried many tags. The conclusion the plan drew from both claims still
+  held.
+- Neither error changed the edit list or the disposition. Both were recorded as
+  non-blocking blemishes with the correct values, and the verdict stayed GO.
+
+Decision value that this case adds:
+
+- The failing branch is not "the plan is wrong". It is "the review re-ran the
+  author's commands". A count claim and a "the only such value" claim are cheap to
+  re-run and cheap to get wrong.
+- A wrong non-scoping claim must not be silently dropped: an implementer who anchors
+  an edit on a wrong count edits an incomplete surface.
+- A wrong non-scoping claim must not be upgraded to a blocker either: that turns a
+  disclosure into a re-plan round for a plan whose selected change is sound.
+
 ## Retrieval note
 
 This file is a companion and is not part of normal retrieval. Keep rules in the main
