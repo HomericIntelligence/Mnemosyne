@@ -125,3 +125,48 @@ intact, and the running usage stood exactly at it.
   and the floor-arithmetic check.
 - Duplicate search: no open pull request touched this entry or added an
   entry with the same intent at delivery time.
+
+## Ownership-branch evidence (2026-11-01)
+
+The ownership branch comes from an owner decision after the saturation
+session. It does not come from a completed code change in this session.
+
+- A deployment configuration recorded a measured QOS group cap for the fleet
+  account, taken from `sacctmgr` output.
+- The deployment start refused a requested pool set when a derived node
+  footprint exceeded that recorded cap, and it asked the cluster
+  administrators to raise the cap.
+- The requested nodes were derived as replica slots divided by slots per
+  node, so the derived node count was not the scheduler's node count.
+  Replicas of one model can share a node by GPU slice.
+- The owner decision: the service requests replicas and the scheduler decides
+  placement. The service computes no node count and sets no hard-coded node
+  budget. The recorded cap stays as a report-only measurement. The service
+  reports the scheduler refusal with the job id, the partition, the QOS, and
+  the scheduler message.
+- Floor values in the decision were a requested replica count per pool. They
+  were not a node budget.
+
+### Limits of this evidence
+
+- The refusal removal, the scheduler-refusal reporting, and the behavior test
+  named in the ownership branch were planned but not verified in this
+  session. Treat the branch as the set rule, not as a merged change.
+- No scheduler refusal message was captured in this session.
+
+## Amendment record (2026-11-01)
+
+- Disposition `amend`, version 1.1.0 to 1.2.0, on the same canonical entry.
+- New decision value: the ownership branch that separates the replica request
+  from the node footprint, the report-only rule for a recorded cap, the four
+  fields of a reported scheduler refusal, and the excluded source-scan test.
+- Duplicate search terms: `qos`, `grptres`, `capacity`, `replica`,
+  `node budget`, `refusal`, `preflight`, `placement`, `scheduler`.
+- Closest entries inspected: `slurm-multi-account-capacity-evaluation`
+  (placement arity and capacity parity, with no ownership rule),
+  `serving-lane-zero-floor-demotion` (replica floors, no node derivation),
+  `inference360-dynamic-serving-capacity` (capacity from an assigned GPU
+  subset), and `derive-placement-label-from-receipt-not-config-id` (derive a
+  placement label from a receipt). None covered the pre-flight refusal
+  failure mode.
+- No open pull request touched this entry at delivery time.
