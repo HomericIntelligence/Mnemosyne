@@ -1,9 +1,9 @@
 ---
 name: derive-pin-from-source-of-truth-not-hardcoded-literal
-description: "Derive a version, digest, image lineage, or other pin from its canonical source instead of comparing against a literal, treat descriptive documentation as current state rather than a rule to enforce, and keep a sealed-artifact gate strict. Use when: (1) a build, gate, or probe script asserts a specific version, digest, lineage value, or path set, (2) the asserted value also exists in a manifest, recipe, lockfile, or environment file, (3) documentation states the toolchain or lineage currently in use, (4) an existing check compares a materialized copy of a manifest instead of the manifest itself, (5) a hardcoded value sits inside a quoted heredoc where the surrounding variable cannot reach it, (6) a published artifact is refused by a gate that scans for bytes the artifact should never carry, or (7) a protected-location literal is removed by guessing at its consumers instead of using a field search."
+description: "Derive a version, digest, image lineage, or other pin from its canonical source instead of comparing against a literal, treat descriptive documentation as current state rather than a rule to enforce, and keep a sealed-artifact gate strict. Use when: (1) a build, gate, or probe script asserts a specific version, digest, lineage value, or path set, (2) the asserted value also exists in a manifest, recipe, lockfile, or environment file, (3) documentation states the toolchain or lineage currently in use, (4) an existing check compares a materialized copy of a manifest instead of the manifest itself, (5) a hardcoded value sits inside a quoted heredoc where the surrounding variable cannot reach it, (6) a published artifact is refused by a gate that scans for bytes the artifact should never carry, (7) a protected-location literal is removed by guessing at its consumers instead of using a field search, or (8) an enforced policy value such as a group name, account name, or path is still a module constant after the profile that declares it gains the field, so you must decide which checks read the declaration and which keep the literal."
 category: ci-cd
-date: 2026-11-01
-version: "1.1.0"
+date: 2026-11-07
+version: "1.2.0"
 user-invocable: false
 verification: verified-local
 tags:
@@ -22,6 +22,11 @@ tags:
   - sealed-artifact
   - redaction-projection
   - protected-root-removal
+  - policy-value-declaration
+  - trust-isolation-exclusion
+  - stored-record-vocabulary
+  - fail-closed-refusal
+  - residual-constant-deletion
 ---
 
 # Derive a Pin From Its Source of Truth, Not From a Literal
@@ -39,6 +44,13 @@ file that declares it. Every script that asserts the pin reads that owner.
 When a script compares against a literal, the two copies drift. The drift
 appears as a confusing failure in a place that has no authority over the
 value.
+
+The same rule covers an enforced policy value, such as a group name, an
+account name, or a path. A value that the active profile declares is a pin.
+Each check resolves it from the profile. Three classes of site keep the
+literal. Trust-isolated modules must not load project configuration.
+Stored-record vocabulary is a closed contract. Detectors and fixed rules are
+the requirement itself.
 
 Two failure modes follow from this. The first is a literal that cannot see
 the owner. The second is a rule invented from descriptive prose.
@@ -62,6 +74,9 @@ loosen the detector to remove a literal.
   protected value, such as an administrative root path.
 - You must remove a literal that names a protected location and other code
   depends on it.
+- An enforced policy value, such as a group or account name, is still a module
+  constant after the profile that declares it gains the field. You must
+  decide which checks read the declaration and which keep the literal.
 
 ## Verified Workflow
 
@@ -105,6 +120,25 @@ project --exclude-prefix <control-only-prefix>/ <source> <public>
 | Detector | The byte sequence a seal or privacy gate searches for | Keep. It is the requirement. |
 | Fixed policy | A path prefix the projection always omits | Keep. A content test makes the result depend on current values. |
 | Redaction output | A protected value split into parts to stop it matching a scan | Do not do this. Remove the need for the value instead. |
+| Policy declaration copy | A group or account name in a runtime check, when the active profile declares the same name | Replace. Resolve the name from the active profile. Fail closed when the declaration is absent. |
+| Trust-isolation literal | A name inside a module that checks bootstrap files and must not load project configuration | Keep. An import of the configuration loader defeats the isolation. |
+| Stored-record vocabulary | A closed enum, a seed table mirrored by a database migration, or a receipt schema literal | Keep. A declared change needs a migration or a schema change, not a runtime read. |
+
+### Decide each check site
+
+1. Find the declaration. Read the profile schema and each profile file, and
+   record the field name that the requirement text uses.
+2. Classify each check site with the table above. Report the class of each
+   site, and report each exclusion with its reason.
+3. For a policy declaration copy, resolve the declared value at the check.
+   Use an existing resolver before you add a new one.
+4. Fail closed. When the declaration cannot be resolved, the check refuses
+   the action. A refusal names the profile key, the expected value, and the
+   observed value.
+5. Keep the constant as a schema default or a function-parameter default only
+   for paths that have no active profile.
+6. Delete a constant that no check reads after the rewiring. Do not keep it as
+   a second copy of the declared value.
 
 ### Suggested Approach
 
@@ -173,6 +207,7 @@ Supporting case detail is in [the notes](./derive-pin-from-source-of-truth-not-h
 | Assembled a protected value from parts to pass a byte scan | Wrote the value as separate path segments, then called the parts to get the same run-time value | The value still existed at run time, the source no longer described the location, and the build copied the bytes into bytecode | Remove the value from shipped input; do not redact it |
 | Pruned the published tree by scanning it for the protected bytes | Deleted every payload file that contained the value before publication | The published tree then depended on the current data, and the result changed on each release | Apply one fixed path rule in the projection and keep the data out of the published artifact |
 | Removed a protected-location constant after a partial consumer search | Deleted the constant and rewired only the first consumer found | A later consumer used the value differently, so a guessed replacement could have dropped a protection | List every consumer first, move each one to a declared field, and fail closed when the declaration is absent |
+| Rewired a policy name in a trust-isolated module | Made the bootstrap directory check import the profile resolver to remove one more literal | The check exists to run without project configuration, so the import coupled the trust stage to the data it verifies | Classify each site first; a trust-isolation literal stays, and the exclusion is recorded |
 
 ## Results & Parameters
 
@@ -186,6 +221,9 @@ Supporting case detail is in [the notes](./derive-pin-from-source-of-truth-not-h
 | Seal scan | the protected bytes, scanned in every installed file | Keep it; it is the requirement |
 | Projection rule | a fixed path prefix that the projection omits | Not a content test of the current data |
 | Inventory update | drop the rows and directory entries of excluded members | The manifest and the gate scan the same population |
+| Policy value source | the profile field the requirement names | The check refuses when the declaration is absent |
+| Constant after rewiring | delete it when no check reads it; keep a default only for paths with no active profile | A second copy of the declared value drifts |
+| Exclusion classes | trust isolation, stored-record vocabulary, detector or fixed rule | Each exclusion is recorded with its reason |
 
 ### Expected Output
 
@@ -203,6 +241,7 @@ Supporting case detail is in [the notes](./derive-pin-from-source-of-truth-not-h
 | --------- | --------- | ------- |
 | Model-serving pipeline | Container image build and gate scripts | Literals replaced with recipe arguments; syntax and argument-passing forms exercised directly. See [notes](./derive-pin-from-source-of-truth-not-hardcoded-literal.notes.md). |
 | Python packaging release lane | Public wheel refused by its own self-containment gate | Fixed path-prefix exclusion in the projection with matching inventory rows, and the protected-location literal removed by a field search. The plan review confirmed the approach; focused tests and static checks passed locally. See [notes](./derive-pin-from-source-of-truth-not-hardcoded-literal.notes.md#evidence-public-artifact-refused-by-its-own-seal). |
+| Python control-plane service cluster | Plan to move a required administrator group and service account from module constants into the cluster profile | Plan only. The check-site survey classified each site: policy declaration copies, trust-isolation literals, stored-record vocabulary, and test-only defaults. No source change and no test run confirmed the plan. See [notes](./derive-pin-from-source-of-truth-not-hardcoded-literal.notes.md#evidence-policy-values-moved-from-constants-to-a-profile). |
 
 ## References
 
