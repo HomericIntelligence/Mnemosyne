@@ -15,6 +15,8 @@ Supporting cases for
 | Scanner remediation | [ProjectHephaestus PR #2598](https://github.com/HomericIntelligence/ProjectHephaestus/pull/2598) | verified-ci | Docstring-only head stayed NOGO; producer regression enabled final GO |
 | Inline review without GitHub review object | [ProjectHephaestus PR #2616](https://github.com/HomericIntelligence/ProjectHephaestus/pull/2616) | verified-ci | Exact head, exclusive label transition, checks, and merge formed the audit |
 | Already-current writer preparation | [ProjectHephaestus PR #2631](https://github.com/HomericIntelligence/ProjectHephaestus/pull/2631) | verified-ci | Proved local and remote head equality without unnecessary rebase/push |
+| Label-gated check pass that never ran | Exact-head review of a private review branch | verified-local | Required context passed in seconds while lint, typecheck, and test jobs were skipped by the label gate; verdict reported "not run" and withheld the label |
+| Pre-review repairs | Same review branch | verified-local | Removed eager validation restored help and local commands, widened assertions were re-tightened, and a template rewrite kept its cited identifiers |
 
 ## Evidence Boundaries
 
