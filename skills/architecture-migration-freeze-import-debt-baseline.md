@@ -1,10 +1,10 @@
 ---
 name: architecture-migration-freeze-import-debt-baseline
 license: BSD-3-Clause
-description: "Freeze legacy direct imports during a partial runtime migration with an AST-derived exact consumer/module allowlist and matching ADR policy, and retire each frozen pair by moving the depended-on code down one layer. Use when: (1) an accepted ADR describes a completed abstraction but source still uses legacy provider modules, (2) compatibility imports must remain temporarily without allowing the exception to expand, (3) line-oriented grep would miss nested or function-local imports, (4) documentation must distinguish invocation, response parsing/validation, compatibility exports, and provider-specific failure diagnostics, (5) a policy file must list every allowed upward import edge and the same change pays down one or more edges, (6) a caller states that a module has no upward imports before a move, (7) an upper module must keep a re-export for its other consumers while the moved unit goes to the lower layer."
+description: "Freeze legacy direct imports during a partial runtime migration with an AST-derived exact consumer/module allowlist and matching ADR policy, and retire each frozen pair by moving the depended-on code down one layer. Use when: (1) an accepted ADR describes a completed abstraction but source still uses legacy provider modules, (2) compatibility imports must remain temporarily without allowing the exception to expand, (3) line-oriented grep would miss nested or function-local imports, (4) documentation must distinguish invocation, response parsing/validation, compatibility exports, and provider-specific failure diagnostics, (5) a policy file must list every allowed upward import edge and the same change pays down one or more edges, (6) a caller states that a module has no upward imports before a move, (7) an upper module must keep a re-export for its other consumers while the moved unit goes to the lower layer, (8) tests patch a symbol that moves with a re-export, so patch rotation through the re-export owner must hold, or (9) the new lower module's imports reach the layer's provider entry-point module and can close an import cycle."
 category: architecture
 date: 2026-07-20
-version: "1.3.0"
+version: "1.4.0"
 user-invocable: false
 verification: unverified
 tags:
@@ -24,9 +24,9 @@ tags:
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-07-20 (amended 2026-11-01: retirement by extraction; amended 2026-11-04: re-export direction, premise check for the move scope, file-relative paths, embedded source, and the enumeration of the test derivers a move invalidates) |
+| **Date** | 2026-07-20 (amended 2026-11-01: retirement by extraction; amended 2026-11-04: re-export direction, premise check for the move scope, file-relative paths, embedded source, and the enumeration of the test derivers a move invalidates; amended 2026-11-07: patch rotation through the re-export owner, complete patch-site enumeration including test utilities, and the new-home import-cycle premise) |
 | **Objective** | Reconcile an ADR with a partial provider-runtime migration while preventing the remaining direct-import exception from silently expanding. |
-| **Outcome** | Proposed an exact AST-derived consumer/module baseline, automation-only path invariant, and normalized ADR-policy assertion. The Hephaestus source inventory was confirmed read-only, but the documentation and test changes were not implemented. A later amendment adds the retirement path: move the depended-on code down one layer, then delete the allowlist pair. A further amendment adds the move-scope premise check, file-relative path sweep, and embedded-source byte rule. A final amendment adds re-export direction for the product-to-library move. A 2026-11-04 amendment adds the inverse of the patch-retarget rule: name every test that imports or patches a moved symbol, and inspect each stub signature. Both 2026-11-04 amendments derive from read-only planning sessions. |
+| **Outcome** | Proposed an exact AST-derived consumer/module baseline, automation-only path invariant, and normalized ADR-policy assertion; the Hephaestus source inventory was confirmed read-only without implementation. Amendments add the extraction retirement path, the move-scope premise check, file-relative path sweep, embedded-source byte rule, re-export direction, test-deriver enumeration, and (2026-11-07) patch rotation and new-home import-cycle premises. All step amendments from 2026-11-04 forward derive from read-only planning or review sessions. |
 | **Verification** | unverified — the baseline guard was observed in source; the retirement path comes from one reviewed change whose CI was not observed. |
 
 This pattern is narrower than a general library/product boundary and broader
@@ -77,6 +77,7 @@ direction and lean base import surface, use
 | Retire debt | Remove the source import and baseline pair together | Equality fails on both undocumented additions and stale removals |
 | Retire by extraction | Move the depended-on code down one layer, then delete the `(consumer, module)` pair | Re-exporting the module from its former home keeps the edge and leaves the pair valid |
 | Retarget test derivers | Grep every import and patch of each moved symbol; inspect each stub signature | A narrow stub fails at call time when the moved function gains a parameter |
+| Hold patch rotation | The upper module re-exports each patched moved name as a plain attribute | A missing owner attribute breaks the patch with `AttributeError` |
 
 ### Detailed Steps
 
@@ -129,9 +130,9 @@ direction and lean base import surface, use
        return frozenset(pairs)
    ```
 
-3. **Freeze exact pairs, not aggregate counts.** A count of 30 can stay green if
-   one approved consumer disappears while a new unapproved consumer appears.
-   Exact equality detects additions and removals:
+3. **Freeze exact pairs, not aggregate counts.** A count can stay green if one
+   approved consumer disappears while a new unapproved consumer appears. Exact
+   equality detects additions and removals:
 
    ```python
    actual = collect_direct_imports()
@@ -253,6 +254,12 @@ direction and lean base import surface, use
     - Extract only the needed symbols into a lower module and re-export them
       from the old upper module. Use this branch only when the upper module has
       other product-layer responsibilities that must stay.
+    - Check the new lower module's import list for the layer's provider
+      entry-point module. Reviewed documentation keeps naming that entry point
+      as the provider path after the move, so an import from it closes a cycle:
+      new module → entry point → moved module → new module. Cut the import:
+      keep a small pure helper in the upper module, or state that the entry
+      point must not import the moved module. The plan names the selected cut.
     - Do not add a forwarding shim to the new lower module and call the move
       done. The consumer edge remains, and the criterion stays false.
 
@@ -278,6 +285,19 @@ direction and lean base import surface, use
     to the lower package `__init__`, and re-run the import-surface test after
     the move. Confirm that optional third-party imports in the moved files stay
     function-local; otherwise the base import gains a dependency.
+
+13. **Guarantee patch rotation through the re-export, and prove each patch
+    site by opening its consumer.** When the old upper module re-exports the
+    moved symbols, a test that patches or imports through that owner still
+    reaches them: the reference rotates caller → upper owner → re-export →
+    lower module. This holds only when the re-export installs each name as a
+    plain attribute of the upper module. The plan names that mechanism and
+    lists each patched name against it. Patches on the moved module's own path
+    follow the module to its new home. Then bound the enumeration: after the
+    grep lists patch strings and old module paths, open each consumer the list
+    claims to cover. A list that names commands but not the consumer's
+    reference — for example a test helper that re-imports the old path —
+    leaves one site unplanned while every focused command stays green.
 
 ## Verified Workflow
 
@@ -309,6 +329,9 @@ heading; it does not make a verification claim.
 | Accept the issue's "zero upward imports" claim | Planned a three-module move from the issue text | One module still imported two product-layer modules, so the zero-edge criterion was unreachable, and two lower modules were missing from the list | Scan the imports of every named module before planning the move, then add the lower modules they depend on |
 | Assume a locked digest covers embedded source | Planned a digest update for long embedded source strings | The lock digests covered external artifacts only; no digest or test hashed the embedded strings, so an update had nothing to update | Test whether a digest covers the bytes before planning a regeneration; if none does, move byte-exactly and do not reformat |
 | Keep the `__file__`-relative path after a sibling move | Expected the move to be import-only | The path resolved through a parent directory that no longer held the sibling module | Scan every `Path(__file__)` expression in each moved file and rewrite it against the new package position |
+| Assume a re-export keeps every consumer working | The plan said the upper module re-exports the moved names and consumers stay unchanged | Tests patched private helpers as upper-module attributes; rotation holds only while the re-export installs each name as a plain attribute | Name the re-export mechanism in the plan and enumerate each patched name against it |
+| Enumerate patch sites by grep alone | Greps for patch strings and old module paths looked complete | One consumer still referenced the old module path, and the command list did not name it | After the grep, open each consumer the list claims to cover; a green selection does not prove the enumeration |
+| Let an extraction import the layer's provider entry point | The new lower module moved a normalized-model family and imported the provider runtime for one pure helper | The runtime stays the documented provider path, so the import would close a cycle through the moved module | Read the entry point's import list before the cut; keep the pure helper in the upper module or cut the edge |
 
 ## Results & Parameters
 
@@ -320,20 +343,16 @@ not implemented during this learning session. A read-only AST scan on
 |-----------|---------------------------|-------|
 | Product root | `hephaestus/automation/` | Exceptions remain automation-only |
 | Legacy modules | `claude_invoke`, `claude_models`, `claude_timeouts` | The latter two are compatibility shims over `agent_config` |
-| Exact consumer/module pairs | 30 | Frozen membership is the normative test input |
-| Distinct consumer files | 18 | A file importing two legacy modules contributes two pairs |
-| `claude_invoke` pairs | 16 | Includes a diagnostics-only consumer |
-| `claude_models` pairs | 14 | Compatibility-export consumers |
-| `claude_timeouts` pairs | 0 | State the zero explicitly so no consumer is implicitly approved |
+| Exact consumer/module pairs | 30 (invoke 16, models 14, timeouts 0) | Frozen membership is the normative test input; a file importing two legacy modules contributes two pairs |
+| Distinct consumer files | 18 | State each zero explicitly so no consumer is implicitly approved |
 | Runtime state | Direct runner executes Codex and Pi; Claude remains on the legacy invocation path | Do not document a completed provider-neutral facade |
-| Verification level | unverified | Inventory observed locally; proposed guard, ADR edit, focused tests, and CI are pending |
+| Verification level | unverified | Inventory observed locally; guard, ADR edit, focused tests, and CI are pending |
 
 Proposed focused verification for the Hephaestus example:
 
 ```bash
 uv run pytest tests/unit/validation/test_adr_0005_direct_import_policy.py -v --override-ini=addopts=
 uv run pytest tests/unit/validation/test_automation_boundary.py tests/unit/validation/test_import_surface.py -v --override-ini=addopts=
-uv run pytest tests/unit/validation/test_adr_0005_direct_import_policy.py tests/unit/docs/test_adr_records.py -v --override-ini=addopts=
 ```
 
 Promote this skill to `verified-local` only after the ADR and guard are
@@ -348,3 +367,4 @@ after the corresponding PR's CI succeeds.
 | An isolated service-restructuring checkout | Upward service-to-command-layer edges, 2026-11-01 | One change moved a cohesive action group out of the command-layer module into a new lower module, updated the layer-policy file, and retargeted the affected test patches. CI was not observed in the learning session, so no verification claim is made. |
 | A layered Python repository | Provider-runtime move planning, 2026-11-04 | Read-only planning. The zero-upward-import premise failed for one of three named modules; the plan added the two lower modules that the edge required. The locked digests did not cover the embedded source strings, and one `__file__`-relative sibling path needed a rewrite. No implementation, test run, or CI result was available. |
 | Planning session for a product-layer-to-library move | Read-only plan inspection of the product-to-library direction, 2026-11-04 | The caller's "no upward imports" premise was false for one of three modules. The module imported its product-layer configuration owner and an alias to a library module. The plan needed an extraction of the cohesive session-and-model family to a new library module, an alias check before patch retargeting, and a re-export in the product layer for the other consumers. No implementation, test run, or CI was observed. |
+| Read-only review of a provider-runtime product-to-library move plan | Plan-review session, 2026-11-07 | The premises held after direct verification (both upward edges found, one path fix, no digest over embedded source). The review found three concrete gaps: patch rotation through the re-export was unnamed, the patch-site enumeration missed one consumer, and the extraction's new module imported the layer's provider entry-point module, which would close a cycle. No implementation, test run, or CI was observed. |
