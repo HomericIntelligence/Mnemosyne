@@ -1,10 +1,10 @@
 ---
 name: shared-fs-hang-diagnosis-from-allocation
 license: BSD-3-Clause
-description: "Find the first cause, and why the outage lasted, when a scheduler-managed network service accepts TCP connections but never answers, and node access is denied. Use when: (1) every HTTP request hangs while the port is open and a published status record still says UP, (2) you cannot SSH to the node, (3) service logs show repeated health-probe timeouts or the supervisor and monitor logs stopped, (4) component logs report that a bound root changed its mode or identity, or (5) another operator already restarted the service and you must bound the onset and the duration from preserved logs and scheduler accounting, or (6) you review code that puts a file lock on a shared directory and must replace it."
+description: "Find the first cause, and why the outage lasted, when a scheduler-managed network service accepts TCP connections but never answers, and node access is denied. Use when: (1) every HTTP request hangs while the port is open and a published status record still says UP, (2) you cannot SSH to the node, (3) service logs show repeated health-probe timeouts or the supervisor and monitor logs stopped, (4) component logs report that a bound root changed its mode or identity, or (5) another operator already restarted the service and you must bound the onset and the duration from preserved logs and scheduler accounting, or (6) you review code that puts a file lock on a shared directory and must replace it, or (7) you retire a process record that still states the rule."
 category: debugging
 date: 2026-10-24
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-live
 tags: [hang, shared-filesystem, flock, fuse, virtiofs, slurm, srun-overlap, request-wait-answer, accept-queue, proc, outage-diagnosis, root-identity-drift, estale, watchdog, no-file-lock, o-excl, atomic-replace, generation-check, compare-and-swap]
@@ -30,6 +30,7 @@ tags: [hang, shared-filesystem, flock, fuse, virtiofs, slurm, srun-overlap, requ
 - A component log says a bound root "changed during root resolution" with a different mode, owner or inode.
 - Another operator already restarted the service; only preserved logs, the scheduler record and the new generation remain.
 - You must review, or write, code that locks a file on a shared directory.
+- You retire a process record that states the rule, and the maintained policy page must take the claim.
 
 ## Verified Workflow
 
@@ -86,6 +87,11 @@ Keep the lock only where the owner is one node. A node-local per-port lease is s
 
 State the rule where reviewers read it. Do not add a test that scans the source to prove the rule. A scan test passes when a new call site uses an alias, and it fails when the source changes shape. Review is the control.
 
+Give the review control a live home. A claim in a separate process record, such as a plan, an issue, or a decision record, does not control the rule. The claim goes stale when the policy changes or when a sweep retires the record, and a repository test that guards the prose then blocks the change. Put the rule in one maintained policy page that a documented check covers.
+
+1. When you retire a record, find its policy claim and change both in the same change.
+2. If a repository check asserts the policy text, make the edit that the check requires in the same change. Report the exact check and result.
+
 Do these checks in review, against the code, not by grep alone:
 
 1. Find each lock call site and the path it locks.
@@ -130,6 +136,7 @@ The live wedge is gone, so steps 3 to 5 have no target. Prove recovery first, th
 | Free memory | Treat low `free` as a leak | Almost all of it was page cache | Compare `used` with `buff/cache`, then use scheduler `MaxRSS`. |
 | Onset attribution | Named a neighbour job that started in the onset window as the trigger | Correlation in time is not a mechanism | Prove a resource or lock interaction before you name a trigger. |
 | Bounded lock wait | Replaced a blocking lock with a bounded `LOCK_NB` retry loop and a typed timeout | The lock call can still wait without limit inside the storage client, so the process still stops | Remove the shared-path lock. Use an exclusive create, an atomic replace, or a generation check. |
+| Rule home | Left the rule claim in a decision record that a sweep retired | The claim went stale, and a repository test that guards the policy text then failed the sweep | Change the retiring record and its policy claim together. Run the check that asserts the policy text. |
 
 ## Results & Parameters
 
