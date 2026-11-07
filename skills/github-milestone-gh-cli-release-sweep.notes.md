@@ -64,3 +64,47 @@ A release-train setup for a private multi-service monorepo:
 - Enumeration without an explicit `--limit` truncated the first inventory
   silently; the discrepancy surfaced only because the per-milestone counts
   did not add up. Always reconcile counts before claiming completeness.
+- `--limit 5000` is not a way to bypass paging. A
+  `gh issue list --state closed --limit 5000 --json number,milestone` snapshot
+  returned fewer rows than the REST listing of the same repository state,
+  which hid items from an idempotency skip check. When the snapshot decides
+  whether to skip an item, read it from
+  `gh api 'repos/{owner}/{repo}/issues?state=closed&per_page=100' --paginate`.
+
+## Closed-milestone name resolution (2026-11)
+
+A retroactive sweep rebuilt release history: milestones for already shipped
+releases were created, set to `state=closed`, then populated from
+approximately 2,200 closed issues and pull requests.
+
+1. The first pass used `gh issue edit {n} --milestone "{title}"`. Items
+   placed before the milestones were closed succeeded. Items processed
+   afterwards reported `failed to update ...: '<title>' not found`.
+2. `GH_DEBUG=api` showed the cause: the command issues
+   `RepositoryMilestoneList` with variables `{"states":["OPEN"]}`. Name lookup
+   is scoped to open milestones, so a closed milestone is invisible to it.
+   `gh pr edit` emits the same query with the same variable.
+3. The failure is not item-specific, and that is what misleads. The same item
+   succeeds before the milestone closes and fails after. A probe against a
+   known closed milestone reproduces it in one command.
+4. Recovery: `gh api -X PATCH repos/{owner}/{repo}/issues/{n} -f
+   milestone={number}`. The `issues` endpoint accepts issues and pull requests
+   and accepts a milestone in either state. Resolve the number with
+   `gh api 'repos/{owner}/{repo}/milestones?state=all' --jq '.[] | "\(.number)|\(.title)"'`.
+5. The retry assigned the 1,824 remaining items with zero failures after the
+   1,825-item first pass. A post-run audit compared every live member against
+   its planned target and found zero misplaced items.
+
+The ordering rule that prevents the failure: assign first, close second.
+Closing a milestone before its membership is final is the condition that
+creates the trap.
+
+```text
+First pass : gh issue edit  (OPEN-only name lookup)   1,825 failures
+Recovery   : PATCH issues/{n} -f milestone={number}   1,824 assigned, 0 failures
+```
+
+Polling or retrying does not help here. A rate-limited run and a
+closed-milestone run produce different stderr (`rate limit` compared with
+`not found`), so classify the error text before you add a retry. A retry only
+affected the rate-limit class.
