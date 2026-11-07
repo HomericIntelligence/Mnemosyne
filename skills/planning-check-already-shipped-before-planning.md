@@ -172,6 +172,11 @@ primary record to get an explicit remainder list, then decide for each item:
 5. For each remainder, write down the decided class: convert, keep, delete, or defer with an owner.
    A site that the authority record places in the same class as a shipped item belongs to the
    remainder, even when the last merged PR kept it.
+
+   `Keep` is a decision that needs a named owner and record. When the requirement retires a
+   decision option, a row that still carries that option is not a keep. It is an open item that
+   blocks the requirement. Mark each such row as blocking with the option it still offers, and
+   do not report it as shipped or retained.
 6. Plan only the remainder, and state the evidence for each closed item in the plan.
 
 Before you write the plan, scan the tree for every other site that carries the same defect class.
@@ -244,6 +249,7 @@ If code comments attribute work to an ADR, open the ADR itself; comments are not
 | Bundle sibling-repository work | Edited `../OtherRepo/` from the current PR | A branch cannot deliver changes to another repository | Create a separate PR and verify its hosted checks |
 | Repeat remembered counts | Different sections used different totals | Reviewers could not tell which snapshot was authoritative | Measure once and reconcile everywhere |
 | Re-run a dispatched task from its snapshot prompt | Started the task again after an earlier run had completed it and posted the report | The prompt described stale state, and no run compared the latest report with live state before acting | Bind live state and the latest report first; when they already satisfy the criteria, verify, record the verdict, and add no new report |
+| Mark a row `retained` while a retired decision option is still live in it | A row was placed in the retained group because most of its requirements still applied | The owner decision retired a decision option, and that row still offered the option, so the row blocked the requirement | Test retired options separately from retained requirements, and mark each row that still carries a retired option as blocking |
 
 ## Results & Parameters
 
@@ -268,6 +274,9 @@ If code comments attribute work to an ADR, open the ADR itself; comments are not
   (`verified-local`).
 - 2026-10-31 amendment: the re-dispatched-task check was exercised on a live rebase task whose
   prior run had already completed it, including its report write (`verified-local`).
+- 2026-11-07 amendment: the blocked-row classification for a retired decision option was exercised
+  in a read-only plan review; the finding and the corrected classification were recorded, and the
+  implementation stayed out of scope (`verified-local`).
 - Individual case outcomes and limitations are indexed in
   [the notes](./planning-check-already-shipped-before-planning.notes.md).
 
