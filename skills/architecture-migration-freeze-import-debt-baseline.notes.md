@@ -166,3 +166,50 @@ Lesson shape:
   canonical entry.
 - CI for the reviewed source change was not observed. The retirement rules are
   generalized from the reviewed diff, not from a green pipeline.
+
+## Amendment 2026-11-07: patch rotation and the new-home import-cycle premise
+
+Context:
+
+- A read-only plan review examined an issue plan that moves three
+  provider-runtime modules from a product layer to a library layer.
+- The plan had already supplied the premise evidence: an AST scan found the
+  upward edges, one `__file__`-relative path needed a rewrite, and no digest
+  covered the embedded source. The review confirmed all of them.
+- The plan also extracted a session-and-defaults family from the product-layer
+  configuration module into a new library module, and kept a re-export in the
+  configuration module for the existing consumers.
+
+Findings:
+
+| Class | Evidence pattern | Plan gap |
+|-------|------------------|----------|
+| Re-export rotation | Tests patch private helpers through the product-layer configuration owner, and other tests use that owner directly | The plan said "re-exports" but did not name the mechanism, so a missing plain-attribute read would break those patches with `AttributeError` |
+| Enumeration gap | A test file outside the plan's move list imported one moved module from its old path | After the move, that import fails with `ImportError`, so a test of moved behavior stops collecting |
+| Import cycle | The extracted family imported the layer's provider entry point for one pure helper, and reviewed documentation keeps that entry point as the provider path | `new module → entry point → moved module → new module` would close the moment the entry point imports the moved module |
+| Documentation anchor | The canonical architecture document still pointed at the product-layer configuration module for names the plan moves | Stale anchor in the document that the agent contract names as the canonical topology reference |
+
+Decision rules derived:
+
+- Bound patch rotation precisely: rotation holds only while the re-export
+  installs each patched name as a plain attribute of the owner module.
+  Patches on the moved module's own path follow the module instead.
+- Prove the enumeration: a grep list is a hypothesis. Open each consumer the
+  list claims to cover, and add each newly found file to the focused command.
+- Before accepting an extraction, read the provider entry point's imports.
+  When it can import the extracted family, cut the import instead of relying
+  on import order.
+
+Discovery limits of this amendment:
+
+- The advise helper resolved the knowledge checkout at
+  `54fa3eb7ce397fffdc537b459af53dcf20133b13` with a clean state and a verified
+  refresh.
+- The bounded selector listed 1,023 retrievable entries. The selected canonical
+  entry and its notes carried two earlier amendments (v1.2.0, v1.3.0) from the
+  same plan line, so the new material was merged into that entry rather than a
+  new one.
+- No open pull request changed the selected canonical entry at the delivery
+  revision.
+- No implementation, test run, or CI was observed. The rules come from
+  read-only plan inspection.
