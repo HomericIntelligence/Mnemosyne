@@ -1,9 +1,9 @@
 ---
 name: coordinator-owned-terminal-review-lanes
-description: "Keep terminal-stage lane launches (for example, independent review) with the coordinator, gated on forge-verified artifact existence. Use when: (1) a background implementation lane proposes to self-launch its own review or gate lane, (2) a parent lane's background session can end while its spawned children still run, (3) a stalled terminal stage tempts a replacement launch, or (4) several review lanes race on the same pull request."
+description: "Keep terminal-stage lane launches (for example, independent review) with the coordinator, gated on forge-verified artifact existence. Use when: (1) a background implementation lane proposes to self-launch its own review or gate lane, (2) a parent lane's background session can end while its spawned children still run, (3) a stalled terminal stage tempts a replacement launch, or (4) several review lanes race on the same pull request. Also use when a reviewer starts in a shared checkout and finds a second live reviewer process, or uncommitted edits it did not make, already in that checkout."
 category: tooling
 date: 2026-11-01
-version: "1.0.0"
+version: "1.1.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-local
@@ -16,6 +16,9 @@ tags:
   - race-avoidance
   - notification-ownership
   - capacity
+  - shared-checkout
+  - foreign-uncommitted-edits
+  - reviewer-verdict-ownership
 ---
 
 # Coordinator-Owned Terminal Review Lanes
@@ -48,6 +51,8 @@ that holds the long-lived notification channel: the coordinator.
 - You find two or more review publications for the same pull request at the
   same head from different reporters — the symptom of a race the pre-launch
   enumeration would have prevented.
+- You start a review in a shared checkout and find a second live process with
+  the same task, or uncommitted edits that you did not make, already in it.
 
 ## Verified Workflow
 
@@ -93,6 +98,35 @@ that holds the long-lived notification channel: the coordinator.
    parent's entry. A parent end-of-life never removes a live child from the
    in-flight count.
 
+### When the Race Starts After the Launch
+
+Pre-launch enumeration cannot stop a race that the launcher never saw. Apply
+this branch when you are a reviewer and the checkout already holds a second
+writer.
+
+1. **Prove the second writer before you decide.** Check for a live process
+   with the same task command bound to the checkout, a claim record that
+   names one owner, file modification times that no command of yours
+   produced, and untracked files you did not create. Record the process and
+   claim identifiers in your report.
+2. **Do not push while the ownership is split.** A commit or push from either
+   process gives the branch no single author, and the reviewed head becomes
+   ambiguous. Post one verdict and one ownership note instead.
+3. **Screen in-flight foreign edits before you treat them as a fix.** Read the
+   foreign diff as review evidence, not as a cleared repair. An edit that
+   skips one validation can produce an artifact that claims the value of set
+   A while it carries set B, and the artefact passes the edited check and
+   fails a later consumer. Do not report such an edit as a fix.
+4. **Restore only tracked files you did not change.** Restore them to the
+   head, so a later push cannot carry a half-applied repair. Leave untracked
+   files that the other process created in place; they are its work.
+5. **Leave the gate labels off.** A split ownership is not a clean review
+   state. Post the verdict with the evidence you have, and keep any
+   implementation gate unset.
+6. **Ask the coordinator to stop one process.** Name both process identifiers
+   and the claim owner. Put a decision request on the artifact when the repair
+   needs a product choice rather than a reviewer edit.
+
 ### Quick Reference
 
 | Situation | Action |
@@ -101,6 +135,9 @@ that holds the long-lived notification channel: the coordinator.
 | Implementation report verified, no review yet | Enumerate, then coordinator launches one fresh-context reviewer |
 | Parent session ended, child signal lost | Classify by artifact state; replace only after enumeration shows a gap |
 | Two same-head reviews already racing | Do not launch a third; reconcile the pair and record the race |
+| Second reviewer process already in your shared checkout | Post one verdict and an ownership note; do not push; restore foreign tracked edits |
+| Foreign uncommitted edit looks like a fix | Screen it as evidence; a skipped validation can make a draft claim a value it does not carry |
+| Foreign untracked file in the checkout | Leave it in place; it belongs to the other process |
 | Unavoidable delegation | Durable forge comment with child session/shell IDs before parent reports |
 
 ## Failed Attempts
@@ -110,6 +147,7 @@ that holds the long-lived notification channel: the coordinator.
 | Self-launched background reviewers | Two implementation lanes each spawned their own background review child and then ended | Both parent sessions ended; one child's completion notification was lost entirely (the stage stalled for hours at a stable head), the other child's report only surfaced through manual artifact reads | A background child's completion reaches only its spawner; terminal-stage launches belong with the coordinator who holds the long-lived channel |
 | Replacement on the lost-signal alone | On a parent-dead review lane's silence, launched a fresh reviewer without re-reading the artifact | Three independent reviewers published round-1 reviews for the same pull request at the same head from different reporters; the verdicts converged but tripled the review spend and complicated verdict reconciliation | Silence is not a gap; enumerate reviews, threads, head, and claims before any replacement launch |
 | Child shells under the parent's capacity entry | Counted a lane's background children as part of the parent's in-flight slot | The parent's end hid live children from the count; admission decisions assumed free capacity that did not exist | Each child is its own work item with its own durable identifier; a parent end never decrements a live child |
+| Two reviewer processes launched into one shared checkout | A launcher started a second review of the same artifact while the first review still ran, and both edited the same files | The second process left uncommitted edits mid-review, so the checkbox state stopped being a single reviewed head; the edits also carried an incomplete repair that would have passed the edited check and failed a later consumer | A shared checkout needs one writer. A reviewer that finds a second writer posts one verdict and an ownership note, and does not push. |
 
 ## Results & Parameters
 
@@ -137,6 +175,13 @@ orphan_classification:
   ambiguous: one bounded wait, then treat as stalled; record the class
 capacity_accounting: each child is its own work item with a durable identifier
 race_symptom: concurrent same-head reviews from different reporters
+shared_checkout_race:
+  detect: [same-command process, claim owner, foreign mtimes, foreign untracked files]
+  write_rule: one owner pushes; the other posts one verdict and one ownership note
+  foreign_tracked_edits: restore to head
+  foreign_untracked_files: leave in place
+  gate_labels: unset while ownership is split
+  escalation: name both process ids and the claim owner
 ```
 
 ### Expected Output
@@ -164,6 +209,7 @@ write.
 | Project | Context | Details |
 | ------- | ------- | ------- |
 | Multi-lane backlog program on a shared delivery forge | 2026-11-01: orphaned background review children observed in both modes (one completed and published, one stalled silently); one three-reviewer same-head race after a replacement launched without enumeration; all decisions held after coordinator-owned launches replaced the pattern | Generalized evidence in [notes](coordinator-owned-terminal-review-lanes.notes.md) |
+| Multi-lane backlog program on a shared delivery forge | 2026-11-07: a second reviewer process was launched into a checkout that a live reviewer already used, minutes after the first start; the second process left uncommitted edits mid-review, including a repair that skipped a validation and produced an artifact that claimed a digest for one value set while it carried another; the first reviewer posted one verdict and an ownership note, restored the tracked edits, and set no gate label | Generalized evidence in [notes](coordinator-owned-terminal-review-lanes.notes.md) |
 
 ## Related Skills
 

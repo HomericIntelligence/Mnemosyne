@@ -53,6 +53,32 @@ preceded by enumeration. No further races or silent stalls occurred in the
 remainder of the program (several more terminal launches, each with a live
 notification owner).
 
+## Case chronology (2026-11-07): a shared checkout with two live reviewers
+
+A launcher started the same review task twice, minutes apart, into one shared
+review checkout. Both processes ran the same command against the same
+directory. The checkout was bound to one artifact head.
+
+- The first process detected the second by process enumeration, a claim
+  record that named one owning process, and files whose modification times no
+  command of the first process produced.
+- The second process had made uncommitted edits to two shipped files and one
+  test file. The first process had edited only the test file.
+- One of the foreign edits was an incomplete repair. It skipped a validation
+  for the alternate revision, so the derived document kept value set B while
+  it claimed the digest of value set A. The edited check then passed, and the
+  later promotion consumer refused the document.
+- The first process had already reproduced two required defects by execution
+  at the bound head. It posted one verdict with the reproduction evidence, an
+  ownership note with both process identifiers, and one decision request for
+  the repair choice. It set no gate label.
+- The first process restored the two shipped files that the second process had
+  edited. It left the second process's untracked test file in place.
+
+Outcome evidence at the bound head: the required check passed, the focused
+suite passed before any edit, and the two required defects reproduced by
+execution.
+
 ## Decision points the evidence supports
 
 | Decision | Evidence |
@@ -61,6 +87,9 @@ notification owner).
 | Gate launches on forge readback | One orphan's completion report arrived without a published artifact; readback distinguished it from a real publication |
 | Enumerate before replacement | The race cost triple review spend; in item B enumeration showed the gap already closed and prevented a redundant launch |
 | Classify orphans by artifact state | A1 (publish present) vs A2 (nothing) vs B (degenerate): three states, three different correct actions |
+| A reviewer stops writing when ownership of one checkout is split | Two live processes in one checkout left uncommitted edits mid-review, so the head under review could not be stated as one author's work |
+| Screen foreign in-flight edits as evidence, not as a fix | A foreign edit that skipped one validation let a document claim the digest of one value set while carrying another; only the later consumer refused it |
+| Restore foreign tracked edits, leave foreign untracked files | Restoring prevents a later push from carrying a half-applied repair; deleting the untracked file would discard the other process's work |
 
 ## Limits
 
@@ -72,6 +101,10 @@ notification owner).
 - Foreground children (parent awaits them) were not exercised in this
   window; the permission for them follows from the notification-lifetime
   argument, not from observed cases.
+- The two-live-reviewer case is one observation. It shows that a shared
+  checkout can acquire a second writer after launch. It does not measure how
+  often that happens, and it did not follow the second process to its end; the
+  coordinator stopped one process off this session.
 
 ## Privacy note
 
