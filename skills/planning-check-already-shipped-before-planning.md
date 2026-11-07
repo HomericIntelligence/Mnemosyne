@@ -1,13 +1,13 @@
 ---
 name: planning-check-already-shipped-before-planning
-description: "Check whether follow-up work already exists before planning or re-running it. Use for stale issue paths, counts, uncommitted work, partial delivery, closeout evidence, multi-item issues with a recorded remainder, and re-dispatched task runs."
+description: "Check whether follow-up work already exists before planning or re-running it. Use for stale issue paths, counts, uncommitted work, partial delivery, closeout evidence, multi-item issues with a recorded remainder, re-dispatched task runs, and a fresh planning dispatch on an issue that already has an open pull request."
 category: architecture
-date: 2026-06-19
-version: "2.4.0"
+date: 2026-11-07
+version: "2.5.0"
 user-invocable: false
 license: BSD-3-Clause
 verification: verified-local
-tags: [planning, already-shipped, stale-premise, extraction, migration, provenance, closeout, partial-delivery, remainder-list, class-conversion, cross-repo, acceptance-criteria, replan, redispatched-task, duplicate-report]
+tags: [planning, already-shipped, stale-premise, extraction, migration, provenance, closeout, partial-delivery, remainder-list, class-conversion, cross-repo, acceptance-criteria, replan, redispatched-task, duplicate-report, open-pr-delivers-diff-only, plan-artifact-separate, rebind-review-conditions]
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/planning-check-already-shipped-before-planning.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -46,6 +46,9 @@ plans and sibling-repository CI retain their documented evidence limits.
   leaves the issue open while the behavior already holds at the default branch.
 - The same operational task was dispatched more than once, and an earlier run may have completed
   it, including its required report write.
+- A fresh planning dispatch arrives on an issue whose body still carries the pre-implementation
+  state, for example an early planning label or stale cited line content, and the session context
+  may already hold a prior plan, a plan-review GO, and an open pull request for that issue.
 
 ## Verified Workflow
 
@@ -82,7 +85,21 @@ git show origin/main:path/to/file | grep '<acceptance-marker>'
 git fetch origin
 gh pr view <number> --json headRefOid,baseRefName,mergeStateStatus,labels,comments
 git merge-base --is-ancestor origin/main HEAD && echo "branch sits on the current base"
+
+# The issue still cites the defect and may carry an early planning label.
+# Enumerate the issue's own prior artifacts before you plan anything.
+git show origin/main:<cited-path> | sed -n '<cited-first>,<cited-last>p'   # defect still at the tip?
+gh issue view <issue-number> --json state,labels,comments \
+  --jq '{state, labels: [.labels[].name], comments: [.comments[].body[0:120]]}'
+gh pr list --state open --search '<issue-number> in:body' --json number,state,\
+headRefOid,baseRefOid,mergeable,mergeStateStatus,labels,url
+gh pr diff <candidate-pr>       # is the requested change already the whole diff?
 ```
+
+An open pull request delivers only the change its diff contains. It does not deliver the plan. The
+plan artifact stays the actor's obligation, and a re-plan must still bind every condition of the
+retained review to the current tip. Report both facts: the implementation is complete, and the plan
+now records the residual work, for example a check classification and a merge.
 
 ### 1. Freeze the evidence boundary
 
@@ -115,6 +132,11 @@ criteria:
   deliverable is complete. Verify, record the verdict, and stop. Add no new report.
 - If live state moved after the latest report, do only the delta: re-run the affected step,
   publish one updated report, and keep prior evidence that still holds.
+- Separate the two deliverables before you reuse prior work. A planning artifact and an
+  implementation are different artifacts. An open pull request for the issue, even one with a
+  terminal review GO and a recorded one-change diff, satisfies the implementation only. The
+  planning artifact is still owed, and a prior plan whose anchors decayed must be replaced rather
+  than repeated.
 
 ### 3. Test the issue premise cheaply
 
@@ -244,6 +266,7 @@ If code comments attribute work to an ADR, open the ADR itself; comments are not
 | Bundle sibling-repository work | Edited `../OtherRepo/` from the current PR | A branch cannot deliver changes to another repository | Create a separate PR and verify its hosted checks |
 | Repeat remembered counts | Different sections used different totals | Reviewers could not tell which snapshot was authoritative | Measure once and reconcile everywhere |
 | Re-run a dispatched task from its snapshot prompt | Started the task again after an earlier run had completed it and posted the report | The prompt described stale state, and no run compared the latest report with live state before acting | Bind live state and the latest report first; when they already satisfy the criteria, verify, record the verdict, and add no new report |
+| Stop the plan because the open pull request already holds the change | The issue still cited the defect and carried an early planning label, so a duplicate one-line fix looked likely; stopping would also have left the prior review conditions unbound | An open pull request delivers only its diff, not the planning artifact; the prior plan named a test baseline that later measurement did not reproduce | Separate the deliverables: mark the implementation complete, re-bind every retained review condition at the current tip with a measured baseline, and plan only the residual work |
 
 ## Results & Parameters
 
@@ -257,6 +280,7 @@ If code comments attribute work to an ADR, open the ADR itself; comments are not
 | Cross-repo CI is green | `gh pr checks` in that repository |
 | Count is authoritative | One runnable command and one recorded result reused throughout |
 | Re-dispatched task is already complete | Live head/base/label/check state plus the latest prior report that matches it; deliver no new report |
+| Implementation already delivered by an open pull request | The pull request diff equals the whole requested change, plus live head, base, merge state, and gate label; the planning artifact is still owed |
 | Closeout is ready | All mapped criteria and repository-required checks pass |
 
 ## Verified On
@@ -268,6 +292,9 @@ If code comments attribute work to an ADR, open the ADR itself; comments are not
   (`verified-local`).
 - 2026-10-31 amendment: the re-dispatched-task check was exercised on a live rebase task whose
   prior run had already completed it, including its report write (`verified-local`).
+- 2026-11-07 amendment: the separation of a planning artifact from an implementation already held by
+  an open pull request was exercised on a planning dispatch whose issue premise was still true, with
+  read-only verification of the pull-request diff and live merge state (`verified-local`).
 - Individual case outcomes and limitations are indexed in
   [the notes](./planning-check-already-shipped-before-planning.notes.md).
 
