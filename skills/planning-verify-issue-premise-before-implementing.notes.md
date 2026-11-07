@@ -137,6 +137,33 @@ page or decision record that the store retirement removed, name the owning page
 that absorbed the content and plan against it. Then dispose per ask, not per
 issue.
 
+## 2026-11: A retired documentation target is a relocation, not a void (v3.9.0 source case)
+
+A documentation issue named a top-level runbook page. The issue was filed one day
+before a merged documentation program deleted that page and moved its content onto
+owner component pages. The anchor sweep at planning time found the page absent from
+the tree, and the void branches returned either "close as subsumed" or "re-plan" with
+no home for the content.
+
+The remaining decision two void branches did not carry:
+
+- The reported gap was content, not a location. A search of the surviving page tree
+  found that no page described the procedure. A retired location does not retire a
+  missing procedure.
+- The replacement structure publishes a page registry that names the owning page for
+  each subject. The plan selected the owner from that registry, not from the retired
+  page's heading.
+- A prior delivery branch against the retired page stayed open. A merge or a rebase
+  of that branch restores the retired page. The plan supersedes that branch with a
+  replacement pull request on the owning page and records the supersede reason.
+- Page contracts bound the insertion. A test parses a fixed-form table header from
+  the target page, so the new section avoided that header shape and kept the existing
+  rows unchanged.
+
+Result: the plan kept the issue as the work record, named the owning page, and stated
+the relocation gap as residual scope. No page was re-created, and no issue was closed
+as subsumed.
+
 ## Retrieval note
 
 This file is a companion and is not part of normal retrieval. Keep rules in the main
