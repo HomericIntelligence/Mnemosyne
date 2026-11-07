@@ -72,6 +72,36 @@ piped output hid the error. Confirm each PR reached the queue instead of trustin
 The sweep also found that one list response reported `BLOCKED` for PRs that a single-PR read
 reported as `CLEAN`. Read merge state per PR.
 
+## Claim before check on a two-lane review
+
+Two reviewer sessions received the same request to review one pull request at the
+same head in one checkout. The second session waited for the first to go quiet,
+rebased the branch, pushed a fix, and posted a GO verdict. Its comment reported
+the required check as `success`.
+
+The check run did not exist at that moment. It started after the comment and
+concluded `failure`. The same workflow posted `lint` and `typecheck` failures on
+two source files. Those files were byte-identical to the default branch, and both
+failures reproduced on a clean extraction of the default branch, so they were
+pre-existing. The test shards were still pending at the verdict time.
+
+The label was already set when the second reviewer read it. Recovery used the
+same evidence path for both problems:
+
+1. Read the check results for the exact head with the check-runs API, and read
+   the job conclusion per name.
+2. Read `lint` and `typecheck` job logs. Confirm the failing file and line.
+3. Extract the default branch and run the same type check and format check
+   there, without a worktree. Both failed the same way, so the red belonged to
+   the default branch, not to the change.
+4. Post a follow-up verdict comment that states the real check result, the
+   pre-existing attribution, and the unmet label conditions as corrections to
+   the earlier comment. Leave the label in place, because the task rules forbid
+   removing a foreign label, and record that the owner decides the label.
+
+This case is `verified-local` for the two-lane timeline and `verified-ci` for the
+check conclusions and the pre-existing attribution.
+
 ## Verification boundaries
 
 Rows marked `verified-ci` observed merged PRs and remote checks. Shared-queue and Athena direct-review
