@@ -105,6 +105,38 @@ optional log directory and standard-error fallback, and stated the disposition
 of the family with no production load path. The review also required each
 behavior test to load through the real loader rather than a private helper.
 
+## 2026-11: Correct the doc anchors, then dispose per ask (v3.8.0 source case)
+
+A planning probe for a "warn instead of fail closed" issue checked four kinds of
+anchor against the tree before it proposed any file:
+
+- Source sites. Two of the three named refusal sites still refused; one already
+  warned under an existing drift mechanism. The plan reused that mechanism and
+  forbade a second warning framework.
+- The named documentation page. It does not exist as a tracked file. The page is
+  retired and survives only as a section ledger in another document. The plan
+  replaced the target with the owning release-operations pages and named the one
+  ledger row that still points to the retired path.
+- The named decision record. It has no file. The decision survives only as prose
+  references from component pages. The plan cited those pages and did not treat
+  the missing record as proof that the direction is wrong.
+- The mechanism the issue asked to build. A merged change had already removed the
+  last acceptance gate of that kind. The plan read the issue's "one acceptance
+  path" as one warning shape over the existing seal record, not as new approval
+  storage.
+
+The disposition was not "obsolete". Part of the behavior already shipped, one
+named site still refused, an opt-in flag still gated the warning, and the actor
+that closed the superseded issues was a forge action that the tree cannot prove.
+The prompt output enumerated the criteria that already held and the criteria that
+remained. The prompt output also stated the two stale issue facts as uncertain
+rather than restating them.
+
+Rule applied: date a zero-match anchor for source sites, but for a documentation
+page or decision record that the store retirement removed, name the owning page
+that absorbed the content and plan against it. Then dispose per ask, not per
+issue.
+
 ## Retrieval note
 
 This file is a companion and is not part of normal retrieval. Keep rules in the main
