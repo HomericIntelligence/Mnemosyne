@@ -42,6 +42,15 @@ These notes retain project-specific evidence moved during
   comparator runs at nearby heads. A failed-only rerun turned the head green, and the armed
   merge fired with no content change. A rebase or push would have discarded the reviewed head
   without repairing the leg.
+- Two pull requests showed no failing check at all: 24 and 23 contexts, every conclusion
+  `SUCCESS`, `mergeable: MERGEABLE`, and no unresolved threads. Both stayed `BLOCKED` and
+  `gh pr merge --auto` refused with no message. The cause was the checkless
+  `required_signatures` rule on one unverified commit per branch. The rule's `parameters` were
+  `null`, no check name matched a signature pattern, and the commit API reported
+  `verified: false, reason: unsigned`. A rebase onto the current base and a signed re-creation
+  of the commit changed only the signature; both then read `CLEAN` and entered the queue. A
+  byproduct: after the force-push, mergeability read `UNKNOWN` for about one minute before
+  GitHub recomputed it, which is a calculation window, not a second blocker.
 
 ## Durable case details
 
