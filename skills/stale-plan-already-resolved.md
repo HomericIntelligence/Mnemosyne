@@ -1,10 +1,10 @@
 ---
 name: stale-plan-already-resolved
 license: BSD-3-Clause
-description: "Check whether current source already satisfies a stale issue, plan, log finding, review finding, or pull-request premise — including at a workflow resume under a durable approval state, on an open PR head that a sibling session rewrote, and on an outdated review thread; avoid redundant fixes and close tracked work only within authorized scope."
+description: "Check whether current source already satisfies a stale issue, plan, log finding, review finding, or pull-request premise — including at a workflow resume under a durable approval state, on an open PR head that a sibling session rewrote, on an outdated review thread, and inside a multi-item issue where a merged change delivered only some items or only some severity sites; avoid redundant fixes and close tracked work only within authorized scope."
 category: ci-cd
 date: 2026-06-14
-version: "1.8.0"
+version: "1.9.0"
 user-invocable: false
 verification: verified-ci
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/stale-plan-already-resolved.history"
@@ -15,9 +15,9 @@ history-cleanup-date: "2026-09-20"
 | Field | Value |
 | ------- | ------- |
 | **Problem** | A point-in-time artifact (plan, LOG, error report, CI failure, audit finding) was captured when main was in state A, but main is now in state B (already fixed or changed further by intervening merges) |
-| **Key insight** | Always verify the defect still reproduces on CURRENT `origin/<default>` before applying a plan, fixing a finding, or making outward records (issues, tracker edits, defect claims) that premise the defect — any captured artifact can become stale after other PRs merge, and a sibling session can already have resolved an open PR premise on the rewritten head |
+| **Key insight** | Verify the defect on CURRENT `origin/<default>` before applying a plan, fixing a finding, or making outward records. Any captured artifact can go stale after other merges, and decide a multi-item issue per item and per severity site |
 | **Impact** | Prevents unnecessary changes and incorrect "fixes" that would revert progress or ship a no-op for an already-fixed bug |
-| **Context** | Issue #4280: plan said change `test_*_layers.mojo` → `test_*_layers*.mojo`, but code already used `test_*.mojo`. Also: a 2588-line `output.log` named 4 root causes — 2 were already fixed on current main (PR #1148, `learn_claude_timeout`). Also: a relaunched worker's approved plan was eclipsed by a split delivery lane (create-targets present on main, modify-sites deleted); stop with zero writes |
+| **Context** | Issue #4280: a plan said to change a test glob, but the code already used it. Also: a log named 4 root causes and 2 were already fixed (PR #1148). Also: a relaunched worker's approved plan was eclipsed by a split delivery lane (create-targets present, modify-sites deleted); stop with zero writes. Also: a gate-downgrade issue named four checks; one merged change delivered two, and the other two still exited non-zero, so the plan split per item and per severity site |
 | **Verification** | verified-ci |
 | **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/stale-plan-already-resolved.history) |
 
@@ -25,11 +25,11 @@ history-cleanup-date: "2026-09-20"
 
 1. An issue's implementation plan references specific line numbers but the diff shows different content
 2. A plan says "change X to Y" but X is not present — a broader/different change is already there
-3. A follow-up issue references a prior fix (e.g., "follow-up from #3458") and the code may have evolved
+3. A follow-up issue references a prior fix and the code may have evolved
 4. The plan was written weeks ago and many PRs have merged since
 5. CI pattern change issues where the pattern may have been updated as part of a broader consolidation
 6. An issue cites exact line numbers or a code snippet that does not appear anywhere in the current files — the issue likely predates a merged fix that already removed or moved the target
-7. A captured log / `output.log` drives the work and time has passed (or other PRs merged) since the log was produced — the log reflects main at capture time, not now
+7. A captured log, error report, or audit output drives the work, and time passed or other PRs merged since it was produced — it reflects main at capture time, not now
 8. Before implementing a fix found in ANY captured artifact (log, error report, CI failure, audit finding), you have not yet confirmed the defect still exists on current `origin/main`
 9. A coordinator or supervisor relaunches an interrupted or split worker with a continue instruction and a plan that was approved on an earlier date. The approval state (plan marker, durable `state:*-go` label, or journal) survived the interruption, but the repository moved farther
 10. A durable approval label or a completed earlier review gives apparent authority to implement. The label attests the review result at its time; it does not attest that the work remains
@@ -38,7 +38,9 @@ history-cleanup-date: "2026-09-20"
 13. A scoped task brief premises an open pull request state, for example a rebase-only brief that states the PR is conflicting or dirty against the default branch. The brief is a snapshot: the PR head may have moved after the brief was written
 14. A review workflow hands you an unresolved review thread, often `isOutdated`, and the prompt expects a fix. The finding was captured at an older head. A later fix already landed, and the thread stayed unresolved because no publisher resolved it
 15. You already wrote, tested, committed, and pushed the change for a task that started from a recorded base. The push or pull-request creation fails with a conflict, or the new pull request opens `CONFLICTING`/`DIRTY`. The delivery boundary is the last point where a later merge can eclipse the work
-15. A user asks for a behavior change ("make X the default", "load Y dynamically") and pastes tool output that names the version they ran, or your own checkout lags and your last fetch partly failed. The default branch may already have the behavior
+16. A user asks for a behavior change ("make X the default", "load Y dynamically") and pastes tool output that names the version they ran, or your own checkout lags and your last fetch partly failed. The default branch may already have the behavior
+17. You plan an issue that names several checks, files, or behaviors to change together. A merged change can implement only part of it, and a title search hides the rest. Decide per named item before you plan any of them
+18. The request is about the severity of an outcome (fail, warn, ignore, skip, remove), and a captured reference shows a value from one older revision. Severity can differ even when the symbol still exists
 
 ## Verified Workflow
 
@@ -49,30 +51,24 @@ the current repository before any review publication or code write:
 
 ```bash
 # Freeze the current tip read-only; never diff against a remembered base.
-git fetch origin main
-git rev-parse origin/main
+git fetch origin main && git rev-parse origin/main
 
 # Site check: each symbol or file the plan modifies must still exist.
 git grep -l '<cited symbol>' origin/main -- <plan scopes>
-# A plan whose modify-targets were deleted cannot execute.
 
-# Create-target check: an artifact the plan will create must not already exist with its contract.
+# Create-target check: an artifact the plan will create must not already exist.
 git show origin/main:<path>
 
-# Delivery search: find the lane that already delivered the work.
+# Delivery search and end-goal check.
 gh pr list --state merged --search '<issue number or plan artifact name>'
-
-# End-goal check: verify the terminal outcome the issue defines
-# (a merged delivery sequence, plus its required gates).
 gh pr checks <latest merged delivery PR>
 ```
 
 Decision rule: the plan's create-targets already exist on `origin/main`, its modify-targets were
 deleted by later merges, and merged PRs or a green terminal-gate sequence carry the issue's
 objective — then the plan is eclipsed. Make zero writes: do not implement, and do not publish a
-review verdict over the stale plan. A verdict that binds deleted or previously delivered sites is
-invalid evidence. Report the stop disposition that the task authorizes (for example PARKED) with
-the delivery evidence.
+review verdict over the stale plan. Report the stop disposition that the task authorizes (for
+example PARKED) with the delivery evidence.
 
 ### 0a. Post-push duplicate gate: search the delivery lane before you resolve a conflict
 
@@ -90,13 +86,10 @@ git show <delivery-commit> --stat
 
 Decision rule: a commit on the default branch that names the task and changes the same files is a
 prior delivery, not a conflict to solve. Compare your result with that commit, then make zero
-writes: rebase nothing, push nothing, and do not merge a duplicate. Close your duplicate pull
-request with a comment that names the delivery commit, delete only your own branch, and report the
-delivery as already complete. A correct but duplicate change costs review time and can revert
-later behavior if a reviewer resolves it toward the older plan.
-
-`merge-base --is-ancestor` returning true only shows the base is old. It is not evidence that the
-work is unfinished.
+writes: rebase nothing, push nothing, do not merge a duplicate. Close your duplicate pull request
+with a comment that names the delivery commit, and delete only your own branch. A correct but
+duplicate change costs review time and can revert later behavior. An ancestor merge base only
+shows the base is old; it is not evidence that the work is unfinished.
 
 ### 0b. Open-PR premise gate: measure the PR head before a premise-scoped rewrite
 
@@ -111,27 +104,24 @@ or push:
 git fetch origin <default-branch> <pr-branch>
 
 # Ancestry: does the head already contain the current default tip?
-git merge-base --is-ancestor origin/<default-branch> origin/<pr-branch> \
-  && echo "head is based on the current default tip"
+git merge-base --is-ancestor origin/<default-branch> origin/<pr-branch>
 git rev-list --count origin/<pr-branch>..origin/<default-branch>   # 0 = nothing to rebase onto
 
-# Mergeability: provider status plus a local merge test (the provider value can lag or be absent)
+# Mergeability: provider status plus a local merge test (the provider value can lag)
 gh pr view <pr-number> --json mergeable,mergeStateStatus
 git merge-tree --write-tree origin/<default-branch> origin/<pr-branch> >/dev/null 2>&1 \
   && echo MERGE_CLEAN || echo MERGE_CONFLICTS
 
-# Provenance: who moved the head, and did a sibling already report the task complete?
+# Provenance: did a sibling move the head or report the task complete?
 gh api repos/<org>/<repo>/issues/<pr-number>/events \
   --jq '[.[] | select(.event == "head_ref_force_pushed") | {created_at}]'
-# Read the PR comments for a sibling completion report at the current head.
 ```
 
 Decision rule: the head already contains the current default tip, the merge is clean, and a
 sibling session reported the task complete at that head — then the premise is eclipsed. Make
-zero writes: do not re-run the rebase, do not re-push, and do not post a duplicate completion
-comment. A rebase that re-signs or rewords commits at identical content still produces a new
-head SHA, breaks a head-bound approval record, and restarts the review gate for no content
-change. Report the task-complete disposition with the measured evidence.
+zero writes: do not re-run the rebase, re-push, or post a duplicate completion comment. A
+rebase of identical content still produces a new head SHA, breaks any head-bound approval, and
+restarts the review gate.
 
 Verification level: this subsection is `verified-live` from one session (see the notes). The
 rest of this entry keeps its `verified-ci` claim.
@@ -158,6 +148,47 @@ default branch. Run these checks before you open an issue, write a plan, or star
    "no change" and its evidence when the behavior exists. That costs one comment. An agent that
    implements anyway costs a duplicate pull request.
 5. If a duplicate issue already exists, close it with the commit and version as evidence.
+
+### 0d. An issue with several named items: decide per item, and check severity per site
+
+An issue body is not one premise. It often names several checks, files, or behaviors to change
+together, and a merged change can implement only some of them. A title search then finds the
+delivery and hides the rest. Decide each named item against current source. A request to change
+severity ("warn instead of fail", "log and continue", "remove") has a second dimension: one file
+can hold both a delivered warn site and a site that still exits non-zero.
+
+```bash
+git fetch origin <default-branch> && git log -1 --oneline origin/<default-branch>
+
+# 1. One row per named item: does the file, symbol, or record still exist?
+git grep -n '<item>' origin/<default-branch> -- <paths>
+
+# 2. Severity per row: classify each site that still exists.
+git grep -n -A3 'raise\|return 1\|SystemExit\|require(' origin/<default-branch> -- <path>
+grep -n 'WARNING' <path>            # an existing warn path shows a delivered downgrade
+
+# 3. Attribution per row: which commit or PR delivered the item?
+git log -S '<decision wording the delivered change added>' --oneline origin/<default-branch> -- <path>
+
+# 4. Re-verify the delivered rows as guards; plan only the residual rows.
+```
+
+| Row finding | Action |
+| --- | --- |
+| Site removed by a merged change | Report it as done; cite the commit |
+| Site exists and every outcome is already warn-and-continue | Report it as done; do not re-apply it |
+| Site exists and a comparator or gate still exits non-zero | Plan this residual row |
+| One file mixes warn sites and fail sites | Classify each site, because the residual is usually the fail sites |
+| A captured reference shows a value from an older revision | Re-read the outcome on the current tip; the captured value does not bind |
+
+Decision rule: a title search that finds a merged delivery does not make the issue complete.
+Split the issue per named item, decide each item, plan only the rows that still fail, and add a
+guard assertion for each delivered row so that the downgrade stays. Report the mixed state item
+by item: a single "resolved" verdict leaves live work, and a plan that repeats the delivered
+rows either produces no diff or reverts the downgrade.
+
+Verification level: this subsection is `verified-live` from one planning session (see the
+notes). The rest of this entry keeps its `verified-ci` claim.
 
 ### 1. Read the plan carefully for specific anchors
 
@@ -196,48 +227,32 @@ or changed it. Search for the **exact phrase or code snippet quoted in the issue
 git log -S "<exact phrase or snippet from the issue>" -- '<glob>'
 ```
 
-Real example — issue #422 asked to remove a `CHANGELOG.md or equivalent release notes`
-criterion line from four `repo-analyze*/SKILL.md` files:
 
 ```bash
-git log -S "CHANGELOG.md or equivalent release notes" -- 'skills/repo-analyze*/SKILL.md'
-# → surfaces commit 76b46c9 (PR #357, "chore: remove CHANGELOG.md and changelog tooling")
-#   which already removed the line ecosystem-wide weeks before the issue was actioned.
+git log -S "<exact line or snippet the issue quotes>" -- '<globs from the issue>'
+# → surfaces the commit and PR that already removed or changed the line.
 ```
 
 If `git log -S` shows the string was already removed by a merged commit, the issue's cited
-line numbers are stale and the requested change is already done.
+line numbers are stale and the requested change is already done. Keep the original quote and
+the resolved commit in the issue close-out comment.
 
 ### 5. Re-verify each finding against CURRENT origin/main (logs & captured artifacts)
 
-A captured log reflects `origin/main` AT THE TIME THE LOG WAS PRODUCED. Between capture and
-your fix session, other PRs may have merged and already fixed the defect. Before implementing
-ANY fix found in a log / error report / CI failure / audit finding, re-confirm it reproduces
-on current main:
+A captured log reflects `origin/main` at the time of capture. Between capture and your fix
+session, other PRs may have fixed the defect. Before implementing ANY fix from a log, error
+report, CI failure, or audit finding, re-confirm it on current main:
 
 ```bash
-# (a) Confirm the buggy code still exists on the live tip — NOT just in the log
-git show origin/main:<file> | grep -n "<buggy snippet from the log>"
-# If no output → the code changed since the log; the defect may already be fixed.
+git show origin/main:<file> | grep -n "<buggy snippet from the log>"   # empty => code changed
 ```
 
-For an external-facing or command-driven bug, use a safe authorized reproduction when
-needed. Inspect side effects before reusing a command from an old log:
+For an external-facing or command-driven bug, re-run the exact failing command. A command that
+now succeeds means the bug is already fixed. Inspect side effects before you reuse a command
+from an old log.
 
-```bash
-# Re-run the exact command the log shows failing. If it now SUCCEEDS, the bug is already fixed.
-gh api graphql -f query='query($owner:String!,$name:String!){...}' -F owner=ORG -F name=REPO
-# → returns valid JSON (no UNKNOWN_CHAR) ⇒ already fixed (PR #1148 passes owner/name as -F vars)
-
-# Then run the OLD broken form to confirm it WAS the prior cause:
-gh api graphql -f query='query{...inlined ${owner}...}'   # → reproduces the UNKNOWN_CHAR error
-```
-
-Only the findings that still reproduce on current main warrant a fix. In the 2026-06-14
-session, 2 of 4 log-found bugs were already fixed (the `UNKNOWN_CHAR` GraphQL crash by
-PR #1148; the planner-learnings 120s timeout replaced by `learn_claude_timeout()` = 7200s), so
-their fixes were scoped down to the durable hardening only. The other 2 (armed-DIRTY
-swallowed, green-BLOCKED threads not addressed) were confirmed still present before implementing.
+Only the findings that still reproduce on current main warrant a fix. Scope the rest down or
+drop them.
 
 ### 5a. Re-verify a review finding before you edit for it
 
@@ -251,10 +266,8 @@ git log --oneline -S "<snippet the finding names>" -- <path>
 sed -n '<start>,<end>p' <path>     # quote the lines that close each requested item
 ```
 
-The tests that cover the fixed behavior already exist when a fix commit added them. Run them
-as evidence. Do not re-edit a fixed file and do not push an empty commit to close a thread.
-A subagent or reviewer can cite a lower line number from the old head. Use the current line
-numbers in your answer.
+Run the tests that cover the fixed behavior as evidence. Do not re-edit a fixed file or push an
+empty commit to close a thread. Answer with the current line numbers, not lines from the old head.
 
 ### 5c. State the decisive outcome before you edit (required)
 
@@ -265,25 +278,19 @@ After step 5 or 5a, pick one of these two states and record it:
 | **Change required** | At least one item still fails on the current head | Edit, test, commit, and push |
 | **No readable defect** | Every item is already fixed, answered by recorded approval, or covered by the documented contract | Do not edit or commit. Post the evidence and complete the authorized records |
 
-"No readable defect" does not mean the task stops. A review workflow still gives you a task.
-You must resolve the threads and post the report. A promotion record still needs its evidence
-note. That work is record completion, and it changes no source file.
-
-This state is not a failure. A reloaded workflow can ask for fixes that the head already
-contains. Do not invent a "minimal" change to create activity. A cosmetic edit to a fixed
-file increases risk and breaks the head-bound approval for no benefit.
+"No readable defect" does not mean the task stops. Resolve the threads, post the report, and
+complete the evidence record; that work changes no source file. Do not invent a "minimal" change
+to create activity: a cosmetic edit to a fixed file breaks the head-bound approval for no benefit.
 
 #### 5c.1 Review-thread records: resolve on proof, not on a new commit
 
 A review-finding workflow commonly expects one commit per fix. The "No readable defect" state
 needs no commit, but its records are still required:
 
-- Resolve an already-fixed thread with the closing commit, the current file:line of each
-  requested item, and the test names. Do not answer it with opinion.
+- Resolve an already-fixed thread with the closing commit, the current file:line of each item,
+  and the test names. Do not answer with opinion.
 - Keep a thread open when its work needs a product decision or remains blocked.
-- Report `commits: none` and leave the head unchanged. A head change restarts CI and
-  invalidates the head-bound approval.
-- Do not claim a fresh review is necessary when the head is unchanged.
+- Report `commits: none` and keep the head. A head change restarts CI and voids the approval.
 
 ### 5b. Re-anchor at each outward-mutation boundary on fast shared trains (verified-live)
 
@@ -311,24 +318,21 @@ Outcomes:
 - A matching merged commit or PR retires that cluster: discard the prepared patch, do not
   open the PR, and do not file the issue.
 - Records already filed on a decayed premise get close-out hygiene: close the record as
-  already fixed with the resolving commit/PR reference, revert the tracker edit, and keep
-  only the clusters whose failure still reproduces on the current tip. Re-run the failing
-  node before any delivery claim.
+  already fixed with the resolving commit, revert the tracker edit, and keep only the clusters
+  that still reproduce on the current tip.
 - No match and the defect still reproduces: proceed with the planned mutation.
 
-Cost asymmetry drives the rule: a prepared patch is cheap to discard; tracker records are
-not — outward mutations need the freshest premise because they cannot be quietly rebased
-away. For the post-interruption salvage decision itself, use the companion
-`shared-repo-interruption-yield-to-peer-pr`.
+A prepared patch is cheap to discard; tracker records are not. Outward mutations need the
+freshest premise because they cannot be quietly rebased away. For the post-interruption
+salvage decision, use the companion `shared-repo-interruption-yield-to-peer-pr`.
 
 ### 6. Determine if the issue's goal is already satisfied
 
-The key question: does the current state **achieve the same objective** as the planned change?
+Ask whether the current state **achieves the same objective** as the planned change.
 
 | Plan objective | Current state | Action |
 | ---------------- | --------------- | -------- |
 | `test_*_layers*.mojo` (match part files) | `test_*.mojo` (even broader, also matches part files) | Goal already met — add clarifying comment only |
-| Add explicit filenames | Wildcard already present | Goal already met — no change needed |
 | Remove explicit filenames | Already using wildcard | Goal already met — document only |
 
 ### 7. Apply the minimal appropriate change
@@ -341,24 +345,17 @@ Pick the action based on whether **any file** still needs to change:
 | Goal is fully met AND no comment/doc change belongs in any file (the change is genuinely zero-diff) | Close the issue directly — **no PR** |
 | The finding arrived as a review thread, and no source file needs a change | Do not edit. Resolve the thread with the proof from step 5c.1, and post the report |
 
-When a clarifying comment IS warranted:
+A clarifying comment is a narrow case: change the comment only when the current wording
+misleads a future reader about why the broad pattern or the delivered outcome is correct.
 
-```diff
-- # test_googlenet_layers.mojo split into 3 parts (≤8 tests each)
-+ # test_*.mojo glob auto-discovers all model tests including _partN split files
-+ # (e.g., test_googlenet_layers_part1.mojo) without requiring manual CI updates.
-```
-
-When there is genuinely **nothing to change** — no functional change and no comment/doc
-edit belongs anywhere — avoid an empty PR. Report the satisfying evidence; when issue
-cleanup is authorized, close it with the commit/PR that already did the work:
+When there is genuinely **nothing to change**, avoid an empty PR. Report the satisfying
+evidence; when issue cleanup is authorized, close the issue with the commit that already did
+the work:
 
 ```bash
 gh issue close <N> --reason completed \
-  --comment "Already resolved by PR #357 (commit 76b46c9, 'chore: remove CHANGELOG.md
-and changelog tooling'), which removed this line ecosystem-wide on 2026-05-07. The line
-numbers in this issue predate that merge. Section 10 already covers release management
-generically. No code change needed."
+  --comment "Already resolved by <PR> (commit <sha>), which changed this behavior on <date>.
+The lines cited in this issue predate that merge. No code change is needed."
 ```
 
 ### 8. Verify with the project's validation command
@@ -384,40 +381,35 @@ python3 scripts/validate_test_coverage.py
 | ----------- | ------- |
 | Key diagnostic | `grep -n "<pattern from plan>" <file>` — if empty, plan is stale |
 | Decisive diagnostic | `git log -S "<exact phrase from issue>" -- '<glob>'` — finds the commit/PR that already made the change |
-| Live re-verify (logs) | `git show origin/main:<file> \| grep "<snippet>"` + re-run the exact failing command — if it now succeeds, the bug is already fixed |
-| Validation command | `python3 scripts/validate_test_coverage.py` |
+| Live re-verify (logs) | `git show origin/main:<file> \| grep "<snippet>"` + re-run the exact failing command; if it now succeeds, the bug is already fixed |
 | Correct change scope | Comment-only update when the functional fix already exists; zero change when nothing needs editing |
 | Close when zero diff | `gh issue close <N> --reason completed --comment "<cites the PR/commit>"` — no PR |
-| PR label | `cleanup` |
-| Resume / durable-label gate | `git rev-parse origin/main`, `git grep -l '<symbol>' origin/main -- <scopes>`, `gh pr list --state merged --search <ref>`, `gh pr checks <merged delivery PR>` |
-| Plan eclipsed (create-targets exist, modify-sites deleted, terminal gates green) | Stop with the authorized disposition and zero writes; report the delivery evidence |
-| Mutation-boundary re-anchor | `git fetch && git log --oneline <analysis-base>..origin/<default> -- <touched-paths>` + commit-subject and issue/PR search for the failing node IDs — any match retires that cluster |
-| Boundary points | Before issue filing, tracker edits, and defect claims; after long validation runs; before push; after any restart |
-| Decayed-premise recovery | Close obsolete records with the resolving commit/PR reference; revert tracker edits; salvage only unmatched clusters |
-| Open-PR premise gate | `git merge-base --is-ancestor origin/<default> <pr-head>` + `git rev-list --count <pr-head>..origin/<default>` (0), `gh pr view --json mergeable,mergeStateStatus` plus local `git merge-tree --write-tree`, PR `head_ref_force_pushed` timeline events and sibling completion comments — head based + clean merge + sibling report ⇒ zero-write stop |
-| Review-finding re-verify | `git log --oneline -S "<snippet>" -- <path>` on the PR head; `sed -n '<start>,<end>p' <path>` for the current lines; the covering tests run as evidence |
-| No readable defect | No edit, no commit, head unchanged. Resolve with proof or leave open with the blocker. Report `commits: none` |
-| Post-push duplicate gate | `git log --oneline <plan-base>..origin/<default>` and `git log --oneline --grep '<issue>' origin/<default>`; a merged commit on the same files ⇒ close the duplicate unmerged, delete only your branch |
+| Site and boundary gates | Pre-write premises: resume, open PR head, installed copy, multi-item split. Boundary points: before issue filing, tracker edits, and defect claims; after long validation runs; before push; after any restart |
+| Delivery-boundary stop | A merged commit on the same files ⇒ close the duplicate unmerged and delete only your branch |
+| Multi-item split | One row per named item, one severity reading per site; plan the residual rows and guard the delivered ones |
+| Mixed-state report | Report done rows with their commit and residual rows with their exit path; one "resolved" verdict hides live work |
+| Per-gate commands and parameters | See the notes for the copy-ready command table |
 
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 | --------- | ---------------- | --------------- | ---------------- |
-| Applying plan verbatim | Would have changed `test_*.mojo` back to `test_*_layers*.mojo` | This would have been a regression — narrowing a working broad pattern | Always read actual file before applying a "before → after" from a plan |
-| Skipping verification | Assuming plan's "before" state was current | Plan said line 234 had `test_*_layers.mojo`; actual line 283 had `test_*.mojo` | Verify anchors (line numbers, patterns) before touching anything |
+| Applying plan verbatim | Would have narrowed a working broad glob back to a specific one | That is a regression of delivered behavior | Read the actual file before applying a plan "before → after" |
+| Skipping verification | Assumed the plan's "before" state was current | The cited line held different content | Verify anchors (line numbers, patterns) before touching anything |
 | Treating as no-op | Issue already resolved, do nothing | Issue remains open; no PR closes it | Even when goal is met, create a PR with a comment clarification to formally close |
 | Assuming a PR is always needed to close the issue | Planning a comment-only PR even though no file needed any change | There was literally no diff to make — a PR would be empty | When the goal is fully met and no clarifying comment belongs in any file, close the issue directly with `gh issue close --reason completed --comment` |
-| Took the log's findings at face value | Planned fixes for all 4 root causes found in `output.log` | 2 were already fixed on current main (PR #1148 `-F` vars; `learn_claude_timeout()` 7200s) — would have shipped redundant no-op "fixes" / reverted progress | Re-verify each finding against current `origin/main` (`git show` + live command re-run) before implementing |
-| Assumed the log == current main | Treated the captured `output.log` as the live state of main | False — a log is a point-in-time snapshot; intervening merges change main between capture and the fix session | A log reflects main AT CAPTURE TIME only; always re-confirm the defect reproduces now |
-| Trusted a durable approval label as current authority | Started workflow-protocol re-review and implementation steps on a relaunched worker because the durable label proved the plan was once approved | Every plan-cited site had been restructured or deleted on current main by a later delivery lane; a published verdict would have bound deleted code, and the "fix" would have reverted delivered behavior | A durable label attests review-time state only; re-run site and delivery evidence on the current default branch before any exchange publication or write |
-| Treated a continue instruction as delivering fresh requirements | Assumed a relaunch means the saved plan is still the remaining work | The instruction reloads the task and its authorization, not the repository state | Measure the current branch first; the issue and current main define remaining work, not the saved plan |
-| Filed tracker records from the analysis snapshot | Created repair issues and an epic edit premised on a failure inventory captured hours earlier on a release train | Parallel workers had merged fixes for every analyzed cluster; the new records were obsolete on creation and needed close-out cleanup | Re-anchor the premise immediately before every outward mutation, not only before code delivery |
-| One re-check per session | Re-verified the defect inventory once at analysis time and treated it as valid for the whole session | The default branch advanced ~30 commits during the session, including fix PRs for the exact analyzed failures | A premise check expires; re-run it at each delivery boundary |
-| Checked only the code artifact | Re-fetched before opening the fix PR but filed issues and edited the tracker from the decayed analysis | The easily discarded artifact (the branch) got the fresh check; the hard-to-retract artifacts (tracker records) did not | Give outward mutations the freshest premise: they cannot be quietly rebased away |
-| Editing a review finding from its body text | A review workflow asked for a fix on an open promotion PR with nine unresolved threads | Eight of the nine were already fixed by two merged commits on the same head, and the head stayed unresolved only because no publisher resolved the threads | Check the current head before you edit. Resolve on proof when no change is needed, and report `commits: none` |
-| Resolved a pull-request conflict by rebasing a finished implementation | The new pull request opened `CONFLICTING` although the plan base was an ancestor of the default branch, so the branch looked current | The default branch already carried a merged commit for the same task that changed the same files; the rebase would have produced a duplicate pull request and a possible revert | Run the post-push gate (step 0a): search the base-to-tip range for the delivery commit before any rebase, then close your duplicate unmerged |
+| Took the log's findings at face value | Planned fixes for all 4 root causes in a captured log | 2 were already fixed; the fixes would have been redundant or reverted progress | Re-verify each finding against current `origin/main` before implementing |
+| Assumed the log is current main | Treated a captured log as the live state | A log is a point-in-time snapshot; merges changed main before the fix session | A log reflects capture time only; re-confirm the defect now |
+| Trusted a durable approval label as current authority | Started protocol re-review and implementation on a relaunched worker because the durable label proved the plan was once approved | Every plan-cited site had been restructured or deleted by a later delivery lane; a published verdict would have bound deleted code | A durable label attests review-time state only; re-run site evidence on the current default branch first |
+| Treated a continue instruction as fresh requirements | Assumed a relaunch means the saved plan is the remaining work | The instruction reloads the task and its authority, not repository state | The issue and current main define remaining work, not the saved plan |
+| Filed tracker records from the analysis snapshot | Created repair issues and an epic edit from a failure inventory captured hours earlier | Parallel workers had merged fixes for every cluster; the records were obsolete on creation | Re-anchor the premise before every outward mutation, not only before code delivery |
+| One re-check per session | Re-verified the inventory once and treated it as valid for the session | The default branch advanced during the session, including fixes for the analyzed failures | A premise check expires; re-run it at each delivery boundary |
+| Checked only the code artifact | Re-fetched before the fix PR but filed issues and edited the tracker from the decayed analysis | The discardable artifact got the fresh check; the hard-to-retract records did not | Give outward mutations the freshest premise: they cannot be quietly rebased away |
+| Editing a review finding from its body text | A review workflow asked for fixes on nine unresolved threads | Eight were already fixed by two merged commits on the same head; no publisher had resolved the threads | Check the current head before you edit; resolve on proof when no change is needed |
+| Resolved a pull-request conflict by rebasing a finished implementation | The new pull request opened `CONFLICTING` although the plan base was a default-branch ancestor | The default branch already carried a merged commit for the same task on the same files; the rebase would have duplicated it | Run step 0a before any rebase: search the base-to-tip range, then close your duplicate unmerged |
 | Empty commit to satisfy a fix-per-thread contract | Review workflows often expect one commit per accepted finding | The commits existed. An empty one would move the head and restart review for no change | Zero-diff is a valid outcome. Never move a head to show activity |
-| Filed from a stale checkout | Opened a feature issue and started an agent for a behavior that the default branch already had; the requester had pasted an older version banner, and the last fetch had partly failed | The local checkout lagged, and a partial fetch left the default branch stale | Compare the requester's version with the fetched default branch, and require a clean fetch, before you file |
+| Filed from a stale checkout | Opened a feature issue and started an agent for behavior the default branch already had; the requester pasted an older banner and the last fetch partly failed | The checkout lagged and the partial fetch left the default branch stale | Compare versions against a clean fetch before you file |
+| Trusted a title-level delivery search for a multi-item issue | Read that one merged change named the issue, then planned the whole issue body or reported it complete | The merged change delivered only part of the named items, and one item was partially delivered: a warn site existed beside a site that still exited non-zero | Split the issue per named item and read severity per site (step 0d); plan only the residual rows and guard the delivered ones |
 
 ## Verified On
 
