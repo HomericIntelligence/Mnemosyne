@@ -78,3 +78,36 @@ current head before it was trusted or dismissed.
 - [Typed boundary cause diagnostic on exit](https://github.com/HomericIntelligence/Mnemosyne/pull/3747)
   is an open change. It prints the cause at a typed boundary. It does not change
   which types the boundary catches, so there is no overlap.
+## Fault-cause split evidence
+
+A later review round found that the repaired boundary caught every `OSError`
+from two calls and wrapped all of them into one unavailable-source code. A probe
+forced each system error number at the open call and at the resolution call:
+
+| Forced cause | Fault class | Result before the split | Result after the split |
+| --- | --- | --- | --- |
+| Missing entry | Client | Unavailable-source code, client status | Same |
+| Permission | Client | Unavailable-source code, client status | Same |
+| Wrong entry type | Client | Unavailable-source code, client status | Same |
+| Link loop | Client | Unavailable-source code, client status | Same |
+| Descriptor exhaustion | Server | Unavailable-source code, client status | Server error |
+| I/O fault | Server | Unavailable-source code, client status | Server error |
+
+The split is an allowlist of the four client causes. Any other cause re-raises at
+the call site.
+
+The suite was green with the wrong behavior, because the split was tested at the
+resolution call only. The open call had no test for either cause. The repair
+added one test for each client cause and one for each server cause at the open
+call. Each test failed before the change and passed after it.
+
+## Label and synchronization evidence
+
+The reviewed head passed the required check, had no open review thread, and did
+not move during the review. One prior verdict label remained from an earlier
+round. The review had no authority to change that label, so it reported the flip
+as an owner or automation step.
+
+The branch was behind the base branch, and the merge state was clean. A rebase
+was not done. It would rewrite the signed commits and invalidate the check result
+at the reviewed head. The synchronization stayed with the owner.
