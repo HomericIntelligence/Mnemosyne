@@ -1,13 +1,13 @@
 ---
 name: planning-epic-verify-live-child-state
 license: BSD-3-Clause
-description: "Reconcile live child-issue status and current implementation before planning or completing an epic with a stale checklist. Also selects the tracker disposition when the request names a tracker that already carries a plan-review rejection, a source-free request, or a structured disposition output. Includes a feature-shaped request whose acceptance criteria name a rule with selectable parameters: choose REQUIREMENTS and keep each delegated choice in the reason."
+description: "Reconcile live child-issue status and current implementation before planning, dispatching, or completing an epic with a stale checklist. Also selects the tracker disposition when the request names a tracker that already carries a plan-review rejection, a source-free request, or a structured disposition output. Includes a feature-shaped request whose acceptance criteria name a rule with selectable parameters: choose REQUIREMENTS and keep each delegated choice in the reason. Includes a partly present target set that shows an epic in progress rather than a missing requirement. Includes an implementation dispatch on a tracking epic whose approved plan gives the closing linkage to its own close-out step: do not open the close-out PR while a child is open."
 category: tooling
 date: 2026-06-19
-version: "1.5.0"
+version: "1.7.0"
 user-invocable: false
 verification: verified-local
-tags: [epic, tracking-issue, child-issues, planning, gh-cli, state-plan-go, dependency-ordering, orchestration, audit-remediation, stale-body, verification-block, path-audit, freshness-gate, tracker-disposition, plan-no-go-label, sub-issues-api-empty, plan-only-deliverable, offline-evidence, feature-request, acceptance-criteria, delegated-parameter, requirements-disposition]
+tags: [epic, tracking-issue, child-issues, planning, gh-cli, state-plan-go, dependency-ordering, orchestration, audit-remediation, stale-body, verification-block, path-audit, freshness-gate, tracker-disposition, plan-no-go-label, sub-issues-api-empty, plan-only-deliverable, offline-evidence, feature-request, acceptance-criteria, delegated-parameter, requirements-disposition, implementation-dispatch, close-out-sequencing, closing-linkage-owner, open-child-gate, decision-needed]
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/planning-epic-verify-live-child-state.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -45,6 +45,8 @@ only an update; an implementation request can include the remaining child change
   for example a release source or a timeout, and states no child work
 - The `gh` CLI or network is not available, so you must select the disposition from a local
   checkout alone
+- An implementation dispatch names a tracking epic, and the dispatch orders one pull request
+  that closes the epic while any child is still open
 
 ## Verified Workflow
 
@@ -91,6 +93,13 @@ gh issue view <n> --json labels,comments \
 #    dark sub-issues API → read the body's own list of children
 gh api graphql -f query="query{repository(owner:\"<o>\",name:\"<r>\"){issue(number:<n>){subIssues(first:30){nodes{number title state}}}}}" \
   --jq '.data.repository.issue.subIssues.nodes'
+
+# 9. DISPATCH-CLOSE-OUT GATE — a dispatch that orders one PR to close the epic needs
+#    every child shipped first. Read the plan for the step that owns the closing keyword.
+gh issue view <n> --comments --json comments --jq '.comments[].body' \
+  | grep -nE 'Closes #|close-out|refs #<n>'
+#    link owner in a close-out step + any child OPEN or unmerged → post DECISION-NEEDED
+#    with both readings; open no closing PR and implement no child.
 ```
 
 ### Detailed Steps
@@ -159,9 +168,23 @@ gh api graphql -f query="query{repository(owner:\"<o>\",name:\"<r>\"){issue(numb
 
 10. **Complete the requested epic work.** Use current child status and dependencies to select
    the remaining implementation or coordination. Continue independent work while a prerequisite
-   is pending, and reconcile actual child outcomes before closing the epic.
+   is pending, and reconcile actual child outcomes before closing the epic. Completion of the
+   container needs one of two records: every child shipped, or a recorded descope of each open
+   child. An implement-ready label on the container approves the plan. It does not approve the
+   removal of this condition.
 
-11. **Select the disposition from a local checkout when `gh` is not available.** Do not defer the
+11. **Gate a dispatch that closes the epic on its close-out condition.** Read which plan step owns
+   the closing keyword. A plan that says the closing keyword belongs to its close-out step, and that
+   every exit criterion must pass first, makes any earlier closing PR a plan deviation. When a child
+   is still open or unmerged, open no closing PR, and do not implement that child when the plan gives
+   it its own plan. Post one decision request with both readings, the per-child state with merged
+   pull requests, and the choice: plan and ship the child, authorize it under the epic plan, or
+   descope it. Check each shipped claim against the tree (`git merge-base --is-ancestor` or a word
+   search), not only against the forge. In this session 8 of 10 children were shipped, one sat in an
+   open pull request, and one needed its own plan; the plan forbade epic-level code, so the dispatch
+   stopped with one decision request and zero writes.
+
+12. **Select the disposition from a local checkout when `gh` is not available.** Do not defer the
     classification and do not invent child state. Bind the evidence to one named commit or
     revision, and cite that value. The evidence then applies to that commit only. Run these checks
     in this order:
@@ -184,6 +207,9 @@ gh api graphql -f query="query{repository(owner:\"<o>\",name:\"<r>\"){issue(numb
     - A present structure and matching history show that the outcome is delivered → `OBSOLETE`.
     - An absent structure alone does not prove that the work is missing. When the body also names
       child work as the deliverable and no code delta of its own → `TRACKER`.
+    - A partly present structure shows that the epic is in progress. It is not evidence for
+      `REQUIREMENTS`: the epic still owns no code delta of its own. Select `TRACKER`, cite the
+      landed workstreams in the evidence, and state the uncertain remainder in the reason.
     - One named code change remains → `REQUIREMENTS`; the named change can also be a behavior that
       no current symbol implements. Report the absence of that behavior as the evidence for
       `REQUIREMENTS`, and do not require structure evidence that the request shape excludes.
@@ -207,8 +233,10 @@ gh api graphql -f query="query{repository(owner:\"<o>\",name:\"<r>\"){issue(numb
 | Wrote a fresh requirements plan for a container that was already rejected | The request asked to recover the requirements of an epic that listed 20 child issues and already carried `state:plan-no-go`; the body named no code change of its own | A container plan only repeats the child work and breaks the corrected decision with the label | Select `Tracker` from the epic label plus a child list in the body, report the operator link set when the sub-issues API is empty, and keep `requirements` empty. Before the classification, also need the body only for the child list, never for a code delta |
 | Deferred to children's `state:plan-go` labels without reading the child plan bodies | Trusted the approved-plan label as proof the child plans were current | Child plans CAN go stale (e.g. cite an old line count); reviewer flagged this as an unmitigated risk | Add a FRESHNESS GATE: read each child's latest plan comment (`gh issue view <n> --comments --jq '.comments[-1].body'`) and confirm its cited paths/line-counts still resolve (`wc -l`, `grep -n`) before dispatching. In #5191 R1 the child plans were current (cited `any_tensor.mojo:4383-4413`, ≤3,000 target with a #5181-merge contingency, real test paths) — but that had to be VERIFIED, not assumed |
 | Selected `TRACKER` for a feature request because its check found no code | The body had acceptance criteria and a verification table and named no child issue; the only "define X" sentence made the implementer choose a parameter value | A delegated choice inside a code requirement is not child work; `TRACKER` dropped the requirements | Apply the three-verdict rule as written: one code change remains → `REQUIREMENTS`; keep the delegated choices in the reason and report the missing behavior as its evidence |
-| Waited for a live `gh` child sweep that the request did not permit | The `gh` CLI was unavailable and a structured disposition was due | A wait for live state delays a decision that local checkout evidence can support, and no child state was read at all | Run the local structure, script, history, and invariant checks in step 11, select `TRACKER` on absent targets plus a body that names no code delta, and report the live-state gaps as limits |
+| Waited for a live `gh` child sweep that the request did not permit | The `gh` CLI was unavailable and a structured disposition was due | A wait for live state delays a decision that local checkout evidence can support, and no child state was read at all | Run the local structure, script, history, and invariant checks in step 12, select `TRACKER` on absent targets plus a body that names no code delta, and report the live-state gaps as limits |
+| Opened the epic close-out PR on a dispatch that ordered it | The dispatch named a tracking epic, ordered the approved plan, and required one pull request with the closing keyword. Two children were open: one in an open pull request, one without a plan. | The epic's own approved plan gave the closing keyword to its close-out step, so the requested PR would have closed the epic ahead of its exit criteria and, to satisfy them, would have implemented a child scope that the plan reserved for a separate plan and review. | Run the dispatch-close-out gate first. If the plan names the close-out step as link owner and a child is open, post one decision request and stop. Do not select the side the dispatch text implies. |
 | Treated the checkout state as proof of the disposition without binding it to a commit | A detached `HEAD` and an absent target set looked like sufficient evidence for `REQUIREMENTS`, and no revision was cited | The evidence spoke about one tree only, and a reader could not reproduce it. A detached `HEAD` says nothing about a merge | Cite the commit or revision that the checks read. Report remote pull-request and merge state as an explicit limit in the reason field |
+| Read a partly present target set as "not delivered" | One restructure epic's target namespace held only a one-line package skeleton at the checked commit, so the next stage of the restructure looked absent and the epic looked untouched | The structure check failed to show DELIVERY. That is not the same as showing that the epic has no work. A skeleton commit, a missing console-script entry point, and unmet repository-wide criteria together show a partial pass, which leaves the epic in progress. `REQUIREMENTS` was still wrong, because the body named 20 child issues and no code delta of its own | Apply the progress case: a partly present structure → `TRACKER` with the landed workstreams cited. Report the unknown remainder (child state, open pull requests, merge result) as reason limits, and do not write a container plan |
 
 ## Results & Parameters
 
@@ -257,7 +285,19 @@ Files to Create/Modify: None in this epic; changes live in the children's own ap
 Implementation Order: dispatch each open child via `impl <n>` in dependency order;
                       gate each dependent child behind its prerequisite's MERGE
 Close-out:            re-verify all children CLOSED+COMPLETED, then close the epic
+                      (the closing keyword belongs to this step, not to a child PR)
 ```
+
+### Parameters to capture at an implementation dispatch
+
+- `dispatch_closeout_conflict`: `none` (the dispatch does not close the epic), `plan_reserves_link`
+  (the plan gives the closing keyword to its close-out step), or `children_shipped` (every child is
+  closed COMPLETED with a merged pull request, so the close-out is due).
+- `child_sweep`: one row per child with `state`, `stateReason`, merged or open pull request, and the
+  label. Check each shipped claim against the tree.
+- `decision_fork`: both readings, their evidence, and the options for the owner. Recommend one and
+  do not act on it.
+- `writes_before_resolution`: `zero`, unless the plan prescribes a fallback for that exact trigger.
 
 ### Reframing observed in #5191
 
@@ -282,3 +322,5 @@ Close-out:            re-verify all children CLOSED+COMPLETED, then close the ep
 | Hephaestus | Structured disposition for an open issue with a canonical implementation plan, 2026-11-06 | Local-only checks bound to one commit: the named new modules and tests were absent, the inventory documentation kept its old prose form, and `git log --all --grep` for the issue number returned no commit. Selected `REQUIREMENTS` and reported the remote pull-request state as unknown |
 | Hephaestus | Structured disposition for a feature request without `gh`, 2026-11-06 | Local-only checks: a keyword search of the package tree found no release-check, update-notice, or startup-check behavior; the installed-version helper read only local metadata; the build metadata declared about forty console scripts with no shared startup hook. The body had seven acceptance criteria and an eleven-case verification table, and named no child issue. Selected `REQUIREMENTS` (v1.5.0); the delegated release source, timeout, and entry-point set were reported as reason limits |
 | Hephaestus | Structured disposition for a 20-child restructure epic without `gh`, 2026-11-04 | Local-only checks: the target package namespaces were absent, no catalog or entry-point module existed, `git log --all --grep` for the child identifiers returned no commits, and the epic's repository-wide criteria were unmet. Selected `TRACKER`; open-PR and child `stateReason` state remained unknown and were reported as limits |
+| Hephaestus | Structured disposition for a 20-child restructure epic with a partly delivered skeleton, 2026-11-07 | Local-only checks bound to one commit: the target namespace held a docstring-only package skeleton only, the build metadata held no entry point for the new console script, and `git log --all --grep` showed the skeleton commit plus two later commits for the moved CLI adapter and the split stage module. The epic's own repository-wide criteria were still unmet. Selected `TRACKER` (v1.6.0) with the landed workstreams cited; the child state, open pull-request state, and merge result stayed unknown and were reported as reason limits |
+| Comet dashboard audit epic | Implementation dispatch on a 10-child tracking epic whose approved orchestration-only plan reserves the closing keyword for its close-out step, 2026-11-01 | Sweep at the branch base: 8 children CLOSED COMPLETED with merged pull requests, one in an open pull request, one OPEN with no plan. Word searches confirmed the shipped work. The dispatch ordered one closing pull request. Selected the close-out gate: one decision request, zero code changes, zero pull requests, zero labels (v1.7.0) |
