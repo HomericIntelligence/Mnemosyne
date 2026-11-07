@@ -105,6 +105,61 @@ optional log directory and standard-error fallback, and stated the disposition
 of the family with no production load path. The review also required each
 behavior test to load through the real loader rather than a private helper.
 
+## 2026-11: Correct the doc anchors, then dispose per ask (v3.8.0 source case)
+
+A planning probe for a "warn instead of fail closed" issue checked four kinds of
+anchor against the tree before it proposed any file:
+
+- Source sites. Two of the three named refusal sites still refused; one already
+  warned under an existing drift mechanism. The plan reused that mechanism and
+  forbade a second warning framework.
+- The named documentation page. It does not exist as a tracked file. The page is
+  retired and survives only as a section ledger in another document. The plan
+  replaced the target with the owning release-operations pages and named the one
+  ledger row that still points to the retired path.
+- The named decision record. It has no file. The decision survives only as prose
+  references from component pages. The plan cited those pages and did not treat
+  the missing record as proof that the direction is wrong.
+- The mechanism the issue asked to build. A merged change had already removed the
+  last acceptance gate of that kind. The plan read the issue's "one acceptance
+  path" as one warning shape over the existing seal record, not as new approval
+  storage.
+
+The disposition was not "obsolete". Part of the behavior already shipped, one
+named site still refused, an opt-in flag still gated the warning, and the actor
+that closed the superseded issues was a forge action that the tree cannot prove.
+The prompt output enumerated the criteria that already held and the criteria that
+remained. The prompt output also stated the two stale issue facts as uncertain
+rather than restating them.
+
+Rule applied: date a zero-match anchor for source sites, but for a documentation
+page or decision record that the store retirement removed, name the owning page
+that absorbed the content and plan against it. Then dispose per ask, not per
+issue.
+
+## 3.9.0 — a local load-path patch is not durable (source case)
+
+Source evidence: a planning hand-off for a consumer issue whose code lives in a
+separate repository. Before the plan, three premises were re-checked:
+
+- All four named target pull requests were already merged. The alternate acceptance
+  form (report each block with its cause) applied, and no delivery run was needed.
+- The consumer-side supersession patch was closed without a merge. The owner fix was
+  an open pull request in the owning repository.
+- A local install had been patched by hand and reported active the day before. The
+  installed copy held none of the change: a later sync from the owning repository
+  replaced it. The installed digest equalled the owning default branch.
+
+Rules the case supports:
+
+1. Report an installed or deployed copy's state from a digest check against the
+   required owning revision, never from an earlier report. Do not hand-apply a
+   patch to the load path as the durable route.
+2. A closed supersession patch in the consumer, plus an open owner fix, leaves the
+   plan with a tracking action, not a code action in the consumer.
+3. An accepted alternate acceptance form discharges the delivery criterion by
+   evidence, not by a mock run.
+
 ## Retrieval note
 
 This file is a companion and is not part of normal retrieval. Keep rules in the main
