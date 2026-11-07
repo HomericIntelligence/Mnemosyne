@@ -71,3 +71,36 @@ Near-miss candidates in the corpus, and why they do not cover this lesson:
   hardening, not outage classification.
 - Open pull requests at the delivery base: an unrelated batch-job
   result-verification entry and an unrelated report-metric entry. No overlap.
+
+## Startup-failure evidence (2026-11-07)
+
+A later session on a production GPU serving fleet saw two pools whose replicas never registered.
+Each case had a deterministic cause that repeated on every submission.
+
+- Missing mount source. Every replica of one large pool ended FAILED after about seven
+  minutes. The first error in the lowest-rank log was a container-runtime mount failure:
+  the launch spec bind-mounted three runtime overlay directories, and the overlay root on the
+  new lane was empty. The pool failure breaker tripped after three identical failures. The
+  original overlays still existed under an older team path. A checksum-verified copy into the
+  lane's overlay root, plus a breaker reset, let the next replica start and serve a real
+  completion after a load time of about forty minutes.
+- Engine argument conflicts. One pool failed three times in a row with a different error each
+  time: the prefill backend needed an fp8 cache type; the decode backend needed a bf16 cache
+  type on this platform; a third backend did not support the cookbook's index setting. Each
+  run took between four and thirteen minutes, because the engine verified the checkpoint before
+  it checked flag combinations. The session fell back to the one combination that matched a
+  benchmark row.
+- The supervisor summary line "rank 0 exited first with status 137" appeared in each failure.
+  It reports the kill of the remaining processes, and the cause was in the rank log above it.
+- A waiting job's rendered launch spec (`scontrol write batch_script`) showed the flags and
+  mounts before it used a node.
+
+## Amendment record (1.1.0)
+
+- Disposition `amend`, version 1.0.0 to 1.1.0, on the same canonical entry.
+- New decision value: the startup-failure branch (first error of the lowest-rank log, missing
+  mount source, engine argument conflict, breaker reset after the fix, one-replica proof) and
+  one failed attempt (one flag change per resubmission).
+- Duplicate search: no open pull request changed this entry; the corpus has no other entry for
+  container mount sources or engine argument conflicts.
+
