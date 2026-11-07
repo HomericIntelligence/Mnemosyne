@@ -1,10 +1,10 @@
 ---
 name: planning-epic-verify-live-child-state
 license: BSD-3-Clause
-description: "Reconcile live child-issue status and current implementation before planning or completing an epic with a stale checklist. Also selects the tracker disposition when the request names a tracker that already carries a plan-review rejection, a source-free request, or a structured disposition output. Includes a feature-shaped request whose acceptance criteria name a rule with selectable parameters: choose REQUIREMENTS and keep each delegated choice in the reason."
+description: "Reconcile live child-issue status and current implementation before planning or completing an epic with a stale checklist. Also selects the tracker disposition when the request names a tracker that already carries a plan-review rejection, a source-free request, or a structured disposition output. Includes a feature-shaped request whose acceptance criteria name a rule with selectable parameters: choose REQUIREMENTS and keep each delegated choice in the reason. Includes a partly present target set that shows an epic in progress rather than a missing requirement."
 category: tooling
 date: 2026-06-19
-version: "1.5.0"
+version: "1.6.0"
 user-invocable: false
 verification: verified-local
 tags: [epic, tracking-issue, child-issues, planning, gh-cli, state-plan-go, dependency-ordering, orchestration, audit-remediation, stale-body, verification-block, path-audit, freshness-gate, tracker-disposition, plan-no-go-label, sub-issues-api-empty, plan-only-deliverable, offline-evidence, feature-request, acceptance-criteria, delegated-parameter, requirements-disposition]
@@ -184,6 +184,9 @@ gh api graphql -f query="query{repository(owner:\"<o>\",name:\"<r>\"){issue(numb
     - A present structure and matching history show that the outcome is delivered → `OBSOLETE`.
     - An absent structure alone does not prove that the work is missing. When the body also names
       child work as the deliverable and no code delta of its own → `TRACKER`.
+    - A partly present structure shows that the epic is in progress. It is not evidence for
+      `REQUIREMENTS`: the epic still owns no code delta of its own. Select `TRACKER`, cite the
+      landed workstreams in the evidence, and state the uncertain remainder in the reason.
     - One named code change remains → `REQUIREMENTS`; the named change can also be a behavior that
       no current symbol implements. Report the absence of that behavior as the evidence for
       `REQUIREMENTS`, and do not require structure evidence that the request shape excludes.
@@ -209,6 +212,7 @@ gh api graphql -f query="query{repository(owner:\"<o>\",name:\"<r>\"){issue(numb
 | Selected `TRACKER` for a feature request because its check found no code | The body had acceptance criteria and a verification table and named no child issue; the only "define X" sentence made the implementer choose a parameter value | A delegated choice inside a code requirement is not child work; `TRACKER` dropped the requirements | Apply the three-verdict rule as written: one code change remains → `REQUIREMENTS`; keep the delegated choices in the reason and report the missing behavior as its evidence |
 | Waited for a live `gh` child sweep that the request did not permit | The `gh` CLI was unavailable and a structured disposition was due | A wait for live state delays a decision that local checkout evidence can support, and no child state was read at all | Run the local structure, script, history, and invariant checks in step 11, select `TRACKER` on absent targets plus a body that names no code delta, and report the live-state gaps as limits |
 | Treated the checkout state as proof of the disposition without binding it to a commit | A detached `HEAD` and an absent target set looked like sufficient evidence for `REQUIREMENTS`, and no revision was cited | The evidence spoke about one tree only, and a reader could not reproduce it. A detached `HEAD` says nothing about a merge | Cite the commit or revision that the checks read. Report remote pull-request and merge state as an explicit limit in the reason field |
+| Read a partly present target set as "not delivered" | One restructure epic's target namespace held only a one-line package skeleton at the checked commit, so the next stage of the restructure looked absent and the epic looked untouched | The structure check failed to show DELIVERY. That is not the same as showing that the epic has no work. A skeleton commit, a missing console-script entry point, and unmet repository-wide criteria together show a partial pass, which leaves the epic in progress. `REQUIREMENTS` was still wrong, because the body named 20 child issues and no code delta of its own | Apply the progress case: a partly present structure → `TRACKER` with the landed workstreams cited. Report the unknown remainder (child state, open pull requests, merge result) as reason limits, and do not write a container plan |
 
 ## Results & Parameters
 
@@ -282,3 +286,4 @@ Close-out:            re-verify all children CLOSED+COMPLETED, then close the ep
 | Hephaestus | Structured disposition for an open issue with a canonical implementation plan, 2026-11-06 | Local-only checks bound to one commit: the named new modules and tests were absent, the inventory documentation kept its old prose form, and `git log --all --grep` for the issue number returned no commit. Selected `REQUIREMENTS` and reported the remote pull-request state as unknown |
 | Hephaestus | Structured disposition for a feature request without `gh`, 2026-11-06 | Local-only checks: a keyword search of the package tree found no release-check, update-notice, or startup-check behavior; the installed-version helper read only local metadata; the build metadata declared about forty console scripts with no shared startup hook. The body had seven acceptance criteria and an eleven-case verification table, and named no child issue. Selected `REQUIREMENTS` (v1.5.0); the delegated release source, timeout, and entry-point set were reported as reason limits |
 | Hephaestus | Structured disposition for a 20-child restructure epic without `gh`, 2026-11-04 | Local-only checks: the target package namespaces were absent, no catalog or entry-point module existed, `git log --all --grep` for the child identifiers returned no commits, and the epic's repository-wide criteria were unmet. Selected `TRACKER`; open-PR and child `stateReason` state remained unknown and were reported as limits |
+| Hephaestus | Structured disposition for a 20-child restructure epic with a partly delivered skeleton, 2026-11-07 | Local-only checks bound to one commit: the target namespace held a docstring-only package skeleton only, the build metadata held no entry point for the new console script, and `git log --all --grep` showed the skeleton commit plus two later commits for the moved CLI adapter and the split stage module. The epic's own repository-wide criteria were still unmet. Selected `TRACKER` (v1.6.0) with the landed workstreams cited; the child state, open pull-request state, and merge result stayed unknown and were reported as reason limits |
