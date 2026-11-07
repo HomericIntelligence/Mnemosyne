@@ -1,13 +1,13 @@
 ---
 name: ci-hygiene-and-validation-gates
-description: "Design lightweight CI guards or diagnose checks that pass without enforcing their intended invariant."
+description: "Design lightweight CI guards, diagnose checks that pass without enforcing their intended invariant, or move an existing gate from required CI to a warning."
 category: ci-cd
 date: 2026-06-20
-version: "2.1.0"
+version: "2.2.0"
 user-invocable: false
 license: BSD-3-Clause
 verification: verified-ci
-tags: [ci, validation, regression-guard, required-check, schema, deprecation, stale-script, gitignore, two-sided-test]
+tags: [ci, validation, regression-guard, required-check, schema, deprecation, stale-script, gitignore, two-sided-test, warn-downgrade, gate-owner, anti-suppression-guard]
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/ci-hygiene-and-validation-gates.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -34,6 +34,8 @@ The patterns remain `verified-ci`. Reusable decisions are here, project incident
 - A gitignored `build/` or `dist/` directory must never contain tracked package inputs.
 - An issue requests CI wiring that a prior PR may already have delivered.
 - A new job name might be pinned in a live ruleset.
+- A required check must change to a warning, for example when an owner moves a
+  digest or evidence check from required CI to a release-acceptance step.
 
 ## Verified Workflow
 
@@ -122,6 +124,49 @@ duplicate it or close the issue with no improvement. Add a concise cross-referen
 just/Make recipe pointing to the existing CI job when discoverability is the actual gap. Verify the
 comment and the workflow invocation reference the same canonical script.
 
+### Pattern 7: downgrade a required gate to a warning
+
+Use this pattern only when the user or an owner asks for warning-only behavior. Do
+not choose it to make a red check green. Before you change the exit code, record the
+owner of each remaining failure.
+
+1. Grep the repository for an anti-suppression guard. A required workflow and a test
+   can both reject `continue-on-error`, `ignore_errors`, or a soft exit. Find the
+   restriction and the allowed alternative before you plan a downgrade:
+
+   ```bash
+   grep -rnE "continue-on-error|forbid.?suppress|ignore_errors" .github/ tests/
+   ```
+
+2. Separate the check from its caller. A script may be a library that another check
+   imports, or a step that a different required job runs. Grep each workflow for the
+   script path and for the job it belongs to. Classify the real required context,
+   not the file name.
+
+3. Divide the verdicts into three classes and give each class a decision owner.
+
+   | Class | Result | Owner of the decision |
+   | --- | --- | --- |
+   | Digests, checksums, and recorded-versus-observed identity | Warning to standard error, plus a list in the summary artifact | The named acceptance step |
+   | Malformed, missing, or oversized evidence; input cannot be read | Failure | The check |
+   | Objective invariant, such as a signature, a shape, or a required field | Failure | The check |
+
+4. Keep one warning format and one place that writes it. A helper with a stable
+   prefix makes the warning greppable in logs and in the summary.
+
+5. Find every test that pins the old contract. A test can count the number of warning
+   call sites or assert the non-zero exit. Change those tests with the source, and add
+   one case that proves the warning path returns zero.
+
+6. State the loss. A warning does not block a change. Record which file or record the
+   acceptance step must read, for example a `warnings` array in an evidence summary.
+
+```text
+Digest difference  -> WARNING + summary list, exit 0
+Bad evidence shape -> FAIL
+Signed provenance  -> FAIL (required)
+```
+
 ### Final gate audit
 
 For every new or repaired gate record: invariant, scope, exclusions, trigger, environment,
@@ -142,6 +187,9 @@ the repository required suite after restoring all synthetic changes.
 | Delete ignored logs | Cleaned `build/` repeatedly | Producer recreated them; tracking was the real risk | Guard `git ls-files`, preserve runtime state |
 | Soft-warn true invariant | Copied stale-script exit-zero behavior | Tracked package contamination passed | Hard-fail objective invariants |
 | Rewire already-wired script | Added a duplicate CI invocation | Prior PR already owned the gate | Search first; close only the discoverability gap |
+| Soft-fail by `continue-on-error` | Marked a step optional to stop the red check | An anti-suppression guard and tests rejected the step | Downgrade inside the script and keep the evidence shape fail-closed |
+| Warning with no owner | Removed the failure and printed a message | No step read the message, so the difference was lost | Name the acceptance step that reads the summary list |
+| Classify by file name | Treated a shared library as the required gate | Another check imported the library | Map each script to its real required job first |
 
 ## Results & Parameters
 
@@ -153,10 +201,14 @@ the repository required suite after restoring all synthetic changes.
 | Required gate | Preserve pinned context; nonzero on contract breach | Exact CI clean/injected/restore sequence |
 | Ignored scratch directory | Nonzero when `git ls-files <dir>/` is nonempty | Synthetic tracked fixture |
 | Already-wired issue | No duplicate job; local cross-reference | Search confirms one canonical invocation |
+| Warning downgrade | Zero on a byte or identity difference; nonzero on bad evidence shape and on the objective invariant | One warning case and one failure case per class |
 
 ## Verified On
 
 - CI-backed implementations covered all six retained patterns.
+- The warning-downgrade pattern comes from a planning review, not from a merged
+  change. Its class table and anti-suppression step are read from live repository
+  behavior. Treat the result as planned guidance until a downgrade merges.
 - Exact project commands and outcomes are indexed in the notes.
 
 ## Companions
