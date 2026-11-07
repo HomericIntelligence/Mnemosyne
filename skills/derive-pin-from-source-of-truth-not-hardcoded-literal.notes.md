@@ -276,3 +276,30 @@ field. The two triggers overlap when a leaf expression holds a policy
 literal. Use this entry for the authority and the failure message, and use
 the resolver entry for the consolidation and the fail-loud choice. The
 resolver entry is out of scope for this amendment.
+
+### Evidence: a plan review found the constant re-introduced
+
+A later review loop examined a plan for the same promotion. Four review
+rounds changed the failure shape of the plan, not the code.
+
+- The first plan set the new fields with `Field(default=<constant>)` and also
+  required that an absent key fail validation. Both rules cannot hold.
+- The next plans used strict fields with no default and added a source-scan
+  invariant for the trust sites. Residue remained: an allowlist did not match
+  the measured population, and the constructor census was incomplete.
+- The last plan removed the documentation gap but added a classmethod that
+  merged the constants into the payload when a key was absent. The plan then
+  stated that the check path and the test fixtures call that classmethod. The
+  enforcement path stopped reading the declaration, and the constant was
+  again the effective authority.
+
+Measurements from that loop, kept as a method rather than a fixed count:
+
+- An `ast` walk that collects exact string constants found several hundred
+  matches in one data module. A raw token search found more files and more
+  hits, because it also counts imports and substrings. Match an exact string
+  constant when you measure the enforcement population.
+- A layer map listed the identity module below the configuration module in
+  the dependency order. The plan claimed the opposite direction. Read the
+  layer list and the current importers before you use a direction to justify
+  a re-export.

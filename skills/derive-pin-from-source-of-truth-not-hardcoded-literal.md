@@ -35,7 +35,7 @@ tags:
 | ------- | ------- |
 | **Date** | 2026-11-01 |
 | **Objective** | Keep every asserted version, digest, or lineage value derived from its canonical source so a source change propagates without a matching edit, and resist converting descriptive documentation into a new blocking rule. |
-| **Outcome** | Successful. Literal assertions inside quoted heredocs were replaced with values passed from the recipe, and an enforcement claim added to documentation was removed because the documentation described current state only. |
+| **Outcome** | Successful. Literal assertions inside quoted heredocs were replaced with values passed from the recipe, and an enforcement claim added to documentation was removed because the documentation described current state only. A plan-stage branch adds the promotion of a policy literal to a required configuration field. |
 
 A pin has exactly one owner: the manifest, recipe, lockfile, or environment
 file that declares it. Every script that asserts the pin reads that owner.
@@ -187,6 +187,29 @@ project --exclude-prefix <control-only-prefix>/ <source> <public>
     - Record external fixtures that must also change as a separate follow-up
       record. An example is a bootstrap verifier that cannot import the
       application package by design.
+    - Refuse a default on the required field and refuse a constructor helper
+      that fills absent keys with the constant. `Field(default=CONSTANT)` makes
+      the "required" field optional. A constructor helper that merges the
+      constant into the payload makes the enforcement path accept what the
+      schema rejects, so the constant is again the source of truth. When many
+      constructors need the new keys, add one shared test helper. Do not add a
+      production seam that exists only to prevent test edits.
+    - Keep one named fallback path for a configuration that does not exist,
+      such as a selection with no profile file. State the outcome of that path:
+      a note, a refusal, or a pass. Refuse the fallback on a path that has a
+      configuration but a missing key.
+    - Run the acceptance check through the production loader. A check that
+      validates a record through a helper proves the helper, not the required
+      field.
+    - Classify each literal replacement by its use. Convert a site when it
+      resolves an identity or compares against an expected identity. Keep a
+      record, a data row, and a schema literal as data.
+    - Match an exact string constant, not a raw token, when you count the
+      literal population. Token counts include imports and substrings and
+      overstate the enforcement sites.
+    - Verify an import-direction claim against the layer map and the current
+      importers before you use it to justify a design. A layer claim that the
+      import gate contradicts invalidates the plan, not the change.
 12. Check each remaining literal with a targeted search before you finish:
 
     ```bash
@@ -196,9 +219,9 @@ project --exclude-prefix <control-only-prefix>/ <source> <public>
     Map each hit to a stated reason. For a policy literal, the reason must name
     the declared field that replaced it, or the exception that keeps it.
 
-9. Run a syntax check on each changed script. Exercise each argument-passing
-   form directly before you commit, because a heredoc argument error reaches
-   a long build only after the build starts.
+13. Run a syntax check on each changed script. Exercise each argument-passing
+    form directly before you commit, because a heredoc argument error reaches
+    a long build only after the build starts.
 
 Supporting case detail is in [the notes](./derive-pin-from-source-of-truth-not-hardcoded-literal.notes.md).
 
@@ -214,6 +237,8 @@ Supporting case detail is in [the notes](./derive-pin-from-source-of-truth-not-h
 | Removed a protected-location constant after a partial consumer search | Deleted the constant and rewired only the first consumer found | A later consumer used the value differently, so a guessed replacement could have dropped a protection | List every consumer first, move each one to a declared field, and fail closed when the declaration is absent |
 | Added a required configuration field to a permissive schema without probing the failure message | Marked the new field as required and ran one test with the field absent | The cross-field validator reported that the model was invalid and named no field, so the caller could not tell which value was missing | Probe the missing-field message before you select the failure shape; keep the shape that names the key |
 | Kept a check site on the module constant as a compatibility fallback | Left the constant as the fallback value when the configuration record declared no policy value | The check passed with no declaration, so the constant again decided the result and the drift remained | A check site must refuse when no declaration exists; the constant is the schema default only |
+| Marked the field required but gave it the constant as a default | Wrote `Field(default=CONSTANT)` on a field whose acceptance criterion is "an absent key fails validation with the key name" | The default applies, validation passes, and the criterion and the field state opposite rules | A default and a required-field criterion cannot both hold; use a strict field with no default |
+| Added a constructor classmethod that fills absent keys with the constant | Added a classmethod that merges the constant into the payload when a key is absent, so existing callers and test fixtures need no edit | The enforcement path called the wrapper, so a record without the keys passed the install, and the named test asserted the fallback while the file table required a failure | Keep the schema strict; move constructor edits into one shared test helper; keep the no-configuration fallback on one named path |
 
 ## Results & Parameters
 
@@ -243,6 +268,9 @@ Supporting case detail is in [the notes](./derive-pin-from-source-of-truth-not-h
   describes the same tree that the gate scans.
 - A policy value comes from a declared field, and a missing declaration fails
   the check with a message that names the field.
+- No default and no constructor helper supplies the constant when a declared
+  field is absent.
+- The acceptance check runs the production loader, not a wrapper.
 - The seal or privacy gate keeps its original strictness.
 
 ## Verified On
