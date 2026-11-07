@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Check whether current source already satisfies a stale issue, plan, log finding, review finding, or pull-request premise — including at a workflow resume under a durable approval state, on an open PR head that a sibling session rewrote, and on an outdated review thread; avoid redundant fixes and close tracked work only within authorized scope."
 category: ci-cd
 date: 2026-06-14
-version: "1.6.0"
+version: "1.8.0"
 user-invocable: false
 verification: verified-ci
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/stale-plan-already-resolved.history"
@@ -37,6 +37,8 @@ history-cleanup-date: "2026-09-20"
 12. Parallel workers own overlapping fix clusters in the same repository, and hours pass between your failure analysis and your next delivery boundary
 13. A scoped task brief premises an open pull request state, for example a rebase-only brief that states the PR is conflicting or dirty against the default branch. The brief is a snapshot: the PR head may have moved after the brief was written
 14. A review workflow hands you an unresolved review thread, often `isOutdated`, and the prompt expects a fix. The finding was captured at an older head. A later fix already landed, and the thread stayed unresolved because no publisher resolved it
+15. You already wrote, tested, committed, and pushed the change for a task that started from a recorded base. The push or pull-request creation fails with a conflict, or the new pull request opens `CONFLICTING`/`DIRTY`. The delivery boundary is the last point where a later merge can eclipse the work
+15. A user asks for a behavior change ("make X the default", "load Y dynamically") and pastes tool output that names the version they ran, or your own checkout lags and your last fetch partly failed. The default branch may already have the behavior
 
 ## Verified Workflow
 
@@ -71,6 +73,30 @@ objective — then the plan is eclipsed. Make zero writes: do not implement, and
 review verdict over the stale plan. A verdict that binds deleted or previously delivered sites is
 invalid evidence. Report the stop disposition that the task authorizes (for example PARKED) with
 the delivery evidence.
+
+### 0a. Post-push duplicate gate: search the delivery lane before you resolve a conflict
+
+A base commit that is still an ancestor of the default branch does not prove the work is absent.
+When the push reports a conflict, or the new pull request opens `CONFLICTING`, measure the range
+between the plan base and the current default tip before any rebase:
+
+```bash
+git fetch origin <default>
+git merge-base --is-ancestor <plan-base> origin/<default>   # true says nothing about the work
+git log --oneline <plan-base>..origin/<default>
+git log --oneline --grep '<issue number>' origin/<default>  # the delivery commit, if it exists
+git show <delivery-commit> --stat
+```
+
+Decision rule: a commit on the default branch that names the task and changes the same files is a
+prior delivery, not a conflict to solve. Compare your result with that commit, then make zero
+writes: rebase nothing, push nothing, and do not merge a duplicate. Close your duplicate pull
+request with a comment that names the delivery commit, delete only your own branch, and report the
+delivery as already complete. A correct but duplicate change costs review time and can revert
+later behavior if a reviewer resolves it toward the older plan.
+
+`merge-base --is-ancestor` returning true only shows the base is old. It is not evidence that the
+work is unfinished.
 
 ### 0b. Open-PR premise gate: measure the PR head before a premise-scoped rewrite
 
@@ -109,6 +135,29 @@ change. Report the task-complete disposition with the measured evidence.
 
 Verification level: this subsection is `verified-live` from one session (see the notes). The
 rest of this entry keeps its `verified-ci` claim.
+
+### 0c. A requester's installed copy and a failed fetch: compare versions before you file
+
+A request for a behavior change can describe an old install, and your own checkout can lag the
+default branch. Run these checks before you open an issue, write a plan, or start an agent:
+
+1. Fetch the default branch and require exit code 0. A fetch that reports "did not send all
+   necessary objects" or a bad ref can still move some refs. Compare the local tip with
+   `git ls-remote origin <default>`. If they differ, treat every absence claim as unverified.
+2. Read the artifact version on the fetched default branch (version constant, changelog, or the
+   file's log). Read the version the requester ran (a banner or version line in pasted output).
+3. Choose the outcome:
+
+| Finding | Action |
+| ---- | ---- |
+| Default branch has the behavior and the requester's version is older | Do not file or implement. Tell the requester to update. Name the commit and version |
+| Default branch lacks the behavior | Plan and implement |
+| Default branch has part of it | Plan only the remaining delta. Name the covered part |
+
+4. When you delegate, tell the agent to check the fetched default branch first. It stops with
+   "no change" and its evidence when the behavior exists. That costs one comment. An agent that
+   implements anyway costs a duplicate pull request.
+5. If a duplicate issue already exists, close it with the commit and version as evidence.
 
 ### 1. Read the plan carefully for specific anchors
 
@@ -348,6 +397,7 @@ python3 scripts/validate_test_coverage.py
 | Open-PR premise gate | `git merge-base --is-ancestor origin/<default> <pr-head>` + `git rev-list --count <pr-head>..origin/<default>` (0), `gh pr view --json mergeable,mergeStateStatus` plus local `git merge-tree --write-tree`, PR `head_ref_force_pushed` timeline events and sibling completion comments — head based + clean merge + sibling report ⇒ zero-write stop |
 | Review-finding re-verify | `git log --oneline -S "<snippet>" -- <path>` on the PR head; `sed -n '<start>,<end>p' <path>` for the current lines; the covering tests run as evidence |
 | No readable defect | No edit, no commit, head unchanged. Resolve with proof or leave open with the blocker. Report `commits: none` |
+| Post-push duplicate gate | `git log --oneline <plan-base>..origin/<default>` and `git log --oneline --grep '<issue>' origin/<default>`; a merged commit on the same files ⇒ close the duplicate unmerged, delete only your branch |
 
 ## Failed Attempts
 
@@ -365,7 +415,9 @@ python3 scripts/validate_test_coverage.py
 | One re-check per session | Re-verified the defect inventory once at analysis time and treated it as valid for the whole session | The default branch advanced ~30 commits during the session, including fix PRs for the exact analyzed failures | A premise check expires; re-run it at each delivery boundary |
 | Checked only the code artifact | Re-fetched before opening the fix PR but filed issues and edited the tracker from the decayed analysis | The easily discarded artifact (the branch) got the fresh check; the hard-to-retract artifacts (tracker records) did not | Give outward mutations the freshest premise: they cannot be quietly rebased away |
 | Editing a review finding from its body text | A review workflow asked for a fix on an open promotion PR with nine unresolved threads | Eight of the nine were already fixed by two merged commits on the same head, and the head stayed unresolved only because no publisher resolved the threads | Check the current head before you edit. Resolve on proof when no change is needed, and report `commits: none` |
+| Resolved a pull-request conflict by rebasing a finished implementation | The new pull request opened `CONFLICTING` although the plan base was an ancestor of the default branch, so the branch looked current | The default branch already carried a merged commit for the same task that changed the same files; the rebase would have produced a duplicate pull request and a possible revert | Run the post-push gate (step 0a): search the base-to-tip range for the delivery commit before any rebase, then close your duplicate unmerged |
 | Empty commit to satisfy a fix-per-thread contract | Review workflows often expect one commit per accepted finding | The commits existed. An empty one would move the head and restart review for no change | Zero-diff is a valid outcome. Never move a head to show activity |
+| Filed from a stale checkout | Opened a feature issue and started an agent for a behavior that the default branch already had; the requester had pasted an older version banner, and the last fetch had partly failed | The local checkout lagged, and a partial fetch left the default branch stale | Compare the requester's version with the fetched default branch, and require a clean fetch, before you file |
 
 ## Verified On
 

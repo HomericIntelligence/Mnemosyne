@@ -4,10 +4,10 @@ license: BSD-3-Clause
 description: "Reconcile live child-issue status and current implementation before planning or completing an epic with a stale checklist. Also selects the tracker disposition when the request names a tracker that already carries a plan-review rejection, a source-free request, or a structured disposition output."
 category: tooling
 date: 2026-06-19
-version: "1.3.0"
+version: "1.4.0"
 user-invocable: false
 verification: verified-local
-tags: [epic, tracking-issue, child-issues, planning, gh-cli, state-plan-go, dependency-ordering, orchestration, audit-remediation, stale-body, verification-block, path-audit, freshness-gate, tracker-disposition, plan-no-go-label, sub-issues-api-empty, plan-only-deliverable]
+tags: [epic, tracking-issue, child-issues, planning, gh-cli, state-plan-go, dependency-ordering, orchestration, audit-remediation, stale-body, verification-block, path-audit, freshness-gate, tracker-disposition, plan-no-go-label, sub-issues-api-empty, plan-only-deliverable, offline-evidence]
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/planning-epic-verify-live-child-state.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -41,6 +41,8 @@ only an update; an implementation request can include the remaining child change
   rejected
 - The requested output is a structured disposition (`REQUIREMENTS`, `TRACKER`, `OBSOLETE`) or the
   request tells you to "recover the original requirements" of the issue
+- The `gh` CLI or network is not available, so you must select the disposition from a local
+  checkout alone
 
 ## Verified Workflow
 
@@ -154,6 +156,29 @@ gh api graphql -f query="query{repository(owner:\"<o>\",name:\"<r>\"){issue(numb
    the remaining implementation or coordination. Continue independent work while a prerequisite
    is pending, and reconcile actual child outcomes before closing the epic.
 
+11. **Select the disposition from a local checkout when `gh` is not available.** Do not defer the
+    classification and do not invent child state. Run these checks in this order:
+
+    - **Structure check.** List the package directories and the renamed or added targets that
+      the epic names. An absent target shows that its workstream is not delivered.
+    - **Script check.** Search the build metadata for the console-script entry points that the
+      epic names.
+    - **History check.** Use `git log --all --grep='#<child>'` for the child identifiers and for
+      the terms of each workstream. No matching commit means no merged child work.
+    - **Invariant check.** Apply the epic's own repository-wide criteria, such as a search for a
+      retired import path or an import-surface test.
+
+    Report each check as evidence. State the uncovered items as limits: open pull-request state,
+    unmerged remote branches, and each child's `stateReason` stay unknown. Then select the
+    disposition:
+
+    - A present structure and matching history show that the outcome is delivered → `OBSOLETE`.
+    - An absent structure alone does not prove that the work is missing. When the epic body also
+      names no code delta of its own → `TRACKER`.
+    - One named code change remains → `REQUIREMENTS`.
+
+    An absent delivery is evidence against `OBSOLETE`. It is not evidence for `REQUIREMENTS`.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -167,6 +192,7 @@ gh api graphql -f query="query{repository(owner:\"<o>\",name:\"<r>\"){issue(numb
 | Assumed a referenced "extend" issue was net-new work without reading the target file | Planned #5184 (checkpoint recovery) as if `checkpoint.mojo` were empty | `CheckpointManager` already existed (381 lines, save/load/metadata) — risk of duplicate work / wrong scope | Read the target file and `grep -nE 'tmp\|rename\|atomic\|resume\|recover\|--fresh\|retry'` for the specific capabilities the issue adds; zero matches = genuinely absent = reframe as "extend struct X at file:line" citing the current method inventory |
 | Wrote a fresh requirements plan for a container that was already rejected | The request asked to recover the requirements of an epic that listed 20 child issues and already carried `state:plan-no-go`; the body named no code change of its own | A container plan only repeats the child work and breaks the corrected decision with the label | Select `Tracker` from the epic label plus a child list in the body, report the operator link set when the sub-issues API is empty, and keep `requirements` empty. Before the classification, also need the body only for the child list, never for a code delta |
 | Deferred to children's `state:plan-go` labels without reading the child plan bodies | Trusted the approved-plan label as proof the child plans were current | Child plans CAN go stale (e.g. cite an old line count); reviewer flagged this as an unmitigated risk | Add a FRESHNESS GATE: read each child's latest plan comment (`gh issue view <n> --comments --jq '.comments[-1].body'`) and confirm its cited paths/line-counts still resolve (`wc -l`, `grep -n`) before dispatching. In #5191 R1 the child plans were current (cited `any_tensor.mojo:4383-4413`, ≤3,000 target with a #5181-merge contingency, real test paths) — but that had to be VERIFIED, not assumed |
+| Waited for a live `gh` child sweep that the request did not permit | The `gh` CLI was unavailable and a structured disposition was due | A wait for live state delays a decision that local checkout evidence can support, and no child state was read at all | Run the local structure, script, history, and invariant checks in step 11, select `TRACKER` on absent targets plus a body that names no code delta, and report the live-state gaps as limits |
 
 ## Results & Parameters
 
@@ -237,3 +263,4 @@ Close-out:            re-verify all children CLOSED+COMPLETED, then close the ep
 | Project | Context | Details |
 |---------|---------|---------|
 | ProjectOdyssey | Epic #5191 planning — R0 NOGO (grade C, invented test paths) → R1 re-plan with path audit + freshness gate, 2026-06-19 | Read-only `gh`/`find`/`wc`/`grep` queries executed: 9 of 12 children CLOSED+COMPLETED via merged PRs, 3 open children carry `state:plan-go`; R0 NOGO'd on invented Verification paths (`tests/models/...`, `tests/training/...` — real tests under `tests/projectodyssey/{tensor,training}/`); R1 added path audit, child-plan freshness gate, and a capability-absence check (`CheckpointManager` already 381 lines). Dispatch/close-out steps are proposed; downstream child PRs not yet merged (verified-local) |
+| Hephaestus | Structured disposition for a 20-child restructure epic without `gh`, 2026-11-04 | Local-only checks: the target package namespaces were absent, no catalog or entry-point module existed, `git log --all --grep` for the child identifiers returned no commits, and the epic's repository-wide criteria were unmet. Selected `TRACKER`; open-PR and child `stateReason` state remained unknown and were reported as limits |

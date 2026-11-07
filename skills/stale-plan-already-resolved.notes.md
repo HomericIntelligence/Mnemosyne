@@ -265,3 +265,39 @@ TMPDIR=/tmp uv run --locked --extra dev pytest <covering tests> -q
 
 The approval evidence was prose in the promotion record. The reviewer accepted it as the
 recorded option. No machine receipt bound it.
+
+## Case: requester's installed copy and a partly failed fetch (v1.7.0)
+
+- Trigger: two requests in one session asked for a behavior change in a setup script ("make install
+  the default", "load the model list dynamically"). The first request came after the requester pasted
+  output with an older version line than the default branch carried.
+- What went wrong: the author's own checkout lagged the default branch, and a fetch ended with a
+  bad-ref error and an incomplete-object message. The author filed a feature issue for each request
+  and started an implementation agent for the first one.
+- What fixed it: the delegated agent compared the version in the fetched default branch with the
+  requester's version, found the behavior merged, made no change, and posted the evidence. The author
+  closed both issues as duplicates.
+- Cost avoided by the early check: one duplicate pull request. Cost paid: two duplicate issues.
+- Decision rule kept in the main entry: require a clean fetch, compare the requester's version with
+  the fetched default branch, and file only for the remaining delta.
+
+## Case: delivery boundary catches a duplicate after a clean rebase decision (v1.8.0)
+
+- Trigger: an implementation task started from a recorded base commit. The plan review had a GO
+  result, and the recorded base was still an ancestor of the default branch when implementation
+  began. Local focused tests passed: the static provisioning suite passed 25 tests with 1 skip, and
+  the PostgreSQL-backed test passed against a disposable local PostgreSQL 17 service with TLS.
+- What went wrong: the author committed and pushed before any delivery-lane search. The new pull
+  request opened `CONFLICTING`. The next action was a rebase onto the default tip. The
+  base-to-tip log then showed a merged commit from about a day before the run whose message named
+  the same issue and titled the same feature. That commit changed the same three files with the
+  same approach: a removed mode filter, a mode-prefixed series label, a documentation paragraph,
+  and test updates. The pull-request diff against that commit was nearly empty; only label
+  variable names and paragraph placement differed.
+- Recovery: no rebase, no force-push. The duplicate pull request closed with a comment that named
+  the delivery commit and the date. The author deleted only the author's branch. The issue was
+  already closed as completed by the earlier delivery.
+- Cost paid: one implementation run and one duplicate pull request. Cost avoided: a rebase, a
+  duplicate review round, and a possible revert of the delivered behavior.
+- Decision rule kept in the main entry: run step 0a at the delivery boundary. The
+  `merge-base --is-ancestor` result for the plan base is not evidence that the work is unfinished.

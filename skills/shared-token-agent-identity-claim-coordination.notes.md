@@ -58,6 +58,16 @@ The decision value this case adds: a claim post does not lift a gate. Read the t
 issue and the state of the issue that owns the precondition before the claim. Claim the
 smallest step the recorded decision allows, not a fresh inventory of the whole request.
 
+## Third evidence case: pull-request swarm under one login
+
+A coordinator ran a swarm of lanes that opened, reviewed, and merged pull requests as
+one forge user on one scheduler user. Observed failures: a push after a delivered GO
+made the tool treat the GO as stale; a comment during review changed the requirements
+digest and blocked GO delivery; a reviewer withheld delivery after being told to skip
+labels; a secondary rate limit appeared with quota left; agents repeated blocked
+reports while waiting on queued jobs; and a full sub-agent cap stalled fan-out. The
+rules in the "Swarm of Pull-Request Lanes" section are the generalized fixes.
+
 ## Verification limits
 
 - `verified-local`: the contract text is on the shared branch of a single repository;

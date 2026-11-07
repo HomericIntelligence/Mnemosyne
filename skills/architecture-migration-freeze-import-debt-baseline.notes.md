@@ -9,6 +9,8 @@ These notes are not retrieved as guidance.
 | ---- | ----- |
 | Initial capture | 2026-07-20, planning and review session for a provider-runtime migration; no implementation, tests, or CI observed. |
 | Amendment | 2026-11-01, review of a structural-debt change in an isolated checkout. |
+| Amendment | 2026-11-04, read-only planning session for a product-layer-to-library move. |
+| Amendment | 2026-11-04, byte-exact move checks and move claims in an issue body, same session. |
 
 ## Amendment example: retract an upward edge
 
@@ -35,11 +37,130 @@ Why the re-export variant is weaker:
 - If the export is added to a package `__init__` that the guard counts as a
   module, the guard reports a new edge and fails the policy check.
 
+## Amendment example: move a unit from the upper layer to the lower layer
+
+Context:
+
+- An issue asked to move three provider-runtime modules from an opt-in
+  product layer into a library subpackage.
+- The issue stated that the three modules have no product-layer imports. The
+  statement was true for two modules.
+- The third module imported its product-layer configuration owner for model
+  selection, a generic timeout, and deterministic session identity.
+- The third module also imported a product-layer alias module. That alias
+  assigned `sys.modules[name] = implementation`, so it was the same module
+  object as a library module.
+
+Change shape:
+
+1. A new library module took ownership of the cohesive session, model, and
+   timeout family that the moved module needs.
+2. The product-layer configuration owner re-exported those symbols because ten
+   product-layer consumers still import it.
+3. The moved module imported the library module directly, because the library
+   boundary guard rejects a re-export of the product layer.
+4. The alias import was replaced with a direct import of the library module.
+   The module-scoped patches that resolve through the alias kept working, so
+   they needed no retarget.
+5. A path that used `parents[1]` to reach a sibling subpackage stayed correct,
+   because both layers sit one level below the package root. The plan stated
+   this check instead of assuming it.
+
+Why the direction of the re-export matters:
+
+- An upper module that imports a lower unit keeps that edge. The edge is
+  recorded debt, and the guard continues to see it.
+- A lower module cannot keep a re-export of its old upper home. The boundary
+  guard rejects it, so the moved module must not forward.
+
+## Amendment 2026-11-04: enumeration of test derivers after a move
+
+Context:
+
+- An issue plan retired three allowlisted upward import edges by moving a
+  cohesive action group into a new lower module, lowering one lifecycle
+  constant family to a service module, and injecting one command executor
+  into a service constructor.
+- The plan listed a test-update step and stated that all existing stubs
+  already absorb the added argument.
+- The plan listed five focused test commands.
+
+Findings from a read-only plan review:
+
+| Class | Evidence pattern | Plan gap |
+|-------|------------------|----------|
+| Narrow stub | A test imported the upper module and stubbed the moved function with a lambda that names exactly the old parameters | The added parameter raises `TypeError` at call time |
+| Removed import | A test imported the moved helper from the upper module at module scope | The import fails once the symbol leaves that module |
+| Removed attribute patch | A test patched the moved helper as an attribute of the upper module | The patch target fails with `AttributeError` |
+| Direct construction | A test builds the service directly and asserts success on the action that the new default fails closed | The default turns a passing test into a `PermissionError` |
+
+Decision rule derived:
+
+1. Search `tests/` for each moved symbol name and each old module path.
+2. Group the hits by file.
+3. Read each stub signature.
+4. Add every file to the focused test command.
+5. Keep the fail-closed default only when every direct construction is fixed in
+   the same change, or choose a default that preserves the current branch.
+
+The moved-symbol work itself follows the existing retirement and retarget
+rules. This amendment therefore extends the canonical entry instead of adding
+an entry.
+
+## Amendment example: verify the move claims before the copy
+
+Context:
+
+- The same issue supplied three kinds of move claims: module sizes in lines,
+  line anchors for two large embedded string constants, and one pre-check item
+  that asked whether a digest covers the embedded source lines.
+- The issue also stated that the modules have no product-layer imports. That
+  premise was false for one of the three modules, so the claim check covered
+  more than the numbers.
+
+Checks that changed the plan:
+
+1. A `__file__` grep found one sibling lookup that used a fixed parent index.
+   The lookup reached a module of the destination package. The move changed
+   the correct expression, so the plan named the new one and reported it as the
+   only content edit in a file of nearly 3,000 lines.
+2. A search for a source hash found module-level digests for external release
+   artifacts and a lock digest for an installed tree. No hash covered the
+   module text or either embedded constant, in source or in tests. The
+   pre-check result was therefore no digest contract. The constants still had
+   to stay unedited because one runs as a child process and a test executes it.
+3. Every quoted line anchor had drifted by tens of lines, and two of the three
+   module sizes differed from the issue. The target symbols were present, so
+   the plan cited current `file:line` positions and accepted the drift.
+4. A guard test that a related accepted record named as the enforceable
+   authority no longer existed in the tree. Its removal dated to an earlier
+   merge. The plan recorded that no baseline update was possible and did not
+   re-create the guard to match the issue text.
+
+Lesson shape:
+
+- A move issue is a source claim, not evidence. Verify each number, anchor, and
+  pre-check item against the current tree before the plan depends on it.
+- A missing digest contract does not remove the byte-exact requirement. Live
+  execution of the embedded string is the real contract, so keep the bytes and
+  let the existing tests prove them.
+
 ## Discovery limits of this amendment
 
-- The advise helper was not installed in the session environment. Duplicate
-  discovery used a direct regular-file listing of the resolved knowledge
-  checkout, `skills/*.md`, with notes and history companions excluded.
+- The advise helper listed the corpus from the resolved checkout. The open-PR
+  query returned one open pull request, and it changed an unrelated entry.
+- The shared knowledge checkout was dirty with an uncommitted draft of this
+  same amendment. This session captured that draft into its own branch and
+  commit rather than write a competing edit over it.
+- No implementation, test run, or CI was observed. This branch comes from
+  read-only plan inspection.
+
+## Discovery limits of the 2026-07-20 and 2026-11-01 amendments
+
+- The advise helper was not installed in the 2026-07-20 session environment.
+  Duplicate discovery used a direct regular-file listing of the resolved
+  knowledge checkout, `skills/*.md`, with notes and history companions
+  excluded.
 - Open pull requests were checked with a read-only forge query against the
   resolved delivery revision. No open pull request changed the selected
   canonical entry.

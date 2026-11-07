@@ -50,3 +50,23 @@ that revision on the remote.
 - The main file is below the 30,000-byte editorial guideline.
 - Duplicate search covered the corpus selector output and the nearest entries by
   intent; none decides the terminal-merged case for a drive task.
+
+## Re-bind after a wait
+
+A CI-failure fix session classified 8 red checks on one promotion pull
+request and found a second session driving the same artifact from the same
+prompt. It stayed read-only and watched the default-branch tip and the
+published-review count until both held unchanged for 25 minutes. That window
+closed three times; on the third a push landed 1 minute later, and a fourth
+push followed after a further 12-minute window.
+
+On the final verification read the check rollup showed 161 successes and 0
+failures, and the pull request carried the implementation-go label. Before
+reporting the work done, a lifecycle re-read showed the pull request `MERGED`
+17 minutes earlier, by the concurrent lane, and the run history showed green
+against a head the waiting session never bound.
+
+Disposition: the waiting session reported the delivered state instead of
+claiming completion. The rule now requires the binding read again before any
+work starts after a wait, and treats a post-wait green read as a possibly
+stale signal until the lifecycle state confirms it.

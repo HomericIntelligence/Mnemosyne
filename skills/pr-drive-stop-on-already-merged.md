@@ -1,11 +1,11 @@
 ---
 name: pr-drive-stop-on-already-merged
-description: "Stop a review-and-merge drive at the binding step when the target pull request is already merged. Use when a task says to review a pull request and drive it to merged, before any review round, comment, or auto-merge."
+description: "Stop a review-and-merge drive at the binding step when the target pull request is already merged, and check the lifecycle state again before you start after you waited for another lane. Use when a task says to review a pull request and drive it to merged, before any review round, comment, or auto-merge. Also use when a long task (for example a CI-failure fix session) queued behind a concurrent writer, and your final verification read reports green against a head you never bound."
 category: ci-cd
 date: 2026-10-31
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
-tags: [pull-request, merge-state, review-drive, terminal-state, forge, zero-writes]
+tags: [pull-request, merge-state, review-drive, terminal-state, forge, zero-writes, concurrent-lane, lifecycle-recheck]
 ---
 
 # Stop a PR Drive When the Target Is Already Merged
@@ -25,6 +25,11 @@ tags: [pull-request, merge-state, review-drive, terminal-state, forge, zero-writ
 - A queued batch of drive tasks can contain items that merged while they waited.
 - The pull request carries a review-state label, such as an implementation-go marker, from an earlier round.
 - You hold a stale claim that the pull request is open, blocked, or waits for review.
+- A long task was queued behind a concurrent writer who owned the same
+  artifact, and your final verification read shows green against a head you
+  did not bind. The artifact may have merged while you waited.
+- Your first binding read happened before a long wait, so the head you
+  classified is no longer the head you report.
 
 ## Verified Workflow
 
@@ -65,6 +70,30 @@ Continue useful work when a step is unavailable. If the merge commit is absent f
 the target branch, treat the delivery as not proven and re-check the forge record
 before any claim.
 
+### Re-bind after a wait
+
+A binding taken before a long wait is stale the moment the branch moves. In
+one observed session a lane waited about four hours while a second agent
+drove the same artifact, read green checks against a head it never bound, and
+was ready to report the work done. A single `state,mergedAt` read then showed
+the artifact merged 17 minutes earlier, by the concurrent lane.
+
+So run the binding read again before you start after any wait, not only at
+the start:
+
+1. Read `state,mergedAt,mergeCommit,headRefOid,labels` again.
+2. If the state changed, discard the earlier classification and failing-node
+   list: they describe a head that no longer exists.
+3. Prove the delivery on the target branch (ancestry check above) and stop
+   with zero forge writes.
+4. Report the delivered state: the merge timestamp, the merge commit, who
+   merged it, and that the final green read was produced by the concurrent
+   lane's repairs, not by your patch.
+
+Treat a green verification read that follows a long wait as a possibly
+stale-signal read until step 1 confirms the state. A long wait means the
+artifact can change state.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -84,6 +113,7 @@ Decision table for the binding read:
 | State is merged; merge commit is an ancestor of the default branch | Stop; zero forge writes; record the lesson |
 | State is merged; merge commit is absent from the default branch | Treat delivery as unproven; re-check the forge record |
 | State is closed without a merge | Report the terminal state and follow the task rule for delivered or stopped work |
+| A verification read after a wait shows green against an unbound head | Re-read the lifecycle state before any report; the green belongs to the lane that drove the artifact |
 
 ### Expected Output
 

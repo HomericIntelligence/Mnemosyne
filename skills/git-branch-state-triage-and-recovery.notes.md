@@ -19,6 +19,7 @@ Supporting cases for
 | Parallel-rewrite partial supersession in a rebase | Anonymized internal PR session | verified-local | Per-intent-unit proof found one surviving behavioral check after the resolved diff read empty; the surviving unit shipped as one minimized commit on current trunk |
 | Rebase task on a PR merged before work started | Anonymized internal rebase session | verified-local | `state=MERGED`, `mergeStateStatus=UNKNOWN`, source ref deleted; path-scoped diff against the squash merge commit read empty; no rebase and no push |
 | Tracking-ref tip read after a refspec-only fetch | Anonymized coordinated multi-lane delivery session | verified-local | The fetch updated `FETCH_HEAD` only; the tip statement was stale by dozens of merges until an unqualified fetch and the forge branch API rebound it |
+| Closed PR replacement after head-fork deletion | Anonymized internal session | verified-local | Owner deleted the head fork; both PRs auto-closed and `gh pr reopen` returned `GraphQL: Could not open the pull request (reopenPullRequest)` even after a same-named fork was re-created, because the PRs' head binding pointed at the deleted repository identity. Recovered each head from the surviving local clone, verified tips matched the recorded `headRefOid` values, pushed to the new fork, and opened replacement PRs linking the closed ones as superseded |
 
 ## Detailed Verification
 

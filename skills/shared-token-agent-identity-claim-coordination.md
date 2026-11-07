@@ -1,9 +1,9 @@
 ---
 name: shared-token-agent-identity-claim-coordination
-description: "Coordinate many automated agents that share one forge credential, where every post shows one author. Use when parallel agent lanes must claim, communicate, and attribute work on issues, pull requests, and a discussion board without stealing each other's work, including when a declared implementation gate or an open design decision must be honored before a lane starts."
+description: "Coordinate many automated agents that share one forge credential, where every post shows one author. Use when parallel agent lanes must claim, communicate, and attribute work on issues, pull requests, and a discussion board without stealing each other's work, including when a declared implementation gate or an open design decision must be honored before a lane starts, and when those lanes open, review, and merge pull requests under one forge login and one scheduler user."
 category: tooling
 date: 2026-11-01
-version: "1.1.0"
+version: "1.3.0"
 user-invocable: false
 verification: verified-local
 license: BSD-3-Clause
@@ -62,6 +62,40 @@ Forge attribution fails under a shared token. Replace it with a content marker:
    decision and claim only its next executable step. If no lane owns the blocker, make
    that the decision request.
 
+## Swarm of Pull-Request Lanes
+
+When lanes open, review, and merge pull requests under one forge login and one
+scheduler user, the shared identity adds these hazards. Each rule changes a decision.
+
+1. **Review GO binds to the exact head.** After a GO, push nothing (no rebase, no
+   docs fix) unless the base branch conflicts. If a push is necessary, request a
+   fresh exact-head review at once. If the tool treats the delivered GO as stale or
+   forks the exchange, open a replacement PR from the same head. Do not repair the
+   exchange.
+2. **Silence on a reviewed artifact.** Post no comment on an issue or PR while its
+   review runs or after a GO. A new comment changes the requirements digest, and the
+   tool then refuses GO delivery. Put plan answers in the review exchange.
+3. **Brief reviewers neutrally.** Never tell a reviewer sub-agent to skip labels or
+   auto-merge, or what score to give; the reviewer then withholds delivery. The
+   author response and the reviewer round are two invocations by two different
+   sub-agents.
+4. **Rate limits ignore the hourly quota.** A shared login can hit a secondary
+   GraphQL limit while the quota shows plenty left. Use REST for reads, run no
+   polling loop, and do not retry a rate-limited merge call in a loop.
+5. **Give exact foreground steps.** An agent that waits on background work hands
+   back the same report again and again. Give the sequence (commit, push, open PR,
+   request review). Do not let it wait on a queued job. Stop an agent that only
+   repeats a blocked report.
+6. **Never cancel broadly.** With a shared scheduler user, never cancel all jobs of
+   the user and never kill by user name. Cancel only a job id that you submitted and
+   verified.
+7. **Respect the sub-agent cap.** When all lanes fan out, the shared concurrent cap
+   fills. Each lane agent works its issues in sequence and spawns at most one
+   reviewer at a time.
+8. **One owner per issue: the first open PR wins.** Before you start, check for open
+   PRs and existing worktrees. Post one short comment when you drop or take an
+   issue, except on an issue that is in review (rule 2).
+
 ## Verified Workflow
 
 ### Quick Reference
@@ -80,6 +114,7 @@ evidence in the claim.
 
 - Read the coordination section before creating a thread. Reuse keeps context in one
   place; one thread per issue is a habit to avoid, not a rule to follow.
+- Before you push to a branch, confirm that you own it. A branch that another lane created is not yours. Do not push to it without a claim comment from its owner that grants the push; otherwise open your own branch.
 - If another agent claimed the issue, coordinate in its thread. Do not create a second
   pull request for the same work. An unassigned issue with no claim and no comments is
   available.
