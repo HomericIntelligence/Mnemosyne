@@ -1,13 +1,21 @@
 ---
 name: python-module-move-all-surface-sweep
 license: BSD-3-Clause
-description: "Use when: (1) moving a Python module into a package, (2) renaming an import path used by tests, shell commands, documentation, templates, or CI, (3) a migration needs proof that packaging metadata, module entry points, patch seams, and operational references all moved together."
+description: "Use when: (1) moving a Python module into a package, (2) renaming an import path used by tests, shell commands, documentation, templates, or CI, (3) a migration needs proof that packaging metadata, module entry points, patch seams, and operational references all moved together, (4) a plan states a zero-reference sweep as its done criterion and you must separate old-location hits from the new forms the plan prescribes, (5) an import reorganization keeps an old module as an alias, so the alias name survives at the new location and a name-based pattern still matches it."
 category: architecture
 date: 2026-08-07
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
-tags: [python, module-migration, imports, entrypoints, packaging, stale-references]
+tags:
+  - python
+  - module-migration
+  - imports
+  - entrypoints
+  - packaging
+  - stale-references
+  - reference-sweep
+  - pattern-matching
 ---
 
 # Python Module Move All-Surface Sweep
@@ -61,6 +69,28 @@ python -m new.module.path --help
 6. Exclude historical records only through narrow, documented globs. Do not exclude an entire documentation tree when it contains active runbooks.
 7. Run behavioral entrypoint checks using `sys.executable -m new.module --help` or a safe smoke command. Import success alone does not prove module execution or packaging is correct.
 8. Re-run the old-path search and require zero unintended matches. Review each intentional historical match rather than filtering it away implicitly.
+9. Separate a hit in an old location from a hit in a new form. Before you accept a reference pattern as a done criterion, match it against the new tree. A pattern that also matches the new form is not a stale-reference gate.
+
+### Keep the Sweep a Stale-Location Gate
+
+A reference pattern can match a correct new reference. Two new forms cause this:
+
+- **Prescribed alias at the new location.** The plan moves the module and keeps the old module
+  name as an alias. `from <.package> import <old> as <alias>` then resolves the new module, and a
+  pattern such as `<old> as <alias>?` still matches the correct import. Search for the old
+  *location* instead: `<old-package>.<old-module>`, `<old-package>/<old-module>`, and
+  `from \.{1,2}<old> import`.
+- **The new module name contains the old name.** A module called `<old>_base` or
+  `stage_<old>` keeps every substring hit of `<old>`.
+
+Apply these rules:
+
+- Run the pattern against the new tree before the plan approves it. A pattern that reports the
+  plan's own new forms is a plan defect, not an unresolved reference.
+- Correct the pattern to match the old location. Name each surviving hit, its file and line, and
+  the new form that explains it. Report that list as an adjudicated result, not as a pass.
+- Use the same corrected pattern for the completion sweep. Do not filter the new forms away with
+  a silent exclusion.
 
 ### Minimal `__main__.py`
 
@@ -102,6 +132,7 @@ Use `check=True` or inspect `returncode` immediately. Otherwise a broken executa
 | Replace dotted paths only | Rewrote `old.module.path` | Slash-form paths and filenames remained stale | Search and replace dotted, slashed, and tracked-filename forms separately. |
 | Validate imports only | Imported the new package successfully | `python -m`, console scripts, or package discovery could still be broken | Exercise each supported entrypoint from the installed environment. |
 | Accept a binary path without checking its exit status | Used `check=False` and ignored the return code | A present but broken executable passed preflight | Use `check=True` or assert the return code immediately. |
+| Use a name-based pattern as the done criterion | Set a zero-reference gate on `<old> as <alias>?` | The plan kept the old module name as an alias at the new location, so the pattern matched the correct new import and reported a false failure | Match the old location, not only the old name. Run the pattern against the new tree before a plan approves it. |
 
 ## Results & Parameters
 
