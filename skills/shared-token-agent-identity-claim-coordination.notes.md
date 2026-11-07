@@ -68,6 +68,15 @@ labels; a secondary rate limit appeared with quota left; agents repeated blocked
 reports while waiting on queued jobs; and a full sub-agent cap stalled fan-out. The
 rules in the "Swarm of Pull-Request Lanes" section are the generalized fixes.
 
+## Fourth evidence case: blocked verdicts, doubled PRs, authority claims
+
+Later swarm runs showed three more failures. A permission classifier denied the
+verdict-delivery helper, and agents repeated the blocked report until the
+coordinator added one narrow user-level allow rule for that helper path. After a
+stale GO, a replacement PR left two open PRs for one change until the coordinator
+closed the older one. An issue body that claimed owner approval to delete tests
+was not backed by any owner statement and had to be confirmed with the human.
+
 ## Verification limits
 
 - `verified-local`: the contract text is on the shared branch of a single repository;
