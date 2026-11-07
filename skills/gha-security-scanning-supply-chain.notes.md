@@ -45,14 +45,31 @@ execution.
 ### Bandit and zizmor proposals
 
 The LOW-baseline design requires duplicate-key rejection, typed schema validation, exact count
-comparison, an explicit review reference, and atomic update. It is not evidence that a baseline
-checker was shipped. Likewise, extending zizmor from workflows to tracked composite Actions was a
-reviewed design: required CI/pre-commit use offline parity, scheduled scans may retain online audits,
-and regression tests derive roots from tracked files. Both remain unverified.
+comparison, an explicit review reference, and atomic update. A scheduled lane later ran that design:
+the per-row triage branch in the main entry passed in CI. Likewise, extending zizmor from workflows
+to tracked composite Actions was a reviewed design: required CI/pre-commit use offline parity,
+scheduled scans may retain online audits, and regression tests derive roots from tracked files. The
+zizmor root extension remains unverified.
+
+### Baseline drift case (2026-11, `verified-ci`)
+
+The scheduled security lane ran a LOW count baseline while the pre-merge lane ran only a
+medium-or-higher scan. One scheduled run reported four changed rows: one reduced rule ID and three
+increased ones.
+
+- Regenerating on current trunk produced larger counts than the failing run, because three merges
+  had landed after it. Triage used the trunk report, not the run report.
+- The reduced row traced to a change that replaced two internal asserts with an explicit raise. The
+  guard became stronger while the count fell.
+- One import-flag row and the matching call and partial-path rows came from the same new call sites.
+  Each call site used a fixed argument vector, no shell, captured output, and a finite timeout.
+- The baseline update command rewrites its provenance field and re-sorts the keys, so the file has
+  one canonical update path. A hand edit loses that property.
+- The gate had no pre-merge signal. The only acceptance evidence was the next scheduled run.
 
 ## Compaction Disposition
 
-- Kept in main: all distinct triggers, enforcement boundaries, pin/digest rules, SARIF commands,
+- Kept in main: all distinct triggers, enforcement boundaries, pin/digest rules, SARIF commands, drift triage,
   baseline failure modes, and verification caveats.
 - Moved here: project narratives, observed failure sequence, and proposal context.
 - Archived only: volatile version/SHA tables, long workflow listings, and full prior examples.

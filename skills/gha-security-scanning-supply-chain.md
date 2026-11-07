@@ -3,7 +3,7 @@ name: gha-security-scanning-supply-chain
 description: "Configure GitHub Actions security scanning and supply-chain checks with complete inputs, visible failures, and appropriate dependency scope."
 category: ci-cd
 date: 2026-08-07
-version: "2.0.1"
+version: "2.1.0"
 user-invocable: false
 license: BSD-3-Clause
 verification: verified-local
@@ -154,14 +154,40 @@ with `if: always() && hashFiles('<report>') != ''` so a finding does not suppres
 
 ### 4. Maintain a fail-closed reviewed baseline
 
-This subsection is proposed, not verified. A baseline checker should deserialize with duplicate-key
-rejection, validate the schema and nonnegative integer counts, and compare exact rule IDs. An
-increase is a regression; a reduction means the baseline is stale; a missing or malformed report is
-an error, never “zero findings.” Updating the baseline is a distinct command that requires a
-reviewable issue/PR reference, writes atomically, and re-runs comparison afterward.
+A baseline checker should deserialize with duplicate-key rejection, validate the schema and
+nonnegative integer counts, and compare exact rule IDs. An increase is a regression; a reduction
+means the baseline is stale; a missing or malformed report is an error, never “zero findings.”
+Updating the baseline is a distinct command that requires a reviewable issue/PR reference, writes
+atomically, and re-runs comparison afterward.
 
 The report-generation command must use `--exit-zero` only to ensure the checker always receives the
 complete JSON. The checker, not Bandit's ordinary finding exit, becomes the policy gate.
+
+Gate scope decides what a drift failure means. When a medium-or-higher scan runs pre-merge but a LOW
+count baseline runs only on a schedule or manual dispatch, the baseline gate is repository-wide. It
+sees every merge after the previous refresh, while pull requests carry no signal from it. Its first
+failure therefore does not identify one culprit commit, and it grows with each unscanned merge.
+
+Triage a drift failure before you change any count:
+
+1. Re-run the generation and comparison commands on current trunk. Do not compare against the tree
+   of the failing run, because commits that merged after that run change the counts again.
+2. Map each changed row to the commit and call site that caused it. Compare the report with the
+   baseline's last-refresh commit, not with the previous run.
+3. Re-classify in one pass. The before and after counts of several IDs can match even when different
+   call sites caused them. Accept an individual row only when its own call site matches the
+   approved pattern for its test ID: a fixed argument vector, no shell, bounded timeout, and
+   captured output.
+4. Reject any changed row that is a real security regression, and handle it on its own.
+5. Only then update the baseline with the existing update command, and re-run comparison.
+
+Treat the pull-request record of the per-row review as the review the update requires. Record rows
+that landed after the reported failure separately, because the regenerated counts include them.
+
+Two rows often move together and are not separate defects. Dropping a fail-closed `assert` for an
+explicit raise reduces the assert count, and the raise makes the guard stronger. A new
+`import subprocess` raises the import flag, and the same call site raises the call and partial-path
+counts. Read the paired rows as one change before you attribute them.
 
 ### 5. Verify the complete gate
 
@@ -182,6 +208,8 @@ complete JSON. The checker, not Bandit's ordinary finding exit, becomes the poli
 | Pin only direct actions | Updated workflow `uses:` entries | A transitive action still failed during setup | Inspect the pinned action's metadata and upgrade the parent |
 | Trust a mutable release | Used `@v4`, latest URLs, or `curl | bash` | The reviewed bytes can change without a diff | Pin immutable SHA/digest before execution |
 | Treat missing baseline input as clean | Parser returned an empty result on invalid JSON | Broken evidence silently passed | Validate strictly and fail closed |
+| Refresh counts without triage | Ran the update command as soon as a scheduled run reported drift | A pass-through refresh accepts a real regression, and a per-run count hides later merges | Re-run on trunk, map each row to its commit and call site, then update |
+| Attribute paired rows separately | Read a reduced assert count and a new subprocess count as independent changes | A fail-closed raise and its call site move two rows together | Read paired rows as one change before classifying |
 | Scan workflows only | zizmor ignored `.github/actions/` | Composite Actions escaped pin and permission audits | Inventory all tracked action roots and keep command parity |
 
 ## Results & Parameters
@@ -195,12 +223,14 @@ complete JSON. The checker, not Bandit's ordinary finding exit, becomes the poli
 | Upload permission | Job-local `security-events: write` |
 | Installer | Pinned version + platform-specific SHA-256, verified before execution |
 | Bandit baseline | Exact reviewed rule counts; increase, decrease, missing, or malformed = fail |
-| Baseline update | Explicit reference, atomic write, immediate re-check |
+| Baseline update | Explicit reference, atomic write, immediate re-check, after per-row triage on current trunk |
 
 ## Verified On
 
 - 2026-08-07: established workflows and local command contracts (`verified-local`).
-- Proposed Bandit LOW-baseline and composite-Action extensions remain unverified.
+- 2026-11-06: fail-closed LOW-baseline design ran in a scheduled lane; the drift triage branch is
+  `verified-ci`.
+- Composite-Action zizmor root extension remains unverified.
 - Source cases and their individual evidence boundaries are indexed in
   [the notes](./gha-security-scanning-supply-chain.notes.md).
 
