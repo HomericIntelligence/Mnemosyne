@@ -105,6 +105,40 @@ optional log directory and standard-error fallback, and stated the disposition
 of the family with no production load path. The review also required each
 behavior test to load through the real loader rather than a private helper.
 
+## 2026-11: A warning that already fires keeps its trigger (v3.9.0 source case)
+
+A read-only planning probe for an issue that asked to turn a strict gate into a
+warning over several artifact kinds. The probe classified the issue as
+requirements with each criterion marked held or remaining. The probe also added
+one result rule that the earlier notes did not state.
+
+What the tree proved:
+
+- One artifact kind already warned. Its seal policy docstring stated the intent:
+  an absent record is unverified, not wrong. The launch warns once and
+  continues. A record that exists but is corrupt, unreadable, or whose digests
+  differ stays a hard failure. An existing behavior test proved both branches.
+- That warning sits behind an opt-in flag. The rendered caller supplies the
+  flag, so the flag is a deliberate default for its caller set. Flipping the
+  default affects every call site, including the ones that must keep failing.
+- A second artifact kind still refused. The refusal was documented in the
+  function docstring as a fail-closed pre-submission check, and it had about
+  twenty raise sites, including absent-record cases. Two callers reached it.
+- One gate the issue listed as a refusal raised a permission-class error for a
+  missing input. The probe could not prove from the code whether that is an
+  integrity check that must stay strict or a record gate to downgrade. It
+  reported this as an open decision for the plan.
+
+Rule that the probe recorded:
+
+- Mark each deliverable held or remaining. Do not change the trigger of a
+  warning that already fires, and reuse its shape instead of adding a second
+  warning mechanism.
+- Name the calling sets of an opt-in flag before you propose to change its
+  default.
+- When a gate sits on a permission or path class, ask whether the class, not the
+  wording, decides that it stays strict.
+
 ## Retrieval note
 
 This file is a companion and is not part of normal retrieval. Keep rules in the main
