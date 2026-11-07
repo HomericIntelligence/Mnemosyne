@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Repair documentation whose prose claims drifted from forge state or from its own rules while structure gates stayed green. Use when a docs review finds stale status markers, citations to deleted stores, closed-issue references, false counts, or a template rule that no test enforces."
 category: documentation
 date: 2026-11-01
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags:
@@ -83,6 +83,7 @@ git grep -hoE '(is not active|are not active|is Planned\.|no implementing issue)
    | Tracking or tracker reference | Is the referenced tracker still open? |
    | Fixed count or mapping claim | Does a command on the tree produce that number? |
    | Command or path in a runbook | Does the file, unit, or subcommand exist in the tree? |
+   | Coverage claim about named paths | Does the pattern set name a path that every writer of that class writes, and does it leave no covered class out? |
 
 3. **Read the template rule before you change a marker.** The template states what the marker
    carries. In the captured case the rule required a link to "the issue that owns the remaining
@@ -101,37 +102,45 @@ git grep -hoE '(is not active|are not active|is Planned\.|no implementing issue)
    Read one page before you generalize. A page can look fully implemented at the top and name a
    planned gate 120 lines down.
 
-5. **Separate "owner missing" from "status wrong".** These are different repairs with different
+5. **Verify a coverage claim against the writers, not against the pattern list.** When prose says a
+   pattern set covers a class, for example "every log family", list the code sites that write a
+   path of that class, and compare them with the patterns. A covered path proves one match. It does
+   not prove coverage. A class with no pattern stays unrotated or unbounded, and no gate fails,
+   because a pattern set with a missing entry is still valid syntax. When a range is wider than a
+   constant (`{digits}` followed by a `*` tail), also confirm that the narrow reject case is a
+   different length from the minimum. If the tail absorbs the case, the minimum is untested.
+
+6. **Separate "owner missing" from "status wrong".** These are different repairs with different
    risk. An ownership repair re-points a link. A status repair changes a claim about the product.
    Report the split before you plan. Do not classify every closed-issue marker as a defect: an
    Active page can link the delivery record that closed its work, and that is not drift. Only a
    marker whose page names remaining work, but which links a closed record, is a defect.
 
-6. **Confirm that the parent tracker is closed before you promise a re-point.** When the page's
+7. **Confirm that the parent tracker is closed before you promise a re-point.** When the page's
    component epic, tracker, or delivery issue is also closed, there is no open owner to link. Then
    the choice is: open one tracking issue for the remaining work (record it in the pull-request
    body), or correct the status word. Never invent an owner.
 
-7. **Resolve citations to a deleted store by re-homing, not by deleting.** For each citation,
+8. **Resolve citations to a deleted store by re-homing, not by deleting.** For each citation,
    replace the dead number with the live page that now carries the rule, or inline the rule when
    no page carries it. Keep the one citation that the tree itself preserves and explains, and
    make that the only entry in the gate allowlist. Do not reintroduce the store.
 
-8. **Treat an agent-instructions contradiction as the highest-priority finding.** When one
+9. **Treat an agent-instructions contradiction as the highest-priority finding.** When one
    section of the repository rules says a store is retired, and another section of the same file
    says it is "frozen pending" a closed issue, the file teaches both rules. Repair the
    contradictory text to the rule the repository already adopted. Do not soften it into advice.
 
-9. **Make count and mapping claims reproducible.** Replace a stated number with a number that a
+10. **Make count and mapping claims reproducible.** Replace a stated number with a number that a
    command produces, or make the claim true by changing the tree. Run the command inside the test
    so the next change fails visibly.
 
-10. **Gate each repaired class offline with a committed allowlist.** Follow the repository's
+11. **Gate each repaired class offline with a committed allowlist.** Follow the repository's
     existing registry style: a set of accepted values with a comment naming why each entry is
     accepted. Prove the gate fails by reintroducing one instance of each class, run the gate,
     confirm the failure, and revert. Record the proof runs in the pull-request body.
 
-11. **Prove the class is visible to no other gate.** Run the strict build, the structural tests,
+12. **Prove the class is visible to no other gate.** Run the strict build, the structural tests,
     and the link check on the unrepaired tree. If they pass, state that in the issue, so the
     reviewer accepts that a new gate is necessary and not duplicated.
 
@@ -165,6 +174,7 @@ Captured receipts at one bound revision of a large documentation tree:
 | Project / Issue | What was observed (locally, this session) |
 | --------------- | ----------------------------------------- |
 | LLM360/comet, docs alignment review and issue #3866 | Full review at a bound SHA found 11 findings behind green gates. The plan was corrected three times before review: the non-link form was invalid, the trackers were closed, and the status words were mostly correct. The per-page procedure in step 4 made the work decidable. |
+| LLM360/comet, review of PR #3863 | A log-rotation config claimed to cover every production log family. The pattern set was valid and the dry run passed, but one writer class had no pattern and grew without bound. Step 5 converted the claim into a check on the writers. |
 
 ## Related Skills
 
