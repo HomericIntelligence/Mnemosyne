@@ -1,13 +1,13 @@
 ---
 name: agents-pr-review-evidence-discipline
 license: BSD-3-Clause
-description: "Use PR-head evidence for rename reviews, distinguish local checks from observed CI, and avoid unnecessary follow-up commits."
+description: "Use PR-head evidence for rename reviews, distinguish local checks from observed CI, avoid unnecessary follow-up commits, and prove every added fix or regression test with a before/after result."
 category: tooling
 date: 2026-07-11
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-local
-tags: [pr-review, evidence-tagging, branch-vs-tip, dry-thrash, auto-merge, code-review, adr-014, verified-local, verified-ci, chore-rename]
+tags: [pr-review, evidence-tagging, branch-vs-tip, dry-thrash, auto-merge, code-review, adr-014, verified-local, verified-ci, chore-rename, remedy-proof, mutation-check, regression-test]
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/agents-pr-review-evidence-discipline.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -31,6 +31,7 @@ history-cleanup-date: "2026-09-20"
 - Deciding whether to push a follow-up commit on a chore branch.
 - Deciding whether to enable `--auto --rebase` on a sub-repo PR.
 - Catching a teammate's overclaim that "CI is green" without `gh pr checks` evidence.
+- Deciding whether an added regression test proves the behavior it names.
 
 ## Verified Workflow
 
@@ -72,7 +73,20 @@ gh pr checks <PR> --repo <org>/<repo> --jq '.[] | select(.conclusion=="FAILURE")
 
 **Concrete example from this session:** Telemachy#300, Mnemosyne#3050, Odyssey#5584, and Keystone#603 had zero residuals on their chore branches. The 4 cosmetic PRs (plus 4 others) received clean verdict comments rather than follow-up commits, avoiding merge conflicts with the operators' in-progress work. Rule: if `grep -rnE "project<Name>" --exclude-dir=.git .` returns 0, post a clean verdict, do not commit.
 
-4. **Auto-Merge Isolation.** `--auto --rebase` is per-PR; one PR's gate state does not transfer. Each PR must be evaluated independently against its own `gh pr checks` output.
+4. **Remedy proof.** A claim that a fix or a new test guards a behavior is evidence only when one run shows the old code failing it and one run shows the new code passing it. A test that passes before and after the change asserts nothing about that change. A comment or a probe from another reviewer is not that evidence.
+
+```bash
+# 1. Run the new test at the base commit: it must fail.
+git stash push -- <test file>   # or check out the base test file
+uv run --locked pytest <test file> -q    # expect a failure
+git stash pop
+# 2. Run it at the reviewed head: it must pass.
+uv run --locked pytest <test file> -q
+```
+
+**Concrete example from this session:** a guard for a client/server error split was tested only at one call site, so a regression at the other call site would still show a full green run. The reviewer added a test that forces each error number at that call site and ran it in both trees: it fails at the base commit and passes at the amended head. The reviewer then reported `GO after this fix` with the new commit instead of a plain `GO`. Note the limit: that reviewer compared the source-level result by hand, because a test that only forces an error number cannot fail at a base commit whose code does not yet contain the split. State which result was observed, and do not claim a base-run failure you did not run.
+
+5. **Auto-Merge Isolation.** `--auto --rebase` is per-PR; one PR's gate state does not transfer. Each PR must be evaluated independently against its own `gh pr checks` output.
 
 **Concrete example from this session:** Eleven sub-repo PRs were reviewed independently. One PR's gate state (e.g. Agamemnon#444 green) does NOT transfer to another (e.g. Charybdis#274 may be red). Each PR's `--auto --rebase` arming is per-PR:
 
@@ -89,6 +103,7 @@ gh pr merge 444 --auto --rebase --repo HomericIntelligence/Agamemnon
 | 1 | NO-GO on Agamemnon#444 based on `origin/main` HEAD showing `ProjectAgamemnon_core` literal | The chore branch (HEAD `3de2053`) was clean; the literal was on main, not on the PR | Always verify on the PR's head branch, not default-branch tip |
 | 2 | "CI is green" claim without `gh pr checks` | Speculative; risked approving a PR with a red gate | Tag evidence level: only `verified-ci` after observation |
 | 3 | Pushed follow-up cosmetic commits to a clean chore branch | Triggered merge conflict with operator's working copy | If the PR is clean, report the verdict without a noise commit; continue remaining requested work |
+| 4 | Accepted a passing test as proof of a regression guard | The test passed before and after the change, so it proved nothing | Run the new test at the base commit and at the head; report a fix only with both results |
 
 ## Results & Parameters
 
@@ -100,6 +115,7 @@ gh pr merge 444 --auto --rebase --repo HomericIntelligence/Agamemnon
 | `chore/rename-*` with verified CI green | Post clean verdict, do not push follow-up | `verified-ci` (cite `gh pr checks` output) |
 | `chore/rename-*` with CI status unobserved | Post clean verdict with evidence tag | `verified-local` (do not overclaim `verified-ci`) |
 | Strictly cosmetic `chore/*` PR | Post clean verdict, no follow-up commit | `verified-local` |
+| PR with a defect that needs a fix or a new guard test | Push the smallest correct commit, run the new test at the base and at the head | `GO after this fix` plus both run results |
 
 ### Naming
 
