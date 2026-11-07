@@ -1,9 +1,9 @@
 ---
 name: derive-pin-from-source-of-truth-not-hardcoded-literal
-description: "Derive a version, digest, image lineage, or other pin from its canonical source instead of comparing against a literal, treat descriptive documentation as current state rather than a rule to enforce, and keep a sealed-artifact gate strict. Use when: (1) a build, gate, or probe script asserts a specific version, digest, lineage value, or path set, (2) the asserted value also exists in a manifest, recipe, lockfile, or environment file, (3) documentation states the toolchain or lineage currently in use, (4) an existing check compares a materialized copy of a manifest instead of the manifest itself, (5) a hardcoded value sits inside a quoted heredoc where the surrounding variable cannot reach it, (6) a published artifact is refused by a gate that scans for bytes the artifact should never carry, or (7) a protected-location literal is removed by guessing at its consumers instead of using a field search."
+description: "Derive a version, digest, image lineage, or other pin from its canonical source instead of comparing against a literal, treat descriptive documentation as current state rather than a rule to enforce, and keep a sealed-artifact gate strict. Use when: (1) a build, gate, or probe script asserts a specific version, digest, lineage value, or path set, (2) the asserted value also exists in a manifest, recipe, lockfile, or environment file, (3) documentation states the toolchain or lineage currently in use, (4) an existing check compares a materialized copy of a manifest instead of the manifest itself, (5) a hardcoded value sits inside a quoted heredoc where the surrounding variable cannot reach it, (6) a published artifact is refused by a gate that scans for bytes the artifact should never carry, (7) a protected-location literal is removed by guessing at its consumers instead of using a field search, or (8) a policy literal, such as an identity, a role name, or an account name, must become a declared configuration field that each check site reads with no constant fallback."
 category: ci-cd
 date: 2026-11-01
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-local
 tags:
@@ -22,6 +22,9 @@ tags:
   - sealed-artifact
   - redaction-projection
   - protected-root-removal
+  - policy-literal
+  - required-configuration-field
+  - no-constant-fallback
 ---
 
 # Derive a Pin From Its Source of Truth, Not From a Literal
@@ -32,7 +35,7 @@ tags:
 | ------- | ------- |
 | **Date** | 2026-11-01 |
 | **Objective** | Keep every asserted version, digest, or lineage value derived from its canonical source so a source change propagates without a matching edit, and resist converting descriptive documentation into a new blocking rule. |
-| **Outcome** | Successful. Literal assertions inside quoted heredocs were replaced with values passed from the recipe, and an enforcement claim added to documentation was removed because the documentation described current state only. |
+| **Outcome** | Successful. Literal assertions inside quoted heredocs were replaced with values passed from the recipe, and an enforcement claim added to documentation was removed because the documentation described current state only. A plan-stage branch adds the promotion of a policy literal to a required configuration field. |
 
 A pin has exactly one owner: the manifest, recipe, lockfile, or environment
 file that declares it. Every script that asserts the pin reads that owner.
@@ -62,6 +65,9 @@ loosen the detector to remove a literal.
   protected value, such as an administrative root path.
 - You must remove a literal that names a protected location and other code
   depends on it.
+- A policy literal, such as an identity, a role name, or an account name, must
+  become a declared field on the configuration record, and each check site
+  must read that declaration.
 
 ## Verified Workflow
 
@@ -104,6 +110,7 @@ project --exclude-prefix <control-only-prefix>/ <source> <public>
 | Copy of an owner | A version inside a quoted heredoc that the recipe also declares | Replace. Pass the owner's value. |
 | Detector | The byte sequence a seal or privacy gate searches for | Keep. It is the requirement. |
 | Fixed policy | A path prefix the projection always omits | Keep. A content test makes the result depend on current values. |
+| Enforcement policy value | An identity, role name, or account name that a check site compares | Move to a declared field. The constant becomes the schema default only. A check site has no fallback. |
 | Redaction output | A protected value split into parts to stop it matching a scan | Do not do this. Remove the need for the value instead. |
 
 ### Suggested Approach
@@ -151,15 +158,70 @@ project --exclude-prefix <control-only-prefix>/ <source> <public>
     Then move the consumers to a declared field, such as a profile value, and
     fail closed when no declaration exists. A guessed replacement can drop a
     protection that the guess does not model.
-11. Check each remaining literal with a targeted search before you finish:
+11. Promote a policy literal to a declared field when the requester asks for a
+    required configuration value. Apply these rules:
 
-   ```bash
-   grep -rn '"13\.1"\|startswith("2\.11\.0")' scripts/*.sh scripts/*.sbatch
-   ```
+    - Move the value to a declared field on the configuration record that the
+      loader validates. Keep the constant only as the schema default. Each
+      check site must refuse when no declaration exists. A check site must
+      never fall back to the constant.
+    - Reuse the key name that another record in the system already uses for the
+      same concept when code compares the two records field to field. Do not
+      reuse a similar key with a different contract, such as a key that is
+      supplied only when it differs from the default. One name then has two
+      rules.
+    - A required field added to a permissive schema breaks existing callers and
+      test fixtures. Before you select the failure shape, probe the
+      missing-field message. Confirm that the message names the missing field.
+      If a cross-field validator says only that the model is invalid, prefer a
+      local per-field validator, or a modelled optional field with a validator
+      that names the key. Keep the shape that names the key.
+    - Do not put a trailing inline comment after the first `key: value` line of
+      a YAML file. Such a comment corrupts later parsing expectations in that
+      file's readers. Put the explanatory prose in the plan or the
+      documentation page.
+    - Leave provenance literals unchanged. Examples are a `Literal`-typed
+      default that records history, SQL text, and a grant table that a database
+      migration also encodes. List each literal as an exception with its
+      reason.
+    - Record external fixtures that must also change as a separate follow-up
+      record. An example is a bootstrap verifier that cannot import the
+      application package by design.
+    - Refuse a default on the required field and refuse a constructor helper
+      that fills absent keys with the constant. `Field(default=CONSTANT)` makes
+      the "required" field optional. A constructor helper that merges the
+      constant into the payload makes the enforcement path accept what the
+      schema rejects, so the constant is again the source of truth. When many
+      constructors need the new keys, add one shared test helper. Do not add a
+      production seam that exists only to prevent test edits.
+    - Keep one named fallback path for a configuration that does not exist,
+      such as a selection with no profile file. State the outcome of that path:
+      a note, a refusal, or a pass. Refuse the fallback on a path that has a
+      configuration but a missing key.
+    - Run the acceptance check through the production loader. A check that
+      validates a record through a helper proves the helper, not the required
+      field.
+    - Classify each literal replacement by its use. Convert a site when it
+      resolves an identity or compares against an expected identity. Keep a
+      record, a data row, and a schema literal as data.
+    - Match an exact string constant, not a raw token, when you count the
+      literal population. Token counts include imports and substrings and
+      overstate the enforcement sites.
+    - Verify an import-direction claim against the layer map and the current
+      importers before you use it to justify a design. A layer claim that the
+      import gate contradicts invalidates the plan, not the change.
+12. Check each remaining literal with a targeted search before you finish:
 
-8. Run a syntax check on each changed script. Exercise each argument-passing
-   form directly before you commit, because a heredoc argument error reaches
-   a long build only after the build starts.
+    ```bash
+    grep -rn '"13\.1"\|startswith("2\.11\.0")' scripts/*.sh scripts/*.sbatch
+    ```
+
+    Map each hit to a stated reason. For a policy literal, the reason must name
+    the declared field that replaced it, or the exception that keeps it.
+
+13. Run a syntax check on each changed script. Exercise each argument-passing
+    form directly before you commit, because a heredoc argument error reaches
+    a long build only after the build starts.
 
 Supporting case detail is in [the notes](./derive-pin-from-source-of-truth-not-hardcoded-literal.notes.md).
 
@@ -173,6 +235,10 @@ Supporting case detail is in [the notes](./derive-pin-from-source-of-truth-not-h
 | Assembled a protected value from parts to pass a byte scan | Wrote the value as separate path segments, then called the parts to get the same run-time value | The value still existed at run time, the source no longer described the location, and the build copied the bytes into bytecode | Remove the value from shipped input; do not redact it |
 | Pruned the published tree by scanning it for the protected bytes | Deleted every payload file that contained the value before publication | The published tree then depended on the current data, and the result changed on each release | Apply one fixed path rule in the projection and keep the data out of the published artifact |
 | Removed a protected-location constant after a partial consumer search | Deleted the constant and rewired only the first consumer found | A later consumer used the value differently, so a guessed replacement could have dropped a protection | List every consumer first, move each one to a declared field, and fail closed when the declaration is absent |
+| Added a required configuration field to a permissive schema without probing the failure message | Marked the new field as required and ran one test with the field absent | The cross-field validator reported that the model was invalid and named no field, so the caller could not tell which value was missing | Probe the missing-field message before you select the failure shape; keep the shape that names the key |
+| Kept a check site on the module constant as a compatibility fallback | Left the constant as the fallback value when the configuration record declared no policy value | The check passed with no declaration, so the constant again decided the result and the drift remained | A check site must refuse when no declaration exists; the constant is the schema default only |
+| Marked the field required but gave it the constant as a default | Wrote `Field(default=CONSTANT)` on a field whose acceptance criterion is "an absent key fails validation with the key name" | The default applies, validation passes, and the criterion and the field state opposite rules | A default and a required-field criterion cannot both hold; use a strict field with no default |
+| Added a constructor classmethod that fills absent keys with the constant | Added a classmethod that merges the constant into the payload when a key is absent, so existing callers and test fixtures need no edit | The enforcement path called the wrapper, so a record without the keys passed the install, and the named test asserted the fallback while the file table required a failure | Keep the schema strict; move constructor edits into one shared test helper; keep the no-configuration fallback on one named path |
 
 ## Results & Parameters
 
@@ -186,6 +252,11 @@ Supporting case detail is in [the notes](./derive-pin-from-source-of-truth-not-h
 | Seal scan | the protected bytes, scanned in every installed file | Keep it; it is the requirement |
 | Projection rule | a fixed path prefix that the projection omits | Not a content test of the current data |
 | Inventory update | drop the rows and directory entries of excluded members | The manifest and the gate scan the same population |
+| Policy field | a required field on the validated configuration record | The only authority for a policy value |
+| Constant after promotion | the schema default | Not a fallback at a check site |
+| Key name | the name that another record already uses for the same concept | Not a similar key with a different contract |
+| Missing-field message | an error that names the missing field | Probe it before you select the failure shape |
+| Provenance literal | a `Literal` default, SQL text, or a grant table that a migration also encodes | Keep it, and state the reason for each exception |
 
 ### Expected Output
 
@@ -195,6 +266,11 @@ Supporting case detail is in [the notes](./derive-pin-from-source-of-truth-not-h
 - Documentation states current state and adds no unrequested constraint.
 - A published artifact carries no protected bytes, and its inventory
   describes the same tree that the gate scans.
+- A policy value comes from a declared field, and a missing declaration fails
+  the check with a message that names the field.
+- No default and no constructor helper supplies the constant when a declared
+  field is absent.
+- The acceptance check runs the production loader, not a wrapper.
 - The seal or privacy gate keeps its original strictness.
 
 ## Verified On
@@ -203,6 +279,12 @@ Supporting case detail is in [the notes](./derive-pin-from-source-of-truth-not-h
 | --------- | --------- | ------- |
 | Model-serving pipeline | Container image build and gate scripts | Literals replaced with recipe arguments; syntax and argument-passing forms exercised directly. See [notes](./derive-pin-from-source-of-truth-not-hardcoded-literal.notes.md). |
 | Python packaging release lane | Public wheel refused by its own self-containment gate | Fixed path-prefix exclusion in the projection with matching inventory rows, and the protected-location literal removed by a field search. The plan review confirmed the approach; focused tests and static checks passed locally. See [notes](./derive-pin-from-source-of-truth-not-hardcoded-literal.notes.md#evidence-public-artifact-refused-by-its-own-seal). |
+
+**Plan-stage evidence only (v1.2.0).** A read-only source survey and a plan
+produced the policy-literal rule in step 11 and its two Failed Attempts rows.
+No implementation and no test run confirmed this rule. Do not read the rule as
+a runtime verification. The case detail is in
+[the notes](./derive-pin-from-source-of-truth-not-hardcoded-literal.notes.md#evidence-policy-literal-promoted-to-a-required-configuration-field).
 
 ## References
 
