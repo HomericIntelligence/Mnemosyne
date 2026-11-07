@@ -182,6 +182,57 @@ stay:
 python3 -c "import torch; assert torch.version.cuda == '$BASE_CUDA_VERSION'"
 ```
 
+## Evidence: policy values moved from constants to a profile
+
+Context: a control-plane service enforced one administrator group and one
+service account, and both names were module constants and repeated literals
+across many modules. An owner decision made both names required fields of the
+cluster profile, and each check must enforce the declared value. This entry
+records a planning session only. The issue was planned; no source change and
+no test run confirmed the outcome.
+
+The survey classified each check site into four groups. The groups are the
+reason the durable rule is "classify first"; a blind literal sweep would have
+broken the isolation in the second group.
+
+| Class | Site shape | Decision |
+| ----- | ---------- | -------- |
+| Policy declaration copy | A runtime identity or ownership check that holds a project context or an already-loaded profile | Resolve the declared value. Existing resolver first. |
+| Trust-isolation literal | A bootstrap file verifier that must run without project configuration and states that limit in its own module comment | Keep the literal and record the reason. |
+| Stored-record vocabulary | A closed enum, a grant table that a database migration mirrors, and typed receipt fields | Keep. A declared change needs a migration or a schema change. |
+| Test-only default | A classmethod default that only tests exercise | Keep, and record that no runtime caller uses it. |
+
+Other decisions from this plan:
+
+- The profile keys take the names that the requirement text uses, so a
+  refusal names an unambiguous key. A generic name such as `principal` would
+  be ambiguous beside the deployment-spec field of the same kind.
+- The install preflight replaced a non-blocking note with a blocking finding.
+  A check that degrades to a note cannot refuse a value the profile requires.
+- Repair paths re-pin ownership from the resolved names, not from a constant.
+- The SQL statements inside the bootstrap flow take the declared value as a
+  bind parameter. A quoted SQL literal is the same copy as a Python literal.
+- The residual constant is deleted when no check reads it. One constant stays
+  as a function-parameter default for path-only helpers with no active
+  profile.
+
+Bounded searches used during the survey:
+
+```bash
+# Every runtime identity check.
+grep -rn 'getpwnam(\|getgrnam(\|administrator_gid()' src --include=*.py
+
+# Every literal that can be a policy copy.
+grep -rn '"<service-account>"' src --include=*.py | grep -vE 'Literal\[|: str = |Field\(default='
+
+# Field use before you delete a constant.
+grep -rn "CONSTANT_NAME" src tests scripts docs
+```
+
+Evidence boundary: the survey read the source and the tests and ran no test.
+The check-site count and the classification are a planning result, not a
+verified behavior.
+
 ## Bounded searches used
 
 ```bash
