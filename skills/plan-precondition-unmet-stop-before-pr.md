@@ -1,9 +1,9 @@
 ---
 name: plan-precondition-unmet-stop-before-pr
-description: "Stop before you open a pull request when an approved plan turns out to be an operator procedure with no code change, or when the artifact it modifies does not exist yet. Use at implementation start, after you read an approved plan and before you commit, to separate a missing precondition from a missing capability so you report the difference and do not manufacture scope."
+description: "Stop before you open a pull request when an approved plan turns out to be an operator procedure with no code change, or when the artifact it modifies does not exist yet. Use at implementation start, after you read an approved plan and before you commit, to separate a missing precondition from a missing capability so you report the difference and do not manufacture scope. Also use when the plan's pass rule lists the expected fields of a generated record and you must learn offline whether the real function still produces exactly those fields."
 category: tooling
 date: 2026-11-01
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 tags:
   - approved-plan
@@ -13,6 +13,8 @@ tags:
   - no-circular-justification
   - scope-discipline
   - operational-procedure
+  - pass-rule-verification
+  - computed-record-fields
 ---
 
 # Stop Before a PR When a Plan's Preconditions Are Unmet
@@ -91,19 +93,31 @@ a reason to report the block, not a reason to create a stand-in.
    mechanism the operator will use works, and it shows no new test is needed.
    That is useful evidence to hand over and it is not a code change.
 
-6. **Reconcile conflicting plan comments explicitly.** If several comments
+6. **Re-derive the plan's pass rule with the real function, not from the
+   plan text.** A pass rule that lists the fields a generated record may
+   change is a prediction. Run the product's own generator, if its inputs
+   are readable, against the last published artifact and the current source
+   tree. Diff the two records. If a field appears or changes that the pass
+   rule does not list, report it as a plan defect. Do not widen the rule
+   yourself and do not assume the added field is unwanted: the renderer may
+   compare it at launch. Put the measured table in the block report and ask
+   whether the operator should accept the new fields or a plan revision
+   should update the rule.
+
+7. **Reconcile conflicting plan comments explicitly.** If several comments
    change the plan, use the latest only when it says it revises the earlier
    one. When the latest comment neither revises nor withdraws the plan but
    describes different commands, report the conflict and both readings. Do not
    pick a winner by recency alone.
 
-7. **Report the block once, then stop.** Put the classification, the absent
-   artifact, the denial probe, the verified evidence, and the stale citations
-   in one comment. Offer concrete options so the owner can choose: defer to
-   the real execution point, revise the plan, or name a different deliverable.
-   This is a report, not a request for one field. Finish the turn.
+8. **Report the block once, then stop.** Put the classification, the absent
+   artifact, the denial probe, the verified evidence, the pass-rule diff, and
+   the stale citations in one comment. Offer concrete options so the owner can
+   choose: defer to the real execution point, revise the plan, or name a
+   different deliverable. This is a report, not a request for one field.
+   Finish the turn.
 
-8. **Confirm the negative state.** Prove you made no write: the working tree
+9. **Confirm the negative state.** Prove you made no write: the working tree
    is clean, no commit was created, no branch was pushed, and no approval
    label was set. Report the head identifier so the reader can confirm nothing
    moved.
@@ -120,7 +134,7 @@ a reason to report the block, not a reason to create a stand-in.
 
 ```yaml
 # What to record for a block report
-block_kind: missing_precondition | missing_capability | conflicting_plan
+block_kind: missing_precondition | missing_capability | conflicting_plan | plan_pass_rule_mismatch
 load_bearing_input: "<path or artifact the plan modifies>"
 input_exists: false
 probe_command: "<read-only check>"
@@ -129,6 +143,14 @@ plan_edits_repository: false
 verified_evidence:
   - "<test suite that proves the reused mechanism works>"
   - "<constants that still match the tree>"
+pass_rule_check:
+  generator: "<function the operator command calls>"
+  inputs:
+    - "<last published artifact, read-only>"
+    - "<current source tree>"
+  declared_fields: ["<fields the plan's pass rule allows to change>"]
+  measured_fields: ["<fields that actually changed>"]
+  undeclared_fields: ["<fields that changed but the rule does not list>"]
 stale_citations: []
 ```
 
@@ -137,6 +159,7 @@ stale_citations: []
 - One classification: operational procedure, or code change.
 - One existence result for the load-bearing input.
 - One capability probe result with its exact message.
+- One pass-rule result: the fields the rule allows, the fields that actually change, and the undeclared fields.
 - One clarification comment with concrete options for the owner.
 - A clean working tree with no commit, no push, and no label change.
 
@@ -145,8 +168,10 @@ stale_citations: []
 | Project | Context | Details |
 | --------- | --------- | ------- |
 | Not applicable | General tooling rule. Repository-specific evidence is withheld. | Worked on one approved operational plan whose draft artifact did not exist. |
+| Not applicable | General tooling rule. Repository-specific evidence is withheld. | A second approved operational plan declared that only derived identity fields may change. The real generator also added three provenance fields, because a source change added the values. The report named the mismatch and asked for either acceptance or a plan revision. See [notes](plan-precondition-unmet-stop-before-pr.notes.md). |
 
 ## References
 
 - [Blocked Probe: Pinned Evidence Substitution](blocked-probe-pinned-evidence-substitution.md) — use when a substitute path can still settle the facts; this entry covers the case where none can.
 - [Verify Issue Premise Before Implementing](verify-issue-premise-against-code-before-planning.md) — check the premise before planning; this entry checks executability at implementation start.
+- [Live Hotfix Content-Addressed Identity Rotation](live-hotfix-content-addressed-identity-rotation.md) — computes new digests with the system's own functions for a live write; step 6 of this entry uses the same function to test a plan's pass rule before any write.
