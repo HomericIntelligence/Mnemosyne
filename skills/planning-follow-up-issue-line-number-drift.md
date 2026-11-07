@@ -1,10 +1,10 @@
 ---
 name: planning-follow-up-issue-line-number-drift
 license: BSD-3-Clause
-description: "Resolve stale audit or follow-up citations by current content; distinguish partial fixes and verify documented commands against the live task runner."
+description: "Plan and repair externally filed documentation issues (audit findings, doc nits, follow-ups): resolve stale citations by current content, distinguish partial fixes, source documented commands from the live task runner, and manage the flag set of a printed command by the inputs its operation reads. Use when: (1) an issue cites line numbers or a code range that may have moved, (2) an issue claims a documented command is wrong and the file may be partially fixed, (3) a page documents a printed command and a later fix corrected the printed message but not the page, (4) a repair must choose flags for a documented command that the parser accepts but the selected operation ignores."
 category: documentation
 date: 2026-06-19
-version: "1.1.1"
+version: "1.2.0"
 user-invocable: false
 verification: verified-local
 tags:
@@ -19,6 +19,12 @@ tags:
   - partial-fix
   - justfile
   - command-reference
+  - documented-command-drift
+  - printed-message-parity
+  - args-consumption-parity
+  - ignored-flag
+  - operation-scoped-input
+  - docs-only-repair
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/planning-follow-up-issue-line-number-drift.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -35,6 +41,11 @@ history-cleanup-date: "2026-09-20"
 | **Objective** | Correctly locate the real documentation gap when a follow-up issue's cited line numbers have shifted due to intervening PR merges |
 | **Outcome** | Successful — plan correctly identified that the function docstring was already fixed by PR #1303, but the module-level `FAILS LOUDLY` block still omitted the marker-excluded fallback case |
 | **Verification** | verified-local |
+
+The same discipline applies to a documented command, not only to cited line numbers. A printed
+command is correct only when its flag set equals the inputs the selected operation reads. A flag
+that the parser accepts and the operation ignores is a defect in the text, even when the command
+runs without error.
 
 When a follow-up issue is filed during or after a sibling PR's review process, the cited file
 state often lags behind `main`. The function-level fix the issue targets may have already landed,
@@ -56,6 +67,8 @@ and find the actual remaining gap.
 - Any issue filed from within another PR's review thread (high likelihood of pre-merge line number references)
 - **(v1.1.0, unverified)** Any doc-audit issue that claims "lines X–Y use the wrong/phantom command" — the file may have been **partially fixed** since filing, so one of the cited lines may already be correct
 - **(v1.1.0, unverified)** Issues about phantom/stale `just` recipes or command references in onboarding/getting-started docs — source each command from the live justfile before editing
+- **(v1.2.0)** An issue says a documented command carries a flag that the operation ignores, or that a page still shows a command after a sibling fix corrected the message that prints it
+- **(v1.2.0)** You must choose the flag set for a documented command whose parser accepts more flags than the selected operation reads
 
 ## Verified Workflow
 
@@ -92,6 +105,14 @@ grep -n 'agamemnon-start\|nestor-start\|start-agamemnon\|start-nestor' docs/onbo
 #    correct name from one convention; grep each candidate.
 grep -nE '^[a-z]' justfile                      # list every real recipe name
 grep -nE '^(start-|[a-z-]+-start)' justfile     # both naming conventions
+
+# --- v1.2.0 — documented command flag set vs operation inputs ---
+# 8. Find the printed reference: the program that emits the follow-up command.
+grep -rn '<operation-name>' scripts/                 # the hint the page must match
+# 9. Read which inputs the selected operation actually consumes.
+sed -n '<parser-range>p;<operation-branch-range>p' <module>.py
+# 10. Delegate the flag choice to the parser after the edit; it reports required inputs.
+python3 -m <module> --operation <name> --release-manifest M   # run in a scratch dir
 ```
 
 ### Detailed Steps
@@ -200,6 +221,39 @@ issue was filed, so a blind edit that follows the issue text re-breaks an alread
 - Assumed no OTHER docs (`architecture.md`, `deployment.md`, `runbooks/`) reference the same
   phantom recipe; a repo-wide grep beyond `docs/` was not run. **Do run it.**
 
+#### Step 8 (v1.2.0): Match a documented command to the flags its operation reads
+
+An issue can report that a page documents a follow-up command with a flag that the selected
+operation ignores. The parser accepts the flag, the command exits 0, and nothing tells the
+operator that the value had no effect. Treat the flag set as a claim to verify, like a line
+number.
+
+1. **Read the operation, not the parser.** Find the branch that handles the selected operation.
+   Record the attributes it reads. A flag is correct only when a branch that the selected
+   operation takes reads it. An attribute that only another operation reads is a defect in the
+   documented text, not in the program.
+2. **Use the printed message as the reference text.** When a sibling fix corrected the command
+   that the installer or CLI prints, the page must print the same flag set in the same order.
+   Diff the page command against the emitter, not against your reading of the parser.
+3. **Keep the flags the flow needs.** Drop only the ignored flag. Keep the context or lane flag
+   when the flow uses one, even if the operation falls back to a default without it, because the
+   page must name the same context the operator selected. Copy the emitter's conditional shape:
+   the emitter appends the context flag only when it used one.
+4. **Delegate required inputs to the parser.** Do not add a test of a help string. Run the
+   documented command in a scratch directory. The operation's own input check reports a missing
+   required input before any effect. A scratch run that reaches that check proves that the
+   documented set is complete.
+5. **Sweep the tree for the same defect.** Grep every mention of the flag in live `docs/` pages.
+   Treat the other hits as separate commands: an operation-scoped flag is valid for the operation
+   that reads it. Do not change a hit in another flow (scope fidelity).
+6. **Check what the page guard tests.** A docs test may machine-check only the command table.
+   Then the repaired command is prose and no test parses it. Record that limit in the plan and in
+   the pull-request body.
+
+**Failure mode this step prevents:** the page keeps a flag that the parser accepts and the
+operation ignores. An operator reads the page, believes the value is recorded, and gets no
+confirmation or rejection.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -212,6 +266,8 @@ issue was filed, so a blind edit that follows the issue text re-breaks an alread
 | (v1.1.0, unverified) Treat "lines X–Y are broken" as atomic | Would have edited both cited lines 232–234 per Odysseus #182's claim that `agamemnon-start` AND `nestor-start` were phantom | Ground-truth grep showed line 232 already read the correct `start-agamemnon`; only line 233's `nestor-start` was stale — a blind edit re-breaks the already-correct line | Re-verify EACH per-line claim independently; the file may be partially fixed since the issue was filed |
 | (v1.1.0, unverified) Trust the command names in the issue body | Planned the edit using the recipe names the issue quoted | Issue command names were stale/wrong; the real recipes live only in the justfile | Source every documented command from the live justfile (`grep -nE '^[a-z]' justfile`) BEFORE planning the edit |
 | (v1.1.0, unverified) Infer the "correct" recipe name from one naming convention | Assumed Odysseus used a single convention, so guessed the canonical form | The justfile mixes verb-first (`start-nestor`) AND prefix-first (`hermes-start`) — both are live; the doc had a mix and only `nestor-start` was wrong | You cannot infer the correct name from one convention; grep each candidate against the justfile |
+| (v1.2.0) Judge a documented flag by the parser | The issue claimed a documented command carries an ignored flag. The parser declares the flag, so the command is valid syntax | The selected operation branch never reads the attribute; the parser declares flags for every operation | Compare the flag set with the attributes the selected operation reads, and use the emitter as the reference text |
+| (v1.2.0) Drop ignored flags together with the context flag | Considered keeping only the manifest and source flags to "minimize" the command | The flow selects a deployment context, and the emitter appends the context flag when it used one; a page without it names a different target | Drop only the ignored flag; keep the context flag, in the emitter's order and conditional shape |
 | (v1.1.0, unverified) Fix the root-cause mixed convention inside a doc-fix PR | Considered normalizing the justfile's two naming conventions | That is a refactor, out of scope for a doc-fix issue, and would balloon the change | Flag the root cause in the plan/PR, do not fix it; keep the doc-fix scoped |
 
 ## Results & Parameters
@@ -297,5 +353,6 @@ root cause but out of scope for the doc fix; flag it, don't fix it.
 
 | Project | Context | Details |
 |---------|---------|---------|
+| Private delivery repository | Docs-only follow-up issue from a round-1 review of a sibling fix | A cutover page documented a follow-up activation command with a flag that the parser declares and the selected operation ignores; the sibling fix had corrected only the printed installer message. The plan removed the ignored flag, kept the deployment-context flag in the emitter's order, and used the operation's own input check for validation. Verified-local by reading the parser and the operation branch at one bound revision. |
 | ProjectHephaestus | Issue #1306 — stale docstring in `scripts/check_license_compatibility.py` | Function docstring already fixed by PR #1303; module-level `FAILS LOUDLY` block was the real remaining gap |
 | Odysseus (v1.1.0, **unverified** — planning-stage only) | Issue #182 — phantom `just` recipes in `docs/onboarding.md` | Issue claimed both `agamemnon-start` and `nestor-start` broken at lines 232–234; ground-truth showed line 232 already correct (`start-agamemnon`), only `nestor-start` stale — partial-fix near-miss avoided by re-verifying each per-line claim |
