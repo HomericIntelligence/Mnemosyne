@@ -1,5 +1,34 @@
 # Premise Checks: Notes
 
+## 3.9.0 — the issue's own citations are premises
+
+Source evidence: a read-only session that classified one feature issue. The session had to
+answer "is this a requirements issue, a tracker, or obsolete?" from repository evidence.
+
+What the cited-path check found:
+
+- The issue asked for an update to a named operations page. The path did not exist. The
+  repository kept only a differently named inventory page and a release-operations
+  directory. Writing the named page would have created an unowned document.
+- The issue cited a decision-record path and referenced that record as the direction to
+  follow. A merged documentation closeout had removed the whole decision-record store.
+  The policy text that the issue depended on still lived in a code docstring and in
+  component pages, so the rule was usable, but only after the citation was re-anchored.
+- The issue also asked for two related issues to be closed. Forge state was outside the
+  session's evidence, so the disposition kept that ask live and named the uncertainty
+  instead of reporting it done.
+
+What the session also had to separate:
+
+- One part of the requested behavior was already delivered and verifiable in the tree:
+  an absent manifest produced a warning and the work continued.
+- Another part was still fail-closed at a different production call site, so the issue
+  was not obsolete. Checking one delivered branch is not enough to close a multi-site
+  conversion; each cited gate needs its own current check.
+
+Rule applied: grep every cited path in one pass, date each absence, re-anchor the
+deliverable to the current owner, and state the re-anchoring in the reason.
+
 ## 3.5.0 — a collect-all report cannot use a validating reader
 
 Source evidence: a plan review of a deployment-install issue. The plan promised one
