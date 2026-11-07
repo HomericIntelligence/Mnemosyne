@@ -1,102 +1,115 @@
 ---
 name: shared-fs-group-directory-provisioning
-description: "Provision a POSIX group-writable setgid directory on shared storage so each group member's new files keep the group. Use when: (1) a team needs a shared drop area on a cluster or shared filesystem, (2) ownership or write failures occur for group members, or (3) you must size available capacity before team use."
+description: "Provision the right shared-filesystem directory mode, and place user-owned entries below it correctly. Use when: (1) a team needs a shared drop area on a cluster or shared filesystem, (2) ownership or write failures occur for group members, (3) the service account must read files that another user wrote, (4) per-user entries share one parent with service-private records, (5) a declared path manifest or an inventory check must accept the new entries, or (6) you must size available capacity before team use."
 category: tooling
 date: 2026-10-21
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
-tags: [posix, permissions, setgid, group, shared-storage, provisioning, umask, quota]
+tags: [posix, permissions, setgid, sticky, group, shared-storage, provisioning, umask, quota, per-user, path-manifest, identity-encapsulation]
 ---
 
-# Shared-Filesystem Group Directory Provisioning
+# Shared-Filesystem Directory Provisioning
 
 ## Overview
 
 | Field | Value |
 | ------- | ------- |
 | **Date** | 2026-10-21 |
-| **Objective** | Create one directory on shared storage where every member of a team group can write, and new entries inherit that group without a later manual fix. |
-| **Outcome** | Successful. One directory with mode `2775` owned by the team group served every group member, verified with `ls -ld` and a capacity check on the containing mount. |
+| **Objective** | Select the correct shared directory mode for one writer relationship, and give the consumer path to each user-owned entry. |
+| **Outcome** | Operational. Mode `2775` served one team group. Mode `3733` served many users who write one parent that a service account reads. Mode `2750` served one user's entry that the service group reads. |
 
 ## When to Use
 
-List the conditions in which to use this skill:
-
-- Create a shared area for a team or service group on a cluster or shared filesystem.
-- Group members report permission-denied or wrong-group files in a shared area.
-- Answer a capacity question for a directory before large team artifacts move in.
+- Create a shared area for a team or service group on a shared filesystem.
+- Group members report permission denied or wrong-group files in a shared area.
+- A service account cannot read files that users write, or it reads a file that another user must not overwrite.
+- Several users stage entries in one parent that also holds service-private records.
+- A declared path manifest, attestation, or repair tool must accept the new entries.
+- Answer a capacity question for a directory before large artifacts move in.
 
 ## Verified Workflow
 
 ### Quick Reference
 
-Verify the group and membership first, then set ownership and the setgid group-writable mode, then verify the result:
+Select the mode from the writer and reader relationship. Do not copy one mode to a different relationship:
+
+| Writers | Reader | Parent mode | Entry mode | Purpose |
+| --- | --- | --- | --- | --- |
+| One team group | That group | `2775` (`2770` for team-only) | umask `002` | Group-writable team area |
+| Many users | One service account | `3733` (setgid + sticky + write/execute) | `2750` or `750`, owner is the user | Per-user drop area |
+| Any | Any | A mode that hides the parent | — | Isolation of one user's entries |
+
+Verify each step:
 
 ```bash
-getent group TEAM_GROUP        # group exists; who are the members
-id -nG                         # current user is a member, or use an admin path
-mkdir -p PATH
-chgrp TEAM_GROUP PATH
-chmod 2775 PATH                # 2 = setgid: new entries inherit TEAM_GROUP
-ls -ld PATH                    # expect drwxrwsr-x ... TEAM_GROUP
-df -h PATH                     # capacity: a directory has no separate quota by default
+getent group TEAM_GROUP        # the group exists
+id -nG                         # the current user is a member
+install -d -m 2775 PATH        # team area, or -m 3733 for a many-user parent
+install -d -m 2750 PARENT/USER # one user's entry below a 3733 parent
+ls -ld PATH PARENT/USER        # expect drwxrwsr-x, or drwxrws-wt, or drwxr-s---
 ```
 
 ### Suggested Approach
 
-1. Bind the group before a write. `getent group` shows the group record and its
-   member list. `id -nG` shows the active group list for the current user. If
-   the user is not a member, `chgrp` fails; request group addition or an
-   administrator action instead of a permission workaround.
-2. Use mode `2775` (or `2770` for team-only access). The setgid bit makes each
-   new file and subdirectory inherit the directory group. `chmod g+s` adds the
-   same bit to an existing directory. A recursive setgid repair is only useful
-   on directories, for example `find PATH -type d -exec chmod g+s {} +`.
-3. Verify with `ls -ld`. Expect `drwxrwsr-x` with the team group name.
-4. For a capacity question, inspect the mount, not the directory. A directory
-   has no size limit of its own except when the filesystem enforces per-tree or
-   per-user quotas. `df -h PATH` and `stat -f PATH` show the mount capacity.
-   When quota tools are absent or unsupported by the mount type (for example a
-   virtiofs share), the effective capacity is the free space of the mount, and
-   a hard limit needs storage-side policy, not a client change.
+1. Decide the writer set first. One group that shares work needs `2775` with umask `002`. Many users who each own their files, and one service account that reads them, need a parent that is group-writable, group-executable, not group-readable, and sticky. Mode `3733` gives that parent.
+2. Bind the group before a write. `getent group` shows the record. `id -nG` shows the current group list. If the user is not a member, request an administrator action. Do not work around the group.
+3. Use setgid for inheritance. The setgid bit makes each new file and subdirectory inherit the parent group. The service account then reads user files without a per-user group. `chmod g+s` adds the bit to an existing directory. A recursive setgid repair applies to directories only, for example `find PATH -type d -exec chmod g+s {} +`.
+4. Use the sticky bit when many users write one parent. The sticky bit lets a user remove or rename only its own entries. The service account cannot replace another user's entry. Add it together with setgid: mode `3733` shows as `drwx-ws-wt`.
+5. Choose the entry mode from the reader. An entry that the service group must read takes `2750` (`drwxr-s---`), so other users get no traversal. An entry that only its owner uses takes `0750`. Do not use `0700`; the service account then cannot traverse it.
+6. Check the identity of the reader against the mode. The sticky bit stops deletion, not reading. A parent that ordinary users can list reveals the names of other users' entries. Use group-write plus group-execute without group-read (`rwx-wx` style) when names must stay private.
+7. Keep service-private records out of the shared parent. A private record directory below the same parent keeps mode `0700` and its own owner. Only the parent changes mode. Change the mode check that runs for the parent, not the one for the private records.
+8. Update the declared path manifest and the inventory or attestation tool together with the mode. Use one component token for a user name in a glob-style manifest, not a pattern that also matches the private record names. A token that cannot overlap another pattern prevents an ambiguous-policy refusal. The token must also refuse a name that starts a segment with a dot, `.intake*`, or `../`.
+9. Verify with `ls -ld` and with the tool that consumes the path. Expect `drwxrwsr-x` for `2775`, `drwxrws-wt` for `3733`, and `drwxr-s---` for `2750`.
+10. For a capacity question, inspect the mount, not the directory. `df -h PATH` and `stat -f PATH` show mount capacity. A directory has no size limit of its own unless the filesystem enforces tree or user quotas.
 
 Keep these failure modes in view:
 
-- A member's default umask of `022` removes group-write permission on new
-  files. Members use umask `002` for shared work, or they repair with
-  `chmod g+w`. The setgid bit controls the group, not the mode.
-- A copied tree does not always keep the setgid bit or the group. `cp -a` or
-  `cp -p` keeps modes; a plain `cp` follows the bits of the new parent for
-  ownership but uses the umask for the mode.
-- Group changes do not reach existing sessions. A user must start a new
-  session, or run `newgrp TEAM_GROUP`, before a new membership applies.
+- A default umask of `022` removes group write from new files and group execute from new directories. Members use umask `002` for shared work, or repair with `chmod g+w`. The setgid bit sets the group, not the mode.
+- A copied tree does not always keep the setgid bit or the group. `cp -a` and `cp -p` keep modes. A plain `cp` uses the umask for the mode.
+- Group changes do not reach existing sessions. Start a new session or run `newgrp TEAM_GROUP`.
+- A mode check that demands `0700` and owner equality on the shared parent rejects every user-written parent. Update that check with the mode change.
+- A path manifest that lists only service-owned names refuses the new user entries, and an ambiguous match stops the attestation. Change the manifest in the same change.
 
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 | --------- | ---------------- | --------------- | ---------------- |
-| N/A | The direct approach was successful. | N/A | No change was necessary. No POSIX quota tools (`quota`, `repquota`) were available on the share type in use; this absence is normal for some mount types and changes how capacity questions must be answered. |
+| Setgid alone for many users | Used `2775` for a parent that many users and one service account share. | The group write lets one user delete or rename another user's entry. Group read also reveals the names of other users' entries. | Add the sticky bit for many writers. Use `3733` to hide the names without stopping the service account. |
+| Entry mode `0700` | Gave each user a private entry below a group-writable parent. | The service account is not the entry owner, so it cannot traverse the entry, and every read fails. | Use group-execute for the reader: `2750` with the service group. |
+| Manifest unchanged | Changed the directory mode but kept the manifest patterns for service-owned names only. | The attestation and repair path classified the new entries as unknown or ambiguous and refused the tree. | Update the manifest, the token, and the mode check in one change. |
 
 ## Results & Parameters
 
 ### Configuration
 
-- Mode `2775`: team group can write, world can read. Use `2770` for team-only.
-- Umask `002` for users who keep shared work group-writable.
+```yaml
+team_area:
+  mode: 0o2775            # 0o2770 for team-only access
+  umask: 0o002
+many_user_parent:
+  mode: 0o3733            # setgid + sticky + write/execute
+  entry_mode: 0o2750      # owner is the user, group is the service group
+service_private_child:
+  mode: 0o700
+```
 
 ### Expected Output
 
-- `ls -ld PATH` reports `drwxrwsr-x <owner> TEAM_GROUP`.
-- New files and subdirectories under `PATH` report group `TEAM_GROUP`.
-- `df -h PATH` reports the mount total, used, and available capacity.
+- `ls -ld` reports `drwxrwsr-x` for the team area, `drwxrws-wt` for the many-user parent, and `drwxr-s---` for one user entry.
+- New files and subdirectories inherit the parent group.
+- A user cannot delete or rename another user's entry.
+- The service account reads every user entry that uses the group-execute mode.
+- The attestation or inventory tool accepts the new entries without an ambiguity error.
 
 ## Verified On
 
 | Project | Context | Details |
 | --------- | --------- | --------- |
-| Cluster shared-storage share | Provisioned a team model-artifact directory for a POSIX group; capacity question answered from the mount, which had no visible per-user quota tooling. | See [notes.md](../skills/shared-fs-group-directory-provisioning.notes.md). |
+| Anonymized shared-storage deployments | Team artifact directory provisioned with mode `2775`. Capacity question answered from the mount, which had no visible per-user quota tooling. | See [notes.md](shared-fs-group-directory-provisioning.notes.md). |
+| Anonymized service deployment | Many-user staging parent changed to mode `3733`, with private record directories kept at mode `0700` and the path manifest updated in the same change. | See [notes.md](shared-fs-group-directory-provisioning.notes.md). |
 
 ## References
 
 - [GNU coreutils: Directory Setuid and Setgid](https://www.gnu.org/software/coreutils/manual/html_node/Directory-Setuid-and-Setgid.html)
+- [POSIX.1-2017: Sticky bit on directories](https://pubs.opengroup.org/onlinepubs/9699919799/)
 - [Related skill](slurm-shared-storage-artifact-relocation.md) for moving large artifact trees into such a directory.
