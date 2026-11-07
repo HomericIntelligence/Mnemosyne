@@ -117,7 +117,43 @@ intact, and the running usage stood exactly at it.
   The session reported the deficit and the three remedies and left the
   operator decision open.
 
-## Amendment record
+## Pin test and preemption evidence (2026-11-07)
+
+A later session on the same kind of fleet QOS (four-node, 32-GPU cap, intact) held a
+model-replica job at `QOSGrpNodeLimit` for many hours while the account already ran jobs on
+nodes that showed free capacity and lower-tier jobs of other tenants.
+
+- Running usage stood at the four-node cap. The pending job asked for one half node: four
+  GPUs, 700 GiB of memory, and 16 CPUs.
+- The first explanation told the owner that the QOS counts one node per job, even on a node it
+  already counted. This was an inference. It was wrong.
+- Pinning the pending job to a node that already ran a job of the same QOS
+  (`scontrol update JobId=<id> ReqNodeList=<node>`) changed the reason from
+  `QOSGrpNodeLimit` to `Resources` within seconds. The QOS counts a shared node once.
+- With the reason at `Resources`, the scheduler preempted the lower-tier jobs on that node
+  (partition-priority preemption, requeue mode) and the pinned job started within about
+  one minute. Before the pin, the same job had pended at the QOS limit for hours and the
+  scheduler never evaluated preemption.
+- The preemption setup that explained it: `PreemptType=preempt/partition_prio`,
+  `PreemptMode=REQUEUE`, partition tier 80 against tier 10, the QOS `Preempt` column empty.
+- The job later crashed for an engine reason. When it ended, a job of another tenant in the
+  same partition tier took the freed half node. That job could not be preempted. The next
+  pinned jobs then pended with reason `Resources` until it ended.
+- Per-node counters showed why a second job did not fit on another node: the CPUs were
+  exhausted by jobs of other tenants in the higher partition tier, and the requested
+  memory (not the used memory) of all jobs summed to nearly the node total.
+- A time estimate (`StartTime` in `scontrol show job`) appeared only after the job was past
+  the QOS limit.
+
+## Amendment record (1.2.0, pin test and preemption check)
+
+- Disposition `amend`, version 1.1.0 to 1.2.0, on the same canonical entry.
+- New decision value: the pin test that proves node co-location counts once, the preemption
+  setup check and its limit (same-tier jobs of other tenants are not preempted), the
+  three-counter node fit (GPU, CPU, requested memory), and one failed attempt (stating a
+  node-counting rule before the pin test).
+
+## Earlier amendment record (1.1.0)
 
 - Disposition `amend`, version 1.0.0 to 1.1.0, on the same canonical entry.
 - New decision value: the at-limit saturation branch, the node-count
