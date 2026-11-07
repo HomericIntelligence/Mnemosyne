@@ -171,6 +171,56 @@ could never pass.
   action outside the session. Its result was not observed, so this case does
   not establish verification beyond the local checks.
 
+## Evidence: declared identity values and a downgraded check
+
+This case comes from an implementation-planning session. It is evidence for
+the decision the plan selected, not for a completed change. No build or test
+run confirmed the result.
+
+Two identity literals existed in several modules: an administrator group name
+and a service account name. The active profile record had no field for either
+value. Enforcement was split across three sites:
+
+- One installer refused the install when the group was absent.
+- A later change turned that refusal into a non-blocking note, because the CI
+  runners lack the group.
+- A separate startup check resolved the account through the context record and
+  refused on a mismatch.
+
+The three sites therefore disagreed on the failure mode, and each held its own
+copy of the value. The note did not make the runner pass a real requirement.
+It removed the only signal that no profile declared the value.
+
+### Planned resolution
+
+1. The profile declares the administrator group and the service account as
+   required fields. An absent field is a validation error that names the
+   field.
+2. Every enforcement site reads the profile value or the context record value.
+   No site compares against a literal.
+3. One bind point combines the resolved context and the active profile, then
+   compares the declared value with the record value. It raises with the
+   profile key, the expected value, and the observed value.
+4. The refusal comes back for an active profile that requires the value. The
+   degraded note remains only where no profile is active.
+5. The test harness declares the host identity of the harness, such as the
+   primary group and account of the invoking user, in its stub. The production
+   check stays strict.
+
+### Literals that stay literal
+
+| Kind | Why the literal stays |
+| ---- | --------------------- |
+| Schema default anchor | No profile is active before the schema loads, so the default is the only declaration |
+| Closed record type | The value is part of the record contract that the writer emits |
+| Audit-writer attribution | The writer must state which identity it attributes the record to |
+
+### Diagnostic
+
+- Two check sites report different outcomes for one missing value.
+- A value appears in a note or a warning and no profile field declares it.
+- The message names the host, not the profile key that should hold the value.
+
 ## Parametric assertions to keep
 
 An assertion that compares an artifact with the value the owner declares is
@@ -204,3 +254,8 @@ The fix was verified by syntax checks and direct exercises of the
 argument-passing forms. The full image build that consumes the script had
 not completed when these notes were written, so the end-to-end build path
 remains unconfirmed.
+
+The declared-identity case was an implementation plan. No build, test, or
+deployment observed the planned bind point or the restored refusal. Treat
+that section as decision evidence and not as a verified result. The earlier
+cases in these notes keep their own stated limits.
