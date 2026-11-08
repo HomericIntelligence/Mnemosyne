@@ -33,3 +33,24 @@ configuration consistency checks into logged drift events and continued.
 Supervisor and validation call sites kept the standard-error branch in the
 same change. Supplying a per-deployment log directory to those call sites was a
 separate mechanical change.
+
+## Evidence for the authentication branch (added 2026-11-08)
+
+A reviewed implementation of a digest-downgrade removed the content-digest
+comparison from a frozen receipt model. The model described itself as verified,
+but the loader no longer proved that. Two consequences were measured:
+
+- An existing security test suite that asserted tampering raised an error lost
+  four tests. The same suite passed at the base commit.
+- A later guard compared a live audit prefix against a digest field read from
+  the receipt. With the model no longer self-verifying, that comparison checked
+  the live data against a value the caller supplied.
+
+The full review also found the ordering defect that the plan had forbidden: a
+drift event claimed that the operation continued, and the next statement raised.
+A drift event must be emitted only after the enforcement points that can still
+stop the operation.
+
+Reviewer check that found it: search the tree for the error text that the
+converted check used to raise. Each remaining test that asserts that text is a
+required outcome that the change must preserve or must name as converted.
