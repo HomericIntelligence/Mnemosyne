@@ -41,6 +41,19 @@ Observed details that shaped the rules:
    `rev-parse` need no network. The loop was rebuilt with the system git; only
    `fetch` and `push` used the bundled git (needed for its credential helpers
    and CA bundle in that environment).
+4a. **Signer-boundary scrub (v1.10.0 case).** On a second host the system git
+   existed but was git 2.34 (the oldest release with SSH signing), and the
+   operational tooling defaulted to the bundled git everywhere. A dumpenv
+   `gpg.ssh.program` shim around one probe commit showed the injected
+   environment exactly: `LD_LIBRARY_PATH=<bundled-install>/lib`,
+   `GIT_EXEC_PATH=<bundled-install>/libexec/git-core`, plus bundled
+   `GIT_SSL_CAINFO`/`SSL_CERT_FILE` paths. Plain `git commit -S -s` died with
+   `fatal: failed to write commit object` after `OpenSSL version mismatch.
+   Built against 30000020, you have 30500070?`. A wrapper
+   (`#!/bin/sh` + `exec env -u LD_LIBRARY_PATH /usr/bin/ssh-keygen "$@"`)
+   passed as a per-invocation `-c gpg.ssh.program=` value produced a valid
+   SSH signature object without switching git binaries or touching persistent
+   config.
 5. **GPG vs SSH signature appearance on the same repo.** Merge commits created
    by the forge show classic GPG verification (`gpg:` lines from
    `verify-commit`); author commits signed with an SSH key registered on the
