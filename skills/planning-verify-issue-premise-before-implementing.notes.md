@@ -105,6 +105,7 @@ optional log directory and standard-error fallback, and stated the disposition
 of the family with no production load path. The review also required each
 behavior test to load through the real loader rather than a private helper.
 
+<<<<<<< HEAD
 ## 2026-11: Correct the doc anchors, then dispose per ask (v3.8.0 source case)
 
 A planning probe for a "warn instead of fail closed" issue checked four kinds of
@@ -159,6 +160,33 @@ Rules the case supports:
    plan with a tracking action, not a code action in the consumer.
 3. An accepted alternate acceptance form discharges the delivery criterion by
    evidence, not by a mock run.
+=======
+## 2026-11: A usable-plan verdict needs more than premise truth (v3.9.0 source case)
+
+Source evidence: a read-only request to state in one line whether a release-plan
+file was a usable implementation plan. The file cited verified premise rows
+(merged pull requests, absent scripts, untracked inputs), one residue pattern, and
+one command per acceptance criterion, so every premise check passed.
+
+The read found four defects that the premise checks cannot see (generalized):
+
+- One instruction deleted a cited line range. A later instruction kept a
+  sub-range of that range and gave no replacement text, so the stop rule would
+  have been deleted and then edited as if it still existed.
+- The file carried two header and revision blocks. The content had a preamble
+  sentence before the second header, which shows a concatenation rather than an
+  intentional revision.
+- An unresolved item left the edit authority for another record open after the
+  plan required that edit, so the implementation order could not start on a
+  deterministic step.
+- One item only said to update a state line, with no target text.
+
+The verdict was `not usable`, with the four items named, and the answer stayed at
+the requested one-line form plus a short justification. Rule applied: a plan file
+is judged for execution, not only for premise truth; an edit that voids a cited
+range, a structural duplicate, an unowned required action, and an unnamed change
+each block use.
+>>>>>>> a8745c09 (feat(planning-verify): judge a plan file for use, not only premise truth)
 
 ## Retrieval note
 
